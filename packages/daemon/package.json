@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsc -b && node scripts/copy-web-assets.mjs",
     "dev": "tsc -b --watch",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc -b"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.0",

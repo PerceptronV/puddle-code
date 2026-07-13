@@ -8,7 +8,9 @@ export default defineConfig(
   { ignores: ['**/dist/**', '**/node_modules/**', 'docs/**'] },
   {
     files: ['**/*.{js,mjs}'],
-    languageOptions: { globals: { console: 'readonly', process: 'readonly' } },
+    languageOptions: {
+      globals: { console: 'readonly', process: 'readonly', URL: 'readonly' },
+    },
   },
   {
     files: ['**/*.{js,mjs,ts,tsx}'],
