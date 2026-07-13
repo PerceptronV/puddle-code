@@ -43,8 +43,7 @@ export class ProfileStore {
 
   getSettings(id: number): ProfileSettings {
     const row = this.db.prepare(`SELECT settings FROM profiles WHERE id = ?`).get(id) as
-      | Pick<Row, 'settings'>
-      | undefined;
+      Pick<Row, 'settings'> | undefined;
     if (!row) throw ApiError.notFound('profile', id);
     return profileSettingsSchema.parse(JSON.parse(row.settings));
   }

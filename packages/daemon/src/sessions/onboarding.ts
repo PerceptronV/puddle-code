@@ -9,10 +9,7 @@ import type { RepoStore } from '../db/stores/repos.js';
  * mid-session are taught back via the marker file. Sessions reusing an
  * existing worktree (resume, hand-off) never receive this.
  */
-export function buildOnboardingPreamble(
-  notes: string | null,
-  taskPrompt?: string | null,
-): string {
+export function buildOnboardingPreamble(notes: string | null, taskPrompt?: string | null): string {
   const rules = notes?.trim() ? notes.trim() : '(none recorded yet — everything is discretionary)';
   const preamble = `[puddle onboarding] This is a freshly created git worktree for this task. Before starting, set up the environment:
 

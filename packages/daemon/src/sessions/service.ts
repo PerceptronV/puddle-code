@@ -121,7 +121,14 @@ export class SessionService extends EventEmitter {
       prompt,
       skipPermissions: skip,
     };
-    this.spawnAgent(sessionId, worktree.worktreePath, account, adapter, adapter.launchArgs(launchOpts), 'starting');
+    this.spawnAgent(
+      sessionId,
+      worktree.worktreePath,
+      account,
+      adapter,
+      adapter.launchArgs(launchOpts),
+      'starting',
+    );
     const ref = await adapter.resolveSessionRef(launchOpts, account);
     this.deps.sessions.setAgentSessionRef(sessionId, ref);
     this.deps.events.record(sessionId, 'created', {
@@ -144,13 +151,19 @@ export class SessionService extends EventEmitter {
       );
     }
     if (!existsSync(session.worktree_path)) {
-      throw ApiError.conflict('worktree_missing', 'worktree is gone; the session can only be archived');
+      throw ApiError.conflict(
+        'worktree_missing',
+        'worktree is gone; the session can only be archived',
+      );
     }
     const account = this.deps.accounts.get(session.account_id);
     const project = this.deps.projects.get(session.project_id);
     const adapter = this.deps.adapters.get(session.agent_type);
     if (!adapter.capabilities.resume) {
-      throw ApiError.badRequest('resume_unsupported', `${adapter.displayName} cannot resume conversations`);
+      throw ApiError.badRequest(
+        'resume_unsupported',
+        `${adapter.displayName} cannot resume conversations`,
+      );
     }
     const ref = session.agent_session_ref;
     if (!ref) throw ApiError.conflict('no_session_ref', 'no agent session ref recorded');
@@ -171,9 +184,16 @@ export class SessionService extends EventEmitter {
     this.spawnAgent(id, session.worktree_path, account, adapter, args, 'running');
     this.transition(id, 'running');
     if (downgraded) {
-      this.deps.ptys.note(id, 'agent', 'skip-permissions no longer permitted; continuing with prompts on.');
+      this.deps.ptys.note(
+        id,
+        'agent',
+        'skip-permissions no longer permitted; continuing with prompts on.',
+      );
     }
-    this.deps.events.record(id, 'resumed', { was_interrupted: wasInterrupted, skip_permissions: skip });
+    this.deps.events.record(id, 'resumed', {
+      was_interrupted: wasInterrupted,
+      skip_permissions: skip,
+    });
     this.deps.onboarding.watch(id, project.repo_id, session.worktree_path);
     return this.get(id);
   }
@@ -185,7 +205,8 @@ export class SessionService extends EventEmitter {
     const deadline = Date.now() + 4000;
     let escalated = false;
     while (this.deps.ptys.has(id, 'agent')) {
-      if (Date.now() > deadline + 2000) throw new ApiError(500, 'kill_failed', 'agent PTY refused to die');
+      if (Date.now() > deadline + 2000)
+        throw new ApiError(500, 'kill_failed', 'agent PTY refused to die');
       if (!escalated && Date.now() > deadline) {
         this.deps.ptys.kill(id, 'agent', 'SIGKILL');
         escalated = true;
@@ -283,7 +304,11 @@ export class SessionService extends EventEmitter {
     } catch (e) {
       this.transition(sessionId, 'exited');
       this.deps.events.record(sessionId, 'spawn_failed', { message: (e as Error).message });
-      throw new ApiError(500, 'spawn_failed', `could not start ${adapter.binary}: ${(e as Error).message}`);
+      throw new ApiError(
+        500,
+        'spawn_failed',
+        `could not start ${adapter.binary}: ${(e as Error).message}`,
+      );
     }
     const detector = new StatusDetector(
       adapter.statusPatterns,

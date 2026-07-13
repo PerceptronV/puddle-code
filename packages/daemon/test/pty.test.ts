@@ -54,7 +54,12 @@ describe('claude-code adapter', () => {
 
   it('resumes by ref with an optional prompt', () => {
     expect(
-      claudeCode.resumeArgs('ref-1', { worktreePath: '/wt', sessionId: 'x', skipPermissions: false, prompt: 'note' }),
+      claudeCode.resumeArgs('ref-1', {
+        worktreePath: '/wt',
+        sessionId: 'x',
+        skipPermissions: false,
+        prompt: 'note',
+      }),
     ).toEqual(['--resume', 'ref-1', 'note']);
   });
 

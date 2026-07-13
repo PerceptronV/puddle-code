@@ -43,10 +43,7 @@ export class StatusDetector {
       this.timer = null;
     }
     this.emit('running');
-    if (
-      !this.limitFired &&
-      this.patterns.limitReached?.some((re) => re.test(this.tail)) === true
-    ) {
+    if (!this.limitFired && this.patterns.limitReached?.some((re) => re.test(this.tail)) === true) {
       this.limitFired = true;
       this.callbacks.onLimitReached?.();
     }

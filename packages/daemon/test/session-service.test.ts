@@ -18,7 +18,9 @@ describe('SessionService.create', () => {
     expect(session.branch).toBe('alice/fix-latency');
     expect(session.agent_session_ref).toBe(`fake-ref-${session.id}`);
     expect(existsSync(session.worktree_path)).toBe(true);
-    expect(sh(session.worktree_path, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe('alice/fix-latency');
+    expect(sh(session.worktree_path, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe(
+      'alice/fix-latency',
+    );
 
     await waitFor(() => f.logs.readTail(session.id, 'agent').includes('READY'));
     const output = f.logs.readTail(session.id, 'agent');
@@ -96,7 +98,9 @@ describe('kill / resume / archive lifecycle', () => {
 
     const resumed = await f.service.resume(session.id);
     expect(resumed.status).toBe('running');
-    await waitFor(() => f.logs.readTail(session.id, 'agent').includes(`RESUME ref=fake-ref-${session.id}`));
+    await waitFor(() =>
+      f.logs.readTail(session.id, 'agent').includes(`RESUME ref=fake-ref-${session.id}`),
+    );
     // resume of an exited (not interrupted) session carries no injected note
     expect(f.logs.readTail(session.id, 'agent')).toContain('PROMPT<<>>');
 
