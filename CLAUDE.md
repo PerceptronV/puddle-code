@@ -12,6 +12,7 @@ packages/
 ├── web/       # React UI: xterm.js terminals, Monaco editor/diff, session sidebar
 └── cli/       # laptop launcher: ssh bootstrap, tunnel, browser open
 docs/changelogs/      # archived per-version changelogs (see Changelog discipline)
+docs/acceptance/      # manual per-phase acceptance scripts (real-agent verification CI can't do)
 ```
 
 ## Commands
