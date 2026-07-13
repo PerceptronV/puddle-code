@@ -8,5 +8,5 @@ export default defineConfig({
       '@puddle/shared': fileURLToPath(new URL('../shared/src/index.ts', import.meta.url)),
     },
   },
-  test: { testTimeout: 20000 },
+  test: { name: 'daemon', testTimeout: 20000 },
 });
