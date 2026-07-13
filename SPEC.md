@@ -1,0 +1,515 @@
+# Puddle — Specification
+
+Puddle is a self-hosted **orchestrator for CLI coding agents** (Claude Code, Codex, OpenCode, and others) — run many agents in parallel, each isolated in its own git worktree, managed from one workspace UI. A persistent daemon owns agent processes, worktrees, and session history; it runs on whatever machine hosts the work. On your own machine, `puddle start` gives you the cockpit at `localhost`. On a remote box, **first-class SSH support** (`puddle connect user@host`) bootstraps the daemon and reaches the same cockpit over a single tunnel, in the spirit of VS Code Remote-SSH: live agent terminals, file editing, diff review, git history, and port forwarding. Because the daemon — not a login shell or browser tab — is the parent of every agent process, sessions keep running when the laptop sleeps or the window closes, and they survive machine reboots by resuming from each agent's on-disk conversation state.
+
+Puddle is a public, general-purpose tool. Nothing in the codebase, docs, examples, or default configuration may reference any specific company, team, or person. Use generic placeholders (`alice`, `user@devbox`, `my-repo`).
+
+## 1. Goals and non-goals
+
+Goals:
+
+- Run many coding-agent sessions in parallel on one host machine — your own laptop/workstation (local mode) or a remote box (SSH mode) — each isolated in its own git worktree and branch. Both modes use the identical daemon and UI; SSH mode only adds bootstrap and a tunnel.
+- Support multiple **profiles** (one per collaborator on a shared box) and, within each profile, multiple **accounts** per agent type (separate credential/config dirs), with any number of concurrent sessions per account.
+- Organise work into **projects** (profile + repo + sessions + persisted UI state): a window attaches to one project, multiple windows can open the same project, and reloading a window restores the project exactly — open sessions, terminals (via log replay), and editor tabs.
+- Full persistence: accounts, sessions, branches, and terminal history survive daemon restarts, SSH disconnects, and machine reboots.
+- A browser UI with: session sidebar with live status, xterm.js terminals (agent + shell tabs), Monaco file viewing/editing, diff review against the base branch, git history browsing, detected-port list with forwarding, and clickable file paths / URLs in terminals.
+- One-command startup: `puddle start` locally, `puddle connect user@host` for a remote box.
+- Agent-agnostic core with per-agent adapters; adding an agent means adding one adapter module.
+- A per-profile **prompt bank**: an editable collection of frequently used plaintext prompts, insertable into any session in one action, available across all projects and agents.
+
+Non-goals (v1):
+
+- User authentication/authorisation. Puddle assumes a single trusted OS user; profiles are identity, not access control. (This is distinct from the mandatory browser-facing token in §2 "Local security", which defends the localhost API against malicious web pages, not against local users.)
+- Merge automation, PR creation, or conflict resolution.
+- Replacing a full IDE. Deep editing happens via "Open in editor" deep links; Monaco covers review and quick edits.
+- Multi-machine fleets. One daemon per box; `puddle connect` targets one host at a time. (Keep the CLI's host handling clean so this can grow later.)
+- Native Windows hosts. v1 host platforms are Linux and macOS; Windows users are served via WSL2 (which behaves as a Linux host). The client side (browser + CLI tunnel) works from any OS.
+
+## 2. Architecture
+
+```
+ client                                     host machine (local or remote)
+┌───────────────┐   local: plain localhost        ┌───────────────────────────────────┐
+│  puddle CLI   │   remote: ssh -L <lp>:…:7433    │  puddled  (systemd user service)  │
+│  browser UI   │───────────────────────────────►│   ├─ REST + WS API (Hono)         │
+└───────────────┘        HTTP + WebSocket        │   ├─ PTY manager (node-pty)       │
+                                                 │   ├─ worktree manager (git CLI)   │
+                                                 │   ├─ agent adapters (per agent)   │
+                                                 │   ├─ SQLite (source of truth)     │
+                                                 │   ├─ append-only session logs     │
+                                                 │   └─ static web UI assets         │
+                                                 └───────────────────────────────────┘
+```
+
+The daemon is host-agnostic: it binds `127.0.0.1:7433` and neither knows nor cares whether the browser reaching it is on the same machine or at the end of an SSH tunnel. Local mode (`puddle start`) and SSH mode (`puddle connect user@host`) differ only in the CLI's transport work; everything from §3 onward is identical in both.
+
+- **`puddled`** (daemon): Node 22 LTS — pinned, and shipped inside the release tarball, so the choice never depends on the host. Hono for HTTP, `node-pty` for terminals, `better-sqlite3` for state; both are native modules and ship prebuilt in the tarball. Serves the built web UI from the same port. Binds `127.0.0.1:7433` by default. (Bun is fine as dev tooling; the daemon itself runs on the pinned Node.)
+- **Web UI**: React + TypeScript, xterm.js (+ fit, web-links addons), Monaco (`@monaco-editor/react`). Built to static assets shipped inside the daemon package.
+- **`puddle` CLI** (client machine): small npm package; bootstraps/updates the daemon (locally or over SSH), opens the tunnel when remote, launches the browser.
+- **State layout on the host**, all under `~/.puddle/`:
+
+```
+~/.puddle/
+├── puddle.db                 # SQLite
+├── token                     # browser auth token (see Local security)
+├── config.json               # daemon settings (port, log caps)
+├── profiles/<profile>/accounts/<agent_type>/<label>/   # per-account agent config dirs (created by puddle)
+├── worktrees/<repo_id>/<session-id>/   # repo_id, not repo name — names can collide
+└── logs/<session-id>/<term>.log        # append-only PTY output, one file per terminal (agent.log, shell-1.log, …)
+```
+
+Puddle NEVER reads or reuses agent config directories it did not create (e.g. an existing `~/.claude` or `~/.codex`). Every puddle-managed account gets a fresh directory under its profile's subtree and is logged in through puddle's login flow. This keeps puddle state disjoint from whatever else runs on the box.
+
+**Accounts are strictly per-profile.** The API never lists, attaches, or spawns with another profile's accounts; the UI's account picker shows only the active profile's. If a collaborator wants to use "your" underlying agent subscription, they log in again under their own profile, producing an independent config dir. Note this is organisational isolation, not security — everything runs as one OS user, so anyone with shell access can read any directory; the goal is preventing accidental credential sharing and history mixing, not defending against a malicious housemate.
+
+### Local security (mandatory, Phase 1)
+
+Binding to `127.0.0.1` is **not** protection from the web: any website open in the user's browser can attempt `fetch("http://localhost:7433/...")`, and DNS-rebinding can defeat naive same-origin assumptions. For a daemon that can spawn agents with permissions skipped, an unauthenticated localhost API is a remote-code-execution vector via CSRF. Therefore, from Phase 1:
+
+1. **Token auth**: the daemon generates a random bearer token at first start (`~/.puddle/token`, mode 0600). The CLI reads it (locally or over the SSH master) and appends it as a URL fragment when opening the browser; the UI reads it, immediately strips it from the address bar (history.replaceState) so it never lingers in history or copied links, stores it, and sends it on every `/api` request and as the first WS message. All `/api`, `/ws`, and `/proxy` routes require it; only the static UI assets are served without it. `puddle attach`/`status`/`logs` use it the same way.
+2. **Host and Origin validation**: reject requests whose `Host` is not `localhost`/`127.0.0.1` (defeats DNS rebinding) and whose `Origin`, when present, is not the daemon's own origin.
+3. **Proxy scoping**: `/proxy/:sid/:port/` only forwards to ports currently detected for that session's process tree — it must not be a general localhost proxy.
+
+### Why no tmux
+
+The daemon is the persistence layer. It is the parent of every PTY, runs under systemd, and tees all output to disk. tmux would duplicate that role with a second session registry that can drift. The "attach from a raw terminal" escape hatch tmux provided is replaced by `puddle attach <session>` (CLI → daemon WebSocket).
+
+## 3. Data model (SQLite)
+
+```sql
+CREATE TABLE profiles (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,            -- e.g. "alice"
+  branch_prefix TEXT NOT NULL DEFAULT '',  -- e.g. "alice/"
+  settings TEXT NOT NULL DEFAULT '{}',  -- profile-scope settings JSON (see §11 Settings)
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE accounts (
+  id INTEGER PRIMARY KEY,
+  profile_id INTEGER NOT NULL REFERENCES profiles(id),
+  agent_type TEXT NOT NULL,             -- adapter id: 'claude-code' | 'codex' | 'opencode' | ...
+  label TEXT NOT NULL,                  -- e.g. "personal", "org"
+  config_dir TEXT NOT NULL,             -- under ~/.puddle/profiles/<profile>/accounts/
+  skip_permissions_default INTEGER NOT NULL DEFAULT 0,  -- effective only when the profile's allowSkipPermissions gate is on (§11 Settings)
+  logged_in INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  UNIQUE(profile_id, agent_type, label)
+);
+
+CREATE TABLE repos (
+  id INTEGER PRIMARY KEY,
+  path TEXT NOT NULL UNIQUE,            -- canonical clone on the box
+  default_base_branch TEXT NOT NULL DEFAULT 'main',
+  onboarding_notes TEXT,                -- user-authored standing setup rules, injected into every worktree onboarding (§4)
+  fetch_enabled INTEGER NOT NULL DEFAULT 1,    -- master switch for all fetching on this repo (create-time and periodic)
+  last_fetched_at TEXT
+);
+
+CREATE TABLE projects (
+  id INTEGER PRIMARY KEY,
+  profile_id INTEGER NOT NULL REFERENCES profiles(id),
+  repo_id INTEGER NOT NULL REFERENCES repos(id),
+  name TEXT NOT NULL,                   -- e.g. "teleop-latency"
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE(profile_id, name)
+);
+
+CREATE TABLE project_states (            -- per-client persisted workspace layout (see §11)
+  project_id INTEGER NOT NULL REFERENCES projects(id),
+  client_id TEXT NOT NULL,               -- stable per-browser uuid (localStorage)
+  ui_state TEXT NOT NULL,                -- JSON: session tabs, editor tabs, layout, explorer pin
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (project_id, client_id)
+);
+
+CREATE TABLE sessions (
+  id TEXT PRIMARY KEY,                  -- puddle uuid; also worktree dir name
+  project_id INTEGER NOT NULL REFERENCES projects(id),  -- profile and repo derive from the project
+  account_id INTEGER NOT NULL REFERENCES accounts(id),
+  worktree_path TEXT NOT NULL,
+  base_branch TEXT NOT NULL,
+  branch TEXT NOT NULL,
+  agent_type TEXT NOT NULL,
+  agent_session_ref TEXT,               -- agent-native id used for resume (see adapters)
+  title TEXT,
+  status TEXT NOT NULL,                 -- see state machine
+  skip_permissions INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  last_activity_at TEXT
+);
+
+CREATE TABLE prompts (                   -- per-profile prompt bank (see §11)
+  id INTEGER PRIMARY KEY,
+  profile_id INTEGER NOT NULL REFERENCES profiles(id),
+  title TEXT,                            -- optional short label; body's first line shown if absent
+  body TEXT NOT NULL,                    -- plaintext, inserted verbatim
+  tags TEXT NOT NULL DEFAULT '[]',       -- JSON array of free-form strings
+  project_id INTEGER REFERENCES projects(id),   -- optional association — a ranking hint, never a filter
+  agent_type TEXT,                       -- optional association — a ranking hint, never a filter
+  use_count INTEGER NOT NULL DEFAULT 0,
+  last_used_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE events (                    -- lifecycle audit trail
+  id INTEGER PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES sessions(id),
+  type TEXT NOT NULL,                    -- created|resumed|interrupted|exited|archived|...
+  payload TEXT,                          -- JSON
+  created_at TEXT NOT NULL
+);
+```
+
+SQLite is the source of truth; a live PTY is an ephemeral attachment to a durable session row. All timestamps are ISO 8601 UTC. Git operations against a given repo (worktree add/remove, fetch, branch creation) are **serialised through a per-repo mutex** in the daemon — concurrent `git worktree` invocations on one repo race on git's own lock files and fail spuriously.
+
+## 4. Session state machine
+
+```
+            spawn                     agent prompt detected
+ starting ────────► running ◄───────────────────────────► waiting_input
+                      │  ▲                                      │
+        process exit  │  │ resume                               │ process exit
+                      ▼  │                                      ▼
+                    exited ◄────────────────────────────── (same as running)
+                      │
+   daemon boot finds  │            user archives (worktree removed)
+   no live PTY  ──► interrupted ─────────────► archived
+```
+
+- `starting` covers worktree creation: the daemon fetches per the fetch policy below and creates the worktree (base resolves to `origin/<base>` when it exists, so sessions never branch off a stale local base). Environment setup then happens **inside the agent session** via onboarding (below), guided by the repo's `onboarding_notes`.
+- `starting → running` when the agent's PTY produces first output.
+- `running ⇄ waiting_input` driven by the adapter's `statusPatterns` matched against the output stream (debounced; a session is `waiting_input` only after ~2 s of quiet following a match).
+- Any of `{starting, running, waiting_input}` found without a live PTY during the daemon's boot **reconcile pass** → `interrupted`. Reconcile also sweeps the filesystem: a worktree directory with no session row is flagged in the UI (never auto-deleted); a session whose worktree is missing is badged "worktree missing" and can only be archived.
+- `exited` / `interrupted` → `running` via resume (adapter `resumeArgs`, same worktree, same config dir). On resume after `interrupted`, the daemon injects a first message: *"This session was interrupted (daemon or machine restart). Processes you started are gone; re-verify your environment before continuing."*
+- `archived`: reachable only from `exited` or `interrupted` (a running session must be killed first). Archiving removes the worktree (only if clean, or with explicit confirmation), leaves the branch in the repo, and retains logs. Archiving a **project** archives all its sessions and refuses while any is `running`/`waiting_input` unless forced.
+- Auto-resume on boot is OFF by default (`config.json: autoResume: false`); interrupted sessions surface in the UI for one-click resume.
+
+### Worktree onboarding (agent-driven setup)
+
+Environment setup is not deterministic per repo — whether *this particular worktree* needs a fresh `.venv`, a symlink to a shared one, or none at all is often the user's call in the moment. So setup is split into **standing rules** and **per-worktree discretion**:
+
+1. **Standing rules — `repos.onboarding_notes`.** A user-authored, freeform text block per repo (editable in Repositories settings), holding whatever the user has decided is always true: "always `pnpm install`", "shared `.venv` lives at `<repo>/.venv`; symlink it unless I say otherwise", "never install playwright browsers", "ask me before touching Docker". Empty is fine — everything is then discretionary.
+2. **Every freshly created worktree onboards — and only those.** The daemon prepends an *onboarding preamble* to the agent's first prompt (or delivers it alone when the session was started without a task prompt): read the notes; inspect the codebase for setup requirements (README/CONTRIBUTING, lockfiles, `.tool-versions`, `pyproject.toml`, …); **apply what the notes settle without asking; ask the user about anything the notes leave open** — stating trade-offs where relevant (a symlinked `.venv` saves gigabytes per worktree, but parallel sessions then share mutable dependency state). Execute only what the notes prescribe or the user approves, then proceed to the user's actual task. Sessions that *reuse* an existing worktree — resumes, and tier-2 hand-offs (§5) — never receive the preamble; their environment already exists, and the resume note or hand-off prompt takes its place.
+3. **Rules can be taught through the agent.** If during onboarding the user states a standing rule ("always do X from now on"), the preamble instructs the agent to write the updated notes to `.puddle/onboarding-notes.md` in the worktree; the daemon syncs that file into `repos.onboarding_notes` and confirms with a toast. Syncs are last-writer-wins (several sessions can onboard concurrently), so the daemon logs the previous notes to `events` and the toast links the change — an unwanted overwrite is one click to inspect and revert. The notes remain user-owned prose — the agent records decisions, it doesn't invent policy. (`.puddle/` is git-excluded, never committed.)
+
+Notes are **repo-global, shared by all profiles** — like the repo itself on a trusted box. Genuinely personal preferences are expressed in the moment (per-worktree answers); if that proves noisy in practice, a per-profile notes addendum is a natural later extension, deliberately not in v1.
+
+The prescriptiveness of the notes is the automation dial: exhaustive notes make onboarding near-silent (the agent just executes and gets on with the task); sparse notes mean a question or two per worktree — which is exactly right when the answer genuinely varies per worktree. Onboarding runs under the session's normal permission rules — the gate (§11) is not bypassed for setup.
+
+### Fetch policy
+
+Base-branch freshness is treated as ambient hygiene, not a user chore. The daemon runs `git fetch` (fetch only — worktrees and local branches are never mutated):
+
+- **on session creation** (before branching, as above),
+- **on project open** (any client loading `/project/:id`),
+- **periodically** in the background — `config.json: fetchIntervalMinutes`, default 15 — for every repo with at least one non-archived session.
+
+All fetches use the OS user's normal git credentials, are serialised through the per-repo mutex, and update `repos.last_fetched_at`. Per-repo opt-out (`fetch_enabled = 0` — disables create-time, open-time, and periodic fetching alike) exists for air-gapped boxes. For repos with no remote, fetching and freshness indicators degrade silently (ahead/behind is computed against the local base). Otherwise the UI shows each session's ahead/behind counts against `origin/<base>` and a subtle "base moved" indicator when the base branch has advanced since the session branched — surfacing drift early instead of at merge time. Fetch failures (offline, auth) are logged and shown as a muted repo badge; they never block session creation.
+
+## 5. Agent adapters
+
+The core is agent-agnostic. Each agent is one module in `packages/daemon/src/agents/<id>.ts` implementing:
+
+```ts
+export interface AgentAdapter {
+  id: string;                            // 'claude-code', 'codex', 'opencode'
+  displayName: string;
+  binary: string;                        // executable name to resolve on PATH
+  capabilities: {
+    resume: boolean;                     // can restore a conversation
+    presetSessionId: boolean;            // id can be chosen at launch
+    skipPermissions: boolean;            // has a yolo/skip-prompts mode
+    migratableSessions: boolean;         // conversation state can move between accounts (same agent)
+  };
+  env(account: AccountRow): Record<string, string>;      // config-dir isolation
+  launchArgs(opts: LaunchOpts): string[];                 // fresh session
+  resumeArgs(ref: string, opts: LaunchOpts): string[];    // restore session
+  loginArgs(): string[];                                  // interactive login flow
+  // Returns the agent-native session ref. Either echoes the preset id, or
+  // discovers it post-launch (e.g. newest session file in the config dir).
+  resolveSessionRef(opts: LaunchOpts, account: AccountRow): Promise<string>;
+  // Move a conversation's on-disk state from one account's config dir to another's
+  // (same agent type). Only called when capabilities.migratableSessions.
+  migrateSession?(ref: string, from: AccountRow, to: AccountRow, worktree: string): Promise<void>;
+  // Render the conversation as readable text (for cross-agent hand-off). Falls back
+  // to the puddle PTY log tail when the agent's native format can't be parsed.
+  exportTranscript?(ref: string, account: AccountRow, worktree: string): Promise<string>;
+  statusPatterns: { waitingInput: RegExp[]; busy?: RegExp[]; limitReached?: RegExp[] };
+}
+```
+
+`statusPatterns` are matched against the output stream **after stripping ANSI escape sequences** — agent TUIs colour their prompts, and regexes written against clean text silently never match raw PTY bytes.
+
+Capability notes per adapter (**verify every flag against the installed version during Phase 1/7 — agent CLIs change fast; encode findings in the adapter, never in core**):
+
+- **claude-code**: isolation via `CLAUDE_CONFIG_DIR`; supports `--session-id <uuid>` at launch (→ `presetSessionId: true`) and `claude --resume <uuid>`; skip mode `--dangerously-skip-permissions`; conversations stored as JSONL under `<config_dir>/projects/<escaped-cwd>/<uuid>.jsonl`.
+- **codex**: isolation via `CODEX_HOME`; sessions recorded under `$CODEX_HOME/sessions/`; resume via `codex resume <id>` (or `--last`); bypass mode `--dangerously-bypass-approvals-and-sandbox`. Session id is discovered post-launch.
+- **opencode**: config/state via its config dir env (XDG-based); has session continue/resume support; permissions configured rather than flagged.
+
+When a capability is `false`, degrade gracefully: e.g. no `resume` → offer "new session in the same worktree", pre-filling a prompt that summarises the branch state (`git log --oneline base..HEAD` + `git status`).
+
+Adding an agent = adding one file + registering it; PRs adding adapters must not touch core session logic.
+
+### Continuing work across accounts and agents
+
+Two tiers, surfaced as one "Continue on…" action in the session menu (and offered proactively when `limitReached` fires — see below):
+
+- **Tier 1 — same agent, different account (migration).** The conversation itself moves. The session's process is stopped (it has usually already exited — credit exhaustion), the adapter's `migrateSession` relocates the conversation's on-disk state from account A's config dir to account B's (for claude-code: the session JSONL under `<config_dir>/projects/<escaped-cwd>/<uuid>.jsonl` — the escaped cwd is identical because the worktree doesn't change), `sessions.account_id` is updated, and the normal resume path runs with account B's env. Same worktree, same branch, same conversation, different credentials. An `events` row records the migration. **Caveat the implementation must respect**: agent session-file formats are undocumented and can change between versions — `migrateSession` verifies the resume actually restored the conversation (adapter-specific check) and rolls the file back on failure, falling through to tier 2.
+- **Tier 2 — different agent (hand-off).** No shared conversation format exists, so the conversation is *summarised, not moved*: a new session is created in the **same worktree** on the target agent/account, seeded with a hand-off prompt built from the source adapter's `exportTranscript` (tail-truncated), plus `git log --oneline base..HEAD` and `git status`. The original session remains in its terminal state with an event linking the two. Degraded by design — the new agent knows *what happened*, not the old agent's private reasoning — but the working tree, branch, and task context carry over completely.
+
+**Limit detection**: adapters may provide `limitReached` patterns (e.g. Claude Code's usage-limit message). On match, the session is badged in the sidebar and the notification (Phase 8) offers "Continue on…" directly — turning the out-of-credit moment from a dead end into two clicks.
+
+## 6. API surface
+
+All REST endpoints are JSON under `/api`. Request/response shapes live as zod schemas in `packages/shared` and are the single source of truth for both daemon and UI.
+
+```
+Profiles   GET  /api/profiles                POST /api/profiles {name, branch_prefix?}
+           GET  /api/profiles/:id/settings   PATCH (profile-scope settings JSON — §11 Settings)
+Config     GET  /api/config                  PATCH (daemon-scope settings; affects all profiles; port changes apply on daemon restart)
+Accounts   GET  /api/accounts?profile=…      POST /api/accounts {profile_id, agent_type, label, skip_permissions_default?}
+           POST /api/accounts/:id/login      # spawns interactive login PTY; UI attaches like a session
+Repos      GET  /api/repos                   POST /api/repos {path, default_base_branch?, onboarding_notes?, fetch_enabled?}
+           PATCH /api/repos/:id               # same fields (onboarding_notes also updatable via the .puddle marker-file sync — §4)
+           POST  /api/repos/:id/fetch         # manual fetch now; path must be an existing git repo (validated on POST)
+Projects   GET  /api/projects?profile=…      POST /api/projects {profile_id, repo_id, name}
+           GET  /api/projects/:id            # detail incl. sessions with status
+           GET  /api/projects/:id/state?client=…   PUT (client-keyed ui_state JSON; debounced writes; GET falls back to the project's most recent snapshot when the client has none)
+           POST /api/projects/:id/archive
+Sessions   GET  /api/sessions?project=…&status=…
+           POST /api/sessions {project_id, account_id, base_branch?, branch?, title?, prompt?, skip_permissions?}
+                # skip_permissions is honoured only if the profile gate AND the account opt-in allow it;
+                # otherwise the request is rejected (400) — enforced server-side, no CLI/API bypass
+           GET  /api/sessions/:id            # detail incl. git summary (ahead/behind, dirty files)
+           PATCH /api/sessions/:id {title?}   # rename (does not rename the git branch)
+           POST /api/sessions/:id/resume | /kill | /archive
+           POST /api/sessions/:id/migrate {account_id}    # tier-1: same agent, move conversation (§5)
+           POST /api/sessions/:id/handoff {account_id}    # tier-2: new session, transcript hand-off; returns new session id
+                # both: target account must belong to the session's profile (400 otherwise);
+                # migrate additionally requires the same agent_type; skip_permissions is re-evaluated (§11)
+Prompts    GET  /api/prompts?profile=…&q=…&tag=…    # full-text over title/body/tags
+           POST /api/prompts {profile_id, body, title?, tags?, project_id?, agent_type?}
+           PATCH/DELETE /api/prompts/:id
+           POST /api/prompts/:id/used     # bump use_count / last_used_at (called on insert)
+Files      GET  /api/worktrees/:sid/tree?path=…
+           GET  /api/worktrees/:sid/file?path=…      PUT (write; body = full content, optimistic mtime check)
+           GET  /api/worktrees/:sid/resolve?path=…&line=…   # validates terminal-link targets
+Git        GET  /api/worktrees/:sid/diff?against=base|<sha>   # name-status list
+           GET  /api/worktrees/:sid/file-at?ref=…&path=…      # blob content for DiffEditor 'original'
+           GET  /api/worktrees/:sid/log?limit=…&skip=…        # history
+           GET  /api/worktrees/:sid/show/:sha                 # commit detail + changed files
+Ports      GET  /api/sessions/:id/ports       # detected listeners for the session pid tree (platform-specific — §9)
+Proxy      ALL  /proxy/:sid/:port/*           # tier-2 HTTP reverse proxy, WS upgrade passthrough
+```
+
+WebSocket at `/ws`, message envelope `{t: string, ...}`:
+
+```
+client → server:
+  {t:'attach',  session, term, cols, rows}     # term: 'agent' or a shell id ('shell-1', …)
+  {t:'stdin',   session, term, data}
+  {t:'resize',  session, term, cols, rows}
+  {t:'detach',  session, term}
+  {t:'spawn-shell', session}                   # bash PTY cd'd into the worktree; reply carries the new shell id
+  {t:'subscribe-status'}                       # sidebar live updates
+
+server → client:
+  {t:'shell-spawned', session, term}           # id for a spawn-shell request
+  {t:'replay',  session, term, data}           # tail of that term's on-disk log on attach
+  {t:'output',  session, term, data}
+  {t:'status',  session, status, last_activity_at}
+  {t:'exit',    session, term, code}
+  {t:'error',   message}
+```
+
+**Multi-viewer semantics**: any number of viewers (browser windows/tabs, `puddle attach`) may attach to the same session concurrently; `output`, `status`, and `exit` are broadcast to all attached viewers, and `stdin` is accepted from any of them (last-writer-wins, like tmux). A PTY has exactly one size: the most recent `attach`/`resize` wins, and the daemon delivers the resize (SIGWINCH) so full-screen agent TUIs redraw at the new size — smaller concurrent viewers scroll rather than reflow. Log replay renders recorded bytes verbatim; scrollback recorded at a different width may wrap imperfectly (accepted v1 limitation — live content redraws correctly on attach). **A window binds to one project**: routes are `/` (project dashboard), `/project/:id` (the workspace — session tabs, terminals, editor), and within it `/project/:id/session/:sid[/diff|/history]`. Opening the same project in two windows shows the same workspace; opening two projects gives two independent workspaces. Everything is deep-linkable, so reloading a window (or opening it on another laptop) lands back in the same project state.
+
+## 7. Terminal UX (links and click-through)
+
+- **URLs**: xterm.js `web-links` addon; plain click (or cmd+click—match both) opens in a new browser tab. In SSH mode, URLs pointing at `localhost:<port>` on the host are rewritten to the tier-2 proxy path so they work from the client (this rewriting therefore lands with Phase 5, not Phase 4); in local mode they are left untouched.
+- **File paths**: a custom xterm.js link provider (`registerLinkProvider`) matching `path(:line(:col)?)?` patterns (`src/foo.ts:12:3`, `./a/b.py`, absolute paths inside the worktree). On hover, validate via `GET /resolve` before underlining; on cmd/ctrl+click, open the file in a Monaco tab at that line. This mirrors how VS Code/Cursor terminals behave.
+- **Open in editor**: per-worktree button emitting `cursor://vscode-remote/ssh-remote+<host><worktree_path>` and the `vscode://` equivalent; host is provided by the CLI at connect time (`?host=` param) or configured in the UI.
+
+## 8. Editor, diff, and git history
+
+- **File explorer**: the tree is always bound to exactly one worktree — there is no merged project-wide view. By default it **follows the active session**: switching session tabs switches the tree to that session's worktree. A pin control on the explorer header locks it to a chosen worktree (so you can read session A's files while watching session B's terminal); the header always names the bound worktree/branch, and a dropdown lists the project's worktrees for manual switching. Unpinning re-enables follow-the-session.
+- **Editor tab identity is (session, path)**, not path alone: `src/api.ts` in two worktrees is two different files with independent dirty state. Tabs are labelled with the branch when the same path is open from more than one worktree (`api.ts — alice/fix-auth`).
+- **Monaco** for file view/edit. Saving PUTs the full file; daemon writes to the worktree so running agents see the change immediately.
+- **Diff tab**: Monaco `DiffEditor`; `original` = `file-at?ref=<base>`, `modified` = the live working file with `readOnly:false`, so agent output can be hand-tweaked inside the diff. New files render as a plain editor. Multi-file overview = stacked per-file DiffEditors (virtualised list); no attempt at a single-instance multi-file diff.
+- **History tab**: commit list from `/log` (graph optional later); clicking a commit shows its changed files, each opening a DiffEditor of `sha^ → sha`. Covers "tap into the worktree and see git histories."
+
+## 9. Ports
+
+- **Detection**: listening ports owned by the session's process tree — `ss -tlnp` on Linux, `lsof -iTCP -sTCP:LISTEN` on macOS (the daemon picks per platform).
+- **Local mode**: ports are directly reachable; the table shows plain `http://localhost:<port>` links, no forwarding needed.
+- **SSH mode, tier 1 (Phase 5)**: the table shows a copyable `ssh -L <port>:127.0.0.1:<port> user@host` command per port.
+- **SSH mode, tier 2**: `/proxy/:sid/:port/` reverse proxy through the already-open tunnel, including WebSocket upgrade (HMR), scoped per §2 Local security. On a proxy request for an unknown port, re-scan the session's ports once before rejecting — a just-started dev server shouldn't 403 until the next poll. Document the known limitation: apps that assume they are served from `/` (absolute asset paths) may need their base path configured; surface a per-port "open via proxy" and "copy ssh -L" pair so there is always a working path.
+
+## 10. `puddle` CLI (client)
+
+```
+puddle start   [--port <p>] [--no-browser]      # local mode: ensure puddled runs on THIS machine, open the UI
+puddle connect user@host [--port <local>] [--remote-port <p>] [--no-browser]   # SSH mode
+puddle status  [user@host]
+puddle attach  [user@host] <session>   # raw-terminal attach over the WS
+puddle upgrade [user@host]
+puddle logs    [user@host] [session]
+```
+
+`start` (local mode): install/upgrade the daemon under `~/.puddle/bin`, ensure the systemd user unit (same as remote), open `http://localhost:7433`. No SSH, no tunnel. `status`/`attach`/`logs`/`upgrade` default to the local daemon when no host is given.
+
+### Distribution and bootstrap
+
+- **Release artefact**: self-contained per-platform tarballs (`puddled-v<X.Y.Z>-{linux,darwin}-{x64,arm64}.tar.gz`) published on GitHub Releases with a checksums file. Each contains a pinned Node runtime, the bundled daemon, prebuilt `node-pty` binaries, and the web UI assets — no Node, npm, or compiler is assumed on the host; only libc and `git`. (The `puddle` CLI itself is pure JS, distributed via npm.)
+- **Install location**: entirely under the home directory, never sudo: `~/.puddle/bin/versions/<X.Y.Z>/` with a `~/.puddle/bin/current` symlink. Upgrade = unpack new version, flip symlink, restart service (running sessions become `interrupted` and resume — the normal reconcile path). Rollback = flip the symlink back. Uninstall = stop the service and `rm -rf ~/.puddle`.
+- **Bootstrap** (shared by `start` and `connect`): detect platform (`uname -sm`), fetch the tarball — host-side `curl` from GitHub Releases (checksum-verified), falling back to `scp` from the CLI's cached copy for hosts without outbound internet — unpack, then install a supervisor:
+  - Linux: systemd **user** unit `~/.config/systemd/user/puddled.service` (`Restart=always`), `systemctl --user enable --now`, plus `loginctl enable-linger $USER` for boot-start without login.
+  - macOS: launchd agent `~/Library/LaunchAgents/dev.puddle.puddled.plist` with `KeepAlive`.
+  - Neither available: nohup + pidfile fallback with a printed warning that reboot auto-start is not configured.
+- **Manual path**: a documented `install.sh` one-liner performing the same steps, for daemon-only installs without the CLI.
+- **Version handshake**: daemon exposes `GET /api/version`; on every `start`/`connect` the CLI compares versions — older daemon: offer the upgrade, showing the count of live sessions that will be interrupted, and require confirmation (or `--yes`) before proceeding; newer daemon than CLI: refuse with an upgrade hint for the CLI. Daemon API is backwards-compatible within a minor version.
+
+`connect` (SSH mode) flow:
+1. Open a **master SSH connection** with multiplexing (`-o ControlMaster=auto -o ControlPath=~/.puddle/cm-%r@%h:%p -o ControlPersist=10m`), run interactively with the user's TTY inherited. Password, keyboard-interactive, and 2FA prompts therefore come from the `ssh` binary itself and are typed at most once per `connect`; every subsequent exec and the tunnel reuse the master connection. Puddle never reads, stores, or proxies credentials. Over the master: check `~/.puddle/bin/puddled --version`.
+2. If missing/outdated: run the bootstrap above over the master connection (platform detect → fetch → unpack → supervisor install).
+3. Open the tunnel `ssh -N -L <local>:127.0.0.1:7433 user@host` (auto-pick a free local port if unspecified/busy), print the URL, open the browser at `http://localhost:<local>/?host=user@host`.
+4. Keep the tunnel in the foreground with auto-reconnect; Ctrl-C closes the tunnel only — the daemon and agents keep running.
+
+Use the system `ssh` binary (spawned), not a JS SSH library: it inherits the user's `~/.ssh/config`, agents, jump hosts, password/2FA prompting, and MFA for free. If no key is set up, `connect` works over password auth via the master connection; print a one-line hint suggesting `ssh-copy-id` for a smoother experience.
+
+Implement the CLI as a thin `bin` wrapper over library functions in `packages/cli/src/lib/` (bootstrap, tunnel, attach are all importable). This keeps the door open for a future desktop shell (e.g. Electron/Tauri) that reuses the same logic from a main process instead of a terminal.
+
+## 11. Profiles and projects
+
+Profiles are identity, not auth. First load shows a profile picker (create-or-select), remembered in localStorage.
+
+### Settings
+
+A settings panel, reachable from a gear icon and ⌘K → "Settings". Three scopes, each stored where it belongs:
+
+| scope | storage | examples |
+|---|---|---|
+| client | localStorage (per browser) | theme (dark/light/system), UI & terminal font size, reduced motion, terminal scrollback, editor tab size / word wrap |
+| profile | `profiles.settings` JSON, via `/api/profiles/:id/settings` | branch prefix, default account & agent, permissions gate, notification preferences |
+| daemon | `config.json`, via `/api/config` | port, log size cap, ui_state GC retention, `autoResume` — marked in the UI as affecting all profiles |
+
+Panel sections: **Appearance** (theme, font sizes, density, reduced motion); **Profile** (name, branch prefix, default account & agent); **Accounts** (per agent type: login state, add — spawns the login PTY —, remove; per-account "skip permission prompts" toggle, visible only when the gate below is on); **Permissions & safety**; **Notifications** (desktop notification and optional sound on `waiting_input`, per-project mute); **Terminal & editor**; **Repositories** (per repo: base branch, fetch policy, onboarding notes — the standing setup rules, freely editable); **Host** (daemon scope, incl. `fetchIntervalMinutes`).
+
+**Permission prompts are ON by default, everywhere.** Spawning an agent with prompts skipped (e.g. `--dangerously-skip-permissions`) requires deliberate, layered opt-in:
+
+1. The profile's `allowSkipPermissions` gate (Permissions & safety) is **off** by default. Enabling it shows a warning dialogue that spells out what an unattended, prompt-free agent can do, and requires typing the profile name to confirm.
+2. With the gate on, individual accounts can opt in (`skip_permissions_default`), and only then does the new-session modal show a per-session skip toggle.
+3. The daemon enforces the gate server-side: `skip_permissions: true` against a closed gate is rejected — there is no CLI, API, or UI bypass.
+4. **Re-evaluated on every spawn-like action.** The effective flag for any launch — create, resume, migrate, or hand-off — is `requested ∧ profile gate ∧ target account opt-in`, evaluated at that moment. A session that ran without prompts does not carry the flag through a resume after the gate was closed, and a migration or hand-off never inherits it onto an account that hasn't opted in; the session continues with prompts on (and says so in the terminal).
+
+Turning the gate off later immediately hides the toggles; already-running sessions are unaffected but are badged so it's visible which live sessions are running without prompts.
+
+### Prompt bank
+
+Each profile owns an editable collection of plaintext prompts — the snippets you find yourself retyping across agents ("write tests for what you just changed, then run them", "summarise the diff against base as a PR description", review checklists, house style rules).
+
+- **Always available everywhere.** A prompt's optional `tags`, `project`, and `agent` associations are **ranking hints, never filters**: the picker boosts prompts associated with the current project/agent to the top, but every prompt is reachable from any session of any agent in any project. Default ordering: match quality, then frecency (`use_count` + `last_used_at`).
+- **Insert flow**: from a focused terminal, one action (⌘K → "Insert prompt", plus a dedicated shortcut, e.g. ⌘⇧P) opens a cmdk-style picker with fuzzy search over title/body/tags and a preview pane; selecting **pastes the body into the terminal's stdin without submitting** — wrapped in bracketed-paste sequences (`ESC[200~ … ESC[201~`), because a raw multi-line write would let each newline submit a partial prompt to the agent. The text can then be edited or prefixed before sending. The same picker is available inside the new-session modal's prompt field.
+- **Management**: a "Prompts" section in the settings panel — plain list, inline textarea editing, tag chips, optional project/agent association dropdowns, delete with an undo toast. Creating a prompt from the picker ("save current input as prompt…") keeps capture frictionless.
+- **v1 is literal plaintext**: no templating variables, no sharing between profiles (a coworker's bank is theirs; copy-paste is the sharing mechanism). Both are possible later; neither should complicate v1.
+
+**Projects are the workspace unit.** A project belongs to one profile and one repo, and owns a set of sessions plus persisted UI state. The dashboard (`/`) lists the current profile's projects (with an "everyone" toggle for the shared-box overview); day-to-day work happens inside `/project/:id`. New sessions are always created within a project, which supplies the profile, repo, and defaults — so the new-session modal reduces to account → base branch → title/prompt. Session branches default to `<branch_prefix><slug(title)>` (or the session's short id when untitled); on collision with any existing branch, append `-2`, `-3`, … — never fail session creation on a branch-name clash.
+
+**Reload semantics.** Workspace layout is persisted server-side in `project_states`, keyed by `(project, client)`, where `client_id` is a stable random uuid the UI keeps in localStorage. The snapshot JSON holds: open session tabs and their order, per-session view state (pane split, open editor `(session, path)` tabs, explorer pin), active session, layout sizes. The UI writes it debounced (~2 s) on change; on opening a project, the UI restores the *current client's* snapshot — reattaching terminals (log-tail replay makes them look untouched), reopening editor tabs, and surfacing any `interrupted` sessions with a resume button. Consequences:
+
+- Reload, close-and-rejoin, or a browser restart on the same machine → your exact layout, because your client_id's row is untouched by anything anyone else did.
+- Two of your own windows on the same project in the same browser share a client_id; the last one to change layout wins the stored snapshot (they do not live-sync while open).
+- A different browser/machine (or a coworker peeking) has its own client_id: it seeds from the project's most recent snapshot but its rearrangements are written to *its* row — they can never clobber yours.
+- Stale rows (not updated in 90 days) are garbage-collected by the daemon.
+
+Transient focus (which tab is active right now) stays local to the window.
+
+Any profile can view/attach any session (trusted shared box); the UI shows the owning profile on each project and session card.
+
+## 12. Design system
+
+Puddle's UI must read as a polished, intentional developer cockpit — dense, calm, and visually coherent — not a scaffold of framework defaults.
+
+- **Stack**: Tailwind CSS v4 + **shadcn/ui** (Radix primitives, generated into `packages/web/src/components/ui/` and treated as owned code to restyle, not a dependency), `lucide-react` icons, `cmdk` command palette (⌘K: switch project/session, new session, open file, insert prompt, switch theme, open settings), `sonner` for toasts, `react-resizable-panels` for the workspace layout. No monolithic kits (MUI, Ant): they resist theming and read as generic enterprise chrome.
+
+- **Two-layer token architecture** in `packages/web/src/styles/tokens.css`:
+  1. *Primitive palette*: theme-independent colour ramps derived from the five core colours below.
+  2. *Semantic tokens*: the only names components may use — `--bg-base`, `--bg-surface`, `--bg-elevated`, `--border`, `--text-primary/-secondary/-muted`, `--accent`, `--accent-hover`, `--focus-ring`, `--danger`, `--status-running/-waiting/-interrupted/-idle`, `--selection`, plus the 16 `--ansi-*` terminal colours. A theme is one `[data-theme="<name>"]` block assigning primitives to **every** semantic token.
+
+  The Tailwind theme maps utilities onto semantic tokens; the xterm.js theme object and the Monaco theme are **generated at runtime from the computed CSS variables**, so adding a theme is one CSS block plus one entry in a theme registry — zero TypeScript changes. A CI script asserts each theme block defines the complete semantic set and that text pairings pass WCAG AA (4.5:1 body, 3:1 large/UI elements). Terminal, editor, and chrome must visibly share one palette — a stock-dark xterm next to Monaco's default `vs-dark` inside a differently-dark app is forbidden.
+
+- **Core palette** (the brand; hue is preserved within each ramp, only lightness/saturation step):
+
+  ```css
+  --altitude-blue: #7DADFF;   /* primary accent family */
+  --krypton-green: #8BE8B3;   /* success / running family */
+  --quiet-khaki:   #DDB28C;   /* warm neutral / attention family */
+  --storm-navy:    #001C3D;   /* dark ground / light-theme ink */
+  --burnt-wood:    #5A2F22;   /* warm ink / danger family root */
+  ```
+
+  Extended ramps: navy `#000A14 · #00132B · #001C3D · #0A2B52 · #163C6B`; blue `#A7C7FF · #7DADFF · #4A86E8 · #2E6BD6`; green `#8BE8B3 · #1FA26B`; khaki `#FBF5EC · #F7EBDA · #EAD9C0 · #DDB28C · #F0B36E · #A9743D`; wood/ember `#F2957C · #C2472E · #8C4A34 · #5A2F22`; mist (cool text ramp for dark ground) `#EAF1FB · #B9C9E0 · #7E93B3`; tertiary pastels completing the ANSI set at the core pastels' lightness: cyan `#7FD6DC` (blue×green), violet `#B9A3F2`.
+
+- **Themes**: v1 ships `dark` (default) and `light`, plus a "system" option following `prefers-color-scheme`; switchable in settings and via ⌘K. Semantic assignments:
+
+  | semantic token | dark | light |
+  |---|---|---|
+  | `--bg-base` | `#000A14` | `#FBF5EC` |
+  | `--bg-surface` | `#00132B` | `#FFF9F0` |
+  | `--bg-elevated` | `#001C3D` | `#F7EBDA` |
+  | `--border` | `#163C6B` | `#EAD9C0` |
+  | `--text-primary` | `#EAF1FB` | `#001C3D` |
+  | `--text-secondary` | `#B9C9E0` | `#5A2F22` |
+  | `--text-muted` | `#7E93B3` | `#8A7663` |
+  | `--accent` / `--focus-ring` | `#7DADFF` | `#2E6BD6` |
+  | `--accent-hover` | `#A7C7FF` | `#4A86E8` |
+  | `--status-running` | `#8BE8B3` | `#1FA26B` |
+  | `--status-waiting` | `#F0B36E` | `#A9743D` |
+  | `--status-interrupted` / `--danger` | `#F2957C` | `#C2472E` |
+  | `--status-idle` | `#7E93B3` | `#8A7663` |
+
+  The dark theme is storm-navy ground with the pastel family as light; the light theme is quiet-khaki paper with storm-navy ink and burnt-wood secondary text — the same five colours swap roles rather than being recoloured.
+
+- **ANSI mapping rule**: dark theme maps the pastel depth of each hue (red→`#F2957C`, green→`#8BE8B3`, yellow→`#F0B36E`, blue→`#7DADFF`, magenta→`#B9A3F2`, cyan→`#7FD6DC`, fg→`#EAF1FB`) over `--bg-base`; the light theme maps each hue's deep step (`#C2472E`, `#1FA26B`, `#A9743D`, `#2E6BD6`, …) so agent output stays legible on paper tones. Brights are one lightness step up. UI accents and terminal output are thereby the same family by construction.
+
+- **Type**: one UI face and one mono face, chosen deliberately and **self-hosted** (hosts and clients may be offline; no font CDNs). Mono is the workhorse of identity: session titles, branches, paths, ports, and statuses are all set in mono. Set a real type scale.
+
+- **Signature element — status ripples**: a session's status indicator is a small dot that, while the agent is working, emits a slow concentric ripple in `--status-running` (the puddle motif); `waiting_input` shifts it to a pulsing `--status-waiting`, mirrored in the tab title/favicon. This is the interface's one animated flourish. Everything else is instant or a ≤150 ms fade; `prefers-reduced-motion` degrades the ripple to a static dot.
+
+- **Density**: compact paddings, information-dense lists, tabular numerals for ports/counts; generosity is reserved for primary actions and empty states.
+
+- **Quality floor**: visible keyboard focus everywhere (`--focus-ring`); session tabs, palette, and explorer fully keyboard-navigable; empty states direct action ("No sessions yet — press ⌘K to start one"); error copy states cause and fix, never apologises vaguely.
+
+## 13. Repository conventions
+
+- Monorepo (pnpm workspaces): `packages/daemon`, `packages/web`, `packages/cli`, `packages/shared` (zod schemas + WS message types shared by all three).
+- TypeScript strict everywhere; vitest for tests; eslint + prettier; MIT licence.
+- `CLAUDE.md` at the repo root governs agent conduct and links `CHANGELOG.md`; see those files. Archived changelogs live in `docs/changelogs/CHANGELOG-vX.Y.Z.md`.
+- **Licensing rule**: this is a public MIT repo. Do not copy code from AGPL projects (e.g. claude-squad) — studying their approach to worktree/PTY edge cases is fine; verbatim or near-verbatim code is not.
+- No company-, team-, or person-specific strings anywhere.
+
+## 14. Phases and acceptance tests
+
+Each phase must be independently verifiable before the next starts.
+
+- **Phase 0 — scaffold.** Monorepo, CI (typecheck + test + build), CLAUDE.md/CHANGELOG.md conventions in place. AT: `pnpm build` produces daemon with embedded UI assets; CI green.
+- **Phase 1 — daemon core.** Profiles/accounts/repos/projects/sessions CRUD; local-security layer (token, Host/Origin checks — §2); permissions-gate enforcement; claude-code adapter; worktree create/remove (per-repo mutex, fetch policy, onboarding preamble injection from onboarding_notes + marker-file notes sync); PTY spawn with `CLAUDE_CONFIG_DIR`; WS streaming; append-only logs; reconcile pass. AT: via curl + wscat only — two sessions on two accounts stream interleaved output; requests without the token are rejected; `skip_permissions: true` against a closed gate returns 400; `systemctl --user restart puddled` marks sessions interrupted; resume restores both conversations; logs replay; a session on a fresh worktree receives the onboarding preamble (and a hand-off session in the same worktree does not); writing `.puddle/onboarding-notes.md` updates `repos.onboarding_notes`.
+- **Phase 2 — UI shell.** Design system foundation first (tokens.css with both themes + registry, CI token/contrast check, Tailwind + shadcn setup, fonts, runtime-generated xterm/Monaco themes — §12), then: project dashboard; project workspace with session tabs and live status ripples; terminal attach with replay; new-session modal (account → base branch → title/prompt); interrupted-session resume button; theme switcher; **settings panel** (all §11 sections; permissions gate with its confirm dialogue); ui_state persistence and restore-on-open (AT: open a project with three sessions and two editor tabs, kill the browser, reopen `/project/:id` — identical workspace; AT: switching theme restyles chrome, terminal, and editor together with no reload).
+- **Phase 3 — files, diff, history.** Tree browser, Monaco editing, diff tab (editable modified side), history tab. AT: edit a file in the diff view; the agent's next `cat` of it shows the change; commit list matches `git log`.
+- **Phase 4 — terminal links.** URL addon, file-path link provider with resolve validation, open-in-editor deep links. AT: cmd+click on `src/x.ts:42` in agent output opens Monaco at line 42.
+- **Phase 5 — ports.** Detection table + copyable `ssh -L`; then tier-2 proxy with WS upgrade. AT: a Vite dev server started by an agent is usable through `/proxy/...` including HMR.
+- **Phase 6 — CLI.** `puddle connect` bootstrap/upgrade/tunnel/browser; `attach`, `status`, `logs`. AT: on a box with no puddle installed, one `puddle connect user@host` lands in a working cockpit.
+- **Phase 7 — more agents + continuation.** codex and opencode adapters, capability matrix verified against installed versions, degradation paths exercised; account migration and cross-agent hand-off (AT: exhaust-simulate a claude session, migrate it to a second claude account — conversation resumes with history intact; hand off a claude session to codex — new session in the same worktree opens with the transcript summary as its first prompt).
+- **Phase 8 — polish.** **Prompt bank** (CRUD, picker, insert-into-terminal; AT: save a prompt tagged to project A, insert it from a codex session in project B — it still appears in the picker, ranked lower, and pastes without submitting); waiting_input notifications (title badge + optional sound), archive/cleanup flows, log rotation (size cap from config.json), shell tabs, "everyone" view refinements.
+
+## 15. Open questions (resolve during build, record decisions in CLAUDE.md)
+
+1. Exact resume/session flags for the installed codex and opencode versions (verify with `--help`; pin findings in each adapter with the version checked).
+2. Session-file portability between accounts (tier-1 migration): verify per agent version that a conversation file moved between config dirs resumes cleanly; pin the verified version in the adapter and keep the rollback-to-hand-off path tested.
+3. Whether `claude --session-id` is accepted by the currently installed Claude Code version; if not, fall back to post-launch discovery of the newest JSONL in `<config_dir>/projects/<cwd>/`.
+4. systemd user-session availability on the target box (`loginctl enable-linger`); confirm the fallback supervisor path works.
+5. Proxy base-path limitation: decide whether to attempt HTML rewriting (probably not for v1) or document the `ssh -L` fallback per port.
