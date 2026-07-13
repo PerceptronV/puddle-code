@@ -26,6 +26,8 @@ export const sessionSchema = z.object({
   created_at: isoTimestamp,
   updated_at: isoTimestamp,
   last_activity_at: isoTimestamp.nullable(),
+  /** Computed on read: the worktree dir is gone; the session can only be archived. */
+  worktree_missing: z.boolean().optional(),
 });
 export type Session = z.infer<typeof sessionSchema>;
 
