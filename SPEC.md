@@ -184,16 +184,16 @@ SQLite is the source of truth; a live PTY is an ephemeral attachment to a durabl
 - `starting → running` when the agent's PTY produces first output.
 - `running ⇄ waiting_input` driven by the adapter's `statusPatterns` matched against the output stream (debounced; a session is `waiting_input` only after ~2 s of quiet following a match).
 - Any of `{starting, running, waiting_input}` found without a live PTY during the daemon's boot **reconcile pass** → `interrupted`. Reconcile also sweeps the filesystem: a worktree directory with no session row is flagged in the UI (never auto-deleted); a session whose worktree is missing is badged "worktree missing" and can only be archived.
-- `exited` / `interrupted` → `running` via resume (adapter `resumeArgs`, same worktree, same config dir). On resume after `interrupted`, the daemon injects a first message: *"This session was interrupted (daemon or machine restart). Processes you started are gone; re-verify your environment before continuing."*
+- `exited` / `interrupted` → `running` via resume (adapter `resumeArgs`, same worktree, same config dir). On resume after `interrupted`, the daemon injects a first message: _"This session was interrupted (daemon or machine restart). Processes you started are gone; re-verify your environment before continuing."_
 - `archived`: reachable only from `exited` or `interrupted` (a running session must be killed first). Archiving removes the worktree (only if clean, or with explicit confirmation), leaves the branch in the repo, and retains logs. Archiving a **project** archives all its sessions and refuses while any is `running`/`waiting_input` unless forced.
 - Auto-resume on boot is OFF by default (`config.json: autoResume: false`); interrupted sessions surface in the UI for one-click resume.
 
 ### Worktree onboarding (agent-driven setup)
 
-Environment setup is not deterministic per repo — whether *this particular worktree* needs a fresh `.venv`, a symlink to a shared one, or none at all is often the user's call in the moment. So setup is split into **standing rules** and **per-worktree discretion**:
+Environment setup is not deterministic per repo — whether _this particular worktree_ needs a fresh `.venv`, a symlink to a shared one, or none at all is often the user's call in the moment. So setup is split into **standing rules** and **per-worktree discretion**:
 
 1. **Standing rules — `repos.onboarding_notes`.** A user-authored, freeform text block per repo (editable in Repositories settings), holding whatever the user has decided is always true: "always `pnpm install`", "shared `.venv` lives at `<repo>/.venv`; symlink it unless I say otherwise", "never install playwright browsers", "ask me before touching Docker". Empty is fine — everything is then discretionary.
-2. **Every freshly created worktree onboards — and only those.** The daemon prepends an *onboarding preamble* to the agent's first prompt (or delivers it alone when the session was started without a task prompt): read the notes; inspect the codebase for setup requirements (README/CONTRIBUTING, lockfiles, `.tool-versions`, `pyproject.toml`, …); **apply what the notes settle without asking; ask the user about anything the notes leave open** — stating trade-offs where relevant (a symlinked `.venv` saves gigabytes per worktree, but parallel sessions then share mutable dependency state). Execute only what the notes prescribe or the user approves, then proceed to the user's actual task. Sessions that *reuse* an existing worktree — resumes, and tier-2 hand-offs (§5) — never receive the preamble; their environment already exists, and the resume note or hand-off prompt takes its place.
+2. **Every freshly created worktree onboards — and only those.** The daemon prepends an _onboarding preamble_ to the agent's first prompt (or delivers it alone when the session was started without a task prompt): read the notes; inspect the codebase for setup requirements (README/CONTRIBUTING, lockfiles, `.tool-versions`, `pyproject.toml`, …); **apply what the notes settle without asking; ask the user about anything the notes leave open** — stating trade-offs where relevant (a symlinked `.venv` saves gigabytes per worktree, but parallel sessions then share mutable dependency state). Execute only what the notes prescribe or the user approves, then proceed to the user's actual task. Sessions that _reuse_ an existing worktree — resumes, and tier-2 hand-offs (§5) — never receive the preamble; their environment already exists, and the resume note or hand-off prompt takes its place.
 3. **Rules can be taught through the agent.** If during onboarding the user states a standing rule ("always do X from now on"), the preamble instructs the agent to write the updated notes to `.puddle/onboarding-notes.md` in the worktree; the daemon syncs that file into `repos.onboarding_notes` and confirms with a toast. Syncs are last-writer-wins (several sessions can onboard concurrently), so the daemon logs the previous notes to `events` and the toast links the change — an unwanted overwrite is one click to inspect and revert. The notes remain user-owned prose — the agent records decisions, it doesn't invent policy. (`.puddle/` is git-excluded, never committed.)
 
 Notes are **repo-global, shared by all profiles** — like the repo itself on a trusted box. Genuinely personal preferences are expressed in the moment (per-worktree answers); if that proves noisy in practice, a per-profile notes addendum is a natural later extension, deliberately not in v1.
@@ -216,19 +216,19 @@ The core is agent-agnostic. Each agent is one module in `packages/daemon/src/age
 
 ```ts
 export interface AgentAdapter {
-  id: string;                            // 'claude-code', 'codex', 'opencode'
+  id: string; // 'claude-code', 'codex', 'opencode'
   displayName: string;
-  binary: string;                        // executable name to resolve on PATH
+  binary: string; // executable name to resolve on PATH
   capabilities: {
-    resume: boolean;                     // can restore a conversation
-    presetSessionId: boolean;            // id can be chosen at launch
-    skipPermissions: boolean;            // has a yolo/skip-prompts mode
-    migratableSessions: boolean;         // conversation state can move between accounts (same agent)
+    resume: boolean; // can restore a conversation
+    presetSessionId: boolean; // id can be chosen at launch
+    skipPermissions: boolean; // has a yolo/skip-prompts mode
+    migratableSessions: boolean; // conversation state can move between accounts (same agent)
   };
-  env(account: AccountRow): Record<string, string>;      // config-dir isolation
-  launchArgs(opts: LaunchOpts): string[];                 // fresh session
-  resumeArgs(ref: string, opts: LaunchOpts): string[];    // restore session
-  loginArgs(): string[];                                  // interactive login flow
+  env(account: AccountRow): Record<string, string>; // config-dir isolation
+  launchArgs(opts: LaunchOpts): string[]; // fresh session
+  resumeArgs(ref: string, opts: LaunchOpts): string[]; // restore session
+  loginArgs(): string[]; // interactive login flow
   // Returns the agent-native session ref. Either echoes the preset id, or
   // discovers it post-launch (e.g. newest session file in the config dir).
   resolveSessionRef(opts: LaunchOpts, account: AccountRow): Promise<string>;
@@ -259,7 +259,7 @@ Adding an agent = adding one file + registering it; PRs adding adapters must not
 Two tiers, surfaced as one "Continue on…" action in the session menu (and offered proactively when `limitReached` fires — see below):
 
 - **Tier 1 — same agent, different account (migration).** The conversation itself moves. The session's process is stopped (it has usually already exited — credit exhaustion), the adapter's `migrateSession` relocates the conversation's on-disk state from account A's config dir to account B's (for claude-code: the session JSONL under `<config_dir>/projects/<escaped-cwd>/<uuid>.jsonl` — the escaped cwd is identical because the worktree doesn't change), `sessions.account_id` is updated, and the normal resume path runs with account B's env. Same worktree, same branch, same conversation, different credentials. An `events` row records the migration. **Caveat the implementation must respect**: agent session-file formats are undocumented and can change between versions — `migrateSession` verifies the resume actually restored the conversation (adapter-specific check) and rolls the file back on failure, falling through to tier 2.
-- **Tier 2 — different agent (hand-off).** No shared conversation format exists, so the conversation is *summarised, not moved*: a new session is created in the **same worktree** on the target agent/account, seeded with a hand-off prompt built from the source adapter's `exportTranscript` (tail-truncated), plus `git log --oneline base..HEAD` and `git status`. The original session remains in its terminal state with an event linking the two. Degraded by design — the new agent knows *what happened*, not the old agent's private reasoning — but the working tree, branch, and task context carry over completely.
+- **Tier 2 — different agent (hand-off).** No shared conversation format exists, so the conversation is _summarised, not moved_: a new session is created in the **same worktree** on the target agent/account, seeded with a hand-off prompt built from the source adapter's `exportTranscript` (tail-truncated), plus `git log --oneline base..HEAD` and `git status`. The original session remains in its terminal state with an event linking the two. Degraded by design — the new agent knows _what happened_, not the old agent's private reasoning — but the working tree, branch, and task context carry over completely.
 
 **Limit detection**: adapters may provide `limitReached` patterns (e.g. Claude Code's usage-limit message). On match, the session is badged in the sidebar and the notification (Phase 8) offers "Continue on…" directly — turning the out-of-credit moment from a dead end into two clicks.
 
@@ -374,6 +374,7 @@ puddle logs    [user@host] [session]
 - **Version handshake**: daemon exposes `GET /api/version`; on every `start`/`connect` the CLI compares versions — older daemon: offer the upgrade, showing the count of live sessions that will be interrupted, and require confirmation (or `--yes`) before proceeding; newer daemon than CLI: refuse with an upgrade hint for the CLI. Daemon API is backwards-compatible within a minor version.
 
 `connect` (SSH mode) flow:
+
 1. Open a **master SSH connection** with multiplexing (`-o ControlMaster=auto -o ControlPath=~/.puddle/cm-%r@%h:%p -o ControlPersist=10m`), run interactively with the user's TTY inherited. Password, keyboard-interactive, and 2FA prompts therefore come from the `ssh` binary itself and are typed at most once per `connect`; every subsequent exec and the tunnel reuse the master connection. Puddle never reads, stores, or proxies credentials. Over the master: check `~/.puddle/bin/puddled --version`.
 2. If missing/outdated: run the bootstrap above over the master connection (platform detect → fetch → unpack → supervisor install).
 3. Open the tunnel `ssh -N -L <local>:127.0.0.1:7433 user@host` (auto-pick a free local port if unspecified/busy), print the URL, open the browser at `http://localhost:<local>/?host=user@host`.
@@ -391,11 +392,11 @@ Profiles are identity, not auth. First load shows a profile picker (create-or-se
 
 A settings panel, reachable from a gear icon and ⌘K → "Settings". Three scopes, each stored where it belongs:
 
-| scope | storage | examples |
-|---|---|---|
-| client | localStorage (per browser) | theme (dark/light/system), UI & terminal font size, reduced motion, terminal scrollback, editor tab size / word wrap |
-| profile | `profiles.settings` JSON, via `/api/profiles/:id/settings` | branch prefix, default account & agent, permissions gate, notification preferences |
-| daemon | `config.json`, via `/api/config` | port, log size cap, ui_state GC retention, `autoResume` — marked in the UI as affecting all profiles |
+| scope   | storage                                                    | examples                                                                                                             |
+| ------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| client  | localStorage (per browser)                                 | theme (dark/light/system), UI & terminal font size, reduced motion, terminal scrollback, editor tab size / word wrap |
+| profile | `profiles.settings` JSON, via `/api/profiles/:id/settings` | branch prefix, default account & agent, permissions gate, notification preferences                                   |
+| daemon  | `config.json`, via `/api/config`                           | port, log size cap, ui_state GC retention, `autoResume` — marked in the UI as affecting all profiles                 |
 
 Panel sections: **Appearance** (theme, font sizes, density, reduced motion); **Profile** (name, branch prefix, default account & agent); **Accounts** (per agent type: login state, add — spawns the login PTY —, remove; per-account "skip permission prompts" toggle, visible only when the gate below is on); **Permissions & safety**; **Notifications** (desktop notification and optional sound on `waiting_input`, per-project mute); **Terminal & editor**; **Repositories** (per repo: base branch, fetch policy, onboarding notes — the standing setup rules, freely editable); **Host** (daemon scope, incl. `fetchIntervalMinutes`).
 
@@ -419,11 +420,11 @@ Each profile owns an editable collection of plaintext prompts — the snippets y
 
 **Projects are the workspace unit.** A project belongs to one profile and one repo, and owns a set of sessions plus persisted UI state. The dashboard (`/`) lists the current profile's projects (with an "everyone" toggle for the shared-box overview); day-to-day work happens inside `/project/:id`. New sessions are always created within a project, which supplies the profile, repo, and defaults — so the new-session modal reduces to account → base branch → title/prompt. Session branches default to `<branch_prefix><slug(title)>` (or the session's short id when untitled); on collision with any existing branch, append `-2`, `-3`, … — never fail session creation on a branch-name clash.
 
-**Reload semantics.** Workspace layout is persisted server-side in `project_states`, keyed by `(project, client)`, where `client_id` is a stable random uuid the UI keeps in localStorage. The snapshot JSON holds: open session tabs and their order, per-session view state (pane split, open editor `(session, path)` tabs, explorer pin), active session, layout sizes. The UI writes it debounced (~2 s) on change; on opening a project, the UI restores the *current client's* snapshot — reattaching terminals (log-tail replay makes them look untouched), reopening editor tabs, and surfacing any `interrupted` sessions with a resume button. Consequences:
+**Reload semantics.** Workspace layout is persisted server-side in `project_states`, keyed by `(project, client)`, where `client_id` is a stable random uuid the UI keeps in localStorage. The snapshot JSON holds: open session tabs and their order, per-session view state (pane split, open editor `(session, path)` tabs, explorer pin), active session, layout sizes. The UI writes it debounced (~2 s) on change; on opening a project, the UI restores the _current client's_ snapshot — reattaching terminals (log-tail replay makes them look untouched), reopening editor tabs, and surfacing any `interrupted` sessions with a resume button. Consequences:
 
 - Reload, close-and-rejoin, or a browser restart on the same machine → your exact layout, because your client_id's row is untouched by anything anyone else did.
 - Two of your own windows on the same project in the same browser share a client_id; the last one to change layout wins the stored snapshot (they do not live-sync while open).
-- A different browser/machine (or a coworker peeking) has its own client_id: it seeds from the project's most recent snapshot but its rearrangements are written to *its* row — they can never clobber yours.
+- A different browser/machine (or a coworker peeking) has its own client_id: it seeds from the project's most recent snapshot but its rearrangements are written to _its_ row — they can never clobber yours.
 - Stale rows (not updated in 90 days) are garbage-collected by the daemon.
 
 Transient focus (which tab is active right now) stays local to the window.
@@ -437,40 +438,40 @@ Puddle's UI must read as a polished, intentional developer cockpit — dense, ca
 - **Stack**: Tailwind CSS v4 + **shadcn/ui** (Radix primitives, generated into `packages/web/src/components/ui/` and treated as owned code to restyle, not a dependency), `lucide-react` icons, `cmdk` command palette (⌘K: switch project/session, new session, open file, insert prompt, switch theme, open settings), `sonner` for toasts, `react-resizable-panels` for the workspace layout. No monolithic kits (MUI, Ant): they resist theming and read as generic enterprise chrome.
 
 - **Two-layer token architecture** in `packages/web/src/styles/tokens.css`:
-  1. *Primitive palette*: theme-independent colour ramps derived from the five core colours below.
-  2. *Semantic tokens*: the only names components may use — `--bg-base`, `--bg-surface`, `--bg-elevated`, `--border`, `--text-primary/-secondary/-muted`, `--accent`, `--accent-hover`, `--focus-ring`, `--danger`, `--status-running/-waiting/-interrupted/-idle`, `--selection`, plus the 16 `--ansi-*` terminal colours. A theme is one `[data-theme="<name>"]` block assigning primitives to **every** semantic token.
+  1. _Primitive palette_: theme-independent colour ramps derived from the five core colours below.
+  2. _Semantic tokens_: the only names components may use — `--bg-base`, `--bg-surface`, `--bg-elevated`, `--border`, `--text-primary/-secondary/-muted`, `--accent`, `--accent-hover`, `--focus-ring`, `--danger`, `--status-running/-waiting/-interrupted/-idle`, `--selection`, plus the 16 `--ansi-*` terminal colours. A theme is one `[data-theme="<name>"]` block assigning primitives to **every** semantic token.
 
   The Tailwind theme maps utilities onto semantic tokens; the xterm.js theme object and the Monaco theme are **generated at runtime from the computed CSS variables**, so adding a theme is one CSS block plus one entry in a theme registry — zero TypeScript changes. A CI script asserts each theme block defines the complete semantic set and that text pairings pass WCAG AA (4.5:1 body, 3:1 large/UI elements). Terminal, editor, and chrome must visibly share one palette — a stock-dark xterm next to Monaco's default `vs-dark` inside a differently-dark app is forbidden.
 
 - **Core palette** (the brand; hue is preserved within each ramp, only lightness/saturation step):
 
   ```css
-  --altitude-blue: #7DADFF;   /* primary accent family */
-  --krypton-green: #8BE8B3;   /* success / running family */
-  --quiet-khaki:   #DDB28C;   /* warm neutral / attention family */
-  --storm-navy:    #001C3D;   /* dark ground / light-theme ink */
-  --burnt-wood:    #5A2F22;   /* warm ink / danger family root */
+  --altitude-blue: #7dadff; /* primary accent family */
+  --krypton-green: #8be8b3; /* success / running family */
+  --quiet-khaki: #ddb28c; /* warm neutral / attention family */
+  --storm-navy: #001c3d; /* dark ground / light-theme ink */
+  --burnt-wood: #5a2f22; /* warm ink / danger family root */
   ```
 
   Extended ramps: navy `#000A14 · #00132B · #001C3D · #0A2B52 · #163C6B`; blue `#A7C7FF · #7DADFF · #4A86E8 · #2E6BD6`; green `#8BE8B3 · #1FA26B`; khaki `#FBF5EC · #F7EBDA · #EAD9C0 · #DDB28C · #F0B36E · #A9743D`; wood/ember `#F2957C · #C2472E · #8C4A34 · #5A2F22`; mist (cool text ramp for dark ground) `#EAF1FB · #B9C9E0 · #7E93B3`; tertiary pastels completing the ANSI set at the core pastels' lightness: cyan `#7FD6DC` (blue×green), violet `#B9A3F2`.
 
 - **Themes**: v1 ships `dark` (default) and `light`, plus a "system" option following `prefers-color-scheme`; switchable in settings and via ⌘K. Semantic assignments:
 
-  | semantic token | dark | light |
-  |---|---|---|
-  | `--bg-base` | `#000A14` | `#FBF5EC` |
-  | `--bg-surface` | `#00132B` | `#FFF9F0` |
-  | `--bg-elevated` | `#001C3D` | `#F7EBDA` |
-  | `--border` | `#163C6B` | `#EAD9C0` |
-  | `--text-primary` | `#EAF1FB` | `#001C3D` |
-  | `--text-secondary` | `#B9C9E0` | `#5A2F22` |
-  | `--text-muted` | `#7E93B3` | `#8A7663` |
-  | `--accent` / `--focus-ring` | `#7DADFF` | `#2E6BD6` |
-  | `--accent-hover` | `#A7C7FF` | `#4A86E8` |
-  | `--status-running` | `#8BE8B3` | `#1FA26B` |
-  | `--status-waiting` | `#F0B36E` | `#A9743D` |
+  | semantic token                      | dark      | light     |
+  | ----------------------------------- | --------- | --------- |
+  | `--bg-base`                         | `#000A14` | `#FBF5EC` |
+  | `--bg-surface`                      | `#00132B` | `#FFF9F0` |
+  | `--bg-elevated`                     | `#001C3D` | `#F7EBDA` |
+  | `--border`                          | `#163C6B` | `#EAD9C0` |
+  | `--text-primary`                    | `#EAF1FB` | `#001C3D` |
+  | `--text-secondary`                  | `#B9C9E0` | `#5A2F22` |
+  | `--text-muted`                      | `#7E93B3` | `#8A7663` |
+  | `--accent` / `--focus-ring`         | `#7DADFF` | `#2E6BD6` |
+  | `--accent-hover`                    | `#A7C7FF` | `#4A86E8` |
+  | `--status-running`                  | `#8BE8B3` | `#1FA26B` |
+  | `--status-waiting`                  | `#F0B36E` | `#A9743D` |
   | `--status-interrupted` / `--danger` | `#F2957C` | `#C2472E` |
-  | `--status-idle` | `#7E93B3` | `#8A7663` |
+  | `--status-idle`                     | `#7E93B3` | `#8A7663` |
 
   The dark theme is storm-navy ground with the pastel family as light; the light theme is quiet-khaki paper with storm-navy ink and burnt-wood secondary text — the same five colours swap roles rather than being recoloured.
 

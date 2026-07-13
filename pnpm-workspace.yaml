@@ -1,0 +1,6 @@
+packages:
+  - packages/*
+# Native addons: both ship install scripts (prebuild download / node-gyp).
+allowBuilds:
+  better-sqlite3: true
+  node-pty: true

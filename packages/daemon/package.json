@@ -1,0 +1,27 @@
+{
+  "name": "@puddle/daemon",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "puddled": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -b && node scripts/copy-web-assets.mjs",
+    "dev": "tsc -b --watch",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.0.0",
+    "@puddle/shared": "workspace:*",
+    "better-sqlite3": "^12.0.0",
+    "hono": "^4.12.0",
+    "node-pty": "^1.1.0",
+    "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.0"
+  }
+}
