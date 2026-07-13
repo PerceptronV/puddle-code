@@ -55,11 +55,22 @@ const LIVE_STATUSES: SessionStatus[] = ['starting', 'running', 'waiting_input'];
  */
 export class SessionService extends EventEmitter {
   private readonly liveAgents = new Map<string, LiveAgent>();
+  private shuttingDown = false;
 
   constructor(private readonly deps: SessionServiceDeps) {
     super();
     deps.ptys.on('data', (e: PtyDataEvent) => this.onPtyData(e));
     deps.ptys.on('exit', (e: PtyExitEvent) => this.onPtyExit(e));
+  }
+
+  /**
+   * Daemon shutdown: PTYs are about to be killed, but their sessions must
+   * KEEP their live status rows — the next boot's reconcile pass turns them
+   * into `interrupted` (SPEC §4). Without this, the exit handlers would
+   * record a graceful `exited` and the restart AT would lie.
+   */
+  beginShutdown(): void {
+    this.shuttingDown = true;
   }
 
   get(id: string): Session {
@@ -68,6 +79,13 @@ export class SessionService extends EventEmitter {
 
   list(filter: { project_id?: number; status?: SessionStatus } = {}): Session[] {
     return this.deps.sessions.list(filter).map((s) => this.withComputed(s));
+  }
+
+  /** Renames the puddle session only — the git branch is untouched (SPEC §6). */
+  rename(id: string, title: string): Session {
+    this.deps.sessions.get(id);
+    this.deps.sessions.setTitle(id, title);
+    return this.get(id);
   }
 
   async create(input: CreateSessionRequest): Promise<Session> {
@@ -322,6 +340,7 @@ export class SessionService extends EventEmitter {
   }
 
   private onPtyData(e: PtyDataEvent): void {
+    if (this.shuttingDown) return;
     const live = this.liveAgents.get(e.stream);
     if (!live) return;
     const now = Date.now();
@@ -350,6 +369,7 @@ export class SessionService extends EventEmitter {
     if (!live) return;
     live.detector.dispose();
     this.liveAgents.delete(e.stream);
+    if (this.shuttingDown) return; // reconcile turns these into `interrupted` next boot
     this.transition(e.stream, 'exited');
     this.deps.events.record(e.stream, 'exited', { code: e.exitCode });
   }
