@@ -29,7 +29,7 @@ const SECTIONS: Array<{ id: string; label: string; icon: LucideIcon; render: () 
     { id: 'accounts', label: 'Accounts', icon: Users, render: () => <AccountsSection /> },
     {
       id: 'permissions',
-      label: 'Permissions & safety',
+      label: 'Permissions & Safety',
       icon: ShieldAlert,
       render: () => <PermissionsSection />,
     },
@@ -41,7 +41,7 @@ const SECTIONS: Array<{ id: string; label: string; icon: LucideIcon; render: () 
     },
     {
       id: 'terminal',
-      label: 'Terminal & editor',
+      label: 'Terminal & Editor',
       icon: TerminalSquare,
       render: () => <TerminalSection />,
     },
