@@ -15,6 +15,8 @@ export const daemonConfigSchema = z.object({
     .int()
     .min(1024)
     .default(256 * 1024),
+  /** Days a (project, client) ui_state row survives without an update. */
+  uiStateRetentionDays: z.number().int().min(1).default(90),
 });
 export type DaemonConfig = z.infer<typeof daemonConfigSchema>;
 

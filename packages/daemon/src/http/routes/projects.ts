@@ -2,17 +2,21 @@ import { Hono } from 'hono';
 import {
   archiveRequestSchema,
   createProjectRequestSchema,
+  putProjectStateRequestSchema,
   type ProjectDetail,
 } from '@puddle/shared';
 import type { ProfileStore } from '../../db/stores/profiles.js';
+import type { ProjectStateStore } from '../../db/stores/project-states.js';
 import type { ProjectStore } from '../../db/stores/projects.js';
 import type { RepoStore } from '../../db/stores/repos.js';
 import type { SessionService } from '../../sessions/service.js';
 import type { WorktreeManager } from '../../worktrees/manager.js';
+import { ApiError } from '../errors.js';
 import { idParam, parseBody } from '../validate.js';
 
 export interface ProjectRouteDeps {
   projects: ProjectStore;
+  projectStates: ProjectStateStore;
   profiles: ProfileStore;
   repos: RepoStore;
   service: SessionService;
@@ -47,5 +51,28 @@ export function projectRoutes(deps: ProjectRouteDeps): Hono {
       const body = await parseBody(c, archiveRequestSchema);
       await deps.service.archiveProject(idParam(c), body.force);
       return c.body(null, 204);
+    })
+    .get('/:id/state', (c) => {
+      const project = deps.projects.get(idParam(c));
+      const client = c.req.query('client');
+      if (!client) {
+        throw ApiError.badRequest('missing_client', `query parameter 'client' is required`);
+      }
+      // The client's own row wins; a new client seeds from the project's
+      // most recent snapshot (SPEC §11 reload semantics).
+      const state =
+        deps.projectStates.get(project.id, client) ?? deps.projectStates.latest(project.id);
+      if (!state)
+        throw new ApiError(404, 'no_state', `project ${project.id} has no saved ui state`);
+      return c.json(state);
+    })
+    .put('/:id/state', async (c) => {
+      const project = deps.projects.get(idParam(c));
+      const client = c.req.query('client');
+      if (!client) {
+        throw ApiError.badRequest('missing_client', `query parameter 'client' is required`);
+      }
+      const body = await parseBody(c, putProjectStateRequestSchema);
+      return c.json(deps.projectStates.put(project.id, client, body.ui_state));
     });
 }

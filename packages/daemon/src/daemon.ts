@@ -8,6 +8,7 @@ import { openDatabase } from './db/db.js';
 import { AccountStore } from './db/stores/accounts.js';
 import { EventStore } from './db/stores/events.js';
 import { ProfileStore } from './db/stores/profiles.js';
+import { ProjectStateStore } from './db/stores/project-states.js';
 import { ProjectStore } from './db/stores/projects.js';
 import { RepoStore } from './db/stores/repos.js';
 import { SessionStore } from './db/stores/sessions.js';
@@ -60,6 +61,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   const accounts = new AccountStore(db);
   const repos = new RepoStore(db);
   const projects = new ProjectStore(db);
+  const projectStates = new ProjectStateStore(db);
   const sessions = new SessionStore(db);
   const events = new EventStore(db);
 
@@ -82,6 +84,9 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     onboarding,
     statusQuietMs: opts.statusQuietMs,
   });
+
+  const sweptStates = projectStates.gc(config.uiStateRetentionDays);
+  if (sweptStates > 0) console.log(`ui-state gc: ${sweptStates} stale row(s) removed`);
 
   const reconciled = reconcilePass({ sessions, events, projects, onboarding });
   if (reconciled.interrupted.length > 0) {
@@ -114,7 +119,18 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     version: opts.version ?? '0.0.0',
     assetsDir: opts.assetsDir ?? null,
     token,
-    api: { paths, profiles, accounts, repos, projects, adapters, ptys, worktrees, service },
+    api: {
+      paths,
+      profiles,
+      accounts,
+      repos,
+      projects,
+      projectStates,
+      adapters,
+      ptys,
+      worktrees,
+      service,
+    },
     ws: { gateway, upgradeWebSocket },
   });
 

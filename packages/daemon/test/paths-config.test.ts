@@ -46,6 +46,7 @@ describe('daemon config', () => {
       fetchIntervalMinutes: 15,
       logMaxBytes: 10 * 1024 * 1024,
       replayBytes: 256 * 1024,
+      uiStateRetentionDays: 90,
     });
     expect(JSON.parse(readFileSync(paths.configFile, 'utf8')).port).toBe(7433);
   });

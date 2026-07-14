@@ -274,6 +274,46 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
     expect(all.every((s) => s.status === 'archived')).toBe(true);
   });
 
+  it('stores per-client ui state; other clients seed from it without clobbering', async () => {
+    const c = client(daemon);
+    const noState = await c.req('GET', `/api/projects/${project.id}/state?client=client-a`);
+    expect(noState.status).toBe(404);
+    expect(((await noState.json()) as { error: { code: string } }).error.code).toBe('no_state');
+
+    const snapshotA = {
+      session_tabs: [s1.id, s2.id],
+      active_session: s1.id,
+      editor_tabs: [],
+      layout: { sidebar: 24 },
+      explorer_pin: null,
+    };
+    await c.json('PUT', `/api/projects/${project.id}/state?client=client-a`, {
+      ui_state: snapshotA,
+    });
+
+    // Client A reads its own row back; client B falls back to A's snapshot.
+    const ownRow = await c.json<{ ui_state: typeof snapshotA }>(
+      'GET',
+      `/api/projects/${project.id}/state?client=client-a`,
+    );
+    expect(ownRow.ui_state).toEqual(snapshotA);
+    const seeded = await c.json<{ ui_state: typeof snapshotA }>(
+      'GET',
+      `/api/projects/${project.id}/state?client=client-b`,
+    );
+    expect(seeded.ui_state).toEqual(snapshotA);
+
+    // B's writes land in B's row and never clobber A's.
+    await c.json('PUT', `/api/projects/${project.id}/state?client=client-b`, {
+      ui_state: { ...snapshotA, active_session: s2.id },
+    });
+    const aAfter = await c.json<{ ui_state: { active_session: string } }>(
+      'GET',
+      `/api/projects/${project.id}/state?client=client-a`,
+    );
+    expect(aAfter.ui_state.active_session).toBe(s1.id);
+  });
+
   it('login PTY flow marks the account logged in on clean exit', async () => {
     const c = client(daemon);
     const login = await c.json<{ stream: string; term: string }>(
