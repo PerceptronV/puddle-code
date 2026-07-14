@@ -104,6 +104,10 @@
   --accent: var(--blue-300);
   --accent-hover: var(--blue-200);
   --focus-ring: var(--blue-300);
+  /* Primary actions are ink, not accent: pale mist on the dark ground. */
+  --action: var(--mist-100);
+  --action-hover: var(--mist-300);
+  --action-ink: var(--navy-800);
   --danger: var(--ember-200);
   --status-running: var(--green-300);
   --status-waiting: var(--amber-300);
@@ -147,6 +151,10 @@
   --accent: var(--blue-600);
   --accent-hover: var(--blue-500);
   --focus-ring: var(--blue-600);
+  /* Primary actions are ink, not accent: storm navy on the white ground. */
+  --action: var(--navy-800);
+  --action-hover: var(--navy-700);
+  --action-ink: var(--neutral-0);
   --danger: var(--ember-500);
   /* SPEC §12 lists green-600 here, but it misses 3:1 on --bg-elevated; the
      assignment steps one deeper (ramp unchanged) to keep the AA floor. */

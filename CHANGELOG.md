@@ -10,6 +10,7 @@ Past releases: see docs/changelogs/.
 ## [Unreleased]
 
 ### Changed
+- Primary actions (buttons, checked toggles) are ink rather than accent blue: new `--action`/`--action-hover`/`--action-ink` semantic tokens — mist on dark, storm navy on light — with the accent reserved for links, focus, and selection; the fill/ink pairing joins the contrast check.
 - Light theme is now a white ground (was khaki paper); the dark storm-navy theme is unchanged and SPEC §12's table is updated to match.
 - The theme preference defaults to following the OS (`system`) instead of dark.
 - UI restyled to the `HUMANS.md` design brief: borderless components with fill-shift hover/active feedback, pointer cursors on everything interactive, boxless token and profile start screens, and floating layers separated by shadow rather than outline. `CLAUDE.md` now tells every agent to read `HUMANS.md` first.

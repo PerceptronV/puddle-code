@@ -9,7 +9,7 @@ const buttonVariants = cva(
     variants: {
       // Borderless (HUMANS.md): hover/active feedback is a fill shift, never a border.
       variant: {
-        default: 'bg-accent text-ground hover:bg-accent-hover active:opacity-85',
+        default: 'bg-action text-action-ink hover:bg-action-hover active:opacity-85',
         secondary: 'bg-elevated text-fg hover:bg-border/70 active:bg-border',
         ghost: 'text-fg-secondary hover:bg-elevated hover:text-fg active:bg-border/70',
         danger: 'bg-danger text-ground hover:opacity-90 active:opacity-80',

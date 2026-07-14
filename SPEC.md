@@ -444,7 +444,7 @@ Puddle's UI must read as a polished, intentional developer cockpit — dense, ca
 
 - **Two-layer token architecture** in `packages/web/src/styles/tokens.css`:
   1. _Primitive palette_: theme-independent colour ramps derived from the five core colours below.
-  2. _Semantic tokens_: the only names components may use — `--bg-base`, `--bg-surface`, `--bg-elevated`, `--border`, `--text-primary/-secondary/-muted`, `--accent`, `--accent-hover`, `--focus-ring`, `--danger`, `--status-running/-waiting/-interrupted/-idle`, `--selection`, plus the 16 `--ansi-*` terminal colours. A theme is one `[data-theme="<name>"]` block assigning primitives to **every** semantic token.
+  2. _Semantic tokens_: the only names components may use — `--bg-base`, `--bg-surface`, `--bg-elevated`, `--border`, `--text-primary/-secondary/-muted`, `--accent`, `--accent-hover`, `--action`, `--action-hover`, `--action-ink`, `--focus-ring`, `--danger`, `--status-running/-waiting/-interrupted/-idle`, `--selection`, plus the 16 `--ansi-*` terminal colours. A theme is one `[data-theme="<name>"]` block assigning primitives to **every** semantic token.
 
   The Tailwind theme maps utilities onto semantic tokens; the xterm.js theme object and the Monaco theme are **generated at runtime from the computed CSS variables**, so adding a theme is one CSS block plus one entry in a theme registry — zero TypeScript changes. A CI script asserts each theme block defines the complete semantic set and that text pairings pass WCAG AA (4.5:1 body, 3:1 large/UI elements). Terminal, editor, and chrome must visibly share one palette — a stock-dark xterm next to Monaco's default `vs-dark` inside a differently-dark app is forbidden.
 
@@ -473,12 +473,15 @@ Puddle's UI must read as a polished, intentional developer cockpit — dense, ca
   | `--text-muted`                      | `#7E93B3` | `#8A7663` |
   | `--accent` / `--focus-ring`         | `#7DADFF` | `#2E6BD6` |
   | `--accent-hover`                    | `#A7C7FF` | `#4A86E8` |
+  | `--action` (primary-button fill)    | `#EAF1FB` | `#001C3D` |
+  | `--action-hover`                    | `#B9C9E0` | `#0A2B52` |
+  | `--action-ink` (text on the fill)   | `#001C3D` | `#FFFFFF` |
   | `--status-running`                  | `#8BE8B3` | `#157A50` |
   | `--status-waiting`                  | `#F0B36E` | `#A9743D` |
   | `--status-interrupted` / `--danger` | `#F2957C` | `#C2472E` |
   | `--status-idle`                     | `#7E93B3` | `#8A7663` |
 
-  The dark theme is storm-navy ground with the pastel family as light; the light theme is a white ground (HUMANS.md: white, not beige) with storm-navy ink and burnt-wood secondary text, keeping the deep accent steps. Light `--status-running` uses a derived deeper krypton step (`#157A50`) because `#1FA26B` misses the 3:1 AA floor on the elevated ground.
+  Primary actions (buttons, checked toggles) are **ink, not accent**: mist on the dark theme, storm navy on the light — the accent blue is reserved for links, focus, and selection. The dark theme is storm-navy ground with the pastel family as light; the light theme is a white ground (HUMANS.md: white, not beige) with storm-navy ink and burnt-wood secondary text, keeping the deep accent steps. Light `--status-running` uses a derived deeper krypton step (`#157A50`) because `#1FA26B` misses the 3:1 AA floor on the elevated ground.
 
 - **ANSI mapping rule**: dark theme maps the pastel depth of each hue (red→`#F2957C`, green→`#8BE8B3`, yellow→`#F0B36E`, blue→`#7DADFF`, magenta→`#B9A3F2`, cyan→`#7FD6DC`, fg→`#EAF1FB`) over `--bg-base`; the light theme maps each hue's deep step (`#C2472E`, `#1FA26B`, `#A9743D`, `#2E6BD6`, …) so agent output stays legible on the white ground. Brights are one lightness step up. UI accents and terminal output are thereby the same family by construction.
 

@@ -20,6 +20,9 @@
   --color-fg-muted: var(--text-muted);
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
+  --color-action: var(--action);
+  --color-action-hover: var(--action-hover);
+  --color-action-ink: var(--action-ink);
   --color-focus: var(--focus-ring);
   --color-danger: var(--danger);
   --color-running: var(--status-running);

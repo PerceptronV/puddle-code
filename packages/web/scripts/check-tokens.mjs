@@ -20,6 +20,9 @@ const REQUIRED_SEMANTIC_TOKENS = [
   '--text-muted',
   '--accent',
   '--accent-hover',
+  '--action',
+  '--action-hover',
+  '--action-ink',
   '--focus-ring',
   '--danger',
   '--status-running',
@@ -52,11 +55,15 @@ const CONTRAST_FLOORS = {
   '--text-secondary': 4.5,
   '--text-muted': 3,
   '--accent': 3,
+  '--action': 3,
   '--status-running': 3,
   '--status-waiting': 3,
   '--status-interrupted': 3,
   '--status-idle': 3,
 };
+
+// Text sitting on a coloured fill: [text token, fill token, floor].
+const FILL_PAIRS = [['--action-ink', '--action', 4.5]];
 
 /** Extracts `selector { ... }` bodies (tokens.css nests no rules). */
 function blocks(css) {
@@ -123,6 +130,20 @@ for (const { selector, body } of themes) {
       } catch (e) {
         failures.push(`${selector}: ${token} vs ${bg}: ${e.message}`);
       }
+    }
+  }
+
+  for (const [text, fill, floor] of FILL_PAIRS) {
+    if (!theme.has(text) || !theme.has(fill)) continue; // already reported as missing
+    try {
+      const ratio = contrastRatio(value(text), value(fill));
+      if (ratio < floor) {
+        failures.push(
+          `${selector}: ${text} on ${fill} is ${ratio.toFixed(2)}:1 (needs ≥ ${floor}:1)`,
+        );
+      }
+    } catch (e) {
+      failures.push(`${selector}: ${text} vs ${fill}: ${e.message}`);
     }
   }
 }
