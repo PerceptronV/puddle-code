@@ -302,7 +302,12 @@ function WorkspaceInner() {
                         : 'hidden'
                     }
                   >
-                    <LazyTerminal stream={id} />
+                    <LazyTerminal
+                      stream={id}
+                      onOpenFile={(path, line, column) =>
+                        openFile(id, path, line !== undefined ? { line, column } : undefined)
+                      }
+                    />
                   </div>
                 ))}
                 {activeSessionId && view === 'diff' && (

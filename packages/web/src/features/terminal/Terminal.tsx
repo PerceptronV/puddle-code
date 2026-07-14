@@ -1,12 +1,14 @@
 import { useEffect, useRef } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 import { useClientSettings } from '../../lib/client-settings';
 import { onThemeChange, xtermThemeFromCss } from '../../lib/theme';
 import { cn } from '../../lib/utils';
 import { wsManager } from '../../lib/ws';
 import { interceptImagePaste } from './paste-image';
+import { registerFileLinks } from './file-links';
 
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -29,6 +31,8 @@ export interface TerminalProps {
   term?: string;
   className?: string;
   onExit?: (code: number) => void;
+  /** Cmd/Ctrl+click on a validated file path opens it in the editor (SPEC §7). */
+  onOpenFile?: (path: string, line?: number, column?: number) => void;
 }
 
 /**
@@ -36,12 +40,14 @@ export interface TerminalProps {
  * repaints prior scrollback; the theme regenerates from the CSS variables on
  * every theme switch so terminal and chrome never drift apart (SPEC §12).
  */
-export function Terminal({ stream, term = 'agent', className, onExit }: TerminalProps) {
+export function Terminal({ stream, term = 'agent', className, onExit, onOpenFile }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const settings = useClientSettings();
   const onExitRef = useRef(onExit);
   onExitRef.current = onExit;
+  const onOpenFileRef = useRef(onOpenFile);
+  onOpenFileRef.current = onOpenFile;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -57,8 +63,22 @@ export function Terminal({ stream, term = 'agent', className, onExit }: Terminal
     xtermRef.current = xterm;
     const fit = new FitAddon();
     xterm.loadAddon(fit);
+    // URL links are safe everywhere (login terminals included): plain click or
+    // cmd/ctrl+click both open the URL in a new tab (SPEC §7).
+    xterm.loadAddon(
+      new WebLinksAddon((_event, uri) => window.open(uri, '_blank', 'noopener,noreferrer')),
+    );
     xterm.open(container);
     fit.fit();
+
+    // Validated file-path links: only for real sessions (login PTYs have no
+    // worktree to resolve against) and only when a handler is wired.
+    const fileLinks =
+      onOpenFileRef.current && !stream.startsWith('login-')
+        ? registerFileLinks(xterm, stream, (path, line, column) =>
+            onOpenFileRef.current?.(path, line, column),
+          )
+        : null;
 
     const detach = wsManager.attach(stream, term, xterm.cols, xterm.rows, {
       onData: (data) => xterm.write(data),
@@ -102,6 +122,7 @@ export function Terminal({ stream, term = 'agent', className, onExit }: Terminal
       container.removeEventListener('paste', onPaste, true);
       observer.disconnect();
       unsubscribeTheme();
+      fileLinks?.dispose();
       stdin.dispose();
       detach();
       xterm.dispose();
