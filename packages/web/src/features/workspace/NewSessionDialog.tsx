@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from '../../components/ui/dialog';
 import { HintInput } from '../../components/ui/hint-input';
-import { Input, Textarea } from '../../components/ui/input';
+import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import {
   Select,
@@ -32,8 +32,9 @@ import {
 import { useCurrentProfileId } from '../profile/profile-store';
 
 /**
- * Account → base branch → title/prompt (SPEC §11: the project supplies the
- * rest). The skip toggle renders only when the profile gate is on AND the
+ * Account → base branch → optional branch name (SPEC §11: the project supplies
+ * the rest, and the agent's title/first prompt are given later in the session
+ * itself). The skip toggle renders only when the profile gate is on AND the
  * chosen account opted in; the daemon re-checks server-side regardless.
  */
 export function NewSessionDialog({
@@ -62,8 +63,6 @@ export function NewSessionDialog({
   const [baseBranch, setBaseBranch] = useState('');
   const [separateBranch, setSeparateBranch] = useState(true);
   const [branch, setBranch] = useState('');
-  const [title, setTitle] = useState('');
-  const [prompt, setPrompt] = useState('');
   const [skip, setSkip] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,13 +70,9 @@ export function NewSessionDialog({
   const branches = useRepoBranches(open ? repoId : undefined);
   const profiles = useProfiles();
   const branchPrefix = profiles.data?.find((p) => p.id === profileId)?.branch_prefix ?? '';
-  // Mirrors the daemon's naming chain so the placeholder tells the truth.
-  const titleSlug = title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 40);
-  const branchPreview = `${branchPrefix}${titleSlug || 'auto — from the prompt, or a word pair'}`;
+  // No title/prompt to slugify any more — left blank the daemon names the
+  // branch itself, so the placeholder shows that fallback verbatim.
+  const branchPreview = `${branchPrefix}auto — a random word pair`;
   const account = accounts.data?.find((a) => String(a.id) === accountId);
   const gateOpen = settings.data?.allowSkipPermissions === true;
   const showSkipToggle = gateOpen && account?.skip_permissions_default === true;
@@ -109,17 +104,13 @@ export function NewSessionDialog({
         ...(baseBranch.trim() ? { base_branch: baseBranch.trim() } : {}),
         ...(separateBranch ? {} : { separate_branch: false }),
         ...(separateBranch && branch.trim() ? { branch: branch.trim() } : {}),
-        ...(title.trim() ? { title: title.trim() } : {}),
-        ...(prompt.trim() ? { prompt: prompt.trim() } : {}),
         ...(showSkipToggle && skip ? { skip_permissions: true } : {}),
       },
       {
         onSuccess: (session) => {
           onOpenChange(false);
-          setTitle('');
           setBranch('');
           setSeparateBranch(true);
-          setPrompt('');
           setSkip(false);
           onCreated(session);
         },
@@ -225,18 +216,12 @@ export function NewSessionDialog({
               </p>
             )}
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="session-title">Title</Label>
-            <Input
-              id="session-title"
-              placeholder="e.g. fix flaky auth test"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </div>
           {separateBranch && (
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="session-branch">Branch</Label>
+              <div className="flex items-baseline gap-2">
+                <Label htmlFor="session-branch">Branch</Label>
+                <span className="text-xs text-fg-muted">optional</span>
+              </div>
               <Input
                 id="session-branch"
                 placeholder={branchPreview}
@@ -246,16 +231,6 @@ export function NewSessionDialog({
               />
             </div>
           )}
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="session-prompt">First prompt</Label>
-            <Textarea
-              id="session-prompt"
-              placeholder="What should the agent do?"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              rows={3}
-            />
-          </div>
           {showSkipToggle && (
             <div className="flex items-center gap-2 rounded-md bg-surface px-3 py-2">
               <Switch id="skip-permissions" checked={skip} onCheckedChange={setSkip} />

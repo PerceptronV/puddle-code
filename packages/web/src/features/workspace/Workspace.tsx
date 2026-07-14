@@ -1,27 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { Group, Panel, Separator, type Layout } from 'react-resizable-panels';
 import { Play, TerminalSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Session } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
-import { ExplorerHeader } from '../explorer/ExplorerHeader';
-import { FileExplorer } from '../explorer/FileExplorer';
 import { useExplorerTarget } from '../explorer/use-explorer-target';
 import { useAccounts, useProjectDetail, useSessionAction } from '../../lib/queries';
 import { useNewSession } from '../shell/new-session-context';
 import { LazyTerminal } from '../terminal/LazyTerminal';
-import { LazyDiffView } from '../diff/LazyDiffView';
 import { LazyEditorPane } from '../editor/LazyEditorPane';
-import { LazyHistoryView } from '../history/LazyHistoryView';
 import { addOrFocusTab, type EditorTab } from '../editor/editor-tabs';
-import { EditorProvider, useEditorHandler, type RevealTarget } from './editor-context';
+import {
+  EditorProvider,
+  useEditorHandler,
+  type EditorPosition,
+  type RevealTarget,
+} from './editor-context';
 import { layoutForPanels } from './panel-layout';
+import { CollapsedSidebarRail, NavigatorSidebar, type SidebarMode } from './NavigatorSidebar';
 import { NewSessionDialog } from './NewSessionDialog';
 import { PortsStrip } from '../ports/PortsStrip';
 import { SessionSidebar } from './SessionSidebar';
 import { TabStrip } from './TabStrip';
-import { ViewStrip, type SessionView } from './ViewStrip';
 import { useUiState } from './use-ui-state';
 
 /** Inline banner over the terminal for sessions that need a nudge. */
@@ -68,17 +69,9 @@ export function Workspace() {
 function WorkspaceInner() {
   const params = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
   const projectId = params['id'] ?? '';
   const validProject = /^[0-9a-f]{10}$/.test(projectId);
   const activeSessionId = params['sid'] ?? null;
-  // The active view is the route's trailing segment; the bare session route is
-  // the terminal (see App.tsx). Diff/history apply to the active session only.
-  const view: SessionView = location.pathname.endsWith('/diff')
-    ? 'diff'
-    : location.pathname.endsWith('/history')
-      ? 'history'
-      : 'terminal';
   const detail = useProjectDetail(validProject ? projectId : undefined);
   const sessions = useMemo(() => detail.data?.sessions ?? [], [detail.data]);
   const accounts = useAccounts(detail.data?.project.profile_id).data ?? [];
@@ -94,22 +87,22 @@ function WorkspaceInner() {
   const justClosedActive = useRef<string | null>(null);
   const { setHandler } = useNewSession();
 
-  // Opening a file from the explorer (or a Phase 4 terminal link) adds/focuses
-  // its editor tab and makes it active — pure ui-state, so it works before the
-  // lazy editor chunk loads. A `position` arrives with a fresh nonce so the
-  // editor zone reveals the caret even when the same tab was already open.
+  // Opening any tab from a navigator (files tree, diff list, history list) or a
+  // Phase 4 terminal link adds/focuses its editor tab and makes it active —
+  // pure ui-state, so it works before the lazy editor chunk loads. A `position`
+  // arrives with a fresh nonce so the editor zone reveals the caret even when
+  // the same file tab was already open (only meaningful for file tabs).
   const [reveal, setReveal] = useState<RevealTarget | null>(null);
-  const openFile = useCallback(
-    (sessionId: string, path: string, position?: { line: number; column?: number }) => {
-      const tab: EditorTab = { session: sessionId, path };
+  const openEditorTab = useCallback(
+    (tab: EditorTab, position?: EditorPosition) => {
       uiState.update({
         editor_tabs: addOrFocusTab(uiState.snapshot.editor_tabs, tab),
         active_editor_tab: tab,
       });
-      if (position) {
+      if (position && (tab.kind ?? 'file') === 'file') {
         setReveal({
-          session: sessionId,
-          path,
+          session: tab.session,
+          path: tab.path,
           line: position.line,
           column: position.column,
           nonce: Date.now(),
@@ -117,6 +110,13 @@ function WorkspaceInner() {
       }
     },
     [uiState],
+  );
+  // Stable file-open handler for terminal links, the explorer, and the editor
+  // context (keeps the original `(session, path, position?)` shape).
+  const openFile = useCallback(
+    (sessionId: string, path: string, position?: EditorPosition) =>
+      openEditorTab({ kind: 'file', session: sessionId, path }, position),
+    [openEditorTab],
   );
   useEditorHandler(openFile);
 
@@ -187,10 +187,30 @@ function WorkspaceInner() {
     [uiState, openTabs, activeSessionId, navigate, projectId],
   );
 
-  const activeSession = sessions.find((s) => s.id === activeSessionId);
+  const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
+  // Files keeps its own pin (`explorerTarget`); Diff and History follow the
+  // active session (the agent tab in focus) — SPEC §8.
   const explorerTarget = useExplorerTarget(sessions, activeSessionId, uiState);
-  const explorerOpen = uiState.snapshot.explorer_open;
   const editorTabs = uiState.snapshot.editor_tabs;
+  const sidebarMode: SidebarMode = uiState.snapshot.sidebar_mode;
+  const sidebarCollapsed = uiState.snapshot.sidebar_collapsed;
+
+  // Highlight the Diff navigator entry whose diff tab is the active one.
+  const activeTab = uiState.snapshot.active_editor_tab;
+  const activeDiffPath =
+    activeTab?.kind === 'diff' && activeSession && activeTab.session === activeSession.id
+      ? activeTab.path
+      : null;
+
+  // A diff / commit-file navigator click opens its content as a centre-editor
+  // tab against the active session's worktree (openEditorTab dedupes/focuses).
+  const openDiff = (path: string) => {
+    if (activeSession) openEditorTab({ kind: 'diff', session: activeSession.id, path });
+  };
+  const openCommitFile = (path: string, sha: string) => {
+    if (activeSession) openEditorTab({ kind: 'commit', session: activeSession.id, path, sha });
+  };
+
   // Both Groups (horizontal shell, nested vertical editor split) persist into
   // ONE flat `layout` object: panel ids never collide, so `onLayoutChanged`
   // MERGES its keys in — a plain replace would wipe the other Group's sizes.
@@ -202,12 +222,13 @@ function WorkspaceInner() {
     (layout: Layout) => uiState.update({ layout: { ...uiState.snapshot.layout, ...layout } }),
     [uiState],
   );
-  // Conditional panels (explorer, editor) join their Group's id list only
-  // while rendered, keeping the restore count exact in every configuration.
+  // The nav panel joins the horizontal Group only while expanded (collapsed, a
+  // slim rail sits outside the Group); the editor pane joins the vertical Group
+  // only while a tab is open — keeping each Group's restore count exact.
   const horizontalLayout = layoutForPanels(uiState.snapshot.layout, [
-    'sidebar',
-    ...(explorerOpen ? ['explorer'] : []),
+    ...(sidebarCollapsed ? [] : ['nav']),
     'main',
+    'sessions',
   ]);
   const verticalLayout = layoutForPanels(uiState.snapshot.layout, [
     ...(editorTabs.length > 0 ? ['editor'] : []),
@@ -220,134 +241,125 @@ function WorkspaceInner() {
   }
 
   return (
-    <Group
-      orientation="horizontal"
-      className="h-full"
-      defaultLayout={horizontalLayout}
-      onLayoutChanged={mergeLayout}
-    >
-      <Panel id="sidebar" defaultSize={260} minSize={180} maxSize={480}>
-        <SessionSidebar
-          projectId={projectId}
-          sessions={sessions}
-          accounts={accounts}
-          activeSessionId={activeSessionId}
-          onNewSession={() => setCreating(true)}
-          onArchived={closeTab}
-        />
-      </Panel>
-      <Separator className="w-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
-      {explorerOpen && (
-        <>
-          <Panel id="explorer" defaultSize={240} minSize={160} maxSize={400}>
-            <div className="flex h-full flex-col bg-surface">
-              <ExplorerHeader sessions={sessions} target={explorerTarget} />
-              {explorerTarget.session ? (
-                <FileExplorer session={explorerTarget.session} onOpenFile={openFile} />
-              ) : (
-                <div className="px-3 py-2 text-xs text-fg-muted">No worktree to show.</div>
-              )}
-            </div>
-          </Panel>
-          <Separator className="w-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
-        </>
+    <div className="flex h-full">
+      {sidebarCollapsed && (
+        <CollapsedSidebarRail onExpand={() => uiState.update({ sidebar_collapsed: false })} />
       )}
-      <Panel id="main">
-        {/* Vertical split: the editor zone sits above the session terminals,
-            appearing only once a file is open. Its own persisted layout shares
-            the flat `layout` object (see mergeLayout / layoutForPanels). */}
-        <Group
-          orientation="vertical"
-          className="h-full"
-          defaultLayout={verticalLayout}
-          onLayoutChanged={mergeLayout}
-        >
-          {editorTabs.length > 0 && (
-            <>
-              <Panel id="editor" defaultSize={360} minSize={120}>
-                <LazyEditorPane uiState={uiState} sessions={sessions} reveal={reveal} />
-              </Panel>
-              <Separator className="h-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
-            </>
-          )}
-          <Panel id="session" minSize={160}>
-            <div className="flex h-full flex-col bg-ground">
-              <TabStrip
-                tabs={openTabs}
+      <Group
+        orientation="horizontal"
+        className="h-full min-w-0 flex-1"
+        defaultLayout={horizontalLayout}
+        onLayoutChanged={mergeLayout}
+      >
+        {!sidebarCollapsed && (
+          <>
+            <Panel id="nav" defaultSize={280} minSize={200} maxSize={560}>
+              <NavigatorSidebar
+                mode={sidebarMode}
+                onModeChange={(m) => uiState.update({ sidebar_mode: m })}
+                onCollapse={() => uiState.update({ sidebar_collapsed: true })}
                 sessions={sessions}
-                activeId={activeSessionId}
-                onActivate={(id) => void navigate(`/project/${projectId}/session/${id}`)}
-                onClose={closeTab}
-                onReorder={(tabs) => uiState.update({ session_tabs: tabs })}
+                filesTarget={explorerTarget}
+                onOpenFile={openFile}
+                activeSession={activeSession}
+                activeDiffPath={activeDiffPath}
+                onOpenDiff={openDiff}
+                onOpenCommitFile={openCommitFile}
               />
-              {activeSessionId && (
-                <ViewStrip
-                  projectId={projectId}
-                  sessionId={activeSessionId}
-                  view={view}
-                  explorerOpen={explorerOpen}
-                  onToggleExplorer={() => uiState.update({ explorer_open: !explorerOpen })}
+            </Panel>
+            <Separator className="w-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
+          </>
+        )}
+        <Panel id="main">
+          {/* Vertical split (SPEC §8): the editor zone (files, diffs, browser
+            preview later) sits above the agent terminals, appearing only once a
+            tab is open — with no tabs the terminals take the whole height. The
+            boundary drags freely. This Group's sizes share the flat `layout`
+            object (see mergeLayout / layoutForPanels). */}
+          <Group
+            orientation="vertical"
+            className="h-full"
+            defaultLayout={verticalLayout}
+            onLayoutChanged={mergeLayout}
+          >
+            {editorTabs.length > 0 && (
+              <>
+                <Panel id="editor" defaultSize={360} minSize={120}>
+                  <LazyEditorPane uiState={uiState} sessions={sessions} reveal={reveal} />
+                </Panel>
+                <Separator className="h-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
+              </>
+            )}
+            <Panel id="session" minSize={160}>
+              <div className="flex h-full flex-col bg-ground">
+                <TabStrip
+                  tabs={openTabs}
+                  sessions={sessions}
+                  activeId={activeSessionId}
+                  onActivate={(id) => void navigate(`/project/${projectId}/session/${id}`)}
+                  onClose={closeTab}
+                  onReorder={(tabs) => uiState.update({ session_tabs: tabs })}
                 />
-              )}
-              {activeSession && <SessionBanner session={activeSession} />}
-              {activeSession && view === 'terminal' && (
-                <PortsStrip sessionId={activeSession.id} status={activeSession.status} />
-              )}
-              <div className="relative min-h-0 flex-1">
-                {/* Terminals stay mounted in every view (their PTY attachment
-                    must not drop); only visibility switches. Diff/history
-                    render as overlays alongside, never instead. */}
-                {openTabs.map((id) => (
-                  <div
-                    key={id}
-                    className={
-                      id === activeSessionId && view === 'terminal'
-                        ? 'absolute inset-0 py-1 pl-4 pr-2'
-                        : 'hidden'
-                    }
-                  >
-                    <LazyTerminal
-                      stream={id}
-                      onOpenFile={(path, line, column) =>
-                        openFile(id, path, line !== undefined ? { line, column } : undefined)
+                {activeSession && <SessionBanner session={activeSession} />}
+                {activeSession && (
+                  <PortsStrip sessionId={activeSession.id} status={activeSession.status} />
+                )}
+                <div className="relative min-h-0 flex-1">
+                  {/* Terminals stay mounted whichever session is active (their PTY
+                    attachment must not drop); only visibility switches. Diff and
+                    history now live in the left navigator, never over the
+                    terminal. */}
+                  {openTabs.map((id) => (
+                    <div
+                      key={id}
+                      className={
+                        id === activeSessionId ? 'absolute inset-0 py-1 pl-4 pr-2' : 'hidden'
                       }
-                    />
-                  </div>
-                ))}
-                {activeSessionId && view === 'diff' && (
-                  <div className="absolute inset-0">
-                    <LazyDiffView session={activeSessionId} />
-                  </div>
-                )}
-                {activeSessionId && view === 'history' && (
-                  <div className="absolute inset-0">
-                    <LazyHistoryView session={activeSessionId} />
-                  </div>
-                )}
-                {!activeSessionId && (
-                  <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-                    <TerminalSquare className="size-8 text-fg-muted" />
-                    <p className="text-sm text-fg-secondary">
-                      {sessions.filter((s) => s.status !== 'archived').length === 0
-                        ? 'No sessions yet — press ⌘K to start one.'
-                        : 'Pick a session from the sidebar.'}
-                    </p>
-                  </div>
-                )}
+                    >
+                      <LazyTerminal
+                        stream={id}
+                        onOpenFile={(path, line, column) =>
+                          openFile(id, path, line !== undefined ? { line, column } : undefined)
+                        }
+                      />
+                    </div>
+                  ))}
+                  {!activeSessionId && (
+                    <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+                      <TerminalSquare className="size-8 text-fg-muted" />
+                      <p className="text-sm text-fg-secondary">
+                        {sessions.filter((s) => s.status !== 'archived').length === 0
+                          ? 'No sessions yet — press ⌘K to start one.'
+                          : 'Pick a session from the sessions sidebar.'}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          </Panel>
-        </Group>
-      </Panel>
+            </Panel>
+          </Group>
+        </Panel>
+        <Separator className="w-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
+        <Panel id="sessions" defaultSize={260} minSize={180} maxSize={480}>
+          <SessionSidebar
+            projectId={projectId}
+            sessions={sessions}
+            accounts={accounts}
+            activeSessionId={activeSessionId}
+            onNewSession={() => setCreating(true)}
+            onArchived={closeTab}
+          />
+        </Panel>
 
-      <NewSessionDialog
-        projectId={projectId}
-        repoId={detail.data.project.repo_id}
-        open={creating}
-        seedAccountId={seedAccountId}
-        onOpenChange={setCreating}
-        onCreated={(session) => void navigate(`/project/${projectId}/session/${session.id}`)}
-      />
-    </Group>
+        <NewSessionDialog
+          projectId={projectId}
+          repoId={detail.data.project.repo_id}
+          open={creating}
+          seedAccountId={seedAccountId}
+          onOpenChange={setCreating}
+          onCreated={(session) => void navigate(`/project/${projectId}/session/${session.id}`)}
+        />
+      </Group>
+    </div>
   );
 }

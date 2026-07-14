@@ -1,19 +1,42 @@
 /**
- * Pure tab-order logic for the editor zone (SPEC §8). A tab is a
- * `(session, path)` pair — the same key the buffer store and drafts use. This
- * module is deliberately monaco-free (no `buffer-store.ts` import) so it is
- * unit-testable under vitest and safe to reach from eager code: the
- * Workspace-level `openFile` handler adds/focuses a tab here without pulling
- * the lazy editor chunk in.
+ * Pure tab-order logic for the editor zone (SPEC §8). A tab is keyed by
+ * `(kind, session, path, sha)`: a plain `file` editor, a worktree `diff`, or a
+ * `commit` file diff. `file` and `diff` tabs share the same `(session, path)`
+ * buffer the buffer store and drafts use; `commit` tabs are read-only sha→sha.
+ * This module is deliberately monaco-free (no `buffer-store.ts` import) so it
+ * is unit-testable under vitest and safe to reach from eager code: the
+ * Workspace-level open handlers add/focus a tab here without pulling the lazy
+ * editor chunk in.
  */
+
+export type EditorTabKind = 'file' | 'diff' | 'commit';
 
 export interface EditorTab {
   session: string;
   path: string;
+  /** Absent means `file` — legacy snapshots stored files only (SPEC §8). */
+  kind?: EditorTabKind;
+  /** Set only for `commit` tabs: the commit whose file diff this shows. */
+  sha?: string;
+}
+
+/** The effective kind, treating an absent `kind` as `file`. */
+export function tabKind(tab: EditorTab): EditorTabKind {
+  return tab.kind ?? 'file';
+}
+
+/** Stable React key / map key for a tab, unique across every kind. */
+export function tabKey(tab: EditorTab): string {
+  return `${tabKind(tab)}:${tab.session}:${tab.sha ?? ''}:${tab.path}`;
 }
 
 export function sameTab(a: EditorTab, b: EditorTab): boolean {
-  return a.session === b.session && a.path === b.path;
+  return (
+    a.session === b.session &&
+    a.path === b.path &&
+    tabKind(a) === tabKind(b) &&
+    (a.sha ?? '') === (b.sha ?? '')
+  );
 }
 
 export function hasTab(tabs: readonly EditorTab[], tab: EditorTab): boolean {

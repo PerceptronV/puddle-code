@@ -156,11 +156,9 @@ function ModifiedAt({
 }
 
 /**
- * The Monaco body for one file in a commit's `show` (SPEC §8, Task 9). Kept
- * apart from `HistoryFileSection` so its hooks — and Monaco itself — run only
- * once the section is expanded (mount-on-expand; no IntersectionObserver is
- * needed the way the diff view's `FileDiffSection` needs one, since a commit's
- * file list is short and never mounts by default beyond `defaultFileExpanded`).
+ * The Monaco body for one file in a commit's `show` (SPEC §8): `sha^`→`sha`,
+ * read-only, chosen by status. `CommitTabBody` renders it as a centre-editor
+ * commit tab; its hooks and Monaco mount only while that tab is active.
  */
 export function HistoryFileContent({
   session,

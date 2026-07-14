@@ -3,7 +3,7 @@ import { Circle, X } from 'lucide-react';
 import type { Session } from '@puddle/shared';
 import { cn } from '../../lib/utils';
 import { bufferKey, editorTabLabel, isDirty, subscribe, type OpenTab } from './buffer-store';
-import { reorderTabs, sameTab, type EditorTab } from './editor-tabs';
+import { reorderTabs, sameTab, tabKey, tabKind, type EditorTab } from './editor-tabs';
 
 /** Reactive dirty flag for one (session, path) buffer. */
 function useDirty(session: string, path: string): boolean {
@@ -35,7 +35,9 @@ function TabItem({
   onDragEnd(): void;
   onDragOver(): void;
 }) {
-  const dirty = useDirty(tab.session, tab.path);
+  // Commit tabs are read-only sha→sha, so they never show a dirty marker even
+  // if a file tab for the same path is edited (they share no editable buffer).
+  const dirty = useDirty(tab.session, tab.path) && tabKind(tab) !== 'commit';
   return (
     <div
       draggable
@@ -112,13 +114,22 @@ export function EditorTabStrip({
     onReorder(reorderTabs(tabs, from, to));
   };
 
+  // Suffix the basename label by kind so a file, its diff, and a commit view
+  // of the same path stay distinct: `api.ts` · `api.ts (diff)` · `api.ts @1a2b3c4`.
+  const labelFor = (tab: EditorTab): string => {
+    const base = editorTabLabel(tab.path, tab.session, openTabs, sessionBranches);
+    if (tabKind(tab) === 'diff') return `${base} (diff)`;
+    if (tabKind(tab) === 'commit') return `${base} @${(tab.sha ?? '').slice(0, 7)}`;
+    return base;
+  };
+
   return (
     <div className="flex h-9 shrink-0 items-stretch gap-0.5 overflow-x-auto bg-surface px-1 pt-1">
       {tabs.map((tab) => (
         <TabItem
-          key={`${tab.session}:${tab.path}`}
+          key={tabKey(tab)}
           tab={tab}
-          label={editorTabLabel(tab.path, tab.session, openTabs, sessionBranches)}
+          label={labelFor(tab)}
           active={activeTab !== null && sameTab(activeTab, tab)}
           dragging={dragging !== null && sameTab(dragging, tab)}
           onActivate={() => onActivate(tab)}

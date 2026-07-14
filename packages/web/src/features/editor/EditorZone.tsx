@@ -24,7 +24,17 @@ import { bufferKey, isDirty, releaseModel, retainModel } from './buffer-store';
 import { announceDraftDiscarded } from './editor-sync';
 import { CodeEditor } from './CodeEditor';
 import { EditorTabStrip } from './EditorTabStrip';
-import { activeAfterClose, hasTab, removeTab, sameTab, type EditorTab } from './editor-tabs';
+import {
+  activeAfterClose,
+  hasTab,
+  removeTab,
+  sameTab,
+  tabKey,
+  tabKind,
+  type EditorTab,
+} from './editor-tabs';
+import { DiffTabBody } from '../diff/DiffTabBody';
+import { CommitTabBody } from '../history/CommitTabBody';
 
 export interface EditorZoneProps {
   uiState: UiStateHandle;
@@ -94,7 +104,11 @@ export function EditorZone({ uiState, sessions, reveal }: EditorZoneProps) {
   // exists); the release then disposes it via the refcount if it was created.
   const heldRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    const want = new Set(tabs.map((t) => bufferKey(t.session, t.path)));
+    // Only file/diff tabs hold the shared buffer; commit tabs are read-only
+    // sha→sha with wholly private models (nothing to retain here).
+    const want = new Set(
+      tabs.filter((t) => tabKind(t) !== 'commit').map((t) => bufferKey(t.session, t.path)),
+    );
     const held = heldRef.current;
     for (const key of want) {
       if (!held.has(key)) {
@@ -128,7 +142,9 @@ export function EditorZone({ uiState, sessions, reveal }: EditorZoneProps) {
   };
 
   const requestClose = (tab: EditorTab) => {
-    if (isDirty(bufferKey(tab.session, tab.path))) setConfirm(tab);
+    // Only file/diff tabs can be dirty; a commit tab is read-only, so it never
+    // prompts (even if a file tab for the same path happens to be dirty).
+    if (tabKind(tab) !== 'commit' && isDirty(bufferKey(tab.session, tab.path))) setConfirm(tab);
     else removeAndDispose(tab);
   };
 
@@ -151,9 +167,23 @@ export function EditorZone({ uiState, sessions, reveal }: EditorZoneProps) {
         onReorder={(next) => uiState.update({ editor_tabs: next })}
       />
       <div className="min-h-0 flex-1">
-        {activeTab && (
+        {/* One body per tab kind (SPEC §8): a plain file editor, a worktree
+            diff, or a read-only commit file diff. `tabKey` keys the mount so
+            switching kind (or commit) tears the old body down cleanly. */}
+        {activeTab && tabKind(activeTab) === 'diff' && (
+          <DiffTabBody key={tabKey(activeTab)} session={activeTab.session} path={activeTab.path} />
+        )}
+        {activeTab && tabKind(activeTab) === 'commit' && activeTab.sha && (
+          <CommitTabBody
+            key={tabKey(activeTab)}
+            session={activeTab.session}
+            sha={activeTab.sha}
+            path={activeTab.path}
+          />
+        )}
+        {activeTab && tabKind(activeTab) === 'file' && (
           <CodeEditor
-            key={`${activeTab.session}:${activeTab.path}`}
+            key={tabKey(activeTab)}
             session={activeTab.session}
             path={activeTab.path}
             reveal={reveal}

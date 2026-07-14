@@ -33,11 +33,9 @@ function Gated() {
           <Route element={<ShellLayout />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/project/:id" element={<Workspace />} />
+            {/* The session route is the workspace; diff and history are left-
+                sidebar navigators (SPEC §8), not routes. */}
             <Route path="/project/:id/session/:sid" element={<Workspace />} />
-            {/* Per-session views (SPEC §8) — Workspace derives the view from the
-                trailing segment; the terminal is the bare session route. */}
-            <Route path="/project/:id/session/:sid/diff" element={<Workspace />} />
-            <Route path="/project/:id/session/:sid/history" element={<Workspace />} />
           </Route>
         </Routes>
       </Suspense>

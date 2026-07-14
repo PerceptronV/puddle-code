@@ -35,6 +35,8 @@ describe('uiStateSnapshotSchema', () => {
       explorer_pin: null,
       active_editor_tab: null,
       explorer_open: true,
+      sidebar_mode: 'files',
+      sidebar_collapsed: false,
     });
   });
 

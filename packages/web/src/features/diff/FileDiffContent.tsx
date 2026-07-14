@@ -247,9 +247,10 @@ function AddedContent({ session, path }: { session: string; path: string }) {
 }
 
 /**
- * The Monaco body for one diff entry, chosen by status (SPEC §8). Kept apart
- * from FileDiffSection so its hooks — and the shared-model retain — run only
- * once the section is expanded and scrolled into view (mount-on-visibility).
+ * The Monaco body for one diff entry, chosen by status (SPEC §8). `DiffTabBody`
+ * renders it as a centre-editor diff tab; its hooks — and the shared-model
+ * retain — run only while that tab is mounted. The modified side binds to the
+ * file's shared editor buffer, so ⌘S here saves through the same path.
  */
 export function FileDiffContent({
   session,
