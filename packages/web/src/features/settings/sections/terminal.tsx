@@ -49,6 +49,20 @@ export function TerminalSection() {
           onCheckedChange={(checked) => updateClientSettings({ editorWordWrap: checked })}
         />
       </SettingRow>
+      <SettingRow
+        label="SSH host for editor links"
+        description="Used for vscode:// and cursor:// remote links until the CLI supplies it automatically."
+        htmlFor="editor-link-host"
+      >
+        <Input
+          id="editor-link-host"
+          type="text"
+          placeholder="user@host"
+          className="w-48"
+          value={settings.editorLinkSshHost}
+          onChange={(e) => updateClientSettings({ editorLinkSshHost: e.target.value })}
+        />
+      </SettingRow>
     </div>
   );
 }

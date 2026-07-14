@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Archive, MoreHorizontal, Pencil, Play, Square } from 'lucide-react';
+import { Archive, ExternalLink, MoreHorizontal, Pencil, Play, Square } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Session } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
@@ -22,6 +22,7 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Switch } from '../../components/ui/switch';
 import { ApiError } from '../../lib/api';
+import { editorDeepLink, editorLinkHost } from '../../lib/editor-links';
 import { useArchiveSession, useRenameSession, useSessionAction } from '../../lib/queries';
 
 const LIVE: Session['status'][] = ['starting', 'running', 'waiting_input'];
@@ -95,6 +96,37 @@ export function SessionActions({
           <DropdownMenuItem onSelect={() => setRenaming(true)}>
             <Pencil /> Rename
           </DropdownMenuItem>
+          {!session.worktree_missing && (
+            <>
+              <DropdownMenuSeparator />
+              {/* Deep links, not regular navigation — window.location.href hands
+                  the URL to the OS/editor and leaves the tab in place, unlike
+                  window.open (which pops an unwanted blank tab for a custom
+                  scheme handler). */}
+              <DropdownMenuItem
+                onSelect={() => {
+                  window.location.href = editorDeepLink(
+                    'vscode',
+                    session.worktree_path,
+                    editorLinkHost(),
+                  );
+                }}
+              >
+                <ExternalLink /> Open in VS Code
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  window.location.href = editorDeepLink(
+                    'cursor',
+                    session.worktree_path,
+                    editorLinkHost(),
+                  );
+                }}
+              >
+                <ExternalLink /> Open in Cursor
+              </DropdownMenuItem>
+            </>
+          )}
           {RESUMABLE.includes(session.status) && (
             <>
               <DropdownMenuSeparator />

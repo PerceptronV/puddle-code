@@ -14,6 +14,8 @@ export interface ClientSettings {
   /** Editor keys are stored now, consumed when the editor lands in Phase 3. */
   editorTabSize: number;
   editorWordWrap: boolean;
+  /** `user@host` for `vscode://`/`cursor://` remote deep links; `''` = unset. */
+  editorLinkSshHost: string;
 }
 
 export const DEFAULT_CLIENT_SETTINGS: ClientSettings = {
@@ -25,6 +27,7 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettings = {
   terminalScrollback: 5000,
   editorTabSize: 2,
   editorWordWrap: false,
+  editorLinkSshHost: '',
 };
 
 const KEY = 'puddle.client-settings';
