@@ -17,7 +17,8 @@ export interface ClientSettings {
 }
 
 export const DEFAULT_CLIENT_SETTINGS: ClientSettings = {
-  uiFontSize: 16,
+  // 1.1× the browser default (16px) — the whole rem-based scale follows.
+  uiFontSize: 17.6,
   terminalFontSize: 13,
   density: 'compact',
   reducedMotion: false,

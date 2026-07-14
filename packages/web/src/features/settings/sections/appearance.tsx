@@ -8,7 +8,11 @@ import {
   SelectValue,
 } from '../../../components/ui/select';
 import { Switch } from '../../../components/ui/switch';
-import { updateClientSettings, useClientSettings } from '../../../lib/client-settings';
+import {
+  DEFAULT_CLIENT_SETTINGS,
+  updateClientSettings,
+  useClientSettings,
+} from '../../../lib/client-settings';
 import { applyTheme, storedPreference, type ThemePreference } from '../../../lib/theme';
 import { SectionTitle, SettingRow } from '../parts';
 
@@ -43,9 +47,14 @@ export function AppearanceSection() {
           type="number"
           min={12}
           max={24}
+          step={0.5}
           className="w-20 tabular-nums"
           value={settings.uiFontSize}
-          onChange={(e) => updateClientSettings({ uiFontSize: Number(e.target.value) || 16 })}
+          onChange={(e) =>
+            updateClientSettings({
+              uiFontSize: Number(e.target.value) || DEFAULT_CLIENT_SETTINGS.uiFontSize,
+            })
+          }
         />
       </SettingRow>
       <SettingRow label="Terminal font size" htmlFor="terminal-font-size">

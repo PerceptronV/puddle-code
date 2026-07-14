@@ -11,6 +11,7 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 - Ports never surface in the UI: the port row leaves the Host settings (set it via `--port` on the daemon or `config.json`), and the new top-bar centre shows an scp-style location instead — `user@host`, plus `:repo-path` (`~`-compressed) once a workspace is open, backed by `GET /api/host`.
+- The default UI font size is 1.1× the browser default (17.6px); the whole rem-based scale follows, and Appearance still overrides it per browser.
 - Secondary hints sit on their own line in sentence case; light-theme text is navy throughout (secondary steps to `#163C6B`) with golden bark reserved for muted; fields rest at their former hover fill so they read as clickable on any surface.
 - Project ids are 10-hex-char handles (`/project/a1b2c3d4e5`) instead of integers; migration 002 rebuilds the affected tables and remaps existing rows.
 - The base-branch field in the new-session modal autocompletes from the repo's branches (new `GET /api/repos/:id/branches`: local + fetched remote heads, default base first) via a shared hint-input component that the repository-path field also uses.
