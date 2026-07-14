@@ -1,3 +1,4 @@
+export * from './protocol.js';
 export * from './api/common.js';
 export * from './api/version.js';
 export * from './api/config.js';

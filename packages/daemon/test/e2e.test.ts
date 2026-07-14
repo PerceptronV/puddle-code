@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { PROTOCOL_VERSION, versionResponseSchema } from '@puddle/shared';
 import type {
   Account,
   Profile,
@@ -114,6 +115,10 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
     expect(bad.status).toBe(401);
     const ok = await c.req('GET', '/api/version');
     expect(ok.status).toBe(200);
+    // The handshake payload: app version plus the protocol contract (SPEC §6).
+    const version = versionResponseSchema.parse(await ok.json());
+    expect(version.version).toBe('e2e');
+    expect(version.protocol).toEqual(PROTOCOL_VERSION);
   });
 
   let profile: Profile;

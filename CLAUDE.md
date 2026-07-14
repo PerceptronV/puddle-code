@@ -8,14 +8,15 @@ Puddle is a self-hosted orchestrator for CLI coding agents with first-class SSH 
 
 ```
 packages/
-├── shared/    # zod schemas for REST + WS messages — the single source of truth for API shapes
+├── shared/    # the protocol package: zod schemas for REST + WS messages (the single source of
+│              # truth for API shapes) + PROTOCOL_VERSION — read its PROTOCOL.md before schema changes
 ├── daemon/    # puddled: Hono HTTP/WS server, PTY manager, worktree manager, SQLite
 │   └── src/agents/   # one adapter file per coding agent (claude-code.ts, codex.ts, ...)
 ├── web/       # React UI: Tailwind v4 + owned shadcn-style components (src/components/ui/)
 │   ├── src/styles/tokens.css   # THE colour source; scripts/check-tokens.mjs guards it in lint/CI
 │   ├── src/lib/       # token gate, TanStack Query hooks, singleton WS manager, theme registry
 │   └── src/features/  # dashboard, workspace (sidebar/tabs/xterm), settings, ⌘K palette
-└── cli/       # laptop launcher: ssh bootstrap, tunnel, browser open
+└── cli/       # client launcher: serves the UI + proxies /api & /ws (Phase 6), ssh bootstrap, tunnel
 docs/changelogs/      # archived per-version changelogs (see Changelog discipline)
 docs/acceptance/      # manual per-phase acceptance scripts (real-agent verification CI can't do)
 ```
@@ -34,7 +35,7 @@ pnpm lint               # eslint + prettier check
 
 - **British English everywhere**: comments, documentation, commit messages, UI copy, and identifiers you choose (`colour`, `initialise`, `behaviour`, `licence` as the noun). Exception: never rename third-party API surface — CSS `color`, `Array.prototype.normalize`-style library methods, and external config keys keep their canonical spelling.
 - TypeScript strict; no `any` without a comment justifying it.
-- Every REST/WS shape is a zod schema in `packages/shared`; daemon validates input, web imports the inferred types. Never define an API shape locally.
+- Every REST/WS shape is a zod schema in `packages/shared`; daemon validates input, web imports the inferred types. Never define an API shape locally. The schemas are a versioned protocol: any wire-shape change bumps `PROTOCOL_VERSION` per `packages/shared/PROTOCOL.md` in the same commit (additive → minor, breaking → major).
 - Agent-specific behaviour (flags, env vars, session-file locations, status regexes) lives ONLY in that agent's adapter under `packages/daemon/src/agents/`. Core session logic must stay agent-agnostic. When you verify a CLI flag against an installed agent version, record the version you checked in a comment in the adapter.
 - SQLite is the source of truth for sessions; PTYs are ephemeral attachments. Schema changes require a migration in `packages/daemon/src/db/migrations/`.
 - This is a public MIT repo: no company-, team-, or person-specific names anywhere (code, tests, docs, examples). Do not copy code from AGPL-licensed projects.

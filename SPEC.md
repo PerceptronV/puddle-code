@@ -28,24 +28,25 @@ Non-goals (v1):
 ## 2. Architecture
 
 ```
- client                                     host machine (local or remote)
-┌───────────────┐   local: plain localhost        ┌───────────────────────────────────┐
-│  puddle CLI   │   remote: ssh -L <lp>:…:7433    │  puddled  (systemd user service)  │
-│  browser UI   │───────────────────────────────►│   ├─ REST + WS API (Hono)         │
-└───────────────┘        HTTP + WebSocket        │   ├─ PTY manager (node-pty)       │
-                                                 │   ├─ worktree manager (git CLI)   │
-                                                 │   ├─ agent adapters (per agent)   │
-                                                 │   ├─ SQLite (source of truth)     │
-                                                 │   ├─ append-only session logs     │
-                                                 │   └─ static web UI assets         │
+ client machine                                   host machine (local or remote)
+┌──────────────────────────────┐                 ┌───────────────────────────────────┐
+│ browser ── localhost:7433    │                 │  puddled  (systemd user service)  │
+│               │              │  local: direct  │   ├─ REST + WS API (Hono)         │
+│  puddle CLI ◄─┘              │  remote: ssh -L │   ├─ PTY manager (node-pty)       │
+│   ├─ static web UI assets    │────────────────►│   ├─ worktree manager (git CLI)   │
+│   └─ /api + /ws proxy        │    HTTP + WS    │   ├─ agent adapters (per agent)   │
+└──────────────────────────────┘                 │   ├─ SQLite (source of truth)     │
+                                                 │   └─ append-only session logs     │
                                                  └───────────────────────────────────┘
 ```
 
-The daemon is host-agnostic: it binds `127.0.0.1:7433` and neither knows nor cares whether the browser reaching it is on the same machine or at the end of an SSH tunnel. Local mode (`puddle start`) and SSH mode (`puddle connect user@host`) differ only in the CLI's transport work; everything from §3 onward is identical in both.
+**The CLI serves the UI; the daemon is a headless API server.** In both local mode (`puddle start`) and SSH mode (`puddle connect user@host`) the browser talks to one stable local origin — `http://localhost:7433`, served by the `puddle` CLI — and the CLI reverse-proxies `/api` and `/ws` to the daemon: directly to `127.0.0.1:7434` locally, through the SSH tunnel remotely. One serving path for both modes, no CORS (single origin), and no host- or tunnel-port detail ever reaches the browser. The daemon is host-agnostic: it binds `127.0.0.1:7434` and neither knows nor cares where the client is. UI updates ship with the CLI — updating the CLI once updates the cockpit for every host it connects to; the daemon is only forced to update when the protocol breaks (§6 Protocol versioning).
 
-- **`puddled`** (daemon): Node 22 LTS — pinned, and shipped inside the release tarball, so the choice never depends on the host. Hono for HTTP, `node-pty` for terminals, `better-sqlite3` for state; both are native modules and ship prebuilt in the tarball. Serves the built web UI from the same port. Binds `127.0.0.1:7433` by default. (Bun is fine as dev tooling; the daemon itself runs on the pinned Node.)
-- **Web UI**: React + TypeScript, xterm.js (+ fit, web-links addons), Monaco (`@monaco-editor/react`). Built to static assets shipped inside the daemon package.
-- **`puddle` CLI** (client machine): small npm package; bootstraps/updates the daemon (locally or over SSH), opens the tunnel when remote, launches the browser.
+> **Transition note (until Phase 6):** the CLI's serve/proxy layer lands in Phase 6. Until then the daemon embeds the built web assets and serves them itself from `127.0.0.1:7433`, and browsers reach it directly (or via a plain `ssh -L` tunnel). The API surface, token flow, and everything from §3 onward are identical in both worlds — the Phase 6 switch relocates serving without touching the contract.
+
+- **`puddled`** (daemon): Node 22 LTS — pinned, and shipped inside the release tarball, so the choice never depends on the host. Hono for HTTP, `node-pty` for terminals, `better-sqlite3` for state; both are native modules and ship prebuilt in the tarball. API only — no web assets (from Phase 6; see the transition note). Binds `127.0.0.1:7434` by default (7433 while it still serves the UI). (Bun is fine as dev tooling; the daemon itself runs on the pinned Node.)
+- **Web UI**: React + TypeScript, xterm.js (+ fit, web-links addons), Monaco (`@monaco-editor/react`). Built to static assets shipped inside the CLI npm package (inside the daemon package until Phase 6).
+- **`puddle` CLI** (client machine): npm package; bootstraps/updates the daemon (locally or over SSH), serves the web UI and proxies `/api` + `/ws` to the daemon, opens the tunnel when remote, launches the browser, and performs the protocol handshake (§6) on every start/connect.
 - **State layout on the host**, all under `~/.puddle/`:
 
 ```
@@ -66,8 +67,8 @@ Puddle NEVER reads or reuses agent config directories it did not create (e.g. an
 
 Binding to `127.0.0.1` is **not** protection from the web: any website open in the user's browser can attempt `fetch("http://localhost:7433/...")`, and DNS-rebinding can defeat naive same-origin assumptions. For a daemon that can spawn agents with permissions skipped, an unauthenticated localhost API is a remote-code-execution vector via CSRF. Therefore, from Phase 1:
 
-1. **Token auth**: the daemon generates a random bearer token at first start (`~/.puddle/token`, mode 0600). The CLI reads it (locally or over the SSH master) and appends it as a URL fragment when opening the browser; the UI reads it, immediately strips it from the address bar (history.replaceState) so it never lingers in history or copied links, stores it, and sends it on every `/api` request and as the first WS message. All `/api`, `/ws`, and `/proxy` routes require it; only the static UI assets are served without it. `puddle attach`/`status`/`logs` use it the same way.
-2. **Host and Origin validation**: reject requests whose `Host` is not `localhost`/`127.0.0.1` (defeats DNS rebinding) and whose `Origin`, when present, is not the daemon's own origin.
+1. **Token auth**: the daemon generates a random bearer token at first start (`~/.puddle/token`, mode 0600). The CLI reads it (locally or over the SSH master) and appends it as a URL fragment when opening the browser; the UI reads it, immediately strips it from the address bar (history.replaceState) so it never lingers in history or copied links, stores it, and sends it on every `/api` request and as the first WS message. All `/api`, `/ws`, and `/proxy` routes require it; only the static UI assets (served tokenlessly by the CLI — by the daemon until Phase 6) are public. `puddle attach`/`status`/`logs` use it the same way. The CLI's proxy forwards requests verbatim — it adds no credentials; the token travels from the browser exactly as before.
+2. **Host and Origin validation**: reject requests whose `Host` is not `localhost`/`127.0.0.1` (defeats DNS rebinding) and whose `Origin`, when present, is not a localhost origin. The CLI's UI server applies the same two checks on its own port.
 3. **Proxy scoping**: `/proxy/:sid/:port/` only forwards to ports currently detected for that session's process tree — it must not be a general localhost proxy.
 
 ### Why no tmux
@@ -268,6 +269,7 @@ Two tiers, surfaced as one "Continue on…" action in the session menu (and offe
 All REST endpoints are JSON under `/api`. Request/response shapes live as zod schemas in `packages/shared` and are the single source of truth for both daemon and UI.
 
 ```
+Version    GET  /api/version                 # {version, protocol: {major, minor}} — the handshake endpoint (see Protocol versioning below)
 Profiles   GET  /api/profiles                POST /api/profiles {name, branch_prefix?}
            PATCH /api/profiles/:id {branch_prefix}   # name is immutable in v1 (it names directories)
            DELETE /api/profiles/:id                  # 409 while any of its sessions is non-archived; cascades rows + removes its dir
@@ -336,6 +338,28 @@ server → client:
 
 **Multi-viewer semantics**: any number of viewers (browser windows/tabs, `puddle attach`) may attach to the same session concurrently; `output`, `status`, and `exit` are broadcast to all attached viewers, and `stdin` is accepted from any of them (last-writer-wins, like tmux). A PTY has exactly one size: the most recent `attach`/`resize` wins, and the daemon delivers the resize (SIGWINCH) so full-screen agent TUIs redraw at the new size — smaller concurrent viewers scroll rather than reflow. Log replay renders recorded bytes verbatim; scrollback recorded at a different width may wrap imperfectly (accepted v1 limitation — live content redraws correctly on attach). **A window binds to one project**: routes are `/` (project dashboard), `/project/:id` (the workspace — session tabs, terminals, editor), and within it `/project/:id/session/:sid[/diff|/history]`. Opening the same project in two windows shows the same workspace; opening two projects gives two independent workspaces. Everything is deep-linkable, so reloading a window (or opening it on another laptop) lands back in the same project state.
 
+### Protocol versioning and compatibility
+
+The CLI (and the UI it serves) and the daemon ship separately from Phase 6, so the communication layer — every REST shape and WS message above — is a versioned contract. Two version numbers exist and must not be conflated:
+
+- **App version**: the npm/tarball semver (`puddle --version`, `puddled --version`). Says nothing about compatibility.
+- **Protocol version**: `PROTOCOL_VERSION = {major, minor}`, exported from `packages/shared` — the protocol package. `packages/shared` already holds every REST and WS schema as executable zod definitions; it _is_ the protocol description, and the single source of truth for it. `packages/shared/PROTOCOL.md` documents the bump rules; there is deliberately no second, prose copy of the schema anywhere — prose copies drift.
+
+**Compatibility rule: same `major` ⇒ compatible, in both directions.** Everything within a major is additive-only:
+
+- _Additive (bump `minor`)_: a new endpoint, a new optional request/response field, a new WS message type, a new enum value peers may ignore.
+- _Breaking (bump `major`, reset `minor`)_: removing or renaming an endpoint, field, or WS message; changing a type or the semantics of an existing field; changing auth or the WS handshake.
+
+Two wire rules make the additive path safe: receivers **ignore unknown WS message types** and **tolerate unknown JSON fields** (schemas use loose objects where extension is expected). A newer client on an older daemon feature-detects against the daemon's `minor` and hides what the daemon cannot do; an older client on a newer daemon simply never asks for the new things.
+
+**Handshake** (CLI, on every `start`/`connect`, before opening the browser):
+
+- `protocol.major` equal → proceed. App-version skew within a major is normal and silent; `puddle upgrade` remains available but is never required.
+- Daemon `major` older → the CLI **updates the daemon automatically** (re-runs the bootstrap — §10): print the count of live sessions that will be interrupted, update, restart; sessions resume through the normal reconcile path (§4). `--no-upgrade` aborts instead of updating, for the rare case the user must not interrupt work now.
+- Daemon `major` newer (this host was updated by a newer CLI elsewhere) → the CLI cannot fix itself mid-run; refuse with the exact one-line upgrade command for the CLI.
+
+This is the Docker-daemon model reduced to its useful core: a negotiated, versioned local API — but because the CLI owns daemon installation, we keep exact-major lockstep via auto-update instead of maintaining server-side compatibility shims for old clients.
+
 ## 7. Terminal UX (links and click-through)
 
 - **URLs**: xterm.js `web-links` addon; plain click (or cmd+click—match both) opens in a new browser tab. In SSH mode, URLs pointing at `localhost:<port>` on the host are rewritten to the tier-2 proxy path so they work from the client (this rewriting therefore lands with Phase 5, not Phase 4); in local mode they are left untouched.
@@ -368,25 +392,27 @@ puddle upgrade [user@host]
 puddle logs    [user@host] [session]
 ```
 
-`start` (local mode): install/upgrade the daemon under `~/.puddle/bin`, ensure the systemd user unit (same as remote), open `http://localhost:7433`. No SSH, no tunnel. `status`/`attach`/`logs`/`upgrade` default to the local daemon when no host is given.
+`start` (local mode): install/upgrade the daemon under `~/.puddle/bin`, ensure the systemd user unit (same as remote), run the protocol handshake (§6), serve the UI at `http://localhost:7433` with `/api` + `/ws` proxied to the daemon on `127.0.0.1:7434`, open the browser. No SSH, no tunnel — but the same serve/proxy path as remote mode. `status`/`attach`/`logs`/`upgrade` default to the local daemon when no host is given.
+
+The UI server picks `7433` by default and auto-picks the next free port when it is taken (e.g. a second `puddle connect` to a different host); the chosen origin is printed and opened. Whether one CLI process can multiplex several hosts behind a single origin is an open question (§15) — v1 is one CLI process, one host, one origin.
 
 ### Distribution and bootstrap
 
-- **Release artefact**: self-contained per-platform tarballs (`puddled-v<X.Y.Z>-{linux,darwin}-{x64,arm64}.tar.gz`) published on GitHub Releases with a checksums file. Each contains a pinned Node runtime, the bundled daemon, prebuilt `node-pty` binaries, and the web UI assets — no Node, npm, or compiler is assumed on the host; only libc and `git`. (The `puddle` CLI itself is pure JS, distributed via npm.)
+- **Release artefact**: self-contained per-platform tarballs (`puddled-v<X.Y.Z>-{linux,darwin}-{x64,arm64}.tar.gz`) published on GitHub Releases with a checksums file. Each contains a pinned Node runtime, the bundled daemon, and prebuilt `node-pty` binaries — no Node, npm, or compiler is assumed on the host; only libc and `git`. The web UI assets ship inside the `puddle` CLI npm package (inside the daemon tarball only until Phase 6), so a UI release is `npm update -g puddle` on the client, touching no host.
 - **Install location**: entirely under the home directory, never sudo: `~/.puddle/bin/versions/<X.Y.Z>/` with a `~/.puddle/bin/current` symlink. Upgrade = unpack new version, flip symlink, restart service (running sessions become `interrupted` and resume — the normal reconcile path). Rollback = flip the symlink back. Uninstall = stop the service and `rm -rf ~/.puddle`.
 - **Bootstrap** (shared by `start` and `connect`): detect platform (`uname -sm`), fetch the tarball — host-side `curl` from GitHub Releases (checksum-verified), falling back to `scp` from the CLI's cached copy for hosts without outbound internet — unpack, then install a supervisor:
   - Linux: systemd **user** unit `~/.config/systemd/user/puddled.service` (`Restart=always`), `systemctl --user enable --now`, plus `loginctl enable-linger $USER` for boot-start without login.
   - macOS: launchd agent `~/Library/LaunchAgents/dev.puddle.puddled.plist` with `KeepAlive`.
   - Neither available: nohup + pidfile fallback with a printed warning that reboot auto-start is not configured.
 - **Manual path**: a documented `install.sh` one-liner performing the same steps, for daemon-only installs without the CLI.
-- **Version handshake**: daemon exposes `GET /api/version`; on every `start`/`connect` the CLI compares versions — older daemon: offer the upgrade, showing the count of live sessions that will be interrupted, and require confirmation (or `--yes`) before proceeding; newer daemon than CLI: refuse with an upgrade hint for the CLI. Daemon API is backwards-compatible within a minor version.
+- **Version handshake**: on every `start`/`connect` the CLI compares `protocol.major` from `GET /api/version` and acts per §6 Protocol versioning — automatic daemon update on an older major (with the live-session interruption count printed; `--no-upgrade` aborts instead), a CLI-upgrade refusal on a newer major, and nothing at all on a match: app-version skew within a protocol major is normal.
 
 `connect` (SSH mode) flow:
 
 1. Open a **master SSH connection** with multiplexing (`-o ControlMaster=auto -o ControlPath=~/.puddle/cm-%r@%h:%p -o ControlPersist=10m`), run interactively with the user's TTY inherited. Password, keyboard-interactive, and 2FA prompts therefore come from the `ssh` binary itself and are typed at most once per `connect`; every subsequent exec and the tunnel reuse the master connection. Puddle never reads, stores, or proxies credentials. Over the master: check `~/.puddle/bin/puddled --version`.
 2. If missing/outdated: run the bootstrap above over the master connection (platform detect → fetch → unpack → supervisor install).
-3. Open the tunnel `ssh -N -L <local>:127.0.0.1:7433 user@host` (auto-pick a free local port if unspecified/busy), print the URL, open the browser at `http://localhost:<local>/?host=user@host`.
-4. Keep the tunnel in the foreground with auto-reconnect; Ctrl-C closes the tunnel only — the daemon and agents keep running.
+3. Open the tunnel `ssh -N -L <tp>:127.0.0.1:7434 user@host` over the master connection (`<tp>` is an auto-picked free local port — pure transport, never user-visible), run the protocol handshake, then serve the UI at `http://localhost:7433` (or the next free port) with `/api` + `/ws` proxied through the tunnel, and open the browser at `http://localhost:7433/?host=user@host`.
+4. Keep the tunnel and UI server in the foreground with auto-reconnect; Ctrl-C closes them only — the daemon and agents keep running.
 
 Use the system `ssh` binary (spawned), not a JS SSH library: it inherits the user's `~/.ssh/config`, agents, jump hosts, password/2FA prompting, and MFA for free. If no key is set up, `connect` works over password auth via the master connection; print a one-line hint suggesting `ssh-copy-id` for a smoother experience.
 
@@ -514,7 +540,7 @@ Each phase must be independently verifiable before the next starts.
 - **Phase 3 — files, diff, history.** Tree browser, Monaco editing, diff tab (editable modified side), history tab. AT: edit a file in the diff view; the agent's next `cat` of it shows the change; commit list matches `git log`.
 - **Phase 4 — terminal links.** URL addon, file-path link provider with resolve validation, open-in-editor deep links. AT: cmd+click on `src/x.ts:42` in agent output opens Monaco at line 42.
 - **Phase 5 — ports.** Detection table + copyable `ssh -L`; then tier-2 proxy with WS upgrade. AT: a Vite dev server started by an agent is usable through `/proxy/...` including HMR.
-- **Phase 6 — CLI.** `puddle connect` bootstrap/upgrade/tunnel/browser; `attach`, `status`, `logs`. AT: on a box with no puddle installed, one `puddle connect user@host` lands in a working cockpit.
+- **Phase 6 — CLI.** `puddle connect` bootstrap/upgrade/tunnel/browser; `attach`, `status`, `logs`; **the serving switch**: the CLI serves the UI at a stable local origin and proxies `/api` + `/ws` (local and SSH modes alike — §2), the daemon build stops embedding web assets and its default binding moves to `127.0.0.1:7434`, and the protocol handshake with automatic major-mismatch daemon update goes live (§6). AT: on a box with no puddle installed, one `puddle connect user@host` lands in a working cockpit at `http://localhost:7433`; `puddle start` locally lands in the same cockpit at the same origin; against a daemon with an older protocol major, `connect` updates it automatically, prints the interrupted-session count, and the sessions resume.
 - **Phase 7 — more agents + continuation.** codex and opencode adapters, capability matrix verified against installed versions, degradation paths exercised; account migration and cross-agent hand-off (AT: exhaust-simulate a claude session, migrate it to a second claude account — conversation resumes with history intact; hand off a claude session to codex — new session in the same worktree opens with the transcript summary as its first prompt).
 - **Phase 8 — polish.** **Prompt bank** (CRUD, picker, insert-into-terminal; AT: save a prompt tagged to project A, insert it from a codex session in project B — it still appears in the picker, ranked lower, and pastes without submitting); waiting_input notifications (title badge + optional sound), archive/cleanup flows, log rotation (size cap from config.json), shell tabs.
 
@@ -525,3 +551,4 @@ Each phase must be independently verifiable before the next starts.
 3. Whether `claude --session-id` is accepted by the currently installed Claude Code version; if not, fall back to post-launch discovery of the newest JSONL in `<config_dir>/projects/<cwd>/`.
 4. systemd user-session availability on the target box (`loginctl enable-linger`); confirm the fallback supervisor path works.
 5. Proxy base-path limitation: decide whether to attempt HTML rewriting (probably not for v1) or document the `ssh -L` fallback per port.
+6. Multi-host UI (post-Phase 6): whether one CLI process can serve several host connections from a single origin (path-per-host routing, e.g. `/h/<host>/…`) instead of one origin per `connect`. The CLI-serves-UI architecture (§2) leaves this open; one-origin-per-connect is the v1 answer.

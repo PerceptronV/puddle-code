@@ -25,6 +25,7 @@ Past releases: see docs/changelogs/.
 - The web bundle is code-split: dashboard, workspace, settings, and the xterm terminal each load as their own chunk.
 
 ### Added
+- Protocol versioning (SPEC §6): `@puddle/shared` is formally the protocol package, exporting `PROTOCOL_VERSION` (currently 1.0) with bump rules in `packages/shared/PROTOCOL.md`; `GET /api/version` now returns `{version, protocol: {major, minor}}` so the Phase 6 CLI handshake can negotiate against any daemon deployed from now on. Same protocol major ⇒ compatible both ways; a major mismatch will trigger an automatic daemon update.
 - Initial scaffold: monorepo (shared / daemon / web / cli), CI, SPEC.md, CLAUDE.md, changelog conventions.
 - Daemon core (Phase 1): profiles/accounts/repos/projects/sessions REST API with zod-validated shapes from `@puddle/shared`; SQLite schema and migration runner; append-only per-terminal PTY logs with tail replay.
 - Local security layer: mandatory bearer token (`~/.puddle/token`, 0600), Host/Origin validation against DNS rebinding and cross-site requests; WS authenticates via a first `auth` message.
