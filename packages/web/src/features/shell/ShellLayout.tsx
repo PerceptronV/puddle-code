@@ -79,8 +79,8 @@ function TopBar() {
 
   return (
     <header className="relative flex h-11 shrink-0 items-center gap-3 bg-surface px-3">
-      <Link to="/" className="font-mono text-sm font-semibold text-fg hover:text-accent">
-        puddle
+      <Link to="/" className="transition-opacity hover:opacity-70">
+        <img src="/puddle.svg" alt="puddle" className="size-6" />
       </Link>
       <HostIndicator />
       <div className="ml-auto flex items-center gap-1">
