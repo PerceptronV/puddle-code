@@ -6,7 +6,6 @@ import {
   diffResponseSchema,
   fileAtResponseSchema,
   logResponseSchema,
-  searchResponseSchema,
   showCommitResponseSchema,
 } from '@puddle/shared';
 import { sessionRoutes } from '../src/http/routes/sessions.js';
@@ -72,19 +71,6 @@ function logReq(sid: string, params: { limit?: number | string; skip?: number | 
 
 function show(sid: string, sha: string) {
   return app.request(`/api/worktrees/${sid}/show/${sha}`);
-}
-
-function search(
-  sid: string,
-  params: { q?: string; regex?: boolean; case?: boolean; word?: boolean } = {},
-) {
-  const qs = new URLSearchParams();
-  if (params.q !== undefined) qs.set('q', params.q);
-  if (params.regex) qs.set('regex', '1');
-  if (params.case) qs.set('case', '1');
-  if (params.word) qs.set('word', '1');
-  const s = qs.toString();
-  return app.request(`/api/worktrees/${sid}/search${s ? `?${s}` : ''}`);
 }
 
 describe('GET /api/worktrees/:sid/diff (against=base, default)', () => {
@@ -212,112 +198,6 @@ describe('GET /api/worktrees/:sid/diff — base_ref resolves to origin/<base> wi
     const res = await diff(sid);
     const body = diffResponseSchema.parse(await res.json());
     expect(body.base_ref).toBe('origin/main');
-  });
-});
-
-describe('GET /api/worktrees/:sid/diff?against=head (uncommitted only)', () => {
-  let sid: string;
-  let worktree: string;
-
-  beforeAll(async () => {
-    ({ sid, worktree } = await newSession('diff-head target'));
-    // A committed change (part of HEAD) must NOT appear in the uncommitted view.
-    commitFile(worktree, 'committed.txt', 'committed\n');
-  });
-
-  it('shows working-tree changes vs. HEAD and excludes committed changes', async () => {
-    writeFileSync(join(worktree, 'README.md'), '# fixture\nedited\n'); // uncommitted edit
-    writeFileSync(join(worktree, 'brand-new.txt'), 'new\n'); // untracked
-
-    const res = await diff(sid, 'head');
-    expect(res.status).toBe(200);
-    const body = diffResponseSchema.parse(await res.json());
-    expect(body.base_ref).toBe('HEAD');
-
-    const byPath = Object.fromEntries(body.entries.map((e) => [e.path, e.status]));
-    expect(byPath['README.md']).toBe('modified');
-    expect(byPath['brand-new.txt']).toBe('added');
-    // committed.txt is in HEAD, so it is not an uncommitted change.
-    expect(byPath['committed.txt']).toBeUndefined();
-  });
-});
-
-describe('GET /api/worktrees/:sid/search', () => {
-  let sid: string;
-  let worktree: string;
-
-  beforeAll(async () => {
-    ({ sid, worktree } = await newSession('search target'));
-    mkdirSync(join(worktree, 'src'), { recursive: true });
-    writeFileSync(join(worktree, 'src', 'alpha.ts'), 'export function authenticate() {}\n');
-    writeFileSync(join(worktree, 'src', 'beta.ts'), '// call authenticate here\nconst x = 1;\n');
-  });
-
-  it('returns content matches grouped by file, plus filename matches', async () => {
-    const res = await search(sid, { q: 'authenticate' });
-    expect(res.status).toBe(200);
-    const body = searchResponseSchema.parse(await res.json());
-    const contentPaths = body.content.map((f) => f.path).sort();
-    expect(contentPaths).toEqual(['src/alpha.ts', 'src/beta.ts']);
-    const alpha = body.content.find((f) => f.path === 'src/alpha.ts')!;
-    expect(alpha.matches[0]!.line).toBe(1);
-    expect(alpha.matches[0]!.text).toContain('authenticate');
-  });
-
-  it('matches file names (untracked files included)', async () => {
-    const res = await search(sid, { q: 'alpha' });
-    const body = searchResponseSchema.parse(await res.json());
-    expect(body.files).toContain('src/alpha.ts');
-  });
-
-  it('is case-insensitive by default and case-sensitive with case=1', async () => {
-    const insensitive = searchResponseSchema.parse(
-      await (await search(sid, { q: 'AUTHENTICATE' })).json(),
-    );
-    expect(insensitive.content.length).toBeGreaterThan(0);
-    const sensitive = searchResponseSchema.parse(
-      await (await search(sid, { q: 'AUTHENTICATE', case: true })).json(),
-    );
-    expect(sensitive.content).toHaveLength(0);
-  });
-
-  it('honours whole-word matching', async () => {
-    const partial = searchResponseSchema.parse(
-      await (await search(sid, { q: 'auth', word: true })).json(),
-    );
-    expect(partial.content).toHaveLength(0);
-    const whole = searchResponseSchema.parse(
-      await (await search(sid, { q: 'authenticate', word: true })).json(),
-    );
-    expect(whole.content.length).toBeGreaterThan(0);
-  });
-
-  it('supports regular expressions with regex=1', async () => {
-    const body = searchResponseSchema.parse(
-      await (await search(sid, { q: 'auth\\w+', regex: true })).json(),
-    );
-    expect(body.content.length).toBeGreaterThan(0);
-  });
-
-  it('400s an invalid regex rather than 500', async () => {
-    const res = await search(sid, { q: '(', regex: true });
-    expect(res.status).toBe(400);
-    expect(errorCode(await res.json())).toBe('invalid_search');
-  });
-
-  it('400s an empty query', async () => {
-    const res = await search(sid, { q: '' });
-    expect(res.status).toBe(400);
-    expect(errorCode(await res.json())).toBe('empty_query');
-  });
-
-  it('returns empty, untruncated results for a query with no matches', async () => {
-    const body = searchResponseSchema.parse(
-      await (await search(sid, { q: 'zznosuchtokenzz' })).json(),
-    );
-    expect(body.files).toHaveLength(0);
-    expect(body.content).toHaveLength(0);
-    expect(body.truncated).toBe(false);
   });
 });
 
@@ -553,7 +433,6 @@ describe('worktree-git: shared error conditions', () => {
     expect((await fileAt('no-such-session', 'HEAD', 'README.md')).status).toBe(404);
     expect((await logReq('no-such-session')).status).toBe(404);
     expect((await show('no-such-session', 'a'.repeat(40))).status).toBe(404);
-    expect((await search('no-such-session', { q: 'x' })).status).toBe(404);
   });
 
   it('409s every endpoint once the worktree is gone from disk', async () => {

@@ -29,6 +29,7 @@ const REQUIRED_SEMANTIC_TOKENS = [
   '--status-waiting',
   '--status-interrupted',
   '--status-idle',
+  '--status-terminal',
   '--selection',
   '--diff-added',
   '--diff-removed',
@@ -62,6 +63,7 @@ const CONTRAST_FLOORS = {
   '--status-waiting': 3,
   '--status-interrupted': 3,
   '--status-idle': 3,
+  '--status-terminal': 3,
 };
 
 // Text sitting on a coloured fill: [text token, fill token, floor].

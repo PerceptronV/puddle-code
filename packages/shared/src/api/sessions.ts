@@ -11,16 +11,28 @@ export const sessionStatusSchema = z.enum([
 ]);
 export type SessionStatus = z.infer<typeof sessionStatusSchema>;
 
+/**
+ * A session is either an `agent` (a coding agent driving the worktree) or a
+ * `terminal` (a plain shell PTY, no agent and no account — SPEC §4). The kind
+ * decides which columns are populated: `terminal` sessions have null
+ * `account_id`/`agent_type` and never onboard, resume a conversation, or migrate.
+ */
+export const sessionKindSchema = z.enum(['agent', 'terminal']);
+export type SessionKind = z.infer<typeof sessionKindSchema>;
+
 export const sessionSchema = z.object({
   id: sessionId,
   project_id: projectId,
-  account_id: rowId,
+  /** Null for terminal sessions, which have no account (SPEC §4). */
+  account_id: rowId.nullable(),
   worktree_path: z.string(),
   base_branch: z.string(),
   branch: z.string(),
   /** False: the session works directly on the base branch in a shared worktree (SPEC §4). */
   separate_branch: z.boolean(),
-  agent_type: z.string(),
+  kind: sessionKindSchema,
+  /** Null for terminal sessions, which run a plain shell rather than an agent. */
+  agent_type: z.string().nullable(),
   agent_session_ref: z.string().nullable(),
   title: z.string().nullable(),
   status: sessionStatusSchema,
@@ -49,13 +61,24 @@ export type Session = z.infer<typeof sessionSchema>;
 
 export const createSessionRequestSchema = z.object({
   project_id: projectId,
-  account_id: rowId,
+  /**
+   * Required for an `agent` session, forbidden for a `terminal` one (which has
+   * no account). The daemon enforces the pairing against `kind`.
+   */
+  account_id: rowId.optional(),
+  /**
+   * Defaults to `agent`. A `terminal` session spawns a plain shell in the
+   * worktree — no account, no agent, no onboarding — and defaults
+   * `separate_branch` to false (SPEC §4).
+   */
+  kind: sessionKindSchema.optional(),
   base_branch: z.string().min(1).optional(),
   branch: z.string().min(1).max(200).optional(),
   /**
-   * Default true: fresh branch, fresh worktree. False (discouraged): work
-   * directly on the base branch in a worktree shared with every other such
-   * session — `branch` must then be absent (SPEC §4).
+   * Default true for agents, false for terminals: fresh branch, fresh worktree.
+   * False (discouraged for agents): work directly on the base branch in a
+   * worktree shared with every other such session — `branch` must then be
+   * absent (SPEC §4).
    */
   separate_branch: z.boolean().optional(),
   title: z.string().min(1).max(200).optional(),

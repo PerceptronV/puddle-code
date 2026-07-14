@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { Session } from '@puddle/shared';
+import type { Session, SessionKind } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import {
   Dialog,
@@ -35,11 +35,16 @@ import { useCurrentProfileId } from '../profile/profile-store';
  * the rest, and the agent's title/first prompt are given later in the session
  * itself). The skip toggle renders only when the profile gate is on AND the
  * chosen account opted in; the daemon re-checks server-side regardless.
+ *
+ * In `terminal` mode the same branch machinery drives a plain shell instead of
+ * an agent: no account, no skip toggle, and separate-branch defaults OFF (a
+ * scratch shell usually wants the branch as-is — SPEC §4).
  */
 export function NewSessionDialog({
   projectId,
   repoId,
   open,
+  kind = 'agent',
   seedAccountId,
   onOpenChange,
   onCreated,
@@ -47,11 +52,14 @@ export function NewSessionDialog({
   projectId: string;
   repoId: number;
   open: boolean;
+  /** 'terminal' opens the dialog in shell mode (no account); defaults to 'agent'. */
+  kind?: SessionKind;
   /** Preselects the account picker (profile panel → session on this account). */
   seedAccountId?: number;
   onOpenChange: (open: boolean) => void;
   onCreated: (session: Session) => void;
 }) {
+  const isTerminal = kind === 'terminal';
   const profileId = useCurrentProfileId();
   const accounts = useAccounts(profileId ?? undefined);
   const settings = useProfileSettings(profileId ?? undefined);
@@ -92,22 +100,30 @@ export function NewSessionDialog({
     if (open && seedAccountId !== undefined) setAccountId(String(seedAccountId));
   }, [open, seedAccountId]);
 
+  // Separate-branch defaults on for agents, off for terminals — reset each time
+  // the dialog opens (or its mode changes) so a prior run never leaks across.
+  useEffect(() => {
+    if (open) setSeparateBranch(!isTerminal);
+  }, [open, isTerminal]);
+
   const submit = () => {
     setError(null);
     create.mutate(
       {
         project_id: projectId,
-        account_id: Number(effectiveAccountId),
+        ...(isTerminal
+          ? { kind: 'terminal' as const }
+          : { account_id: Number(effectiveAccountId) }),
         ...(baseBranch.trim() ? { base_branch: baseBranch.trim() } : {}),
-        ...(separateBranch ? {} : { separate_branch: false }),
+        separate_branch: separateBranch,
         ...(separateBranch && branch.trim() ? { branch: branch.trim() } : {}),
-        ...(showSkipToggle && skip ? { skip_permissions: true } : {}),
+        ...(!isTerminal && showSkipToggle && skip ? { skip_permissions: true } : {}),
       },
       {
         onSuccess: (session) => {
           onOpenChange(false);
           setBranch('');
-          setSeparateBranch(true);
+          setSeparateBranch(!isTerminal);
           setSkip(false);
           onCreated(session);
         },
@@ -121,11 +137,10 @@ export function NewSessionDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New session</DialogTitle>
+          <DialogTitle>{isTerminal ? 'New terminal' : 'New session'}</DialogTitle>
           <DialogDescription>
-            {separateBranch
-              ? 'Spawns an agent in a fresh worktree branched from'
-              : 'Spawns an agent directly on'}{' '}
+            {isTerminal ? 'Opens a shell' : 'Spawns an agent'}{' '}
+            {separateBranch ? 'in a fresh worktree branched from' : 'directly on'}{' '}
             <span className="font-mono">
               {baseBranch.trim() || repo?.default_base_branch || '…'}
             </span>
@@ -136,43 +151,45 @@ export function NewSessionDialog({
           className="flex flex-col gap-3"
           onSubmit={(e) => {
             e.preventDefault();
-            if (effectiveAccountId) submit();
+            if (isTerminal || effectiveAccountId) submit();
           }}
         >
-          <div className="flex flex-col gap-1.5">
-            <Label>Account</Label>
-            {accounts.data?.length === 0 ? (
-              <p className="text-sm text-fg-secondary">
-                No accounts yet —{' '}
-                <button
-                  type="button"
-                  className="text-accent underline"
-                  onClick={() => openSettings('accounts')}
-                >
-                  add one in settings
-                </button>
-                .
-              </p>
-            ) : (
-              <Select value={effectiveAccountId} onValueChange={setAccountId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="pick an account" />
-                </SelectTrigger>
-                <SelectContent>
-                  {accounts.data?.map((a) => (
-                    <SelectItem key={a.id} value={String(a.id)}>
-                      <span className="font-mono">
-                        {a.agent_type}/{a.label}
-                      </span>
-                      {!a.logged_in && (
-                        <span className="ml-2 text-2xs text-waiting">not logged in</span>
-                      )}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
+          {!isTerminal && (
+            <div className="flex flex-col gap-1.5">
+              <Label>Account</Label>
+              {accounts.data?.length === 0 ? (
+                <p className="text-sm text-fg-secondary">
+                  No accounts yet —{' '}
+                  <button
+                    type="button"
+                    className="text-accent underline"
+                    onClick={() => openSettings('accounts')}
+                  >
+                    add one in settings
+                  </button>
+                  .
+                </p>
+              ) : (
+                <Select value={effectiveAccountId} onValueChange={setAccountId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="pick an account" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accounts.data?.map((a) => (
+                      <SelectItem key={a.id} value={String(a.id)}>
+                        <span className="font-mono">
+                          {a.agent_type}/{a.label}
+                        </span>
+                        {!a.logged_in && (
+                          <span className="ml-2 text-2xs text-waiting">not logged in</span>
+                        )}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="base-branch">Base branch</Label>
             <HintInput
@@ -202,7 +219,7 @@ export function NewSessionDialog({
               />
               <Label htmlFor="separate-branch">Use separate branch</Label>
             </div>
-            {!separateBranch && (
+            {!separateBranch && !isTerminal && (
               <p className="text-xs text-waiting">
                 Discouraged: the agent commits straight to{' '}
                 <span className="font-mono">
@@ -241,8 +258,11 @@ export function NewSessionDialog({
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!effectiveAccountId || create.isPending}>
-              Start session
+            <Button
+              type="submit"
+              disabled={(!isTerminal && !effectiveAccountId) || create.isPending}
+            >
+              {isTerminal ? 'Open terminal' : 'Start session'}
             </Button>
           </DialogFooter>
         </form>

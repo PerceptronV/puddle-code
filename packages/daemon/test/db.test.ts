@@ -53,6 +53,7 @@ function seedSession(s: ReturnType<typeof stores>) {
     worktree_path: '/tmp/wt',
     base_branch: 'main',
     branch: 'alice/demo',
+    kind: 'agent',
     agent_type: 'claude-code',
     title: 'demo',
     skip_permissions: false,

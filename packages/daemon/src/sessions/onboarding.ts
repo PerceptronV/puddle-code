@@ -26,6 +26,20 @@ Then proceed with the task below (or await instructions if none is given).`;
   return taskPrompt?.trim() ? `${preamble}\n\n---\n\n${taskPrompt}` : preamble;
 }
 
+/**
+ * Prepended when a session attaches to an *existing* shared worktree
+ * (separate_branch = false, SPEC §4): the branch and its working tree already
+ * exist because other sessions are on them, so this agent is working
+ * concurrently with others in the same directory. It gets the user's prompt —
+ * the environment already exists, so no onboarding — plus this heads-up to
+ * expect the tree to shift underneath it and to steer clear of git operations
+ * that would trample the others.
+ */
+export function buildConcurrentWorktreeNote(taskPrompt?: string | null): string {
+  const note = `[puddle] You are joining an existing branch and worktree that other agents may be working in concurrently. Files can change underneath you, so re-check the working tree before you act, and avoid disruptive git operations (resetting, force-pushing, or deleting the branch) that would disrupt work already in progress by others.`;
+  return taskPrompt?.trim() ? `${note}\n\n---\n\n${taskPrompt}` : note;
+}
+
 export const INTERRUPTED_RESUME_NOTE =
   'This session was interrupted (daemon or machine restart). Processes you started are gone; re-verify your environment before continuing.';
 

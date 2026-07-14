@@ -1,12 +1,6 @@
 import { isAbsolute, join, normalize, sep } from 'node:path';
 import { Hono } from 'hono';
-import type {
-  DiffResponse,
-  FileAtResponse,
-  LogResponse,
-  SearchResponse,
-  ShowCommitResponse,
-} from '@puddle/shared';
+import type { DiffResponse, FileAtResponse, LogResponse, ShowCommitResponse } from '@puddle/shared';
 import type { SessionStore } from '../../db/stores/sessions.js';
 import { git } from '../../git/exec.js';
 import {
@@ -16,20 +10,10 @@ import {
   diffNameStatus,
   logPage,
   resolveBaseSha,
-  resolveHeadSha,
   showCommit,
 } from '../../worktrees/inspect.js';
-import { searchWorktree } from '../../worktrees/search.js';
 import { ApiError } from '../errors.js';
 import { resolveWorktree } from './worktree-shared.js';
-
-/** Longest search query we accept — long enough for a phrase, short of abuse. */
-const MAX_QUERY_LEN = 500;
-
-/** A `?flag=1`/`true` query param reads as true; everything else (incl. absent) is false. */
-function boolParam(raw: string | undefined): boolean {
-  return raw === '1' || raw === 'true';
-}
 
 /** A commit sha or a plausible abbreviation of one — anything else is rejected before it reaches git. */
 const SHA_LIKE = /^[0-9a-f]{4,40}$/;
@@ -96,19 +80,8 @@ export function worktreeGitRoutes(deps: { sessions: SessionStore }): Hono {
         return c.json<DiffResponse>({ against: sha, base_ref: ref, entries });
       }
 
-      // Uncommitted changes: working tree (staged + unstaged) vs. HEAD — the
-      // Changes navigator's top panel (SPEC §8).
-      if (against === 'head') {
-        const sha = await resolveHeadSha(root);
-        const entries = await diffNameStatus(root, sha);
-        return c.json<DiffResponse>({ against: sha, base_ref: 'HEAD', entries });
-      }
-
       if (!SHA_LIKE.test(against)) {
-        throw ApiError.badRequest(
-          'invalid_against',
-          `'against' must be 'base', 'head', or a commit sha`,
-        );
+        throw ApiError.badRequest('invalid_against', `'against' must be 'base' or a commit sha`);
       }
       if (!(await commitExists(root, against))) {
         throw new ApiError(404, 'unknown_ref', `commit '${against}' does not exist`);
@@ -151,26 +124,5 @@ export function worktreeGitRoutes(deps: { sessions: SessionStore }): Hono {
         throw new ApiError(404, 'unknown_ref', `commit '${sha}' does not exist`);
       }
       return c.json<ShowCommitResponse>(await showCommit(root, sha));
-    })
-
-    .get('/:sid/search', async (c) => {
-      const { root } = resolveWorktree(deps.sessions, c);
-      const query = c.req.query('q') ?? '';
-      if (query.length === 0) {
-        throw ApiError.badRequest('empty_query', `'q' must not be empty`);
-      }
-      if (query.length > MAX_QUERY_LEN) {
-        throw ApiError.badRequest(
-          'query_too_long',
-          `query is ${query.length} chars; the cap is ${MAX_QUERY_LEN}`,
-        );
-      }
-      const result = await searchWorktree(root, {
-        query,
-        regex: boolParam(c.req.query('regex')),
-        caseSensitive: boolParam(c.req.query('case')),
-        wholeWord: boolParam(c.req.query('word')),
-      });
-      return c.json<SearchResponse>(result);
     });
 }

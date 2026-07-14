@@ -133,12 +133,13 @@ CREATE TABLE project_states (            -- per-(project, profile) persisted wor
 CREATE TABLE sessions (
   id TEXT PRIMARY KEY,                  -- puddle uuid; also worktree dir name
   project_id TEXT NOT NULL REFERENCES projects(id),  -- profile and repo derive from the project
-  account_id INTEGER NOT NULL REFERENCES accounts(id),
+  account_id INTEGER REFERENCES accounts(id),  -- NULL for a terminal session (no account; §4)
   worktree_path TEXT NOT NULL,
   base_branch TEXT NOT NULL,
   branch TEXT NOT NULL,
   separate_branch INTEGER NOT NULL DEFAULT 1,  -- 0: works directly on base_branch in a shared worktree (§4)
-  agent_type TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'agent',   -- 'agent' | 'terminal' (§4): a terminal is a plain shell, no agent
+  agent_type TEXT,                      -- NULL for a terminal session (no agent; §4)
   agent_session_ref TEXT,               -- agent-native id used for resume (see adapters)
   title TEXT,
   status TEXT NOT NULL,                 -- see state machine
@@ -201,8 +202,10 @@ Branch-per-session is the default, not a straitjacket. A session created with `s
 
 - One shared worktree per (repo, branch), at `worktrees/<repo_id>/branch-<slug>/`. The first shared session creates it (checking the branch out with `git worktree add --force` — the branch may legitimately also be checked out in the canonical clone; the double checkout is the point of this mode, and each checkout keeps its own index and working tree while commits land on the one branch); later shared sessions attach to the existing directory.
 - **Deliberately discouraged.** The new-session modal's "use separate branch" toggle is on by default; switching it off hides the Branch field and shows a warning spelling out the loss of isolation (concurrent agents in one directory can and will trample each other's edits). The daemon rejects a `branch` name combined with `separate_branch: false` (400 `branch_with_shared`).
-- Only the session that **created** the worktree receives the onboarding preamble and the `.puddle/` marker-file watch; attaching sessions get their prompt bare (the environment already exists, as with resumes and hand-offs).
+- Only the session that **created** the worktree receives the onboarding preamble and the `.puddle/` marker-file watch. An attaching session skips onboarding (the environment already exists, as with resumes and hand-offs), but because other agents are already working in that same directory its prompt is prefixed with a short concurrency heads-up — expect the working tree to shift underneath you; avoid disruptive git operations (resets, force-pushes, branch deletion) that would trample the others.
 - Archiving removes the shared worktree only when the last non-archived session using it archives; the branch itself is never deleted by puddle (it isn't puddle's), and branch pickers do not badge it as a session branch.
+
+**Terminal sessions.** A session's `kind` is `agent` (a coding agent driving the worktree) or `terminal` (a plain shell PTY — `$SHELL`, no agent and no account). A terminal is created through the same new-session machinery (`POST /api/sessions {kind:'terminal'}` — no `account_id`), gets a worktree the same way, and appears in the sidebar like any other session, but with a **blue** status dot instead of green and no account line. It defaults `separate_branch` to **false** (a scratch shell usually wants the branch as-is, not a fresh one); a separate branch is still available. It receives no onboarding preamble, no `.puddle/` marker watch, and no conversation store — there is nothing to onboard or adopt. `account_id`/`agent_type` are null; the permissions gate, migration (§5), and conversation sharing (§S) do not apply. Its PTY runs on the same `agent` term id, so terminal and editor views attach unchanged. Lifecycle is the same state machine: it goes `starting → running` on the shell's first output and `→ exited` when the shell dies; a daemon restart interrupts it like any session, and **resume relaunches a fresh shell in the same worktree** (a shell process cannot be reattached across a restart), keeping it alive from the UI's point of view.
 
 Environment setup is not deterministic per repo — whether _this particular worktree_ needs a fresh `.venv`, a symlink to a shared one, or none at all is often the user's call in the moment. So setup is split into **standing rules** and **per-worktree discretion**:
 
@@ -309,9 +312,11 @@ Projects   GET  /api/projects?profile=…      POST /api/projects {profile_id, r
            GET  /api/projects/:id/state?profile=…   PUT (profile-keyed ui_state JSON; debounced writes; GET falls back to the project's most recent snapshot when the profile has none)
            POST /api/projects/:id/archive
 Sessions   GET  /api/sessions?project=…&status=…
-           POST /api/sessions {project_id, account_id, base_branch?, branch?, separate_branch?, title?, prompt?, skip_permissions?}
-                # separate_branch defaults true; false = work directly on the base branch in a shared
-                # worktree (§4 Relaxed isolation) — branch must then be absent (400 branch_with_shared)
+           POST /api/sessions {project_id, account_id?, kind?, base_branch?, branch?, separate_branch?, title?, prompt?, skip_permissions?}
+                # kind defaults 'agent' (needs account_id); kind:'terminal' spawns a plain shell with
+                # no account/agent and defaults separate_branch to false (§4 Terminal sessions)
+                # separate_branch defaults true for agents; false = work directly on the base branch in a
+                # shared worktree (§4 Relaxed isolation) — branch must then be absent (400 branch_with_shared)
                 # branch naming: requested branch → prefix + title slug → prefix + first words of the
                 # prompt → prefix + a memorable adjective-noun-element triple (quiet-tarn-fire) — never a uuid fragment
                 # skip_permissions is honoured only if the profile gate AND the account opt-in allow it;
@@ -342,13 +347,11 @@ Files      GET  /api/worktrees/:sid/tree?path=…
            POST /api/worktrees/:sid/upload?dir=…            # multipart file upload into a worktree directory, path-contained (drag-in transfer — §8);
                 # 100 MiB cap (413 `upload_too_large`); a same-name file already there is overwritten silently
            GET  /api/worktrees/:sid/download?path=…         # file → bytes; directory → zip stream excluding `.git` and symlinks (Content-Disposition attachment) (§8)
-Git        GET  /api/worktrees/:sid/diff?against=base|head|<sha>   # name-status list; `against=base` resolves to the
-                # merge-base of the base branch (`origin/<base>` when it exists, else local) and HEAD;
-                # `against=head` is the working tree vs. HEAD — uncommitted changes only (Changes navigator)
+Git        GET  /api/worktrees/:sid/diff?against=base|<sha>   # name-status list; `against=base` resolves to the
+                # merge-base of the base branch (`origin/<base>` when it exists, else local) and HEAD
            GET  /api/worktrees/:sid/file-at?ref=…&path=…      # blob content for DiffEditor 'original'
-           GET  /api/worktrees/:sid/log?limit=…&skip=…        # history; each commit carries its `parents` (graph lanes)
+           GET  /api/worktrees/:sid/log?limit=…&skip=…        # history
            GET  /api/worktrees/:sid/show/:sha                 # commit detail + changed files
-           GET  /api/worktrees/:sid/search?q=…&regex=&case=&word=   # filename + content search (git grep; regex=PCRE)
 Ports      GET  /api/sessions/:id/ports       # detected listeners for the session pid tree (platform-specific — §9)
 Proxy      ALL  /proxy/:sid/:port/*           # tier-2 HTTP reverse proxy, WS upgrade passthrough
 ```
@@ -408,16 +411,14 @@ This is the Docker-daemon model reduced to its useful core: a negotiated, versio
 
 ## 8. Editor, diff, and git history
 
-**Workspace layout.** Three columns: a **left navigator** whose top is a horizontal icon row — Files · Search · Changes — with the pin and collapse controls (both accent-blue; the pin is a solid glyph when a worktree is pinned) on the right of that row, over the selected navigator's content. Collapsed, the navigator becomes a slim rail of those same icons stacked vertically; clicking one expands the sidebar straight to that navigator (state persisted in `ui_state`). A **centre** splits vertically into the editor zone (files, diffs, commit diffs, and browser preview later) above the agent terminals, boundary draggable (with no editor tabs open the terminals take the whole height); and a **right sidebar** lists the project's sessions (header: collapse and new-session controls on the left edge, the title on the right; collapsible to a slim rail keeping just the reopen and new-session buttons). The session list is **drag-reorderable**, persisted per-client in `ui_state.session_order`; a newly created session appears at the top until dragged (the ordering keys on session id, so it applies uniformly to every session type). Changes and Search are _navigators_, not full views: each is a list, and selecting an entry opens its content as a centre-editor tab, so the editor is the single content surface. The pin binds the **whole sidebar** to one worktree — Files, Changes, and Search all follow it; unpinning resumes follow-the-active-session (the agent tab in focus). The header under the icon row always names the bound worktree/branch, with a dropdown to bind another.
+**Workspace layout.** Three columns: a **left navigator** whose top is a horizontal icon row — Files · Diff · History — over the selected navigator's content (collapsible to a slim rail via the row's toggle, persisted in `ui_state`); a **centre** split vertically into the editor zone (files, diffs, commit diffs, and browser preview later) above the agent terminals, boundary draggable (with no editor tabs open the terminals take the whole height); and a **right sidebar** listing the project's sessions (header mirrors the left navigator: the collapse control on the left edge, the new-terminal and new-session controls on the right; collapsible to a slim rail that keeps the reopen, new-terminal, and new-session buttons, then — below a divider — one clickable status dot per live session so you can switch sessions without reopening the sidebar; persisted in `ui_state`). Diff and History are _navigators_, not full views: each is a list, and selecting an entry opens its content as a centre-editor tab, so the editor is the single content surface. Files keeps its own pin; Diff and History follow the active session (the agent tab in focus).
 
-- **File explorer** (the Files navigator): the tree is always bound to exactly one worktree — there is no merged project-wide view. By default it **follows the active session** (via the shared sidebar binding above): switching session tabs switches the tree to that session's worktree. The sidebar pin locks the binding to a chosen worktree (so you can read session A's files while watching session B's terminal); unpinning re-enables follow-the-session.
+- **File explorer** (the Files navigator): the tree is always bound to exactly one worktree — there is no merged project-wide view. By default it **follows the active session**: switching session tabs switches the tree to that session's worktree. A pin control on the explorer header locks it to a chosen worktree (so you can read session A's files while watching session B's terminal); the header always names the bound worktree/branch, and a dropdown lists the project's worktrees for manual switching. Unpinning re-enables follow-the-session.
 - **Editor tab identity is (kind, session, path[, sha])**, not path alone: a `file` editor, a worktree `diff`, and a `commit` file diff are distinct tabs even for the same path (labelled `api.ts` · `api.ts (diff)` · `api.ts @1a2b3c4`). And `src/api.ts` in two worktrees is two different files with independent dirty state — tabs suffix the branch when the same path is open from more than one worktree (`api.ts — alice/fix-auth`). `file` and `diff` tabs share the one editable buffer for their `(session, path)`; `commit` tabs are read-only.
 - **Monaco** for file view/edit. Saving PUTs the full file; daemon writes to the worktree so running agents see the change immediately.
-- **Changes navigator** (unified diff + history): two stacked panels over one worktree. The **top panel** lists the worktree's _uncommitted_ changes (staged + unstaged + untracked — `diff?against=head`, polled, no refresh button) as a compacted directory tree or a flat list (toggle). The **bottom panel** is an interactive **commit graph**: the worktree's history (`/log`, paginated) drawn as a lane DAG from each commit's `parents`, rendered as a per-row SVG gutter using design-token lane colours (no third-party graph dependency — a custom SVG so the click surface and theming are fully owned). Clicking a commit expands its changed files inline (the graph lanes carry through); clicking a file opens its `sha^ → sha` diff as a read-only centre-editor tab. Absolute commit dates render in UTC (not the viewer's local zone): `authored_at` carries the author's own offset anyway, and one fixed zone keeps the formatting deterministic everywhere (including under test).
-  - **Diff tab** (opened from the top panel): a Monaco `DiffEditor` — `original` = `file-at?ref=<base>` (read-only); `modified` is bound to the same shared model as that file's editor tab (created from the same `file` GET, reused by URI), so a hand-edit — and ⌘S — inside the diff goes through the identical conflict-safe save path an editor tab uses, and an already-open tab reflects it immediately. Added files render as a plain editor; deleted files as a read-only viewer.
-- **Search navigator**: filename + content search over the bound worktree in one query (Obsidian-style) — a "Files" section (path matches, subsequence-ranked) and a "Contents" section (per-file line matches from `git grep`, match-highlighted), with case / whole-word / regex toggles (regex is PCRE, matching the client's JS-regex highlighter). Untracked-not-ignored files are included, mirroring the explorer. Clicking a filename opens the file; clicking a content match opens it at that line. The query is debounced; results are capped server-side with a "showing the first results" note when truncated.
+- **Diff navigator + diff tab**: the navigator lists the worktree's changed files against its base (polled, no refresh button); clicking one opens that file's diff as a centre-editor tab. The tab is a Monaco `DiffEditor` — `original` = `file-at?ref=<base>` (read-only); `modified` is bound to the same shared model as that file's editor tab (created from the same `file` GET, reused by URI), so a hand-edit — and ⌘S — inside the diff goes through the identical conflict-safe save path an editor tab uses, and an already-open tab reflects it immediately. Added files render as a plain editor; deleted files as a read-only viewer.
 - **File transfer** (client ⇄ worktree): dragging files from the OS onto the file explorer uploads them into the hovered folder of the bound worktree (`POST /upload`; multiple files per drop, path-contained to the worktree, size-capped); pasting copied files into the explorer does the same. A context menu on any explorer file or folder offers **Download** (`GET /download` — a single file streams as-is, a folder arrives as a zip built on the host). Remote→local drag-out is not portable across browsers (Chromium-only `DownloadURL`), so the download action is the v1 mechanism; drag-out can be layered on later as a progressive nicety. Everything rides the normal authenticated API through the tunnel, so local and SSH modes behave identically.
-- **Commit tab** (opened from the Changes graph): the `sha^ → sha` diff of one file, read-only. Unlike the diff tab it never touches the shared editor buffer — both sides are private Monaco models created and disposed with the tab, and the root commit's files render as `added` rather than fetching a nonexistent parent. Covers "tap into the worktree and see git histories."
+- **History navigator + commit tab**: the navigator lists commits from `/log` (paginated; graph optional later); clicking a commit expands its changed files inline, and clicking a file opens its `sha^ → sha` diff as a read-only centre-editor tab. Covers "tap into the worktree and see git histories." Absolute commit dates render in UTC (not the viewer's local zone): `authored_at` carries the author's own offset anyway, and one fixed zone keeps the formatting deterministic everywhere (including under test).
 
 ## 9. Ports
 
@@ -522,7 +523,7 @@ Puddle's UI must read as a polished, intentional developer cockpit — dense, ca
 
 - **Two-layer token architecture** in `packages/web/src/styles/tokens.css`:
   1. _Primitive palette_: theme-independent colour ramps derived from the five core colours below.
-  2. _Semantic tokens_: the only names components may use — `--bg-base`, `--bg-surface`, `--bg-elevated`, `--border`, `--text-primary/-secondary/-muted`, `--accent`, `--accent-hover`, `--action`, `--action-hover`, `--action-ink`, `--focus-ring`, `--danger`, `--status-running/-waiting/-interrupted/-idle`, `--selection`, `--diff-added`, `--diff-removed`, plus the 16 `--ansi-*` terminal colours. A theme is one `[data-theme="<name>"]` block assigning primitives to **every** semantic token.
+  2. _Semantic tokens_: the only names components may use — `--bg-base`, `--bg-surface`, `--bg-elevated`, `--border`, `--text-primary/-secondary/-muted`, `--accent`, `--accent-hover`, `--action`, `--action-hover`, `--action-ink`, `--focus-ring`, `--danger`, `--status-running/-waiting/-interrupted/-idle/-terminal`, `--selection`, `--diff-added`, `--diff-removed`, plus the 16 `--ansi-*` terminal colours. A theme is one `[data-theme="<name>"]` block assigning primitives to **every** semantic token.
 
   The Tailwind theme maps utilities onto semantic tokens; the xterm.js theme object and the Monaco theme are **generated at runtime from the computed CSS variables**, so adding a theme is one CSS block plus one entry in a theme registry — zero TypeScript changes. A CI script asserts each theme block defines the complete semantic set and that text pairings pass WCAG AA (4.5:1 body, 3:1 large/UI elements). Terminal, editor, and chrome must visibly share one palette — a stock-dark xterm next to Monaco's default `vs-dark` inside a differently-dark app is forbidden.
 
@@ -558,6 +559,7 @@ Puddle's UI must read as a polished, intentional developer cockpit — dense, ca
   | `--status-waiting`                  | `#F0B36E` | `#A9743D` |
   | `--status-interrupted` / `--danger` | `#F2957C` | `#C2472E` |
   | `--status-idle`                     | `#7E93B3` | `#8A7663` |
+  | `--status-terminal`                 | `#7DADFF` | `#2E6BD6` |
 
   Primary actions (buttons, checked toggles) are **ink, not accent**: mist on the dark theme, storm navy on the light — the accent blue is reserved for links, focus, and selection. The dark theme is storm-navy ground with the pastel family as light; the light theme is a white ground (HUMANS.md: white, not beige) with navy ink for primary and secondary text and golden bark for muted, keeping the deep accent steps. Light `--status-running` uses a derived deeper krypton step (`#157A50`) because `#1FA26B` misses the 3:1 AA floor on the elevated ground.
 
@@ -565,7 +567,7 @@ Puddle's UI must read as a polished, intentional developer cockpit — dense, ca
 
 - **Type**: one UI face and one mono face, chosen deliberately and **self-hosted** (hosts and clients may be offline; no font CDNs). Mono is the workhorse of identity: session titles, branches, the powering account's label, paths, ports, and statuses are all set in mono. Set a real type scale.
 
-- **Signature element — status ripples**: a session's status indicator is a small dot that, while the agent is working, emits a slow concentric ripple in `--status-running` (the puddle motif); `waiting_input` shifts it to a pulsing `--status-waiting`, mirrored in the tab title/favicon. This is the interface's one animated flourish. Everything else is instant or a ≤150 ms fade; `prefers-reduced-motion` degrades the ripple to a static dot.
+- **Signature element — status ripples**: a session's status indicator is a small dot that, while the agent is working, emits a slow concentric ripple in `--status-running` (the puddle motif); `waiting_input` shifts it to a pulsing `--status-waiting`, mirrored in the tab title/favicon. A running **terminal** session ripples in `--status-terminal` (blue) instead of the agent green, so a shell reads apart from an agent at a glance. This is the interface's one animated flourish. Everything else is instant or a ≤150 ms fade; `prefers-reduced-motion` degrades the ripple to a static dot.
 
 - **Density**: compact paddings, information-dense lists, tabular numerals for ports/counts; generosity is reserved for primary actions and empty states.
 

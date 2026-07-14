@@ -67,6 +67,7 @@ function makeSession(f: Fixture, accountId: number, ref: string): ShareSession {
     base_branch: 'main',
     branch: `b-${id}`,
     separate_branch: true,
+    kind: 'agent',
     agent_type: 'fake',
     title: null,
     skip_permissions: false,

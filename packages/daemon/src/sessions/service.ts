@@ -16,7 +16,11 @@ import type { PtyDataEvent, PtyExitEvent, PtyManager } from '../pty/pty-manager.
 import { StatusDetector, type DetectedStatus } from '../pty/status-detector.js';
 import type { WorktreeManager } from '../worktrees/manager.js';
 import type { ConversationShare } from './conversation-share.js';
-import { buildOnboardingPreamble, INTERRUPTED_RESUME_NOTE } from './onboarding.js';
+import {
+  buildConcurrentWorktreeNote,
+  buildOnboardingPreamble,
+  INTERRUPTED_RESUME_NOTE,
+} from './onboarding.js';
 import type { MarkerFileSync } from './onboarding.js';
 
 export interface SessionServiceDeps {
@@ -49,7 +53,8 @@ export interface RenameEvent {
 }
 
 interface LiveAgent {
-  detector: StatusDetector;
+  /** Null for terminal sessions — a plain shell has no status detector. */
+  detector: StatusDetector | null;
   status: Extract<SessionStatus, 'starting' | 'running' | 'waiting_input'>;
   lastTouch: number;
 }
@@ -115,6 +120,15 @@ export class SessionService extends EventEmitter {
     const project = this.deps.projects.get(input.project_id);
     const profile = this.deps.profiles.get(project.profile_id);
     const repo = this.deps.repos.get(project.repo_id);
+
+    // A terminal session has no account/agent — it forks off into its own path
+    // (a shell in the worktree, no onboarding, no conversation — SPEC §4).
+    if ((input.kind ?? 'agent') === 'terminal') {
+      return this.createTerminal(input, project, profile, repo);
+    }
+    if (input.account_id === undefined) {
+      throw ApiError.badRequest('account_required', 'an agent session needs an account_id');
+    }
     const account = this.deps.accounts.get(input.account_id);
     if (account.profile_id !== project.profile_id) {
       throw ApiError.badRequest(
@@ -161,6 +175,7 @@ export class SessionService extends EventEmitter {
       base_branch: worktree.baseBranch,
       branch: worktree.branch,
       separate_branch: separateBranch,
+      kind: 'agent',
       agent_type: account.agent_type,
       title: input.title ?? null,
       skip_permissions: skip,
@@ -168,10 +183,12 @@ export class SessionService extends EventEmitter {
 
     // Every freshly created worktree onboards — and only those (SPEC §4).
     // Attaching to an existing shared worktree is a reuse, like a hand-off:
-    // the environment already exists, so the user's prompt goes in bare.
+    // the environment already exists, so no onboarding — but other agents may
+    // be working in that same directory, so the prompt carries a concurrency
+    // heads-up rather than going in bare.
     const prompt = worktree.created
       ? buildOnboardingPreamble(repo.onboarding_notes, input.prompt ?? null)
-      : (input.prompt ?? undefined);
+      : buildConcurrentWorktreeNote(input.prompt ?? null);
     const launchOpts = {
       worktreePath: worktree.worktreePath,
       sessionId,
@@ -206,6 +223,81 @@ export class SessionService extends EventEmitter {
     return this.get(session.id);
   }
 
+  /**
+   * A terminal session (SPEC §4): a plain shell PTY in a worktree, with no
+   * account, no agent, and no onboarding. Unlike agent sessions it defaults to
+   * the shared base-branch worktree (`separate_branch` off) — a scratch shell
+   * usually wants the branch as-is, not a fresh one. There is no conversation
+   * to adopt and no `.puddle/` markers to watch.
+   */
+  private async createTerminal(
+    input: CreateSessionRequest,
+    project: ReturnType<ProjectStore['get']>,
+    profile: ReturnType<ProfileStore['get']>,
+    repo: ReturnType<RepoStore['get']>,
+  ): Promise<Session> {
+    const separateBranch = input.separate_branch === true; // default off for terminals
+    if (!separateBranch && input.branch !== undefined) {
+      throw ApiError.badRequest(
+        'branch_with_shared',
+        'a terminal without a separate branch works directly on the base branch; omit branch',
+      );
+    }
+    const sessionId = randomUUID();
+    const worktree = separateBranch
+      ? await this.deps.worktrees.create({
+          repo,
+          sessionId,
+          baseBranch: input.base_branch,
+          requestedBranch: input.branch,
+          title: input.title ?? null,
+          prompt: null,
+          branchPrefix: profile.branch_prefix,
+        })
+      : await this.deps.worktrees.attachShared({ repo, baseBranch: input.base_branch });
+    const session = this.deps.sessions.create({
+      id: sessionId,
+      project_id: project.id,
+      account_id: null,
+      worktree_path: worktree.worktreePath,
+      base_branch: worktree.baseBranch,
+      branch: worktree.branch,
+      separate_branch: separateBranch,
+      kind: 'terminal',
+      agent_type: null,
+      title: input.title ?? null,
+      skip_permissions: false,
+    });
+    this.spawnTerminal(sessionId, worktree.worktreePath);
+    this.deps.events.record(sessionId, 'created', {
+      branch: worktree.branch,
+      base_ref: worktree.baseRef,
+      kind: 'terminal',
+      separate_branch: separateBranch,
+      worktree_created: worktree.created,
+    });
+    this.deps.projects.touch(project.id);
+    return this.get(session.id);
+  }
+
+  /**
+   * Launches (or relaunches) a terminal session's shell on the `agent` PTY term
+   * so the existing terminal view attaches to it unchanged. No status detector:
+   * a shell only flips `starting → running` on first output and `→ exited` when
+   * it dies (SPEC §4).
+   */
+  private spawnTerminal(sessionId: string, worktreePath: string): void {
+    const shell = process.env.SHELL ?? 'bash';
+    try {
+      this.deps.ptys.spawn(sessionId, 'agent', shell, [], { cwd: worktreePath });
+    } catch (e) {
+      this.transition(sessionId, 'exited');
+      this.deps.events.record(sessionId, 'spawn_failed', { message: (e as Error).message });
+      throw new ApiError(500, 'spawn_failed', `could not start ${shell}: ${(e as Error).message}`);
+    }
+    this.liveAgents.set(sessionId, { detector: null, status: 'starting', lastTouch: 0 });
+  }
+
   async resume(id: string): Promise<Session> {
     const session = this.deps.sessions.get(id);
     if (session.status !== 'exited' && session.status !== 'interrupted') {
@@ -219,6 +311,19 @@ export class SessionService extends EventEmitter {
         'worktree_missing',
         'worktree is gone; the session can only be archived',
       );
+    }
+    // A terminal session has no conversation to resume — a shell process cannot
+    // be reattached across a restart — so "resume" just relaunches a fresh
+    // shell in the same worktree, keeping it alive like any other session.
+    if (session.kind === 'terminal') {
+      const wasInterrupted = session.status === 'interrupted';
+      this.spawnTerminal(session.id, session.worktree_path);
+      this.transition(session.id, 'running');
+      this.deps.events.record(id, 'resumed', { was_interrupted: wasInterrupted });
+      return this.get(id);
+    }
+    if (session.account_id === null || session.agent_type === null) {
+      throw ApiError.conflict('not_resumable', 'session has no agent to resume');
     }
     const account = this.deps.accounts.get(session.account_id);
     const project = this.deps.projects.get(session.project_id);
@@ -307,6 +412,9 @@ export class SessionService extends EventEmitter {
    */
   async migrate(id: string, targetAccountId: number): Promise<Session> {
     const session = this.deps.sessions.get(id);
+    if (session.kind === 'terminal' || session.account_id === null || session.agent_type === null) {
+      throw ApiError.badRequest('not_migratable', 'a terminal session has no account to migrate');
+    }
     const project = this.deps.projects.get(session.project_id);
     const target = this.deps.accounts.get(targetAccountId); // 404 if unknown
     // Validations, in order (SPEC §5).
@@ -596,7 +704,7 @@ export class SessionService extends EventEmitter {
       live.status = 'running';
       this.transition(e.stream, 'running');
     }
-    live.detector.feed(e.data);
+    live.detector?.feed(e.data);
   }
 
   private onDetected(sessionId: string, detected: DetectedStatus): void {
@@ -636,7 +744,7 @@ export class SessionService extends EventEmitter {
     if (e.term !== 'agent') return;
     const live = this.liveAgents.get(e.stream);
     if (!live) return;
-    live.detector.dispose();
+    live.detector?.dispose();
     this.liveAgents.delete(e.stream);
     if (this.shuttingDown) return; // reconcile turns these into `interrupted` next boot
     this.transition(e.stream, 'exited');

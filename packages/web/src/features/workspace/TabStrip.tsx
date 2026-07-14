@@ -53,7 +53,7 @@ export function TabStrip({
               dragging === id && 'opacity-50',
             )}
           >
-            <StatusDot status={session.status} />
+            <StatusDot status={session.status} kind={session.kind} />
             <span className="truncate font-mono">{session.title ?? session.id.slice(0, 8)}</span>
             <button
               onClick={(e) => {

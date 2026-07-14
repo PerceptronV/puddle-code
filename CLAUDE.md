@@ -15,9 +15,8 @@ packages/
 ├── web/       # React UI: Tailwind v4 + owned shadcn-style components (src/components/ui/)
 │   ├── src/styles/tokens.css   # THE colour source; scripts/check-tokens.mjs guards it in lint/CI
 │   ├── src/lib/       # token gate, TanStack Query hooks, singleton WS manager, theme registry
-│   └── src/features/  # dashboard, workspace (sidebar/tabs/xterm), editor/explorer/changes/search
-│                      # (Monaco tabs + drafts, file tree + transfer, unified changes view = uncommitted
-│                      #  + commit-graph SVG, filename+content search), settings, ⌘K palette
+│   └── src/features/  # dashboard, workspace (sidebar/tabs/xterm), editor/explorer/diff/history
+│                      # (Monaco tabs + drafts, file tree + transfer, diff & history views), settings, ⌘K palette
 └── cli/       # client launcher: serves the UI + proxies /api & /ws (Phase 6), ssh bootstrap, tunnel
 docs/changelogs/      # archived per-version changelogs (see Changelog discipline)
 docs/acceptance/      # manual per-phase acceptance scripts (real-agent verification CI can't do)

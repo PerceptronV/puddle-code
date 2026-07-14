@@ -38,7 +38,6 @@ describe('uiStateSnapshotSchema', () => {
       sidebar_mode: 'files',
       sidebar_collapsed: false,
       sessions_collapsed: false,
-      session_order: [],
     });
   });
 

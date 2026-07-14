@@ -20,8 +20,10 @@ import type { PuddlePaths } from '../paths.js';
 /** The subset of a session row the share manager needs. */
 export interface ShareSession {
   id: string;
-  agent_type: string;
-  account_id: number;
+  /** Null for terminal sessions, which have no conversation to share. */
+  agent_type: string | null;
+  /** Null for terminal sessions, which have no account. */
+  account_id: number | null;
   agent_session_ref: string | null;
 }
 
@@ -72,6 +74,7 @@ export class ConversationShare {
    * point retrying; false when nothing is on disk yet (retry on a later flip).
    */
   async adoptIfNeeded(session: ShareSession): Promise<boolean> {
+    if (session.agent_type === null || session.account_id === null) return true; // terminal: no conversation
     const hooks = this.hooksFor(session.agent_type);
     if (!hooks) return true; // non-shareable agent: permanent no-op
     const ref = session.agent_session_ref;
@@ -175,6 +178,7 @@ export class ConversationShare {
    * account's own dir).
    */
   async removeSessionData(session: ShareSession): Promise<void> {
+    if (session.agent_type === null || session.account_id === null) return; // terminal: no conversation
     const hooks = this.hooksFor(session.agent_type);
     if (!hooks) return;
     const ref = session.agent_session_ref;

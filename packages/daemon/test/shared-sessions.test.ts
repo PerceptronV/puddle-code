@@ -6,7 +6,7 @@ import { sh } from './helpers/git-fixtures.js';
 /** The relaxed isolation modes (SPEC §4): shared worktrees and branch deletion. */
 
 describe('separate_branch = false (shared worktree)', () => {
-  it('works directly on the base branch; later sessions share the worktree without onboarding', async () => {
+  it('works directly on the base branch; later sessions share the worktree with a concurrency note, not onboarding', async () => {
     const f = fixture();
     const first = await f.service.create({
       project_id: f.ids.project,
@@ -19,7 +19,8 @@ describe('separate_branch = false (shared worktree)', () => {
     expect(first.worktree_path).toContain('branch-main');
     expect(sh(first.worktree_path, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe('main');
 
-    // The creator onboards; the attacher gets its prompt bare (SPEC §4).
+    // The creator onboards; the attacher gets its prompt with a concurrency
+    // heads-up but no onboarding preamble (SPEC §4).
     await waitFor(() => f.logs.readTail(first.id, 'agent').includes('READY'));
     expect(f.logs.readTail(first.id, 'agent')).toContain('[puddle onboarding]');
 
@@ -32,7 +33,8 @@ describe('separate_branch = false (shared worktree)', () => {
     expect(second.worktree_path).toBe(first.worktree_path);
     await waitFor(() => f.logs.readTail(second.id, 'agent').includes('READY'));
     const output = f.logs.readTail(second.id, 'agent');
-    expect(output).toContain('PROMPT<<second task>>');
+    expect(output).toContain('working in concurrently');
+    expect(output).toContain('second task');
     expect(output).not.toContain('[puddle onboarding]');
 
     // The shared branch is not badged as session-owned in branch pickers.

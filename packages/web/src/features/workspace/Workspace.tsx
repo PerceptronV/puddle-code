@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router';
 import { Group, Panel, Separator, type Layout } from 'react-resizable-panels';
 import { Play, TerminalSquare } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Session } from '@puddle/shared';
+import type { Session, SessionKind } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { useExplorerTarget } from '../explorer/use-explorer-target';
 import { useAccounts, useProjectDetail, useSessionAction } from '../../lib/queries';
@@ -18,12 +18,7 @@ import {
   type RevealTarget,
 } from './editor-context';
 import { layoutForPanels } from './panel-layout';
-import {
-  CollapsedSidebarRail,
-  NavigatorSidebar,
-  normalizeSidebarMode,
-  type SidebarMode,
-} from './NavigatorSidebar';
+import { CollapsedSidebarRail, NavigatorSidebar, type SidebarMode } from './NavigatorSidebar';
 import { NewSessionDialog } from './NewSessionDialog';
 import { PortsStrip } from '../ports/PortsStrip';
 import { CollapsedSessionsRail, SessionSidebar } from './SessionSidebar';
@@ -85,7 +80,13 @@ function WorkspaceInner() {
   const openTabs = uiState.snapshot.session_tabs;
   const [restored, setRestored] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [createKind, setCreateKind] = useState<SessionKind>('agent');
   const [seedAccountId, setSeedAccountId] = useState<number | undefined>(undefined);
+  const openCreate = useCallback((kind: SessionKind = 'agent') => {
+    setSeedAccountId(undefined);
+    setCreateKind(kind);
+    setCreating(true);
+  }, []);
   // Set when the active tab is closed: the router clears the URL param a
   // render later, so this stops the deep-link effect resurrecting the tab in
   // the interim (it would otherwise leave a zombie header — no active session).
@@ -130,6 +131,7 @@ function WorkspaceInner() {
   useEffect(() => {
     setHandler((opts) => {
       setSeedAccountId(opts?.accountId);
+      setCreateKind(opts?.kind ?? 'agent');
       setCreating(true);
     });
     return () => setHandler(null);
@@ -193,34 +195,28 @@ function WorkspaceInner() {
   );
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
-  // The whole left sidebar binds to one worktree: the pinned session if any,
-  // otherwise the active session tab. Files, Changes, and Search all follow it
-  // (SPEC §8, pin-across-tabs).
-  const sidebarTarget = useExplorerTarget(sessions, activeSessionId, uiState);
-  const targetSession = sidebarTarget.session;
+  // Files keeps its own pin (`explorerTarget`); Diff and History follow the
+  // active session (the agent tab in focus) — SPEC §8.
+  const explorerTarget = useExplorerTarget(sessions, activeSessionId, uiState);
   const editorTabs = uiState.snapshot.editor_tabs;
-  const sidebarMode: SidebarMode = normalizeSidebarMode(uiState.snapshot.sidebar_mode);
+  const sidebarMode: SidebarMode = uiState.snapshot.sidebar_mode;
   const sidebarCollapsed = uiState.snapshot.sidebar_collapsed;
   const sessionsCollapsed = uiState.snapshot.sessions_collapsed;
 
-  // Highlight the Changes navigator entry whose uncommitted-diff tab is active.
+  // Highlight the Diff navigator entry whose diff tab is the active one.
   const activeTab = uiState.snapshot.active_editor_tab;
   const activeDiffPath =
-    activeTab?.kind === 'diff' && targetSession && activeTab.session === targetSession.id
+    activeTab?.kind === 'diff' && activeSession && activeTab.session === activeSession.id
       ? activeTab.path
       : null;
 
-  // A changes / commit-file / search-result click opens its content as a
-  // centre-editor tab against the BOUND worktree (openEditorTab dedupes).
+  // A diff / commit-file navigator click opens its content as a centre-editor
+  // tab against the active session's worktree (openEditorTab dedupes/focuses).
   const openDiff = (path: string) => {
-    if (targetSession) openEditorTab({ kind: 'diff', session: targetSession.id, path });
+    if (activeSession) openEditorTab({ kind: 'diff', session: activeSession.id, path });
   };
   const openCommitFile = (path: string, sha: string) => {
-    if (targetSession) openEditorTab({ kind: 'commit', session: targetSession.id, path, sha });
-  };
-  const openSearchFile = (path: string, line?: number) => {
-    if (targetSession)
-      openFile(targetSession.id, path, line !== undefined ? { line, column: 1 } : undefined);
+    if (activeSession) openEditorTab({ kind: 'commit', session: activeSession.id, path, sha });
   };
 
   // Both Groups (horizontal shell, nested vertical editor split) persist into
@@ -256,10 +252,7 @@ function WorkspaceInner() {
   return (
     <div className="flex h-full">
       {sidebarCollapsed && (
-        <CollapsedSidebarRail
-          mode={sidebarMode}
-          onSelect={(m) => uiState.update({ sidebar_collapsed: false, sidebar_mode: m })}
-        />
+        <CollapsedSidebarRail onExpand={() => uiState.update({ sidebar_collapsed: false })} />
       )}
       <Group
         orientation="horizontal"
@@ -275,12 +268,12 @@ function WorkspaceInner() {
                 onModeChange={(m) => uiState.update({ sidebar_mode: m })}
                 onCollapse={() => uiState.update({ sidebar_collapsed: true })}
                 sessions={sessions}
-                target={sidebarTarget}
+                filesTarget={explorerTarget}
                 onOpenFile={openFile}
+                activeSession={activeSession}
                 activeDiffPath={activeDiffPath}
                 onOpenDiff={openDiff}
                 onOpenCommitFile={openCommitFile}
-                onOpenSearchFile={openSearchFile}
               />
             </Panel>
             <Separator className="w-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
@@ -364,9 +357,8 @@ function WorkspaceInner() {
                 sessions={sessions}
                 accounts={accounts}
                 activeSessionId={activeSessionId}
-                order={uiState.snapshot.session_order}
-                onReorder={(ids) => uiState.update({ session_order: ids })}
-                onNewSession={() => setCreating(true)}
+                onNewSession={() => openCreate('agent')}
+                onNewTerminal={() => openCreate('terminal')}
                 onCollapse={() => uiState.update({ sessions_collapsed: true })}
                 onArchived={closeTab}
               />
@@ -378,6 +370,7 @@ function WorkspaceInner() {
           projectId={projectId}
           repoId={detail.data.project.repo_id}
           open={creating}
+          kind={createKind}
           seedAccountId={seedAccountId}
           onOpenChange={setCreating}
           onCreated={(session) => void navigate(`/project/${projectId}/session/${session.id}`)}
@@ -385,8 +378,12 @@ function WorkspaceInner() {
       </Group>
       {sessionsCollapsed && (
         <CollapsedSessionsRail
+          projectId={projectId}
+          sessions={sessions}
+          activeSessionId={activeSessionId}
           onExpand={() => uiState.update({ sessions_collapsed: false })}
-          onNewSession={() => setCreating(true)}
+          onNewTerminal={() => openCreate('terminal')}
+          onNewSession={() => openCreate('agent')}
         />
       )}
     </div>

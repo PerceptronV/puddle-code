@@ -161,7 +161,7 @@ export function ProfilePanel() {
     <>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button variant="ghost" size="sm" className="font-mono">
+          <Button variant="ghost" size="sm" className="font-sans">
             <UserRound />
             {currentProfile?.name ?? '…'}
           </Button>

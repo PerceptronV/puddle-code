@@ -5,12 +5,13 @@ import type { Db } from '../db.js';
 interface Row {
   id: string;
   project_id: string;
-  account_id: number;
+  account_id: number | null;
   worktree_path: string;
   base_branch: string;
   branch: string;
   separate_branch: number;
-  agent_type: string;
+  kind: Session['kind'];
+  agent_type: string | null;
   agent_session_ref: string | null;
   title: string | null;
   status: SessionStatus;
@@ -23,12 +24,15 @@ interface Row {
 export interface NewSessionRow {
   id: string;
   project_id: string;
-  account_id: number;
+  /** Null for terminal sessions (SPEC §4). */
+  account_id: number | null;
   worktree_path: string;
   base_branch: string;
   branch: string;
   separate_branch: boolean;
-  agent_type: string;
+  kind: Session['kind'];
+  /** Null for terminal sessions (SPEC §4). */
+  agent_type: string | null;
   title: string | null;
   skip_permissions: boolean;
 }
@@ -51,8 +55,8 @@ export class SessionStore {
     this.db
       .prepare(
         `INSERT INTO sessions (id, project_id, account_id, worktree_path, base_branch, branch,
-           separate_branch, agent_type, title, status, skip_permissions, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?, ?)`,
+           separate_branch, kind, agent_type, title, status, skip_permissions, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?, ?)`,
       )
       .run(
         row.id,
@@ -62,6 +66,7 @@ export class SessionStore {
         row.base_branch,
         row.branch,
         row.separate_branch ? 1 : 0,
+        row.kind,
         row.agent_type,
         row.title,
         row.skip_permissions ? 1 : 0,
