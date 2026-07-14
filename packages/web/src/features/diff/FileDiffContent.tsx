@@ -23,11 +23,27 @@ function Note({ children }: { children: ReactNode }) {
  * it on unmount (SPEC §8 refcount): the diff section is one holder, the editor
  * tab another, and the model is disposed only when the last lets go. Safe to
  * call before the model exists — the refcount is independent of the entry.
+ *
+ * Ordering matters: React 19 tears a deleted subtree down PARENT-FIRST
+ * (react-dom 19.2.7 `commitPassiveUnmountEffectsInsideOfDeletedTree_begin`
+ * runs hook cleanups on the way down), so this cleanup fires BEFORE any child
+ * editor component's own unmount cleanup. If we are the last holder, the
+ * release disposes the model while a child editor may still have it attached —
+ * `detach` (when given) runs first to pull the model out of the editor. The
+ * plain `<Editor>` path needs no detach: monaco 0.55.1's CodeEditorWidget
+ * auto-detaches on `model.onWillDispose` (codeEditorWidget.js:1265); the
+ * DiffEditorWidget does NOT (it logs a BugIndicatingError instead), hence
+ * ModifiedContent's explicit detach.
  */
-function useRetainedModel(key: string): void {
+function useRetainedModel(key: string, detach?: () => void): void {
+  const detachRef = useRef(detach);
+  detachRef.current = detach;
   useEffect(() => {
     retainModel(key);
-    return () => releaseModel(key);
+    return () => {
+      detachRef.current?.();
+      releaseModel(key);
+    };
   }, [key]);
 }
 
@@ -121,9 +137,26 @@ function ModifiedContent({
   basePath: string;
 }) {
   const settings = useClientSettings();
+  // NB: when the same file is also open as an editor tab, its useEditorBuffer
+  // instance and this one BOTH persist a draft per keystroke. The writes are
+  // idempotent (same key, same content, debounced) — merely duplicated — and
+  // there is no clean focus-ownership seam today, so this is left as is.
   const buffer = useEditorBuffer(session, path, null);
   const base = useFileAt(session, against, basePath);
-  useRetainedModel(bufferKey(session, path));
+
+  // Detach-before-release (see useRetainedModel): pull both models out of the
+  // diff editor, then dispose the private original-side model ourselves — the
+  // wrapper's later cleanup sees getModel() === null and no-ops, so the
+  // original would otherwise leak.
+  const diffEditorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
+  useRetainedModel(bufferKey(session, path), () => {
+    const editor = diffEditorRef.current;
+    if (!editor) return;
+    const models = editor.getModel();
+    editor.setModel(null);
+    models?.original.dispose();
+    diffEditorRef.current = null;
+  });
 
   const saveRef = useRef(buffer.save);
   saveRef.current = buffer.save;
@@ -154,7 +187,8 @@ function ModifiedContent({
       // wrapper reuse that exact model (its `getModel(uri) ?? create` finds it),
       // so edits and dirty state flow straight into the editor tab's buffer —
       // no separate model, no content wipe. keepCurrentModifiedModel stops the
-      // wrapper disposing it on unmount; our refcount owns disposal instead.
+      // wrapper disposing it on unmount; our refcount owns disposal instead
+      // (with the detach in useRetainedModel running first — see above).
       modifiedModelPath={buffer.model.uri.toString()}
       originalModelPath={viewerUri('puddle-base', session, against, basePath)}
       original={base.data.content ?? ''}
@@ -163,6 +197,13 @@ function ModifiedContent({
       keepCurrentModifiedModel
       loading={<Note>…</Note>}
       onMount={(diffEditor) => {
+        diffEditorRef.current = diffEditor;
+        // If the widget somehow disposes before our cleanup (it shouldn't —
+        // parent-first ordering — but cheap insurance), drop the stale ref so
+        // the detach never touches a disposed editor.
+        diffEditor.onDidDispose(() => {
+          diffEditorRef.current = null;
+        });
         diffEditor
           .getModifiedEditor()
           .addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => saveRef.current());
@@ -223,7 +264,3 @@ export function FileDiffContent({
       return null;
   }
 }
-
-// `ApiError` is imported for the `not_at_ref` (404) contract noted above; a base
-// that is absent surfaces through useFileAt's error and renders as a muted note.
-void ApiError;

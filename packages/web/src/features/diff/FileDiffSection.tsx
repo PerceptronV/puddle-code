@@ -91,6 +91,10 @@ export function FileDiffSection({
           />
         )}
       </button>
+      {/* A definite height, not max-height: Monaco cannot size itself to its
+          content, so every expanded section gets the full 400px (short files
+          simply scroll less) and the pre-mount placeholder keeps the exact
+          same footprint — no layout shift when the editor mounts. */}
       {expanded && (
         <div style={{ height: SECTION_MAX_HEIGHT }} className="min-h-0">
           {shouldMount ? (
