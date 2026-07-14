@@ -35,7 +35,7 @@ export function NewProjectDialog({
   open,
   onOpenChange,
 }: {
-  profileId: number;
+  profileId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {

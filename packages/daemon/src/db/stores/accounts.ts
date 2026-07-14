@@ -4,7 +4,7 @@ import type { Db } from '../db.js';
 
 interface Row {
   id: number;
-  profile_id: number;
+  profile_id: string;
   agent_type: string;
   label: string;
   config_dir: string;
@@ -30,7 +30,7 @@ export class AccountStore {
   constructor(private readonly db: Db) {}
 
   create(input: {
-    profile_id: number;
+    profile_id: string;
     agent_type: string;
     label: string;
     config_dir: string;
@@ -62,7 +62,7 @@ export class AccountStore {
     }
   }
 
-  list(profileId?: number): Account[] {
+  list(profileId?: string): Account[] {
     const rows = (
       profileId === undefined
         ? this.db.prepare(`SELECT * FROM accounts ORDER BY id`).all()

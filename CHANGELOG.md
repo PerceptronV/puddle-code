@@ -10,6 +10,7 @@ Past releases: see docs/changelogs/.
 ## [Unreleased]
 
 ### Changed
+- Profiles are identified by 10-hex-char ids (like projects) instead of integers, and profile directories under `~/.puddle/profiles/` are keyed by id rather than name — names are pure display labels now. Migration 004 remaps every referencing table and rewrites account config-dir paths; the daemon renames the physical directories at the next boot. **Protocol major bump: 1.0 → 2.0** (profile ids changed type on the wire).
 - Ports never surface in the UI: the port row leaves the Host settings (set it via `--port` on the daemon or `config.json`), and the new top-bar centre shows an scp-style location instead — `user@host`, plus `:repo-path` (`~`-compressed) once a workspace is open, backed by `GET /api/host`.
 - The default UI font size is 1.1× the browser default (17.6px); the whole rem-based scale follows, and Appearance still overrides it per browser.
 - Secondary hints sit on their own line in sentence case; light-theme text is navy throughout (secondary steps to `#163C6B`) with golden bark reserved for muted; fields rest at their former hover fill so they read as clickable on any surface.

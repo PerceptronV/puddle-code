@@ -11,7 +11,7 @@ export interface PuddlePaths {
   profilesDir: string;
   worktreesDir: string;
   logsDir: string;
-  accountConfigDir(profileName: string, agentType: string, label: string): string;
+  accountConfigDir(profileId: string, agentType: string, label: string): string;
   sessionWorktreeDir(repoId: number, sessionId: string): string;
   sessionLogDir(sessionId: string): string;
 }
@@ -27,8 +27,8 @@ export function resolvePaths(
     profilesDir: join(home, 'profiles'),
     worktreesDir: join(home, 'worktrees'),
     logsDir: join(home, 'logs'),
-    accountConfigDir: (profileName, agentType, label) =>
-      join(home, 'profiles', profileName, 'accounts', agentType, label),
+    accountConfigDir: (profileId, agentType, label) =>
+      join(home, 'profiles', profileId, 'accounts', agentType, label),
     sessionWorktreeDir: (repoId, sessionId) => join(home, 'worktrees', String(repoId), sessionId),
     sessionLogDir: (sessionId) => join(home, 'logs', sessionId),
   };

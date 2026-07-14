@@ -33,7 +33,7 @@ export function accountRoutes(deps: AccountRouteDeps): Hono {
   return new Hono()
     .get('/', (c) => {
       const profile = c.req.query('profile');
-      return c.json(deps.accounts.list(profile !== undefined ? Number(profile) : undefined));
+      return c.json(deps.accounts.list(profile));
     })
     .post('/', async (c) => {
       const body = await parseBody(c, createAccountRequestSchema);
@@ -41,7 +41,7 @@ export function accountRoutes(deps: AccountRouteDeps): Hono {
       const profile = deps.profiles.get(body.profile_id);
       // Always a fresh directory — puddle NEVER reuses agent config dirs it
       // did not create (SPEC §2).
-      const configDir = deps.paths.accountConfigDir(profile.name, body.agent_type, body.label);
+      const configDir = deps.paths.accountConfigDir(profile.id, body.agent_type, body.label);
       mkdirSync(configDir, { recursive: true, mode: 0o700 });
       adapter.prepareConfigDir?.(configDir);
       const account = deps.accounts.create({

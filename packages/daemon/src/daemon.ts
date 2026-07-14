@@ -12,6 +12,7 @@ import { ProjectStateStore } from './db/stores/project-states.js';
 import { ProjectStore } from './db/stores/projects.js';
 import { RemovalStore } from './db/stores/removals.js';
 import { RepoStore } from './db/stores/repos.js';
+import { reconcileProfileDirs } from './db/profile-dirs.js';
 import { SessionStore } from './db/stores/sessions.js';
 import { KeyedMutex } from './git/mutex.js';
 import { buildApp } from './http/app.js';
@@ -86,6 +87,9 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     onboarding,
     statusQuietMs: opts.statusQuietMs,
   });
+
+  // Migration 004 rewrote config-dir paths to id-keyed; rename the dirs.
+  reconcileProfileDirs(profiles.list(), paths);
 
   const sweptStates = projectStates.gc(config.uiStateRetentionDays);
   if (sweptStates > 0) console.log(`ui-state gc: ${sweptStates} stale row(s) removed`);

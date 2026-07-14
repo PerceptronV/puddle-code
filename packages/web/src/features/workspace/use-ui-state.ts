@@ -32,7 +32,7 @@ export function useUiState(projectId: string | undefined): UiStateHandle {
 
   const writer = useMemo(
     () =>
-      debounce((pid: string, profile: number, state: UiStateSnapshot) => {
+      debounce((pid: string, profile: string, state: UiStateSnapshot) => {
         putProjectState(pid, profile, state).catch((e) =>
           console.warn(`ui-state save failed: ${(e as Error).message}`),
         );

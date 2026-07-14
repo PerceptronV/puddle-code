@@ -27,7 +27,7 @@ export function PermissionsSection() {
   const profiles = useProfiles();
   const profile = profiles.data?.find((p) => p.id === profileId);
   const settings = useProfileSettings(profileId ?? undefined);
-  const patch = usePatchProfileSettings(profileId ?? 0);
+  const patch = usePatchProfileSettings(profileId ?? '');
   const [confirming, setConfirming] = useState(false);
   const [typed, setTyped] = useState('');
 

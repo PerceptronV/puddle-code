@@ -301,7 +301,7 @@ export class SessionService extends EventEmitter {
 
   /** requested ∧ profile gate ∧ account opt-in ∧ adapter capability (SPEC §11). */
   private evaluateSkip(
-    profileId: number,
+    profileId: string,
     account: Account,
     adapter: AgentAdapter,
     requested: boolean | undefined,

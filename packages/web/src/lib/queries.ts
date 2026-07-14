@@ -29,7 +29,7 @@ export function useProfiles() {
   });
 }
 
-export function useProfileSettings(profileId: number | undefined) {
+export function useProfileSettings(profileId: string | undefined) {
   return useQuery({
     queryKey: ['profile-settings', profileId],
     queryFn: () => api<ProfileSettings>('GET', `/api/profiles/${profileId}/settings`),
@@ -37,7 +37,7 @@ export function useProfileSettings(profileId: number | undefined) {
   });
 }
 
-export function useAccounts(profileId: number | undefined) {
+export function useAccounts(profileId: string | undefined) {
   return useQuery({
     queryKey: ['accounts', profileId],
     queryFn: () => api<Account[]>('GET', `/api/accounts?profile=${profileId}`),
@@ -53,7 +53,7 @@ export function useRepos() {
 }
 
 /** All projects when profileId is undefined (the "everyone" view). */
-export function useProjects(profileId: number | undefined) {
+export function useProjects(profileId: string | undefined) {
   return useQuery({
     queryKey: ['projects', profileId ?? 'all'],
     queryFn: () =>
@@ -130,7 +130,7 @@ export function useCreateProfile() {
   });
 }
 
-export function usePatchProfileSettings(profileId: number) {
+export function usePatchProfileSettings(profileId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (patch: Record<string, unknown>) =>
@@ -142,7 +142,7 @@ export function usePatchProfileSettings(profileId: number) {
 export function usePatchProfile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, branch_prefix }: { id: number; branch_prefix: string }) =>
+    mutationFn: ({ id, branch_prefix }: { id: string; branch_prefix: string }) =>
       api<Profile>('PATCH', `/api/profiles/${id}`, { branch_prefix }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['profiles'] }),
   });
@@ -166,7 +166,7 @@ export function usePatchAccount() {
 export function useDeleteProfile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => api<void>('DELETE', `/api/profiles/${id}`),
+    mutationFn: (id: string) => api<void>('DELETE', `/api/profiles/${id}`),
     onSuccess: () => qc.clear(), // everything under the profile is gone
   });
 }
@@ -183,7 +183,7 @@ export function useCreateAccount() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: {
-      profile_id: number;
+      profile_id: string;
       agent_type: string;
       label: string;
       skip_permissions_default?: boolean;
@@ -229,7 +229,7 @@ export function useFetchRepo() {
 export function useCreateProject() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { profile_id: number; repo_id: number; name: string }) =>
+    mutationFn: (body: { profile_id: string; repo_id: number; name: string }) =>
       api<Project>('POST', '/api/projects', body),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['projects'] }),
   });
@@ -286,7 +286,7 @@ export function usePatchConfig() {
 
 export async function fetchProjectState(
   projectId: string,
-  profileId: number,
+  profileId: string,
 ): Promise<ProjectStateResponse | null> {
   try {
     return await api<ProjectStateResponse>(
@@ -301,7 +301,7 @@ export async function fetchProjectState(
 
 export function putProjectState(
   projectId: string,
-  profileId: number,
+  profileId: string,
   uiState: UiStateSnapshot,
 ): Promise<ProjectStateResponse> {
   return api<ProjectStateResponse>('PUT', `/api/projects/${projectId}/state?profile=${profileId}`, {

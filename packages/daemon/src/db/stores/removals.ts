@@ -40,9 +40,9 @@ export class RemovalStore {
   }
 
   /** 409 unless every session in every project of the profile is archived. */
-  deleteProfile(profileId: number): { name: string; config_dirs: string[] } {
-    const profile = this.db.prepare(`SELECT id, name FROM profiles WHERE id = ?`).get(profileId) as
-      { id: number; name: string } | undefined;
+  deleteProfile(profileId: string): { config_dirs: string[] } {
+    const profile = this.db.prepare(`SELECT id FROM profiles WHERE id = ?`).get(profileId) as
+      { id: string } | undefined;
     if (!profile) throw ApiError.notFound('profile', profileId);
 
     const live = this.db
@@ -88,6 +88,6 @@ export class RemovalStore {
       this.db.prepare(`DELETE FROM accounts WHERE profile_id = ?`).run(profileId);
       this.db.prepare(`DELETE FROM profiles WHERE id = ?`).run(profileId);
     })();
-    return { name: profile.name, config_dirs: configDirs };
+    return { config_dirs: configDirs };
   }
 }

@@ -19,7 +19,7 @@ export class ProjectStateStore {
   constructor(private readonly db: Db) {}
 
   /** The profile's own snapshot for this project, if it has one. */
-  get(projectId: string, profileId: number): ProjectStateResponse | undefined {
+  get(projectId: string, profileId: string): ProjectStateResponse | undefined {
     const row = this.db
       .prepare(
         `SELECT ui_state, updated_at FROM project_states WHERE project_id = ? AND profile_id = ?`,
@@ -38,7 +38,7 @@ export class ProjectStateStore {
     return row && this.parse(row);
   }
 
-  put(projectId: string, profileId: number, uiState: UiStateSnapshot): ProjectStateResponse {
+  put(projectId: string, profileId: string, uiState: UiStateSnapshot): ProjectStateResponse {
     const now = new Date().toISOString();
     this.db
       .prepare(

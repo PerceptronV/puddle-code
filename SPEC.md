@@ -54,7 +54,7 @@ Non-goals (v1):
 ├── puddle.db                 # SQLite
 ├── token                     # browser auth token (see Local security)
 ├── config.json               # daemon settings (port, log caps)
-├── profiles/<profile>/accounts/<agent_type>/<label>/   # per-account agent config dirs (created by puddle)
+├── profiles/<profile_id>/accounts/<agent_type>/<label>/   # per-account agent config dirs (created by puddle; id-keyed — names are display labels)
 ├── worktrees/<repo_id>/<session-id>/   # repo_id, not repo name — names can collide
 └── logs/<session-id>/<term>.log        # append-only PTY output, one file per terminal (agent.log, shell-1.log, …)
 ```
@@ -79,8 +79,8 @@ The daemon is the persistence layer. It is the parent of every PTY, runs under s
 
 ```sql
 CREATE TABLE profiles (
-  id INTEGER PRIMARY KEY,
-  name TEXT NOT NULL UNIQUE,            -- e.g. "alice"
+  id TEXT PRIMARY KEY,                  -- 10 hex chars, like projects; opaque handle
+  name TEXT NOT NULL UNIQUE,            -- display label only (e.g. "alice") — never keys files or URLs
   branch_prefix TEXT NOT NULL DEFAULT '',  -- e.g. "alice/"
   settings TEXT NOT NULL DEFAULT '{}',  -- profile-scope settings JSON (see §11 Settings)
   created_at TEXT NOT NULL
@@ -88,10 +88,10 @@ CREATE TABLE profiles (
 
 CREATE TABLE accounts (
   id INTEGER PRIMARY KEY,
-  profile_id INTEGER NOT NULL REFERENCES profiles(id),
+  profile_id TEXT NOT NULL REFERENCES profiles(id),
   agent_type TEXT NOT NULL,             -- adapter id: 'claude-code' | 'codex' | 'opencode' | ...
   label TEXT NOT NULL,                  -- e.g. "personal", "org"
-  config_dir TEXT NOT NULL,             -- under ~/.puddle/profiles/<profile>/accounts/
+  config_dir TEXT NOT NULL,             -- under ~/.puddle/profiles/<profile_id>/accounts/
   skip_permissions_default INTEGER NOT NULL DEFAULT 0,  -- effective only when the profile's allowSkipPermissions gate is on (§11 Settings)
   logged_in INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
@@ -108,8 +108,8 @@ CREATE TABLE repos (
 );
 
 CREATE TABLE projects (
-  id INTEGER PRIMARY KEY,
-  profile_id INTEGER NOT NULL REFERENCES profiles(id),
+  id TEXT PRIMARY KEY,                  -- 10 hex chars: short, stable URL handle (/project/:id)
+  profile_id TEXT NOT NULL REFERENCES profiles(id),
   repo_id INTEGER NOT NULL REFERENCES repos(id),
   name TEXT NOT NULL,                   -- e.g. "teleop-latency"
   created_at TEXT NOT NULL,
@@ -118,8 +118,8 @@ CREATE TABLE projects (
 );
 
 CREATE TABLE project_states (            -- per-(project, profile) persisted workspace layout (see §11)
-  project_id INTEGER NOT NULL REFERENCES projects(id),
-  profile_id INTEGER NOT NULL REFERENCES profiles(id),   -- layout follows identity, not browser
+  project_id TEXT NOT NULL REFERENCES projects(id),
+  profile_id TEXT NOT NULL REFERENCES profiles(id),      -- layout follows identity, not browser
   ui_state TEXT NOT NULL,                -- JSON: session tabs, editor tabs, layout, explorer pin
   updated_at TEXT NOT NULL,
   PRIMARY KEY (project_id, profile_id)
@@ -127,7 +127,7 @@ CREATE TABLE project_states (            -- per-(project, profile) persisted wor
 
 CREATE TABLE sessions (
   id TEXT PRIMARY KEY,                  -- puddle uuid; also worktree dir name
-  project_id INTEGER NOT NULL REFERENCES projects(id),  -- profile and repo derive from the project
+  project_id TEXT NOT NULL REFERENCES projects(id),  -- profile and repo derive from the project
   account_id INTEGER NOT NULL REFERENCES accounts(id),
   worktree_path TEXT NOT NULL,
   base_branch TEXT NOT NULL,
@@ -144,11 +144,11 @@ CREATE TABLE sessions (
 
 CREATE TABLE prompts (                   -- per-profile prompt bank (see §11)
   id INTEGER PRIMARY KEY,
-  profile_id INTEGER NOT NULL REFERENCES profiles(id),
+  profile_id TEXT NOT NULL REFERENCES profiles(id),
   title TEXT,                            -- optional short label; body's first line shown if absent
   body TEXT NOT NULL,                    -- plaintext, inserted verbatim
   tags TEXT NOT NULL DEFAULT '[]',       -- JSON array of free-form strings
-  project_id INTEGER REFERENCES projects(id),   -- optional association — a ranking hint, never a filter
+  project_id TEXT REFERENCES projects(id),      -- optional association — a ranking hint, never a filter
   agent_type TEXT,                       -- optional association — a ranking hint, never a filter
   use_count INTEGER NOT NULL DEFAULT 0,
   last_used_at TEXT,
@@ -270,8 +270,8 @@ All REST endpoints are JSON under `/api`. Request/response shapes live as zod sc
 
 ```
 Version    GET  /api/version                 # {version, protocol: {major, minor}} — the handshake endpoint (see Protocol versioning below)
-Profiles   GET  /api/profiles                POST /api/profiles {name, branch_prefix?}
-           PATCH /api/profiles/:id {branch_prefix}   # name is immutable in v1 (it names directories)
+Profiles   GET  /api/profiles                POST /api/profiles {name, branch_prefix?}   # ids are 10-hex handles, like projects
+           PATCH /api/profiles/:id {branch_prefix}   # name is immutable in v1 (display label; dirs are id-keyed, so rename support can come later)
            DELETE /api/profiles/:id                  # 409 while any of its sessions is non-archived; cascades rows + removes its dir
            GET  /api/profiles/:id/settings   PATCH (profile-scope settings JSON — §11 Settings)
 Config     GET  /api/config                  PATCH (daemon-scope settings; affects all profiles; the port lives in config.json / --port only and is never surfaced in the UI)

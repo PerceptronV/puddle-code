@@ -145,8 +145,9 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
       agent_type: 'fake',
       label: 'org',
     });
-    expect(alice1.config_dir).toContain('/profiles/alice/accounts/fake/personal');
-    expect(alice2.config_dir).toContain('/profiles/alice/accounts/fake/org');
+    // Directories are keyed by profile id — the name is a display label only.
+    expect(alice1.config_dir).toContain(`/profiles/${profile.id}/accounts/fake/personal`);
+    expect(alice2.config_dir).toContain(`/profiles/${profile.id}/accounts/fake/org`);
 
     const badRepo = await c.req('POST', '/api/repos', { path: '/definitely/not/a/repo' });
     expect(badRepo.status).toBe(400);

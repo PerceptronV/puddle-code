@@ -19,7 +19,7 @@ const DEFAULTS: NotificationPrefs = { desktop: true, sound: false, muted_project
 export function NotificationsSection() {
   const profileId = useCurrentProfileId();
   const settings = useProfileSettings(profileId ?? undefined);
-  const patch = usePatchProfileSettings(profileId ?? 0);
+  const patch = usePatchProfileSettings(profileId ?? '');
   const projects = useProjects(profileId ?? undefined);
 
   const prefs: NotificationPrefs = {

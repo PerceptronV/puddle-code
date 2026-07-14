@@ -39,7 +39,7 @@ export function ProfileSection() {
   const accounts = useAccounts(profileId ?? undefined);
   const settings = useProfileSettings(profileId ?? undefined);
   const patchProfile = usePatchProfile();
-  const patchSettings = usePatchProfileSettings(profileId ?? 0);
+  const patchSettings = usePatchProfileSettings(profileId ?? '');
   const deleteProfile = useDeleteProfile();
 
   const [prefix, setPrefix] = useState('');

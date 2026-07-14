@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { isoTimestamp, projectId, rowId } from './common.js';
+import { isoTimestamp, profileId, projectId, rowId } from './common.js';
 import { sessionSchema } from './sessions.js';
 
 export const projectSchema = z.object({
   id: projectId,
-  profile_id: rowId,
+  profile_id: profileId,
   repo_id: rowId,
   name: z.string(),
   created_at: isoTimestamp,
@@ -13,7 +13,7 @@ export const projectSchema = z.object({
 export type Project = z.infer<typeof projectSchema>;
 
 export const createProjectRequestSchema = z.object({
-  profile_id: rowId,
+  profile_id: profileId,
   repo_id: rowId,
   name: z.string().min(1).max(100),
 });

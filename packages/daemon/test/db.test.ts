@@ -173,7 +173,7 @@ describe('stores', () => {
     expect(events[0]!.payload).toEqual({ branch: 'alice/demo' });
   });
 
-  it('migration 002 remaps integer project ids to hex across every table', () => {
+  it('migrations remap integer project and profile ids to hex across every table', () => {
     // Build a version-1 database with data, exactly as Phase 1 wrote it.
     const file = freshDbFile();
     const v1 = new Database(file);
@@ -186,7 +186,7 @@ describe('stores', () => {
       INSERT INTO projects (id, profile_id, repo_id, name, created_at, updated_at)
         VALUES (7, 1, 1, 'demo', 't', 't');
       INSERT INTO accounts (id, profile_id, agent_type, label, config_dir, created_at)
-        VALUES (1, 1, 'fake', 'personal', '/tmp/cfg', 't');
+        VALUES (1, 1, 'fake', 'personal', '/tmp/home/profiles/alice/accounts/fake/personal', 't');
       INSERT INTO sessions (id, project_id, account_id, worktree_path, base_branch, branch,
                             agent_type, status, created_at, updated_at)
         VALUES ('11111111-1111-4111-8111-111111111111', 7, 1, '/tmp/wt', 'main', 'alice/x',
@@ -198,19 +198,32 @@ describe('stores', () => {
     `);
     v1.close();
 
-    const db = openDatabase(file); // runs migration 002
+    const db = openDatabase(file); // runs migrations 002–004
     const project = db.prepare(`SELECT * FROM projects`).get() as { id: string; name: string };
     expect(project.id).toMatch(/^[0-9a-f]{10}$/);
     expect(project.name).toBe('demo');
     const session = db.prepare(`SELECT project_id FROM sessions`).get() as { project_id: string };
     expect(session.project_id).toBe(project.id);
+    // Migration 004 gives profiles hex ids and rewrites config-dir paths.
+    const profile = db.prepare(`SELECT * FROM profiles`).get() as { id: string; name: string };
+    expect(profile.id).toMatch(/^[0-9a-f]{10}$/);
+    expect(profile.name).toBe('alice');
+    const account = db.prepare(`SELECT profile_id, config_dir FROM accounts`).get() as {
+      profile_id: string;
+      config_dir: string;
+    };
+    expect(account.profile_id).toBe(profile.id);
+    expect(account.config_dir).toBe(`/tmp/home/profiles/${profile.id}/accounts/fake/personal`);
+    expect(db.prepare(`SELECT profile_id FROM projects`).get()).toEqual({
+      profile_id: profile.id,
+    });
     // Migration 003 re-keys the layout row to the project's owning profile.
     const state = db.prepare(`SELECT project_id, profile_id FROM project_states`).get() as {
       project_id: string;
-      profile_id: number;
+      profile_id: string;
     };
     expect(state.project_id).toBe(project.id);
-    expect(state.profile_id).toBe(1);
+    expect(state.profile_id).toBe(profile.id);
     expect(db.pragma('foreign_key_check')).toEqual([]);
     expect(db.prepare(`SELECT COUNT(*) AS n FROM events`).get()).toEqual({ n: 1 });
     db.close();

@@ -19,3 +19,6 @@ export const sessionId = z.uuid();
 
 /** Project ids are 10 hex chars — short, stable URL handles (/project/:id). */
 export const projectId = z.string().regex(/^[0-9a-f]{10}$/);
+
+/** Profile ids are 10 hex chars — opaque handles; names are display labels only. */
+export const profileId = z.string().regex(/^[0-9a-f]{10}$/);

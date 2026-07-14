@@ -9,7 +9,7 @@ import type { ProfileStore } from '../../db/stores/profiles.js';
 import type { RemovalStore } from '../../db/stores/removals.js';
 import type { PuddlePaths } from '../../paths.js';
 import { removeDirWithin } from '../fs-cleanup.js';
-import { idParam, parseBody } from '../validate.js';
+import { hexIdParam, parseBody } from '../validate.js';
 
 export function profileRoutes(deps: {
   profiles: ProfileStore;
@@ -28,17 +28,18 @@ export function profileRoutes(deps: {
     })
     .patch('/:id', async (c) => {
       const body = await parseBody(c, patchProfileRequestSchema);
-      return c.json(deps.profiles.setBranchPrefix(idParam(c), body.branch_prefix));
+      return c.json(deps.profiles.setBranchPrefix(hexIdParam(c), body.branch_prefix));
     })
     .delete('/:id', (c) => {
+      const id = hexIdParam(c);
       // 409 while any of its sessions is non-archived; cascade otherwise.
-      const removed = deps.removals.deleteProfile(idParam(c));
-      removeDirWithin(deps.paths.profilesDir, join(deps.paths.profilesDir, removed.name));
+      deps.removals.deleteProfile(id);
+      removeDirWithin(deps.paths.profilesDir, join(deps.paths.profilesDir, id));
       return c.body(null, 204);
     })
-    .get('/:id/settings', (c) => c.json(deps.profiles.getSettings(idParam(c))))
+    .get('/:id/settings', (c) => c.json(deps.profiles.getSettings(hexIdParam(c))))
     .patch('/:id/settings', async (c) => {
       const patch = await parseBody(c, patchProfileSettingsRequestSchema);
-      return c.json(deps.profiles.patchSettings(idParam(c), patch));
+      return c.json(deps.profiles.patchSettings(hexIdParam(c), patch));
     });
 }

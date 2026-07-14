@@ -5,7 +5,7 @@ import type { Db } from '../db.js';
 
 interface Row {
   id: string;
-  profile_id: number;
+  profile_id: string;
   repo_id: number;
   name: string;
   created_at: string;
@@ -15,7 +15,7 @@ interface Row {
 export class ProjectStore {
   constructor(private readonly db: Db) {}
 
-  create(input: { profile_id: number; repo_id: number; name: string }): Project {
+  create(input: { profile_id: string; repo_id: number; name: string }): Project {
     const now = new Date().toISOString();
     // 10 hex chars (5 random bytes): short, stable URL handles.
     const id = randomBytes(5).toString('hex');
@@ -37,7 +37,7 @@ export class ProjectStore {
     }
   }
 
-  list(profileId?: number): Project[] {
+  list(profileId?: string): Project[] {
     return (
       profileId === undefined
         ? this.db.prepare(`SELECT * FROM projects ORDER BY created_at`).all()

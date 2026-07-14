@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isoTimestamp, rowId } from './common.js';
+import { isoTimestamp, profileId } from './common.js';
 
 /** Filesystem-safe: profile names become directory names under ~/.puddle/profiles/. */
 export const fsSafeName = z
@@ -9,7 +9,7 @@ export const fsSafeName = z
   .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/, 'letters, digits, dot, underscore and hyphen only');
 
 export const profileSchema = z.object({
-  id: rowId,
+  id: profileId,
   name: fsSafeName,
   branch_prefix: z.string(),
   created_at: isoTimestamp,
@@ -21,7 +21,7 @@ export const createProfileRequestSchema = z.object({
   branch_prefix: z.string().max(64).optional(),
 });
 
-/** PATCH /api/profiles/:id — the name is immutable in v1 (it is a directory). */
+/** PATCH /api/profiles/:id — the name is immutable in v1 (a display label; dirs are id-keyed). */
 export const patchProfileRequestSchema = z.object({
   branch_prefix: z.string().max(64),
 });

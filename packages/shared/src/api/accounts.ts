@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { isoTimestamp, rowId } from './common.js';
+import { isoTimestamp, profileId, rowId } from './common.js';
 import { fsSafeName } from './profiles.js';
 
 export const accountSchema = z.object({
   id: rowId,
-  profile_id: rowId,
+  profile_id: profileId,
   agent_type: z.string(),
   label: z.string(),
   config_dir: z.string(),
@@ -15,7 +15,7 @@ export const accountSchema = z.object({
 export type Account = z.infer<typeof accountSchema>;
 
 export const createAccountRequestSchema = z.object({
-  profile_id: rowId,
+  profile_id: profileId,
   agent_type: z.string().min(1),
   label: fsSafeName,
   skip_permissions_default: z.boolean().optional(),

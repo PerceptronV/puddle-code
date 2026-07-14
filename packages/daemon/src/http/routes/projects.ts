@@ -12,7 +12,7 @@ import type { RepoStore } from '../../db/stores/repos.js';
 import type { SessionService } from '../../sessions/service.js';
 import type { WorktreeManager } from '../../worktrees/manager.js';
 import { ApiError } from '../errors.js';
-import { parseBody, projectIdParam } from '../validate.js';
+import { hexIdParam, parseBody } from '../validate.js';
 
 export interface ProjectRouteDeps {
   projects: ProjectStore;
@@ -24,20 +24,19 @@ export interface ProjectRouteDeps {
 }
 
 /** ?profile=<id> names the viewer (any profile may open any project); 400/404 otherwise. */
-function viewerProfile(c: Context, profiles: ProfileStore): number {
+function viewerProfile(c: Context, profiles: ProfileStore): string {
   const raw = c.req.query('profile');
-  const id = Number(raw);
-  if (raw === undefined || !Number.isInteger(id) || id <= 0) {
+  if (raw === undefined || !/^[0-9a-f]{10}$/.test(raw)) {
     throw ApiError.badRequest('missing_profile', `query parameter 'profile' is required`);
   }
-  return profiles.get(id).id;
+  return profiles.get(raw).id;
 }
 
 export function projectRoutes(deps: ProjectRouteDeps): Hono {
   return new Hono()
     .get('/', (c) => {
       const profile = c.req.query('profile');
-      return c.json(deps.projects.list(profile !== undefined ? Number(profile) : undefined));
+      return c.json(deps.projects.list(profile));
     })
     .post('/', async (c) => {
       const body = await parseBody(c, createProjectRequestSchema);
@@ -46,7 +45,7 @@ export function projectRoutes(deps: ProjectRouteDeps): Hono {
       return c.json(deps.projects.create(body), 201);
     })
     .get('/:id', (c) => {
-      const project = deps.projects.get(projectIdParam(c));
+      const project = deps.projects.get(hexIdParam(c));
       // Fetch-on-project-open (SPEC §4): fire-and-forget, never blocks the UI.
       const repo = deps.repos.get(project.repo_id);
       void deps.worktrees
@@ -59,11 +58,11 @@ export function projectRoutes(deps: ProjectRouteDeps): Hono {
     })
     .post('/:id/archive', async (c) => {
       const body = await parseBody(c, archiveRequestSchema);
-      await deps.service.archiveProject(projectIdParam(c), body.force);
+      await deps.service.archiveProject(hexIdParam(c), body.force);
       return c.body(null, 204);
     })
     .get('/:id/state', (c) => {
-      const project = deps.projects.get(projectIdParam(c));
+      const project = deps.projects.get(hexIdParam(c));
       const profile = viewerProfile(c, deps.profiles);
       // The profile's own row wins; a newcomer seeds from the project's
       // most recent snapshot (SPEC §11 reload semantics).
@@ -74,7 +73,7 @@ export function projectRoutes(deps: ProjectRouteDeps): Hono {
       return c.json(state);
     })
     .put('/:id/state', async (c) => {
-      const project = deps.projects.get(projectIdParam(c));
+      const project = deps.projects.get(hexIdParam(c));
       const profile = viewerProfile(c, deps.profiles);
       const body = await parseBody(c, putProjectStateRequestSchema);
       return c.json(deps.projectStates.put(project.id, profile, body.ui_state));
