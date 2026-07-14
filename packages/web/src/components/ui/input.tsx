@@ -6,7 +6,7 @@ export function Input({ className, type, ...props }: React.InputHTMLAttributes<H
     <input
       type={type}
       className={cn(
-        'flex h-8 w-full rounded-md border border-border bg-surface px-2.5 text-sm text-fg placeholder:text-fg-muted transition-colors focus-visible:border-accent disabled:cursor-not-allowed disabled:opacity-50',
+        'flex h-8 w-full rounded-md bg-elevated px-2.5 text-sm text-fg placeholder:text-fg-muted transition-colors hover:bg-border/50 focus:bg-border/50 disabled:cursor-not-allowed disabled:opacity-50',
         className,
       )}
       {...props}
@@ -21,7 +21,7 @@ export function Textarea({
   return (
     <textarea
       className={cn(
-        'flex min-h-16 w-full rounded-md border border-border bg-surface px-2.5 py-2 text-sm text-fg placeholder:text-fg-muted transition-colors focus-visible:border-accent disabled:cursor-not-allowed disabled:opacity-50',
+        'flex min-h-16 w-full rounded-md bg-elevated px-2.5 py-2 text-sm text-fg placeholder:text-fg-muted transition-colors hover:bg-border/50 focus:bg-border/50 disabled:cursor-not-allowed disabled:opacity-50',
         className,
       )}
       {...props}

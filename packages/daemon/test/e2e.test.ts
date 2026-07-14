@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -349,5 +349,37 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
       const accounts = await c.json<Account[]>('GET', `/api/accounts?profile=${profile.id}`);
       return accounts.find((a) => a.id === alice1.id)?.logged_in ?? false;
     });
+  });
+
+  it('refuses deletion while sessions are live, then cascades account and profile', async () => {
+    const c = client(daemon);
+    // A fresh session (running) blocks both deletions with 409s.
+    const s3 = await c.json<Session>('POST', '/api/sessions', {
+      project_id: project.id,
+      account_id: alice2.id,
+      title: 'blocker',
+    });
+    const accountBlocked = await c.req('DELETE', `/api/accounts/${alice2.id}`);
+    expect(accountBlocked.status).toBe(409);
+    const profileBlocked = await c.req('DELETE', `/api/profiles/${profile.id}`);
+    expect(profileBlocked.status).toBe(409);
+
+    await c.json<Session>('POST', `/api/sessions/${s3.id}/kill`);
+    await c.json<Session>('POST', `/api/sessions/${s3.id}/archive`, { force: true });
+
+    // Account deletion removes its rows and its config dir on disk.
+    const accountGone = await c.req('DELETE', `/api/accounts/${alice2.id}`);
+    expect(accountGone.status).toBe(204);
+    const remaining = await c.json<Account[]>('GET', `/api/accounts?profile=${profile.id}`);
+    expect(remaining.map((a) => a.id)).toEqual([alice1.id]);
+    expect(existsSync(alice2.config_dir)).toBe(false);
+    expect(existsSync(alice1.config_dir)).toBe(true);
+
+    // Profile deletion sweeps projects, remaining accounts, and the profile dir.
+    const profileGone = await c.req('DELETE', `/api/profiles/${profile.id}`);
+    expect(profileGone.status).toBe(204);
+    expect(await c.json<unknown[]>('GET', '/api/profiles')).toEqual([]);
+    expect(await c.json<unknown[]>('GET', '/api/projects')).toEqual([]);
+    expect(existsSync(join(daemon.paths.profilesDir, 'alice'))).toBe(false);
   });
 });

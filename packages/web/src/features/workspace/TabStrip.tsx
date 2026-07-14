@@ -32,7 +32,7 @@ export function TabStrip({
   };
 
   return (
-    <div className="flex h-9 shrink-0 items-stretch gap-0.5 overflow-x-auto border-b border-border bg-surface px-1 pt-1">
+    <div className="flex h-9 shrink-0 items-stretch gap-0.5 overflow-x-auto bg-surface px-1 pt-1">
       {tabs.map((id) => {
         const session = sessions.find((s) => s.id === id);
         if (!session) return null;
@@ -48,10 +48,8 @@ export function TabStrip({
             }}
             onClick={() => onActivate(id)}
             className={cn(
-              'group flex min-w-0 max-w-52 cursor-default items-center gap-1.5 rounded-t-md border border-b-0 px-2.5 text-xs',
-              id === activeId
-                ? 'border-border bg-ground text-fg'
-                : 'border-transparent text-fg-secondary hover:bg-elevated',
+              'group flex min-w-0 max-w-52 cursor-pointer items-center gap-1.5 rounded-t-md px-2.5 text-xs transition-colors',
+              id === activeId ? 'bg-ground text-fg' : 'text-fg-secondary hover:bg-elevated',
               dragging === id && 'opacity-50',
             )}
           >

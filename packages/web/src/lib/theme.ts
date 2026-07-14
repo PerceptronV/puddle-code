@@ -12,7 +12,9 @@ export type ThemeName = (typeof THEMES)[number];
 export type ThemePreference = ThemeName | 'system';
 
 const STORAGE_KEY = 'puddle.theme';
-const DEFAULT_THEME: ThemeName = 'dark';
+/** No stored choice → follow the OS (the dark block remains the design default). */
+const DEFAULT_PREFERENCE: ThemePreference = 'system';
+const FALLBACK_THEME: ThemeName = 'dark';
 
 type ThemeListener = (theme: ThemeName) => void;
 const listeners = new Set<ThemeListener>();
@@ -29,14 +31,14 @@ export function storedPreference(): ThemePreference {
   const raw = localStorage.getItem(STORAGE_KEY);
   return raw === 'system' || (THEMES as readonly string[]).includes(raw ?? '')
     ? (raw as ThemePreference)
-    : DEFAULT_THEME;
+    : DEFAULT_PREFERENCE;
 }
 
 export function currentTheme(): ThemeName {
   const applied = document.documentElement.dataset['theme'];
   return (THEMES as readonly string[]).includes(applied ?? '')
     ? (applied as ThemeName)
-    : DEFAULT_THEME;
+    : FALLBACK_THEME;
 }
 
 /** Sets data-theme, persists the preference, and notifies subscribers. */

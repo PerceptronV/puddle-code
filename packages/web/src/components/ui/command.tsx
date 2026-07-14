@@ -36,7 +36,7 @@ export function CommandInput({
   ...props
 }: React.ComponentProps<typeof CommandPrimitive.Input>) {
   return (
-    <div className="flex items-center gap-2 border-b border-border px-3">
+    <div className="flex items-center gap-2 px-3 pt-1">
       <Search className="size-4 shrink-0 text-fg-muted" />
       <CommandPrimitive.Input
         className={cn(

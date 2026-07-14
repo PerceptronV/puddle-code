@@ -91,7 +91,7 @@ export function Dashboard() {
             <Link
               key={project.id}
               to={`/project/${project.id}`}
-              className="group rounded-lg border border-border bg-surface p-4 transition-colors hover:border-accent"
+              className="group rounded-lg bg-surface p-4 transition-colors hover:bg-elevated"
             >
               <div className="flex items-baseline gap-2">
                 <h2 className="truncate text-base font-semibold text-fg group-hover:text-accent">

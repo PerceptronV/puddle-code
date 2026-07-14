@@ -43,8 +43,13 @@
   --green-600: #1fa26b;
   --green-700: #157a50; /* derived: deep step for AA on paper tones */
 
-  /* khaki (paper / warm neutrals) */
-  --khaki-25: #fff9f0;
+  /* neutral (light-theme grounds — white, not paper; HUMANS.md) */
+  --neutral-0: #ffffff;
+  --neutral-50: #f7f7f7;
+  --neutral-100: #efefef;
+  --neutral-200: #e5e5e5;
+
+  /* khaki (warm neutrals) */
   --khaki-50: #fbf5ec;
   --khaki-100: #f7ebda;
   --khaki-200: #ead9c0;
@@ -126,16 +131,16 @@
 }
 
 /*
- * Light: quiet-khaki paper with storm-navy ink and burnt-wood secondary text —
- * the same five colours swap roles rather than being recoloured.
+ * Light: white ground (per HUMANS.md — not beige) with storm-navy ink and
+ * burnt-wood secondary text; the accent hues keep their deep steps.
  */
 [data-theme='light'] {
   color-scheme: light;
 
-  --bg-base: var(--khaki-50);
-  --bg-surface: var(--khaki-25);
-  --bg-elevated: var(--khaki-100);
-  --border: var(--khaki-200);
+  --bg-base: var(--neutral-0);
+  --bg-surface: var(--neutral-50);
+  --bg-elevated: var(--neutral-100);
+  --border: var(--neutral-200);
   --text-primary: var(--navy-800);
   --text-secondary: var(--ember-700);
   --text-muted: var(--bark-500);
@@ -159,7 +164,7 @@
   --ansi-blue: var(--blue-600);
   --ansi-magenta: var(--violet-600);
   --ansi-cyan: var(--cyan-600);
-  --ansi-white: var(--khaki-200);
+  --ansi-white: var(--neutral-200);
   --ansi-bright-black: var(--bark-500);
   --ansi-bright-red: var(--ember-400);
   --ansi-bright-green: var(--green-500);
@@ -167,5 +172,5 @@
   --ansi-bright-blue: var(--blue-500);
   --ansi-bright-magenta: var(--violet-500);
   --ansi-bright-cyan: var(--cyan-500);
-  --ansi-bright-white: var(--khaki-50);
+  --ansi-bright-white: var(--neutral-0);
 }

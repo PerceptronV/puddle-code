@@ -74,6 +74,20 @@
     outline-offset: 1px;
   }
 
+  /* Interactive things look interactive (HUMANS.md: cursors change on hover). */
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  a,
+  label[for],
+  summary,
+  select {
+    cursor: pointer;
+  }
+  button:disabled,
+  [aria-disabled='true'] {
+    cursor: not-allowed;
+  }
+
   /* Counts, ports, and timestamps line up (SPEC §12 density). */
   .tabular-nums,
   code,

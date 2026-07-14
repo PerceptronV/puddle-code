@@ -178,7 +178,7 @@ export function NewSessionDialog({
             />
           </div>
           {showSkipToggle && (
-            <div className="flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2">
+            <div className="flex items-center gap-2 rounded-md bg-surface px-3 py-2">
               <Switch id="skip-permissions" checked={skip} onCheckedChange={setSkip} />
               <Label htmlFor="skip-permissions" className="text-waiting">
                 Skip permission prompts for this session

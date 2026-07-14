@@ -5,6 +5,7 @@ import type { AccountStore } from '../db/stores/accounts.js';
 import type { ProfileStore } from '../db/stores/profiles.js';
 import type { ProjectStateStore } from '../db/stores/project-states.js';
 import type { ProjectStore } from '../db/stores/projects.js';
+import type { RemovalStore } from '../db/stores/removals.js';
 import type { RepoStore } from '../db/stores/repos.js';
 import type { PuddlePaths } from '../paths.js';
 import type { PtyManager } from '../pty/pty-manager.js';
@@ -36,6 +37,7 @@ export interface AppDeps {
     repos: RepoStore;
     projects: ProjectStore;
     projectStates: ProjectStateStore;
+    removals: RemovalStore;
     adapters: AdapterRegistry;
     ptys: PtyManager;
     worktrees: WorktreeManager;

@@ -9,6 +9,12 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Changed
+- Light theme is now a white ground (was khaki paper); the dark storm-navy theme is unchanged and SPEC §12's table is updated to match.
+- The theme preference defaults to following the OS (`system`) instead of dark.
+- UI restyled to the `HUMANS.md` design brief: borderless components with fill-shift hover/active feedback, pointer cursors on everything interactive, boxless token and profile start screens, and floating layers separated by shadow rather than outline. `CLAUDE.md` now tells every agent to read `HUMANS.md` first.
+- The web bundle is code-split: dashboard, workspace, settings, and the xterm terminal each load as their own chunk.
+
 ### Added
 - Initial scaffold: monorepo (shared / daemon / web / cli), CI, SPEC.md, CLAUDE.md, changelog conventions.
 - Daemon core (Phase 1): profiles/accounts/repos/projects/sessions REST API with zod-validated shapes from `@puddle/shared`; SQLite schema and migration runner; append-only per-terminal PTY logs with tail replay.
@@ -28,4 +34,5 @@ Past releases: see docs/changelogs/.
 - New daemon endpoints backing the settings panel: `PATCH /api/profiles/:id` (branch prefix), `PATCH /api/accounts/:id` (skip-permissions opt-in), `GET /api/agents` (registered adapters with capabilities); recorded in SPEC §6.
 - Workspace snapshot persistence: `GET`/`PUT /api/projects/:id/state?client=<uuid>` stores per-(project, client) ui state; new clients seed from the project's most recent snapshot; stale rows are garbage-collected at boot after `uiStateRetentionDays` (config, default 90).
 - Restore-on-open: tab order (drag-reorderable strip), active session, and pane sizes persist per client with a 2 s debounced write and restore exactly on reopening the project; terminals repaint from the log-tail replay.
+- Profiles and accounts are deletable: `DELETE /api/profiles/:id` and `DELETE /api/accounts/:id` (409 while non-archived sessions exist; cascades rows and removes credential directories), with confirm dialogues in settings — profile deletion requires typing the profile name.
 - Phase 2 acceptance script (`docs/acceptance/phase-2.md`).

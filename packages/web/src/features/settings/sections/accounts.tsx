@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KeyRound, Plus } from 'lucide-react';
+import { KeyRound, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Account } from '@puddle/shared';
 import { Button } from '../../../components/ui/button';
@@ -7,6 +7,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '../../../components/ui/dialog';
@@ -16,11 +17,12 @@ import {
   useAccounts,
   useAgents,
   useCreateAccount,
+  useDeleteAccount,
   useLoginAccount,
   usePatchAccount,
   useProfileSettings,
 } from '../../../lib/queries';
-import { Terminal } from '../../terminal/Terminal';
+import { LazyTerminal } from '../../terminal/LazyTerminal';
 import { useCurrentProfileId } from '../../profile/profile-store';
 import { SectionTitle, SettingRow } from '../parts';
 
@@ -44,8 +46,8 @@ function LoginDialog({
             finishes cleanly.
           </DialogDescription>
         </DialogHeader>
-        <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border bg-ground p-1">
-          <Terminal stream={stream} onExit={onClose} />
+        <div className="min-h-0 flex-1 overflow-hidden rounded-md bg-ground p-1">
+          <LazyTerminal stream={stream} onExit={onClose} />
         </div>
       </DialogContent>
     </Dialog>
@@ -55,10 +57,12 @@ function LoginDialog({
 function AccountRow({ account, gateOpen }: { account: Account; gateOpen: boolean }) {
   const login = useLoginAccount();
   const patch = usePatchAccount();
+  const remove = useDeleteAccount();
   const [loginStream, setLoginStream] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   return (
-    <div className="flex items-center gap-3 rounded-md border border-border bg-surface px-3 py-2">
+    <div className="flex items-center gap-3 rounded-md bg-surface px-3 py-2">
       <span className="min-w-0 flex-1">
         <span className="block truncate font-mono text-sm text-fg">{account.label}</span>
         <span className={`text-2xs ${account.logged_in ? 'text-running' : 'text-waiting'}`}>
@@ -93,6 +97,15 @@ function AccountRow({ account, gateOpen }: { account: Account; gateOpen: boolean
         <KeyRound />
         {account.logged_in ? 'Re-login' : 'Login'}
       </Button>
+      <Button
+        size="icon"
+        variant="ghost"
+        className="size-7 text-fg-muted hover:text-danger"
+        onClick={() => setConfirmingDelete(true)}
+      >
+        <Trash2 />
+        <span className="sr-only">Delete account</span>
+      </Button>
       {loginStream && (
         <LoginDialog
           stream={loginStream}
@@ -100,6 +113,39 @@ function AccountRow({ account, gateOpen }: { account: Account; gateOpen: boolean
           onClose={() => setLoginStream(null)}
         />
       )}
+      <Dialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Delete <span className="font-mono">{account.label}</span>?
+            </DialogTitle>
+            <DialogDescription>
+              Removes the account, its archived session history, and its credential directory — this
+              logs the account out. Non-archived sessions block deletion.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmingDelete(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              disabled={remove.isPending}
+              onClick={() =>
+                remove.mutate(account.id, {
+                  onSuccess: () => setConfirmingDelete(false),
+                  onError: (e) => {
+                    setConfirmingDelete(false);
+                    toast.error(e.message);
+                  },
+                })
+              }
+            >
+              Delete account
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

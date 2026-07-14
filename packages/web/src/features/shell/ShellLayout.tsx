@@ -13,13 +13,18 @@ import {
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
-import { openSettings } from '../../lib/hash-route';
+import { openSettings, settingsSection, useHash } from '../../lib/hash-route';
 import { useProfiles } from '../../lib/queries';
 import { wsManager } from '../../lib/ws';
+import { Suspense, lazy } from 'react';
 import { CommandPalette } from '../palette/CommandPalette';
 import { profileStore, useCurrentProfileId } from '../profile/profile-store';
-import { SettingsDialog } from '../settings/SettingsDialog';
 import { NewSessionProvider, useNewSession } from './new-session-context';
+
+// Settings (all eight sections) load only when the dialog first opens.
+const SettingsDialog = lazy(() =>
+  import('../settings/SettingsDialog').then((m) => ({ default: m.SettingsDialog })),
+);
 
 /** Patches live status broadcasts into every cached session list. */
 function useStatusCacheSync() {
@@ -46,7 +51,7 @@ function TopBar() {
   const profile = profiles.data?.find((p) => p.id === profileId);
 
   return (
-    <header className="flex h-11 shrink-0 items-center gap-3 border-b border-border bg-surface px-3">
+    <header className="flex h-11 shrink-0 items-center gap-3 bg-surface px-3">
       <Link to="/" className="font-mono text-sm font-semibold text-fg hover:text-accent">
         puddle
       </Link>
@@ -110,6 +115,7 @@ function TopBar() {
 function ShellBody() {
   useStatusCacheSync();
   const { handler } = useNewSession();
+  const hash = useHash();
   return (
     <div className="flex h-screen flex-col bg-ground">
       <TopBar />
@@ -117,7 +123,11 @@ function ShellBody() {
         <Outlet />
       </main>
       <CommandPalette onNewSession={handler ?? undefined} />
-      <SettingsDialog />
+      {settingsSection(hash) !== null && (
+        <Suspense fallback={null}>
+          <SettingsDialog />
+        </Suspense>
+      )}
     </div>
   );
 }

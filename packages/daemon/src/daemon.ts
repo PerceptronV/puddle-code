@@ -10,6 +10,7 @@ import { EventStore } from './db/stores/events.js';
 import { ProfileStore } from './db/stores/profiles.js';
 import { ProjectStateStore } from './db/stores/project-states.js';
 import { ProjectStore } from './db/stores/projects.js';
+import { RemovalStore } from './db/stores/removals.js';
 import { RepoStore } from './db/stores/repos.js';
 import { SessionStore } from './db/stores/sessions.js';
 import { KeyedMutex } from './git/mutex.js';
@@ -62,6 +63,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   const repos = new RepoStore(db);
   const projects = new ProjectStore(db);
   const projectStates = new ProjectStateStore(db);
+  const removals = new RemovalStore(db);
   const sessions = new SessionStore(db);
   const events = new EventStore(db);
 
@@ -126,6 +128,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       repos,
       projects,
       projectStates,
+      removals,
       adapters,
       ptys,
       worktrees,

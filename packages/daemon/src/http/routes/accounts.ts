@@ -8,6 +8,8 @@ import {
 import type { AdapterRegistry } from '../../agents/registry.js';
 import type { AccountStore } from '../../db/stores/accounts.js';
 import type { ProfileStore } from '../../db/stores/profiles.js';
+import type { RemovalStore } from '../../db/stores/removals.js';
+import { removeDirWithin } from '../fs-cleanup.js';
 import type { PtyExitEvent, PtyManager } from '../../pty/pty-manager.js';
 import type { PuddlePaths } from '../../paths.js';
 import { idParam, parseBody } from '../validate.js';
@@ -15,6 +17,7 @@ import { idParam, parseBody } from '../validate.js';
 export interface AccountRouteDeps {
   accounts: AccountStore;
   profiles: ProfileStore;
+  removals: RemovalStore;
   adapters: AdapterRegistry;
   ptys: PtyManager;
   paths: PuddlePaths;
@@ -54,6 +57,14 @@ export function accountRoutes(deps: AccountRouteDeps): Hono {
       return c.json(
         deps.accounts.setSkipPermissionsDefault(idParam(c), body.skip_permissions_default),
       );
+    })
+    .delete('/:id', (c) => {
+      const id = idParam(c);
+      // 409 while any of its sessions is non-archived; cascade otherwise.
+      const removed = deps.removals.deleteAccount(id);
+      deps.ptys.killAll(`login-${id}`); // an in-flight login PTY dies with the account
+      removeDirWithin(deps.paths.profilesDir, removed.config_dir);
+      return c.body(null, 204);
     })
     .post('/:id/login', (c) => {
       const account = deps.accounts.get(idParam(c));

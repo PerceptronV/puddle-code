@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '../../../components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../../components/ui/dialog';
 import { Input } from '../../../components/ui/input';
+import { Label } from '../../../components/ui/label';
 import {
   Select,
   SelectContent,
@@ -11,12 +20,14 @@ import {
 } from '../../../components/ui/select';
 import {
   useAccounts,
+  useDeleteProfile,
   usePatchProfile,
   usePatchProfileSettings,
   useProfileSettings,
   useProfiles,
 } from '../../../lib/queries';
-import { useCurrentProfileId } from '../../profile/profile-store';
+import { closeSettings } from '../../../lib/hash-route';
+import { profileStore, useCurrentProfileId } from '../../profile/profile-store';
 import { SectionTitle, SettingRow } from '../parts';
 
 const NONE = '__none__';
@@ -29,8 +40,11 @@ export function ProfileSection() {
   const settings = useProfileSettings(profileId ?? undefined);
   const patchProfile = usePatchProfile();
   const patchSettings = usePatchProfileSettings(profileId ?? 0);
+  const deleteProfile = useDeleteProfile();
 
   const [prefix, setPrefix] = useState('');
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [typedName, setTypedName] = useState('');
   useEffect(() => {
     if (profile) setPrefix(profile.branch_prefix);
   }, [profile]);
@@ -94,6 +108,80 @@ export function ProfileSection() {
           </SelectContent>
         </Select>
       </SettingRow>
+      <SettingRow
+        label="Delete profile"
+        description="Removes its projects, accounts (logging them out), and archived history. Non-archived sessions block deletion."
+        className="mt-4"
+      >
+        <Button variant="danger" size="sm" onClick={() => setConfirmingDelete(true)}>
+          Delete…
+        </Button>
+      </SettingRow>
+
+      <Dialog
+        open={confirmingDelete}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmingDelete(false);
+            setTypedName('');
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Delete profile <span className="font-mono">{profile.name}</span>?
+            </DialogTitle>
+            <DialogDescription>
+              Everything this profile owns goes with it: projects, workspace layouts, accounts and
+              their credential directories, and archived session history. Branches, repositories,
+              and terminal logs on disk are untouched. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="delete-confirm-name">
+              Type <span className="font-mono text-fg">{profile.name}</span> to confirm
+            </Label>
+            <Input
+              id="delete-confirm-name"
+              value={typedName}
+              onChange={(e) => setTypedName(e.target.value)}
+              className="font-mono"
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setConfirmingDelete(false);
+                setTypedName('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              disabled={typedName !== profile.name || deleteProfile.isPending}
+              onClick={() =>
+                deleteProfile.mutate(profile.id, {
+                  onSuccess: () => {
+                    closeSettings();
+                    profileStore.set(null); // back to the picker
+                  },
+                  onError: (e) => {
+                    setConfirmingDelete(false);
+                    setTypedName('');
+                    toast.error(e.message);
+                  },
+                })
+              }
+            >
+              Delete profile
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

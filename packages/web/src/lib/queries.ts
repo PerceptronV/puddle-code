@@ -134,6 +134,22 @@ export function usePatchAccount() {
   });
 }
 
+export function useDeleteProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>('DELETE', `/api/profiles/${id}`),
+    onSuccess: () => qc.clear(), // everything under the profile is gone
+  });
+}
+
+export function useDeleteAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>('DELETE', `/api/accounts/${id}`),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['accounts'] }),
+  });
+}
+
 export function useCreateAccount() {
   const qc = useQueryClient();
   return useMutation({

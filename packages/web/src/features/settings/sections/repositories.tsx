@@ -17,7 +17,7 @@ function RepoCard({ repo }: { repo: RepoWithOrphans }) {
   const onError = (e: Error) => toast.error(e.message);
 
   return (
-    <div className="mb-4 rounded-lg border border-border bg-surface p-3">
+    <div className="mb-4 rounded-lg bg-surface p-3">
       <div className="flex items-center gap-2">
         <span className="min-w-0 flex-1 truncate font-mono text-sm text-fg">{repo.path}</span>
         <span className="shrink-0 text-2xs text-fg-muted tabular-nums">
@@ -100,7 +100,7 @@ function RepoCard({ repo }: { repo: RepoWithOrphans }) {
       </div>
 
       {repo.orphan_worktrees.length > 0 && (
-        <div className="mt-3 rounded-md border border-border bg-elevated p-2">
+        <div className="mt-3 rounded-md bg-elevated p-2">
           <p className="text-xs text-fg-secondary">
             Orphan worktrees — directories no session claims. Puddle never deletes these
             automatically; remove them by hand if unwanted.

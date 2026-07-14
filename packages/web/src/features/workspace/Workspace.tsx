@@ -7,7 +7,7 @@ import type { Session } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { useProjectDetail, useSessionAction } from '../../lib/queries';
 import { useNewSession } from '../shell/new-session-context';
-import { Terminal } from '../terminal/Terminal';
+import { LazyTerminal } from '../terminal/LazyTerminal';
 import { NewSessionDialog } from './NewSessionDialog';
 import { SessionSidebar } from './SessionSidebar';
 import { TabStrip } from './TabStrip';
@@ -18,7 +18,7 @@ function SessionBanner({ session }: { session: Session }) {
   const resume = useSessionAction('resume');
   if (session.status !== 'interrupted' && session.status !== 'exited') return null;
   return (
-    <div className="flex items-center gap-3 border-b border-border bg-elevated px-3 py-2">
+    <div className="flex items-center gap-3 bg-elevated px-3 py-2">
       <span className="text-xs text-fg-secondary">
         {session.status === 'interrupted'
           ? 'This session was interrupted (daemon restart or crash).'
@@ -151,7 +151,7 @@ export function Workspace() {
           <div className="relative min-h-0 flex-1">
             {openTabs.map((id) => (
               <div key={id} className={id === activeSessionId ? 'absolute inset-0 p-1' : 'hidden'}>
-                <Terminal stream={id} />
+                <LazyTerminal stream={id} />
               </div>
             ))}
             {!activeSessionId && (

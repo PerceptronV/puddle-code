@@ -12,7 +12,8 @@ export function Toaster() {
       toastOptions={{
         style: {
           background: 'var(--bg-elevated)',
-          border: '1px solid var(--border)',
+          border: 'none',
+          boxShadow: '0 8px 30px rgb(0 0 0 / 0.25)',
           color: 'var(--text-primary)',
         },
       }}

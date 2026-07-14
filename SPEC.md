@@ -270,11 +270,13 @@ All REST endpoints are JSON under `/api`. Request/response shapes live as zod sc
 ```
 Profiles   GET  /api/profiles                POST /api/profiles {name, branch_prefix?}
            PATCH /api/profiles/:id {branch_prefix}   # name is immutable in v1 (it names directories)
+           DELETE /api/profiles/:id                  # 409 while any of its sessions is non-archived; cascades rows + removes its dir
            GET  /api/profiles/:id/settings   PATCH (profile-scope settings JSON — §11 Settings)
 Config     GET  /api/config                  PATCH (daemon-scope settings; affects all profiles; port changes apply on daemon restart)
 Agents     GET  /api/agents                  # registered adapters: id, display name, capabilities the UI gates on
 Accounts   GET  /api/accounts?profile=…      POST /api/accounts {profile_id, agent_type, label, skip_permissions_default?}
            PATCH /api/accounts/:id {skip_permissions_default}   # the account opt-in half of the §11 gate
+           DELETE /api/accounts/:id                  # 409 while any of its sessions is non-archived; removes the config dir (logs the account out)
            POST /api/accounts/:id/login      # spawns interactive login PTY; UI attaches like a session
 Repos      GET  /api/repos                   POST /api/repos {path, default_base_branch?, onboarding_notes?, fetch_enabled?}
            PATCH /api/repos/:id               # same fields (onboarding_notes also updatable via the .puddle marker-file sync — §4)
@@ -462,23 +464,23 @@ Puddle's UI must read as a polished, intentional developer cockpit — dense, ca
 
   | semantic token                      | dark      | light     |
   | ----------------------------------- | --------- | --------- |
-  | `--bg-base`                         | `#000A14` | `#FBF5EC` |
-  | `--bg-surface`                      | `#00132B` | `#FFF9F0` |
-  | `--bg-elevated`                     | `#001C3D` | `#F7EBDA` |
-  | `--border`                          | `#163C6B` | `#EAD9C0` |
+  | `--bg-base`                         | `#000A14` | `#FFFFFF` |
+  | `--bg-surface`                      | `#00132B` | `#F7F7F7` |
+  | `--bg-elevated`                     | `#001C3D` | `#EFEFEF` |
+  | `--border`                          | `#163C6B` | `#E5E5E5` |
   | `--text-primary`                    | `#EAF1FB` | `#001C3D` |
   | `--text-secondary`                  | `#B9C9E0` | `#5A2F22` |
   | `--text-muted`                      | `#7E93B3` | `#8A7663` |
   | `--accent` / `--focus-ring`         | `#7DADFF` | `#2E6BD6` |
   | `--accent-hover`                    | `#A7C7FF` | `#4A86E8` |
-  | `--status-running`                  | `#8BE8B3` | `#1FA26B` |
+  | `--status-running`                  | `#8BE8B3` | `#157A50` |
   | `--status-waiting`                  | `#F0B36E` | `#A9743D` |
   | `--status-interrupted` / `--danger` | `#F2957C` | `#C2472E` |
   | `--status-idle`                     | `#7E93B3` | `#8A7663` |
 
-  The dark theme is storm-navy ground with the pastel family as light; the light theme is quiet-khaki paper with storm-navy ink and burnt-wood secondary text — the same five colours swap roles rather than being recoloured.
+  The dark theme is storm-navy ground with the pastel family as light; the light theme is a white ground (HUMANS.md: white, not beige) with storm-navy ink and burnt-wood secondary text, keeping the deep accent steps. Light `--status-running` uses a derived deeper krypton step (`#157A50`) because `#1FA26B` misses the 3:1 AA floor on the elevated ground.
 
-- **ANSI mapping rule**: dark theme maps the pastel depth of each hue (red→`#F2957C`, green→`#8BE8B3`, yellow→`#F0B36E`, blue→`#7DADFF`, magenta→`#B9A3F2`, cyan→`#7FD6DC`, fg→`#EAF1FB`) over `--bg-base`; the light theme maps each hue's deep step (`#C2472E`, `#1FA26B`, `#A9743D`, `#2E6BD6`, …) so agent output stays legible on paper tones. Brights are one lightness step up. UI accents and terminal output are thereby the same family by construction.
+- **ANSI mapping rule**: dark theme maps the pastel depth of each hue (red→`#F2957C`, green→`#8BE8B3`, yellow→`#F0B36E`, blue→`#7DADFF`, magenta→`#B9A3F2`, cyan→`#7FD6DC`, fg→`#EAF1FB`) over `--bg-base`; the light theme maps each hue's deep step (`#C2472E`, `#1FA26B`, `#A9743D`, `#2E6BD6`, …) so agent output stays legible on the white ground. Brights are one lightness step up. UI accents and terminal output are thereby the same family by construction.
 
 - **Type**: one UI face and one mono face, chosen deliberately and **self-hosted** (hosts and clients may be offline; no font CDNs). Mono is the workhorse of identity: session titles, branches, paths, ports, and statuses are all set in mono. Set a real type scale.
 
