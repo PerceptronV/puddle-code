@@ -424,6 +424,7 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
       explorer_open: true,
       sidebar_mode: 'files',
       sidebar_collapsed: false,
+      sessions_collapsed: false,
     };
     await c.json('PUT', `/api/projects/${project.id}/state?profile=${profile.id}`, {
       ui_state: snapshotA,

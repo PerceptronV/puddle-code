@@ -21,7 +21,7 @@ import { layoutForPanels } from './panel-layout';
 import { CollapsedSidebarRail, NavigatorSidebar, type SidebarMode } from './NavigatorSidebar';
 import { NewSessionDialog } from './NewSessionDialog';
 import { PortsStrip } from '../ports/PortsStrip';
-import { SessionSidebar } from './SessionSidebar';
+import { CollapsedSessionsRail, SessionSidebar } from './SessionSidebar';
 import { TabStrip } from './TabStrip';
 import { useUiState } from './use-ui-state';
 
@@ -194,6 +194,7 @@ function WorkspaceInner() {
   const editorTabs = uiState.snapshot.editor_tabs;
   const sidebarMode: SidebarMode = uiState.snapshot.sidebar_mode;
   const sidebarCollapsed = uiState.snapshot.sidebar_collapsed;
+  const sessionsCollapsed = uiState.snapshot.sessions_collapsed;
 
   // Highlight the Diff navigator entry whose diff tab is the active one.
   const activeTab = uiState.snapshot.active_editor_tab;
@@ -222,13 +223,14 @@ function WorkspaceInner() {
     (layout: Layout) => uiState.update({ layout: { ...uiState.snapshot.layout, ...layout } }),
     [uiState],
   );
-  // The nav panel joins the horizontal Group only while expanded (collapsed, a
-  // slim rail sits outside the Group); the editor pane joins the vertical Group
-  // only while a tab is open — keeping each Group's restore count exact.
+  // The nav and sessions panels join the horizontal Group only while expanded
+  // (collapsed, a slim rail sits outside the Group); the editor pane joins the
+  // vertical Group only while a tab is open — keeping each Group's restore
+  // count exact.
   const horizontalLayout = layoutForPanels(uiState.snapshot.layout, [
     ...(sidebarCollapsed ? [] : ['nav']),
     'main',
-    'sessions',
+    ...(sessionsCollapsed ? [] : ['sessions']),
   ]);
   const verticalLayout = layoutForPanels(uiState.snapshot.layout, [
     ...(editorTabs.length > 0 ? ['editor'] : []),
@@ -339,17 +341,22 @@ function WorkspaceInner() {
             </Panel>
           </Group>
         </Panel>
-        <Separator className="w-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
-        <Panel id="sessions" defaultSize={260} minSize={180} maxSize={480}>
-          <SessionSidebar
-            projectId={projectId}
-            sessions={sessions}
-            accounts={accounts}
-            activeSessionId={activeSessionId}
-            onNewSession={() => setCreating(true)}
-            onArchived={closeTab}
-          />
-        </Panel>
+        {!sessionsCollapsed && (
+          <>
+            <Separator className="w-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
+            <Panel id="sessions" defaultSize={260} minSize={180} maxSize={480}>
+              <SessionSidebar
+                projectId={projectId}
+                sessions={sessions}
+                accounts={accounts}
+                activeSessionId={activeSessionId}
+                onNewSession={() => setCreating(true)}
+                onCollapse={() => uiState.update({ sessions_collapsed: true })}
+                onArchived={closeTab}
+              />
+            </Panel>
+          </>
+        )}
 
         <NewSessionDialog
           projectId={projectId}
@@ -360,6 +367,12 @@ function WorkspaceInner() {
           onCreated={(session) => void navigate(`/project/${projectId}/session/${session.id}`)}
         />
       </Group>
+      {sessionsCollapsed && (
+        <CollapsedSessionsRail
+          onExpand={() => uiState.update({ sessions_collapsed: false })}
+          onNewSession={() => setCreating(true)}
+        />
+      )}
     </div>
   );
 }

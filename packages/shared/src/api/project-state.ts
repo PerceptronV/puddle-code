@@ -36,6 +36,8 @@ export const uiStateSnapshotSchema = z.looseObject({
   sidebar_mode: z.enum(['files', 'diff', 'history']).default('files'),
   /** Whether the left navigator is collapsed to a slim rail. */
   sidebar_collapsed: z.boolean().default(false),
+  /** Whether the right sessions sidebar is collapsed to a slim rail. */
+  sessions_collapsed: z.boolean().default(false),
 });
 export type UiStateSnapshot = z.infer<typeof uiStateSnapshotSchema>;
 

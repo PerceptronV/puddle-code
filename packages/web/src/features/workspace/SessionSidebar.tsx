@@ -1,11 +1,55 @@
 import { Link } from 'react-router';
-import { FolderX, Plus, ShieldOff, UserRound } from 'lucide-react';
+import { FolderX, PanelRightClose, PanelRightOpen, Plus, ShieldOff, UserRound } from 'lucide-react';
 import type { Account, Session } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utils';
 import { StatusDot } from '../status/StatusDot';
 import { SessionActions } from './SessionActions';
+
+/**
+ * The collapsed right sidebar: a slim rail holding just the expand control and
+ * the new-session button, mirroring the left navigator's `CollapsedSidebarRail`
+ * (HUMANS.md minimalism — no border, fill-shift hover).
+ */
+export function CollapsedSessionsRail({
+  onExpand,
+  onNewSession,
+}: {
+  onExpand: () => void;
+  onNewSession: () => void;
+}) {
+  return (
+    <div className="flex h-full w-9 shrink-0 flex-col items-center gap-1 bg-surface py-1.5">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={onExpand}
+            className="flex items-center rounded-md p-1.5 text-fg-muted transition-colors hover:bg-elevated hover:text-fg"
+          >
+            <PanelRightOpen className="size-4" />
+            <span className="sr-only">Show sessions</span>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>Show sessions</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={onNewSession}
+            className="flex items-center rounded-md p-1.5 text-fg-muted transition-colors hover:bg-elevated hover:text-fg"
+          >
+            <Plus className="size-4" />
+            <span className="sr-only">New session</span>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>New session</TooltipContent>
+      </Tooltip>
+    </div>
+  );
+}
 
 /** Session list: mono identity, live status ripples, badges, lifecycle menu. */
 export function SessionSidebar({
@@ -14,6 +58,7 @@ export function SessionSidebar({
   accounts,
   activeSessionId,
   onNewSession,
+  onCollapse,
   onArchived,
 }: {
   projectId: string;
@@ -21,6 +66,7 @@ export function SessionSidebar({
   accounts: Account[];
   activeSessionId: string | null;
   onNewSession: () => void;
+  onCollapse: () => void;
   onArchived: (id: string) => void;
 }) {
   const visible = sessions.filter((s) => s.status !== 'archived');
@@ -28,12 +74,25 @@ export function SessionSidebar({
 
   return (
     <div className="flex h-full flex-col bg-surface">
-      <div className="flex items-center gap-2 py-2 pl-5 pr-3">
-        <span className="text-2xs font-medium uppercase tracking-wide text-fg-muted">Sessions</span>
-        <Button variant="ghost" size="icon" className="ml-auto size-6" onClick={onNewSession}>
+      {/* Controls sit on the left edge (nearest the content they affect);
+          the title balances them on the right. */}
+      <div className="flex items-center gap-1 py-2 pl-3 pr-5">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" className="size-6" onClick={onCollapse}>
+              <PanelRightClose />
+              <span className="sr-only">Hide sessions</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Hide sessions</TooltipContent>
+        </Tooltip>
+        <Button variant="ghost" size="icon" className="size-6" onClick={onNewSession}>
           <Plus />
           <span className="sr-only">New session</span>
         </Button>
+        <span className="ml-auto text-2xs font-medium uppercase tracking-wide text-fg-muted">
+          Sessions
+        </span>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
         {visible.length === 0 && (
