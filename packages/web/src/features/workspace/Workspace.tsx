@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useLocation, useNavigate, useParams } from 'react-router';
 import { Group, Panel, Separator, type Layout } from 'react-resizable-panels';
-import { FolderTree, Play, TerminalSquare } from 'lucide-react';
+import { Play, TerminalSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Session } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
@@ -11,6 +11,7 @@ import { useExplorerTarget } from '../explorer/use-explorer-target';
 import { useAccounts, useProjectDetail, useSessionAction } from '../../lib/queries';
 import { useNewSession } from '../shell/new-session-context';
 import { LazyTerminal } from '../terminal/LazyTerminal';
+import { LazyDiffView } from '../diff/LazyDiffView';
 import { LazyEditorPane } from '../editor/LazyEditorPane';
 import { addOrFocusTab, type EditorTab } from '../editor/editor-tabs';
 import { EditorProvider, useEditorHandler, type RevealTarget } from './editor-context';
@@ -18,6 +19,7 @@ import { layoutForPanels } from './panel-layout';
 import { NewSessionDialog } from './NewSessionDialog';
 import { SessionSidebar } from './SessionSidebar';
 import { TabStrip } from './TabStrip';
+import { ViewStrip, type SessionView } from './ViewStrip';
 import { useUiState } from './use-ui-state';
 
 /** Inline banner over the terminal for sessions that need a nudge. */
@@ -64,9 +66,17 @@ export function Workspace() {
 function WorkspaceInner() {
   const params = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const projectId = params['id'] ?? '';
   const validProject = /^[0-9a-f]{10}$/.test(projectId);
   const activeSessionId = params['sid'] ?? null;
+  // The active view is the route's trailing segment; the bare session route is
+  // the terminal (see App.tsx). Diff/history apply to the active session only.
+  const view: SessionView = location.pathname.endsWith('/diff')
+    ? 'diff'
+    : location.pathname.endsWith('/history')
+      ? 'history'
+      : 'terminal';
   const detail = useProjectDetail(validProject ? projectId : undefined);
   const sessions = useMemo(() => detail.data?.sessions ?? [], [detail.data]);
   const accounts = useAccounts(detail.data?.project.profile_id).data ?? [];
@@ -260,41 +270,48 @@ function WorkspaceInner() {
           )}
           <Panel id="session" minSize={160}>
             <div className="flex h-full flex-col bg-ground">
-              <div className="flex items-stretch bg-surface">
-                <div className="min-w-0 flex-1">
-                  <TabStrip
-                    tabs={openTabs}
-                    sessions={sessions}
-                    activeId={activeSessionId}
-                    onActivate={(id) => void navigate(`/project/${projectId}/session/${id}`)}
-                    onClose={closeTab}
-                    onReorder={(tabs) => uiState.update({ session_tabs: tabs })}
-                  />
-                </div>
-                {/* Temporary placement — Task 3.6c's ViewStrip adopts this toggle. */}
-                <button
-                  type="button"
-                  aria-pressed={explorerOpen}
-                  title={explorerOpen ? 'Hide file explorer' : 'Show file explorer'}
-                  onClick={() => uiState.update({ explorer_open: !explorerOpen })}
-                  className="flex items-center px-2 text-fg-muted transition-colors hover:bg-elevated hover:text-fg"
-                >
-                  <FolderTree className="size-4" />
-                  <span className="sr-only">Toggle file explorer</span>
-                </button>
-              </div>
+              <TabStrip
+                tabs={openTabs}
+                sessions={sessions}
+                activeId={activeSessionId}
+                onActivate={(id) => void navigate(`/project/${projectId}/session/${id}`)}
+                onClose={closeTab}
+                onReorder={(tabs) => uiState.update({ session_tabs: tabs })}
+              />
+              {activeSessionId && (
+                <ViewStrip
+                  projectId={projectId}
+                  sessionId={activeSessionId}
+                  view={view}
+                  explorerOpen={explorerOpen}
+                  onToggleExplorer={() => uiState.update({ explorer_open: !explorerOpen })}
+                />
+              )}
               {activeSession && <SessionBanner session={activeSession} />}
               <div className="relative min-h-0 flex-1">
+                {/* Terminals stay mounted in every view (their PTY attachment
+                    must not drop); only visibility switches. Diff/history
+                    render as overlays alongside, never instead. */}
                 {openTabs.map((id) => (
                   <div
                     key={id}
                     className={
-                      id === activeSessionId ? 'absolute inset-0 py-1 pl-4 pr-2' : 'hidden'
+                      id === activeSessionId && view === 'terminal'
+                        ? 'absolute inset-0 py-1 pl-4 pr-2'
+                        : 'hidden'
                     }
                   >
                     <LazyTerminal stream={id} />
                   </div>
                 ))}
+                {activeSessionId && view === 'diff' && (
+                  <div className="absolute inset-0">
+                    <LazyDiffView session={activeSessionId} />
+                  </div>
+                )}
+                {activeSessionId && view === 'history' && (
+                  <div className="absolute inset-0">{/* Task 3.6d: history view */}</div>
+                )}
                 {!activeSessionId && (
                   <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
                     <TerminalSquare className="size-8 text-fg-muted" />

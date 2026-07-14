@@ -20,7 +20,7 @@ import { Button } from '../../components/ui/button';
 import { deleteDraft } from '../../lib/drafts';
 import type { UiStateHandle } from '../workspace/use-ui-state';
 import type { RevealTarget } from '../workspace/editor-context';
-import { bufferKey, disposeModel, isDirty } from './buffer-store';
+import { bufferKey, isDirty, releaseModel, retainModel } from './buffer-store';
 import { announceDraftDiscarded } from './editor-sync';
 import { CodeEditor } from './CodeEditor';
 import { EditorTabStrip } from './EditorTabStrip';
@@ -84,8 +84,43 @@ export function EditorZone({ uiState, sessions, reveal }: EditorZoneProps) {
     }
   }, [activeTab, stored]);
 
+  // An open editor tab is one holder of its shared model (SPEC §8): retain
+  // while the tab exists, release when it closes. The model outlives tab
+  // *switches* (an inactive tab keeps its retain, so its dirty edits survive)
+  // and is only disposed once no holder — here or a diff section — remains.
+  // Reconciled against the tab list rather than the mounted CodeEditor, which
+  // exists only for the active tab. A model created lazily on first activation
+  // is retained here from tab-open (retainModel is safe before the model
+  // exists); the release then disposes it via the refcount if it was created.
+  const heldRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const want = new Set(tabs.map((t) => bufferKey(t.session, t.path)));
+    const held = heldRef.current;
+    for (const key of want) {
+      if (!held.has(key)) {
+        retainModel(key);
+        held.add(key);
+      }
+    }
+    for (const key of [...held]) {
+      if (!want.has(key)) {
+        releaseModel(key);
+        held.delete(key);
+      }
+    }
+  }, [tabs]);
+  // The last tab closing unmounts the whole zone before the reconcile above
+  // can run for the now-empty list, so release everything still held here.
+  useEffect(
+    () => () => {
+      for (const key of heldRef.current) releaseModel(key);
+      heldRef.current.clear();
+    },
+    [],
+  );
+
   const removeAndDispose = (tab: EditorTab) => {
-    disposeModel(bufferKey(tab.session, tab.path));
+    // The reconcile effect releases the model once `tab` leaves the list.
     uiState.update({
       editor_tabs: removeTab(tabs, tab),
       active_editor_tab: activeAfterClose(tabs, tab, activeTab),

@@ -11,7 +11,13 @@
  * unit-testable without monaco, which cannot initialise under vitest.
  */
 import { monaco } from './monaco-setup';
-import { SavedStateMap, applyDraft, editorTabLabel, type OpenTab } from './buffer-logic';
+import {
+  RefCounter,
+  SavedStateMap,
+  applyDraft,
+  editorTabLabel,
+  type OpenTab,
+} from './buffer-logic';
 
 export { applyDraft, editorTabLabel, type OpenTab };
 
@@ -47,6 +53,7 @@ interface Entry {
 
 const entries = new Map<string, Entry>();
 const savedState = new SavedStateMap();
+const refs = new RefCounter();
 
 const keyListeners = new Map<string, Set<() => void>>();
 const globalListeners = new Set<() => void>();
@@ -142,8 +149,25 @@ export function replaceContent(key: string, content: string, mtimeMs: number): v
   notify(key);
 }
 
+/**
+ * Reference counting for the shared model (SPEC §8): the editor tab and the
+ * diff view's modified side bind the SAME model, and either may be opened or
+ * closed first. Each holder `retainModel`s the key while it is mounted and
+ * `releaseModel`s on unmount; the model is disposed only when the last holder
+ * lets go, so closing an editor tab never pulls the model out from under a
+ * diff section still showing it (and vice versa). Counting is pure (RefCounter
+ * in buffer-logic.ts); this pair wires it to the real `model.dispose()`.
+ */
+export function retainModel(key: string): void {
+  refs.retain(key);
+}
+
+export function releaseModel(key: string): void {
+  if (refs.release(key)) disposeModelInternal(key);
+}
+
 /** Disposes the model and forgets all bookkeeping for `key`. */
-export function disposeModel(key: string): void {
+function disposeModelInternal(key: string): void {
   const entry = entries.get(key);
   if (!entry) return;
   entry.disposable.dispose();

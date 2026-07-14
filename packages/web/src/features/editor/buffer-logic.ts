@@ -95,6 +95,43 @@ export function applyDraft<R>(model: DraftApplicableModel<R>, draftContent: stri
   return true;
 }
 
+/**
+ * Reference counting for shared models (SPEC §8). The editor tab and the diff
+ * view's modified side bind the SAME `ITextModel`; either may open or close
+ * first, so a model must only be disposed once its LAST holder lets go. Each
+ * holder `retain`s the key on mount and `release`s on unmount; `release`
+ * reports whether that was the final holder so the store can dispose then and
+ * only then. Pure (no monaco), so the counting rule is unit-testable; the
+ * actual `model.dispose()` lives in `buffer-store.ts`.
+ */
+export class RefCounter {
+  private readonly counts = new Map<string, number>();
+
+  retain(key: string): void {
+    this.counts.set(key, (this.counts.get(key) ?? 0) + 1);
+  }
+
+  /**
+   * Drops one holder of `key`. Returns true exactly when the holder that just
+   * left was the last one (count fell to zero) — the caller disposes then.
+   * A release with no matching retain also returns true (dispose defensively)
+   * without driving the count negative.
+   */
+  release(key: string): boolean {
+    const n = this.counts.get(key);
+    if (n === undefined || n <= 1) {
+      this.counts.delete(key);
+      return true;
+    }
+    this.counts.set(key, n - 1);
+    return false;
+  }
+
+  count(key: string): number {
+    return this.counts.get(key) ?? 0;
+  }
+}
+
 interface SavedState {
   versionId: number;
   mtimeMs: number;

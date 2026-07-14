@@ -4,15 +4,21 @@
  * `monaco-editor` cannot initialise under vitest's node environment (it
  * reaches for `window` at module load — verified locally: importing it here
  * throws `ReferenceError: window is not defined`), so the monaco-touching
- * half of buffer-store.ts (getOrCreateModel, replaceContent, disposeModel —
- * anything that creates or edits a real ITextModel) has no automated
- * coverage here and must be exercised manually in the browser (see the task
- * report for the manual-verification checklist). What IS pure — saved-version
- * bookkeeping and the tab-label collision rule — lives in `buffer-logic.ts`
- * and is fully covered below without touching monaco at all.
+ * half of buffer-store.ts (getOrCreateModel, replaceContent, and the
+ * retainModel/releaseModel disposal wiring — anything that creates or edits a
+ * real ITextModel) has no automated coverage here and must be exercised
+ * manually in the browser (see the task report for the manual-verification
+ * checklist). What IS pure — saved-version bookkeeping, the tab-label collision
+ * rule, and the reference-count arithmetic — lives in `buffer-logic.ts` and is
+ * fully covered below without touching monaco at all.
  */
 import { describe, expect, it } from 'vitest';
-import { SavedStateMap, editorTabLabel, type OpenTab } from '../src/features/editor/buffer-logic';
+import {
+  RefCounter,
+  SavedStateMap,
+  editorTabLabel,
+  type OpenTab,
+} from '../src/features/editor/buffer-logic';
 
 describe('editorTabLabel', () => {
   it('returns the plain basename when it is unique across open tabs', () => {
@@ -142,5 +148,53 @@ describe('SavedStateMap', () => {
     saved.delete('k');
     expect(saved.mtime('k')).toBeUndefined();
     expect(saved.isDirty('k', 99)).toBe(false);
+  });
+});
+
+describe('RefCounter', () => {
+  it('starts at zero for an unseen key', () => {
+    const refs = new RefCounter();
+    expect(refs.count('k')).toBe(0);
+  });
+
+  it('disposes only when the last holder releases', () => {
+    const refs = new RefCounter();
+    refs.retain('k'); // editor tab
+    refs.retain('k'); // diff section
+    expect(refs.count('k')).toBe(2);
+    // First holder leaves — still held by the other, so no dispose.
+    expect(refs.release('k')).toBe(false);
+    expect(refs.count('k')).toBe(1);
+    // Last holder leaves — dispose now.
+    expect(refs.release('k')).toBe(true);
+    expect(refs.count('k')).toBe(0);
+  });
+
+  it('a single holder disposes on its own release', () => {
+    const refs = new RefCounter();
+    refs.retain('k');
+    expect(refs.release('k')).toBe(true);
+    expect(refs.count('k')).toBe(0);
+  });
+
+  it('release without a matching retain disposes defensively and never goes negative', () => {
+    const refs = new RefCounter();
+    expect(refs.release('k')).toBe(true);
+    expect(refs.count('k')).toBe(0);
+    // A later retain/release pair still behaves normally.
+    refs.retain('k');
+    expect(refs.count('k')).toBe(1);
+    expect(refs.release('k')).toBe(true);
+  });
+
+  it('tracks keys independently', () => {
+    const refs = new RefCounter();
+    refs.retain('a');
+    refs.retain('b');
+    refs.retain('b');
+    expect(refs.release('a')).toBe(true);
+    expect(refs.release('b')).toBe(false);
+    expect(refs.count('a')).toBe(0);
+    expect(refs.count('b')).toBe(1);
   });
 });
