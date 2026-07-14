@@ -116,20 +116,37 @@ export function useRepoWorktrees(repoId: number | undefined) {
 }
 
 /**
- * Prune (remove) a worktree of a repo (SPEC §8). `confirm` is required by the
- * daemon when the branch has purely-local commits. Refreshes the worktree list
- * and the project (a session may now be "worktree missing").
+ * Prune (remove) a worktree of a repo (SPEC §8). The branch is kept, so there
+ * is no confirmation. Refreshes the worktree list and the project (a session
+ * may now be "worktree missing").
  */
 export function usePruneWorktree(repoId: number | undefined, projectId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ path, confirm }: { path: string; confirm?: boolean }) => {
-      const qs = new URLSearchParams({ path });
-      if (confirm) qs.set('confirm', '1');
-      return api<RepoWorktreesResponse>(
+    mutationFn: (path: string) =>
+      api<RepoWorktreesResponse>(
         'DELETE',
-        `/api/repos/${repoId}/worktrees?${qs.toString()}`,
-      );
+        `/api/repos/${repoId}/worktrees?path=${encodeURIComponent(path)}`,
+      ),
+    onSuccess: (res) => {
+      qc.setQueryData(['repo-worktrees', repoId], res);
+      void qc.invalidateQueries({ queryKey: ['project', projectId] });
+    },
+  });
+}
+
+/**
+ * Delete an orphaned local branch of a repo (SPEC §8): only branches with no
+ * worktree; `confirm` is required by the daemon for a purely-local branch
+ * (deleting it discards unpushed commits).
+ */
+export function useDeleteBranch(repoId: number | undefined, projectId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, confirm }: { name: string; confirm?: boolean }) => {
+      const qs = new URLSearchParams({ name });
+      if (confirm) qs.set('confirm', '1');
+      return api<RepoWorktreesResponse>('DELETE', `/api/repos/${repoId}/branches?${qs.toString()}`);
     },
     onSuccess: (res) => {
       qc.setQueryData(['repo-worktrees', repoId], res);

@@ -99,6 +99,7 @@ export function repoRoutes(deps: RepoRouteDeps): Hono {
       const repo = deps.repos.get(idParam(c));
       return c.json<RepoWorktreesResponse>({
         worktrees: await deps.worktrees.listWorktreeStatuses(repo),
+        orphan_branches: await deps.worktrees.listOrphanBranches(repo),
       });
     })
     .delete('/:id/worktrees', async (c) => {
@@ -107,7 +108,6 @@ export function repoRoutes(deps: RepoRouteDeps): Hono {
       if (!path) {
         throw ApiError.badRequest('invalid_request', `'path' query parameter is required`);
       }
-      const confirm = c.req.query('confirm') === '1' || c.req.query('confirm') === 'true';
       const real = (p: string) => {
         try {
           return realpathSync(p);
@@ -125,7 +125,8 @@ export function repoRoutes(deps: RepoRouteDeps): Hono {
 
       // Running agents block pruning (SPEC §8): only live sessions, not
       // exited/interrupted ones (removing the worktree just badges those
-      // "worktree missing").
+      // "worktree missing"). Removing a worktree keeps its branch, so there is
+      // no unpushed-work risk here — that guard lives on branch deletion.
       const LIVE = new Set(['starting', 'running', 'waiting_input']);
       const busy = deps.sessions
         .listActiveByRepo(repo.id)
@@ -145,22 +146,43 @@ export function repoRoutes(deps: RepoRouteDeps): Hono {
         );
       }
 
-      // Purely-local work: require explicit confirmation (the branch itself is
-      // kept, but the user should know it lives on no remote).
-      if (
-        target.branch &&
-        !confirm &&
-        (await deps.worktrees.branchLocalOnly(repo, target.branch))
-      ) {
-        throw ApiError.conflict(
-          'worktree_unpushed',
-          `branch '${target.branch}' has commits on no remote — confirm to prune anyway`,
-        );
-      }
-
       await deps.worktrees.remove({ repo, worktreePath: target.path, force: false });
       return c.json<RepoWorktreesResponse>({
         worktrees: await deps.worktrees.listWorktreeStatuses(repo),
+        orphan_branches: await deps.worktrees.listOrphanBranches(repo),
+      });
+    })
+    .delete('/:id/branches', async (c) => {
+      const repo = deps.repos.get(idParam(c));
+      const name = c.req.query('name');
+      if (!name) {
+        throw ApiError.badRequest('invalid_request', `'name' query parameter is required`);
+      }
+      const confirm = c.req.query('confirm') === '1' || c.req.query('confirm') === 'true';
+
+      const orphan = (await deps.worktrees.listOrphanBranches(repo)).find((b) => b.name === name);
+      if (!orphan) {
+        // Either the branch doesn't exist or it still has a worktree checked out.
+        const local = (await deps.worktrees.listWorktrees(repo)).some((w) => w.branch === name);
+        if (local) {
+          throw ApiError.conflict(
+            'branch_in_use',
+            `branch '${name}' still has a worktree — prune it first`,
+          );
+        }
+        throw ApiError.notFound('branch', name);
+      }
+      // Deleting an unpushed branch discards its commits — require confirmation.
+      if (orphan.local_only && !confirm) {
+        throw ApiError.conflict(
+          'branch_unpushed',
+          `branch '${name}' has commits on no remote — confirm to delete anyway`,
+        );
+      }
+      await deps.worktrees.deleteBranch(repo, name);
+      return c.json<RepoWorktreesResponse>({
+        worktrees: await deps.worktrees.listWorktreeStatuses(repo),
+        orphan_branches: await deps.worktrees.listOrphanBranches(repo),
       });
     })
     .post('/:id/fetch', async (c) => {

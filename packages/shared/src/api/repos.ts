@@ -60,9 +60,22 @@ export const worktreeInfoSchema = z.object({
 });
 export type WorktreeInfo = z.infer<typeof worktreeInfoSchema>;
 
-/** GET /api/repos/:id/worktrees — every git worktree currently checked out. */
+/** A local branch with no worktree checked out — deletable in the manager. */
+export const orphanBranchSchema = z.object({
+  name: z.string(),
+  /** Branch has commits on no remote; deleting it discards that work. */
+  local_only: z.boolean(),
+});
+export type OrphanBranch = z.infer<typeof orphanBranchSchema>;
+
+/**
+ * GET /api/repos/:id/worktrees — every git worktree currently checked out, plus
+ * the local branches that have none (orphaned; the worktree manager can delete
+ * those). Also the response of a prune / branch-delete, so the UI refreshes.
+ */
 export const repoWorktreesResponseSchema = z.object({
   worktrees: z.array(worktreeInfoSchema),
+  orphan_branches: z.array(orphanBranchSchema),
 });
 export type RepoWorktreesResponse = z.infer<typeof repoWorktreesResponseSchema>;
 

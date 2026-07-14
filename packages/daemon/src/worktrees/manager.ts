@@ -253,6 +253,27 @@ export class WorktreeManager {
   }
 
   /**
+   * Local branches that have no worktree checked out — the ones the worktree
+   * manager (SPEC §8) may delete (a branch with a worktree must have it pruned
+   * first, and git refuses to delete a checked-out branch anyway). Each carries
+   * whether it is local-only, so the UI can warn before discarding unpushed work.
+   */
+  async listOrphanBranches(repo: Repo): Promise<{ name: string; local_only: boolean }[]> {
+    const raw = await git(['for-each-ref', '--format=%(refname:short)', 'refs/heads'], {
+      cwd: repo.path,
+    });
+    const withWorktree = new Set(
+      (await this.listWorktrees(repo)).map((w) => w.branch).filter((b): b is string => b !== null),
+    );
+    const out: { name: string; local_only: boolean }[] = [];
+    for (const name of raw.split('\n').filter(Boolean)) {
+      if (withWorktree.has(name)) continue;
+      out.push({ name, local_only: await this.branchLocalOnly(repo, name) });
+    }
+    return out;
+  }
+
+  /**
    * Land in a specific existing worktree of this repo (SPEC §4, `join_worktree`):
    * validated to be one of the repo's actual worktrees (by realpath), and
    * returned in the canonical form `listWorktrees` uses so it matches other

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { GitBranch, Trash2 } from 'lucide-react';
-import type { Session, WorktreeInfo } from '@puddle/shared';
+import type { OrphanBranch, Session, WorktreeInfo } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import {
   Dialog,
@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from '../../components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
-import { usePruneWorktree, useRepoWorktrees } from '../../lib/queries';
+import { useDeleteBranch, usePruneWorktree, useRepoWorktrees } from '../../lib/queries';
 import { cn } from '../../lib/utils';
 
 const LIVE = new Set(['starting', 'running', 'waiting_input']);
@@ -25,12 +25,47 @@ function Tag({ children, className }: { children: React.ReactNode; className?: s
   return <span className={cn('shrink-0 text-2xs', className)}>{children}</span>;
 }
 
+/** A trash control that appears on hover (disabled when a reason is given). */
+function PruneButton({
+  label,
+  blockReason,
+  onClick,
+}: {
+  label: string;
+  blockReason: string | null;
+  onClick: () => void;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          disabled={blockReason !== null}
+          onClick={onClick}
+          className="rounded-sm p-1 text-fg-muted opacity-0 transition-opacity hover:text-danger group-hover:opacity-100 disabled:pointer-events-none disabled:opacity-0"
+        >
+          <Trash2 className="size-3.5" />
+          <span className="sr-only">{label}</span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>
+        {blockReason ? `Can't ${label.toLowerCase()} — ${blockReason}` : label}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+type Target =
+  | { kind: 'worktree'; path: string; branch: string | null }
+  | { kind: 'branch'; name: string; localOnly: boolean };
+
 /**
- * The Worktrees navigator (SPEC §8): every git worktree of the bound repo,
- * grouped by branch, with a prune control. Pruning is blocked (by the daemon,
- * mirrored here) for the repo's own clone, a dirty worktree, or one with a live
- * session; a purely-local branch prompts an extra warning before removal. The
- * branch itself is never deleted — only the working directory.
+ * The Worktrees navigator (SPEC §8): every git worktree of the repo grouped by
+ * branch, plus the local branches that have no worktree. Pruning removes a
+ * worktree's directory (the branch is kept) and is blocked for the clone, a
+ * dirty worktree, or one with a live session. An orphaned branch (no worktree)
+ * can be deleted; a purely-local one warns first, since that discards its
+ * unpushed commits. All guards are also enforced by the daemon.
  */
 export function WorktreesNav({
   repoId,
@@ -43,8 +78,10 @@ export function WorktreesNav({
 }) {
   const worktrees = useRepoWorktrees(repoId);
   const prune = usePruneWorktree(repoId, projectId);
-  const [target, setTarget] = useState<WorktreeInfo | null>(null);
+  const deleteBranch = useDeleteBranch(repoId, projectId);
+  const [target, setTarget] = useState<Target | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const pending = prune.isPending || deleteBranch.isPending;
 
   // Live sessions per worktree directory — running agents block a prune.
   const liveByPath = useMemo(() => {
@@ -55,7 +92,7 @@ export function WorktreesNav({
     return m;
   }, [sessions]);
 
-  // Group by branch; the clone's group leads, then alphabetical.
+  // Worktrees grouped by branch; the clone's group leads, then alphabetical.
   const groups = useMemo(() => {
     const byBranch = new Map<string, WorktreeInfo[]>();
     for (const w of worktrees.data?.worktrees ?? []) {
@@ -69,6 +106,11 @@ export function WorktreesNav({
     });
   }, [worktrees.data]);
 
+  const orphans: OrphanBranch[] = useMemo(
+    () => [...(worktrees.data?.orphan_branches ?? [])].sort((a, b) => a.name.localeCompare(b.name)),
+    [worktrees.data],
+  );
+
   if (worktrees.isPending) {
     return <div className="px-3 py-2 text-xs text-fg-muted">Loading worktrees…</div>;
   }
@@ -80,22 +122,23 @@ export function WorktreesNav({
     );
   }
 
-  const confirmPrune = () => {
+  const confirm = () => {
     if (!target) return;
-    prune.mutate(
-      { path: target.path, confirm: true },
-      {
-        onSuccess: () => setTarget(null),
-        onError: (e) => setError(e.message),
-      },
-    );
+    setError(null);
+    const onError = (e: Error) => setError(e.message);
+    const onSuccess = () => setTarget(null);
+    if (target.kind === 'worktree') prune.mutate(target.path, { onSuccess, onError });
+    else deleteBranch.mutate({ name: target.name, confirm: true }, { onSuccess, onError });
   };
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto pb-2">
-      {groups.length === 0 && <div className="px-3 py-2 text-xs text-fg-muted">No worktrees.</div>}
+      {groups.length === 0 && orphans.length === 0 && (
+        <div className="px-3 py-2 text-xs text-fg-muted">No worktrees.</div>
+      )}
+
       {groups.map(([branch, wts]) => (
-        <div key={branch}>
+        <div key={`wt:${branch}`}>
           <div className="flex items-center gap-1.5 px-3 pb-0.5 pt-2 text-2xs text-fg-muted">
             <GitBranch className="size-3 shrink-0" />
             <span className="truncate font-mono">{branch}</span>
@@ -119,32 +162,48 @@ export function WorktreesNav({
                 </span>
                 {wt.is_primary && <Tag className="text-fg-muted">clone</Tag>}
                 {wt.dirty && <Tag className="text-waiting">uncommitted</Tag>}
-                {wt.local_only && <Tag className="text-fg-muted">local only</Tag>}
                 {live > 0 && <Tag className="text-running">{live} running</Tag>}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      disabled={blockReason !== null}
-                      onClick={() => {
-                        setError(null);
-                        setTarget(wt);
-                      }}
-                      className="rounded-sm p-1 text-fg-muted opacity-0 transition-opacity hover:text-danger group-hover:opacity-100 disabled:pointer-events-none disabled:opacity-0"
-                    >
-                      <Trash2 className="size-3.5" />
-                      <span className="sr-only">Prune worktree</span>
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {blockReason ? `Can't prune — ${blockReason}` : 'Prune worktree'}
-                  </TooltipContent>
-                </Tooltip>
+                <PruneButton
+                  label="Prune"
+                  blockReason={blockReason}
+                  onClick={() => {
+                    setError(null);
+                    setTarget({ kind: 'worktree', path: wt.path, branch: wt.branch });
+                  }}
+                />
               </div>
             );
           })}
         </div>
       ))}
+
+      {orphans.length > 0 && (
+        <>
+          <div className="px-3 pb-0.5 pt-3 text-2xs font-medium uppercase tracking-wide text-fg-muted">
+            Branches without a worktree
+          </div>
+          {orphans.map((b) => (
+            <div
+              key={`br:${b.name}`}
+              className="group flex items-center gap-2 px-3 py-1 transition-colors hover:bg-elevated"
+            >
+              <GitBranch className="size-3 shrink-0 text-fg-muted" />
+              <span className="min-w-0 flex-1 truncate font-mono text-xs text-fg" title={b.name}>
+                {b.name}
+              </span>
+              {b.local_only && <Tag className="text-waiting">local only</Tag>}
+              <PruneButton
+                label="Delete branch"
+                blockReason={null}
+                onClick={() => {
+                  setError(null);
+                  setTarget({ kind: 'branch', name: b.name, localOnly: b.local_only });
+                }}
+              />
+            </div>
+          ))}
+        </>
+      )}
 
       <Dialog
         open={target !== null}
@@ -153,32 +212,39 @@ export function WorktreesNav({
         }}
       >
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Prune worktree</DialogTitle>
-            <DialogDescription>
-              Remove <span className="font-mono">{target ? basename(target.path) : ''}</span>? The
-              working directory is deleted; the branch{' '}
-              <span className="font-mono">{target?.branch ?? ''}</span> is kept.
-            </DialogDescription>
-          </DialogHeader>
-          {target?.local_only && (
-            <p className="text-xs text-waiting">
-              Branch <span className="font-mono">{target.branch}</span> has commits on no remote —
-              after pruning they remain only on the local branch, backed up nowhere.
-            </p>
+          {target?.kind === 'branch' ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Delete branch</DialogTitle>
+                <DialogDescription>
+                  Delete branch <span className="font-mono">{target.name}</span>? This removes the
+                  branch from the repository.
+                </DialogDescription>
+              </DialogHeader>
+              {target.localOnly && (
+                <p className="text-xs text-waiting">
+                  <span className="font-mono">{target.name}</span> has commits on no remote —
+                  deleting it discards that work permanently.
+                </p>
+              )}
+            </>
+          ) : (
+            <DialogHeader>
+              <DialogTitle>Prune worktree</DialogTitle>
+              <DialogDescription>
+                Remove <span className="font-mono">{target ? basename(target.path) : ''}</span>? The
+                working directory is deleted; the branch{' '}
+                <span className="font-mono">{target?.branch ?? ''}</span> is kept.
+              </DialogDescription>
+            </DialogHeader>
           )}
           {error && <p className="text-xs text-danger">{error}</p>}
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => setTarget(null)}>
               Cancel
             </Button>
-            <Button
-              type="button"
-              variant="danger"
-              disabled={prune.isPending}
-              onClick={confirmPrune}
-            >
-              Prune
+            <Button type="button" variant="danger" disabled={pending} onClick={confirm}>
+              {target?.kind === 'branch' ? 'Delete' : 'Prune'}
             </Button>
           </DialogFooter>
         </DialogContent>
