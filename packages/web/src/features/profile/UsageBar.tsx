@@ -14,7 +14,10 @@ export function UsageBar({
 
   return (
     <span className="flex items-center gap-2">
-      <span className="w-14 shrink-0 text-2xs text-fg-muted">{label}</span>
+      {/* Wide enough for the CLI's own window names ("week (all models)"). */}
+      <span className="w-24 shrink-0 truncate text-2xs text-fg-muted" title={label}>
+        {label}
+      </span>
       <span className="relative h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-border">
         <span
           className={`absolute inset-y-0 left-0 rounded-full ${tone}`}

@@ -1,12 +1,12 @@
 import { useEffect } from 'react';
 import { Link, Outlet, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Command as CommandIcon, Settings, UserRound } from 'lucide-react';
+import { Command as CommandIcon, Settings } from 'lucide-react';
 import type { ProjectDetail, Session } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { openSettings, settingsSection, useHash } from '../../lib/hash-route';
-import { useHostInfo, useProfiles, useProjectDetail, useRepos } from '../../lib/queries';
+import { useHostInfo, useProjectDetail, useRepos } from '../../lib/queries';
 import { wsManager } from '../../lib/ws';
 import { Suspense, lazy, useState } from 'react';
 import { NewProjectDialog } from '../dashboard/NewProjectDialog';
@@ -69,11 +69,6 @@ function HostIndicator() {
 }
 
 function TopBar() {
-  const profileId = useCurrentProfileId();
-  const profiles = useProfiles();
-  const profile = profiles.data?.find((p) => p.id === profileId);
-  const [panelOpen, setPanelOpen] = useState(false);
-
   return (
     // pl-5 ≈ the right side's visual inset (pr-3 + the ghost buttons' own padding).
     <header className="relative flex h-11 shrink-0 items-center gap-3 bg-surface pl-5 pr-3">
@@ -106,12 +101,9 @@ function TopBar() {
           </TooltipTrigger>
           <TooltipContent>Settings</TooltipContent>
         </Tooltip>
-        <Button variant="ghost" size="sm" className="font-mono" onClick={() => setPanelOpen(true)}>
-          <UserRound />
-          {profile?.name ?? '…'}
-        </Button>
+        {/* The panel anchors under this trigger — top-right, not centred. */}
+        <ProfilePanel />
       </div>
-      <ProfilePanel open={panelOpen} onOpenChange={setPanelOpen} />
     </header>
   );
 }

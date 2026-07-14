@@ -12,7 +12,8 @@ export interface SubscriptionUsageWindow {
   key: string;
   label: string;
   used_percentage: number;
-  resets_at: string | null;
+  /** The agent's own reset phrasing ("Jul 20 at 4am"), shown verbatim. */
+  resets: string | null;
 }
 
 export interface LiveUsage {
@@ -102,9 +103,9 @@ export interface AgentAdapter {
    */
   liveUsage?(account: Account): LiveUsage | null;
   /**
-   * Subscription rate-limit windows (the `/usage` view). Reads the account's
-   * own OAuth token, so it runs ONLY for opted-in accounts (SPEC §2). Fails
-   * safe to null (unreachable token, network error, unknown shape).
+   * Subscription rate-limit windows (the `/usage` view), asked of the agent's
+   * own CLI — credential-free, fetched for any logged-in account. Fails safe
+   * to null (missing binary, timeout, unrecognised output).
    */
   subscriptionUsage?(account: Account): Promise<SubscriptionUsageWindow[] | null>;
   /**

@@ -10,8 +10,6 @@ export const accountSchema = z.object({
   config_dir: z.string(),
   skip_permissions_default: z.boolean(),
   logged_in: z.boolean(),
-  /** Opt-in: fetch subscription rate-limit usage (reads the account's own token). */
-  rate_limit_tracking: z.boolean(),
   created_at: isoTimestamp,
 });
 export type Account = z.infer<typeof accountSchema>;
@@ -27,10 +25,9 @@ export const createAccountRequestSchema = z.object({
   import_dir: z.string().min(1).optional(),
 });
 
-/** Account toggles: the permissions-gate opt-in (SPEC §11) and rate-limit tracking. */
+/** Account toggles: the permissions-gate opt-in (SPEC §11). */
 export const patchAccountRequestSchema = z.object({
   skip_permissions_default: z.boolean().optional(),
-  rate_limit_tracking: z.boolean().optional(),
 });
 
 /** Returned by POST /api/accounts/:id/login — attach to this PTY over the WS. */
@@ -68,10 +65,11 @@ export const accountUsageSchema = z.looseObject({
     })
     .nullable(),
   /**
-   * Subscription rate-limit windows — only when the account opted in AND the
-   * adapter could read them (undocumented endpoint + token access). A window
-   * carries a 0..100 percentage and a reset time; the whole field is null
-   * when tracking is off or the data could not be fetched.
+   * Subscription rate-limit windows, read from the agent's own CLI (e.g.
+   * `claude -p /usage`) — credential-free, fetched for logged-in accounts. A
+   * window carries a 0..100 percentage and the agent's own reset phrasing
+   * ("Jul 20 at 4am"), shown verbatim; the whole field is null when the data
+   * could not be fetched.
    */
   subscription: z
     .object({
@@ -80,7 +78,7 @@ export const accountUsageSchema = z.looseObject({
           key: z.string(),
           label: z.string(),
           used_percentage: z.number(),
-          resets_at: isoTimestamp.nullable(),
+          resets: z.string().nullable(),
         }),
       ),
     })

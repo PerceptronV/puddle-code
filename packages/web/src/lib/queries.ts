@@ -161,14 +161,8 @@ export function usePatchProfile() {
 export function usePatchAccount() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      id,
-      ...patch
-    }: {
-      id: number;
-      skip_permissions_default?: boolean;
-      rate_limit_tracking?: boolean;
-    }) => api<Account>('PATCH', `/api/accounts/${id}`, patch),
+    mutationFn: ({ id, ...patch }: { id: number; skip_permissions_default?: boolean }) =>
+      api<Account>('PATCH', `/api/accounts/${id}`, patch),
     onSuccess: (account) => {
       void qc.invalidateQueries({ queryKey: ['accounts', account.profile_id] });
       void qc.invalidateQueries({ queryKey: ['account-usage', account.id] });

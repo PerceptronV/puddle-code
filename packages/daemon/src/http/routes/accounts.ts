@@ -96,9 +96,6 @@ export function accountRoutes(deps: AccountRouteDeps): Hono {
       if (body.skip_permissions_default !== undefined) {
         deps.accounts.setSkipPermissionsDefault(id, body.skip_permissions_default);
       }
-      if (body.rate_limit_tracking !== undefined) {
-        deps.accounts.setRateLimitTracking(id, body.rate_limit_tracking);
-      }
       return c.json(deps.accounts.get(id));
     })
     .delete('/:id', (c) => {
@@ -127,9 +124,10 @@ export function accountRoutes(deps: AccountRouteDeps): Hono {
       const account = deps.accounts.get(idParam(c));
       const adapter = deps.adapters.get(account.agent_type);
       const counts = deps.sessions.usageForAccount(account.id);
-      // Subscription windows only when opted in — this reads the token (§2).
+      // Subscription windows come from the agent's own CLI (credential-free);
+      // only a logged-in account can answer, and the adapter caches fetches.
       const windows =
-        account.rate_limit_tracking && adapter.subscriptionUsage
+        account.logged_in && adapter.subscriptionUsage
           ? await adapter.subscriptionUsage(account)
           : null;
       return c.json<AccountUsage>({

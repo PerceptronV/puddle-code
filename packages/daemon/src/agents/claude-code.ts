@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { AgentAdapter, AgentUsage } from './adapter.js';
 import { installStatusLine, readLiveUsage } from './claude-statusline.js';
-import { fetchSubscriptionUsage } from './claude-subscription.js';
+import { fetchSubscriptionUsage } from './claude-usage-cli.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -56,6 +56,9 @@ const EMPTY_USAGE: AgentUsage = {
  *   any stored flag. The login screen, like the wizard, DISCARDS a preset
  *   --session-id — discoverSessionRef recovers the conversation by the cwd
  *   recorded in its JSONL.
+ * - `claude -p /usage` prints the subscription rate-limit windows as plain
+ *   text (verified 2.1.209) — see claude-usage-cli.ts, including the
+ *   API-key-suppresses-the-windows gotcha.
  * - `CLAUDE_CONFIG_DIR` relocates all state: conversation JSONL lands at
  *   `<config_dir>/projects/<escaped-realpath-cwd>/<uuid>.jsonl`. For a git
  *   WORKTREE cwd the project dir is escaped from the MAIN repository root,

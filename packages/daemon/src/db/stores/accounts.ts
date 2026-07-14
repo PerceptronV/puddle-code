@@ -10,7 +10,6 @@ interface Row {
   config_dir: string;
   skip_permissions_default: number;
   logged_in: number;
-  rate_limit_tracking: number;
   created_at: string;
 }
 
@@ -23,7 +22,6 @@ function toAccount(r: Row): Account {
     config_dir: r.config_dir,
     skip_permissions_default: r.skip_permissions_default === 1,
     logged_in: r.logged_in === 1,
-    rate_limit_tracking: r.rate_limit_tracking === 1,
     created_at: r.created_at,
   };
 }
@@ -88,12 +86,6 @@ export class AccountStore {
     this.db
       .prepare(`UPDATE accounts SET skip_permissions_default = ? WHERE id = ?`)
       .run(skip ? 1 : 0, id);
-    return this.get(id);
-  }
-
-  setRateLimitTracking(id: number, on: boolean): Account {
-    this.get(id); // 404 before a silent no-op UPDATE
-    this.db.prepare(`UPDATE accounts SET rate_limit_tracking = ? WHERE id = ?`).run(on ? 1 : 0, id);
     return this.get(id);
   }
 }

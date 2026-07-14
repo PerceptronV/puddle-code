@@ -489,29 +489,15 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
     expect(bare.agent_usage).toBeNull();
   });
 
-  it('gates subscription usage behind the per-account opt-in', async () => {
+  it('degrades subscription usage to null when the adapter cannot provide it', async () => {
     const c = client(daemon);
-    // Off by default → no subscription field, no token read attempted.
-    const before = await c.json<{ subscription: unknown }>(
+    // The fake adapter has no subscriptionUsage hook, so the field stays
+    // null — the endpoint degrades gracefully rather than erroring.
+    const usage = await c.json<{ subscription: unknown }>(
       'GET',
       `/api/accounts/${alice1.id}/usage`,
     );
-    expect(before.subscription).toBeNull();
-
-    const toggled = await c.json<Account>('PATCH', `/api/accounts/${alice1.id}`, {
-      rate_limit_tracking: true,
-    });
-    expect(toggled.rate_limit_tracking).toBe(true);
-
-    // The fake adapter has no subscriptionUsage hook, so even opted-in it
-    // stays null — the endpoint degrades gracefully rather than erroring.
-    const after = await c.json<{ subscription: unknown }>(
-      'GET',
-      `/api/accounts/${alice1.id}/usage`,
-    );
-    expect(after.subscription).toBeNull();
-
-    await c.json<Account>('PATCH', `/api/accounts/${alice1.id}`, { rate_limit_tracking: false });
+    expect(usage.subscription).toBeNull();
   });
 
   it('refuses to spawn on an account the agent says is logged out', async () => {

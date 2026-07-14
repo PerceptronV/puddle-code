@@ -1,17 +1,14 @@
 import { useState } from 'react';
-import { KeyRound, Plus, Settings2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { KeyRound, Plus, Settings2, UserRound } from 'lucide-react';
 import type { Account } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
-import { Switch } from '../../components/ui/switch';
+import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { openSettings } from '../../lib/hash-route';
 import {
   useAccountUsage,
   useAccounts,
   useAgents,
   useLoginAccount,
-  usePatchAccount,
   useProfiles,
 } from '../../lib/queries';
 import { LoginDialog } from '../accounts/LoginDialog';
@@ -38,15 +35,6 @@ function relativeTime(iso: string | null): string {
   return `${Math.round(hours / 24)}d ago`;
 }
 
-/** "resets in 2h" / "resets in 3d" for a future timestamp. */
-function resetHint(iso: string | null): string | undefined {
-  if (iso === null) return undefined;
-  const secs = Math.round((new Date(iso).getTime() - Date.now()) / 1000);
-  if (secs <= 0) return undefined;
-  const hours = Math.round(secs / 3600);
-  return hours < 24 ? `resets ${hours}h` : `resets ${Math.round(hours / 24)}d`;
-}
-
 /**
  * One account row: a status dot, the label, usage summary, and the primary
  * action — logged out → sign in; logged in inside a project → new session on
@@ -62,7 +50,6 @@ function AccountRow({
   onStartSession: (() => void) | null;
 }) {
   const usage = useAccountUsage(account.id);
-  const patch = usePatchAccount();
   const action = account.logged_in ? onStartSession : onLogin;
   const subscription = usage.data?.subscription;
 
@@ -125,48 +112,31 @@ function AccountRow({
         </span>
       </button>
 
-      {/* Subscription rate-limit tracking — opt-in, because fetching it reads
-          the account's own OAuth token (SPEC §2). */}
-      {account.logged_in && (
+      {/* Subscription rate-limit windows, from the agent's own CLI —
+          credential-free, so they simply appear when available. */}
+      {subscription != null && subscription.windows.length > 0 && (
         <div className="mt-2 flex flex-col gap-1 pl-5">
-          {account.rate_limit_tracking && subscription?.windows.length ? (
-            subscription.windows.map((w) => (
-              <UsageBar
-                key={w.key}
-                label={w.label}
-                percentage={w.used_percentage}
-                hint={resetHint(w.resets_at)}
-              />
-            ))
-          ) : account.rate_limit_tracking ? (
-            <span className="text-2xs text-fg-muted">rate-limit data unavailable on this host</span>
-          ) : null}
-          <label className="flex items-center gap-2 text-2xs text-fg-muted">
-            <Switch
-              checked={account.rate_limit_tracking}
-              onCheckedChange={(checked) =>
-                patch.mutate(
-                  { id: account.id, rate_limit_tracking: checked },
-                  { onError: (e) => toast.error(e.message) },
-                )
-              }
+          {subscription.windows.map((w) => (
+            <UsageBar
+              key={w.key}
+              label={w.label}
+              percentage={w.used_percentage}
+              hint={w.resets != null ? `resets ${w.resets}` : undefined}
             />
-            track subscription usage (reads this account&apos;s token)
-          </label>
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-/** The profile panel: accounts grouped by agent type, with status, usage, actions. */
-export function ProfilePanel({
-  open,
-  onOpenChange,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
+/**
+ * The profile panel: its own top-bar trigger (the profile's name), opening an
+ * anchored popover beneath it with accounts grouped by agent type — status,
+ * usage, actions. Unlike ⌘K and settings, this never takes the centre stage.
+ */
+export function ProfilePanel() {
+  const [open, setOpen] = useState(false);
   const profileId = useCurrentProfileId();
   const profiles = useProfiles();
   const currentProfile = profiles.data?.find((p) => p.id === profileId);
@@ -183,17 +153,20 @@ export function ProfilePanel({
     });
 
   const startSession = (account: Account) => {
-    onOpenChange(false);
+    setOpen(false);
     openNewSession({ accountId: account.id });
   };
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="font-mono">{currentProfile?.name ?? 'Profile'}</DialogTitle>
-          </DialogHeader>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="sm" className="font-mono">
+            <UserRound />
+            {currentProfile?.name ?? '…'}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[28rem] max-w-[calc(100vw-1rem)]">
           <div className="flex flex-col gap-4">
             {(agents.data ?? []).map((agent) => {
               const forAgent = accounts.data?.filter((a) => a.agent_type === agent.id) ?? [];
@@ -219,12 +192,12 @@ export function ProfilePanel({
               <p className="px-2 text-sm text-fg-muted">No accounts yet — add one in settings.</p>
             )}
           </div>
-          <div className="mt-2 flex items-center gap-2">
+          <div className="mt-4 flex items-center gap-2">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => {
-                onOpenChange(false);
+                setOpen(false);
                 openSettings('accounts');
               }}
             >
@@ -236,7 +209,7 @@ export function ProfilePanel({
               size="sm"
               className="ml-auto"
               onClick={() => {
-                onOpenChange(false);
+                setOpen(false);
                 profileStore.set(null); // back to the picker
               }}
             >
@@ -244,8 +217,8 @@ export function ProfilePanel({
               Switch profile
             </Button>
           </div>
-        </DialogContent>
-      </Dialog>
+        </PopoverContent>
+      </Popover>
       {loginStream && (
         <LoginDialog
           stream={loginStream.stream}
