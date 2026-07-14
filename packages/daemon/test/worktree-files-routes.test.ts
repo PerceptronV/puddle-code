@@ -67,6 +67,13 @@ function download(sid: string, path: string) {
   return app.request(`/api/worktrees/${sid}/download?path=${encodeURIComponent(path)}`);
 }
 
+function upload(sid: string, dir: string, form: FormData) {
+  return app.request(`/api/worktrees/${sid}/upload?dir=${encodeURIComponent(dir)}`, {
+    method: 'POST',
+    body: form,
+  });
+}
+
 describe('GET /api/worktrees/:sid/tree', () => {
   beforeAll(() => {
     mkdirSync(join(worktree, 'src'), { recursive: true });
@@ -229,13 +236,6 @@ describe('PUT /api/worktrees/:sid/file', () => {
 });
 
 describe('POST /api/worktrees/:sid/upload', () => {
-  function upload(sid: string, dir: string, form: FormData) {
-    return app.request(`/api/worktrees/${sid}/upload?dir=${encodeURIComponent(dir)}`, {
-      method: 'POST',
-      body: form,
-    });
-  }
-
   it('lands two multipart files in dir=, neutralising any path in the filename', async () => {
     mkdirSync(join(worktree, 'uploads'), { recursive: true });
     const form = new FormData();
@@ -320,19 +320,26 @@ describe('GET /api/worktrees/:sid/download', () => {
 
 describe('worktree-files: shared error conditions', () => {
   it('404s an unknown session on every endpoint', async () => {
+    const uploadForm = new FormData();
+    uploadForm.set('a', new File(['x'], 'x.txt'));
+
     expect((await tree('no-such-session')).status).toBe(404);
     expect((await getFile('no-such-session', 'apple.txt')).status).toBe(404);
     expect((await putFile('no-such-session', 'apple.txt', { content: 'x' })).status).toBe(404);
+    expect((await upload('no-such-session', 'uploads', uploadForm)).status).toBe(404);
     expect((await download('no-such-session', 'apple.txt')).status).toBe(404);
   });
 
   it('409s every endpoint once the worktree is gone from disk', async () => {
+    const uploadForm = new FormData();
+    uploadForm.set('a', new File(['x'], 'x.txt'));
     rmSync(worktree, { recursive: true, force: true });
     expect(existsSync(worktree)).toBe(false);
 
     expect((await tree(sessionId)).status).toBe(409);
     expect((await getFile(sessionId, 'apple.txt')).status).toBe(409);
     expect((await putFile(sessionId, 'apple.txt', { content: 'x' })).status).toBe(409);
+    expect((await upload(sessionId, 'uploads', uploadForm)).status).toBe(409);
     expect((await download(sessionId, 'apple.txt')).status).toBe(409);
   });
 });
