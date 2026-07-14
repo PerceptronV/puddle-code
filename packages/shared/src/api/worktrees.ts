@@ -23,3 +23,12 @@ export const pasteImageResponseSchema = z.object({
   path: z.string(),
 });
 export type PasteImageResponse = z.infer<typeof pasteImageResponseSchema>;
+
+/** GET /api/worktrees/:sid/resolve?path=…&line=… — terminal file-link validation (SPEC §7). */
+export const resolvePathResponseSchema = z.object({
+  /** Normalised worktree-relative path of the resolved file. */
+  path: z.string(),
+  /** Requested line echoed back, clamped to >= 1; null when absent. */
+  line: z.number().int().nullable(),
+});
+export type ResolvePathResponse = z.infer<typeof resolvePathResponseSchema>;

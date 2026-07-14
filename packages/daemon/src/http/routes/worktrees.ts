@@ -1,11 +1,12 @@
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { join, relative, resolve, sep } from 'node:path';
 import { Hono } from 'hono';
 import {
   pasteImageRequestSchema,
   type PasteImageMime,
   type PasteImageResponse,
+  type ResolvePathResponse,
 } from '@puddle/shared';
 import type { SessionStore } from '../../db/stores/sessions.js';
 import { ApiError } from '../errors.js';
@@ -57,6 +58,64 @@ export function worktreeRoutes(deps: { sessions: SessionStore }): Hono {
     writeFileSync(join(dir, name), bytes);
 
     return c.json<PasteImageResponse>({ path: `.puddle/pastes/${name}` }, 201);
+  });
+
+  // GET /:sid/resolve — validates a terminal file-path link before the UI
+  // underlines it (SPEC §7, "Terminal links"): the xterm.js link provider
+  // asks here on hover, so this must be cheap and must never leak worktree
+  // layout. Escape attempts and missing files therefore both collapse to the
+  // same plain 404 `not_found` — the client only ever learns "don't
+  // underline", never *why* it can't.
+  app.get('/:sid/resolve', (c) => {
+    const { root } = resolveWorktree(deps.sessions, c);
+    const rawPath = c.req.query('path');
+    if (!rawPath) {
+      throw ApiError.badRequest('invalid_request', `'path' query parameter is required`);
+    }
+
+    // Containment is checked against the RAW worktree root, not its
+    // realpath: on macOS the worktree commonly sits behind a symlinked
+    // tmpdir (/tmp -> /private/tmp), and the only absolute paths a client
+    // ever sends are ones it saw as the terminal's cwd — i.e. this same raw
+    // root — so comparing raw-to-raw is what makes a legitimate absolute
+    // link resolve. `resolve()` ignores `root` entirely when `rawPath` is
+    // already absolute, which is exactly the "absolute paths accepted only
+    // when inside the worktree" rule.
+    const abs = resolve(root, rawPath);
+    if (abs !== root && !abs.startsWith(root + sep)) {
+      throw ApiError.notFound('path', rawPath);
+    }
+    if (!existsSync(abs)) {
+      throw ApiError.notFound('path', rawPath);
+    }
+
+    // Symlink-escape hardening, same two-stage pattern as `containedPath`:
+    // resolve both sides for real and recheck containment, so a symlink
+    // planted inside the worktree pointing outside it can't be used to read
+    // arbitrary files.
+    const real = realpathSync(abs);
+    const realRoot = realpathSync(root);
+    if (real !== realRoot && !real.startsWith(realRoot + sep)) {
+      throw ApiError.notFound('path', rawPath);
+    }
+    // Directories aren't openable in Monaco (v1 scope) — nothing to link to.
+    if (!statSync(real).isFile()) {
+      throw ApiError.notFound('path', rawPath);
+    }
+
+    // Relative to the raw root (already validated above) so the response
+    // matches the worktree-relative identity every other endpoint uses and
+    // the client can feed it straight to the editor tab.
+    const relPath = relative(root, abs);
+    if (relPath.startsWith('..')) {
+      throw ApiError.notFound('path', rawPath); // belt and braces
+    }
+
+    const lineParam = c.req.query('line');
+    const parsedLine = lineParam === undefined ? NaN : Number.parseInt(lineParam, 10);
+    const line = Number.isNaN(parsedLine) ? null : Math.max(1, parsedLine);
+
+    return c.json<ResolvePathResponse>({ path: relPath, line });
   });
 
   app.route('/', worktreeFileRoutes(deps));

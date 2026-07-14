@@ -1,8 +1,17 @@
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Hono } from 'hono';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { pasteImageResponseSchema } from '@puddle/shared';
+import { pasteImageResponseSchema, resolvePathResponseSchema } from '@puddle/shared';
 import { worktreeRoutes } from '../src/http/routes/worktrees.js';
 import { ApiError } from '../src/http/errors.js';
 import { fixture, waitFor, type Fixture } from './helpers/daemon-fixtures.js';
@@ -95,5 +104,141 @@ describe('POST /api/worktrees/:sid/paste', () => {
     const res = await paste(sessionId, { mime: 'image/png', data: 'aGk=' });
     expect(res.status).toBe(409);
     expect(((await res.json()) as { error: { code: string } }).error.code).toBe('worktree_missing');
+  });
+});
+
+function errorCode(body: unknown): string {
+  return (body as { error: { code: string } }).error.code;
+}
+
+function resolvePath(sid: string, query: string) {
+  return app.request(`/api/worktrees/${sid}/resolve${query}`);
+}
+
+describe('GET /api/worktrees/:sid/resolve', () => {
+  // Own session (and its own worktree) so the destructive 409 test at the
+  // end of this block doesn't collide with the paste block above, which
+  // removes ITS session's worktree from disk in its own final test.
+  let resolveSessionId: string;
+  let worktree: string;
+
+  beforeAll(async () => {
+    const session = await fx.service.create({
+      project_id: fx.ids.project,
+      account_id: fx.ids.account,
+      title: 'resolve target',
+    });
+    resolveSessionId = session.id;
+    await waitFor(() => fx.service.get(resolveSessionId).status !== 'starting');
+    worktree = fx.service.get(resolveSessionId).worktree_path;
+    mkdirSync(join(worktree, 'src'), { recursive: true });
+    writeFileSync(join(worktree, 'src', 'foo.ts'), 'export const x = 1;\n');
+  });
+
+  afterAll(async () => {
+    await fx.service.kill(resolveSessionId).catch(() => undefined);
+  });
+
+  it('resolves a relative path hit, echoing the line', async () => {
+    const res = await resolvePath(resolveSessionId, '?path=src/foo.ts&line=5');
+    expect(res.status).toBe(200);
+    const body = resolvePathResponseSchema.parse(await res.json());
+    expect(body).toEqual({ path: 'src/foo.ts', line: 5 });
+  });
+
+  it('resolves a ./-prefixed relative path', async () => {
+    const res = await resolvePath(resolveSessionId, '?path=./src/foo.ts');
+    expect(res.status).toBe(200);
+    const body = resolvePathResponseSchema.parse(await res.json());
+    expect(body.path).toBe('src/foo.ts');
+  });
+
+  it('resolves an absolute path inside the worktree', async () => {
+    const abs = join(worktree, 'src', 'foo.ts');
+    const res = await resolvePath(resolveSessionId, `?path=${encodeURIComponent(abs)}`);
+    expect(res.status).toBe(200);
+    const body = resolvePathResponseSchema.parse(await res.json());
+    expect(body.path).toBe('src/foo.ts');
+  });
+
+  it('404s an absolute path outside the worktree', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'puddle-resolve-outside-'));
+    writeFileSync(join(outside, 'evil.ts'), 'x');
+    const res = await resolvePath(
+      resolveSessionId,
+      `?path=${encodeURIComponent(join(outside, 'evil.ts'))}`,
+    );
+    expect(res.status).toBe(404);
+    expect(errorCode(await res.json())).toBe('not_found');
+  });
+
+  it('404s a ../.. traversal attempt', async () => {
+    const res = await resolvePath(
+      resolveSessionId,
+      `?path=${encodeURIComponent('../../etc/passwd')}`,
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('404s a symlink inside the worktree pointing outside it', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'puddle-resolve-outside-'));
+    writeFileSync(join(outside, 'secret.ts'), 'top secret');
+    symlinkSync(join(outside, 'secret.ts'), join(worktree, 'escape-link.ts'));
+
+    const res = await resolvePath(resolveSessionId, '?path=escape-link.ts');
+    expect(res.status).toBe(404);
+  });
+
+  it('404s a directory', async () => {
+    const res = await resolvePath(resolveSessionId, '?path=src');
+    expect(res.status).toBe(404);
+  });
+
+  it('404s a missing file', async () => {
+    const res = await resolvePath(resolveSessionId, '?path=nope.ts');
+    expect(res.status).toBe(404);
+  });
+
+  it('400s when path is missing', async () => {
+    const res = await resolvePath(resolveSessionId, '');
+    expect(res.status).toBe(400);
+    expect(errorCode(await res.json())).toBe('invalid_request');
+  });
+
+  it('400s when path is empty', async () => {
+    const res = await resolvePath(resolveSessionId, '?path=');
+    expect(res.status).toBe(400);
+    expect(errorCode(await res.json())).toBe('invalid_request');
+  });
+
+  it('clamps a zero line to 1', async () => {
+    const res = await resolvePath(resolveSessionId, '?path=src/foo.ts&line=0');
+    const body = resolvePathResponseSchema.parse(await res.json());
+    expect(body.line).toBe(1);
+  });
+
+  it('nulls the line when absent', async () => {
+    const res = await resolvePath(resolveSessionId, '?path=src/foo.ts');
+    const body = resolvePathResponseSchema.parse(await res.json());
+    expect(body.line).toBeNull();
+  });
+
+  it('nulls the line when it is not a number', async () => {
+    const res = await resolvePath(resolveSessionId, '?path=src/foo.ts&line=junk');
+    const body = resolvePathResponseSchema.parse(await res.json());
+    expect(body.line).toBeNull();
+  });
+
+  it('404s an unknown session', async () => {
+    const res = await resolvePath('no-such-session', '?path=src/foo.ts');
+    expect(res.status).toBe(404);
+  });
+
+  it('409s when the worktree is gone from disk', async () => {
+    rmSync(worktree, { recursive: true, force: true });
+    expect(existsSync(worktree)).toBe(false);
+    const res = await resolvePath(resolveSessionId, '?path=src/foo.ts');
+    expect(res.status).toBe(409);
+    expect(errorCode(await res.json())).toBe('worktree_missing');
   });
 });
