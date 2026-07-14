@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import {
   archiveRequestSchema,
   createProjectRequestSchema,
@@ -21,6 +21,16 @@ export interface ProjectRouteDeps {
   repos: RepoStore;
   service: SessionService;
   worktrees: WorktreeManager;
+}
+
+/** ?profile=<id> names the viewer (any profile may open any project); 400/404 otherwise. */
+function viewerProfile(c: Context, profiles: ProfileStore): number {
+  const raw = c.req.query('profile');
+  const id = Number(raw);
+  if (raw === undefined || !Number.isInteger(id) || id <= 0) {
+    throw ApiError.badRequest('missing_profile', `query parameter 'profile' is required`);
+  }
+  return profiles.get(id).id;
 }
 
 export function projectRoutes(deps: ProjectRouteDeps): Hono {
@@ -54,25 +64,19 @@ export function projectRoutes(deps: ProjectRouteDeps): Hono {
     })
     .get('/:id/state', (c) => {
       const project = deps.projects.get(projectIdParam(c));
-      const client = c.req.query('client');
-      if (!client) {
-        throw ApiError.badRequest('missing_client', `query parameter 'client' is required`);
-      }
-      // The client's own row wins; a new client seeds from the project's
+      const profile = viewerProfile(c, deps.profiles);
+      // The profile's own row wins; a newcomer seeds from the project's
       // most recent snapshot (SPEC §11 reload semantics).
       const state =
-        deps.projectStates.get(project.id, client) ?? deps.projectStates.latest(project.id);
+        deps.projectStates.get(project.id, profile) ?? deps.projectStates.latest(project.id);
       if (!state)
         throw new ApiError(404, 'no_state', `project ${project.id} has no saved ui state`);
       return c.json(state);
     })
     .put('/:id/state', async (c) => {
       const project = deps.projects.get(projectIdParam(c));
-      const client = c.req.query('client');
-      if (!client) {
-        throw ApiError.badRequest('missing_client', `query parameter 'client' is required`);
-      }
+      const profile = viewerProfile(c, deps.profiles);
       const body = await parseBody(c, putProjectStateRequestSchema);
-      return c.json(deps.projectStates.put(project.id, client, body.ui_state));
+      return c.json(deps.projectStates.put(project.id, profile, body.ui_state));
     });
 }

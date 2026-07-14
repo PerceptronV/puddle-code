@@ -25,10 +25,11 @@ when the OAuth flow completes).
    their tabs by dragging, resize the sidebar, and pick a non-first active
    tab. Wait ~3 s (writes debounce at 2 s), kill the browser process, and
    reopen `/project/:id` → identical workspace: tab order, active session,
-   pane sizes, and terminals replayed from the log tail. Repeat from a
-   second browser profile: it seeds from the same snapshot, but rearranging
-   there and reloading the first browser shows the first client's own layout
-   untouched.
+   pane sizes, and terminals replayed from the log tail. Layout follows the
+   profile: a different browser (or a fresh tunnel port) under the same
+   profile restores the same workspace, while a second puddle profile seeds
+   from the snapshot but its rearrangements never clobber the first
+   profile's row.
 
 2. **Theme switch.** ⌘K → "Switch theme: light" (and back via Settings →
    Appearance): chrome and every open terminal restyle together with no

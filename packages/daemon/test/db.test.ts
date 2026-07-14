@@ -204,10 +204,13 @@ describe('stores', () => {
     expect(project.name).toBe('demo');
     const session = db.prepare(`SELECT project_id FROM sessions`).get() as { project_id: string };
     expect(session.project_id).toBe(project.id);
-    const state = db.prepare(`SELECT project_id FROM project_states`).get() as {
+    // Migration 003 re-keys the layout row to the project's owning profile.
+    const state = db.prepare(`SELECT project_id, profile_id FROM project_states`).get() as {
       project_id: string;
+      profile_id: number;
     };
     expect(state.project_id).toBe(project.id);
+    expect(state.profile_id).toBe(1);
     expect(db.pragma('foreign_key_check')).toEqual([]);
     expect(db.prepare(`SELECT COUNT(*) AS n FROM events`).get()).toEqual({ n: 1 });
     db.close();

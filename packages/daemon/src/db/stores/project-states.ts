@@ -10,21 +10,25 @@ interface Row {
   updated_at: string;
 }
 
-/** Per-(project, client) workspace snapshots (SPEC §11 reload semantics). */
+/**
+ * Per-(project, profile) workspace snapshots (SPEC §11 reload semantics):
+ * layout follows identity, so any browser or machine restores the same
+ * workspace once the profile is picked.
+ */
 export class ProjectStateStore {
   constructor(private readonly db: Db) {}
 
-  /** The named client's own snapshot, if it has one. */
-  get(projectId: string, clientId: string): ProjectStateResponse | undefined {
+  /** The profile's own snapshot for this project, if it has one. */
+  get(projectId: string, profileId: number): ProjectStateResponse | undefined {
     const row = this.db
       .prepare(
-        `SELECT ui_state, updated_at FROM project_states WHERE project_id = ? AND client_id = ?`,
+        `SELECT ui_state, updated_at FROM project_states WHERE project_id = ? AND profile_id = ?`,
       )
-      .get(projectId, clientId) as Row | undefined;
+      .get(projectId, profileId) as Row | undefined;
     return row && this.parse(row);
   }
 
-  /** The project's most recent snapshot from any client (seed for new clients). */
+  /** The project's most recent snapshot from any profile (seed for newcomers). */
   latest(projectId: string): ProjectStateResponse | undefined {
     const row = this.db
       .prepare(
@@ -34,14 +38,14 @@ export class ProjectStateStore {
     return row && this.parse(row);
   }
 
-  put(projectId: string, clientId: string, uiState: UiStateSnapshot): ProjectStateResponse {
+  put(projectId: string, profileId: number, uiState: UiStateSnapshot): ProjectStateResponse {
     const now = new Date().toISOString();
     this.db
       .prepare(
-        `INSERT INTO project_states (project_id, client_id, ui_state, updated_at) VALUES (?, ?, ?, ?)
-         ON CONFLICT (project_id, client_id) DO UPDATE SET ui_state = excluded.ui_state, updated_at = excluded.updated_at`,
+        `INSERT INTO project_states (project_id, profile_id, ui_state, updated_at) VALUES (?, ?, ?, ?)
+         ON CONFLICT (project_id, profile_id) DO UPDATE SET ui_state = excluded.ui_state, updated_at = excluded.updated_at`,
       )
-      .run(projectId, clientId, JSON.stringify(uiState), now);
+      .run(projectId, profileId, JSON.stringify(uiState), now);
     return { ui_state: uiState, updated_at: now };
   }
 

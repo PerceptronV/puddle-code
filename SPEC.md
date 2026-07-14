@@ -116,12 +116,12 @@ CREATE TABLE projects (
   UNIQUE(profile_id, name)
 );
 
-CREATE TABLE project_states (            -- per-client persisted workspace layout (see §11)
+CREATE TABLE project_states (            -- per-(project, profile) persisted workspace layout (see §11)
   project_id INTEGER NOT NULL REFERENCES projects(id),
-  client_id TEXT NOT NULL,               -- stable per-browser uuid (localStorage)
+  profile_id INTEGER NOT NULL REFERENCES profiles(id),   -- layout follows identity, not browser
   ui_state TEXT NOT NULL,                -- JSON: session tabs, editor tabs, layout, explorer pin
   updated_at TEXT NOT NULL,
-  PRIMARY KEY (project_id, client_id)
+  PRIMARY KEY (project_id, profile_id)
 );
 
 CREATE TABLE sessions (
@@ -285,7 +285,7 @@ Repos      GET  /api/fs/dirs?prefix=…        # directory autocomplete for repo
            GET   /api/repos/:id/branches      # local + fetched remote heads, deduped short names, default base first
 Projects   GET  /api/projects?profile=…      POST /api/projects {profile_id, repo_id, name}   # ids are 10-hex handles (/project/:id)
            GET  /api/projects/:id            # detail incl. sessions with status
-           GET  /api/projects/:id/state?client=…   PUT (client-keyed ui_state JSON; debounced writes; GET falls back to the project's most recent snapshot when the client has none)
+           GET  /api/projects/:id/state?profile=…   PUT (profile-keyed ui_state JSON; debounced writes; GET falls back to the project's most recent snapshot when the profile has none)
            POST /api/projects/:id/archive
 Sessions   GET  /api/sessions?project=…&status=…
            POST /api/sessions {project_id, account_id, base_branch?, branch?, title?, prompt?, skip_permissions?}
@@ -427,11 +427,11 @@ Each profile owns an editable collection of plaintext prompts — the snippets y
 
 **Projects are the workspace unit.** A project belongs to one profile and one repo, and owns a set of sessions plus persisted UI state. The dashboard (`/`) lists the current profile's projects only — there is no cross-profile view (decision 2026-07-13); day-to-day work happens inside `/project/:id`. New sessions are always created within a project, which supplies the profile, repo, and defaults — so the new-session modal reduces to account → base branch → title/prompt. Session branches default to `<branch_prefix><slug(title)>` (or the session's short id when untitled); on collision with any existing branch, append `-2`, `-3`, … — never fail session creation on a branch-name clash.
 
-**Reload semantics.** Workspace layout is persisted server-side in `project_states`, keyed by `(project, client)`, where `client_id` is a stable random uuid the UI keeps in localStorage. The snapshot JSON holds: open session tabs and their order, per-session view state (pane split, open editor `(session, path)` tabs, explorer pin), active session, layout sizes. The UI writes it debounced (~2 s) on change; on opening a project, the UI restores the _current client's_ snapshot — reattaching terminals (log-tail replay makes them look untouched), reopening editor tabs, and surfacing any `interrupted` sessions with a resume button. Consequences:
+**Reload semantics.** Workspace layout is persisted server-side in `project_states`, keyed by `(project, profile)` — layout follows identity, not browser (decision 2026-07-13; replaces the earlier client-uuid keying so layouts survive tunnel-port and machine changes). The snapshot JSON holds: open session tabs and their order, per-session view state (pane split, open editor `(session, path)` tabs, explorer pin), active session, layout sizes. The UI writes it debounced (~2 s) on change; on opening a project, the UI restores the _current profile's_ snapshot — reattaching terminals (log-tail replay makes them look untouched), reopening editor tabs, and surfacing any `interrupted` sessions with a resume button. Consequences:
 
-- Reload, close-and-rejoin, or a browser restart on the same machine → your exact layout, because your client_id's row is untouched by anything anyone else did.
-- Two of your own windows on the same project in the same browser share a client_id; the last one to change layout wins the stored snapshot (they do not live-sync while open).
-- A different browser/machine (or a coworker peeking) has its own client_id: it seeds from the project's most recent snapshot but its rearrangements are written to _its_ row — they can never clobber yours.
+- Reload, browser restart, a different machine, or a different tunnel port → your exact layout, because the row is keyed to your profile, not to any browser state.
+- Any number of your own windows on the same project share the row; the last one to change layout wins the stored snapshot (they do not live-sync while open).
+- A coworker peeking works under their own profile: they seed from the project's most recent snapshot but their rearrangements are written to _their_ row — they can never clobber yours.
 - Stale rows (not updated in 90 days) are garbage-collected by the daemon.
 
 Transient focus (which tab is active right now) stays local to the window.

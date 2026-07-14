@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { uiStateSnapshotSchema, type UiStateSnapshot } from '@puddle/shared';
 import { debounce } from '../../lib/debounce';
 import { fetchProjectState, putProjectState } from '../../lib/queries';
+import { useCurrentProfileId } from '../profile/profile-store';
 
 const WRITE_DEBOUNCE_MS = 2000;
 
@@ -17,11 +18,13 @@ export interface UiStateHandle {
 const EMPTY: UiStateSnapshot = uiStateSnapshotSchema.parse({});
 
 /**
- * Loads this client's workspace snapshot on project open (falling back to the
- * project's most recent one server-side) and writes changes back debounced.
- * Transient focus stays local to the window (SPEC §11).
+ * Layout follows identity (SPEC §11): the snapshot is keyed by (project,
+ * profile), loaded on project open (falling back to the project's most
+ * recent one server-side) and written back debounced. Transient focus stays
+ * local to the window.
  */
 export function useUiState(projectId: string | undefined): UiStateHandle {
+  const profileId = useCurrentProfileId();
   const [loaded, setLoaded] = useState(false);
   const [snapshot, setSnapshot] = useState<UiStateSnapshot>(EMPTY);
   const snapshotRef = useRef(snapshot);
@@ -29,8 +32,8 @@ export function useUiState(projectId: string | undefined): UiStateHandle {
 
   const writer = useMemo(
     () =>
-      debounce((pid: string, state: UiStateSnapshot) => {
-        putProjectState(pid, state).catch((e) =>
+      debounce((pid: string, profile: number, state: UiStateSnapshot) => {
+        putProjectState(pid, profile, state).catch((e) =>
           console.warn(`ui-state save failed: ${(e as Error).message}`),
         );
       }, WRITE_DEBOUNCE_MS),
@@ -38,11 +41,11 @@ export function useUiState(projectId: string | undefined): UiStateHandle {
   );
 
   useEffect(() => {
-    if (projectId === undefined) return;
+    if (projectId === undefined || profileId === null) return;
     let cancelled = false;
     setLoaded(false);
     setSnapshot(EMPTY);
-    fetchProjectState(projectId)
+    fetchProjectState(projectId, profileId)
       .then((state) => {
         if (cancelled) return;
         if (state) setSnapshot(state.ui_state);
@@ -56,17 +59,17 @@ export function useUiState(projectId: string | undefined): UiStateHandle {
       cancelled = true;
       writer.flush(); // leaving the project — persist the last change now
     };
-  }, [projectId, writer]);
+  }, [projectId, profileId, writer]);
 
   return {
     loaded,
     snapshot,
     update(patch) {
-      if (projectId === undefined) return;
+      if (projectId === undefined || profileId === null) return;
       const next = { ...snapshotRef.current, ...patch };
       snapshotRef.current = next;
       setSnapshot(next);
-      writer(projectId, next);
+      writer(projectId, profileId, next);
     },
   };
 }

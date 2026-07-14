@@ -18,7 +18,6 @@ import type {
   UiStateSnapshot,
 } from '@puddle/shared';
 import { api } from './api';
-import { clientId } from './client-id';
 
 /** TanStack Query hooks per daemon resource. Types come from @puddle/shared. */
 
@@ -276,11 +275,14 @@ export function usePatchConfig() {
 
 /* -- Workspace ui_state (SPEC §11 reload semantics) ---------------------- */
 
-export async function fetchProjectState(projectId: string): Promise<ProjectStateResponse | null> {
+export async function fetchProjectState(
+  projectId: string,
+  profileId: number,
+): Promise<ProjectStateResponse | null> {
   try {
     return await api<ProjectStateResponse>(
       'GET',
-      `/api/projects/${projectId}/state?client=${clientId()}`,
+      `/api/projects/${projectId}/state?profile=${profileId}`,
     );
   } catch (e) {
     if (e instanceof Error && 'code' in e && e.code === 'no_state') return null;
@@ -290,9 +292,10 @@ export async function fetchProjectState(projectId: string): Promise<ProjectState
 
 export function putProjectState(
   projectId: string,
+  profileId: number,
   uiState: UiStateSnapshot,
 ): Promise<ProjectStateResponse> {
-  return api<ProjectStateResponse>('PUT', `/api/projects/${projectId}/state?client=${clientId()}`, {
+  return api<ProjectStateResponse>('PUT', `/api/projects/${projectId}/state?profile=${profileId}`, {
     ui_state: uiState,
   });
 }

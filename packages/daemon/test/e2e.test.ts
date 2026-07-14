@@ -339,9 +339,11 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
     expect(all.every((s) => s.status === 'archived')).toBe(true);
   });
 
-  it('stores per-client ui state; other clients seed from it without clobbering', async () => {
+  it('stores ui state per (project, profile); other profiles seed without clobbering', async () => {
     const c = client(daemon);
-    const noState = await c.req('GET', `/api/projects/${project.id}/state?client=client-a`);
+    const noProfile = await c.req('GET', `/api/projects/${project.id}/state`);
+    expect(noProfile.status).toBe(400);
+    const noState = await c.req('GET', `/api/projects/${project.id}/state?profile=${profile.id}`);
     expect(noState.status).toBe(404);
     expect(((await noState.json()) as { error: { code: string } }).error.code).toBe('no_state');
 
@@ -352,31 +354,33 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
       layout: { sidebar: 24 },
       explorer_pin: null,
     };
-    await c.json('PUT', `/api/projects/${project.id}/state?client=client-a`, {
+    await c.json('PUT', `/api/projects/${project.id}/state?profile=${profile.id}`, {
       ui_state: snapshotA,
     });
 
-    // Client A reads its own row back; client B falls back to A's snapshot.
+    // The profile reads its own row back — from any browser or tunnel port.
     const ownRow = await c.json<{ ui_state: typeof snapshotA }>(
       'GET',
-      `/api/projects/${project.id}/state?client=client-a`,
+      `/api/projects/${project.id}/state?profile=${profile.id}`,
     );
     expect(ownRow.ui_state).toEqual(snapshotA);
+
+    // Another profile seeds from the latest snapshot but writes its own row.
+    const bob = await c.json<Profile>('POST', '/api/profiles', { name: 'bob' });
     const seeded = await c.json<{ ui_state: typeof snapshotA }>(
       'GET',
-      `/api/projects/${project.id}/state?client=client-b`,
+      `/api/projects/${project.id}/state?profile=${bob.id}`,
     );
     expect(seeded.ui_state).toEqual(snapshotA);
-
-    // B's writes land in B's row and never clobber A's.
-    await c.json('PUT', `/api/projects/${project.id}/state?client=client-b`, {
+    await c.json('PUT', `/api/projects/${project.id}/state?profile=${bob.id}`, {
       ui_state: { ...snapshotA, active_session: s2.id },
     });
-    const aAfter = await c.json<{ ui_state: { active_session: string } }>(
+    const aliceAfter = await c.json<{ ui_state: { active_session: string } }>(
       'GET',
-      `/api/projects/${project.id}/state?client=client-a`,
+      `/api/projects/${project.id}/state?profile=${profile.id}`,
     );
-    expect(aAfter.ui_state.active_session).toBe(s1.id);
+    expect(aliceAfter.ui_state.active_session).toBe(s1.id);
+    await c.req('DELETE', `/api/profiles/${bob.id}`); // keep the later delete test exact
   });
 
   it('login PTY flow marks the account logged in on clean exit', async () => {
