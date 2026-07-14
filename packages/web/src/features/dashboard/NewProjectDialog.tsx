@@ -53,7 +53,7 @@ export function NewProjectDialog({
 
   // Before any typing, offer the already-registered repos.
   const hints = useMemo(() => {
-    if (!path.startsWith('/')) {
+    if (!path.startsWith('/') && !path.startsWith('~')) {
       return (repos.data ?? []).map((repo) => ({
         path: repo.path,
         name: repo.path,
@@ -114,7 +114,8 @@ export function NewProjectDialog({
     }
   };
 
-  const ready = name.trim() !== '' && path.trim().startsWith('/');
+  const trimmedPath = path.trim();
+  const ready = name.trim() !== '' && (trimmedPath.startsWith('/') || trimmedPath.startsWith('~'));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -136,7 +137,7 @@ export function NewProjectDialog({
             <Label htmlFor="repo-path">Repository path</Label>
             <Input
               id="repo-path"
-              placeholder="/home/you/src/my-repo"
+              placeholder="~/src/my-repo"
               value={path}
               onChange={(e) => {
                 setPath(e.target.value);

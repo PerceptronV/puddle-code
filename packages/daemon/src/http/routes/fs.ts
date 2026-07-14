@@ -3,6 +3,7 @@ import { basename, dirname, isAbsolute, join } from 'node:path';
 import { Hono } from 'hono';
 import type { FsDirsResponse } from '@puddle/shared';
 import { ApiError } from '../errors.js';
+import { expandTilde } from '../tilde.js';
 
 const MAX_ENTRIES = 50;
 
@@ -13,9 +14,12 @@ const MAX_ENTRIES = 50;
  */
 export function fsRoutes(): Hono {
   return new Hono().get('/dirs', (c) => {
-    const prefix = c.req.query('prefix') ?? '';
+    const prefix = expandTilde(c.req.query('prefix') ?? '');
     if (!isAbsolute(prefix)) {
-      throw ApiError.badRequest('invalid_prefix', `'prefix' must be an absolute path`);
+      throw ApiError.badRequest(
+        'invalid_prefix',
+        `'prefix' must be an absolute path (a leading ~ is expanded on the host)`,
+      );
     }
     // "/a/b/par" completes "par" inside /a/b; a trailing slash lists everything.
     const parent = prefix.endsWith('/') ? prefix : dirname(prefix);

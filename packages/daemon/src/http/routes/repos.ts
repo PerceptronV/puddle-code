@@ -9,6 +9,7 @@ import type { RepoStore } from '../../db/stores/repos.js';
 import { git } from '../../git/exec.js';
 import type { WorktreeManager } from '../../worktrees/manager.js';
 import { ApiError } from '../errors.js';
+import { expandTilde } from '../tilde.js';
 import { idParam, parseBody } from '../validate.js';
 
 export interface RepoRouteDeps {
@@ -27,19 +28,21 @@ export function repoRoutes(deps: RepoRouteDeps): Hono {
     )
     .post('/', async (c) => {
       const body = await parseBody(c, createRepoRequestSchema);
-      if (!isAbsolute(body.path)) {
-        throw ApiError.badRequest('relative_path', 'repo path must be absolute');
+      const path = expandTilde(body.path);
+      if (!isAbsolute(path)) {
+        throw ApiError.badRequest('relative_path', 'repo path must be absolute (or start with ~)');
       }
       try {
-        await git(['rev-parse', '--git-dir'], { cwd: body.path });
+        await git(['rev-parse', '--git-dir'], { cwd: path });
       } catch {
-        throw ApiError.badRequest(
-          'not_a_git_repo',
-          `${body.path} is not an existing git repository`,
-        );
+        throw ApiError.badRequest('not_a_git_repo', `${path} is not an existing git repository`);
       }
+      // Idempotent: registering an already-known path returns the existing
+      // repo (the UI can't always tell — ~ paths expand only on the host).
+      const existing = deps.repos.list().find((r) => r.path === path);
+      if (existing) return c.json(existing);
       const repo = deps.repos.create({
-        path: body.path,
+        path,
         default_base_branch: body.default_base_branch ?? 'main',
         onboarding_notes: body.onboarding_notes ?? null,
         fetch_enabled: body.fetch_enabled ?? true,

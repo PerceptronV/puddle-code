@@ -87,7 +87,7 @@ export function useDirSuggestions(prefix: string) {
   return useQuery({
     queryKey: ['fs-dirs', prefix],
     queryFn: () => api<FsDirsResponse>('GET', `/api/fs/dirs?prefix=${encodeURIComponent(prefix)}`),
-    enabled: prefix.startsWith('/'),
+    enabled: prefix.startsWith('/') || prefix.startsWith('~'), // ~ expands on the host
     placeholderData: (previous) => previous, // keep the list steady while typing
     staleTime: 10_000,
   });

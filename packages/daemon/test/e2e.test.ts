@@ -201,6 +201,14 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
 
     const relative = await c.req('GET', '/api/fs/dirs?prefix=not-absolute');
     expect(relative.status).toBe(400);
+
+    // A leading ~ expands against the host home directory.
+    const tilde = await c.json<{ entries: unknown[] }>('GET', '/api/fs/dirs?prefix=~/');
+    expect(Array.isArray(tilde.entries)).toBe(true);
+
+    // Re-registering a known path (however spelt) returns the existing repo.
+    const again = await c.json<Repo>('POST', '/api/repos', { path: repoPath });
+    expect(again.id).toBe(repo.id);
   });
 
   it('rejects skip_permissions against the closed gate with 400', async () => {
