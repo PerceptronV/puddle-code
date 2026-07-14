@@ -11,6 +11,7 @@ Setup:
 pnpm build
 export PUDDLE_HOME=$(mktemp -d)
 node packages/daemon/dist/index.js &
+until [ -f "$PUDDLE_HOME/token" ]; do sleep 0.2; done   # the daemon writes it on boot
 open "http://127.0.0.1:7433/#token=$(cat $PUDDLE_HOME/token)"
 ```
 
