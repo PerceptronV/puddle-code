@@ -8,6 +8,7 @@ import {
   type LoginResponse,
 } from '@puddle/shared';
 import type { AdapterRegistry } from '../../agents/registry.js';
+import type { ConversationShare } from '../../sessions/conversation-share.js';
 import type { AccountStore } from '../../db/stores/accounts.js';
 import type { ProfileStore } from '../../db/stores/profiles.js';
 import type { SessionStore } from '../../db/stores/sessions.js';
@@ -25,6 +26,7 @@ export interface AccountRouteDeps {
   sessions: SessionStore;
   removals: RemovalStore;
   adapters: AdapterRegistry;
+  share: ConversationShare;
   ptys: PtyManager;
   paths: PuddlePaths;
 }
@@ -88,6 +90,10 @@ export function accountRoutes(deps: AccountRouteDeps): Hono {
         deps.accounts.setLoggedIn(account.id, loggedIn);
         account = deps.accounts.get(account.id);
       }
+      // Link the profile's already-adopted conversations into this account (and
+      // fold in any real conversation dir an imported config dir brought along)
+      // so it can immediately resume them (Workstream S).
+      await deps.share.backfillAccount(account);
       return c.json(account, 201);
     })
     .patch('/:id', async (c) => {

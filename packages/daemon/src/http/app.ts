@@ -15,6 +15,7 @@ import { bearerAuth, hostOriginGuard } from '../security/middleware.js';
 import { proxyAuth } from '../proxy/auth.js';
 import { proxyRoutes } from '../proxy/http.js';
 import type { ProxySocketTracker } from '../proxy/sockets.js';
+import type { ConversationShare } from '../sessions/conversation-share.js';
 import type { SessionService } from '../sessions/service.js';
 import type { WorktreeManager } from '../worktrees/manager.js';
 import type { WsGateway } from '../ws/gateway.js';
@@ -51,6 +52,7 @@ export interface AppDeps {
     ptys: PtyManager;
     worktrees: WorktreeManager;
     service: SessionService;
+    share: ConversationShare;
     scanner: PortScanner;
     tracker: ProxySocketTracker;
   };

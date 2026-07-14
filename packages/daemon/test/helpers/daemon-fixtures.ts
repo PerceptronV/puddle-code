@@ -1,7 +1,15 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from 'node:fs';
 import { cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { Account } from '@puddle/shared';
 import type { AgentAdapter } from '../../src/agents/adapter.js';
 import { AdapterRegistry } from '../../src/agents/registry.js';
 import { openDatabase } from '../../src/db/db.js';
@@ -9,6 +17,7 @@ import { AccountStore } from '../../src/db/stores/accounts.js';
 import { EventStore } from '../../src/db/stores/events.js';
 import { ProfileStore } from '../../src/db/stores/profiles.js';
 import { ProjectStore } from '../../src/db/stores/projects.js';
+import { RemovalStore } from '../../src/db/stores/removals.js';
 import { RepoStore } from '../../src/db/stores/repos.js';
 import { SessionStore } from '../../src/db/stores/sessions.js';
 import { KeyedMutex } from '../../src/git/mutex.js';
@@ -16,17 +25,31 @@ import { LogStore } from '../../src/logs/log-store.js';
 import { ensureHome, resolvePaths } from '../../src/paths.js';
 import { PortScanner } from '../../src/ports/scanner.js';
 import { PtyManager } from '../../src/pty/pty-manager.js';
+import { ConversationShare } from '../../src/sessions/conversation-share.js';
 import { MarkerFileSync } from '../../src/sessions/onboarding.js';
 import { SessionService } from '../../src/sessions/service.js';
 import { WorktreeManager } from '../../src/worktrees/manager.js';
 import { initRepo } from './git-fixtures.js';
 
+/** Stable store-key from a worktree path (mirrors claude's escaped-cwd dir). */
+function fakeStoreKey(worktreePath: string): string {
+  let h = 5381;
+  for (let i = 0; i < worktreePath.length; i++) h = ((h << 5) + h + worktreePath.charCodeAt(i)) | 0;
+  return `fake-${(h >>> 0).toString(16)}`;
+}
+
 /**
  * A deterministic agent for tests: bash echoing its launch/resume arguments,
  * then `cat`-ing stdin back. READY lines drive the waiting_input detector.
+ *
+ * With `{ share: true }` the agent also writes a real conversation store —
+ * `<config>/projects/<key>/<ref>.jsonl` plus `<config>/todos/<ref>.json` — and
+ * gains the conversationShare hooks, so the adoption/mirror/archive paths are
+ * exercisable without a real claude. The default (no options) is unchanged so
+ * the rest of the suite keeps its simple marker-based conversation model.
  */
-export function fakeAdapter(): AgentAdapter {
-  return {
+export function fakeAdapter(opts: { share?: boolean } = {}): AgentAdapter {
+  const base: AgentAdapter = {
     id: 'fake',
     displayName: 'Fake Agent',
     binary: 'bash',
@@ -80,6 +103,65 @@ export function fakeAdapter(): AgentAdapter {
     },
     statusPatterns: { waitingInput: [/READY/], busy: [/BUSY-MARKER/] },
   };
+  if (!opts.share) return base;
+
+  // A bash script writing a real per-conversation store dir; the trailing
+  // `read` loop appends PTY input to the JSONL so adoption's moved-inode
+  // property (canonical file grows through the symlink) is observable.
+  const launch = [
+    'd="$FAKE_CONFIG_DIR/projects/$2"',
+    'mkdir -p "$d" "$FAKE_CONFIG_DIR/todos"',
+    'printf \'{"cwd":"%s"}\\n\' "$PWD" > "$d/$3.jsonl"',
+    'printf \'[]\' > "$FAKE_CONFIG_DIR/todos/$3.json"',
+    'echo "LAUNCH skip=$1"',
+    'echo READY',
+    'while IFS= read -r l; do printf \'%s\\n\' "$l" >> "$d/$3.jsonl"; done',
+  ].join('; ');
+  const resume = [
+    'd="$FAKE_CONFIG_DIR/projects/$3"',
+    'mkdir -p "$d" "$FAKE_CONFIG_DIR/todos"',
+    'echo "RESUME ref=$1 skip=$2"',
+    'echo READY',
+    'while IFS= read -r l; do printf \'%s\\n\' "$l" >> "$d/$1.jsonl"; done',
+  ].join('; ');
+  const projectsScan = (ref: string, account: Account): string | null => {
+    const projects = join(account.config_dir, 'projects');
+    if (!existsSync(projects)) return null;
+    for (const dir of readdirSync(projects)) {
+      if (existsSync(join(projects, dir, `${ref}.jsonl`))) return join(projects, dir);
+    }
+    return null;
+  };
+  return {
+    ...base,
+    launchArgs: (o) => [
+      '-c',
+      launch,
+      'bash',
+      String(o.skipPermissions),
+      fakeStoreKey(o.worktreePath),
+      `fake-ref-${o.sessionId}`,
+    ],
+    resumeArgs: (ref, o) => [
+      '-c',
+      resume,
+      'bash',
+      ref,
+      String(o.skipPermissions),
+      fakeStoreKey(o.worktreePath),
+    ],
+    // The JSONL is the source of truth here — no separate conv marker.
+    resolveSessionRef: async (o) => `fake-ref-${o.sessionId}`,
+    hasConversation: (ref, account) => projectsScan(ref, account) !== null,
+    conversationShare: {
+      storeParent: (account) => join(account.config_dir, 'projects'),
+      locateStoreDir: (ref, account) => projectsScan(ref, account),
+      sessionFiles: (ref, storeDir, account) => ({
+        inStore: [join(storeDir, `${ref}.jsonl`)],
+        perAccount: [join(account.config_dir, 'todos', `${ref}.json`)],
+      }),
+    },
+  };
 }
 
 export interface Fixture {
@@ -91,19 +173,22 @@ export interface Fixture {
     projects: ProjectStore;
     sessions: SessionStore;
     events: EventStore;
+    removals: RemovalStore;
   };
   logs: LogStore;
   ptys: PtyManager;
   scanner: PortScanner;
   worktrees: WorktreeManager;
   service: SessionService;
+  share: ConversationShare;
+  adapters: AdapterRegistry;
   onboarding: MarkerFileSync;
   ids: { profile: string; account: number; repo: number; project: string };
   repoPath: string;
 }
 
 /** Full daemon wiring (minus HTTP/WS) on a temp home with a real git repo. */
-export function fixture(opts: { quietMs?: number } = {}): Fixture {
+export function fixture(opts: { quietMs?: number; share?: boolean } = {}): Fixture {
   const paths = resolvePaths(mkdtempSync(join(tmpdir(), 'puddle-home-')));
   ensureHome(paths);
   const db = openDatabase(paths.dbFile);
@@ -114,6 +199,7 @@ export function fixture(opts: { quietMs?: number } = {}): Fixture {
     projects: new ProjectStore(db),
     sessions: new SessionStore(db),
     events: new EventStore(db),
+    removals: new RemovalStore(db),
   };
   const logs = new LogStore(paths.logsDir, 256 * 1024);
   const ptys = new PtyManager(logs);
@@ -129,7 +215,14 @@ export function fixture(opts: { quietMs?: number } = {}): Fixture {
     events: stores.events,
     sessions: stores.sessions,
   });
-  const adapters = new AdapterRegistry([fakeAdapter()]);
+  const adapters = new AdapterRegistry([fakeAdapter({ share: opts.share })]);
+  const share = new ConversationShare({
+    accounts: stores.accounts,
+    adapters,
+    paths,
+    mutex: new KeyedMutex(),
+    events: stores.events,
+  });
   const service = new SessionService({
     ...stores,
     worktrees,
@@ -137,6 +230,7 @@ export function fixture(opts: { quietMs?: number } = {}): Fixture {
     adapters,
     logs,
     onboarding,
+    share,
     statusQuietMs: opts.quietMs ?? 150,
   });
 
@@ -171,6 +265,8 @@ export function fixture(opts: { quietMs?: number } = {}): Fixture {
     scanner,
     worktrees,
     service,
+    share,
+    adapters,
     onboarding,
     repoPath,
     ids: { profile: profile.id, account: account.id, repo: repo.id, project: project.id },

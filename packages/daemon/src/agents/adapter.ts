@@ -41,6 +41,33 @@ export interface StatusPatterns {
   limitReached?: RegExp[];
 }
 
+export interface ConversationShareHooks {
+  /**
+   * Directory under the account's config dir that CONTAINS the per-conversation
+   * store dirs (e.g. `<config>/projects`). The canonical store's symlinks are
+   * placed here, one per store-key.
+   */
+  storeParent(account: Account): string;
+  /**
+   * The store dir holding `<ref>`'s conversation under this account, or null.
+   * Found by following the filesystem (so it resolves a post-adoption symlink
+   * too); the caller distinguishes real from symlink via lstat. The store-key
+   * is the basename of the returned path.
+   */
+  locateStoreDir(ref: string, account: Account): string | null;
+  /**
+   * The session's own files, split by ownership: `inStore` paths live INSIDE
+   * the (canonical) store dir and are shared across accounts; `perAccount`
+   * paths are ancillary state kept under each account's config dir (todos etc.)
+   * and exist once per account.
+   */
+  sessionFiles(
+    ref: string,
+    storeDir: string,
+    account: Account,
+  ): { inStore: string[]; perAccount: string[] };
+}
+
 /**
  * One adapter per coding agent (SPEC §5). ALL agent-specific behaviour —
  * flags, env vars, session-file locations, status regexes — lives in the
@@ -121,6 +148,14 @@ export interface AgentAdapter {
   resolveSessionRef(opts: LaunchOpts, account: Account): Promise<string>;
   /** Matched against ANSI-stripped output (SPEC §5). */
   statusPatterns: StatusPatterns;
+  /**
+   * Shared conversation store hooks (Workstream S). Present only for agents
+   * whose conversations live in per-conversation directories that can be
+   * adopted into a per-profile canonical store and symlinked into every
+   * account of the (profile, agent). Absent → the manager treats the agent as
+   * non-shareable and does nothing. All paths returned are absolute.
+   */
+  conversationShare?: ConversationShareHooks;
   /** Phase 7: move conversation state between accounts (same agent). */
   migrateSession?(ref: string, from: Account, to: Account, worktree: string): Promise<void>;
   /** Phase 7: render the conversation as text for cross-agent hand-off. */

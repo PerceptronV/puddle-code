@@ -12,6 +12,13 @@ export interface PuddlePaths {
   worktreesDir: string;
   logsDir: string;
   accountConfigDir(profileId: string, agentType: string, label: string): string;
+  /**
+   * Per-profile canonical store for adopted agent conversations (Workstream S).
+   * A conversation's project dir is renamed here once and symlinked back into
+   * every account of the (profile, agent) so the same agent can resume it under
+   * a different account without moving files.
+   */
+  profileSessionsDir(profileId: string, agentType: string): string;
   sessionWorktreeDir(repoId: number, sessionId: string): string;
   /** Shared per-(repo, branch) worktree for separate_branch = false sessions (SPEC §4). */
   sharedWorktreeDir(repoId: number, branchSlug: string): string;
@@ -31,6 +38,8 @@ export function resolvePaths(
     logsDir: join(home, 'logs'),
     accountConfigDir: (profileId, agentType, label) =>
       join(home, 'profiles', profileId, 'accounts', agentType, label),
+    profileSessionsDir: (profileId, agentType) =>
+      join(home, 'profiles', profileId, 'sessions', agentType),
     sessionWorktreeDir: (repoId, sessionId) => join(home, 'worktrees', String(repoId), sessionId),
     sharedWorktreeDir: (repoId, branchSlug) =>
       join(home, 'worktrees', String(repoId), `branch-${branchSlug}`),

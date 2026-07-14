@@ -23,6 +23,7 @@ import { attachProxyUpgrade } from './proxy/upgrade.js';
 import { ProxySocketTracker } from './proxy/sockets.js';
 import { PtyManager } from './pty/pty-manager.js';
 import { ensureToken } from './security/token.js';
+import { ConversationShare } from './sessions/conversation-share.js';
 import { MarkerFileSync } from './sessions/onboarding.js';
 import { reconcilePass } from './sessions/reconcile.js';
 import { SessionService } from './sessions/service.js';
@@ -77,6 +78,13 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   const worktrees = new WorktreeManager({ paths, mutex: new KeyedMutex(), repos, sessions });
   const onboarding = new MarkerFileSync({ repos, events, sessions });
   const adapters = new AdapterRegistry(opts.adapters ?? [claudeCode]);
+  const share = new ConversationShare({
+    accounts,
+    adapters,
+    paths,
+    mutex: new KeyedMutex(),
+    events,
+  });
   const service = new SessionService({
     profiles,
     accounts,
@@ -89,6 +97,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     adapters,
     logs,
     onboarding,
+    share,
     statusQuietMs: opts.statusQuietMs,
   });
 
@@ -114,6 +123,10 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       }
     }),
   );
+
+  // Repair the shared conversation store's symlinks (missing/dangling) so
+  // every account of a profile can still resolve its adopted conversations.
+  void share.reconcile().catch((e) => console.warn(`conversation reconcile failed: ${e.message}`));
 
   const sweptStates = projectStates.gc(config.uiStateRetentionDays);
   if (sweptStates > 0) console.log(`ui-state gc: ${sweptStates} stale row(s) removed`);
@@ -163,6 +176,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       ptys,
       worktrees,
       service,
+      share,
       scanner,
       tracker,
     },

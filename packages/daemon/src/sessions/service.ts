@@ -15,6 +15,7 @@ import type { LogStore } from '../logs/log-store.js';
 import type { PtyDataEvent, PtyExitEvent, PtyManager } from '../pty/pty-manager.js';
 import { StatusDetector, type DetectedStatus } from '../pty/status-detector.js';
 import type { WorktreeManager } from '../worktrees/manager.js';
+import type { ConversationShare } from './conversation-share.js';
 import { buildOnboardingPreamble, INTERRUPTED_RESUME_NOTE } from './onboarding.js';
 import type { MarkerFileSync } from './onboarding.js';
 
@@ -30,6 +31,8 @@ export interface SessionServiceDeps {
   adapters: AdapterRegistry;
   logs: LogStore;
   onboarding: MarkerFileSync;
+  /** Shared conversation store (Workstream S); absent → no adoption. */
+  share?: ConversationShare;
   /** waiting_input quiet window; overridable for tests. */
   statusQuietMs?: number;
 }
@@ -61,6 +64,8 @@ const LIVE_STATUSES: SessionStatus[] = ['starting', 'running', 'waiting_input'];
  */
 export class SessionService extends EventEmitter {
   private readonly liveAgents = new Map<string, LiveAgent>();
+  /** Sessions whose conversation is already adopted — stops the retry loop. */
+  private readonly adopted = new Set<string>();
   private shuttingDown = false;
 
   constructor(private readonly deps: SessionServiceDeps) {
@@ -183,6 +188,9 @@ export class SessionService extends EventEmitter {
     );
     const ref = await adapter.resolveSessionRef(launchOpts, account);
     this.deps.sessions.setAgentSessionRef(sessionId, ref);
+    // Adopt-after-first-write: the conversation file rarely exists this early,
+    // so this is a best-effort first attempt; the waiting_input flip retries.
+    this.scheduleAdopt(sessionId);
     this.deps.events.record(sessionId, 'created', {
       branch: worktree.branch,
       base_ref: worktree.baseRef,
@@ -323,6 +331,16 @@ export class SessionService extends EventEmitter {
       }
     }
     this.deps.onboarding.unwatch(id);
+    // Delete this session's own conversation files from the shared store; a
+    // canonical dir that is left empty (and its symlinks) go with it.
+    if (this.deps.share) {
+      try {
+        await this.deps.share.removeSessionData(session);
+      } catch (e) {
+        console.warn(`conversation cleanup ${id} failed: ${(e as Error).message}`);
+      }
+    }
+    this.adopted.delete(id);
     this.transition(id, 'archived');
     this.deps.events.record(id, 'archived', { forced: force, branch_deleted: deleteBranch });
     return this.get(id);
@@ -452,6 +470,32 @@ export class SessionService extends EventEmitter {
     if (!live || live.status === detected || live.status === 'starting') return;
     live.status = detected;
     this.transition(sessionId, detected);
+    // Backstop for adoption: by waiting_input the agent has written its
+    // conversation file, which was usually absent at spawn time.
+    if (detected === 'waiting_input') this.scheduleAdopt(sessionId);
+  }
+
+  /**
+   * Best-effort adopt of a session's conversation into the shared store. Runs
+   * at most once successfully per session (the `adopted` set); a run that finds
+   * nothing on disk yet leaves the session out so a later flip retries.
+   */
+  private scheduleAdopt(sessionId: string): void {
+    if (!this.deps.share || this.adopted.has(sessionId)) return;
+    let session;
+    try {
+      session = this.deps.sessions.get(sessionId);
+    } catch {
+      return; // session gone
+    }
+    void this.deps.share
+      .adoptIfNeeded(session)
+      .then((done) => {
+        if (done) this.adopted.add(sessionId);
+      })
+      .catch((e) =>
+        console.warn(`conversation adopt ${sessionId} failed: ${(e as Error).message}`),
+      );
   }
 
   private onPtyExit(e: PtyExitEvent): void {

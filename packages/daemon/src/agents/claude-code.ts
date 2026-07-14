@@ -11,6 +11,7 @@ import { cp } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { AgentAdapter, AgentUsage } from './adapter.js';
+import { claudeConversationShare } from './claude-share.js';
 import { installStatusLine, readLiveUsage } from './claude-statusline.js';
 import { fetchSubscriptionUsage } from './claude-usage-cli.js';
 
@@ -187,6 +188,12 @@ export const claudeCode: AgentAdapter = {
   liveUsage(account) {
     return readLiveUsage(account.config_dir);
   },
+
+  // Shared conversation store hooks (Workstream S); see claude-share.ts for the
+  // pinned verification block. Consequence: after adoption every account of the
+  // profile reads the SAME conversation JSONLs through its symlink, so
+  // usageStats/hasConversation report identical conversations for them all.
+  conversationShare: claudeConversationShare,
 
   subscriptionUsage(account) {
     return fetchSubscriptionUsage(account);
