@@ -65,7 +65,7 @@ function HostIndicator() {
       : repoPath;
 
   return (
-    <span className="absolute left-1/2 max-w-[45%] -translate-x-1/2 truncate font-mono text-xs text-fg-secondary">
+    <span className="absolute left-1/2 max-w-[45%] -translate-x-1/2 truncate font-mono text-base font-semibold text-fg-secondary">
       {host.data.username}@{host.data.hostname}
       {shownPath && <span className="text-fg-muted">:{shownPath}</span>}
     </span>
