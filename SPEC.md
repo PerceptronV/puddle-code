@@ -313,7 +313,7 @@ Sessions   GET  /api/sessions?project=…&status=…
                 # separate_branch defaults true; false = work directly on the base branch in a shared
                 # worktree (§4 Relaxed isolation) — branch must then be absent (400 branch_with_shared)
                 # branch naming: requested branch → prefix + title slug → prefix + first words of the
-                # prompt → prefix + a memorable word pair (quiet-tarn) — never a uuid fragment
+                # prompt → prefix + a memorable adjective-noun-element triple (quiet-tarn-fire) — never a uuid fragment
                 # skip_permissions is honoured only if the profile gate AND the account opt-in allow it;
                 # otherwise the request is rejected (400) — enforced server-side, no CLI/API bypass
            GET  /api/sessions/:id            # detail incl. git summary (ahead/behind, dirty files)

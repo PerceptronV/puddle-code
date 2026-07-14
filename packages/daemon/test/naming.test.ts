@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { wordPairName } from '../src/worktrees/names.js';
+import { ADJECTIVES, ELEMENTS, NOUNS, memorableName } from '../src/worktrees/names.js';
 import { promptSlug, slugify } from '../src/worktrees/slug.js';
 
 describe('branch naming', () => {
@@ -15,9 +15,27 @@ describe('branch naming', () => {
     expect(promptSlug(null)).toBe('');
   });
 
-  it('falls back to a memorable word pair, never a uuid fragment', () => {
-    for (let i = 0; i < 20; i++) {
-      expect(wordPairName()).toMatch(/^[a-z]+-[a-z]+$/);
+  it('falls back to a memorable adjective-noun-element triple, never a uuid fragment', () => {
+    for (let i = 0; i < 50; i++) {
+      expect(memorableName()).toMatch(/^[a-z]+-[a-z]+-(earth|air|fire|water|metal|wood)$/);
+    }
+  });
+
+  it('draws from 100 adjectives and 100 nouns, all branch-safe and distinct', () => {
+    expect(ADJECTIVES).toHaveLength(100);
+    expect(NOUNS).toHaveLength(100);
+    for (const word of [...ADJECTIVES, ...NOUNS, ...ELEMENTS]) {
+      expect(word).toMatch(/^[a-z]+$/);
+    }
+    expect(new Set(ADJECTIVES).size).toBe(ADJECTIVES.length);
+    expect(new Set(NOUNS).size).toBe(NOUNS.length);
+  });
+
+  it('keeps the elements out of the nouns, even as substrings', () => {
+    for (const noun of NOUNS) {
+      for (const element of ELEMENTS) {
+        expect(noun).not.toContain(element);
+      }
     }
   });
 });

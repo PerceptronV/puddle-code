@@ -130,14 +130,14 @@ describe('WorktreeManager.create', () => {
     expect(b.branch).toBe('demo-2');
   });
 
-  it('falls back to a word-pair name when there is no title or prompt', async () => {
+  it('falls back to a memorable triple name when there is no title or prompt', async () => {
     const { manager, repo } = setup(initRepo());
     const result = await manager.create({
       repo,
       sessionId: randomUUID(),
       branchPrefix: 'alice/',
     });
-    expect(result.branch).toMatch(/^alice\/[a-z]+-[a-z]+$/);
+    expect(result.branch).toMatch(/^alice\/[a-z]+-[a-z]+-(earth|air|fire|water|metal|wood)$/);
   });
 
   it('rejects an unknown base branch', async () => {
