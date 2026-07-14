@@ -265,6 +265,7 @@ function WorkspaceInner() {
       {sidebarCollapsed && (
         <CollapsedSidebarRail
           mode={sidebarMode}
+          onExpand={() => uiState.update({ sidebar_collapsed: false })}
           onSelect={(m) => uiState.update({ sidebar_collapsed: false, sidebar_mode: m })}
         />
       )}
@@ -398,6 +399,8 @@ function WorkspaceInner() {
           projectId={projectId}
           sessions={sessions}
           activeSessionId={activeSessionId}
+          order={uiState.snapshot.session_order}
+          onReorder={(ids) => uiState.update({ session_order: ids })}
           onExpand={() => uiState.update({ sessions_collapsed: false })}
           onNewTerminal={() => openCreate('terminal')}
           onNewSession={() => openCreate('agent')}

@@ -1,4 +1,12 @@
-import { GitBranch, FolderTree, PanelLeftClose, Pin, Search, type LucideIcon } from 'lucide-react';
+import {
+  GitBranch,
+  FolderTree,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Pin,
+  Search,
+  type LucideIcon,
+} from 'lucide-react';
 import type { Session } from '@puddle/shared';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utils';
@@ -28,20 +36,37 @@ export function normalizeSidebarMode(mode: string): SidebarMode {
 }
 
 /**
- * The collapsed left navigator: a slim rail of the same mode icons — Files ·
- * Search · Changes — stacked vertically (HUMANS.md minimalism, no border, a
- * fill-shift on hover). Clicking an icon expands the sidebar straight to that
- * navigator (SPEC §8).
+ * The collapsed left navigator: a slim rail with the expand control on top
+ * (mirroring the right sidebar, so the toggle stays visible when collapsed),
+ * then the same mode icons — Files · Search · Changes — stacked vertically
+ * (HUMANS.md minimalism, no border, a fill-shift on hover). The expand button
+ * reopens to the last navigator; clicking a mode icon reopens straight to it
+ * (SPEC §8).
  */
 export function CollapsedSidebarRail({
   mode,
+  onExpand,
   onSelect,
 }: {
   mode: SidebarMode;
+  onExpand: () => void;
   onSelect: (mode: SidebarMode) => void;
 }) {
   return (
     <div className="flex h-full w-9 shrink-0 flex-col items-center gap-1 bg-surface py-1.5">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={onExpand}
+            className="flex items-center rounded-md p-1.5 text-fg-muted transition-colors hover:bg-elevated hover:text-fg"
+          >
+            <PanelLeftOpen className="size-4" />
+            <span className="sr-only">Show sidebar</span>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right">Show sidebar</TooltipContent>
+      </Tooltip>
       {MODES.map(({ key, label, icon: Icon }) => (
         <Tooltip key={key}>
           <TooltipTrigger asChild>
@@ -134,7 +159,10 @@ export function NavigatorSidebar({
                 aria-pressed={pinned}
                 disabled={!session}
                 onClick={() => (pinned ? unpin() : session && pin(session.id))}
-                className="flex items-center rounded-md p-1.5 text-accent transition-colors hover:bg-elevated hover:text-accent-hover disabled:pointer-events-none disabled:opacity-40"
+                className={cn(
+                  'flex items-center rounded-md p-1.5 transition-colors disabled:pointer-events-none disabled:opacity-40',
+                  pinned ? 'bg-elevated text-fg' : 'text-fg-muted hover:bg-elevated hover:text-fg',
+                )}
               >
                 <Pin className={cn('size-4', pinned && 'fill-current')} />
                 <span className="sr-only">{pinned ? 'Unpin sidebar' : 'Pin sidebar'}</span>
@@ -149,7 +177,7 @@ export function NavigatorSidebar({
               <button
                 type="button"
                 onClick={onCollapse}
-                className="flex items-center rounded-md p-1.5 text-accent transition-colors hover:bg-elevated hover:text-accent-hover"
+                className="flex items-center rounded-md p-1.5 text-fg-muted transition-colors hover:bg-elevated hover:text-fg"
               >
                 <PanelLeftClose className="size-4" />
                 <span className="sr-only">Hide sidebar</span>

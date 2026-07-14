@@ -56,6 +56,8 @@ export function CollapsedSessionsRail({
   projectId,
   sessions,
   activeSessionId,
+  order,
+  onReorder,
   onExpand,
   onNewTerminal,
   onNewSession,
@@ -63,11 +65,30 @@ export function CollapsedSessionsRail({
   projectId: string;
   sessions: Session[];
   activeSessionId: string | null;
+  /** Persisted user order — must match the expanded sidebar's order exactly. */
+  order: string[];
+  onReorder: (ids: string[]) => void;
   onExpand: () => void;
   onNewTerminal: () => void;
   onNewSession: () => void;
 }) {
-  const visible = sessions.filter((s) => s.status !== 'archived');
+  const [dragging, setDragging] = useState<string | null>(null);
+  // Same ordering as the expanded sidebar so the dots line up, and drag-
+  // reorderable the same way.
+  const visible = orderSessions(
+    sessions.filter((s) => s.status !== 'archived'),
+    order,
+  );
+  const move = (id: string, before: string) => {
+    if (id === before) return;
+    onReorder(
+      reorderIds(
+        visible.map((s) => s.id),
+        id,
+        before,
+      ),
+    );
+  };
   return (
     <div className="flex h-full w-9 shrink-0 flex-col items-center bg-surface py-1.5">
       <div className="flex flex-col items-center gap-1">
@@ -78,21 +99,34 @@ export function CollapsedSessionsRail({
       {visible.length > 0 && <div className="my-1.5 h-px w-5 shrink-0 bg-border" />}
       <div className="flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto">
         {visible.map((session) => (
-          <Tooltip key={session.id}>
-            <TooltipTrigger asChild>
-              <Link
-                to={`/project/${projectId}/session/${session.id}`}
-                className={cn(
-                  'flex items-center rounded-md p-1.5 transition-colors hover:bg-elevated',
-                  session.id === activeSessionId && 'bg-elevated',
-                )}
-              >
-                <StatusDot status={session.status} kind={session.kind} />
-                <span className="sr-only">{session.title ?? session.branch}</span>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent>{session.title ?? session.branch}</TooltipContent>
-          </Tooltip>
+          <div
+            key={session.id}
+            draggable
+            onDragStart={() => setDragging(session.id)}
+            onDragEnd={() => setDragging(null)}
+            onDragOver={(e) => {
+              e.preventDefault();
+              if (dragging && dragging !== session.id) move(dragging, session.id);
+            }}
+            className={cn('transition-opacity', dragging === session.id && 'opacity-50')}
+          >
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link
+                  draggable={false}
+                  to={`/project/${projectId}/session/${session.id}`}
+                  className={cn(
+                    'flex items-center rounded-md p-1.5 transition-colors hover:bg-elevated',
+                    session.id === activeSessionId && 'bg-elevated',
+                  )}
+                >
+                  <StatusDot status={session.status} kind={session.kind} />
+                  <span className="sr-only">{session.title ?? session.branch}</span>
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent>{session.title ?? session.branch}</TooltipContent>
+            </Tooltip>
+          </div>
         ))}
       </div>
     </div>
