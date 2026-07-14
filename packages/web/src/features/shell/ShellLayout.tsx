@@ -66,7 +66,10 @@ function HostIndicator() {
 
   return (
     <span className="absolute left-1/2 max-w-[45%] -translate-x-1/2 truncate font-mono text-sm font-semibold text-fg-secondary">
-      {host.data.username}@{host.data.hostname}
+      {/* The host is the way home: click → all projects. */}
+      <Link to="/" className="transition-colors hover:text-fg">
+        {host.data.username}@{host.data.hostname}
+      </Link>
       {shownPath && <span className="text-fg-muted">:{shownPath}</span>}
     </span>
   );
