@@ -11,6 +11,7 @@ import type { SessionStore } from '../../db/stores/sessions.js';
 import { ApiError } from '../errors.js';
 import { parseBody } from '../validate.js';
 import { worktreeFileRoutes } from './worktree-files.js';
+import { worktreeGitRoutes } from './worktree-git.js';
 import { resolveWorktree } from './worktree-shared.js';
 
 /** Decoded-size cap for pasted images; generous for screenshots, hostile to abuse. */
@@ -25,8 +26,9 @@ const EXTENSION: Record<PasteImageMime, string> = {
 
 /**
  * Worktree-scoped routes (SPEC §6, Files): thin aggregator over the
- * clipboard-paste target (§7) and the tree/file/upload/download family
- * (§8, `worktree-files.ts`). A later task mounts `worktreeGitRoutes` here too.
+ * clipboard-paste target (§7), the tree/file/upload/download family
+ * (§8, `worktree-files.ts`), and the read-only git inspection family
+ * (diff/file-at/log/show, `worktree-git.ts`).
  */
 export function worktreeRoutes(deps: { sessions: SessionStore }): Hono {
   const app = new Hono();
@@ -58,5 +60,6 @@ export function worktreeRoutes(deps: { sessions: SessionStore }): Hono {
   });
 
   app.route('/', worktreeFileRoutes(deps));
+  app.route('/', worktreeGitRoutes(deps));
   return app;
 }

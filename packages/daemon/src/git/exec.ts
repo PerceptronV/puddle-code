@@ -29,3 +29,27 @@ export function git(args: string[], opts: { cwd?: string } = {}): Promise<string
     );
   });
 }
+
+/**
+ * Same choke point as `git()`, for callers that need raw bytes: blob reads
+ * (`git show <ref>:<path>`) must not go through `git()`'s `.trim()`, which
+ * would silently corrupt a file's trailing newline or binary content.
+ */
+export function gitBuffer(args: string[], opts: { cwd: string }): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      'git',
+      args,
+      { cwd: opts.cwd, maxBuffer: 16 * 1024 * 1024, encoding: 'buffer' },
+      (err, stdout, stderr) => {
+        if (err) {
+          const code = typeof err.code === 'number' ? err.code : null;
+          const message = Buffer.isBuffer(stderr) ? stderr.toString('utf8') : err.message;
+          reject(new GitError(args, code, message || err.message));
+          return;
+        }
+        resolve(stdout);
+      },
+    );
+  });
+}

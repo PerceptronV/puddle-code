@@ -9,7 +9,15 @@ export const errorResponseSchema = z.object({
 });
 export type ErrorResponse = z.infer<typeof errorResponseSchema>;
 
-export const isoTimestamp = z.iso.datetime();
+/**
+ * `{offset: true}` because git's strict-ISO `%aI` (used for commit timestamps,
+ * see worktree-git.ts) renders the author's recorded UTC offset verbatim
+ * (e.g. `-07:00`) and only degenerates to `Z` when that offset is zero — a
+ * real commit made in a non-UTC timezone would otherwise fail this schema.
+ * Purely additive: existing `Z`-suffixed timestamps (`new Date().toISOString()`
+ * elsewhere in the daemon) still validate.
+ */
+export const isoTimestamp = z.iso.datetime({ offset: true });
 
 /** SQLite integer primary keys. */
 export const rowId = z.number().int().positive();

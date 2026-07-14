@@ -1,11 +1,14 @@
+import { existsSync } from 'node:fs';
 import { Hono } from 'hono';
 import {
   archiveRequestSchema,
   createSessionRequestSchema,
   patchSessionRequestSchema,
   sessionStatusSchema,
+  type Session,
 } from '@puddle/shared';
 import type { SessionService } from '../../sessions/service.js';
+import { gitSummary } from '../../worktrees/inspect.js';
 import { ApiError } from '../errors.js';
 import { parseBody } from '../validate.js';
 
@@ -29,7 +32,15 @@ export function sessionRoutes(deps: { service: SessionService }): Hono {
       const body = await parseBody(c, createSessionRequestSchema);
       return c.json(await deps.service.create(body), 201);
     })
-    .get('/:id', (c) => c.json(deps.service.get(c.req.param('id'))))
+    .get('/:id', async (c) => {
+      const session = deps.service.get(c.req.param('id'));
+      // Computed on read, single-session GET only (SPEC §6/§8): too
+      // expensive to run per row on the list endpoint.
+      const git_summary = existsSync(session.worktree_path)
+        ? await gitSummary(session.worktree_path, session.base_branch)
+        : null;
+      return c.json<Session>({ ...session, git_summary });
+    })
     .patch('/:id', async (c) => {
       const body = await parseBody(c, patchSessionRequestSchema);
       return c.json(deps.service.rename(c.req.param('id'), body.title));
