@@ -25,7 +25,7 @@ export function SessionSidebar({
 
   return (
     <div className="flex h-full flex-col bg-surface">
-      <div className="flex items-center gap-2 px-3 py-2">
+      <div className="flex items-center gap-2 py-2 pl-5 pr-3">
         <span className="text-2xs font-medium uppercase tracking-wide text-fg-muted">Sessions</span>
         <Button variant="ghost" size="icon" className="ml-auto size-6" onClick={onNewSession}>
           <Plus />
@@ -34,8 +34,8 @@ export function SessionSidebar({
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
         {visible.length === 0 && (
-          // px-1.5 stacks on the container's p-1.5 → flush with the px-3 header.
-          <p className="px-1.5 py-3 text-xs text-fg-muted">
+          // pl-3.5 stacks on the container's p-1.5 → flush with the pl-5 header.
+          <p className="py-3 pl-3.5 pr-1.5 text-xs text-fg-muted">
             No sessions yet — press ⌘K to start one.
           </p>
         )}
