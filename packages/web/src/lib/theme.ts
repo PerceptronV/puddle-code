@@ -69,9 +69,23 @@ export function onThemeChange(listener: ThemeListener): () => void {
 /** Resolved token lookup, e.g. read('--bg-base') → '#000a14'. */
 export type TokenReader = (token: string) => string;
 
+/**
+ * Expands 3/4-digit hex shorthand to the canonical 6/8-digit form. The
+ * production CSS minifier rewrites `#ffffff` → `#fff` inside the bundled
+ * tokens, and monaco's token-theme parser accepts only the long forms
+ * ("Illegal value for token color: #fff" — a blank screen in the built app,
+ * invisible in dev where CSS ships unminified). Anything that isn't short
+ * hex passes through untouched.
+ */
+export function expandShortHex(value: string): string {
+  const short = /^#([0-9a-fA-F]{3,4})$/.exec(value);
+  if (!short) return value;
+  return `#${[...short[1]].map((digit) => digit + digit).join('')}`;
+}
+
 export function cssTokenReader(): TokenReader {
   const style = getComputedStyle(document.documentElement);
-  return (token) => style.getPropertyValue(token).trim();
+  return (token) => expandShortHex(style.getPropertyValue(token).trim());
 }
 
 /** Matches @xterm/xterm's ITheme (structurally — no import needed here). */

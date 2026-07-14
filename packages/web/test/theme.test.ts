@@ -1,5 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { monacoThemeFrom, xtermThemeFrom, type TokenReader } from '../src/lib/theme';
+import { expandShortHex, monacoThemeFrom, xtermThemeFrom, type TokenReader } from '../src/lib/theme';
+
+describe('expandShortHex', () => {
+  it('expands minifier-shortened 3- and 4-digit hex to canonical form', () => {
+    // The production CSS minifier rewrites #ffffff → #fff; monaco's token
+    // parser rejects the short form ("Illegal value for token color: #fff").
+    expect(expandShortHex('#fff')).toBe('#ffffff');
+    expect(expandShortHex('#7af')).toBe('#77aaff');
+    expect(expandShortHex('#fff8')).toBe('#ffffff88');
+  });
+
+  it('passes canonical and non-hex values through untouched', () => {
+    expect(expandShortHex('#7dadff')).toBe('#7dadff');
+    expect(expandShortHex('#8be8b32e')).toBe('#8be8b32e');
+    expect(expandShortHex('rgb(255, 255, 255)')).toBe('rgb(255, 255, 255)');
+    expect(expandShortHex('')).toBe('');
+  });
+});
 
 /** Reader that echoes the token name so mappings are directly assertable. */
 const echo: TokenReader = (token) => `<${token}>`;
