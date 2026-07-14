@@ -6,6 +6,7 @@ import type { ProfileStore } from '../db/stores/profiles.js';
 import type { ProjectStateStore } from '../db/stores/project-states.js';
 import type { ProjectStore } from '../db/stores/projects.js';
 import type { RemovalStore } from '../db/stores/removals.js';
+import type { SessionStore } from '../db/stores/sessions.js';
 import type { RepoStore } from '../db/stores/repos.js';
 import type { PuddlePaths } from '../paths.js';
 import type { PtyManager } from '../pty/pty-manager.js';
@@ -40,6 +41,7 @@ export interface AppDeps {
     projects: ProjectStore;
     projectStates: ProjectStateStore;
     removals: RemovalStore;
+    sessions: SessionStore;
     adapters: AdapterRegistry;
     ptys: PtyManager;
     worktrees: WorktreeManager;

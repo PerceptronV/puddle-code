@@ -16,7 +16,7 @@ import type { PtyDataEvent, PtyExitEvent, PtyManager } from '../pty/pty-manager.
 import { StatusDetector, type DetectedStatus } from '../pty/status-detector.js';
 import type { WorktreeManager } from '../worktrees/manager.js';
 import { buildOnboardingPreamble, INTERRUPTED_RESUME_NOTE } from './onboarding.js';
-import type { OnboardingNotesSync } from './onboarding.js';
+import type { MarkerFileSync } from './onboarding.js';
 
 export interface SessionServiceDeps {
   profiles: ProfileStore;
@@ -29,7 +29,7 @@ export interface SessionServiceDeps {
   ptys: PtyManager;
   adapters: AdapterRegistry;
   logs: LogStore;
-  onboarding: OnboardingNotesSync;
+  onboarding: MarkerFileSync;
   /** waiting_input quiet window; overridable for tests. */
   statusQuietMs?: number;
 }
@@ -117,6 +117,7 @@ export class SessionService extends EventEmitter {
       baseBranch: input.base_branch,
       requestedBranch: input.branch,
       title: input.title ?? null,
+      prompt: input.prompt ?? null,
       branchPrefix: profile.branch_prefix,
     });
     const session = this.deps.sessions.create({

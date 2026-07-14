@@ -7,7 +7,8 @@ import { git } from '../git/exec.js';
 import type { KeyedMutex } from '../git/mutex.js';
 import { ApiError } from '../http/errors.js';
 import type { PuddlePaths } from '../paths.js';
-import { slugify } from './slug.js';
+import { wordPairName } from './names.js';
+import { promptSlug, slugify } from './slug.js';
 
 export interface CreateWorktreeResult {
   worktreePath: string;
@@ -36,6 +37,7 @@ export class WorktreeManager {
     baseBranch?: string;
     requestedBranch?: string;
     title?: string | null;
+    prompt?: string | null;
     branchPrefix: string;
   }): Promise<CreateWorktreeResult> {
     const { repo } = opts;
@@ -131,12 +133,14 @@ export class WorktreeManager {
       requestedBranch?: string;
       branchPrefix: string;
       title?: string | null;
-      sessionId: string;
+      prompt?: string | null;
     },
   ): Promise<string> {
+    // Human-readable at every fallback: title slug → first words of the
+    // prompt → a memorable word pair. Never a uuid fragment.
     const wanted =
       opts.requestedBranch ??
-      `${opts.branchPrefix}${slugify(opts.title) || opts.sessionId.slice(0, 8)}`;
+      `${opts.branchPrefix}${slugify(opts.title) || promptSlug(opts.prompt) || wordPairName()}`;
     const refs = await git(
       ['for-each-ref', '--format=%(refname:short)', 'refs/heads', 'refs/remotes'],
       { cwd: repo.path },

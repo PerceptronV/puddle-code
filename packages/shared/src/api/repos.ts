@@ -24,9 +24,17 @@ export const createRepoRequestSchema = z.object({
   fetch_enabled: z.boolean().optional(),
 });
 
+/** One branch in GET /api/repos/:id/branches, annotated when a puddle session owns it. */
+export const repoBranchSchema = z.object({
+  name: z.string(),
+  is_session: z.boolean(),
+  session_title: z.string().nullable(),
+});
+export type RepoBranch = z.infer<typeof repoBranchSchema>;
+
 /** GET /api/repos/:id/branches — local and fetched remote heads, deduped. */
 export const repoBranchesResponseSchema = z.object({
-  branches: z.array(z.string()),
+  branches: z.array(repoBranchSchema),
 });
 export type RepoBranchesResponse = z.infer<typeof repoBranchesResponseSchema>;
 

@@ -7,6 +7,7 @@ import {
   type RepoWithOrphans,
 } from '@puddle/shared';
 import type { RepoStore } from '../../db/stores/repos.js';
+import type { SessionStore } from '../../db/stores/sessions.js';
 import { git } from '../../git/exec.js';
 import type { WorktreeManager } from '../../worktrees/manager.js';
 import { ApiError } from '../errors.js';
@@ -15,6 +16,7 @@ import { idParam, parseBody } from '../validate.js';
 
 export interface RepoRouteDeps {
   repos: RepoStore;
+  sessions: SessionStore;
   worktrees: WorktreeManager;
 }
 
@@ -70,14 +72,25 @@ export function repoRoutes(deps: RepoRouteDeps): Hono {
           if (remote && remote[1] !== 'HEAD') names.add(remote[1]!);
         }
       }
-      const branches = [...names].sort((a, b) =>
-        // The repo's default base branch leads the list.
-        a === repo.default_base_branch
-          ? -1
-          : b === repo.default_base_branch
-            ? 1
-            : a.localeCompare(b),
+      // Branches created by puddle sessions carry the session's title so
+      // the picker can say what they are instead of showing a bare name.
+      const sessionTitles = new Map(
+        deps.sessions.branchesForRepo(repo.id).map((s) => [s.branch, s.title]),
       );
+      const branches = [...names]
+        .sort((a, b) =>
+          // The repo's default base branch leads the list.
+          a === repo.default_base_branch
+            ? -1
+            : b === repo.default_base_branch
+              ? 1
+              : a.localeCompare(b),
+        )
+        .map((name) => ({
+          name,
+          is_session: sessionTitles.has(name),
+          session_title: sessionTitles.get(name) ?? null,
+        }));
       return c.json<RepoBranchesResponse>({ branches });
     })
     .post('/:id/fetch', async (c) => {

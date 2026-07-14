@@ -2,6 +2,7 @@ import { existsSync, readFileSync, watch, type FSWatcher } from 'node:fs';
 import { join } from 'node:path';
 import type { EventStore } from '../db/stores/events.js';
 import type { RepoStore } from '../db/stores/repos.js';
+import type { SessionStore } from '../db/stores/sessions.js';
 
 /**
  * Onboarding preamble for freshly created worktrees (SPEC §4): standing rules
@@ -19,6 +20,7 @@ ${rules}
 2. Inspect the codebase for setup requirements (README, CONTRIBUTING, lockfiles, .tool-versions, pyproject.toml, package.json, …).
 3. Apply what the rules above settle without asking. Ask the user about anything they leave open, stating trade-offs where relevant (e.g. a symlinked .venv saves gigabytes per worktree, but parallel sessions then share mutable dependency state).
 4. If the user states a standing rule for all future worktrees ("always…", "never…", "from now on…"), write the complete updated rules to \`.puddle/onboarding-notes.md\` in this worktree — full replacement, user-owned prose; record their decision, don't invent policy.
+5. Once you understand the task, name this session: write one short line (≤ 40 chars) describing it to \`.puddle/session-title\` (e.g. "fix flaky auth test"). Update it if the task changes.
 
 Then proceed with the task below (or await instructions if none is given).`;
   return taskPrompt?.trim() ? `${preamble}\n\n---\n\n${taskPrompt}` : preamble;
@@ -28,15 +30,18 @@ export const INTERRUPTED_RESUME_NOTE =
   'This session was interrupted (daemon or machine restart). Processes you started are gone; re-verify your environment before continuing.';
 
 /**
- * Watches each live session's `.puddle/onboarding-notes.md` and syncs edits
- * into repos.onboarding_notes. Last-writer-wins; the previous notes are
- * preserved in an event row so an unwanted overwrite is inspectable (SPEC §4).
+ * Watches each live session's `.puddle/` marker files: `onboarding-notes.md`
+ * syncs into repos.onboarding_notes (last-writer-wins; the previous notes are
+ * preserved in an event row so an unwanted overwrite is inspectable — SPEC §4)
+ * and `session-title` lets the agent name its own session.
  */
-export class OnboardingNotesSync {
+export class MarkerFileSync {
   private readonly watchers = new Map<string, FSWatcher>();
   private readonly timers = new Map<string, NodeJS.Timeout>();
 
-  constructor(private readonly deps: { repos: RepoStore; events: EventStore }) {}
+  constructor(
+    private readonly deps: { repos: RepoStore; events: EventStore; sessions: SessionStore },
+  ) {}
 
   watch(sessionId: string, repoId: number, worktreePath: string): void {
     if (this.watchers.has(sessionId)) return;
@@ -76,6 +81,29 @@ export class OnboardingNotesSync {
   }
 
   private sync(sessionId: string, repoId: number, dir: string): void {
+    this.syncTitle(sessionId, dir);
+    this.syncNotes(sessionId, repoId, dir);
+  }
+
+  /** `.puddle/session-title` → sessions.title (the agent naming its work). */
+  private syncTitle(sessionId: string, dir: string): void {
+    const file = join(dir, 'session-title');
+    if (!existsSync(file)) return;
+    let title: string;
+    try {
+      title = readFileSync(file, 'utf8').trim().replace(/\s+/g, ' ').slice(0, 80);
+    } catch {
+      return;
+    }
+    if (title === '') return;
+    try {
+      this.deps.sessions.setTitle(sessionId, title);
+    } catch {
+      // A session archived mid-watch is not fatal.
+    }
+  }
+
+  private syncNotes(sessionId: string, repoId: number, dir: string): void {
     const file = join(dir, 'onboarding-notes.md');
     if (!existsSync(file)) return;
     let next: string;

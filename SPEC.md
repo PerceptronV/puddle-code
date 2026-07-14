@@ -196,6 +196,7 @@ Environment setup is not deterministic per repo — whether _this particular wor
 1. **Standing rules — `repos.onboarding_notes`.** A user-authored, freeform text block per repo (editable in Repositories settings), holding whatever the user has decided is always true: "always `pnpm install`", "shared `.venv` lives at `<repo>/.venv`; symlink it unless I say otherwise", "never install playwright browsers", "ask me before touching Docker". Empty is fine — everything is then discretionary.
 2. **Every freshly created worktree onboards — and only those.** The daemon prepends an _onboarding preamble_ to the agent's first prompt (or delivers it alone when the session was started without a task prompt): read the notes; inspect the codebase for setup requirements (README/CONTRIBUTING, lockfiles, `.tool-versions`, `pyproject.toml`, …); **apply what the notes settle without asking; ask the user about anything the notes leave open** — stating trade-offs where relevant (a symlinked `.venv` saves gigabytes per worktree, but parallel sessions then share mutable dependency state). Execute only what the notes prescribe or the user approves, then proceed to the user's actual task. Sessions that _reuse_ an existing worktree — resumes, and tier-2 hand-offs (§5) — never receive the preamble; their environment already exists, and the resume note or hand-off prompt takes its place.
 3. **Rules can be taught through the agent.** If during onboarding the user states a standing rule ("always do X from now on"), the preamble instructs the agent to write the updated notes to `.puddle/onboarding-notes.md` in the worktree; the daemon syncs that file into `repos.onboarding_notes` and confirms with a toast. Syncs are last-writer-wins (several sessions can onboard concurrently), so the daemon logs the previous notes to `events` and the toast links the change — an unwanted overwrite is one click to inspect and revert. The notes remain user-owned prose — the agent records decisions, it doesn't invent policy. (`.puddle/` is git-excluded, never committed.)
+4. **Agents name their own sessions.** The preamble also asks the agent to write a short description of its task to `.puddle/session-title`; the daemon syncs it into `sessions.title` (capped at 80 chars), so unnamed sessions label themselves once the agent understands the work. The git branch is fixed at creation and never renamed by this.
 
 Notes are **repo-global, shared by all profiles** — like the repo itself on a trusted box. Genuinely personal preferences are expressed in the moment (per-worktree answers); if that proves noisy in practice, a per-profile notes addendum is a natural later extension, deliberately not in v1.
 
@@ -285,13 +286,15 @@ Repos      GET  /api/fs/dirs?prefix=…        # directory autocomplete for repo
            GET  /api/repos                   POST /api/repos {path, default_base_branch?, onboarding_notes?, fetch_enabled?}
            PATCH /api/repos/:id               # same fields (onboarding_notes also updatable via the .puddle marker-file sync — §4)
            POST  /api/repos/:id/fetch         # manual fetch now; path must be an existing git repo (validated on POST; ~ expands on the host; re-registering a known path returns it)
-           GET   /api/repos/:id/branches      # local + fetched remote heads, deduped short names, default base first
+           GET   /api/repos/:id/branches      # local + fetched remote heads, deduped, default base first; entries are {name, is_session, session_title} so pickers can label puddle-owned branches
 Projects   GET  /api/projects?profile=…      POST /api/projects {profile_id, repo_id, name}   # ids are 10-hex handles (/project/:id)
            GET  /api/projects/:id            # detail incl. sessions with status
            GET  /api/projects/:id/state?profile=…   PUT (profile-keyed ui_state JSON; debounced writes; GET falls back to the project's most recent snapshot when the profile has none)
            POST /api/projects/:id/archive
 Sessions   GET  /api/sessions?project=…&status=…
            POST /api/sessions {project_id, account_id, base_branch?, branch?, title?, prompt?, skip_permissions?}
+                # branch naming: requested branch → prefix + title slug → prefix + first words of the
+                # prompt → prefix + a memorable word pair (quiet-tarn) — never a uuid fragment
                 # skip_permissions is honoured only if the profile gate AND the account opt-in allow it;
                 # otherwise the request is rejected (400) — enforced server-side, no CLI/API bypass
            GET  /api/sessions/:id            # detail incl. git summary (ahead/behind, dirty files)

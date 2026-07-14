@@ -10,6 +10,7 @@ Past releases: see docs/changelogs/.
 ## [Unreleased]
 
 ### Changed
+- Session branch names are human-readable at every fallback: an explicit Branch field in the new-session modal (prefilled preview from the title), else the title slug, else the first words of the prompt, else a memorable word pair (`quiet-tarn`) — never a uuid fragment. The base-branch picker now labels branches owned by puddle sessions with their session title (`GET /api/repos/:id/branches` returns `{name, is_session, session_title}` — protocol major bump 2.1 → 3.0).
 - Profiles are identified by 10-hex-char ids (like projects) instead of integers, and profile directories under `~/.puddle/profiles/` are keyed by id rather than name — names are pure display labels now. Migration 004 remaps every referencing table and rewrites account config-dir paths; the daemon renames the physical directories at the next boot. **Protocol major bump: 1.0 → 2.0** (profile ids changed type on the wire).
 - Ports never surface in the UI: the port row leaves the Host settings (set it via `--port` on the daemon or `config.json`), and the new top-bar centre shows an scp-style location instead — `user@host`, plus `:repo-path` (`~`-compressed) once a workspace is open, backed by `GET /api/host`.
 - The default UI font size is 1.1× the browser default (17.6px); the whole rem-based scale follows, and Appearance still overrides it per browser.
@@ -30,6 +31,7 @@ Past releases: see docs/changelogs/.
 - Resuming a session whose conversation file is gone (or was never recorded under the expected id) returns a clear 409 `conversation_missing` instead of spawning an agent that immediately dies with "No conversation found" (new adapter hook `hasConversation`).
 
 ### Added
+- Agents can name their own sessions: the onboarding preamble asks for a one-line task description in `.puddle/session-title`, and the daemon syncs it into the session title.
 - Accounts can be imported from pre-existing agent config dirs (`~/.claude-yds`-style): `POST /api/accounts` takes `import_dir`, the daemon copies the directory into the puddle-owned account dir (the source is never touched) and verifies login state through the agent rather than assuming it; Settings → Accounts gains an "Import existing…" flow with host-side directory autocomplete. Protocol minor bump 2.0 → 2.1.
 - Protocol versioning (SPEC §6): `@puddle/shared` is formally the protocol package, exporting `PROTOCOL_VERSION` (currently 1.0) with bump rules in `packages/shared/PROTOCOL.md`; `GET /api/version` now returns `{version, protocol: {major, minor}}` so the Phase 6 CLI handshake can negotiate against any daemon deployed from now on. Same protocol major ⇒ compatible both ways; a major mismatch will trigger an automatic daemon update.
 - Initial scaffold: monorepo (shared / daemon / web / cli), CI, SPEC.md, CLAUDE.md, changelog conventions.

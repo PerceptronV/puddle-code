@@ -15,7 +15,7 @@ import { KeyedMutex } from '../../src/git/mutex.js';
 import { LogStore } from '../../src/logs/log-store.js';
 import { ensureHome, resolvePaths } from '../../src/paths.js';
 import { PtyManager } from '../../src/pty/pty-manager.js';
-import { OnboardingNotesSync } from '../../src/sessions/onboarding.js';
+import { MarkerFileSync } from '../../src/sessions/onboarding.js';
 import { SessionService } from '../../src/sessions/service.js';
 import { WorktreeManager } from '../../src/worktrees/manager.js';
 import { initRepo } from './git-fixtures.js';
@@ -75,7 +75,7 @@ export interface Fixture {
   logs: LogStore;
   ptys: PtyManager;
   service: SessionService;
-  onboarding: OnboardingNotesSync;
+  onboarding: MarkerFileSync;
   ids: { profile: number; account: number; repo: number; project: number };
   repoPath: string;
 }
@@ -101,7 +101,11 @@ export function fixture(opts: { quietMs?: number } = {}): Fixture {
     repos: stores.repos,
     sessions: stores.sessions,
   });
-  const onboarding = new OnboardingNotesSync({ repos: stores.repos, events: stores.events });
+  const onboarding = new MarkerFileSync({
+    repos: stores.repos,
+    events: stores.events,
+    sessions: stores.sessions,
+  });
   const adapters = new AdapterRegistry([fakeAdapter()]);
   const service = new SessionService({
     ...stores,

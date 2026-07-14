@@ -130,11 +130,14 @@ describe('WorktreeManager.create', () => {
     expect(b.branch).toBe('demo-2');
   });
 
-  it('uses the session short id when there is no title', async () => {
+  it('falls back to a word-pair name when there is no title or prompt', async () => {
     const { manager, repo } = setup(initRepo());
-    const sid = randomUUID();
-    const result = await manager.create({ repo, sessionId: sid, branchPrefix: 'alice/' });
-    expect(result.branch).toBe(`alice/${sid.slice(0, 8)}`);
+    const result = await manager.create({
+      repo,
+      sessionId: randomUUID(),
+      branchPrefix: 'alice/',
+    });
+    expect(result.branch).toMatch(/^alice\/[a-z]+-[a-z]+$/);
   });
 
   it('rejects an unknown base branch', async () => {

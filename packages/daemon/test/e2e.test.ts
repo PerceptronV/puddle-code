@@ -225,11 +225,10 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
     expect(again.id).toBe(repo.id);
 
     // Branch hints: local + fetched remote heads, default base first.
-    const { branches } = await c.json<{ branches: string[] }>(
-      'GET',
-      `/api/repos/${repo.id}/branches`,
-    );
-    expect(branches[0]).toBe(repo.default_base_branch);
+    const { branches } = await c.json<{
+      branches: Array<{ name: string; is_session: boolean; session_title: string | null }>;
+    }>('GET', `/api/repos/${repo.id}/branches`);
+    expect(branches[0]?.name).toBe(repo.default_base_branch);
 
     // Project ids are 10-hex URL handles.
     expect(project.id).toMatch(/^[0-9a-f]{10}$/);
@@ -314,6 +313,22 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
       const repos = await c.json<RepoWithOrphans[]>('GET', '/api/repos');
       return repos[0]?.onboarding_notes?.includes('docker') ?? false;
     });
+  });
+
+  it('lets the agent name its session via .puddle/session-title', async () => {
+    const c = client(daemon);
+    writeFileSync(join(s1.worktree_path, '.puddle', 'session-title'), 'renamed by the agent\n');
+    await pollUntil(async () => {
+      const session = await c.json<Session>('GET', `/api/sessions/${s1.id}`);
+      return session.title === 'renamed by the agent';
+    });
+    // The session's branch is annotated with its title in the branch list.
+    const { branches } = await c.json<{
+      branches: Array<{ name: string; is_session: boolean; session_title: string | null }>;
+    }>('GET', `/api/repos/${repo.id}/branches`);
+    const owned = branches.find((b) => b.name === s1.branch);
+    expect(owned?.is_session).toBe(true);
+    expect(owned?.session_title).toBe('renamed by the agent');
   });
 
   it('restart marks sessions interrupted; resume restores; logs replay', async () => {

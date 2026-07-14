@@ -70,6 +70,16 @@ export class SessionStore {
     return toSession(row);
   }
 
+  /** Branch → session title for every session on the repo's projects (any status). */
+  branchesForRepo(repoId: number): Array<{ branch: string; title: string | null }> {
+    return this.db
+      .prepare(
+        `SELECT s.branch, s.title FROM sessions s
+         JOIN projects p ON p.id = s.project_id WHERE p.repo_id = ?`,
+      )
+      .all(repoId) as Array<{ branch: string; title: string | null }>;
+  }
+
   list(filter: { project_id?: string; status?: SessionStatus } = {}): Session[] {
     const clauses: string[] = [];
     const params: unknown[] = [];

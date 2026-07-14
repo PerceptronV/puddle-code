@@ -25,6 +25,7 @@ import {
   useAccounts,
   useCreateSession,
   useProfileSettings,
+  useProfiles,
   useRepoBranches,
   useRepos,
 } from '../../lib/queries';
@@ -56,6 +57,7 @@ export function NewSessionDialog({
 
   const [accountId, setAccountId] = useState<string>('');
   const [baseBranch, setBaseBranch] = useState('');
+  const [branch, setBranch] = useState('');
   const [title, setTitle] = useState('');
   const [prompt, setPrompt] = useState('');
   const [skip, setSkip] = useState(false);
@@ -63,6 +65,15 @@ export function NewSessionDialog({
 
   const repo = repos.data?.find((r) => r.id === repoId);
   const branches = useRepoBranches(open ? repoId : undefined);
+  const profiles = useProfiles();
+  const branchPrefix = profiles.data?.find((p) => p.id === profileId)?.branch_prefix ?? '';
+  // Mirrors the daemon's naming chain so the placeholder tells the truth.
+  const titleSlug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+  const branchPreview = `${branchPrefix}${titleSlug || 'auto — from the prompt, or a word pair'}`;
   const account = accounts.data?.find((a) => String(a.id) === accountId);
   const gateOpen = settings.data?.allowSkipPermissions === true;
   const showSkipToggle = gateOpen && account?.skip_permissions_default === true;
@@ -84,6 +95,7 @@ export function NewSessionDialog({
         project_id: projectId,
         account_id: Number(effectiveAccountId),
         ...(baseBranch.trim() ? { base_branch: baseBranch.trim() } : {}),
+        ...(branch.trim() ? { branch: branch.trim() } : {}),
         ...(title.trim() ? { title: title.trim() } : {}),
         ...(prompt.trim() ? { prompt: prompt.trim() } : {}),
         ...(showSkipToggle && skip ? { skip_permissions: true } : {}),
@@ -92,6 +104,7 @@ export function NewSessionDialog({
         onSuccess: (session) => {
           onOpenChange(false);
           setTitle('');
+          setBranch('');
           setPrompt('');
           setSkip(false);
           onCreated(session);
@@ -164,11 +177,16 @@ export function NewSessionDialog({
               value={baseBranch}
               onValueChange={setBaseBranch}
               hints={(branches.data?.branches ?? [])
-                .filter((branch) => branch.toLowerCase().includes(baseBranch.trim().toLowerCase()))
+                .filter((b) => b.name.toLowerCase().includes(baseBranch.trim().toLowerCase()))
                 .slice(0, 20)
-                .map((branch) => ({
-                  value: branch,
-                  badge: branch === repo?.default_base_branch ? 'default' : undefined,
+                .map((b) => ({
+                  value: b.name,
+                  badge:
+                    b.name === repo?.default_base_branch
+                      ? 'default'
+                      : b.is_session
+                        ? `session: ${(b.session_title ?? 'untitled').slice(0, 24)}`
+                        : undefined,
                 }))}
               className="font-mono"
             />
@@ -180,6 +198,16 @@ export function NewSessionDialog({
               placeholder="e.g. fix flaky auth test"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="session-branch">Branch</Label>
+            <Input
+              id="session-branch"
+              placeholder={branchPreview}
+              value={branch}
+              onChange={(e) => setBranch(e.target.value)}
+              className="font-mono"
             />
           </div>
           <div className="flex flex-col gap-1.5">

@@ -20,7 +20,7 @@ import { LogStore } from './logs/log-store.js';
 import { ensureHome, resolvePaths } from './paths.js';
 import { PtyManager } from './pty/pty-manager.js';
 import { ensureToken } from './security/token.js';
-import { OnboardingNotesSync } from './sessions/onboarding.js';
+import { MarkerFileSync } from './sessions/onboarding.js';
 import { reconcilePass } from './sessions/reconcile.js';
 import { SessionService } from './sessions/service.js';
 import { WorktreeManager } from './worktrees/manager.js';
@@ -71,7 +71,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   const logs = new LogStore(paths.logsDir, config.replayBytes);
   const ptys = new PtyManager(logs);
   const worktrees = new WorktreeManager({ paths, mutex: new KeyedMutex(), repos, sessions });
-  const onboarding = new OnboardingNotesSync({ repos, events });
+  const onboarding = new MarkerFileSync({ repos, events, sessions });
   const adapters = new AdapterRegistry(opts.adapters ?? [claudeCode]);
   const service = new SessionService({
     profiles,
@@ -133,6 +133,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       projects,
       projectStates,
       removals,
+      sessions,
       adapters,
       ptys,
       worktrees,

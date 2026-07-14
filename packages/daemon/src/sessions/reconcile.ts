@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import type { EventStore } from '../db/stores/events.js';
 import type { ProjectStore } from '../db/stores/projects.js';
 import type { SessionStore } from '../db/stores/sessions.js';
-import type { OnboardingNotesSync } from './onboarding.js';
+import type { MarkerFileSync } from './onboarding.js';
 
 export interface ReconcileResult {
   interrupted: string[];
@@ -18,7 +18,7 @@ export function reconcilePass(deps: {
   sessions: SessionStore;
   events: EventStore;
   projects: ProjectStore;
-  onboarding: OnboardingNotesSync;
+  onboarding: MarkerFileSync;
 }): ReconcileResult {
   const stuck = deps.sessions.listByStatus(['starting', 'running', 'waiting_input']);
   for (const s of stuck) {
