@@ -1,4 +1,13 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Hono } from 'hono';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -187,6 +196,19 @@ describe('GET /api/worktrees/:sid/file', () => {
     const res = await getFile(sessionId, 'huge.bin');
     expect(res.status).toBe(413);
     expect(errorCode(await res.json())).toBe('file_too_large');
+  });
+
+  it('rejects a symlink planted inside the worktree that resolves outside it', async () => {
+    // A relative/absolute path check alone would pass this: the request path
+    // is a plain in-worktree name. Only the realpathSync hardening pass
+    // catches that the target itself escapes via the filesystem symlink.
+    const outside = mkdtempSync(join(tmpdir(), 'puddle-outside-'));
+    writeFileSync(join(outside, 'secret.txt'), 'top secret\n');
+    symlinkSync(join(outside, 'secret.txt'), join(worktree, 'escape-link.txt'));
+
+    const res = await getFile(sessionId, 'escape-link.txt');
+    expect(res.status).toBe(400);
+    expect(errorCode(await res.json())).toBe('path_outside_worktree');
   });
 });
 
