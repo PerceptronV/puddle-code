@@ -81,3 +81,86 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+@layer components {
+  /*
+   * Status ripples (SPEC §12, the one animated flourish). Running emits slow
+   * concentric ripples; waiting pulses. Reduced motion — via the OS setting
+   * or the client toggle (html[data-reduced-motion='true']) — leaves a
+   * static dot.
+   */
+  .status-dot {
+    position: relative;
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background: var(--status-idle);
+  }
+  .status-dot[data-status='running'],
+  .status-dot[data-status='starting'] {
+    background: var(--status-running);
+  }
+  .status-dot[data-status='running']::before,
+  .status-dot[data-status='running']::after,
+  .status-dot[data-status='starting']::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    border: 1px solid var(--status-running);
+    animation: puddle-ripple 2.6s ease-out infinite;
+  }
+  .status-dot[data-status='running']::after {
+    animation-delay: 1.3s;
+  }
+  .status-dot[data-status='waiting_input'] {
+    background: var(--status-waiting);
+    animation: puddle-pulse 1.3s ease-in-out infinite;
+  }
+  .status-dot[data-status='interrupted'] {
+    background: var(--status-interrupted);
+  }
+
+  @keyframes puddle-ripple {
+    from {
+      transform: scale(1);
+      opacity: 0.7;
+    }
+    to {
+      transform: scale(3.4);
+      opacity: 0;
+    }
+  }
+  @keyframes puddle-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .status-dot,
+    .status-dot::before,
+    .status-dot::after {
+      animation: none;
+    }
+    .status-dot::before,
+    .status-dot::after {
+      content: none;
+    }
+  }
+  html[data-reduced-motion='true'] .status-dot,
+  html[data-reduced-motion='true'] .status-dot::before,
+  html[data-reduced-motion='true'] .status-dot::after {
+    animation: none;
+  }
+  html[data-reduced-motion='true'] .status-dot::before,
+  html[data-reduced-motion='true'] .status-dot::after {
+    content: none;
+  }
+}
