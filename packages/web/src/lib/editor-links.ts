@@ -9,6 +9,27 @@ import { localValue } from './local-store';
 export type Editor = 'vscode' | 'cursor';
 
 /**
+ * Percent-encode a filesystem path for use inside a URI, keeping the slashes.
+ * `encodeURI` is not enough: it leaves `#` and `?` raw (they're in its
+ * reserved set), and the OS URL handler would truncate the path at the first
+ * one. Encoding each segment with `encodeURIComponent` escapes space/#/?/%
+ * while the rejoining keeps the path structure intact.
+ */
+function encodePathForUri(path: string): string {
+  return path.split('/').map(encodeURIComponent).join('/');
+}
+
+/**
+ * An `ssh-remote+` authority keeps `@` and `:` literal (`user@host:port`) —
+ * VS Code parses the raw authority, so `encodeURIComponent` (which turns `@`
+ * into `%40` and `:` into `%3A`) would break it. Escape only the characters
+ * that break URI parsing itself: space, `#`, `?`, and `%`.
+ */
+function escapeHostForUri(host: string): string {
+  return host.replace(/[%#? ]/g, (c) => encodeURIComponent(c));
+}
+
+/**
  * `worktreePath` is always absolute (`/Users/alice/proj`), so plain
  * concatenation after `file` produces the correct single-slash shape
  * (`vscode://file/Users/alice/proj`) without an extra separator.
@@ -18,18 +39,22 @@ export function editorDeepLink(
   worktreePath: string,
   sshHost: string | null,
 ): string {
+  const path = encodePathForUri(worktreePath);
   if (sshHost) {
-    return `${editor}://vscode-remote/ssh-remote+${sshHost}${worktreePath}`;
+    return `${editor}://vscode-remote/ssh-remote+${escapeHostForUri(sshHost)}${path}`;
   }
-  return `${editor}://file${worktreePath}`;
+  return `${editor}://file${path}`;
 }
 
 /**
  * The CLI starts sending `?host=` at boot in Phase 6; until then (or for a
- * manual `ssh -L` user it will never cover) the client setting wins.
+ * manual `ssh -L` user it will never cover) the client setting wins. The
+ * free-text setting is normalised the same way `parseHostParam` normalises
+ * the boot param: trimmed, with blank collapsing to unset.
  */
 export function resolveEditorHost(settingHost: string, storedHost: string | null): string | null {
-  if (settingHost) return settingHost;
+  const setting = settingHost.trim();
+  if (setting) return setting;
   if (storedHost) return storedHost;
   return null;
 }
