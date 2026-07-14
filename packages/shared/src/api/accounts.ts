@@ -10,6 +10,8 @@ export const accountSchema = z.object({
   config_dir: z.string(),
   skip_permissions_default: z.boolean(),
   logged_in: z.boolean(),
+  /** Opt-in: fetch subscription rate-limit usage (reads the account's own token). */
+  rate_limit_tracking: z.boolean(),
   created_at: isoTimestamp,
 });
 export type Account = z.infer<typeof accountSchema>;
@@ -25,9 +27,10 @@ export const createAccountRequestSchema = z.object({
   import_dir: z.string().min(1).optional(),
 });
 
-/** The account opt-in half of the permissions gate (SPEC §11). */
+/** Account toggles: the permissions-gate opt-in (SPEC §11) and rate-limit tracking. */
 export const patchAccountRequestSchema = z.object({
-  skip_permissions_default: z.boolean(),
+  skip_permissions_default: z.boolean().optional(),
+  rate_limit_tracking: z.boolean().optional(),
 });
 
 /** Returned by POST /api/accounts/:id/login — attach to this PTY over the WS. */
@@ -62,6 +65,24 @@ export const accountUsageSchema = z.looseObject({
       context_used_percentage: z.number().nullable(),
       total_cost_usd: z.number().nullable(),
       model: z.string().nullable(),
+    })
+    .nullable(),
+  /**
+   * Subscription rate-limit windows — only when the account opted in AND the
+   * adapter could read them (undocumented endpoint + token access). A window
+   * carries a 0..100 percentage and a reset time; the whole field is null
+   * when tracking is off or the data could not be fetched.
+   */
+  subscription: z
+    .object({
+      windows: z.array(
+        z.object({
+          key: z.string(),
+          label: z.string(),
+          used_percentage: z.number(),
+          resets_at: isoTimestamp.nullable(),
+        }),
+      ),
     })
     .nullable(),
 });

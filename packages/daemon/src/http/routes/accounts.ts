@@ -91,10 +91,15 @@ export function accountRoutes(deps: AccountRouteDeps): Hono {
       return c.json(account, 201);
     })
     .patch('/:id', async (c) => {
+      const id = idParam(c);
       const body = await parseBody(c, patchAccountRequestSchema);
-      return c.json(
-        deps.accounts.setSkipPermissionsDefault(idParam(c), body.skip_permissions_default),
-      );
+      if (body.skip_permissions_default !== undefined) {
+        deps.accounts.setSkipPermissionsDefault(id, body.skip_permissions_default);
+      }
+      if (body.rate_limit_tracking !== undefined) {
+        deps.accounts.setRateLimitTracking(id, body.rate_limit_tracking);
+      }
+      return c.json(deps.accounts.get(id));
     })
     .delete('/:id', (c) => {
       const id = idParam(c);
@@ -118,10 +123,15 @@ export function accountRoutes(deps: AccountRouteDeps): Hono {
       }
       return c.json<LoginResponse>({ stream, term: 'agent' });
     })
-    .get('/:id/usage', (c) => {
+    .get('/:id/usage', async (c) => {
       const account = deps.accounts.get(idParam(c));
       const adapter = deps.adapters.get(account.agent_type);
       const counts = deps.sessions.usageForAccount(account.id);
+      // Subscription windows only when opted in — this reads the token (§2).
+      const windows =
+        account.rate_limit_tracking && adapter.subscriptionUsage
+          ? await adapter.subscriptionUsage(account)
+          : null;
       return c.json<AccountUsage>({
         account_id: account.id,
         logged_in: account.logged_in,
@@ -133,6 +143,7 @@ export function accountRoutes(deps: AccountRouteDeps): Hono {
         agent_usage: adapter.usageStats?.(account) ?? null,
         // Live per-session signal captured during runs (context fill, cost).
         live_usage: adapter.liveUsage?.(account) ?? null,
+        subscription: windows ? { windows } : null,
       });
     });
 }

@@ -8,6 +8,13 @@ export interface AgentUsage {
   message_count: number;
 }
 
+export interface SubscriptionUsageWindow {
+  key: string;
+  label: string;
+  used_percentage: number;
+  resets_at: string | null;
+}
+
 export interface LiveUsage {
   /** ISO timestamp of the most recent capture. */
   captured_at: string;
@@ -94,6 +101,12 @@ export interface AgentAdapter {
    * fill, cost). Credential-free; null when nothing has been captured yet.
    */
   liveUsage?(account: Account): LiveUsage | null;
+  /**
+   * Subscription rate-limit windows (the `/usage` view). Reads the account's
+   * own OAuth token, so it runs ONLY for opted-in accounts (SPEC §2). Fails
+   * safe to null (unreachable token, network error, unknown shape).
+   */
+  subscriptionUsage?(account: Account): Promise<SubscriptionUsageWindow[] | null>;
   /**
    * Idempotent config-dir upkeep run once per account at boot — brings older
    * accounts up to date with setup that newer versions seed at create time

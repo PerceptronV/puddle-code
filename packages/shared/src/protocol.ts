@@ -7,4 +7,4 @@
  * live in PROTOCOL.md at this package's root — read it before changing any
  * schema in this package.
  */
-export const PROTOCOL_VERSION = { major: 3, minor: 2 } as const;
+export const PROTOCOL_VERSION = { major: 3, minor: 3 } as const;

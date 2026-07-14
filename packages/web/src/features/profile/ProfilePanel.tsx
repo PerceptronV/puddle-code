@@ -1,14 +1,17 @@
 import { useState } from 'react';
 import { KeyRound, Plus, Settings2 } from 'lucide-react';
+import { toast } from 'sonner';
 import type { Account } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { Switch } from '../../components/ui/switch';
 import { openSettings } from '../../lib/hash-route';
 import {
   useAccountUsage,
   useAccounts,
   useAgents,
   useLoginAccount,
+  usePatchAccount,
   useProfiles,
 } from '../../lib/queries';
 import { LoginDialog } from '../accounts/LoginDialog';
@@ -35,6 +38,15 @@ function relativeTime(iso: string | null): string {
   return `${Math.round(hours / 24)}d ago`;
 }
 
+/** "resets in 2h" / "resets in 3d" for a future timestamp. */
+function resetHint(iso: string | null): string | undefined {
+  if (iso === null) return undefined;
+  const secs = Math.round((new Date(iso).getTime() - Date.now()) / 1000);
+  if (secs <= 0) return undefined;
+  const hours = Math.round(secs / 3600);
+  return hours < 24 ? `resets ${hours}h` : `resets ${Math.round(hours / 24)}d`;
+}
+
 /**
  * One account row: a status dot, the label, usage summary, and the primary
  * action — logged out → sign in; logged in inside a project → new session on
@@ -50,62 +62,100 @@ function AccountRow({
   onStartSession: (() => void) | null;
 }) {
   const usage = useAccountUsage(account.id);
+  const patch = usePatchAccount();
   const action = account.logged_in ? onStartSession : onLogin;
+  const subscription = usage.data?.subscription;
 
   return (
-    <button
-      type="button"
-      disabled={action === null}
-      onClick={() => action?.()}
-      className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-elevated disabled:cursor-default disabled:opacity-100"
-    >
-      <span
-        className={`size-2 shrink-0 rounded-full ${account.logged_in ? 'bg-running' : 'bg-idle'}`}
-        aria-hidden
-      />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate font-mono text-sm text-fg">{account.label}</span>
-        <span className="block text-2xs text-fg-muted">
-          {account.logged_in ? 'logged in' : 'logged out'}
-          {usage.data && (
-            <>
-              {' · '}
-              {usage.data.session_count} session{usage.data.session_count === 1 ? '' : 's'}
-              {usage.data.active_session_count > 0 &&
-                ` (${usage.data.active_session_count} active)`}
-              {' · '}last {relativeTime(usage.data.last_activity_at)}
-            </>
+    <div className="rounded-md px-2 py-2 transition-colors hover:bg-elevated">
+      <button
+        type="button"
+        disabled={action === null}
+        onClick={() => action?.()}
+        className="flex w-full items-center gap-3 text-left disabled:cursor-default"
+      >
+        <span
+          className={`size-2 shrink-0 rounded-full ${account.logged_in ? 'bg-running' : 'bg-idle'}`}
+          aria-hidden
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-mono text-sm text-fg">{account.label}</span>
+          <span className="block text-2xs text-fg-muted">
+            {account.logged_in ? 'logged in' : 'logged out'}
+            {usage.data && (
+              <>
+                {' · '}
+                {usage.data.session_count} session{usage.data.session_count === 1 ? '' : 's'}
+                {usage.data.active_session_count > 0 &&
+                  ` (${usage.data.active_session_count} active)`}
+                {' · '}last {relativeTime(usage.data.last_activity_at)}
+              </>
+            )}
+          </span>
+          {usage.data?.agent_usage && (
+            <span className="block text-2xs text-fg-muted">
+              {compact(usage.data.agent_usage.input_tokens)} in ·{' '}
+              {compact(usage.data.agent_usage.output_tokens)} out ·{' '}
+              {compact(usage.data.agent_usage.cache_read_input_tokens)} cached ·{' '}
+              {usage.data.agent_usage.message_count} msgs
+            </span>
+          )}
+          {usage.data?.live_usage?.context_used_percentage != null && (
+            <span className="mt-1 block">
+              <UsageBar
+                label="context"
+                percentage={usage.data.live_usage.context_used_percentage}
+              />
+            </span>
           )}
         </span>
-        {usage.data?.agent_usage && (
-          <span className="block text-2xs text-fg-muted">
-            {compact(usage.data.agent_usage.input_tokens)} in ·{' '}
-            {compact(usage.data.agent_usage.output_tokens)} out ·{' '}
-            {compact(usage.data.agent_usage.cache_read_input_tokens)} cached ·{' '}
-            {usage.data.agent_usage.message_count} msgs
-          </span>
-        )}
-        {usage.data?.live_usage?.context_used_percentage != null && (
-          <span className="mt-1 block">
-            <UsageBar label="context" percentage={usage.data.live_usage.context_used_percentage} />
-          </span>
-        )}
-      </span>
-      <span className="shrink-0 text-2xs text-fg-muted">
-        {account.logged_in ? (
-          onStartSession ? (
-            'new session'
+        <span className="shrink-0 text-2xs text-fg-muted">
+          {account.logged_in ? (
+            onStartSession ? (
+              'new session'
+            ) : (
+              ''
+            )
           ) : (
-            ''
-          )
-        ) : (
-          <span className="flex items-center gap-1 text-waiting">
-            <KeyRound className="size-3" />
-            sign in
-          </span>
-        )}
-      </span>
-    </button>
+            <span className="flex items-center gap-1 text-waiting">
+              <KeyRound className="size-3" />
+              sign in
+            </span>
+          )}
+        </span>
+      </button>
+
+      {/* Subscription rate-limit tracking — opt-in, because fetching it reads
+          the account's own OAuth token (SPEC §2). */}
+      {account.logged_in && (
+        <div className="mt-2 flex flex-col gap-1 pl-5">
+          {account.rate_limit_tracking && subscription?.windows.length ? (
+            subscription.windows.map((w) => (
+              <UsageBar
+                key={w.key}
+                label={w.label}
+                percentage={w.used_percentage}
+                hint={resetHint(w.resets_at)}
+              />
+            ))
+          ) : account.rate_limit_tracking ? (
+            <span className="text-2xs text-fg-muted">rate-limit data unavailable on this host</span>
+          ) : null}
+          <label className="flex items-center gap-2 text-2xs text-fg-muted">
+            <Switch
+              checked={account.rate_limit_tracking}
+              onCheckedChange={(checked) =>
+                patch.mutate(
+                  { id: account.id, rate_limit_tracking: checked },
+                  { onError: (e) => toast.error(e.message) },
+                )
+              }
+            />
+            track subscription usage (reads this account&apos;s token)
+          </label>
+        </div>
+      )}
+    </div>
   );
 }
 

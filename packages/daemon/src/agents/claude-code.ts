@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { AgentAdapter, AgentUsage } from './adapter.js';
 import { installStatusLine, readLiveUsage } from './claude-statusline.js';
+import { fetchSubscriptionUsage } from './claude-subscription.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -182,6 +183,10 @@ export const claudeCode: AgentAdapter = {
 
   liveUsage(account) {
     return readLiveUsage(account.config_dir);
+  },
+
+  subscriptionUsage(account) {
+    return fetchSubscriptionUsage(account);
   },
 
   reconcileConfigDir(account) {
