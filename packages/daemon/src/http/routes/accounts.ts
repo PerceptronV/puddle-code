@@ -4,11 +4,13 @@ import { Hono } from 'hono';
 import {
   createAccountRequestSchema,
   patchAccountRequestSchema,
+  type AccountUsage,
   type LoginResponse,
 } from '@puddle/shared';
 import type { AdapterRegistry } from '../../agents/registry.js';
 import type { AccountStore } from '../../db/stores/accounts.js';
 import type { ProfileStore } from '../../db/stores/profiles.js';
+import type { SessionStore } from '../../db/stores/sessions.js';
 import type { RemovalStore } from '../../db/stores/removals.js';
 import { ApiError } from '../errors.js';
 import { removeDirWithin } from '../fs-cleanup.js';
@@ -20,6 +22,7 @@ import { idParam, parseBody } from '../validate.js';
 export interface AccountRouteDeps {
   accounts: AccountStore;
   profiles: ProfileStore;
+  sessions: SessionStore;
   removals: RemovalStore;
   adapters: AdapterRegistry;
   ptys: PtyManager;
@@ -114,5 +117,20 @@ export function accountRoutes(deps: AccountRouteDeps): Hono {
         });
       }
       return c.json<LoginResponse>({ stream, term: 'agent' });
+    })
+    .get('/:id/usage', (c) => {
+      const account = deps.accounts.get(idParam(c));
+      const adapter = deps.adapters.get(account.agent_type);
+      const counts = deps.sessions.usageForAccount(account.id);
+      return c.json<AccountUsage>({
+        account_id: account.id,
+        logged_in: account.logged_in,
+        session_count: counts.session_count,
+        active_session_count: counts.active_session_count,
+        last_activity_at: counts.last_activity_at,
+        // Best-effort token totals from the agent's own history; null if it
+        // keeps none (or has never run for this account).
+        agent_usage: adapter.usageStats?.(account) ?? null,
+      });
     });
 }

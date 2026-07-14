@@ -41,6 +41,15 @@ export function fakeAdapter(): AgentAdapter {
     },
     // "Credentials" are a marker file — lets tests exercise both outcomes.
     checkLoggedIn: async (account) => existsSync(join(account.config_dir, 'creds.json')),
+    // A usage.json marker lets tests assert the token passthrough.
+    usageStats: (account) => {
+      const file = join(account.config_dir, 'usage.json');
+      return existsSync(file)
+        ? (JSON.parse(readFileSync(file, 'utf8')) as ReturnType<
+            NonNullable<AgentAdapter['usageStats']>
+          >)
+        : null;
+    },
     launchArgs: (o) => [
       '-c',
       'echo "LAUNCH skip=$1"; echo "PROMPT<<$2>>"; echo READY; cat',

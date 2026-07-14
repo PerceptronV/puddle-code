@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   Account,
+  AccountUsage,
   AgentType,
   CreateSessionRequest,
   DaemonConfig,
@@ -42,6 +43,15 @@ export function useAccounts(profileId: string | undefined) {
     queryKey: ['accounts', profileId],
     queryFn: () => api<Account[]>('GET', `/api/accounts?profile=${profileId}`),
     enabled: profileId !== undefined,
+  });
+}
+
+export function useAccountUsage(accountId: number | undefined) {
+  return useQuery({
+    queryKey: ['account-usage', accountId],
+    queryFn: () => api<AccountUsage>('GET', `/api/accounts/${accountId}/usage`),
+    enabled: accountId !== undefined,
+    staleTime: 15_000,
   });
 }
 

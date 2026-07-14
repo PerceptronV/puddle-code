@@ -30,6 +30,32 @@ describe('claude-code adapter', () => {
     expect(state['hasCompletedOnboarding']).toBe(true);
   });
 
+  it('sums assistant token usage across conversations, or null when none', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'puddle-cc-'));
+    expect(claudeCode.usageStats!(account(dir))).toBeNull();
+
+    const project = join(dir, 'projects', '-Users-alice-src-my-repo');
+    mkdirSync(project, { recursive: true });
+    const line = (usage: Record<string, number>) =>
+      `${JSON.stringify({ type: 'assistant', message: { usage } })}\n`;
+    writeFileSync(
+      join(project, 'a.jsonl'),
+      line({ input_tokens: 100, output_tokens: 20, cache_read_input_tokens: 5 }) +
+        '{"type":"user"}\n' + // non-assistant rows ignored
+        line({ input_tokens: 50, output_tokens: 10, cache_creation_input_tokens: 3 }),
+    );
+    writeFileSync(join(project, 'b.jsonl'), line({ input_tokens: 7, output_tokens: 1 }));
+
+    const usage = claudeCode.usageStats!(account(dir));
+    expect(usage).toEqual({
+      input_tokens: 157,
+      output_tokens: 31,
+      cache_read_input_tokens: 5,
+      cache_creation_input_tokens: 3,
+      message_count: 3,
+    });
+  });
+
   it('finds conversations in any escaped project dir, and only real ones', () => {
     const dir = mkdtempSync(join(tmpdir(), 'puddle-cc-'));
     const ref = '67194578-8ea8-484a-bb7d-6698b3049cc4';

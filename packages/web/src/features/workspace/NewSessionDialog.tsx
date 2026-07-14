@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Session } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import {
@@ -40,12 +40,15 @@ export function NewSessionDialog({
   projectId,
   repoId,
   open,
+  seedAccountId,
   onOpenChange,
   onCreated,
 }: {
   projectId: string;
   repoId: number;
   open: boolean;
+  /** Preselects the account picker (profile panel → session on this account). */
+  seedAccountId?: number;
   onOpenChange: (open: boolean) => void;
   onCreated: (session: Session) => void;
 }) {
@@ -78,15 +81,23 @@ export function NewSessionDialog({
   const gateOpen = settings.data?.allowSkipPermissions === true;
   const showSkipToggle = gateOpen && account?.skip_permissions_default === true;
 
-  // The profile's default account (settings) wins; else the first one.
+  // A seed account (from the profile panel) wins; else the profile's default
+  // account from settings; else the first one.
   const defaultAccount = useMemo(() => {
     const preferred = settings.data?.['default_account_id'];
     return (
+      accounts.data?.find((a) => a.id === seedAccountId) ??
       accounts.data?.find((a) => typeof preferred === 'number' && a.id === preferred) ??
       accounts.data?.[0]
     );
-  }, [accounts.data, settings.data]);
+  }, [accounts.data, settings.data, seedAccountId]);
   const effectiveAccountId = accountId || (defaultAccount ? String(defaultAccount.id) : '');
+
+  // A fresh seed (panel reopened on a different account) overrides any manual
+  // pick from a previous opening.
+  useEffect(() => {
+    if (open && seedAccountId !== undefined) setAccountId(String(seedAccountId));
+  }, [open, seedAccountId]);
 
   const submit = () => {
     setError(null);

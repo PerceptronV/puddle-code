@@ -25,37 +25,9 @@ import {
   useProfileSettings,
 } from '../../../lib/queries';
 import { useDebouncedValue } from '../../../lib/use-debounced-value';
-import { LazyTerminal } from '../../terminal/LazyTerminal';
+import { LoginDialog } from '../../accounts/LoginDialog';
 import { useCurrentProfileId } from '../../profile/profile-store';
 import { SectionTitle, SettingRow } from '../parts';
-
-/** In-app login: a terminal dialog attached to the account's login PTY. */
-function LoginDialog({
-  stream,
-  label,
-  onClose,
-}: {
-  stream: string;
-  label: string;
-  onClose: () => void;
-}) {
-  return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent wide className="h-[28rem]">
-        <DialogHeader>
-          <DialogTitle className="font-mono">{label} — login</DialogTitle>
-          <DialogDescription>
-            Complete the agent&apos;s login flow below. The account shows as logged in once it
-            finishes cleanly.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="min-h-0 flex-1 overflow-hidden rounded-md bg-ground p-1">
-          <LazyTerminal stream={stream} onExit={onClose} />
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 /** Import an existing config dir: puddle copies it, the source stays put. */
 function ImportDialog({
@@ -94,7 +66,7 @@ function ImportDialog({
           <HintInput
             value={dir}
             onValueChange={setDir}
-            placeholder="config dir on the host, e.g. ~/.claude-yds"
+            placeholder="config dir on the host, e.g. ~/.claude"
             hints={(suggestions.data?.entries ?? []).map((e) => ({ value: e.path, label: e.name }))}
             className="font-mono"
           />

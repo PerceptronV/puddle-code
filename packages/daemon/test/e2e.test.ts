@@ -457,6 +457,38 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
     expect(bad.status).toBe(400);
   });
 
+  it('reports per-account usage: puddle counts plus agent token totals', async () => {
+    const c = client(daemon);
+    writeFileSync(
+      join(alice1.config_dir, 'usage.json'),
+      JSON.stringify({
+        input_tokens: 1200,
+        output_tokens: 340,
+        cache_read_input_tokens: 90,
+        cache_creation_input_tokens: 12,
+        message_count: 7,
+      }),
+    );
+    const usage = await c.json<{
+      account_id: number;
+      logged_in: boolean;
+      session_count: number;
+      agent_usage: { input_tokens: number; message_count: number } | null;
+    }>('GET', `/api/accounts/${alice1.id}/usage`);
+    expect(usage.account_id).toBe(alice1.id);
+    expect(usage.logged_in).toBe(true);
+    expect(usage.session_count).toBeGreaterThanOrEqual(1); // s1 ran on alice1
+    expect(usage.agent_usage?.input_tokens).toBe(1200);
+    expect(usage.agent_usage?.message_count).toBe(7);
+
+    // No usage record → null token totals, counts still present.
+    const bare = await c.json<{ agent_usage: unknown; session_count: number }>(
+      'GET',
+      `/api/accounts/${alice2.id}/usage`,
+    );
+    expect(bare.agent_usage).toBeNull();
+  });
+
   it('refuses to spawn on an account the agent says is logged out', async () => {
     const c = client(daemon);
     const loggedOut = await c.json<Account>('POST', '/api/accounts', {

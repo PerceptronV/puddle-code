@@ -10,9 +10,25 @@ import {
 import { cp } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import type { AgentAdapter } from './adapter.js';
+import type { AgentAdapter, AgentUsage } from './adapter.js';
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * Per-file token subtotals keyed by absolute path, invalidated on
+ * (size, mtimeMs) change — conversation JSONLs only ever grow, so a warm
+ * cache reparses nothing and a live session's file is re-read only when it
+ * has actually changed since the last usage call.
+ */
+const usageCache = new Map<string, { size: number; mtimeMs: number; usage: AgentUsage }>();
+
+const EMPTY_USAGE: AgentUsage = {
+  input_tokens: 0,
+  output_tokens: 0,
+  cache_read_input_tokens: 0,
+  cache_creation_input_tokens: 0,
+  message_count: 0,
+};
 
 /**
  * Claude Code adapter.
@@ -140,6 +156,27 @@ export const claudeCode: AgentAdapter = {
     );
   },
 
+  usageStats(account) {
+    const projectsDir = join(account.config_dir, 'projects');
+    if (!existsSync(projectsDir)) return null;
+    const total = { ...EMPTY_USAGE };
+    let sawFile = false;
+    for (const dir of readdirSync(projectsDir)) {
+      let files: string[];
+      try {
+        files = readdirSync(join(projectsDir, dir));
+      } catch {
+        continue;
+      }
+      for (const file of files) {
+        if (!file.endsWith('.jsonl')) continue;
+        sawFile = true;
+        addUsage(total, fileUsage(join(projectsDir, dir, file)));
+      }
+    }
+    return sawFile ? total : null;
+  },
+
   launchArgs(opts) {
     return [
       '--session-id',
@@ -193,4 +230,52 @@ function conversationCwdMatches(path: string, targets: Set<string>): boolean {
     }
   }
   return false;
+}
+
+function addUsage(into: AgentUsage, more: AgentUsage): void {
+  into.input_tokens += more.input_tokens;
+  into.output_tokens += more.output_tokens;
+  into.cache_read_input_tokens += more.cache_read_input_tokens;
+  into.cache_creation_input_tokens += more.cache_creation_input_tokens;
+  into.message_count += more.message_count;
+}
+
+/** Cached per-file token subtotal; reparses only when (size, mtime) changed. */
+function fileUsage(path: string): AgentUsage {
+  let stat: { size: number; mtimeMs: number };
+  try {
+    stat = statSync(path);
+  } catch {
+    return EMPTY_USAGE;
+  }
+  const cached = usageCache.get(path);
+  if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
+    return cached.usage;
+  }
+  const usage = { ...EMPTY_USAGE };
+  let raw: string;
+  try {
+    raw = readFileSync(path, 'utf8');
+  } catch {
+    return EMPTY_USAGE;
+  }
+  for (const line of raw.split('\n')) {
+    if (line === '') continue;
+    let record: { type?: string; message?: { usage?: Record<string, number> } };
+    try {
+      record = JSON.parse(line) as typeof record;
+    } catch {
+      continue; // a partial trailing line from a live writer
+    }
+    if (record.type !== 'assistant') continue;
+    const u = record.message?.usage;
+    if (!u) continue;
+    usage.message_count += 1;
+    usage.input_tokens += u['input_tokens'] ?? 0;
+    usage.output_tokens += u['output_tokens'] ?? 0;
+    usage.cache_read_input_tokens += u['cache_read_input_tokens'] ?? 0;
+    usage.cache_creation_input_tokens += u['cache_creation_input_tokens'] ?? 0;
+  }
+  usageCache.set(path, { size: stat.size, mtimeMs: stat.mtimeMs, usage });
+  return usage;
 }

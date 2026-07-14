@@ -57,11 +57,16 @@ export function Workspace() {
   const openTabs = uiState.snapshot.session_tabs;
   const [restored, setRestored] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [seedAccountId, setSeedAccountId] = useState<number | undefined>(undefined);
   const { setHandler } = useNewSession();
 
-  // The ⌘K palette and top bar reuse this workspace's new-session modal.
+  // The ⌘K palette, top bar, and profile panel reuse this modal; an account
+  // id seeds the picker (profile panel → session on a chosen account).
   useEffect(() => {
-    setHandler(() => setCreating(true));
+    setHandler((opts) => {
+      setSeedAccountId(opts?.accountId);
+      setCreating(true);
+    });
     return () => setHandler(null);
   }, [setHandler]);
 
@@ -172,6 +177,7 @@ export function Workspace() {
         projectId={projectId}
         repoId={detail.data.project.repo_id}
         open={creating}
+        seedAccountId={seedAccountId}
         onOpenChange={setCreating}
         onCreated={(session) => void navigate(`/project/${projectId}/session/${session.id}`)}
       />

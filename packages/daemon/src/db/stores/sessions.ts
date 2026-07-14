@@ -70,6 +70,32 @@ export class SessionStore {
     return toSession(row);
   }
 
+  /** Session counts and last activity for an account (SPEC §6 usage). */
+  usageForAccount(accountId: number): {
+    session_count: number;
+    active_session_count: number;
+    last_activity_at: string | null;
+  } {
+    const row = this.db
+      .prepare(
+        `SELECT
+           COUNT(*) AS session_count,
+           SUM(CASE WHEN status IN ('starting','running','waiting_input') THEN 1 ELSE 0 END) AS active_session_count,
+           MAX(last_activity_at) AS last_activity_at
+         FROM sessions WHERE account_id = ?`,
+      )
+      .get(accountId) as {
+      session_count: number;
+      active_session_count: number | null;
+      last_activity_at: string | null;
+    };
+    return {
+      session_count: row.session_count,
+      active_session_count: row.active_session_count ?? 0,
+      last_activity_at: row.last_activity_at,
+    };
+  }
+
   /** Branch → session title for every session on the repo's projects (any status). */
   branchesForRepo(repoId: number): Array<{ branch: string; title: string | null }> {
     return this.db

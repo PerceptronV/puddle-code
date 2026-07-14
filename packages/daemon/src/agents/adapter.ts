@@ -1,5 +1,13 @@
 import type { Account } from '@puddle/shared';
 
+export interface AgentUsage {
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_input_tokens: number;
+  cache_creation_input_tokens: number;
+  message_count: number;
+}
+
 export interface LaunchOpts {
   worktreePath: string;
   /** Puddle session uuid (adapters with presetSessionId reuse it as the agent's id). */
@@ -65,6 +73,12 @@ export interface AgentAdapter {
    * Returns the newest conversation whose recorded cwd is the worktree.
    */
   discoverSessionRef?(worktreePath: string, account: Account): string | null;
+  /**
+   * Token usage the agent recorded for this account, summed from its own
+   * on-disk history. Best-effort and non-authoritative (not billing data);
+   * null when the agent keeps no readable record.
+   */
+  usageStats?(account: Account): AgentUsage | null;
   launchArgs(opts: LaunchOpts): string[];
   resumeArgs(ref: string, opts: LaunchOpts): string[];
   loginArgs(): string[];

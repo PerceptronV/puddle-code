@@ -4,14 +4,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Command as CommandIcon, Settings, UserRound } from 'lucide-react';
 import type { ProjectDetail, Session } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '../../components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { openSettings, settingsSection, useHash } from '../../lib/hash-route';
 import { useHostInfo, useProfiles, useProjectDetail, useRepos } from '../../lib/queries';
@@ -19,7 +11,8 @@ import { wsManager } from '../../lib/ws';
 import { Suspense, lazy, useState } from 'react';
 import { NewProjectDialog } from '../dashboard/NewProjectDialog';
 import { CommandPalette } from '../palette/CommandPalette';
-import { profileStore, useCurrentProfileId } from '../profile/profile-store';
+import { ProfilePanel } from '../profile/ProfilePanel';
+import { useCurrentProfileId } from '../profile/profile-store';
 import { NewSessionProvider, useNewSession } from './new-session-context';
 
 // Settings (all eight sections) load only when the dialog first opens.
@@ -79,6 +72,7 @@ function TopBar() {
   const profileId = useCurrentProfileId();
   const profiles = useProfiles();
   const profile = profiles.data?.find((p) => p.id === profileId);
+  const [panelOpen, setPanelOpen] = useState(false);
 
   return (
     // pl-5 ≈ the right side's visual inset (pr-3 + the ghost buttons' own padding).
@@ -112,34 +106,12 @@ function TopBar() {
           </TooltipTrigger>
           <TooltipContent>Settings</TooltipContent>
         </Tooltip>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="font-mono">
-              <UserRound />
-              {profile?.name ?? '…'}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Profile</DropdownMenuLabel>
-            {profiles.data?.map((p) => (
-              <DropdownMenuItem
-                key={p.id}
-                className="font-mono"
-                onSelect={() => profileStore.set(String(p.id))}
-              >
-                {p.name}
-                {p.id === profileId && (
-                  <span className="ml-auto text-2xs text-fg-muted">current</span>
-                )}
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => profileStore.set(null)}>
-              Switch profile…
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Button variant="ghost" size="sm" className="font-mono" onClick={() => setPanelOpen(true)}>
+          <UserRound />
+          {profile?.name ?? '…'}
+        </Button>
       </div>
+      <ProfilePanel open={panelOpen} onOpenChange={setPanelOpen} />
     </header>
   );
 }
