@@ -8,6 +8,9 @@ export const fsSafeName = z
   .max(64)
   .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/, 'letters, digits, dot, underscore and hyphen only');
 
+/** Default branch prefix for a new profile; editable per profile in settings. */
+export const DEFAULT_BRANCH_PREFIX = 'puddle/';
+
 export const profileSchema = z.object({
   id: profileId,
   name: fsSafeName,

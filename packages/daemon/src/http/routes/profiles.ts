@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import {
+  DEFAULT_BRANCH_PREFIX,
   createProfileRequestSchema,
   patchProfileRequestSchema,
   patchProfileSettingsRequestSchema,
@@ -22,7 +23,8 @@ export function profileRoutes(deps: {
       const body = await parseBody(c, createProfileRequestSchema);
       const profile = deps.profiles.create({
         name: body.name,
-        branch_prefix: body.branch_prefix ?? '',
+        // Omitted → the puddle/ default; an explicit '' still means no prefix.
+        branch_prefix: body.branch_prefix ?? DEFAULT_BRANCH_PREFIX,
       });
       return c.json(profile, 201);
     })

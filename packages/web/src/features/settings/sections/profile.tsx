@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../../components/ui/dialog';
+import { DEFAULT_BRANCH_PREFIX } from '@puddle/shared';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import {
@@ -67,6 +68,7 @@ export function ProfileSection() {
           id="branch-prefix"
           value={prefix}
           onChange={(e) => setPrefix(e.target.value)}
+          placeholder={DEFAULT_BRANCH_PREFIX}
           className="w-44 font-mono"
         />
         <Button

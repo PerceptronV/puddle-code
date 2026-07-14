@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { DEFAULT_BRANCH_PREFIX } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
@@ -18,7 +19,7 @@ export function ProfilePicker() {
   const submit = () => {
     if (!name.trim()) return;
     create.mutate(
-      { name: name.trim(), branch_prefix: branchPrefix.trim() || `${name.trim()}/` },
+      { name: name.trim(), branch_prefix: branchPrefix.trim() || DEFAULT_BRANCH_PREFIX },
       { onSuccess: (profile) => selectProfile(profile.id) },
     );
   };
@@ -79,7 +80,7 @@ export function ProfilePicker() {
             <Label htmlFor="branch-prefix">Branch prefix</Label>
             <Input
               id="branch-prefix"
-              placeholder={name.trim() ? `${name.trim()}/` : 'e.g. alice/'}
+              placeholder={DEFAULT_BRANCH_PREFIX}
               value={branchPrefix}
               onChange={(e) => setBranchPrefix(e.target.value)}
               className="h-10 font-mono"
