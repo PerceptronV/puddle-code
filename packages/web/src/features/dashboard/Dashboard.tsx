@@ -13,7 +13,7 @@ const COUNTED: Array<{ status: SessionStatus; colour: string }> = [
   { status: 'interrupted', colour: 'bg-interrupted' },
 ];
 
-function SessionCounts({ projectId }: { projectId: number }) {
+function SessionCounts({ projectId }: { projectId: string }) {
   const sessions = useSessions(projectId);
   const counts = useMemo(() => {
     const byStatus = new Map<SessionStatus, number>();

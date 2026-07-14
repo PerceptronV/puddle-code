@@ -281,8 +281,9 @@ Accounts   GET  /api/accounts?profile=…      POST /api/accounts {profile_id, a
 Repos      GET  /api/fs/dirs?prefix=…        # directory autocomplete for repo registration (dirs only, dotdirs included, is_git flag)
            GET  /api/repos                   POST /api/repos {path, default_base_branch?, onboarding_notes?, fetch_enabled?}
            PATCH /api/repos/:id               # same fields (onboarding_notes also updatable via the .puddle marker-file sync — §4)
-           POST  /api/repos/:id/fetch         # manual fetch now; path must be an existing git repo (validated on POST)
-Projects   GET  /api/projects?profile=…      POST /api/projects {profile_id, repo_id, name}
+           POST  /api/repos/:id/fetch         # manual fetch now; path must be an existing git repo (validated on POST; ~ expands on the host; re-registering a known path returns it)
+           GET   /api/repos/:id/branches      # local + fetched remote heads, deduped short names, default base first
+Projects   GET  /api/projects?profile=…      POST /api/projects {profile_id, repo_id, name}   # ids are 10-hex handles (/project/:id)
            GET  /api/projects/:id            # detail incl. sessions with status
            GET  /api/projects/:id/state?client=…   PUT (client-keyed ui_state JSON; debounced writes; GET falls back to the project's most recent snapshot when the client has none)
            POST /api/projects/:id/archive

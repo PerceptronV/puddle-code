@@ -10,6 +10,8 @@ Past releases: see docs/changelogs/.
 ## [Unreleased]
 
 ### Changed
+- Project ids are 10-hex-char handles (`/project/a1b2c3d4e5`) instead of integers; migration 002 rebuilds the affected tables and remaps existing rows.
+- The base-branch field in the new-session modal autocompletes from the repo's branches (new `GET /api/repos/:id/branches`: local + fetched remote heads, default base first) via a shared hint-input component that the repository-path field also uses.
 - The dashboard is just the project grid: the "everyone" cross-profile view, the heading, and the header button are gone — projects are strictly per-profile, and creation lives in ⌘K plus the empty state.
 - The new-project flow is one path field with live directory autocomplete from the daemon host (`GET /api/fs/dirs`, dotdirs included, git repos flagged, keyboard-navigable); paths matching a registered repository reuse it, and the project name prefills from the directory. `~` paths expand on the host for both hints and registration, and re-registering a known path returns the existing repo instead of a 409.
 - Menu highlights (dropdowns, selects, ⌘K) use the ink action fill instead of accent blue, and text fields no longer show a focus outline — the fill shift is the cue; both live in shared recipes (`components/ui/recipes.ts`) so every component inherits them.

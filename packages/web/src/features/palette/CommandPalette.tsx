@@ -37,7 +37,7 @@ export function CommandPalette({
   const navigate = useNavigate();
   const params = useParams();
   const profileId = useCurrentProfileId();
-  const projectId = params['id'] !== undefined ? Number(params['id']) : undefined;
+  const projectId = params['id'];
   const projects = useProjects(profileId ?? undefined);
   const sessions = useSessions(projectId);
 

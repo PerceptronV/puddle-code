@@ -12,7 +12,7 @@ import type { RepoStore } from '../../db/stores/repos.js';
 import type { SessionService } from '../../sessions/service.js';
 import type { WorktreeManager } from '../../worktrees/manager.js';
 import { ApiError } from '../errors.js';
-import { idParam, parseBody } from '../validate.js';
+import { parseBody, projectIdParam } from '../validate.js';
 
 export interface ProjectRouteDeps {
   projects: ProjectStore;
@@ -36,7 +36,7 @@ export function projectRoutes(deps: ProjectRouteDeps): Hono {
       return c.json(deps.projects.create(body), 201);
     })
     .get('/:id', (c) => {
-      const project = deps.projects.get(idParam(c));
+      const project = deps.projects.get(projectIdParam(c));
       // Fetch-on-project-open (SPEC §4): fire-and-forget, never blocks the UI.
       const repo = deps.repos.get(project.repo_id);
       void deps.worktrees
@@ -49,11 +49,11 @@ export function projectRoutes(deps: ProjectRouteDeps): Hono {
     })
     .post('/:id/archive', async (c) => {
       const body = await parseBody(c, archiveRequestSchema);
-      await deps.service.archiveProject(idParam(c), body.force);
+      await deps.service.archiveProject(projectIdParam(c), body.force);
       return c.body(null, 204);
     })
     .get('/:id/state', (c) => {
-      const project = deps.projects.get(idParam(c));
+      const project = deps.projects.get(projectIdParam(c));
       const client = c.req.query('client');
       if (!client) {
         throw ApiError.badRequest('missing_client', `query parameter 'client' is required`);
@@ -67,7 +67,7 @@ export function projectRoutes(deps: ProjectRouteDeps): Hono {
       return c.json(state);
     })
     .put('/:id/state', async (c) => {
-      const project = deps.projects.get(idParam(c));
+      const project = deps.projects.get(projectIdParam(c));
       const client = c.req.query('client');
       if (!client) {
         throw ApiError.badRequest('missing_client', `query parameter 'client' is required`);

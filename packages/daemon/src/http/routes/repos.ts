@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import {
   createRepoRequestSchema,
   patchRepoRequestSchema,
+  type RepoBranchesResponse,
   type RepoWithOrphans,
 } from '@puddle/shared';
 import type { RepoStore } from '../../db/stores/repos.js';
@@ -52,6 +53,32 @@ export function repoRoutes(deps: RepoRouteDeps): Hono {
     .patch('/:id', async (c) => {
       const body = await parseBody(c, patchRepoRequestSchema);
       return c.json(deps.repos.patch(idParam(c), body));
+    })
+    .get('/:id/branches', async (c) => {
+      const repo = deps.repos.get(idParam(c));
+      // Local heads plus fetched remote heads, deduped to short names — the
+      // worktree manager resolves origin/<base> itself when present (§4).
+      const out = await git(['for-each-ref', '--format=%(refname)', 'refs/heads', 'refs/remotes'], {
+        cwd: repo.path,
+      });
+      const names = new Set<string>();
+      for (const ref of out.split('\n')) {
+        if (ref.startsWith('refs/heads/')) {
+          names.add(ref.slice('refs/heads/'.length));
+        } else {
+          const remote = /^refs\/remotes\/[^/]+\/(.+)$/.exec(ref);
+          if (remote && remote[1] !== 'HEAD') names.add(remote[1]!);
+        }
+      }
+      const branches = [...names].sort((a, b) =>
+        // The repo's default base branch leads the list.
+        a === repo.default_base_branch
+          ? -1
+          : b === repo.default_base_branch
+            ? 1
+            : a.localeCompare(b),
+      );
+      return c.json<RepoBranchesResponse>({ branches });
     })
     .post('/:id/fetch', async (c) => {
       const repo = deps.repos.get(idParam(c));

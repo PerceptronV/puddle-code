@@ -24,6 +24,12 @@ export const createRepoRequestSchema = z.object({
   fetch_enabled: z.boolean().optional(),
 });
 
+/** GET /api/repos/:id/branches — local and fetched remote heads, deduped. */
+export const repoBranchesResponseSchema = z.object({
+  branches: z.array(z.string()),
+});
+export type RepoBranchesResponse = z.infer<typeof repoBranchesResponseSchema>;
+
 export const patchRepoRequestSchema = z.object({
   default_base_branch: z.string().min(1).optional(),
   onboarding_notes: z.string().nullable().optional(),

@@ -28,7 +28,11 @@ describe('shared API schemas', () => {
   });
 
   it('create-session accepts optional prompt and skip flag', () => {
-    const r = createSessionRequestSchema.parse({ project_id: 1, account_id: 2, prompt: 'go' });
+    const r = createSessionRequestSchema.parse({
+      project_id: 'a1b2c3d4e5',
+      account_id: 2,
+      prompt: 'go',
+    });
     expect(r.skip_permissions).toBeUndefined();
   });
 

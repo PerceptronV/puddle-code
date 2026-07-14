@@ -28,3 +28,12 @@ export function idParam(c: Context, name = 'id'): number {
   }
   return value;
 }
+
+/** Project ids are 10 hex chars; 400 otherwise. */
+export function projectIdParam(c: Context, name = 'id'): string {
+  const value = c.req.param(name) ?? '';
+  if (!/^[0-9a-f]{10}$/.test(value)) {
+    throw ApiError.badRequest('invalid_id', `path parameter '${name}' must be a 10-hex project id`);
+  }
+  return value;
+}

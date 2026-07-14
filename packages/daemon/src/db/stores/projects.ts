@@ -1,9 +1,10 @@
+import { randomBytes } from 'node:crypto';
 import type { Project } from '@puddle/shared';
 import { ApiError } from '../../http/errors.js';
 import type { Db } from '../db.js';
 
 interface Row {
-  id: number;
+  id: string;
   profile_id: number;
   repo_id: number;
   name: string;
@@ -16,13 +17,15 @@ export class ProjectStore {
 
   create(input: { profile_id: number; repo_id: number; name: string }): Project {
     const now = new Date().toISOString();
+    // 10 hex chars (5 random bytes): short, stable URL handles.
+    const id = randomBytes(5).toString('hex');
     try {
-      const info = this.db
+      this.db
         .prepare(
-          `INSERT INTO projects (profile_id, repo_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO projects (id, profile_id, repo_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
         )
-        .run(input.profile_id, input.repo_id, input.name, now, now);
-      return this.get(Number(info.lastInsertRowid));
+        .run(id, input.profile_id, input.repo_id, input.name, now, now);
+      return this.get(id);
     } catch (e) {
       if (e instanceof Error && e.message.includes('UNIQUE')) {
         throw ApiError.conflict(
@@ -37,18 +40,20 @@ export class ProjectStore {
   list(profileId?: number): Project[] {
     return (
       profileId === undefined
-        ? this.db.prepare(`SELECT * FROM projects ORDER BY id`).all()
-        : this.db.prepare(`SELECT * FROM projects WHERE profile_id = ? ORDER BY id`).all(profileId)
+        ? this.db.prepare(`SELECT * FROM projects ORDER BY created_at`).all()
+        : this.db
+            .prepare(`SELECT * FROM projects WHERE profile_id = ? ORDER BY created_at`)
+            .all(profileId)
     ) as Row[];
   }
 
-  get(id: number): Project {
+  get(id: string): Project {
     const row = this.db.prepare(`SELECT * FROM projects WHERE id = ?`).get(id) as Row | undefined;
     if (!row) throw ApiError.notFound('project', id);
     return row;
   }
 
-  touch(id: number): void {
+  touch(id: string): void {
     this.db
       .prepare(`UPDATE projects SET updated_at = ? WHERE id = ?`)
       .run(new Date().toISOString(), id);

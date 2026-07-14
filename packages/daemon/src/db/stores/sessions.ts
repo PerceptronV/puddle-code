@@ -4,7 +4,7 @@ import type { Db } from '../db.js';
 
 interface Row {
   id: string;
-  project_id: number;
+  project_id: string;
   account_id: number;
   worktree_path: string;
   base_branch: string;
@@ -21,7 +21,7 @@ interface Row {
 
 export interface NewSessionRow {
   id: string;
-  project_id: number;
+  project_id: string;
   account_id: number;
   worktree_path: string;
   base_branch: string;
@@ -70,7 +70,7 @@ export class SessionStore {
     return toSession(row);
   }
 
-  list(filter: { project_id?: number; status?: SessionStatus } = {}): Session[] {
+  list(filter: { project_id?: string; status?: SessionStatus } = {}): Session[] {
     const clauses: string[] = [];
     const params: unknown[] = [];
     if (filter.project_id !== undefined) {

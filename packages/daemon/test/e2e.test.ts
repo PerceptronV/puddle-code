@@ -209,6 +209,16 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
     // Re-registering a known path (however spelt) returns the existing repo.
     const again = await c.json<Repo>('POST', '/api/repos', { path: repoPath });
     expect(again.id).toBe(repo.id);
+
+    // Branch hints: local + fetched remote heads, default base first.
+    const { branches } = await c.json<{ branches: string[] }>(
+      'GET',
+      `/api/repos/${repo.id}/branches`,
+    );
+    expect(branches[0]).toBe(repo.default_base_branch);
+
+    // Project ids are 10-hex URL handles.
+    expect(project.id).toMatch(/^[0-9a-f]{10}$/);
   });
 
   it('rejects skip_permissions against the closed gate with 400', async () => {

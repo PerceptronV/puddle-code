@@ -77,7 +77,7 @@ export class SessionService extends EventEmitter {
     return this.withComputed(this.deps.sessions.get(id));
   }
 
-  list(filter: { project_id?: number; status?: SessionStatus } = {}): Session[] {
+  list(filter: { project_id?: string; status?: SessionStatus } = {}): Session[] {
     return this.deps.sessions.list(filter).map((s) => this.withComputed(s));
   }
 
@@ -256,7 +256,7 @@ export class SessionService extends EventEmitter {
   }
 
   /** Archives all sessions of a project; refuses live ones unless forced (SPEC §4). */
-  async archiveProject(projectId: number, force = false): Promise<void> {
+  async archiveProject(projectId: string, force = false): Promise<void> {
     this.deps.projects.get(projectId); // 404 guard
     const sessions = this.deps.sessions.list({ project_id: projectId });
     const live = sessions.filter((s) => LIVE_STATUSES.includes(s.status));

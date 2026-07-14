@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isoTimestamp, rowId, sessionId } from './common.js';
+import { isoTimestamp, projectId, rowId, sessionId } from './common.js';
 
 export const sessionStatusSchema = z.enum([
   'starting',
@@ -13,7 +13,7 @@ export type SessionStatus = z.infer<typeof sessionStatusSchema>;
 
 export const sessionSchema = z.object({
   id: sessionId,
-  project_id: rowId,
+  project_id: projectId,
   account_id: rowId,
   worktree_path: z.string(),
   base_branch: z.string(),
@@ -32,7 +32,7 @@ export const sessionSchema = z.object({
 export type Session = z.infer<typeof sessionSchema>;
 
 export const createSessionRequestSchema = z.object({
-  project_id: rowId,
+  project_id: projectId,
   account_id: rowId,
   base_branch: z.string().min(1).optional(),
   branch: z.string().min(1).max(200).optional(),

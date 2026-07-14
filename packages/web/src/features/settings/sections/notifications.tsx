@@ -7,7 +7,7 @@ import { SectionTitle, SettingRow } from '../parts';
 interface NotificationPrefs {
   desktop: boolean;
   sound: boolean;
-  muted_projects: number[];
+  muted_projects: string[]; // project ids (10-hex)
 }
 
 const DEFAULTS: NotificationPrefs = { desktop: true, sound: false, muted_projects: [] };

@@ -21,7 +21,7 @@ const EMPTY: UiStateSnapshot = uiStateSnapshotSchema.parse({});
  * project's most recent one server-side) and writes changes back debounced.
  * Transient focus stays local to the window (SPEC §11).
  */
-export function useUiState(projectId: number | undefined): UiStateHandle {
+export function useUiState(projectId: string | undefined): UiStateHandle {
   const [loaded, setLoaded] = useState(false);
   const [snapshot, setSnapshot] = useState<UiStateSnapshot>(EMPTY);
   const snapshotRef = useRef(snapshot);
@@ -29,7 +29,7 @@ export function useUiState(projectId: number | undefined): UiStateHandle {
 
   const writer = useMemo(
     () =>
-      debounce((pid: number, state: UiStateSnapshot) => {
+      debounce((pid: string, state: UiStateSnapshot) => {
         putProjectState(pid, state).catch((e) =>
           console.warn(`ui-state save failed: ${(e as Error).message}`),
         );

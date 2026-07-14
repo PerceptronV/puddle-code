@@ -15,7 +15,7 @@ export class ProjectStateStore {
   constructor(private readonly db: Db) {}
 
   /** The named client's own snapshot, if it has one. */
-  get(projectId: number, clientId: string): ProjectStateResponse | undefined {
+  get(projectId: string, clientId: string): ProjectStateResponse | undefined {
     const row = this.db
       .prepare(
         `SELECT ui_state, updated_at FROM project_states WHERE project_id = ? AND client_id = ?`,
@@ -25,7 +25,7 @@ export class ProjectStateStore {
   }
 
   /** The project's most recent snapshot from any client (seed for new clients). */
-  latest(projectId: number): ProjectStateResponse | undefined {
+  latest(projectId: string): ProjectStateResponse | undefined {
     const row = this.db
       .prepare(
         `SELECT ui_state, updated_at FROM project_states WHERE project_id = ? ORDER BY updated_at DESC LIMIT 1`,
@@ -34,7 +34,7 @@ export class ProjectStateStore {
     return row && this.parse(row);
   }
 
-  put(projectId: number, clientId: string, uiState: UiStateSnapshot): ProjectStateResponse {
+  put(projectId: string, clientId: string, uiState: UiStateSnapshot): ProjectStateResponse {
     const now = new Date().toISOString();
     this.db
       .prepare(

@@ -19,9 +19,22 @@ function migrate(db: Db): void {
   const current = db.pragma('user_version', { simple: true }) as number;
   for (const m of MIGRATIONS) {
     if (m.version <= current) continue;
-    db.transaction(() => {
-      db.exec(m.sql);
-      db.pragma(`user_version = ${m.version}`);
-    })();
+    // Table rebuilds need FKs off for the duration (sqlite.org/lang_altertable,
+    // "making other kinds of table schema changes"); a full foreign_key_check
+    // before commit keeps the guarantee. The pragma cannot change inside a
+    // transaction, hence the wrapping.
+    db.pragma('foreign_keys = OFF');
+    try {
+      db.transaction(() => {
+        db.exec(m.sql);
+        const violations = db.pragma('foreign_key_check') as unknown[];
+        if (violations.length > 0) {
+          throw new Error(`migration ${m.version} (${m.name}) breaks foreign keys`);
+        }
+        db.pragma(`user_version = ${m.version}`);
+      })();
+    } finally {
+      db.pragma('foreign_keys = ON');
+    }
   }
 }

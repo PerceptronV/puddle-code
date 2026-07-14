@@ -47,8 +47,8 @@ function SessionBanner({ session }: { session: Session }) {
 export function Workspace() {
   const params = useParams();
   const navigate = useNavigate();
-  const projectId = Number(params['id']);
-  const validProject = Number.isInteger(projectId) && projectId > 0;
+  const projectId = params['id'] ?? '';
+  const validProject = /^[0-9a-f]{10}$/.test(projectId);
   const activeSessionId = params['sid'] ?? null;
   const detail = useProjectDetail(validProject ? projectId : undefined);
   const sessions = useMemo(() => detail.data?.sessions ?? [], [detail.data]);

@@ -12,6 +12,7 @@ import type {
   Project,
   ProjectDetail,
   ProjectStateResponse,
+  RepoBranchesResponse,
   RepoWithOrphans,
   Session,
   UiStateSnapshot,
@@ -63,7 +64,7 @@ export function useProjects(profileId: number | undefined) {
   });
 }
 
-export function useProjectDetail(projectId: number | undefined) {
+export function useProjectDetail(projectId: string | undefined) {
   return useQuery({
     queryKey: ['project', projectId],
     queryFn: () => api<ProjectDetail>('GET', `/api/projects/${projectId}`),
@@ -71,7 +72,7 @@ export function useProjectDetail(projectId: number | undefined) {
   });
 }
 
-export function useSessions(projectId: number | undefined) {
+export function useSessions(projectId: string | undefined) {
   return useQuery({
     queryKey: ['sessions', projectId],
     queryFn: () => api<Session[]>('GET', `/api/sessions?project=${projectId}`),
@@ -81,6 +82,15 @@ export function useSessions(projectId: number | undefined) {
 
 export function useConfig() {
   return useQuery({ queryKey: ['config'], queryFn: () => api<DaemonConfig>('GET', '/api/config') });
+}
+
+export function useRepoBranches(repoId: number | undefined) {
+  return useQuery({
+    queryKey: ['repo-branches', repoId],
+    queryFn: () => api<RepoBranchesResponse>('GET', `/api/repos/${repoId}/branches`),
+    enabled: repoId !== undefined,
+    staleTime: 30_000,
+  });
 }
 
 export function useDirSuggestions(prefix: string) {
@@ -266,7 +276,7 @@ export function usePatchConfig() {
 
 /* -- Workspace ui_state (SPEC §11 reload semantics) ---------------------- */
 
-export async function fetchProjectState(projectId: number): Promise<ProjectStateResponse | null> {
+export async function fetchProjectState(projectId: string): Promise<ProjectStateResponse | null> {
   try {
     return await api<ProjectStateResponse>(
       'GET',
@@ -279,7 +289,7 @@ export async function fetchProjectState(projectId: number): Promise<ProjectState
 }
 
 export function putProjectState(
-  projectId: number,
+  projectId: string,
   uiState: UiStateSnapshot,
 ): Promise<ProjectStateResponse> {
   return api<ProjectStateResponse>('PUT', `/api/projects/${projectId}/state?client=${clientId()}`, {

@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../components/ui/dialog';
+import { HintInput } from '../../components/ui/hint-input';
 import { Input, Textarea } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import {
@@ -20,7 +21,13 @@ import {
 } from '../../components/ui/select';
 import { Switch } from '../../components/ui/switch';
 import { openSettings } from '../../lib/hash-route';
-import { useAccounts, useCreateSession, useProfileSettings, useRepos } from '../../lib/queries';
+import {
+  useAccounts,
+  useCreateSession,
+  useProfileSettings,
+  useRepoBranches,
+  useRepos,
+} from '../../lib/queries';
 import { useCurrentProfileId } from '../profile/profile-store';
 
 /**
@@ -35,7 +42,7 @@ export function NewSessionDialog({
   onOpenChange,
   onCreated,
 }: {
-  projectId: number;
+  projectId: string;
   repoId: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -55,6 +62,7 @@ export function NewSessionDialog({
   const [error, setError] = useState<string | null>(null);
 
   const repo = repos.data?.find((r) => r.id === repoId);
+  const branches = useRepoBranches(open ? repoId : undefined);
   const account = accounts.data?.find((a) => String(a.id) === accountId);
   const gateOpen = settings.data?.allowSkipPermissions === true;
   const showSkipToggle = gateOpen && account?.skip_permissions_default === true;
@@ -150,11 +158,18 @@ export function NewSessionDialog({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="base-branch">Base branch</Label>
-            <Input
+            <HintInput
               id="base-branch"
               placeholder={repo?.default_base_branch ?? 'main'}
               value={baseBranch}
-              onChange={(e) => setBaseBranch(e.target.value)}
+              onValueChange={setBaseBranch}
+              hints={(branches.data?.branches ?? [])
+                .filter((branch) => branch.toLowerCase().includes(baseBranch.trim().toLowerCase()))
+                .slice(0, 20)
+                .map((branch) => ({
+                  value: branch,
+                  badge: branch === repo?.default_base_branch ? 'default' : undefined,
+                }))}
               className="font-mono"
             />
           </div>

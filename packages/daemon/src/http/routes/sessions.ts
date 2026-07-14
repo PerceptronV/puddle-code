@@ -20,7 +20,7 @@ export function sessionRoutes(deps: { service: SessionService }): Hono {
       }
       return c.json(
         deps.service.list({
-          project_id: project !== undefined ? Number(project) : undefined,
+          project_id: project,
           status: status?.data,
         }),
       );

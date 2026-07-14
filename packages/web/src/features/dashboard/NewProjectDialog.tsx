@@ -9,17 +9,20 @@ import {
   DialogTitle,
 } from '../../components/ui/dialog';
 import { Button } from '../../components/ui/button';
+import { HintInput, type Hint } from '../../components/ui/hint-input';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
-import { menuHighlightCmdk, menuRow } from '../../components/ui/recipes';
 import { useCreateProject, useCreateRepo, useDirSuggestions, useRepos } from '../../lib/queries';
 import { useDebouncedValue } from '../../lib/use-debounced-value';
-import { cn } from '../../lib/utils';
 
 /** '/a/b/' → '/a/b'; keeps the root slash. */
 function normalisePath(path: string): string {
   const trimmed = path.trim().replace(/\/+$/, '');
   return trimmed === '' ? '/' : trimmed;
+}
+
+function isPathish(value: string): boolean {
+  return value.startsWith('/') || value.startsWith('~');
 }
 
 /**
@@ -44,57 +47,28 @@ export function NewProjectDialog({
   const [path, setPath] = useState('');
   const [name, setName] = useState('');
   const [nameTouched, setNameTouched] = useState(false);
-  const [hintsOpen, setHintsOpen] = useState(false);
-  const [activeHint, setActiveHint] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const debouncedPath = useDebouncedValue(path, 150);
   const suggestions = useDirSuggestions(debouncedPath);
 
   // Before any typing, offer the already-registered repos.
-  const hints = useMemo(() => {
-    if (!path.startsWith('/') && !path.startsWith('~')) {
+  const hints = useMemo<Array<Hint & { is_git: boolean }>>(() => {
+    if (!isPathish(path)) {
       return (repos.data ?? []).map((repo) => ({
-        path: repo.path,
-        name: repo.path,
+        value: repo.path,
+        badge: 'registered',
         is_git: true,
-        registered: true,
       }));
     }
-    const registeredPaths = new Set((repos.data ?? []).map((repo) => repo.path));
+    const registered = new Set((repos.data ?? []).map((repo) => repo.path));
     return (suggestions.data?.entries ?? []).map((entry) => ({
-      ...entry,
-      registered: registeredPaths.has(entry.path),
+      value: entry.path,
+      label: entry.name,
+      badge: registered.has(entry.path) ? 'registered' : entry.is_git ? 'git' : undefined,
+      is_git: entry.is_git,
     }));
   }, [path, repos.data, suggestions.data]);
-
-  const choose = (hint: { path: string; is_git: boolean }) => {
-    setPath(hint.path);
-    if (!nameTouched && hint.is_git) {
-      setName(hint.path.split('/').filter(Boolean).pop() ?? '');
-    }
-    setHintsOpen(false);
-  };
-
-  const onPathKeyDown = (e: React.KeyboardEvent) => {
-    if (!hintsOpen || hints.length === 0) return;
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setActiveHint((i) => (i + 1) % hints.length);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setActiveHint((i) => (i - 1 + hints.length) % hints.length);
-    } else if (e.key === 'Enter' || e.key === 'Tab') {
-      const hint = hints[activeHint] ?? hints[0];
-      if (hint) {
-        e.preventDefault();
-        choose(hint);
-      }
-    } else if (e.key === 'Escape') {
-      e.stopPropagation(); // close the hints, not the dialog
-      setHintsOpen(false);
-    }
-  };
 
   const submit = async () => {
     setError(null);
@@ -114,8 +88,7 @@ export function NewProjectDialog({
     }
   };
 
-  const trimmedPath = path.trim();
-  const ready = name.trim() !== '' && (trimmedPath.startsWith('/') || trimmedPath.startsWith('~'));
+  const ready = name.trim() !== '' && isPathish(path.trim());
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -133,50 +106,22 @@ export function NewProjectDialog({
             if (ready) void submit();
           }}
         >
-          <div className="relative flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5">
             <Label htmlFor="repo-path">Repository path</Label>
-            <Input
+            <HintInput
               id="repo-path"
               placeholder="~/src/my-repo"
               value={path}
-              onChange={(e) => {
-                setPath(e.target.value);
-                setHintsOpen(true);
-                setActiveHint(0);
+              onValueChange={setPath}
+              onChoose={(hint) => {
+                const chosen = hint as Hint & { is_git: boolean };
+                if (!nameTouched && chosen.is_git) {
+                  setName(hint.value.split('/').filter(Boolean).pop() ?? '');
+                }
               }}
-              onFocus={() => setHintsOpen(true)}
-              onBlur={() => setHintsOpen(false)}
-              onKeyDown={onPathKeyDown}
+              hints={hints}
               className="font-mono"
-              autoComplete="off"
-              spellCheck={false}
             />
-            {hintsOpen && hints.length > 0 && (
-              <ul className="absolute top-full z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-md bg-elevated p-1 shadow-xl">
-                {hints.map((hint, index) => (
-                  <li key={hint.path}>
-                    <button
-                      type="button"
-                      // Fires before the input's blur closes the list.
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        choose(hint);
-                      }}
-                      onMouseEnter={() => setActiveHint(index)}
-                      className={cn(menuRow, menuHighlightCmdk, 'w-full font-mono text-xs')}
-                      data-selected={index === activeHint}
-                    >
-                      <span className="truncate">{hint.name}</span>
-                      {hint.registered ? (
-                        <span className="ml-auto shrink-0 text-2xs opacity-70">registered</span>
-                      ) : hint.is_git ? (
-                        <span className="ml-auto shrink-0 text-2xs opacity-70">git</span>
-                      ) : null}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="project-name">Project name</Label>

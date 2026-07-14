@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { isoTimestamp, rowId } from './common.js';
+import { isoTimestamp, projectId, rowId } from './common.js';
 import { sessionSchema } from './sessions.js';
 
 export const projectSchema = z.object({
-  id: rowId,
+  id: projectId,
   profile_id: rowId,
   repo_id: rowId,
   name: z.string(),

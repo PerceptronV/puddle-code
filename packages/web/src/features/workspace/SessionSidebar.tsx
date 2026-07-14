@@ -15,7 +15,7 @@ export function SessionSidebar({
   onNewSession,
   onArchived,
 }: {
-  projectId: number;
+  projectId: string;
   sessions: Session[];
   activeSessionId: string | null;
   onNewSession: () => void;

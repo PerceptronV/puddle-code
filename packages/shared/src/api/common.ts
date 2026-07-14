@@ -16,3 +16,6 @@ export const rowId = z.number().int().positive();
 
 /** Puddle session ids are uuids (also reused as claude-code session ids). */
 export const sessionId = z.uuid();
+
+/** Project ids are 10 hex chars — short, stable URL handles (/project/:id). */
+export const projectId = z.string().regex(/^[0-9a-f]{10}$/);
