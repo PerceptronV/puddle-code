@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Link, Outlet } from 'react-router';
+import { Link, Outlet, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Command as CommandIcon, Settings, UserRound } from 'lucide-react';
 import type { ProjectDetail, Session } from '@puddle/shared';
@@ -14,7 +14,7 @@ import {
 } from '../../components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { openSettings, settingsSection, useHash } from '../../lib/hash-route';
-import { useProfiles } from '../../lib/queries';
+import { useHostInfo, useProfiles, useProjectDetail, useRepos } from '../../lib/queries';
 import { wsManager } from '../../lib/ws';
 import { Suspense, lazy, useState } from 'react';
 import { NewProjectDialog } from '../dashboard/NewProjectDialog';
@@ -46,16 +46,43 @@ function useStatusCacheSync() {
   }, [qc]);
 }
 
+/**
+ * scp-style location in the top-bar centre: user@host, plus :repo-path once
+ * a workspace is open. The daemon reports who/where it is (/api/host) — the
+ * origin (and therefore any port) never appears in the UI.
+ */
+function HostIndicator() {
+  const host = useHostInfo();
+  const params = useParams();
+  const detail = useProjectDetail(params['id']);
+  const repos = useRepos();
+  if (!host.data) return null;
+
+  const repoPath = repos.data?.find((r) => r.id === detail.data?.project.repo_id)?.path;
+  const shownPath =
+    repoPath && repoPath.startsWith(host.data.home)
+      ? `~${repoPath.slice(host.data.home.length)}`
+      : repoPath;
+
+  return (
+    <span className="absolute left-1/2 max-w-[45%] -translate-x-1/2 truncate font-mono text-xs text-fg-secondary">
+      {host.data.username}@{host.data.hostname}
+      {shownPath && <span className="text-fg-muted">:{shownPath}</span>}
+    </span>
+  );
+}
+
 function TopBar() {
   const profileId = useCurrentProfileId();
   const profiles = useProfiles();
   const profile = profiles.data?.find((p) => p.id === profileId);
 
   return (
-    <header className="flex h-11 shrink-0 items-center gap-3 bg-surface px-3">
+    <header className="relative flex h-11 shrink-0 items-center gap-3 bg-surface px-3">
       <Link to="/" className="font-mono text-sm font-semibold text-fg hover:text-accent">
         puddle
       </Link>
+      <HostIndicator />
       <div className="ml-auto flex items-center gap-1">
         <Tooltip>
           <TooltipTrigger asChild>

@@ -16,7 +16,7 @@ function NumberSetting({
   label: string;
   description?: string;
   field: keyof DaemonConfig &
-    ('port' | 'fetchIntervalMinutes' | 'logMaxBytes' | 'replayBytes' | 'uiStateRetentionDays');
+    ('fetchIntervalMinutes' | 'logMaxBytes' | 'replayBytes' | 'uiStateRetentionDays');
   config: DaemonConfig;
   min: number;
   step?: number;
@@ -50,14 +50,9 @@ export function HostSection() {
 
   return (
     <div>
+      {/* The port is deliberately absent: transport is the CLI's business
+          (--port / config.json), never the UI's (decision 2026-07-13). */}
       <SectionTitle note="affects all profiles on this host">Host</SectionTitle>
-      <NumberSetting
-        label="Port"
-        description="applies on daemon restart."
-        field="port"
-        config={config.data}
-        min={1}
-      />
       <NumberSetting
         label="Fetch interval (minutes)"
         description="periodic git fetch for repos with active sessions."

@@ -164,6 +164,14 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
     );
     expect(agents.map((a) => a.id)).toEqual(['fake']);
 
+    const host = await c.json<{ username: string; hostname: string; home: string }>(
+      'GET',
+      '/api/host',
+    );
+    expect(host.username.length).toBeGreaterThan(0);
+    expect(host.hostname.length).toBeGreaterThan(0);
+    expect(host.home.startsWith('/')).toBe(true);
+
     const renamedPrefix = await c.json<Profile>('PATCH', `/api/profiles/${profile.id}`, {
       branch_prefix: 'team/alice/',
     });

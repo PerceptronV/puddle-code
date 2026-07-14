@@ -6,6 +6,7 @@ import type {
   DaemonConfig,
   DaemonConfigPatch,
   FsDirsResponse,
+  HostInfo,
   LoginResponse,
   Profile,
   ProfileSettings,
@@ -99,6 +100,14 @@ export function useDirSuggestions(prefix: string) {
     enabled: prefix.startsWith('/') || prefix.startsWith('~'), // ~ expands on the host
     placeholderData: (previous) => previous, // keep the list steady while typing
     staleTime: 10_000,
+  });
+}
+
+export function useHostInfo() {
+  return useQuery({
+    queryKey: ['host'],
+    queryFn: () => api<HostInfo>('GET', '/api/host'),
+    staleTime: Infinity, // the box does not change under a running daemon
   });
 }
 

@@ -272,7 +272,8 @@ Profiles   GET  /api/profiles                POST /api/profiles {name, branch_pr
            PATCH /api/profiles/:id {branch_prefix}   # name is immutable in v1 (it names directories)
            DELETE /api/profiles/:id                  # 409 while any of its sessions is non-archived; cascades rows + removes its dir
            GET  /api/profiles/:id/settings   PATCH (profile-scope settings JSON — §11 Settings)
-Config     GET  /api/config                  PATCH (daemon-scope settings; affects all profiles; port changes apply on daemon restart)
+Config     GET  /api/config                  PATCH (daemon-scope settings; affects all profiles; the port lives in config.json / --port only and is never surfaced in the UI)
+Host       GET  /api/host                    # daemon identity {username, hostname, home} — the UI's location indicator; the origin/port never appears in the UI
 Agents     GET  /api/agents                  # registered adapters: id, display name, capabilities the UI gates on
 Accounts   GET  /api/accounts?profile=…      POST /api/accounts {profile_id, agent_type, label, skip_permissions_default?}
            PATCH /api/accounts/:id {skip_permissions_default}   # the account opt-in half of the §11 gate
@@ -399,11 +400,11 @@ Profiles are identity, not auth. First load shows a profile picker (create-or-se
 
 A settings panel, reachable from a gear icon and ⌘K → "Settings". Three scopes, each stored where it belongs:
 
-| scope   | storage                                                    | examples                                                                                                             |
-| ------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| client  | localStorage (per browser)                                 | theme (dark/light/system), UI & terminal font size, reduced motion, terminal scrollback, editor tab size / word wrap |
-| profile | `profiles.settings` JSON, via `/api/profiles/:id/settings` | branch prefix, default account & agent, permissions gate, notification preferences                                   |
-| daemon  | `config.json`, via `/api/config`                           | port, log size cap, ui_state GC retention, `autoResume` — marked in the UI as affecting all profiles                 |
+| scope   | storage                                                    | examples                                                                                                                                                                |
+| ------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| client  | localStorage (per browser)                                 | theme (dark/light/system), UI & terminal font size, reduced motion, terminal scrollback, editor tab size / word wrap                                                    |
+| profile | `profiles.settings` JSON, via `/api/profiles/:id/settings` | branch prefix, default account & agent, permissions gate, notification preferences                                                                                      |
+| daemon  | `config.json`, via `/api/config`                           | log size cap, ui_state GC retention, `autoResume` — marked in the UI as affecting all profiles. The port is CLI/config-file territory (`--port`), never shown in the UI |
 
 Panel sections: **Appearance** (theme, font sizes, density, reduced motion); **Profile** (name, branch prefix, default account & agent); **Accounts** (per agent type: login state, add — spawns the login PTY —, remove; per-account "skip permission prompts" toggle, visible only when the gate below is on); **Permissions & safety**; **Notifications** (desktop notification and optional sound on `waiting_input`, per-project mute); **Terminal & editor**; **Repositories** (per repo: base branch, fetch policy, onboarding notes — the standing setup rules, freely editable); **Host** (daemon scope, incl. `fetchIntervalMinutes`).
 

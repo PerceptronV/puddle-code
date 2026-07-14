@@ -2,6 +2,7 @@ export * from './api/common.js';
 export * from './api/version.js';
 export * from './api/config.js';
 export * from './api/fs.js';
+export * from './api/host.js';
 export * from './api/profiles.js';
 export * from './api/accounts.js';
 export * from './api/agents.js';
