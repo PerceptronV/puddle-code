@@ -614,3 +614,153 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
     expect(existsSync(join(daemon.paths.profilesDir, 'alice'))).toBe(false);
   });
 });
+
+/**
+ * Tier-2 reverse proxy end-to-end (Phase 5): a real dev-server-shaped listener
+ * inside a session's process tree, reached over HTTP and via a raw WebSocket
+ * upgrade through the daemon. The listener is a tiny node HTTP server that also
+ * speaks minimal RFC 6455 (computes Sec-WebSocket-Accept, writes the 101, sends
+ * one unmasked text frame), started from a `spawn-shell` terminal so it lands in
+ * the session's process tree the port scanner walks — no Vite needed in CI.
+ */
+describe('tier-2 reverse proxy end-to-end (Phase 5 acceptance)', () => {
+  const home = mkdtempSync(join(tmpdir(), 'puddle-e2e-proxy-'));
+  const repoPath = initRepo();
+  let daemon: RunningDaemon;
+  let stopped = false;
+
+  afterAll(async () => {
+    if (!stopped) await daemon.stop().catch(() => undefined);
+  });
+
+  // The in-worktree listener, written to a file so the shell can `node` it
+  // without shell-quoting a one-liner. Prints `PORT <n>` once listening.
+  const LISTENER = [
+    "const http=require('http'),crypto=require('crypto');",
+    "const s=http.createServer((req,res)=>{res.writeHead(200,{'content-type':'text/plain'});res.end('proxy-ok')});",
+    "s.on('upgrade',(req,sock)=>{",
+    "  const key=req.headers['sec-websocket-key'];",
+    "  const accept=crypto.createHash('sha1').update(key+'258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');",
+    "  sock.write('HTTP/1.1 101 Switching Protocols\\r\\nUpgrade: websocket\\r\\nConnection: Upgrade\\r\\nSec-WebSocket-Accept: '+accept+'\\r\\n\\r\\n');",
+    '  sock.write(Buffer.from([0x81,0x02,0x68,0x69]));', // unmasked text frame "hi"
+    '});',
+    "s.listen(0,'127.0.0.1',()=>console.log('PORT '+s.address().port));",
+  ].join('\n');
+
+  let sid: string;
+  let listenerPort: number;
+
+  it('boots, spawns a session listener, and detects its port', async () => {
+    daemon = await startDaemon({
+      home,
+      port: 0,
+      adapters: [fakeAdapter()],
+      assetsDir: null,
+      version: 'e2e-proxy',
+      statusQuietMs: 150,
+    });
+    const c = client(daemon);
+    const profile = await c.json<Profile>('POST', '/api/profiles', { name: 'proxy-user' });
+    const account = await c.json<Account>('POST', '/api/accounts', {
+      profile_id: profile.id,
+      agent_type: 'fake',
+      label: 'personal',
+    });
+    writeFileSync(join(account.config_dir, 'creds.json'), '{}');
+    const repo = await c.json<Repo>('POST', '/api/repos', { path: repoPath });
+    const project = await c.json<Project>('POST', '/api/projects', {
+      profile_id: profile.id,
+      repo_id: repo.id,
+      name: 'proxy-demo',
+    });
+    const session = await c.json<Session>('POST', '/api/sessions', {
+      project_id: project.id,
+      account_id: account.id,
+      title: 'proxy target',
+    });
+    sid = session.id;
+    writeFileSync(join(session.worktree_path, 'listener.js'), LISTENER);
+
+    // Run the listener from a real shell terminal so it joins the process tree.
+    const viewer = wsClient(daemon);
+    await viewer.open;
+    viewer.send({ t: 'spawn-shell', session: sid });
+    await waitFor(() => viewer.messages.some((m) => m.t === 'shell-spawned'));
+    const shell = viewer.messages.find((m) => m.t === 'shell-spawned') as { term: string };
+    viewer.send({ t: 'attach', session: sid, term: shell.term, cols: 80, rows: 24 });
+    viewer.send({
+      t: 'stdin',
+      session: sid,
+      term: shell.term,
+      data: `node ${join(session.worktree_path, 'listener.js')}\n`,
+    });
+    await waitFor(() => /PORT \d+/.test(viewer.outputFor(sid, shell.term)));
+    listenerPort = Number(/PORT (\d+)/.exec(viewer.outputFor(sid, shell.term))![1]);
+    viewer.close();
+
+    // The scanner walks pidsFor + tree; the just-started port must surface.
+    await pollUntilProxy(async () => {
+      const { ports } = await c.json<{ ports: Array<{ port: number }> }>(
+        'GET',
+        `/api/sessions/${sid}/ports`,
+      );
+      return ports.some((p) => p.port === listenerPort);
+    });
+    expect(listenerPort).toBeGreaterThan(0);
+  });
+
+  it('bootstraps the cookie via ?puddle_token= then forwards HTTP', async () => {
+    const base = `http://127.0.0.1:${daemon.port}`;
+    // Manual redirect: the one-shot query param plants the cookie and strips itself.
+    const boot = await fetch(`${base}/proxy/${sid}/${listenerPort}/?puddle_token=${daemon.token}`, {
+      redirect: 'manual',
+    });
+    expect(boot.status).toBe(302);
+    const setCookie = boot.headers.get('set-cookie') ?? '';
+    expect(setCookie).toContain(`puddle_proxy=${daemon.token}`);
+    expect(setCookie).toContain('Path=/proxy');
+    expect(setCookie).toContain('HttpOnly');
+    expect(boot.headers.get('location')).not.toContain('puddle_token');
+
+    // Node fetch keeps no cookie jar across the redirect, so replay the cookie
+    // explicitly (a browser would send it automatically) → the forward lands.
+    const forwarded = await fetch(`${base}/proxy/${sid}/${listenerPort}/`, {
+      headers: { cookie: `puddle_proxy=${daemon.token}` },
+    });
+    expect(forwarded.status).toBe(200);
+    expect(await forwarded.text()).toBe('proxy-ok');
+  });
+
+  it('proxies a raw WebSocket upgrade both directions', async () => {
+    const url = `ws://127.0.0.1:${daemon.port}/proxy/${sid}/${listenerPort}/?puddle_token=${daemon.token}`;
+    const ws = new WebSocket(url);
+    const first = await new Promise<string>((resolve, reject) => {
+      ws.addEventListener('message', (evt) => resolve(String(evt.data)));
+      ws.addEventListener('error', () => reject(new Error('proxied ws error')));
+      setTimeout(() => reject(new Error('proxied ws timeout')), 5000);
+    });
+    expect(first).toBe('hi');
+    ws.close();
+  });
+
+  it('stops cleanly while a proxied WebSocket is still open', async () => {
+    const url = `ws://127.0.0.1:${daemon.port}/proxy/${sid}/${listenerPort}/?puddle_token=${daemon.token}`;
+    const ws = new WebSocket(url);
+    await new Promise<void>((resolve, reject) => {
+      ws.addEventListener('message', () => resolve());
+      ws.addEventListener('error', () => reject(new Error('proxied ws error')));
+      setTimeout(() => reject(new Error('proxied ws timeout')), 5000);
+    });
+    // With the upstream socket still live, stop() must not hang.
+    await daemon.stop();
+    stopped = true;
+  });
+
+  async function pollUntilProxy(cond: () => Promise<boolean>, ms = 10000): Promise<void> {
+    const start = Date.now();
+    while (!(await cond())) {
+      if (Date.now() - start > ms) throw new Error('pollUntilProxy timed out');
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+});

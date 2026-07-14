@@ -19,6 +19,8 @@ import { buildApp } from './http/app.js';
 import { LogStore } from './logs/log-store.js';
 import { ensureHome, resolvePaths } from './paths.js';
 import { PortScanner } from './ports/scanner.js';
+import { attachProxyUpgrade } from './proxy/upgrade.js';
+import { ProxySocketTracker } from './proxy/sockets.js';
 import { PtyManager } from './pty/pty-manager.js';
 import { ensureToken } from './security/token.js';
 import { MarkerFileSync } from './sessions/onboarding.js';
@@ -142,6 +144,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   );
   fetchTimer.unref();
 
+  const tracker = new ProxySocketTracker();
   const gateway = new WsGateway({ token, ptys, logs, service });
   const app = buildApp({
     version: opts.version ?? '0.0.0',
@@ -161,6 +164,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       worktrees,
       service,
       scanner,
+      tracker,
     },
     ws: { gateway, upgradeWebSocket },
   });
@@ -178,6 +182,16 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     (info) => resolvePort(info.port),
   );
   const port = await portPromise;
+
+  // Register the tier-2 proxy's raw WebSocket upgrade listener AFTER serve() so
+  // it becomes the SECOND 'upgrade' listener — see attachProxyUpgrade for why
+  // that ordering is load-bearing. /ws stays with @hono/node-server's own listener.
+  const detachProxy = attachProxyUpgrade(server as import('node:http').Server, {
+    sessions,
+    scanner,
+    token,
+    tracker,
+  });
 
   return {
     port,
@@ -201,6 +215,11 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
         await new Promise((r) => setTimeout(r, 25));
       }
       logs.closeAll();
+      // Proxied WebSocket sockets (client + outbound upstream) are not covered
+      // by closeAllConnections and would hold the process open — detach the
+      // listener and tear the pairs down before closing the server.
+      detachProxy();
+      tracker.destroyAll();
       await new Promise<void>((resolve) => {
         wss.close();
         server.close(() => resolve());

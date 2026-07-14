@@ -10,7 +10,22 @@ function hostnameOf(hostHeader: string): string {
   return hostHeader.split(':')[0] ?? '';
 }
 
-function isLocalOrigin(origin: string): boolean {
+/**
+ * Whether the `Host` header names a local machine (defeats DNS rebinding). A
+ * missing header is not local. Exported as a pure predicate so the raw WS
+ * upgrade handler — which has no Hono context — can reuse the exact same rule.
+ */
+export function isLocalHostHeader(host: string | undefined): boolean {
+  return LOCAL_HOSTNAMES.has(hostnameOf(host ?? ''));
+}
+
+/**
+ * Whether an `Origin` header is acceptable: absent, the opaque `'null'`, or a
+ * localhost origin. Same rule the middleware applies, extracted so the raw WS
+ * upgrade handler can call it directly.
+ */
+export function isLocalOrigin(origin: string | undefined): boolean {
+  if (origin === undefined || origin === 'null') return true;
   try {
     return LOCAL_HOSTNAMES.has(new URL(origin).hostname);
   } catch {
@@ -22,15 +37,14 @@ function isLocalOrigin(origin: string): boolean {
  * Defeats DNS rebinding (Host must be a local name) and cross-site requests
  * (Origin, when present, must be a local origin). Ports are deliberately
  * ignored: through an SSH tunnel the browser's origin port is the local
- * tunnel port, not the daemon port.
+ * tunnel port, not the daemon port. Delegates to the pure predicates above.
  */
 export function hostOriginGuard(): MiddlewareHandler {
   return async (c, next) => {
-    if (!LOCAL_HOSTNAMES.has(hostnameOf(c.req.header('host') ?? ''))) {
+    if (!isLocalHostHeader(c.req.header('host'))) {
       throw new ApiError(403, 'forbidden_host', 'requests must address localhost');
     }
-    const origin = c.req.header('origin');
-    if (origin !== undefined && origin !== 'null' && !isLocalOrigin(origin)) {
+    if (!isLocalOrigin(c.req.header('origin'))) {
       throw new ApiError(403, 'forbidden_origin', 'cross-origin requests are not allowed');
     }
     await next();

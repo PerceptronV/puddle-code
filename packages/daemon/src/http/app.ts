@@ -12,6 +12,9 @@ import type { PuddlePaths } from '../paths.js';
 import type { PortScanner } from '../ports/scanner.js';
 import type { PtyManager } from '../pty/pty-manager.js';
 import { bearerAuth, hostOriginGuard } from '../security/middleware.js';
+import { proxyAuth } from '../proxy/auth.js';
+import { proxyRoutes } from '../proxy/http.js';
+import type { ProxySocketTracker } from '../proxy/sockets.js';
 import type { SessionService } from '../sessions/service.js';
 import type { WorktreeManager } from '../worktrees/manager.js';
 import type { WsGateway } from '../ws/gateway.js';
@@ -49,6 +52,7 @@ export interface AppDeps {
     worktrees: WorktreeManager;
     service: SessionService;
     scanner: PortScanner;
+    tracker: ProxySocketTracker;
   };
   ws?: {
     gateway: WsGateway;
@@ -83,6 +87,14 @@ export function buildApp(deps: AppDeps): Hono {
     app.route('/api/fs', fsRoutes());
     app.route('/api/worktrees', worktreeRoutes(api));
     app.route('/api/host', hostRoutes());
+
+    // Tier-2 reverse proxy (SPEC §2/§9). Host/Origin guard, then the /proxy auth
+    // (bearer/cookie/one-shot query param), then the router — all BEFORE the
+    // static catch-all below. WebSocket handshakes are owned by the raw upgrade
+    // listener wired in daemon.ts; this router only serves plain HTTP forwards.
+    app.use('/proxy/*', hostOriginGuard());
+    app.use('/proxy/*', proxyAuth(deps.token));
+    app.route('/proxy', proxyRoutes(api));
   }
 
   if (deps.ws) {
