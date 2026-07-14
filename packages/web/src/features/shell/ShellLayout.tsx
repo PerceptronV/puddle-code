@@ -16,7 +16,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/too
 import { openSettings, settingsSection, useHash } from '../../lib/hash-route';
 import { useProfiles } from '../../lib/queries';
 import { wsManager } from '../../lib/ws';
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useState } from 'react';
+import { NewProjectDialog } from '../dashboard/NewProjectDialog';
 import { CommandPalette } from '../palette/CommandPalette';
 import { profileStore, useCurrentProfileId } from '../profile/profile-store';
 import { NewSessionProvider, useNewSession } from './new-session-context';
@@ -116,13 +117,25 @@ function ShellBody() {
   useStatusCacheSync();
   const { handler } = useNewSession();
   const hash = useHash();
+  const profileId = useCurrentProfileId();
+  const [creatingProject, setCreatingProject] = useState(false);
   return (
     <div className="flex h-screen flex-col bg-ground">
       <TopBar />
       <main className="min-h-0 flex-1">
         <Outlet />
       </main>
-      <CommandPalette onNewSession={handler ?? undefined} />
+      <CommandPalette
+        onNewSession={handler ?? undefined}
+        onNewProject={() => setCreatingProject(true)}
+      />
+      {profileId !== null && (
+        <NewProjectDialog
+          profileId={profileId}
+          open={creatingProject}
+          onOpenChange={setCreatingProject}
+        />
+      )}
       {settingsSection(hash) !== null && (
         <Suspense fallback={null}>
           <SettingsDialog />

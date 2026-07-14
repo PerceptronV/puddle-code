@@ -25,8 +25,14 @@ import { useProjects, useSessions } from '../../lib/queries';
 import { collectCommands, type PaletteCommand } from './commands';
 import { useCurrentProfileId, profileStore } from '../profile/profile-store';
 
-/** ⌘K palette: switch project/session, new session, theme, settings (Phase 2). */
-export function CommandPalette({ onNewSession }: { onNewSession?: () => void }) {
+/** ⌘K palette: switch project/session, new project/session, theme, settings (Phase 2). */
+export function CommandPalette({
+  onNewSession,
+  onNewProject,
+}: {
+  onNewSession?: () => void;
+  onNewProject?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const params = useParams();
@@ -79,6 +85,16 @@ export function CommandPalette({ onNewSession }: { onNewSession?: () => void }) 
         run: onNewSession,
       });
     }
+    if (onNewProject) {
+      items.push({
+        id: 'new-project',
+        group: 'Actions',
+        label: 'New project',
+        icon: Plus,
+        keywords: 'create repository repo workspace',
+        run: onNewProject,
+      });
+    }
     items.push(
       {
         id: 'theme-dark',
@@ -119,7 +135,7 @@ export function CommandPalette({ onNewSession }: { onNewSession?: () => void }) 
       },
     );
     return [...items, ...collectCommands()];
-  }, [projects.data, sessions.data, projectId, navigate, onNewSession]);
+  }, [projects.data, sessions.data, projectId, navigate, onNewSession, onNewProject]);
 
   const groups = useMemo(() => {
     const byGroup = new Map<string, PaletteCommand[]>();
