@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -148,6 +148,9 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
     // Directories are keyed by profile id — the name is a display label only.
     expect(alice1.config_dir).toContain(`/profiles/${profile.id}/accounts/fake/personal`);
     expect(alice2.config_dir).toContain(`/profiles/${profile.id}/accounts/fake/org`);
+    // The fake adapter's "credentials": session spawns verify these exist.
+    writeFileSync(join(alice1.config_dir, 'creds.json'), '{}');
+    writeFileSync(join(alice2.config_dir, 'creds.json'), '{}');
 
     const badRepo = await c.req('POST', '/api/repos', { path: '/definitely/not/a/repo' });
     expect(badRepo.status).toBe(400);
@@ -452,6 +455,49 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
       import_dir: '/definitely/not/a/dir',
     });
     expect(bad.status).toBe(400);
+  });
+
+  it('refuses to spawn on an account the agent says is logged out', async () => {
+    const c = client(daemon);
+    const loggedOut = await c.json<Account>('POST', '/api/accounts', {
+      profile_id: profile.id,
+      agent_type: 'fake',
+      label: 'logged-out',
+    });
+    // No creds.json → the adapter's checkLoggedIn probe says no.
+    const refused = await c.req('POST', '/api/sessions', {
+      project_id: project.id,
+      account_id: loggedOut.id,
+    });
+    expect(refused.status).toBe(409);
+    expect(((await refused.json()) as { error: { code: string } }).error.code).toBe(
+      'account_logged_out',
+    );
+    // The stored flag is corrected to the verified truth.
+    const accounts = await c.json<Account[]>('GET', `/api/accounts?profile=${profile.id}`);
+    expect(accounts.find((a) => a.id === loggedOut.id)?.logged_in).toBe(false);
+  });
+
+  it('recovers a lost conversation ref by worktree on resume', async () => {
+    const c = client(daemon);
+    const s4 = await c.json<Session>('POST', '/api/sessions', {
+      project_id: project.id,
+      account_id: alice1.id,
+      title: 'recovery test',
+    });
+    await c.json<Session>('POST', `/api/sessions/${s4.id}/kill`);
+
+    // Simulate the agent having restarted the session under a fresh id: the
+    // recorded ref's conversation is gone, a different one exists.
+    rmSync(join(alice1.config_dir, `conv-fake-ref-${s4.id}`));
+    writeFileSync(join(alice1.config_dir, 'discovered-ref'), 'fake-ref-recovered\n');
+
+    const resumed = await c.json<Session>('POST', `/api/sessions/${s4.id}/resume`);
+    expect(resumed.agent_session_ref).toBe('fake-ref-recovered');
+
+    rmSync(join(alice1.config_dir, 'discovered-ref'));
+    await c.json<Session>('POST', `/api/sessions/${s4.id}/kill`);
+    await c.json<Session>('POST', `/api/sessions/${s4.id}/archive`, { force: true });
   });
 
   it('refuses deletion while sessions are live, then cascades account and profile', async () => {

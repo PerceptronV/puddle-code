@@ -100,6 +100,7 @@ export class SessionService extends EventEmitter {
       );
     }
     const adapter = this.deps.adapters.get(account.agent_type);
+    await this.assertLoggedIn(account, adapter);
 
     // Permissions gate (SPEC §11): create REJECTS a denied request outright.
     const skip = this.evaluateSkip(project.profile_id, account, adapter, input.skip_permissions);
@@ -184,13 +185,22 @@ export class SessionService extends EventEmitter {
         `${adapter.displayName} cannot resume conversations`,
       );
     }
-    const ref = session.agent_session_ref;
+    await this.assertLoggedIn(account, adapter);
+    let ref = session.agent_session_ref;
     if (!ref) throw ApiError.conflict('no_session_ref', 'no agent session ref recorded');
     if (adapter.hasConversation && !adapter.hasConversation(ref, account)) {
-      throw ApiError.conflict(
-        'conversation_missing',
-        `${adapter.displayName} has no conversation ${ref} for this account; the session cannot resume`,
-      );
+      // The recorded ref matches nothing — e.g. the agent's login screen
+      // restarted the session under a fresh id. Recover by worktree.
+      const recovered = adapter.discoverSessionRef?.(session.worktree_path, account) ?? null;
+      if (recovered === null) {
+        throw ApiError.conflict(
+          'conversation_missing',
+          `${adapter.displayName} has no conversation ${ref} for this account; the session cannot resume`,
+        );
+      }
+      ref = recovered;
+      this.deps.sessions.setAgentSessionRef(id, ref);
+      this.deps.events.record(id, 'session_ref_recovered', { ref });
     }
 
     // Gate re-evaluated on every spawn-like action (SPEC §11.4): silent
@@ -298,6 +308,24 @@ export class SessionService extends EventEmitter {
     const shell = process.env.SHELL ?? 'bash';
     this.deps.ptys.spawn(sessionId, term, shell, [], { cwd: session.worktree_path });
     return term;
+  }
+
+  /**
+   * Stored logged-in flags go stale (keychain-bound credentials die with a
+   * path change) — ask the agent before anything spawns, and keep the flag
+   * truthful. A logged-out account would otherwise show its login screen
+   * INSIDE the session and discard the preset session id.
+   */
+  private async assertLoggedIn(account: Account, adapter: AgentAdapter): Promise<void> {
+    if (!adapter.checkLoggedIn) return;
+    const loggedIn = await adapter.checkLoggedIn(account);
+    if (loggedIn !== account.logged_in) this.deps.accounts.setLoggedIn(account.id, loggedIn);
+    if (!loggedIn) {
+      throw ApiError.conflict(
+        'account_logged_out',
+        `account '${account.label}' is not logged in — log in via Settings → Accounts first`,
+      );
+    }
   }
 
   /** requested ∧ profile gate ∧ account opt-in ∧ adapter capability (SPEC §11). */

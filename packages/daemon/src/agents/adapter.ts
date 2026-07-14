@@ -55,8 +55,16 @@ export interface AgentAdapter {
    * Asks the agent whether the account is currently authenticated (e.g. after
    * an import, where credentials may be keychain-bound and not travel with
    * the copied files). Never surfaces credential material — a boolean only.
+   * Also consulted before create/resume: a stale logged-in flag otherwise
+   * lets the agent's own login screen hijack the session (and its preset id).
    */
   checkLoggedIn?(account: Account): Promise<boolean>;
+  /**
+   * Recovers the conversation ref for a worktree when the recorded one
+   * matches nothing (the agent restarted its session under a fresh id).
+   * Returns the newest conversation whose recorded cwd is the worktree.
+   */
+  discoverSessionRef?(worktreePath: string, account: Account): string | null;
   launchArgs(opts: LaunchOpts): string[];
   resumeArgs(ref: string, opts: LaunchOpts): string[];
   loginArgs(): string[];

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -57,7 +57,17 @@ export function fakeAdapter(): AgentAdapter {
       o.prompt ?? '',
     ],
     loginArgs: () => ['-c', 'echo LOGIN-OK'],
-    resolveSessionRef: async (o) => `fake-ref-${o.sessionId}`,
+    resolveSessionRef: async (o, account) => {
+      const ref = `fake-ref-${o.sessionId}`;
+      // A marker per conversation makes hasConversation truthful for tests.
+      writeFileSync(join(account.config_dir, `conv-${ref}`), '');
+      return ref;
+    },
+    hasConversation: (ref, account) => existsSync(join(account.config_dir, `conv-${ref}`)),
+    discoverSessionRef: (_worktreePath, account) => {
+      const file = join(account.config_dir, 'discovered-ref');
+      return existsSync(file) ? readFileSync(file, 'utf8').trim() : null;
+    },
     statusPatterns: { waitingInput: [/READY/], busy: [/BUSY-MARKER/] },
   };
 }
@@ -76,7 +86,7 @@ export interface Fixture {
   ptys: PtyManager;
   service: SessionService;
   onboarding: MarkerFileSync;
-  ids: { profile: number; account: number; repo: number; project: number };
+  ids: { profile: string; account: number; repo: number; project: string };
   repoPath: string;
 }
 
@@ -119,8 +129,9 @@ export function fixture(opts: { quietMs?: number } = {}): Fixture {
 
   const repoPath = initRepo();
   const profile = stores.profiles.create({ name: 'alice', branch_prefix: 'alice/' });
-  const configDir = paths.accountConfigDir('alice', 'fake', 'personal');
+  const configDir = paths.accountConfigDir(profile.id, 'fake', 'personal');
   mkdirSync(configDir, { recursive: true });
+  writeFileSync(join(configDir, 'creds.json'), '{}'); // fake adapter's logged-in marker
   const account = stores.accounts.create({
     profile_id: profile.id,
     agent_type: 'fake',

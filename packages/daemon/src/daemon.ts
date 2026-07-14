@@ -91,6 +91,21 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   // Migration 004 rewrote config-dir paths to id-keyed; rename the dirs.
   reconcileProfileDirs(profiles.list(), paths);
 
+  // Stored logged-in flags can lie (keychain-bound creds die with a path
+  // change) — re-verify each account in the background so badges are honest.
+  void Promise.allSettled(
+    accounts.list().map(async (account) => {
+      try {
+        const adapter = adapters.get(account.agent_type);
+        if (adapter.checkLoggedIn) {
+          accounts.setLoggedIn(account.id, await adapter.checkLoggedIn(account));
+        }
+      } catch {
+        // Unknown adapter or probe failure: leave the stored flag alone.
+      }
+    }),
+  );
+
   const sweptStates = projectStates.gc(config.uiStateRetentionDays);
   if (sweptStates > 0) console.log(`ui-state gc: ${sweptStates} stale row(s) removed`);
 

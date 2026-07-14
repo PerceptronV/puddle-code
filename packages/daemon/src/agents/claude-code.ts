@@ -1,5 +1,12 @@
 import { execFile } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { cp } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -24,6 +31,13 @@ const execFileAsync = promisify(execFile);
  *   AGAIN → trust), and the wizard DISCARDS a preset `--session-id`, which
  *   also breaks resume. Hence prepareConfigDir seeds the flag at account
  *   creation, before anything else runs.
+ * - macOS keychain OAuth entries are bound to the config-dir PATH: renaming
+ *   or copying the dir silently logs the account out while .claude.json still
+ *   carries oauthAccount (verified 2.1.208 — migration 004's dir rename did
+ *   exactly this). Hence checkLoggedIn asks `auth status` instead of trusting
+ *   any stored flag. The login screen, like the wizard, DISCARDS a preset
+ *   --session-id — discoverSessionRef recovers the conversation by the cwd
+ *   recorded in its JSONL.
  * - `CLAUDE_CONFIG_DIR` relocates all state: conversation JSONL lands at
  *   `<config_dir>/projects/<escaped-realpath-cwd>/<uuid>.jsonl`. For a git
  *   WORKTREE cwd the project dir is escaped from the MAIN repository root,
@@ -89,6 +103,35 @@ export const claudeCode: AgentAdapter = {
     }
   },
 
+  discoverSessionRef(worktreePath, account) {
+    const projectsDir = join(account.config_dir, 'projects');
+    if (!existsSync(projectsDir)) return null;
+    const targets = new Set([worktreePath]);
+    try {
+      targets.add(realpathSync(worktreePath)); // /var vs /private/var on macOS
+    } catch {
+      // A vanished worktree still matches on the recorded string.
+    }
+    let best: { ref: string; mtime: number } | null = null;
+    for (const dir of readdirSync(projectsDir)) {
+      let files: string[];
+      try {
+        files = readdirSync(join(projectsDir, dir));
+      } catch {
+        continue;
+      }
+      for (const file of files) {
+        if (!file.endsWith('.jsonl')) continue;
+        const path = join(projectsDir, dir, file);
+        if (!conversationCwdMatches(path, targets)) continue;
+        const mtime = statSync(path).mtimeMs;
+        // Newest wins: a worktree can host successive conversations.
+        if (!best || mtime > best.mtime) best = { ref: file.slice(0, -'.jsonl'.length), mtime };
+      }
+    }
+    return best?.ref ?? null;
+  },
+
   hasConversation(ref, account) {
     const projectsDir = join(account.config_dir, 'projects');
     if (!existsSync(projectsDir)) return false;
@@ -132,3 +175,22 @@ export const claudeCode: AgentAdapter = {
     limitReached: [/usage limit reached/i, /out of extra usage/i],
   },
 };
+
+/** The conversation's cwd appears within the first few JSONL records. */
+function conversationCwdMatches(path: string, targets: Set<string>): boolean {
+  let head: string;
+  try {
+    head = readFileSync(path, 'utf8').slice(0, 16_384);
+  } catch {
+    return false;
+  }
+  for (const line of head.split('\n').slice(0, 10)) {
+    try {
+      const record = JSON.parse(line) as { cwd?: string };
+      if (record.cwd !== undefined && targets.has(record.cwd)) return true;
+    } catch {
+      // Partial trailing line inside the head window — ignore.
+    }
+  }
+  return false;
+}

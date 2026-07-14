@@ -1,9 +1,17 @@
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { reconcilePass } from '../src/sessions/reconcile.js';
 import { fixture, waitFor } from './helpers/daemon-fixtures.js';
 import { sh } from './helpers/git-fixtures.js';
+
+/** A config dir carrying the fake adapter's logged-in marker. */
+function credsDir(label: string): string {
+  const dir = mkdtempSync(join(tmpdir(), `puddle-cfg-${label}-`));
+  writeFileSync(join(dir, 'creds.json'), '{}');
+  return dir;
+}
 
 describe('SessionService.create', () => {
   it('creates worktree, injects the onboarding preamble, reaches waiting_input', async () => {
@@ -49,12 +57,11 @@ describe('SessionService.create', () => {
   it('honours skip_permissions when gate and account opt-in are both on', async () => {
     const f = fixture();
     f.stores.profiles.patchSettings(f.ids.profile, { allowSkipPermissions: true });
-    const base = f.stores.accounts.get(f.ids.account);
     const account2 = f.stores.accounts.create({
       profile_id: f.ids.profile,
       agent_type: 'fake',
       label: 'yolo',
-      config_dir: base.config_dir + '-yolo',
+      config_dir: credsDir('yolo'),
       skip_permissions_default: true,
     });
     const session = await f.service.create({
@@ -136,7 +143,7 @@ describe('kill / resume / archive lifecycle', () => {
       profile_id: f.ids.profile,
       agent_type: 'fake',
       label: 'yolo2',
-      config_dir: '/tmp/yolo2',
+      config_dir: credsDir('yolo2'),
       skip_permissions_default: true,
     });
     const session = await f.service.create({
