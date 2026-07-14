@@ -34,7 +34,10 @@ export function SessionSidebar({
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
         {visible.length === 0 && (
-          <p className="p-3 text-xs text-fg-muted">No sessions yet — press ⌘K to start one.</p>
+          // px-1.5 stacks on the container's p-1.5 → flush with the px-3 header.
+          <p className="px-1.5 py-3 text-xs text-fg-muted">
+            No sessions yet — press ⌘K to start one.
+          </p>
         )}
         <ul className="flex flex-col gap-0.5">
           {visible.map((session) => (
