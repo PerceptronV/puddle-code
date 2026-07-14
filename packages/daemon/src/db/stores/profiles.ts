@@ -41,6 +41,12 @@ export class ProfileStore {
     return toProfile(row);
   }
 
+  setBranchPrefix(id: number, branchPrefix: string): Profile {
+    this.get(id); // 404 before a silent no-op UPDATE
+    this.db.prepare(`UPDATE profiles SET branch_prefix = ? WHERE id = ?`).run(branchPrefix, id);
+    return this.get(id);
+  }
+
   getSettings(id: number): ProfileSettings {
     const row = this.db.prepare(`SELECT settings FROM profiles WHERE id = ?`).get(id) as
       Pick<Row, 'settings'> | undefined;

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   Account,
+  AgentType,
   CreateSessionRequest,
   DaemonConfig,
   DaemonConfigPatch,
@@ -81,6 +82,14 @@ export function useConfig() {
   return useQuery({ queryKey: ['config'], queryFn: () => api<DaemonConfig>('GET', '/api/config') });
 }
 
+export function useAgents() {
+  return useQuery({
+    queryKey: ['agents'],
+    queryFn: () => api<AgentType[]>('GET', '/api/agents'),
+    staleTime: Infinity, // the adapter set changes only with a daemon upgrade
+  });
+}
+
 /* -- Mutations ---------------------------------------------------------- */
 
 export function useCreateProfile() {
@@ -98,6 +107,30 @@ export function usePatchProfileSettings(profileId: number) {
     mutationFn: (patch: Record<string, unknown>) =>
       api<ProfileSettings>('PATCH', `/api/profiles/${profileId}/settings`, patch),
     onSuccess: (settings) => qc.setQueryData(['profile-settings', profileId], settings),
+  });
+}
+
+export function usePatchProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, branch_prefix }: { id: number; branch_prefix: string }) =>
+      api<Profile>('PATCH', `/api/profiles/${id}`, { branch_prefix }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['profiles'] }),
+  });
+}
+
+export function usePatchAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      skip_permissions_default,
+    }: {
+      id: number;
+      skip_permissions_default: boolean;
+    }) => api<Account>('PATCH', `/api/accounts/${id}`, { skip_permissions_default }),
+    onSuccess: (account) =>
+      void qc.invalidateQueries({ queryKey: ['accounts', account.profile_id] }),
   });
 }
 

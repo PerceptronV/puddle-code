@@ -21,6 +21,11 @@ export const createAccountRequestSchema = z.object({
   skip_permissions_default: z.boolean().optional(),
 });
 
+/** The account opt-in half of the permissions gate (SPEC §11). */
+export const patchAccountRequestSchema = z.object({
+  skip_permissions_default: z.boolean(),
+});
+
 /** Returned by POST /api/accounts/:id/login — attach to this PTY over the WS. */
 export const loginResponseSchema = z.object({ stream: z.string(), term: z.string() });
 export type LoginResponse = z.infer<typeof loginResponseSchema>;

@@ -21,6 +21,11 @@ export const createProfileRequestSchema = z.object({
   branch_prefix: z.string().max(64).optional(),
 });
 
+/** PATCH /api/profiles/:id — the name is immutable in v1 (it is a directory). */
+export const patchProfileRequestSchema = z.object({
+  branch_prefix: z.string().max(64),
+});
+
 /**
  * Profile-scope settings JSON. Loose: later phases add keys (default account,
  * notifications, …) without a daemon migration. Phase 1 validates only the gate.

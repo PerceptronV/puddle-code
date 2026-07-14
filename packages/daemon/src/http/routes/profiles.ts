@@ -1,5 +1,9 @@
 import { Hono } from 'hono';
-import { createProfileRequestSchema, patchProfileSettingsRequestSchema } from '@puddle/shared';
+import {
+  createProfileRequestSchema,
+  patchProfileRequestSchema,
+  patchProfileSettingsRequestSchema,
+} from '@puddle/shared';
 import type { ProfileStore } from '../../db/stores/profiles.js';
 import { idParam, parseBody } from '../validate.js';
 
@@ -13,6 +17,10 @@ export function profileRoutes(deps: { profiles: ProfileStore }): Hono {
         branch_prefix: body.branch_prefix ?? '',
       });
       return c.json(profile, 201);
+    })
+    .patch('/:id', async (c) => {
+      const body = await parseBody(c, patchProfileRequestSchema);
+      return c.json(deps.profiles.setBranchPrefix(idParam(c), body.branch_prefix));
     })
     .get('/:id/settings', (c) => c.json(deps.profiles.getSettings(idParam(c))))
     .patch('/:id/settings', async (c) => {

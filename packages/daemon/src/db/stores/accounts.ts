@@ -80,4 +80,12 @@ export class AccountStore {
   setLoggedIn(id: number, loggedIn: boolean): void {
     this.db.prepare(`UPDATE accounts SET logged_in = ? WHERE id = ?`).run(loggedIn ? 1 : 0, id);
   }
+
+  setSkipPermissionsDefault(id: number, skip: boolean): Account {
+    this.get(id); // 404 before a silent no-op UPDATE
+    this.db
+      .prepare(`UPDATE accounts SET skip_permissions_default = ? WHERE id = ?`)
+      .run(skip ? 1 : 0, id);
+    return this.get(id);
+  }
 }

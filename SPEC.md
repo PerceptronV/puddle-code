@@ -269,9 +269,12 @@ All REST endpoints are JSON under `/api`. Request/response shapes live as zod sc
 
 ```
 Profiles   GET  /api/profiles                POST /api/profiles {name, branch_prefix?}
+           PATCH /api/profiles/:id {branch_prefix}   # name is immutable in v1 (it names directories)
            GET  /api/profiles/:id/settings   PATCH (profile-scope settings JSON — §11 Settings)
 Config     GET  /api/config                  PATCH (daemon-scope settings; affects all profiles; port changes apply on daemon restart)
+Agents     GET  /api/agents                  # registered adapters: id, display name, capabilities the UI gates on
 Accounts   GET  /api/accounts?profile=…      POST /api/accounts {profile_id, agent_type, label, skip_permissions_default?}
+           PATCH /api/accounts/:id {skip_permissions_default}   # the account opt-in half of the §11 gate
            POST /api/accounts/:id/login      # spawns interactive login PTY; UI attaches like a session
 Repos      GET  /api/repos                   POST /api/repos {path, default_base_branch?, onboarding_notes?, fetch_enabled?}
            PATCH /api/repos/:id               # same fields (onboarding_notes also updatable via the .puddle marker-file sync — §4)

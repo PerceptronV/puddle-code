@@ -14,6 +14,7 @@ import type { WorktreeManager } from '../worktrees/manager.js';
 import type { WsGateway } from '../ws/gateway.js';
 import { ApiError } from './errors.js';
 import { accountRoutes } from './routes/accounts.js';
+import { agentRoutes } from './routes/agents.js';
 import { configRoutes } from './routes/config.js';
 import { profileRoutes } from './routes/profiles.js';
 import { projectRoutes } from './routes/projects.js';
@@ -65,6 +66,7 @@ export function buildApp(deps: AppDeps): Hono {
     const api = deps.api;
     app.route('/api/profiles', profileRoutes(api));
     app.route('/api/accounts', accountRoutes(api));
+    app.route('/api/agents', agentRoutes(api));
     app.route('/api/repos', repoRoutes(api));
     app.route('/api/projects', projectRoutes(api));
     app.route('/api/sessions', sessionRoutes(api));

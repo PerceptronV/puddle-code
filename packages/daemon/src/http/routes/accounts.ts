@@ -1,6 +1,10 @@
 import { mkdirSync } from 'node:fs';
 import { Hono } from 'hono';
-import { createAccountRequestSchema, type LoginResponse } from '@puddle/shared';
+import {
+  createAccountRequestSchema,
+  patchAccountRequestSchema,
+  type LoginResponse,
+} from '@puddle/shared';
 import type { AdapterRegistry } from '../../agents/registry.js';
 import type { AccountStore } from '../../db/stores/accounts.js';
 import type { ProfileStore } from '../../db/stores/profiles.js';
@@ -44,6 +48,12 @@ export function accountRoutes(deps: AccountRouteDeps): Hono {
         skip_permissions_default: body.skip_permissions_default ?? false,
       });
       return c.json(account, 201);
+    })
+    .patch('/:id', async (c) => {
+      const body = await parseBody(c, patchAccountRequestSchema);
+      return c.json(
+        deps.accounts.setSkipPermissionsDefault(idParam(c), body.skip_permissions_default),
+      );
     })
     .post('/:id/login', (c) => {
       const account = deps.accounts.get(idParam(c));

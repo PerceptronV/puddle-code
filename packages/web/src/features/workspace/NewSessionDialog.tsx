@@ -59,7 +59,14 @@ export function NewSessionDialog({
   const gateOpen = settings.data?.allowSkipPermissions === true;
   const showSkipToggle = gateOpen && account?.skip_permissions_default === true;
 
-  const defaultAccount = useMemo(() => accounts.data?.[0], [accounts.data]);
+  // The profile's default account (settings) wins; else the first one.
+  const defaultAccount = useMemo(() => {
+    const preferred = settings.data?.['default_account_id'];
+    return (
+      accounts.data?.find((a) => typeof preferred === 'number' && a.id === preferred) ??
+      accounts.data?.[0]
+    );
+  }, [accounts.data, settings.data]);
   const effectiveAccountId = accountId || (defaultAccount ? String(defaultAccount.id) : '');
 
   const submit = () => {

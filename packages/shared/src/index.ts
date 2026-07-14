@@ -3,6 +3,7 @@ export * from './api/version.js';
 export * from './api/config.js';
 export * from './api/profiles.js';
 export * from './api/accounts.js';
+export * from './api/agents.js';
 export * from './api/repos.js';
 export * from './api/sessions.js';
 export * from './api/projects.js';

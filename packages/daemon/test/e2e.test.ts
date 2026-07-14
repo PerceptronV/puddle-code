@@ -156,6 +156,30 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
     });
   });
 
+  it('lists agent adapters and patches profile prefix and account opt-in', async () => {
+    const c = client(daemon);
+    const agents = await c.json<Array<{ id: string; capabilities: { skip_permissions: boolean } }>>(
+      'GET',
+      '/api/agents',
+    );
+    expect(agents.map((a) => a.id)).toEqual(['fake']);
+
+    const renamedPrefix = await c.json<Profile>('PATCH', `/api/profiles/${profile.id}`, {
+      branch_prefix: 'team/alice/',
+    });
+    expect(renamedPrefix.branch_prefix).toBe('team/alice/');
+    await c.json<Profile>('PATCH', `/api/profiles/${profile.id}`, { branch_prefix: 'alice/' });
+
+    const optedIn = await c.json<Account>('PATCH', `/api/accounts/${alice1.id}`, {
+      skip_permissions_default: true,
+    });
+    expect(optedIn.skip_permissions_default).toBe(true);
+    const optedOut = await c.json<Account>('PATCH', `/api/accounts/${alice1.id}`, {
+      skip_permissions_default: false,
+    });
+    expect(optedOut.skip_permissions_default).toBe(false);
+  });
+
   it('rejects skip_permissions against the closed gate with 400', async () => {
     const c = client(daemon);
     const res = await c.req('POST', '/api/sessions', {
