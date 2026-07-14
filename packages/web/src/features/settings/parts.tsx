@@ -30,7 +30,7 @@ export function SectionTitle({ children, note }: { children: ReactNode; note?: s
   return (
     <div className="mb-2 flex flex-col gap-0.5">
       <h2 className="text-base font-semibold text-fg">{children}</h2>
-      {/* Secondary hints sit on their own line, lowercase (design decision). */}
+      {/* Secondary hints sit on their own line, sentence case (design decision). */}
       {note && <span className="text-xs text-fg-muted">{note}</span>}
     </div>
   );

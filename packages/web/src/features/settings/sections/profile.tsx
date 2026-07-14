@@ -55,12 +55,12 @@ export function ProfileSection() {
   return (
     <div>
       <SectionTitle>Profile</SectionTitle>
-      <SettingRow label="Name" description="fixed in v1 — it names directories under ~/.puddle.">
+      <SettingRow label="Name" description="Fixed in v1 — it names directories under ~/.puddle.">
         <span className="font-mono text-sm text-fg-secondary">{profile.name}</span>
       </SettingRow>
       <SettingRow
         label="Branch prefix"
-        description="session branches become <prefix><slug(title)>."
+        description="Session branches become <prefix><slug(title)>."
         htmlFor="branch-prefix"
       >
         <Input
@@ -83,7 +83,7 @@ export function ProfileSection() {
           Save
         </Button>
       </SettingRow>
-      <SettingRow label="Default account" description="preselected in the new-session modal.">
+      <SettingRow label="Default account" description="Preselected in the new-session modal.">
         <Select
           value={typeof defaultAccount === 'number' ? String(defaultAccount) : NONE}
           onValueChange={(value) =>
@@ -110,7 +110,7 @@ export function ProfileSection() {
       </SettingRow>
       <SettingRow
         label="Delete profile"
-        description="removes its projects, accounts (logging them out), and archived history. Non-archived sessions block deletion."
+        description="Removes its projects, accounts (logging them out), and archived history. Non-archived sessions block deletion."
         className="mt-4"
       >
         <Button variant="danger" size="sm" onClick={() => setConfirmingDelete(true)}>

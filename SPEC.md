@@ -441,7 +441,7 @@ Any profile can view/attach any session (trusted shared box); the UI shows the o
 
 ## 12. Design system
 
-Puddle's UI must read as a polished, intentional developer cockpit — dense, calm, and visually coherent — not a scaffold of framework defaults. `HUMANS.md` at the repo root is the human-authored design brief (minimalism, no boxes/borders, fill-shift responsiveness, secondary hints on their own line in lowercase) and overrides this section wherever they conflict.
+Puddle's UI must read as a polished, intentional developer cockpit — dense, calm, and visually coherent — not a scaffold of framework defaults. `HUMANS.md` at the repo root is the human-authored design brief (minimalism, no boxes/borders, fill-shift responsiveness, secondary hints on their own line, sentence case) and overrides this section wherever they conflict.
 
 - **Stack**: Tailwind CSS v4 + **shadcn/ui** (Radix primitives, generated into `packages/web/src/components/ui/` and treated as owned code to restyle, not a dependency), `lucide-react` icons, `cmdk` command palette (⌘K: switch project/session, new session, open file, insert prompt, switch theme, open settings), `sonner` for toasts, `react-resizable-panels` for the workspace layout. No monolithic kits (MUI, Ant): they resist theming and read as generic enterprise chrome.
 
@@ -472,8 +472,8 @@ Puddle's UI must read as a polished, intentional developer cockpit — dense, ca
   | `--bg-elevated`                     | `#001C3D` | `#EFEFEF` |
   | `--border`                          | `#163C6B` | `#E5E5E5` |
   | `--text-primary`                    | `#EAF1FB` | `#001C3D` |
-  | `--text-secondary`                  | `#B9C9E0` | `#5A2F22` |
-  | `--text-muted`                      | `#7E93B3` | `#4A86E8` |
+  | `--text-secondary`                  | `#B9C9E0` | `#163C6B` |
+  | `--text-muted`                      | `#7E93B3` | `#8A7663` |
   | `--accent` / `--focus-ring`         | `#7DADFF` | `#2E6BD6` |
   | `--accent-hover`                    | `#A7C7FF` | `#4A86E8` |
   | `--action` (primary-button fill)    | `#EAF1FB` | `#001C3D` |
@@ -484,7 +484,7 @@ Puddle's UI must read as a polished, intentional developer cockpit — dense, ca
   | `--status-interrupted` / `--danger` | `#F2957C` | `#C2472E` |
   | `--status-idle`                     | `#7E93B3` | `#8A7663` |
 
-  Primary actions (buttons, checked toggles) are **ink, not accent**: mist on the dark theme, storm navy on the light — the accent blue is reserved for links, focus, and selection. The dark theme is storm-navy ground with the pastel family as light; the light theme is a white ground (HUMANS.md: white, not beige) with storm-navy ink and burnt-wood secondary text, keeping the deep accent steps. Light `--status-running` uses a derived deeper krypton step (`#157A50`) because `#1FA26B` misses the 3:1 AA floor on the elevated ground.
+  Primary actions (buttons, checked toggles) are **ink, not accent**: mist on the dark theme, storm navy on the light — the accent blue is reserved for links, focus, and selection. The dark theme is storm-navy ground with the pastel family as light; the light theme is a white ground (HUMANS.md: white, not beige) with navy ink for primary and secondary text and golden bark for muted, keeping the deep accent steps. Light `--status-running` uses a derived deeper krypton step (`#157A50`) because `#1FA26B` misses the 3:1 AA floor on the elevated ground.
 
 - **ANSI mapping rule**: dark theme maps the pastel depth of each hue (red→`#F2957C`, green→`#8BE8B3`, yellow→`#F0B36E`, blue→`#7DADFF`, magenta→`#B9A3F2`, cyan→`#7FD6DC`, fg→`#EAF1FB`) over `--bg-base`; the light theme maps each hue's deep step (`#C2472E`, `#1FA26B`, `#A9743D`, `#2E6BD6`, …) so agent output stays legible on the white ground. Brights are one lightness step up. UI accents and terminal output are thereby the same family by construction.
 
