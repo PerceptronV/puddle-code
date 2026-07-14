@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Group, Panel, Separator, type Layout } from 'react-resizable-panels';
 import { Play, TerminalSquare } from 'lucide-react';
@@ -58,6 +58,10 @@ export function Workspace() {
   const [restored, setRestored] = useState(false);
   const [creating, setCreating] = useState(false);
   const [seedAccountId, setSeedAccountId] = useState<number | undefined>(undefined);
+  // Set when the active tab is closed: the router clears the URL param a
+  // render later, so this stops the deep-link effect resurrecting the tab in
+  // the interim (it would otherwise leave a zombie header — no active session).
+  const justClosedActive = useRef<string | null>(null);
   const { setHandler } = useNewSession();
 
   // The ⌘K palette, top bar, and profile panel reuse this modal; an account
@@ -86,7 +90,14 @@ export function Workspace() {
 
   // Deep links open a tab and become the stored active session.
   useEffect(() => {
-    if (!restored || !activeSessionId) return;
+    if (!restored) return;
+    if (!activeSessionId) {
+      justClosedActive.current = null; // close completed; the URL caught up
+      return;
+    }
+    // Don't re-open the tab we're closing while the URL param still lags.
+    if (activeSessionId === justClosedActive.current) return;
+    justClosedActive.current = null;
     if (!openTabs.includes(activeSessionId)) {
       uiState.update({
         session_tabs: [...openTabs, activeSessionId],
@@ -109,11 +120,13 @@ export function Workspace() {
 
   const closeTab = useCallback(
     (id: string) => {
+      const wasActive = activeSessionId === id;
+      if (wasActive) justClosedActive.current = id;
       uiState.update({
         session_tabs: openTabs.filter((t) => t !== id),
-        ...(activeSessionId === id ? { active_session: null } : {}),
+        ...(wasActive ? { active_session: null } : {}),
       });
-      if (activeSessionId === id) void navigate(`/project/${projectId}`);
+      if (wasActive) void navigate(`/project/${projectId}`);
     },
     [uiState, openTabs, activeSessionId, navigate, projectId],
   );
