@@ -38,15 +38,33 @@ export const INTERRUPTED_RESUME_NOTE =
 export class MarkerFileSync {
   private readonly watchers = new Map<string, FSWatcher>();
   private readonly timers = new Map<string, NodeJS.Timeout>();
+  /** Last `session-title` content applied per session — see syncTitle. */
+  private readonly lastTitle = new Map<string, string>();
+  /** Applies an agent-chosen title; set by the daemon to broadcast the change. */
+  private titleSink?: (sessionId: string, title: string) => void;
 
   constructor(
     private readonly deps: { repos: RepoStore; events: EventStore; sessions: SessionStore },
   ) {}
 
+  /**
+   * Routes agent-chosen titles through the session service so the rename
+   * broadcasts to attached clients (default: a plain store write, for tests).
+   */
+  setTitleSink(sink: (sessionId: string, title: string) => void): void {
+    this.titleSink = sink;
+  }
+
   watch(sessionId: string, repoId: number, worktreePath: string): void {
     if (this.watchers.has(sessionId)) return;
     const dir = join(worktreePath, '.puddle');
     if (!existsSync(dir)) return;
+    // Seed the last-seen title with what is already on disk so a pre-existing
+    // file (a resumed worktree) is not re-applied on the next unrelated
+    // `.puddle` change — that would clobber a title the user set via the UI.
+    // Only a genuine *change* to the file after this point counts as the agent
+    // renaming its work.
+    this.lastTitle.set(sessionId, this.readTitle(dir) ?? '');
     try {
       const watcher = watch(dir, () => this.schedule(sessionId, repoId, dir));
       watcher.on('error', () => this.unwatch(sessionId));
@@ -59,6 +77,7 @@ export class MarkerFileSync {
   unwatch(sessionId: string): void {
     this.watchers.get(sessionId)?.close();
     this.watchers.delete(sessionId);
+    this.lastTitle.delete(sessionId);
     const timer = this.timers.get(sessionId);
     if (timer) clearTimeout(timer);
     this.timers.delete(sessionId);
@@ -85,21 +104,35 @@ export class MarkerFileSync {
     this.syncNotes(sessionId, repoId, dir);
   }
 
-  /** `.puddle/session-title` → sessions.title (the agent naming its work). */
+  /**
+   * `.puddle/session-title` → sessions.title (the agent naming its work).
+   * Applied only when the file's content actually *changes*, not on every
+   * `.puddle` event: otherwise an unrelated change (a pasted image landing in
+   * `.puddle/pastes/`, an onboarding-notes edit) would re-apply the stale file
+   * content and overwrite a title the user set via the UI. Mirrors syncNotes,
+   * which likewise skips no-op writes.
+   */
   private syncTitle(sessionId: string, dir: string): void {
-    const file = join(dir, 'session-title');
-    if (!existsSync(file)) return;
-    let title: string;
+    const title = this.readTitle(dir);
+    if (title === null || title === '') return;
+    if (title === this.lastTitle.get(sessionId)) return;
+    this.lastTitle.set(sessionId, title);
     try {
-      title = readFileSync(file, 'utf8').trim().replace(/\s+/g, ' ').slice(0, 80);
-    } catch {
-      return;
-    }
-    if (title === '') return;
-    try {
-      this.deps.sessions.setTitle(sessionId, title);
+      if (this.titleSink) this.titleSink(sessionId, title);
+      else this.deps.sessions.setTitle(sessionId, title);
     } catch {
       // A session archived mid-watch is not fatal.
+    }
+  }
+
+  /** Normalised `session-title` content, or null if absent/unreadable. */
+  private readTitle(dir: string): string | null {
+    const file = join(dir, 'session-title');
+    if (!existsSync(file)) return null;
+    try {
+      return readFileSync(file, 'utf8').trim().replace(/\s+/g, ' ').slice(0, 80);
+    } catch {
+      return null;
     }
   }
 

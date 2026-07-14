@@ -1,6 +1,6 @@
 import { Link } from 'react-router';
-import { FolderX, Plus, ShieldOff } from 'lucide-react';
-import type { Session } from '@puddle/shared';
+import { FolderX, Plus, ShieldOff, UserRound } from 'lucide-react';
+import type { Account, Session } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utils';
@@ -11,17 +11,20 @@ import { SessionActions } from './SessionActions';
 export function SessionSidebar({
   projectId,
   sessions,
+  accounts,
   activeSessionId,
   onNewSession,
   onArchived,
 }: {
   projectId: string;
   sessions: Session[];
+  accounts: Account[];
   activeSessionId: string | null;
   onNewSession: () => void;
   onArchived: (id: string) => void;
 }) {
   const visible = sessions.filter((s) => s.status !== 'archived');
+  const accountLabel = new Map(accounts.map((a) => [a.id, a.label]));
 
   return (
     <div className="flex h-full flex-col bg-surface">
@@ -57,6 +60,12 @@ export function SessionSidebar({
                   <span className="block truncate font-mono text-2xs text-fg-muted">
                     {session.branch}
                   </span>
+                  {accountLabel.has(session.account_id) && (
+                    <span className="flex items-center gap-1 truncate font-mono text-2xs text-fg-muted">
+                      <UserRound className="size-3 shrink-0" />
+                      <span className="truncate">{accountLabel.get(session.account_id)}</span>
+                    </span>
+                  )}
                 </span>
                 {session.skip_permissions && (
                   <Tooltip>

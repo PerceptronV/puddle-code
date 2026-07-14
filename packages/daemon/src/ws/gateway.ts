@@ -3,7 +3,7 @@ import type { WSContext } from 'hono/ws';
 import { wsClientMessageSchema, type WsServerMessage } from '@puddle/shared';
 import type { LogStore } from '../logs/log-store.js';
 import type { PtyDataEvent, PtyExitEvent, PtyManager } from '../pty/pty-manager.js';
-import type { SessionService, StatusEvent } from '../sessions/service.js';
+import type { RenameEvent, SessionService, StatusEvent } from '../sessions/service.js';
 import { ApiError } from '../http/errors.js';
 
 export interface WsGatewayDeps {
@@ -53,6 +53,11 @@ export class WsGateway {
           status: e.status,
           last_activity_at: e.last_activity_at,
         });
+      }
+    });
+    deps.service.on('renamed', (e: RenameEvent) => {
+      for (const ws of this.statusSubs) {
+        this.send(ws, { t: 'renamed', session: e.session, title: e.title });
       }
     });
   }
