@@ -324,12 +324,16 @@ Prompts    GET  /api/prompts?profile=…&q=…&tag=…    # full-text over title
            PATCH/DELETE /api/prompts/:id
            POST /api/prompts/:id/used     # bump use_count / last_used_at (called on insert)
 Files      GET  /api/worktrees/:sid/tree?path=…
-           GET  /api/worktrees/:sid/file?path=…      PUT (write; body = full content, optimistic mtime check)
+           GET  /api/worktrees/:sid/file?path=…      # 5 MiB read cap (413 `file_too_large`)
+                PUT (write; body = full content; optimistic `expected_mtime_ms` — mismatch or a file that
+                # no longer exists → 409 `stale_file`; omit it to overwrite unconditionally)
            GET  /api/worktrees/:sid/resolve?path=…&line=…   # validates terminal-link targets
            POST /api/worktrees/:sid/paste {mime, data}      # base64 clipboard image → .puddle/pastes/; returns {path} relative to the worktree (§7)
-           POST /api/worktrees/:sid/upload?dir=…            # multipart file upload into a worktree directory, path-contained (drag-in transfer — §8)
-           GET  /api/worktrees/:sid/download?path=…         # file → bytes; directory → zip stream (Content-Disposition attachment) (§8)
-Git        GET  /api/worktrees/:sid/diff?against=base|<sha>   # name-status list
+           POST /api/worktrees/:sid/upload?dir=…            # multipart file upload into a worktree directory, path-contained (drag-in transfer — §8);
+                # 100 MiB cap (413 `upload_too_large`); a same-name file already there is overwritten silently
+           GET  /api/worktrees/:sid/download?path=…         # file → bytes; directory → zip stream excluding `.git` and symlinks (Content-Disposition attachment) (§8)
+Git        GET  /api/worktrees/:sid/diff?against=base|<sha>   # name-status list; `against=base` resolves to the
+                # merge-base of the base branch (`origin/<base>` when it exists, else local) and HEAD
            GET  /api/worktrees/:sid/file-at?ref=…&path=…      # blob content for DiffEditor 'original'
            GET  /api/worktrees/:sid/log?limit=…&skip=…        # history
            GET  /api/worktrees/:sid/show/:sha                 # commit detail + changed files
@@ -395,7 +399,7 @@ This is the Docker-daemon model reduced to its useful core: a negotiated, versio
 - **File explorer**: the tree is always bound to exactly one worktree — there is no merged project-wide view. By default it **follows the active session**: switching session tabs switches the tree to that session's worktree. A pin control on the explorer header locks it to a chosen worktree (so you can read session A's files while watching session B's terminal); the header always names the bound worktree/branch, and a dropdown lists the project's worktrees for manual switching. Unpinning re-enables follow-the-session.
 - **Editor tab identity is (session, path)**, not path alone: `src/api.ts` in two worktrees is two different files with independent dirty state. Tabs are labelled with the branch when the same path is open from more than one worktree (`api.ts — alice/fix-auth`).
 - **Monaco** for file view/edit. Saving PUTs the full file; daemon writes to the worktree so running agents see the change immediately.
-- **Diff tab**: Monaco `DiffEditor`; `original` = `file-at?ref=<base>`, `modified` = the live working file with `readOnly:false`, so agent output can be hand-tweaked inside the diff. New files render as a plain editor. Multi-file overview = stacked per-file DiffEditors (virtualised list); no attempt at a single-instance multi-file diff.
+- **Diff tab**: Monaco `DiffEditor`; `original` = `file-at?ref=<base>` (read-only); `modified` is bound to the same shared model as that file's editor tab (created from the same `file` GET, reused by URI), so a hand-edit — and ⌘S — inside the diff goes through the identical conflict-safe save path an editor tab uses, and an already-open tab reflects it immediately. Added files render as a plain editor; deleted files as a read-only viewer. Multi-file overview = stacked per-file DiffEditors, each mounting its editor only once scrolled into view (a mount-once gate, not true windowing — a section stays mounted after its first appearance); no attempt at a single-instance multi-file diff.
 - **File transfer** (client ⇄ worktree): dragging files from the OS onto the file explorer uploads them into the hovered folder of the bound worktree (`POST /upload`; multiple files per drop, path-contained to the worktree, size-capped); pasting copied files into the explorer does the same. A context menu on any explorer file or folder offers **Download** (`GET /download` — a single file streams as-is, a folder arrives as a zip built on the host). Remote→local drag-out is not portable across browsers (Chromium-only `DownloadURL`), so the download action is the v1 mechanism; drag-out can be layered on later as a progressive nicety. Everything rides the normal authenticated API through the tunnel, so local and SSH modes behave identically.
 - **History tab**: commit list from `/log` (graph optional later); clicking a commit shows its changed files, each opening a DiffEditor of `sha^ → sha`. Covers "tap into the worktree and see git histories." Absolute commit dates render in UTC (not the viewer's local zone): `authored_at` carries the author's own offset anyway, and one fixed zone keeps the formatting deterministic everywhere (including under test).
 
@@ -483,6 +487,7 @@ Each profile owns an editable collection of plaintext prompts — the snippets y
 
 - A window's own reload or browser restart restores that exact window, from its own sessionStorage entry.
 - A brand-new window has no sessionStorage entry, so it seeds from the project's most recently written server row.
+- Either restore path reattaches terminals via log-tail replay (they look untouched), reopens editor tabs, and surfaces any `interrupted` session with a resume button — restoring is not just layout numbers, it's the working session as it looked before.
 - Any number of your own windows on the same project each keep an independent working set — they never live-sync — and the server row is updated debounced (~2 s), last-writer-wins, by whichever window changed layout most recently; this only affects what a _future_ fresh window seeds from, never an already-open one.
 - A coworker peeking works under their own profile: they seed from the project's most recent snapshot but their rearrangements are written to _their_ row — they can never clobber yours.
 - Stale rows (not updated in 90 days) are garbage-collected by the daemon.
