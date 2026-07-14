@@ -10,6 +10,7 @@ Past releases: see docs/changelogs/.
 ## [Unreleased]
 
 ### Added
+- Worktree file API family: browse a session's worktree one directory level at a time, read/write text files with optimistic-concurrency guards, drag-in multipart upload, and single-file/zipped-directory download (`GET/PUT /api/worktrees/:sid/tree|file`, `POST /upload`, `GET /download`) — the daemon half of the Phase 3 file explorer, path-contained against traversal and symlink escape.
 - Shared protocol schemas for worktree file browsing/editing and git inspection (tree/file/upload/download, diff/file-at/log/show), a session `git_summary` field, and two new `ui_state` keys (`active_editor_tab`, `explorer_open`) — groundwork for the Phase 3 file explorer and history view; no endpoints yet. Protocol minor bump 4.1 → 4.2.
 - The session sidebar shows which account powers each session — the account's label in mono under the branch, so sessions spread across several logged-in accounts are told apart at a glance (no schema change; `sessions.account_id` was already there).
 - macOS terminals get native line editing: ⌘←/⌘→ jump to line start/end and ⌘⌫/⌘⌦ delete to line start/end, translated to the readline control codes (`Ctrl-A`/`Ctrl-E`/`Ctrl-U`/`Ctrl-K`) the PTY expects. Previously the browser swallowed ⌘←/⌘→ as history navigation. Mac-only, so the Meta/Super key is untouched on other platforms.

@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Hono } from 'hono';
 import {
@@ -10,6 +10,8 @@ import {
 import type { SessionStore } from '../../db/stores/sessions.js';
 import { ApiError } from '../errors.js';
 import { parseBody } from '../validate.js';
+import { worktreeFileRoutes } from './worktree-files.js';
+import { resolveWorktree } from './worktree-shared.js';
 
 /** Decoded-size cap for pasted images; generous for screenshots, hostile to abuse. */
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
@@ -22,15 +24,15 @@ const EXTENSION: Record<PasteImageMime, string> = {
 };
 
 /**
- * Worktree-scoped routes (SPEC §6, Files). Currently only the clipboard-image
- * paste target (§7); the Phase 3 tree/file/upload/download family joins here.
+ * Worktree-scoped routes (SPEC §6, Files): thin aggregator over the
+ * clipboard-paste target (§7) and the tree/file/upload/download family
+ * (§8, `worktree-files.ts`). A later task mounts `worktreeGitRoutes` here too.
  */
 export function worktreeRoutes(deps: { sessions: SessionStore }): Hono {
-  return new Hono().post('/:sid/paste', async (c) => {
-    const session = deps.sessions.get(c.req.param('sid'));
-    if (!existsSync(session.worktree_path)) {
-      throw ApiError.conflict('worktree_missing', `session ${session.id} has no worktree on disk`);
-    }
+  const app = new Hono();
+
+  app.post('/:sid/paste', async (c) => {
+    const { session } = resolveWorktree(deps.sessions, c);
     const body = await parseBody(c, pasteImageRequestSchema);
     const bytes = Buffer.from(body.data, 'base64');
     if (bytes.byteLength === 0) {
@@ -54,4 +56,7 @@ export function worktreeRoutes(deps: { sessions: SessionStore }): Hono {
 
     return c.json<PasteImageResponse>({ path: `.puddle/pastes/${name}` }, 201);
   });
+
+  app.route('/', worktreeFileRoutes(deps));
+  return app;
 }
