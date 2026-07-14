@@ -4,9 +4,10 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 import { useClientSettings } from '../../lib/client-settings';
-import { onThemeChange, xtermThemeFromCss } from '../../lib/theme';
+import { cssTokenReader, onThemeChange, xtermThemeFromCss } from '../../lib/theme';
 import { cn } from '../../lib/utils';
 import { wsManager } from '../../lib/ws';
+import { dynamicColourReport, type DynamicColourCode } from './osc-colour';
 import { interceptImagePaste } from './paste-image';
 import { registerFileLinks } from './file-links';
 
@@ -86,6 +87,20 @@ export function Terminal({ stream, term = 'agent', className, onExit, onOpenFile
     });
     const stdin = xterm.onData((data) => wsManager.write(stream, term, data));
 
+    // Answer the terminal dynamic-colour queries (OSC 10 foreground, OSC 11
+    // background) that xterm.js leaves unanswered. An agent with auto/system
+    // theme detection (e.g. Claude Code) queries the background luminance to
+    // choose light vs dark; without a reply it cannot match the puddle theme.
+    // Tokens are read live so the answer reflects the theme at query time.
+    const answerColour = (code: DynamicColourCode, token: string) => (data: string) => {
+      if (data !== '?') return false; // a set request, not a query — leave it to xterm
+      const report = dynamicColourReport(code, cssTokenReader()(token));
+      if (report) wsManager.write(stream, term, report);
+      return true;
+    };
+    const oscForeground = xterm.parser.registerOscHandler(10, answerColour(10, '--text-primary'));
+    const oscBackground = xterm.parser.registerOscHandler(11, answerColour(11, '--bg-base'));
+
     if (IS_MAC) {
       xterm.attachCustomKeyEventHandler((e) => {
         if (e.type !== 'keydown' || !e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return true;
@@ -122,6 +137,8 @@ export function Terminal({ stream, term = 'agent', className, onExit, onOpenFile
       container.removeEventListener('paste', onPaste, true);
       observer.disconnect();
       unsubscribeTheme();
+      oscForeground.dispose();
+      oscBackground.dispose();
       fileLinks?.dispose();
       stdin.dispose();
       detach();
