@@ -640,7 +640,9 @@ describe('tier-2 reverse proxy end-to-end (Phase 5 acceptance)', () => {
     "let lastUpgradeUrl='none';",
     'const s=http.createServer((req,res)=>{',
     "  res.writeHead(200,{'content-type':'text/plain'});",
-    "  res.end(req.url.startsWith('/seen-upgrade')?lastUpgradeUrl:'proxy-ok');",
+    "  if(req.url.startsWith('/seen-upgrade')){res.end(lastUpgradeUrl);return;}",
+    "  if(req.url.startsWith('/seen-auth')){res.end(String(req.headers.authorization||'none'));return;}",
+    "  res.end('proxy-ok');",
     '});',
     "s.on('upgrade',(req,sock)=>{",
     '  lastUpgradeUrl=req.url;',
@@ -734,6 +736,17 @@ describe('tier-2 reverse proxy end-to-end (Phase 5 acceptance)', () => {
     });
     expect(forwarded.status).toBe(200);
     expect(await forwarded.text()).toBe('proxy-ok');
+  });
+
+  it('never forwards the Authorization bearer to the upstream dev server', async () => {
+    const base = `http://127.0.0.1:${daemon.port}`;
+    // `Authorization: Bearer <daemon-token>` satisfies proxy auth, but the
+    // full-RCE token must never reach a session's (agent-generated) dev server.
+    const seen = await fetch(`${base}/proxy/${sid}/${listenerPort}/seen-auth`, {
+      headers: { authorization: `Bearer ${daemon.token}` },
+    });
+    expect(seen.status).toBe(200);
+    expect(await seen.text()).toBe('none'); // the proxy stripped Authorization
   });
 
   it('proxies a raw WebSocket upgrade both directions', async () => {
@@ -1003,5 +1016,75 @@ describe('tier-1 migration end-to-end (Workstream S / SPEC §5)', () => {
     // account_id stayed put — nothing moved.
     const after = await c.json<Session>('GET', `/api/sessions/${s.id}`);
     expect(after.account_id).toBe(a.id);
+  });
+
+  it('migrates a session that never reached waiting_input — migrate forces the adopt', async () => {
+    // A dedicated daemon with a very long quiet window so the waiting_input
+    // adoption never fires within the test: this reproduces a session that
+    // exhausted credit on its FIRST turn, whose conversation is on disk but was
+    // never adopted. Without the forced adopt in migrate, hasConversation(target)
+    // is false and migrate wrongly 409s migration_unsupported.
+    const home3 = mkdtempSync(join(tmpdir(), 'puddle-e2e-migrate-firstturn-'));
+    const d3 = await startDaemon({
+      home: home3,
+      port: 0,
+      adapters: [fakeAdapter({ share: true })],
+      assetsDir: null,
+      version: 'e2e-migrate-firstturn',
+      statusQuietMs: 30000, // waiting_input (and its adopt) will not fire in-test
+    });
+    stops.push(() => d3.stop());
+    const c = client(d3);
+    const p = await c.json<Profile>('POST', '/api/profiles', { name: 'firstturn' });
+    const mk = async (label: string): Promise<Account> => {
+      const acc = await c.json<Account>('POST', '/api/accounts', {
+        profile_id: p.id,
+        agent_type: 'fake',
+        label,
+      });
+      writeFileSync(join(acc.config_dir, 'creds.json'), '{}');
+      return acc;
+    };
+    const a = await mk('a');
+    const b = await mk('b');
+    const repo = await c.json<Repo>('POST', '/api/repos', { path: initRepo() });
+    const proj = await c.json<Project>('POST', '/api/projects', {
+      profile_id: p.id,
+      repo_id: repo.id,
+      name: 'firstturn-demo',
+    });
+    const s = await c.json<Session>('POST', '/api/sessions', {
+      project_id: proj.id,
+      account_id: a.id,
+    });
+    const ref = `fake-ref-${s.id}`;
+
+    const canonicalRoot = d3.paths.profileSessionsDir(p.id, 'fake');
+    const isAdopted = (): boolean =>
+      existsSync(canonicalRoot) &&
+      readdirSync(canonicalRoot).some((k) => existsSync(join(canonicalRoot, k, `${ref}.jsonl`)));
+    const perAccountConv = (): boolean => {
+      const projects = join(a.config_dir, 'projects');
+      return (
+        existsSync(projects) &&
+        readdirSync(projects).some((k) => existsSync(join(projects, k, `${ref}.jsonl`)))
+      );
+    };
+
+    // The agent has written its per-account conversation JSONL, but adoption has
+    // not run (create's early adopt fires before the file exists; waiting_input
+    // is 30 s away) — the exact first-turn state migrate must handle.
+    await pollUntil(async () => perAccountConv());
+    expect(isAdopted()).toBe(false);
+    await c.json<Session>('POST', `/api/sessions/${s.id}/kill`);
+    expect(isAdopted()).toBe(false);
+
+    const migrated = await c.json<Session>('POST', `/api/sessions/${s.id}/migrate`, {
+      account_id: b.id,
+    });
+    expect(migrated.account_id).toBe(b.id);
+    expect(migrated.status).toBe('running');
+    expect(isAdopted()).toBe(true); // migrate forced the adopt, so B reads it
+    await c.json<Session>('POST', `/api/sessions/${s.id}/kill`);
   });
 });

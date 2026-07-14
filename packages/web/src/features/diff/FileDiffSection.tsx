@@ -83,7 +83,7 @@ export function FileDiffSection({
         <span className={cn('w-3 shrink-0 font-mono text-xs', style.colourClass)}>
           {style.letter}
         </span>
-        <span className="truncate font-mono text-xs text-fg">{label}</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-xs text-fg">{label}</span>
         {dirty && (
           <Circle
             className="size-2 shrink-0 fill-current text-fg-secondary"

@@ -142,6 +142,12 @@ function forwardHeaders(headers: Record<string, string>, port: number): Record<s
   const out: Record<string, string> = {};
   for (const [name, value] of Object.entries(headers)) {
     if (HOP_BY_HOP.has(name) || name === 'host') continue;
+    // Proxy auth credentials must never reach the upstream: a client that
+    // authenticated with `Authorization: Bearer <daemon-token>` would otherwise
+    // hand the full-RCE token to a session's dev server (potentially
+    // agent-generated code). The upstream's own auth, if any, rides its own
+    // headers — not ours (SPEC §9).
+    if (name === 'authorization') continue;
     if (name === 'cookie') {
       const kept = stripProxyCookie(value);
       if (kept !== undefined) out.cookie = kept;

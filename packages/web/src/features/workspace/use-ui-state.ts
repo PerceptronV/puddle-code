@@ -87,8 +87,18 @@ export function useUiState(projectId: string | undefined): UiStateHandle {
     setLoaded(false);
     setSnapshot(EMPTY);
 
-    const stored = parseWorkingSet(sessionStorage.getItem(key));
-    if (stored.kind === 'corrupt') sessionStorage.removeItem(key);
+    // sessionStorage access can throw (disabled storage, SecurityError). A
+    // throw here must never skip `setLoaded(true)` below — that would wedge the
+    // workspace behind a permanent loading gate — so degrade to "absent" and
+    // fall through to the server fetch.
+    let stored: StoredWorkingSet;
+    try {
+      stored = parseWorkingSet(sessionStorage.getItem(key));
+      if (stored.kind === 'corrupt') sessionStorage.removeItem(key);
+    } catch (e) {
+      console.warn(`ui-state read failed: ${(e as Error).message}`);
+      stored = { kind: 'absent' };
+    }
 
     if (stored.kind === 'present') {
       // This window's own working set beats the server row — no fetch.
@@ -122,8 +132,14 @@ export function useUiState(projectId: string | undefined): UiStateHandle {
       snapshotRef.current = next;
       setSnapshot(next);
       const key = keyRef.current ?? workingSetKey(projectId, profileId);
-      sessionStorage.setItem(key, JSON.stringify(next));
+      // Schedule the server PUT FIRST: a sessionStorage throw (quota,
+      // SecurityError) must not skip the durable write or propagate into React.
       writer(projectId, profileId, next);
+      try {
+        sessionStorage.setItem(key, JSON.stringify(next));
+      } catch (e) {
+        console.warn(`ui-state write failed: ${(e as Error).message}`);
+      }
     },
   };
 }

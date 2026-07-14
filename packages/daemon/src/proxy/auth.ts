@@ -70,11 +70,21 @@ export function stripProxyCookie(cookieHeader: string | undefined): string | und
  * Returns `''` when nothing remains.
  */
 export function stripTokenParam(search: string): string {
-  if (!search.includes('puddle_token')) return search; // common case: byte-identical
+  if (search === '' || search === '?') return search;
   const raw = search.startsWith('?') ? search.slice(1) : search;
   const kept = raw.split('&').filter((pair) => {
     const eq = pair.indexOf('=');
-    const name = eq === -1 ? pair : pair.slice(0, eq);
+    const rawName = eq === -1 ? pair : pair.slice(0, eq);
+    // Decode the name before comparing: `isProxyAuthorised` authenticates via a
+    // WHATWG-decoded param, so a percent-encoded name (`puddle%5Ftoken=`) would
+    // otherwise satisfy auth yet survive a purely textual strip and leak the
+    // daemon token upstream. Malformed escapes can't match — keep them raw.
+    let name = rawName;
+    try {
+      name = decodeURIComponent(rawName);
+    } catch {
+      /* malformed percent-escape — cannot be `puddle_token`, keep raw */
+    }
     return name !== 'puddle_token';
   });
   return kept.length > 0 ? `?${kept.join('&')}` : '';

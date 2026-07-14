@@ -12,9 +12,13 @@
  * fall back and are the caller's cue to clear the key — see the hook's own
  * doc comment for how it wires these together). The debounced-PUT behaviour
  * itself is unchanged and already covered by the `debounce` suite below;
- * `update`'s synchronous `sessionStorage.setItem` is a single line reviewed
- * by inspection. Full hook-level integration (mount, reload, multi-window)
- * remains a manual check — see the task report.
+ * `update` now schedules the durable `writer()` PUT *before* touching
+ * `sessionStorage` and wraps every storage read/write in try/catch (so a
+ * quota/SecurityError can neither skip the server write nor wedge the loading
+ * gate) — both are single, DOM-bound lines reviewed by inspection, since the
+ * hook can't be mounted here. Full hook-level integration (mount, reload,
+ * multi-window, a throwing storage backend) remains a manual check — see the
+ * task report.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { uiStateSnapshotSchema } from '@puddle/shared';

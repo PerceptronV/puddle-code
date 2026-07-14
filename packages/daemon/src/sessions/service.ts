@@ -329,6 +329,13 @@ export class SessionService extends EventEmitter {
     if (session.status === 'archived') {
       throw ApiError.conflict('session_archived', 'an archived session cannot migrate');
     }
+    // Same guard resume has: a vanished worktree is a 409, not a spawn 500.
+    if (!existsSync(session.worktree_path)) {
+      throw ApiError.conflict(
+        'worktree_missing',
+        'worktree is gone; the session can only be archived',
+      );
+    }
     const adapter = this.deps.adapters.get(session.agent_type);
     // A live session is stopped first — usually it has already exited (credit
     // exhaustion). kill() waits for the PTY to die before returning.
@@ -338,6 +345,20 @@ export class SessionService extends EventEmitter {
 
     const ref = session.agent_session_ref;
     if (!ref) throw ApiError.conflict('no_session_ref', 'no agent session ref recorded');
+
+    // A session that exhausted credit on its very FIRST turn may never have hit
+    // waiting_input, so its conversation was never adopted into the shared store
+    // — `hasConversation(target)` below would then be false and migration would
+    // wrongly 409, defeating the primary use case. Force a best-effort adopt now
+    // (the source account is still `account_id`, so it owns the files); an
+    // adoption failure simply falls through to the availability paths below.
+    if (this.deps.share) {
+      try {
+        await this.deps.share.adoptIfNeeded(session);
+      } catch {
+        /* best-effort — falls through to the (a)/(b)/(c) availability paths */
+      }
+    }
 
     // Conversation availability on the target, in fall-through order (SPEC §5):
     // (a) readable through the shared store's symlink — no files move;
@@ -384,6 +405,9 @@ export class SessionService extends EventEmitter {
       from_account: fromAccountId,
       to_account: target.id,
     });
+    // Resume the marker-file sync the way resume() does, so a shared-worktree
+    // session keeps title/onboarding markers flowing after migration.
+    this.deps.onboarding.watch(id, project.repo_id, session.worktree_path);
     return this.get(id);
   }
 

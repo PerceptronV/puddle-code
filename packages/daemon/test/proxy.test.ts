@@ -6,7 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import type { Session } from '@puddle/shared';
 import { ApiError } from '../src/http/errors.js';
 import { hostOriginGuard } from '../src/security/middleware.js';
-import { proxyAuth } from '../src/proxy/auth.js';
+import { proxyAuth, stripTokenParam } from '../src/proxy/auth.js';
 import { proxyRoutes } from '../src/proxy/http.js';
 
 const TOKEN = 't'.repeat(64);
@@ -94,6 +94,7 @@ describe('tier-2 proxy: auth + HTTP forwarding', () => {
           'x-seen-cookie': req.headers.cookie ?? '',
           'x-seen-te': req.headers.te ?? '',
           'x-seen-keep': (req.headers['x-keep'] as string) ?? '',
+          'x-seen-auth': req.headers.authorization ?? '',
         });
         res.end(JSON.stringify({ method: req.method, url: req.url, body: seenBody }));
       });
@@ -265,6 +266,31 @@ describe('tier-2 proxy: auth + HTTP forwarding', () => {
       expect(res.headers['x-seen-cookie']).toBe('keepme=yes'); // puddle_proxy gone, other survives
       expect(res.headers['x-seen-te']).toBe(''); // hop-by-hop stripped
       expect(res.headers['x-seen-keep']).toBe('kept'); // ordinary header forwarded
+      expect(res.headers['x-seen-auth']).toBe(''); // proxy-auth credential never forwarded
+    });
+
+    it('never forwards the Authorization header to the upstream', async () => {
+      // A client that authenticates with `Authorization: Bearer <daemon-token>`
+      // must not hand that full-RCE token to a session's (agent-generated) dev
+      // server — the header is dropped even though it satisfied proxy auth.
+      const res = await raw(proxyPort, 'GET', `/proxy/${SID}/${upstreamPort}/`, bearer);
+      expect(res.status).toBe(200);
+      expect(res.headers['x-seen-auth']).toBe('');
+    });
+
+    it('splices a percent-encoded puddle_token name out of the forwarded query', async () => {
+      // `?puddle%5Ftoken=` WHATWG-decodes to `puddle_token`, so it satisfies
+      // query auth — a purely textual strip would leave it in the forward and
+      // leak the daemon token upstream. Cookie auth here keeps the forward path
+      // (no 302), proving http.ts decodes the pair name before splicing.
+      const res = await raw(
+        proxyPort,
+        'GET',
+        `/proxy/${SID}/${upstreamPort}/a?puddle%5Ftoken=${TOKEN}&a=1`,
+        { cookie: `puddle_proxy=${TOKEN}` },
+      );
+      expect(res.status).toBe(200);
+      expect(res.headers['x-seen-url']).toBe('/a?a=1');
     });
 
     it('forwards a POST body byte-for-byte', async () => {
@@ -295,5 +321,26 @@ describe('tier-2 proxy: auth + HTTP forwarding', () => {
       expect(res.status).toBe(502);
       expect(JSON.parse(res.body).error.code).toBe('upstream_unreachable');
     });
+  });
+});
+
+describe('stripTokenParam', () => {
+  it('decodes a percent-encoded param name before matching (auth via WHATWG decode)', () => {
+    // `puddle%5Ftoken` authenticates (searchParams decodes it), so it must also
+    // be stripped from the forward — otherwise the daemon token leaks upstream.
+    expect(stripTokenParam('?puddle%5Ftoken=T&a=1')).toBe('?a=1');
+  });
+
+  it('strips the plain token pair while leaving others byte-intact', () => {
+    expect(stripTokenParam('?x=%20y&puddle_token=T&b=2')).toBe('?x=%20y&b=2');
+  });
+
+  it('keeps a malformed-escape name (it can never be the token)', () => {
+    expect(stripTokenParam('?%zz=1&b=2')).toBe('?%zz=1&b=2');
+  });
+
+  it('returns the empty string when the token was the sole pair', () => {
+    expect(stripTokenParam('?puddle_token=T')).toBe('');
+    expect(stripTokenParam('?puddle%5Ftoken=T')).toBe('');
   });
 });

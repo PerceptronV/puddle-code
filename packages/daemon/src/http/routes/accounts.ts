@@ -92,8 +92,15 @@ export function accountRoutes(deps: AccountRouteDeps): Hono {
       }
       // Link the profile's already-adopted conversations into this account (and
       // fold in any real conversation dir an imported config dir brought along)
-      // so it can immediately resume them (Workstream S).
-      await deps.share.backfillAccount(account);
+      // so it can immediately resume them (Workstream S). Best-effort: the row
+      // is already persisted, so a throw here must not 500 and strand a
+      // half-created account (a retry would hit a duplicate-label 409). Backfill
+      // is idempotent — the next boot's reconcile pass repairs any missed links.
+      try {
+        await deps.share.backfillAccount(account);
+      } catch (e) {
+        console.warn(`account ${account.id} conversation backfill failed: ${(e as Error).message}`);
+      }
       return c.json(account, 201);
     })
     .patch('/:id', async (c) => {

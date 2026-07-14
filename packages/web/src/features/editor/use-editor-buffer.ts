@@ -160,6 +160,11 @@ export function useEditorBuffer(
   useEffect(() => {
     if (!model || !peer.savedElsewhere || isDirty(key)) return;
     void file.refetch().then((res) => {
+      // Re-check dirtiness AFTER the async refetch: the user may have typed
+      // while the fetch was in flight. If the buffer is now dirty, keep it —
+      // adopting the disk content would clobber those keystrokes. Leaving the
+      // peer state set surfaces the passive `saved-elsewhere` badge instead.
+      if (isDirty(key)) return;
       if (res.data && res.data.content !== null) {
         reloadModel(res.data.content, res.data.mtime_ms);
       }
