@@ -14,4 +14,5 @@ export * from './api/project-state.js';
 export * from './api/worktrees.js';
 export * from './api/worktree-files.js';
 export * from './api/worktree-git.js';
+export * from './api/ports.js';
 export * from './ws/messages.js';

@@ -150,6 +150,29 @@ describe('PtyManager', () => {
     expect(log).toContain('hello-from-pty');
   });
 
+  it('pidsFor returns the OS pids of every live term on a stream, scoped to that stream', async () => {
+    const { ptys } = manager();
+    ptys.spawn('s3', 'agent', 'bash', ['-c', 'echo agent-ready && cat'], { cwd: tmpdir() });
+    ptys.spawn('s3', 'shell-1', 'bash', ['-c', 'echo shell-ready && cat'], { cwd: tmpdir() });
+    ptys.spawn('other-stream', 'agent', 'bash', ['-c', 'echo other-ready && cat'], {
+      cwd: tmpdir(),
+    });
+    await waitFor(() => ptys.liveTerms('s3').length === 2 && ptys.has('other-stream', 'agent'));
+
+    const pids = ptys.pidsFor('s3');
+    expect(pids).toHaveLength(2);
+    expect(pids.every((p) => typeof p === 'number' && p > 0)).toBe(true);
+
+    // Scoped: an unrelated stream's pid must not leak in, and a stream with
+    // no live PTYs returns [] rather than throwing.
+    const otherPids = ptys.pidsFor('other-stream');
+    expect(otherPids).toHaveLength(1);
+    expect(pids).not.toContain(otherPids[0]);
+    expect(ptys.pidsFor('no-such-stream')).toEqual([]);
+
+    ptys.killAll();
+  });
+
   it('injects daemon notes into log and stream', async () => {
     const { logs, ptys } = manager();
     const chunks: string[] = [];

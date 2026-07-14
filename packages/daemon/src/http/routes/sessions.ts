@@ -6,13 +6,15 @@ import {
   patchSessionRequestSchema,
   sessionStatusSchema,
   type Session,
+  type SessionPortsResponse,
 } from '@puddle/shared';
+import type { PortScanner } from '../../ports/scanner.js';
 import type { SessionService } from '../../sessions/service.js';
 import { gitSummary } from '../../worktrees/inspect.js';
 import { ApiError } from '../errors.js';
 import { parseBody } from '../validate.js';
 
-export function sessionRoutes(deps: { service: SessionService }): Hono {
+export function sessionRoutes(deps: { service: SessionService; scanner: PortScanner }): Hono {
   return new Hono()
     .get('/', (c) => {
       const project = c.req.query('project');
@@ -50,5 +52,11 @@ export function sessionRoutes(deps: { service: SessionService }): Hono {
     .post('/:id/archive', async (c) => {
       const body = await parseBody(c, archiveRequestSchema);
       return c.json(await deps.service.archive(c.req.param('id'), body.force, body.delete_branch));
+    })
+    .get('/:id/ports', async (c) => {
+      const id = c.req.param('id');
+      deps.service.get(id); // 404 for an unknown session
+      const ports = await deps.scanner.scan(id);
+      return c.json<SessionPortsResponse>({ ports, scanned_at: new Date().toISOString() });
     });
 }

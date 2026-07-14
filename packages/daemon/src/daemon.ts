@@ -18,6 +18,7 @@ import { KeyedMutex } from './git/mutex.js';
 import { buildApp } from './http/app.js';
 import { LogStore } from './logs/log-store.js';
 import { ensureHome, resolvePaths } from './paths.js';
+import { PortScanner } from './ports/scanner.js';
 import { PtyManager } from './pty/pty-manager.js';
 import { ensureToken } from './security/token.js';
 import { MarkerFileSync } from './sessions/onboarding.js';
@@ -70,6 +71,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
 
   const logs = new LogStore(paths.logsDir, config.replayBytes);
   const ptys = new PtyManager(logs);
+  const scanner = new PortScanner({ ptys });
   const worktrees = new WorktreeManager({ paths, mutex: new KeyedMutex(), repos, sessions });
   const onboarding = new MarkerFileSync({ repos, events, sessions });
   const adapters = new AdapterRegistry(opts.adapters ?? [claudeCode]);
@@ -158,6 +160,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       ptys,
       worktrees,
       service,
+      scanner,
     },
     ws: { gateway, upgradeWebSocket },
   });

@@ -28,7 +28,7 @@ beforeAll(() => {
       : c.json({ error: { code: 'internal', message: String(err) } }, 500),
   );
   app.route('/api/worktrees', worktreeRoutes({ sessions: fx.stores.sessions }));
-  app.route('/api/sessions', sessionRoutes({ service: fx.service }));
+  app.route('/api/sessions', sessionRoutes({ service: fx.service, scanner: fx.scanner }));
 });
 
 afterAll(async () => {

@@ -9,6 +9,7 @@ import type { RemovalStore } from '../db/stores/removals.js';
 import type { SessionStore } from '../db/stores/sessions.js';
 import type { RepoStore } from '../db/stores/repos.js';
 import type { PuddlePaths } from '../paths.js';
+import type { PortScanner } from '../ports/scanner.js';
 import type { PtyManager } from '../pty/pty-manager.js';
 import { bearerAuth, hostOriginGuard } from '../security/middleware.js';
 import type { SessionService } from '../sessions/service.js';
@@ -47,6 +48,7 @@ export interface AppDeps {
     ptys: PtyManager;
     worktrees: WorktreeManager;
     service: SessionService;
+    scanner: PortScanner;
   };
   ws?: {
     gateway: WsGateway;

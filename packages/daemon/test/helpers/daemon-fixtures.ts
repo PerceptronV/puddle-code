@@ -14,6 +14,7 @@ import { SessionStore } from '../../src/db/stores/sessions.js';
 import { KeyedMutex } from '../../src/git/mutex.js';
 import { LogStore } from '../../src/logs/log-store.js';
 import { ensureHome, resolvePaths } from '../../src/paths.js';
+import { PortScanner } from '../../src/ports/scanner.js';
 import { PtyManager } from '../../src/pty/pty-manager.js';
 import { MarkerFileSync } from '../../src/sessions/onboarding.js';
 import { SessionService } from '../../src/sessions/service.js';
@@ -93,6 +94,7 @@ export interface Fixture {
   };
   logs: LogStore;
   ptys: PtyManager;
+  scanner: PortScanner;
   worktrees: WorktreeManager;
   service: SessionService;
   onboarding: MarkerFileSync;
@@ -115,6 +117,7 @@ export function fixture(opts: { quietMs?: number } = {}): Fixture {
   };
   const logs = new LogStore(paths.logsDir, 256 * 1024);
   const ptys = new PtyManager(logs);
+  const scanner = new PortScanner({ ptys });
   const worktrees = new WorktreeManager({
     paths,
     mutex: new KeyedMutex(),
@@ -165,6 +168,7 @@ export function fixture(opts: { quietMs?: number } = {}): Fixture {
     stores,
     logs,
     ptys,
+    scanner,
     worktrees,
     service,
     onboarding,
