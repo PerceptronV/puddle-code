@@ -55,6 +55,14 @@ export function EditorZone({ uiState, sessions, reveal }: EditorZoneProps) {
   // may not exist), fixing the active tab if it was one of them. Runs once the
   // sessions have loaded.
   const prunedRef = useRef(false);
+  // Deliberately narrow deps: the prune is a one-shot restore pass, gated by
+  // `prunedRef`, that should run the first time a non-empty `sessions` list
+  // arrives. `tabs`/`activeTab`/`uiState` are read from the current render's
+  // props — safe because the guard means the body only ever executes on a
+  // render where they are fresh — and listing them would only cause extra
+  // no-op effect runs after the guard trips (or, without the guard, re-prune
+  // on every tab change). `uiState.update` is safe from this closure: it
+  // merges into a ref-backed snapshot, not the captured one.
   useEffect(() => {
     if (prunedRef.current || sessions.length === 0) return;
     prunedRef.current = true;

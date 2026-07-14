@@ -14,6 +14,7 @@ import { LazyTerminal } from '../terminal/LazyTerminal';
 import { LazyEditorPane } from '../editor/LazyEditorPane';
 import { addOrFocusTab, type EditorTab } from '../editor/editor-tabs';
 import { EditorProvider, useEditorHandler, type RevealTarget } from './editor-context';
+import { layoutForPanels } from './panel-layout';
 import { NewSessionDialog } from './NewSessionDialog';
 import { SessionSidebar } from './SessionSidebar';
 import { TabStrip } from './TabStrip';
@@ -178,14 +179,28 @@ function WorkspaceInner() {
   const explorerTarget = useExplorerTarget(sessions, activeSessionId, uiState);
   const explorerOpen = uiState.snapshot.explorer_open;
   const editorTabs = uiState.snapshot.editor_tabs;
-  // react-resizable-panels keys layouts per Group; the horizontal and the
-  // nested vertical Group share one flat `layout` object (their panel ids
-  // never collide), so every `onLayoutChanged` MERGES rather than replaces —
-  // otherwise one Group's write would wipe the other's sizes.
+  // Both Groups (horizontal shell, nested vertical editor split) persist into
+  // ONE flat `layout` object: panel ids never collide, so `onLayoutChanged`
+  // MERGES its keys in — a plain replace would wipe the other Group's sizes.
+  // Restoring goes the other way through `layoutForPanels`, which hands each
+  // Group exactly its own rendered panels' entries (react-resizable-panels
+  // ignores a `defaultLayout` whose key count differs from its panel count,
+  // so the merged object must never be passed whole — see panel-layout.ts).
   const mergeLayout = useCallback(
     (layout: Layout) => uiState.update({ layout: { ...uiState.snapshot.layout, ...layout } }),
     [uiState],
   );
+  // Conditional panels (explorer, editor) join their Group's id list only
+  // while rendered, keeping the restore count exact in every configuration.
+  const horizontalLayout = layoutForPanels(uiState.snapshot.layout, [
+    'sidebar',
+    ...(explorerOpen ? ['explorer'] : []),
+    'main',
+  ]);
+  const verticalLayout = layoutForPanels(uiState.snapshot.layout, [
+    ...(editorTabs.length > 0 ? ['editor'] : []),
+    'session',
+  ]);
 
   if (!validProject) return null;
   if (!uiState.loaded || !detail.data) {
@@ -196,7 +211,7 @@ function WorkspaceInner() {
     <Group
       orientation="horizontal"
       className="h-full"
-      defaultLayout={uiState.snapshot.layout as Layout}
+      defaultLayout={horizontalLayout}
       onLayoutChanged={mergeLayout}
     >
       <Panel id="sidebar" defaultSize={260} minSize={180} maxSize={480}>
@@ -228,11 +243,11 @@ function WorkspaceInner() {
       <Panel id="main">
         {/* Vertical split: the editor zone sits above the session terminals,
             appearing only once a file is open. Its own persisted layout shares
-            the flat `layout` object (see mergeLayout). */}
+            the flat `layout` object (see mergeLayout / layoutForPanels). */}
         <Group
           orientation="vertical"
           className="h-full"
-          defaultLayout={uiState.snapshot.layout as Layout}
+          defaultLayout={verticalLayout}
           onLayoutChanged={mergeLayout}
         >
           {editorTabs.length > 0 && (

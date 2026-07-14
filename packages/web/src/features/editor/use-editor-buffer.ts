@@ -148,6 +148,15 @@ export function useEditorBuffer(
 
   // A peer saved this file: if we are clean, silently adopt the new disk
   // content; if we are dirty, leave it and show a passive badge instead.
+  //
+  // Deliberately narrow deps: this must fire exactly when the `savedElsewhere`
+  // signal arrives (or once the model exists to receive it), never on `file`'s
+  // identity — the query result object changes on every fetch, and including
+  // it would re-run the adopt (and re-clear peer state) after its own refetch
+  // resolves, looping. `file.refetch` is safe to call from the stale closure:
+  // TanStack Query's refetch is a stable reference for a given query key, and
+  // this component remounts (new hook instance) whenever (session, path) — and
+  // hence the key — changes. `reloadModel` is likewise keyed only on `key`.
   useEffect(() => {
     if (!model || !peer.savedElsewhere || isDirty(key)) return;
     void file.refetch().then((res) => {
@@ -156,7 +165,6 @@ export function useEditorBuffer(
       }
       clearPeerState(key);
     });
-    // file.refetch identity is stable enough; keyed on the signal + model.
   }, [peer.savedElsewhere, model, key]);
 
   // Clean-refocus refresh: a background refetch (window focus) brought a newer

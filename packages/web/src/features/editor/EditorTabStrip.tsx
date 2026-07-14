@@ -3,7 +3,7 @@ import { Circle, X } from 'lucide-react';
 import type { Session } from '@puddle/shared';
 import { cn } from '../../lib/utils';
 import { bufferKey, editorTabLabel, isDirty, subscribe, type OpenTab } from './buffer-store';
-import { sameTab, type EditorTab } from './editor-tabs';
+import { reorderTabs, sameTab, type EditorTab } from './editor-tabs';
 
 /** Reactive dirty flag for one (session, path) buffer. */
 function useDirty(session: string, path: string): boolean {
@@ -108,14 +108,8 @@ export function EditorTabStrip({
   const openTabs: OpenTab[] = tabs;
 
   const move = (from: EditorTab, to: EditorTab) => {
-    if (sameTab(from, to)) return;
-    const next = tabs.filter((t) => !sameTab(t, from));
-    next.splice(
-      next.findIndex((t) => sameTab(t, to)),
-      0,
-      from,
-    );
-    onReorder(next);
+    if (sameTab(from, to)) return; // dragover fires repeatedly — skip no-op writes
+    onReorder(reorderTabs(tabs, from, to));
   };
 
   return (
