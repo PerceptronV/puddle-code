@@ -11,7 +11,7 @@
     "build": "pnpm --filter @puddle/shared build && pnpm --filter @puddle/web build && pnpm --filter @puddle/daemon build && pnpm --filter puddle build",
     "typecheck": "tsc -b packages/shared packages/daemon packages/cli && pnpm --filter @puddle/web typecheck",
     "test": "vitest run",
-    "lint": "eslint . && prettier --check .",
+    "lint": "eslint . && prettier --check . && pnpm --filter @puddle/web check-tokens",
     "format": "prettier --write .",
     "dev": "pnpm --parallel --filter @puddle/daemon --filter @puddle/web dev"
   },

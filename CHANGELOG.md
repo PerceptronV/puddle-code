@@ -21,4 +21,5 @@ Past releases: see docs/changelogs/.
 - Boot reconcile pass: sessions found without a live PTY become `interrupted`, resumable in place with an injected interruption note; optional `autoResume`.
 - Account login PTYs (`login-<id>` streams) marking accounts logged in on clean exit.
 - Phase 1 acceptance script (`docs/acceptance/phase-1.md`) and a full end-to-end test suite with a deterministic fake agent.
+- Design-system foundation (SPEC §12): two-layer `tokens.css` (primitive ramps + dark/light semantic themes incl. the 16 ANSI colours), Tailwind v4 theme mapped onto semantic tokens, self-hosted Ubuntu Sans / Ubuntu Sans Mono variable fonts (UFL 1.0 licence shipped alongside), runtime-generated xterm and Monaco themes, owned restyled UI primitives, and a `check-tokens` CI guard asserting theme completeness and WCAG AA contrast.
 - Workspace snapshot persistence: `GET`/`PUT /api/projects/:id/state?client=<uuid>` stores per-(project, client) ui state; new clients seed from the project's most recent snapshot; stale rows are garbage-collected at boot after `uiStateRetentionDays` (config, default 90).

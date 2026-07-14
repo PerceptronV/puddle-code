@@ -1,0 +1,39 @@
+/*
+ * Self-hosted variable fonts (SPEC §12: hosts and clients may be offline —
+ * no font CDNs). Ubuntu Sans and Ubuntu Sans Mono, Ubuntu Font Licence 1.0;
+ * the licence text ships alongside the files in ../assets/fonts/.
+ */
+
+@font-face {
+  font-family: 'Ubuntu Sans';
+  src: url('../assets/fonts/UbuntuSans-variable.woff2') format('woff2');
+  font-weight: 100 800;
+  font-stretch: 75% 100%;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Ubuntu Sans';
+  src: url('../assets/fonts/UbuntuSans-Italic-variable.woff2') format('woff2');
+  font-weight: 100 800;
+  font-stretch: 75% 100%;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Ubuntu Sans Mono';
+  src: url('../assets/fonts/UbuntuSansMono-variable.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Ubuntu Sans Mono';
+  src: url('../assets/fonts/UbuntuSansMono-Italic-variable.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: italic;
+  font-display: swap;
+}

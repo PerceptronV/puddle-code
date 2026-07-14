@@ -1,0 +1,83 @@
+@import './fonts.css';
+@import './tokens.css';
+@import 'tailwindcss';
+
+/*
+ * Tailwind v4 theme: utilities map onto semantic tokens only (SPEC §12).
+ * `inline` keeps the var() references so [data-theme] swaps restyle
+ * everything without regenerating utility classes.
+ */
+@theme inline {
+  /* Wipe the stock palette: every colour must come from tokens.css. */
+  --color-*: initial;
+  /* 'ground' not 'base': text-base is Tailwind's font-size utility. */
+  --color-ground: var(--bg-base);
+  --color-surface: var(--bg-surface);
+  --color-elevated: var(--bg-elevated);
+  --color-border: var(--border);
+  --color-fg: var(--text-primary);
+  --color-fg-secondary: var(--text-secondary);
+  --color-fg-muted: var(--text-muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-focus: var(--focus-ring);
+  --color-danger: var(--danger);
+  --color-running: var(--status-running);
+  --color-waiting: var(--status-waiting);
+  --color-interrupted: var(--status-interrupted);
+  --color-idle: var(--status-idle);
+  --color-selection: var(--selection);
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  --font-sans: 'Ubuntu Sans', system-ui, sans-serif;
+  --font-mono: 'Ubuntu Sans Mono', ui-monospace, 'SF Mono', monospace;
+
+  /* Compact type scale: an information-dense cockpit, not a marketing page. */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 0.875rem;
+  --text-base--line-height: 1.375rem;
+  --text-lg: 1rem;
+  --text-lg--line-height: 1.5rem;
+  --text-xl: 1.1875rem;
+  --text-xl--line-height: 1.625rem;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 2rem;
+}
+
+@layer base {
+  html {
+    font-size: var(--ui-font-size, 16px);
+  }
+
+  body {
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: var(--text-base--line-height);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: var(--selection);
+  }
+
+  /* Visible keyboard focus everywhere (SPEC §12 quality floor). */
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+
+  /* Counts, ports, and timestamps line up (SPEC §12 density). */
+  .tabular-nums,
+  code,
+  kbd {
+    font-variant-numeric: tabular-nums;
+  }
+}

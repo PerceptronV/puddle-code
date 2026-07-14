@@ -1,0 +1,171 @@
+/*
+ * Design tokens — the single source for colour (SPEC §12, normative).
+ *
+ * Two layers:
+ *   1. Primitives (:root): theme-independent ramps derived from the five core
+ *      colours. Hue is preserved within each ramp; only lightness/saturation
+ *      steps. Steps not listed in SPEC §12 are derived and marked so.
+ *   2. Semantic tokens: the ONLY names components, the Tailwind theme, and the
+ *      runtime xterm/Monaco theme generators may use. A theme is one
+ *      [data-theme='<name>'] block assigning every semantic token; adding a
+ *      theme is one such block plus one entry in src/lib/theme.ts.
+ *
+ * scripts/check-tokens.mjs asserts each theme block is complete and that text
+ * pairings meet WCAG AA. No hex values may appear outside this file.
+ */
+
+:root {
+  /* -- Core palette --------------------------------------------------- */
+  --altitude-blue: #7dadff; /* primary accent family */
+  --krypton-green: #8be8b3; /* success / running family */
+  --quiet-khaki: #ddb28c; /* warm neutral / attention family */
+  --storm-navy: #001c3d; /* dark ground / light-theme ink */
+  --burnt-wood: #5a2f22; /* warm ink / danger family root */
+
+  /* -- Extended ramps -------------------------------------------------- */
+  /* navy (dark grounds) */
+  --navy-950: #000a14;
+  --navy-900: #00132b;
+  --navy-800: #001c3d;
+  --navy-700: #0a2b52;
+  --navy-600: #163c6b;
+
+  /* blue (accent) */
+  --blue-200: #a7c7ff;
+  --blue-300: #7dadff;
+  --blue-500: #4a86e8;
+  --blue-600: #2e6bd6;
+
+  /* green (krypton) */
+  --green-200: #aff0cb; /* derived: bright step above the pastel */
+  --green-300: #8be8b3;
+  --green-500: #2fbf85; /* derived: bright step above the deep */
+  --green-600: #1fa26b;
+  --green-700: #157a50; /* derived: deep step for AA on paper tones */
+
+  /* khaki (paper / warm neutrals) */
+  --khaki-25: #fff9f0;
+  --khaki-50: #fbf5ec;
+  --khaki-100: #f7ebda;
+  --khaki-200: #ead9c0;
+  --khaki-300: #ddb28c;
+  --khaki-600: #a9743d;
+
+  /* amber (attention, khaki family) */
+  --amber-200: #f6c892; /* derived: bright step */
+  --amber-300: #f0b36e;
+  --amber-600: #c08a4b; /* derived: bright step above the deep */
+
+  /* wood / ember (danger) */
+  --ember-100: #f8b7a3; /* derived: bright step */
+  --ember-200: #f2957c;
+  --ember-400: #d96a4e; /* derived: bright step above the deep */
+  --ember-500: #c2472e;
+  --ember-600: #8c4a34;
+  --ember-700: #5a2f22;
+
+  /* mist (cool text ramp for dark ground) */
+  --mist-100: #eaf1fb;
+  --mist-300: #b9c9e0;
+  --mist-500: #7e93b3;
+
+  /* bark (warm grey ink for paper tones) */
+  --bark-500: #8a7663;
+
+  /* tertiary pastels completing the ANSI set */
+  --cyan-200: #a5e4e8; /* derived: bright step */
+  --cyan-300: #7fd6dc;
+  --cyan-500: #2fa6ae; /* derived: bright step above the deep */
+  --cyan-600: #1f8b92; /* derived: deep step */
+  --violet-200: #d0c2f7; /* derived: bright step */
+  --violet-300: #b9a3f2;
+  --violet-500: #8b71db; /* derived: bright step above the deep */
+  --violet-600: #6d4fc4; /* derived: deep step */
+}
+
+/*
+ * Dark (default): storm-navy ground, the pastel family as light.
+ */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg-base: var(--navy-950);
+  --bg-surface: var(--navy-900);
+  --bg-elevated: var(--navy-800);
+  --border: var(--navy-600);
+  --text-primary: var(--mist-100);
+  --text-secondary: var(--mist-300);
+  --text-muted: var(--mist-500);
+  --accent: var(--blue-300);
+  --accent-hover: var(--blue-200);
+  --focus-ring: var(--blue-300);
+  --danger: var(--ember-200);
+  --status-running: var(--green-300);
+  --status-waiting: var(--amber-300);
+  --status-interrupted: var(--ember-200);
+  --status-idle: var(--mist-500);
+  --selection: #7dadff4d; /* blue-300 at 30% (8-digit hex: parseable at runtime) */
+
+  /* ANSI: pastel depth of each hue over --bg-base; brights one step up. */
+  --ansi-black: var(--navy-700);
+  --ansi-red: var(--ember-200);
+  --ansi-green: var(--green-300);
+  --ansi-yellow: var(--amber-300);
+  --ansi-blue: var(--blue-300);
+  --ansi-magenta: var(--violet-300);
+  --ansi-cyan: var(--cyan-300);
+  --ansi-white: var(--mist-300);
+  --ansi-bright-black: var(--mist-500);
+  --ansi-bright-red: var(--ember-100);
+  --ansi-bright-green: var(--green-200);
+  --ansi-bright-yellow: var(--amber-200);
+  --ansi-bright-blue: var(--blue-200);
+  --ansi-bright-magenta: var(--violet-200);
+  --ansi-bright-cyan: var(--cyan-200);
+  --ansi-bright-white: var(--mist-100);
+}
+
+/*
+ * Light: quiet-khaki paper with storm-navy ink and burnt-wood secondary text —
+ * the same five colours swap roles rather than being recoloured.
+ */
+[data-theme='light'] {
+  color-scheme: light;
+
+  --bg-base: var(--khaki-50);
+  --bg-surface: var(--khaki-25);
+  --bg-elevated: var(--khaki-100);
+  --border: var(--khaki-200);
+  --text-primary: var(--navy-800);
+  --text-secondary: var(--ember-700);
+  --text-muted: var(--bark-500);
+  --accent: var(--blue-600);
+  --accent-hover: var(--blue-500);
+  --focus-ring: var(--blue-600);
+  --danger: var(--ember-500);
+  /* SPEC §12 lists green-600 here, but it misses 3:1 on --bg-elevated; the
+     assignment steps one deeper (ramp unchanged) to keep the AA floor. */
+  --status-running: var(--green-700);
+  --status-waiting: var(--khaki-600);
+  --status-interrupted: var(--ember-500);
+  --status-idle: var(--bark-500);
+  --selection: #2e6bd638; /* blue-600 at 22% (8-digit hex: parseable at runtime) */
+
+  /* ANSI: each hue's deep step so agent output stays legible on paper. */
+  --ansi-black: var(--navy-800);
+  --ansi-red: var(--ember-500);
+  --ansi-green: var(--green-600);
+  --ansi-yellow: var(--khaki-600);
+  --ansi-blue: var(--blue-600);
+  --ansi-magenta: var(--violet-600);
+  --ansi-cyan: var(--cyan-600);
+  --ansi-white: var(--khaki-200);
+  --ansi-bright-black: var(--bark-500);
+  --ansi-bright-red: var(--ember-400);
+  --ansi-bright-green: var(--green-500);
+  --ansi-bright-yellow: var(--amber-600);
+  --ansi-bright-blue: var(--blue-500);
+  --ansi-bright-magenta: var(--violet-500);
+  --ansi-bright-cyan: var(--cyan-500);
+  --ansi-bright-white: var(--khaki-50);
+}
