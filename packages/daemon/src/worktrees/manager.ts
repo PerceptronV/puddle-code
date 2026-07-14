@@ -1,6 +1,13 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+} from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
-import type { Repo } from '@puddle/shared';
+import type { Repo, WorktreeInfo } from '@puddle/shared';
 import type { RepoStore } from '../db/stores/repos.js';
 import type { SessionStore } from '../db/stores/sessions.js';
 import { git } from '../git/exec.js';
@@ -63,9 +70,13 @@ export class WorktreeManager {
   }
 
   /**
-   * The separate_branch = false path (SPEC §4): one shared worktree per
-   * (repo, branch), checked out on the base branch itself. The first such
-   * session creates it; later ones attach to the same directory.
+   * The separate_branch = false, separate_worktree = false path (SPEC §4): the
+   * base branch's default shared directory. **If that branch is the one checked
+   * out in the repo's own clone, that clone IS the directory** — puddle stays
+   * faithful to where the user cloned the repo rather than making a second
+   * checkout beside it. Otherwise one shared worktree per (repo, branch) at
+   * `worktrees/<repo_id>/branch-<slug>/`; the first such session creates it,
+   * later ones attach.
    */
   attachShared(opts: { repo: Repo; baseBranch?: string }): Promise<CreateWorktreeResult> {
     const { repo } = opts;
@@ -80,6 +91,20 @@ export class WorktreeManager {
         // Only a branch that exists solely on the remote gets a fresh local
         // tracking branch; existing local branches are never reset (SPEC §4).
         await git(['branch', '--track', branch, `origin/${branch}`], { cwd: repo.path });
+      }
+
+      // The clone itself, when it is on this branch: land there, not a sibling.
+      const primary = (await this.listWorktrees(repo)).find((w) => w.is_primary);
+      if (primary && primary.branch === branch) {
+        await this.excludePuddleDir(repo);
+        mkdirSync(join(repo.path, '.puddle'), { recursive: true });
+        return {
+          worktreePath: repo.path,
+          branch,
+          baseBranch: branch,
+          baseRef: branch,
+          created: false,
+        };
       }
 
       // Distinct branches can collide on a slug ('a/b' vs 'a.b'): probe -2,
@@ -138,6 +163,84 @@ export class WorktreeManager {
     });
   }
 
+  /** realpath, tolerating a path that no longer exists (returns it unchanged). */
+  private realOf(p: string): string {
+    try {
+      return realpathSync(p);
+    } catch {
+      return p;
+    }
+  }
+
+  /**
+   * Every git worktree currently checked out for this repo. The primary (main
+   * working tree) reports the repo's own clone path verbatim, and any worktree
+   * a session already uses reports that session's stored path — so the paths
+   * here match `sessions.worktree_path` byte-for-byte (avoiding symlink drift)
+   * and can be handed straight back as `join_worktree`.
+   */
+  async listWorktrees(repo: Repo): Promise<WorktreeInfo[]> {
+    const raw = await git(['worktree', 'list', '--porcelain'], { cwd: repo.path });
+    const primaryReal = this.realOf(repo.path);
+    const sessionByReal = new Map(
+      this.deps.sessions.allWorktreePaths().map((p) => [this.realOf(p), p]),
+    );
+
+    const out: WorktreeInfo[] = [];
+    let path: string | null = null;
+    let branch: string | null = null;
+    let bare = false;
+    const flush = () => {
+      if (path && !bare) {
+        const real = this.realOf(path);
+        const isPrimary = real === primaryReal;
+        const canonical = isPrimary ? repo.path : (sessionByReal.get(real) ?? path);
+        out.push({ path: canonical, branch, is_primary: isPrimary });
+      }
+      path = null;
+      branch = null;
+      bare = false;
+    };
+    for (const line of raw.split('\n')) {
+      if (line.startsWith('worktree ')) {
+        flush();
+        path = line.slice('worktree '.length);
+      } else if (line === 'bare') bare = true;
+      else if (line.startsWith('branch ')) {
+        branch = line.slice('branch '.length).replace(/^refs\/heads\//, '');
+      } else if (line === 'detached') branch = null;
+    }
+    flush();
+    return out;
+  }
+
+  /**
+   * Land in a specific existing worktree of this repo (SPEC §4, `join_worktree`):
+   * validated to be one of the repo's actual worktrees (by realpath), and
+   * returned in the canonical form `listWorktrees` uses so it matches other
+   * sessions sharing it.
+   */
+  async joinWorktree(opts: { repo: Repo; worktreePath: string }): Promise<CreateWorktreeResult> {
+    const { repo } = opts;
+    return this.deps.mutex.run(`repo:${repo.id}`, async () => {
+      const wanted = this.realOf(opts.worktreePath);
+      const match = (await this.listWorktrees(repo)).find((w) => this.realOf(w.path) === wanted);
+      if (!match) {
+        throw ApiError.badRequest('unknown_worktree', 'not a worktree of this repository');
+      }
+      if (!match.branch) {
+        throw ApiError.badRequest('detached_worktree', 'that worktree is not on a branch');
+      }
+      return {
+        worktreePath: match.path,
+        branch: match.branch,
+        baseBranch: match.branch,
+        baseRef: match.branch,
+        created: false,
+      };
+    });
+  }
+
   /** `git branch -D` — only ever called for puddle-created session branches (SPEC §4). */
   deleteBranch(repo: Repo, branch: string): Promise<void> {
     return this.deps.mutex.run(`repo:${repo.id}`, async () => {
@@ -148,6 +251,9 @@ export class WorktreeManager {
   /** Removes the worktree; the branch stays in the repo (SPEC §4 archiving). */
   remove(opts: { repo: Repo; worktreePath: string; force?: boolean }): Promise<void> {
     return this.deps.mutex.run(`repo:${opts.repo.id}`, async () => {
+      // Never remove the repo's own clone — a shared session may have landed in
+      // it (SPEC §4), but it is the user's checkout, not a puddle worktree.
+      if (this.realOf(opts.worktreePath) === this.realOf(opts.repo.path)) return;
       if (!existsSync(opts.worktreePath)) {
         await git(['worktree', 'prune'], { cwd: opts.repo.path }).catch(() => undefined);
         return;

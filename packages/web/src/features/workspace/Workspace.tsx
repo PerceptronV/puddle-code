@@ -386,7 +386,6 @@ function WorkspaceInner() {
         <NewSessionDialog
           projectId={projectId}
           repoId={detail.data.project.repo_id}
-          sessions={sessions}
           open={creating}
           kind={createKind}
           seedAccountId={seedAccountId}

@@ -149,14 +149,15 @@ export class SessionService extends EventEmitter {
     }
 
     const separateBranch = input.separate_branch !== false;
+    const separateWorktree = input.separate_worktree !== false; // agents: own dir by default
     const sessionId = randomUUID();
     const worktree = await this.resolveSessionWorktree({
-      project,
       repo,
       profile,
       sessionId,
       input,
       separateBranch,
+      separateWorktree,
     });
     const session = this.deps.sessions.create({
       id: sessionId,
@@ -231,23 +232,26 @@ export class SessionService extends EventEmitter {
    * by both the agent and terminal create paths.
    */
   private async resolveSessionWorktree(opts: {
-    project: ReturnType<ProjectStore['get']>;
     repo: ReturnType<RepoStore['get']>;
     profile: ReturnType<ProfileStore['get']>;
     sessionId: string;
     input: CreateSessionRequest;
     separateBranch: boolean;
+    /** Effective directory axis (its own default already applied per kind). */
+    separateWorktree: boolean;
   }): Promise<CreateWorktreeResult> {
-    const { project, repo, profile, sessionId, input, separateBranch } = opts;
+    const { repo, profile, sessionId, input, separateBranch, separateWorktree } = opts;
 
     if (separateBranch) {
+      // A separate branch always gets its own directory; an explicit request to
+      // share one alongside it is a contradiction.
       if (input.separate_worktree === false) {
         throw ApiError.badRequest(
           'shared_worktree_needs_shared_branch',
           'sharing a working directory requires working on the base branch — disable separate branch first',
         );
       }
-      if (input.join_session !== undefined) {
+      if (input.join_worktree !== undefined) {
         throw ApiError.badRequest(
           'join_needs_shared_branch',
           'joining an existing directory requires working on the base branch — disable separate branch first',
@@ -272,32 +276,17 @@ export class SessionService extends EventEmitter {
       );
     }
 
-    // Join a specific existing session's directory.
-    if (input.join_session !== undefined) {
-      const target = this.deps.sessions.get(input.join_session); // 404 if unknown
-      if (target.project_id !== project.id) {
-        throw ApiError.badRequest('foreign_join', 'the session to join is not in this project');
-      }
-      if (target.status === 'archived') {
-        throw ApiError.conflict('join_archived', 'the session to join has been archived');
-      }
-      if (!existsSync(target.worktree_path)) {
-        throw ApiError.conflict('join_worktree_missing', 'the directory to join no longer exists');
-      }
-      return {
-        worktreePath: target.worktree_path,
-        branch: target.branch,
-        baseBranch: target.base_branch,
-        baseRef: target.branch,
-        created: false,
-      };
+    // Land in a specific existing worktree (the clone or any other on the branch).
+    if (input.join_worktree !== undefined) {
+      return this.deps.worktrees.joinWorktree({ repo, worktreePath: input.join_worktree });
     }
 
-    // Own new directory on the base branch (default), or the branch's canonical
-    // shared directory when the caller opted out of a separate one.
-    return input.separate_worktree === false
-      ? this.deps.worktrees.attachShared({ repo, baseBranch: input.base_branch })
-      : this.deps.worktrees.createOnBase({ repo, sessionId, baseBranch: input.base_branch });
+    // Own new directory on the base branch, or the branch's default shared
+    // directory (the clone if on that branch, else the canonical shared
+    // worktree) when the caller shares one.
+    return separateWorktree
+      ? this.deps.worktrees.createOnBase({ repo, sessionId, baseBranch: input.base_branch })
+      : this.deps.worktrees.attachShared({ repo, baseBranch: input.base_branch });
   }
 
   private async createTerminal(
@@ -307,14 +296,15 @@ export class SessionService extends EventEmitter {
     repo: ReturnType<RepoStore['get']>,
   ): Promise<Session> {
     const separateBranch = input.separate_branch === true; // default off for terminals
+    const separateWorktree = input.separate_worktree === true; // terminals: share by default
     const sessionId = randomUUID();
     const worktree = await this.resolveSessionWorktree({
-      project,
       repo,
       profile,
       sessionId,
       input,
       separateBranch,
+      separateWorktree,
     });
     const session = this.deps.sessions.create({
       id: sessionId,

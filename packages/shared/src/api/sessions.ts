@@ -89,12 +89,14 @@ export const createSessionRequestSchema = z.object({
    */
   separate_worktree: z.boolean().optional(),
   /**
-   * When sharing a directory (`separate_worktree: false`), the id of an existing
-   * non-archived session in this project whose worktree to join — the way to
-   * drop a second agent into a directory another is already working in. Omit to
-   * use (or create) the base branch's canonical shared worktree instead.
+   * When sharing a directory (`separate_worktree: false`), the path of an
+   * existing git worktree of this repo to land in — any entry from
+   * `GET /api/repos/:id/worktrees`, including the repo's own clone. The way to
+   * drop a session into a directory another is already working in. Omit to use
+   * (or create) the base branch's default directory: the clone itself when that
+   * branch is checked out there, else the canonical shared worktree.
    */
-  join_session: sessionId.optional(),
+  join_worktree: z.string().optional(),
   title: z.string().min(1).max(200).optional(),
   prompt: z.string().optional(),
   skip_permissions: z.boolean().optional(),

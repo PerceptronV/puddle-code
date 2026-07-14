@@ -16,6 +16,7 @@ import type {
   ProjectStateResponse,
   RepoBranchesResponse,
   RepoWithOrphans,
+  RepoWorktreesResponse,
   Session,
   SessionPortsResponse,
   UiStateSnapshot,
@@ -101,6 +102,16 @@ export function useRepoBranches(repoId: number | undefined) {
     queryFn: () => api<RepoBranchesResponse>('GET', `/api/repos/${repoId}/branches`),
     enabled: repoId !== undefined,
     staleTime: 30_000,
+  });
+}
+
+/** Every git worktree currently checked out for a repo (SPEC §4, join_worktree). */
+export function useRepoWorktrees(repoId: number | undefined) {
+  return useQuery({
+    queryKey: ['repo-worktrees', repoId],
+    queryFn: () => api<RepoWorktreesResponse>('GET', `/api/repos/${repoId}/worktrees`),
+    enabled: repoId !== undefined,
+    staleTime: 10_000,
   });
 }
 

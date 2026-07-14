@@ -27,6 +27,7 @@ import {
   useCreateSession,
   useProfileSettings,
   useRepoBranches,
+  useRepoWorktrees,
   useRepos,
 } from '../../lib/queries';
 import { useCurrentProfileId } from '../profile/profile-store';
@@ -42,7 +43,6 @@ import { useCurrentProfileId } from '../profile/profile-store';
 export function NewSessionDialog({
   projectId,
   repoId,
-  sessions,
   open,
   kind = 'agent',
   seedAccountId,
@@ -51,8 +51,6 @@ export function NewSessionDialog({
 }: {
   projectId: string;
   repoId: number;
-  /** The project's sessions — used to list directories already on a branch to join. */
-  sessions: Session[];
   open: boolean;
   /** 'terminal' opens the dialog in shell mode (no account); defaults to 'agent'. */
   kind?: SessionKind;
@@ -73,12 +71,13 @@ export function NewSessionDialog({
   const [separateBranch, setSeparateBranch] = useState(true);
   const [separateWorktree, setSeparateWorktree] = useState(true);
   const [branch, setBranch] = useState('');
-  const [joinSessionId, setJoinSessionId] = useState('');
+  const [joinWorktree, setJoinWorktree] = useState('');
   const [skip, setSkip] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const repo = repos.data?.find((r) => r.id === repoId);
   const branches = useRepoBranches(open ? repoId : undefined);
+  const worktrees = useRepoWorktrees(open ? repoId : undefined);
   const branchPreview = `leave blank for auto`;
   const account = accounts.data?.find((a) => String(a.id) === accountId);
   const gateOpen = settings.data?.allowSkipPermissions === true;
@@ -86,28 +85,26 @@ export function NewSessionDialog({
 
   const baseName = baseBranch.trim() || repo?.default_base_branch || '';
 
-  // Existing directories already checked out on the base branch — one per
-  // distinct worktree, drawn from live sessions — so a shared session can drop
-  // into a directory another agent is working in.
+  // Every git worktree already checked out on the base branch — the clone
+  // itself and any puddle worktree — so a shared session can drop into one.
   const joinable = useMemo(() => {
-    const seen = new Set<string>();
-    const out: { sessionId: string; path: string; label: string }[] = [];
-    for (const s of sessions) {
-      if (s.status === 'archived' || s.branch !== baseName || seen.has(s.worktree_path)) continue;
-      seen.add(s.worktree_path);
-      out.push({
-        sessionId: s.id,
-        path: s.worktree_path,
-        label: s.title ?? s.worktree_path.split('/').filter(Boolean).pop() ?? s.id.slice(0, 8),
-      });
-    }
-    return out;
-  }, [sessions, baseName]);
+    return (worktrees.data?.worktrees ?? [])
+      .filter((w) => w.branch === baseName)
+      .map((w) => ({
+        path: w.path,
+        is_primary: w.is_primary,
+        label: w.is_primary
+          ? `${w.path.split('/').filter(Boolean).pop() ?? w.path} (clone)`
+          : (w.path.split('/').filter(Boolean).pop() ?? w.path),
+      }));
+  }, [worktrees.data, baseName]);
 
   // Sharing a directory is only reachable with a shared branch and the separate-
-  // directory toggle off; then a specific directory may be joined.
+  // directory toggle off; then a specific worktree may be joined. Default to the
+  // clone when it is on the branch, else the first worktree.
   const sharingDirectory = !separateBranch && !separateWorktree;
-  const effectiveJoin = joinSessionId || joinable[0]?.sessionId || '';
+  const defaultJoin = joinable.find((j) => j.is_primary)?.path ?? joinable[0]?.path ?? '';
+  const effectiveJoin = joinWorktree || defaultJoin;
 
   const defaultAccount = useMemo(() => {
     const preferred = settings.data?.['default_account_id'];
@@ -123,13 +120,15 @@ export function NewSessionDialog({
     if (open && seedAccountId !== undefined) setAccountId(String(seedAccountId));
   }, [open, seedAccountId]);
 
-  // Reset the axes each time the dialog opens (or its mode changes): separate
-  // branch defaults on for agents / off for terminals, separate directory on.
+  // Reset the axes each time the dialog opens (or its mode changes). Agents:
+  // separate branch on (own new branch). Terminals: separate branch off AND
+  // separate directory off, so a terminal shares the base branch's directory
+  // (the clone itself when that branch is checked out there).
   useEffect(() => {
     if (open) {
       setSeparateBranch(!isTerminal);
-      setSeparateWorktree(true);
-      setJoinSessionId('');
+      setSeparateWorktree(!isTerminal);
+      setJoinWorktree('');
     }
   }, [open, isTerminal]);
 
@@ -146,7 +145,7 @@ export function NewSessionDialog({
         ...(separateBranch && branch.trim() ? { branch: branch.trim() } : {}),
         // Only meaningful without a separate branch; a new branch always gets its own dir.
         ...(!separateBranch ? { separate_worktree: separateWorktree } : {}),
-        ...(sharingDirectory && effectiveJoin ? { join_session: effectiveJoin } : {}),
+        ...(sharingDirectory && effectiveJoin ? { join_worktree: effectiveJoin } : {}),
         ...(showSkipToggle && skip ? { skip_permissions: true } : {}),
       },
       {
@@ -302,13 +301,13 @@ export function NewSessionDialog({
                   shared one will be created for later sessions to join.
                 </p>
               ) : (
-                <Select value={effectiveJoin} onValueChange={setJoinSessionId}>
+                <Select value={effectiveJoin} onValueChange={setJoinWorktree}>
                   <SelectTrigger id="join-dir">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {joinable.map((j) => (
-                      <SelectItem key={j.sessionId} value={j.sessionId}>
+                      <SelectItem key={j.path} value={j.path}>
                         <span className="truncate">{j.label}</span>
                         <span className="ml-2 truncate font-mono text-2xs text-fg-muted">
                           {j.path}

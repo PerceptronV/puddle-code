@@ -5,6 +5,7 @@ import {
   patchRepoRequestSchema,
   type RepoBranchesResponse,
   type RepoWithOrphans,
+  type RepoWorktreesResponse,
 } from '@puddle/shared';
 import type { RepoStore } from '../../db/stores/repos.js';
 import type { SessionStore } from '../../db/stores/sessions.js';
@@ -92,6 +93,10 @@ export function repoRoutes(deps: RepoRouteDeps): Hono {
           session_title: sessionTitles.get(name) ?? null,
         }));
       return c.json<RepoBranchesResponse>({ branches });
+    })
+    .get('/:id/worktrees', async (c) => {
+      const repo = deps.repos.get(idParam(c));
+      return c.json<RepoWorktreesResponse>({ worktrees: await deps.worktrees.listWorktrees(repo) });
     })
     .post('/:id/fetch', async (c) => {
       const repo = deps.repos.get(idParam(c));

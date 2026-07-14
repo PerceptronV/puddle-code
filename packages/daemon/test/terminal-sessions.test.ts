@@ -19,14 +19,14 @@ describe('terminal sessions', () => {
       kind: 'terminal',
     });
 
-    // Shape: no account/agent, separate_branch defaults OFF (works on the base
-    // branch) but separate_worktree defaults ON (its own directory, not shared).
+    // Shape: no account/agent; a terminal defaults to sharing the base branch's
+    // directory — the repo's own clone when that branch is checked out there.
     expect(session.kind).toBe('terminal');
     expect(session.account_id).toBeNull();
     expect(session.agent_type).toBeNull();
     expect(session.separate_branch).toBe(false);
     expect(session.branch).toBe('main');
-    expect(session.worktree_path).not.toContain('branch-'); // own session dir, not the shared one
+    expect(session.worktree_path).toBe(f.repoPath);
     expect(sh(session.worktree_path, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe('main');
 
     // The shell comes up (starting → running on its first prompt) and never

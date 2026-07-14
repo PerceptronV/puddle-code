@@ -38,6 +38,23 @@ export const repoBranchesResponseSchema = z.object({
 });
 export type RepoBranchesResponse = z.infer<typeof repoBranchesResponseSchema>;
 
+/** One checked-out git worktree of a repo (GET /api/repos/:id/worktrees). */
+export const worktreeInfoSchema = z.object({
+  /** The directory. For the primary worktree this is the repo's own clone path. */
+  path: z.string(),
+  /** The branch checked out there; null when detached. */
+  branch: z.string().nullable(),
+  /** True for the repo's own clone (the main working tree — never removed by puddle). */
+  is_primary: z.boolean(),
+});
+export type WorktreeInfo = z.infer<typeof worktreeInfoSchema>;
+
+/** GET /api/repos/:id/worktrees — every git worktree currently checked out. */
+export const repoWorktreesResponseSchema = z.object({
+  worktrees: z.array(worktreeInfoSchema),
+});
+export type RepoWorktreesResponse = z.infer<typeof repoWorktreesResponseSchema>;
+
 export const patchRepoRequestSchema = z.object({
   default_base_branch: z.string().min(1).optional(),
   onboarding_notes: z.string().nullable().optional(),
