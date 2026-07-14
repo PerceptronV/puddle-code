@@ -24,6 +24,7 @@ export function HintInput({
   hints,
   placeholder,
   className,
+  hintsClassName,
   autoFocus,
 }: {
   id?: string;
@@ -33,6 +34,8 @@ export function HintInput({
   hints: Hint[];
   placeholder?: string;
   className?: string;
+  /** Width/overflow classes for the hint list; defaults to matching the input. */
+  hintsClassName?: string;
   autoFocus?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -84,7 +87,12 @@ export function HintInput({
         autoFocus={autoFocus}
       />
       {open && hints.length > 0 && (
-        <ul className="absolute top-full z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-md bg-elevated p-1 shadow-xl">
+        <ul
+          className={cn(
+            'absolute top-full z-10 mt-1 max-h-56 overflow-y-auto rounded-md bg-elevated p-1 shadow-xl',
+            hintsClassName ?? 'w-full',
+          )}
+        >
           {hints.map((hint, index) => (
             <li key={hint.value}>
               <button

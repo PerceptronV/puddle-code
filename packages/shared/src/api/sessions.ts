@@ -75,12 +75,26 @@ export const createSessionRequestSchema = z.object({
   base_branch: z.string().min(1).optional(),
   branch: z.string().min(1).max(200).optional(),
   /**
-   * Default true for agents, false for terminals: fresh branch, fresh worktree.
-   * False (discouraged for agents): work directly on the base branch in a
-   * worktree shared with every other such session — `branch` must then be
-   * absent (SPEC §4).
+   * Default true for agents, false for terminals: work on a fresh branch (its
+   * own new worktree). False: work directly on the base branch — `branch` must
+   * then be absent (SPEC §4).
    */
   separate_branch: z.boolean().optional(),
+  /**
+   * Independent of `separate_branch`: whether this session gets its own working
+   * directory (default true) or shares an existing one. Only meaningful — and
+   * only allowed false — when `separate_branch` is false: a new branch always
+   * gets its own worktree. False shares the base branch's directory (see
+   * `join_session`), so concurrent agents work in the same files (SPEC §4).
+   */
+  separate_worktree: z.boolean().optional(),
+  /**
+   * When sharing a directory (`separate_worktree: false`), the id of an existing
+   * non-archived session in this project whose worktree to join — the way to
+   * drop a second agent into a directory another is already working in. Omit to
+   * use (or create) the base branch's canonical shared worktree instead.
+   */
+  join_session: sessionId.optional(),
   title: z.string().min(1).max(200).optional(),
   prompt: z.string().optional(),
   skip_permissions: z.boolean().optional(),

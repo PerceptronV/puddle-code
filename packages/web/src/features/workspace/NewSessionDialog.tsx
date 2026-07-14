@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '../../components/ui/select';
 import { Switch } from '../../components/ui/switch';
+import { cn } from '../../lib/utils';
 import { openSettings } from '../../lib/hash-route';
 import {
   useAccounts,
@@ -31,18 +32,17 @@ import {
 import { useCurrentProfileId } from '../profile/profile-store';
 
 /**
- * Account → base branch → optional branch name (SPEC §11: the project supplies
- * the rest, and the agent's title/first prompt are given later in the session
- * itself). The skip toggle renders only when the profile gate is on AND the
- * chosen account opted in; the daemon re-checks server-side regardless.
- *
- * In `terminal` mode the same branch machinery drives a plain shell instead of
- * an agent: no account, no skip toggle, and separate-branch defaults OFF (a
- * scratch shell usually wants the branch as-is — SPEC §4).
+ * Account → branch → directory (SPEC §4/§11). Two independent axes decide where
+ * the session lands: **separate branch** (a fresh branch in its own worktree,
+ * default on for agents / off for terminals) and, when that is off, **separate
+ * directory** (its own working copy of the base branch, default on; turn it off
+ * to share a directory — picking an existing one to drop into). The skip toggle
+ * renders only when the profile gate is on and the chosen account opted in.
  */
 export function NewSessionDialog({
   projectId,
   repoId,
+  sessions,
   open,
   kind = 'agent',
   seedAccountId,
@@ -51,6 +51,8 @@ export function NewSessionDialog({
 }: {
   projectId: string;
   repoId: number;
+  /** The project's sessions — used to list directories already on a branch to join. */
+  sessions: Session[];
   open: boolean;
   /** 'terminal' opens the dialog in shell mode (no account); defaults to 'agent'. */
   kind?: SessionKind;
@@ -69,21 +71,44 @@ export function NewSessionDialog({
   const [accountId, setAccountId] = useState<string>('');
   const [baseBranch, setBaseBranch] = useState('');
   const [separateBranch, setSeparateBranch] = useState(true);
+  const [separateWorktree, setSeparateWorktree] = useState(true);
   const [branch, setBranch] = useState('');
+  const [joinSessionId, setJoinSessionId] = useState('');
   const [skip, setSkip] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const repo = repos.data?.find((r) => r.id === repoId);
   const branches = useRepoBranches(open ? repoId : undefined);
-  // No title/prompt to slugify any more — left blank the daemon names the
-  // branch itself, so the placeholder shows that fallback verbatim.
   const branchPreview = `leave blank for auto`;
   const account = accounts.data?.find((a) => String(a.id) === accountId);
   const gateOpen = settings.data?.allowSkipPermissions === true;
-  const showSkipToggle = gateOpen && account?.skip_permissions_default === true;
+  const showSkipToggle = !isTerminal && gateOpen && account?.skip_permissions_default === true;
 
-  // A seed account (from the profile panel) wins; else the profile's default
-  // account from settings; else the first one.
+  const baseName = baseBranch.trim() || repo?.default_base_branch || '';
+
+  // Existing directories already checked out on the base branch — one per
+  // distinct worktree, drawn from live sessions — so a shared session can drop
+  // into a directory another agent is working in.
+  const joinable = useMemo(() => {
+    const seen = new Set<string>();
+    const out: { sessionId: string; path: string; label: string }[] = [];
+    for (const s of sessions) {
+      if (s.status === 'archived' || s.branch !== baseName || seen.has(s.worktree_path)) continue;
+      seen.add(s.worktree_path);
+      out.push({
+        sessionId: s.id,
+        path: s.worktree_path,
+        label: s.title ?? s.worktree_path.split('/').filter(Boolean).pop() ?? s.id.slice(0, 8),
+      });
+    }
+    return out;
+  }, [sessions, baseName]);
+
+  // Sharing a directory is only reachable with a shared branch and the separate-
+  // directory toggle off; then a specific directory may be joined.
+  const sharingDirectory = !separateBranch && !separateWorktree;
+  const effectiveJoin = joinSessionId || joinable[0]?.sessionId || '';
+
   const defaultAccount = useMemo(() => {
     const preferred = settings.data?.['default_account_id'];
     return (
@@ -94,16 +119,18 @@ export function NewSessionDialog({
   }, [accounts.data, settings.data, seedAccountId]);
   const effectiveAccountId = accountId || (defaultAccount ? String(defaultAccount.id) : '');
 
-  // A fresh seed (panel reopened on a different account) overrides any manual
-  // pick from a previous opening.
   useEffect(() => {
     if (open && seedAccountId !== undefined) setAccountId(String(seedAccountId));
   }, [open, seedAccountId]);
 
-  // Separate-branch defaults on for agents, off for terminals — reset each time
-  // the dialog opens (or its mode changes) so a prior run never leaks across.
+  // Reset the axes each time the dialog opens (or its mode changes): separate
+  // branch defaults on for agents / off for terminals, separate directory on.
   useEffect(() => {
-    if (open) setSeparateBranch(!isTerminal);
+    if (open) {
+      setSeparateBranch(!isTerminal);
+      setSeparateWorktree(true);
+      setJoinSessionId('');
+    }
   }, [open, isTerminal]);
 
   const submit = () => {
@@ -117,21 +144,29 @@ export function NewSessionDialog({
         ...(baseBranch.trim() ? { base_branch: baseBranch.trim() } : {}),
         separate_branch: separateBranch,
         ...(separateBranch && branch.trim() ? { branch: branch.trim() } : {}),
-        ...(!isTerminal && showSkipToggle && skip ? { skip_permissions: true } : {}),
+        // Only meaningful without a separate branch; a new branch always gets its own dir.
+        ...(!separateBranch ? { separate_worktree: separateWorktree } : {}),
+        ...(sharingDirectory && effectiveJoin ? { join_session: effectiveJoin } : {}),
+        ...(showSkipToggle && skip ? { skip_permissions: true } : {}),
       },
       {
         onSuccess: (session) => {
           onOpenChange(false);
           setBranch('');
-          setSeparateBranch(!isTerminal);
           setSkip(false);
           onCreated(session);
         },
-        // A 400 skip_permissions_denied (or anything else) renders verbatim.
         onError: (e) => setError(e.message),
       },
     );
   };
+
+  const noun = isTerminal ? 'a shell' : 'an agent';
+  const where = separateBranch
+    ? `on a new branch off ${baseName || '…'}, in its own directory`
+    : sharingDirectory
+      ? `on ${baseName || '…'}, sharing an existing directory`
+      : `on ${baseName || '…'}, in its own directory`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -139,12 +174,7 @@ export function NewSessionDialog({
         <DialogHeader>
           <DialogTitle>{isTerminal ? 'New terminal' : 'New session'}</DialogTitle>
           <DialogDescription>
-            {isTerminal ? 'Opens a shell' : 'Spawns an agent'}{' '}
-            {separateBranch ? 'in a fresh worktree branched from' : 'directly on'}{' '}
-            <span className="font-mono">
-              {baseBranch.trim() || repo?.default_base_branch || '…'}
-            </span>
-            {separateBranch ? '.' : ', in a worktree shared with every other such session.'}
+            {isTerminal ? 'Opens' : 'Spawns'} {noun} {where}.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -190,61 +220,117 @@ export function NewSessionDialog({
               )}
             </div>
           )}
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="base-branch">Base branch</Label>
-            <HintInput
-              id="base-branch"
-              placeholder={repo?.default_base_branch ?? 'main'}
-              value={baseBranch}
-              onValueChange={setBaseBranch}
-              hints={(branches.data?.branches ?? [])
-                .filter((b) => b.name.toLowerCase().includes(baseBranch.trim().toLowerCase()))
-                .slice(0, 20)
-                .map((b) => ({
-                  value: b.name,
-                  badge:
-                    b.name === repo?.default_base_branch
-                      ? 'default'
-                      : b.is_session
-                        ? `session: ${(b.session_title ?? 'untitled').slice(0, 24)}`
-                        : undefined,
-                }))}
-              className="font-mono"
-            />
-            <div className="flex items-center gap-2 pt-1">
+
+          {/* Branch selection: base branch, and — only with a separate branch —
+              the new branch name, side by side. */}
+          <div className="flex gap-2">
+            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+              <Label htmlFor="base-branch">Base branch</Label>
+              <HintInput
+                id="base-branch"
+                placeholder={repo?.default_base_branch ?? 'main'}
+                value={baseBranch}
+                onValueChange={setBaseBranch}
+                hints={(branches.data?.branches ?? [])
+                  .filter((b) => b.name.toLowerCase().includes(baseBranch.trim().toLowerCase()))
+                  .slice(0, 20)
+                  .map((b) => ({
+                    value: b.name,
+                    badge:
+                      b.name === repo?.default_base_branch
+                        ? 'default'
+                        : b.is_session
+                          ? `session: ${b.session_title ?? 'untitled'}`
+                          : undefined,
+                  }))}
+                className="font-mono"
+                hintsClassName="w-max min-w-full max-w-[36rem]"
+              />
+            </div>
+            {separateBranch && (
+              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                <div className="flex items-baseline gap-2">
+                  <Label htmlFor="session-branch">New branch</Label>
+                  <span className="text-xs text-fg-muted">optional</span>
+                </div>
+                <Input
+                  id="session-branch"
+                  placeholder={branchPreview}
+                  value={branch}
+                  onChange={(e) => setBranch(e.target.value)}
+                  className="font-mono"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Axis 1: separate branch. Axis 2: separate directory (forced on, and
+              greyed, while a separate branch is used — a new branch is always
+              its own directory). */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
               <Switch
                 id="separate-branch"
                 checked={separateBranch}
-                onCheckedChange={setSeparateBranch}
+                onCheckedChange={(v) => {
+                  setSeparateBranch(v);
+                  if (v) setSeparateWorktree(true);
+                }}
               />
               <Label htmlFor="separate-branch">Use separate branch</Label>
             </div>
-            {!separateBranch && !isTerminal && (
-              <p className="text-xs text-waiting">
-                Discouraged: the agent commits straight to{' '}
-                <span className="font-mono">
-                  {baseBranch.trim() || repo?.default_base_branch || '…'}
-                </span>{' '}
-                and shares its directory with every other session working this way — no isolation
-                between them.
-              </p>
-            )}
-          </div>
-          {separateBranch && (
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-baseline gap-2">
-                <Label htmlFor="session-branch">Branch name</Label>
-                <span className="text-xs text-fg-muted">optional</span>
-              </div>
-              <Input
-                id="session-branch"
-                placeholder={branchPreview}
-                value={branch}
-                onChange={(e) => setBranch(e.target.value)}
-                className="font-mono"
+            <div className="flex items-center gap-2">
+              <Switch
+                id="separate-worktree"
+                checked={separateBranch ? true : separateWorktree}
+                disabled={separateBranch}
+                onCheckedChange={setSeparateWorktree}
               />
+              <Label htmlFor="separate-worktree" className={cn(separateBranch && 'text-fg-muted')}>
+                Use separate directory
+              </Label>
+            </div>
+          </div>
+
+          {/* Sharing a directory: pick which existing one to join. */}
+          {sharingDirectory && (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="join-dir">Directory to join</Label>
+              {joinable.length === 0 ? (
+                <p className="text-xs text-fg-muted">
+                  No existing directory on <span className="font-mono">{baseName || '…'}</span> — a
+                  shared one will be created for later sessions to join.
+                </p>
+              ) : (
+                <Select value={effectiveJoin} onValueChange={setJoinSessionId}>
+                  <SelectTrigger id="join-dir">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {joinable.map((j) => (
+                      <SelectItem key={j.sessionId} value={j.sessionId}>
+                        <span className="truncate">{j.label}</span>
+                        <span className="ml-2 truncate font-mono text-2xs text-fg-muted">
+                          {j.path}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           )}
+
+          {!separateBranch && !isTerminal && (
+            <p className="text-xs text-waiting">
+              The {isTerminal ? 'shell' : 'agent'} commits straight to{' '}
+              <span className="font-mono">{baseName || '…'}</span>
+              {sharingDirectory
+                ? ' and shares its working directory with concurrent sessions — they can trample each other’s edits.'
+                : '.'}
+            </p>
+          )}
+
           {showSkipToggle && (
             <div className="flex items-center gap-2 rounded-md bg-surface px-3 py-2">
               <Switch id="skip-permissions" checked={skip} onCheckedChange={setSkip} />

@@ -105,6 +105,39 @@ export class WorktreeManager {
     });
   }
 
+  /**
+   * The separate_branch = false, separate_worktree = true path (SPEC §4): work
+   * directly on the base branch, but in this session's OWN new directory rather
+   * than a shared one. Commits land on the base branch (no isolation there);
+   * the isolated bit is the working tree, so concurrent sessions on the branch
+   * don't trample each other's uncommitted edits. The branch is checked out
+   * with `--force` because it is almost always already checked out elsewhere
+   * (the canonical clone, or another session's directory).
+   */
+  createOnBase(opts: {
+    repo: Repo;
+    sessionId: string;
+    baseBranch?: string;
+  }): Promise<CreateWorktreeResult> {
+    const { repo } = opts;
+    return this.deps.mutex.run(`repo:${repo.id}`, async () => {
+      const branch = opts.baseBranch ?? repo.default_base_branch;
+      await this.fetchCoreQuietly(repo);
+      if (!(await this.refExists(repo, `refs/heads/${branch}`))) {
+        if (!(await this.refExists(repo, `refs/remotes/origin/${branch}`))) {
+          throw ApiError.badRequest('unknown_base', `base branch '${branch}' does not exist`);
+        }
+        await git(['branch', '--track', branch, `origin/${branch}`], { cwd: repo.path });
+      }
+      const worktreePath = this.deps.paths.sessionWorktreeDir(repo.id, opts.sessionId);
+      mkdirSync(dirname(worktreePath), { recursive: true });
+      await git(['worktree', 'add', '--force', worktreePath, branch], { cwd: repo.path });
+      await this.excludePuddleDir(repo);
+      mkdirSync(join(worktreePath, '.puddle'), { recursive: true });
+      return { worktreePath, branch, baseBranch: branch, baseRef: branch, created: true };
+    });
+  }
+
   /** `git branch -D` — only ever called for puddle-created session branches (SPEC §4). */
   deleteBranch(repo: Repo, branch: string): Promise<void> {
     return this.deps.mutex.run(`repo:${repo.id}`, async () => {

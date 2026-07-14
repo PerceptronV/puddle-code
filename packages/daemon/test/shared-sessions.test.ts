@@ -5,13 +5,14 @@ import { sh } from './helpers/git-fixtures.js';
 
 /** The relaxed isolation modes (SPEC §4): shared worktrees and branch deletion. */
 
-describe('separate_branch = false (shared worktree)', () => {
-  it('works directly on the base branch; later sessions share the worktree with a concurrency note, not onboarding', async () => {
+describe('separate_branch = false (base branch: own or shared directory)', () => {
+  it('separate_worktree = false shares the base branch directory (concurrency note, not onboarding)', async () => {
     const f = fixture();
     const first = await f.service.create({
       project_id: f.ids.project,
       account_id: f.ids.account,
       separate_branch: false,
+      separate_worktree: false,
       prompt: 'first task',
     });
     expect(first.branch).toBe('main');
@@ -28,6 +29,7 @@ describe('separate_branch = false (shared worktree)', () => {
       project_id: f.ids.project,
       account_id: f.ids.account,
       separate_branch: false,
+      separate_worktree: false,
       prompt: 'second task',
     });
     expect(second.worktree_path).toBe(first.worktree_path);
@@ -46,6 +48,76 @@ describe('separate_branch = false (shared worktree)', () => {
     await f.service.kill(second.id);
   });
 
+  it('defaults to its OWN directory on the base branch (separate_worktree on)', async () => {
+    const f = fixture();
+    const opts = { project_id: f.ids.project, account_id: f.ids.account, separate_branch: false };
+    const a = await f.service.create(opts);
+    const b = await f.service.create(opts);
+    expect(a.branch).toBe('main');
+    expect(a.separate_branch).toBe(false);
+    expect(a.worktree_path).not.toContain('branch-'); // own session dir, not the shared one
+    expect(sh(a.worktree_path, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe('main');
+    expect(b.worktree_path).not.toBe(a.worktree_path); // each its own directory
+    await f.service.kill(a.id);
+    await f.service.kill(b.id);
+  });
+
+  it('join_session drops a second agent into an existing session’s directory', async () => {
+    const f = fixture();
+    // Agent A on its own feature branch (separate branch, own dir).
+    const a = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      branch: 'puddle/xxx',
+      prompt: 'agent A',
+    });
+    expect(a.branch).toBe('puddle/xxx');
+    await waitFor(() => f.logs.readTail(a.id, 'agent').includes('READY'));
+
+    // Agent B joins A's directory explicitly (share the same working tree).
+    const b = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      separate_branch: false,
+      separate_worktree: false,
+      join_session: a.id,
+      prompt: 'agent B',
+    });
+    expect(b.worktree_path).toBe(a.worktree_path);
+    expect(b.branch).toBe('puddle/xxx');
+    expect(b.separate_branch).toBe(false);
+    await waitFor(() => f.logs.readTail(b.id, 'agent').includes('READY'));
+    expect(f.logs.readTail(b.id, 'agent')).not.toContain('[puddle onboarding]'); // reuse, no onboarding
+
+    await f.service.kill(a.id);
+    await f.service.kill(b.id);
+  });
+
+  it('rejects sharing a directory without also sharing the branch', async () => {
+    const f = fixture();
+    await expect(
+      f.service.create({
+        project_id: f.ids.project,
+        account_id: f.ids.account,
+        separate_branch: true,
+        separate_worktree: false,
+      }),
+    ).rejects.toMatchObject({ status: 400, code: 'shared_worktree_needs_shared_branch' });
+  });
+
+  it('404s joining a session that does not exist', async () => {
+    const f = fixture();
+    await expect(
+      f.service.create({
+        project_id: f.ids.project,
+        account_id: f.ids.account,
+        separate_branch: false,
+        separate_worktree: false,
+        join_session: '00000000-0000-0000-0000-000000000000',
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
   it('rejects a requested branch name alongside separate_branch = false', async () => {
     const f = fixture();
     await expect(
@@ -60,7 +132,12 @@ describe('separate_branch = false (shared worktree)', () => {
 
   it('removes the shared worktree only when its last session archives', async () => {
     const f = fixture();
-    const opts = { project_id: f.ids.project, account_id: f.ids.account, separate_branch: false };
+    const opts = {
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      separate_branch: false,
+      separate_worktree: false,
+    };
     const a = await f.service.create(opts);
     const b = await f.service.create(opts);
     expect(b.worktree_path).toBe(a.worktree_path);
