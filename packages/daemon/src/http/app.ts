@@ -17,6 +17,7 @@ import { ApiError } from './errors.js';
 import { accountRoutes } from './routes/accounts.js';
 import { agentRoutes } from './routes/agents.js';
 import { configRoutes } from './routes/config.js';
+import { fsRoutes } from './routes/fs.js';
 import { profileRoutes } from './routes/profiles.js';
 import { projectRoutes } from './routes/projects.js';
 import { repoRoutes } from './routes/repos.js';
@@ -73,6 +74,7 @@ export function buildApp(deps: AppDeps): Hono {
     app.route('/api/projects', projectRoutes(api));
     app.route('/api/sessions', sessionRoutes(api));
     app.route('/api/config', configRoutes(api));
+    app.route('/api/fs', fsRoutes());
   }
 
   if (deps.ws) {

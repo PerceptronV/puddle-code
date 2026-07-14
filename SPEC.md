@@ -278,7 +278,8 @@ Accounts   GET  /api/accounts?profile=…      POST /api/accounts {profile_id, a
            PATCH /api/accounts/:id {skip_permissions_default}   # the account opt-in half of the §11 gate
            DELETE /api/accounts/:id                  # 409 while any of its sessions is non-archived; removes the config dir (logs the account out)
            POST /api/accounts/:id/login      # spawns interactive login PTY; UI attaches like a session
-Repos      GET  /api/repos                   POST /api/repos {path, default_base_branch?, onboarding_notes?, fetch_enabled?}
+Repos      GET  /api/fs/dirs?prefix=…        # directory autocomplete for repo registration (dirs only, dotdirs included, is_git flag)
+           GET  /api/repos                   POST /api/repos {path, default_base_branch?, onboarding_notes?, fetch_enabled?}
            PATCH /api/repos/:id               # same fields (onboarding_notes also updatable via the .puddle marker-file sync — §4)
            POST  /api/repos/:id/fetch         # manual fetch now; path must be an existing git repo (validated on POST)
 Projects   GET  /api/projects?profile=…      POST /api/projects {profile_id, repo_id, name}

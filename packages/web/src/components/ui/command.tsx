@@ -3,6 +3,7 @@ import { Search } from 'lucide-react';
 import * as React from 'react';
 import { cn } from '../../lib/utils';
 import { Dialog, DialogContent } from './dialog';
+import { menuHighlightCmdk, menuRow } from './recipes';
 
 export function Command({ className, ...props }: React.ComponentProps<typeof CommandPrimitive>) {
   return (
@@ -84,7 +85,9 @@ export function CommandItem({
   return (
     <CommandPrimitive.Item
       className={cn(
-        'relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-fg outline-none data-[selected=true]:bg-surface data-[selected=true]:text-accent data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:size-3.5 [&_svg]:text-fg-muted',
+        menuRow,
+        menuHighlightCmdk,
+        '[&_svg]:size-3.5 [&_svg]:text-fg-muted data-[selected=true]:[&_svg]:text-action-ink',
         className,
       )}
       {...props}

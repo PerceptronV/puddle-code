@@ -10,6 +10,8 @@ Past releases: see docs/changelogs/.
 ## [Unreleased]
 
 ### Changed
+- The new-project flow is one path field with live directory autocomplete from the daemon host (`GET /api/fs/dirs`, dotdirs included, git repos flagged, keyboard-navigable); paths matching a registered repository reuse it, and the project name prefills from the directory.
+- Menu highlights (dropdowns, selects, ⌘K) use the ink action fill instead of accent blue, and text fields no longer show a focus outline — the fill shift is the cue; both live in shared recipes (`components/ui/recipes.ts`) so every component inherits them.
 - Primary actions (buttons, checked toggles) are ink rather than accent blue: new `--action`/`--action-hover`/`--action-ink` semantic tokens — mist on dark, storm navy on light — with the accent reserved for links, focus, and selection; the fill/ink pairing joins the contrast check.
 - Light theme is now a white ground (was khaki paper); the dark storm-navy theme is unchanged and SPEC §12's table is updated to match.
 - The theme preference defaults to following the OS (`system`) instead of dark.

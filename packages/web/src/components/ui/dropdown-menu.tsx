@@ -2,6 +2,7 @@ import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
 import { Check } from 'lucide-react';
 import * as React from 'react';
 import { cn } from '../../lib/utils';
+import { menuHighlightRadix, menuRow } from './recipes';
 
 export const DropdownMenu = DropdownMenuPrimitive.Root;
 export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
@@ -31,10 +32,7 @@ export function DropdownMenuItem({
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Item>) {
   return (
     <DropdownMenuPrimitive.Item
-      className={cn(
-        'relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-fg outline-none data-[highlighted]:bg-surface data-[highlighted]:text-accent data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-3.5',
-        className,
-      )}
+      className={cn(menuRow, menuHighlightRadix, '[&_svg]:size-3.5', className)}
       {...props}
     />
   );
@@ -47,10 +45,7 @@ export function DropdownMenuCheckboxItem({
 }: React.ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem>) {
   return (
     <DropdownMenuPrimitive.CheckboxItem
-      className={cn(
-        'relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-7 pr-2 text-sm text-fg outline-none data-[highlighted]:bg-surface data-[highlighted]:text-accent',
-        className,
-      )}
+      className={cn(menuRow, menuHighlightRadix, 'py-1.5 pl-7 pr-2', className)}
       {...props}
     >
       <span className="absolute left-2 flex size-3.5 items-center justify-center">

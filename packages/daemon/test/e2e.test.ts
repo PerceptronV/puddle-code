@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import type {
   Account,
@@ -178,6 +178,29 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
       skip_permissions_default: false,
     });
     expect(optedOut.skip_permissions_default).toBe(false);
+  });
+
+  it('suggests directories (dotdirs included) with git detection', async () => {
+    const c = client(daemon);
+    const parent = join(repoPath, '..');
+    // Near-unique prefix: the OS tmpdir holds many fixture dirs and the
+    // endpoint caps its answer at 50 entries.
+    const partial = basename(repoPath).slice(0, -1);
+    const { entries } = await c.json<{
+      entries: Array<{ path: string; name: string; is_git: boolean }>;
+    }>('GET', `/api/fs/dirs?prefix=${encodeURIComponent(join(parent, partial))}`);
+    const repoEntry = entries.find((e) => e.path === repoPath);
+    expect(repoEntry?.is_git).toBe(true);
+
+    // Dotdirs are listed too (the repo's .git itself, when completing inside it).
+    const inside = await c.json<{ entries: Array<{ name: string }> }>(
+      'GET',
+      `/api/fs/dirs?prefix=${encodeURIComponent(repoPath + '/.g')}`,
+    );
+    expect(inside.entries.some((e) => e.name === '.git')).toBe(true);
+
+    const relative = await c.req('GET', '/api/fs/dirs?prefix=not-absolute');
+    expect(relative.status).toBe(400);
   });
 
   it('rejects skip_permissions against the closed gate with 400', async () => {

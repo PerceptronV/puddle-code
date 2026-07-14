@@ -2,6 +2,7 @@ import * as SelectPrimitive from '@radix-ui/react-select';
 import { Check, ChevronDown } from 'lucide-react';
 import * as React from 'react';
 import { cn } from '../../lib/utils';
+import { fieldSurface, menuHighlightRadix, menuRow } from './recipes';
 
 export const Select = SelectPrimitive.Root;
 export const SelectValue = SelectPrimitive.Value;
@@ -14,7 +15,8 @@ export function SelectTrigger({
   return (
     <SelectPrimitive.Trigger
       className={cn(
-        'flex h-8 w-full cursor-pointer items-center justify-between gap-2 rounded-md bg-elevated px-2.5 text-sm text-fg transition-colors hover:bg-border/50 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:truncate',
+        'flex h-8 w-full cursor-pointer items-center justify-between gap-2 px-2.5 [&>span]:truncate',
+        fieldSurface,
         className,
       )}
       {...props}
@@ -57,10 +59,7 @@ export function SelectItem({
 }: React.ComponentProps<typeof SelectPrimitive.Item>) {
   return (
     <SelectPrimitive.Item
-      className={cn(
-        'relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-7 pr-2 text-sm text-fg outline-none data-[highlighted]:bg-surface data-[highlighted]:text-accent data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
-        className,
-      )}
+      className={cn(menuRow, menuHighlightRadix, 'py-1.5 pl-7 pr-2', className)}
       {...props}
     >
       <span className="absolute left-2 flex size-3.5 items-center justify-center">

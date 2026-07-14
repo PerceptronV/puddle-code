@@ -5,6 +5,7 @@ import type {
   CreateSessionRequest,
   DaemonConfig,
   DaemonConfigPatch,
+  FsDirsResponse,
   LoginResponse,
   Profile,
   ProfileSettings,
@@ -80,6 +81,16 @@ export function useSessions(projectId: number | undefined) {
 
 export function useConfig() {
   return useQuery({ queryKey: ['config'], queryFn: () => api<DaemonConfig>('GET', '/api/config') });
+}
+
+export function useDirSuggestions(prefix: string) {
+  return useQuery({
+    queryKey: ['fs-dirs', prefix],
+    queryFn: () => api<FsDirsResponse>('GET', `/api/fs/dirs?prefix=${encodeURIComponent(prefix)}`),
+    enabled: prefix.startsWith('/'),
+    placeholderData: (previous) => previous, // keep the list steady while typing
+    staleTime: 10_000,
+  });
 }
 
 export function useAgents() {

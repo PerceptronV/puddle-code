@@ -71,10 +71,16 @@
     background-color: var(--selection);
   }
 
-  /* Visible keyboard focus everywhere (SPEC §12 quality floor). */
+  /* Visible keyboard focus everywhere (SPEC §12 quality floor)… */
   :focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: 1px;
+  }
+  /* …except text fields, which browsers focus-ring on every click: their
+     focus cue is the fill shift instead (HUMANS.md: no borders). */
+  input:focus-visible,
+  textarea:focus-visible {
+    outline: none;
   }
 
   /* Interactive things look interactive (HUMANS.md: cursors change on hover). */
