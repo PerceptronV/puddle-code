@@ -8,6 +8,21 @@ import { cn } from '../../lib/utils';
 import { wsManager } from '../../lib/ws';
 import { interceptImagePaste } from './paste-image';
 
+const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
+
+/**
+ * macOS line-editing shortcuts the browser would otherwise eat: ⌘←/⌘→ move to
+ * line start/end and ⌘⌫/⌘⌦ delete to line start/end, translated to the readline
+ * control codes the PTY expects. ⌘←/⌘→ are also the browser's history
+ * back/forward, so we must preventDefault. Keyed by `e.key` (layout-independent).
+ */
+const MAC_LINE_EDITS: Record<string, string> = {
+  ArrowLeft: '\x01', // ⌘← → Ctrl-A: start of line
+  ArrowRight: '\x05', // ⌘→ → Ctrl-E: end of line
+  Backspace: '\x15', // ⌘⌫ → Ctrl-U: delete to start of line
+  Delete: '\x0b', // ⌘⌦ → Ctrl-K: delete to end of line
+};
+
 export interface TerminalProps {
   /** PTY stream: a session uuid or `login-<accountId>`. */
   stream: string;
@@ -50,6 +65,17 @@ export function Terminal({ stream, term = 'agent', className, onExit }: Terminal
       onExit: (code) => onExitRef.current?.(code),
     });
     const stdin = xterm.onData((data) => wsManager.write(stream, term, data));
+
+    if (IS_MAC) {
+      xterm.attachCustomKeyEventHandler((e) => {
+        if (e.type !== 'keydown' || !e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return true;
+        const seq = MAC_LINE_EDITS[e.key];
+        if (!seq) return true;
+        e.preventDefault(); // stop the browser's ⌘←/⌘→ history navigation
+        wsManager.write(stream, term, seq);
+        return false; // consume: xterm must not also emit its default bytes
+      });
+    }
 
     // Capture phase so this runs before xterm's own paste handler (which only
     // reads text/plain and would drop a clipboard image on the floor).

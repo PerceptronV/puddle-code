@@ -334,6 +334,41 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
     expect(owned?.session_title).toBe('renamed by the agent');
   });
 
+  it('broadcasts a user rename and does not let stale .puddle activity clobber it', async () => {
+    const c = client(daemon);
+    const viewer = wsClient(daemon);
+    await viewer.open;
+    viewer.send({ t: 'subscribe-status' });
+    await new Promise((r) => setTimeout(r, 100)); // let the subscription register
+
+    // A user renames via the UI. `.puddle/session-title` still holds the agent's
+    // earlier 'renamed by the agent' from the previous test.
+    await c.json<Session>('PATCH', `/api/sessions/${s1.id}`, { title: 'kept by the user' });
+
+    // The rename reaches every status-subscribed viewer live.
+    await waitFor(() =>
+      viewer.messages.some(
+        (m) => m.t === 'renamed' && m.session === s1.id && m.title === 'kept by the user',
+      ),
+    );
+
+    // An unrelated `.puddle` change (a notes edit — like a pasted image landing
+    // in `.puddle/pastes/`) fires the same directory watcher. The stale title
+    // file must NOT overwrite the user's rename.
+    writeFileSync(
+      join(s1.worktree_path, '.puddle', 'onboarding-notes.md'),
+      'run pnpm install first\n',
+    );
+    await pollUntil(async () => {
+      const repos = await c.json<RepoWithOrphans[]>('GET', '/api/repos');
+      return repos[0]?.onboarding_notes?.includes('pnpm install') ?? false;
+    });
+    // syncTitle runs before syncNotes in one pass, so the title has settled.
+    const session = await c.json<Session>('GET', `/api/sessions/${s1.id}`);
+    expect(session.title).toBe('kept by the user');
+    viewer.close();
+  });
+
   it('restart marks sessions interrupted; resume restores; logs replay', async () => {
     await daemon.stop();
     daemon = await boot(); // reconcile pass runs here

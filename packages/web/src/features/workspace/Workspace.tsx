@@ -5,7 +5,7 @@ import { Play, TerminalSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Session } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
-import { useProjectDetail, useSessionAction } from '../../lib/queries';
+import { useAccounts, useProjectDetail, useSessionAction } from '../../lib/queries';
 import { useNewSession } from '../shell/new-session-context';
 import { LazyTerminal } from '../terminal/LazyTerminal';
 import { NewSessionDialog } from './NewSessionDialog';
@@ -52,6 +52,7 @@ export function Workspace() {
   const activeSessionId = params['sid'] ?? null;
   const detail = useProjectDetail(validProject ? projectId : undefined);
   const sessions = useMemo(() => detail.data?.sessions ?? [], [detail.data]);
+  const accounts = useAccounts(detail.data?.project.profile_id).data ?? [];
 
   const uiState = useUiState(validProject ? projectId : undefined);
   const openTabs = uiState.snapshot.session_tabs;
@@ -136,6 +137,7 @@ export function Workspace() {
         <SessionSidebar
           projectId={projectId}
           sessions={sessions}
+          accounts={accounts}
           activeSessionId={activeSessionId}
           onNewSession={() => setCreating(true)}
           onArchived={closeTab}
@@ -155,7 +157,10 @@ export function Workspace() {
           {activeSession && <SessionBanner session={activeSession} />}
           <div className="relative min-h-0 flex-1">
             {openTabs.map((id) => (
-              <div key={id} className={id === activeSessionId ? 'absolute inset-0 p-1' : 'hidden'}>
+              <div
+                key={id}
+                className={id === activeSessionId ? 'absolute inset-0 py-1 pl-4 pr-2' : 'hidden'}
+              >
                 <LazyTerminal stream={id} />
               </div>
             ))}

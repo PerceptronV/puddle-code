@@ -40,6 +40,11 @@ export interface StatusEvent {
   last_activity_at: string | null;
 }
 
+export interface RenameEvent {
+  session: string;
+  title: string | null;
+}
+
 interface LiveAgent {
   detector: StatusDetector;
   status: Extract<SessionStatus, 'starting' | 'running' | 'waiting_input'>;
@@ -51,7 +56,8 @@ const LIVE_STATUSES: SessionStatus[] = ['starting', 'running', 'waiting_input'];
 /**
  * Orchestrates the session state machine (SPEC §4). SQLite rows are the
  * durable truth; `liveAgents` tracks the in-memory attachment (detector +
- * cached status) for each live agent PTY. Emits 'status' (StatusEvent).
+ * cached status) for each live agent PTY. Emits 'status' (StatusEvent) and
+ * 'renamed' (RenameEvent).
  */
 export class SessionService extends EventEmitter {
   private readonly liveAgents = new Map<string, LiveAgent>();
@@ -85,7 +91,19 @@ export class SessionService extends EventEmitter {
   rename(id: string, title: string): Session {
     this.deps.sessions.get(id);
     this.deps.sessions.setTitle(id, title);
-    return this.get(id);
+    const session = this.get(id);
+    this.emit('renamed', { session: id, title: session.title } satisfies RenameEvent);
+    return session;
+  }
+
+  /**
+   * Applies a title the agent chose for itself via `.puddle/session-title`
+   * (MarkerFileSync). Same broadcast path as a user rename, so every attached
+   * client sees the new name live — no refetch needed.
+   */
+  applyAgentTitle(id: string, title: string): void {
+    this.deps.sessions.setTitle(id, title);
+    this.emit('renamed', { session: id, title } satisfies RenameEvent);
   }
 
   async create(input: CreateSessionRequest): Promise<Session> {

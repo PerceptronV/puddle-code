@@ -20,22 +20,34 @@ const SettingsDialog = lazy(() =>
   import('../settings/SettingsDialog').then((m) => ({ default: m.SettingsDialog })),
 );
 
-/** Patches live status broadcasts into every cached session list. */
+/** Patches live status and rename broadcasts into every cached session list. */
 function useStatusCacheSync() {
   const qc = useQueryClient();
   useEffect(() => {
-    return wsManager.onStatus((event) => {
-      const patch = (session: Session): Session =>
-        session.id === event.session
-          ? { ...session, status: event.status, last_activity_at: event.last_activity_at }
-          : session;
+    const patchAll = (patch: (s: Session) => Session) => {
       for (const [key, data] of qc.getQueriesData<Session[]>({ queryKey: ['sessions'] })) {
         if (data) qc.setQueryData(key, data.map(patch));
       }
       for (const [key, data] of qc.getQueriesData<ProjectDetail>({ queryKey: ['project'] })) {
         if (data) qc.setQueryData(key, { ...data, sessions: data.sessions.map(patch) });
       }
-    });
+    };
+    const offStatus = wsManager.onStatus((event) =>
+      patchAll((session) =>
+        session.id === event.session
+          ? { ...session, status: event.status, last_activity_at: event.last_activity_at }
+          : session,
+      ),
+    );
+    const offRenamed = wsManager.onRenamed((event) =>
+      patchAll((session) =>
+        session.id === event.session ? { ...session, title: event.title } : session,
+      ),
+    );
+    return () => {
+      offStatus();
+      offRenamed();
+    };
   }, [qc]);
 }
 
