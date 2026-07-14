@@ -9,7 +9,10 @@ packages/
 ├── shared/    # zod schemas for REST + WS messages — the single source of truth for API shapes
 ├── daemon/    # puddled: Hono HTTP/WS server, PTY manager, worktree manager, SQLite
 │   └── src/agents/   # one adapter file per coding agent (claude-code.ts, codex.ts, ...)
-├── web/       # React UI: xterm.js terminals, Monaco editor/diff, session sidebar
+├── web/       # React UI: Tailwind v4 + owned shadcn-style components (src/components/ui/)
+│   ├── src/styles/tokens.css   # THE colour source; scripts/check-tokens.mjs guards it in lint/CI
+│   ├── src/lib/       # token gate, TanStack Query hooks, singleton WS manager, theme registry
+│   └── src/features/  # dashboard, workspace (sidebar/tabs/xterm), settings, ⌘K palette
 └── cli/       # laptop launcher: ssh bootstrap, tunnel, browser open
 docs/changelogs/      # archived per-version changelogs (see Changelog discipline)
 docs/acceptance/      # manual per-phase acceptance scripts (real-agent verification CI can't do)
