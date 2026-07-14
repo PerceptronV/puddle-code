@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { Hono } from 'hono';
 import {
@@ -96,7 +97,71 @@ export function repoRoutes(deps: RepoRouteDeps): Hono {
     })
     .get('/:id/worktrees', async (c) => {
       const repo = deps.repos.get(idParam(c));
-      return c.json<RepoWorktreesResponse>({ worktrees: await deps.worktrees.listWorktrees(repo) });
+      return c.json<RepoWorktreesResponse>({
+        worktrees: await deps.worktrees.listWorktreeStatuses(repo),
+      });
+    })
+    .delete('/:id/worktrees', async (c) => {
+      const repo = deps.repos.get(idParam(c));
+      const path = c.req.query('path');
+      if (!path) {
+        throw ApiError.badRequest('invalid_request', `'path' query parameter is required`);
+      }
+      const confirm = c.req.query('confirm') === '1' || c.req.query('confirm') === 'true';
+      const real = (p: string) => {
+        try {
+          return realpathSync(p);
+        } catch {
+          return p;
+        }
+      };
+
+      const worktrees = await deps.worktrees.listWorktrees(repo);
+      const target = worktrees.find((w) => w.path === path || real(w.path) === real(path));
+      if (!target) throw ApiError.notFound('worktree', path);
+      if (target.is_primary) {
+        throw ApiError.conflict('worktree_primary', 'the repository clone cannot be pruned');
+      }
+
+      // Running agents block pruning (SPEC §8): only live sessions, not
+      // exited/interrupted ones (removing the worktree just badges those
+      // "worktree missing").
+      const LIVE = new Set(['starting', 'running', 'waiting_input']);
+      const busy = deps.sessions
+        .listActiveByRepo(repo.id)
+        .filter((s) => LIVE.has(s.status) && real(s.worktree_path) === real(target.path));
+      if (busy.length > 0) {
+        throw ApiError.conflict(
+          'worktree_busy',
+          `${busy.length} running session(s) still use this worktree — stop them first`,
+        );
+      }
+
+      // Uncommitted changes would be lost — never prune a dirty worktree.
+      if (!(await deps.worktrees.isClean(target.path))) {
+        throw ApiError.conflict(
+          'worktree_dirty',
+          'the worktree has uncommitted changes — commit or discard them first',
+        );
+      }
+
+      // Purely-local work: require explicit confirmation (the branch itself is
+      // kept, but the user should know it lives on no remote).
+      if (
+        target.branch &&
+        !confirm &&
+        (await deps.worktrees.branchLocalOnly(repo, target.branch))
+      ) {
+        throw ApiError.conflict(
+          'worktree_unpushed',
+          `branch '${target.branch}' has commits on no remote — confirm to prune anyway`,
+        );
+      }
+
+      await deps.worktrees.remove({ repo, worktreePath: target.path, force: false });
+      return c.json<RepoWorktreesResponse>({
+        worktrees: await deps.worktrees.listWorktreeStatuses(repo),
+      });
     })
     .post('/:id/fetch', async (c) => {
       const repo = deps.repos.get(idParam(c));

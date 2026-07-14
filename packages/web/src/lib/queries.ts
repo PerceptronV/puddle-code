@@ -115,6 +115,29 @@ export function useRepoWorktrees(repoId: number | undefined) {
   });
 }
 
+/**
+ * Prune (remove) a worktree of a repo (SPEC §8). `confirm` is required by the
+ * daemon when the branch has purely-local commits. Refreshes the worktree list
+ * and the project (a session may now be "worktree missing").
+ */
+export function usePruneWorktree(repoId: number | undefined, projectId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ path, confirm }: { path: string; confirm?: boolean }) => {
+      const qs = new URLSearchParams({ path });
+      if (confirm) qs.set('confirm', '1');
+      return api<RepoWorktreesResponse>(
+        'DELETE',
+        `/api/repos/${repoId}/worktrees?${qs.toString()}`,
+      );
+    },
+    onSuccess: (res) => {
+      qc.setQueryData(['repo-worktrees', repoId], res);
+      void qc.invalidateQueries({ queryKey: ['project', projectId] });
+    },
+  });
+}
+
 export function useDirSuggestions(prefix: string) {
   return useQuery({
     queryKey: ['fs-dirs', prefix],

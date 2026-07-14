@@ -1,5 +1,6 @@
 import {
   GitBranch,
+  FolderGit2,
   FolderTree,
   PanelLeftClose,
   PanelLeftOpen,
@@ -14,14 +15,16 @@ import { ChangesNav } from '../changes/ChangesNav';
 import { FileExplorer } from '../explorer/FileExplorer';
 import type { ExplorerTarget } from '../explorer/use-explorer-target';
 import { SearchNav } from '../search/SearchNav';
+import { WorktreesNav } from '../worktrees/WorktreesNav';
 import { SidebarTargetHeader } from './SidebarTargetHeader';
 
-export type SidebarMode = 'files' | 'changes' | 'search';
+export type SidebarMode = 'files' | 'changes' | 'search' | 'worktrees';
 
 const MODES: { key: SidebarMode; label: string; icon: LucideIcon }[] = [
   { key: 'files', label: 'Files', icon: FolderTree },
   { key: 'search', label: 'Search', icon: Search },
   { key: 'changes', label: 'Changes', icon: GitBranch },
+  { key: 'worktrees', label: 'Worktrees', icon: FolderGit2 },
 ];
 
 /**
@@ -32,6 +35,7 @@ const MODES: { key: SidebarMode; label: string; icon: LucideIcon }[] = [
 export function normalizeSidebarMode(mode: string): SidebarMode {
   if (mode === 'diff' || mode === 'history' || mode === 'changes') return 'changes';
   if (mode === 'search') return 'search';
+  if (mode === 'worktrees') return 'worktrees';
   return 'files';
 }
 
@@ -104,6 +108,8 @@ export function NavigatorSidebar({
   mode,
   onModeChange,
   onCollapse,
+  projectId,
+  repoId,
   sessions,
   target,
   onOpenFile,
@@ -115,6 +121,8 @@ export function NavigatorSidebar({
   mode: SidebarMode;
   onModeChange: (mode: SidebarMode) => void;
   onCollapse: () => void;
+  projectId: string;
+  repoId: number;
   sessions: Session[];
   /** The worktree the whole sidebar is bound to, plus its pin controls. */
   target: ExplorerTarget;
@@ -188,7 +196,13 @@ export function NavigatorSidebar({
         </div>
       </div>
 
-      <SidebarTargetHeader sessions={sessions} target={target} />
+      {/* The bound-worktree header applies to the worktree-scoped navigators;
+          the Worktrees manager is repo-wide, so it has none. */}
+      {mode !== 'worktrees' && <SidebarTargetHeader sessions={sessions} target={target} />}
+
+      {mode === 'worktrees' && (
+        <WorktreesNav repoId={repoId} projectId={projectId} sessions={sessions} />
+      )}
 
       {mode === 'files' &&
         (session ? (

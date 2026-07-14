@@ -46,6 +46,17 @@ export const worktreeInfoSchema = z.object({
   branch: z.string().nullable(),
   /** True for the repo's own clone (the main working tree — never removed by puddle). */
   is_primary: z.boolean(),
+  /**
+   * Whether the working tree has uncommitted changes. Present on the worktrees
+   * list (which computes it); omitted where a lean list is enough. A dirty
+   * worktree cannot be pruned (its changes would be lost).
+   */
+  dirty: z.boolean().optional(),
+  /**
+   * Whether the branch has commits that are on no remote (purely local work).
+   * Pruning such a worktree asks for confirmation. Present on the worktrees list.
+   */
+  local_only: z.boolean().optional(),
 });
 export type WorktreeInfo = z.infer<typeof worktreeInfoSchema>;
 

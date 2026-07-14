@@ -38,7 +38,9 @@ export const uiStateSnapshotSchema = z.looseObject({
    * legacy `diff`/`history` values are still accepted so pre-unification
    * snapshots round-trip (the web maps them onto `changes`).
    */
-  sidebar_mode: z.enum(['files', 'diff', 'history', 'changes', 'search']).default('files'),
+  sidebar_mode: z
+    .enum(['files', 'diff', 'history', 'changes', 'search', 'worktrees'])
+    .default('files'),
   /** Whether the left navigator is collapsed to a slim rail. */
   sidebar_collapsed: z.boolean().default(false),
   /** Whether the right sessions sidebar is collapsed to a slim rail. */

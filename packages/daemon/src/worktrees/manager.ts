@@ -215,6 +215,44 @@ export class WorktreeManager {
   }
 
   /**
+   * Whether a branch has commits that exist on no remote (purely local work).
+   * `rev-list <branch> --not --remotes` lists commits reachable from the branch
+   * but from no remote-tracking ref; any at all means unpushed work. A repo
+   * with no remote reports its whole history as local-only, which is correct.
+   */
+  async branchLocalOnly(repo: Repo, branch: string): Promise<boolean> {
+    try {
+      const out = await git(['rev-list', '--max-count=1', branch, '--not', '--remotes'], {
+        cwd: repo.path,
+      });
+      return out.trim().length > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * `listWorktrees` plus, per worktree, whether it is dirty (uncommitted
+   * changes) and whether its branch is local-only — the extra signals the
+   * worktree manager (SPEC §8) needs to decide what is safe to prune.
+   */
+  async listWorktreeStatuses(repo: Repo): Promise<WorktreeInfo[]> {
+    const worktrees = await this.listWorktrees(repo);
+    const out: WorktreeInfo[] = [];
+    for (const w of worktrees) {
+      let dirty = false;
+      try {
+        dirty = !(await this.isClean(w.path));
+      } catch {
+        // A worktree dir that has vanished can't be dirty in any actionable way.
+      }
+      const local_only = w.branch ? await this.branchLocalOnly(repo, w.branch) : false;
+      out.push({ ...w, dirty, local_only });
+    }
+    return out;
+  }
+
+  /**
    * Land in a specific existing worktree of this repo (SPEC §4, `join_worktree`):
    * validated to be one of the repo's actual worktrees (by realpath), and
    * returned in the canonical form `listWorktrees` uses so it matches other

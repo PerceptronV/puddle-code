@@ -282,6 +282,8 @@ function WorkspaceInner() {
                 mode={sidebarMode}
                 onModeChange={(m) => uiState.update({ sidebar_mode: m })}
                 onCollapse={() => uiState.update({ sidebar_collapsed: true })}
+                projectId={projectId}
+                repoId={detail.data.project.repo_id}
                 sessions={sessions}
                 target={sidebarTarget}
                 onOpenFile={openFile}
