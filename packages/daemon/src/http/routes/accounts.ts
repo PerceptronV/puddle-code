@@ -1,4 +1,5 @@
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, statSync } from 'node:fs';
+import { isAbsolute } from 'node:path';
 import { Hono } from 'hono';
 import {
   createAccountRequestSchema,
@@ -9,7 +10,9 @@ import type { AdapterRegistry } from '../../agents/registry.js';
 import type { AccountStore } from '../../db/stores/accounts.js';
 import type { ProfileStore } from '../../db/stores/profiles.js';
 import type { RemovalStore } from '../../db/stores/removals.js';
+import { ApiError } from '../errors.js';
 import { removeDirWithin } from '../fs-cleanup.js';
+import { expandTilde } from '../tilde.js';
 import type { PtyExitEvent, PtyManager } from '../../pty/pty-manager.js';
 import type { PuddlePaths } from '../../paths.js';
 import { idParam, parseBody } from '../validate.js';
@@ -39,18 +42,49 @@ export function accountRoutes(deps: AccountRouteDeps): Hono {
       const body = await parseBody(c, createAccountRequestSchema);
       const adapter = deps.adapters.get(body.agent_type); // 400 for unknown agent types
       const profile = deps.profiles.get(body.profile_id);
-      // Always a fresh directory — puddle NEVER reuses agent config dirs it
-      // did not create (SPEC §2).
+      // Always a fresh, puddle-owned directory — never a foreign dir in
+      // place. Importing COPIES a pre-existing dir into it (SPEC §2).
       const configDir = deps.paths.accountConfigDir(profile.id, body.agent_type, body.label);
-      mkdirSync(configDir, { recursive: true, mode: 0o700 });
-      adapter.prepareConfigDir?.(configDir);
-      const account = deps.accounts.create({
-        profile_id: body.profile_id,
-        agent_type: body.agent_type,
-        label: body.label,
-        config_dir: configDir,
-        skip_permissions_default: body.skip_permissions_default ?? false,
-      });
+      if (body.import_dir !== undefined) {
+        if (!adapter.importConfigDir) {
+          throw ApiError.badRequest(
+            'import_unsupported',
+            `${adapter.displayName} accounts cannot be imported`,
+          );
+        }
+        const source = expandTilde(body.import_dir);
+        if (!isAbsolute(source) || !existsSync(source) || !statSync(source).isDirectory()) {
+          throw ApiError.badRequest(
+            'import_dir_invalid',
+            `'${body.import_dir}' is not a directory on this host`,
+          );
+        }
+        mkdirSync(configDir, { recursive: true, mode: 0o700 });
+        await adapter.importConfigDir(source, configDir);
+      } else {
+        mkdirSync(configDir, { recursive: true, mode: 0o700 });
+        adapter.prepareConfigDir?.(configDir);
+      }
+      let account;
+      try {
+        account = deps.accounts.create({
+          profile_id: body.profile_id,
+          agent_type: body.agent_type,
+          label: body.label,
+          config_dir: configDir,
+          skip_permissions_default: body.skip_permissions_default ?? false,
+        });
+      } catch (e) {
+        removeDirWithin(deps.paths.profilesDir, configDir); // no orphan copies on 409
+        throw e;
+      }
+      if (body.import_dir !== undefined && adapter.checkLoggedIn) {
+        // Imports carry files, not necessarily credentials (macOS keychain
+        // binds them to the source path) — record the verified truth.
+        const loggedIn = await adapter.checkLoggedIn(account);
+        deps.accounts.setLoggedIn(account.id, loggedIn);
+        account = deps.accounts.get(account.id);
+      }
       return c.json(account, 201);
     })
     .patch('/:id', async (c) => {

@@ -19,6 +19,10 @@ export const createAccountRequestSchema = z.object({
   agent_type: z.string().min(1),
   label: fsSafeName,
   skip_permissions_default: z.boolean().optional(),
+  /** Host path of a pre-existing agent config dir to COPY into the new
+      account's puddle-owned dir (~ expands on the host). The source is
+      never touched again. */
+  import_dir: z.string().min(1).optional(),
 });
 
 /** The account opt-in half of the permissions gate (SPEC §11). */

@@ -1,6 +1,11 @@
-import { existsSync, readdirSync, writeFileSync } from 'node:fs';
+import { execFile } from 'node:child_process';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { cp } from 'node:fs/promises';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import type { AgentAdapter } from './adapter.js';
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Claude Code adapter.
@@ -50,6 +55,38 @@ export const claudeCode: AgentAdapter = {
         mode: 0o600,
       },
     );
+  },
+
+  async importConfigDir(sourceDir, configDir) {
+    // Bytes are copied opaquely — nothing is parsed except .claude.json,
+    // which needs the same onboarding seed as a fresh dir. On macOS the
+    // OAuth token is keychain-bound to the ORIGINAL dir path and does not
+    // travel; checkLoggedIn reports the truth afterwards.
+    await cp(sourceDir, configDir, { recursive: true });
+    const stateFile = join(configDir, '.claude.json');
+    let state: Record<string, unknown> = {};
+    if (existsSync(stateFile)) {
+      try {
+        state = JSON.parse(readFileSync(stateFile, 'utf8')) as Record<string, unknown>;
+      } catch {
+        // An unreadable state file gets replaced by the minimal seed.
+      }
+    }
+    state['hasCompletedOnboarding'] = true;
+    writeFileSync(stateFile, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
+  },
+
+  async checkLoggedIn(account) {
+    try {
+      const { stdout } = await execFileAsync('claude', ['auth', 'status'], {
+        env: { ...process.env, CLAUDE_CONFIG_DIR: account.config_dir },
+        timeout: 15_000,
+      });
+      const status = JSON.parse(stdout) as { loggedIn?: boolean };
+      return status.loggedIn === true;
+    } catch {
+      return false; // no binary / timeout / unparsable → not verifiably logged in
+    }
   },
 
   hasConversation(ref, account) {

@@ -187,6 +187,7 @@ export function useCreateAccount() {
       agent_type: string;
       label: string;
       skip_permissions_default?: boolean;
+      import_dir?: string;
     }) => api<Account>('POST', '/api/accounts', body),
     onSuccess: (account) =>
       void qc.invalidateQueries({ queryKey: ['accounts', account.profile_id] }),

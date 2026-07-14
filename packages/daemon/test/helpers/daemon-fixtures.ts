@@ -1,4 +1,5 @@
-import { mkdirSync, mkdtempSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync } from 'node:fs';
+import { cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentAdapter } from '../../src/agents/adapter.js';
@@ -35,6 +36,11 @@ export function fakeAdapter(): AgentAdapter {
       migratableSessions: false,
     },
     env: (account) => ({ FAKE_CONFIG_DIR: account.config_dir }),
+    importConfigDir: async (sourceDir, configDir) => {
+      await cp(sourceDir, configDir, { recursive: true });
+    },
+    // "Credentials" are a marker file — lets tests exercise both outcomes.
+    checkLoggedIn: async (account) => existsSync(join(account.config_dir, 'creds.json')),
     launchArgs: (o) => [
       '-c',
       'echo "LAUNCH skip=$1"; echo "PROMPT<<$2>>"; echo READY; cat',

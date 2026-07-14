@@ -59,7 +59,7 @@ Non-goals (v1):
 └── logs/<session-id>/<term>.log        # append-only PTY output, one file per terminal (agent.log, shell-1.log, …)
 ```
 
-Puddle NEVER reads or reuses agent config directories it did not create (e.g. an existing `~/.claude` or `~/.codex`). Every puddle-managed account gets a fresh directory under its profile's subtree and is logged in through puddle's login flow. This keeps puddle state disjoint from whatever else runs on the box.
+Puddle NEVER mutates or adopts agent config directories it did not create (e.g. an existing `~/.claude` or `~/.codex`). Every puddle-managed account gets a fresh directory under its profile's subtree, populated either by puddle's login flow or by **import**: `POST /api/accounts {import_dir}` COPIES a pre-existing config dir into the new puddle-owned dir, byte-for-byte and read-only — the source is never touched again, nothing is parsed beyond the agent's own state file, and the account's logged-in flag is set by asking the agent (adapter `checkLoggedIn`), never assumed (macOS keychains bind OAuth tokens to the source path, so credentials may not travel with a copy). This keeps puddle state disjoint from whatever else runs on the box.
 
 **Accounts are strictly per-profile.** The API never lists, attaches, or spawns with another profile's accounts; the UI's account picker shows only the active profile's. If a collaborator wants to use "your" underlying agent subscription, they log in again under their own profile, producing an independent config dir. Note this is organisational isolation, not security — everything runs as one OS user, so anyone with shell access can read any directory; the goal is preventing accidental credential sharing and history mixing, not defending against a malicious housemate.
 
@@ -277,7 +277,7 @@ Profiles   GET  /api/profiles                POST /api/profiles {name, branch_pr
 Config     GET  /api/config                  PATCH (daemon-scope settings; affects all profiles; the port lives in config.json / --port only and is never surfaced in the UI)
 Host       GET  /api/host                    # daemon identity {username, hostname, home} — the UI's location indicator; the origin/port never appears in the UI
 Agents     GET  /api/agents                  # registered adapters: id, display name, capabilities the UI gates on
-Accounts   GET  /api/accounts?profile=…      POST /api/accounts {profile_id, agent_type, label, skip_permissions_default?}
+Accounts   GET  /api/accounts?profile=…      POST /api/accounts {profile_id, agent_type, label, skip_permissions_default?, import_dir?}   # import_dir: copy a pre-existing config dir (§2)
            PATCH /api/accounts/:id {skip_permissions_default}   # the account opt-in half of the §11 gate
            DELETE /api/accounts/:id                  # 409 while any of its sessions is non-archived; removes the config dir (logs the account out)
            POST /api/accounts/:id/login      # spawns interactive login PTY; UI attaches like a session

@@ -45,6 +45,18 @@ export interface AgentAdapter {
    * an agent process dying on launch.
    */
   hasConversation?(ref: string, account: Account): boolean;
+  /**
+   * Imports a pre-existing config dir by COPYING it into the puddle-owned
+   * `configDir` (already created, empty) — the source is read once and never
+   * touched again. Implementations also apply their prepareConfigDir seeding.
+   */
+  importConfigDir?(sourceDir: string, configDir: string): Promise<void>;
+  /**
+   * Asks the agent whether the account is currently authenticated (e.g. after
+   * an import, where credentials may be keychain-bound and not travel with
+   * the copied files). Never surfaces credential material — a boolean only.
+   */
+  checkLoggedIn?(account: Account): Promise<boolean>;
   launchArgs(opts: LaunchOpts): string[];
   resumeArgs(ref: string, opts: LaunchOpts): string[];
   loginArgs(): string[];

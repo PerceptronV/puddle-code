@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KeyRound, Plus, Trash2 } from 'lucide-react';
+import { FolderInput, KeyRound, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Account } from '@puddle/shared';
 import { Button } from '../../../components/ui/button';
@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../../components/ui/dialog';
+import { HintInput } from '../../../components/ui/hint-input';
 import { Input } from '../../../components/ui/input';
 import { Switch } from '../../../components/ui/switch';
 import {
@@ -18,10 +19,12 @@ import {
   useAgents,
   useCreateAccount,
   useDeleteAccount,
+  useDirSuggestions,
   useLoginAccount,
   usePatchAccount,
   useProfileSettings,
 } from '../../../lib/queries';
+import { useDebouncedValue } from '../../../lib/use-debounced-value';
 import { LazyTerminal } from '../../terminal/LazyTerminal';
 import { useCurrentProfileId } from '../../profile/profile-store';
 import { SectionTitle, SettingRow } from '../parts';
@@ -49,6 +52,82 @@ function LoginDialog({
         <div className="min-h-0 flex-1 overflow-hidden rounded-md bg-ground p-1">
           <LazyTerminal stream={stream} onExit={onClose} />
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Import an existing config dir: puddle copies it, the source stays put. */
+function ImportDialog({
+  agentId,
+  profileId,
+  onClose,
+}: {
+  agentId: string;
+  profileId: string;
+  onClose: () => void;
+}) {
+  const create = useCreateAccount();
+  const [label, setLabel] = useState('');
+  const [dir, setDir] = useState('');
+  const debouncedDir = useDebouncedValue(dir, 150);
+  const suggestions = useDirSuggestions(debouncedDir);
+  const ready = label.trim() !== '' && (dir.startsWith('/') || dir.startsWith('~'));
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Import an existing account</DialogTitle>
+          <DialogDescription>
+            The directory is copied into a puddle-owned account; the original is never touched. If
+            credentials do not travel (macOS keychain), log in once afterwards.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-3">
+          <Input
+            placeholder="label, e.g. personal"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            className="font-mono"
+          />
+          <HintInput
+            value={dir}
+            onValueChange={setDir}
+            placeholder="config dir on the host, e.g. ~/.claude-yds"
+            hints={(suggestions.data?.entries ?? []).map((e) => ({ value: e.path, label: e.name }))}
+            className="font-mono"
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!ready || create.isPending}
+            onClick={() =>
+              create.mutate(
+                {
+                  profile_id: profileId,
+                  agent_type: agentId,
+                  label: label.trim(),
+                  import_dir: dir.trim(),
+                },
+                {
+                  onSuccess: (account) => {
+                    onClose();
+                    if (!account.logged_in)
+                      toast.info('Imported without credentials — press Login to authenticate.');
+                  },
+                  onError: (e) => toast.error(e.message),
+                },
+              )
+            }
+          >
+            <FolderInput />
+            Import
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -159,6 +238,7 @@ export function AccountsSection() {
   const login = useLoginAccount();
   const [newLabels, setNewLabels] = useState<Record<string, string>>({});
   const [loginStream, setLoginStream] = useState<{ stream: string; label: string } | null>(null);
+  const [importingAgent, setImportingAgent] = useState<string | null>(null);
 
   const gateOpen = settings.data?.allowSkipPermissions === true;
 
@@ -225,6 +305,15 @@ export function AccountsSection() {
                   <Plus />
                   Add account
                 </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setImportingAgent(agent.id)}
+                >
+                  <FolderInput />
+                  Import existing…
+                </Button>
               </form>
             </div>
           </div>
@@ -235,6 +324,13 @@ export function AccountsSection() {
           stream={loginStream.stream}
           label={loginStream.label}
           onClose={() => setLoginStream(null)}
+        />
+      )}
+      {importingAgent !== null && profileId !== null && (
+        <ImportDialog
+          agentId={importingAgent}
+          profileId={profileId}
+          onClose={() => setImportingAgent(null)}
         />
       )}
     </div>

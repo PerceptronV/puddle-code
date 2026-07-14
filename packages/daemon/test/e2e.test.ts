@@ -410,6 +410,35 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
     });
   });
 
+  it('imports a pre-existing config dir by copy, leaving the source untouched', async () => {
+    const c = client(daemon);
+    const source = mkdtempSync(join(tmpdir(), 'puddle-import-'));
+    writeFileSync(join(source, 'settings.json'), '{"theme":"dark"}\n');
+    writeFileSync(join(source, 'creds.json'), 'opaque\n'); // fake adapter's logged-in marker
+
+    const imported = await c.json<Account>('POST', '/api/accounts', {
+      profile_id: profile.id,
+      agent_type: 'fake',
+      label: 'imported',
+      import_dir: source,
+    });
+    // Copied into a puddle-owned dir, never linked in place…
+    expect(imported.config_dir).toContain(`/profiles/${profile.id}/accounts/fake/imported`);
+    expect(existsSync(join(imported.config_dir, 'settings.json'))).toBe(true);
+    // …with login state verified through the adapter, not assumed.
+    expect(imported.logged_in).toBe(true);
+    // The source survives, byte for byte where it was.
+    expect(existsSync(join(source, 'settings.json'))).toBe(true);
+
+    const bad = await c.req('POST', '/api/accounts', {
+      profile_id: profile.id,
+      agent_type: 'fake',
+      label: 'imported-2',
+      import_dir: '/definitely/not/a/dir',
+    });
+    expect(bad.status).toBe(400);
+  });
+
   it('refuses deletion while sessions are live, then cascades account and profile', async () => {
     const c = client(daemon);
     // A fresh session (running) blocks both deletions with 409s.
@@ -430,7 +459,9 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
     const accountGone = await c.req('DELETE', `/api/accounts/${alice2.id}`);
     expect(accountGone.status).toBe(204);
     const remaining = await c.json<Account[]>('GET', `/api/accounts?profile=${profile.id}`);
-    expect(remaining.map((a) => a.id)).toEqual([alice1.id]);
+    // alice1 plus the account created by the import test survive.
+    expect(remaining.map((a) => a.id)).toContain(alice1.id);
+    expect(remaining.map((a) => a.id)).not.toContain(alice2.id);
     expect(existsSync(alice2.config_dir)).toBe(false);
     expect(existsSync(alice1.config_dir)).toBe(true);
 

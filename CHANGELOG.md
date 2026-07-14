@@ -30,6 +30,7 @@ Past releases: see docs/changelogs/.
 - Resuming a session whose conversation file is gone (or was never recorded under the expected id) returns a clear 409 `conversation_missing` instead of spawning an agent that immediately dies with "No conversation found" (new adapter hook `hasConversation`).
 
 ### Added
+- Accounts can be imported from pre-existing agent config dirs (`~/.claude-yds`-style): `POST /api/accounts` takes `import_dir`, the daemon copies the directory into the puddle-owned account dir (the source is never touched) and verifies login state through the agent rather than assuming it; Settings → Accounts gains an "Import existing…" flow with host-side directory autocomplete. Protocol minor bump 2.0 → 2.1.
 - Protocol versioning (SPEC §6): `@puddle/shared` is formally the protocol package, exporting `PROTOCOL_VERSION` (currently 1.0) with bump rules in `packages/shared/PROTOCOL.md`; `GET /api/version` now returns `{version, protocol: {major, minor}}` so the Phase 6 CLI handshake can negotiate against any daemon deployed from now on. Same protocol major ⇒ compatible both ways; a major mismatch will trigger an automatic daemon update.
 - Initial scaffold: monorepo (shared / daemon / web / cli), CI, SPEC.md, CLAUDE.md, changelog conventions.
 - Daemon core (Phase 1): profiles/accounts/repos/projects/sessions REST API with zod-validated shapes from `@puddle/shared`; SQLite schema and migration runner; append-only per-terminal PTY logs with tail replay.
