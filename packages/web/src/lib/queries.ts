@@ -17,6 +17,7 @@ import type {
   RepoBranchesResponse,
   RepoWithOrphans,
   Session,
+  SessionPortsResponse,
   UiStateSnapshot,
 } from '@puddle/shared';
 import { api } from './api';
@@ -325,5 +326,20 @@ export function putProjectState(
 ): Promise<ProjectStateResponse> {
   return api<ProjectStateResponse>('PUT', `/api/projects/${projectId}/state?profile=${profileId}`, {
     ui_state: uiState,
+  });
+}
+
+/**
+ * Ports strip (SPEC §9): polls only while `live` (the active session is
+ * `running`/`waiting_input`) — no refresh button, the 5s interval IS the
+ * refresh, and background tabs stop polling entirely.
+ */
+export function useSessionPorts(sessionId: string | undefined, live: boolean) {
+  return useQuery({
+    queryKey: ['ports', sessionId],
+    queryFn: () => api<SessionPortsResponse>('GET', `/api/sessions/${sessionId}/ports`),
+    enabled: sessionId !== undefined && live,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
   });
 }

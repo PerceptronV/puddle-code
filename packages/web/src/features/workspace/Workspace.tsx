@@ -18,6 +18,7 @@ import { addOrFocusTab, type EditorTab } from '../editor/editor-tabs';
 import { EditorProvider, useEditorHandler, type RevealTarget } from './editor-context';
 import { layoutForPanels } from './panel-layout';
 import { NewSessionDialog } from './NewSessionDialog';
+import { PortsStrip } from '../ports/PortsStrip';
 import { SessionSidebar } from './SessionSidebar';
 import { TabStrip } from './TabStrip';
 import { ViewStrip, type SessionView } from './ViewStrip';
@@ -289,6 +290,9 @@ function WorkspaceInner() {
                 />
               )}
               {activeSession && <SessionBanner session={activeSession} />}
+              {activeSession && view === 'terminal' && (
+                <PortsStrip sessionId={activeSession.id} status={activeSession.status} />
+              )}
               <div className="relative min-h-0 flex-1">
                 {/* Terminals stay mounted in every view (their PTY attachment
                     must not drop); only visibility switches. Diff/history
