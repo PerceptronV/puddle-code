@@ -11,9 +11,9 @@
  * unit-testable without monaco, which cannot initialise under vitest.
  */
 import { monaco } from './monaco-setup';
-import { SavedStateMap, editorTabLabel, type OpenTab } from './buffer-logic';
+import { SavedStateMap, applyDraft, editorTabLabel, type OpenTab } from './buffer-logic';
 
-export { editorTabLabel, type OpenTab };
+export { applyDraft, editorTabLabel, type OpenTab };
 
 /** Stable identity for a (session, path) pair — the store's map key. */
 export function bufferKey(session: string, path: string): string {

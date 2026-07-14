@@ -58,6 +58,43 @@ export function editorTabLabel(
   return branch ? `${body} — ${branch}` : body;
 }
 
+/**
+ * The slice of a monaco `ITextModel` `applyDraft` needs — kept structural (and
+ * generic over the model's range type `R`) so this stays monaco-free and
+ * unit-testable: `buffer-store.ts` passes a real `ITextModel` (where `R` is
+ * `monaco.Range`), tests pass a fake that records the edit.
+ */
+export interface DraftApplicableModel<R> {
+  getValue(): string;
+  getFullModelRange(): R;
+  pushEditOperations(
+    beforeCursorState: null,
+    editOperations: { range: R; text: string }[],
+    cursorStateComputer: () => null,
+  ): unknown;
+}
+
+/**
+ * Lays a restored draft on top of a model whose saved baseline is the disk
+ * content (SPEC §11 reload semantics). The model must already hold the disk
+ * content with `markSaved` recorded against it; a single full-range
+ * `pushEditOperations` then swaps in the draft content so the edit lands on
+ * the undo stack and the model reads as *dirty* relative to the saved
+ * baseline (a plain `setValue` would reset the model and lose that dirty
+ * signal). Returns whether an edit was pushed — a draft identical to disk is
+ * a no-op and the buffer stays clean. `pushEditOperations` (not `setValue`)
+ * for the same undo-history reason as `buffer-store.ts`'s `replaceContent`.
+ */
+export function applyDraft<R>(model: DraftApplicableModel<R>, draftContent: string): boolean {
+  if (model.getValue() === draftContent) return false;
+  model.pushEditOperations(
+    null,
+    [{ range: model.getFullModelRange(), text: draftContent }],
+    () => null,
+  );
+  return true;
+}
+
 interface SavedState {
   versionId: number;
   mtimeMs: number;

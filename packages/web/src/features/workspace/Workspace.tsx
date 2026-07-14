@@ -11,6 +11,9 @@ import { useExplorerTarget } from '../explorer/use-explorer-target';
 import { useAccounts, useProjectDetail, useSessionAction } from '../../lib/queries';
 import { useNewSession } from '../shell/new-session-context';
 import { LazyTerminal } from '../terminal/LazyTerminal';
+import { LazyEditorPane } from '../editor/LazyEditorPane';
+import { addOrFocusTab, type EditorTab } from '../editor/editor-tabs';
+import { EditorProvider, useEditorHandler, type RevealTarget } from './editor-context';
 import { NewSessionDialog } from './NewSessionDialog';
 import { SessionSidebar } from './SessionSidebar';
 import { TabStrip } from './TabStrip';
@@ -43,11 +46,21 @@ function SessionBanner({ session }: { session: Session }) {
 }
 
 /**
- * Project workspace: session sidebar + tab strip + terminals. Tab order,
- * active session, and pane sizes persist per (project, client) and restore
- * on open (SPEC §11 reload semantics).
+ * Project workspace: session sidebar + tab strip + terminals + editor zone.
+ * Tab order, active session/editor tabs, and pane sizes persist per
+ * (project, client) and restore on open (SPEC §11 reload semantics). The
+ * `EditorProvider` lets the file explorer (and Phase 4 terminal links) open
+ * files without prop-drilling; the editor zone lives behind the lazy boundary.
  */
 export function Workspace() {
+  return (
+    <EditorProvider>
+      <WorkspaceInner />
+    </EditorProvider>
+  );
+}
+
+function WorkspaceInner() {
   const params = useParams();
   const navigate = useNavigate();
   const projectId = params['id'] ?? '';
@@ -67,6 +80,32 @@ export function Workspace() {
   // the interim (it would otherwise leave a zombie header — no active session).
   const justClosedActive = useRef<string | null>(null);
   const { setHandler } = useNewSession();
+
+  // Opening a file from the explorer (or a Phase 4 terminal link) adds/focuses
+  // its editor tab and makes it active — pure ui-state, so it works before the
+  // lazy editor chunk loads. A `position` arrives with a fresh nonce so the
+  // editor zone reveals the caret even when the same tab was already open.
+  const [reveal, setReveal] = useState<RevealTarget | null>(null);
+  const openFile = useCallback(
+    (sessionId: string, path: string, position?: { line: number; column?: number }) => {
+      const tab: EditorTab = { session: sessionId, path };
+      uiState.update({
+        editor_tabs: addOrFocusTab(uiState.snapshot.editor_tabs, tab),
+        active_editor_tab: tab,
+      });
+      if (position) {
+        setReveal({
+          session: sessionId,
+          path,
+          line: position.line,
+          column: position.column,
+          nonce: Date.now(),
+        });
+      }
+    },
+    [uiState],
+  );
+  useEditorHandler(openFile);
 
   // The ⌘K palette, top bar, and profile panel reuse this modal; an account
   // id seeds the picker (profile panel → session on a chosen account).
@@ -138,6 +177,15 @@ export function Workspace() {
   const activeSession = sessions.find((s) => s.id === activeSessionId);
   const explorerTarget = useExplorerTarget(sessions, activeSessionId, uiState);
   const explorerOpen = uiState.snapshot.explorer_open;
+  const editorTabs = uiState.snapshot.editor_tabs;
+  // react-resizable-panels keys layouts per Group; the horizontal and the
+  // nested vertical Group share one flat `layout` object (their panel ids
+  // never collide), so every `onLayoutChanged` MERGES rather than replaces —
+  // otherwise one Group's write would wipe the other's sizes.
+  const mergeLayout = useCallback(
+    (layout: Layout) => uiState.update({ layout: { ...uiState.snapshot.layout, ...layout } }),
+    [uiState],
+  );
 
   if (!validProject) return null;
   if (!uiState.loaded || !detail.data) {
@@ -149,7 +197,7 @@ export function Workspace() {
       orientation="horizontal"
       className="h-full"
       defaultLayout={uiState.snapshot.layout as Layout}
-      onLayoutChanged={(layout) => uiState.update({ layout })}
+      onLayoutChanged={mergeLayout}
     >
       <Panel id="sidebar" defaultSize={260} minSize={180} maxSize={480}>
         <SessionSidebar
@@ -168,8 +216,7 @@ export function Workspace() {
             <div className="flex h-full flex-col bg-surface">
               <ExplorerHeader sessions={sessions} target={explorerTarget} />
               {explorerTarget.session ? (
-                // onOpenFile omitted — a no-op row click until Task 3.6b wires the editor.
-                <FileExplorer session={explorerTarget.session} />
+                <FileExplorer session={explorerTarget.session} onOpenFile={openFile} />
               ) : (
                 <div className="px-3 py-2 text-xs text-fg-muted">No worktree to show.</div>
               )}
@@ -179,52 +226,74 @@ export function Workspace() {
         </>
       )}
       <Panel id="main">
-        <div className="flex h-full flex-col bg-ground">
-          <div className="flex items-stretch bg-surface">
-            <div className="min-w-0 flex-1">
-              <TabStrip
-                tabs={openTabs}
-                sessions={sessions}
-                activeId={activeSessionId}
-                onActivate={(id) => void navigate(`/project/${projectId}/session/${id}`)}
-                onClose={closeTab}
-                onReorder={(tabs) => uiState.update({ session_tabs: tabs })}
-              />
+        {/* Vertical split: the editor zone sits above the session terminals,
+            appearing only once a file is open. Its own persisted layout shares
+            the flat `layout` object (see mergeLayout). */}
+        <Group
+          orientation="vertical"
+          className="h-full"
+          defaultLayout={uiState.snapshot.layout as Layout}
+          onLayoutChanged={mergeLayout}
+        >
+          {editorTabs.length > 0 && (
+            <>
+              <Panel id="editor" defaultSize={360} minSize={120}>
+                <LazyEditorPane uiState={uiState} sessions={sessions} reveal={reveal} />
+              </Panel>
+              <Separator className="h-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
+            </>
+          )}
+          <Panel id="session" minSize={160}>
+            <div className="flex h-full flex-col bg-ground">
+              <div className="flex items-stretch bg-surface">
+                <div className="min-w-0 flex-1">
+                  <TabStrip
+                    tabs={openTabs}
+                    sessions={sessions}
+                    activeId={activeSessionId}
+                    onActivate={(id) => void navigate(`/project/${projectId}/session/${id}`)}
+                    onClose={closeTab}
+                    onReorder={(tabs) => uiState.update({ session_tabs: tabs })}
+                  />
+                </div>
+                {/* Temporary placement — Task 3.6c's ViewStrip adopts this toggle. */}
+                <button
+                  type="button"
+                  aria-pressed={explorerOpen}
+                  title={explorerOpen ? 'Hide file explorer' : 'Show file explorer'}
+                  onClick={() => uiState.update({ explorer_open: !explorerOpen })}
+                  className="flex items-center px-2 text-fg-muted transition-colors hover:bg-elevated hover:text-fg"
+                >
+                  <FolderTree className="size-4" />
+                  <span className="sr-only">Toggle file explorer</span>
+                </button>
+              </div>
+              {activeSession && <SessionBanner session={activeSession} />}
+              <div className="relative min-h-0 flex-1">
+                {openTabs.map((id) => (
+                  <div
+                    key={id}
+                    className={
+                      id === activeSessionId ? 'absolute inset-0 py-1 pl-4 pr-2' : 'hidden'
+                    }
+                  >
+                    <LazyTerminal stream={id} />
+                  </div>
+                ))}
+                {!activeSessionId && (
+                  <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+                    <TerminalSquare className="size-8 text-fg-muted" />
+                    <p className="text-sm text-fg-secondary">
+                      {sessions.filter((s) => s.status !== 'archived').length === 0
+                        ? 'No sessions yet — press ⌘K to start one.'
+                        : 'Pick a session from the sidebar.'}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
-            {/* Temporary placement — Task 3.6c's ViewStrip adopts this toggle. */}
-            <button
-              type="button"
-              aria-pressed={explorerOpen}
-              title={explorerOpen ? 'Hide file explorer' : 'Show file explorer'}
-              onClick={() => uiState.update({ explorer_open: !explorerOpen })}
-              className="flex items-center px-2 text-fg-muted transition-colors hover:bg-elevated hover:text-fg"
-            >
-              <FolderTree className="size-4" />
-              <span className="sr-only">Toggle file explorer</span>
-            </button>
-          </div>
-          {activeSession && <SessionBanner session={activeSession} />}
-          <div className="relative min-h-0 flex-1">
-            {openTabs.map((id) => (
-              <div
-                key={id}
-                className={id === activeSessionId ? 'absolute inset-0 py-1 pl-4 pr-2' : 'hidden'}
-              >
-                <LazyTerminal stream={id} />
-              </div>
-            ))}
-            {!activeSessionId && (
-              <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-                <TerminalSquare className="size-8 text-fg-muted" />
-                <p className="text-sm text-fg-secondary">
-                  {sessions.filter((s) => s.status !== 'archived').length === 0
-                    ? 'No sessions yet — press ⌘K to start one.'
-                    : 'Pick a session from the sidebar.'}
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
+          </Panel>
+        </Group>
       </Panel>
 
       <NewSessionDialog

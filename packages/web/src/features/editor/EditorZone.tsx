@@ -1,0 +1,141 @@
+// Load-bearing: import the Monaco bootstrap BEFORE anything that mounts an
+// <Editor>. `monaco-setup` runs `loader.config({ monaco })`, which is what
+// points @monaco-editor/react at the locally-bundled Monaco instead of
+// fetching it from a CDN (hosts may be offline). Keeping this the very first
+// import of the lazy editor chunk's entry module guarantees it evaluates
+// first (Task 4's handed-off risk). Do not reorder below the others.
+import './monaco-setup';
+
+import { useEffect, useRef, useState } from 'react';
+import type { Session } from '@puddle/shared';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../components/ui/dialog';
+import { Button } from '../../components/ui/button';
+import { deleteDraft } from '../../lib/drafts';
+import type { UiStateHandle } from '../workspace/use-ui-state';
+import type { RevealTarget } from '../workspace/editor-context';
+import { bufferKey, disposeModel, isDirty } from './buffer-store';
+import { announceDraftDiscarded } from './editor-sync';
+import { CodeEditor } from './CodeEditor';
+import { EditorTabStrip } from './EditorTabStrip';
+import { activeAfterClose, hasTab, removeTab, sameTab, type EditorTab } from './editor-tabs';
+
+export interface EditorZoneProps {
+  uiState: UiStateHandle;
+  sessions: Session[];
+  reveal: RevealTarget | null;
+}
+
+function basename(path: string): string {
+  return path.split('/').pop() ?? path;
+}
+
+/**
+ * The editor half of the workspace's vertical split (SPEC §8): the tab strip
+ * plus the active tab's `CodeEditor`. Only the active tab mounts an editor —
+ * restored tabs from the snapshot create their models lazily on first
+ * activation, never all at once. Tab open/focus/reorder and `active_editor_tab`
+ * live in ui-state; closing a dirty tab confirms first.
+ */
+export function EditorZone({ uiState, sessions, reveal }: EditorZoneProps) {
+  const tabs = uiState.snapshot.editor_tabs;
+  const stored = uiState.snapshot.active_editor_tab;
+  const activeTab: EditorTab | null =
+    stored && hasTab(tabs, stored) ? stored : (tabs[tabs.length - 1] ?? null);
+
+  const [confirm, setConfirm] = useState<EditorTab | null>(null);
+
+  // Restore-on-open: drop tabs whose session is gone or archived (its worktree
+  // may not exist), fixing the active tab if it was one of them. Runs once the
+  // sessions have loaded.
+  const prunedRef = useRef(false);
+  useEffect(() => {
+    if (prunedRef.current || sessions.length === 0) return;
+    prunedRef.current = true;
+    const alive = new Set(sessions.filter((s) => s.status !== 'archived').map((s) => s.id));
+    const kept = tabs.filter((t) => alive.has(t.session));
+    if (kept.length !== tabs.length) {
+      const nextActive =
+        activeTab && alive.has(activeTab.session) ? activeTab : (kept[kept.length - 1] ?? null);
+      uiState.update({ editor_tabs: kept, active_editor_tab: nextActive });
+    }
+  }, [sessions]);
+
+  // Persist the derived active tab so a reload lands on the same one.
+  useEffect(() => {
+    if (activeTab && (!stored || !sameTab(stored, activeTab))) {
+      uiState.update({ active_editor_tab: activeTab });
+    } else if (!activeTab && stored) {
+      uiState.update({ active_editor_tab: null });
+    }
+  }, [activeTab, stored]);
+
+  const removeAndDispose = (tab: EditorTab) => {
+    disposeModel(bufferKey(tab.session, tab.path));
+    uiState.update({
+      editor_tabs: removeTab(tabs, tab),
+      active_editor_tab: activeAfterClose(tabs, tab, activeTab),
+    });
+  };
+
+  const requestClose = (tab: EditorTab) => {
+    if (isDirty(bufferKey(tab.session, tab.path))) setConfirm(tab);
+    else removeAndDispose(tab);
+  };
+
+  const confirmDiscard = () => {
+    if (!confirm) return;
+    void deleteDraft(confirm.session, confirm.path);
+    announceDraftDiscarded(confirm.session, confirm.path);
+    removeAndDispose(confirm);
+    setConfirm(null);
+  };
+
+  return (
+    <div className="flex h-full flex-col bg-ground">
+      <EditorTabStrip
+        tabs={tabs}
+        activeTab={activeTab}
+        sessions={sessions}
+        onActivate={(tab) => uiState.update({ active_editor_tab: tab })}
+        onClose={requestClose}
+        onReorder={(next) => uiState.update({ editor_tabs: next })}
+      />
+      <div className="min-h-0 flex-1">
+        {activeTab && (
+          <CodeEditor
+            key={`${activeTab.session}:${activeTab.path}`}
+            session={activeTab.session}
+            path={activeTab.path}
+            reveal={reveal}
+          />
+        )}
+      </div>
+
+      <Dialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Discard changes to {confirm ? basename(confirm.path) : ''}?</DialogTitle>
+            <DialogDescription>
+              This file has unsaved changes. Closing the tab will discard them.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirm(null)}>
+              Keep editing
+            </Button>
+            <Button variant="danger" onClick={confirmDiscard}>
+              Discard
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
