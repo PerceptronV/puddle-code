@@ -7,8 +7,10 @@
  * - Menu rows: highlight is the ink action fill, never the accent blue.
  */
 
+/* Fields rest at what used to be their hover fill so they read as clickable
+   even on elevated surfaces; hover/focus deepen the same fill. */
 export const fieldSurface =
-  'rounded-md bg-elevated text-sm text-fg placeholder:text-fg-muted transition-colors hover:bg-border/50 focus:bg-border/50 disabled:cursor-not-allowed disabled:opacity-50';
+  'rounded-md bg-border/50 text-sm text-fg placeholder:text-fg-muted transition-colors hover:bg-border/80 focus:bg-border/80 disabled:cursor-not-allowed disabled:opacity-50';
 
 export const menuRow =
   'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-fg outline-none transition-colors';

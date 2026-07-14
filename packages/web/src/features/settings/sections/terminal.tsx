@@ -11,7 +11,7 @@ export function TerminalSection() {
       <SectionTitle note="this browser only">Terminal &amp; editor</SectionTitle>
       <SettingRow
         label="Terminal scrollback"
-        description="Lines kept per terminal."
+        description="lines kept per terminal."
         htmlFor="scrollback"
       >
         <Input
@@ -29,7 +29,7 @@ export function TerminalSection() {
       </SettingRow>
       <SettingRow
         label="Editor tab size"
-        description="Consumed when the editor lands in Phase 3."
+        description="consumed when the editor lands in Phase 3."
         htmlFor="tab-size"
       >
         <Input

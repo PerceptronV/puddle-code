@@ -28,9 +28,10 @@ export function SettingRow({
 
 export function SectionTitle({ children, note }: { children: ReactNode; note?: string }) {
   return (
-    <div className="mb-2 flex items-baseline gap-2">
+    <div className="mb-2 flex flex-col gap-0.5">
       <h2 className="text-base font-semibold text-fg">{children}</h2>
-      {note && <span className="text-2xs text-fg-muted">{note}</span>}
+      {/* Secondary hints sit on their own line, lowercase (design decision). */}
+      {note && <span className="text-xs text-fg-muted">{note}</span>}
     </div>
   );
 }

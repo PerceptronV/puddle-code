@@ -34,7 +34,7 @@ export function NotificationsSection() {
       <SectionTitle note="delivery lands in a later phase">Notifications</SectionTitle>
       <SettingRow
         label="Desktop notification on waiting"
-        description="When a session flips to waiting for input."
+        description="when a session flips to waiting for input."
         htmlFor="notify-desktop"
       >
         <Switch
@@ -50,7 +50,7 @@ export function NotificationsSection() {
           onCheckedChange={(checked) => save({ ...prefs, sound: checked })}
         />
       </SettingRow>
-      <SettingRow label="Muted projects" description="No notifications from these projects.">
+      <SettingRow label="Muted projects" description="no notifications from these projects.">
         <span className="text-2xs text-fg-muted tabular-nums">
           {prefs.muted_projects.length} muted
         </span>

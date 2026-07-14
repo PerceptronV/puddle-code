@@ -147,7 +147,9 @@
   --border: var(--neutral-200);
   --text-primary: var(--navy-800);
   --text-secondary: var(--ember-700);
-  --text-muted: var(--bark-500);
+  /* Muted text is altitude blue one step deeper, not golden bark (decision
+     2026-07-13); bark stays for the idle status dot. */
+  --text-muted: var(--blue-500);
   --accent: var(--blue-600);
   --accent-hover: var(--blue-500);
   --focus-ring: var(--blue-600);

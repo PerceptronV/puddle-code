@@ -440,7 +440,7 @@ Any profile can view/attach any session (trusted shared box); the UI shows the o
 
 ## 12. Design system
 
-Puddle's UI must read as a polished, intentional developer cockpit — dense, calm, and visually coherent — not a scaffold of framework defaults.
+Puddle's UI must read as a polished, intentional developer cockpit — dense, calm, and visually coherent — not a scaffold of framework defaults. `HUMANS.md` at the repo root is the human-authored design brief (minimalism, no boxes/borders, fill-shift responsiveness, secondary hints on their own line in lowercase) and overrides this section wherever they conflict.
 
 - **Stack**: Tailwind CSS v4 + **shadcn/ui** (Radix primitives, generated into `packages/web/src/components/ui/` and treated as owned code to restyle, not a dependency), `lucide-react` icons, `cmdk` command palette (⌘K: switch project/session, new session, open file, insert prompt, switch theme, open settings), `sonner` for toasts, `react-resizable-panels` for the workspace layout. No monolithic kits (MUI, Ant): they resist theming and read as generic enterprise chrome.
 
@@ -472,7 +472,7 @@ Puddle's UI must read as a polished, intentional developer cockpit — dense, ca
   | `--border`                          | `#163C6B` | `#E5E5E5` |
   | `--text-primary`                    | `#EAF1FB` | `#001C3D` |
   | `--text-secondary`                  | `#B9C9E0` | `#5A2F22` |
-  | `--text-muted`                      | `#7E93B3` | `#8A7663` |
+  | `--text-muted`                      | `#7E93B3` | `#4A86E8` |
   | `--accent` / `--focus-ring`         | `#7DADFF` | `#2E6BD6` |
   | `--accent-hover`                    | `#A7C7FF` | `#4A86E8` |
   | `--action` (primary-button fill)    | `#EAF1FB` | `#001C3D` |

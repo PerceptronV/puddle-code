@@ -57,8 +57,8 @@ export function PermissionsSection() {
         label="Allow skipping permission prompts"
         description={
           gateOpen
-            ? 'The gate is open: opted-in accounts can start prompt-free sessions.'
-            : 'The gate is closed: every session keeps its permission prompts.'
+            ? 'the gate is open: opted-in accounts can start prompt-free sessions.'
+            : 'the gate is closed: every session keeps its permission prompts.'
         }
         htmlFor="gate"
       >

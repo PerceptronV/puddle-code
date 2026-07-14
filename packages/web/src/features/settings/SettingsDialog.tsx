@@ -64,11 +64,11 @@ export function SettingsDialog() {
     <Dialog open={sectionId !== null} onOpenChange={(open) => !open && closeSettings()}>
       <DialogContent
         wide
-        className="grid h-[34rem] grid-cols-[11rem_1fr] gap-0 overflow-hidden p-0"
+        className="grid h-[34rem] grid-cols-[14rem_1fr] gap-0 overflow-hidden p-0"
       >
         <DialogTitle className="sr-only">Settings</DialogTitle>
-        <nav className="flex flex-col gap-0.5 bg-surface p-2">
-          <span className="px-2 py-1.5 text-2xs font-medium uppercase tracking-wide text-fg-muted">
+        <nav className="flex flex-col gap-1 bg-surface p-2.5">
+          <span className="px-2.5 py-2 text-xs font-medium uppercase tracking-wide text-fg-muted">
             Settings
           </span>
           {SECTIONS.map(({ id, label, icon: Icon }) => (
@@ -78,13 +78,13 @@ export function SettingsDialog() {
                 window.location.hash = `settings/${id}`;
               }}
               className={cn(
-                'flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors',
+                'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-lg transition-colors',
                 id === section.id
                   ? 'bg-elevated text-fg'
                   : 'text-fg-secondary hover:bg-elevated hover:text-fg',
               )}
             >
-              <Icon className="size-3.5 shrink-0" />
+              <Icon className="size-5 shrink-0" />
               {label}
             </button>
           ))}

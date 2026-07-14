@@ -53,21 +53,21 @@ export function HostSection() {
       <SectionTitle note="affects all profiles on this host">Host</SectionTitle>
       <NumberSetting
         label="Port"
-        description="Applies on daemon restart."
+        description="applies on daemon restart."
         field="port"
         config={config.data}
         min={1}
       />
       <NumberSetting
         label="Fetch interval (minutes)"
-        description="Periodic git fetch for repos with active sessions."
+        description="periodic git fetch for repos with active sessions."
         field="fetchIntervalMinutes"
         config={config.data}
         min={1}
       />
       <NumberSetting
         label="Log size cap (bytes)"
-        description="Per-terminal on-disk log cap."
+        description="per-terminal on-disk log cap."
         field="logMaxBytes"
         config={config.data}
         min={65536}
@@ -75,7 +75,7 @@ export function HostSection() {
       />
       <NumberSetting
         label="Replay size (bytes)"
-        description="Log tail sent to a terminal on attach."
+        description="log tail sent to a terminal on attach."
         field="replayBytes"
         config={config.data}
         min={1024}
@@ -83,14 +83,14 @@ export function HostSection() {
       />
       <NumberSetting
         label="UI-state retention (days)"
-        description="Stale workspace snapshots are swept at boot."
+        description="stale workspace snapshots are swept at boot."
         field="uiStateRetentionDays"
         config={config.data}
         min={1}
       />
       <SettingRow
         label="Auto-resume"
-        description="Resume interrupted sessions automatically after a daemon restart."
+        description="resume interrupted sessions automatically after a daemon restart."
         htmlFor="host-autoResume"
       >
         <Switch

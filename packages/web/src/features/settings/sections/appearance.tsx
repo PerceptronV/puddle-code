@@ -19,7 +19,7 @@ export function AppearanceSection() {
   return (
     <div>
       <SectionTitle note="this browser only">Appearance</SectionTitle>
-      <SettingRow label="Theme" description="Chrome, terminal, and editor restyle together.">
+      <SettingRow label="Theme" description="chrome, terminal, and editor restyle together.">
         <Select
           value={themePref}
           onValueChange={(value) => {
@@ -77,7 +77,7 @@ export function AppearanceSection() {
       </SettingRow>
       <SettingRow
         label="Reduced motion"
-        description="Status ripples become static dots."
+        description="status ripples become static dots."
         htmlFor="reduced-motion"
       >
         <Switch

@@ -59,7 +59,7 @@ function RepoCard({ repo }: { repo: RepoWithOrphans }) {
       </SettingRow>
       <SettingRow
         label="Periodic fetch"
-        description="Fetched on open and on the daemon's interval while sessions are active."
+        description="fetched on open and on the daemon's interval while sessions are active."
         htmlFor={`fetch-${repo.id}`}
         className="py-1.5"
       >
@@ -73,10 +73,10 @@ function RepoCard({ repo }: { repo: RepoWithOrphans }) {
       </SettingRow>
 
       <div className="mt-1.5 flex flex-col gap-1.5">
-        <label htmlFor={`notes-${repo.id}`} className="text-sm text-fg">
+        <label htmlFor={`notes-${repo.id}`} className="flex flex-col gap-0.5 text-sm text-fg">
           Onboarding notes
-          <span className="ml-2 text-xs text-fg-muted">
-            Standing setup rules, injected into every fresh worktree. Agents update them via
+          <span className="text-xs text-fg-muted">
+            standing setup rules, injected into every fresh worktree. Agents update them via
             .puddle/onboarding-notes.md.
           </span>
         </label>

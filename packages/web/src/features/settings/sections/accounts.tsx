@@ -190,7 +190,7 @@ export function AccountsSection() {
           <div key={agent.id} className="mb-5">
             <SettingRow
               label={agent.display_name}
-              description={`Accounts are isolated config dirs under this profile.`}
+              description="accounts are isolated config dirs under this profile."
               className="py-1"
             >
               <span className="font-mono text-2xs text-fg-muted">{agent.id}</span>
