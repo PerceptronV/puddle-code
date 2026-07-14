@@ -46,6 +46,26 @@ async function resolveBaseRef(worktree: string, baseBranch: string): Promise<str
 }
 
 /**
+ * Git's canonical empty-tree object: diffing against it lists every tracked
+ * file as added, which is what an as-yet-commitless worktree's "uncommitted"
+ * view should show.
+ */
+const EMPTY_TREE_SHA = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+
+/**
+ * The current commit, for the "uncommitted changes" diff (working tree vs.
+ * HEAD). A worktree with no commits yet has no HEAD — fall back to the empty
+ * tree so every tracked file reads as added rather than erroring.
+ */
+export async function resolveHeadSha(worktree: string): Promise<string> {
+  try {
+    return await git(['rev-parse', 'HEAD'], { cwd: worktree });
+  } catch {
+    return EMPTY_TREE_SHA;
+  }
+}
+
+/**
  * The merge-base, not the branch tip: the diff must show what the session
  * changed, not upstream drift the base branch picked up meanwhile.
  */
@@ -143,13 +163,15 @@ export async function blobAt(
   return { content: binary ? null : buf.toString('utf8'), binary };
 }
 
-const LOG_FORMAT = `%H${FIELD_SEP}%an${FIELD_SEP}%ae${FIELD_SEP}%aI${FIELD_SEP}%s${RECORD_SEP}`;
+// %P (parent shas, space-separated) trails the subject so the commit-graph
+// navigator can lay out lanes without a second query.
+const LOG_FORMAT = `%H${FIELD_SEP}%an${FIELD_SEP}%ae${FIELD_SEP}%aI${FIELD_SEP}%s${FIELD_SEP}%P${RECORD_SEP}`;
 
 function parseLogRecord(record: string): CommitSummary {
   // `--format=` behaves as `tformat:`, which appends its own terminator (a
   // newline) after our own %x1e — so every record but the first carries a
   // leading newline from the previous entry's terminator.
-  const [sha, author_name, author_email, authored_at, subject] = record
+  const [sha, author_name, author_email, authored_at, subject, parentsRaw] = record
     .replace(/^\n/, '')
     .split(FIELD_SEP);
   return {
@@ -158,6 +180,7 @@ function parseLogRecord(record: string): CommitSummary {
     author_email: author_email ?? '',
     authored_at: authored_at ?? '',
     subject: subject ?? '',
+    parents: parentsRaw && parentsRaw.length > 0 ? parentsRaw.split(' ') : [],
   };
 }
 

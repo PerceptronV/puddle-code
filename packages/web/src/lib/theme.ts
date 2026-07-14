@@ -79,7 +79,7 @@ export type TokenReader = (token: string) => string;
  */
 export function expandShortHex(value: string): string {
   const short = /^#([0-9a-fA-F]{3,4})$/.exec(value);
-  if (!short) return value;
+  if (!short?.[1]) return value;
   return `#${[...short[1]].map((digit) => digit + digit).join('')}`;
 }
 

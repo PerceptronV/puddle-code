@@ -32,12 +32,23 @@ export const uiStateSnapshotSchema = z.looseObject({
   active_editor_tab: editorTabRefSchema.nullable().default(null),
   /** Whether the file explorer panel is expanded. */
   explorer_open: z.boolean().default(true),
-  /** Which navigator the left sidebar is showing (files tree, diff, or history). */
-  sidebar_mode: z.enum(['files', 'diff', 'history']).default('files'),
+  /**
+   * Which navigator the left sidebar is showing. `changes` is the unified
+   * diff+history view and `search` is content/filename search (SPEC §8); the
+   * legacy `diff`/`history` values are still accepted so pre-unification
+   * snapshots round-trip (the web maps them onto `changes`).
+   */
+  sidebar_mode: z.enum(['files', 'diff', 'history', 'changes', 'search']).default('files'),
   /** Whether the left navigator is collapsed to a slim rail. */
   sidebar_collapsed: z.boolean().default(false),
   /** Whether the right sessions sidebar is collapsed to a slim rail. */
   sessions_collapsed: z.boolean().default(false),
+  /**
+   * User-chosen order of the sessions sidebar (session ids). Sessions not
+   * listed here (newly created ones) sort to the top; the list is otherwise
+   * drag-reorderable and this persists it (SPEC §8).
+   */
+  session_order: z.array(sessionId).default([]),
 });
 export type UiStateSnapshot = z.infer<typeof uiStateSnapshotSchema>;
 

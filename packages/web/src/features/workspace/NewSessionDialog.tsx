@@ -25,7 +25,6 @@ import {
   useAccounts,
   useCreateSession,
   useProfileSettings,
-  useProfiles,
   useRepoBranches,
   useRepos,
 } from '../../lib/queries';
@@ -68,8 +67,6 @@ export function NewSessionDialog({
 
   const repo = repos.data?.find((r) => r.id === repoId);
   const branches = useRepoBranches(open ? repoId : undefined);
-  const profiles = useProfiles();
-  const branchPrefix = profiles.data?.find((p) => p.id === profileId)?.branch_prefix ?? '';
   // No title/prompt to slugify any more — left blank the daemon names the
   // branch itself, so the placeholder shows that fallback verbatim.
   const branchPreview = `leave blank for auto`;

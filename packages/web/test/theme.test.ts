@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { expandShortHex, monacoThemeFrom, xtermThemeFrom, type TokenReader } from '../src/lib/theme';
+import {
+  expandShortHex,
+  monacoThemeFrom,
+  xtermThemeFrom,
+  type TokenReader,
+} from '../src/lib/theme';
 
 describe('expandShortHex', () => {
   it('expands minifier-shortened 3- and 4-digit hex to canonical form', () => {
