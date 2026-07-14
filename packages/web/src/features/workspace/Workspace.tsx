@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Group, Panel, Separator, type Layout } from 'react-resizable-panels';
-import { Play, TerminalSquare } from 'lucide-react';
+import { FolderTree, Play, TerminalSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Session } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
+import { ExplorerHeader } from '../explorer/ExplorerHeader';
+import { FileExplorer } from '../explorer/FileExplorer';
+import { useExplorerTarget } from '../explorer/use-explorer-target';
 import { useAccounts, useProjectDetail, useSessionAction } from '../../lib/queries';
 import { useNewSession } from '../shell/new-session-context';
 import { LazyTerminal } from '../terminal/LazyTerminal';
@@ -133,6 +136,8 @@ export function Workspace() {
   );
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
+  const explorerTarget = useExplorerTarget(sessions, activeSessionId, uiState);
+  const explorerOpen = uiState.snapshot.explorer_open;
 
   if (!validProject) return null;
   if (!uiState.loaded || !detail.data) {
@@ -157,16 +162,47 @@ export function Workspace() {
         />
       </Panel>
       <Separator className="w-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
+      {explorerOpen && (
+        <>
+          <Panel id="explorer" defaultSize={240} minSize={160} maxSize={400}>
+            <div className="flex h-full flex-col bg-surface">
+              <ExplorerHeader sessions={sessions} target={explorerTarget} />
+              {explorerTarget.session ? (
+                // onOpenFile omitted — a no-op row click until Task 3.6b wires the editor.
+                <FileExplorer session={explorerTarget.session} />
+              ) : (
+                <div className="px-3 py-2 text-xs text-fg-muted">No worktree to show.</div>
+              )}
+            </div>
+          </Panel>
+          <Separator className="w-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
+        </>
+      )}
       <Panel id="main">
         <div className="flex h-full flex-col bg-ground">
-          <TabStrip
-            tabs={openTabs}
-            sessions={sessions}
-            activeId={activeSessionId}
-            onActivate={(id) => void navigate(`/project/${projectId}/session/${id}`)}
-            onClose={closeTab}
-            onReorder={(tabs) => uiState.update({ session_tabs: tabs })}
-          />
+          <div className="flex items-stretch bg-surface">
+            <div className="min-w-0 flex-1">
+              <TabStrip
+                tabs={openTabs}
+                sessions={sessions}
+                activeId={activeSessionId}
+                onActivate={(id) => void navigate(`/project/${projectId}/session/${id}`)}
+                onClose={closeTab}
+                onReorder={(tabs) => uiState.update({ session_tabs: tabs })}
+              />
+            </div>
+            {/* Temporary placement — Task 3.6c's ViewStrip adopts this toggle. */}
+            <button
+              type="button"
+              aria-pressed={explorerOpen}
+              title={explorerOpen ? 'Hide file explorer' : 'Show file explorer'}
+              onClick={() => uiState.update({ explorer_open: !explorerOpen })}
+              className="flex items-center px-2 text-fg-muted transition-colors hover:bg-elevated hover:text-fg"
+            >
+              <FolderTree className="size-4" />
+              <span className="sr-only">Toggle file explorer</span>
+            </button>
+          </div>
           {activeSession && <SessionBanner session={activeSession} />}
           <div className="relative min-h-0 flex-1">
             {openTabs.map((id) => (

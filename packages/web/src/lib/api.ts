@@ -41,3 +41,39 @@ export async function api<T>(method: string, path: string, body?: unknown): Prom
   }
   return (await res.json()) as T;
 }
+
+/** The bearer header for a request against the daemon, or `{}` when signed out. */
+export function authHeaders(): Record<string, string> {
+  const token = tokenStore.get();
+  return token ? { authorization: `Bearer ${token}` } : {};
+}
+
+/**
+ * Authenticated request returning the raw `Response`, for callers that need
+ * a blob/stream rather than a parsed JSON body (worktree upload/download —
+ * `worktree-queries.ts`). Mirrors `api()`'s 401 and error-envelope handling
+ * but never reads the body on success, so the caller can stream or blob it.
+ */
+export async function apiFetchRaw(
+  method: string,
+  path: string,
+  init?: RequestInit,
+): Promise<Response> {
+  const res = await fetch(path, {
+    ...init,
+    method,
+    headers: { ...authHeaders(), ...init?.headers },
+  });
+  if (res.status === 401) {
+    clearToken();
+    throw new ApiError(401, 'unauthorised', 'invalid or expired token');
+  }
+  if (!res.ok) {
+    const parsed = errorResponseSchema.safeParse(await res.json().catch(() => null));
+    if (parsed.success) {
+      throw new ApiError(res.status, parsed.data.error.code, parsed.data.error.message);
+    }
+    throw new ApiError(res.status, 'unknown', `${method} ${path} failed with ${res.status}`);
+  }
+  return res;
+}
