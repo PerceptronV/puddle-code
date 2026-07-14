@@ -116,22 +116,15 @@ export function CollapsedSessionsRail({
                   draggable={false}
                   aria-current={session.id === activeSessionId ? 'true' : undefined}
                   to={`/project/${projectId}/session/${session.id}`}
-                  className="flex items-center rounded-md p-1.5 transition-colors hover:bg-elevated"
+                  className={cn(
+                    'flex items-center rounded-md p-1.5 transition-colors hover:bg-elevated',
+                    session.id === activeSessionId && 'bg-elevated',
+                  )}
                 >
-                  {/* The active session's dot is ringed — the ONE place a
-                      border is sanctioned (HUMANS.md forbids them elsewhere),
-                      the collapsed rail having no room for the fill-shift the
-                      expanded list uses to mark the active session. A
-                      transparent ring on the rest holds the same box so
-                      nothing shifts. */}
-                  <span
-                    className={cn(
-                      'flex size-4 items-center justify-center rounded-full border',
-                      session.id === activeSessionId ? 'border-accent' : 'border-transparent',
-                    )}
-                  >
-                    <StatusDot status={session.status} kind={session.kind} />
-                  </span>
+                  {/* Active session marked with the same bg-elevated fill-shift
+                      the expanded list and the navigator's mode icons use — a
+                      theme colour, no border, no default-blue ring (HUMANS.md). */}
+                  <StatusDot status={session.status} kind={session.kind} />
                   <span className="sr-only">{session.title ?? session.branch}</span>
                 </Link>
               </TooltipTrigger>
@@ -205,10 +198,11 @@ export function SessionSidebar({
           <IconButton icon={Plus} label="New session" onClick={onNewSession} />
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
+      {/* No horizontal padding: the active/hover fill-shift bleeds to both
+          sidebar edges (each row carries its own px-3). */}
+      <div className="min-h-0 flex-1 overflow-y-auto py-1.5">
         {visible.length === 0 && (
-          // pl-3.5 stacks on the container's p-1.5 → flush with the pl-5 header.
-          <p className="py-3 pl-3.5 pr-1.5 text-xs text-fg-muted">
+          <p className="px-3 py-3 text-xs text-fg-muted">
             No sessions yet — press ⌘K to start one.
           </p>
         )}
@@ -231,7 +225,7 @@ export function SessionSidebar({
                 draggable={false}
                 to={`/project/${projectId}/session/${session.id}`}
                 className={cn(
-                  'group flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-elevated',
+                  'group flex items-center gap-2 px-3 py-1.5 transition-colors hover:bg-elevated',
                   session.id === activeSessionId && 'bg-elevated',
                 )}
               >
@@ -268,7 +262,11 @@ export function SessionSidebar({
                     <TooltipContent>Worktree directory is gone — archive only</TooltipContent>
                   </Tooltip>
                 )}
-                <span className="opacity-0 transition-opacity group-hover:opacity-100">
+                {/* Reserves no width until hover, so the title/branch/badges
+                    fill the row's whole width; on hover it appears and shoves
+                    them left. Stays shown while its menu is open even if the
+                    pointer has left the row. */}
+                <span className="hidden group-hover:inline-flex has-[[data-state=open]]:inline-flex">
                   <SessionActions session={session} onArchived={onArchived} />
                 </span>
               </Link>

@@ -21,9 +21,12 @@ import { DirEntries, ExplorerContext, fileEntriesOnly, type ExplorerCtx } from '
 export function FileExplorer({
   session,
   onOpenFile,
+  activePath,
 }: {
   session: Session;
   onOpenFile?: (sid: string, path: string) => void;
+  /** Path of the file currently open as the active editor tab, highlighted in the tree. */
+  activePath?: string | null;
 }) {
   const sid = session.id;
   const qc = useQueryClient();
@@ -62,6 +65,7 @@ export function FileExplorer({
     onUpload,
     dropTarget,
     setDropTarget,
+    activePath: activePath ?? null,
   };
 
   return (

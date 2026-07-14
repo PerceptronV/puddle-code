@@ -22,6 +22,8 @@ export interface ExplorerCtx {
   onUpload(dir: string, files: File[]): void;
   dropTarget: string | null;
   setDropTarget(path: string | null): void;
+  /** Path of the file open as the active editor tab; its row gets the active fill-shift. */
+  activePath: string | null;
 }
 
 export const ExplorerContext = createContext<ExplorerCtx | null>(null);
@@ -51,11 +53,12 @@ export function TreeNode({
   entry: TreeEntry;
   depth: number;
 }) {
-  const { sid, expanded, toggle, onOpenFile, onUpload, dropTarget, setDropTarget } =
+  const { sid, expanded, toggle, onOpenFile, onUpload, dropTarget, setDropTarget, activePath } =
     useExplorerCtx();
   const isDir = entry.type === 'dir';
   const isOpen = isDir && expanded.has(path);
   const isDropTarget = isDir && dropTarget === path;
+  const isActive = !isDir && path === activePath;
 
   const activate = () => (isDir ? toggle(path) : onOpenFile?.(sid, path));
 
@@ -89,6 +92,7 @@ export function TreeNode({
       style={{ paddingLeft: depth * INDENT_PX + 8 }}
       className={cn(
         'flex h-6 cursor-pointer items-center gap-1 pr-2 text-sm transition-colors hover:bg-elevated',
+        isActive && 'bg-elevated',
         isDropTarget && 'bg-selection',
       )}
     >

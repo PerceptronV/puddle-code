@@ -216,6 +216,15 @@ function WorkspaceInner() {
     activeTab?.kind === 'diff' && targetSession && activeTab.session === targetSession.id
       ? activeTab.path
       : null;
+  // Highlight the files-tree row whose file is the active editor tab (a legacy
+  // snapshot's tab has no `kind`, meaning `file`).
+  const activeFilePath =
+    activeTab &&
+    (activeTab.kind ?? 'file') === 'file' &&
+    targetSession &&
+    activeTab.session === targetSession.id
+      ? activeTab.path
+      : null;
 
   // A changes / commit-file / search-result click opens its content as a
   // centre-editor tab against the BOUND worktree (openEditorTab dedupes).
@@ -287,6 +296,7 @@ function WorkspaceInner() {
                 sessions={sessions}
                 target={sidebarTarget}
                 onOpenFile={openFile}
+                activeFilePath={activeFilePath}
                 activeDiffPath={activeDiffPath}
                 onOpenDiff={openDiff}
                 onOpenCommitFile={openCommitFile}

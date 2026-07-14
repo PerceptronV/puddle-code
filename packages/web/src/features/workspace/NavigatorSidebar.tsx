@@ -4,7 +4,6 @@ import {
   FolderTree,
   PanelLeftClose,
   PanelLeftOpen,
-  Pin,
   Search,
   type LucideIcon,
 } from 'lucide-react';
@@ -98,10 +97,11 @@ export function CollapsedSidebarRail({
 
 /**
  * The left sidebar (SPEC §8): a horizontal icon row — Files · Search · Changes
- * — with the pin and collapse controls (both accent-blue) on the right. The pin
- * binds the whole sidebar to one worktree; every navigator (files tree, the
- * unified changes/graph view, and search) follows the bound worktree, and
- * unpinning resumes follow-the-active-session. Selections open their content as
+ * — with the collapse control on the right. The pin (which binds the whole
+ * sidebar to one worktree) lives in the bound-worktree header below the row, to
+ * keep this row uncluttered; every navigator (files tree, the unified
+ * changes/graph view, and search) follows the bound worktree, and unpinning
+ * resumes follow-the-active-session. Selections open their content as
  * centre-editor tabs, keeping the editor the single content surface.
  */
 export function NavigatorSidebar({
@@ -113,6 +113,7 @@ export function NavigatorSidebar({
   sessions,
   target,
   onOpenFile,
+  activeFilePath,
   activeDiffPath,
   onOpenDiff,
   onOpenCommitFile,
@@ -127,13 +128,15 @@ export function NavigatorSidebar({
   /** The worktree the whole sidebar is bound to, plus its pin controls. */
   target: ExplorerTarget;
   onOpenFile: (sessionId: string, path: string) => void;
+  /** Path of the active editor tab when it is a file in the bound worktree — highlighted in the tree. */
+  activeFilePath: string | null;
   /** Path of the active editor tab when it is an uncommitted diff for the bound worktree. */
   activeDiffPath: string | null;
   onOpenDiff: (path: string) => void;
   onOpenCommitFile: (path: string, sha: string) => void;
   onOpenSearchFile: (path: string, line?: number) => void;
 }) {
-  const { session, pinned, pin, unpin } = target;
+  const { session } = target;
 
   return (
     <div className="flex h-full flex-col bg-surface">
@@ -159,41 +162,19 @@ export function NavigatorSidebar({
             <TooltipContent>{label}</TooltipContent>
           </Tooltip>
         ))}
-        <div className="ml-auto flex items-center gap-1">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                aria-pressed={pinned}
-                disabled={!session}
-                onClick={() => (pinned ? unpin() : session && pin(session.id))}
-                className={cn(
-                  'flex items-center rounded-md p-1.5 transition-colors disabled:pointer-events-none disabled:opacity-40',
-                  pinned ? 'bg-elevated text-fg' : 'text-fg-muted hover:bg-elevated hover:text-fg',
-                )}
-              >
-                <Pin className={cn('size-4', pinned && 'fill-current')} />
-                <span className="sr-only">{pinned ? 'Unpin sidebar' : 'Pin sidebar'}</span>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>
-              {pinned ? 'Unpin — follow the active session' : 'Pin the sidebar to this worktree'}
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={onCollapse}
-                className="flex items-center rounded-md p-1.5 text-fg-muted transition-colors hover:bg-elevated hover:text-fg"
-              >
-                <PanelLeftClose className="size-4" />
-                <span className="sr-only">Hide sidebar</span>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>Hide sidebar</TooltipContent>
-          </Tooltip>
-        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={onCollapse}
+              className="ml-auto flex items-center rounded-md p-1.5 text-fg-muted transition-colors hover:bg-elevated hover:text-fg"
+            >
+              <PanelLeftClose className="size-4" />
+              <span className="sr-only">Hide sidebar</span>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Hide sidebar</TooltipContent>
+        </Tooltip>
       </div>
 
       {/* The bound-worktree header applies to the worktree-scoped navigators;
@@ -209,7 +190,7 @@ export function NavigatorSidebar({
           // FileExplorer's root is `h-full`, so it needs a flex-1 min-h-0
           // parent to fill the space left under the icon row + target header.
           <div className="flex min-h-0 flex-1 flex-col">
-            <FileExplorer session={session} onOpenFile={onOpenFile} />
+            <FileExplorer session={session} onOpenFile={onOpenFile} activePath={activeFilePath} />
           </div>
         ) : (
           <div className="px-3 py-2 text-xs text-fg-muted">No worktree to show.</div>
