@@ -114,13 +114,24 @@ export function CollapsedSessionsRail({
               <TooltipTrigger asChild>
                 <Link
                   draggable={false}
+                  aria-current={session.id === activeSessionId ? 'true' : undefined}
                   to={`/project/${projectId}/session/${session.id}`}
-                  className={cn(
-                    'flex items-center rounded-md p-1.5 transition-colors hover:bg-elevated',
-                    session.id === activeSessionId && 'bg-elevated',
-                  )}
+                  className="flex items-center rounded-md p-1.5 transition-colors hover:bg-elevated"
                 >
-                  <StatusDot status={session.status} kind={session.kind} />
+                  {/* The active session's dot is ringed — the ONE place a
+                      border is sanctioned (HUMANS.md forbids them elsewhere),
+                      the collapsed rail having no room for the fill-shift the
+                      expanded list uses to mark the active session. A
+                      transparent ring on the rest holds the same box so
+                      nothing shifts. */}
+                  <span
+                    className={cn(
+                      'flex size-4 items-center justify-center rounded-full border',
+                      session.id === activeSessionId ? 'border-accent' : 'border-transparent',
+                    )}
+                  >
+                    <StatusDot status={session.status} kind={session.kind} />
+                  </span>
                   <span className="sr-only">{session.title ?? session.branch}</span>
                 </Link>
               </TooltipTrigger>

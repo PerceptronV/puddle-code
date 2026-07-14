@@ -72,6 +72,7 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 - The sessions sidebar header now mirrors the left navigator: the collapse control sits on the left edge and the new-terminal and new-session controls on the right (the "Sessions" title is gone). The collapsed rail gains the new-terminal button and the live-session dots.
+- In the collapsed sessions rail the active session's dot is now marked by an accent ring rather than a fill — the one deliberate border in the UI (HUMANS.md forbids them elsewhere), the slim rail having no room for the fill-shift the expanded list uses. No protocol change.
 - Session titles in the right sidebar and the profile name in the top-right button render in the display (sans) font rather than monospace; the branch and account identifier lines stay mono.
 - The sessions sidebar is collapsible to a slim rail keeping just the reopen and new-session buttons (persisted per workspace as `sessions_collapsed`; protocol minor bump 4.6 → 4.7), and its header puts the collapse and `+` controls on the left edge with the title on the right.
 - Fallback branch names are now a naturesque adjective-noun-element triple (`quiet-tarn-fire`) drawn from 100 adjectives, 100 nouns, and the six elements (earth/air/fire/water/metal/wood) — sixty thousand combinations instead of the old 576 water-themed pairs, so collision suffixes all but vanish.
