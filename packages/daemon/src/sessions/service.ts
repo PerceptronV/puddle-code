@@ -111,16 +111,25 @@ export class SessionService extends EventEmitter {
       );
     }
 
+    const separateBranch = input.separate_branch !== false;
+    if (!separateBranch && input.branch !== undefined) {
+      throw ApiError.badRequest(
+        'branch_with_shared',
+        'a session without a separate branch works directly on the base branch; omit branch',
+      );
+    }
     const sessionId = randomUUID();
-    const worktree = await this.deps.worktrees.create({
-      repo,
-      sessionId,
-      baseBranch: input.base_branch,
-      requestedBranch: input.branch,
-      title: input.title ?? null,
-      prompt: input.prompt ?? null,
-      branchPrefix: profile.branch_prefix,
-    });
+    const worktree = separateBranch
+      ? await this.deps.worktrees.create({
+          repo,
+          sessionId,
+          baseBranch: input.base_branch,
+          requestedBranch: input.branch,
+          title: input.title ?? null,
+          prompt: input.prompt ?? null,
+          branchPrefix: profile.branch_prefix,
+        })
+      : await this.deps.worktrees.attachShared({ repo, baseBranch: input.base_branch });
     const session = this.deps.sessions.create({
       id: sessionId,
       project_id: project.id,
@@ -128,13 +137,18 @@ export class SessionService extends EventEmitter {
       worktree_path: worktree.worktreePath,
       base_branch: worktree.baseBranch,
       branch: worktree.branch,
+      separate_branch: separateBranch,
       agent_type: account.agent_type,
       title: input.title ?? null,
       skip_permissions: skip,
     });
 
     // Every freshly created worktree onboards — and only those (SPEC §4).
-    const prompt = buildOnboardingPreamble(repo.onboarding_notes, input.prompt ?? null);
+    // Attaching to an existing shared worktree is a reuse, like a hand-off:
+    // the environment already exists, so the user's prompt goes in bare.
+    const prompt = worktree.created
+      ? buildOnboardingPreamble(repo.onboarding_notes, input.prompt ?? null)
+      : (input.prompt ?? undefined);
     const launchOpts = {
       worktreePath: worktree.worktreePath,
       sessionId,
@@ -156,8 +170,12 @@ export class SessionService extends EventEmitter {
       base_ref: worktree.baseRef,
       account_id: account.id,
       skip_permissions: skip,
+      separate_branch: separateBranch,
+      worktree_created: worktree.created,
     });
-    this.deps.onboarding.watch(sessionId, repo.id, worktree.worktreePath);
+    // Only the worktree's creator watches its .puddle/ markers: in a shared
+    // worktree, concurrent watchers would race to claim `session-title`.
+    if (worktree.created) this.deps.onboarding.watch(sessionId, repo.id, worktree.worktreePath);
     this.deps.projects.touch(project.id);
     return this.get(session.id);
   }
@@ -256,19 +274,39 @@ export class SessionService extends EventEmitter {
     return this.get(id);
   }
 
-  async archive(id: string, force = false): Promise<Session> {
+  async archive(id: string, force = false, deleteBranch = false): Promise<Session> {
     const session = this.deps.sessions.get(id);
     if (session.status !== 'exited' && session.status !== 'interrupted') {
       throw ApiError.conflict('session_live', 'a running session must be killed before archiving');
     }
+    if (deleteBranch && !session.separate_branch) {
+      throw ApiError.badRequest(
+        'branch_not_owned',
+        `this session works directly on ${session.branch}; puddle only deletes branches it created`,
+      );
+    }
     const project = this.deps.projects.get(session.project_id);
     const repo = this.deps.repos.get(project.repo_id);
-    if (existsSync(session.worktree_path)) {
+    // A shared worktree outlives this session while any other non-archived
+    // session is attached to it (SPEC §4); the last one out removes it.
+    const lastUser = this.deps.sessions.countOtherActiveOnWorktree(session.worktree_path, id) === 0;
+    if (lastUser && existsSync(session.worktree_path)) {
       await this.deps.worktrees.remove({ repo, worktreePath: session.worktree_path, force });
+    }
+    if (deleteBranch) {
+      // After worktree removal — git refuses to delete a checked-out branch.
+      try {
+        await this.deps.worktrees.deleteBranch(repo, session.branch);
+      } catch (e) {
+        throw ApiError.conflict(
+          'branch_delete_failed',
+          `could not delete branch ${session.branch}: ${(e as Error).message}; archive again without deleting to keep it`,
+        );
+      }
     }
     this.deps.onboarding.unwatch(id);
     this.transition(id, 'archived');
-    this.deps.events.record(id, 'archived', { forced: force });
+    this.deps.events.record(id, 'archived', { forced: force, branch_deleted: deleteBranch });
     return this.get(id);
   }
 

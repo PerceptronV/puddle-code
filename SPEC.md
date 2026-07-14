@@ -8,7 +8,7 @@ Puddle is a public, general-purpose tool. Nothing in the codebase, docs, example
 
 Goals:
 
-- Run many coding-agent sessions in parallel on one host machine — your own laptop/workstation (local mode) or a remote box (SSH mode) — each isolated in its own git worktree and branch. Both modes use the identical daemon and UI; SSH mode only adds bootstrap and a tunnel.
+- Run many coding-agent sessions in parallel on one host machine — your own laptop/workstation (local mode) or a remote box (SSH mode) — each isolated in its own git worktree and branch by default (sessions can opt out of branch isolation and share — §4 "Relaxed isolation"). Both modes use the identical daemon and UI; SSH mode only adds bootstrap and a tunnel.
 - Support multiple **profiles** (one per collaborator on a shared box) and, within each profile, multiple **accounts** per agent type (separate credential/config dirs), with any number of concurrent sessions per account.
 - Organise work into **projects** (profile + repo + sessions + persisted UI state): a window attaches to one project, multiple windows can open the same project, and reloading a window restores the project exactly — open sessions, terminals (via log replay), and editor tabs.
 - Full persistence: accounts, sessions, branches, and terminal history survive daemon restarts, SSH disconnects, and machine reboots.
@@ -56,6 +56,7 @@ Non-goals (v1):
 ├── config.json               # daemon settings (port, log caps)
 ├── profiles/<profile_id>/accounts/<agent_type>/<label>/   # per-account agent config dirs (created by puddle; id-keyed — names are display labels)
 ├── worktrees/<repo_id>/<session-id>/   # repo_id, not repo name — names can collide
+│                      /branch-<slug>/  # shared worktrees for separate_branch = false sessions (§4)
 └── logs/<session-id>/<term>.log        # append-only PTY output, one file per terminal (agent.log, shell-1.log, …)
 ```
 
@@ -134,6 +135,7 @@ CREATE TABLE sessions (
   worktree_path TEXT NOT NULL,
   base_branch TEXT NOT NULL,
   branch TEXT NOT NULL,
+  separate_branch INTEGER NOT NULL DEFAULT 1,  -- 0: works directly on base_branch in a shared worktree (§4)
   agent_type TEXT NOT NULL,
   agent_session_ref TEXT,               -- agent-native id used for resume (see adapters)
   title TEXT,
@@ -188,10 +190,17 @@ SQLite is the source of truth; a live PTY is an ephemeral attachment to a durabl
 - `running ⇄ waiting_input` driven by the adapter's `statusPatterns` matched against the output stream (debounced; a session is `waiting_input` only after ~2 s of quiet following a match).
 - Any of `{starting, running, waiting_input}` found without a live PTY during the daemon's boot **reconcile pass** → `interrupted`. Reconcile also sweeps the filesystem: a worktree directory with no session row is flagged in the UI (never auto-deleted); a session whose worktree is missing is badged "worktree missing" and can only be archived.
 - `exited` / `interrupted` → `running` via resume (adapter `resumeArgs`, same worktree, same config dir). On resume after `interrupted`, the daemon injects a first message: _"This session was interrupted (daemon or machine restart). Processes you started are gone; re-verify your environment before continuing."_
-- `archived`: reachable only from `exited` or `interrupted` (a running session must be killed first). Archiving removes the worktree (only if clean, or with explicit confirmation), leaves the branch in the repo, and retains logs. Archiving a **project** archives all its sessions and refuses while any is `running`/`waiting_input` unless forced.
+- `archived`: reachable only from `exited` or `interrupted` (a running session must be killed first). Archiving removes the worktree (only if clean, or with explicit confirmation; a shared worktree is removed only when its **last** non-archived session archives) and retains logs. The branch is kept by default, but the archive dialog offers **delete the branch too** (`delete_branch` — `git branch -D`, so a branch never pushed to origin leaves no trace; unpushed commits are gone for good). Branch deletion applies only to separate-branch sessions — puddle never deletes a branch it did not create — and project archive never deletes branches. Archiving a **project** archives all its sessions and refuses while any is `running`/`waiting_input` unless forced.
 - Auto-resume on boot is OFF by default (`config.json: autoResume: false`); interrupted sessions surface in the UI for one-click resume.
 
-### Worktree onboarding (agent-driven setup)
+### Relaxed isolation: shared-worktree sessions
+
+Branch-per-session is the default, not a straitjacket. A session created with `separate_branch: false` works **directly on its base branch** — no new branch, no isolation — in a worktree shared by every other such session on the same branch:
+
+- One shared worktree per (repo, branch), at `worktrees/<repo_id>/branch-<slug>/`. The first shared session creates it (checking the branch out with `git worktree add --force` — the branch may legitimately also be checked out in the canonical clone; the double checkout is the point of this mode, and each checkout keeps its own index and working tree while commits land on the one branch); later shared sessions attach to the existing directory.
+- **Deliberately discouraged.** The new-session modal's "use separate branch" toggle is on by default; switching it off hides the Branch field and shows a warning spelling out the loss of isolation (concurrent agents in one directory can and will trample each other's edits). The daemon rejects a `branch` name combined with `separate_branch: false` (400 `branch_with_shared`).
+- Only the session that **created** the worktree receives the onboarding preamble and the `.puddle/` marker-file watch; attaching sessions get their prompt bare (the environment already exists, as with resumes and hand-offs).
+- Archiving removes the shared worktree only when the last non-archived session using it archives; the branch itself is never deleted by puddle (it isn't puddle's), and branch pickers do not badge it as a session branch.
 
 Environment setup is not deterministic per repo — whether _this particular worktree_ needs a fresh `.venv`, a symlink to a shared one, or none at all is often the user's call in the moment. So setup is split into **standing rules** and **per-worktree discretion**:
 
@@ -295,14 +304,17 @@ Projects   GET  /api/projects?profile=…      POST /api/projects {profile_id, r
            GET  /api/projects/:id/state?profile=…   PUT (profile-keyed ui_state JSON; debounced writes; GET falls back to the project's most recent snapshot when the profile has none)
            POST /api/projects/:id/archive
 Sessions   GET  /api/sessions?project=…&status=…
-           POST /api/sessions {project_id, account_id, base_branch?, branch?, title?, prompt?, skip_permissions?}
+           POST /api/sessions {project_id, account_id, base_branch?, branch?, separate_branch?, title?, prompt?, skip_permissions?}
+                # separate_branch defaults true; false = work directly on the base branch in a shared
+                # worktree (§4 Relaxed isolation) — branch must then be absent (400 branch_with_shared)
                 # branch naming: requested branch → prefix + title slug → prefix + first words of the
                 # prompt → prefix + a memorable word pair (quiet-tarn) — never a uuid fragment
                 # skip_permissions is honoured only if the profile gate AND the account opt-in allow it;
                 # otherwise the request is rejected (400) — enforced server-side, no CLI/API bypass
            GET  /api/sessions/:id            # detail incl. git summary (ahead/behind, dirty files)
            PATCH /api/sessions/:id {title?}   # rename (does not rename the git branch)
-           POST /api/sessions/:id/resume | /kill | /archive
+           POST /api/sessions/:id/resume | /kill | /archive   # archive body: {force?, delete_branch?} — delete_branch
+                # only for separate-branch sessions (§4); project archive never deletes branches
            POST /api/sessions/:id/migrate {account_id}    # tier-1: same agent, move conversation (§5)
            POST /api/sessions/:id/handoff {account_id}    # tier-2: new session, transcript hand-off; returns new session id
                 # both: target account must belong to the session's profile (400 otherwise);
@@ -463,7 +475,7 @@ Each profile owns an editable collection of plaintext prompts — the snippets y
 - **Management**: a "Prompts" section in the settings panel — plain list, inline textarea editing, tag chips, optional project/agent association dropdowns, delete with an undo toast. Creating a prompt from the picker ("save current input as prompt…") keeps capture frictionless.
 - **v1 is literal plaintext**: no templating variables, no sharing between profiles (a coworker's bank is theirs; copy-paste is the sharing mechanism). Both are possible later; neither should complicate v1.
 
-**Projects are the workspace unit.** A project belongs to one profile and one repo, and owns a set of sessions plus persisted UI state. The dashboard (`/`) lists the current profile's projects only — there is no cross-profile view (decision 2026-07-13); day-to-day work happens inside `/project/:id`. New sessions are always created within a project, which supplies the profile, repo, and defaults — so the new-session modal reduces to account → base branch → title/prompt. Session branches default to `<branch_prefix><slug(title)>` (or the session's short id when untitled); on collision with any existing branch, append `-2`, `-3`, … — never fail session creation on a branch-name clash.
+**Projects are the workspace unit.** A project belongs to one profile and one repo, and owns a set of sessions plus persisted UI state. The dashboard (`/`) lists the current profile's projects only — there is no cross-profile view (decision 2026-07-13); day-to-day work happens inside `/project/:id`. New sessions are always created within a project, which supplies the profile, repo, and defaults — so the new-session modal reduces to account → base branch (with a ticked-by-default "use separate branch" toggle; unticking hides the Branch field and warns — §4 Relaxed isolation) → title/prompt. Session branches default to `<branch_prefix><slug(title)>` (or the session's short id when untitled); on collision with any existing branch, append `-2`, `-3`, … — never fail session creation on a branch-name clash.
 
 **Reload semantics.** Workspace layout is persisted server-side in `project_states`, keyed by `(project, profile)` — layout follows identity, not browser (decision 2026-07-13; replaces the earlier client-uuid keying so layouts survive tunnel-port and machine changes). The snapshot JSON holds: open session tabs and their order, per-session view state (pane split, open editor `(session, path)` tabs, explorer pin), active session, layout sizes. The UI writes it debounced (~2 s) on change; on opening a project, the UI restores the _current profile's_ snapshot — reattaching terminals (log-tail replay makes them look untouched), reopening editor tabs, and surfacing any `interrupted` sessions with a resume button. Consequences:
 

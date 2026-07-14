@@ -15,6 +15,8 @@ export interface CreateWorktreeResult {
   branch: string;
   baseBranch: string;
   baseRef: string;
+  /** False when an existing shared worktree was attached rather than created. */
+  created: boolean;
 }
 
 export class WorktreeManager {
@@ -56,7 +58,57 @@ export class WorktreeManager {
       await git(['worktree', 'add', worktreePath, '-b', branch, baseRef], { cwd: repo.path });
       await this.excludePuddleDir(repo);
       mkdirSync(join(worktreePath, '.puddle'), { recursive: true });
-      return { worktreePath, branch, baseBranch, baseRef };
+      return { worktreePath, branch, baseBranch, baseRef, created: true };
+    });
+  }
+
+  /**
+   * The separate_branch = false path (SPEC §4): one shared worktree per
+   * (repo, branch), checked out on the base branch itself. The first such
+   * session creates it; later ones attach to the same directory.
+   */
+  attachShared(opts: { repo: Repo; baseBranch?: string }): Promise<CreateWorktreeResult> {
+    const { repo } = opts;
+    return this.deps.mutex.run(`repo:${repo.id}`, async () => {
+      const branch = opts.baseBranch ?? repo.default_base_branch;
+      await this.fetchCoreQuietly(repo);
+      const localExists = await this.refExists(repo, `refs/heads/${branch}`);
+      if (!localExists) {
+        if (!(await this.refExists(repo, `refs/remotes/origin/${branch}`))) {
+          throw ApiError.badRequest('unknown_base', `base branch '${branch}' does not exist`);
+        }
+        // Only a branch that exists solely on the remote gets a fresh local
+        // tracking branch; existing local branches are never reset (SPEC §4).
+        await git(['branch', '--track', branch, `origin/${branch}`], { cwd: repo.path });
+      }
+
+      // Distinct branches can collide on a slug ('a/b' vs 'a.b'): probe -2,
+      // -3, … until we find this branch's own dir or a free name.
+      for (let n = 1; ; n++) {
+        const slug = slugify(branch) + (n === 1 ? '' : `-${n}`);
+        const dir = this.deps.paths.sharedWorktreeDir(repo.id, slug);
+        if (existsSync(dir)) {
+          const head = await git(['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: dir });
+          if (head !== branch) continue;
+          return { worktreePath: dir, branch, baseBranch: branch, baseRef: branch, created: false };
+        }
+        mkdirSync(dirname(dir), { recursive: true });
+        // --force: the branch may already be checked out in the canonical
+        // clone. The double checkout is exactly what this discouraged mode
+        // permits — commits land on the branch either way, but each checkout's
+        // index and working tree are its own (SPEC §4).
+        await git(['worktree', 'add', '--force', dir, branch], { cwd: repo.path });
+        await this.excludePuddleDir(repo);
+        mkdirSync(join(dir, '.puddle'), { recursive: true });
+        return { worktreePath: dir, branch, baseBranch: branch, baseRef: branch, created: true };
+      }
+    });
+  }
+
+  /** `git branch -D` — only ever called for puddle-created session branches (SPEC §4). */
+  deleteBranch(repo: Repo, branch: string): Promise<void> {
+    return this.deps.mutex.run(`repo:${repo.id}`, async () => {
+      await git(['branch', '-D', branch], { cwd: repo.path });
     });
   }
 
@@ -87,14 +139,18 @@ export class WorktreeManager {
     return this.deps.mutex.run(`repo:${repo.id}`, () => this.fetchCore(repo));
   }
 
-  /** Worktree dirs on disk that no session row claims. Never deletes (SPEC §4). */
+  /**
+   * Worktree dirs on disk that no session row claims. Never deletes (SPEC §4).
+   * Matched by full path, not dir name: session worktrees are named by session
+   * id, shared worktrees by branch slug.
+   */
   findOrphanWorktrees(repo: Repo): string[] {
     const dir = join(this.deps.paths.worktreesDir, String(repo.id));
     if (!existsSync(dir)) return [];
-    const known = new Set(this.deps.sessions.allIds());
+    const known = new Set(this.deps.sessions.allWorktreePaths());
     return readdirSync(dir)
-      .filter((name) => !known.has(name))
-      .map((name) => join(dir, name));
+      .map((name) => join(dir, name))
+      .filter((path) => !known.has(path));
   }
 
   private async fetchCore(repo: Repo): Promise<void> {

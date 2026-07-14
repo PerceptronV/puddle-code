@@ -273,8 +273,19 @@ export function useSessionAction(action: 'resume' | 'kill') {
 export function useArchiveSession() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ sessionId, force }: { sessionId: string; force?: boolean }) =>
-      api<Session>('POST', `/api/sessions/${sessionId}/archive`, { force: force ?? false }),
+    mutationFn: ({
+      sessionId,
+      force,
+      deleteBranch,
+    }: {
+      sessionId: string;
+      force?: boolean;
+      deleteBranch?: boolean;
+    }) =>
+      api<Session>('POST', `/api/sessions/${sessionId}/archive`, {
+        force: force ?? false,
+        delete_branch: deleteBranch ?? false,
+      }),
     onSuccess: (session) => invalidateSessions(qc, session),
   });
 }

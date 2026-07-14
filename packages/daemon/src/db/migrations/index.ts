@@ -3,6 +3,7 @@ import { migration002 } from './002-project-hex-ids.js';
 import { migration003 } from './003-profile-keyed-ui-state.js';
 import { migration004 } from './004-profile-hex-ids.js';
 import { migration005 } from './005-account-rate-limit-tracking.js';
+import { migration006 } from './006-session-separate-branch.js';
 
 export interface Migration {
   version: number;
@@ -17,4 +18,5 @@ export const MIGRATIONS: Migration[] = [
   migration003,
   migration004,
   migration005,
+  migration006,
 ];

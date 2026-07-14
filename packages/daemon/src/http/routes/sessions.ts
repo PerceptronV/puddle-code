@@ -38,6 +38,6 @@ export function sessionRoutes(deps: { service: SessionService }): Hono {
     .post('/:id/kill', async (c) => c.json(await deps.service.kill(c.req.param('id'))))
     .post('/:id/archive', async (c) => {
       const body = await parseBody(c, archiveRequestSchema);
-      return c.json(await deps.service.archive(c.req.param('id'), body.force));
+      return c.json(await deps.service.archive(c.req.param('id'), body.force, body.delete_branch));
     });
 }

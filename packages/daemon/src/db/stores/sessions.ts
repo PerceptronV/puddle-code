@@ -9,6 +9,7 @@ interface Row {
   worktree_path: string;
   base_branch: string;
   branch: string;
+  separate_branch: number;
   agent_type: string;
   agent_session_ref: string | null;
   title: string | null;
@@ -26,13 +27,18 @@ export interface NewSessionRow {
   worktree_path: string;
   base_branch: string;
   branch: string;
+  separate_branch: boolean;
   agent_type: string;
   title: string | null;
   skip_permissions: boolean;
 }
 
 function toSession(r: Row): Session {
-  return { ...r, skip_permissions: r.skip_permissions === 1 };
+  return {
+    ...r,
+    skip_permissions: r.skip_permissions === 1,
+    separate_branch: r.separate_branch === 1,
+  };
 }
 
 const ACTIVE = `('starting', 'running', 'waiting_input', 'exited', 'interrupted')`;
@@ -45,8 +51,8 @@ export class SessionStore {
     this.db
       .prepare(
         `INSERT INTO sessions (id, project_id, account_id, worktree_path, base_branch, branch,
-           agent_type, title, status, skip_permissions, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?, ?)`,
+           separate_branch, agent_type, title, status, skip_permissions, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?, ?)`,
       )
       .run(
         row.id,
@@ -55,6 +61,7 @@ export class SessionStore {
         row.worktree_path,
         row.base_branch,
         row.branch,
+        row.separate_branch ? 1 : 0,
         row.agent_type,
         row.title,
         row.skip_permissions ? 1 : 0,
@@ -96,14 +103,29 @@ export class SessionStore {
     };
   }
 
-  /** Branch → session title for every session on the repo's projects (any status). */
+  /**
+   * Branch → session title for every session on the repo's projects (any
+   * status). Shared-worktree sessions are excluded: their branch (e.g. main)
+   * is not puddle-owned and must not be badged as a session branch in pickers.
+   */
   branchesForRepo(repoId: number): Array<{ branch: string; title: string | null }> {
     return this.db
       .prepare(
         `SELECT s.branch, s.title FROM sessions s
-         JOIN projects p ON p.id = s.project_id WHERE p.repo_id = ?`,
+         JOIN projects p ON p.id = s.project_id WHERE p.repo_id = ? AND s.separate_branch = 1`,
       )
       .all(repoId) as Array<{ branch: string; title: string | null }>;
+  }
+
+  /** Non-archived sessions other than `excludeId` attached to this worktree. */
+  countOtherActiveOnWorktree(worktreePath: string, excludeId: string): number {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM sessions
+         WHERE worktree_path = ? AND id != ? AND status != 'archived'`,
+      )
+      .get(worktreePath, excludeId) as { n: number };
+    return row.n;
   }
 
   list(filter: { project_id?: string; status?: SessionStatus } = {}): Session[] {
@@ -142,10 +164,12 @@ export class SessionStore {
     return rows.map(toSession);
   }
 
-  allIds(): string[] {
-    return (this.db.prepare(`SELECT id FROM sessions`).all() as Array<{ id: string }>).map(
-      (r) => r.id,
-    );
+  allWorktreePaths(): string[] {
+    return (
+      this.db.prepare(`SELECT DISTINCT worktree_path FROM sessions`).all() as Array<{
+        worktree_path: string;
+      }>
+    ).map((r) => r.worktree_path);
   }
 
   setStatus(id: string, status: SessionStatus): Session {

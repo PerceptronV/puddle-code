@@ -19,6 +19,8 @@ import {
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
 import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
+import { Switch } from '../../components/ui/switch';
 import { ApiError } from '../../lib/api';
 import { useArchiveSession, useRenameSession, useSessionAction } from '../../lib/queries';
 
@@ -38,15 +40,17 @@ export function SessionActions({
   const archive = useArchiveSession();
   const rename = useRenameSession();
   const [confirm, setConfirm] = useState<'kill' | 'archive' | 'archive-force' | null>(null);
+  const [deleteBranch, setDeleteBranch] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [newTitle, setNewTitle] = useState(session.title ?? '');
 
   const doArchive = (force: boolean) => {
     archive.mutate(
-      { sessionId: session.id, force },
+      { sessionId: session.id, force, deleteBranch },
       {
         onSuccess: () => {
           setConfirm(null);
+          setDeleteBranch(false);
           onArchived?.(session.id);
         },
         onError: (e) => {
@@ -102,7 +106,14 @@ export function SessionActions({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Dialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>
+      <Dialog
+        open={confirm !== null}
+        onOpenChange={(open) => {
+          if (open) return;
+          setConfirm(null);
+          setDeleteBranch(false);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -114,11 +125,32 @@ export function SessionActions({
               {confirm === 'kill' &&
                 'The agent process stops (SIGTERM, then SIGKILL). The conversation stays resumable.'}
               {confirm === 'archive' &&
-                `Removes the worktree directory. The branch ${session.branch} and the terminal logs are kept.`}
+                (session.separate_branch
+                  ? `Removes the worktree directory. The branch ${session.branch} and the terminal logs are kept.`
+                  : `The shared worktree on ${session.branch} is removed once its last session archives. The branch and the terminal logs are kept.`)}
               {confirm === 'archive-force' &&
                 'Archiving now discards uncommitted changes in the worktree. Committed work on the branch survives.'}
             </DialogDescription>
           </DialogHeader>
+          {(confirm === 'archive' || confirm === 'archive-force') && session.separate_branch && (
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="delete-branch"
+                  checked={deleteBranch}
+                  onCheckedChange={setDeleteBranch}
+                />
+                <Label htmlFor="delete-branch">
+                  Also delete the branch <span className="font-mono">{session.branch}</span>
+                </Label>
+              </div>
+              {deleteBranch && (
+                <p className="text-xs text-danger">
+                  Anything on it that was never pushed is gone for good.
+                </p>
+              )}
+            </div>
+          )}
           <DialogFooter>
             <Button variant="ghost" onClick={() => setConfirm(null)}>
               Cancel

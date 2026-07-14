@@ -60,6 +60,7 @@ export function NewSessionDialog({
 
   const [accountId, setAccountId] = useState<string>('');
   const [baseBranch, setBaseBranch] = useState('');
+  const [separateBranch, setSeparateBranch] = useState(true);
   const [branch, setBranch] = useState('');
   const [title, setTitle] = useState('');
   const [prompt, setPrompt] = useState('');
@@ -106,7 +107,8 @@ export function NewSessionDialog({
         project_id: projectId,
         account_id: Number(effectiveAccountId),
         ...(baseBranch.trim() ? { base_branch: baseBranch.trim() } : {}),
-        ...(branch.trim() ? { branch: branch.trim() } : {}),
+        ...(separateBranch ? {} : { separate_branch: false }),
+        ...(separateBranch && branch.trim() ? { branch: branch.trim() } : {}),
         ...(title.trim() ? { title: title.trim() } : {}),
         ...(prompt.trim() ? { prompt: prompt.trim() } : {}),
         ...(showSkipToggle && skip ? { skip_permissions: true } : {}),
@@ -116,6 +118,7 @@ export function NewSessionDialog({
           onOpenChange(false);
           setTitle('');
           setBranch('');
+          setSeparateBranch(true);
           setPrompt('');
           setSkip(false);
           onCreated(session);
@@ -132,11 +135,13 @@ export function NewSessionDialog({
         <DialogHeader>
           <DialogTitle>New session</DialogTitle>
           <DialogDescription>
-            Spawns an agent in a fresh worktree branched from{' '}
+            {separateBranch
+              ? 'Spawns an agent in a fresh worktree branched from'
+              : 'Spawns an agent directly on'}{' '}
             <span className="font-mono">
               {baseBranch.trim() || repo?.default_base_branch || '…'}
             </span>
-            .
+            {separateBranch ? '.' : ', in a worktree shared with every other such session.'}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -201,6 +206,24 @@ export function NewSessionDialog({
                 }))}
               className="font-mono"
             />
+            <div className="flex items-center gap-2 pt-1">
+              <Switch
+                id="separate-branch"
+                checked={separateBranch}
+                onCheckedChange={setSeparateBranch}
+              />
+              <Label htmlFor="separate-branch">Use separate branch</Label>
+            </div>
+            {!separateBranch && (
+              <p className="text-xs text-waiting">
+                Discouraged: the agent commits straight to{' '}
+                <span className="font-mono">
+                  {baseBranch.trim() || repo?.default_base_branch || '…'}
+                </span>{' '}
+                and shares its directory with every other session working this way — no isolation
+                between them.
+              </p>
+            )}
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="session-title">Title</Label>
@@ -211,16 +234,18 @@ export function NewSessionDialog({
               onChange={(e) => setTitle(e.target.value)}
             />
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="session-branch">Branch</Label>
-            <Input
-              id="session-branch"
-              placeholder={branchPreview}
-              value={branch}
-              onChange={(e) => setBranch(e.target.value)}
-              className="font-mono"
-            />
-          </div>
+          {separateBranch && (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="session-branch">Branch</Label>
+              <Input
+                id="session-branch"
+                placeholder={branchPreview}
+                value={branch}
+                onChange={(e) => setBranch(e.target.value)}
+                className="font-mono"
+              />
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="session-prompt">First prompt</Label>
             <Textarea

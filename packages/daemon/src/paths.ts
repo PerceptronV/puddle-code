@@ -13,6 +13,8 @@ export interface PuddlePaths {
   logsDir: string;
   accountConfigDir(profileId: string, agentType: string, label: string): string;
   sessionWorktreeDir(repoId: number, sessionId: string): string;
+  /** Shared per-(repo, branch) worktree for separate_branch = false sessions (SPEC §4). */
+  sharedWorktreeDir(repoId: number, branchSlug: string): string;
   sessionLogDir(sessionId: string): string;
 }
 
@@ -30,6 +32,8 @@ export function resolvePaths(
     accountConfigDir: (profileId, agentType, label) =>
       join(home, 'profiles', profileId, 'accounts', agentType, label),
     sessionWorktreeDir: (repoId, sessionId) => join(home, 'worktrees', String(repoId), sessionId),
+    sharedWorktreeDir: (repoId, branchSlug) =>
+      join(home, 'worktrees', String(repoId), `branch-${branchSlug}`),
     sessionLogDir: (sessionId) => join(home, 'logs', sessionId),
   };
 }

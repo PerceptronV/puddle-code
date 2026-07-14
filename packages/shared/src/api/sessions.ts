@@ -18,6 +18,8 @@ export const sessionSchema = z.object({
   worktree_path: z.string(),
   base_branch: z.string(),
   branch: z.string(),
+  /** False: the session works directly on the base branch in a shared worktree (SPEC §4). */
+  separate_branch: z.boolean(),
   agent_type: z.string(),
   agent_session_ref: z.string().nullable(),
   title: z.string().nullable(),
@@ -36,6 +38,12 @@ export const createSessionRequestSchema = z.object({
   account_id: rowId,
   base_branch: z.string().min(1).optional(),
   branch: z.string().min(1).max(200).optional(),
+  /**
+   * Default true: fresh branch, fresh worktree. False (discouraged): work
+   * directly on the base branch in a worktree shared with every other such
+   * session — `branch` must then be absent (SPEC §4).
+   */
+  separate_branch: z.boolean().optional(),
   title: z.string().min(1).max(200).optional(),
   prompt: z.string().optional(),
   skip_permissions: z.boolean().optional(),
@@ -45,4 +53,12 @@ export type CreateSessionRequest = z.infer<typeof createSessionRequestSchema>;
 export const patchSessionRequestSchema = z.object({ title: z.string().min(1).max(200) });
 
 /** Shared by session archive and project archive (kill/discard confirmation). */
-export const archiveRequestSchema = z.object({ force: z.boolean().default(false) });
+export const archiveRequestSchema = z.object({
+  force: z.boolean().default(false),
+  /**
+   * Also delete the session's git branch (`git branch -D` — unpushed work is
+   * gone for good). Only valid for separate-branch sessions; project archive
+   * never deletes branches (SPEC §4).
+   */
+  delete_branch: z.boolean().default(false),
+});

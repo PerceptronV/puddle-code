@@ -93,6 +93,7 @@ export interface Fixture {
   };
   logs: LogStore;
   ptys: PtyManager;
+  worktrees: WorktreeManager;
   service: SessionService;
   onboarding: MarkerFileSync;
   ids: { profile: string; account: number; repo: number; project: string };
@@ -164,6 +165,7 @@ export function fixture(opts: { quietMs?: number } = {}): Fixture {
     stores,
     logs,
     ptys,
+    worktrees,
     service,
     onboarding,
     repoPath,

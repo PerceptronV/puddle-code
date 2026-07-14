@@ -9,6 +9,10 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Added
+- Sessions can opt out of branch isolation: unticking "use separate branch" in the new-session modal (discouraged, with a warning) makes the agent work directly on the base branch in a worktree shared with every other such session on that branch, removed only when its last session archives (`POST /api/sessions` gains `separate_branch`; migration 006; SPEC §4 "Relaxed isolation").
+- Archiving can delete the session's branch along with the worktree: an opt-in toggle in the archive dialog (`delete_branch` on `POST /api/sessions/:id/archive`, `git branch -D`) — a branch never pushed to origin leaves no trace. Only for branches puddle created; project archive never deletes branches. Protocol minor bump 3.3 → 3.4 (with `separate_branch` above).
+
 ### Changed
 - Session branch names are human-readable at every fallback: an explicit Branch field in the new-session modal (prefilled preview from the title), else the title slug, else the first words of the prompt, else a memorable word pair (`quiet-tarn`) — never a uuid fragment. The base-branch picker now labels branches owned by puddle sessions with their session title (`GET /api/repos/:id/branches` returns `{name, is_session, session_title}` — protocol major bump 2.1 → 3.0).
 - Profiles are identified by 10-hex-char ids (like projects) instead of integers, and profile directories under `~/.puddle/profiles/` are keyed by id rather than name — names are pure display labels now. Migration 004 remaps every referencing table and rewrites account config-dir paths; the daemon renames the physical directories at the next boot. **Protocol major bump: 1.0 → 2.0** (profile ids changed type on the wire).
