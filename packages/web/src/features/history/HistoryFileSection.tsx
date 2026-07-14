@@ -3,11 +3,9 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { DiffEntry } from '@puddle/shared';
 import { cn } from '../../lib/utils';
 import { diffStatusStyle } from '../diff/diff-status';
+import { SECTION_MAX_HEIGHT } from '../diff/FileDiffSection';
 import { HistoryFileContent } from './HistoryFileContent';
 import { effectiveStatus } from './history-logic';
-
-/** Fixed height each section's Monaco content occupies (mirrors the diff view). */
-const SECTION_MAX_HEIGHT = 400;
 
 /**
  * One collapsible file within a commit's detail (SPEC §8, Task 9): the

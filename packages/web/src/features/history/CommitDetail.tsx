@@ -63,7 +63,17 @@ export function CommitDetail({ session, sha }: { session: string; sha: string })
         ) : (
           files.map((entry) => (
             <HistoryFileSection
-              key={`${entry.status}:${entry.old_path ?? ''}:${entry.path}`}
+              // The sha is part of the key ON PURPOSE: without it, two commits
+              // sharing a (status, path) tuple (CHANGELOG.md, package.json —
+              // routine) would make React REUSE the mounted section across a
+              // commit switch instead of unmounting it, and the DiffEditor's
+              // model-swap effect replaces its models without disposing the
+              // outgoing pair — leaking two private models per collision. The
+              // sha key forces a true unmount, so HistoryDiffEditor's cleanup
+              // disposes correctly; it also resets each section's expand state
+              // per commit, which is the desired behaviour (a fresh commit
+              // starts from `defaultFileExpanded`, not the last one's toggles).
+              key={`${sha}:${entry.status}:${entry.old_path ?? ''}:${entry.path}`}
               session={session}
               sha={sha}
               entry={entry}
