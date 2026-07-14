@@ -13,6 +13,10 @@ export const uiStateSnapshotSchema = z.looseObject({
   editor_tabs: z.array(z.object({ session: sessionId, path: z.string() })).default([]),
   layout: z.looseObject({}).default({}),
   explorer_pin: sessionId.nullable().default(null),
+  /** The editor tab focused when the client last had one open. */
+  active_editor_tab: z.object({ session: sessionId, path: z.string() }).nullable().default(null),
+  /** Whether the file explorer panel is expanded. */
+  explorer_open: z.boolean().default(true),
 });
 export type UiStateSnapshot = z.infer<typeof uiStateSnapshotSchema>;
 

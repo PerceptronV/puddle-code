@@ -420,6 +420,8 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
       editor_tabs: [],
       layout: { sidebar: 24 },
       explorer_pin: null,
+      active_editor_tab: null,
+      explorer_open: true,
     };
     await c.json('PUT', `/api/projects/${project.id}/state?profile=${profile.id}`, {
       ui_state: snapshotA,

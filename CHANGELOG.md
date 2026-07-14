@@ -10,6 +10,7 @@ Past releases: see docs/changelogs/.
 ## [Unreleased]
 
 ### Added
+- Shared protocol schemas for worktree file browsing/editing and git inspection (tree/file/upload/download, diff/file-at/log/show), a session `git_summary` field, and two new `ui_state` keys (`active_editor_tab`, `explorer_open`) — groundwork for the Phase 3 file explorer and history view; no endpoints yet. Protocol minor bump 4.1 → 4.2.
 - The session sidebar shows which account powers each session — the account's label in mono under the branch, so sessions spread across several logged-in accounts are told apart at a glance (no schema change; `sessions.account_id` was already there).
 - macOS terminals get native line editing: ⌘←/⌘→ jump to line start/end and ⌘⌫/⌘⌦ delete to line start/end, translated to the readline control codes (`Ctrl-A`/`Ctrl-E`/`Ctrl-U`/`Ctrl-K`) the PTY expects. Previously the browser swallowed ⌘←/⌘→ as history navigation. Mac-only, so the Meta/Super key is untouched on other platforms.
 - A `renamed` WS message broadcasts session title changes (UI renames and agent self-naming via `.puddle/session-title`) to every attached client, so the sidebar updates live without a refetch. Protocol minor bump 4.0 → 4.1.

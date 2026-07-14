@@ -30,6 +30,20 @@ export const sessionSchema = z.object({
   last_activity_at: isoTimestamp.nullable(),
   /** Computed on read: the worktree dir is gone; the session can only be archived. */
   worktree_missing: z.boolean().optional(),
+  /**
+   * Ahead/behind counts vs. the base branch plus a dirty-file count. Optional:
+   * older daemons omit it, and it is computed only on the single-session GET
+   * (`GET /api/sessions/:id`) — never on the list endpoint, where it would be
+   * too expensive to compute per row.
+   */
+  git_summary: z
+    .object({
+      ahead: z.number().int().nonnegative(),
+      behind: z.number().int().nonnegative(),
+      dirty_files: z.number().int().nonnegative(),
+    })
+    .nullable()
+    .optional(),
 });
 export type Session = z.infer<typeof sessionSchema>;
 

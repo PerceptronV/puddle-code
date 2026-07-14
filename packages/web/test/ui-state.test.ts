@@ -10,6 +10,8 @@ describe('uiStateSnapshotSchema', () => {
       editor_tabs: [],
       layout: {},
       explorer_pin: null,
+      active_editor_tab: null,
+      explorer_open: true,
     });
   });
 
