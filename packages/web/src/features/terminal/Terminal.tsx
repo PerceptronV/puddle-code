@@ -6,6 +6,7 @@ import { useClientSettings } from '../../lib/client-settings';
 import { onThemeChange, xtermThemeFromCss } from '../../lib/theme';
 import { cn } from '../../lib/utils';
 import { wsManager } from '../../lib/ws';
+import { interceptImagePaste } from './paste-image';
 
 export interface TerminalProps {
   /** PTY stream: a session uuid or `login-<accountId>`. */
@@ -50,6 +51,16 @@ export function Terminal({ stream, term = 'agent', className, onExit }: Terminal
     });
     const stdin = xterm.onData((data) => wsManager.write(stream, term, data));
 
+    // Capture phase so this runs before xterm's own paste handler (which only
+    // reads text/plain and would drop a clipboard image on the floor).
+    const onPaste = (e: ClipboardEvent) => {
+      if (interceptImagePaste(e, stream, term)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    container.addEventListener('paste', onPaste, true);
+
     const observer = new ResizeObserver(() => {
       if (container.clientWidth === 0) return; // hidden tab — keep the last size
       fit.fit();
@@ -62,6 +73,7 @@ export function Terminal({ stream, term = 'agent', className, onExit }: Terminal
     });
 
     return () => {
+      container.removeEventListener('paste', onPaste, true);
       observer.disconnect();
       unsubscribeTheme();
       stdin.dispose();

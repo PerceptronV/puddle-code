@@ -25,6 +25,7 @@ import { projectRoutes } from './routes/projects.js';
 import { repoRoutes } from './routes/repos.js';
 import { sessionRoutes } from './routes/sessions.js';
 import { versionRoutes } from './routes/version.js';
+import { worktreeRoutes } from './routes/worktrees.js';
 import { staticAssets } from './static.js';
 
 /** Everything the REST + WS surface needs; `api` is absent in narrow tests. */
@@ -78,6 +79,7 @@ export function buildApp(deps: AppDeps): Hono {
     app.route('/api/sessions', sessionRoutes(api));
     app.route('/api/config', configRoutes(api));
     app.route('/api/fs', fsRoutes());
+    app.route('/api/worktrees', worktreeRoutes(api));
     app.route('/api/host', hostRoutes());
   }
 

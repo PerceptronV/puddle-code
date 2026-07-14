@@ -1,0 +1,99 @@
+import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { Hono } from 'hono';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { pasteImageResponseSchema } from '@puddle/shared';
+import { worktreeRoutes } from '../src/http/routes/worktrees.js';
+import { ApiError } from '../src/http/errors.js';
+import { fixture, waitFor, type Fixture } from './helpers/daemon-fixtures.js';
+
+// A real (tiny) PNG so the round trip is byte-exact.
+const PNG_BYTES = Buffer.from(
+  '89504e470d0a1a0a0000000d4948445200000001000000010806000000' +
+    '1f15c4890000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082',
+  'hex',
+);
+
+let fx: Fixture;
+let sessionId: string;
+let app: Hono;
+
+beforeAll(async () => {
+  fx = fixture();
+  const session = await fx.service.create({
+    project_id: fx.ids.project,
+    account_id: fx.ids.account,
+    title: 'paste target',
+  });
+  sessionId = session.id;
+  await waitFor(() => fx.service.get(sessionId).status !== 'starting');
+
+  app = new Hono();
+  app.onError((err, c) =>
+    err instanceof ApiError
+      ? c.json({ error: { code: err.code, message: err.message } }, err.status as 400)
+      : c.json({ error: { code: 'internal', message: String(err) } }, 500),
+  );
+  app.route('/api/worktrees', worktreeRoutes({ sessions: fx.stores.sessions }));
+});
+
+afterAll(async () => {
+  await fx.service.kill(sessionId).catch(() => undefined); // reap the fake agent's PTY
+});
+
+function paste(sid: string, body: unknown) {
+  return app.request(`/api/worktrees/${sid}/paste`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+describe('POST /api/worktrees/:sid/paste', () => {
+  it('writes the image into .puddle/pastes/ and returns its relative path', async () => {
+    const res = await paste(sessionId, {
+      mime: 'image/png',
+      data: PNG_BYTES.toString('base64'),
+    });
+    expect(res.status).toBe(201);
+    const { path } = pasteImageResponseSchema.parse(await res.json());
+    expect(path).toMatch(/^\.puddle\/pastes\/paste-\d{8}T\d{6}-[0-9a-f]{6}\.png$/);
+
+    const worktree = fx.service.get(sessionId).worktree_path;
+    expect(readFileSync(join(worktree, path))).toEqual(PNG_BYTES);
+  });
+
+  it('maps each accepted mime to its extension', async () => {
+    const res = await paste(sessionId, {
+      mime: 'image/jpeg',
+      data: PNG_BYTES.toString('base64'),
+    });
+    const { path } = pasteImageResponseSchema.parse(await res.json());
+    expect(path.endsWith('.jpg')).toBe(true);
+  });
+
+  it('rejects an unsupported mime', async () => {
+    const res = await paste(sessionId, { mime: 'image/tiff', data: 'aGk=' });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects data that decodes to nothing', async () => {
+    const res = await paste(sessionId, { mime: 'image/png', data: '@@@@' });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe('invalid_image');
+  });
+
+  it('404s an unknown session', async () => {
+    const res = await paste('no-such-session', { mime: 'image/png', data: 'aGk=' });
+    expect(res.status).toBe(404);
+  });
+
+  it('409s when the worktree is gone from disk', async () => {
+    const worktree = fx.service.get(sessionId).worktree_path;
+    rmSync(worktree, { recursive: true, force: true });
+    expect(existsSync(worktree)).toBe(false);
+    const res = await paste(sessionId, { mime: 'image/png', data: 'aGk=' });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe('worktree_missing');
+  });
+});

@@ -11,4 +11,5 @@ export * from './api/repos.js';
 export * from './api/sessions.js';
 export * from './api/projects.js';
 export * from './api/project-state.js';
+export * from './api/worktrees.js';
 export * from './ws/messages.js';
