@@ -1,6 +1,25 @@
+/**
+ * `useUiState` (use-ui-state.ts) is a React hook, and this repo has neither
+ * jsdom nor a React test renderer as a dependency (verified: `test: { name:
+ * 'web' }` runs under plain Node, and adding `@testing-library/react` or
+ * `react-test-renderer` would be a new dependency, against this task's
+ * constraint) — so the hook's `useEffect`/`useState` plumbing itself cannot
+ * be exercised here, the same limitation `buffer-store.test.ts` documents
+ * for monaco. What CAN be — and is, below — is every decision the hook
+ * delegates to pure, DOM-free functions: `workingSetKey` (the sessionStorage
+ * key format) and `parseWorkingSet` (sessionStorage-beats-server-fetch,
+ * fresh-window-falls-back-to-server, and corrupt-JSON/corrupt-schema both
+ * fall back and are the caller's cue to clear the key — see the hook's own
+ * doc comment for how it wires these together). The debounced-PUT behaviour
+ * itself is unchanged and already covered by the `debounce` suite below;
+ * `update`'s synchronous `sessionStorage.setItem` is a single line reviewed
+ * by inspection. Full hook-level integration (mount, reload, multi-window)
+ * remains a manual check — see the task report.
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { uiStateSnapshotSchema } from '@puddle/shared';
 import { debounce } from '../src/lib/debounce';
+import { parseWorkingSet, workingSetKey } from '../src/features/workspace/use-ui-state';
 
 describe('uiStateSnapshotSchema', () => {
   it('fills defaults for an empty snapshot', () => {
@@ -79,5 +98,47 @@ describe('debounce', () => {
     d.cancel();
     vi.advanceTimersByTime(5000);
     expect(fn).not.toHaveBeenCalled();
+  });
+});
+
+describe('workingSetKey', () => {
+  it('namespaces by project and profile', () => {
+    expect(workingSetKey('proj-1', 'profile-1')).toBe('puddle.ws.proj-1.profile-1');
+  });
+
+  it('differs for different projects or profiles', () => {
+    expect(workingSetKey('proj-1', 'profile-1')).not.toBe(workingSetKey('proj-2', 'profile-1'));
+    expect(workingSetKey('proj-1', 'profile-1')).not.toBe(workingSetKey('proj-1', 'profile-2'));
+  });
+});
+
+describe('parseWorkingSet', () => {
+  it('is "absent" for a fresh window (no sessionStorage entry) — falls back to the server fetch', () => {
+    expect(parseWorkingSet(null)).toEqual({ kind: 'absent' });
+  });
+
+  it('is "present" and restores a valid stored snapshot — beats the server fetch', () => {
+    const id = '3b241101-e2bb-4255-8caf-4136c566a962';
+    const snapshot = uiStateSnapshotSchema.parse({ session_tabs: [id], active_session: id });
+    const result = parseWorkingSet(JSON.stringify(snapshot));
+    expect(result).toEqual({ kind: 'present', snapshot });
+  });
+
+  it('fills schema defaults for a present-but-partial stored snapshot', () => {
+    const result = parseWorkingSet(JSON.stringify({ explorer_open: false }));
+    expect(result).toEqual({
+      kind: 'present',
+      snapshot: uiStateSnapshotSchema.parse({ explorer_open: false }),
+    });
+  });
+
+  it('is "corrupt" for invalid JSON — the caller clears the key and falls back to the server', () => {
+    expect(parseWorkingSet('{not json')).toEqual({ kind: 'corrupt' });
+  });
+
+  it('is "corrupt" for JSON that fails schema validation', () => {
+    expect(parseWorkingSet(JSON.stringify({ session_tabs: ['not-a-uuid'] }))).toEqual({
+      kind: 'corrupt',
+    });
   });
 });

@@ -10,6 +10,7 @@ Past releases: see docs/changelogs/.
 ## [Unreleased]
 
 ### Added
+- Unsaved editor buffers are cached in the browser's IndexedDB (`puddle-drafts`, debounced ~1 s) so they survive a full browser restart — per-browser only, never synced through the daemon (SPEC §11).
 - Worktree file API family: browse a session's worktree one directory level at a time, read/write text files with optimistic-concurrency guards, drag-in multipart upload, and single-file/zipped-directory download (`GET/PUT /api/worktrees/:sid/tree|file`, `POST /upload`, `GET /download`) — the daemon half of the Phase 3 file explorer, path-contained against traversal and symlink escape.
 - Read-only git inspection API for a session's worktree — diff against the merge-base or an explicit commit, a file's content at any ref, paginated commit log, and a single commit's detail (`GET /api/worktrees/:sid/diff|file-at|log|show/:sha`) — plus an `ahead`/`behind`/`dirty_files` `git_summary` on `GET /api/sessions/:id`, the daemon half of the Phase 3 history view.
 - Shared protocol schemas for worktree file browsing/editing and git inspection (tree/file/upload/download, diff/file-at/log/show), a session `git_summary` field, and two new `ui_state` keys (`active_editor_tab`, `explorer_open`) — groundwork for the Phase 3 file explorer and history view; no endpoints yet. Protocol minor bump 4.1 → 4.2.
@@ -20,6 +21,7 @@ Past releases: see docs/changelogs/.
 - Archiving can delete the session's branch along with the worktree: an opt-in toggle in the archive dialog (`delete_branch` on `POST /api/sessions/:id/archive`, `git branch -D`) — a branch never pushed to origin leaves no trace. Only for branches puddle created; project archive never deletes branches. Protocol minor bump 3.3 → 3.4 (with `separate_branch` above).
 
 ### Changed
+- Workspace layout is now per-window as well as per-profile: each window keeps its own working set in `sessionStorage`, restored exactly on that window's reload, while the `(project, profile)` server row remains only the seed for fresh windows/browsers/machines (debounced, last-writer-wins) — multiple windows on the same project no longer clobber each other's live layout (SPEC §11).
 - The profile panel anchors under its top-right trigger as a borderless popover instead of opening as a centred dialog (⌘K and settings stay centred); new owned `popover` primitive in `components/ui/`.
 - Terminal panes gain a proper left gutter: the wrapper padding is now `pl-4`/`pr-2` so the left inset visually matches the right, where xterm already reserves a gutter (scrollbar space plus the sub-cell fit leftover) — text no longer hugs the sidebar divider.
 - Session branch names are human-readable at every fallback: an explicit Branch field in the new-session modal (prefilled preview from the title), else the title slug, else the first words of the prompt, else a memorable word pair (`quiet-tarn`) — never a uuid fragment. The base-branch picker now labels branches owned by puddle sessions with their session title (`GET /api/repos/:id/branches` returns `{name, is_session, session_title}` — protocol major bump 2.1 → 3.0).

@@ -479,14 +479,17 @@ Each profile owns an editable collection of plaintext prompts — the snippets y
 
 **Projects are the workspace unit.** A project belongs to one profile and one repo, and owns a set of sessions plus persisted UI state. The dashboard (`/`) lists the current profile's projects only — there is no cross-profile view (decision 2026-07-13); day-to-day work happens inside `/project/:id`. New sessions are always created within a project, which supplies the profile, repo, and defaults — so the new-session modal reduces to account → base branch (with a ticked-by-default "use separate branch" toggle; unticking hides the Branch field and warns — §4 Relaxed isolation) → title/prompt. Session branches default to `<branch_prefix><slug(title)>` (or the session's short id when untitled); on collision with any existing branch, append `-2`, `-3`, … — never fail session creation on a branch-name clash.
 
-**Reload semantics.** Workspace layout is persisted server-side in `project_states`, keyed by `(project, profile)` — layout follows identity, not browser (decision 2026-07-13; replaces the earlier client-uuid keying so layouts survive tunnel-port and machine changes). The snapshot JSON holds: open session tabs and their order, per-session view state (pane split, open editor `(session, path)` tabs, explorer pin), active session, layout sizes. The UI writes it debounced (~2 s) on change; on opening a project, the UI restores the _current profile's_ snapshot — reattaching terminals (log-tail replay makes them look untouched), reopening editor tabs, and surfacing any `interrupted` sessions with a resume button. Consequences:
+**Reload semantics.** Workspace layout is a two-tier model (decision 2026-07-14, refining the earlier single-row design below). Each **window** keeps its own working set in `sessionStorage` (`puddle.ws.<project>.<profile>`) — reloading that window restores it exactly, independent of any other open window, and windows never live-sync while open. The `(project, profile)` row in `project_states` — layout follows identity, not browser (decision 2026-07-13; replaces the earlier client-uuid keying so layouts survive tunnel-port and machine changes) — remains the **seed for fresh windows**: a window with no sessionStorage entry yet (a new tab, a fresh browser, a different machine or tunnel port) loads from that row instead. The snapshot JSON holds: open session tabs and their order, per-session view state (pane split, open editor `(session, path)` tabs, explorer pin), active session, layout sizes. Consequences:
 
-- Reload, browser restart, a different machine, or a different tunnel port → your exact layout, because the row is keyed to your profile, not to any browser state.
-- Any number of your own windows on the same project share the row; the last one to change layout wins the stored snapshot (they do not live-sync while open).
+- A window's own reload or browser restart restores that exact window, from its own sessionStorage entry.
+- A brand-new window has no sessionStorage entry, so it seeds from the project's most recently written server row.
+- Any number of your own windows on the same project each keep an independent working set — they never live-sync — and the server row is updated debounced (~2 s), last-writer-wins, by whichever window changed layout most recently; this only affects what a _future_ fresh window seeds from, never an already-open one.
 - A coworker peeking works under their own profile: they seed from the project's most recent snapshot but their rearrangements are written to _their_ row — they can never clobber yours.
 - Stale rows (not updated in 90 days) are garbage-collected by the daemon.
 
 Transient focus (which tab is active right now) stays local to the window.
+
+Dirty editor buffers persist independently in the browser's IndexedDB (`puddle-drafts`, debounced ~1 s) and are restored on reload; drafts are per-browser only, never synced through the daemon or between windows.
 
 Any profile can view/attach any session (trusted shared box); the UI shows the owning profile on each project and session card.
 
