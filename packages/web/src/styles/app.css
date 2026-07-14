@@ -30,6 +30,8 @@
   --color-interrupted: var(--status-interrupted);
   --color-idle: var(--status-idle);
   --color-selection: var(--selection);
+  --color-diff-added: var(--diff-added);
+  --color-diff-removed: var(--diff-removed);
   --color-transparent: transparent;
   --color-current: currentColor;
 

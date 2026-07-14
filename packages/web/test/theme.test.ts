@@ -39,4 +39,10 @@ describe('monacoThemeFrom', () => {
     expect(theme.colors['editor.background']).toBe('#7dadff');
     expect(theme.colors['focusBorder']).toBe('#7dadff');
   });
+
+  it('maps the diff tokens onto the diff editor insert/remove backgrounds', () => {
+    const theme = monacoThemeFrom(echo, 'dark');
+    expect(theme.colors['diffEditor.insertedTextBackground']).toBe('<--diff-added>');
+    expect(theme.colors['diffEditor.removedTextBackground']).toBe('<--diff-removed>');
+  });
 });

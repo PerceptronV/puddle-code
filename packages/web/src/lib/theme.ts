@@ -169,6 +169,8 @@ export function monacoThemeFrom(read: TokenReader, theme: ThemeName): EditorThem
       'editorWidget.background': read('--bg-elevated'),
       'editorWidget.border': read('--border'),
       focusBorder: read('--focus-ring'),
+      'diffEditor.insertedTextBackground': read('--diff-added'),
+      'diffEditor.removedTextBackground': read('--diff-removed'),
     },
   };
 }

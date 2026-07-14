@@ -30,6 +30,8 @@ const REQUIRED_SEMANTIC_TOKENS = [
   '--status-interrupted',
   '--status-idle',
   '--selection',
+  '--diff-added',
+  '--diff-removed',
   '--ansi-black',
   '--ansi-red',
   '--ansi-green',
