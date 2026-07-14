@@ -9,7 +9,7 @@ import type { Duplex } from 'node:stream';
 import type { SessionStore } from '../db/stores/sessions.js';
 import type { PortScanner } from '../ports/scanner.js';
 import { isLocalHostHeader, isLocalOrigin } from '../security/middleware.js';
-import { isProxyAuthorised, stripProxyCookie } from './auth.js';
+import { isProxyAuthorised, stripProxyCookie, stripTokenParam } from './auth.js';
 import type { ProxySocketTracker } from './sockets.js';
 
 const PROXY_UPGRADE = /^\/proxy\/([^/]+)\/(\d+)(?:\/.*)?$/;
@@ -36,7 +36,11 @@ export function attachProxyUpgrade(server: HttpServer, deps: UpgradeProxyDeps): 
     if (!match) return; // not ours — the library's listener owns /ws and the rest
     const [, sid, port] = match;
     if (sid === undefined || port === undefined) return;
-    void forward(req, socket, head, sid, port, deps);
+    // A rejection (e.g. the scanner's lsof exec failing) must not leave the
+    // claimed client socket dangling in limbo — refuse and destroy it.
+    forward(req, socket, head, sid, port, deps).catch(() =>
+      refuse(socket, 500, 'Internal Server Error'),
+    );
   };
   server.on('upgrade', handler);
   return () => server.off('upgrade', handler);
@@ -104,13 +108,17 @@ async function forward(
 
   // Upstream refused the upgrade (a plain HTTP response): relay it and close.
   upstreamReq.on('response', (upstreamRes) => {
+    // Node's parser has already de-chunked the body we pipe, so re-advertising
+    // `transfer-encoding: chunked` would corrupt the framing — drop it and mark
+    // the connection closing so body-end is unambiguous (pipe ends the socket).
+    const headers = { ...upstreamRes.headers };
+    delete headers['transfer-encoding'];
+    headers.connection = 'close';
     socket.write(
-      statusHead(
-        upstreamRes.statusCode ?? 502,
-        upstreamRes.statusMessage ?? '',
-        upstreamRes.headers,
-      ),
+      statusHead(upstreamRes.statusCode ?? 502, upstreamRes.statusMessage ?? '', headers),
     );
+    // Tracked so destroyAll() covers a refusal body still streaming at shutdown.
+    deps.tracker.add(socket, upstreamRes.socket ?? socket);
     upstreamRes.pipe(socket);
   });
   upstreamReq.on('error', () => refuse(socket, 502, 'Bad Gateway'));
@@ -122,12 +130,20 @@ function pathnameOf(url: string | undefined): string {
   return new URL(url ?? '/', 'http://localhost').pathname;
 }
 
-/** RAW substring after `/proxy/<sid>/<port>`, incl. query, undecoded; defaults to `/`. */
+/**
+ * RAW substring after `/proxy/<sid>/<port>`, incl. query, undecoded; defaults
+ * to `/`. The `puddle_token` query pair is spliced out (other pairs untouched):
+ * it is the documented auth mechanism for Node WS clients, so it is routinely
+ * present here, and the daemon token must never reach the upstream's logs.
+ */
 function pathAfterPrefix(url: string | undefined, sid: string, port: string): string {
   const raw = url ?? '/';
   const prefix = `/proxy/${sid}/${port}`;
   const rest = raw.startsWith(prefix) ? raw.slice(prefix.length) : '';
-  return rest.length > 0 ? rest : '/';
+  const q = rest.indexOf('?');
+  if (q === -1) return rest.length > 0 ? rest : '/';
+  const path = q > 0 ? rest.slice(0, q) : '/'; // a bare `?query` still needs a path
+  return path + stripTokenParam(rest.slice(q));
 }
 
 /** Copy handshake headers, strip only `puddle_proxy`, rewrite Host, keep the rest. */

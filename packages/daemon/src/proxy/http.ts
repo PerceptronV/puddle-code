@@ -4,7 +4,7 @@ import { Hono, type Context } from 'hono';
 import type { SessionStore } from '../db/stores/sessions.js';
 import type { PortScanner } from '../ports/scanner.js';
 import { ApiError } from '../http/errors.js';
-import { stripProxyCookie } from './auth.js';
+import { stripProxyCookie, stripTokenParam } from './auth.js';
 
 /**
  * Hop-by-hop headers (RFC 7230 §6.1): meaningful only for a single transport
@@ -63,9 +63,11 @@ async function handle(c: Context, deps: HttpProxyDeps): Promise<Response> {
   }
 
   // Bare form (no trailing slash) → 302 to the slash form so the proxied app's
-  // relative asset URLs resolve under `/proxy/<sid>/<port>/`. Query preserved.
+  // relative asset URLs resolve under `/proxy/<sid>/<port>/`. Query preserved,
+  // minus any stray puddle_token (auth was already satisfied to get here — keep
+  // the daemon token out of the address bar).
   if (parsed.pathname === prefix) {
-    return c.body(null, 302, { Location: `${prefix}/${parsed.search}` });
+    return c.body(null, 302, { Location: `${prefix}/${stripTokenParam(parsed.search)}` });
   }
 
   // Validation order: session exists → port is a valid integer → port is
@@ -85,9 +87,12 @@ async function handle(c: Context, deps: HttpProxyDeps): Promise<Response> {
   }
 
   // RAW path after the prefix, textually sliced — never decoded/re-encoded, so
-  // percent-escapes reach the upstream byte-for-byte. Query preserved verbatim.
+  // percent-escapes reach the upstream byte-for-byte. Query preserved verbatim
+  // EXCEPT the puddle_token pair: it can coexist with cookie/bearer auth (the
+  // 302 strip only fires on the query-auth GET branch) and the daemon token
+  // must never land in an upstream server's access logs.
   const rawPath = parsed.pathname.slice(prefix.length) || '/';
-  const targetPath = rawPath + parsed.search;
+  const targetPath = rawPath + stripTokenParam(parsed.search);
 
   const outHeaders = forwardHeaders(c.req.header(), portNum);
   const method = c.req.method;

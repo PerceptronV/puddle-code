@@ -214,6 +214,45 @@ describe('tier-2 proxy: auth + HTTP forwarding', () => {
       expect(res.headers.location).toBe(`/proxy/${SID}/${upstreamPort}/?x=1`);
     });
 
+    it('splices puddle_token out of the forwarded query when auth came from elsewhere', async () => {
+      // Cookie auth satisfies proxyAuth BEFORE the query check, so no 302 fires
+      // and the stray param would otherwise reach the upstream's access logs.
+      const res = await raw(
+        proxyPort,
+        'GET',
+        `/proxy/${SID}/${upstreamPort}/a?x=%20y&puddle_token=${TOKEN}&b=2`,
+        { cookie: `puddle_proxy=${TOKEN}` },
+      );
+      expect(res.status).toBe(200);
+      // Only the token pair is gone; the other pairs are byte-intact (no re-encode).
+      expect(res.headers['x-seen-url']).toBe('/a?x=%20y&b=2');
+    });
+
+    it('splices puddle_token out on the inline non-GET query-auth path', async () => {
+      const res = await raw(
+        proxyPort,
+        'POST',
+        `/proxy/${SID}/${upstreamPort}/p?puddle_token=${TOKEN}`,
+        { 'content-type': 'text/plain' },
+        'x',
+      );
+      expect(res.status).toBe(200);
+      expect(JSON.parse(res.body).url).toBe('/p'); // sole pair removed → bare path
+    });
+
+    it('strips puddle_token from the bare-form redirect Location', async () => {
+      const res = await raw(
+        proxyPort,
+        'GET',
+        `/proxy/${SID}/${upstreamPort}?puddle_token=${TOKEN}&x=1`,
+        {
+          cookie: `puddle_proxy=${TOKEN}`,
+        },
+      );
+      expect(res.status).toBe(302);
+      expect(res.headers.location).toBe(`/proxy/${SID}/${upstreamPort}/?x=1`);
+    });
+
     it('rewrites Host, strips only puddle_proxy from Cookie, drops hop-by-hop', async () => {
       const res = await raw(proxyPort, 'GET', `/proxy/${SID}/${upstreamPort}/`, {
         ...bearer,

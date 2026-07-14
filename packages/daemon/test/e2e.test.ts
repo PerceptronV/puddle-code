@@ -637,8 +637,13 @@ describe('tier-2 reverse proxy end-to-end (Phase 5 acceptance)', () => {
   // without shell-quoting a one-liner. Prints `PORT <n>` once listening.
   const LISTENER = [
     "const http=require('http'),crypto=require('crypto');",
-    "const s=http.createServer((req,res)=>{res.writeHead(200,{'content-type':'text/plain'});res.end('proxy-ok')});",
+    "let lastUpgradeUrl='none';",
+    'const s=http.createServer((req,res)=>{',
+    "  res.writeHead(200,{'content-type':'text/plain'});",
+    "  res.end(req.url.startsWith('/seen-upgrade')?lastUpgradeUrl:'proxy-ok');",
+    '});',
     "s.on('upgrade',(req,sock)=>{",
+    '  lastUpgradeUrl=req.url;',
     "  const key=req.headers['sec-websocket-key'];",
     "  const accept=crypto.createHash('sha1').update(key+'258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');",
     "  sock.write('HTTP/1.1 101 Switching Protocols\\r\\nUpgrade: websocket\\r\\nConnection: Upgrade\\r\\nSec-WebSocket-Accept: '+accept+'\\r\\n\\r\\n');",
@@ -741,6 +746,16 @@ describe('tier-2 reverse proxy end-to-end (Phase 5 acceptance)', () => {
     });
     expect(first).toBe('hi');
     ws.close();
+
+    // The daemon token authed the handshake via ?puddle_token= — the upstream's
+    // request line must NOT have seen it (it would land in dev-server logs).
+    const seen = await fetch(
+      `http://127.0.0.1:${daemon.port}/proxy/${sid}/${listenerPort}/seen-upgrade`,
+      { headers: { cookie: `puddle_proxy=${daemon.token}` } },
+    );
+    const seenUrl = await seen.text();
+    expect(seenUrl).toBe('/'); // the sole query pair was spliced out
+    expect(seenUrl).not.toContain('puddle_token');
   });
 
   it('stops cleanly while a proxied WebSocket is still open', async () => {

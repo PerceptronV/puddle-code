@@ -62,6 +62,25 @@ export function stripProxyCookie(cookieHeader: string | undefined): string | und
 }
 
 /**
+ * Remove ONLY the `puddle_token` pair from a raw query string (with or without
+ * its leading `?`), returning the rest byte-intact — pairs are spliced out
+ * textually, never decoded/re-encoded. The token is the full-RCE daemon
+ * credential: it must NEVER reach an upstream dev server's request line (and
+ * thus its access logs), regardless of which credential satisfied auth.
+ * Returns `''` when nothing remains.
+ */
+export function stripTokenParam(search: string): string {
+  if (!search.includes('puddle_token')) return search; // common case: byte-identical
+  const raw = search.startsWith('?') ? search.slice(1) : search;
+  const kept = raw.split('&').filter((pair) => {
+    const eq = pair.indexOf('=');
+    const name = eq === -1 ? pair : pair.slice(0, eq);
+    return name !== 'puddle_token';
+  });
+  return kept.length > 0 ? `?${kept.join('&')}` : '';
+}
+
+/**
  * Plain predicate for the raw WS upgrade handler, which has no Hono context.
  * Accepts bearer, cookie, or the `puddle_token` query param (a browser WS
  * client sends the page's cookie automatically; Node test clients use the
