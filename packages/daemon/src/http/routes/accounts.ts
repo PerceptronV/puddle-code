@@ -106,6 +106,8 @@ export function accountRoutes(deps: AccountRouteDeps): Hono {
     .patch('/:id', async (c) => {
       const id = idParam(c);
       const body = await parseBody(c, patchAccountRequestSchema);
+      // A rename touches only the label; the config dir stays put (keychain).
+      if (body.label !== undefined) deps.accounts.setLabel(id, body.label);
       if (body.skip_permissions_default !== undefined) {
         deps.accounts.setSkipPermissionsDefault(id, body.skip_permissions_default);
       }

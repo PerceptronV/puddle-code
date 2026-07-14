@@ -88,4 +88,26 @@ export class AccountStore {
       .run(skip ? 1 : 0, id);
     return this.get(id);
   }
+
+  /**
+   * Rename the account's display label. Only the label moves — `config_dir`
+   * stays put, so the agent keeps using the same on-disk config (and macOS
+   * keychain OAuth, bound to that path, is untouched). The UNIQUE(profile_id,
+   * agent_type, label) index makes a colliding rename a 409, not a silent clash.
+   */
+  setLabel(id: number, label: string): Account {
+    this.get(id); // 404 before a silent no-op UPDATE
+    try {
+      this.db.prepare(`UPDATE accounts SET label = ? WHERE id = ?`).run(label, id);
+    } catch (e) {
+      if (e instanceof Error && e.message.includes('UNIQUE')) {
+        throw ApiError.conflict(
+          'account_exists',
+          `an account named '${label}' already exists for this agent in this profile`,
+        );
+      }
+      throw e;
+    }
+    return this.get(id);
+  }
 }

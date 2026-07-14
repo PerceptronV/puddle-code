@@ -25,8 +25,13 @@ export const createAccountRequestSchema = z.object({
   import_dir: z.string().min(1).optional(),
 });
 
-/** Account toggles: the permissions-gate opt-in (SPEC §11). */
+/**
+ * Account edits: the display `label` and the permissions-gate opt-in (SPEC
+ * §11). Renaming changes only the label — the account's `config_dir` keeps its
+ * original path so macOS keychain OAuth (bound to that path) is not broken.
+ */
 export const patchAccountRequestSchema = z.object({
+  label: fsSafeName.optional(),
   skip_permissions_default: z.boolean().optional(),
 });
 
