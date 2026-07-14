@@ -14,6 +14,7 @@ import {
 import { LoginDialog } from '../accounts/LoginDialog';
 import { useNewSession } from '../shell/new-session-context';
 import { profileStore, useCurrentProfileId } from './profile-store';
+import { UsageBar } from './UsageBar';
 
 /** Compact token count: 12345 → 12.3k, 4200000 → 4.2M. */
 function compact(n: number): string {
@@ -82,6 +83,11 @@ function AccountRow({
             {compact(usage.data.agent_usage.output_tokens)} out ·{' '}
             {compact(usage.data.agent_usage.cache_read_input_tokens)} cached ·{' '}
             {usage.data.agent_usage.message_count} msgs
+          </span>
+        )}
+        {usage.data?.live_usage?.context_used_percentage != null && (
+          <span className="mt-1 block">
+            <UsageBar label="context" percentage={usage.data.live_usage.context_used_percentage} />
           </span>
         )}
       </span>

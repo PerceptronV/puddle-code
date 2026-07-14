@@ -8,6 +8,16 @@ export interface AgentUsage {
   message_count: number;
 }
 
+export interface LiveUsage {
+  /** ISO timestamp of the most recent capture. */
+  captured_at: string;
+  /** Current conversation's context-window fill, 0..100, or null pre-turn. */
+  context_used_percentage: number | null;
+  /** Session cost in USD (≈0 for subscription accounts — unmetered). */
+  total_cost_usd: number | null;
+  model: string | null;
+}
+
 export interface LaunchOpts {
   worktreePath: string;
   /** Puddle session uuid (adapters with presetSessionId reuse it as the agent's id). */
@@ -79,6 +89,17 @@ export interface AgentAdapter {
    * null when the agent keeps no readable record.
    */
   usageStats?(account: Account): AgentUsage | null;
+  /**
+   * The most recent live-session usage the agent emitted (context-window
+   * fill, cost). Credential-free; null when nothing has been captured yet.
+   */
+  liveUsage?(account: Account): LiveUsage | null;
+  /**
+   * Idempotent config-dir upkeep run once per account at boot — brings older
+   * accounts up to date with setup that newer versions seed at create time
+   * (e.g. the live-usage status line). Must never overwrite user data.
+   */
+  reconcileConfigDir?(account: Account): void;
   launchArgs(opts: LaunchOpts): string[];
   resumeArgs(ref: string, opts: LaunchOpts): string[];
   loginArgs(): string[];

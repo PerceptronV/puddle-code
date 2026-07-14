@@ -55,5 +55,14 @@ export const accountUsageSchema = z.looseObject({
       message_count: z.number().int().nonnegative(),
     })
     .nullable(),
+  /** Live per-session signal (credential-free): context-window fill and cost. */
+  live_usage: z
+    .object({
+      captured_at: isoTimestamp,
+      context_used_percentage: z.number().nullable(),
+      total_cost_usd: z.number().nullable(),
+      model: z.string().nullable(),
+    })
+    .nullable(),
 });
 export type AccountUsage = z.infer<typeof accountUsageSchema>;

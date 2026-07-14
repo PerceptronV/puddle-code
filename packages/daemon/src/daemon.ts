@@ -97,6 +97,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     accounts.list().map(async (account) => {
       try {
         const adapter = adapters.get(account.agent_type);
+        adapter.reconcileConfigDir?.(account); // idempotent upkeep (e.g. status line)
         if (adapter.checkLoggedIn) {
           accounts.setLoggedIn(account.id, await adapter.checkLoggedIn(account));
         }

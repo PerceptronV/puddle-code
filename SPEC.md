@@ -282,7 +282,7 @@ Accounts   GET  /api/accounts?profile=…      POST /api/accounts {profile_id, a
            PATCH /api/accounts/:id {skip_permissions_default}   # the account opt-in half of the §11 gate
            DELETE /api/accounts/:id                  # 409 while any of its sessions is non-archived; removes the config dir (logs the account out)
            POST /api/accounts/:id/login      # spawns interactive login PTY; UI attaches like a session
-           GET  /api/accounts/:id/usage      # session counts + last activity (puddle) plus best-effort agent token totals ({input,output,cache}_tokens, message_count) or null
+           GET  /api/accounts/:id/usage      # session counts + last activity (puddle); best-effort agent token totals; live_usage (context-window fill %, cost) captured via the agent status line — all nullable
 Repos      GET  /api/fs/dirs?prefix=…        # directory autocomplete for repo registration (dirs only, dotdirs included, is_git flag)
            GET  /api/repos                   POST /api/repos {path, default_base_branch?, onboarding_notes?, fetch_enabled?}
            PATCH /api/repos/:id               # same fields (onboarding_notes also updatable via the .puddle marker-file sync — §4)

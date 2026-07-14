@@ -11,6 +11,7 @@ import { cp } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { AgentAdapter, AgentUsage } from './adapter.js';
+import { installStatusLine, readLiveUsage } from './claude-statusline.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -85,6 +86,7 @@ export const claudeCode: AgentAdapter = {
         mode: 0o600,
       },
     );
+    installStatusLine(configDir); // live-usage capture (context fill, cost)
   },
 
   async importConfigDir(sourceDir, configDir) {
@@ -104,6 +106,7 @@ export const claudeCode: AgentAdapter = {
     }
     state['hasCompletedOnboarding'] = true;
     writeFileSync(stateFile, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
+    installStatusLine(configDir); // respects an imported account's own statusLine
   },
 
   async checkLoggedIn(account) {
@@ -175,6 +178,16 @@ export const claudeCode: AgentAdapter = {
       }
     }
     return sawFile ? total : null;
+  },
+
+  liveUsage(account) {
+    return readLiveUsage(account.config_dir);
+  },
+
+  reconcileConfigDir(account) {
+    // Bring pre-existing accounts up to the current setup (idempotent, and
+    // it never clobbers a status line the account already defines).
+    if (existsSync(account.config_dir)) installStatusLine(account.config_dir);
   },
 
   launchArgs(opts) {
