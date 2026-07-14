@@ -72,7 +72,7 @@ export function NewSessionDialog({
   const branchPrefix = profiles.data?.find((p) => p.id === profileId)?.branch_prefix ?? '';
   // No title/prompt to slugify any more — left blank the daemon names the
   // branch itself, so the placeholder shows that fallback verbatim.
-  const branchPreview = `${branchPrefix}auto — a random word pair`;
+  const branchPreview = `leave blank for auto`;
   const account = accounts.data?.find((a) => String(a.id) === accountId);
   const gateOpen = settings.data?.allowSkipPermissions === true;
   const showSkipToggle = gateOpen && account?.skip_permissions_default === true;
@@ -219,7 +219,7 @@ export function NewSessionDialog({
           {separateBranch && (
             <div className="flex flex-col gap-1.5">
               <div className="flex items-baseline gap-2">
-                <Label htmlFor="session-branch">Branch</Label>
+                <Label htmlFor="session-branch">Branch name</Label>
                 <span className="text-xs text-fg-muted">optional</span>
               </div>
               <Input
