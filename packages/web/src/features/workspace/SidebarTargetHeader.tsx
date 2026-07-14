@@ -1,4 +1,4 @@
-import { ChevronDown, Pin, PinOff } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import type { Session } from '@puddle/shared';
 import {
   DropdownMenu,
@@ -6,22 +6,23 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
-import type { ExplorerTarget } from './use-explorer-target';
+import type { ExplorerTarget } from '../explorer/use-explorer-target';
 
 /**
- * Compact explorer header (SPEC §8): the bound worktree's branch (falling
- * back to its title, then its id), a pin toggle, and a dropdown for pinning
- * any of the project's other sessions by hand. Unpinning resumes
- * follow-the-active-session (`useExplorerTarget` handles the re-derivation).
+ * The left sidebar's bound-worktree header (SPEC §8), shown under the icon row
+ * for every navigator (Files, Changes, Search) now that the pin applies across
+ * all of them: it names the bound worktree's branch and offers a dropdown to
+ * pin any other project worktree by hand. The pin *toggle* itself lives in the
+ * icon row (`NavigatorSidebar`); picking a worktree here pins it directly.
  */
-export function ExplorerHeader({
+export function SidebarTargetHeader({
   sessions,
   target,
 }: {
   sessions: Session[];
   target: ExplorerTarget;
 }) {
-  const { session, pinned, pin, unpin } = target;
+  const { session, pin } = target;
   const pickable = sessions.filter((s) => s.status !== 'archived');
 
   return (
@@ -29,29 +30,15 @@ export function ExplorerHeader({
       <span className="min-w-0 flex-1 truncate font-mono text-xs text-fg-secondary">
         {session ? session.branch || session.title || session.id.slice(0, 8) : 'No worktree'}
       </span>
-      <button
-        type="button"
-        aria-pressed={pinned}
-        disabled={!session}
-        onClick={() => {
-          if (pinned) unpin();
-          else if (session) pin(session.id);
-        }}
-        title={pinned ? 'Unpin — follow the active session' : 'Pin the explorer to this worktree'}
-        className="rounded-sm p-1 text-fg-muted transition-colors hover:bg-elevated hover:text-fg disabled:pointer-events-none disabled:opacity-40"
-      >
-        {pinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
-        <span className="sr-only">{pinned ? 'Unpin explorer' : 'Pin explorer'}</span>
-      </button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            title="Pin a different worktree"
+            title="Bind a different worktree"
             className="rounded-sm p-1 text-fg-muted transition-colors hover:bg-elevated hover:text-fg"
           >
             <ChevronDown className="size-3.5" />
-            <span className="sr-only">Choose a worktree to pin</span>
+            <span className="sr-only">Choose a worktree</span>
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">

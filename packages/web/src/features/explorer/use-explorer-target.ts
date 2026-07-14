@@ -2,7 +2,7 @@ import type { Session } from '@puddle/shared';
 import type { UiStateHandle } from '../workspace/use-ui-state';
 
 export interface ExplorerTarget {
-  /** The worktree the explorer is bound to; null when nothing qualifies. */
+  /** The worktree the whole left sidebar is bound to; null when nothing qualifies. */
   session: Session | null;
   /** Whether `session` is locked via `explorer_pin`, as opposed to following the active tab. */
   pinned: boolean;
@@ -11,12 +11,13 @@ export interface ExplorerTarget {
 }
 
 /**
- * Resolves the worktree the file explorer shows (SPEC §8): the session
- * named by `explorer_pin` in the ui-state snapshot, if it still exists and
- * isn't archived; otherwise the active session tab; otherwise nothing.
- * `pin`/`unpin` only write the ui-state key — the binding itself re-derives
- * from the snapshot on every render, so unpinning immediately resumes
- * follow-the-active-session with no extra state to reconcile.
+ * Resolves the worktree the whole left sidebar is bound to (SPEC §8): the
+ * session named by `explorer_pin` in the ui-state snapshot, if it still exists
+ * and isn't archived; otherwise the active session tab; otherwise nothing. The
+ * pin applies across every navigator — Files, Changes, and Search all follow
+ * this one binding. `pin`/`unpin` only write the ui-state key; the binding
+ * re-derives from the snapshot on every render, so unpinning immediately
+ * resumes follow-the-active-session with no extra state to reconcile.
  */
 export function useExplorerTarget(
   sessions: Session[],

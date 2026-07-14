@@ -18,7 +18,12 @@ import {
   type RevealTarget,
 } from './editor-context';
 import { layoutForPanels } from './panel-layout';
-import { CollapsedSidebarRail, NavigatorSidebar, type SidebarMode } from './NavigatorSidebar';
+import {
+  CollapsedSidebarRail,
+  NavigatorSidebar,
+  normalizeSidebarMode,
+  type SidebarMode,
+} from './NavigatorSidebar';
 import { NewSessionDialog } from './NewSessionDialog';
 import { PortsStrip } from '../ports/PortsStrip';
 import { CollapsedSessionsRail, SessionSidebar } from './SessionSidebar';
@@ -195,28 +200,34 @@ function WorkspaceInner() {
   );
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
-  // Files keeps its own pin (`explorerTarget`); Diff and History follow the
-  // active session (the agent tab in focus) — SPEC §8.
-  const explorerTarget = useExplorerTarget(sessions, activeSessionId, uiState);
+  // The whole left sidebar binds to one worktree: the pinned session if any,
+  // otherwise the active session tab. Files, Changes, and Search all follow it
+  // (SPEC §8, pin-across-tabs).
+  const sidebarTarget = useExplorerTarget(sessions, activeSessionId, uiState);
+  const targetSession = sidebarTarget.session;
   const editorTabs = uiState.snapshot.editor_tabs;
-  const sidebarMode: SidebarMode = uiState.snapshot.sidebar_mode;
+  const sidebarMode: SidebarMode = normalizeSidebarMode(uiState.snapshot.sidebar_mode);
   const sidebarCollapsed = uiState.snapshot.sidebar_collapsed;
   const sessionsCollapsed = uiState.snapshot.sessions_collapsed;
 
-  // Highlight the Diff navigator entry whose diff tab is the active one.
+  // Highlight the Changes navigator entry whose uncommitted-diff tab is active.
   const activeTab = uiState.snapshot.active_editor_tab;
   const activeDiffPath =
-    activeTab?.kind === 'diff' && activeSession && activeTab.session === activeSession.id
+    activeTab?.kind === 'diff' && targetSession && activeTab.session === targetSession.id
       ? activeTab.path
       : null;
 
-  // A diff / commit-file navigator click opens its content as a centre-editor
-  // tab against the active session's worktree (openEditorTab dedupes/focuses).
+  // A changes / commit-file / search-result click opens its content as a
+  // centre-editor tab against the BOUND worktree (openEditorTab dedupes).
   const openDiff = (path: string) => {
-    if (activeSession) openEditorTab({ kind: 'diff', session: activeSession.id, path });
+    if (targetSession) openEditorTab({ kind: 'diff', session: targetSession.id, path });
   };
   const openCommitFile = (path: string, sha: string) => {
-    if (activeSession) openEditorTab({ kind: 'commit', session: activeSession.id, path, sha });
+    if (targetSession) openEditorTab({ kind: 'commit', session: targetSession.id, path, sha });
+  };
+  const openSearchFile = (path: string, line?: number) => {
+    if (targetSession)
+      openFile(targetSession.id, path, line !== undefined ? { line, column: 1 } : undefined);
   };
 
   // Both Groups (horizontal shell, nested vertical editor split) persist into
@@ -252,7 +263,10 @@ function WorkspaceInner() {
   return (
     <div className="flex h-full">
       {sidebarCollapsed && (
-        <CollapsedSidebarRail onExpand={() => uiState.update({ sidebar_collapsed: false })} />
+        <CollapsedSidebarRail
+          mode={sidebarMode}
+          onSelect={(m) => uiState.update({ sidebar_collapsed: false, sidebar_mode: m })}
+        />
       )}
       <Group
         orientation="horizontal"
@@ -268,12 +282,12 @@ function WorkspaceInner() {
                 onModeChange={(m) => uiState.update({ sidebar_mode: m })}
                 onCollapse={() => uiState.update({ sidebar_collapsed: true })}
                 sessions={sessions}
-                filesTarget={explorerTarget}
+                target={sidebarTarget}
                 onOpenFile={openFile}
-                activeSession={activeSession}
                 activeDiffPath={activeDiffPath}
                 onOpenDiff={openDiff}
                 onOpenCommitFile={openCommitFile}
+                onOpenSearchFile={openSearchFile}
               />
             </Panel>
             <Separator className="w-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
@@ -357,6 +371,8 @@ function WorkspaceInner() {
                 sessions={sessions}
                 accounts={accounts}
                 activeSessionId={activeSessionId}
+                order={uiState.snapshot.session_order}
+                onReorder={(ids) => uiState.update({ session_order: ids })}
                 onNewSession={() => openCreate('agent')}
                 onNewTerminal={() => openCreate('terminal')}
                 onCollapse={() => uiState.update({ sessions_collapsed: true })}

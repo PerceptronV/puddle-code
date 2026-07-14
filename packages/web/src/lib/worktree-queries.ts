@@ -6,6 +6,7 @@ import type {
   LogResponse,
   PutFileRequest,
   PutFileResponse,
+  SearchResponse,
   ShowCommitResponse,
   TreeResponse,
   UploadResponse,
@@ -60,13 +61,52 @@ export function useSaveWorktreeFile(sid: string | undefined) {
   });
 }
 
-export function useWorktreeDiff(sid: string | undefined, opts?: { enabled?: boolean }) {
+/**
+ * Changed files for a worktree, polled. `against` selects the comparison base:
+ * `base` (default) is the merge-base with the session's base branch — the whole
+ * of the session's work; `head` is the working tree vs. HEAD — just the
+ * uncommitted changes (the Changes navigator's top panel, SPEC §8).
+ */
+export function useWorktreeDiff(
+  sid: string | undefined,
+  opts?: { enabled?: boolean; against?: 'base' | 'head' },
+) {
+  const against = opts?.against ?? 'base';
   return useQuery({
-    queryKey: ['wt-diff', sid],
-    queryFn: () => api<DiffResponse>('GET', `/api/worktrees/${sid}/diff`),
+    queryKey: ['wt-diff', sid, against],
+    queryFn: () => api<DiffResponse>('GET', `/api/worktrees/${sid}/diff?against=${against}`),
     enabled: sid !== undefined && (opts?.enabled ?? true),
     refetchInterval: 10_000,
     refetchOnWindowFocus: true,
+  });
+}
+
+export interface SearchParams {
+  query: string;
+  regex: boolean;
+  caseSensitive: boolean;
+  wholeWord: boolean;
+}
+
+/**
+ * Filename + content search for a worktree (SPEC §8, Search navigator). Only
+ * runs once `query` is non-empty; `staleTime` is short because worktree files
+ * change under a running agent. The flags key the cache so toggling one
+ * refetches without clobbering the previous result.
+ */
+export function useWorktreeSearch(sid: string | undefined, params: SearchParams) {
+  const { query, regex, caseSensitive, wholeWord } = params;
+  return useQuery({
+    queryKey: ['wt-search', sid, query, regex, caseSensitive, wholeWord],
+    queryFn: () => {
+      const qs = new URLSearchParams({ q: query });
+      if (regex) qs.set('regex', '1');
+      if (caseSensitive) qs.set('case', '1');
+      if (wholeWord) qs.set('word', '1');
+      return api<SearchResponse>('GET', `/api/worktrees/${sid}/search?${qs.toString()}`);
+    },
+    enabled: sid !== undefined && query.length > 0,
+    staleTime: 2_000,
   });
 }
 

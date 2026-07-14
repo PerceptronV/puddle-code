@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router';
 import {
   FolderX,
@@ -15,6 +16,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/too
 import { cn } from '../../lib/utils';
 import { StatusDot } from '../status/StatusDot';
 import { SessionActions } from './SessionActions';
+import { orderSessions, reorderIds } from './session-order';
 
 /** A borderless icon button with a fill-shift hover (mirrors the left navigator). */
 function IconButton({
@@ -106,6 +108,8 @@ export function SessionSidebar({
   sessions,
   accounts,
   activeSessionId,
+  order,
+  onReorder,
   onNewSession,
   onNewTerminal,
   onCollapse,
@@ -115,13 +119,35 @@ export function SessionSidebar({
   sessions: Session[];
   accounts: Account[];
   activeSessionId: string | null;
+  /** Persisted user order (session ids); sessions absent from it sort to the top. */
+  order: string[];
+  onReorder: (ids: string[]) => void;
   onNewSession: () => void;
   onNewTerminal: () => void;
   onCollapse: () => void;
   onArchived: (id: string) => void;
 }) {
-  const visible = sessions.filter((s) => s.status !== 'archived');
+  const [dragging, setDragging] = useState<string | null>(null);
+  // The list is drag-reorderable; new sessions appear on top until dragged
+  // (SPEC §8). Order keys on session id, so any session type orders the same.
+  const visible = orderSessions(
+    sessions.filter((s) => s.status !== 'archived'),
+    order,
+  );
   const accountLabel = new Map(accounts.map((a) => [a.id, a.label]));
+
+  // Persist the FULL current order (visible ids with `id` moved before
+  // `before`), so previously-untracked sessions become tracked in one go.
+  const move = (id: string, before: string) => {
+    if (id === before) return;
+    onReorder(
+      reorderIds(
+        visible.map((s) => s.id),
+        id,
+        before,
+      ),
+    );
+  };
 
   return (
     <div className="flex h-full flex-col bg-surface">
@@ -143,8 +169,21 @@ export function SessionSidebar({
         )}
         <ul className="flex flex-col gap-0.5">
           {visible.map((session) => (
-            <li key={session.id}>
+            <li
+              key={session.id}
+              draggable
+              onDragStart={() => setDragging(session.id)}
+              onDragEnd={() => setDragging(null)}
+              onDragOver={(e) => {
+                e.preventDefault();
+                if (dragging && dragging !== session.id) move(dragging, session.id);
+              }}
+              className={cn('transition-opacity', dragging === session.id && 'opacity-50')}
+            >
               <Link
+                // draggable=false: let the <li> own the drag (reorder), not the
+                // anchor's native "drag the URL" behaviour. Click still navigates.
+                draggable={false}
                 to={`/project/${projectId}/session/${session.id}`}
                 className={cn(
                   'group flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-elevated',

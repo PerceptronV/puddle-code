@@ -41,6 +41,12 @@ export const commitSummarySchema = z.object({
   author_name: z.string(),
   author_email: z.string(),
   authored_at: isoTimestamp,
+  /**
+   * Parent shas, oldest-listed-first as git reports them. Optional: older
+   * daemons omit it and the history list renders without a graph. Drives the
+   * commit-graph lane layout in the unified Changes navigator (SPEC §8).
+   */
+  parents: z.array(z.string()).optional(),
 });
 export type CommitSummary = z.infer<typeof commitSummarySchema>;
 
