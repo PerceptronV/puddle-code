@@ -1,7 +1,15 @@
 import { useState } from 'react';
-import { Archive, ExternalLink, MoreHorizontal, Pencil, Play, Square } from 'lucide-react';
+import {
+  Archive,
+  ExternalLink,
+  MoreHorizontal,
+  Pencil,
+  Play,
+  Square,
+  UserRoundCog,
+} from 'lucide-react';
 import { toast } from 'sonner';
-import type { Session } from '@puddle/shared';
+import type { Account, Session } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import {
   Dialog,
@@ -16,6 +24,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
 import { Input } from '../../components/ui/input';
@@ -23,7 +34,14 @@ import { Label } from '../../components/ui/label';
 import { Switch } from '../../components/ui/switch';
 import { ApiError } from '../../lib/api';
 import { editorDeepLink, editorLinkHost } from '../../lib/editor-links';
-import { useArchiveSession, useRenameSession, useSessionAction } from '../../lib/queries';
+import {
+  useAccounts,
+  useArchiveSession,
+  useMigrateSession,
+  useRenameSession,
+  useSessionAction,
+} from '../../lib/queries';
+import { useCurrentProfileId } from '../profile/profile-store';
 
 const LIVE: Session['status'][] = ['starting', 'running', 'waiting_input'];
 const RESUMABLE: Session['status'][] = ['exited', 'interrupted'];
@@ -40,10 +58,23 @@ export function SessionActions({
   const kill = useSessionAction('kill');
   const archive = useArchiveSession();
   const rename = useRenameSession();
+  const migrate = useMigrateSession();
+  const profileId = useCurrentProfileId();
+  const accounts = useAccounts(profileId ?? undefined);
   const [confirm, setConfirm] = useState<'kill' | 'archive' | 'archive-force' | null>(null);
   const [deleteBranch, setDeleteBranch] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [newTitle, setNewTitle] = useState(session.title ?? '');
+  const [migrateTo, setMigrateTo] = useState<Account | null>(null);
+
+  // Migration targets: accounts of the same agent on this profile (SPEC §5).
+  // The current account is shown but disabled; a session with no other same-
+  // agent account has no target, so the whole submenu is hidden.
+  const sameAgent = (accounts.data ?? []).filter((a) => a.agent_type === session.agent_type);
+  const canMigrate =
+    !session.worktree_missing &&
+    session.status !== 'archived' &&
+    sameAgent.some((a) => a.id !== session.account_id);
 
   const doArchive = (force: boolean) => {
     archive.mutate(
@@ -96,6 +127,28 @@ export function SessionActions({
           <DropdownMenuItem onSelect={() => setRenaming(true)}>
             <Pencil /> Rename
           </DropdownMenuItem>
+          {canMigrate && (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <UserRoundCog /> Move to account…
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                {sameAgent.map((a) => {
+                  const current = a.id === session.account_id;
+                  return (
+                    <DropdownMenuItem
+                      key={a.id}
+                      disabled={current}
+                      onSelect={() => setMigrateTo(a)}
+                    >
+                      {a.label}
+                      {current && <span className="ml-auto text-fg-muted">current</span>}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          )}
           {!session.worktree_missing && (
             <>
               <DropdownMenuSeparator />
@@ -251,6 +304,44 @@ export function SessionActions({
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={migrateTo !== null} onOpenChange={(open) => !open && setMigrateTo(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move this session to {migrateTo?.label}?</DialogTitle>
+            <DialogDescription>
+              The conversation continues under that account&rsquo;s credentials. If the session is
+              running it is stopped first, then resumed on the new account.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setMigrateTo(null)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={migrate.isPending}
+              onClick={() => {
+                if (!migrateTo) return;
+                migrate.mutate(
+                  { sessionId: session.id, accountId: migrateTo.id },
+                  {
+                    onSuccess: () => {
+                      setMigrateTo(null);
+                      toast.success(`Moved to ${migrateTo.label}`);
+                    },
+                    onError: (e) => {
+                      setMigrateTo(null);
+                      toast.error(e.message);
+                    },
+                  },
+                );
+              }}
+            >
+              Move session
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

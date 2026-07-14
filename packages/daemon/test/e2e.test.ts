@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -778,4 +778,230 @@ describe('tier-2 reverse proxy end-to-end (Phase 5 acceptance)', () => {
       await new Promise((r) => setTimeout(r, 100));
     }
   }
+});
+
+/**
+ * Tier-1 migration end-to-end (Workstream S, SPEC §5/§6). Uses the
+ * share-capable `fakeAdapter({ share: true })` so a session's conversation is
+ * adopted into the profile's shared store and reachable from every account —
+ * migration is then "kill, repoint account_id, resume under the target's env"
+ * with no file move. A second daemon on the plain (share-less) adapter covers
+ * the `migration_unsupported` fall-through.
+ */
+describe('tier-1 migration end-to-end (Workstream S / SPEC §5)', () => {
+  const home = mkdtempSync(join(tmpdir(), 'puddle-e2e-migrate-'));
+  const repoPath = initRepo();
+  let daemon: RunningDaemon;
+  const stops: Array<() => Promise<void>> = [];
+
+  afterAll(async () => {
+    for (const stop of stops.reverse()) await stop().catch(() => undefined);
+  });
+
+  let profile: Profile;
+  let otherProfile: Profile;
+  let accA: Account; // logged-in
+  let accB: Account; // logged-in migration target
+  let accC: Account; // logged-in, but on a DIFFERENT profile
+  let accD: Account; // same profile, logged OUT
+  let project: Project;
+
+  /** Config dir marked logged-in for the share adapter (a creds.json marker). */
+  async function loggedInAccount(c: ReturnType<typeof client>, label: string): Promise<Account> {
+    const acc = await c.json<Account>('POST', '/api/accounts', {
+      profile_id: profile.id,
+      agent_type: 'fake',
+      label,
+    });
+    writeFileSync(join(acc.config_dir, 'creds.json'), '{}');
+    return acc;
+  }
+
+  /** Canonical store dir holds the conversation once adoption has run. */
+  function adopted(ref: string): boolean {
+    const root = daemon.paths.profileSessionsDir(profile.id, 'fake');
+    if (!existsSync(root)) return false;
+    return readdirSync(root).some((k) => existsSync(join(root, k, `${ref}.jsonl`)));
+  }
+
+  /** Create a session on `accountId`, wait for adoption, and kill it. */
+  async function killedSessionOn(
+    c: ReturnType<typeof client>,
+    accountId: number,
+    extra: Record<string, unknown> = {},
+  ): Promise<Session> {
+    const s = await c.json<Session>('POST', '/api/sessions', {
+      project_id: project.id,
+      account_id: accountId,
+      ...extra,
+    });
+    const viewer = wsClient(daemon);
+    await viewer.open;
+    viewer.send({ t: 'attach', session: s.id, term: 'agent', cols: 100, rows: 30 });
+    await waitFor(() => viewer.outputFor(s.id).includes('READY'));
+    viewer.close();
+    await pollUntil(async () => adopted(`fake-ref-${s.id}`));
+    await c.json<Session>('POST', `/api/sessions/${s.id}/kill`);
+    return s;
+  }
+
+  it('sets up two logged-in accounts on one profile (plus a cross-profile and a logged-out one)', async () => {
+    daemon = await startDaemon({
+      home,
+      port: 0,
+      adapters: [fakeAdapter({ share: true })],
+      assetsDir: null,
+      version: 'e2e-migrate',
+      statusQuietMs: 150,
+    });
+    stops.push(() => daemon.stop());
+    const c = client(daemon);
+    profile = await c.json<Profile>('POST', '/api/profiles', {
+      name: 'mover',
+      branch_prefix: 'm/',
+    });
+    accA = await loggedInAccount(c, 'account-a');
+    accB = await loggedInAccount(c, 'account-b');
+    accD = await c.json<Account>('POST', '/api/accounts', {
+      profile_id: profile.id,
+      agent_type: 'fake',
+      label: 'logged-out',
+    }); // no creds.json → the adapter reports it logged out
+
+    otherProfile = await c.json<Profile>('POST', '/api/profiles', { name: 'other' });
+    accC = await c.json<Account>('POST', '/api/accounts', {
+      profile_id: otherProfile.id,
+      agent_type: 'fake',
+      label: 'elsewhere',
+    });
+    writeFileSync(join(accC.config_dir, 'creds.json'), '{}');
+
+    const repo = await c.json<Repo>('POST', '/api/repos', { path: repoPath });
+    project = await c.json<Project>('POST', '/api/projects', {
+      profile_id: profile.id,
+      repo_id: repo.id,
+      name: 'migrate-demo',
+    });
+  });
+
+  it('migrates a killed session to another account and resumes the SAME conversation', async () => {
+    const c = client(daemon);
+    const s = await killedSessionOn(c, accA.id);
+    const ref = `fake-ref-${s.id}`;
+
+    const migrated = await c.json<Session>('POST', `/api/sessions/${s.id}/migrate`, {
+      account_id: accB.id,
+    });
+    expect(migrated.account_id).toBe(accB.id);
+    expect(migrated.status).toBe('running'); // resumed under B
+
+    // The fake agent, spawned under B's env, echoes its resume args: SAME ref,
+    // and skip off (B never opted into the gate).
+    const viewer = wsClient(daemon);
+    await viewer.open;
+    viewer.send({ t: 'attach', session: s.id, term: 'agent', cols: 100, rows: 30 });
+    await waitFor(() => viewer.outputFor(s.id).includes(`RESUME ref=${ref} skip=false`));
+    viewer.close();
+
+    // The conversation never left the canonical store — B reads it through its
+    // mirror symlink.
+    expect(adopted(ref)).toBe(true);
+    await c.json<Session>('POST', `/api/sessions/${s.id}/kill`);
+  });
+
+  it('rejects a cross-profile target, the current account, and a logged-out target', async () => {
+    const c = client(daemon);
+    const s = await killedSessionOn(c, accA.id);
+
+    const cross = await c.req('POST', `/api/sessions/${s.id}/migrate`, { account_id: accC.id });
+    expect(cross.status).toBe(400);
+    expect(((await cross.json()) as { error: { code: string } }).error.code).toBe(
+      'cross_profile_account',
+    );
+
+    const same = await c.req('POST', `/api/sessions/${s.id}/migrate`, { account_id: accA.id });
+    expect(same.status).toBe(400);
+    expect(((await same.json()) as { error: { code: string } }).error.code).toBe('same_account');
+
+    const out = await c.req('POST', `/api/sessions/${s.id}/migrate`, { account_id: accD.id });
+    expect(out.status).toBe(409);
+    expect(((await out.json()) as { error: { code: string } }).error.code).toBe(
+      'account_logged_out',
+    );
+  });
+
+  it('re-evaluates the permission gate on migrate — a closed gate strips skip', async () => {
+    const c = client(daemon);
+    // Open the gate for BOTH accounts, then create a skip-permissions session.
+    await c.json('PATCH', `/api/profiles/${profile.id}/settings`, { allowSkipPermissions: true });
+    await c.json<Account>('PATCH', `/api/accounts/${accA.id}`, { skip_permissions_default: true });
+    await c.json<Account>('PATCH', `/api/accounts/${accB.id}`, { skip_permissions_default: true });
+
+    const s = await killedSessionOn(c, accA.id, { skip_permissions: true });
+
+    // Close the gate before migrating: the resume under B must lose the flag.
+    await c.json('PATCH', `/api/profiles/${profile.id}/settings`, { allowSkipPermissions: false });
+    const migrated = await c.json<Session>('POST', `/api/sessions/${s.id}/migrate`, {
+      account_id: accB.id,
+    });
+    expect(migrated.skip_permissions).toBe(false);
+
+    const viewer = wsClient(daemon);
+    await viewer.open;
+    viewer.send({ t: 'attach', session: s.id, term: 'agent', cols: 100, rows: 30 });
+    await waitFor(() => viewer.outputFor(s.id).includes(`RESUME ref=fake-ref-${s.id} skip=false`));
+    // The downgrade is announced in the terminal (SPEC §11.4).
+    await waitFor(() => viewer.outputFor(s.id).includes('skip-permissions no longer permitted'));
+    expect(viewer.outputFor(s.id)).not.toContain(`RESUME ref=fake-ref-${s.id} skip=true`);
+    viewer.close();
+    await c.json<Session>('POST', `/api/sessions/${s.id}/kill`);
+  });
+
+  it('falls back to 409 migration_unsupported for a share-less agent', async () => {
+    // A second daemon on the PLAIN fake adapter: no conversationShare, no
+    // migrateSession → the conversation cannot follow the account.
+    const home2 = mkdtempSync(join(tmpdir(), 'puddle-e2e-migrate-plain-'));
+    const d2 = await startDaemon({
+      home: home2,
+      port: 0,
+      adapters: [fakeAdapter()],
+      assetsDir: null,
+      version: 'e2e-migrate-plain',
+      statusQuietMs: 150,
+    });
+    stops.push(() => d2.stop());
+    const c = client(d2);
+    const p = await c.json<Profile>('POST', '/api/profiles', { name: 'plain' });
+    const mk = async (label: string) => {
+      const a = await c.json<Account>('POST', '/api/accounts', {
+        profile_id: p.id,
+        agent_type: 'fake',
+        label,
+      });
+      writeFileSync(join(a.config_dir, 'creds.json'), '{}');
+      return a;
+    };
+    const a = await mk('a');
+    const b = await mk('b');
+    const repo = await c.json<Repo>('POST', '/api/repos', { path: initRepo() });
+    const proj = await c.json<Project>('POST', '/api/projects', {
+      profile_id: p.id,
+      repo_id: repo.id,
+      name: 'plain-demo',
+    });
+    const s = await c.json<Session>('POST', '/api/sessions', {
+      project_id: proj.id,
+      account_id: a.id,
+    });
+    await c.json<Session>('POST', `/api/sessions/${s.id}/kill`);
+
+    const res = await c.req('POST', `/api/sessions/${s.id}/migrate`, { account_id: b.id });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe(
+      'migration_unsupported',
+    );
+    // account_id stayed put — nothing moved.
+    const after = await c.json<Session>('GET', `/api/sessions/${s.id}`);
+    expect(after.account_id).toBe(a.id);
+  });
 });

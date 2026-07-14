@@ -66,6 +66,18 @@ export type CreateSessionRequest = z.infer<typeof createSessionRequestSchema>;
 
 export const patchSessionRequestSchema = z.object({ title: z.string().min(1).max(200) });
 
+/**
+ * `POST /api/sessions/:id/migrate` — tier-1 migration (SPEC §5, §6): move a
+ * session to another account of the SAME (profile, agent) and resume it there.
+ * The conversation itself does not move — it lives in the profile's shared
+ * conversation store, reachable from every account (§S) — so migration is
+ * "stop the process, repoint `account_id`, resume under the target's
+ * credentials". Returns the updated session detail; `skip_permissions` is
+ * re-evaluated for the target at resume time (§11.4).
+ */
+export const migrateSessionRequestSchema = z.object({ account_id: rowId });
+export type MigrateSessionRequest = z.infer<typeof migrateSessionRequestSchema>;
+
 /** Shared by session archive and project archive (kill/discard confirmation). */
 export const archiveRequestSchema = z.object({
   force: z.boolean().default(false),

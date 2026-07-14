@@ -247,33 +247,143 @@ export class SessionService extends EventEmitter {
       this.deps.events.record(id, 'session_ref_recovered', { ref });
     }
 
-    // Gate re-evaluated on every spawn-like action (SPEC §11.4): silent
-    // downgrade with a note in the terminal, never a hard failure.
-    const skip = this.evaluateSkip(project.profile_id, account, adapter, session.skip_permissions);
-    const downgraded = session.skip_permissions && !skip;
-    if (downgraded) this.deps.sessions.setSkipPermissions(id, false);
-
     const wasInterrupted = session.status === 'interrupted';
-    const args = adapter.resumeArgs(ref, {
-      worktreePath: session.worktree_path,
-      sessionId: id,
-      prompt: wasInterrupted ? INTERRUPTED_RESUME_NOTE : undefined,
-      skipPermissions: skip,
+    const { skip } = this.resumeSpawn(session, account, adapter, project.profile_id, ref, {
+      interruptedNote: wasInterrupted,
     });
-    this.spawnAgent(id, session.worktree_path, account, adapter, args, 'running');
-    this.transition(id, 'running');
-    if (downgraded) {
-      this.deps.ptys.note(
-        id,
-        'agent',
-        'skip-permissions no longer permitted; continuing with prompts on.',
-      );
-    }
     this.deps.events.record(id, 'resumed', {
       was_interrupted: wasInterrupted,
       skip_permissions: skip,
     });
     this.deps.onboarding.watch(id, project.repo_id, session.worktree_path);
+    return this.get(id);
+  }
+
+  /**
+   * Shared resume spawn path for `resume` and `migrate` (SPEC §11.4). The
+   * permissions gate is RE-EVALUATED for THIS account at THIS moment — a
+   * session that ran without prompts loses the flag if the gate has since
+   * closed or the target account never opted in; the resume continues with
+   * prompts on and says so in the terminal (a silent downgrade, never a hard
+   * failure). Spawns the agent under the account's env in the session's
+   * worktree, transitions to `running`, and returns the effective flags. The
+   * caller records the lifecycle event (`resumed` / `migrated`).
+   */
+  private resumeSpawn(
+    session: Session,
+    account: Account,
+    adapter: AgentAdapter,
+    profileId: string,
+    ref: string,
+    opts: { interruptedNote: boolean },
+  ): { skip: boolean; downgraded: boolean } {
+    const skip = this.evaluateSkip(profileId, account, adapter, session.skip_permissions);
+    const downgraded = session.skip_permissions && !skip;
+    if (downgraded) this.deps.sessions.setSkipPermissions(session.id, false);
+    const args = adapter.resumeArgs(ref, {
+      worktreePath: session.worktree_path,
+      sessionId: session.id,
+      prompt: opts.interruptedNote ? INTERRUPTED_RESUME_NOTE : undefined,
+      skipPermissions: skip,
+    });
+    this.spawnAgent(session.id, session.worktree_path, account, adapter, args, 'running');
+    this.transition(session.id, 'running');
+    if (downgraded) {
+      this.deps.ptys.note(
+        session.id,
+        'agent',
+        'skip-permissions no longer permitted; continuing with prompts on.',
+      );
+    }
+    return { skip, downgraded };
+  }
+
+  /**
+   * Tier-1 migration (SPEC §5): move a session to another account of the same
+   * (profile, agent) and resume it under that account's credentials. The
+   * conversation does NOT move — it lives in the profile's shared store,
+   * reachable from every account through its symlinks — so migration is
+   * "stop the process, repoint `account_id`, resume under B's env".
+   */
+  async migrate(id: string, targetAccountId: number): Promise<Session> {
+    const session = this.deps.sessions.get(id);
+    const project = this.deps.projects.get(session.project_id);
+    const target = this.deps.accounts.get(targetAccountId); // 404 if unknown
+    // Validations, in order (SPEC §5).
+    if (target.profile_id !== project.profile_id) {
+      throw ApiError.badRequest(
+        'cross_profile_account',
+        'the target account belongs to a different profile',
+      );
+    }
+    if (target.agent_type !== session.agent_type) {
+      throw ApiError.badRequest(
+        'agent_mismatch',
+        `the target account runs ${target.agent_type}, not ${session.agent_type}`,
+      );
+    }
+    if (target.id === session.account_id) {
+      throw ApiError.badRequest('same_account', 'the session already runs on this account');
+    }
+    // An archived session has no live worktree/process to carry over.
+    if (session.status === 'archived') {
+      throw ApiError.conflict('session_archived', 'an archived session cannot migrate');
+    }
+    const adapter = this.deps.adapters.get(session.agent_type);
+    // A live session is stopped first — usually it has already exited (credit
+    // exhaustion). kill() waits for the PTY to die before returning.
+    if (LIVE_STATUSES.includes(session.status)) await this.kill(id);
+    // The target must be logged in — the same probe create/resume use.
+    await this.assertLoggedIn(target, adapter);
+
+    const ref = session.agent_session_ref;
+    if (!ref) throw ApiError.conflict('no_session_ref', 'no agent session ref recorded');
+
+    // Conversation availability on the target, in fall-through order (SPEC §5):
+    // (a) readable through the shared store's symlink — no files move;
+    // (b) an agent without a shareable store copies its state across (rolled
+    //     back on a later failure per the adapter contract);
+    // (c) neither — the conversation cannot follow the account.
+    let rollback: (() => Promise<void>) | null = null;
+    if (adapter.conversationShare && adapter.hasConversation?.(ref, target)) {
+      // (a) — nothing to do; the target already reads the conversation.
+    } else if (adapter.migrateSession) {
+      const from = this.deps.accounts.get(session.account_id);
+      await adapter.migrateSession(ref, from, target, session.worktree_path);
+      rollback = async () => {
+        try {
+          await adapter.migrateSession!(ref, target, from, session.worktree_path);
+        } catch {
+          /* best-effort — the copied files are the caller's to reconcile */
+        }
+      };
+    } else {
+      throw ApiError.conflict(
+        'migration_unsupported',
+        `${adapter.displayName} cannot migrate this conversation to another account`,
+      );
+    }
+
+    const fromAccountId = session.account_id;
+    this.deps.sessions.setAccountId(id, target.id);
+    try {
+      this.resumeSpawn(session, target, adapter, project.profile_id, ref, {
+        interruptedNote: false,
+      });
+    } catch (e) {
+      // Path (b) rolls the copied files back and reverts the account (409).
+      // Path (a) leaves `account_id` on the target — the conversation is
+      // shared, so a plain retry resume recovers — and surfaces the error.
+      if (rollback) {
+        await rollback();
+        this.deps.sessions.setAccountId(id, fromAccountId);
+      }
+      throw e;
+    }
+    this.deps.events.record(id, 'migrated', {
+      from_account: fromAccountId,
+      to_account: target.id,
+    });
     return this.get(id);
   }
 

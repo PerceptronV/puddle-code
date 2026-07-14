@@ -265,6 +265,20 @@ export function useSessionAction(action: 'resume' | 'kill') {
   });
 }
 
+/**
+ * Tier-1 migration (SPEC §5/§6): move a session to another account of the same
+ * (profile, agent) and resume it there. The conversation stays in the shared
+ * store, so this only repoints `account_id` and resumes under the target.
+ */
+export function useMigrateSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sessionId, accountId }: { sessionId: string; accountId: number }) =>
+      api<Session>('POST', `/api/sessions/${sessionId}/migrate`, { account_id: accountId }),
+    onSuccess: (session) => invalidateSessions(qc, session),
+  });
+}
+
 export function useArchiveSession() {
   const qc = useQueryClient();
   return useMutation({

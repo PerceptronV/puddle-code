@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import {
   archiveRequestSchema,
   createSessionRequestSchema,
+  migrateSessionRequestSchema,
   patchSessionRequestSchema,
   sessionStatusSchema,
   type Session,
@@ -48,6 +49,10 @@ export function sessionRoutes(deps: { service: SessionService; scanner: PortScan
       return c.json(deps.service.rename(c.req.param('id'), body.title));
     })
     .post('/:id/resume', async (c) => c.json(await deps.service.resume(c.req.param('id'))))
+    .post('/:id/migrate', async (c) => {
+      const body = await parseBody(c, migrateSessionRequestSchema);
+      return c.json(await deps.service.migrate(c.req.param('id'), body.account_id));
+    })
     .post('/:id/kill', async (c) => c.json(await deps.service.kill(c.req.param('id'))))
     .post('/:id/archive', async (c) => {
       const body = await parseBody(c, archiveRequestSchema);

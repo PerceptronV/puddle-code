@@ -183,6 +183,13 @@ export class SessionStore {
     this.db.prepare(`UPDATE sessions SET agent_session_ref = ? WHERE id = ?`).run(ref, id);
   }
 
+  /** Repoint a session at another account (tier-1 migration, SPEC §5). */
+  setAccountId(id: string, accountId: number): void {
+    this.db
+      .prepare(`UPDATE sessions SET account_id = ?, updated_at = ? WHERE id = ?`)
+      .run(accountId, new Date().toISOString(), id);
+  }
+
   setTitle(id: string, title: string): void {
     this.db
       .prepare(`UPDATE sessions SET title = ?, updated_at = ? WHERE id = ?`)

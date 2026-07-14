@@ -1,11 +1,12 @@
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
-import { Check } from 'lucide-react';
+import { Check, ChevronRight } from 'lucide-react';
 import * as React from 'react';
 import { cn } from '../../lib/utils';
 import { menuHighlightRadix, menuRow } from './recipes';
 
 export const DropdownMenu = DropdownMenuPrimitive.Root;
 export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
+export const DropdownMenuSub = DropdownMenuPrimitive.Sub;
 
 export function DropdownMenuContent({
   className,
@@ -35,6 +36,44 @@ export function DropdownMenuItem({
       className={cn(menuRow, menuHighlightRadix, '[&_svg]:size-3.5', className)}
       {...props}
     />
+  );
+}
+
+export function DropdownMenuSubTrigger({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.SubTrigger>) {
+  return (
+    <DropdownMenuPrimitive.SubTrigger
+      className={cn(
+        menuRow,
+        menuHighlightRadix,
+        'data-[state=open]:bg-action data-[state=open]:text-action-ink [&_svg]:size-3.5',
+        className,
+      )}
+      {...props}
+    >
+      {children}
+      <ChevronRight className="ml-auto" />
+    </DropdownMenuPrimitive.SubTrigger>
+  );
+}
+
+export function DropdownMenuSubContent({
+  className,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
+  return (
+    <DropdownMenuPrimitive.Portal>
+      <DropdownMenuPrimitive.SubContent
+        className={cn(
+          'z-50 min-w-36 overflow-hidden rounded-md bg-elevated p-1 shadow-xl',
+          className,
+        )}
+        {...props}
+      />
+    </DropdownMenuPrimitive.Portal>
   );
 }
 
