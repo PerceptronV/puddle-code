@@ -23,16 +23,20 @@ function basename(path: string): string {
  * open tab and a session → branch lookup (SPEC §8: `api.ts — alice/fix-auth`
  * when the same basename is open from more than one worktree).
  *
- * Two distinct collision shapes:
+ * Two collision shapes, which COMPOSE (a basename can collide both ways at
+ * once):
  *  - Cross-session: same basename open under a different session (almost
- *    always a different worktree/branch) → suffix with that session's
- *    branch, which disambiguates.
+ *    always a different worktree/branch) → suffix with this tab's session
+ *    branch, which disambiguates the sessions.
  *  - Same-session: two different paths under ONE session happen to share a
  *    basename (e.g. `src/api.ts` and `lib/api.ts` both open in one tab
- *    strip). Both tabs share the same branch, so a branch suffix would be
- *    identical and wouldn't disambiguate — this case falls back to the full
- *    path instead, mirroring how editors show a parent directory when two
- *    same-named files are open side by side.
+ *    strip). Both tabs share the same branch, so a branch suffix alone
+ *    cannot disambiguate — the label body becomes the full path instead,
+ *    mirroring how editors show a parent directory when two same-named
+ *    files are open side by side.
+ * When both shapes apply (s1 has `src/api.ts` + `lib/api.ts` open while s2
+ * has `other/api.ts`), the s1 tabs get path AND branch —
+ * `src/api.ts — main` vs `lib/api.ts — main` — so every label stays unique.
  */
 export function editorTabLabel(
   path: string,
@@ -46,11 +50,12 @@ export function editorTabLabel(
   );
   if (collisions.length === 0) return base;
 
+  const sameSession = collisions.some((tab) => tab.session === session);
   const crossSession = collisions.some((tab) => tab.session !== session);
-  if (!crossSession) return path; // same-session collision — see doc comment
 
-  const branch = sessionBranches.get(session);
-  return branch ? `${base} — ${branch}` : base;
+  const body = sameSession ? path : base;
+  const branch = crossSession ? sessionBranches.get(session) : undefined;
+  return branch ? `${body} — ${branch}` : body;
 }
 
 interface SavedState {

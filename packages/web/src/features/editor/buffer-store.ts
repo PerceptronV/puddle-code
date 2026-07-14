@@ -133,7 +133,11 @@ export function replaceContent(key: string, content: string, mtimeMs: number): v
   const entry = entries.get(key);
   if (!entry) return;
   const { model } = entry;
-  model.pushEditOperations([], [{ range: model.getFullModelRange(), text: content }], () => null);
+  // Identical content ⇒ skip the edit (it would only push a no-op undo
+  // entry); still re-baseline saved state, since the disk mtime moved.
+  if (model.getValue() !== content) {
+    model.pushEditOperations([], [{ range: model.getFullModelRange(), text: content }], () => null);
+  }
   savedState.mark(key, model.getAlternativeVersionId(), mtimeMs);
   notify(key);
 }
@@ -151,5 +155,8 @@ export function disposeModel(key: string): void {
 
 /** Every key with unsaved edits, across all open buffers. */
 export function listDirty(): string[] {
-  return [...entries.keys()].filter((key) => isDirty(key));
+  const currentVersions = new Map(
+    [...entries].map(([key, entry]) => [key, entry.model.getAlternativeVersionId()]),
+  );
+  return savedState.dirtyKeys(currentVersions);
 }

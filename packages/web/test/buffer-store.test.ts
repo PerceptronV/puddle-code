@@ -56,6 +56,37 @@ describe('editorTabLabel', () => {
     expect(editorTabLabel('lib/api.ts', 's1', tabs, branches)).toBe('lib/api.ts');
   });
 
+  it('combines path and branch when a basename collides both within and across sessions', () => {
+    // Three-way matrix: s1 has two same-basename paths open AND s2 has a
+    // third. The two s1 tabs need path-based disambiguation (branch alone is
+    // identical for both) and the branch suffix still distinguishes their
+    // session from s2's.
+    const tabs: OpenTab[] = [
+      { session: 's1', path: 'src/api.ts' },
+      { session: 's1', path: 'lib/api.ts' },
+      { session: 's2', path: 'other/api.ts' },
+    ];
+    const branches = new Map([
+      ['s1', 'main'],
+      ['s2', 'alice/fix-auth'],
+    ]);
+    expect(editorTabLabel('src/api.ts', 's1', tabs, branches)).toBe('src/api.ts — main');
+    expect(editorTabLabel('lib/api.ts', 's1', tabs, branches)).toBe('lib/api.ts — main');
+    // s2's tab has no same-session collision: basename + branch suffices.
+    expect(editorTabLabel('other/api.ts', 's2', tabs, branches)).toBe('api.ts — alice/fix-auth');
+  });
+
+  it('falls back to the path alone in a three-way collision when the branch is unknown', () => {
+    const tabs: OpenTab[] = [
+      { session: 's1', path: 'src/api.ts' },
+      { session: 's1', path: 'lib/api.ts' },
+      { session: 's2', path: 'other/api.ts' },
+    ];
+    const branches = new Map([['s2', 'alice/fix-auth']]); // s1 unknown
+    expect(editorTabLabel('src/api.ts', 's1', tabs, branches)).toBe('src/api.ts');
+    expect(editorTabLabel('lib/api.ts', 's1', tabs, branches)).toBe('lib/api.ts');
+  });
+
   it('ignores the tab itself when scanning for collisions', () => {
     // Only one (session, path) tab open — must not "collide" with itself.
     const tabs: OpenTab[] = [{ session: 's1', path: 'src/api.ts' }];
