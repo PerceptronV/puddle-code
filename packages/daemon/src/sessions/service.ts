@@ -185,6 +185,12 @@ export class SessionService extends EventEmitter {
     }
     const ref = session.agent_session_ref;
     if (!ref) throw ApiError.conflict('no_session_ref', 'no agent session ref recorded');
+    if (adapter.hasConversation && !adapter.hasConversation(ref, account)) {
+      throw ApiError.conflict(
+        'conversation_missing',
+        `${adapter.displayName} has no conversation ${ref} for this account; the session cannot resume`,
+      );
+    }
 
     // Gate re-evaluated on every spawn-like action (SPEC §11.4): silent
     // downgrade with a note in the terminal, never a hard failure.

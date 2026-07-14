@@ -37,12 +37,13 @@ export function accountRoutes(deps: AccountRouteDeps): Hono {
     })
     .post('/', async (c) => {
       const body = await parseBody(c, createAccountRequestSchema);
-      deps.adapters.get(body.agent_type); // 400 for unknown agent types
+      const adapter = deps.adapters.get(body.agent_type); // 400 for unknown agent types
       const profile = deps.profiles.get(body.profile_id);
       // Always a fresh directory — puddle NEVER reuses agent config dirs it
       // did not create (SPEC §2).
       const configDir = deps.paths.accountConfigDir(profile.name, body.agent_type, body.label);
       mkdirSync(configDir, { recursive: true, mode: 0o700 });
+      adapter.prepareConfigDir?.(configDir);
       const account = deps.accounts.create({
         profile_id: body.profile_id,
         agent_type: body.agent_type,

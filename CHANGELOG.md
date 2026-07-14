@@ -24,6 +24,10 @@ Past releases: see docs/changelogs/.
 - UI restyled to the `HUMANS.md` design brief: borderless components with fill-shift hover/active feedback, pointer cursors on everything interactive, boxless token and profile start screens, and floating layers separated by shadow rather than outline. `CLAUDE.md` now tells every agent to read `HUMANS.md` first.
 - The web bundle is code-split: dashboard, workspace, settings, and the xterm terminal each load as their own chunk.
 
+### Fixed
+- claude-code sessions no longer demand a second sign-in: `claude auth login` authenticates but leaves first-run onboarding incomplete, so the first session ran Claude Code's setup wizard (theme → sign-in again → trust) — which also discarded the preset `--session-id` and broke resume. Fresh account config dirs are now seeded with onboarding marked complete (new adapter hook `prepareConfigDir`, verified against Claude Code 2.1.208).
+- Resuming a session whose conversation file is gone (or was never recorded under the expected id) returns a clear 409 `conversation_missing` instead of spawning an agent that immediately dies with "No conversation found" (new adapter hook `hasConversation`).
+
 ### Added
 - Protocol versioning (SPEC §6): `@puddle/shared` is formally the protocol package, exporting `PROTOCOL_VERSION` (currently 1.0) with bump rules in `packages/shared/PROTOCOL.md`; `GET /api/version` now returns `{version, protocol: {major, minor}}` so the Phase 6 CLI handshake can negotiate against any daemon deployed from now on. Same protocol major ⇒ compatible both ways; a major mismatch will trigger an automatic daemon update.
 - Initial scaffold: monorepo (shared / daemon / web / cli), CI, SPEC.md, CLAUDE.md, changelog conventions.

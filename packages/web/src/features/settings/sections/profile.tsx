@@ -55,7 +55,7 @@ export function ProfileSection() {
   return (
     <div>
       <SectionTitle>Profile</SectionTitle>
-      <SettingRow label="Name" description="Fixed in v1 — it names directories under ~/.puddle.">
+      <SettingRow label="Name">
         <span className="font-mono text-sm text-fg-secondary">{profile.name}</span>
       </SettingRow>
       <SettingRow

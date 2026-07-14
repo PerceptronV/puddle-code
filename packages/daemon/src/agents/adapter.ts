@@ -33,6 +33,18 @@ export interface AgentAdapter {
   };
   /** Config-dir isolation env for a puddle-managed account. */
   env(account: Account): Record<string, string>;
+  /**
+   * One-off seeding of a freshly created (empty) config dir, before any
+   * login or session runs — e.g. marking the agent's first-run onboarding
+   * complete so it never hijacks a puddle session with its setup wizard.
+   */
+  prepareConfigDir?(configDir: string): void;
+  /**
+   * Whether the account still holds the conversation `ref` resumes. Checked
+   * before spawning a resume so a missing conversation is a clean 409, not
+   * an agent process dying on launch.
+   */
+  hasConversation?(ref: string, account: Account): boolean;
   launchArgs(opts: LaunchOpts): string[];
   resumeArgs(ref: string, opts: LaunchOpts): string[];
   loginArgs(): string[];
