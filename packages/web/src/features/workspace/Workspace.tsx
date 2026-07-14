@@ -13,6 +13,7 @@ import { useNewSession } from '../shell/new-session-context';
 import { LazyTerminal } from '../terminal/LazyTerminal';
 import { LazyDiffView } from '../diff/LazyDiffView';
 import { LazyEditorPane } from '../editor/LazyEditorPane';
+import { LazyHistoryView } from '../history/LazyHistoryView';
 import { addOrFocusTab, type EditorTab } from '../editor/editor-tabs';
 import { EditorProvider, useEditorHandler, type RevealTarget } from './editor-context';
 import { layoutForPanels } from './panel-layout';
@@ -310,7 +311,9 @@ function WorkspaceInner() {
                   </div>
                 )}
                 {activeSessionId && view === 'history' && (
-                  <div className="absolute inset-0">{/* Task 3.6d: history view */}</div>
+                  <div className="absolute inset-0">
+                    <LazyHistoryView session={activeSessionId} />
+                  </div>
                 )}
                 {!activeSessionId && (
                   <div className="flex h-full flex-col items-center justify-center gap-2 text-center">

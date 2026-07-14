@@ -9,8 +9,12 @@ import { bufferKey, releaseModel, retainModel } from '../editor/buffer-store';
 import { monaco, THEME_NAME } from '../editor/monaco-setup';
 import { useEditorBuffer } from '../editor/use-editor-buffer';
 
-/** A muted one-line note filling the section body (loading, binary, errors). */
-function Note({ children }: { children: ReactNode }) {
+/**
+ * A muted one-line note filling the section body (loading, binary, errors).
+ * Exported: the history view (Task 9) reuses it verbatim for its own
+ * loading/binary/error rows rather than redefining the same three lines.
+ */
+export function Note({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-full items-center justify-center px-4 text-xs text-fg-muted">
       {children}
@@ -47,8 +51,14 @@ function useRetainedModel(key: string, detach?: () => void): void {
   }, [key]);
 }
 
-/** A percent-encoded, uniquely-scheme'd URI for a throwaway read-only model. */
-function viewerUri(scheme: string, session: string, ref: string, path: string): string {
+/**
+ * A percent-encoded, uniquely-scheme'd URI for a throwaway read-only model.
+ * Exported so every read-only viewer — this file's `ReadOnlyView`/
+ * `DeletedContent`, and the history view's own private-model DiffEditor —
+ * derives its model identity the same way, keeping "one model per (session,
+ * ref, path)" a single rule rather than two copies that could drift.
+ */
+export function viewerUri(scheme: string, session: string, ref: string, path: string): string {
   const segments = path.split('/').map(encodeURIComponent).join('/');
   return `${scheme}://${encodeURIComponent(session)}/${encodeURIComponent(ref)}/${segments}`;
 }
@@ -93,8 +103,13 @@ export function ReadOnlyView({
   );
 }
 
-/** `deleted`: the base content, read-only, with a "Deleted" note. */
-function DeletedContent({
+/**
+ * `deleted`: the base content, read-only, with a "Deleted" note. `against` is
+ * just a ref string, so the history view (Task 9) reuses this unchanged for
+ * a `sha^` original rather than a working-tree base — the read-only
+ * semantics are identical either way.
+ */
+export function DeletedContent({
   session,
   against,
   path,
