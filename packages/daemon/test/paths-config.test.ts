@@ -1,8 +1,8 @@
 import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { loadConfig, saveConfig } from '../src/config.js';
+import { applyAgentPath, loadConfig, saveConfig } from '../src/config.js';
 import { ensureHome, resolvePaths } from '../src/paths.js';
 import { ensureToken } from '../src/security/token.js';
 
@@ -47,6 +47,7 @@ describe('daemon config', () => {
       logMaxBytes: 10 * 1024 * 1024,
       replayBytes: 256 * 1024,
       uiStateRetentionDays: 90,
+      agentPath: '~/.local/bin:~/bin:/opt/homebrew/bin:/usr/local/bin',
     });
     const onDisk = JSON.parse(readFileSync(paths.configFile, 'utf8'));
     expect(onDisk.port).toBe(7434);
@@ -101,5 +102,29 @@ describe('ensureToken', () => {
     expect(first).toMatch(/^[0-9a-f]{64}$/);
     expect(statSync(paths.tokenFile).mode & 0o777).toBe(0o600);
     expect(ensureToken(paths)).toBe(first);
+  });
+});
+
+describe('applyAgentPath', () => {
+  it('prepends tilde-expanded, de-duplicated dirs to PATH', () => {
+    const saved = process.env.PATH;
+    try {
+      process.env.PATH = '/usr/bin:/bin';
+      applyAgentPath('~/.local/bin:/usr/bin'); // /usr/bin already present → not duplicated
+      expect(process.env.PATH).toBe(`${homedir()}/.local/bin:/usr/bin:/bin`);
+    } finally {
+      process.env.PATH = saved;
+    }
+  });
+
+  it('is a no-op for an empty agentPath', () => {
+    const saved = process.env.PATH;
+    try {
+      process.env.PATH = '/usr/bin:/bin';
+      applyAgentPath('   ');
+      expect(process.env.PATH).toBe('/usr/bin:/bin');
+    } finally {
+      process.env.PATH = saved;
+    }
   });
 });

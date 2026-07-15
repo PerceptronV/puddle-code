@@ -169,6 +169,10 @@ Restart=always
 RestartSec=2
 WorkingDirectory=%h
 Environment=NODE_ENV=production
+# systemd gives a bare PATH; add the dirs agent CLIs install to (Claude Code's
+# ~/.local/bin) so the daemon can spawn them (SPEC §5). Also configurable at
+# runtime via config.json's agentPath.
+Environment=PATH=%h/.local/bin:%h/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin
 
 [Install]
 WantedBy=default.target
@@ -197,6 +201,10 @@ elif [ "$OS" = darwin ]; then
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>WorkingDirectory</key><string>$HOME</string>
+  <!-- launchd gives a bare PATH; add the dirs agent CLIs install to (Claude
+       Code's ~/.local/bin, Homebrew) so the daemon can spawn them (SPEC §5).
+       Also configurable at runtime via config.json's agentPath. -->
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>$HOME/.local/bin:$HOME/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
   <key>StandardOutPath</key><string>$HOME/.puddle/logs/puddled.out.log</string>
   <key>StandardErrorPath</key><string>$HOME/.puddle/logs/puddled.err.log</string>
 </dict></plist>

@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import {
   daemonConfigPatchSchema,
   daemonConfigSchema,
@@ -41,7 +42,31 @@ function write(paths: PuddlePaths, cfg: DaemonConfig): void {
 export function loadConfig(paths: PuddlePaths): DaemonConfig {
   const cfg = read(paths);
   write(paths, cfg);
+  // A launchd/systemd-supervised daemon inherits a bare PATH; augment it here,
+  // at the single load-at-boot site, so every child it later spawns can find
+  // agent CLIs like `claude` (SPEC §5).
+  applyAgentPath(cfg.agentPath);
   return cfg;
+}
+
+/**
+ * Prepend the configured agent-search dirs to the daemon's PATH so it can spawn
+ * agent CLIs (e.g. Claude Code's `~/.local/bin/claude`) even under a supervisor
+ * with a bare PATH (launchd's `/usr/bin:/bin:/usr/sbin:/sbin`). Tilde-expanded,
+ * de-duplicated, and applied to `process.env.PATH` so every child the daemon
+ * spawns — PTYs and adapter exec calls, which both inherit `process.env` —
+ * sees it. Called once at boot; a config change needs a daemon restart.
+ */
+export function applyAgentPath(agentPath: string): void {
+  const home = homedir();
+  const extra = agentPath
+    .split(':')
+    .map((d) => d.trim())
+    .filter(Boolean)
+    .map((d) => (d === '~' ? home : d.startsWith('~/') ? `${home}/${d.slice(2)}` : d));
+  if (extra.length === 0) return;
+  const current = (process.env.PATH ?? '').split(':').filter(Boolean);
+  process.env.PATH = [...extra.filter((d) => !current.includes(d)), ...current].join(':');
 }
 
 export function saveConfig(paths: PuddlePaths, patch: DaemonConfigPatch): DaemonConfig {

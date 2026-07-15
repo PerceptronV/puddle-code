@@ -17,6 +17,13 @@ const fields = {
   replayBytes: z.number().int().min(1024),
   /** Days a (project, profile) ui_state row survives without an update. */
   uiStateRetentionDays: z.number().int().min(1),
+  /**
+   * Colon-separated dirs prepended to the daemon's PATH so it can find agent
+   * CLIs even under a supervisor with a bare PATH (launchd/systemd). Leading `~`
+   * expands to the daemon user's home. Covers Claude Code's native-installer
+   * location (`~/.local/bin`). Takes effect on the next daemon start.
+   */
+  agentPath: z.string(),
 };
 
 /** Daemon-scope settings persisted in ~/.puddle/config.json. */
@@ -27,6 +34,7 @@ export const daemonConfigSchema = z.object({
   logMaxBytes: fields.logMaxBytes.default(10 * 1024 * 1024),
   replayBytes: fields.replayBytes.default(256 * 1024),
   uiStateRetentionDays: fields.uiStateRetentionDays.default(90),
+  agentPath: fields.agentPath.default('~/.local/bin:~/bin:/opt/homebrew/bin:/usr/local/bin'),
 });
 export type DaemonConfig = z.infer<typeof daemonConfigSchema>;
 
