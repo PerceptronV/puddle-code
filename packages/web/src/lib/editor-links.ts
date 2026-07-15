@@ -73,16 +73,33 @@ export function parseHostParam(search: string): string | null {
 }
 
 /**
+ * Pure decision core for `captureHostParam`, testable without a DOM: what the
+ * stored host should become given this boot's URL. A CLI launch always
+ * carries `#token=`; when it carries no `?host=` it was `puddle start` —
+ * LOCAL mode — so a host stored by yesterday's `puddle connect` on the same
+ * origin must be cleared, or the window would still think it is tunnelled.
+ * A boot with neither (a plain reload) keeps whatever is stored.
+ */
+export function nextStoredHost(search: string, hash: string, stored: string | null): string | null {
+  const host = parseHostParam(search);
+  if (host) return host;
+  if (/[#&]token=/.test(hash)) return null;
+  return stored;
+}
+
+/**
  * Mirrors `bootstrapToken` (`src/lib/auth.ts`): read `?host=` once, store it,
  * and strip it from the address bar via `history.replaceState` (the CLI's
  * connect-time param shouldn't linger in history or survive a copy-paste of
- * the URL).
+ * the URL). MUST run before `bootstrapToken`, which strips the `#token=`
+ * fragment this function reads as the local-mode signal.
  */
 export function captureHostParam(): void {
-  const host = parseHostParam(window.location.search);
-  if (!host) return;
-  hostParamStore.set(host);
-  const url = new URL(window.location.href);
-  url.searchParams.delete('host');
-  history.replaceState(null, '', url);
+  const next = nextStoredHost(window.location.search, window.location.hash, hostParamStore.get());
+  hostParamStore.set(next);
+  if (parseHostParam(window.location.search) !== null) {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('host');
+    history.replaceState(null, '', url);
+  }
 }

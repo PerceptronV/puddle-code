@@ -9,6 +9,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { tokenStore } from '../../lib/auth';
 import { useHostInfo, useSessionPorts } from '../../lib/queries';
+import { sshMode } from '../../lib/ssh-mode';
 import { sshForwardCommand } from './ssh-command';
 
 const LIVE_STATUSES: Session['status'][] = ['running', 'waiting_input'];
@@ -18,9 +19,10 @@ const LIVE_STATUSES: Session['status'][] = ['running', 'waiting_input'];
  * §9), rendered under the terminal — terminal view only, so diff/history
  * stay clean. Hidden entirely when the session isn't live or has no ports;
  * no refresh control, the hook's 5s poll is the refresh (HUMANS.md
- * minimalism). Each chip opens a menu with all three access paths — local,
- * proxy, and `ssh -L` — since pre-Phase-6 the daemon can't tell whether the
- * browser is behind a tunnel (SPEC §9).
+ * minimalism). Each chip opens a menu with the access paths that make sense
+ * for this window's mode (the CLI's `?host=` boot param — Phase 6): local
+ * mode gets the direct localhost link, SSH mode the tier-2 proxy link;
+ * `ssh -L` is always on offer as the manual fallback (SPEC §9).
  */
 export function PortsStrip({
   sessionId,
@@ -68,22 +70,25 @@ function PortChip({ sessionId, port }: { sessionId: string; port: SessionPort })
         </TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="start">
-        <DropdownMenuItem asChild>
-          <a href={`http://localhost:${port.port}`} target="_blank" rel="noopener noreferrer">
-            Open localhost
-          </a>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onSelect={() => {
-            window.open(
-              `/proxy/${sessionId}/${port.port}/?puddle_token=${tokenStore.get() ?? ''}`,
-              '_blank',
-              'noopener,noreferrer',
-            );
-          }}
-        >
-          Open via proxy
-        </DropdownMenuItem>
+        {sshMode() === null ? (
+          <DropdownMenuItem asChild>
+            <a href={`http://localhost:${port.port}`} target="_blank" rel="noopener noreferrer">
+              Open localhost
+            </a>
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem
+            onSelect={() => {
+              window.open(
+                `/proxy/${sessionId}/${port.port}/?puddle_token=${tokenStore.get() ?? ''}`,
+                '_blank',
+                'noopener,noreferrer',
+              );
+            }}
+          >
+            Open via proxy
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           onSelect={() => {
             if (!host) return;

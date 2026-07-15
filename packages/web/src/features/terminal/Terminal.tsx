@@ -3,12 +3,15 @@ import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
+import { tokenStore } from '../../lib/auth';
 import { useClientSettings } from '../../lib/client-settings';
+import { sshMode } from '../../lib/ssh-mode';
 import { cssTokenReader, onThemeChange, xtermThemeFromCss } from '../../lib/theme';
 import { cn } from '../../lib/utils';
 import { wsManager } from '../../lib/ws';
 import { dynamicColourReport, type DynamicColourCode } from './osc-colour';
 import { interceptImagePaste } from './paste-image';
+import { rewriteTerminalUri } from './proxy-links';
 import { registerFileLinks } from './file-links';
 
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
@@ -65,9 +68,16 @@ export function Terminal({ stream, term = 'agent', className, onExit, onOpenFile
     const fit = new FitAddon();
     xterm.loadAddon(fit);
     // URL links are safe everywhere (login terminals included): plain click or
-    // cmd/ctrl+click both open the URL in a new tab (SPEC §7).
+    // cmd/ctrl+click both open the URL in a new tab (SPEC §7). In SSH mode a
+    // host-localhost URL is rewritten to the tier-2 proxy path so it works
+    // from the client; login terminals have no session to proxy through.
     xterm.loadAddon(
-      new WebLinksAddon((_event, uri) => window.open(uri, '_blank', 'noopener,noreferrer')),
+      new WebLinksAddon((_event, uri) => {
+        const target = stream.startsWith('login-')
+          ? uri
+          : rewriteTerminalUri(uri, stream, sshMode() !== null, tokenStore.get());
+        window.open(target, '_blank', 'noopener,noreferrer');
+      }),
     );
     xterm.open(container);
     fit.fit();
