@@ -39,7 +39,7 @@ Note that Ctrl-C closes the GUI only, while agent sessions keep running.
 Daemon-only installs (no CLI) use the `install.sh` attached to each release — see the Releases page of this repository:
 
 ```sh
-curl -fsSL https://github.com/<owner>/puddle/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/PerceptronV/puddle-code/releases/latest/download/install.sh | sh
 ```
 
 **Host requirements**: Linux (glibc — Ubuntu 22.04+, Debian 12+, RHEL 9+; Alpine is not supported) or macOS, with `git` and `curl`, plus whichever agent CLIs you want on `PATH`. The client side works from any OS with a browser and `ssh` (Windows works, with repeated auth prompts unless you use a key).
