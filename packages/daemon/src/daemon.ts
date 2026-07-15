@@ -37,8 +37,6 @@ export interface DaemonOptions {
   port?: number;
   /** Adapter set; defaults to the real ones (tests inject fakes). */
   adapters?: AgentAdapter[];
-  /** Embedded UI dir; null serves no assets (tests). */
-  assetsDir?: string | null;
   version?: string;
   /** Quiet window for waiting_input detection (tests shrink it). */
   statusQuietMs?: number;
@@ -161,7 +159,6 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   const gateway = new WsGateway({ token, ptys, logs, service });
   const app = buildApp({
     version: opts.version ?? '0.0.0',
-    assetsDir: opts.assetsDir ?? null,
     token,
     api: {
       paths,

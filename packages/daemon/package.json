@@ -7,7 +7,7 @@
     "puddled": "./dist/index.js"
   },
   "scripts": {
-    "build": "tsc -b && node scripts/copy-web-assets.mjs",
+    "build": "tsc -b",
     "dev": "tsc -b --watch",
     "typecheck": "tsc -b"
   },

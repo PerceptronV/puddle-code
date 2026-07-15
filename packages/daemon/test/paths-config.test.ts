@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -41,14 +41,42 @@ describe('daemon config', () => {
     const paths = freshPaths();
     const cfg = loadConfig(paths);
     expect(cfg).toEqual({
-      port: 7433,
+      port: 7434,
       autoResume: false,
       fetchIntervalMinutes: 15,
       logMaxBytes: 10 * 1024 * 1024,
       replayBytes: 256 * 1024,
       uiStateRetentionDays: 90,
     });
-    expect(JSON.parse(readFileSync(paths.configFile, 'utf8')).port).toBe(7433);
+    const onDisk = JSON.parse(readFileSync(paths.configFile, 'utf8'));
+    expect(onDisk.port).toBe(7434);
+    expect(onDisk.configVersion).toBe(2);
+  });
+
+  it('migrates a pre-Phase-6 default port (7433, no marker) to 7434 exactly once', () => {
+    const paths = freshPaths();
+    writeFileSync(paths.configFile, JSON.stringify({ port: 7433 }) + '\n');
+    expect(loadConfig(paths).port).toBe(7434);
+    expect(JSON.parse(readFileSync(paths.configFile, 'utf8')).configVersion).toBe(2);
+  });
+
+  it('respects a deliberate post-migration 7433 (marker present)', () => {
+    const paths = freshPaths();
+    writeFileSync(paths.configFile, JSON.stringify({ port: 7433, configVersion: 2 }) + '\n');
+    expect(loadConfig(paths).port).toBe(7433);
+    expect(saveConfig(paths, { autoResume: true }).port).toBe(7433);
+  });
+
+  it('keeps a custom pre-Phase-6 port through the migration', () => {
+    const paths = freshPaths();
+    writeFileSync(paths.configFile, JSON.stringify({ port: 7500 }) + '\n');
+    expect(loadConfig(paths).port).toBe(7500);
+  });
+
+  it('never exposes the marker through the API shape', () => {
+    const paths = freshPaths();
+    loadConfig(paths);
+    expect('configVersion' in loadConfig(paths)).toBe(false);
   });
 
   it('merges patches and persists them', () => {

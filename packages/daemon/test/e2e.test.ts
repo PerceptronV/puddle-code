@@ -98,7 +98,6 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
       home,
       port: 0,
       adapters: [fakeAdapter()],
-      assetsDir: null,
       version: 'e2e',
       statusQuietMs: 150,
     });
@@ -666,7 +665,6 @@ describe('tier-2 reverse proxy end-to-end (Phase 5 acceptance)', () => {
       home,
       port: 0,
       adapters: [fakeAdapter()],
-      assetsDir: null,
       version: 'e2e-proxy',
       statusQuietMs: 150,
     });
@@ -867,7 +865,6 @@ describe('tier-1 migration end-to-end (Workstream S / SPEC §5)', () => {
       home,
       port: 0,
       adapters: [fakeAdapter({ share: true })],
-      assetsDir: null,
       version: 'e2e-migrate',
       statusQuietMs: 150,
     });
@@ -982,7 +979,6 @@ describe('tier-1 migration end-to-end (Workstream S / SPEC §5)', () => {
       home: home2,
       port: 0,
       adapters: [fakeAdapter()],
-      assetsDir: null,
       version: 'e2e-migrate-plain',
       statusQuietMs: 150,
     });
@@ -1033,7 +1029,6 @@ describe('tier-1 migration end-to-end (Workstream S / SPEC §5)', () => {
       home: home3,
       port: 0,
       adapters: [fakeAdapter({ share: true })],
-      assetsDir: null,
       version: 'e2e-migrate-firstturn',
       statusQuietMs: 30000, // waiting_input (and its adopt) will not fire in-test
     });

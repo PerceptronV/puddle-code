@@ -1,26 +1,15 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { versionResponseSchema } from '@puddle/shared';
 import { buildApp } from '../src/http/app.js';
 
 const TOKEN = 't'.repeat(64);
 
-function app(assetsDir: string | null = null) {
-  return buildApp({ version: '0.0.1', assetsDir, token: TOKEN });
+function app() {
+  return buildApp({ version: '0.0.1', token: TOKEN });
 }
 
 function get(path: string, headers: Record<string, string> = {}) {
-  return app().request(path, { headers: { host: 'localhost:7433', ...headers } });
-}
-
-function withAssets(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'puddle-assets-'));
-  writeFileSync(join(dir, 'index.html'), '<!doctype html><title>puddle</title>');
-  mkdirSync(join(dir, 'assets'));
-  writeFileSync(join(dir, 'assets', 'app.js'), 'console.log("hi")');
-  return dir;
+  return app().request(path, { headers: { host: 'localhost:7434', ...headers } });
 }
 
 describe('GET /api/version', () => {
@@ -64,29 +53,9 @@ describe('local security middleware', () => {
   });
 });
 
-describe('static asset serving (tokenless by design)', () => {
-  it('serves index.html at /', async () => {
-    const res = await app(withAssets()).request('/');
-    expect(res.status).toBe(200);
-    expect(res.headers.get('content-type')).toContain('text/html');
-    expect(await res.text()).toContain('puddle');
-  });
-
-  it('serves hashed assets with the right mime type', async () => {
-    const res = await app(withAssets()).request('/assets/app.js');
-    expect(res.status).toBe(200);
-    expect(res.headers.get('content-type')).toContain('javascript');
-  });
-
-  it('falls back to index.html for SPA routes', async () => {
-    const res = await app(withAssets()).request('/project/42');
-    expect(res.status).toBe(200);
-    expect(await res.text()).toContain('puddle');
-  });
-
-  it('never escapes the asset root', async () => {
-    const res = await app(withAssets()).request('/assets/../../../../etc/passwd');
-    expect(res.status).toBe(200); // SPA fallback, not the file
-    expect(await res.text()).not.toContain('root:');
+describe('headless API (Phase 6: the CLI serves the UI)', () => {
+  it('404s unmatched non-API routes', async () => {
+    const res = await app().request('/', { headers: { host: 'localhost:7434' } });
+    expect(res.status).toBe(404);
   });
 });

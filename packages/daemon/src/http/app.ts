@@ -31,13 +31,10 @@ import { repoRoutes } from './routes/repos.js';
 import { sessionRoutes } from './routes/sessions.js';
 import { versionRoutes } from './routes/version.js';
 import { worktreeRoutes } from './routes/worktrees.js';
-import { staticAssets } from './static.js';
 
 /** Everything the REST + WS surface needs; `api` is absent in narrow tests. */
 export interface AppDeps {
   version: string;
-  /** Absolute dir of embedded UI assets; null in tests that don't exercise static serving. */
-  assetsDir: string | null;
   token: string;
   api?: {
     paths: PuddlePaths;
@@ -108,6 +105,7 @@ export function buildApp(deps: AppDeps): Hono {
     );
   }
 
-  if (deps.assetsDir) app.use('*', staticAssets(deps.assetsDir));
+  // Headless API server (Phase 6): the CLI serves the web UI; unmatched
+  // routes 404 here by design.
   return app;
 }
