@@ -99,10 +99,6 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     statusQuietMs: opts.statusQuietMs,
   });
 
-  // Agent-chosen titles (`.puddle/session-title`) go through the service so the
-  // rename broadcasts to attached clients, exactly like a UI rename.
-  onboarding.setTitleSink((id, title) => service.applyAgentTitle(id, title));
-
   // Migration 004 rewrote config-dir paths to id-keyed; rename the dirs.
   reconcileProfileDirs(profiles.list(), paths);
 

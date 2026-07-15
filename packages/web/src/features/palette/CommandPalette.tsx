@@ -21,6 +21,7 @@ import {
 } from '../../components/ui/command';
 import { applyTheme } from '../../lib/theme';
 import { openSettings } from '../../lib/hash-route';
+import { sessionDisplayName } from '../../lib/session-display';
 import { useProjects, useSessions } from '../../lib/queries';
 import { collectCommands, type PaletteCommand } from './commands';
 import { useCurrentProfileId, profileStore } from '../profile/profile-store';
@@ -69,7 +70,7 @@ export function CommandPalette({
       items.push({
         id: `session-${session.id}`,
         group: 'Sessions',
-        label: session.title ?? session.id.slice(0, 8),
+        label: sessionDisplayName(session),
         icon: TerminalSquare,
         keywords: `switch session ${session.branch}`,
         run: () => void navigate(`/project/${session.project_id}/session/${session.id}`),

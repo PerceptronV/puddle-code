@@ -119,6 +119,14 @@ export interface AgentAdapter {
    */
   discoverSessionRef?(worktreePath: string, account: Account): string | null;
   /**
+   * The agent's own human-readable session name for conversation `ref` — for
+   * Claude Code, the transcript's agent-name / ai-title, i.e. what its resume
+   * picker shows. Null when the agent has not named the session yet. Read-only
+   * and credential-free; the daemon uses it as the default display name before
+   * any user rename (SPEC §4).
+   */
+  sessionTitle?(ref: string, account: Account): string | null;
+  /**
    * Token usage the agent recorded for this account, summed from its own
    * on-disk history. Best-effort and non-authoritative (not billing data);
    * null when the agent keeps no readable record.

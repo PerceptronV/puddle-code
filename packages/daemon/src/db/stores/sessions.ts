@@ -14,6 +14,7 @@ interface Row {
   agent_type: string | null;
   agent_session_ref: string | null;
   title: string | null;
+  agent_title: string | null;
   status: SessionStatus;
   skip_permissions: number;
   created_at: string;
@@ -195,9 +196,17 @@ export class SessionStore {
       .run(accountId, new Date().toISOString(), id);
   }
 
-  setTitle(id: string, title: string): void {
+  /** User override; null clears it (display reverts to agent_title, then the id). */
+  setTitle(id: string, title: string | null): void {
     this.db
       .prepare(`UPDATE sessions SET title = ?, updated_at = ? WHERE id = ?`)
+      .run(title, new Date().toISOString(), id);
+  }
+
+  /** The agent's own session name, maintained by the daemon; null when unknown. */
+  setAgentTitle(id: string, title: string | null): void {
+    this.db
+      .prepare(`UPDATE sessions SET agent_title = ?, updated_at = ? WHERE id = ?`)
       .run(title, new Date().toISOString(), id);
   }
 

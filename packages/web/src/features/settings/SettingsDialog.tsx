@@ -3,7 +3,7 @@ import {
   FolderGit2,
   Palette,
   Server,
-  ShieldAlert,
+  SlidersHorizontal,
   TerminalSquare,
   UserRound,
   Users,
@@ -16,7 +16,7 @@ import { cn } from '../../lib/utils';
 import { AppearanceSection } from './sections/appearance';
 import { ProfileSection } from './sections/profile';
 import { AccountsSection } from './sections/accounts';
-import { PermissionsSection } from './sections/permissions';
+import { SessionsSection } from './sections/sessions';
 import { NotificationsSection } from './sections/notifications';
 import { TerminalSection } from './sections/terminal';
 import { RepositoriesSection } from './sections/repositories';
@@ -28,10 +28,10 @@ const SECTIONS: Array<{ id: string; label: string; icon: LucideIcon; render: () 
     { id: 'profile', label: 'Profile', icon: UserRound, render: () => <ProfileSection /> },
     { id: 'accounts', label: 'Accounts', icon: Users, render: () => <AccountsSection /> },
     {
-      id: 'permissions',
-      label: 'Permissions & Safety',
-      icon: ShieldAlert,
-      render: () => <PermissionsSection />,
+      id: 'sessions',
+      label: 'Sessions',
+      icon: SlidersHorizontal,
+      render: () => <SessionsSection />,
     },
     {
       id: 'notifications',

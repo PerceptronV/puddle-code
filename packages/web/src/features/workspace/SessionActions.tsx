@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import {
   Archive,
   ExternalLink,
@@ -11,6 +11,16 @@ import {
 import { toast } from 'sonner';
 import type { Account, Session } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+} from '../../components/ui/context-menu';
 import {
   Dialog,
   DialogContent,
@@ -46,14 +56,55 @@ import { useCurrentProfileId } from '../profile/profile-store';
 const LIVE: Session['status'][] = ['starting', 'running', 'waiting_input'];
 const RESUMABLE: Session['status'][] = ['exited', 'interrupted'];
 
-/** Per-row lifecycle menu: resume, kill, archive (with dirty-worktree force), rename. */
-export function SessionActions({
-  session,
-  onArchived,
-}: {
+/**
+ * The shared lifecycle-menu model for one session: which actions apply, the
+ * handlers behind them, and the confirmation dialogs. Rendered by both the
+ * hover ellipsis (`SessionActionsEllipsis`) and the right-click menu
+ * (`SessionContextMenu`) so every surface offers the same actions.
+ */
+export interface SessionMenu {
   session: Session;
-  onArchived?: (id: string) => void;
-}) {
+  resumable: boolean;
+  live: boolean;
+  canMigrate: boolean;
+  sameAgent: Account[];
+  resume: () => void;
+  openKill: () => void;
+  openRename: () => void;
+  openArchive: () => void;
+  setMigrateTo: (a: Account) => void;
+}
+
+/** Menu primitives shared by the dropdown and context-menu renderers. */
+interface MenuKit {
+  Item: React.ElementType;
+  Separator: React.ElementType;
+  Sub: React.ElementType;
+  SubTrigger: React.ElementType;
+  SubContent: React.ElementType;
+}
+
+const dropdownKit: MenuKit = {
+  Item: DropdownMenuItem,
+  Separator: DropdownMenuSeparator,
+  Sub: DropdownMenuSub,
+  SubTrigger: DropdownMenuSubTrigger,
+  SubContent: DropdownMenuSubContent,
+};
+
+const contextKit: MenuKit = {
+  Item: ContextMenuItem,
+  Separator: ContextMenuSeparator,
+  Sub: ContextMenuSub,
+  SubTrigger: ContextMenuSubTrigger,
+  SubContent: ContextMenuSubContent,
+};
+
+/** Owns the mutations, dialog state, and confirmation dialogs for a session. */
+export function useSessionMenu(
+  session: Session,
+  onArchived?: (id: string) => void,
+): { menu: SessionMenu; dialogs: ReactNode } {
   const resume = useSessionAction('resume');
   const kill = useSessionAction('kill');
   const archive = useArchiveSession();
@@ -97,100 +148,24 @@ export function SessionActions({
     );
   };
 
-  return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-6"
-            onClick={(e) => e.preventDefault()}
-          >
-            <MoreHorizontal />
-            <span className="sr-only">Session actions</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {RESUMABLE.includes(session.status) && !session.worktree_missing && (
-            <DropdownMenuItem
-              onSelect={() => resume.mutate(session.id, { onError: (e) => toast.error(e.message) })}
-            >
-              <Play /> Resume
-            </DropdownMenuItem>
-          )}
-          {LIVE.includes(session.status) && (
-            <DropdownMenuItem onSelect={() => setConfirm('kill')}>
-              <Square /> Kill
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem onSelect={() => setRenaming(true)}>
-            <Pencil /> Rename
-          </DropdownMenuItem>
-          {canMigrate && (
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <UserRoundCog /> Move to account…
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                {sameAgent.map((a) => {
-                  const current = a.id === session.account_id;
-                  return (
-                    <DropdownMenuItem
-                      key={a.id}
-                      disabled={current}
-                      onSelect={() => setMigrateTo(a)}
-                    >
-                      {a.label}
-                      {current && <span className="ml-auto text-fg-muted">current</span>}
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          )}
-          {!session.worktree_missing && (
-            <>
-              <DropdownMenuSeparator />
-              {/* Deep links, not regular navigation — window.location.href hands
-                  the URL to the OS/editor and leaves the tab in place, unlike
-                  window.open (which pops an unwanted blank tab for a custom
-                  scheme handler). */}
-              <DropdownMenuItem
-                onSelect={() => {
-                  window.location.href = editorDeepLink(
-                    'vscode',
-                    session.worktree_path,
-                    editorLinkHost(),
-                  );
-                }}
-              >
-                <ExternalLink /> Open in VS Code
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => {
-                  window.location.href = editorDeepLink(
-                    'cursor',
-                    session.worktree_path,
-                    editorLinkHost(),
-                  );
-                }}
-              >
-                <ExternalLink /> Open in Cursor
-              </DropdownMenuItem>
-            </>
-          )}
-          {RESUMABLE.includes(session.status) && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => setConfirm('archive')}>
-                <Archive /> Archive
-              </DropdownMenuItem>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+  const menu: SessionMenu = {
+    session,
+    resumable: RESUMABLE.includes(session.status),
+    live: LIVE.includes(session.status),
+    canMigrate,
+    sameAgent,
+    resume: () => resume.mutate(session.id, { onError: (e) => toast.error(e.message) }),
+    openKill: () => setConfirm('kill'),
+    openRename: () => {
+      setNewTitle(session.title ?? ''); // seed from the current override, not the default
+      setRenaming(true);
+    },
+    openArchive: () => setConfirm('archive'),
+    setMigrateTo,
+  };
 
+  const dialogs = (
+    <>
       <Dialog
         open={confirm !== null}
         onOpenChange={(open) => {
@@ -211,8 +186,8 @@ export function SessionActions({
                 'The agent process stops (SIGTERM, then SIGKILL). The conversation stays resumable.'}
               {confirm === 'archive' &&
                 (session.separate_branch
-                  ? `Removes the worktree directory. The branch ${session.branch} and the terminal logs are kept.`
-                  : `The shared worktree on ${session.branch} is removed once its last session archives. The branch and the terminal logs are kept.`)}
+                  ? `Removes the worktree directory. The branch ${session.branch} and the terminal logs are kept, and the session stays available under Archived.`
+                  : `The shared worktree on ${session.branch} is removed once its last session archives. The branch and the terminal logs are kept, and the session stays available under Archived.`)}
               {confirm === 'archive-force' &&
                 'Archiving now discards uncommitted changes in the worktree. Committed work on the branch survives.'}
             </DialogDescription>
@@ -279,12 +254,16 @@ export function SessionActions({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Rename session</DialogTitle>
+            <DialogDescription>
+              Leave it empty to use the agent&rsquo;s own session name.
+            </DialogDescription>
           </DialogHeader>
           <form
             className="flex flex-col gap-3"
             onSubmit={(e) => {
               e.preventDefault();
-              if (!newTitle.trim()) return;
+              // An empty title clears the override; the daemon reverts the name
+              // to the agent's own name (then the id prefix).
               rename.mutate(
                 { sessionId: session.id, title: newTitle.trim() },
                 {
@@ -294,12 +273,17 @@ export function SessionActions({
               );
             }}
           >
-            <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} autoFocus />
+            <Input
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              placeholder={session.agent_title ?? session.id.slice(0, 8)}
+              autoFocus
+            />
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={() => setRenaming(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={!newTitle.trim() || rename.isPending}>
+              <Button type="submit" disabled={rename.isPending}>
                 Rename
               </Button>
             </DialogFooter>
@@ -345,5 +329,143 @@ export function SessionActions({
         </DialogContent>
       </Dialog>
     </>
+  );
+
+  return { menu, dialogs };
+}
+
+/** The action items, rendered with either the dropdown or context-menu kit. */
+function SessionMenuItems({ kit, menu }: { kit: MenuKit; menu: SessionMenu }) {
+  const { Item, Separator, Sub, SubTrigger, SubContent } = kit;
+  const { session } = menu;
+  return (
+    <>
+      {menu.resumable && !session.worktree_missing && (
+        <Item onSelect={menu.resume}>
+          <Play /> Resume
+        </Item>
+      )}
+      {menu.live && (
+        <Item onSelect={menu.openKill}>
+          <Square /> Kill
+        </Item>
+      )}
+      <Item onSelect={menu.openRename}>
+        <Pencil /> Rename
+      </Item>
+      {menu.canMigrate && (
+        <Sub>
+          <SubTrigger>
+            <UserRoundCog /> Move to account…
+          </SubTrigger>
+          <SubContent>
+            {menu.sameAgent.map((a) => {
+              const current = a.id === session.account_id;
+              return (
+                <Item key={a.id} disabled={current} onSelect={() => menu.setMigrateTo(a)}>
+                  {a.label}
+                  {current && <span className="ml-auto text-fg-muted">current</span>}
+                </Item>
+              );
+            })}
+          </SubContent>
+        </Sub>
+      )}
+      {!session.worktree_missing && (
+        <>
+          <Separator />
+          {/* Deep links, not regular navigation — window.location.href hands the
+              URL to the OS/editor and leaves the tab in place. */}
+          <Item
+            onSelect={() => {
+              window.location.href = editorDeepLink(
+                'vscode',
+                session.worktree_path,
+                editorLinkHost(),
+              );
+            }}
+          >
+            <ExternalLink /> Open in VS Code
+          </Item>
+          <Item
+            onSelect={() => {
+              window.location.href = editorDeepLink(
+                'cursor',
+                session.worktree_path,
+                editorLinkHost(),
+              );
+            }}
+          >
+            <ExternalLink /> Open in Cursor
+          </Item>
+        </>
+      )}
+      {menu.resumable && (
+        <>
+          <Separator />
+          <Item onSelect={menu.openArchive}>
+            <Archive /> Archive
+          </Item>
+        </>
+      )}
+    </>
+  );
+}
+
+/** The hover ellipsis trigger — shares `menu` with the row's context menu. */
+export function SessionActionsEllipsis({ menu }: { menu: SessionMenu }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="size-6" onClick={(e) => e.preventDefault()}>
+          <MoreHorizontal />
+          <span className="sr-only">Session actions</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <SessionMenuItems kit={dropdownKit} menu={menu} />
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/**
+ * Wraps a session surface (sidebar row, top tab) so right-clicking it opens the
+ * same lifecycle menu as the ellipsis. `children` may be a render function that
+ * receives the shared `menu` (so a row can also mount `SessionActionsEllipsis`
+ * over the same model); the confirmation dialogs are rendered once here.
+ */
+export function SessionContextMenu({
+  session,
+  onArchived,
+  children,
+}: {
+  session: Session;
+  onArchived?: (id: string) => void;
+  children: React.ReactElement | ((menu: SessionMenu) => React.ReactElement);
+}) {
+  const { menu, dialogs } = useSessionMenu(session, onArchived);
+  return (
+    <>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          {typeof children === 'function' ? children(menu) : children}
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <SessionMenuItems kit={contextKit} menu={menu} />
+        </ContextMenuContent>
+      </ContextMenu>
+      {dialogs}
+    </>
+  );
+}
+
+/** For surfaces that need the menu but compose their own trigger (e.g. the
+ *  tooltip-wrapped collapsed dot): renders the context-menu content + dialogs. */
+export function SessionContextMenuBody({ menu }: { menu: SessionMenu }) {
+  return (
+    <ContextMenuContent>
+      <SessionMenuItems kit={contextKit} menu={menu} />
+    </ContextMenuContent>
   );
 }

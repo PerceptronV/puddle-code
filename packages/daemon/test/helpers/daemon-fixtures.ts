@@ -97,6 +97,12 @@ export function fakeAdapter(opts: { share?: boolean } = {}): AgentAdapter {
       return ref;
     },
     hasConversation: (ref, account) => existsSync(join(account.config_dir, `conv-${ref}`)),
+    // The agent "names" its session by writing `title-<ref>` in its config dir;
+    // lets tests exercise the default-name (agent_title) refresh + broadcast.
+    sessionTitle: (ref, account) => {
+      const file = join(account.config_dir, `title-${ref}`);
+      return existsSync(file) ? readFileSync(file, 'utf8').trim() || null : null;
+    },
     discoverSessionRef: (_worktreePath, account) => {
       const file = join(account.config_dir, 'discovered-ref');
       return existsSync(file) ? readFileSync(file, 'utf8').trim() : null;

@@ -34,7 +34,15 @@ export const sessionSchema = z.object({
   /** Null for terminal sessions, which run a plain shell rather than an agent. */
   agent_type: z.string().nullable(),
   agent_session_ref: z.string().nullable(),
+  /** User-set display override; null means "use the agent's own name" (agent_title) then the id. */
   title: z.string().nullable(),
+  /**
+   * The agent's own session name (for Claude Code, the transcript's ai-title /
+   * agent-name — the name shown in its resume picker), maintained by the daemon.
+   * The default display name when the user has not set a `title`. Optional:
+   * older daemons omit it; null when the agent has not named the session yet.
+   */
+  agent_title: z.string().nullable().optional(),
   status: sessionStatusSchema,
   skip_permissions: z.boolean(),
   created_at: isoTimestamp,
@@ -103,7 +111,11 @@ export const createSessionRequestSchema = z.object({
 });
 export type CreateSessionRequest = z.infer<typeof createSessionRequestSchema>;
 
-export const patchSessionRequestSchema = z.object({ title: z.string().min(1).max(200) });
+/**
+ * Rename. An empty string clears the user override so the display name reverts
+ * to the agent's own name (`agent_title`) and then the session-id prefix.
+ */
+export const patchSessionRequestSchema = z.object({ title: z.string().max(200) });
 
 /**
  * `POST /api/sessions/:id/migrate` — tier-1 migration (SPEC §5, §6): move a

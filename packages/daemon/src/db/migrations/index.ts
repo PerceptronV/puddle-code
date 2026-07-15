@@ -7,6 +7,7 @@ import { migration006 } from './006-session-separate-branch.js';
 import { migration007 } from './007-drop-rate-limit-tracking.js';
 import { migration008 } from './008-default-branch-prefix.js';
 import { migration009 } from './009-terminal-sessions.js';
+import { migration010 } from './010-agent-title.js';
 
 export interface Migration {
   version: number;
@@ -25,4 +26,5 @@ export const MIGRATIONS: Migration[] = [
   migration007,
   migration008,
   migration009,
+  migration010,
 ];

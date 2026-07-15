@@ -57,7 +57,12 @@ export class WsGateway {
     });
     deps.service.on('renamed', (e: RenameEvent) => {
       for (const ws of this.statusSubs) {
-        this.send(ws, { t: 'renamed', session: e.session, title: e.title });
+        this.send(ws, {
+          t: 'renamed',
+          session: e.session,
+          title: e.title,
+          agent_title: e.agent_title,
+        });
       }
     });
   }

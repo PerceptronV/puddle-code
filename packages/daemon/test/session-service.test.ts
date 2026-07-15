@@ -261,3 +261,40 @@ describe('onboarding notes sync', () => {
     await f.service.kill(session.id);
   });
 });
+
+describe('session naming', () => {
+  it("adopts the agent's own name as agent_title and broadcasts the change", async () => {
+    const f = fixture();
+    const renames: Array<{ title: string | null; agent_title: string | null }> = [];
+    f.service.on('renamed', (e) => renames.push(e));
+    const session = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      prompt: 'go',
+    });
+    // The fake agent names its session; the daemon picks it up on the next
+    // status change (the waiting_input flip carries a quiet window, so the file
+    // is in place by the time the refresh runs).
+    const cfg = f.stores.accounts.get(f.ids.account).config_dir;
+    writeFileSync(join(cfg, `title-${session.agent_session_ref}`), 'named by the agent');
+    await waitFor(() => f.service.get(session.id).agent_title === 'named by the agent');
+    expect(f.service.get(session.id).title).toBeNull(); // no user override
+    expect(renames.some((e) => e.agent_title === 'named by the agent')).toBe(true);
+    await f.service.kill(session.id);
+  });
+
+  it('rename stores a user override; an empty rename clears it back to the default', async () => {
+    const f = fixture();
+    const session = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+    });
+    f.service.rename(session.id, 'my session');
+    expect(f.service.get(session.id).title).toBe('my session');
+    // Empty (or whitespace) clears the override so the name reverts to
+    // agent_title (then the id prefix).
+    f.service.rename(session.id, '   ');
+    expect(f.service.get(session.id).title).toBeNull();
+    await f.service.kill(session.id);
+  });
+});

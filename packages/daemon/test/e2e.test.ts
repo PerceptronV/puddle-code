@@ -317,31 +317,14 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
     });
   });
 
-  it('lets the agent name its session via .puddle/session-title', async () => {
-    const c = client(daemon);
-    writeFileSync(join(s1.worktree_path, '.puddle', 'session-title'), 'renamed by the agent\n');
-    await pollUntil(async () => {
-      const session = await c.json<Session>('GET', `/api/sessions/${s1.id}`);
-      return session.title === 'renamed by the agent';
-    });
-    // The session's branch is annotated with its title in the branch list.
-    const { branches } = await c.json<{
-      branches: Array<{ name: string; is_session: boolean; session_title: string | null }>;
-    }>('GET', `/api/repos/${repo.id}/branches`);
-    const owned = branches.find((b) => b.name === s1.branch);
-    expect(owned?.is_session).toBe(true);
-    expect(owned?.session_title).toBe('renamed by the agent');
-  });
-
-  it('broadcasts a user rename and does not let stale .puddle activity clobber it', async () => {
+  it('broadcasts a user rename and an unrelated .puddle change never touches the title', async () => {
     const c = client(daemon);
     const viewer = wsClient(daemon);
     await viewer.open;
     viewer.send({ t: 'subscribe-status' });
     await new Promise((r) => setTimeout(r, 100)); // let the subscription register
 
-    // A user renames via the UI. `.puddle/session-title` still holds the agent's
-    // earlier 'renamed by the agent' from the previous test.
+    // A user renames via the UI (sets the title override).
     await c.json<Session>('PATCH', `/api/sessions/${s1.id}`, { title: 'kept by the user' });
 
     // The rename reaches every status-subscribed viewer live.
@@ -351,9 +334,8 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
       ),
     );
 
-    // An unrelated `.puddle` change (a notes edit — like a pasted image landing
-    // in `.puddle/pastes/`) fires the same directory watcher. The stale title
-    // file must NOT overwrite the user's rename.
+    // An unrelated `.puddle` change (a notes edit) fires the same directory
+    // watcher; the notes sync must not disturb the user's title.
     writeFileSync(
       join(s1.worktree_path, '.puddle', 'onboarding-notes.md'),
       'run pnpm install first\n',
@@ -362,7 +344,6 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
       const repos = await c.json<RepoWithOrphans[]>('GET', '/api/repos');
       return repos[0]?.onboarding_notes?.includes('pnpm install') ?? false;
     });
-    // syncTitle runs before syncNotes in one pass, so the title has settled.
     const session = await c.json<Session>('GET', `/api/sessions/${s1.id}`);
     expect(session.title).toBe('kept by the user');
     viewer.close();

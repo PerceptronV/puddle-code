@@ -49,7 +49,10 @@ export interface StatusEvent {
 
 export interface RenameEvent {
   session: string;
+  /** User override (null → use agent_title, then the id prefix). */
   title: string | null;
+  /** The agent's own name; carried so a live agent-title change updates the default. */
+  agent_title: string | null;
 }
 
 interface LiveAgent {
@@ -97,23 +100,55 @@ export class SessionService extends EventEmitter {
     return this.deps.sessions.list(filter).map((s) => this.withComputed(s));
   }
 
-  /** Renames the puddle session only — the git branch is untouched (SPEC §6). */
+  /**
+   * Renames the puddle session only — the git branch is untouched (SPEC §6).
+   * An empty title CLEARS the user override, so the display name reverts to the
+   * agent's own name (`agent_title`) and then the session-id prefix.
+   */
   rename(id: string, title: string): Session {
     this.deps.sessions.get(id);
-    this.deps.sessions.setTitle(id, title);
+    const trimmed = title.trim();
+    this.deps.sessions.setTitle(id, trimmed === '' ? null : trimmed);
     const session = this.get(id);
-    this.emit('renamed', { session: id, title: session.title } satisfies RenameEvent);
+    this.emit('renamed', {
+      session: id,
+      title: session.title,
+      agent_title: session.agent_title ?? null,
+    } satisfies RenameEvent);
     return session;
   }
 
   /**
-   * Applies a title the agent chose for itself via `.puddle/session-title`
-   * (MarkerFileSync). Same broadcast path as a user rename, so every attached
-   * client sees the new name live — no refetch needed.
+   * Re-reads the agent's own session name (adapter.sessionTitle) and, when it
+   * changed, stores it in `agent_title` and broadcasts — so an attached client's
+   * default display name tracks the agent live (a user override still wins).
+   * Best-effort: hooked off status changes and exit, and never throws upward.
    */
-  applyAgentTitle(id: string, title: string): void {
-    this.deps.sessions.setTitle(id, title);
-    this.emit('renamed', { session: id, title } satisfies RenameEvent);
+  private refreshAgentTitle(sessionId: string): void {
+    let session: Session;
+    try {
+      session = this.deps.sessions.get(sessionId);
+    } catch {
+      return; // session gone
+    }
+    if (session.kind !== 'agent' || !session.agent_session_ref || session.account_id === null)
+      return;
+    let next: string | null;
+    try {
+      const account = this.deps.accounts.get(session.account_id);
+      const adapter = this.deps.adapters.get(session.agent_type ?? account.agent_type);
+      if (!adapter.sessionTitle) return;
+      next = adapter.sessionTitle(session.agent_session_ref, account);
+    } catch {
+      return;
+    }
+    if ((next ?? null) === (session.agent_title ?? null)) return;
+    this.deps.sessions.setAgentTitle(sessionId, next);
+    this.emit('renamed', {
+      session: sessionId,
+      title: session.title,
+      agent_title: next,
+    } satisfies RenameEvent);
   }
 
   async create(input: CreateSessionRequest): Promise<Session> {
@@ -177,14 +212,21 @@ export class SessionService extends EventEmitter {
     // Attaching to an existing shared worktree is a reuse, like a hand-off:
     // the environment already exists, so no onboarding — but other agents may
     // be working in that same directory, so the prompt carries a concurrency
-    // heads-up rather than going in bare.
-    const prompt = worktree.created
-      ? buildOnboardingPreamble(repo.onboarding_notes, input.prompt ?? null)
-      : buildConcurrentWorktreeNote(input.prompt ?? null);
+    // heads-up rather than going in bare. The launch text is the profile's
+    // template (Settings → Sessions), falling back to the built-in default.
+    const settings = this.deps.profiles.getSettings(project.profile_id);
+    const preamble = worktree.created
+      ? buildOnboardingPreamble(
+          settings.onboardingTemplate,
+          repo.onboarding_notes,
+          input.prompt ?? null,
+        )
+      : buildConcurrentWorktreeNote(settings.concurrentTemplate, input.prompt ?? null);
     const launchOpts = {
       worktreePath: worktree.worktreePath,
       sessionId,
-      prompt,
+      // A cleared template with no task prompt means no initial prompt at all.
+      prompt: preamble === '' ? undefined : preamble,
       skipPermissions: skip,
     };
     this.spawnAgent(
@@ -766,6 +808,9 @@ export class SessionService extends EventEmitter {
     // Backstop for adoption: by waiting_input the agent has written its
     // conversation file, which was usually absent at spawn time.
     if (detected === 'waiting_input') this.scheduleAdopt(sessionId);
+    // The agent's own name lands in (and updates within) the transcript as the
+    // conversation progresses; pick it up on each status change.
+    this.refreshAgentTitle(sessionId);
   }
 
   /**
@@ -799,6 +844,7 @@ export class SessionService extends EventEmitter {
     this.liveAgents.delete(e.stream);
     if (this.shuttingDown) return; // reconcile turns these into `interrupted` next boot
     this.transition(e.stream, 'exited');
+    this.refreshAgentTitle(e.stream); // capture the final name for the exited/archived row
     this.deps.events.record(e.stream, 'exited', { code: e.exitCode });
   }
 

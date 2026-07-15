@@ -56,6 +56,54 @@ describe('claude-code adapter', () => {
     });
   });
 
+  it('reads the session name from the transcript: agent-name wins, else ai-title', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'puddle-cc-'));
+    const ref = '67194578-8ea8-484a-bb7d-6698b3049cc4';
+    // No transcript yet → no name.
+    expect(claudeCode.sessionTitle!(ref, account(dir))).toBeNull();
+
+    const project = join(dir, 'projects', '-Users-alice-src-my-repo');
+    mkdirSync(project, { recursive: true });
+    const path = join(project, `${ref}.jsonl`);
+
+    // ai-title only → that is the name.
+    writeFileSync(
+      path,
+      '{"type":"user"}\n' +
+        `${JSON.stringify({ type: 'ai-title', aiTitle: 'Fix the flaky auth test' })}\n`,
+    );
+    expect(claudeCode.sessionTitle!(ref, account(dir))).toBe('Fix the flaky auth test');
+
+    // An explicit agent-name overrides the generated ai-title.
+    writeFileSync(
+      path,
+      `${JSON.stringify({ type: 'ai-title', aiTitle: 'Fix the flaky auth test' })}\n` +
+        `${JSON.stringify({ type: 'agent-name', agentName: 'auth-fix' })}\n`,
+    );
+    expect(claudeCode.sessionTitle!(ref, account(dir))).toBe('auth-fix');
+
+    // Normalised: whitespace collapsed, trimmed, capped.
+    writeFileSync(path, `${JSON.stringify({ type: 'ai-title', aiTitle: '  a\t b  ' })}\n`);
+    expect(claudeCode.sessionTitle!(ref, account(dir))).toBe('a b');
+  });
+
+  it('finds a title near the head even when the transcript has since grown large', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'puddle-cc-'));
+    const ref = 'aaaaaaaa-8ea8-484a-bb7d-6698b3049cc4';
+    const project = join(dir, 'projects', '-Users-alice-src-my-repo');
+    mkdirSync(project, { recursive: true });
+    // Title lands early; a fat body follows with no further title line, pushing
+    // it out of the tail window — the head fallback must still find it.
+    const filler = `${'{"type":"assistant","message":{"usage":{}}}'.padEnd(500, ' ')}\n`.repeat(
+      1000,
+    );
+    writeFileSync(
+      join(project, `${ref}.jsonl`),
+      `${JSON.stringify({ type: 'ai-title', aiTitle: 'early title' })}\n${filler}`,
+    );
+    expect(claudeCode.sessionTitle!(ref, account(dir))).toBe('early title');
+  });
+
   it('finds conversations in any escaped project dir, and only real ones', () => {
     const dir = mkdtempSync(join(tmpdir(), 'puddle-cc-'));
     const ref = '67194578-8ea8-484a-bb7d-6698b3049cc4';

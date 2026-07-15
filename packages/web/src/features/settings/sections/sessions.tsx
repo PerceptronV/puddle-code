@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
+import { DEFAULT_CONCURRENT_TEMPLATE, DEFAULT_ONBOARDING_TEMPLATE } from '@puddle/shared';
 import { Button } from '../../../components/ui/button';
 import {
   Dialog,
@@ -10,19 +11,77 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../../components/ui/dialog';
-import { Input } from '../../../components/ui/input';
+import { Input, Textarea } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { Switch } from '../../../components/ui/switch';
 import { usePatchProfileSettings, useProfileSettings, useProfiles } from '../../../lib/queries';
 import { useCurrentProfileId } from '../../profile/profile-store';
 import { SectionTitle, SettingRow } from '../parts';
 
+/** One launch-text editor: save any text (empty is allowed) or reset to default. */
+function TemplateEditor({
+  id,
+  label,
+  description,
+  initial,
+  defaultText,
+  onSave,
+  pending,
+}: {
+  id: string;
+  label: string;
+  description: string;
+  initial: string;
+  defaultText: string;
+  onSave: (text: string) => void;
+  pending: boolean;
+}) {
+  const [text, setText] = useState(initial);
+  return (
+    <div className="mt-3 flex flex-col gap-1.5">
+      <label htmlFor={id} className="flex flex-col gap-0.5 text-sm text-fg">
+        {label}
+        <span className="text-xs text-fg-muted">{description}</span>
+      </label>
+      <Textarea
+        id={id}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={6}
+        className="font-mono"
+      />
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={text === initial || pending}
+          onClick={() => onSave(text)}
+        >
+          Save
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={text === defaultText || pending}
+          onClick={() => {
+            setText(defaultText);
+            onSave(defaultText);
+          }}
+        >
+          Reset to default
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /**
- * The §11 gate. Enabling demands a typed profile name; disabling is immediate
- * and hides every skip toggle. The daemon enforces the gate server-side
- * regardless of anything this UI does.
+ * Session behaviour (SPEC §4, §11): the permission-skip gate, plus the launch
+ * text templates sent to an agent when it starts a fresh worktree or joins an
+ * existing one. Enabling the gate demands a typed profile name; disabling is
+ * immediate. The daemon enforces the gate server-side regardless of this UI.
  */
-export function PermissionsSection() {
+export function SessionsSection() {
   const profileId = useCurrentProfileId();
   const profiles = useProfiles();
   const profile = profiles.data?.find((p) => p.id === profileId);
@@ -45,9 +104,12 @@ export function PermissionsSection() {
       },
     );
 
+  const saveTemplate = (key: 'onboardingTemplate' | 'concurrentTemplate') => (text: string) =>
+    patch.mutate({ [key]: text }, { onError: (e) => toast.error(e.message) });
+
   return (
     <div>
-      <SectionTitle>Permissions &amp; safety</SectionTitle>
+      <SectionTitle>Sessions</SectionTitle>
       <p className="mb-3 text-xs text-fg-secondary">
         Permission prompts are on by default, everywhere. Skipping them requires this profile gate,
         a per-account opt-in, and a per-session toggle — and the daemon re-checks all three on every
@@ -71,6 +133,36 @@ export function PermissionsSection() {
           }}
         />
       </SettingRow>
+
+      <div className="mt-5">
+        <SectionTitle note="Sent to the agent as its opening message when a session starts. Leave a box empty to send no preamble.">
+          Launch text
+        </SectionTitle>
+        {settings.data && (
+          <>
+            <TemplateEditor
+              key={`${profileId}:onboarding`}
+              id="onboarding-template"
+              label="New worktree"
+              description="For a freshly created worktree. Use {{rules}} where the repo's onboarding notes should appear."
+              initial={settings.data.onboardingTemplate ?? DEFAULT_ONBOARDING_TEMPLATE}
+              defaultText={DEFAULT_ONBOARDING_TEMPLATE}
+              onSave={saveTemplate('onboardingTemplate')}
+              pending={patch.isPending}
+            />
+            <TemplateEditor
+              key={`${profileId}:concurrent`}
+              id="concurrent-template"
+              label="Existing / shared worktree"
+              description="For a session joining a worktree other agents may already be working in."
+              initial={settings.data.concurrentTemplate ?? DEFAULT_CONCURRENT_TEMPLATE}
+              defaultText={DEFAULT_CONCURRENT_TEMPLATE}
+              onSave={saveTemplate('concurrentTemplate')}
+              pending={patch.isPending}
+            />
+          </>
+        )}
+      </div>
 
       <Dialog
         open={confirming}

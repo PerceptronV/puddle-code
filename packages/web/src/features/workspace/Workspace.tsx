@@ -335,6 +335,7 @@ function WorkspaceInner() {
                   onActivate={(id) => void navigate(`/project/${projectId}/session/${id}`)}
                   onClose={closeTab}
                   onReorder={(tabs) => uiState.update({ session_tabs: tabs })}
+                  onArchived={closeTab}
                 />
                 {activeSession && <SessionBanner session={activeSession} />}
                 {activeSession && (
@@ -415,6 +416,7 @@ function WorkspaceInner() {
           onExpand={() => uiState.update({ sessions_collapsed: false })}
           onNewTerminal={() => openCreate('terminal')}
           onNewSession={() => openCreate('agent')}
+          onArchived={closeTab}
         />
       )}
     </div>

@@ -41,7 +41,15 @@ function useStatusCacheSync() {
     );
     const offRenamed = wsManager.onRenamed((event) =>
       patchAll((session) =>
-        session.id === event.session ? { ...session, title: event.title } : session,
+        session.id === event.session
+          ? {
+              ...session,
+              title: event.title,
+              // Older daemons omit agent_title from the event — keep the cached
+              // value rather than wiping it.
+              agent_title: 'agent_title' in event ? event.agent_title : session.agent_title,
+            }
+          : session,
       ),
     );
     return () => {

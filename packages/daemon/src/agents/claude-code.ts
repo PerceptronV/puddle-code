@@ -1,7 +1,11 @@
 import { execFile } from 'node:child_process';
 import {
+  closeSync,
   existsSync,
+  fstatSync,
+  openSync,
   readFileSync,
+  readSync,
   readdirSync,
   realpathSync,
   statSync,
@@ -164,6 +168,16 @@ export const claudeCode: AgentAdapter = {
     );
   },
 
+  sessionTitle(ref, account) {
+    const projectsDir = join(account.config_dir, 'projects');
+    if (!existsSync(projectsDir)) return null;
+    for (const dir of readdirSync(projectsDir)) {
+      const path = join(projectsDir, dir, `${ref}.jsonl`);
+      if (existsSync(path)) return readSessionTitle(path);
+    }
+    return null;
+  },
+
   usageStats(account) {
     const projectsDir = join(account.config_dir, 'projects');
     if (!existsSync(projectsDir)) return null;
@@ -240,6 +254,70 @@ export const claudeCode: AgentAdapter = {
     limitReached: [/usage limit reached/i, /out of extra usage/i],
   },
 };
+
+/** Bounded window read for the transcript title scan (large transcripts). */
+const TITLE_WINDOW = 128 * 1024;
+
+/**
+ * The session's own name from its transcript: the last explicit `agent-name`
+ * (the user named it) if present, else the last generated `ai-title` — what
+ * Claude Code's resume picker shows. Normalised to a single ≤80-char line;
+ * null when absent (e.g. before the first exchange).
+ *
+ * Verified against Claude Code 2.1.210 (2026-07-14): the transcript carries
+ * `{type:"ai-title", aiTitle}` shortly after the first exchange and, when the
+ * session is named, `{type:"agent-name", agentName}`. A regenerated title is
+ * appended, so the newest lives near the tail; the first lands early (~line
+ * 15). We read a bounded tail window and fall back to the head only when a
+ * since-grown transcript's tail holds no title line — so an early title is
+ * never lost, and the read stays bounded regardless of file size.
+ */
+function readSessionTitle(path: string): string | null {
+  let fd: number;
+  try {
+    fd = openSync(path, 'r');
+  } catch {
+    return null;
+  }
+  try {
+    const size = fstatSync(fd).size;
+    let title = pickTitle(readTranscriptChunk(fd, Math.max(0, size - TITLE_WINDOW), TITLE_WINDOW));
+    if (title === null && size > TITLE_WINDOW)
+      title = pickTitle(readTranscriptChunk(fd, 0, TITLE_WINDOW));
+    return title;
+  } catch {
+    return null;
+  } finally {
+    closeSync(fd);
+  }
+}
+
+function readTranscriptChunk(fd: number, start: number, length: number): string {
+  const buf = Buffer.allocUnsafe(length);
+  const read = readSync(fd, buf, 0, length, start);
+  return buf.toString('utf8', 0, read);
+}
+
+/** Newest agent-name (preferred) or ai-title in a transcript chunk, normalised. */
+function pickTitle(text: string): string | null {
+  let aiTitle: string | null = null;
+  let agentName: string | null = null;
+  for (const line of text.split('\n')) {
+    if (!line.includes('"ai-title"') && !line.includes('"agent-name"')) continue;
+    try {
+      const rec = JSON.parse(line) as { type?: string; aiTitle?: unknown; agentName?: unknown };
+      if (rec.type === 'ai-title' && typeof rec.aiTitle === 'string') aiTitle = rec.aiTitle;
+      else if (rec.type === 'agent-name' && typeof rec.agentName === 'string')
+        agentName = rec.agentName;
+    } catch {
+      // Partial line at a window boundary — ignore.
+    }
+  }
+  const raw = agentName ?? aiTitle;
+  if (raw === null) return null;
+  const norm = raw.trim().replace(/\s+/g, ' ').slice(0, 80);
+  return norm === '' ? null : norm;
+}
 
 /** The conversation's cwd appears within the first few JSONL records. */
 function conversationCwdMatches(path: string, targets: Set<string>): boolean {

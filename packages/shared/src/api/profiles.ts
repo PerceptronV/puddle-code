@@ -11,6 +11,29 @@ export const fsSafeName = z
 /** Default branch prefix for a new profile; editable per profile in settings. */
 export const DEFAULT_BRANCH_PREFIX = 'puddle/';
 
+/** Where the repo's standing rules are spliced into the onboarding template. */
+export const RULES_TOKEN = '{{rules}}';
+
+/**
+ * Built-in launch text for a freshly created worktree (SPEC §4), used when the
+ * profile has not set `onboardingTemplate`. `{{rules}}` is replaced with the
+ * repo's user-authored standing rules. Editable per profile in Settings →
+ * Sessions, where it may also be cleared to an empty preamble.
+ */
+export const DEFAULT_ONBOARDING_TEMPLATE = `[puddle onboarding] This is a freshly created git worktree for this task. Before starting, set up the environment:
+
+1. Standing setup rules for this repository (user-authored):
+${RULES_TOKEN}
+
+2. Inspect the codebase for setup requirements (README, CONTRIBUTING, lockfiles, .tool-versions, pyproject.toml, package.json, …).
+3. Apply what the rules above settle without asking. Ask the user about anything they leave open, stating trade-offs where relevant (e.g. a symlinked .venv saves gigabytes per worktree, but parallel sessions then share mutable dependency state).
+4. If the user states a standing rule for all future worktrees ("always…", "never…", "from now on…"), write the complete updated rules to \`.puddle/onboarding-notes.md\` in this worktree — full replacement, user-owned prose; record their decision, don't invent policy.
+
+Then proceed with the task below (or await instructions if none is given).`;
+
+/** Built-in launch text for joining an existing/shared worktree (SPEC §4). */
+export const DEFAULT_CONCURRENT_TEMPLATE = `[puddle] You are joining an existing branch and worktree that other agents may be working in concurrently. Files can change underneath you, so re-check the working tree before you act, and avoid disruptive git operations (resetting, force-pushing, or deleting the branch) that would disrupt work already in progress by others.`;
+
 export const profileSchema = z.object({
   id: profileId,
   name: fsSafeName,
@@ -35,6 +58,15 @@ export const patchProfileRequestSchema = z.object({
  */
 export const profileSettingsSchema = z.looseObject({
   allowSkipPermissions: z.boolean().default(false),
+  /**
+   * Launch-text templates (SPEC §4). A key that is ABSENT falls back to the
+   * daemon's built-in default; an EMPTY string is an intentional empty preamble.
+   * `onboardingTemplate` (freshly created worktree) supports a `{{rules}}` token
+   * where the repo's onboarding notes are injected; `concurrentTemplate` is used
+   * when a session joins an existing/shared worktree.
+   */
+  onboardingTemplate: z.string().optional(),
+  concurrentTemplate: z.string().optional(),
 });
 export type ProfileSettings = z.infer<typeof profileSettingsSchema>;
 
