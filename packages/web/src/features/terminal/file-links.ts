@@ -33,12 +33,15 @@ export interface PathCandidate {
 }
 
 // Permissive by design: the daemon's /resolve endpoint is the real validator, so
-// a false positive here costs nothing (it just never underlines). A candidate
-// needs an extension (`foo.ts`) or a leading `/`, `./`, `../`, which keeps plain
-// prose and decimals like `3.14` quiet. The `d` flag gives per-group indices so
-// we can bracket exactly the path (and any `:line:col`) without re-scanning.
+// a false positive here costs nothing (it just never underlines). A candidate is
+// path-shaped when it (a) has a path prefix — `/`, `~/`, `./`, `../` — and a
+// segment, (b) contains a `/` (a multi-segment relative path like
+// `.worktrees/hil-demos`), or (c) is a bare filename WITH an extension (`foo.ts`);
+// so extensionless dirs and files with path structure light up while plain prose
+// and decimals like `3.14` stay quiet. The `d` flag gives per-group indices so we
+// can bracket exactly the path (and any `:line:col`) without re-scanning.
 const PATH_RE =
-  /(?:^|[\s"'`([<])((?:\.{1,2}\/|\/)?(?:[\w.+@~-]+\/)*[\w.+@~-]+\.[A-Za-z]\w{0,11})(?::(\d{1,6})(?::(\d{1,6}))?)?/dg;
+  /(?:^|[\s"'`([<])((?:(?:\/|\.{1,2}\/|~\/)(?:[\w.+@~-]+\/)*[\w.+@~-]+|(?:[\w.+@~-]+\/)+[\w.+@~-]*|[\w.+@~-]+\.[A-Za-z]\w{0,11}))(?::(\d{1,6})(?::(\d{1,6}))?)?/dg;
 
 const TRAILING_PUNCT = new Set(['.', ',', ';', ':', ')', ']', "'", '"']);
 
@@ -55,9 +58,15 @@ export function findPathCandidates(text: string): PathCandidate[] {
     const indices = m.indices;
     const captured = m[1];
     if (!indices?.[1] || captured === undefined) continue;
-    const [pathStart] = indices[1];
+    let pathStart = indices[1][0];
     let pathEnd = indices[1][1];
     let path = captured;
+    // Claude Code prints file references as `@path` (`@~/notes.md`); the `@` is
+    // not part of the path, so drop it and move the underline start past it.
+    if (path.startsWith('@')) {
+      path = path.slice(1);
+      pathStart++;
+    }
     // Defensive: strip trailing punctuation the regex already excludes, so a
     // future tweak to the character class cannot start underlining a stray `)`.
     while (path.length > 0 && TRAILING_PUNCT.has(path[path.length - 1]!)) {

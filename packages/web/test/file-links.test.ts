@@ -70,6 +70,36 @@ describe('findPathCandidates', () => {
     expect(findPathCandidates('just some prose words')).toEqual([]);
   });
 
+  it('captures an extension-less path under a ~/ home prefix', () => {
+    expect(findPathCandidates('~/.claude/prompts/up-fix')).toEqual([
+      { path: '~/.claude/prompts/up-fix', line: undefined, column: undefined, start: 0, end: 24 },
+    ]);
+  });
+
+  it('captures an extension-less multi-segment relative path', () => {
+    expect(findPathCandidates('cd .worktrees/hil-demos')).toEqual([
+      { path: '.worktrees/hil-demos', line: undefined, column: undefined, start: 3, end: 23 },
+    ]);
+  });
+
+  it('captures an extension-less absolute directory', () => {
+    expect(findPathCandidates('/home/bios/waddle')).toEqual([
+      { path: '/home/bios/waddle', line: undefined, column: undefined, start: 0, end: 17 },
+    ]);
+  });
+
+  it("strips Claude Code's leading @ file-ref marker at line start", () => {
+    expect(findPathCandidates('@~/notes.md')).toEqual([
+      { path: '~/notes.md', line: undefined, column: undefined, start: 1, end: 11 },
+    ]);
+  });
+
+  it('strips a leading @ mid-sentence, underlining only the path', () => {
+    expect(findPathCandidates('see @.claude/prompts/up-fix here')).toEqual([
+      { path: '.claude/prompts/up-fix', line: undefined, column: undefined, start: 5, end: 27 },
+    ]);
+  });
+
   it('produces a benign false positive for "e.g." that the server then rejects', () => {
     // ".g" is a legal one-letter extension (cf. .c, .h, .R); the regex cannot
     // tell it from prose, so a candidate is emitted and /resolve 404s it away.

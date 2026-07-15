@@ -91,9 +91,9 @@ function HostIndicator() {
 function TopBar() {
   return (
     // pl-5 ≈ the right side's visual inset (pr-3 + the ghost buttons' own padding).
-    <header className="relative flex h-11 shrink-0 items-center gap-3 bg-surface pl-5 pr-3">
-      <Link to="/" className="transition-opacity hover:opacity-70">
-        <img src="/puddle.svg" alt="puddle" className="size-6" />
+    <header className="relative flex h-9 shrink-0 items-center gap-3 bg-surface pl-5 pr-3">
+      <Link to="/" className="flex transition-opacity hover:opacity-70">
+        <img src="/puddle.svg" alt="puddle" className="size-5" />
       </Link>
       <HostIndicator />
       <div className="ml-auto flex items-center gap-1">
