@@ -73,6 +73,40 @@ The CLI serves the UI at a stable local origin and reverse-proxies the API to th
 
 Everything lives under `~/.puddle` on the host, installed without sudo. Uninstalling is stopping the service and deleting that directory.
 
+## Development & teardown
+
+**One daemon, many clients.** There is a single local daemon per machine, living under `~/.puddle` and run by one supervised service (launchd's `dev.puddle.puddled` on macOS, systemd's `puddled` on Linux). The global `puddle` and a repo-run `node packages/cli/dist/index.js` are **both just clients** that talk to — and, when needed, install — that same daemon. They never run side by side, and there is no separate "dev daemon" alongside a "production daemon".
+
+**Dev build vs. production.** `npm i -g @puddle-code/cli` is the production path — its `puddle` fetches and upgrades the daemon from this repo's GitHub Releases. To exercise uncommitted changes, build and run from the repo:
+
+```sh
+pnpm build && pnpm build:tarball
+node packages/cli/dist/index.js start --tarball dist-release/puddled-v*.tar.gz --foreground
+```
+
+`--tarball` sets the install _source_ only, and is consulted **only when the CLI actually installs the daemon** — when none is running, the daemon is stopped, or a protocol-major upgrade fires. If a compatible daemon (same protocol major) is already up, `start` just serves the cockpit against it and **the tarball is ignored** (even a newer app version — nothing compares app versions). So to load a fresh dev build over a running daemon you must **stop it first** (see _Kill_ below), then re-run `start --tarball …`. `--foreground` keeps the cockpit attached (`connect <user>@<host> --tarball …` is the remote form). Both clients share one `~/.puddle` daemon and cockpit registry, so `puddle list` / `puddle kill` see either — don't point both at the same host at once. (Never launch the daemon from inside a coding-agent shell: it inherits the agent's env and breaks conversation resume — use a plain terminal.)
+
+**Kill.** `puddle kill --all` (or Ctrl-C in a `--foreground` run) stops the local cockpit UI only; the daemon and its agent sessions keep running. The daemon is auto-restarting (launchd `KeepAlive`, systemd `Restart=always`), so a plain `kill <pid>` bounces straight back — stop it through its supervisor:
+
+```sh
+launchctl bootout gui/$(id -u)/dev.puddle.puddled   # macOS (launchd)
+systemctl --user disable --now puddled              # Linux (systemd user unit)
+kill "$(cat ~/.puddle/puddled.pid)"                 # nohup fallback (no supervisor)
+```
+
+**Restore the production daemon.** When you're done testing, put the release build back over your dev one: stop the daemon (above), clear the installed binaries with `rm -rf ~/.puddle/bin` (your `~/.puddle` state — profiles, sessions, worktrees — is untouched), then run the production `puddle start`, which refetches the daemon from GitHub Releases. (Clearing `bin` is what forces the refetch: the installer skips a version whose files are already present, so a dev build sharing the release's version number would otherwise stay put.)
+
+**Uninstall.** Removing the CLI alone leaves the daemon installed and running — a full teardown stops the daemon, then removes its state, its service file, and the production CLI:
+
+> ⚠️ `~/.puddle` **is** your local state — the SQLite database with every profile, account, and session (plus conversation history), the daemon's worktree tracking, and the auth token. Deleting it is irreversible and wipes all of it. Uninstall only when you mean to start clean.
+
+```sh
+rm -rf ~/.puddle
+rm ~/Library/LaunchAgents/dev.puddle.puddled.plist                            # macOS
+rm ~/.config/systemd/user/puddled.service && systemctl --user daemon-reload   # Linux
+npm uninstall -g @puddle-code/cli
+```
+
 ## Licence
 
 Puddle is licensed under the [MIT License](LICENSE). Copyright (c) 2026 Yiding Song.
