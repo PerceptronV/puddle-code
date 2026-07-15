@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- The CLI build wipes `dist/` before bundling, so the published npm package can no longer pick up leftovers from earlier builds (v0.0.1 shipped three stray tsc artefacts from the pre-Phase-6 stub this way); the `bin` path is normalised to the form npm was auto-correcting at publish time. No protocol change.
