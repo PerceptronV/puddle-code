@@ -1,0 +1,96 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+  id-token: write # npm --provenance
+
+jobs:
+  tarball:
+    strategy:
+      matrix:
+        include:
+          # ubuntu-22.04 on purpose: node-pty is node-gyp-built on Linux, so
+          # the runner's glibc (2.35) is the floor — Ubuntu 22.04+/Debian 12+/
+          # RHEL 9+. Lowering it later means building in a node:22-bullseye
+          # container. macos-13 is GitHub's last Intel runner; when it is
+          # retired, darwin-x64 either moves under Rosetta or is dropped.
+          - { runner: ubuntu-22.04, target: linux-x64 }
+          - { runner: ubuntu-22.04-arm, target: linux-arm64 }
+          - { runner: macos-13, target: darwin-x64 }
+          - { runner: macos-14, target: darwin-arm64 }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      # pnpm install on the native runner produces platform-correct binaries
+      # (node-gyp for node-pty on Linux, prebuilds elsewhere) — the tarball
+      # build refuses to cross-compile by design.
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/build-tarball.mjs --version "${GITHUB_REF_NAME#v}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tarball-${{ matrix.target }}
+          path: |
+            dist-release/*.tar.gz
+            dist-release/*.sha256
+          if-no-files-found: error
+
+  release:
+    needs: tarball
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tarball-*
+          merge-multiple: true
+          path: dist-release
+      - name: assemble SHA256SUMS and bake the repository into install.sh
+        run: |
+          cat dist-release/*.sha256 > dist-release/SHA256SUMS
+          sed "s|@@REPO@@|${GITHUB_REPOSITORY}|" scripts/install.sh > dist-release/install.sh
+      - name: create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist-release/*.tar.gz \
+            dist-release/SHA256SUMS \
+            dist-release/install.sh \
+            --verify-tag --generate-notes
+
+  npm-publish:
+    # Dormant until an NPM_TOKEN secret exists; publishes @puddle-code/cli.
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - name: check for an npm token
+        id: token
+        run: |
+          if [ -n "${{ secrets.NPM_TOKEN }}" ]; then echo "present=true" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.token.outputs.present == 'true'
+        run: pnpm install --frozen-lockfile
+      - if: steps.token.outputs.present == 'true'
+        env:
+          # Bakes the release-source repository into the CLI bundle so its
+          # bootstrap fetches tarballs from the repo that published it.
+          PUDDLE_REPO_SLUG: ${{ github.repository }}
+        run: pnpm build
+      - if: steps.token.outputs.present == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public --workspace packages/cli
