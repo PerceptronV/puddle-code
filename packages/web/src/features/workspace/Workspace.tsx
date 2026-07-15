@@ -32,7 +32,7 @@ import { TilingDnd } from './TilingDnd';
 import { useLayoutTree } from './useLayoutTree';
 import { useUiState } from './use-ui-state';
 
-/** Inline banner over the terminal for sessions that need a nudge. */
+/** Inline banner over the tiling area for the bound session that needs a nudge. */
 function SessionBanner({ session }: { session: Session }) {
   const resume = useSessionAction('resume');
   if (session.status !== 'interrupted' && session.status !== 'exited') return null;
@@ -59,11 +59,12 @@ function SessionBanner({ session }: { session: Session }) {
 }
 
 /**
- * Project workspace: session sidebar + tab strip + terminals + editor zone.
- * Tab order, active session/editor tabs, and pane sizes persist per
- * (project, client) and restore on open (SPEC §11 reload semantics). The
- * `EditorProvider` lets the file explorer (and Phase 4 terminal links) open
- * files without prop-drilling; the editor zone lives behind the lazy boundary.
+ * Project workspace (SPEC §8): the left navigator, the centre free-form tiling
+ * area (editor + terminal tabs in `layout_tree`, driven by `useLayoutTree`), and
+ * the right session sidebar. The tiling tree and the shell sizes persist per
+ * (project, client) and restore on open (SPEC §11). `EditorProvider` lets the
+ * explorer and terminal links open files without prop-drilling; Monaco/xterm
+ * stay behind lazy chunks (`KeepAliveHost` + the pane bodies).
  */
 export function Workspace() {
   return (
