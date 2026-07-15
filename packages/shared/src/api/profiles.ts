@@ -67,6 +67,12 @@ export const profileSettingsSchema = z.looseObject({
    */
   onboardingTemplate: z.string().optional(),
   concurrentTemplate: z.string().optional(),
+  /**
+   * The user's drag-order of projects on the homescreen (project ids). Projects
+   * absent from this list — newly created ones — sort to the top. The right
+   * sidebar's cross-project grouping inherits this order (SPEC §11, §12).
+   */
+  projectOrder: z.array(z.string()).optional(),
 });
 export type ProfileSettings = z.infer<typeof profileSettingsSchema>;
 

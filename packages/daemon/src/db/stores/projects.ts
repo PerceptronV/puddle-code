@@ -8,8 +8,13 @@ interface Row {
   profile_id: string;
   repo_id: number;
   name: string;
+  archived: number;
   created_at: string;
   updated_at: string;
+}
+
+function toProject(r: Row): Project {
+  return { ...r, archived: r.archived === 1 };
 }
 
 export class ProjectStore {
@@ -37,20 +42,45 @@ export class ProjectStore {
     }
   }
 
+  /** All projects (including archived); callers filter by `archived` as needed. */
   list(profileId?: string): Project[] {
-    return (
+    const rows = (
       profileId === undefined
         ? this.db.prepare(`SELECT * FROM projects ORDER BY created_at`).all()
         : this.db
             .prepare(`SELECT * FROM projects WHERE profile_id = ? ORDER BY created_at`)
             .all(profileId)
     ) as Row[];
+    return rows.map(toProject);
   }
 
   get(id: string): Project {
     const row = this.db.prepare(`SELECT * FROM projects WHERE id = ?`).get(id) as Row | undefined;
     if (!row) throw ApiError.notFound('project', id);
-    return row;
+    return toProject(row);
+  }
+
+  /** Rename; the UNIQUE(profile_id, name) collision surfaces as a 409. */
+  rename(id: string, name: string): Project {
+    try {
+      this.db
+        .prepare(`UPDATE projects SET name = ?, updated_at = ? WHERE id = ?`)
+        .run(name, new Date().toISOString(), id);
+    } catch (e) {
+      if (e instanceof Error && e.message.includes('UNIQUE')) {
+        throw ApiError.conflict('project_exists', `a project named '${name}' already exists`);
+      }
+      throw e;
+    }
+    return this.get(id);
+  }
+
+  /** Hide/show a project; reversible, never touches its sessions or data. */
+  setArchived(id: string, archived: boolean): Project {
+    this.db
+      .prepare(`UPDATE projects SET archived = ?, updated_at = ? WHERE id = ?`)
+      .run(archived ? 1 : 0, new Date().toISOString(), id);
+    return this.get(id);
   }
 
   touch(id: string): void {

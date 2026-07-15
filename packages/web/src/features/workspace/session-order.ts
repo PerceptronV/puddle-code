@@ -8,27 +8,36 @@
  */
 import type { Session } from '@puddle/shared';
 
-/** Milliseconds a session was created, for the newest-first default. */
-function createdMs(session: Session): number {
-  const ms = Date.parse(session.created_at);
+/** Milliseconds an item was created, for the newest-first default. */
+function createdMs(item: { created_at: string }): number {
+  const ms = Date.parse(item.created_at);
   return Number.isNaN(ms) ? 0 : ms;
 }
 
 /**
- * Orders `sessions` by the saved `order` (an array of session ids). Sessions
- * present in `order` follow its sequence; sessions absent from it (new, or
- * never-dragged when `order` is empty) come first, newest-created first.
+ * Orders `items` by the saved `order` (an array of ids). Items present in
+ * `order` follow its sequence; items absent from it (new, or never-dragged when
+ * `order` is empty) come first, newest-created first. Id-keyed and generic — the
+ * sessions sidebar and the homescreen's projects share it.
  */
-export function orderSessions(sessions: readonly Session[], order: readonly string[]): Session[] {
+export function orderByDrag<T extends { id: string; created_at: string }>(
+  items: readonly T[],
+  order: readonly string[],
+): T[] {
   const rank = new Map(order.map((id, i) => [id, i]));
-  const known: Session[] = [];
-  const unknown: Session[] = [];
-  for (const session of sessions) {
-    (rank.has(session.id) ? known : unknown).push(session);
+  const known: T[] = [];
+  const unknown: T[] = [];
+  for (const item of items) {
+    (rank.has(item.id) ? known : unknown).push(item);
   }
   known.sort((a, b) => rank.get(a.id)! - rank.get(b.id)!);
   unknown.sort((a, b) => createdMs(b) - createdMs(a));
   return [...unknown, ...known];
+}
+
+/** Orders sessions by the saved `session_order` — see {@link orderByDrag}. */
+export function orderSessions(sessions: readonly Session[], order: readonly string[]): Session[] {
+  return orderByDrag(sessions, order);
 }
 
 /**

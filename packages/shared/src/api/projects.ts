@@ -7,6 +7,12 @@ export const projectSchema = z.object({
   profile_id: profileId,
   repo_id: rowId,
   name: z.string(),
+  /**
+   * Hidden from the homescreen but never deleted — every session, worktree, and
+   * bit of data is retained, and un-archiving restores it all (SPEC §11).
+   * Defaults false so an older daemon that omits it reads as not-archived.
+   */
+  archived: z.boolean().default(false),
   created_at: isoTimestamp,
   updated_at: isoTimestamp,
 });
@@ -16,6 +22,12 @@ export const createProjectRequestSchema = z.object({
   profile_id: profileId,
   repo_id: rowId,
   name: z.string().min(1).max(100),
+});
+
+/** PATCH /api/projects/:id — rename and/or archive/unarchive a project. */
+export const patchProjectRequestSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  archived: z.boolean().optional(),
 });
 
 export const projectDetailSchema = z.object({

@@ -2,6 +2,7 @@ import { Hono, type Context } from 'hono';
 import {
   archiveRequestSchema,
   createProjectRequestSchema,
+  patchProjectRequestSchema,
   putProjectStateRequestSchema,
   type ProjectDetail,
 } from '@puddle/shared';
@@ -55,6 +56,16 @@ export function projectRoutes(deps: ProjectRouteDeps): Hono {
         project,
         sessions: deps.service.list({ project_id: project.id }),
       });
+    })
+    .patch('/:id', async (c) => {
+      const id = hexIdParam(c);
+      deps.projects.get(id); // 404 guard
+      const body = await parseBody(c, patchProjectRequestSchema);
+      let project = body.name !== undefined ? deps.projects.rename(id, body.name) : undefined;
+      // Archive is a pure hide flag — reversible, retains every session and
+      // worktree (distinct from POST /:id/archive, which archives the sessions).
+      if (body.archived !== undefined) project = deps.projects.setArchived(id, body.archived);
+      return c.json(project ?? deps.projects.get(id));
     })
     .post('/:id/archive', async (c) => {
       const body = await parseBody(c, archiveRequestSchema);

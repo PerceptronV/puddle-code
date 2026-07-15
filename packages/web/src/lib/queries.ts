@@ -301,6 +301,16 @@ export function useCreateProject() {
   });
 }
 
+/** Rename and/or archive a project (archive is a reversible hide, SPEC §11). */
+export function usePatchProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: { id: string; name?: string; archived?: boolean }) =>
+      api<Project>('PATCH', `/api/projects/${id}`, patch),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['projects'] }),
+  });
+}
+
 function invalidateSessions(qc: ReturnType<typeof useQueryClient>, session: Session) {
   void qc.invalidateQueries({ queryKey: ['sessions', session.project_id] });
   void qc.invalidateQueries({ queryKey: ['project', session.project_id] });
