@@ -51,19 +51,26 @@ export async function ensureDaemon(
 
   // The daemon may be installed but stopped (nohup host rebooted, service
   // disabled). Probe from the host itself so this works before any tunnel.
-  if (!(await hostProbe(transport, port))) {
+  const probe = await hostProbe(transport, port, token);
+  if (probe === 'unauthorised') throw portConflict(transport, port);
+  if (probe === 'down') {
     if ((await installedVersion(transport)) === null) {
-      throw new CliError(
-        'daemon_unreachable',
-        `a puddle state directory exists on ${transport.label} but no managed daemon answers on port ${port}`,
-        'a development daemon must be started by hand; otherwise remove ~/.puddle/bin and re-run to bootstrap',
-      );
+      // A state dir without a managed install (a dev daemon's leftovers, an
+      // interrupted bootstrap): `start`/`connect` promise a running daemon
+      // (SPEC §10), so install rather than refuse — ~/.puddle state (db,
+      // token, worktrees) is untouched; install.sh only writes bin/ and the
+      // supervisor.
+      logger.info(`no managed daemon on ${transport.label} — bootstrapping one`);
+    } else {
+      logger.info(`puddled is installed on ${transport.label} but not running — restarting it`);
     }
-    logger.info(`puddled is installed on ${transport.label} but not running — restarting it`);
-    await installDaemon(transport, opts); // idempotent: restarts the supervisor
+    await installDaemon(transport, opts); // idempotent: (re)installs + restarts
     bootstrapped = true;
     port = await readDaemonPort(transport);
-    if (!(await waitForHostProbe(transport, port, 20_000))) {
+    token = (await readToken(transport)) ?? token;
+    const after = await waitForHostProbe(transport, port, token, 20_000);
+    if (after === 'unauthorised') throw portConflict(transport, port);
+    if (after !== 'ok') {
       throw new CliError(
         'daemon_start_timeout',
         `puddled did not come up on ${transport.label}`,
@@ -77,29 +84,55 @@ export async function ensureDaemon(
   return { port, token, bootstrapped };
 }
 
-/** TCP-ish reachability of 127.0.0.1:<port> from the daemon's own host. */
-async function hostProbe(transport: Transport, port: number): Promise<boolean> {
-  // Node is guaranteed on the host only under ~/.puddle/bin; plain sh tools
-  // are not (no nc on minimal boxes). /dev/tcp works in bash; fall back to
-  // curl. Both absent → assume unreachable and let bootstrap handle it.
+function portConflict(transport: Transport, port: number): CliError {
+  return new CliError(
+    'port_in_use',
+    `something on ${transport.label} answers on 127.0.0.1:${port} but rejects this host's token`,
+    `it is probably not this host's daemon — another puddle cockpit's UI server that auto-picked ${port}, ` +
+      `or a daemon started before the token changed. Close it (or restart it), or point the daemon at ` +
+      `another port in ~/.puddle/config.json.`,
+  );
+}
+
+type ProbeResult = 'ok' | 'unauthorised' | 'down';
+
+/**
+ * Reachability AND identity of the daemon on 127.0.0.1:<port>, checked from
+ * its own host: only a 200 with this host's token counts as "our daemon is
+ * up". A 401/403 means SOMETHING answers but not our daemon (typically a
+ * `puddle connect` UI server that auto-picked the port) — proceeding would
+ * silently wire the cockpit to the wrong backend. Node is guaranteed on the
+ * host only under ~/.puddle/bin, so this rides curl, degrading to a plain
+ * TCP check (bash /dev/tcp) that cannot verify identity.
+ */
+async function hostProbe(transport: Transport, port: number, token: string): Promise<ProbeResult> {
   const cmd =
-    `(command -v curl >/dev/null 2>&1 && curl -s -o /dev/null --max-time 2 http://127.0.0.1:${port}/api/version && echo OK) ` +
-    `|| (command -v bash >/dev/null 2>&1 && bash -c 'exec 3<>/dev/tcp/127.0.0.1/${port}' 2>/dev/null && echo OK) || true`;
-  const result = await transport.exec(cmd, { timeoutMs: 10_000 });
-  return result.stdout.includes('OK');
+    `if command -v curl >/dev/null 2>&1; then ` +
+    `curl -s -o /dev/null --max-time 2 -w 'HTTP:%{http_code}' ` +
+    `-H 'Authorization: Bearer ${token}' http://127.0.0.1:${port}/api/version || echo DOWN; ` +
+    `elif command -v bash >/dev/null 2>&1 && bash -c 'exec 3<>/dev/tcp/127.0.0.1/${port}' 2>/dev/null; ` +
+    `then echo TCPOPEN; else echo DOWN; fi`;
+  const out = (await transport.exec(cmd, { timeoutMs: 10_000 })).stdout;
+  if (out.includes('HTTP:200')) return 'ok';
+  if (out.includes('HTTP:401') || out.includes('HTTP:403')) return 'unauthorised';
+  if (out.includes('TCPOPEN')) return 'ok'; // no curl on host: cannot verify identity
+  return 'down';
 }
 
 async function waitForHostProbe(
   transport: Transport,
   port: number,
+  token: string,
   timeoutMs: number,
-): Promise<boolean> {
+): Promise<ProbeResult> {
   const deadline = Date.now() + timeoutMs;
+  let last: ProbeResult = 'down';
   while (Date.now() < deadline) {
-    if (await hostProbe(transport, port)) return true;
+    last = await hostProbe(transport, port, token);
+    if (last !== 'down') return last;
     await sleep(500);
   }
-  return false;
+  return last;
 }
 
 /** Build the client-facing upgrade callback the handshake needs. */

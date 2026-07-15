@@ -65,6 +65,10 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
     assetsDir: opts.assetsDir,
     port: opts.port,
     strictPort: opts.port !== undefined,
+    // Never squat the daemon's canonical port either: a local `puddle start`
+    // probing 7434 must not find this cockpit's proxy answering for a
+    // different (remote) daemon.
+    avoidPort: endpoint.port,
     target: { host: '127.0.0.1', port: tunnel.localPort },
   });
   tunnel.onPortChange((port) => ui.setTarget({ host: '127.0.0.1', port }));

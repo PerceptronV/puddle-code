@@ -17,6 +17,12 @@ export interface UiServerOptions {
   port?: number;
   /** An explicitly requested port that is busy is a hard error. */
   strictPort?: boolean;
+  /**
+   * Never auto-pick this port (the daemon's own port in local mode): a UI
+   * server squatting it would make the next `puddle start` handshake with a
+   * proxy instead of the daemon. Ignored for an explicit --port.
+   */
+  avoidPort?: number;
   /** Initial proxy target (daemon port locally, tunnel local end remotely). */
   target: ProxyTarget;
 }
@@ -79,7 +85,12 @@ export async function startUiServer(opts: UiServerOptions): Promise<UiServer> {
     proxyUpgrade(req, socket, head, target, tracker);
   });
 
-  const port = await listen(server, opts.port ?? DEFAULT_UI_PORT, opts.strictPort ?? false);
+  const port = await listen(
+    server,
+    opts.port ?? DEFAULT_UI_PORT,
+    opts.strictPort ?? false,
+    opts.avoidPort,
+  );
 
   return {
     port,
@@ -98,9 +109,15 @@ export async function startUiServer(opts: UiServerOptions): Promise<UiServer> {
   };
 }
 
-async function listen(server: Server, startPort: number, strict: boolean): Promise<number> {
+async function listen(
+  server: Server,
+  startPort: number,
+  strict: boolean,
+  avoidPort?: number,
+): Promise<number> {
   for (let probe = 0; probe < MAX_PORT_PROBES; probe += 1) {
     const port = startPort + probe;
+    if (!strict && port === avoidPort) continue;
     const ok = await new Promise<boolean>((resolve, rejectListen) => {
       const onError = (err: NodeJS.ErrnoException) => {
         server.off('listening', onListening);

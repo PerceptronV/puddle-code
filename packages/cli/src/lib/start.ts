@@ -40,6 +40,7 @@ export async function startLocal(opts: StartOptions): Promise<RunningCockpit> {
     assetsDir: opts.assetsDir,
     port: opts.port,
     strictPort: opts.port !== undefined,
+    avoidPort: endpoint.port, // never squat the daemon's own port
     target: { host: '127.0.0.1', port: endpoint.port },
   });
 
