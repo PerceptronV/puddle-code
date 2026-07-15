@@ -1,3 +1,4 @@
+import { useDraggable } from '@dnd-kit/core';
 import { X } from 'lucide-react';
 import type { LayoutLeaf, Session, TabRef } from '@puddle/shared';
 import { sessionDisplayName } from '../../lib/session-display';
@@ -14,9 +15,10 @@ const TAB_CLASS =
 
 /**
  * A tiling pane's tab strip (SPEC §8) — one unified strip over BOTH terminal and
- * editor tabs (merging the old `TabStrip` + `EditorTabStrip`). Terminals show a
- * status dot + display name and the session lifecycle menu; editors show a
- * disambiguated label and a dirty-aware close (behind the lazy editor chunk).
+ * editor tabs (merging the old `TabStrip` + `EditorTabStrip`). Each tab is
+ * draggable (dnd-kit) so it can be reordered or dropped onto another pane to
+ * split it; terminals carry the session lifecycle menu, editors a dirty-aware
+ * close (behind the lazy editor chunk).
  */
 export function PaneTabStrip({
   leaf,
@@ -43,61 +45,92 @@ export function PaneTabStrip({
 
   return (
     <div className="flex h-9 shrink-0 items-stretch gap-0.5 overflow-x-auto bg-surface px-1 pt-1">
-      {leaf.tabs.map((ref) => {
-        const key = tabRefKey(ref);
-        const active = key === leaf.activeKey;
-        const cls = cn(
-          TAB_CLASS,
-          active ? 'bg-ground text-fg' : 'text-fg-secondary hover:bg-elevated',
-        );
-
-        if (ref.type === 'terminal') {
-          const session = sessions.find((s) => s.id === ref.session);
-          const inner = (
-            <div onClick={() => onActivate(ref)} className={cls}>
-              {session && <StatusDot status={session.status} kind={session.kind} />}
-              <span className="truncate font-mono">
-                {session ? sessionDisplayName(session) : ref.session.slice(0, 8)}
-              </span>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onClose(ref);
-                }}
-                className="rounded-sm p-0.5 text-fg-muted opacity-0 transition-opacity hover:text-fg group-hover:opacity-100"
-                aria-label="Close tab"
-              >
-                <X className="size-3" />
-              </button>
-            </div>
-          );
-          return session ? (
-            <SessionContextMenu
-              key={key}
-              session={session}
-              onArchived={() => onArchived(ref.session)}
-            >
-              {inner}
-            </SessionContextMenu>
-          ) : (
-            <div key={key}>{inner}</div>
-          );
-        }
-
-        const label = labelFor(ref.tab);
-        return (
-          <div key={key} onClick={() => onActivate(ref)} className={cls}>
-            <span className="truncate font-mono">{label}</span>
-            <LazyEditorTabClose
-              session={ref.tab.session}
-              path={ref.tab.path}
-              kind={tabKind(ref.tab)}
-              label={label}
-              onClose={() => onClose(ref)}
-            />
-          </div>
-        );
-      })}
+      {leaf.tabs.map((ref) => (
+        <PaneTab
+          key={tabRefKey(ref)}
+          tab={ref}
+          leafId={leaf.id}
+          active={tabRefKey(ref) === leaf.activeKey}
+          session={ref.type === 'terminal' ? sessions.find((s) => s.id === ref.session) : undefined}
+          label={ref.type === 'editor' ? labelFor(ref.tab) : ''}
+          onActivate={() => onActivate(ref)}
+          onClose={() => onClose(ref)}
+          onArchived={onArchived}
+        />
+      ))}
     </div>
   );
+}
+
+function PaneTab({
+  tab,
+  leafId,
+  active,
+  session,
+  label,
+  onActivate,
+  onClose,
+  onArchived,
+}: {
+  tab: TabRef;
+  leafId: string;
+  active: boolean;
+  session: Session | undefined;
+  label: string;
+  onActivate: () => void;
+  onClose: () => void;
+  onArchived: (session: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: tabRefKey(tab),
+    data: { ref: tab, fromLeafId: leafId },
+  });
+  const cls = cn(
+    TAB_CLASS,
+    active ? 'bg-ground text-fg' : 'text-fg-secondary hover:bg-elevated',
+    isDragging && 'opacity-40',
+  );
+
+  const body = (
+    <div ref={setNodeRef} {...attributes} {...listeners} onClick={onActivate} className={cls}>
+      {tab.type === 'terminal' ? (
+        <>
+          {session && <StatusDot status={session.status} kind={session.kind} />}
+          <span className="truncate font-mono">
+            {session ? sessionDisplayName(session) : tab.session.slice(0, 8)}
+          </span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            className="rounded-sm p-0.5 text-fg-muted opacity-0 transition-opacity hover:text-fg group-hover:opacity-100"
+            aria-label="Close tab"
+          >
+            <X className="size-3" />
+          </button>
+        </>
+      ) : (
+        <>
+          <span className="truncate font-mono">{label}</span>
+          <LazyEditorTabClose
+            session={tab.tab.session}
+            path={tab.tab.path}
+            kind={tabKind(tab.tab)}
+            label={label}
+            onClose={onClose}
+          />
+        </>
+      )}
+    </div>
+  );
+
+  if (tab.type === 'terminal' && session) {
+    return (
+      <SessionContextMenu session={session} onArchived={() => onArchived(tab.session)}>
+        {body}
+      </SessionContextMenu>
+    );
+  }
+  return body;
 }

@@ -7,6 +7,7 @@ import {
   allLeaves,
   buildInitialTree,
   closeTab,
+  dropTab,
   findLeaf,
   focusTab,
   leafContainingKey,
@@ -14,6 +15,7 @@ import {
   pruneTabs,
   resizeSplit,
   tabRefKey,
+  type DropSpec,
 } from './layout-tree';
 
 /**
@@ -37,6 +39,7 @@ export interface LayoutController {
   removeTerminal(session: string): void;
   pruneSessions(alive: ReadonlySet<string>): void;
   resize(splitId: string, sizes: number[]): void;
+  drop(spec: DropSpec): void;
 }
 
 export function useLayoutTree(uiState: UiStateHandle): LayoutController {
@@ -110,6 +113,10 @@ export function useLayoutTree(uiState: UiStateHandle): LayoutController {
           ),
         ),
       resize: (splitId, sizes) => persist(resizeSplit(tree, splitId, sizes)),
+      drop: (spec) => {
+        setFocusedLeafId(spec.toLeafId);
+        persist(dropTab(tree, spec));
+      },
     }),
     [tree, focusedLeaf, activeEditorTab, persist],
   );

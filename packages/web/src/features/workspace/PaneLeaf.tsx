@@ -1,3 +1,4 @@
+import { useDroppable } from '@dnd-kit/core';
 import { TerminalSquare } from 'lucide-react';
 import type { LayoutLeaf, Session, TabRef } from '@puddle/shared';
 import { cn } from '../../lib/utils';
@@ -5,7 +6,8 @@ import { LazyPaneEditorBody } from '../editor/lazy-editor-parts';
 import type { RevealTarget } from './editor-context';
 import { useKeepAliveSlot } from './keep-alive';
 import { PaneTabStrip } from './PaneTabStrip';
-import { tabRefKey } from './layout-tree';
+import { tabRefKey, type DropEdge } from './layout-tree';
+import { useDropIndicator } from './TilingDnd';
 
 /**
  * One leaf pane (SPEC §8): its tab strip over a body that shows the active tab —
@@ -33,6 +35,8 @@ export function PaneLeaf({
   const activeRef = leaf.tabs.find((t) => tabRefKey(t) === leaf.activeKey) ?? null;
   const terminalKey = activeRef?.type === 'terminal' ? tabRefKey(activeRef) : null;
   const slotRef = useKeepAliveSlot(terminalKey);
+  const { setNodeRef } = useDroppable({ id: `leaf:${leaf.id}` });
+  const indicator = useDropIndicator();
 
   return (
     <div className="flex h-full flex-col bg-ground" onMouseDownCapture={() => onFocusLeaf(leaf.id)}>
@@ -43,7 +47,7 @@ export function PaneLeaf({
         onClose={(ref) => onCloseTab(leaf.id, ref)}
         onArchived={onArchived}
       />
-      <div className="relative min-h-0 flex-1">
+      <div ref={setNodeRef} className="relative min-h-0 flex-1">
         {activeRef?.type === 'editor' && (
           <div className="absolute inset-0">
             <LazyPaneEditorBody tab={activeRef.tab} reveal={reveal} />
@@ -55,6 +59,7 @@ export function PaneLeaf({
           ref={slotRef}
           className={cn('absolute inset-0 py-1 pl-4 pr-2', !terminalKey && 'hidden')}
         />
+        {indicator?.leafId === leaf.id && <DropZoneOverlay zone={indicator.zone} />}
         {!activeRef && (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
             <TerminalSquare className="size-8 text-fg-muted" />
@@ -68,4 +73,17 @@ export function PaneLeaf({
       </div>
     </div>
   );
+}
+
+const ZONE_POS: Record<DropEdge, string> = {
+  center: 'inset-0',
+  left: 'inset-y-0 left-0 w-1/2',
+  right: 'inset-y-0 right-0 w-1/2',
+  top: 'inset-x-0 top-0 h-1/2',
+  bottom: 'inset-x-0 bottom-0 h-1/2',
+};
+
+/** Translucent highlight of the region a drop will land in (SPEC §8). */
+function DropZoneOverlay({ zone }: { zone: DropEdge }) {
+  return <div className={cn('pointer-events-none absolute z-20 bg-accent/20', ZONE_POS[zone])} />;
 }

@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import type { Session, SessionKind, TabRef } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { useExplorerTarget } from '../explorer/use-explorer-target';
+import { sessionDisplayName } from '../../lib/session-display';
 import { useAccounts, useProjectDetail, useSessionAction } from '../../lib/queries';
 import { useNewSession } from '../shell/new-session-context';
 import type { EditorTab } from '../editor/editor-tabs';
@@ -27,6 +28,7 @@ import { NewSessionDialog } from './NewSessionDialog';
 import { PortsStrip } from '../ports/PortsStrip';
 import { CollapsedSessionsRail, SessionSidebar } from './SessionSidebar';
 import { TileTree } from './TileTree';
+import { TilingDnd } from './TilingDnd';
 import { useLayoutTree } from './useLayoutTree';
 import { useUiState } from './use-ui-state';
 
@@ -335,16 +337,37 @@ function WorkspaceInner() {
                 <PortsStrip sessionId={activeSession.id} status={activeSession.status} />
               )}
               <div className="min-h-0 flex-1">
-                <TileTree
-                  tree={layout.tree}
-                  sessions={sessions}
-                  reveal={reveal}
-                  onActivateTab={onActivateTab}
-                  onCloseTab={onCloseTab}
-                  onArchived={closeTab}
-                  onFocusLeaf={layout.focusLeaf}
-                  onResize={layout.resize}
-                />
+                <TilingDnd
+                  onDrop={layout.drop}
+                  renderOverlay={(ref) => {
+                    const s =
+                      ref.type === 'terminal'
+                        ? sessions.find((x) => x.id === ref.session)
+                        : undefined;
+                    const label =
+                      ref.type === 'terminal'
+                        ? s
+                          ? sessionDisplayName(s)
+                          : ref.session.slice(0, 8)
+                        : (ref.tab.path.split('/').pop() ?? ref.tab.path);
+                    return (
+                      <div className="rounded-md bg-elevated px-2.5 py-1 text-xs font-mono text-fg shadow-lg">
+                        {label}
+                      </div>
+                    );
+                  }}
+                >
+                  <TileTree
+                    tree={layout.tree}
+                    sessions={sessions}
+                    reveal={reveal}
+                    onActivateTab={onActivateTab}
+                    onCloseTab={onCloseTab}
+                    onArchived={closeTab}
+                    onFocusLeaf={layout.focusLeaf}
+                    onResize={layout.resize}
+                  />
+                </TilingDnd>
               </div>
             </div>
           </KeepAliveHost>
