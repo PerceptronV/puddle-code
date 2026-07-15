@@ -1,6 +1,8 @@
 packages:
   - packages/*
-# Native addons: both ship install scripts (prebuild download / node-gyp).
+# Native addons ship install scripts (prebuild download / node-gyp);
+# esbuild's downloads its platform binary.
 allowBuilds:
   better-sqlite3: true
+  esbuild: true
   node-pty: true
