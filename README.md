@@ -1,9 +1,11 @@
 # Puddle
 
 Puddle is an open-source, multi-account coding agent orchestrator with first-class SSH support and a lightweight GUI. With a single command,
+
 ```bash
 puddle connect <user>@<host>
 ```
+
 Puddle manages parallel agents anywhere you SSH into, insulates agents in dedicated worktrees, and keeps your agents alive across disconnects and restarts.
 
 ## Quick start
