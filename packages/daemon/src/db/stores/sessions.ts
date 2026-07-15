@@ -134,12 +134,19 @@ export class SessionStore {
     return row.n;
   }
 
-  list(filter: { project_id?: string; status?: SessionStatus } = {}): Session[] {
+  list(
+    filter: { project_id?: string; profile_id?: string; status?: SessionStatus } = {},
+  ): Session[] {
     const clauses: string[] = [];
     const params: unknown[] = [];
     if (filter.project_id !== undefined) {
       clauses.push('project_id = ?');
       params.push(filter.project_id);
+    }
+    if (filter.profile_id !== undefined) {
+      // All of a profile's sessions across its projects — the cross-project sidebar.
+      clauses.push('project_id IN (SELECT id FROM projects WHERE profile_id = ?)');
+      params.push(filter.profile_id);
     }
     if (filter.status !== undefined) {
       clauses.push('status = ?');

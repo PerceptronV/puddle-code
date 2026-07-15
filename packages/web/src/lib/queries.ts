@@ -92,6 +92,18 @@ export function useSessions(projectId: string | undefined) {
   });
 }
 
+/**
+ * All of a profile's sessions across its projects (the cross-project sidebar).
+ * Keyed under `['sessions', …]` so the live status/rename sync patches it too.
+ */
+export function useProfileSessions(profileId: string | undefined) {
+  return useQuery({
+    queryKey: ['sessions', 'profile', profileId],
+    queryFn: () => api<Session[]>('GET', `/api/sessions?profile=${profileId}`),
+    enabled: profileId !== undefined,
+  });
+}
+
 export function useConfig() {
   return useQuery({ queryKey: ['config'], queryFn: () => api<DaemonConfig>('GET', '/api/config') });
 }

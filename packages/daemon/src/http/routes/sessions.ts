@@ -19,6 +19,7 @@ export function sessionRoutes(deps: { service: SessionService; scanner: PortScan
   return new Hono()
     .get('/', (c) => {
       const project = c.req.query('project');
+      const profile = c.req.query('profile');
       const statusRaw = c.req.query('status');
       const status = statusRaw !== undefined ? sessionStatusSchema.safeParse(statusRaw) : undefined;
       if (status && !status.success) {
@@ -27,6 +28,7 @@ export function sessionRoutes(deps: { service: SessionService; scanner: PortScan
       return c.json(
         deps.service.list({
           project_id: project,
+          profile_id: profile,
           status: status?.data,
         }),
       );

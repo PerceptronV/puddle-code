@@ -95,6 +95,17 @@ export function AppearanceSection() {
           onCheckedChange={(checked) => updateClientSettings({ reducedMotion: checked })}
         />
       </SettingRow>
+      <SettingRow
+        label="All projects in the sidebar"
+        description="Show every project's sessions in the right sidebar, grouped by project."
+        htmlFor="all-project-sessions"
+      >
+        <Switch
+          id="all-project-sessions"
+          checked={settings.showAllProjectSessions}
+          onCheckedChange={(checked) => updateClientSettings({ showAllProjectSessions: checked })}
+        />
+      </SettingRow>
     </div>
   );
 }

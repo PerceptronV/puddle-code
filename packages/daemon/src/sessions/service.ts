@@ -96,7 +96,9 @@ export class SessionService extends EventEmitter {
     return this.withComputed(this.deps.sessions.get(id));
   }
 
-  list(filter: { project_id?: string; status?: SessionStatus } = {}): Session[] {
+  list(
+    filter: { project_id?: string; profile_id?: string; status?: SessionStatus } = {},
+  ): Session[] {
     return this.deps.sessions.list(filter).map((s) => this.withComputed(s));
   }
 

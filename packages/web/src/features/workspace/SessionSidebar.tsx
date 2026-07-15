@@ -25,7 +25,18 @@ import {
   SessionContextMenuBody,
   useSessionMenu,
 } from './SessionActions';
-import { orderSessions, reorderIds } from './session-order';
+import { reorderIds } from './session-order';
+
+/**
+ * A project's sessions for the sidebar. `name` null → render no header (the
+ * single-project view); a name renders a header + divider so the cross-project
+ * view reads as grouped-by-project (SPEC §12). `sessions` arrive pre-ordered.
+ */
+export interface SessionGroup {
+  projectId: string;
+  name: string | null;
+  sessions: Session[];
+}
 
 /** A borderless icon button with a fill-shift hover (mirrors the left navigator). */
 function IconButton({
@@ -54,24 +65,32 @@ function IconButton({
   );
 }
 
+/** Name over branch — the tooltip for a collapsed dot and any hover label. */
+function SessionLabel({ session }: { session: Session }) {
+  return (
+    <span className="flex flex-col">
+      <span>{sessionDisplayName(session)}</span>
+      <span className="font-mono text-2xs text-fg-muted">{session.branch}</span>
+    </span>
+  );
+}
+
 /**
- * One collapsed-rail status dot: navigates on click, and right-clicking opens
- * the same lifecycle menu as the expanded row's ellipsis. The context-menu and
- * tooltip triggers both wrap the single `<Link>` (stacked `asChild`).
+ * One collapsed-rail status dot: navigates on click (to its own project, so the
+ * cross-project rail switches projects too) and right-clicking opens the same
+ * lifecycle menu as the expanded row's ellipsis. The context-menu and tooltip
+ * triggers both wrap the single `<Link>` (stacked `asChild`).
  */
 function CollapsedSessionDot({
   session,
-  projectId,
   activeSessionId,
   onArchived,
 }: {
   session: Session;
-  projectId: string;
   activeSessionId: string | null;
   onArchived: (id: string) => void;
 }) {
   const { menu, dialogs } = useSessionMenu(session, onArchived);
-  const name = sessionDisplayName(session);
   return (
     <ContextMenu>
       <Tooltip>
@@ -80,7 +99,7 @@ function CollapsedSessionDot({
             <Link
               draggable={false}
               aria-current={session.id === activeSessionId ? 'true' : undefined}
-              to={`/project/${projectId}/session/${session.id}`}
+              to={`/project/${session.project_id}/session/${session.id}`}
               className={cn(
                 'flex items-center rounded-md p-1.5 transition-colors hover:bg-elevated',
                 session.id === activeSessionId && 'bg-elevated',
@@ -96,11 +115,13 @@ function CollapsedSessionDot({
                 kind={session.kind}
                 className="[--puddle-ripple-scale:2.3]"
               />
-              <span className="sr-only">{name}</span>
+              <span className="sr-only">{sessionDisplayName(session)}</span>
             </Link>
           </TooltipTrigger>
         </ContextMenuTrigger>
-        <TooltipContent>{name}</TooltipContent>
+        <TooltipContent>
+          <SessionLabel session={session} />
+        </TooltipContent>
       </Tooltip>
       <SessionContextMenuBody menu={menu} />
       {dialogs}
@@ -109,28 +130,24 @@ function CollapsedSessionDot({
 }
 
 /**
- * The collapsed right sidebar: a slim rail holding the expand / new-terminal /
- * new-session controls, then a divider and one clickable status dot per live
- * session so you can switch sessions without reopening the sidebar (HUMANS.md
- * minimalism — no border, fill-shift hover). Mirrors the left navigator's
- * `CollapsedSidebarRail`.
+ * The collapsed right sidebar: a slim rail whose expand / new-terminal /
+ * new-session controls stay fixed at the top, then one clickable status dot per
+ * live session — grouped by project with a divider between groups (SPEC §12).
+ * The dots scroll (no visible scrollbar) so a long list still works.
  */
 export function CollapsedSessionsRail({
-  projectId,
-  sessions,
+  groups,
   activeSessionId,
-  order,
+  reorderable,
   onReorder,
   onExpand,
   onNewTerminal,
   onNewSession,
   onArchived,
 }: {
-  projectId: string;
-  sessions: Session[];
+  groups: SessionGroup[];
   activeSessionId: string | null;
-  /** Persisted user order — must match the expanded sidebar's order exactly. */
-  order: string[];
+  reorderable: boolean;
   onReorder: (ids: string[]) => void;
   onExpand: () => void;
   onNewTerminal: () => void;
@@ -138,22 +155,10 @@ export function CollapsedSessionsRail({
   onArchived: (id: string) => void;
 }) {
   const [dragging, setDragging] = useState<string | null>(null);
-  // Same ordering as the expanded sidebar so the dots line up, and drag-
-  // reorderable the same way. Archived sessions stay hidden here — they surface
-  // only under the expanded sidebar's Archived disclosure (SPEC §4).
-  const visible = orderSessions(
-    sessions.filter((s) => s.status !== 'archived'),
-    order,
-  );
+  const withDots = groups.filter((g) => g.sessions.length > 0);
   const move = (id: string, before: string) => {
-    if (id === before) return;
-    onReorder(
-      reorderIds(
-        visible.map((s) => s.id),
-        id,
-        before,
-      ),
-    );
+    if (id === before || !reorderable) return;
+    onReorder(reorderIds(withDots[0]?.sessions.map((s) => s.id) ?? [], id, before));
   };
   return (
     <div className="flex h-full w-9 shrink-0 flex-col items-center bg-surface py-1.5">
@@ -162,26 +167,31 @@ export function CollapsedSessionsRail({
         <IconButton icon={SquareTerminal} label="New terminal" onClick={onNewTerminal} />
         <IconButton icon={Plus} label="New session" onClick={onNewSession} />
       </div>
-      {visible.length > 0 && <div className="my-1.5 h-px w-5 shrink-0 bg-border" />}
-      <div className="flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto">
-        {visible.map((session) => (
-          <div
-            key={session.id}
-            draggable
-            onDragStart={() => setDragging(session.id)}
-            onDragEnd={() => setDragging(null)}
-            onDragOver={(e) => {
-              e.preventDefault();
-              if (dragging && dragging !== session.id) move(dragging, session.id);
-            }}
-            className={cn('transition-opacity', dragging === session.id && 'opacity-50')}
-          >
-            <CollapsedSessionDot
-              session={session}
-              projectId={projectId}
-              activeSessionId={activeSessionId}
-              onArchived={onArchived}
-            />
+      <div className="no-scrollbar flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto">
+        {withDots.map((group) => (
+          // A divider precedes every group (the first one separates dots from
+          // the controls above; the rest separate one project from the next).
+          <div key={group.projectId} className="flex flex-col items-center gap-1">
+            <div className="my-0.5 h-px w-5 shrink-0 bg-border" />
+            {group.sessions.map((session) => (
+              <div
+                key={session.id}
+                draggable={reorderable}
+                onDragStart={() => setDragging(session.id)}
+                onDragEnd={() => setDragging(null)}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  if (dragging && dragging !== session.id) move(dragging, session.id);
+                }}
+                className={cn('transition-opacity', dragging === session.id && 'opacity-50')}
+              >
+                <CollapsedSessionDot
+                  session={session}
+                  activeSessionId={activeSessionId}
+                  onArchived={onArchived}
+                />
+              </div>
+            ))}
           </div>
         ))}
       </div>
@@ -192,14 +202,12 @@ export function CollapsedSessionsRail({
 /** One expanded-sidebar row: display-name title over branch/account lines. */
 function SessionRow({
   session,
-  projectId,
   activeSessionId,
   accountLabel,
   onArchived,
   ellipsis,
 }: {
   session: Session;
-  projectId: string;
   activeSessionId: string | null;
   accountLabel: Map<number, string>;
   onArchived: (id: string) => void;
@@ -211,9 +219,10 @@ function SessionRow({
       {(menu) => (
         <Link
           // draggable=false: let the <li> own the drag (reorder), not the
-          // anchor's native "drag the URL" behaviour. Click still navigates.
+          // anchor's native "drag the URL" behaviour. Click still navigates — to
+          // its own project, so the cross-project list switches projects too.
           draggable={false}
-          to={`/project/${projectId}/session/${session.id}`}
+          to={`/project/${session.project_id}/session/${session.id}`}
           className={cn(
             'group flex items-center gap-2 px-3 py-1.5 transition-colors hover:bg-elevated',
             session.id === activeSessionId && 'bg-elevated',
@@ -269,28 +278,31 @@ function SessionRow({
 /**
  * Session list: a display-font title over the mono branch (git-branch icon) and
  * account (agent-brand icon) lines, live status ripples, badges, lifecycle menu.
- * Archived sessions are not deleted — they collapse into a disclosure at the
- * bottom so they stay reachable (SPEC §4).
+ * Sessions are grouped by project (a header per project in the cross-project
+ * view); the list scrolls with no visible scrollbar while the controls stay
+ * fixed. Archived sessions are not deleted — they collapse into a disclosure at
+ * the bottom so they stay reachable (SPEC §4, §12).
  */
 export function SessionSidebar({
-  projectId,
-  sessions,
+  groups,
   accounts,
   activeSessionId,
-  order,
+  reorderable,
   onReorder,
+  archived,
   onNewSession,
   onNewTerminal,
   onCollapse,
   onArchived,
 }: {
-  projectId: string;
-  sessions: Session[];
+  groups: SessionGroup[];
   accounts: Account[];
   activeSessionId: string | null;
-  /** Persisted user order (session ids); sessions absent from it sort to the top. */
-  order: string[];
+  /** Single-project view: rows drag-reorder within the one group. */
+  reorderable: boolean;
   onReorder: (ids: string[]) => void;
+  /** Current project's archived sessions (single-project view); [] otherwise. */
+  archived: Session[];
   onNewSession: () => void;
   onNewTerminal: () => void;
   onCollapse: () => void;
@@ -298,33 +310,20 @@ export function SessionSidebar({
 }) {
   const [dragging, setDragging] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
-  // The list is drag-reorderable; new sessions appear on top until dragged
-  // (SPEC §8). Order keys on session id, so any session type orders the same.
-  const visible = orderSessions(
-    sessions.filter((s) => s.status !== 'archived'),
-    order,
-  );
-  const archived = sessions.filter((s) => s.status === 'archived');
   const accountLabel = new Map(accounts.map((a) => [a.id, a.label]));
+  const withSessions = groups.filter((g) => g.sessions.length > 0);
+  const total = withSessions.reduce((n, g) => n + g.sessions.length, 0);
 
-  // Persist the FULL current order (visible ids with `id` moved before
-  // `before`), so previously-untracked sessions become tracked in one go.
   const move = (id: string, before: string) => {
-    if (id === before) return;
-    onReorder(
-      reorderIds(
-        visible.map((s) => s.id),
-        id,
-        before,
-      ),
-    );
+    if (id === before || !reorderable) return;
+    onReorder(reorderIds(withSessions[0]?.sessions.map((s) => s.id) ?? [], id, before));
   };
 
   return (
     <div className="flex h-full flex-col bg-surface">
-      {/* Collapse on the left edge; new-terminal and new-session on the right,
-          mirroring the left navigator's icon row (HUMANS.md). */}
-      <div className="flex items-center gap-1 px-2 py-1.5">
+      {/* Fixed controls: collapse on the left edge; new-terminal and new-session
+          on the right, mirroring the left navigator's icon row (HUMANS.md). */}
+      <div className="flex shrink-0 items-center gap-1 px-2 py-1.5">
         <IconButton icon={PanelRightClose} label="Hide sessions" onClick={onCollapse} />
         <div className="ml-auto flex items-center gap-1">
           <IconButton icon={SquareTerminal} label="New terminal" onClick={onNewTerminal} />
@@ -332,37 +331,46 @@ export function SessionSidebar({
         </div>
       </div>
       {/* No horizontal padding: the active/hover fill-shift bleeds to both
-          sidebar edges (each row carries its own px-3). */}
-      <div className="min-h-0 flex-1 overflow-y-auto py-1.5">
-        {visible.length === 0 && archived.length === 0 && (
+          sidebar edges (each row carries its own px-3). Scrolls without a
+          visible scrollbar so a long cross-project list still works. */}
+      <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto py-1.5">
+        {total === 0 && archived.length === 0 && (
           <p className="px-3 py-3 text-xs text-fg-muted">
             No sessions yet — press ⌘K to start one.
           </p>
         )}
-        <ul className="flex flex-col gap-0.5">
-          {visible.map((session) => (
-            <li
-              key={session.id}
-              draggable
-              onDragStart={() => setDragging(session.id)}
-              onDragEnd={() => setDragging(null)}
-              onDragOver={(e) => {
-                e.preventDefault();
-                if (dragging && dragging !== session.id) move(dragging, session.id);
-              }}
-              className={cn('transition-opacity', dragging === session.id && 'opacity-50')}
-            >
-              <SessionRow
-                session={session}
-                projectId={projectId}
-                activeSessionId={activeSessionId}
-                accountLabel={accountLabel}
-                onArchived={onArchived}
-                ellipsis
-              />
-            </li>
-          ))}
-        </ul>
+        {withSessions.map((group) => (
+          <div key={group.projectId}>
+            {group.name !== null && (
+              <div className="truncate px-3 pb-1 pt-2 text-2xs font-medium uppercase tracking-wide text-fg-muted">
+                {group.name}
+              </div>
+            )}
+            <ul className="flex flex-col gap-0.5">
+              {group.sessions.map((session) => (
+                <li
+                  key={session.id}
+                  draggable={reorderable}
+                  onDragStart={() => setDragging(session.id)}
+                  onDragEnd={() => setDragging(null)}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (dragging && dragging !== session.id) move(dragging, session.id);
+                  }}
+                  className={cn('transition-opacity', dragging === session.id && 'opacity-50')}
+                >
+                  <SessionRow
+                    session={session}
+                    activeSessionId={activeSessionId}
+                    accountLabel={accountLabel}
+                    onArchived={onArchived}
+                    ellipsis
+                  />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </div>
       {/* Archived sessions: hidden by default under a collapsible header at the
           bottom, never deleted — click one to reopen it and read its history
@@ -382,12 +390,11 @@ export function SessionSidebar({
             <span className="ml-auto tabular-nums">{archived.length}</span>
           </button>
           {showArchived && (
-            <ul className="flex max-h-48 flex-col gap-0.5 overflow-y-auto">
+            <ul className="no-scrollbar flex max-h-48 flex-col gap-0.5 overflow-y-auto">
               {archived.map((session) => (
                 <li key={session.id}>
                   <SessionRow
                     session={session}
-                    projectId={projectId}
                     activeSessionId={activeSessionId}
                     accountLabel={accountLabel}
                     onArchived={onArchived}

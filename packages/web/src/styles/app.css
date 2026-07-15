@@ -214,4 +214,13 @@
   html[data-reduced-motion='true'] .status-dot::after {
     content: none;
   }
+
+  /* Scroll without a visible scrollbar — the sessions rail/list scrolls when
+     there are many sessions but keeps the chrome clean (HUMANS.md minimalism). */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }

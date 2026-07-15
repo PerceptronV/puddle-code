@@ -16,6 +16,8 @@ export interface ClientSettings {
   editorWordWrap: boolean;
   /** `user@host` for `vscode://`/`cursor://` remote deep links; `''` = unset. */
   editorLinkSshHost: string;
+  /** Show every project's sessions in the right sidebar, grouped by project. */
+  showAllProjectSessions: boolean;
 }
 
 export const DEFAULT_CLIENT_SETTINGS: ClientSettings = {
@@ -28,6 +30,7 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettings = {
   editorTabSize: 2,
   editorWordWrap: false,
   editorLinkSshHost: '',
+  showAllProjectSessions: true,
 };
 
 const KEY = 'puddle.client-settings';

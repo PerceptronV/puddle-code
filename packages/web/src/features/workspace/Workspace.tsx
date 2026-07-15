@@ -6,8 +6,17 @@ import { toast } from 'sonner';
 import type { Session, SessionKind, TabRef } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { useExplorerTarget } from '../explorer/use-explorer-target';
+import { useClientSettings } from '../../lib/client-settings';
 import { sessionDisplayName } from '../../lib/session-display';
-import { useAccounts, useProjectDetail, useSessionAction } from '../../lib/queries';
+import {
+  useAccounts,
+  useProfileSessions,
+  useProfileSettings,
+  useProjectDetail,
+  useProjects,
+  useSessionAction,
+} from '../../lib/queries';
+import { orderByDrag } from './session-order';
 import { useNewSession } from '../shell/new-session-context';
 import type { EditorTab } from '../editor/editor-tabs';
 import {
@@ -26,7 +35,7 @@ import {
 } from './NavigatorSidebar';
 import { NewSessionDialog } from './NewSessionDialog';
 import { PortsStrip } from '../ports/PortsStrip';
-import { CollapsedSessionsRail, SessionSidebar } from './SessionSidebar';
+import { CollapsedSessionsRail, SessionSidebar, type SessionGroup } from './SessionSidebar';
 import { TileTree } from './TileTree';
 import { TilingDnd } from './TilingDnd';
 import { useLayoutTree } from './useLayoutTree';
@@ -85,6 +94,53 @@ function WorkspaceInner() {
   const accounts = useAccounts(detail.data?.project.profile_id).data ?? [];
 
   const uiState = useUiState(validProject ? projectId : undefined);
+
+  // The right sidebar groups sessions by project (SPEC §12): the whole profile
+  // in cross-project mode (client setting, default on — project order inherits
+  // the homescreen's projectOrder), or just this project otherwise, where drag
+  // reorders session_order.
+  const profileId = detail.data?.project.profile_id;
+  const showAllSessions = useClientSettings().showAllProjectSessions;
+  const profileSessions = useProfileSessions(showAllSessions ? profileId : undefined);
+  const profileProjects = useProjects(showAllSessions ? profileId : undefined);
+  const profileSettings = useProfileSettings(showAllSessions ? profileId : undefined);
+  const sessionGroups = useMemo<SessionGroup[]>(() => {
+    const active = (s: Session) => s.status !== 'archived';
+    if (!showAllSessions) {
+      return [
+        {
+          projectId,
+          name: null,
+          sessions: orderByDrag(sessions.filter(active), uiState.snapshot.session_order),
+        },
+      ];
+    }
+    const ordered = orderByDrag(
+      (profileProjects.data ?? []).filter((p) => !p.archived),
+      profileSettings.data?.projectOrder ?? [],
+    );
+    const all = profileSessions.data ?? [];
+    return ordered.map((p) => ({
+      projectId: p.id,
+      name: p.name,
+      sessions: all
+        .filter((s) => s.project_id === p.id && active(s))
+        .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)),
+    }));
+  }, [
+    showAllSessions,
+    sessions,
+    projectId,
+    uiState.snapshot.session_order,
+    profileProjects.data,
+    profileSettings.data,
+    profileSessions.data,
+  ]);
+  const archivedSessions = useMemo(
+    () => sessions.filter((s) => s.status === 'archived'),
+    [sessions],
+  );
+
   const layout = useLayoutTree(uiState);
   // Effects reference the controller through a ref so they don't list `layout`
   // (which changes on every tree edit) as a dependency — otherwise a
@@ -378,12 +434,12 @@ function WorkspaceInner() {
             <Separator className="w-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
             <Panel id="sessions" defaultSize={260} minSize={180} maxSize={480}>
               <SessionSidebar
-                projectId={projectId}
-                sessions={sessions}
+                groups={sessionGroups}
                 accounts={accounts}
                 activeSessionId={activeSessionId}
-                order={uiState.snapshot.session_order}
+                reorderable={!showAllSessions}
                 onReorder={(ids) => uiState.update({ session_order: ids })}
+                archived={archivedSessions}
                 onNewSession={() => openCreate('agent')}
                 onNewTerminal={() => openCreate('terminal')}
                 onCollapse={() => uiState.update({ sessions_collapsed: true })}
@@ -405,10 +461,9 @@ function WorkspaceInner() {
       </Group>
       {sessionsCollapsed && (
         <CollapsedSessionsRail
-          projectId={projectId}
-          sessions={sessions}
+          groups={sessionGroups}
           activeSessionId={activeSessionId}
-          order={uiState.snapshot.session_order}
+          reorderable={!showAllSessions}
           onReorder={(ids) => uiState.update({ session_order: ids })}
           onExpand={() => uiState.update({ sessions_collapsed: false })}
           onNewTerminal={() => openCreate('terminal')}
