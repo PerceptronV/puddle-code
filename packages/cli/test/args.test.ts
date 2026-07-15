@@ -11,6 +11,7 @@ describe('argument parsing', () => {
         tarball: 'x.tar.gz',
         noBrowser: true,
         noUpgrade: false,
+        foreground: false,
       },
     );
   });
@@ -23,8 +24,30 @@ describe('argument parsing', () => {
         remotePort: 7500,
         noBrowser: false,
         noUpgrade: true,
+        foreground: false,
       },
     );
+  });
+
+  it('parses --foreground on start and connect', () => {
+    expect(parseArgs(['start', '--foreground'])).toMatchObject({ cmd: 'start', foreground: true });
+    expect(parseArgs(['connect', 'a@b', '--foreground'])).toMatchObject({
+      cmd: 'connect',
+      foreground: true,
+    });
+  });
+
+  it('parses list and kill', () => {
+    expect(parseArgs(['list'])).toEqual({ cmd: 'list' });
+    expect(parseArgs(['kill'])).toEqual({ cmd: 'kill', all: false });
+    expect(parseArgs(['kill', 'alice@devbox'])).toEqual({
+      cmd: 'kill',
+      target: 'alice@devbox',
+      all: false,
+    });
+    expect(parseArgs(['kill', '--all'])).toEqual({ cmd: 'kill', all: true });
+    expect(() => parseArgs(['kill', 'a@b', '--all'])).toThrow(/not both/);
+    expect(() => parseArgs(['list', 'extra'])).toThrow(CliError);
   });
 
   it('rejects connect without a host and unknown flags', () => {

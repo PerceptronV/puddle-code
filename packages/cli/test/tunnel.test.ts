@@ -1,0 +1,92 @@
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer, type Server } from 'node:net';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { findFreePort, tcpListening } from '../src/lib/net.js';
+import { openTunnel, type Tunnel } from '../src/lib/tunnel.js';
+import { SshTransport } from '../src/lib/transport/ssh.js';
+import type { CliEvent } from '../src/lib/types.js';
+
+const FAKE_SSH = join(dirname(fileURLToPath(import.meta.url)), 'helpers', 'fake-ssh.mjs');
+
+/**
+ * Outage announcements — tunnel-down/tunnel-up are meant to describe outages
+ * the user should know about, not every child exit (a blip that respawns on
+ * the first attempt stays silent; a drop right after a restore is flapping
+ * and is announced at once).
+ */
+describe('tunnel outage announcements', () => {
+  const clientHome = mkdtempSync(join(tmpdir(), 'puddle-tunnel-client-'));
+  const killFile = join(clientHome, 'kill-tunnel');
+  let upstream: Server;
+  let upstreamPort: number;
+  let tunnel: Tunnel | null = null;
+
+  beforeAll(async () => {
+    chmodSync(FAKE_SSH, 0o755);
+    process.env.PUDDLE_HOME = join(clientHome, '.puddle');
+    process.env.FAKE_SSH_KILL = killFile;
+    // A stand-in for the remote daemon port the forward points at.
+    upstreamPort = await findFreePort();
+    upstream = createServer((sock) => sock.end());
+    await new Promise<void>((r) => upstream.listen(upstreamPort, '127.0.0.1', r));
+  });
+
+  afterEach(async () => {
+    await tunnel?.close();
+    tunnel = null;
+    rmSync(killFile, { force: true });
+  });
+
+  afterAll(async () => {
+    await new Promise((r) => upstream.close(r));
+    delete process.env.PUDDLE_HOME;
+    delete process.env.FAKE_SSH_KILL;
+  });
+
+  const open = async () => {
+    const ssh = new SshTransport('alice@devbox', { platform: 'darwin', sshBinary: FAKE_SSH });
+    const t = await openTunnel(ssh, upstreamPort, { sshBinary: FAKE_SSH });
+    tunnel = t;
+    const events: CliEvent['t'][] = [];
+    t.onEvent((e) => events.push(e.t));
+    return { tunnel: t, events };
+  };
+
+  /** Drop the forward and let it respawn cleanly (fake-ssh exits on killFile). */
+  const dropOnce = async (t: Tunnel) => {
+    writeFileSync(killFile, '');
+    await waitUntil(async () => !(await tcpListening(t.localPort)), 5000);
+    rmSync(killFile);
+    await waitUntil(() => tcpListening(t.localPort), 15_000);
+  };
+
+  it('says nothing about an outage that heals inside the grace window', async () => {
+    const { tunnel: t, events } = await open();
+    await dropOnce(t);
+    // Give any stray grace timer time to (wrongly) fire before asserting.
+    await new Promise((r) => setTimeout(r, 2500));
+    expect(events).toEqual([]);
+    expect(await tcpListening(t.localPort)).toBe(true);
+  }, 25_000);
+
+  it('announces immediately when the tunnel flaps, and pairs the restore', async () => {
+    const { tunnel: t, events } = await open();
+    await dropOnce(t); // silent first blip; the next drop counts as flapping
+    writeFileSync(killFile, '');
+    await waitUntil(() => events.includes('tunnel-down'), 5000);
+    rmSync(killFile);
+    await waitUntil(() => events.includes('tunnel-up'), 15_000);
+    expect(events).toEqual(['tunnel-down', 'tunnel-up']);
+  }, 30_000);
+});
+
+async function waitUntil(cond: () => boolean | Promise<boolean>, ms: number): Promise<void> {
+  const start = Date.now();
+  while (!(await cond())) {
+    if (Date.now() - start > ms) throw new Error('waitUntil timed out');
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}

@@ -4,19 +4,30 @@ import { fileURLToPath } from 'node:url';
 import { attachSession } from '../lib/attach.js';
 import { openBrowser } from '../lib/browser.js';
 import { connectRemote } from '../lib/connect.js';
+import { type RunningCockpit } from '../lib/cockpit.js';
 import { DaemonClient, readDaemonPort, readToken } from '../lib/daemon-client.js';
 import { showLogs } from '../lib/logs.js';
 import { openTunnel } from '../lib/tunnel.js';
+import {
+  checkCockpit,
+  cockpitLogPath,
+  listCockpitRecords,
+  readCockpitRecord,
+  removeCockpitRecord,
+  writeCockpitRecord,
+  type CockpitRecord,
+} from '../lib/registry.js';
 import { startLocal } from '../lib/start.js';
 import { statusReport } from '../lib/status.js';
 import { LocalTransport } from '../lib/transport/local.js';
 import { SshTransport } from '../lib/transport/ssh.js';
 import type { Transport } from '../lib/transport/transport.js';
-import { CliError } from '../lib/types.js';
+import { CliError, type Logger } from '../lib/types.js';
 import { upgradeDaemon } from '../lib/upgrade.js';
 import { cliVersion } from '../lib/version.js';
 import { USAGE, type Command } from './args.js';
-import { terminalLogger } from './output.js';
+import { isCockpitChild, killHint, launchDetached, terminateCockpit } from './detach.js';
+import { terminalLogger, timestampedLogger } from './output.js';
 
 /** The built web UI shipped inside this package (dist/public). */
 function assetsDir(): string {
@@ -92,29 +103,84 @@ export async function run(command: Command): Promise<number> {
       process.stdout.write(`puddle ${cliVersion()}\n`);
       return 0;
 
-    case 'start': {
-      const cockpit = await startLocal({ ...command, assetsDir: assetsDir(), logger });
-      logger.info(`puddle cockpit at ${cockpit.origin} (daemon ${cockpit.daemon.version})`);
-      if (!command.noBrowser) openBrowser(cockpit.browserUrl);
-      logger.info(`open: ${cockpit.browserUrl}`);
-      await runUntilInterrupted(
-        cockpit.stop,
-        'cockpit closed — sessions keep running on this machine',
+    case 'start':
+    case 'connect': {
+      const target = command.cmd === 'connect' ? command.host : 'local';
+      // Background by default: re-exec detached, follow the child's log until
+      // its registry record turns ready, then hand the terminal back.
+      if (!command.foreground && !isCockpitChild()) {
+        return launchDetached({ target, noBrowser: command.noBrowser, logger });
+      }
+      return runCockpit(command, target, logger);
+    }
+
+    case 'list': {
+      const rows: Array<{ record: CockpitRecord; liveness: string }> = [];
+      for (const record of listCockpitRecords()) {
+        const liveness = await checkCockpit(record);
+        if (liveness === 'dead') {
+          removeCockpitRecord(record.target); // pid gone — the only safe prune
+          continue;
+        }
+        rows.push({ record, liveness });
+      }
+      if (rows.length === 0) {
+        process.stdout.write('no cockpits are running\n');
+        return 0;
+      }
+      process.stdout.write(
+        `${pad('TARGET', 26)} ${pad('STATUS', 9)} ${pad('PID', 7)} ${pad('UI', 24)} STARTED\n`,
       );
+      for (const { record, liveness } of rows) {
+        process.stdout.write(
+          `${pad(record.target, 26)} ${pad(liveness, 9)} ${pad(String(record.pid), 7)} ` +
+            `${pad(record.origin ?? '—', 24)} ${record.startedAt}\n`,
+        );
+      }
       return 0;
     }
 
-    case 'connect': {
-      const cockpit = await connectRemote({ ...command, assetsDir: assetsDir(), logger });
-      logger.info(
-        `puddle cockpit at ${cockpit.origin} → ${command.host} (daemon ${cockpit.daemon.version})`,
-      );
-      if (!command.noBrowser) openBrowser(cockpit.browserUrl);
-      logger.info(`open: ${cockpit.browserUrl}`);
-      await runUntilInterrupted(
-        cockpit.stop,
-        `cockpit closed — sessions keep running on ${command.host}`,
-      );
+    case 'kill': {
+      const live: CockpitRecord[] = [];
+      for (const record of listCockpitRecords()) {
+        if ((await checkCockpit(record)) === 'dead') removeCockpitRecord(record.target);
+        else live.push(record); // running, starting, or unverified — all killable
+      }
+      let victims: CockpitRecord[];
+      if (command.all) {
+        if (live.length === 0) {
+          logger.info('no cockpits are running');
+          return 0;
+        }
+        victims = live;
+      } else if (command.target !== undefined) {
+        const found = live.find((r) => r.target === command.target);
+        if (found === undefined) {
+          throw new CliError(
+            'no_cockpit',
+            `no cockpit is running for ${command.target}`,
+            live.length > 0
+              ? `running: ${live.map((r) => r.target).join(', ')}`
+              : 'see: puddle list',
+          );
+        }
+        victims = [found];
+      } else {
+        if (live.length === 0) throw new CliError('no_cockpit', 'no cockpits are running');
+        if (live.length > 1) {
+          throw new CliError(
+            'bad_arguments',
+            'several cockpits are running — name the one to kill',
+            `puddle kill <${live.map((r) => r.target).join(' | ')}>  (or --all)`,
+          );
+        }
+        victims = live;
+      }
+      for (const victim of victims) {
+        await terminateCockpit(victim);
+        const where = victim.target === 'local' ? 'this machine' : victim.target;
+        logger.info(`stopped the cockpit for ${victim.target} — sessions keep running on ${where}`);
+      }
       return 0;
     }
 
@@ -216,6 +282,84 @@ export async function run(command: Command): Promise<number> {
       }
     }
   }
+}
+
+/**
+ * The cockpit process itself — the detached child, or a --foreground run.
+ * Both keep a registry record so `puddle list`/`kill` see them: 'starting'
+ * while bootstrapping (what the detached launcher polls), then 'ready' with
+ * origin + nonce, or 'error' with the failure relayed to the launcher.
+ */
+async function runCockpit(
+  command: Extract<Command, { cmd: 'start' | 'connect' }>,
+  target: string,
+  terminal: Logger,
+): Promise<number> {
+  const detached = isCockpitChild();
+  const logger = detached ? timestampedLogger() : terminal;
+
+  const existing = readCockpitRecord(target);
+  if (existing !== null && existing.pid !== process.pid) {
+    if ((await checkCockpit(existing)) !== 'dead') {
+      throw new CliError(
+        'already_running',
+        `a cockpit for ${target} is already running at ${existing.origin ?? `pid ${existing.pid}`}`,
+        killHint(target).replace('stop it', 'stop it first'),
+      );
+    }
+    removeCockpitRecord(target);
+  }
+
+  const base: CockpitRecord = {
+    target,
+    pid: process.pid,
+    status: 'starting',
+    startedAt: new Date().toISOString(),
+    cliVersion: cliVersion(),
+    ...(detached ? { logFile: cockpitLogPath(target) } : {}),
+  };
+  writeCockpitRecord(base);
+
+  let cockpit: RunningCockpit;
+  try {
+    cockpit =
+      command.cmd === 'start'
+        ? await startLocal({ ...command, assetsDir: assetsDir(), logger })
+        : await connectRemote({ ...command, assetsDir: assetsDir(), logger });
+  } catch (err) {
+    if (err instanceof CliError) {
+      writeCockpitRecord({
+        ...base,
+        status: 'error',
+        message: err.message,
+        ...(err.hint !== undefined ? { hint: err.hint } : {}),
+      });
+    } else {
+      removeCockpitRecord(target);
+    }
+    throw err;
+  }
+  writeCockpitRecord({
+    ...base,
+    status: 'ready',
+    origin: cockpit.origin,
+    browserUrl: cockpit.browserUrl,
+    nonce: cockpit.nonce,
+  });
+
+  const arrow = command.cmd === 'connect' ? ` → ${command.host}` : '';
+  logger.info(`puddle cockpit at ${cockpit.origin}${arrow} (daemon ${cockpit.daemon.version})`);
+  if (!detached) {
+    if (!command.noBrowser) openBrowser(cockpit.browserUrl);
+    logger.info(`open: ${cockpit.browserUrl}`);
+  }
+
+  const where = command.cmd === 'start' ? 'this machine' : command.host;
+  await runUntilInterrupted(async () => {
+    await cockpit.stop();
+    removeCockpitRecord(target);
+  }, `cockpit closed — sessions keep running on ${where}`);
+  return 0;
 }
 
 function pad(text: string, width: number): string {

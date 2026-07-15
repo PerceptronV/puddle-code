@@ -48,6 +48,7 @@ export async function startLocal(opts: StartOptions): Promise<RunningCockpit> {
   return {
     origin: ui.origin,
     browserUrl: `${ui.origin}/#token=${endpoint.token}`,
+    nonce: ui.nonce,
     daemon,
     onEvent(cb) {
       eventCbs.add(cb);

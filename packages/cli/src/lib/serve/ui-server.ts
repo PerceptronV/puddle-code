@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import { CliError } from '../types.js';
 import { isLocalHostHeader, isLocalOrigin } from './guard.js';
+import { recoverProxiedPath } from './proxy-recovery.js';
 import { createStaticHandler } from './static.js';
 import {
   ProxySocketTracker,
@@ -30,6 +32,12 @@ export interface UiServerOptions {
 export interface UiServer {
   port: number;
   origin: string;
+  /**
+   * Per-instance identity, echoed on every response as X-Puddle-Cockpit —
+   * how the cockpit registry tells this server from a recycled pid or a
+   * stranger on the same port.
+   */
+  nonce: string;
   /** Repoint /api + /ws + /proxy (a reconnected tunnel may move ports). */
   setTarget(target: ProxyTarget): void;
   close(): Promise<void>;
@@ -58,9 +66,20 @@ export async function startUiServer(opts: UiServerOptions): Promise<UiServer> {
   const target: ProxyTarget = { ...opts.target };
   const tracker = new ProxySocketTracker();
   const serveStatic = createStaticHandler(opts.assetsDir);
+  const nonce = randomUUID();
 
   const server = createServer((req, res) => {
+    res.setHeader('x-puddle-cockpit', nonce);
     const url = req.url ?? '/';
+    // A proxied page's absolute-path subresource lands outside /proxy/…;
+    // bounce it back under the page's prefix before any other routing (its
+    // /api and /assets belong to the proxied app, not to puddle).
+    const recovered = recoverProxiedPath(req.headers.referer, url);
+    if (recovered !== null) {
+      res.writeHead(307, { location: recovered });
+      res.end();
+      return;
+    }
     if (isProxiedPath(url)) {
       if (!isLocalHostHeader(req.headers.host) || !isLocalOrigin(req.headers.origin)) {
         res.writeHead(403, { 'content-type': 'application/json' });
@@ -95,6 +114,7 @@ export async function startUiServer(opts: UiServerOptions): Promise<UiServer> {
   return {
     port,
     origin: `http://localhost:${port}`,
+    nonce,
     setTarget(next) {
       target.host = next.host;
       target.port = next.port;

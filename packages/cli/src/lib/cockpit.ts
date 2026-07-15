@@ -14,6 +14,8 @@ export interface RunningCockpit {
   origin: string;
   /** origin + ?host= (SSH mode) + #token= — what the browser opens. */
   browserUrl: string;
+  /** The UI server's per-instance identity (see UiServer.nonce). */
+  nonce: string;
   daemon: VersionResponse;
   onEvent(cb: (e: CliEvent) => void): () => void;
   stop(): Promise<void>;

@@ -31,11 +31,27 @@ export function createStaticHandler(
       return;
     }
     const pathname = new URL(req.url ?? '/', 'http://localhost').pathname;
-    const requested = normalize(join(root, decodeURIComponent(pathname)));
+    // decodeURIComponent throws on malformed escapes ("/100%_done.png") — a
+    // request must never be able to take the whole cockpit process down.
+    let decoded: string;
+    try {
+      decoded = decodeURIComponent(pathname);
+    } catch {
+      res.writeHead(404, { 'content-type': 'text/plain' }).end('not found');
+      return;
+    }
+    const requested = normalize(join(root, decoded));
     // Confinement: anything escaping the root falls through to the SPA index.
     const candidate = requested.startsWith(root + sep) || requested === root ? requested : root;
-    const file =
-      existsSync(candidate) && statSync(candidate).isFile() ? candidate : join(root, 'index.html');
+    const isFile = existsSync(candidate) && statSync(candidate).isFile();
+    // SPA fallback is for extensionless client-side routes only: a missing
+    // .js/.css/… must fail loudly, not arrive as index.html masquerading as
+    // the asset (browsers reject the MIME type and the page breaks silently).
+    if (!isFile && extname(pathname) !== '') {
+      res.writeHead(404, { 'content-type': 'text/plain' }).end('not found');
+      return;
+    }
+    const file = isFile ? candidate : join(root, 'index.html');
     if (!existsSync(file)) {
       res.writeHead(404, { 'content-type': 'text/plain' }).end('not found');
       return;

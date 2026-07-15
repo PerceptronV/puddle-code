@@ -1,7 +1,14 @@
 import { CliError } from '../lib/types.js';
 
 export type Command =
-  | { cmd: 'start'; port?: number; noBrowser: boolean; noUpgrade: boolean; tarball?: string }
+  | {
+      cmd: 'start';
+      port?: number;
+      noBrowser: boolean;
+      noUpgrade: boolean;
+      tarball?: string;
+      foreground: boolean;
+    }
   | {
       cmd: 'connect';
       host: string;
@@ -10,7 +17,10 @@ export type Command =
       noBrowser: boolean;
       noUpgrade: boolean;
       tarball?: string;
+      foreground: boolean;
     }
+  | { cmd: 'list' }
+  | { cmd: 'kill'; target?: string; all: boolean }
   | { cmd: 'status'; host?: string }
   | { cmd: 'attach'; host?: string; session: string; term?: string }
   | { cmd: 'logs'; host?: string; session?: string; term?: string; follow: boolean }
@@ -21,9 +31,12 @@ export type Command =
 export const USAGE = `puddle — self-hosted orchestrator for CLI coding agents
 
 usage:
-  puddle start   [--port <p>] [--no-browser] [--no-upgrade] [--tarball <path>]
-  puddle connect user@host [--port <local>] [--remote-port <p>] [--no-browser]
-                 [--no-upgrade] [--tarball <path>]
+  puddle start   [--port <p>] [--foreground] [--no-browser] [--no-upgrade]
+                 [--tarball <path>]
+  puddle connect user@host [--port <local>] [--remote-port <p>] [--foreground]
+                 [--no-browser] [--no-upgrade] [--tarball <path>]
+  puddle list
+  puddle kill    [local | user@host | --all]
   puddle status  [user@host]
   puddle attach  [user@host] <session> [--term <id>]
   puddle logs    [user@host] [session] [--term <id>] [-f|--follow]
@@ -32,8 +45,10 @@ usage:
 
 start serves the cockpit at http://localhost:7433 against the daemon on this
 machine (installing it under ~/.puddle if needed); connect does the same for
-an SSH host through one tunnel. Ctrl-C stops the cockpit only — sessions keep
-running on the host.`;
+an SSH host through one tunnel. Both keep running in the background once
+ready, so the terminal may close (--foreground to stay attached; Ctrl-C then
+stops the cockpit). list shows running cockpits; kill stops one — sessions
+keep running on the host either way.`;
 
 /** Hand-rolled argv parser — the surface is small enough to own outright. */
 export function parseArgs(argv: string[]): Command {
@@ -95,13 +110,14 @@ export function parseArgs(argv: string[]): Command {
       }
       const port = intFlag('--port');
       const tarball = strFlag('--tarball');
-      expect('--port', '--no-browser', '--no-upgrade', '--tarball');
+      expect('--port', '--no-browser', '--no-upgrade', '--tarball', '--foreground');
       return {
         cmd: 'start',
         ...(port !== undefined ? { port } : {}),
         ...(tarball !== undefined ? { tarball } : {}),
         noBrowser: flags.has('--no-browser'),
         noUpgrade: flags.has('--no-upgrade'),
+        foreground: flags.has('--foreground'),
       };
     }
     case 'connect': {
@@ -113,7 +129,14 @@ export function parseArgs(argv: string[]): Command {
       const port = intFlag('--port');
       const remotePort = intFlag('--remote-port');
       const tarball = strFlag('--tarball');
-      expect('--port', '--remote-port', '--no-browser', '--no-upgrade', '--tarball');
+      expect(
+        '--port',
+        '--remote-port',
+        '--no-browser',
+        '--no-upgrade',
+        '--tarball',
+        '--foreground',
+      );
       return {
         cmd: 'connect',
         host,
@@ -122,7 +145,24 @@ export function parseArgs(argv: string[]): Command {
         ...(tarball !== undefined ? { tarball } : {}),
         noBrowser: flags.has('--no-browser'),
         noUpgrade: flags.has('--no-upgrade'),
+        foreground: flags.has('--foreground'),
       };
+    }
+    case 'list': {
+      if (positionals.length > 0)
+        throw new CliError('bad_arguments', 'list takes no positional arguments');
+      expect();
+      return { cmd: 'list' };
+    }
+    case 'kill': {
+      if (positionals.length > 1)
+        throw new CliError('bad_arguments', 'kill takes at most one target');
+      expect('--all');
+      const all = flags.has('--all');
+      const target = positionals[0];
+      if (all && target !== undefined)
+        throw new CliError('bad_arguments', 'kill takes a target or --all, not both');
+      return { cmd: 'kill', all, ...(target !== undefined ? { target } : {}) };
     }
     case 'status': {
       if (positionals.length > 1)

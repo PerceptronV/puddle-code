@@ -83,6 +83,7 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
   return {
     origin: ui.origin,
     browserUrl: `${ui.origin}/?host=${encodeURIComponent(opts.host)}#token=${endpoint.token}`,
+    nonce: ui.nonce,
     daemon,
     onEvent(cb) {
       eventCbs.add(cb);

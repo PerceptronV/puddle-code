@@ -68,6 +68,55 @@ describe('UI server in front of a real daemon', () => {
     expect(await escape.text()).not.toContain('root:');
   });
 
+  it('404s a missing asset instead of SPA-falling-back to HTML', async () => {
+    const missing = await get('/assets/index-abc123.js');
+    expect(missing.status).toBe(404);
+    expect(missing.headers.get('content-type')).not.toContain('text/html');
+  });
+
+  it('recovers a proxied page’s stray absolute-path requests via 307', async () => {
+    const referer = `http://localhost:${ui.port}/proxy/sess-1/3000/`;
+    const strayAsset = await fetch(`http://127.0.0.1:${ui.port}/assets/main.js`, {
+      headers: { host: `localhost:${ui.port}`, referer },
+      redirect: 'manual',
+    });
+    expect(strayAsset.status).toBe(307);
+    expect(strayAsset.headers.get('location')).toBe('/proxy/sess-1/3000/assets/main.js');
+
+    // Absolute fetch('/api/…') from the proxied app belongs to the app, not
+    // to puddle's API — it is recovered too, query string intact.
+    const strayApi = await fetch(`http://127.0.0.1:${ui.port}/api/items?page=2`, {
+      method: 'POST',
+      headers: { host: `localhost:${ui.port}`, referer },
+      redirect: 'manual',
+    });
+    expect(strayApi.status).toBe(307);
+    expect(strayApi.headers.get('location')).toBe('/proxy/sess-1/3000/api/items?page=2');
+  });
+
+  it('leaves puddle’s own requests and non-proxied referers alone', async () => {
+    // The web UI's own API calls carry a non-proxy Referer: proxied verbatim.
+    const own = await get('/api/version', {
+      referer: `http://localhost:${ui.port}/project/42`,
+      authorization: `Bearer ${daemon.token}`,
+    });
+    expect(own.status).toBe(200);
+    // A request already under /proxy/ is never rewritten (no redirect loops).
+    const already = await fetch(`http://127.0.0.1:${ui.port}/proxy/sess-1/3000/x.js`, {
+      headers: {
+        host: `localhost:${ui.port}`,
+        referer: `http://localhost:${ui.port}/proxy/sess-1/3000/`,
+      },
+      redirect: 'manual',
+    });
+    expect(already.status).not.toBe(307);
+    // A foreign Referer host never claims a stray.
+    const foreign = await get('/assets/main.js', {
+      referer: 'https://evil.example.com/proxy/sess-1/3000/',
+    });
+    expect(foreign.status).toBe(404);
+  });
+
   it('proxies /api verbatim: bearer passes through, daemon auth still applies', async () => {
     const ok = await get('/api/version', { authorization: `Bearer ${daemon.token}` });
     expect(ok.status).toBe(200);

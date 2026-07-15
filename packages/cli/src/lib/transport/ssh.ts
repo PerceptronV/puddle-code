@@ -27,6 +27,7 @@ export class SshTransport implements Transport {
   private readonly ssh: string;
   private readonly scp: string;
   private readonly controlArgs: string[];
+  private readonly keepaliveArgs: string[];
 
   constructor(
     readonly host: string,
@@ -53,6 +54,11 @@ export class SshTransport implements Transport {
         'ControlPersist=10m',
       ];
     }
+    // Application-level keepalives on whichever process owns the TCP
+    // connection (the mux master on POSIX, each spawn on Windows). Without
+    // them an idle NAT/firewall silently drops the connection and the tunnel
+    // dies on every quiet spell — 15s×3 detects a dead peer inside a minute.
+    this.keepaliveArgs = ['-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=3'];
   }
 
   get hasControlMaster(): boolean {
@@ -61,7 +67,7 @@ export class SshTransport implements Transport {
 
   /** Argv prefix every ssh/scp spawn shares. */
   args(...rest: string[]): string[] {
-    return [...this.controlArgs, ...rest];
+    return [...this.controlArgs, ...this.keepaliveArgs, ...rest];
   }
 
   /**

@@ -32,6 +32,9 @@ export type CliErrorCode =
   | 'attach_needs_tty'
   | 'unsupported_platform'
   | 'not_installed'
+  | 'no_cockpit'
+  | 'already_running'
+  | 'cockpit_launch_failed'
   | 'token_rejected'
   | 'bad_arguments';
 

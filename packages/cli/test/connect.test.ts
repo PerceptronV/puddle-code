@@ -26,6 +26,14 @@ describe('SshTransport argv shapes', () => {
     expect(argv).toContain('cm-%C');
   });
 
+  it('keeps the connection alive so idle NAT drops cannot fell the tunnel', () => {
+    for (const platform of ['darwin', 'win32'] as const) {
+      const argv = new SshTransport('alice@devbox', { platform }).args('true').join(' ');
+      expect(argv).toContain('ServerAliveInterval=15');
+      expect(argv).toContain('ServerAliveCountMax=3');
+    }
+  });
+
   it('drops every Control* option on Windows (no multiplexing there)', () => {
     const ssh = new SshTransport('alice@devbox', { platform: 'win32' });
     expect(ssh.args('alice@devbox', 'true').join(' ')).not.toContain('Control');
