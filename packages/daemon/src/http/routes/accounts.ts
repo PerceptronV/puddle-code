@@ -110,6 +110,18 @@ export function accountRoutes(deps: AccountRouteDeps): Hono {
       if (body.label !== undefined) deps.accounts.setLabel(id, body.label);
       if (body.skip_permissions_default !== undefined) {
         deps.accounts.setSkipPermissionsDefault(id, body.skip_permissions_default);
+        // Opting an account in is the user's per-account confirmation (SPEC §11)
+        // — the counterpart to opening the profile gate. Record the agent's skip
+        // acceptance so the flag takes effect at launch (covers accounts added
+        // after the gate was already open).
+        if (body.skip_permissions_default === true) {
+          const account = deps.accounts.get(id);
+          try {
+            deps.adapters.get(account.agent_type).acceptSkipPermissions?.(account);
+          } catch {
+            // A missing adapter or unwritable config dir must not fail the toggle.
+          }
+        }
       }
       return c.json(deps.accounts.get(id));
     })
