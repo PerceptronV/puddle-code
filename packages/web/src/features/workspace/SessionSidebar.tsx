@@ -88,8 +88,14 @@ function CollapsedSessionDot({
             >
               {/* Active session marked with the same bg-elevated fill-shift the
                   expanded list and the navigator's mode icons use — a theme
-                  colour, no border, no default-blue ring (HUMANS.md). */}
-              <StatusDot status={session.status} kind={session.kind} />
+                  colour, no border, no default-blue ring (HUMANS.md). The
+                  narrower ripple reach keeps it inside the slim rail's cell so
+                  the scroll container never crops it. */}
+              <StatusDot
+                status={session.status}
+                kind={session.kind}
+                className="[--puddle-ripple-scale:2.3]"
+              />
               <span className="sr-only">{name}</span>
             </Link>
           </TooltipTrigger>

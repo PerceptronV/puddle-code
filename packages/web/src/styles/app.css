@@ -171,13 +171,16 @@
     background: var(--status-interrupted);
   }
 
+  /* --puddle-ripple-scale caps how far a ripple reaches; the collapsed session
+     rail overrides it (a narrower value) so the ripple stays inside each dot's
+     cell and is never cropped by the rail's scroll container. */
   @keyframes puddle-ripple {
     from {
       transform: scale(1);
       opacity: 0.7;
     }
     to {
-      transform: scale(3.4);
+      transform: scale(var(--puddle-ripple-scale, 3.4));
       opacity: 0;
     }
   }
