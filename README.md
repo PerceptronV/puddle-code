@@ -1,47 +1,40 @@
-# puddle
+# Puddle
 
-A self-hosted orchestrator for CLI coding agents — Claude Code, Codex, OpenCode, and friends. Run many agents in parallel, each isolated in its own git worktree, managed from one browser cockpit. First-class SSH support: the same one command that starts puddle on your laptop bootstraps it on a remote box and reaches it through a single tunnel.
-
-Because a persistent daemon — not a login shell or a browser tab — is the parent of every agent process, **sessions keep running when your laptop sleeps, the window closes, or the SSH connection drops**, and they survive machine reboots by resuming from each agent's on-disk conversation state.
-
-## What you get
-
-- **Parallel agents, isolated by default** — every session gets its own git worktree and branch (opt-outs for shared branches/directories exist when you want them).
-- **A full cockpit in the browser** — live terminals (xterm.js), Monaco file editing, diff review against base, an interactive commit graph, filename+content search, drag-in/drag-out file transfer, and a worktree manager.
-- **Remote-first** — `puddle connect user@host` installs the daemon on the host (no Node, npm, or compiler needed there), opens one SSH tunnel, and serves the same cockpit at `http://localhost:7433`. Dev servers your agents start are reachable through a built-in reverse proxy, HMR included.
-- **Detached by design** — close everything; agents keep working. Reattach from the browser or a raw terminal (`puddle attach`).
-- **Multiple profiles and accounts** — per-collaborator profiles on a shared box, several accounts per agent, and one-click migration of a session to another account when you hit a usage limit.
+Puddle is an open-source, multi-account coding agent orchestrator with first-class SSH support and a lightweight GUI. With a single command,
+```bash
+puddle connect <user>@<host>
+```
+Puddle manages parallel agents anywhere you SSH into, insulates agents in dedicated worktrees, and keeps your agents alive across disconnects and restarts.
 
 ## Quick start
+
+**On your local machine where you will be using the GUI, run:**
 
 ```sh
 npm install -g @puddle-code/cli
 ```
 
-**On your own machine:**
+**To launch agents on a remote host:**
+
+```sh
+puddle connect <user>@<host>
+```
+
+This connects Puddle to the remote host over SSH, bootstrapping the Puddle daemon on first contact and enabling you to begin development.
+
+Puddle works using your system `ssh`, so `~/.ssh/config`, agents, and jump hosts apply.
+
+**For development on your own machine:**
 
 ```sh
 puddle start
 ```
 
-Installs the daemon under `~/.puddle` (versioned, supervised by systemd/launchd), serves the cockpit at `http://localhost:7433`, and opens your browser. Ctrl-C closes the cockpit only — sessions keep running.
+This installs the Puddle daemon under `~/.puddle` and serves the GUI at `http://localhost:7433`.
 
-**On a remote box:**
+Note that Ctrl-C closes the GUI only, while agent sessions keep running.
 
-```sh
-puddle connect user@devbox
-```
-
-One SSH authentication at most (keys, passwords, and 2FA all work — puddle drives your system `ssh`, so your `~/.ssh/config`, agents, and jump hosts apply). The daemon is bootstrapped on first contact and upgraded automatically when the protocol requires it.
-
-**Everything else:**
-
-```sh
-puddle status  [user@host]             # daemon version + session table
-puddle attach  [user@host] <session>   # raw-terminal attach; Ctrl-] detaches
-puddle logs    [user@host] [session] -f
-puddle upgrade [user@host]
-```
+**Daemon-only installs:**
 
 Daemon-only installs (no CLI) use the `install.sh` attached to each release — see the Releases page of this repository:
 
@@ -52,6 +45,12 @@ curl -fsSL https://github.com/<owner>/puddle/releases/latest/download/install.sh
 **Host requirements**: Linux (glibc — Ubuntu 22.04+, Debian 12+, RHEL 9+; Alpine is not supported) or macOS, with `git` and `curl`, plus whichever agent CLIs you want on `PATH`. The client side works from any OS with a browser and `ssh` (Windows works, with repeated auth prompts unless you use a key).
 
 ## How it works
+
+- **The Puddle daemon works anywhere you can SSH into.** It is installed on your host during every fresh connect, relaying information across SSH to your local GUI. The daemon is the parent of every agent process, keeping sessions running when your laptop sleeps, the window closes, or the SSH connection drops. Puddle also maintains a stateful memory of your conversations to survive machine reboots.
+- **Puddle orchestrates parallel isolated agents** each working in a unique git worktree and branch. You can choose the branch and worktree during session creation.
+- **Puddle's lightweight GUI** allows you to track agent progress, session usage, and active worktrees.
+- **Puddle's philosophy is that any good developer must stay grounded in their code.** Puddle natively integrates live terminals, file editing in Monaco, git commit grahps, diff views, and opens worktrees in your favourite IDE.
+- **Multiple profiles and accounts** enable several collaborators to collaborate on a shared remote host. Puddle manages multiple accounts per agent type and profile, symlinking conversation histories so you can run from multiple Claude Code accounts at once and move your conversations between each.
 
 ```
  client machine                          host machine (local or remote)
@@ -65,29 +64,10 @@ curl -fsSL https://github.com/<owner>/puddle/releases/latest/download/install.sh
                                         └───────────────────────────────────┘
 ```
 
-The CLI serves the UI at a stable local origin and reverse-proxies the API to the daemon — directly in local mode, through the tunnel in SSH mode. The daemon is headless and host-agnostic on `127.0.0.1:7434`. UI updates ship with the CLI (`npm update -g @puddle-code/cli` refreshes the cockpit for every host); the daemon only has to update when the versioned protocol breaks, and the CLI does that automatically. A mandatory bearer token plus Host/Origin validation guard the localhost API against malicious web pages.
+The CLI serves the UI at a stable local origin and reverse-proxies the API to the daemon, directly in local mode, through the tunnel in SSH mode. The daemon is headless and host-agnostic on `127.0.0.1:7434`. UI updates ship with the CLI (`npm update -g @puddle-code/cli` refreshes the cockpit for every host); the daemon only has to update when the versioned protocol breaks, and the CLI does that automatically. A mandatory bearer token plus Host/Origin validation guard the localhost API against malicious web pages.
 
 Everything lives under `~/.puddle` on the host, installed without sudo. Uninstalling is stopping the service and deleting that directory.
 
-## Development
-
-pnpm monorepo: `packages/shared` (zod protocol schemas — the single source of truth for every API shape), `packages/daemon`, `packages/web` (React + Tailwind), `packages/cli`.
-
-```sh
-pnpm install
-pnpm dev            # daemon (watch) + vite dev server
-pnpm test           # vitest across all packages
-pnpm lint
-pnpm build          # web assets land inside the CLI package
-pnpm build:tarball  # self-contained daemon tarball for this platform
-```
-
-Read `SPEC.md` (the full design), `CLAUDE.md` (contributor/agent conventions — British English, changelog discipline, protocol bump rules), `HUMANS.md` (the UI design brief), and `packages/shared/PROTOCOL.md` before making changes. Manual acceptance scripts live in `docs/acceptance/`.
-
-## Status
-
-Phases 0–6 of the SPEC are implemented: daemon core, cockpit UI, files/diff/history, terminal links, port forwarding with the tier-2 proxy, and the CLI with distribution. Upcoming: more agent adapters with cross-agent hand-off (Phase 7), and the prompt bank, notifications, and polish (Phase 8).
-
 ## Licence
 
-[MIT](LICENSE)
+Puddle is licensed under the [MIT License](LICENSE). Copyright (c) 2026 Yiding Song.
