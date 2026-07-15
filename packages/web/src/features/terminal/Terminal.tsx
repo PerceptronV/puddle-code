@@ -114,6 +114,17 @@ export function Terminal({ stream, term = 'agent', className, onExit, onOpenFile
     if (IS_MAC) {
       xterm.attachCustomKeyEventHandler((e) => {
         if (e.type !== 'keydown' || !e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return true;
+        // ⌘C copies the selection to the clipboard — xterm has no built-in copy,
+        // and Ctrl-C stays the interrupt. With nothing selected it falls through,
+        // so ⌘C then does nothing. ⌘V needs no handling: xterm already pastes on
+        // the browser's native paste event, so intercepting it would paste twice.
+        if (e.key === 'c') {
+          const selection = xterm.getSelection();
+          if (!selection) return true;
+          void navigator.clipboard?.writeText(selection);
+          e.preventDefault();
+          return false;
+        }
         const seq = MAC_LINE_EDITS[e.key];
         if (!seq) return true;
         e.preventDefault(); // stop the browser's ⌘←/⌘→ history navigation
