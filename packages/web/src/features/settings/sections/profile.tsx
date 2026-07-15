@@ -43,11 +43,15 @@ export function ProfileSection() {
   const patchSettings = usePatchProfileSettings(profileId ?? '');
   const deleteProfile = useDeleteProfile();
 
+  const [name, setName] = useState('');
   const [prefix, setPrefix] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [typedName, setTypedName] = useState('');
   useEffect(() => {
-    if (profile) setPrefix(profile.branch_prefix);
+    if (profile) {
+      setName(profile.name);
+      setPrefix(profile.branch_prefix);
+    }
   }, [profile]);
 
   if (!profile) return null;
@@ -56,8 +60,30 @@ export function ProfileSection() {
   return (
     <div>
       <SectionTitle>Profile</SectionTitle>
-      <SettingRow label="Name">
-        <span className="font-mono text-sm text-fg-secondary">{profile.name}</span>
+      <SettingRow
+        label="Name"
+        description="A display label. Letters, digits, dot, underscore and hyphen; must be unique."
+        htmlFor="profile-name"
+      >
+        <Input
+          id="profile-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-44 font-mono"
+        />
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={name === profile.name || name.trim() === '' || patchProfile.isPending}
+          onClick={() =>
+            patchProfile.mutate(
+              { id: profile.id, name },
+              { onError: (e) => toast.error(e.message) },
+            )
+          }
+        >
+          Save
+        </Button>
       </SettingRow>
       <SettingRow
         label="Branch prefix"

@@ -216,8 +216,16 @@ export function usePatchProfileSettings(profileId: string) {
 export function usePatchProfile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, branch_prefix }: { id: string; branch_prefix: string }) =>
-      api<Profile>('PATCH', `/api/profiles/${id}`, { branch_prefix }),
+    // Send only the fields present; JSON.stringify drops the undefined ones.
+    mutationFn: ({
+      id,
+      name,
+      branch_prefix,
+    }: {
+      id: string;
+      name?: string;
+      branch_prefix?: string;
+    }) => api<Profile>('PATCH', `/api/profiles/${id}`, { name, branch_prefix }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['profiles'] }),
   });
 }

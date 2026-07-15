@@ -47,9 +47,15 @@ export const createProfileRequestSchema = z.object({
   branch_prefix: z.string().max(64).optional(),
 });
 
-/** PATCH /api/profiles/:id — the name is immutable in v1 (a display label; dirs are id-keyed). */
+/**
+ * PATCH /api/profiles/:id — update the display `name` and/or the `branch_prefix`.
+ * Both are optional (send only what changes). The name is a display label and
+ * keys nothing on disk (dirs are id-keyed), so it is freely editable; it stays
+ * `fsSafeName`-constrained and unique across profiles (a clash returns 409).
+ */
 export const patchProfileRequestSchema = z.object({
-  branch_prefix: z.string().max(64),
+  name: fsSafeName.optional(),
+  branch_prefix: z.string().max(64).optional(),
 });
 
 /**

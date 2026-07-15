@@ -53,6 +53,20 @@ export class ProfileStore {
     return this.get(id);
   }
 
+  /** Rename the profile's display label. Names are unique — a clash 409s, like create. */
+  setName(id: string, name: string): Profile {
+    this.get(id); // 404 before a silent no-op UPDATE
+    try {
+      this.db.prepare(`UPDATE profiles SET name = ? WHERE id = ?`).run(name, id);
+    } catch (e) {
+      if (e instanceof Error && e.message.includes('UNIQUE')) {
+        throw ApiError.conflict('profile_exists', `profile '${name}' already exists`);
+      }
+      throw e;
+    }
+    return this.get(id);
+  }
+
   getSettings(id: string): ProfileSettings {
     const row = this.db.prepare(`SELECT settings FROM profiles WHERE id = ?`).get(id) as
       Pick<Row, 'settings'> | undefined;

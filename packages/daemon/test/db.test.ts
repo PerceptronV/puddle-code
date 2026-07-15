@@ -126,6 +126,19 @@ describe('stores', () => {
     }
   });
 
+  it('renames a profile and rejects a clash with a 409', () => {
+    const s = stores();
+    const p = s.profiles.create({ name: 'alice', branch_prefix: 'alice/' });
+    s.profiles.create({ name: 'bob', branch_prefix: 'bob/' });
+    expect(s.profiles.setName(p.id, 'alice2').name).toBe('alice2');
+    try {
+      s.profiles.setName(p.id, 'bob'); // taken
+      expect.unreachable();
+    } catch (e) {
+      expect((e as ApiError).status).toBe(409);
+    }
+  });
+
   it('throws 404 for a missing row', () => {
     const s = stores();
     try {

@@ -33,8 +33,15 @@ export function profileRoutes(deps: {
       return c.json(profile, 201);
     })
     .patch('/:id', async (c) => {
+      const id = hexIdParam(c);
       const body = await parseBody(c, patchProfileRequestSchema);
-      return c.json(deps.profiles.setBranchPrefix(hexIdParam(c), body.branch_prefix));
+      let profile = deps.profiles.get(id); // 404 before any write
+      // Apply whichever fields were sent; a name clash 409s before touching the prefix.
+      if (body.name !== undefined) profile = deps.profiles.setName(id, body.name);
+      if (body.branch_prefix !== undefined) {
+        profile = deps.profiles.setBranchPrefix(id, body.branch_prefix);
+      }
+      return c.json(profile);
     })
     .delete('/:id', (c) => {
       const id = hexIdParam(c);

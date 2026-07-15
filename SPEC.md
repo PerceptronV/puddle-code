@@ -299,7 +299,7 @@ All REST endpoints are JSON under `/api`. Request/response shapes live as zod sc
 ```
 Version    GET  /api/version                 # {version, protocol: {major, minor}} — the handshake endpoint (see Protocol versioning below)
 Profiles   GET  /api/profiles                POST /api/profiles {name, branch_prefix?}   # ids are 10-hex handles, like projects
-           PATCH /api/profiles/:id {branch_prefix}   # name is immutable in v1 (display label; dirs are id-keyed, so rename support can come later)
+           PATCH /api/profiles/:id {name?, branch_prefix?}   # rename (display label, UNIQUE → 409) and/or set branch prefix; dirs are id-keyed so a rename touches nothing on disk
            DELETE /api/profiles/:id                  # 409 while any of its sessions is non-archived; cascades rows + removes its dir
            GET  /api/profiles/:id/settings   PATCH (profile-scope settings JSON — §11 Settings)
 Config     GET  /api/config                  PATCH (daemon-scope settings; affects all profiles; the port lives in config.json / --port only and is never surfaced in the UI)
