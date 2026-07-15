@@ -15,11 +15,12 @@ jobs:
           # ubuntu-22.04 on purpose: node-pty is node-gyp-built on Linux, so
           # the runner's glibc (2.35) is the floor — Ubuntu 22.04+/Debian 12+/
           # RHEL 9+. Lowering it later means building in a node:22-bullseye
-          # container. macos-13 is GitHub's last Intel runner; when it is
-          # retired, darwin-x64 either moves under Rosetta or is dropped.
+          # container. darwin-x64 is not published for now: macos-13 (GitHub's
+          # last Intel runner) queues for so long it blocks every release —
+          # restore the entry (or build under Rosetta) if Intel Mac hosts turn
+          # out to matter.
           - { runner: ubuntu-22.04, target: linux-x64 }
           - { runner: ubuntu-22.04-arm, target: linux-arm64 }
-          - { runner: macos-13, target: darwin-x64 }
           - { runner: macos-14, target: darwin-arm64 }
     runs-on: ${{ matrix.runner }}
     steps:
