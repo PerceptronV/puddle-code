@@ -21,6 +21,7 @@ import {
   peerState,
   subscribePeerState,
 } from './editor-sync';
+import { registerEditorKeybindings } from './editor-keybindings';
 import { monaco } from './monaco-setup';
 import type { RevealTarget } from '../workspace/editor-context';
 
@@ -255,7 +256,7 @@ export function useEditorBuffer(
   const onMount = useCallback(
     (editor: monaco.editor.IStandaloneCodeEditor) => {
       editorRef.current = editor;
-      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => saveRef.current());
+      registerEditorKeybindings(editor, { onSave: () => saveRef.current() });
       applyReveal();
     },
     [applyReveal],
