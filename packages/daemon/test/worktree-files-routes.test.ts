@@ -340,6 +340,36 @@ describe('GET /api/worktrees/:sid/download', () => {
   });
 });
 
+describe('GET /api/worktrees/:sid/media', () => {
+  function media(sid: string, path: string) {
+    return app.request(`/api/worktrees/${sid}/media?path=${encodeURIComponent(path)}`);
+  }
+
+  it('serves a known media type inline with its real content-type and identical bytes', async () => {
+    const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x01, 0x02, 0x03]); // fake PNG-ish
+    writeFileSync(join(worktree, 'pic.png'), bytes);
+    const res = await media(sessionId, 'pic.png');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('image/png');
+    expect(res.headers.get('content-disposition')).toContain('inline');
+    expect(Buffer.from(await res.arrayBuffer())).toEqual(bytes);
+  });
+
+  it('falls back to octet-stream for an unknown extension', async () => {
+    writeFileSync(join(worktree, 'thing.xyz'), 'data');
+    const res = await media(sessionId, 'thing.xyz');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('application/octet-stream');
+  });
+
+  it('400s a directory and rejects an escape', async () => {
+    expect((await media(sessionId, 'src')).status).toBe(400);
+    const escape = await media(sessionId, '../../etc/hosts');
+    expect(escape.status).toBe(400);
+    expect(errorCode(await escape.json())).toBe('path_outside_worktree');
+  });
+});
+
 describe('worktree-files: shared error conditions', () => {
   it('404s an unknown session on every endpoint', async () => {
     const uploadForm = new FormData();

@@ -24,6 +24,8 @@ import { bufferKey, isDirty, releaseModel, retainModel } from './buffer-store';
 import { announceDraftDiscarded } from './editor-sync';
 import { CodeEditor } from './CodeEditor';
 import { EditorTabStrip } from './EditorTabStrip';
+import { mediaKind } from './media-kind';
+import { MediaViewer } from './MediaViewer';
 import {
   activeAfterClose,
   hasTab,
@@ -181,14 +183,26 @@ export function EditorZone({ uiState, sessions, reveal }: EditorZoneProps) {
             path={activeTab.path}
           />
         )}
-        {activeTab && tabKind(activeTab) === 'file' && (
-          <CodeEditor
-            key={tabKey(activeTab)}
-            session={activeTab.session}
-            path={activeTab.path}
-            reveal={reveal}
-          />
-        )}
+        {activeTab &&
+          tabKind(activeTab) === 'file' &&
+          (() => {
+            const kind = mediaKind(activeTab.path);
+            return kind ? (
+              <MediaViewer
+                key={tabKey(activeTab)}
+                session={activeTab.session}
+                path={activeTab.path}
+                kind={kind}
+              />
+            ) : (
+              <CodeEditor
+                key={tabKey(activeTab)}
+                session={activeTab.session}
+                path={activeTab.path}
+                reveal={reveal}
+              />
+            );
+          })()}
       </div>
 
       <Dialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>

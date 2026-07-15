@@ -35,6 +35,47 @@ function contentDisposition(filename: string): string {
   return `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }
 
+/**
+ * Content-types for the inline media viewer (SPEC §8) — image / video / audio /
+ * pdf served for in-browser rendering rather than the octet-stream download.
+ * Keyed by lower-case extension; anything unlisted falls back to
+ * `application/octet-stream` at the route.
+ */
+const MEDIA_MIME: Record<string, string> = {
+  // images
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  bmp: 'image/bmp',
+  ico: 'image/x-icon',
+  avif: 'image/avif',
+  svg: 'image/svg+xml',
+  // video
+  mp4: 'video/mp4',
+  m4v: 'video/mp4',
+  webm: 'video/webm',
+  mov: 'video/quicktime',
+  mkv: 'video/x-matroska',
+  avi: 'video/x-msvideo',
+  // audio
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  ogg: 'audio/ogg',
+  m4a: 'audio/mp4',
+  flac: 'audio/flac',
+  aac: 'audio/aac',
+  // documents
+  pdf: 'application/pdf',
+};
+
+function mediaMime(name: string): string | null {
+  const dot = name.lastIndexOf('.');
+  if (dot < 0) return null;
+  return MEDIA_MIME[name.slice(dot + 1).toLowerCase()] ?? null;
+}
+
 /** One tree entry for a directory child; `lstat` decides file/dir/symlink, never following the link. */
 function describeEntry(dir: string, name: string): TreeEntry {
   const full = join(dir, name);
@@ -177,6 +218,28 @@ export function worktreeFileRoutes(deps: { sessions: SessionStore }): Hono {
         uploaded.push({ path: relPath, size: bytes.byteLength });
       }
       return c.json<UploadResponse>({ files: uploaded }, 201);
+    })
+
+    .get('/:sid/media', (c) => {
+      // Serve a file's raw bytes for INLINE rendering (image/video/audio/pdf) —
+      // the real content-type + `inline` disposition, unlike `/download`'s
+      // always-`attachment` octet-stream. The web viewer fetches this through
+      // the authed API and hands the element an object URL (SPEC §8).
+      const { root } = resolveWorktree(deps.sessions, c);
+      const rel = c.req.query('path') ?? '';
+      const target = containedPath(root, rel);
+      if (!existsSync(target)) throw ApiError.notFound('path', rel);
+      const st = statSync(target);
+      if (!st.isFile()) throw ApiError.badRequest('not_a_file', `${rel} is not a file`);
+      const name = basename(target);
+      const stream = Readable.toWeb(createReadStream(target)) as ReadableStream;
+      return new Response(stream, {
+        headers: {
+          'content-type': mediaMime(name) ?? 'application/octet-stream',
+          'content-length': String(st.size),
+          'content-disposition': `inline; filename*=UTF-8''${encodeURIComponent(name)}`,
+        },
+      });
     })
 
     .get('/:sid/download', (c) => {
