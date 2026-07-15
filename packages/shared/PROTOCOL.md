@@ -44,3 +44,12 @@ bump in `CHANGELOG.md`.
    wherever extension is expected.
 3. A newer client on an older daemon **feature-detects** against the daemon's
    `minor` and hides what the daemon cannot do; it must not fail.
+
+## Non-bumps worth recording
+
+- **Phase 6 serving switch (2026-07-14)**: the CLI took over UI serving and
+  the daemon's default port moved 7433 → 7434. Verified non-wire-affecting —
+  no schema changed, ports are deployment configuration (the Host/Origin
+  guard has always ignored them), and the `?host=`/`#token=` boot params are
+  browser-side conventions that never reach the server. `PROTOCOL_VERSION`
+  stayed 5.1.

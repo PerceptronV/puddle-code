@@ -18,7 +18,13 @@ packages/
 │   └── src/features/  # dashboard, workspace (sidebar/tabs/xterm), editor/explorer/changes/search/worktrees
 │                      # (Monaco tabs + drafts, file tree + transfer, unified changes view = uncommitted
 │                      #  + commit-graph SVG, filename+content search), settings, ⌘K palette
-└── cli/       # client launcher: serves the UI + proxies /api & /ws (Phase 6), ssh bootstrap, tunnel
+└── cli/       # @puddle-code/cli (the command is `puddle`): serves the UI at localhost:7433 and
+    │          # proxies /api + /ws + /proxy to the daemon on 127.0.0.1:7434 (through the ssh
+    │          # tunnel remotely); bootstrap/handshake/attach live in src/lib/ (no process/TTY
+    │          # access there — an Electron shell must be able to reuse it), the bin in src/cli/
+    └── scripts/build.mjs   # esbuild bundle + embeds install.sh + copies web assets into dist/
+scripts/build-tarball.mjs   # self-contained puddled release tarball for the CURRENT platform
+scripts/install.sh          # THE daemon bootstrap (curl-pipeable; the CLI pipes it over ssh)
 docs/changelogs/      # archived per-version changelogs (see Changelog discipline)
 docs/acceptance/      # manual per-phase acceptance scripts (real-agent verification CI can't do)
 ```
@@ -28,10 +34,16 @@ docs/acceptance/      # manual per-phase acceptance scripts (real-agent verifica
 ```
 pnpm install            # workspace install
 pnpm dev                # daemon (watch) + web (vite) for local development
-pnpm build              # all packages; web assets embed into the daemon
+pnpm build              # all packages; web assets land inside the CLI (packages/cli/dist/public)
 pnpm test               # vitest across workspaces
 pnpm lint               # eslint + prettier check
+pnpm build:tarball      # self-contained puddled tarball for this platform (dist-release/)
 ```
+
+For manual testing before a release exists: `pnpm build && pnpm build:tarball`, then
+`node packages/cli/dist/index.js start --tarball dist-release/puddled-v*.tar.gz` (or
+`connect user@host --tarball …`). The daemon default port is 7434; the CLI serves the
+UI at 7433.
 
 > **Never launch `puddled` from inside a coding-agent session** (e.g. a Claude Code terminal, including these dev sessions). The daemon inherits that agent's orchestration env vars — `CLAUDECODE=1`, `CLAUDE_CODE_*` — and passes them to the agents it spawns (PtyManager uses `{...process.env}` by design). A `claude` that sees `CLAUDECODE`/`CLAUDE_CODE_CHILD_SESSION` treats itself as a nested child and **does not write a resumable conversation transcript**, so `--resume` silently fails with "no conversation found" (verified against Claude Code 2.1.209: the identical session persists a transcript with these unset and writes nothing with them set). Start the daemon from a plain shell (systemd/launchd does this in production, so real deployments are unaffected). If a session won't resume during development, check the daemon's env first (`ps eww <pid> | tr ' ' '\n' | grep CLAUDE`).
 
