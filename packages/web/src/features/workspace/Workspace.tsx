@@ -147,6 +147,11 @@ function WorkspaceInner() {
   // focus/ensure op would re-trigger the effect that made it, looping.
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
+  // `useUiState` returns a fresh handle object every render, so effects must
+  // reach it through a ref — listing `uiState` in a dependency array would fire
+  // the effect on EVERY render, not only when its real inputs change.
+  const uiStateRef = useRef(uiState);
+  uiStateRef.current = uiState;
   const [restored, setRestored] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createKind, setCreateKind] = useState<SessionKind>('agent');
@@ -216,8 +221,14 @@ function WorkspaceInner() {
     }
   }, [restored, uiState, detail.data, sessions, activeSessionId, navigate, projectId]);
 
-  // Deep links ensure a terminal for the URL session exists in the tree and
-  // becomes the stored active session (for reload restore + the sidebar bind).
+  // A genuine session navigation (the URL `sid` changed) ensures a terminal for
+  // that session and focuses it — added to the currently focused pane if absent,
+  // else just focused — and records it as the stored active session (for reload
+  // restore + the left-sidebar bind). This must fire ONCE per navigation, not on
+  // every render: re-running it would re-assert the session's terminal as its
+  // leaf's active tab, so clicking a file tab that shares the pane would flip
+  // straight back to the terminal. Hence the ref-based `uiState`/`layout` access
+  // and the deps limited to what actually changes on navigation.
   useEffect(() => {
     if (!restored) return;
     if (!activeSessionId) {
@@ -228,10 +239,11 @@ function WorkspaceInner() {
     if (activeSessionId === justClosedActive.current) return;
     justClosedActive.current = null;
     layoutRef.current.ensureTerminal(activeSessionId);
-    if (uiState.snapshot.active_session !== activeSessionId) {
-      uiState.update({ active_session: activeSessionId });
+    const ui = uiStateRef.current;
+    if (ui.snapshot.active_session !== activeSessionId) {
+      ui.update({ active_session: activeSessionId });
     }
-  }, [restored, activeSessionId, uiState]);
+  }, [restored, activeSessionId]);
 
   // waiting_input is mirrored in the tab title (SPEC §12).
   useEffect(() => {
