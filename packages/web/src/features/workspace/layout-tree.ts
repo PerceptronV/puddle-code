@@ -261,6 +261,19 @@ export function closeTab(tree: LayoutNode, leafId: string, key: string): LayoutN
   return normalise(next);
 }
 
+/**
+ * Add `ref` to leaf `leafId` and activate it — appending if absent, else just
+ * focusing it (add-or-focus, no duplicate within a leaf). Used to open a file
+ * or terminal into a specific pane programmatically.
+ */
+export function addTabToLeaf(tree: LayoutNode, leafId: string, ref: TabRef): LayoutNode {
+  const next = transformLeaf(tree, leafId, (leaf) => {
+    if (leaf.tabs.some((t) => sameRef(t, ref))) return { ...leaf, activeKey: tabRefKey(ref) };
+    return { ...leaf, tabs: [...leaf.tabs, ref], activeKey: tabRefKey(ref) };
+  });
+  return normalise(next);
+}
+
 /** Set the active tab of a leaf. */
 export function focusTab(tree: LayoutNode, leafId: string, key: string): LayoutNode {
   return transformLeaf(tree, leafId, (leaf) =>
@@ -278,6 +291,15 @@ export function resizeSplit(tree: LayoutNode, splitId: string, sizes: number[]):
     return { ...node, children: node.children.map(walk) };
   }
   return walk(tree);
+}
+
+/** Drop every tab for which `keep` is false (e.g. a dead session); collapses emptied leaves. */
+export function pruneTabs(tree: LayoutNode, keep: (ref: TabRef) => boolean): LayoutNode {
+  const walk = (node: LayoutNode): LayoutNode =>
+    node.kind === 'leaf'
+      ? { ...node, tabs: node.tabs.filter(keep) }
+      : { ...node, children: node.children.map(walk) };
+  return normalise(walk(tree));
 }
 
 // ---- Migration from the legacy flat snapshot ------------------------------

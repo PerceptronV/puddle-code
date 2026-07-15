@@ -39,6 +39,7 @@ describe('uiStateSnapshotSchema', () => {
       sidebar_collapsed: false,
       sessions_collapsed: false,
       session_order: [],
+      layout_tree: null,
     });
   });
 

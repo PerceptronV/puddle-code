@@ -1,22 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Group, Panel, Separator, type Layout } from 'react-resizable-panels';
-import { Play, TerminalSquare } from 'lucide-react';
+import { Play } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Session, SessionKind } from '@puddle/shared';
+import type { Session, SessionKind, TabRef } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { useExplorerTarget } from '../explorer/use-explorer-target';
 import { useAccounts, useProjectDetail, useSessionAction } from '../../lib/queries';
 import { useNewSession } from '../shell/new-session-context';
-import { LazyTerminal } from '../terminal/LazyTerminal';
-import { LazyEditorPane } from '../editor/LazyEditorPane';
-import { addOrFocusTab, type EditorTab } from '../editor/editor-tabs';
+import type { EditorTab } from '../editor/editor-tabs';
 import {
   EditorProvider,
   useEditorHandler,
   type EditorPosition,
   type RevealTarget,
 } from './editor-context';
+import { KeepAliveHost } from './keep-alive';
 import { layoutForPanels } from './panel-layout';
 import {
   CollapsedSidebarRail,
@@ -27,7 +26,8 @@ import {
 import { NewSessionDialog } from './NewSessionDialog';
 import { PortsStrip } from '../ports/PortsStrip';
 import { CollapsedSessionsRail, SessionSidebar } from './SessionSidebar';
-import { TabStrip } from './TabStrip';
+import { TileTree } from './TileTree';
+import { useLayoutTree } from './useLayoutTree';
 import { useUiState } from './use-ui-state';
 
 /** Inline banner over the terminal for sessions that need a nudge. */
@@ -82,7 +82,12 @@ function WorkspaceInner() {
   const accounts = useAccounts(detail.data?.project.profile_id).data ?? [];
 
   const uiState = useUiState(validProject ? projectId : undefined);
-  const openTabs = uiState.snapshot.session_tabs;
+  const layout = useLayoutTree(uiState);
+  // Effects reference the controller through a ref so they don't list `layout`
+  // (which changes on every tree edit) as a dependency — otherwise a
+  // focus/ensure op would re-trigger the effect that made it, looping.
+  const layoutRef = useRef(layout);
+  layoutRef.current = layout;
   const [restored, setRestored] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createKind, setCreateKind] = useState<SessionKind>('agent');
@@ -106,10 +111,7 @@ function WorkspaceInner() {
   const [reveal, setReveal] = useState<RevealTarget | null>(null);
   const openEditorTab = useCallback(
     (tab: EditorTab, position?: EditorPosition) => {
-      uiState.update({
-        editor_tabs: addOrFocusTab(uiState.snapshot.editor_tabs, tab),
-        active_editor_tab: tab,
-      });
+      layout.openEditor(tab);
       if (position && (tab.kind ?? 'file') === 'file') {
         setReveal({
           session: tab.session,
@@ -120,7 +122,7 @@ function WorkspaceInner() {
         });
       }
     },
-    [uiState],
+    [layout],
   );
   // Stable file-open handler for terminal links, the explorer, and the editor
   // context (keeps the original `(session, path, position?)` shape).
@@ -142,21 +144,21 @@ function WorkspaceInner() {
     return () => setHandler(null);
   }, [setHandler]);
 
-  // Restore-on-open: prune tabs whose sessions are gone, then land on the
-  // stored active session unless the URL already deep-links one.
+  // Restore-on-open: prune tabs whose sessions are gone from the tree, then land
+  // on the stored active session unless the URL already deep-links one.
   useEffect(() => {
     if (restored || !uiState.loaded || !detail.data) return;
     setRestored(true);
     const alive = new Set(sessions.filter((s) => s.status !== 'archived').map((s) => s.id));
-    const tabs = openTabs.filter((id) => alive.has(id));
-    if (tabs.length !== openTabs.length) uiState.update({ session_tabs: tabs });
+    layoutRef.current.pruneSessions(alive);
     const stored = uiState.snapshot.active_session;
     if (!activeSessionId && stored && alive.has(stored)) {
       void navigate(`/project/${projectId}/session/${stored}`, { replace: true });
     }
-  }, [restored, uiState, detail.data, sessions, openTabs, activeSessionId, navigate, projectId]);
+  }, [restored, uiState, detail.data, sessions, activeSessionId, navigate, projectId]);
 
-  // Deep links open a tab and become the stored active session.
+  // Deep links ensure a terminal for the URL session exists in the tree and
+  // becomes the stored active session (for reload restore + the sidebar bind).
   useEffect(() => {
     if (!restored) return;
     if (!activeSessionId) {
@@ -166,15 +168,11 @@ function WorkspaceInner() {
     // Don't re-open the tab we're closing while the URL param still lags.
     if (activeSessionId === justClosedActive.current) return;
     justClosedActive.current = null;
-    if (!openTabs.includes(activeSessionId)) {
-      uiState.update({
-        session_tabs: [...openTabs, activeSessionId],
-        active_session: activeSessionId,
-      });
-    } else if (uiState.snapshot.active_session !== activeSessionId) {
+    layoutRef.current.ensureTerminal(activeSessionId);
+    if (uiState.snapshot.active_session !== activeSessionId) {
       uiState.update({ active_session: activeSessionId });
     }
-  }, [restored, activeSessionId, openTabs, uiState]);
+  }, [restored, activeSessionId, uiState]);
 
   // waiting_input is mirrored in the tab title (SPEC §12).
   useEffect(() => {
@@ -186,17 +184,40 @@ function WorkspaceInner() {
     };
   }, [sessions, detail.data?.project.name]);
 
+  // Closing a session from the sidebar / its lifecycle menu removes its terminal
+  // from the tree; if it was the URL-bound one, drop the binding.
   const closeTab = useCallback(
     (id: string) => {
       const wasActive = activeSessionId === id;
       if (wasActive) justClosedActive.current = id;
-      uiState.update({
-        session_tabs: openTabs.filter((t) => t !== id),
-        ...(wasActive ? { active_session: null } : {}),
-      });
-      if (wasActive) void navigate(`/project/${projectId}`);
+      layout.removeTerminal(id);
+      if (wasActive) {
+        uiState.update({ active_session: null });
+        void navigate(`/project/${projectId}`);
+      }
     },
-    [uiState, openTabs, activeSessionId, navigate, projectId],
+    [layout, uiState, activeSessionId, navigate, projectId],
+  );
+
+  // Activating a tab focuses its pane; activating a terminal also navigates so
+  // the left sidebar binds to it. Closing a pane tab mirrors `closeTab`.
+  const onActivateTab = useCallback(
+    (leafId: string, ref: TabRef) => {
+      layout.activate(leafId, ref);
+      if (ref.type === 'terminal') void navigate(`/project/${projectId}/session/${ref.session}`);
+    },
+    [layout, navigate, projectId],
+  );
+  const onCloseTab = useCallback(
+    (leafId: string, ref: TabRef) => {
+      layout.close(leafId, ref);
+      if (ref.type === 'terminal' && ref.session === activeSessionId) {
+        justClosedActive.current = ref.session;
+        uiState.update({ active_session: null });
+        void navigate(`/project/${projectId}`);
+      }
+    },
+    [layout, activeSessionId, uiState, navigate, projectId],
   );
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
@@ -205,13 +226,12 @@ function WorkspaceInner() {
   // (SPEC §8, pin-across-tabs).
   const sidebarTarget = useExplorerTarget(sessions, activeSessionId, uiState);
   const targetSession = sidebarTarget.session;
-  const editorTabs = uiState.snapshot.editor_tabs;
   const sidebarMode: SidebarMode = normalizeSidebarMode(uiState.snapshot.sidebar_mode);
   const sidebarCollapsed = uiState.snapshot.sidebar_collapsed;
   const sessionsCollapsed = uiState.snapshot.sessions_collapsed;
 
-  // Highlight the Changes navigator entry whose uncommitted-diff tab is active.
-  const activeTab = uiState.snapshot.active_editor_tab;
+  // Highlight the navigator entry for the focused pane's active editor tab.
+  const activeTab = layout.activeEditorTab;
   const activeDiffPath =
     activeTab?.kind === 'diff' && targetSession && activeTab.session === targetSession.id
       ? activeTab.path
@@ -239,29 +259,20 @@ function WorkspaceInner() {
       openFile(targetSession.id, path, line !== undefined ? { line, column: 1 } : undefined);
   };
 
-  // Both Groups (horizontal shell, nested vertical editor split) persist into
-  // ONE flat `layout` object: panel ids never collide, so `onLayoutChanged`
-  // MERGES its keys in — a plain replace would wipe the other Group's sizes.
-  // Restoring goes the other way through `layoutForPanels`, which hands each
-  // Group exactly its own rendered panels' entries (react-resizable-panels
-  // ignores a `defaultLayout` whose key count differs from its panel count,
-  // so the merged object must never be passed whole — see panel-layout.ts).
+  // The horizontal shell (nav | main | sessions) persists its sizes into the
+  // flat `layout` object via `layoutForPanels`/merge, exactly as before — the
+  // tiling area inside `main` carries its own per-split sizes in `layout_tree`.
+  // `onLayoutChanged` merges the shell's keys so it never wipes unrelated ones.
   const mergeLayout = useCallback(
-    (layout: Layout) => uiState.update({ layout: { ...uiState.snapshot.layout, ...layout } }),
+    (next: Layout) => uiState.update({ layout: { ...uiState.snapshot.layout, ...next } }),
     [uiState],
   );
   // The nav and sessions panels join the horizontal Group only while expanded
-  // (collapsed, a slim rail sits outside the Group); the editor pane joins the
-  // vertical Group only while a tab is open — keeping each Group's restore
-  // count exact.
+  // (collapsed, a slim rail sits outside the Group), keeping the restore count exact.
   const horizontalLayout = layoutForPanels(uiState.snapshot.layout, [
     ...(sidebarCollapsed ? [] : ['nav']),
     'main',
     ...(sessionsCollapsed ? [] : ['sessions']),
-  ]);
-  const verticalLayout = layoutForPanels(uiState.snapshot.layout, [
-    ...(editorTabs.length > 0 ? ['editor'] : []),
-    'session',
   ]);
 
   if (!validProject) return null;
@@ -307,74 +318,36 @@ function WorkspaceInner() {
           </>
         )}
         <Panel id="main">
-          {/* Vertical split (SPEC §8): the editor zone (files, diffs, browser
-            preview later) sits above the agent terminals, appearing only once a
-            tab is open — with no tabs the terminals take the whole height. The
-            boundary drags freely. This Group's sizes share the flat `layout`
-            object (see mergeLayout / layoutForPanels). */}
-          <Group
-            orientation="vertical"
-            className="h-full"
-            defaultLayout={verticalLayout}
-            onLayoutChanged={mergeLayout}
+          {/* Free-form tiling area (SPEC §8): editor and terminal tabs live in a
+              recursive split tree (`layout_tree`); every open terminal is kept
+              mounted by `KeepAliveHost` and its DOM adopted into whichever pane
+              shows it, so PTYs never drop. The URL-bound session's resume banner
+              and port strip sit above the tree. */}
+          <KeepAliveHost
+            tree={layout.tree}
+            onOpenFile={(session, path, line, column) =>
+              openFile(session, path, line !== undefined ? { line, column } : undefined)
+            }
           >
-            {editorTabs.length > 0 && (
-              <>
-                <Panel id="editor" defaultSize={360} minSize={120}>
-                  <LazyEditorPane uiState={uiState} sessions={sessions} reveal={reveal} />
-                </Panel>
-                <Separator className="h-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
-              </>
-            )}
-            <Panel id="session" minSize={160}>
-              <div className="flex h-full flex-col bg-ground">
-                <TabStrip
-                  tabs={openTabs}
+            <div className="flex h-full flex-col bg-ground">
+              {activeSession && <SessionBanner session={activeSession} />}
+              {activeSession && (
+                <PortsStrip sessionId={activeSession.id} status={activeSession.status} />
+              )}
+              <div className="min-h-0 flex-1">
+                <TileTree
+                  tree={layout.tree}
                   sessions={sessions}
-                  activeId={activeSessionId}
-                  onActivate={(id) => void navigate(`/project/${projectId}/session/${id}`)}
-                  onClose={closeTab}
-                  onReorder={(tabs) => uiState.update({ session_tabs: tabs })}
+                  reveal={reveal}
+                  onActivateTab={onActivateTab}
+                  onCloseTab={onCloseTab}
                   onArchived={closeTab}
+                  onFocusLeaf={layout.focusLeaf}
+                  onResize={layout.resize}
                 />
-                {activeSession && <SessionBanner session={activeSession} />}
-                {activeSession && (
-                  <PortsStrip sessionId={activeSession.id} status={activeSession.status} />
-                )}
-                <div className="relative min-h-0 flex-1">
-                  {/* Terminals stay mounted whichever session is active (their PTY
-                    attachment must not drop); only visibility switches. Diff and
-                    history now live in the left navigator, never over the
-                    terminal. */}
-                  {openTabs.map((id) => (
-                    <div
-                      key={id}
-                      className={
-                        id === activeSessionId ? 'absolute inset-0 py-1 pl-4 pr-2' : 'hidden'
-                      }
-                    >
-                      <LazyTerminal
-                        stream={id}
-                        onOpenFile={(path, line, column) =>
-                          openFile(id, path, line !== undefined ? { line, column } : undefined)
-                        }
-                      />
-                    </div>
-                  ))}
-                  {!activeSessionId && (
-                    <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-                      <TerminalSquare className="size-8 text-fg-muted" />
-                      <p className="text-sm text-fg-secondary">
-                        {sessions.filter((s) => s.status !== 'archived').length === 0
-                          ? 'No sessions yet — press ⌘K to start one.'
-                          : 'Pick a session from the sessions sidebar.'}
-                      </p>
-                    </div>
-                  )}
-                </div>
               </div>
-            </Panel>
-          </Group>
+            </div>
+          </KeepAliveHost>
         </Panel>
         {!sessionsCollapsed && (
           <>
