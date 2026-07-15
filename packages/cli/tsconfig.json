@@ -1,5 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "rootDir": "src", "outDir": "dist", "types": ["node"] },
+  "compilerOptions": { "rootDir": "src", "outDir": "tsc-out", "types": ["node"] },
+  "references": [{ "path": "../shared" }],
   "include": ["src"]
 }

@@ -5,11 +5,23 @@ import prettier from 'eslint-config-prettier';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig(
-  { ignores: ['**/dist/**', '**/node_modules/**', 'docs/**'] },
+  {
+    ignores: ['**/dist/**', '**/dist-release/**', '**/tsc-out/**', '**/node_modules/**', 'docs/**'],
+  },
   {
     files: ['**/*.{js,mjs}'],
     languageOptions: {
-      globals: { console: 'readonly', process: 'readonly', URL: 'readonly' },
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        URL: 'readonly',
+        fetch: 'readonly',
+        AbortSignal: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly',
+      },
     },
   },
   {

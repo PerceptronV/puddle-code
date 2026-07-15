@@ -97,7 +97,9 @@ async function bundleDaemon() {
     minify: false,
     logLevel: 'warning',
   });
-  log(`bundled daemon (${(statSync(join(stage, 'daemon', 'puddled.mjs')).size / 1e6).toFixed(1)} MB)`);
+  log(
+    `bundled daemon (${(statSync(join(stage, 'daemon', 'puddled.mjs')).size / 1e6).toFixed(1)} MB)`,
+  );
 }
 
 /* 2 — copy the two native packages, pruned to their runtime shape. */
