@@ -21,8 +21,20 @@ function basename(path: string): string {
 }
 
 /** A small muted status tag (no border/box — HUMANS.md). */
-function Tag({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <span className={cn('shrink-0 text-2xs', className)}>{children}</span>;
+function Tag({
+  children,
+  className,
+  title,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  title?: string;
+}) {
+  return (
+    <span title={title} className={cn('shrink-0 text-2xs', className)}>
+      {children}
+    </span>
+  );
 }
 
 /** A trash control that appears on hover (disabled when a reason is given). */
@@ -161,8 +173,21 @@ export function WorktreesNav({
                   {basename(wt.path)}
                 </span>
                 {wt.is_primary && <Tag className="text-fg-muted">clone</Tag>}
-                {wt.dirty && <Tag className="text-waiting">uncommitted</Tag>}
-                {live > 0 && <Tag className="text-running">{live} running</Tag>}
+                {/* Terse badges (VSCode-style): M = modified/uncommitted (the
+                    explorer's decoration colour), a green count of live sessions. */}
+                {wt.dirty && (
+                  <Tag className="text-waiting" title="Modified — uncommitted changes">
+                    M
+                  </Tag>
+                )}
+                {live > 0 && (
+                  <Tag
+                    className="text-running"
+                    title={`${live} running session${live > 1 ? 's' : ''}`}
+                  >
+                    {live}
+                  </Tag>
+                )}
                 <PruneButton
                   label="Prune"
                   blockReason={blockReason}
