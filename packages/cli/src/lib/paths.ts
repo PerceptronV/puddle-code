@@ -21,6 +21,7 @@ export const hostPaths = {
   home: HOST_HOME,
   token: `${HOST_HOME}/token`,
   config: `${HOST_HOME}/config.json`,
+  runtime: `${HOST_HOME}/runtime.json`,
   current: `${HOST_HOME}/bin/current`,
   cache: `${HOST_HOME}/cache`,
   logs: `${HOST_HOME}/logs`,

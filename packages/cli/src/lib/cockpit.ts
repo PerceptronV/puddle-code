@@ -44,18 +44,26 @@ export async function ensureDaemon(
 
   let token = await readToken(transport);
   if (token === null) {
-    // Never installed (or never started): first-time bootstrap.
+    // Never installed (or never started): first-time bootstrap. The daemon
+    // writes runtime.json only once it has bound, so wait for it to answer
+    // rather than probe a port it may not be listening on yet.
     await installDaemon(transport, opts);
     bootstrapped = true;
     token = await waitForToken(transport, 20_000);
+    const up = await waitForHostProbe(transport, token, 20_000);
+    if (up.result === 'unauthorised') throw portConflict(transport, up.port);
+    if (up.result !== 'ok') throw startTimeout(transport);
+    return { port: up.port, token, bootstrapped };
   }
-  let port = await readDaemonPort(transport);
 
-  // The daemon may be installed but stopped (nohup host rebooted, service
-  // disabled). Probe from the host itself so this works before any tunnel.
+  // Installed and holding a token: probe the discoverable port once — the fast
+  // path for an already-running daemon.
+  let port = await readDaemonPort(transport);
   const probe = await hostProbe(transport, port, token);
   if (probe === 'unauthorised') throw portConflict(transport, port);
   if (probe === 'down') {
+    // The daemon may be installed but stopped (nohup host rebooted, service
+    // disabled).
     if ((await installedVersion(transport)) === null) {
       // A state dir without a managed install (a dev daemon's leftovers, an
       // interrupted bootstrap): `start`/`connect` promise a running daemon
@@ -68,22 +76,24 @@ export async function ensureDaemon(
     }
     await installDaemon(transport, opts); // idempotent: (re)installs + restarts
     bootstrapped = true;
-    port = await readDaemonPort(transport);
     token = (await readToken(transport)) ?? token;
-    const after = await waitForHostProbe(transport, port, token, 20_000);
-    if (after === 'unauthorised') throw portConflict(transport, port);
-    if (after !== 'ok') {
-      throw new CliError(
-        'daemon_start_timeout',
-        `puddled did not come up on ${transport.label}`,
-        transport.kind === 'ssh'
-          ? `inspect it with: puddle logs ${transport.label}`
-          : 'inspect it with: puddle logs',
-      );
-    }
+    const after = await waitForHostProbe(transport, token, 20_000);
+    if (after.result === 'unauthorised') throw portConflict(transport, after.port);
+    if (after.result !== 'ok') throw startTimeout(transport);
+    port = after.port;
   }
 
   return { port, token, bootstrapped };
+}
+
+function startTimeout(transport: Transport): CliError {
+  return new CliError(
+    'daemon_start_timeout',
+    `puddled did not come up on ${transport.label}`,
+    transport.kind === 'ssh'
+      ? `inspect it with: puddle logs ${transport.label}`
+      : 'inspect it with: puddle logs',
+  );
 }
 
 function portConflict(transport: Transport, port: number): CliError {
@@ -123,18 +133,21 @@ async function hostProbe(transport: Transport, port: number, token: string): Pro
 
 async function waitForHostProbe(
   transport: Transport,
-  port: number,
   token: string,
   timeoutMs: number,
-): Promise<ProbeResult> {
+): Promise<{ result: ProbeResult; port: number }> {
   const deadline = Date.now() + timeoutMs;
   let last: ProbeResult = 'down';
+  let port = await readDaemonPort(transport);
   while (Date.now() < deadline) {
+    // Re-read every pass: the daemon writes runtime.json only after it binds,
+    // and it may have fallen back off the configured port onto a free one.
+    port = await readDaemonPort(transport);
     last = await hostProbe(transport, port, token);
-    if (last !== 'down') return last;
+    if (last !== 'down') return { result: last, port };
     await sleep(500);
   }
-  return last;
+  return { result: last, port };
 }
 
 /** Build the client-facing upgrade callback the handshake needs. */

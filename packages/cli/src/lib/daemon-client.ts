@@ -81,8 +81,22 @@ export class DaemonClient {
   }
 }
 
-/** The daemon port a host is configured for: config.json's port, else 7434. */
+/**
+ * Where to find the daemon on a host: the live port from runtime.json if the
+ * daemon recorded one (it may have fallen back off a busy config port), else
+ * config.json's preferred port, else the 7434 default. The caller must still
+ * revalidate by token — a runtime.json can be stale after a crash.
+ */
 export async function readDaemonPort(transport: Transport): Promise<number> {
+  const runtime = await transport.readFile(hostPaths.runtime);
+  if (runtime !== null) {
+    try {
+      const parsed = JSON.parse(runtime) as { port?: unknown };
+      if (typeof parsed.port === 'number') return parsed.port;
+    } catch {
+      // malformed runtime file falls through to the configured port
+    }
+  }
   const raw = await transport.readFile(hostPaths.config);
   if (raw !== null) {
     try {

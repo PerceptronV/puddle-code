@@ -1,8 +1,9 @@
-import { DaemonClient } from './daemon-client.js';
+import { DaemonClient, readDaemonPort } from './daemon-client.js';
 import { ensureDaemon, makeUpgrader, type RunningCockpit } from './cockpit.js';
 import { runHandshake } from './handshake.js';
 import { startUiServer } from './serve/ui-server.js';
 import { openTunnel } from './tunnel.js';
+import { LocalTransport } from './transport/local.js';
 import { SshTransport } from './transport/ssh.js';
 import type { CliEvent, Logger } from './types.js';
 import { silentLogger } from './types.js';
@@ -61,14 +62,19 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
     logger,
   });
 
+  // Never squat the port a local `puddle start` will probe for its own daemon,
+  // or that probe would find this cockpit's proxy answering for a different
+  // (remote) daemon and abort with a port conflict. That target is the LOCAL
+  // daemon's configured port — read from this machine's config.json the same
+  // way `start` does — not `endpoint.port`, which is the remote daemon's and
+  // only coincides when the remote uses the default 7434.
+  const avoidPort = await readDaemonPort(new LocalTransport());
+
   const ui = await startUiServer({
     assetsDir: opts.assetsDir,
     port: opts.port,
     strictPort: opts.port !== undefined,
-    // Never squat the daemon's canonical port either: a local `puddle start`
-    // probing 7434 must not find this cockpit's proxy answering for a
-    // different (remote) daemon.
-    avoidPort: endpoint.port,
+    avoidPort,
     target: { host: '127.0.0.1', port: tunnel.localPort },
   });
   tunnel.onPortChange((port) => ui.setTarget({ host: '127.0.0.1', port }));

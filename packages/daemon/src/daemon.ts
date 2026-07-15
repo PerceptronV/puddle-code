@@ -1,4 +1,4 @@
-import { serve, upgradeWebSocket, type ServerType } from '@hono/node-server';
+import { createAdaptorServer, upgradeWebSocket, type ServerType } from '@hono/node-server';
 import { WebSocketServer } from 'ws';
 import type { AgentAdapter } from './agents/adapter.js';
 import { claudeCode } from './agents/claude-code.js';
@@ -22,6 +22,7 @@ import { PortScanner } from './ports/scanner.js';
 import { attachProxyUpgrade } from './proxy/upgrade.js';
 import { ProxySocketTracker } from './proxy/sockets.js';
 import { PtyManager } from './pty/pty-manager.js';
+import { clearRuntime, writeRuntime } from './runtime-file.js';
 import { ensureToken } from './security/token.js';
 import { ConversationShare } from './sessions/conversation-share.js';
 import { MarkerFileSync } from './sessions/onboarding.js';
@@ -177,18 +178,16 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   });
 
   const wss = new WebSocketServer({ noServer: true });
-  let resolvePort!: (port: number) => void;
-  const portPromise = new Promise<number>((r) => (resolvePort = r));
-  const server: ServerType = serve(
-    {
-      fetch: app.fetch,
-      hostname: '127.0.0.1',
-      port: opts.port ?? config.port,
-      websocket: { server: wss },
-    },
-    (info) => resolvePort(info.port),
-  );
-  const port = await portPromise;
+  // createAdaptorServer builds the server WITHOUT listening, so we own the bind
+  // and can fall back off a busy port (listenWithFallback) instead of crashing.
+  const server: ServerType = createAdaptorServer({
+    fetch: app.fetch,
+    websocket: { server: wss },
+  });
+  const port = await listenWithFallback(server, opts.port ?? config.port, '127.0.0.1');
+  // Record where we actually bound so clients (and a returning `puddle start`)
+  // can find us even when the preferred port was taken.
+  writeRuntime(paths, { port, pid: process.pid });
 
   // Register the tier-2 proxy's raw WebSocket upgrade listener AFTER serve() so
   // it becomes the SECOND 'upgrade' listener — see attachProxyUpgrade for why
@@ -235,7 +234,46 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
           (server as import('node:http').Server).closeAllConnections();
         }
       });
+      // After the socket is closed, not before: the file's presence means "up",
+      // so a reader mid-shutdown probes a dead port (→ restart), never a live
+      // one it then mis-trusts.
+      clearRuntime(paths);
       db.close();
     },
   };
+}
+
+/**
+ * Bind `server` to `preferredPort`, falling back to an OS-assigned free port if
+ * it is already in use — the bind IS the selection, so there is no check-then-
+ * bind race. Only EADDRINUSE falls back: EACCES (a misconfigured privileged
+ * port) and every other error propagate, since those are configuration faults,
+ * not contention. A `preferredPort` of 0 already means "any free port".
+ */
+function listenWithFallback(
+  server: ServerType,
+  preferredPort: number,
+  hostname: string,
+): Promise<number> {
+  return new Promise((resolve, reject) => {
+    let triedFallback = false;
+    const onError = (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE' && !triedFallback && preferredPort !== 0) {
+        triedFallback = true;
+        console.warn(`port ${preferredPort} is in use — binding a free port instead`);
+        server.listen(0, hostname); // retry; onError stays attached for a second failure
+        return;
+      }
+      server.off('listening', onListening);
+      reject(err);
+    };
+    const onListening = () => {
+      server.off('error', onError);
+      const addr = server.address();
+      resolve(typeof addr === 'object' && addr !== null ? addr.port : preferredPort);
+    };
+    server.on('error', onError);
+    server.once('listening', onListening);
+    server.listen(preferredPort, hostname);
+  });
 }

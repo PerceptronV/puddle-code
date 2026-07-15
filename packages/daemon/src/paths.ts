@@ -8,6 +8,8 @@ export interface PuddlePaths {
   dbFile: string;
   tokenFile: string;
   configFile: string;
+  /** Records where the daemon actually bound, so clients discover the live port. */
+  runtimeFile: string;
   profilesDir: string;
   worktreesDir: string;
   logsDir: string;
@@ -33,6 +35,7 @@ export function resolvePaths(
     dbFile: join(home, 'puddle.db'),
     tokenFile: join(home, 'token'),
     configFile: join(home, 'config.json'),
+    runtimeFile: join(home, 'runtime.json'),
     profilesDir: join(home, 'profiles'),
     worktreesDir: join(home, 'worktrees'),
     logsDir: join(home, 'logs'),
