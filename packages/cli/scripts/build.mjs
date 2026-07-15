@@ -6,7 +6,7 @@
  * `npm i -g @puddle-code/cli` ships the whole cockpit (SPEC §2: UI updates
  * ride the CLI, hosts only update when the protocol breaks).
  */
-import { cpSync, existsSync, readFileSync } from 'node:fs';
+import { cpSync, existsSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
@@ -14,6 +14,11 @@ import { build } from 'esbuild';
 const pkgRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = resolve(pkgRoot, '..', '..');
 const version = JSON.parse(readFileSync(join(pkgRoot, 'package.json'), 'utf8')).version;
+
+// Fresh dist every build: `files: ["dist"]` publishes the whole directory,
+// so leftovers from older builds would ship (v0.0.1 carried stray tsc
+// artefacts from the pre-Phase-6 stub for exactly this reason).
+rmSync(join(pkgRoot, 'dist'), { recursive: true, force: true });
 
 // Baked at release time from the publishing repository (release.yml exports
 // PUDDLE_REPO_SLUG); absent in dev builds, where PUDDLE_REPO takes over.
