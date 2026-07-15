@@ -195,6 +195,10 @@ export function SessionsSection() {
                   Only open this gate if every account you opt in runs work you would trust a
                   colleague to run unsupervised on this machine.
                 </p>
+                <p className="text-fg-muted">
+                  Opening it also records the agent&rsquo;s own bypass-permissions acceptance for
+                  this profile&rsquo;s accounts, so the skip actually takes effect.
+                </p>
               </div>
             </DialogDescription>
           </DialogHeader>

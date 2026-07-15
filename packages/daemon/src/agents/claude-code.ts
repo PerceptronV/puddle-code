@@ -46,7 +46,14 @@ const EMPTY_USAGE: AgentUsage = {
  * - `--resume <uuid>` restores a conversation; a positional prompt after it
  *   is submitted on resume (used for the interrupted-restart note). A ref
  *   with no conversation file fails with "No conversation found" (exit 1).
- * - `--dangerously-skip-permissions` skips permission prompts.
+ * - `--dangerously-skip-permissions` bypasses permission prompts, but ONLY once
+ *   the config dir records `bypassPermissionsModeAccepted: true` in .claude.json.
+ *   Without it, 2.1.x silently downgrades the flag to default ("Permission mode
+ *   downgraded to default — bypass requires accepting the disclaimer
+ *   interactively first"), so a non-interactive PTY session keeps its prompts.
+ *   The disclaimer is otherwise an interactive dialog; puddle writes the flag
+ *   only when the user opens the profile skip gate — see acceptSkipPermissions
+ *   (verified against Claude Code 2.1.210).
  * - `claude auth login` / `auth status` drive the login flow. auth login
  *   writes `oauthAccount` into `<config_dir>/.claude.json` but does NOT set
  *   `hasCompletedOnboarding` — only the TUI's first-run wizard does. An
@@ -116,6 +123,25 @@ export const claudeCode: AgentAdapter = {
     state['hasCompletedOnboarding'] = true;
     writeFileSync(stateFile, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
     installStatusLine(configDir); // respects an imported account's own statusLine
+  },
+
+  acceptSkipPermissions(account) {
+    // The user has opened the profile skip-permissions gate (SPEC §11) — the
+    // human confirmation. Record Claude's dangerous-mode disclaimer acceptance
+    // so `--dangerously-skip-permissions` actually bypasses prompts; otherwise
+    // 2.1.x downgrades it to default in a non-interactive PTY. Merge so
+    // oauthAccount and everything else in .claude.json survive.
+    const file = join(account.config_dir, '.claude.json');
+    let state: Record<string, unknown> = {};
+    if (existsSync(file)) {
+      try {
+        state = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+      } catch {
+        // An unreadable file is replaced by the minimal record.
+      }
+    }
+    state['bypassPermissionsModeAccepted'] = true;
+    writeFileSync(file, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
   },
 
   async checkLoggedIn(account) {

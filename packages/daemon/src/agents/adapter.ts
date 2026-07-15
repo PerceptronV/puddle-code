@@ -87,6 +87,15 @@ export interface AgentAdapter {
   /** Config-dir isolation env for a puddle-managed account. */
   env(account: Account): Record<string, string>;
   /**
+   * Records the agent's one-time skip-permissions acceptance in the account's
+   * config dir. Called only when the user opens the profile skip-permissions
+   * gate in the UI (SPEC §11) — that confirmation is the human consent. For
+   * Claude Code this is the dangerous-mode disclaimer, which otherwise silently
+   * downgrades `--dangerously-skip-permissions` to normal prompts in a
+   * non-interactive PTY. Absent → the agent has no such acceptance gate.
+   */
+  acceptSkipPermissions?(account: Account): void;
+  /**
    * One-off seeding of a freshly created (empty) config dir, before any
    * login or session runs — e.g. marking the agent's first-run onboarding
    * complete so it never hijacks a puddle session with its setup wizard.
