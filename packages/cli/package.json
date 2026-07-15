@@ -1,14 +1,25 @@
 {
   "name": "@puddle-code/cli",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "puddle — self-hosted orchestrator for CLI coding agents: serves the cockpit UI and connects it to local or SSH hosts.",
   "license": "MIT",
+  "homepage": "https://github.com/PerceptronV/puddle-code#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PerceptronV/puddle-code.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/PerceptronV/puddle-code/issues"
+  },
   "type": "module",
   "bin": {
     "puddle": "dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
   ],
   "publishConfig": {
     "access": "public"

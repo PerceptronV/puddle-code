@@ -7,4 +7,7 @@
  * live in PROTOCOL.md at this package's root — read it before changing any
  * schema in this package.
  */
-export const PROTOCOL_VERSION = { major: 5, minor: 9 } as const;
+// 6.0 (2026-07-15): major bumped with no schema shape change, on purpose —
+// forces every connected daemon to hit a major mismatch on the next handshake
+// and auto-upgrade onto this release (see PROTOCOL.md, "The rule").
+export const PROTOCOL_VERSION = { major: 6, minor: 0 } as const;

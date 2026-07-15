@@ -1,0 +1,4 @@
+# Generated at build time for the npm page (see scripts/build.mjs):
+# the README is copied from the repo root, the CHANGELOG from docs/changelogs/.
+/README.md
+/CHANGELOG.md

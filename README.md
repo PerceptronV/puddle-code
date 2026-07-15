@@ -1,5 +1,8 @@
 # Puddle
 
+[![npm](https://img.shields.io/npm/v/@puddle-code/cli?logo=npm)](https://www.npmjs.com/package/@puddle-code/cli)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
+
 Puddle is an open-source, multi-account coding agent orchestrator with first-class SSH support and a lightweight GUI. With a single command,
 
 ```bash

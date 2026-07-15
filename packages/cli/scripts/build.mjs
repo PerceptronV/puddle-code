@@ -47,6 +47,20 @@ await build({
 
 cpSync(join(repoRoot, 'scripts/install.sh'), join(pkgRoot, 'dist/install.sh'));
 
+// npm only renders a README living in the package directory, and shows no
+// changelog at all — so surface both by copying them in at build time (both
+// are git-ignored here; `files` publishes them). The changelog is the durable
+// per-version archive, not the rolling root file (which is reset to an empty
+// template on publish). Non-fatal when the archive isn't cut yet (dev builds).
+cpSync(join(repoRoot, 'README.md'), join(pkgRoot, 'README.md'));
+const versionChangelog = join(repoRoot, `docs/changelogs/CHANGELOG-v${version}.md`);
+if (existsSync(versionChangelog)) {
+  cpSync(versionChangelog, join(pkgRoot, 'CHANGELOG.md'));
+} else {
+  rmSync(join(pkgRoot, 'CHANGELOG.md'), { force: true });
+  console.warn(`cli build: no ${versionChangelog} yet — publishing without CHANGELOG.md`);
+}
+
 const webDist = join(repoRoot, 'packages/web/dist');
 if (!existsSync(join(webDist, 'index.html'))) {
   console.error('cli build: packages/web/dist is missing — build the web package first');
