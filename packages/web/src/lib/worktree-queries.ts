@@ -3,6 +3,8 @@ import type {
   DiffResponse,
   FileAtResponse,
   FileResponse,
+  FsOpResponse,
+  GitStatusResponse,
   LogResponse,
   PutFileRequest,
   PutFileResponse,
@@ -79,6 +81,42 @@ export function useWorktreeDiff(
     refetchInterval: 10_000,
     refetchOnWindowFocus: true,
   });
+}
+
+/**
+ * Per-path working-tree git status for the file explorer's decorations
+ * (SPEC §8), polled like the diff view. Distinct from `useWorktreeDiff`: it
+ * carries the full VSCode-grade set (untracked/conflicted/ignored) and is keyed
+ * to the whole worktree, so the tree can decorate every row from one map.
+ */
+export function useWorktreeGitStatus(sid: string | undefined, opts?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['wt-git-status', sid],
+    queryFn: () => api<GitStatusResponse>('GET', `/api/worktrees/${sid}/git-status`),
+    enabled: sid !== undefined && (opts?.enabled ?? true),
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
+  });
+}
+
+/** Create an empty file or a folder (SPEC §8). */
+export function createEntry(sid: string, path: string, kind: 'file' | 'dir') {
+  return api<FsOpResponse>('POST', `/api/worktrees/${sid}/create`, { path, kind });
+}
+
+/** Rename or move an entry — one server-side `fs.rename` (SPEC §8). */
+export function renameEntry(sid: string, from: string, to: string) {
+  return api<FsOpResponse>('POST', `/api/worktrees/${sid}/rename`, { from, to });
+}
+
+/** Copy an entry recursively; the server auto-suffixes ` copy` on collision (SPEC §8). */
+export function copyEntry(sid: string, from: string, to: string) {
+  return api<FsOpResponse>('POST', `/api/worktrees/${sid}/copy`, { from, to });
+}
+
+/** Delete an entry recursively — irreversible, no host trash (SPEC §8). */
+export function deleteEntry(sid: string, path: string) {
+  return api<FsOpResponse>('POST', `/api/worktrees/${sid}/delete`, { path });
 }
 
 export interface SearchParams {

@@ -12,6 +12,7 @@ import type { SessionStore } from '../../db/stores/sessions.js';
 import { ApiError } from '../errors.js';
 import { parseBody } from '../validate.js';
 import { worktreeFileRoutes } from './worktree-files.js';
+import { worktreeFsOpsRoutes } from './worktree-fs-ops.js';
 import { worktreeGitRoutes } from './worktree-git.js';
 import { resolveWorktree } from './worktree-shared.js';
 
@@ -27,9 +28,10 @@ const EXTENSION: Record<PasteImageMime, string> = {
 
 /**
  * Worktree-scoped routes (SPEC §6, Files): thin aggregator over the
- * clipboard-paste target (§7), the tree/file/upload/download family
- * (§8, `worktree-files.ts`), and the read-only git inspection family
- * (diff/file-at/log/show, `worktree-git.ts`).
+ * clipboard-paste target (§7), the tree/file/upload/download browsing family
+ * (§8, `worktree-files.ts`), the create/rename/copy/delete mutation family
+ * (§8, `worktree-fs-ops.ts`), and the read-only git inspection family
+ * (diff/git-status/file-at/log/show, `worktree-git.ts`).
  */
 export function worktreeRoutes(deps: { sessions: SessionStore }): Hono {
   const app = new Hono();
@@ -119,6 +121,7 @@ export function worktreeRoutes(deps: { sessions: SessionStore }): Hono {
   });
 
   app.route('/', worktreeFileRoutes(deps));
+  app.route('/', worktreeFsOpsRoutes(deps));
   app.route('/', worktreeGitRoutes(deps));
   return app;
 }

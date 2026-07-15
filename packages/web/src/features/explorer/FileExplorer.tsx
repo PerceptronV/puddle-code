@@ -1,119 +1,132 @@
-import { useCallback, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
-import type { Session } from '@puddle/shared';
+import { useEffect, useRef } from 'react';
+import { Button } from '../../components/ui/button';
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
   ContextMenuTrigger,
 } from '../../components/ui/context-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../components/ui/dialog';
 import { cn } from '../../lib/utils';
-import { downloadPath, uploadFiles } from '../../lib/worktree-queries';
-import { DirEntries, ExplorerContext, fileEntriesOnly, type ExplorerCtx } from './TreeNode';
+import { useExplorer } from './explorer-context';
+import { basename } from './explorer-paths';
+import { DirEntries, fileEntriesOnly } from './TreeNode';
 
 /**
- * File explorer for one worktree (SPEC §8): the root tree via
- * `useWorktreeTree(session.id, '')` (through `DirEntries`), with each
- * expanded directory mounting its own subtree. `onOpenFile` is a no-op when
- * omitted — Task 3.6b wires the real editor.
+ * File explorer for one worktree (SPEC §8): a VSCode-grade tree with git
+ * decorations, rich context menus, a cut/copy/paste clipboard, multi-select and
+ * arrow-key navigation, and inline create/rename. State lives in the
+ * surrounding `ExplorerProvider` (shared with the header's utility actions in
+ * `NavigatorSidebar`); this renders the scroll surface, keyboard host,
+ * empty-space menu, and the single delete confirmation.
  */
-export function FileExplorer({
-  session,
-  onOpenFile,
-  activePath,
-}: {
-  session: Session;
-  onOpenFile?: (sid: string, path: string) => void;
-  /** Path of the file currently open as the active editor tab, highlighted in the tree. */
-  activePath?: string | null;
-}) {
-  const sid = session.id;
-  const qc = useQueryClient();
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [dropTarget, setDropTarget] = useState<string | null>(null);
-
-  const toggle = useCallback((path: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
-      return next;
-    });
-  }, []);
-
-  const onUpload = useCallback(
-    (dir: string, files: File[]) => {
-      if (files.length === 0) return;
-      uploadFiles(sid, dir, files)
-        .then(() => {
-          void qc.invalidateQueries({ queryKey: ['wt-tree', sid, dir] });
-          toast.success(
-            files.length === 1 ? `Uploaded ${files[0]!.name}` : `Uploaded ${files.length} files`,
-          );
-        })
-        .catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Upload failed'));
-    },
-    [sid, qc],
+export function FileExplorer() {
+  return (
+    <>
+      <ExplorerBody />
+      <DeleteDialog />
+    </>
   );
+}
 
-  const ctx: ExplorerCtx = {
-    sid,
-    expanded,
-    toggle,
-    onOpenFile,
-    onUpload,
-    dropTarget,
-    setDropTarget,
-    activePath: activePath ?? null,
-  };
+function ExplorerBody() {
+  const ex = useExplorer();
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Keep the keyboard-focused row scrolled into view during arrow navigation.
+  useEffect(() => {
+    if (!ex.focusedPath || !rootRef.current) return;
+    const el = rootRef.current.querySelector(`[data-path="${CSS.escape(ex.focusedPath)}"]`);
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [ex.focusedPath]);
+
+  const canPaste = ex.clipboard !== null;
 
   return (
-    <ExplorerContext.Provider value={ctx}>
-      <ContextMenu>
-        <ContextMenuTrigger asChild>
-          <div
-            tabIndex={-1}
-            onPaste={(e) =>
-              onUpload('', fileEntriesOnly(e.clipboardData.items, e.clipboardData.files))
-            }
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDropTarget('');
-            }}
-            onDragLeave={(e) => {
-              if (e.currentTarget === e.target) setDropTarget(null);
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDropTarget(null);
-              onUpload('', fileEntriesOnly(e.dataTransfer.items, e.dataTransfer.files));
-            }}
-            className={cn('h-full overflow-y-auto py-1', dropTarget === '' && 'bg-selection')}
-          >
-            <DirEntries sid={sid} path="" depth={0} />
-          </div>
-        </ContextMenuTrigger>
-        <ContextMenuContent>
-          <ContextMenuItem
-            onSelect={() =>
-              void downloadPath(sid, '').catch((e: unknown) =>
-                toast.error(e instanceof Error ? e.message : 'Download failed'),
-              )
-            }
-          >
-            Download worktree
-          </ContextMenuItem>
-          <ContextMenuItem
-            onSelect={() => {
-              void navigator.clipboard.writeText(session.worktree_path);
-              toast.success('Path copied');
-            }}
-          >
-            Copy path
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
-    </ExplorerContext.Provider>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          ref={rootRef}
+          data-explorer-root
+          role="tree"
+          tabIndex={0}
+          onKeyDown={ex.handleKeyDown}
+          onPaste={(e) =>
+            ex.onUpload('', fileEntriesOnly(e.clipboardData.items, e.clipboardData.files))
+          }
+          onDragOver={(e) => {
+            e.preventDefault();
+            ex.setDropTarget('');
+          }}
+          onDragLeave={(e) => {
+            if (e.currentTarget === e.target) ex.setDropTarget(null);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            ex.setDropTarget(null);
+            const dragged = e.dataTransfer.getData('application/x-puddle-path');
+            if (dragged) ex.onInternalDrop('', dragged);
+            else ex.onUpload('', fileEntriesOnly(e.dataTransfer.items, e.dataTransfer.files));
+          }}
+          className={cn(
+            'h-full overflow-y-auto py-1 outline-none',
+            ex.dropTarget === '' && 'bg-selection',
+          )}
+        >
+          <DirEntries sid={ex.sid} path="" depth={0} />
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={() => ex.beginCreate('', 'file')}>New File…</ContextMenuItem>
+        <ContextMenuItem onSelect={() => ex.beginCreate('', 'dir')}>New Folder…</ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem disabled={!canPaste} onSelect={() => ex.paste('')}>
+          Paste
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={() => ex.copyPathToClipboard('', false)}>
+          Copy Path
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => ex.download('')}>Download worktree</ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
+/** The single, provider-owned delete confirmation (deletion is irreversible — no host trash). */
+function DeleteDialog() {
+  const ex = useExplorer();
+  const paths = ex.pendingDelete;
+  const open = paths !== null;
+  const label =
+    paths && paths.length === 1 ? `“${basename(paths[0]!)}”` : `${paths?.length ?? 0} items`;
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && ex.cancelDelete()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Delete {label}?</DialogTitle>
+          <DialogDescription>
+            This permanently removes {paths && paths.length > 1 ? 'them' : 'it'} from the worktree.
+            There is no undo.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="ghost" onClick={ex.cancelDelete}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={ex.confirmDelete}>
+            Delete
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

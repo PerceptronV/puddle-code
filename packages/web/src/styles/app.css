@@ -36,6 +36,16 @@
   --color-transparent: transparent;
   --color-current: currentColor;
 
+  /* File-type icon hues (SPEC §8/§12): the explorer's coloured file glyphs
+     draw from the theme-aware ANSI ramp so they recolour with the theme and
+     add no new raw colours. */
+  --color-icon-blue: var(--ansi-blue);
+  --color-icon-green: var(--ansi-green);
+  --color-icon-amber: var(--ansi-yellow);
+  --color-icon-red: var(--ansi-red);
+  --color-icon-violet: var(--ansi-magenta);
+  --color-icon-cyan: var(--ansi-cyan);
+
   --font-sans: 'Ubuntu Sans', system-ui, sans-serif;
   --font-mono: 'Ubuntu Sans Mono', ui-monospace, 'SF Mono', monospace;
 

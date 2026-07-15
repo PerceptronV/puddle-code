@@ -13,6 +13,7 @@ export * from './api/projects.js';
 export * from './api/project-state.js';
 export * from './api/worktrees.js';
 export * from './api/worktree-files.js';
+export * from './api/worktree-fs.js';
 export * from './api/worktree-git.js';
 export * from './api/worktree-search.js';
 export * from './api/ports.js';

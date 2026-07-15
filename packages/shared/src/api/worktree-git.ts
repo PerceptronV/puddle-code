@@ -26,6 +26,35 @@ export const diffResponseSchema = z.object({
 });
 export type DiffResponse = z.infer<typeof diffResponseSchema>;
 
+/**
+ * Per-path working-tree status for the file explorer's decorations (SPEC §8),
+ * distinct from `diffStatusSchema`: the tree needs the full VSCode-grade set,
+ * including `untracked` (which the diff view folds into `added`), `conflicted`,
+ * and `ignored` (so ignored-but-present files can be greyed).
+ */
+export const gitStatusSchema = z.enum([
+  'untracked',
+  'modified',
+  'added',
+  'deleted',
+  'renamed',
+  'conflicted',
+  'ignored',
+]);
+export type GitStatus = z.infer<typeof gitStatusSchema>;
+
+export const gitStatusEntrySchema = z.object({
+  path: z.string(),
+  status: gitStatusSchema,
+});
+export type GitStatusEntry = z.infer<typeof gitStatusEntrySchema>;
+
+/** `GET /api/worktrees/:sid/git-status` — every changed/untracked/ignored path in the worktree. */
+export const gitStatusResponseSchema = z.object({
+  entries: z.array(gitStatusEntrySchema),
+});
+export type GitStatusResponse = z.infer<typeof gitStatusResponseSchema>;
+
 /** `GET /api/worktrees/:sid/file-at?ref=…&path=…` — a file's content at a ref. */
 export const fileAtResponseSchema = z.object({
   path: z.string(),

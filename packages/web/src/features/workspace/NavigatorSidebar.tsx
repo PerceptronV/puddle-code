@@ -11,6 +11,7 @@ import type { Session } from '@puddle/shared';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utils';
 import { ChangesNav } from '../changes/ChangesNav';
+import { ExplorerProvider } from '../explorer/explorer-context';
 import { FileExplorer } from '../explorer/FileExplorer';
 import type { ExplorerTarget } from '../explorer/use-explorer-target';
 import { SearchNav } from '../search/SearchNav';
@@ -178,8 +179,12 @@ export function NavigatorSidebar({
       </div>
 
       {/* The bound-worktree header applies to the worktree-scoped navigators;
-          the Worktrees manager is repo-wide, so it has none. */}
-      {mode !== 'worktrees' && <SidebarTargetHeader sessions={sessions} target={target} />}
+          the Worktrees manager is repo-wide, so it has none. Files mode renders
+          its own header INSIDE the ExplorerProvider (below) so the header's
+          utility actions can drive the tree. */}
+      {mode !== 'worktrees' && mode !== 'files' && (
+        <SidebarTargetHeader sessions={sessions} target={target} />
+      )}
 
       {mode === 'worktrees' && (
         <WorktreesNav repoId={repoId} projectId={projectId} sessions={sessions} />
@@ -187,13 +192,20 @@ export function NavigatorSidebar({
 
       {mode === 'files' &&
         (session ? (
-          // FileExplorer's root is `h-full`, so it needs a flex-1 min-h-0
-          // parent to fill the space left under the icon row + target header.
-          <div className="flex min-h-0 flex-1 flex-col">
-            <FileExplorer session={session} onOpenFile={onOpenFile} activePath={activeFilePath} />
-          </div>
+          // The provider wraps both the header (its utility actions) and the
+          // tree; FileExplorer's root is `h-full`, so its wrapper is a flex-1
+          // min-h-0 column filling the space under the icon row + header.
+          <ExplorerProvider session={session} onOpenFile={onOpenFile} activePath={activeFilePath}>
+            <SidebarTargetHeader sessions={sessions} target={target} showFileActions />
+            <div className="flex min-h-0 flex-1 flex-col">
+              <FileExplorer />
+            </div>
+          </ExplorerProvider>
         ) : (
-          <div className="px-3 py-2 text-xs text-fg-muted">No worktree to show.</div>
+          <>
+            <SidebarTargetHeader sessions={sessions} target={target} />
+            <div className="px-3 py-2 text-xs text-fg-muted">No worktree to show.</div>
+          </>
         ))}
 
       {mode === 'changes' &&

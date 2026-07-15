@@ -3,12 +3,14 @@ import { Hono } from 'hono';
 import type {
   DiffResponse,
   FileAtResponse,
+  GitStatusResponse,
   LogResponse,
   SearchResponse,
   ShowCommitResponse,
 } from '@puddle/shared';
 import type { SessionStore } from '../../db/stores/sessions.js';
 import { git } from '../../git/exec.js';
+import { worktreeGitStatus } from '../../worktrees/git-status.js';
 import {
   assertSafeRef,
   assertSha,
@@ -115,6 +117,12 @@ export function worktreeGitRoutes(deps: { sessions: SessionStore }): Hono {
       }
       const entries = await diffNameStatus(root, against);
       return c.json<DiffResponse>({ against, base_ref: null, entries });
+    })
+
+    .get('/:sid/git-status', async (c) => {
+      const { root } = resolveWorktree(deps.sessions, c);
+      const entries = await worktreeGitStatus(root);
+      return c.json<GitStatusResponse>({ entries });
     })
 
     .get('/:sid/file-at', async (c) => {
