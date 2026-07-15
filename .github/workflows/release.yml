@@ -93,4 +93,7 @@ jobs:
       - if: steps.token.outputs.present == 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --provenance --access public --workspace packages/cli
+        # Not `npm publish -w`: this is a pnpm workspace, so npm sees no
+        # workspaces at the root — publish from the package directory.
+        working-directory: packages/cli
+        run: npm publish --provenance --access public
