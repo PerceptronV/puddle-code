@@ -27,7 +27,13 @@ function Gated() {
   const profileId = useCurrentProfileId();
   if (profileId === null) return <ProfilePicker />;
   return (
-    <BrowserRouter>
+    // useTransitions={false}: by default react-router v7+ wraps every location
+    // update in React.startTransition, so under React 19 a navigation defers —
+    // `history.push` changes the URL synchronously but the matched route only
+    // renders once the transition commits, which for this app (no pending-state
+    // UI, Suspense fallback=null) left clicks changing the URL while the view
+    // stayed put until a reload. We want urgent, synchronous navigation.
+    <BrowserRouter useTransitions={false}>
       <Suspense fallback={null}>
         <Routes>
           <Route element={<ShellLayout />}>
