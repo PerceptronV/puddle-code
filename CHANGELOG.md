@@ -25,6 +25,7 @@ Past releases: see docs/changelogs/.
 ### Changed
 
 - The top bar is slimmer — a shorter header with a smaller mark sized inline with the title — reclaiming vertical space for the workspace.
+- Terminal session status dots now ripple in the theme's **cyan** (was blue), keeping the whole status palette within puddle's green/cyan family; agent dots stay green (SPEC §12).
 - A session's default display name is now the agent's own session name (for Claude Code, the transcript's ai-title / agent-name — what its resume picker shows) instead of the leading hex block of the puddle session id. A user rename still overrides it, and clearing the rename reverts to the agent's name (then the id). This retires the `.puddle/session-title` marker file, which could not work once several agents shared one worktree. Additive protocol change: the `sessions.agent_title` field and the `renamed` WS event's `agent_title` (`PROTOCOL_VERSION` minor bump).
 - Releases no longer publish a `darwin-x64` daemon tarball: GitHub's last Intel Mac runner (`macos-13`) queues so long it blocked the whole release. Intel Mac hosts are unsupported until the entry is restored (or built under Rosetta); Apple-silicon Macs and Linux are unaffected.
 

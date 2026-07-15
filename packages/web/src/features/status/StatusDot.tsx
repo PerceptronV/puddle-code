@@ -6,7 +6,7 @@ import { cn } from '../../lib/utils';
  * --status-running while the agent works — the puddle motif — and pulses
  * --status-waiting when input is needed. prefers-reduced-motion (or the
  * client setting) degrades both to a static dot; styles in app.css. Terminal
- * sessions ripple in blue (--status-terminal) instead of the agent green.
+ * sessions ripple in cyan (--status-terminal) instead of the agent green.
  */
 export function StatusDot({
   status,

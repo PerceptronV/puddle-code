@@ -151,8 +151,8 @@
   .status-dot[data-status='running']::after {
     animation-delay: 1.3s;
   }
-  /* Terminal sessions carry the same ripple, recoloured blue — a running shell
-     reads as blue, not agent green (higher specificity wins over the rules
+  /* Terminal sessions carry the same ripple, recoloured cyan — a running shell
+     reads as cyan, not agent green (higher specificity wins over the rules
      above). */
   .status-dot[data-kind='terminal'][data-status='running'],
   .status-dot[data-kind='terminal'][data-status='starting'] {
