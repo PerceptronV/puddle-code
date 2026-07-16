@@ -6,7 +6,7 @@ import type { ProjectDetail, Session } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { openCommandPalette } from '../../lib/command-palette';
-import { openSettings, settingsSection, useHash } from '../../lib/hash-route';
+import { openSettings, useSettingsSection } from '../../lib/hash-route';
 import { useHostInfo, useProjectDetail } from '../../lib/queries';
 import { wsManager } from '../../lib/ws';
 import { Suspense, lazy, useState } from 'react';
@@ -132,7 +132,7 @@ function TopBar() {
 function ShellBody() {
   useStatusCacheSync();
   const { handler } = useNewSession();
-  const hash = useHash();
+  const settingsSection = useSettingsSection();
   const profileId = useCurrentProfileId();
   const [creatingProject, setCreatingProject] = useState(false);
   return (
@@ -152,7 +152,7 @@ function ShellBody() {
           onOpenChange={setCreatingProject}
         />
       )}
-      {settingsSection(hash) !== null && (
+      {settingsSection !== null && (
         <Suspense fallback={null}>
           <SettingsDialog />
         </Suspense>

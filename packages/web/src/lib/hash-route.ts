@@ -1,54 +1,61 @@
 import { useSyncExternalStore } from 'react';
 
 /**
- * The settings dialog is route-addressable as `#settings/<section>` so ⌘K,
- * deep links, and the gear icon all share one mechanism (plan §E).
+ * Settings-dialog routing. The open section is a CONTROLLED module store — the
+ * source of truth — NOT `window.location.hash` read live. Reading the hash was
+ * unreliable: assigning the value it already holds fires no `hashchange` (so
+ * reopening a section did nothing until reload), and react-router's `pushState`
+ * can clear the fragment out from under us with no event at all (so the dialog
+ * would silently fail to open or close). We keep the URL `#settings/<section>`
+ * as a deep-link MIRROR and resync from it only on the events that DO fire
+ * (back/forward, an external hash edit).
  */
 const listeners = new Set<() => void>();
+function notify(): void {
+  for (const l of listeners) l();
+}
+
+function parseSection(hash: string): string | null {
+  const match = /^#settings\/([\w-]+)$/.exec(hash);
+  return match ? match[1]! : null;
+}
+
+let section: string | null = parseSection(window.location.hash);
 let attached = false;
 
 function subscribe(listener: () => void): () => void {
   if (!attached) {
-    window.addEventListener('hashchange', () => {
-      for (const l of listeners) l();
-    });
+    // Back/forward and deep links change the hash out-of-band → resync from it.
+    const resync = () => {
+      section = parseSection(window.location.hash);
+      notify();
+    };
+    window.addEventListener('hashchange', resync);
+    window.addEventListener('popstate', resync);
     attached = true;
   }
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
 
-export function useHash(): string {
-  return useSyncExternalStore(subscribe, () => window.location.hash);
+/** The open settings section, or null when the dialog is closed. */
+export function useSettingsSection(): string | null {
+  return useSyncExternalStore(subscribe, () => section);
 }
 
-function notify(): void {
-  for (const l of listeners) l();
-}
-
-/**
- * Set the fragment AND notify subscribers. A bare `location.hash = …` fires a
- * `hashchange` event only when the value actually changes — assigning the
- * current value (e.g. reopening the same settings section) emits nothing, so the
- * `useSyncExternalStore` store never re-renders and the dialog silently fails to
- * open until a reload. Notifying unconditionally closes that gap (the same way
- * `closeSettings` compensates for `replaceState` firing no event).
- */
-export function setHash(hash: string): void {
-  window.location.hash = hash;
+export function openSettings(next = 'appearance'): void {
+  section = next;
+  // Mirror into the URL for deep-linking; the guard avoids a redundant event.
+  if (window.location.hash !== `#settings/${next}`) {
+    window.location.hash = `settings/${next}`;
+  }
   notify();
 }
 
-export function openSettings(section = 'appearance'): void {
-  setHash(`settings/${section}`);
-}
-
 export function closeSettings(): void {
-  history.replaceState(null, '', window.location.pathname + window.location.search);
-  notify(); // replaceState fires no hashchange
-}
-
-export function settingsSection(hash: string): string | null {
-  const match = /^#settings\/([\w-]+)$/.exec(hash);
-  return match ? match[1]! : null;
+  section = null;
+  if (window.location.hash) {
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+  notify();
 }

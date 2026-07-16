@@ -11,7 +11,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import type { ReactElement } from 'react';
 import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
-import { closeSettings, setHash, settingsSection, useHash } from '../../lib/hash-route';
+import { closeSettings, openSettings, useSettingsSection } from '../../lib/hash-route';
 import { cn } from '../../lib/utils';
 import { AppearanceSection } from './sections/appearance';
 import { ProfileSection } from './sections/profile';
@@ -56,8 +56,7 @@ const SECTIONS: Array<{ id: string; label: string; icon: LucideIcon; render: () 
 
 /** Route-addressable settings dialog: `#settings/<section>` (SPEC §11). */
 export function SettingsDialog() {
-  const hash = useHash();
-  const sectionId = settingsSection(hash);
+  const sectionId = useSettingsSection();
   const section = SECTIONS.find((s) => s.id === sectionId) ?? SECTIONS[0]!;
 
   return (
@@ -74,7 +73,7 @@ export function SettingsDialog() {
           {SECTIONS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
-              onClick={() => setHash(`settings/${id}`)}
+              onClick={() => openSettings(id)}
               className={cn(
                 'flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors',
                 id === section.id

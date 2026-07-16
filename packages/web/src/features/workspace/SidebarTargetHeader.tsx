@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from 'react';
 import {
   ChevronDown,
   ChevronsDownUp,
@@ -9,6 +8,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { Session } from '@puddle/shared';
+import { HoverMarquee } from '../../components/hover-marquee';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,12 +21,17 @@ import { cn } from '../../lib/utils';
 import { useExplorerOptional } from '../explorer/explorer-context';
 import type { ExplorerTarget } from '../explorer/use-explorer-target';
 
+// Hovering anywhere in the navigator (the `group/nav` on NavigatorSidebar's root)
+// scrolls a too-long title into view — not just hovering the thin header row.
+const NAV_MARQUEE = 'group-hover/nav:[transform:translateX(var(--tail))]';
+
 /**
  * The left sidebar's bound-worktree header (SPEC §8), shown under the icon row
  * for every navigator (Files, Changes, Search): it names the bound worktree —
- * its directory in Files, its branch in Changes/Search — carries the pin toggle,
- * and offers a dropdown to pin any other project worktree by hand. In files mode
- * (`showFileActions`) it also hosts the explorer
+ * its absolute path in Files & Search (what they operate over), its branch in
+ * Changes — carries the pin toggle, and offers a dropdown to pin any other
+ * project worktree by hand. In files mode (`showFileActions`) it also hosts the
+ * explorer
  * utility cluster — New File · New Folder · Refresh · Collapse Folders — and
  * turns the branch title into a hover-marquee that eases its content leftwards
  * to reveal the tail the icons occlude.
@@ -35,25 +40,28 @@ export function SidebarTargetHeader({
   sessions,
   target,
   showFileActions = false,
+  showPath = false,
 }: {
   sessions: Session[];
   target: ExplorerTarget;
   showFileActions?: boolean;
+  /** Files & Search name the worktree's absolute path (what they operate over);
+   *  Changes keeps the branch name (more intuitive per surface). */
+  showPath?: boolean;
 }) {
   const { session, pinned, pin, unpin } = target;
   const pickable = sessions.filter((s) => s.status !== 'archived');
-  // The Files tree is browsing a directory, so name the worktree's folder there;
-  // Changes and Search are about the branch, so those keep the branch name (more
-  // intuitive per surface).
   const branchLabel = session ? session.branch || sessionDisplayName(session) : 'No worktree';
-  const dirLabel = session
-    ? (session.worktree_path.split('/').filter(Boolean).pop() ?? session.worktree_path)
-    : 'No worktree';
-  const title = showFileActions ? dirLabel : branchLabel;
+  const pathLabel = session ? session.worktree_path : 'No worktree';
+  const title = showPath ? pathLabel : branchLabel;
 
   return (
     <div className="group relative flex h-8 shrink-0 items-center px-2">
-      <MarqueeTitle text={title} />
+      <HoverMarquee
+        text={title}
+        className="font-mono text-xs text-fg-secondary"
+        hoverClass={NAV_MARQUEE}
+      />
       {/* Controls overlay the right edge, revealed on hover/focus, so at rest
           the title uses the full width — no hidden icon reserves space (the pin
           stays shown while pinned to keep that state visible). The `bg-surface`
@@ -106,39 +114,6 @@ export function SidebarTargetHeader({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-    </div>
-  );
-}
-
-/** The branch title as a hover-marquee: clipped at rest, easing to reveal its tail on header hover. */
-function MarqueeTitle({ text }: { text: string }) {
-  const spanRef = useRef<HTMLSpanElement>(null);
-  const [overflow, setOverflow] = useState(0);
-
-  useEffect(() => {
-    const el = spanRef.current;
-    if (!el) return;
-    const measure = () => setOverflow(Math.max(0, el.scrollWidth - el.clientWidth));
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [text]);
-
-  // The tail offset applied on header hover only when the title actually
-  // overflows; the transition eases it back out on leave.
-  return (
-    <div className="min-w-0 flex-1 overflow-hidden">
-      <span
-        ref={spanRef}
-        className={cn(
-          'block whitespace-nowrap font-mono text-xs text-fg-secondary transition-transform duration-[900ms] ease-linear',
-          overflow > 0 && 'group-hover:[transform:translateX(var(--tail))]',
-        )}
-        style={overflow > 0 ? ({ '--tail': `-${overflow}px` } as React.CSSProperties) : undefined}
-      >
-        {text}
-      </span>
     </div>
   );
 }

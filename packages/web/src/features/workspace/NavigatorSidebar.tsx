@@ -140,7 +140,10 @@ export function NavigatorSidebar({
   const { session } = target;
 
   return (
-    <div className="flex h-full flex-col bg-surface">
+    // `group/nav`: hovering anywhere in the navigator scrolls a too-long
+    // worktree path/branch in the header into view (SidebarTargetHeader's marquee
+    // keys on `group-hover/nav`), not just hovering the thin header row itself.
+    <div className="group/nav flex h-full flex-col bg-surface">
       <div className="flex items-center gap-1 px-2 py-1.5">
         {MODES.map(({ key, label, icon: Icon }) => (
           <Tooltip key={key}>
@@ -183,7 +186,8 @@ export function NavigatorSidebar({
           its own header INSIDE the ExplorerProvider (below) so the header's
           utility actions can drive the tree. */}
       {mode !== 'worktrees' && mode !== 'files' && (
-        <SidebarTargetHeader sessions={sessions} target={target} />
+        // Search names the absolute worktree path (like Files); Changes keeps the branch.
+        <SidebarTargetHeader sessions={sessions} target={target} showPath={mode === 'search'} />
       )}
 
       {mode === 'worktrees' && (
@@ -196,7 +200,7 @@ export function NavigatorSidebar({
           // tree; FileExplorer's root is `h-full`, so its wrapper is a flex-1
           // min-h-0 column filling the space under the icon row + header.
           <ExplorerProvider session={session} onOpenFile={onOpenFile} activePath={activeFilePath}>
-            <SidebarTargetHeader sessions={sessions} target={target} showFileActions />
+            <SidebarTargetHeader sessions={sessions} target={target} showFileActions showPath />
             <div className="flex min-h-0 flex-1 flex-col">
               <FileExplorer />
             </div>

@@ -194,7 +194,9 @@ export interface Fixture {
 }
 
 /** Full daemon wiring (minus HTTP/WS) on a temp home with a real git repo. */
-export function fixture(opts: { quietMs?: number; share?: boolean } = {}): Fixture {
+export function fixture(
+  opts: { quietMs?: number; share?: boolean; titleRefreshMs?: number } = {},
+): Fixture {
   const paths = resolvePaths(mkdtempSync(join(tmpdir(), 'puddle-home-')));
   ensureHome(paths);
   const db = openDatabase(paths.dbFile);
@@ -238,6 +240,7 @@ export function fixture(opts: { quietMs?: number; share?: boolean } = {}): Fixtu
     onboarding,
     share,
     statusQuietMs: opts.quietMs ?? 150,
+    titleRefreshMs: opts.titleRefreshMs,
   });
 
   const repoPath = initRepo();

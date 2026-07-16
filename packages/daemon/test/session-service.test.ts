@@ -342,6 +342,28 @@ describe('session naming', () => {
     await f.service.kill(session.id);
   });
 
+  it('picks up an idle in-agent rename via the periodic re-read (no OSC, no status change)', async () => {
+    const f = fixture({ titleRefreshMs: 20 });
+    const renames: Array<{ agent_title: string | null }> = [];
+    f.service.on('renamed', (e) => renames.push(e));
+    const session = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      prompt: 'go',
+    });
+    await waitFor(() => f.service.get(session.id).status === 'waiting_input');
+    expect(f.service.get(session.id).agent_title).toBeNull();
+
+    // The agent renames itself while idle — no OSC escape, no status change. Only
+    // the periodic re-read can catch this (the reliable path for claude-code's
+    // `/rename`).
+    const cfg = f.stores.accounts.get(f.ids.account).config_dir;
+    writeFileSync(join(cfg, `title-${session.agent_session_ref}`), 'renamed while idle');
+    await waitFor(() => f.service.get(session.id).agent_title === 'renamed while idle');
+    expect(renames.some((e) => e.agent_title === 'renamed while idle')).toBe(true);
+    await f.service.kill(session.id);
+  });
+
   it('captures the terminal-title "sequence" name (osc_title) and de-animates it', async () => {
     const f = fixture();
     const renames: Array<{ osc_title?: string | null }> = [];

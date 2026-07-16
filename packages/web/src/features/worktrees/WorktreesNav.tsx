@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { GitBranch, Trash2 } from 'lucide-react';
 import type { OrphanBranch, Session, WorktreeInfo } from '@puddle/shared';
+import { HoverMarquee } from '../../components/hover-marquee';
 import { Button } from '../../components/ui/button';
 import {
   Dialog,
@@ -15,6 +16,11 @@ import { useDeleteBranch, usePruneWorktree, useRepoWorktrees } from '../../lib/q
 import { cn } from '../../lib/utils';
 
 const LIVE = new Set(['starting', 'running', 'waiting_input']);
+
+// Each worktrees row/heading scrolls a too-long branch name into view only on
+// ITS OWN hover (the unnamed `group` on that element) — not all at once — so the
+// list stays calm. Literal so Tailwind generates it.
+const ROW_MARQUEE = 'group-hover:[transform:translateX(var(--tail))]';
 
 function basename(path: string): string {
   return path.split('/').filter(Boolean).pop() ?? path;
@@ -157,9 +163,9 @@ export function WorktreesNav({
 
       {groups.map(([branch, wts]) => (
         <div key={`wt:${branch}`}>
-          <div className="flex items-center gap-1.5 px-3 pb-0.5 pt-2 text-2xs text-fg-muted">
+          <div className="group flex items-center gap-1.5 px-3 pb-0.5 pt-2 text-2xs text-fg-muted">
             <GitBranch className="size-3 shrink-0" />
-            <span className="truncate font-mono">{branch}</span>
+            <HoverMarquee text={branch} className="font-mono" hoverClass={ROW_MARQUEE} />
           </div>
           {wts.map((wt) => {
             const live = liveByPath.get(wt.path) ?? 0;
@@ -219,9 +225,11 @@ export function WorktreesNav({
               className="group flex items-center gap-2 px-3 py-1 transition-colors hover:bg-elevated"
             >
               <GitBranch className="size-3 shrink-0 text-fg-muted" />
-              <span className="min-w-0 flex-1 truncate font-mono text-xs text-fg" title={b.name}>
-                {b.name}
-              </span>
+              <HoverMarquee
+                text={b.name}
+                className="font-mono text-xs text-fg"
+                hoverClass={ROW_MARQUEE}
+              />
               {b.local_only && <Tag className="text-waiting">local only</Tag>}
               <PruneButton
                 label="Delete branch"

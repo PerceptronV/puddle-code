@@ -40,6 +40,8 @@ export interface SessionServiceDeps {
   share?: ConversationShare;
   /** waiting_input quiet window; overridable for tests. */
   statusQuietMs?: number;
+  /** Periodic agent-name re-read interval; overridable for tests. */
+  titleRefreshMs?: number;
 }
 
 export interface StatusEvent {
@@ -71,6 +73,14 @@ interface LiveAgent {
 
 const LIVE_STATUSES: SessionStatus[] = ['starting', 'running', 'waiting_input'];
 
+// How often to re-read each live agent's own session name. A rename made INSIDE
+// the agent (e.g. Claude Code's `/rename`) is a client-side transcript edit that
+// triggers no status change and — while the session sits idle — no terminal-title
+// escape either, so the event-driven refreshes (status change, OSC title, exit)
+// all miss it. This cheap periodic re-read (adapter.sessionTitle is a tail read
+// that early-returns when unchanged) surfaces such renames within a few seconds.
+const TITLE_REFRESH_MS = 3000;
+
 /**
  * Orchestrates the session state machine (SPEC §4). SQLite rows are the
  * durable truth; `liveAgents` tracks the in-memory attachment (detector +
@@ -82,11 +92,18 @@ export class SessionService extends EventEmitter {
   /** Sessions whose conversation is already adopted — stops the retry loop. */
   private readonly adopted = new Set<string>();
   private shuttingDown = false;
+  private readonly titleTimer: ReturnType<typeof setInterval>;
 
   constructor(private readonly deps: SessionServiceDeps) {
     super();
     deps.ptys.on('data', (e: PtyDataEvent) => this.onPtyData(e));
     deps.ptys.on('exit', (e: PtyExitEvent) => this.onPtyExit(e));
+    // Catch in-agent renames that emit no signal (see TITLE_REFRESH_MS). Unref'd
+    // so it never keeps the process (or a test run) alive.
+    this.titleTimer = setInterval(() => {
+      for (const id of this.liveAgents.keys()) this.refreshAgentTitle(id);
+    }, this.deps.titleRefreshMs ?? TITLE_REFRESH_MS);
+    this.titleTimer.unref?.();
   }
 
   /**
@@ -97,6 +114,7 @@ export class SessionService extends EventEmitter {
    */
   beginShutdown(): void {
     this.shuttingDown = true;
+    clearInterval(this.titleTimer);
   }
 
   get(id: string): Session {
