@@ -20,6 +20,7 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- **Light theme**: muted/hint text (gitignored files, input placeholders, search & empty-state hints, commit metadata, branch labels, setting descriptions) is now a neutral **grey** instead of the warm golden bark, which read as distracting. Dark theme was already a cool grey there; gold stays a deliberate status accent, consistent across both themes.
 - **Top bar** revamp: the puddle mark shrank and now sits beside the daemon's **host name** as one click-home block; the centre is a dimmed command field (hinting the active project name + ⌘K) that opens the palette; the separate ⌘K button is gone.
 - The empty workspace pane no longer reserves a blank tab bar; it shows a large, muted puddle mark and a dimmed **⌘K** button that opens the command palette.
 

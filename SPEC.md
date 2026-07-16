@@ -592,7 +592,7 @@ Puddle's UI must read as a polished, intentional developer cockpit — dense, ca
   | `--border`                          | `#163C6B` | `#E5E5E5` |
   | `--text-primary`                    | `#EAF1FB` | `#001C3D` |
   | `--text-secondary`                  | `#B9C9E0` | `#163C6B` |
-  | `--text-muted`                      | `#7E93B3` | `#8A7663` |
+  | `--text-muted`                      | `#7E93B3` | `#6B6B6B` |
   | `--accent` / `--focus-ring`         | `#7DADFF` | `#2E6BD6` |
   | `--accent-hover`                    | `#A7C7FF` | `#4A86E8` |
   | `--action` (primary-button fill)    | `#EAF1FB` | `#001C3D` |
@@ -604,7 +604,7 @@ Puddle's UI must read as a polished, intentional developer cockpit — dense, ca
   | `--status-idle`                     | `#7E93B3` | `#8A7663` |
   | `--status-terminal`                 | `#7DADFF` | `#2E6BD6` |
 
-  Primary actions (buttons, checked toggles) are **ink, not accent**: mist on the dark theme, storm navy on the light — the accent blue is reserved for links, focus, and selection. The dark theme is storm-navy ground with the pastel family as light; the light theme is a white ground (HUMANS.md: white, not beige) with navy ink for primary and secondary text and golden bark for muted, keeping the deep accent steps. Light `--status-running` uses a derived deeper krypton step (`#157A50`) because `#1FA26B` misses the 3:1 AA floor on the elevated ground.
+  Primary actions (buttons, checked toggles) are **ink, not accent**: mist on the dark theme, storm navy on the light — the accent blue is reserved for links, focus, and selection. The dark theme is storm-navy ground with the pastel family as light; the light theme is a white ground (HUMANS.md: white, not beige) with navy ink for primary and secondary text and a neutral grey for muted (the earlier golden bark read as distracting on hints/metadata; gold stays a deliberate status accent), keeping the deep accent steps. Light `--status-running` uses a derived deeper krypton step (`#157A50`) because `#1FA26B` misses the 3:1 AA floor on the elevated ground.
 
 - **Terminal colour queries**: the web terminal answers the OSC 10 (foreground) and OSC 11 (background) dynamic-colour queries that xterm.js does not reply to itself, reporting the live `--text-primary` / `--bg-base` tokens as `rgb:RRRR/GGGG/BBBB`. An agent whose own theme is set to auto/system (e.g. Claude Code, which samples the background luminance at startup) thereby matches the puddle theme. The reply reflects the theme at query time; a theme switch takes effect on the next agent start/resume, since a running agent that already sampled the background does not re-query.
 

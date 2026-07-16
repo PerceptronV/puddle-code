@@ -48,6 +48,7 @@
   --neutral-50: #f7f7f7;
   --neutral-100: #efefef;
   --neutral-200: #e5e5e5;
+  --neutral-500: #6b6b6b; /* mid grey for muted text on paper (AA ≥ 3 on every light ground) */
 
   /* khaki (warm neutrals) */
   --khaki-50: #fbf5ec;
@@ -148,11 +149,14 @@
   --bg-surface: var(--neutral-50);
   --bg-elevated: var(--neutral-100);
   --border: var(--neutral-200);
-  /* Text hierarchy is navy ink throughout, with golden bark for muted
-     (decision 2026-07-13, superseding the earlier blue-muted try). */
+  /* Text hierarchy is navy ink throughout; muted is a neutral GREY (2026-07-16,
+     superseding the golden bark — that warm gold read as distracting for hints,
+     placeholders, gitignored files, and metadata). Gold stays a deliberate
+     ACCENT (status-waiting), consistent across themes. Dark's muted is already a
+     cool grey (mist-500), so this only re-greys the light theme. */
   --text-primary: var(--navy-800);
   --text-secondary: var(--navy-600);
-  --text-muted: var(--bark-500);
+  --text-muted: var(--neutral-500);
   --accent: var(--blue-600);
   --accent-hover: var(--blue-500);
   --focus-ring: var(--blue-600);
