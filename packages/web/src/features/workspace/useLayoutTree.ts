@@ -9,6 +9,7 @@ import {
   closeTab,
   dropTab,
   findLeaf,
+  flattenTabs,
   focusTab,
   leafContainingKey,
   makeLeaf,
@@ -63,11 +64,27 @@ export function useLayoutTree(uiState: UiStateHandle): LayoutController {
   );
 
   // Persist the migrated tree once, when loaded, so its ids stabilise in storage.
+  // This MUST be single-shot and never fire once a tree exists: `persist` changes
+  // identity every render, so keying the effect on it re-ran this constantly, and
+  // a stale run could overwrite `layout_tree` with the EMPTY migration tree AFTER
+  // the user's first open — dropping the just-opened tab/terminal (only on a fresh
+  // project, where `layout_tree` starts null; a reload then hid it). The `migrated`
+  // ref makes it fire exactly once, the `!snapshot.layout_tree` guard yields to a
+  // concurrent open, and `persistRef` keeps the churny `persist` out of the deps.
+  const persistRef = useRef(persist);
+  persistRef.current = persist;
+  const migrated = useRef(false);
   useEffect(() => {
+    if (migrated.current) return;
     if (uiState.loaded && !snapshot.layout_tree && initialRef.current) {
-      persist(initialRef.current);
+      migrated.current = true;
+      // Only persist a NON-EMPTY migrated tree. A fresh project's initial tree is
+      // an empty leaf — it has nothing to stabilise, and persisting it is exactly
+      // what raced and clobbered the first open. A legacy snapshot with tabs is
+      // persisted once (on load, before any open).
+      if (flattenTabs(initialRef.current).length > 0) persistRef.current(initialRef.current);
     }
-  }, [uiState.loaded, snapshot.layout_tree, persist]);
+  }, [uiState.loaded, snapshot.layout_tree]);
 
   const [focusedLeafId, setFocusedLeafId] = useState<string | null>(null);
   const focusedLeaf =
