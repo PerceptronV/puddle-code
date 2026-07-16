@@ -81,6 +81,23 @@ describe('tunnel outage announcements', () => {
     await waitUntil(() => events.includes('tunnel-up'), 15_000);
     expect(events).toEqual(['tunnel-down', 'tunnel-up']);
   }, 30_000);
+
+  // The forward binding its local port is not proof it carries traffic — a
+  // non-OpenSSH server can leave a listener that never reaches the daemon.
+  // Readiness therefore hangs on the end-to-end probe, not the TCP bind.
+  it('rejects a forward whose end-to-end probe never passes, though the local port is up', async () => {
+    const ssh = new SshTransport('alice@devbox', { platform: 'darwin', sshBinary: FAKE_SSH });
+    await expect(
+      openTunnel(ssh, upstreamPort, { sshBinary: FAKE_SSH, ready: async () => false }),
+    ).rejects.toThrow(/could not open a tunnel/);
+  }, 20_000);
+
+  it('opens once the end-to-end probe passes', async () => {
+    const ssh = new SshTransport('alice@devbox', { platform: 'darwin', sshBinary: FAKE_SSH });
+    const t = await openTunnel(ssh, upstreamPort, { sshBinary: FAKE_SSH, ready: async () => true });
+    tunnel = t;
+    expect(await tcpListening(t.localPort)).toBe(true);
+  }, 20_000);
 });
 
 async function waitUntil(cond: () => boolean | Promise<boolean>, ms: number): Promise<void> {

@@ -1,6 +1,7 @@
 import { DaemonClient, readDaemonPort } from './daemon-client.js';
 import { ensureDaemon, makeUpgrader, type RunningCockpit } from './cockpit.js';
 import { runHandshake } from './handshake.js';
+import { waitForHttp } from './net.js';
 import { startUiServer } from './serve/ui-server.js';
 import { openTunnel } from './tunnel.js';
 import { LocalTransport } from './transport/local.js';
@@ -51,7 +52,13 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
   const endpoint = await ensureDaemon(ssh, bootstrap);
   const remotePort = opts.remotePort ?? endpoint.port;
 
-  const tunnel = await openTunnel(ssh, remotePort, { sshBinary: opts.sshBinary, logger });
+  // Readiness is the daemon answering /api/version through the forward — any
+  // HTTP status proves the byte path (the authenticated handshake follows).
+  const tunnel = await openTunnel(ssh, remotePort, {
+    sshBinary: opts.sshBinary,
+    logger,
+    ready: (localPort) => waitForHttp(`http://127.0.0.1:${localPort}/api/version`, 8000),
+  });
   const client = new DaemonClient(tunnel.localPort, endpoint.token);
   tunnel.onPortChange((port) => client.setPort(port));
 

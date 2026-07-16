@@ -7,6 +7,7 @@ import { connectRemote } from '../lib/connect.js';
 import { type RunningCockpit } from '../lib/cockpit.js';
 import { DaemonClient, readDaemonPort, readToken } from '../lib/daemon-client.js';
 import { showLogs } from '../lib/logs.js';
+import { waitForHttp } from '../lib/net.js';
 import { openTunnel } from '../lib/tunnel.js';
 import {
   checkCockpit,
@@ -61,7 +62,9 @@ async function openTarget(host: string | undefined) {
   let port = daemonPort;
   let tunnel: Awaited<ReturnType<typeof openTunnel>> | null = null;
   if (transport instanceof SshTransport) {
-    tunnel = await openTunnel(transport, daemonPort);
+    tunnel = await openTunnel(transport, daemonPort, {
+      ready: (localPort) => waitForHttp(`http://127.0.0.1:${localPort}/api/version`, 8000),
+    });
     port = tunnel.localPort;
   }
   return {

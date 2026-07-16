@@ -105,6 +105,26 @@ export class SshTransport implements Transport {
     });
   }
 
+  /**
+   * Best-effort removal of a multiplexed local forward (`-O cancel`). A
+   * non-OpenSSH server (Tailscale SSH) attaches the `-L` to the master and it
+   * outlives the spawning client — killing that client does not remove it, so
+   * the forward must be cancelled explicitly or the local port stays forwarded
+   * until the master lapses. A no-op (and unnecessary) without a master, where
+   * the forward dies with its own ssh process.
+   */
+  cancelForward(localPort: number, remotePort: number): Promise<void> {
+    if (!this.hasControlMaster) return Promise.resolve();
+    return new Promise((resolve) => {
+      const spec = `${localPort}:127.0.0.1:${remotePort}`;
+      const child = spawn(this.ssh, this.args('-O', 'cancel', '-L', spec, this.host), {
+        stdio: 'ignore',
+      });
+      child.on('error', () => resolve());
+      child.on('close', () => resolve());
+    });
+  }
+
   exec(command: string, opts: ExecOptions = {}): Promise<ExecResult> {
     return new Promise((resolve) => {
       const child = spawn(this.ssh, this.args(this.host, '--', `sh -c ${shellQuote(command)}`), {

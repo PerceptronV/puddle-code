@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { findFreePort, sleep, waitForTcp } from './net.js';
+import { findFreePort, sleep, tcpListening, waitForTcp } from './net.js';
 import type { SshTransport } from './transport/ssh.js';
 import { CliError, type CliEvent, type Logger, silentLogger } from './types.js';
 
@@ -18,29 +18,56 @@ const RECONNECT_MAX_MS = 10_000;
 const DOWN_GRACE_MS = 2000;
 /** A drop this soon after a restore is instability — announce it at once. */
 const STABLE_MS = 30_000;
+/** How often the forward's liveness (its local listener) is re-checked. */
+const HEALTH_INTERVAL_MS = 1000;
 
 /**
  * `ssh -N -L <localPort>:127.0.0.1:<remotePort>` over the master connection,
- * with auto-reconnect: on child exit the master is checked (re-opened
- * interactively if ControlPersist lapsed — a prompt may reappear, correctly)
- * and the forward respawned on the SAME local port so the UI server's target
- * stays put; only if that port got stolen meanwhile is a new one picked and
- * announced via onPortChange.
+ * with auto-reconnect.
  *
- * tunnel-down/tunnel-up are announcements, not raw child-exit telemetry: an
- * outage that heals inside the grace window emits nothing (a keepalive blip
- * respawns on the first attempt, and a lost/restored pair for every blip
- * reads like a broken tunnel) — unless it follows a recent restore, which
- * means flapping and is announced immediately.
+ * The spawned ssh client is NOT the source of truth for the forward's health.
+ * Over a multiplexed master a non-OpenSSH server (Tailscale SSH) installs the
+ * forward on the master and the client exits immediately while the forward
+ * keeps carrying traffic — and killing that client does not remove the forward
+ * (only `ssh -O cancel` does). So the forward is judged by the forward itself:
+ * readiness is the local listener accepting **and** an end-to-end probe
+ * reaching the daemon; liveness is a periodic check of that local listener. On
+ * loss the master is checked (re-opened if ControlPersist lapsed — a prompt may
+ * reappear, correctly) and the forward respawned on the SAME local port so the
+ * UI server's target stays put; only if that port got stolen meanwhile is a new
+ * one picked and announced via onPortChange.
+ *
+ * tunnel-down/tunnel-up are announcements, not raw telemetry: an outage that
+ * heals inside the grace window emits nothing (reconnecting on the first
+ * attempt is a blip, and a lost/restored pair for every blip reads like a
+ * broken tunnel) — unless it follows a recent restore, which means flapping and
+ * is announced immediately.
  */
 export async function openTunnel(
   ssh: SshTransport,
   remotePort: number,
-  opts: { sshBinary?: string; logger?: Logger; downGraceMs?: number } = {},
+  opts: {
+    sshBinary?: string;
+    logger?: Logger;
+    downGraceMs?: number;
+    healthIntervalMs?: number;
+    /**
+     * End-to-end readiness: given the forward's local port, resolve true once
+     * the forward actually carries traffic to the daemon (e.g. an HTTP probe of
+     * `/api/version` through it). This is what makes readiness robust across
+     * SSH server implementations — we trust the bytes reaching the daemon, not
+     * ssh's own opinion of the forward, nor whether the spawning client lived.
+     * Defaults to "the local socket accepting is enough", the generic
+     * behaviour.
+     */
+    ready?: (localPort: number) => Promise<boolean>;
+  } = {},
 ): Promise<Tunnel> {
   const logger = opts.logger ?? silentLogger;
   const sshBinary = opts.sshBinary ?? 'ssh';
   const downGraceMs = opts.downGraceMs ?? DOWN_GRACE_MS;
+  const healthIntervalMs = opts.healthIntervalMs ?? HEALTH_INTERVAL_MS;
+  const isReady = opts.ready ?? (() => Promise.resolve(true));
   const eventCbs = new Set<(e: CliEvent) => void>();
   const portCbs = new Set<(port: number) => void>();
   const emit = (e: CliEvent) => eventCbs.forEach((cb) => cb(e));
@@ -51,53 +78,58 @@ export async function openTunnel(
   const state: { child: ChildProcess | null } = { child: null };
   let stopping = false;
   let lastRestoredAt = 0;
-
-  // True while a reconnect loop (or the initial spawn) owns the lifecycle:
-  // child exits are then that loop's business, never a second loop's.
+  // True while a reconnect loop owns the lifecycle — the health monitor stands
+  // down and lets that loop resume it on completion.
   let reconnectActive = false;
+  let healthTimer: ReturnType<typeof setTimeout> | null = null;
 
   const spawnForward = async (port: number): Promise<boolean> => {
     if (stopping) return false;
     const child = spawn(
       sshBinary,
-      // ExitOnForwardFailure: a forward that cannot bind must die (and be
-      // seen to die) rather than linger as an ssh with no -L behind it.
-      ssh.args(
-        '-o',
-        'ExitOnForwardFailure=yes',
-        '-N',
-        '-L',
-        `${port}:127.0.0.1:${remotePort}`,
-        ssh.host,
-      ),
-      {
-        stdio: ['ignore', 'ignore', 'inherit'],
-      },
+      ssh.args('-N', '-L', `${port}:127.0.0.1:${remotePort}`, ssh.host),
+      { stdio: ['ignore', 'ignore', 'inherit'] },
     );
-    child.on('close', () => onChildExit(child));
     state.child = child;
-    // Readiness by TCP probe, never by parsing ssh output — and the child
-    // must have survived it: something else listening on the port (a squatter
-    // after a drop) would otherwise pass the probe on behalf of an ssh that
-    // already gave up, wiring the UI to a stranger.
-    const ready = (await waitForTcp(port, 5000)) && child.exitCode === null;
-    if (!ready) discard(child);
+    // Readiness by the forward, not the client: the local end accepts and the
+    // daemon answers through it. We deliberately do not require this ssh child
+    // to still be running — under a mux master it may have already handed the
+    // forward off and exited (see the header comment).
+    const ready = (await waitForTcp(port, 5000)) && (await isReady(port));
+    if (!ready) discard(child, port);
     return ready;
   };
 
-  /**
-   * Forget-and-kill a child we gave up on. Forgetting first matters: its
-   * close event must not read as an outage — treating self-inflicted kills
-   * as drops used to spawn a second reconnect loop racing the first.
-   */
-  const discard = (child: ChildProcess) => {
+  /** Kill a forward we gave up on, and remove any copy left on the master. */
+  const discard = (child: ChildProcess, port: number) => {
     if (state.child === child) state.child = null;
     child.kill('SIGTERM');
+    // A mux server (Tailscale) leaves the -L on the master after the client
+    // dies, so an abandoned forward must be cancelled or it leaks its port.
+    void ssh.cancelForward(port, remotePort);
   };
 
-  const onChildExit = (child: ChildProcess) => {
-    if (stopping || reconnectActive || child !== state.child) return;
-    state.child = null;
+  const scheduleHealthCheck = () => {
+    if (stopping || healthTimer !== null) return;
+    healthTimer = setTimeout(() => void healthCheck(), healthIntervalMs);
+  };
+
+  const healthCheck = async (): Promise<void> => {
+    healthTimer = null;
+    if (stopping) return;
+    if (reconnectActive) {
+      scheduleHealthCheck(); // a reconnect owns things; just keep the beat
+      return;
+    }
+    // The local listener is the liveness signal — it drops when the owning
+    // client (non-mux) or the master (mux) dies. The end-to-end probe is
+    // reserved for readiness; a cheap loopback check here does not conflate a
+    // momentarily-unreachable daemon with a dead tunnel.
+    if (await tcpListening(localPort)) {
+      scheduleHealthCheck();
+      return;
+    }
+    if (stopping || reconnectActive) return;
     void reconnect();
   };
 
@@ -156,18 +188,11 @@ export async function openTunnel(
     if (restored) {
       lastRestoredAt = Date.now();
       if (announced) emit({ t: 'tunnel-up' });
-      // A death in the instant between adoption and here was swallowed by
-      // the reconnectActive guard — recheck rather than trust the window.
-      if (state.child === null || state.child.exitCode !== null) {
-        state.child = null;
-        void reconnect();
-      }
     }
+    scheduleHealthCheck();
   };
 
-  reconnectActive = true; // initial-probe exits must not strand a reconnect loop
   const initialReady = await spawnForward(localPort);
-  reconnectActive = false;
   if (!initialReady) {
     stopping = true; // no Tunnel handle will exist — nothing may keep respawning
     throw new CliError(
@@ -176,11 +201,7 @@ export async function openTunnel(
       'is the daemon running on the host? try: puddle status ' + ssh.host,
     );
   }
-  if (state.child === null || state.child.exitCode !== null) {
-    // Died right after the probe, while exits were being swallowed.
-    state.child = null;
-    void reconnect();
-  }
+  scheduleHealthCheck();
 
   return {
     get localPort() {
@@ -196,12 +217,16 @@ export async function openTunnel(
     },
     close() {
       stopping = true;
-      return new Promise((resolve) => {
-        const child = state.child;
-        if (child === null || child.exitCode !== null) return resolve();
-        child.once('close', () => resolve());
-        child.kill('SIGTERM');
-      });
+      if (healthTimer !== null) {
+        clearTimeout(healthTimer);
+        healthTimer = null;
+      }
+      const child = state.child;
+      state.child = null;
+      child?.kill('SIGTERM');
+      // Killing the client is enough for a non-mux forward; a mux server leaves
+      // the -L on the master, so cancel it too (and that Promise is our close).
+      return ssh.cancelForward(localPort, remotePort);
     },
   };
 }

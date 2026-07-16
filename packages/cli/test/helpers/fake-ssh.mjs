@@ -6,6 +6,8 @@
  *
  *   ssh <ctl…> host true                → master open: exit 0
  *   ssh <ctl…> -O check host            → master alive: exit 0
+ *   ssh <ctl…> -O cancel -L … host      → drop a mux forward: exit 0 (no-op;
+ *                                         the fake forwarder owns its own port)
  *   ssh <ctl…> host -- sh -c '<cmd>'    → run <cmd> locally against the fake
  *                                         host home (env FAKE_SSH_HOME)
  *   ssh <ctl…> -N -L lp:127.0.0.1:rp h  → a real TCP forwarder lp → rp,
@@ -33,7 +35,10 @@ for (let i = 0; i < args.length; i += 1) {
   } else positionals.push(arg);
 }
 
-if (positionals.some((p) => p === '-O:check')) process.exit(0);
+// Any control command (-O check | cancel | forward | exit) is a no-op here:
+// the fake `-N -L` forwarder owns its own listener, so there is nothing on a
+// master to check or cancel.
+if (positionals.some((p) => p.startsWith('-O:'))) process.exit(0);
 
 const forward = positionals.find((p) => p.startsWith('-L:'));
 if (positionals.includes('-N') && forward !== undefined) {
