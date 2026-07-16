@@ -9,6 +9,10 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Changed
+
+- The **resume banner** (interrupted/exited sessions) and the **ports strip** now sit at the **bottom** of the editor view instead of the top.
+
 ### Fixed
 
 - The **Settings** dialog no longer fails to open on first click (URL updated to `#settings/…` but nothing showed until a reload). The open state is a module variable subscribed to via `useState`/`useEffect` (a `useSyncExternalStore` version did not re-render the gate), and the dialog chunk is preloaded so opening never suspends into a blank frame. The URL stays a deep-link mirror, resynced on back/forward.

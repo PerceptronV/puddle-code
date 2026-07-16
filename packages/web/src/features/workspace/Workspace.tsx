@@ -414,7 +414,7 @@ function WorkspaceInner() {
               recursive split tree (`layout_tree`); every open terminal is kept
               mounted by `KeepAliveHost` and its DOM adopted into whichever pane
               shows it, so PTYs never drop. The URL-bound session's resume banner
-              and port strip sit above the tree. */}
+              and port strip sit below the tree. */}
           <KeepAliveHost
             tree={layout.tree}
             onOpenFile={(session, path, line, column) =>
@@ -422,10 +422,6 @@ function WorkspaceInner() {
             }
           >
             <div className="flex h-full flex-col bg-ground">
-              {activeSession && <SessionBanner session={activeSession} />}
-              {activeSession && (
-                <PortsStrip sessionId={activeSession.id} status={activeSession.status} />
-              )}
               <div className="min-h-0 flex-1">
                 <TilingDnd
                   onDrop={layout.drop}
@@ -460,6 +456,12 @@ function WorkspaceInner() {
                   />
                 </TilingDnd>
               </div>
+              {/* The resume banner and ports strip sit BELOW the tree (they used
+                  to be above it). */}
+              {activeSession && <SessionBanner session={activeSession} />}
+              {activeSession && (
+                <PortsStrip sessionId={activeSession.id} status={activeSession.status} />
+              )}
             </div>
           </KeepAliveHost>
         </Panel>
