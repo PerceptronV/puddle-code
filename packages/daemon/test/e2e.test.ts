@@ -374,12 +374,14 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
     await c.json<Session>('POST', `/api/sessions/${s1.id}/kill`);
   });
 
-  it('archives: session worktree removed, project archive sweeps the rest', async () => {
+  it('archives a session (reversible hide), project archive sweeps the rest', async () => {
     const c = client(daemon);
-    const archived = await c.json<Session>('POST', `/api/sessions/${s1.id}/archive`, {
-      force: true,
-    });
+    const archived = await c.json<Session>('POST', `/api/sessions/${s1.id}/archive`);
     expect(archived.status).toBe('archived');
+    // Unarchive brings it straight back (worktree kept), then re-archive so the
+    // project sweep below sees a clean slate.
+    const unarchived = await c.json<Session>('POST', `/api/sessions/${s1.id}/unarchive`);
+    expect(unarchived.status).toBe('exited');
     const res = await c.req('POST', `/api/projects/${project.id}/archive`, { force: true });
     expect(res.status).toBe(204);
     const all = await c.json<Session[]>('GET', `/api/sessions?project=${project.id}`);

@@ -12,6 +12,8 @@ import {
   focusTab,
   leafContainingKey,
   makeLeaf,
+  openPreview,
+  promoteTab,
   pruneTabs,
   resizeSplit,
   tabRefKey,
@@ -34,8 +36,11 @@ export interface LayoutController {
   focusLeaf(leafId: string): void;
   activate(leafId: string, ref: TabRef): void;
   close(leafId: string, ref: TabRef): void;
-  openEditor(tab: EditorTab): void;
-  ensureTerminal(session: string): void;
+  /** `preview` opens an ephemeral tab (single-click); otherwise a permanent one. */
+  openEditor(tab: EditorTab, opts?: { preview?: boolean }): void;
+  ensureTerminal(session: string, opts?: { preview?: boolean }): void;
+  /** Promote a preview tab to permanent (double-click), wherever it lives. */
+  promote(ref: TabRef): void;
   removeTerminal(session: string): void;
   pruneSessions(alive: ReadonlySet<string>): void;
   resize(splitId: string, sizes: number[]): void;
@@ -85,12 +90,13 @@ export function useLayoutTree(uiState: UiStateHandle): LayoutController {
         persist(focusTab(tree, leafId, key));
       },
       close: (leafId, ref) => persist(closeTab(tree, leafId, tabRefKey(ref))),
-      openEditor: (tab) => {
+      openEditor: (tab, opts) => {
         const target = focusedLeaf.id;
         setFocusedLeafId(target);
-        persist(addTabToLeaf(tree, target, { type: 'editor', tab }));
+        const ref: TabRef = { type: 'editor', tab };
+        persist(opts?.preview ? openPreview(tree, target, ref) : addTabToLeaf(tree, target, ref));
       },
-      ensureTerminal: (session) => {
+      ensureTerminal: (session, opts) => {
         const key = `term:${session}`;
         const existing = leafContainingKey(tree, key);
         if (existing) {
@@ -99,9 +105,11 @@ export function useLayoutTree(uiState: UiStateHandle): LayoutController {
         } else {
           const target = focusedLeaf.id;
           setFocusedLeafId(target);
-          persist(addTabToLeaf(tree, target, { type: 'terminal', session }));
+          const ref: TabRef = { type: 'terminal', session };
+          persist(opts?.preview ? openPreview(tree, target, ref) : addTabToLeaf(tree, target, ref));
         }
       },
+      promote: (ref) => persist(promoteTab(tree, tabRefKey(ref))),
       removeTerminal: (session) => {
         const leaf = leafContainingKey(tree, `term:${session}`);
         if (leaf) persist(closeTab(tree, leaf.id, `term:${session}`));

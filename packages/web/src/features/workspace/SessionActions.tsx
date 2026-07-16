@@ -1,6 +1,7 @@
 import { type ReactNode, useState } from 'react';
 import {
   Archive,
+  ArchiveRestore,
   ExternalLink,
   MoreHorizontal,
   Pencil,
@@ -40,9 +41,6 @@ import {
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
 import { Input } from '../../components/ui/input';
-import { Label } from '../../components/ui/label';
-import { Switch } from '../../components/ui/switch';
-import { ApiError } from '../../lib/api';
 import { editorDeepLink, editorLinkHost } from '../../lib/editor-links';
 import {
   useAccounts,
@@ -50,6 +48,7 @@ import {
   useMigrateSession,
   useRenameSession,
   useSessionAction,
+  useUnarchiveSession,
 } from '../../lib/queries';
 import { useCurrentProfileId } from '../profile/profile-store';
 
@@ -66,12 +65,15 @@ export interface SessionMenu {
   session: Session;
   resumable: boolean;
   live: boolean;
+  archived: boolean;
   canMigrate: boolean;
   sameAgent: Account[];
   resume: () => void;
   openKill: () => void;
   openRename: () => void;
-  openArchive: () => void;
+  /** Archive straight away — no confirmation (SPEC §4: nothing is destroyed). */
+  archive: () => void;
+  unarchive: () => void;
   setMigrateTo: (a: Account) => void;
 }
 
@@ -108,12 +110,12 @@ export function useSessionMenu(
   const resume = useSessionAction('resume');
   const kill = useSessionAction('kill');
   const archive = useArchiveSession();
+  const unarchive = useUnarchiveSession();
   const rename = useRenameSession();
   const migrate = useMigrateSession();
   const profileId = useCurrentProfileId();
   const accounts = useAccounts(profileId ?? undefined);
-  const [confirm, setConfirm] = useState<'kill' | 'archive' | 'archive-force' | null>(null);
-  const [deleteBranch, setDeleteBranch] = useState(false);
+  const [confirm, setConfirm] = useState<'kill' | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [newTitle, setNewTitle] = useState(session.title ?? '');
   const [migrateTo, setMigrateTo] = useState<Account | null>(null);
@@ -127,31 +129,11 @@ export function useSessionMenu(
     session.status !== 'archived' &&
     sameAgent.some((a) => a.id !== session.account_id);
 
-  const doArchive = (force: boolean) => {
-    archive.mutate(
-      { sessionId: session.id, force, deleteBranch },
-      {
-        onSuccess: () => {
-          setConfirm(null);
-          setDeleteBranch(false);
-          onArchived?.(session.id);
-        },
-        onError: (e) => {
-          if (e instanceof ApiError && e.code === 'worktree_dirty' && !force) {
-            setConfirm('archive-force');
-          } else {
-            setConfirm(null);
-            toast.error(e.message);
-          }
-        },
-      },
-    );
-  };
-
   const menu: SessionMenu = {
     session,
     resumable: RESUMABLE.includes(session.status),
     live: LIVE.includes(session.status),
+    archived: session.status === 'archived',
     canMigrate,
     sameAgent,
     resume: () => resume.mutate(session.id, { onError: (e) => toast.error(e.message) }),
@@ -160,7 +142,15 @@ export function useSessionMenu(
       setNewTitle(session.title ?? ''); // seed from the current override, not the default
       setRenaming(true);
     },
-    openArchive: () => setConfirm('archive'),
+    // Archiving keeps everything (worktree, branch, conversation), so it needs no
+    // confirmation — one click hides it (SPEC §4). onArchived lets the caller drop
+    // the now-archived tab from the open panes.
+    archive: () =>
+      archive.mutate(session.id, {
+        onSuccess: () => onArchived?.(session.id),
+        onError: (e) => toast.error(e.message),
+      }),
+    unarchive: () => unarchive.mutate(session.id, { onError: (e) => toast.error(e.message) }),
     setMigrateTo,
   };
 
@@ -171,81 +161,34 @@ export function useSessionMenu(
         onOpenChange={(open) => {
           if (open) return;
           setConfirm(null);
-          setDeleteBranch(false);
         }}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {confirm === 'kill' && 'Kill this session?'}
-              {confirm === 'archive' && 'Archive this session?'}
-              {confirm === 'archive-force' && 'Worktree has uncommitted changes'}
-            </DialogTitle>
+            <DialogTitle>Kill this session?</DialogTitle>
             <DialogDescription>
-              {confirm === 'kill' &&
-                'The agent process stops (SIGTERM, then SIGKILL). The conversation stays resumable.'}
-              {confirm === 'archive' &&
-                (session.separate_branch
-                  ? `Removes the worktree directory. The branch ${session.branch} and the terminal logs are kept, and the session stays available under Archived.`
-                  : `The shared worktree on ${session.branch} is removed once its last session archives. The branch and the terminal logs are kept, and the session stays available under Archived.`)}
-              {confirm === 'archive-force' &&
-                'Archiving now discards uncommitted changes in the worktree. Committed work on the branch survives.'}
+              The agent process stops (SIGTERM, then SIGKILL). The conversation stays resumable.
             </DialogDescription>
           </DialogHeader>
-          {(confirm === 'archive' || confirm === 'archive-force') && session.separate_branch && (
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="delete-branch"
-                  checked={deleteBranch}
-                  onCheckedChange={setDeleteBranch}
-                />
-                <Label htmlFor="delete-branch">
-                  Also delete the branch <span className="font-mono">{session.branch}</span>
-                </Label>
-              </div>
-              {deleteBranch && (
-                <p className="text-xs text-danger">
-                  Anything on it that was never pushed is gone for good.
-                </p>
-              )}
-            </div>
-          )}
           <DialogFooter>
             <Button variant="ghost" onClick={() => setConfirm(null)}>
               Cancel
             </Button>
-            {confirm === 'kill' && (
-              <Button
-                variant="danger"
-                disabled={kill.isPending}
-                onClick={() =>
-                  kill.mutate(session.id, {
-                    onSuccess: () => setConfirm(null),
-                    onError: (e) => {
-                      setConfirm(null);
-                      toast.error(e.message);
-                    },
-                  })
-                }
-              >
-                Kill session
-              </Button>
-            )}
-            {confirm === 'archive' && (
-              <Button
-                variant="danger"
-                disabled={archive.isPending}
-                onClick={() => doArchive(false)}
-              >
-                Archive
-              </Button>
-            )}
-            {confirm === 'archive-force' && (
-              <Button variant="danger" disabled={archive.isPending} onClick={() => doArchive(true)}>
-                Discard changes and archive
-              </Button>
-            )}
+            <Button
+              variant="danger"
+              disabled={kill.isPending}
+              onClick={() =>
+                kill.mutate(session.id, {
+                  onSuccess: () => setConfirm(null),
+                  onError: (e) => {
+                    setConfirm(null);
+                    toast.error(e.message);
+                  },
+                })
+              }
+            >
+              Kill session
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -403,8 +346,16 @@ function SessionMenuItems({ kit, menu }: { kit: MenuKit; menu: SessionMenu }) {
       {menu.resumable && (
         <>
           <Separator />
-          <Item onSelect={menu.openArchive}>
+          <Item onSelect={menu.archive}>
             <Archive /> Archive
+          </Item>
+        </>
+      )}
+      {menu.archived && (
+        <>
+          <Separator />
+          <Item onSelect={menu.unarchive}>
+            <ArchiveRestore /> Unarchive
           </Item>
         </>
       )}

@@ -37,7 +37,9 @@ export function makeLeaf(tabs: TabRef[] = [], activeKey?: string | null): Layout
   const keys = tabs.map(tabRefKey);
   const active =
     activeKey && keys.includes(activeKey) ? activeKey : keys.length > 0 ? keys[0]! : null;
-  return { kind: 'leaf', id: newId(), tabs, activeKey: active };
+  // previewKey is null by default (matches the schema default, so a built tree
+  // round-trips through uiStateSnapshotSchema unchanged).
+  return { kind: 'leaf', id: newId(), tabs, activeKey: active, previewKey: null };
 }
 
 function makeSplit(
@@ -91,7 +93,10 @@ function normaliseLeaf(leaf: LayoutLeaf): LayoutLeaf {
   const keys = leaf.tabs.map(tabRefKey);
   const activeKey =
     leaf.activeKey && keys.includes(leaf.activeKey) ? leaf.activeKey : (keys[0] ?? null);
-  return activeKey === leaf.activeKey ? leaf : { ...leaf, activeKey };
+  // A preview tab that has been closed or moved away stops being a preview.
+  const previewKey = leaf.previewKey && keys.includes(leaf.previewKey) ? leaf.previewKey : null;
+  if (activeKey === leaf.activeKey && previewKey === (leaf.previewKey ?? null)) return leaf;
+  return { ...leaf, activeKey, previewKey };
 }
 
 /**
@@ -264,14 +269,54 @@ export function closeTab(tree: LayoutNode, leafId: string, key: string): LayoutN
 /**
  * Add `ref` to leaf `leafId` and activate it — appending if absent, else just
  * focusing it (add-or-focus, no duplicate within a leaf). Used to open a file
- * or terminal into a specific pane programmatically.
+ * or terminal into a specific pane PERMANENTLY: if `ref` was this leaf's preview
+ * tab, opening it permanently promotes it (clears `previewKey`).
  */
 export function addTabToLeaf(tree: LayoutNode, leafId: string, ref: TabRef): LayoutNode {
+  const key = tabRefKey(ref);
   const next = transformLeaf(tree, leafId, (leaf) => {
-    if (leaf.tabs.some((t) => sameRef(t, ref))) return { ...leaf, activeKey: tabRefKey(ref) };
-    return { ...leaf, tabs: [...leaf.tabs, ref], activeKey: tabRefKey(ref) };
+    const previewKey = leaf.previewKey === key ? null : leaf.previewKey;
+    if (leaf.tabs.some((t) => sameRef(t, ref))) return { ...leaf, activeKey: key, previewKey };
+    return { ...leaf, tabs: [...leaf.tabs, ref], activeKey: key, previewKey };
   });
   return normalise(next);
+}
+
+/**
+ * Open `ref` as leaf `leafId`'s ephemeral PREVIEW tab (VSCode single-click). If
+ * `ref` is already open it is just focused (its permanent/preview state stays);
+ * otherwise it replaces the leaf's current preview tab IN PLACE — so a run of
+ * single-clicks reuses one slot — and becomes the new preview + active tab.
+ *
+ * Exception: a preview TERMINAL is a live PTY, so it is never silently discarded
+ * — instead it is PINNED (promoted) and the new tab opens alongside it. That
+ * keeps an agent terminal you were watching from vanishing when you peek at a
+ * file, and avoids the dead-end where re-clicking that session (same URL) would
+ * not re-open a tab the effect never re-runs for.
+ */
+export function openPreview(tree: LayoutNode, leafId: string, ref: TabRef): LayoutNode {
+  const key = tabRefKey(ref);
+  const next = transformLeaf(tree, leafId, (leaf) => {
+    if (leaf.tabs.some((t) => sameRef(t, ref))) return { ...leaf, activeKey: key };
+    const idx = leaf.previewKey ? leaf.tabs.findIndex((t) => tabRefKey(t) === leaf.previewKey) : -1;
+    const replaceInPlace = idx >= 0 && !isTerminal(leaf.tabs[idx]!);
+    const tabs = replaceInPlace
+      ? leaf.tabs.map((t, i) => (i === idx ? ref : t))
+      : [...leaf.tabs, ref];
+    return { ...leaf, tabs, activeKey: key, previewKey: key };
+  });
+  return normalise(next);
+}
+
+/** Promote the tab `key` wherever it is the preview tab, making it permanent (double-click). */
+export function promoteTab(tree: LayoutNode, key: string): LayoutNode {
+  const walk = (node: LayoutNode): LayoutNode =>
+    node.kind === 'leaf'
+      ? node.previewKey === key
+        ? { ...node, previewKey: null }
+        : node
+      : { ...node, children: node.children.map(walk) };
+  return walk(tree);
 }
 
 /** Set the active tab of a leaf. */

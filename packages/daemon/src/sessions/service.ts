@@ -19,8 +19,8 @@ import type { CreateWorktreeResult, WorktreeManager } from '../worktrees/manager
 import type { ConversationShare } from './conversation-share.js';
 import {
   buildConcurrentWorktreeNote,
+  buildInterruptedResumeNote,
   buildOnboardingPreamble,
-  INTERRUPTED_RESUME_NOTE,
 } from './onboarding.js';
 import type { MarkerFileSync } from './onboarding.js';
 
@@ -496,10 +496,20 @@ export class SessionService extends EventEmitter {
     const skip = this.evaluateSkip(profileId, account, adapter, session.skip_permissions);
     const downgraded = session.skip_permissions && !skip;
     if (downgraded) this.deps.sessions.setSkipPermissions(session.id, false);
+    // The interruption note is the profile's `restartTemplate` (Settings →
+    // Sessions), falling back to the built-in default; a cleared template sends
+    // no note at all.
+    let restartNote: string | undefined;
+    if (opts.interruptedNote) {
+      const note = buildInterruptedResumeNote(
+        this.deps.profiles.getSettings(profileId).restartTemplate,
+      );
+      restartNote = note.trim() === '' ? undefined : note;
+    }
     const args = adapter.resumeArgs(ref, {
       worktreePath: session.worktree_path,
       sessionId: session.id,
-      prompt: opts.interruptedNote ? INTERRUPTED_RESUME_NOTE : undefined,
+      prompt: restartNote,
       skipPermissions: skip,
     });
     this.spawnAgent(session.id, session.worktree_path, account, adapter, args, 'running');
@@ -653,49 +663,44 @@ export class SessionService extends EventEmitter {
     return this.get(id);
   }
 
-  async archive(id: string, force = false, deleteBranch = false): Promise<Session> {
+  /**
+   * Archive a session (SPEC §4): a reversible hide, NOT a teardown. The worktree,
+   * its branch, and the agent's conversation all stay exactly where they are, so
+   * the session can be unarchived later and — if its worktree is still on disk —
+   * resumed with its history intact. Reclaiming a worktree's disk is a separate,
+   * explicit action in the Worktrees manager; deleting a branch is done there
+   * too (git refuses while the branch is checked out in the kept worktree).
+   */
+  async archive(id: string): Promise<Session> {
     const session = this.deps.sessions.get(id);
     if (session.status !== 'exited' && session.status !== 'interrupted') {
       throw ApiError.conflict('session_live', 'a running session must be killed before archiving');
     }
-    if (deleteBranch && !session.separate_branch) {
-      throw ApiError.badRequest(
-        'branch_not_owned',
-        `this session works directly on ${session.branch}; puddle only deletes branches it created`,
-      );
-    }
-    const project = this.deps.projects.get(session.project_id);
-    const repo = this.deps.repos.get(project.repo_id);
-    // A shared worktree outlives this session while any other non-archived
-    // session is attached to it (SPEC §4); the last one out removes it.
-    const lastUser = this.deps.sessions.countOtherActiveOnWorktree(session.worktree_path, id) === 0;
-    if (lastUser && existsSync(session.worktree_path)) {
-      await this.deps.worktrees.remove({ repo, worktreePath: session.worktree_path, force });
-    }
-    if (deleteBranch) {
-      // After worktree removal — git refuses to delete a checked-out branch.
-      try {
-        await this.deps.worktrees.deleteBranch(repo, session.branch);
-      } catch (e) {
-        throw ApiError.conflict(
-          'branch_delete_failed',
-          `could not delete branch ${session.branch}: ${(e as Error).message}; archive again without deleting to keep it`,
-        );
-      }
-    }
     this.deps.onboarding.unwatch(id);
-    // Delete this session's own conversation files from the shared store; a
-    // canonical dir that is left empty (and its symlinks) go with it.
-    if (this.deps.share) {
-      try {
-        await this.deps.share.removeSessionData(session);
-      } catch (e) {
-        console.warn(`conversation cleanup ${id} failed: ${(e as Error).message}`);
-      }
-    }
     this.adopted.delete(id);
     this.transition(id, 'archived');
-    this.deps.events.record(id, 'archived', { forced: force, branch_deleted: deleteBranch });
+    this.deps.events.record(id, 'archived', {});
+    return this.get(id);
+  }
+
+  /**
+   * Reverse an archive (SPEC §4): bring the session back to a resumable state.
+   * We never recreate a worktree — if it was pruned, or its branch was moved or
+   * deleted, the session returns visible for its terminal/conversation history
+   * only, with resume disabled through the read-time `worktree_missing` flag.
+   */
+  async unarchive(id: string): Promise<Session> {
+    const session = this.deps.sessions.get(id);
+    if (session.status !== 'archived') {
+      throw ApiError.conflict('not_archived', 'only an archived session can be unarchived');
+    }
+    const worktreePresent = existsSync(session.worktree_path);
+    this.transition(id, 'exited');
+    this.deps.events.record(id, 'unarchived', { worktree_present: worktreePresent });
+    if (worktreePresent) {
+      const project = this.deps.projects.get(session.project_id);
+      this.deps.onboarding.watch(id, project.repo_id, session.worktree_path);
+    }
     return this.get(id);
   }
 
@@ -712,7 +717,7 @@ export class SessionService extends EventEmitter {
     }
     for (const s of live) await this.kill(s.id);
     for (const s of sessions) {
-      if (s.status !== 'archived') await this.archive(s.id, force);
+      if (s.status !== 'archived') await this.archive(s.id);
     }
   }
 

@@ -25,12 +25,14 @@ export function PaneTabStrip({
   sessions,
   onActivate,
   onClose,
+  onPromote,
   onArchived,
 }: {
   leaf: LayoutLeaf;
   sessions: Session[];
   onActivate: (ref: TabRef) => void;
   onClose: (ref: TabRef) => void;
+  onPromote: (ref: TabRef) => void;
   onArchived: (session: string) => void;
 }) {
   const branches = new Map(sessions.map((s) => [s.id, s.branch]));
@@ -51,10 +53,12 @@ export function PaneTabStrip({
           tab={ref}
           leafId={leaf.id}
           active={tabRefKey(ref) === leaf.activeKey}
+          preview={tabRefKey(ref) === leaf.previewKey}
           session={ref.type === 'terminal' ? sessions.find((s) => s.id === ref.session) : undefined}
           label={ref.type === 'editor' ? labelFor(ref.tab) : ''}
           onActivate={() => onActivate(ref)}
           onClose={() => onClose(ref)}
+          onPromote={() => onPromote(ref)}
           onArchived={onArchived}
         />
       ))}
@@ -66,19 +70,23 @@ function PaneTab({
   tab,
   leafId,
   active,
+  preview,
   session,
   label,
   onActivate,
   onClose,
+  onPromote,
   onArchived,
 }: {
   tab: TabRef;
   leafId: string;
   active: boolean;
+  preview: boolean;
   session: Session | undefined;
   label: string;
   onActivate: () => void;
   onClose: () => void;
+  onPromote: () => void;
   onArchived: (session: string) => void;
 }) {
   const renderTitle = useSessionTitleRenderer();
@@ -89,11 +97,21 @@ function PaneTab({
   const cls = cn(
     TAB_CLASS,
     active ? 'bg-ground text-fg' : 'text-fg-secondary hover:bg-elevated',
+    // A preview (ephemeral) tab reads as italic, like VSCode — it will be
+    // replaced by the next single-click open until a double-click pins it.
+    preview && 'italic',
     isDragging && 'opacity-40',
   );
 
   const body = (
-    <div ref={setNodeRef} {...attributes} {...listeners} onClick={onActivate} className={cls}>
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      onClick={onActivate}
+      onDoubleClick={onPromote}
+      className={cls}
+    >
       {tab.type === 'terminal' ? (
         <>
           {session && <StatusDot status={session.status} kind={session.kind} />}

@@ -35,6 +35,14 @@ Then proceed with the task below (or await instructions if none is given).`;
 export const DEFAULT_CONCURRENT_TEMPLATE = `[puddle] You are joining an existing branch and worktree that other agents may be working in concurrently. Files can change underneath you, so re-check the working tree before you act, and avoid disruptive git operations (resetting, force-pushing, or deleting the branch) that would disrupt work already in progress by others.`;
 
 /**
+ * Built-in launch text sent when a session is resumed after an INTERRUPTION —
+ * a daemon restart or a machine reboot (SPEC §4). Any processes the agent had
+ * started are gone, so the default asks it to re-verify its environment.
+ * Editable per profile in Settings → Sessions; an empty string sends nothing.
+ */
+export const DEFAULT_RESTART_TEMPLATE = `This session was interrupted (daemon or machine restart). Processes you started are gone; re-verify your environment before continuing.`;
+
+/**
  * The variables a `tabTitleTemplate` may interpolate (`${name}` style), in the
  * order the settings UI lists them. Each maps a token to a one-line description
  * of what it resolves to for a session (SPEC §4). The renderer lives in the web
@@ -95,10 +103,12 @@ export const profileSettingsSchema = z.looseObject({
    * daemon's built-in default; an EMPTY string is an intentional empty preamble.
    * `onboardingTemplate` (freshly created worktree) supports a `{{rules}}` token
    * where the repo's onboarding notes are injected; `concurrentTemplate` is used
-   * when a session joins an existing/shared worktree.
+   * when a session joins an existing/shared worktree; `restartTemplate` is sent
+   * when a session is resumed after a daemon restart or machine reboot.
    */
   onboardingTemplate: z.string().optional(),
   concurrentTemplate: z.string().optional(),
+  restartTemplate: z.string().optional(),
   /**
    * How a session's tab/label is composed from its parts (SPEC §4). A template
    * string interpolating `${…}` variables (see `TAB_TITLE_VARIABLES`); ABSENT

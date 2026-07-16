@@ -13,4 +13,7 @@
 // 6.1 (2026-07-15): additive — `Session.osc_title` (the terminal-title
 // "sequence" name) and the `renamed` message's `osc_title` field, plus the
 // profile setting `tabTitleTemplate` (a loose key).
-export const PROTOCOL_VERSION = { major: 6, minor: 1 } as const;
+// 6.2 (2026-07-15): additive — POST /api/sessions/:id/unarchive (archive is now
+// a reversible hide, not a teardown), and the profile setting `restartTemplate`
+// (a loose key) for the resume-after-restart launch text.
+export const PROTOCOL_VERSION = { major: 6, minor: 2 } as const;

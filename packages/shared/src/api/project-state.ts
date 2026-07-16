@@ -34,6 +34,13 @@ export interface LayoutLeaf {
   tabs: TabRef[];
   /** `tabRefKey` of the active tab; null only for an empty leaf. */
   activeKey: string | null;
+  /**
+   * `tabRefKey` of this pane's single ephemeral "preview" tab (VSCode-style):
+   * a single-click open lands here and the NEXT single-click replaces it, until
+   * a double-click promotes it to a permanent tab (`previewKey` → null). Optional
+   * so pre-existing snapshots round-trip as having no preview tab.
+   */
+  previewKey?: string | null;
 }
 
 /** A split: a row (side-by-side) or column (stacked) of child nodes with relative sizes. */
@@ -54,6 +61,7 @@ const layoutLeafSchema = z.object({
   id: z.string(),
   tabs: z.array(tabRefSchema).default([]),
   activeKey: z.string().nullable().default(null),
+  previewKey: z.string().nullable().default(null),
 });
 
 // Recursive schema: the split branch references `layoutNodeSchema` inside a

@@ -119,6 +119,7 @@ describe('shared API schemas', () => {
       base_branch: 'main',
       branch: 'main',
       separate_branch: true,
+      kind: 'agent' as const,
       agent_type: 'claude-code',
       agent_session_ref: null,
       title: null,

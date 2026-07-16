@@ -66,13 +66,14 @@ describe('separate_branch = false (base branch: own or shared directory)', () =>
     await waitFor(() => f.logs.readTail(second.id, 'agent').includes('READY'));
     expect(f.logs.readTail(second.id, 'agent')).not.toContain('[puddle onboarding]');
 
-    // Removed only when the last session archives.
+    // Archiving is a reversible hide now (SPEC §4): the shared worktree is kept
+    // for both sessions, so it survives archiving either or both of them.
     await f.service.kill(first.id);
     await f.service.kill(second.id);
     await f.service.archive(first.id);
-    expect(existsSync(first.worktree_path)).toBe(true); // second still uses it
+    expect(existsSync(first.worktree_path)).toBe(true);
     await f.service.archive(second.id);
-    expect(existsSync(first.worktree_path)).toBe(false);
+    expect(existsSync(first.worktree_path)).toBe(true);
   });
 
   it('defaults to its OWN directory on the base branch (separate_worktree on)', async () => {
@@ -165,44 +166,10 @@ describe('separate_branch = false (base branch: own or shared directory)', () =>
       }),
     ).rejects.toMatchObject({ status: 400, code: 'branch_with_shared' });
   });
-
-  it('refuses delete_branch for a shared-branch session', async () => {
-    const f = fixture();
-    const s = await f.service.create({
-      project_id: f.ids.project,
-      account_id: f.ids.account,
-      separate_branch: false,
-    });
-    await f.service.kill(s.id);
-    await expect(f.service.archive(s.id, false, true)).rejects.toMatchObject({
-      status: 400,
-      code: 'branch_not_owned',
-    });
-    await f.service.archive(s.id);
-  });
 });
 
-describe('archive with delete_branch', () => {
-  it('deletes the session branch along with the worktree — no trace left', async () => {
-    const f = fixture();
-    const s = await f.service.create({
-      project_id: f.ids.project,
-      account_id: f.ids.account,
-      title: 'throwaway spike',
-    });
-    expect(s.branch).toBe('alice/throwaway-spike');
-    await f.service.kill(s.id);
-    const archived = await f.service.archive(s.id, false, true);
-    expect(archived.status).toBe('archived');
-    expect(existsSync(s.worktree_path)).toBe(false);
-    const branches = sh(f.repoPath, 'for-each-ref', '--format=%(refname:short)', 'refs/heads');
-    expect(branches.split('\n')).not.toContain('alice/throwaway-spike');
-
-    const event = f.stores.events.list(s.id).find((e) => e.type === 'archived');
-    expect(event?.payload).toMatchObject({ branch_deleted: true });
-  });
-
-  it('keeps the branch by default', async () => {
+describe('archive (reversible hide, SPEC §4)', () => {
+  it('keeps the branch AND the worktree; unarchive restores the session', async () => {
     const f = fixture();
     const s = await f.service.create({
       project_id: f.ids.project,
@@ -210,8 +177,16 @@ describe('archive with delete_branch', () => {
       title: 'keep me',
     });
     await f.service.kill(s.id);
-    await f.service.archive(s.id);
+    const archived = await f.service.archive(s.id);
+    expect(archived.status).toBe('archived');
+    // Branch and worktree both survive — branch deletion is a separate action in
+    // the Worktrees manager, and the worktree stays for a later unarchive.
+    expect(existsSync(s.worktree_path)).toBe(true);
     const branches = sh(f.repoPath, 'for-each-ref', '--format=%(refname:short)', 'refs/heads');
     expect(branches.split('\n')).toContain('alice/keep-me');
+
+    const unarchived = await f.service.unarchive(s.id);
+    expect(unarchived.status).toBe('exited');
+    expect(unarchived.worktree_missing).toBeUndefined();
   });
 });

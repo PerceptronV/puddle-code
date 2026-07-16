@@ -11,7 +11,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import type { ReactElement } from 'react';
 import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
-import { closeSettings, settingsSection, useHash } from '../../lib/hash-route';
+import { closeSettings, setHash, settingsSection, useHash } from '../../lib/hash-route';
 import { cn } from '../../lib/utils';
 import { AppearanceSection } from './sections/appearance';
 import { ProfileSection } from './sections/profile';
@@ -74,9 +74,7 @@ export function SettingsDialog() {
           {SECTIONS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
-              onClick={() => {
-                window.location.hash = `settings/${id}`;
-              }}
+              onClick={() => setHash(`settings/${id}`)}
               className={cn(
                 'flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors',
                 id === section.id

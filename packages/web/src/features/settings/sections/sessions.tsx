@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import {
   DEFAULT_CONCURRENT_TEMPLATE,
   DEFAULT_ONBOARDING_TEMPLATE,
+  DEFAULT_RESTART_TEMPLATE,
   DEFAULT_TAB_TITLE_TEMPLATE,
   TAB_TITLE_VARIABLES,
 } from '@puddle/shared';
@@ -193,7 +194,8 @@ export function SessionsSection() {
     );
 
   const saveTemplate =
-    (key: 'onboardingTemplate' | 'concurrentTemplate' | 'tabTitleTemplate') => (text: string) =>
+    (key: 'onboardingTemplate' | 'concurrentTemplate' | 'restartTemplate' | 'tabTitleTemplate') =>
+    (text: string) =>
       patch.mutate({ [key]: text }, { onError: (e) => toast.error(e.message) });
 
   return (
@@ -247,6 +249,16 @@ export function SessionsSection() {
               initial={settings.data.concurrentTemplate ?? DEFAULT_CONCURRENT_TEMPLATE}
               defaultText={DEFAULT_CONCURRENT_TEMPLATE}
               onSave={saveTemplate('concurrentTemplate')}
+              pending={patch.isPending}
+            />
+            <TemplateEditor
+              key={`${profileId}:restart`}
+              id="restart-template"
+              label="Resume after restart"
+              description="Sent when a session resumes after a daemon restart or machine reboot — its processes are gone."
+              initial={settings.data.restartTemplate ?? DEFAULT_RESTART_TEMPLATE}
+              defaultText={DEFAULT_RESTART_TEMPLATE}
+              onSave={saveTemplate('restartTemplate')}
               pending={patch.isPending}
             />
           </>

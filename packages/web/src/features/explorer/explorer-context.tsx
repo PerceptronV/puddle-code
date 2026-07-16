@@ -35,7 +35,7 @@ export type EditingState =
 export interface ExplorerCtx {
   sid: string;
   worktreePath: string;
-  onOpenFile?: (sid: string, path: string) => void;
+  onOpenFile?: (sid: string, path: string, opts?: { preview?: boolean }) => void;
   activePath: string | null;
 
   expanded: ReadonlySet<string>;
@@ -48,6 +48,8 @@ export interface ExplorerCtx {
   selection: ReadonlySet<string>;
   focusedPath: string | null;
   onRowClick(row: VisibleRow, e: { metaKey: boolean; ctrlKey: boolean; shiftKey: boolean }): void;
+  /** Double-click a file row: promote its preview tab to a permanent one (VSCode-style). */
+  onRowDoubleClick(row: VisibleRow): void;
   /** Select a single row without activating it (right-click, before a context menu). */
   selectOnly(path: string): void;
 
@@ -100,7 +102,7 @@ export function ExplorerProvider({
   children,
 }: {
   session: Session;
-  onOpenFile?: (sid: string, path: string) => void;
+  onOpenFile?: (sid: string, path: string, opts?: { preview?: boolean }) => void;
   activePath: string | null;
   children: React.ReactNode;
 }) {
@@ -189,10 +191,21 @@ export function ExplorerProvider({
       }
       setSelection(new Set([row.path]));
       anchorRef.current = row.path;
+      // A single click opens a file as an ephemeral preview tab (the default);
+      // a directory toggles.
       if (row.type === 'dir') toggle(row.path);
       else onOpenFile?.(sid, row.path);
     },
     [visibleRows, toggle, onOpenFile, sid],
+  );
+
+  // A double click pins the file — opening it (or promoting its preview tab) as
+  // a permanent tab, matching VSCode. Directories have no preview notion.
+  const onRowDoubleClick = useCallback<ExplorerCtx['onRowDoubleClick']>(
+    (row) => {
+      if (row.type !== 'dir') onOpenFile?.(sid, row.path, { preview: false });
+    },
+    [onOpenFile, sid],
   );
 
   const selectOnly = useCallback((path: string) => {
@@ -426,6 +439,7 @@ export function ExplorerProvider({
     selection,
     focusedPath,
     onRowClick,
+    onRowDoubleClick,
     selectOnly,
     clipboard,
     cut,

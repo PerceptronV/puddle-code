@@ -128,7 +128,7 @@ export function NavigatorSidebar({
   sessions: Session[];
   /** The worktree the whole sidebar is bound to, plus its pin controls. */
   target: ExplorerTarget;
-  onOpenFile: (sessionId: string, path: string) => void;
+  onOpenFile: (sessionId: string, path: string, opts?: { preview?: boolean }) => void;
   /** Path of the active editor tab when it is a file in the bound worktree — highlighted in the tree. */
   activeFilePath: string | null;
   /** Path of the active editor tab when it is an uncommitted diff for the bound worktree. */

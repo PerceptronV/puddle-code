@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -92,7 +92,7 @@ describe('SessionService.create', () => {
 });
 
 describe('kill / resume / archive lifecycle', () => {
-  it('kill → exited; resume replays the ref; archive removes the worktree, keeps the branch', async () => {
+  it('kill → exited; resume replays the ref; archive is a reversible hide (worktree kept)', async () => {
     const f = fixture();
     const session = await f.service.create({
       project_id: f.ids.project,
@@ -112,12 +112,20 @@ describe('kill / resume / archive lifecycle', () => {
     expect(f.logs.readTail(session.id, 'agent')).toContain('PROMPT<<>>');
 
     await f.service.kill(session.id);
+    // Archive keeps the worktree, branch, and logs — nothing is destroyed.
     const archived = await f.service.archive(session.id);
     expect(archived.status).toBe('archived');
-    expect(existsSync(session.worktree_path)).toBe(false);
+    expect(existsSync(session.worktree_path)).toBe(true);
     expect(sh(f.repoPath, 'branch', '--list', 'alice/lifecycle')).toContain('alice/lifecycle');
-    // logs retained
     expect(f.logs.readTail(session.id, 'agent')).not.toBe('');
+
+    // Unarchive brings it back resumable while the worktree survives.
+    const unarchived = await f.service.unarchive(session.id);
+    expect(unarchived.status).toBe('exited');
+    expect(unarchived.worktree_missing).toBeUndefined();
+    const reresumed = await f.service.resume(session.id);
+    expect(reresumed.status).toBe('running');
+    await f.service.kill(session.id);
   });
 
   it('injects the interrupted note when resuming an interrupted session', async () => {
@@ -172,7 +180,7 @@ describe('kill / resume / archive lifecycle', () => {
     await f.service.kill(session.id);
   });
 
-  it('refuses to archive a dirty worktree without force', async () => {
+  it('archives a dirty worktree without complaint, keeping its uncommitted changes', async () => {
     const f = fixture();
     const session = await f.service.create({
       project_id: f.ids.project,
@@ -181,9 +189,29 @@ describe('kill / resume / archive lifecycle', () => {
     });
     await f.service.kill(session.id);
     writeFileSync(join(session.worktree_path, 'uncommitted.txt'), 'x');
-    await expect(f.service.archive(session.id)).rejects.toMatchObject({ code: 'worktree_dirty' });
-    const archived = await f.service.archive(session.id, true);
+    // Archive no longer removes the worktree, so a dirty tree is safe — no force,
+    // no prompt, and the uncommitted file survives.
+    const archived = await f.service.archive(session.id);
     expect(archived.status).toBe('archived');
+    expect(existsSync(join(session.worktree_path, 'uncommitted.txt'))).toBe(true);
+  });
+
+  it('unarchive of a session whose worktree is gone returns it for history only', async () => {
+    const f = fixture();
+    const session = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      title: 'gone',
+    });
+    await f.service.kill(session.id);
+    await f.service.archive(session.id);
+    // The worktree is pruned out-of-band (e.g. via the Worktrees manager).
+    rmSync(session.worktree_path, { recursive: true, force: true });
+    const unarchived = await f.service.unarchive(session.id);
+    expect(unarchived.status).toBe('exited');
+    expect(unarchived.worktree_missing).toBe(true);
+    // Resume is refused — there is no worktree to run in (history only).
+    await expect(f.service.resume(session.id)).rejects.toMatchObject({ code: 'worktree_missing' });
   });
 
   it('archiveProject refuses live sessions unless forced', async () => {

@@ -175,8 +175,8 @@ function WorkspaceInner() {
   // the same file tab was already open (only meaningful for file tabs).
   const [reveal, setReveal] = useState<RevealTarget | null>(null);
   const openEditorTab = useCallback(
-    (tab: EditorTab, position?: EditorPosition) => {
-      layout.openEditor(tab);
+    (tab: EditorTab, position?: EditorPosition, opts?: { preview?: boolean }) => {
+      layout.openEditor(tab, { preview: opts?.preview });
       if (position && (tab.kind ?? 'file') === 'file') {
         setReveal({
           session: tab.session,
@@ -190,13 +190,23 @@ function WorkspaceInner() {
     [layout],
   );
   // Stable file-open handler for terminal links, the explorer, and the editor
-  // context (keeps the original `(session, path, position?)` shape).
+  // context (keeps the original `(session, path, position?)` shape). Opens are
+  // permanent by default; the explorer opts into preview per single-vs-double
+  // click (VSCode-style).
   const openFile = useCallback(
-    (sessionId: string, path: string, position?: EditorPosition) =>
-      openEditorTab({ kind: 'file', session: sessionId, path }, position),
+    (sessionId: string, path: string, position?: EditorPosition, opts?: { preview?: boolean }) =>
+      openEditorTab({ kind: 'file', session: sessionId, path }, position, opts),
     [openEditorTab],
   );
   useEditorHandler(openFile);
+  // Explorer clicks: a single click opens an ephemeral preview tab; a double
+  // click opens (or promotes to) a permanent one.
+  const openTreeFile = useCallback(
+    (sessionId: string, path: string, opts?: { preview?: boolean }) =>
+      openFile(sessionId, path, undefined, { preview: opts?.preview ?? true }),
+    [openFile],
+  );
+  const promoteTab = useCallback((ref: TabRef) => layout.promote(ref), [layout]);
 
   // The ⌘K palette, top bar, and profile panel reuse this modal; an account
   // id seeds the picker (profile panel → session on a chosen account).
@@ -239,7 +249,9 @@ function WorkspaceInner() {
     // Don't re-open the tab we're closing while the URL param still lags.
     if (activeSessionId === justClosedActive.current) return;
     justClosedActive.current = null;
-    layoutRef.current.ensureTerminal(activeSessionId);
+    // Single-click navigation opens the session as an ephemeral preview tab
+    // (VSCode-style); double-clicking its tab promotes it to permanent.
+    layoutRef.current.ensureTerminal(activeSessionId, { preview: true });
     const ui = uiStateRef.current;
     if (ui.snapshot.active_session !== activeSessionId) {
       ui.update({ active_session: activeSessionId });
@@ -378,7 +390,7 @@ function WorkspaceInner() {
                 repoId={detail.data.project.repo_id}
                 sessions={sessions}
                 target={sidebarTarget}
-                onOpenFile={openFile}
+                onOpenFile={openTreeFile}
                 activeFilePath={activeFilePath}
                 activeDiffPath={activeDiffPath}
                 onOpenDiff={openDiff}
@@ -433,6 +445,7 @@ function WorkspaceInner() {
                     reveal={reveal}
                     onActivateTab={onActivateTab}
                     onCloseTab={onCloseTab}
+                    onPromoteTab={promoteTab}
                     onArchived={closeTab}
                     onFocusLeaf={layout.focusLeaf}
                     onResize={layout.resize}

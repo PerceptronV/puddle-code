@@ -160,6 +160,7 @@ export function TreeNode({
         (e.currentTarget.closest('[data-explorer-root]') as HTMLElement | null)?.focus();
         ex.onRowClick(row, e);
       }}
+      onDoubleClick={() => ex.onRowDoubleClick(row)}
       onContextMenu={() => {
         // Right-clicking a row outside the selection selects just it first
         // (without toggling/opening it, unlike a plain click).

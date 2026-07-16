@@ -22,13 +22,30 @@ export function useHash(): string {
   return useSyncExternalStore(subscribe, () => window.location.hash);
 }
 
+function notify(): void {
+  for (const l of listeners) l();
+}
+
+/**
+ * Set the fragment AND notify subscribers. A bare `location.hash = …` fires a
+ * `hashchange` event only when the value actually changes — assigning the
+ * current value (e.g. reopening the same settings section) emits nothing, so the
+ * `useSyncExternalStore` store never re-renders and the dialog silently fails to
+ * open until a reload. Notifying unconditionally closes that gap (the same way
+ * `closeSettings` compensates for `replaceState` firing no event).
+ */
+export function setHash(hash: string): void {
+  window.location.hash = hash;
+  notify();
+}
+
 export function openSettings(section = 'appearance'): void {
-  window.location.hash = `settings/${section}`;
+  setHash(`settings/${section}`);
 }
 
 export function closeSettings(): void {
   history.replaceState(null, '', window.location.pathname + window.location.search);
-  for (const l of listeners) l(); // replaceState fires no hashchange
+  notify(); // replaceState fires no hashchange
 }
 
 export function settingsSection(hash: string): string | null {

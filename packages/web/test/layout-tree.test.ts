@@ -13,10 +13,13 @@ import {
   makeLeaf,
   moveTab,
   normalise,
+  openPreview,
+  promoteTab,
   resizeSplit,
   sameRef,
   splitLeaf,
   tabRefKey,
+  addTabToLeaf,
 } from '../src/features/workspace/layout-tree';
 
 const ed = (path: string, session = 's1'): TabRef => ({ type: 'editor', tab: { session, path } });
@@ -259,5 +262,75 @@ describe('findLeaf', () => {
     const leaf = makeLeaf([ed('a.ts')]);
     expect(findLeaf(leaf, leaf.id)?.id).toBe(leaf.id);
     expect(findLeaf(leaf, 'nope')).toBeNull();
+  });
+});
+
+describe('preview tabs (VSCode-style ephemeral tabs)', () => {
+  const keyOf = (ref: TabRef) => tabRefKey(ref);
+
+  it('a single-click open becomes the preview tab (previewKey === activeKey)', () => {
+    const leaf = makeLeaf([]);
+    const next = leafWith(openPreview(leaf, leaf.id, ed('a.ts')), ed('a.ts'));
+    expect(next.tabs.map(keyOf)).toEqual([keyOf(ed('a.ts'))]);
+    expect(next.activeKey).toBe(keyOf(ed('a.ts')));
+    expect(next.previewKey).toBe(keyOf(ed('a.ts')));
+  });
+
+  it('a second single-click replaces the preview tab in place (one slot)', () => {
+    const leaf = makeLeaf([]);
+    const t1 = openPreview(leaf, leaf.id, ed('a.ts'));
+    const t2 = openPreview(t1, leaf.id, ed('b.ts'));
+    const l = leafWith(t2, ed('b.ts'));
+    // a.ts is gone; b.ts took its slot and is the new preview
+    expect(l.tabs.map(keyOf)).toEqual([keyOf(ed('b.ts'))]);
+    expect(l.previewKey).toBe(keyOf(ed('b.ts')));
+  });
+
+  it('does not replace a permanent tab, and re-opening a permanent tab keeps it', () => {
+    const leaf = makeLeaf([]);
+    const withPerm = addTabToLeaf(leaf, leaf.id, ed('a.ts')); // permanent
+    const withPreview = openPreview(withPerm, leaf.id, ed('b.ts')); // preview alongside
+    const l = leafWith(withPreview, ed('b.ts'));
+    expect(l.tabs.map(keyOf)).toEqual([keyOf(ed('a.ts')), keyOf(ed('b.ts'))]);
+    expect(l.previewKey).toBe(keyOf(ed('b.ts')));
+    // single-clicking the permanent tab just focuses it — no preview change
+    const focused = leafWith(openPreview(withPreview, l.id, ed('a.ts')), ed('a.ts'));
+    expect(focused.previewKey).toBe(keyOf(ed('b.ts')));
+    expect(focused.activeKey).toBe(keyOf(ed('a.ts')));
+  });
+
+  it('never discards a preview terminal — it pins it and opens the new tab alongside', () => {
+    const leaf = makeLeaf([]);
+    const withTerm = openPreview(leaf, leaf.id, term('t1')); // preview terminal (live PTY)
+    const withFile = openPreview(withTerm, leaf.id, ed('a.ts')); // open a file preview
+    const l = leafWith(withFile, term('t1'));
+    // the terminal survives (now permanent), the file is the new preview
+    expect(l.tabs.map(keyOf)).toEqual([keyOf(term('t1')), keyOf(ed('a.ts'))]);
+    expect(l.previewKey).toBe(keyOf(ed('a.ts')));
+  });
+
+  it('double-click (promoteTab) pins the preview tab', () => {
+    const leaf = makeLeaf([]);
+    const previewed = openPreview(leaf, leaf.id, ed('a.ts'));
+    const pinned = leafWith(promoteTab(previewed, keyOf(ed('a.ts'))), ed('a.ts'));
+    expect(pinned.previewKey).toBeNull();
+    expect(pinned.tabs.map(keyOf)).toEqual([keyOf(ed('a.ts'))]);
+  });
+
+  it('opening a preview tab permanently (addTabToLeaf) promotes it', () => {
+    const leaf = makeLeaf([]);
+    const previewed = openPreview(leaf, leaf.id, ed('a.ts'));
+    const promoted = leafWith(addTabToLeaf(previewed, leaf.id, ed('a.ts')), ed('a.ts'));
+    expect(promoted.previewKey).toBeNull();
+  });
+
+  it('closing the preview tab clears previewKey (normalise)', () => {
+    const leaf = makeLeaf([]);
+    const withPerm = addTabToLeaf(leaf, leaf.id, ed('a.ts'));
+    const withPreview = openPreview(withPerm, leaf.id, ed('b.ts'));
+    const l = leafWith(withPreview, ed('b.ts'));
+    const closed = leafWith(closeTab(withPreview, l.id, keyOf(ed('b.ts'))), ed('a.ts'));
+    expect(closed.previewKey).toBeNull();
+    expect(closed.tabs.map(keyOf)).toEqual([keyOf(ed('a.ts'))]);
   });
 });

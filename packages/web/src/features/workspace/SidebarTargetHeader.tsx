@@ -41,11 +41,18 @@ export function SidebarTargetHeader({
 }) {
   const { session, pinned, pin, unpin } = target;
   const pickable = sessions.filter((s) => s.status !== 'archived');
+  // The Files tree is browsing a directory, so name the worktree's folder there;
+  // Changes and Search are about the branch, so those keep the branch name (more
+  // intuitive per surface).
   const branchLabel = session ? session.branch || sessionDisplayName(session) : 'No worktree';
+  const dirLabel = session
+    ? (session.worktree_path.split('/').filter(Boolean).pop() ?? session.worktree_path)
+    : 'No worktree';
+  const title = showFileActions ? dirLabel : branchLabel;
 
   return (
     <div className="group flex h-8 shrink-0 items-center gap-1 px-2">
-      <MarqueeTitle text={branchLabel} />
+      <MarqueeTitle text={title} />
       {showFileActions && session && <ExplorerActions />}
       <button
         type="button"

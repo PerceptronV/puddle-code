@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import {
   DEFAULT_CONCURRENT_TEMPLATE,
   DEFAULT_ONBOARDING_TEMPLATE,
+  DEFAULT_RESTART_TEMPLATE,
   RULES_TOKEN,
 } from '@puddle/shared';
 import type { EventStore } from '../db/stores/events.js';
@@ -52,8 +53,15 @@ function appendTaskPrompt(body: string, taskPrompt?: string | null): string {
   return prompt ? `${body}\n\n---\n\n${prompt}` : body;
 }
 
-export const INTERRUPTED_RESUME_NOTE =
-  'This session was interrupted (daemon or machine restart). Processes you started are gone; re-verify your environment before continuing.';
+/**
+ * Launch text sent when a session resumes after an interruption — a daemon
+ * restart or a machine reboot (SPEC §4). `template` is the profile's
+ * `restartTemplate`: `undefined` falls back to DEFAULT_RESTART_TEMPLATE, an
+ * empty string is an intentional empty note (the caller then sends no prompt).
+ */
+export function buildInterruptedResumeNote(template: string | undefined): string {
+  return template ?? DEFAULT_RESTART_TEMPLATE;
+}
 
 /**
  * Watches each live session's `.puddle/onboarding-notes.md` and syncs it into

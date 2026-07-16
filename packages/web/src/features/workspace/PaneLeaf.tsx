@@ -21,6 +21,7 @@ export function PaneLeaf({
   reveal,
   onActivateTab,
   onCloseTab,
+  onPromoteTab,
   onArchived,
   onFocusLeaf,
 }: {
@@ -29,6 +30,7 @@ export function PaneLeaf({
   reveal: RevealTarget | null;
   onActivateTab: (leafId: string, ref: TabRef) => void;
   onCloseTab: (leafId: string, ref: TabRef) => void;
+  onPromoteTab: (ref: TabRef) => void;
   onArchived: (session: string) => void;
   onFocusLeaf: (leafId: string) => void;
 }) {
@@ -45,6 +47,7 @@ export function PaneLeaf({
         sessions={sessions}
         onActivate={(ref) => onActivateTab(leaf.id, ref)}
         onClose={(ref) => onCloseTab(leaf.id, ref)}
+        onPromote={onPromoteTab}
         onArchived={onArchived}
       />
       <div ref={setNodeRef} className="relative min-h-0 flex-1">

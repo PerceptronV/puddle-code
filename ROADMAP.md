@@ -1,6 +1,7 @@
 # Puddle Roadmap
 
 ## Features
+
 - [ ] Prompt bank
 - [ ] Support for other CLI-based coding agents
 - [ ] Hotkey settings
@@ -10,6 +11,7 @@
 - [ ] Use robot icon for agent sessions, instead of +
 
 Interactivity:
+
 - [ ] Right clicks display dialogue for editor tabs
 - [ ] Single clicking an active tab allows inline renaming
 - [ ] Single clicking an active file or folder allows inline renaming
@@ -17,10 +19,12 @@ Interactivity:
 - [ ] Get rid of tab header space when no tabs are open
 
 Sessions:
+
 - [ ] Claude title detection not yet reliable
 - [ ] Claude usage detection too slow
 
 Editor:
+
 - [ ] Markdown display support
 - [ ] Opening file behaviour like vscode: italics for snappy viewing
 - [ ] Command+w / command+shift+t

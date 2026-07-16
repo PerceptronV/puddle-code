@@ -332,7 +332,13 @@ export function usePatchProject() {
 }
 
 function invalidateSessions(qc: ReturnType<typeof useQueryClient>, session: Session) {
-  void qc.invalidateQueries({ queryKey: ['sessions', session.project_id] });
+  // Invalidate the whole `sessions` namespace, not just this project's key: the
+  // cross-project sidebar reads `['sessions', 'profile', profileId]`, which a
+  // `['sessions', projectId]` prefix would NOT match — so a fresh session (or a
+  // rename/archive/kill/migrate) never showed there until a reload. The mutation
+  // only has `project_id`, so the `['sessions']` prefix is the clean fix; it
+  // still covers the per-project list too.
+  void qc.invalidateQueries({ queryKey: ['sessions'] });
   void qc.invalidateQueries({ queryKey: ['project', session.project_id] });
 }
 
@@ -366,22 +372,23 @@ export function useMigrateSession() {
   });
 }
 
+/**
+ * Archive is now a reversible hide (SPEC §4): the worktree and conversation are
+ * kept, so there is nothing to force or confirm — a bare POST hides the session.
+ */
 export function useArchiveSession() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      sessionId,
-      force,
-      deleteBranch,
-    }: {
-      sessionId: string;
-      force?: boolean;
-      deleteBranch?: boolean;
-    }) =>
-      api<Session>('POST', `/api/sessions/${sessionId}/archive`, {
-        force: force ?? false,
-        delete_branch: deleteBranch ?? false,
-      }),
+    mutationFn: (sessionId: string) => api<Session>('POST', `/api/sessions/${sessionId}/archive`),
+    onSuccess: (session) => invalidateSessions(qc, session),
+  });
+}
+
+/** Reverse an archive: back to the active list, resumable if its worktree survives. */
+export function useUnarchiveSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (sessionId: string) => api<Session>('POST', `/api/sessions/${sessionId}/unarchive`),
     onSuccess: (session) => invalidateSessions(qc, session),
   });
 }

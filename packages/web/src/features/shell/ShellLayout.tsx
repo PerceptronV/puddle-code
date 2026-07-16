@@ -1,12 +1,12 @@
 import { useEffect } from 'react';
 import { Link, Outlet, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Command as CommandIcon, Settings } from 'lucide-react';
+import { Settings } from 'lucide-react';
 import type { ProjectDetail, Session } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { openSettings, settingsSection, useHash } from '../../lib/hash-route';
-import { useHostInfo, useProjectDetail, useRepos } from '../../lib/queries';
+import { useHostInfo, useProjectDetail } from '../../lib/queries';
 import { wsManager } from '../../lib/ws';
 import { Suspense, lazy, useState } from 'react';
 import { NewProjectDialog } from '../dashboard/NewProjectDialog';
@@ -60,59 +60,63 @@ function useStatusCacheSync() {
   }, [qc]);
 }
 
+/** Fires the same ⌘K the keyboard would, so every palette entry point is one path. */
+function openCommandPalette() {
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
+}
+
 /**
- * scp-style location in the top-bar centre: user@host, plus :repo-path once
- * a workspace is open. The daemon reports who/where it is (/api/host) — the
- * origin (and therefore any port) never appears in the UI.
+ * The way home: the small puddle mark and the daemon's host name, as one
+ * clickable block → all projects. The host tells you which machine you're
+ * driving (the daemon reports it via /api/host; the origin/port never shows).
  */
-function HostIndicator() {
+function HomeButton() {
   const host = useHostInfo();
+  return (
+    <Link
+      to="/"
+      className="flex shrink-0 items-center gap-2 transition-opacity hover:opacity-70"
+      title="All projects"
+    >
+      <img src="/puddle.svg" alt="puddle" className="size-4" />
+      {host.data && (
+        <span className="truncate font-mono text-sm font-semibold text-fg-secondary">
+          {host.data.hostname}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+/**
+ * The centre command field (SPEC §12): a thin, background-dimmed pseudo-input
+ * that opens the ⌘K palette on click. Its centred hint names the active project
+ * so the bar always says where you are — no border, a fill-shift on hover
+ * (HUMANS.md).
+ */
+function CommandField() {
   const params = useParams();
   const detail = useProjectDetail(params['id']);
-  const repos = useRepos();
-  if (!host.data) return null;
-
-  const repoPath = repos.data?.find((r) => r.id === detail.data?.project.repo_id)?.path;
-  const shownPath =
-    repoPath && repoPath.startsWith(host.data.home)
-      ? `~${repoPath.slice(host.data.home.length)}`
-      : repoPath;
-
+  const projectName = detail.data?.project.name;
   return (
-    <span className="absolute left-1/2 max-w-[45%] -translate-x-1/2 truncate font-mono text-sm font-semibold text-fg-secondary">
-      {/* The host is the way home: click → all projects. */}
-      <Link to="/" className="transition-colors hover:text-fg">
-        {host.data.username}@{host.data.hostname}
-      </Link>
-      {shownPath && <span className="text-fg-muted">:{shownPath}</span>}
-    </span>
+    <button
+      type="button"
+      onClick={openCommandPalette}
+      className="absolute left-1/2 flex h-6 w-[min(30rem,42%)] -translate-x-1/2 items-center justify-center gap-2 rounded-md bg-ground text-fg-muted transition-colors hover:bg-elevated hover:text-fg-secondary"
+    >
+      <span className="truncate text-xs">{projectName ?? 'puddle'}</span>
+      <span className="text-2xs">⌘K</span>
+    </button>
   );
 }
 
 function TopBar() {
   return (
-    // pl-5 ≈ the right side's visual inset (pr-3 + the ghost buttons' own padding).
-    <header className="relative flex h-9 shrink-0 items-center gap-3 bg-surface pl-5 pr-3">
-      <Link to="/" className="flex transition-opacity hover:opacity-70">
-        <img src="/puddle.svg" alt="puddle" className="size-5" />
-      </Link>
-      <HostIndicator />
+    // pl-3 ≈ the right side's visual inset (pr-3 + the ghost buttons' own padding).
+    <header className="relative flex h-9 shrink-0 items-center gap-3 bg-surface pl-3 pr-3">
+      <HomeButton />
+      <CommandField />
       <div className="ml-auto flex items-center gap-1">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() =>
-                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))
-              }
-            >
-              <CommandIcon />
-              <span className="text-2xs">K</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Command palette (⌘K)</TooltipContent>
-        </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon" onClick={() => openSettings()}>

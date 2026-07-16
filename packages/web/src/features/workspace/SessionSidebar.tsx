@@ -399,7 +399,7 @@ export function SessionSidebar({
                     activeSessionId={activeSessionId}
                     accountLabel={accountLabel}
                     onArchived={onArchived}
-                    ellipsis={false}
+                    ellipsis
                   />
                 </li>
               ))}
