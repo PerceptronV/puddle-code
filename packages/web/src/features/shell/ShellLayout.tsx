@@ -135,6 +135,11 @@ function ShellBody() {
   const settingsSection = useSettingsSection();
   const profileId = useCurrentProfileId();
   const [creatingProject, setCreatingProject] = useState(false);
+  // Warm the settings chunk in the background so the dialog opens instantly and
+  // never suspends the (synchronous) open into a blank frame.
+  useEffect(() => {
+    void import('../settings/SettingsDialog');
+  }, []);
   return (
     <div className="flex h-screen flex-col bg-ground">
       <TopBar />

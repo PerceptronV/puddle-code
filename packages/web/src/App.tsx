@@ -8,6 +8,7 @@ import { ProfilePicker } from './features/profile/ProfilePicker';
 import { useCurrentProfileId } from './features/profile/profile-store';
 import { ShellLayout } from './features/shell/ShellLayout';
 import { tokenStore } from './lib/auth';
+import { useProfiles } from './lib/queries';
 
 // Route-level chunks: each page loads on first visit, not up front.
 const Dashboard = lazy(() =>
@@ -25,7 +26,17 @@ const queryClient = new QueryClient({
 
 function Gated() {
   const profileId = useCurrentProfileId();
-  if (profileId === null) return <ProfilePicker />;
+  const profiles = useProfiles();
+  // A stored profile id that merely LOOKS valid (10-hex) but is no longer a real
+  // profile — e.g. after a daemon change, or a stale id left in localStorage —
+  // must fall back to the picker, not render a homepage bound to a profile that
+  // doesn't exist (which showed a nameless "…" profile and an empty dashboard).
+  // While the list is still loading we can't tell, so don't flash the picker.
+  const unknownProfile =
+    profileId !== null &&
+    profiles.data !== undefined &&
+    !profiles.data.some((p) => p.id === profileId);
+  if (profileId === null || unknownProfile) return <ProfilePicker />;
   return (
     // useTransitions={false}: by default react-router v7+ wraps every location
     // update in React.startTransition, so under React 19 a navigation defers —

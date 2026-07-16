@@ -284,13 +284,21 @@ function WorkspaceInner() {
   );
 
   // Activating a tab focuses its pane; activating a terminal also navigates so
-  // the left sidebar binds to it. Closing a pane tab mirrors `closeTab`.
+  // the left sidebar binds to it. A terminal tab may belong to ANOTHER project
+  // (the cross-project sidebar can open one here), so navigate to the session's
+  // OWN project — otherwise the URL keeps this project and the file tree, bound
+  // to a session it doesn't own, shows empty. Closing a pane tab mirrors `closeTab`.
   const onActivateTab = useCallback(
     (leafId: string, ref: TabRef) => {
       layout.activate(leafId, ref);
-      if (ref.type === 'terminal') void navigate(`/project/${projectId}/session/${ref.session}`);
+      if (ref.type === 'terminal') {
+        const owner =
+          (profileSessions.data ?? sessions).find((s) => s.id === ref.session)?.project_id ??
+          projectId;
+        void navigate(`/project/${owner}/session/${ref.session}`);
+      }
     },
-    [layout, navigate, projectId],
+    [layout, navigate, projectId, profileSessions.data, sessions],
   );
   const onCloseTab = useCallback(
     (leafId: string, ref: TabRef) => {

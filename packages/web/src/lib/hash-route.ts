@@ -1,14 +1,15 @@
-import { useSyncExternalStore } from 'react';
+import { useEffect, useState } from 'react';
 
 /**
- * Settings-dialog routing. The open section is a CONTROLLED module store — the
- * source of truth — NOT `window.location.hash` read live. Reading the hash was
- * unreliable: assigning the value it already holds fires no `hashchange` (so
- * reopening a section did nothing until reload), and react-router's `pushState`
- * can clear the fragment out from under us with no event at all (so the dialog
- * would silently fail to open or close). We keep the URL `#settings/<section>`
- * as a deep-link MIRROR and resync from it only on the events that DO fire
- * (back/forward, an external hash edit).
+ * Settings-dialog routing. The open section is a plain module variable — the
+ * source of truth — mirrored into the URL as `#settings/<section>` for deep
+ * links, and resynced from the hash on back/forward.
+ *
+ * Consumers subscribe with `useState`/`useEffect` rather than
+ * `useSyncExternalStore`: the latter did NOT re-render the gate on a
+ * programmatic open in this app (the dialog only appeared after a reload, which
+ * reads the section straight from the URL at first render). A `useState`
+ * setter driven by our own listener set is the reliable path.
  */
 const listeners = new Set<() => void>();
 function notify(): void {
@@ -21,26 +22,28 @@ function parseSection(hash: string): string | null {
 }
 
 let section: string | null = parseSection(window.location.hash);
-let attached = false;
 
-function subscribe(listener: () => void): () => void {
-  if (!attached) {
-    // Back/forward and deep links change the hash out-of-band → resync from it.
-    const resync = () => {
-      section = parseSection(window.location.hash);
-      notify();
-    };
-    window.addEventListener('hashchange', resync);
-    window.addEventListener('popstate', resync);
-    attached = true;
-  }
-  listeners.add(listener);
-  return () => listeners.delete(listener);
+// Back/forward and any external hash edit change the fragment out of band; keep
+// the module `section` (and every subscriber) in sync with the URL.
+function resyncFromHash(): void {
+  section = parseSection(window.location.hash);
+  notify();
 }
+window.addEventListener('hashchange', resyncFromHash);
+window.addEventListener('popstate', resyncFromHash);
 
 /** The open settings section, or null when the dialog is closed. */
 export function useSettingsSection(): string | null {
-  return useSyncExternalStore(subscribe, () => section);
+  const [value, setValue] = useState(section);
+  useEffect(() => {
+    setValue(section); // catch a change between render and this effect
+    const listener = () => setValue(section);
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
+  }, []);
+  return value;
 }
 
 export function openSettings(next = 'appearance'): void {
