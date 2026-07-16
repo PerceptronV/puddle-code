@@ -10,4 +10,7 @@
 // 6.0 (2026-07-15): major bumped with no schema shape change, on purpose —
 // forces every connected daemon to hit a major mismatch on the next handshake
 // and auto-upgrade onto this release (see PROTOCOL.md, "The rule").
-export const PROTOCOL_VERSION = { major: 6, minor: 0 } as const;
+// 6.1 (2026-07-15): additive — `Session.osc_title` (the terminal-title
+// "sequence" name) and the `renamed` message's `osc_title` field, plus the
+// profile setting `tabTitleTemplate` (a loose key).
+export const PROTOCOL_VERSION = { major: 6, minor: 1 } as const;

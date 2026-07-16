@@ -16,8 +16,8 @@ import type { Account, Session } from '@puddle/shared';
 import { AgentIcon } from '../../components/agent-icon';
 import { ContextMenu, ContextMenuTrigger } from '../../components/ui/context-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
-import { sessionDisplayName } from '../../lib/session-display';
 import { cn } from '../../lib/utils';
+import { useSessionTitleRenderer } from '../profile/use-session-title';
 import { StatusDot } from '../status/StatusDot';
 import {
   SessionActionsEllipsis,
@@ -67,9 +67,10 @@ function IconButton({
 
 /** Name over branch — the tooltip for a collapsed dot and any hover label. */
 function SessionLabel({ session }: { session: Session }) {
+  const renderTitle = useSessionTitleRenderer();
   return (
     <span className="flex flex-col">
-      <span>{sessionDisplayName(session)}</span>
+      <span>{renderTitle(session)}</span>
       <span className="font-mono text-2xs text-fg-muted">{session.branch}</span>
     </span>
   );
@@ -91,6 +92,7 @@ function CollapsedSessionDot({
   onArchived: (id: string) => void;
 }) {
   const { menu, dialogs } = useSessionMenu(session, onArchived);
+  const renderTitle = useSessionTitleRenderer();
   return (
     <ContextMenu>
       <Tooltip>
@@ -115,7 +117,7 @@ function CollapsedSessionDot({
                 kind={session.kind}
                 className="[--puddle-ripple-scale:2.3]"
               />
-              <span className="sr-only">{sessionDisplayName(session)}</span>
+              <span className="sr-only">{renderTitle(session)}</span>
             </Link>
           </TooltipTrigger>
         </ContextMenuTrigger>
@@ -214,6 +216,7 @@ function SessionRow({
   /** Whether to mount the hover ellipsis (archived rows omit it). */
   ellipsis: boolean;
 }) {
+  const renderTitle = useSessionTitleRenderer();
   return (
     <SessionContextMenu session={session} onArchived={onArchived}>
       {(menu) => (
@@ -230,9 +233,7 @@ function SessionRow({
         >
           <StatusDot status={session.status} kind={session.kind} />
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-sans text-xs text-fg">
-              {sessionDisplayName(session)}
-            </span>
+            <span className="block truncate font-sans text-xs text-fg">{renderTitle(session)}</span>
             <span className="flex items-center gap-1 truncate font-mono text-2xs text-fg-muted">
               <GitBranch className="size-3 shrink-0" />
               <span className="truncate">{session.branch}</span>

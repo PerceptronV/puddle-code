@@ -1,8 +1,8 @@
 import { useDraggable } from '@dnd-kit/core';
 import { X } from 'lucide-react';
 import type { LayoutLeaf, Session, TabRef } from '@puddle/shared';
-import { sessionDisplayName } from '../../lib/session-display';
 import { cn } from '../../lib/utils';
+import { useSessionTitleRenderer } from '../profile/use-session-title';
 import { StatusDot } from '../status/StatusDot';
 import { editorTabLabel } from '../editor/buffer-logic';
 import { tabKind, type EditorTab } from '../editor/editor-tabs';
@@ -81,6 +81,7 @@ function PaneTab({
   onClose: () => void;
   onArchived: (session: string) => void;
 }) {
+  const renderTitle = useSessionTitleRenderer();
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: tabRefKey(tab),
     data: { ref: tab, fromLeafId: leafId },
@@ -97,7 +98,7 @@ function PaneTab({
         <>
           {session && <StatusDot status={session.status} kind={session.kind} />}
           <span className="truncate font-mono">
-            {session ? sessionDisplayName(session) : tab.session.slice(0, 8)}
+            {session ? renderTitle(session) : tab.session.slice(0, 8)}
           </span>
           <button
             onClick={(e) => {

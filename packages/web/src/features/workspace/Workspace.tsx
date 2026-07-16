@@ -7,7 +7,7 @@ import type { Session, SessionKind, TabRef } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { useExplorerTarget } from '../explorer/use-explorer-target';
 import { useClientSettings } from '../../lib/client-settings';
-import { sessionDisplayName } from '../../lib/session-display';
+import { useSessionTitleRenderer } from '../profile/use-session-title';
 import {
   useAccounts,
   useProfileSessions,
@@ -92,6 +92,7 @@ function WorkspaceInner() {
   const detail = useProjectDetail(validProject ? projectId : undefined);
   const sessions = useMemo(() => detail.data?.sessions ?? [], [detail.data]);
   const accounts = useAccounts(detail.data?.project.profile_id).data ?? [];
+  const renderTitle = useSessionTitleRenderer();
 
   const uiState = useUiState(validProject ? projectId : undefined);
 
@@ -416,7 +417,7 @@ function WorkspaceInner() {
                     const label =
                       ref.type === 'terminal'
                         ? s
-                          ? sessionDisplayName(s)
+                          ? renderTitle(s)
                           : ref.session.slice(0, 8)
                         : (ref.tab.path.split('/').pop() ?? ref.tab.path);
                     return (

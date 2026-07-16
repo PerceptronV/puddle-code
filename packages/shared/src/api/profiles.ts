@@ -34,6 +34,32 @@ Then proceed with the task below (or await instructions if none is given).`;
 /** Built-in launch text for joining an existing/shared worktree (SPEC §4). */
 export const DEFAULT_CONCURRENT_TEMPLATE = `[puddle] You are joining an existing branch and worktree that other agents may be working in concurrently. Files can change underneath you, so re-check the working tree before you act, and avoid disruptive git operations (resetting, force-pushing, or deleting the branch) that would disrupt work already in progress by others.`;
 
+/**
+ * The variables a `tabTitleTemplate` may interpolate (`${name}` style), in the
+ * order the settings UI lists them. Each maps a token to a one-line description
+ * of what it resolves to for a session (SPEC §4). The renderer lives in the web
+ * package; this list is the shared source the settings editor documents.
+ */
+export const TAB_TITLE_VARIABLES = [
+  ['name', 'the resolved display name: user rename, else agent name, else sequence, else id'],
+  ['title', 'the user rename override only (empty when unset)'],
+  ['agentName', "the agent's own session name (empty when the agent has not named it)"],
+  ['sequence', 'the terminal-title name the process set (empty when it set none)'],
+  ['branch', 'the git branch'],
+  ['cwd', "the worktree directory's name"],
+  ['id', 'the first 8 characters of the session id'],
+  ['status', 'the session status (running, waiting_input, …)'],
+  ['agent', 'the agent type (empty for terminal sessions)'],
+  ['separator', 'an em dash that appears only between two non-empty neighbours'],
+] as const;
+
+/**
+ * Default tab-title template (SPEC §4). `${name}` is the smart fallback chain,
+ * so the default reproduces the historical display name; users override this per
+ * profile to add decoration (e.g. `${branch}${separator}${name}`).
+ */
+export const DEFAULT_TAB_TITLE_TEMPLATE = '${name}';
+
 export const profileSchema = z.object({
   id: profileId,
   name: fsSafeName,
@@ -73,6 +99,14 @@ export const profileSettingsSchema = z.looseObject({
    */
   onboardingTemplate: z.string().optional(),
   concurrentTemplate: z.string().optional(),
+  /**
+   * How a session's tab/label is composed from its parts (SPEC §4). A template
+   * string interpolating `${…}` variables (see `TAB_TITLE_VARIABLES`); ABSENT
+   * falls back to `DEFAULT_TAB_TITLE_TEMPLATE` (`${name}`), reproducing the
+   * historical display name. Empty renders (all chosen variables blank) fall
+   * back to the session-id prefix, so a tab is never nameless.
+   */
+  tabTitleTemplate: z.string().optional(),
   /**
    * The user's drag-order of projects on the homescreen (project ids). Projects
    * absent from this list — newly created ones — sort to the top. The right

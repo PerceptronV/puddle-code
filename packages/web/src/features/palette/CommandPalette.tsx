@@ -21,10 +21,10 @@ import {
 } from '../../components/ui/command';
 import { applyTheme } from '../../lib/theme';
 import { openSettings } from '../../lib/hash-route';
-import { sessionDisplayName } from '../../lib/session-display';
 import { useProjects, useSessions } from '../../lib/queries';
 import { collectCommands, type PaletteCommand } from './commands';
 import { useCurrentProfileId, profileStore } from '../profile/profile-store';
+import { useSessionTitleRenderer } from '../profile/use-session-title';
 
 /** ⌘K palette: switch project/session, new project/session, theme, settings (Phase 2). */
 export function CommandPalette({
@@ -41,6 +41,7 @@ export function CommandPalette({
   const projectId = params['id'];
   const projects = useProjects(profileId ?? undefined);
   const sessions = useSessions(projectId);
+  const renderTitle = useSessionTitleRenderer();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -70,7 +71,7 @@ export function CommandPalette({
       items.push({
         id: `session-${session.id}`,
         group: 'Sessions',
-        label: sessionDisplayName(session),
+        label: renderTitle(session),
         icon: TerminalSquare,
         keywords: `switch session ${session.branch}`,
         run: () => void navigate(`/project/${session.project_id}/session/${session.id}`),
@@ -136,7 +137,7 @@ export function CommandPalette({
       },
     );
     return [...items, ...collectCommands()];
-  }, [projects.data, sessions.data, projectId, navigate, onNewSession, onNewProject]);
+  }, [projects.data, sessions.data, projectId, navigate, onNewSession, onNewProject, renderTitle]);
 
   const groups = useMemo(() => {
     const byGroup = new Map<string, PaletteCommand[]>();

@@ -15,6 +15,7 @@ interface Row {
   agent_session_ref: string | null;
   title: string | null;
   agent_title: string | null;
+  osc_title: string | null;
   status: SessionStatus;
   skip_permissions: number;
   created_at: string;
@@ -214,6 +215,13 @@ export class SessionStore {
   setAgentTitle(id: string, title: string | null): void {
     this.db
       .prepare(`UPDATE sessions SET agent_title = ?, updated_at = ? WHERE id = ?`)
+      .run(title, new Date().toISOString(), id);
+  }
+
+  /** The terminal-title "sequence" name from the PTY's OSC escapes (SPEC §4). */
+  setOscTitle(id: string, title: string | null): void {
+    this.db
+      .prepare(`UPDATE sessions SET osc_title = ?, updated_at = ? WHERE id = ?`)
       .run(title, new Date().toISOString(), id);
   }
 

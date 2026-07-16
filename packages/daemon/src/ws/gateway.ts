@@ -62,6 +62,7 @@ export class WsGateway {
           session: e.session,
           title: e.title,
           agent_title: e.agent_title,
+          osc_title: e.osc_title,
         });
       }
     });

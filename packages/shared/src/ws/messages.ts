@@ -29,6 +29,12 @@ export type WsServerMessage =
   | { t: 'replay'; session: string; term: string; data: string }
   | { t: 'output'; session: string; term: string; data: string }
   | { t: 'status'; session: string; status: SessionStatus; last_activity_at: string | null }
-  | { t: 'renamed'; session: string; title: string | null; agent_title?: string | null }
+  | {
+      t: 'renamed';
+      session: string;
+      title: string | null;
+      agent_title?: string | null;
+      osc_title?: string | null;
+    }
   | { t: 'exit'; session: string; term: string; code: number }
   | { t: 'error'; message: string };

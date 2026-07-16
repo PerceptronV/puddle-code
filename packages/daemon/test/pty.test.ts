@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { claudeCode } from '../src/agents/claude-code.js';
 import { AdapterRegistry } from '../src/agents/registry.js';
 import { LogStore } from '../src/logs/log-store.js';
-import { stripAnsi } from '../src/pty/ansi.js';
+import { extractOscTitle, stripAnsi } from '../src/pty/ansi.js';
 import { PtyManager } from '../src/pty/pty-manager.js';
 import { StatusDetector } from '../src/pty/status-detector.js';
 
@@ -84,6 +84,34 @@ describe('stripAnsi', () => {
     expect(stripAnsi('\u001b[32m│ >\u001b[0m ready \u001b]0;title\u0007done')).toBe(
       '│ > ready done',
     );
+  });
+});
+
+describe('extractOscTitle', () => {
+  it('reads an OSC 0/1/2 title, BEL- or ST-terminated', () => {
+    expect(extractOscTitle('before \u001b]0;my session\u0007 after')).toBe('my session');
+    expect(extractOscTitle('\u001b]2;window\u001b\\')).toBe('window');
+    expect(extractOscTitle('\u001b]1;icon\u0007')).toBe('icon');
+  });
+
+  it('strips a leading spinner/status glyph so the name is animation-stable', () => {
+    // Braille spinner frames (Claude Code) and a symbol prefix both collapse.
+    expect(extractOscTitle('\u001b]0;⠋ hey\u0007')).toBe('hey');
+    expect(extractOscTitle('\u001b]0;⠙ hey\u0007')).toBe('hey');
+    expect(extractOscTitle('\u001b]0;✳ hey\u0007')).toBe('hey');
+  });
+
+  it('takes the last title in the chunk and collapses whitespace', () => {
+    expect(extractOscTitle('\u001b]0;first\u0007\u001b]0;  second  line \u0007')).toBe(
+      'second line',
+    );
+  });
+
+  it('returns null for no title, an empty title, or an unterminated one', () => {
+    expect(extractOscTitle('plain output, no escapes')).toBeNull();
+    expect(extractOscTitle('\u001b]0;\u0007')).toBeNull();
+    expect(extractOscTitle('\u001b]0;⠋ \u0007')).toBeNull(); // spinner only
+    expect(extractOscTitle('\u001b]0;partial no terminator')).toBeNull();
   });
 });
 

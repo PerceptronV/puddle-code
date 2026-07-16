@@ -12,6 +12,7 @@ import type { RepoStore } from '../db/stores/repos.js';
 import type { SessionStore } from '../db/stores/sessions.js';
 import { ApiError } from '../http/errors.js';
 import type { LogStore } from '../logs/log-store.js';
+import { extractOscTitle } from '../pty/ansi.js';
 import type { PtyDataEvent, PtyExitEvent, PtyManager } from '../pty/pty-manager.js';
 import { StatusDetector, type DetectedStatus } from '../pty/status-detector.js';
 import type { CreateWorktreeResult, WorktreeManager } from '../worktrees/manager.js';
@@ -49,10 +50,12 @@ export interface StatusEvent {
 
 export interface RenameEvent {
   session: string;
-  /** User override (null → use agent_title, then the id prefix). */
+  /** User override (null → use agent_title, then osc_title, then the id prefix). */
   title: string | null;
   /** The agent's own name; carried so a live agent-title change updates the default. */
   agent_title: string | null;
+  /** The terminal-title "sequence" name; carried so a live change updates the default. */
+  osc_title?: string | null;
 }
 
 interface LiveAgent {
@@ -60,6 +63,10 @@ interface LiveAgent {
   detector: StatusDetector | null;
   status: Extract<SessionStatus, 'starting' | 'running' | 'waiting_input'>;
   lastTouch: number;
+  /** Throttle for the OSC-title-driven agent-name re-read (see onPtyData). */
+  lastTitleCheck: number;
+  /** Last OSC "sequence" title seen, to persist/broadcast only on a real change. */
+  lastOscTitle: string | null;
 }
 
 const LIVE_STATUSES: SessionStatus[] = ['starting', 'running', 'waiting_input'];
@@ -105,7 +112,8 @@ export class SessionService extends EventEmitter {
   /**
    * Renames the puddle session only — the git branch is untouched (SPEC §6).
    * An empty title CLEARS the user override, so the display name reverts to the
-   * agent's own name (`agent_title`) and then the session-id prefix.
+   * agent's own name (`agent_title`), then the terminal-title name (`osc_title`),
+   * then the session-id prefix.
    */
   rename(id: string, title: string): Session {
     this.deps.sessions.get(id);
@@ -116,6 +124,7 @@ export class SessionService extends EventEmitter {
       session: id,
       title: session.title,
       agent_title: session.agent_title ?? null,
+      osc_title: session.osc_title ?? null,
     } satisfies RenameEvent);
     return session;
   }
@@ -150,6 +159,7 @@ export class SessionService extends EventEmitter {
       session: sessionId,
       title: session.title,
       agent_title: next,
+      osc_title: session.osc_title ?? null,
     } satisfies RenameEvent);
   }
 
@@ -390,7 +400,13 @@ export class SessionService extends EventEmitter {
       this.deps.events.record(sessionId, 'spawn_failed', { message: (e as Error).message });
       throw new ApiError(500, 'spawn_failed', `could not start ${shell}: ${(e as Error).message}`);
     }
-    this.liveAgents.set(sessionId, { detector: null, status: 'starting', lastTouch: 0 });
+    this.liveAgents.set(sessionId, {
+      detector: null,
+      status: 'starting',
+      lastTouch: 0,
+      lastTitleCheck: 0,
+      lastOscTitle: null,
+    });
   }
 
   async resume(id: string): Promise<Session> {
@@ -782,7 +798,13 @@ export class SessionService extends EventEmitter {
       },
       this.deps.statusQuietMs ?? 2000,
     );
-    this.liveAgents.set(sessionId, { detector, status: initial, lastTouch: 0 });
+    this.liveAgents.set(sessionId, {
+      detector,
+      status: initial,
+      lastTouch: 0,
+      lastTitleCheck: 0,
+      lastOscTitle: null,
+    });
   }
 
   private onPtyData(e: PtyDataEvent): void {
@@ -800,6 +822,49 @@ export class SessionService extends EventEmitter {
       this.transition(e.stream, 'running');
     }
     live.detector?.feed(e.data);
+    // A session announces a name change by setting its terminal title (OSC
+    // 0/1/2) — e.g. Claude Code's `/rename`, handled client-side with no status
+    // transition. `extractOscTitle` returns the de-animated title (spinner
+    // glyphs stripped) or null (SPEC §4).
+    const oscTitle = extractOscTitle(e.data);
+    if (oscTitle !== null) {
+      // The "sequence" name: the default label for sessions without an
+      // adapter-maintained agent_title (terminals, agents whose adapter has no
+      // sessionTitle). Persist only on a real change — already de-animated.
+      if (oscTitle !== live.lastOscTitle) {
+        live.lastOscTitle = oscTitle;
+        this.captureOscTitle(e.stream, oscTitle);
+      }
+      // For an adapter that keeps its own name (Claude Code → transcript), the
+      // title emission is the cue to re-read it; throttled, transcript wins.
+      if (now - live.lastTitleCheck > 1000) {
+        live.lastTitleCheck = now;
+        this.refreshAgentTitle(e.stream);
+      }
+    }
+  }
+
+  /**
+   * Stores the terminal-title "sequence" name and broadcasts a `renamed` so an
+   * attached client's default label tracks it live. A user `title` and an
+   * adapter's `agent_title` both still win in the display order (SPEC §4).
+   * Best-effort: never throws upward.
+   */
+  private captureOscTitle(sessionId: string, oscTitle: string): void {
+    let session: Session;
+    try {
+      session = this.deps.sessions.get(sessionId);
+    } catch {
+      return; // session gone
+    }
+    if ((session.osc_title ?? null) === oscTitle) return; // already current
+    this.deps.sessions.setOscTitle(sessionId, oscTitle);
+    this.emit('renamed', {
+      session: sessionId,
+      title: session.title,
+      agent_title: session.agent_title ?? null,
+      osc_title: oscTitle,
+    } satisfies RenameEvent);
   }
 
   private onDetected(sessionId: string, detected: DetectedStatus): void {

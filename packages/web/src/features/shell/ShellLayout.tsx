@@ -45,9 +45,10 @@ function useStatusCacheSync() {
           ? {
               ...session,
               title: event.title,
-              // Older daemons omit agent_title from the event — keep the cached
-              // value rather than wiping it.
+              // Older daemons omit agent_title / osc_title from the event — keep
+              // the cached value rather than wiping it.
               agent_title: 'agent_title' in event ? event.agent_title : session.agent_title,
+              osc_title: 'osc_title' in event ? event.osc_title : session.osc_title,
             }
           : session,
       ),

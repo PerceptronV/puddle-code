@@ -283,6 +283,67 @@ describe('session naming', () => {
     await f.service.kill(session.id);
   });
 
+  it('re-reads the agent name on an OSC title emission, without a status change', async () => {
+    const f = fixture();
+    const renames: Array<{ agent_title: string | null }> = [];
+    f.service.on('renamed', (e) => renames.push(e));
+    const session = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      prompt: 'go',
+    });
+    // Settle into a steady live state (READY → waiting_input) with no name yet.
+    await waitFor(() => f.service.get(session.id).status === 'waiting_input');
+    expect(f.service.get(session.id).agent_title).toBeNull();
+
+    // The agent renames itself mid-session — as Claude Code's `/rename` does,
+    // entirely client-side: it rewrites its own title source and sets the
+    // terminal title, with no status transition. The OSC title reaching the PTY
+    // stream is the only signal the daemon gets.
+    const cfg = f.stores.accounts.get(f.ids.account).config_dir;
+    writeFileSync(join(cfg, `title-${session.agent_session_ref}`), 'renamed live');
+    f.ptys.emit('data', {
+      stream: session.id,
+      term: 'agent',
+      data: '\u001b]0;⠻ renamed live\u0007',
+    });
+
+    await waitFor(() => f.service.get(session.id).agent_title === 'renamed live');
+    expect(f.service.get(session.id).title).toBeNull(); // still no user override
+    expect(renames.some((e) => e.agent_title === 'renamed live')).toBe(true);
+    await f.service.kill(session.id);
+  });
+
+  it('captures the terminal-title "sequence" name (osc_title) and de-animates it', async () => {
+    const f = fixture();
+    const renames: Array<{ osc_title?: string | null }> = [];
+    f.service.on('renamed', (e) => renames.push(e));
+    const session = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      prompt: 'go',
+    });
+    await waitFor(() => f.service.get(session.id).status === 'waiting_input');
+    expect(f.service.get(session.id).osc_title ?? null).toBeNull();
+
+    // The process sets its terminal title with an animated spinner prefix. The
+    // daemon stores the de-animated name; successive spinner frames of the same
+    // name are one stored value and one broadcast, not one per frame.
+    f.ptys.emit('data', {
+      stream: session.id,
+      term: 'agent',
+      data: '\u001b]0;⠋ my terminal\u0007',
+    });
+    await waitFor(() => f.service.get(session.id).osc_title === 'my terminal');
+    f.ptys.emit('data', {
+      stream: session.id,
+      term: 'agent',
+      data: '\u001b]0;⠙ my terminal\u0007',
+    });
+    expect(renames.filter((e) => e.osc_title === 'my terminal')).toHaveLength(1);
+    await f.service.kill(session.id);
+  });
+
   it('rename stores a user override; an empty rename clears it back to the default', async () => {
     const f = fixture();
     const session = await f.service.create({

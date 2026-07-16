@@ -43,6 +43,15 @@ export const sessionSchema = z.object({
    * older daemons omit it; null when the agent has not named the session yet.
    */
   agent_title: z.string().nullable().optional(),
+  /**
+   * The terminal-title "sequence" name: the last title the process set on its
+   * PTY via an OSC 0/1/2 escape, normalised (leading spinner/status glyphs
+   * stripped). This is the VSCode `${sequence}` variable — a name source for
+   * agents and terminals that have no adapter-maintained `agent_title`. Optional:
+   * older daemons omit it; null when the process has set no title. It never
+   * overrides a user `title`; see `tabTitleTemplate` for how it is composed.
+   */
+  osc_title: z.string().nullable().optional(),
   status: sessionStatusSchema,
   skip_permissions: z.boolean(),
   created_at: isoTimestamp,

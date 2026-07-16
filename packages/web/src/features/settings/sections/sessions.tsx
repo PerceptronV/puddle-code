@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
-import { DEFAULT_CONCURRENT_TEMPLATE, DEFAULT_ONBOARDING_TEMPLATE } from '@puddle/shared';
+import {
+  DEFAULT_CONCURRENT_TEMPLATE,
+  DEFAULT_ONBOARDING_TEMPLATE,
+  DEFAULT_TAB_TITLE_TEMPLATE,
+  TAB_TITLE_VARIABLES,
+} from '@puddle/shared';
+import { renderSessionTitle, type TitleSession } from '../../../lib/session-display';
 import { Button } from '../../../components/ui/button';
 import {
   Dialog,
@@ -75,11 +81,93 @@ function TemplateEditor({
   );
 }
 
+/** A representative session for the tab-title live preview (SPEC §4). */
+const PREVIEW_SESSION: TitleSession = {
+  id: '4f3c2b1a-7e6d-5c4b-3a2f-1e0d9c8b7a6f',
+  title: null,
+  agent_title: 'Refactor the auth flow',
+  osc_title: 'claude',
+  branch: 'alice/refactor-auth',
+  worktree_path: '/home/alice/code/app--refactor-auth',
+  status: 'waiting_input',
+  agent_type: 'claude-code',
+};
+
 /**
- * Session behaviour (SPEC §4, §11): the permission-skip gate, plus the launch
- * text templates sent to an agent when it starts a fresh worktree or joins an
- * existing one. Enabling the gate demands a typed profile name; disabling is
- * immediate. The daemon enforces the gate server-side regardless of this UI.
+ * Tab-title template editor (SPEC §4): edit the `${…}` template the profile
+ * composes session labels from, with a live preview and a variable reference.
+ */
+function TabTitleEditor({
+  initial,
+  onSave,
+  pending,
+}: {
+  initial: string;
+  onSave: (text: string) => void;
+  pending: boolean;
+}) {
+  const [text, setText] = useState(initial);
+  const effective = text.length > 0 ? text : DEFAULT_TAB_TITLE_TEMPLATE;
+  return (
+    <div className="mt-3 flex flex-col gap-1.5">
+      <label htmlFor="tab-title-template" className="flex flex-col gap-0.5 text-sm text-fg">
+        Template
+        <span className="text-xs text-fg-muted">
+          Compose the label from the parts below. Empty falls back to the default.
+        </span>
+      </label>
+      <Input
+        id="tab-title-template"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        className="font-mono"
+        placeholder={DEFAULT_TAB_TITLE_TEMPLATE}
+      />
+      <p className="text-xs text-fg-muted">
+        Preview{' '}
+        <span className="ml-1 font-sans text-fg">
+          {renderSessionTitle(PREVIEW_SESSION, effective)}
+        </span>
+      </p>
+      <dl className="mt-1 flex flex-col gap-0.5 text-xs">
+        {TAB_TITLE_VARIABLES.map(([name, desc]) => (
+          <div key={name} className="flex gap-2">
+            <dt className="w-24 shrink-0 font-mono text-fg-secondary">{`\${${name}}`}</dt>
+            <dd className="text-fg-muted">{desc}</dd>
+          </div>
+        ))}
+      </dl>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={text === initial || pending}
+          onClick={() => onSave(text)}
+        >
+          Save
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={text === DEFAULT_TAB_TITLE_TEMPLATE || pending}
+          onClick={() => {
+            setText(DEFAULT_TAB_TITLE_TEMPLATE);
+            onSave(DEFAULT_TAB_TITLE_TEMPLATE);
+          }}
+        >
+          Reset to default
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Session behaviour (SPEC §4, §11): the permission-skip gate, the launch text
+ * templates sent to an agent when it starts a fresh worktree or joins an
+ * existing one, and the tab-title template. Enabling the gate demands a typed
+ * profile name; disabling is immediate. The daemon enforces the gate
+ * server-side regardless of this UI.
  */
 export function SessionsSection() {
   const profileId = useCurrentProfileId();
@@ -104,8 +192,9 @@ export function SessionsSection() {
       },
     );
 
-  const saveTemplate = (key: 'onboardingTemplate' | 'concurrentTemplate') => (text: string) =>
-    patch.mutate({ [key]: text }, { onError: (e) => toast.error(e.message) });
+  const saveTemplate =
+    (key: 'onboardingTemplate' | 'concurrentTemplate' | 'tabTitleTemplate') => (text: string) =>
+      patch.mutate({ [key]: text }, { onError: (e) => toast.error(e.message) });
 
   return (
     <div>
@@ -161,6 +250,20 @@ export function SessionsSection() {
               pending={patch.isPending}
             />
           </>
+        )}
+      </div>
+
+      <div className="mt-5">
+        <SectionTitle note="How each session's tab and sidebar label is composed from its parts.">
+          Tab title
+        </SectionTitle>
+        {settings.data && (
+          <TabTitleEditor
+            key={`${profileId}:tab-title`}
+            initial={settings.data.tabTitleTemplate ?? DEFAULT_TAB_TITLE_TEMPLATE}
+            onSave={saveTemplate('tabTitleTemplate')}
+            pending={patch.isPending}
+          />
         )}
       </div>
 

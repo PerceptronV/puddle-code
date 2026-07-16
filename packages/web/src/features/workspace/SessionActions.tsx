@@ -276,7 +276,7 @@ export function useSessionMenu(
             <Input
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
-              placeholder={session.agent_title ?? session.id.slice(0, 8)}
+              placeholder={session.agent_title ?? session.osc_title ?? session.id.slice(0, 8)}
               autoFocus
             />
             <DialogFooter>
