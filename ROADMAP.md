@@ -3,6 +3,7 @@
 ## Features
 - [ ] Prompt bank
 - [ ] Support for other CLI-based coding agents
+- [ ] Hotkey settings
 
 ## Miscellaneous UI Items
 
@@ -21,3 +22,6 @@ Sessions:
 
 Editor:
 - [ ] Markdown display support
+- [ ] Opening file behaviour like vscode: italics for snappy viewing
+- [ ] Command+w / command+shift+t
+- [ ] Make filetree commands work (block browser default behaviour)
