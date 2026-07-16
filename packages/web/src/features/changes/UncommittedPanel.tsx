@@ -89,9 +89,9 @@ function TreeRows({
               style={{ paddingLeft: 8 + depth * 12 }}
             >
               {isCollapsed ? (
-                <ChevronRight className="size-3.5 shrink-0 text-fg-muted" />
+                <ChevronRight className="size-3.5 shrink-0 text-fg-gold" />
               ) : (
-                <ChevronDown className="size-3.5 shrink-0 text-fg-muted" />
+                <ChevronDown className="size-3.5 shrink-0 text-fg-gold" />
               )}
               <span className="truncate font-mono text-xs text-fg-secondary">{node.name}</span>
             </button>
@@ -135,7 +135,7 @@ export function UncommittedPanel({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex h-7 shrink-0 items-center gap-2 px-3">
-        <span className="text-2xs font-medium uppercase tracking-wide text-fg-muted">
+        <span className="text-2xs font-medium uppercase tracking-wide text-fg-gold">
           Uncommitted
         </span>
         {entries.length > 0 && (
@@ -149,7 +149,7 @@ export function UncommittedPanel({
               type="button"
               aria-pressed={!flat}
               onClick={() => setFlat((f) => !f)}
-              className="ml-auto rounded-sm p-1 text-fg-muted transition-colors hover:bg-elevated hover:text-fg"
+              className="ml-auto rounded-sm p-1 text-fg-gold transition-colors hover:bg-elevated hover:text-fg"
             >
               {flat ? <List className="size-3.5" /> : <FolderTree className="size-3.5" />}
               <span className="sr-only">{flat ? 'Show as tree' : 'Show as flat list'}</span>

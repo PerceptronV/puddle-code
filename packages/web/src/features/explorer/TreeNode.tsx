@@ -137,7 +137,7 @@ export function TreeNode({
         initial={entry.name}
         icon={
           isDir ? (
-            <FolderClosed className="size-3.5 shrink-0 text-fg-muted" />
+            <FolderClosed className="size-3.5 shrink-0 text-fg-gold" />
           ) : (
             <FileTypeIcon name={entry.name} />
           )
@@ -199,7 +199,7 @@ export function TreeNode({
       {isDir ? (
         <ChevronRight
           className={cn(
-            'size-3.5 shrink-0 text-fg-muted transition-transform duration-150',
+            'size-3.5 shrink-0 text-fg-gold transition-transform duration-150',
             isOpen && 'rotate-90',
           )}
         />
@@ -211,19 +211,19 @@ export function TreeNode({
           <FolderOpen
             className={cn(
               'size-3.5 shrink-0',
-              folderTint ? decoration?.colourClass : 'text-fg-muted',
+              folderTint ? decoration?.colourClass : 'text-fg-gold',
             )}
           />
         ) : (
           <FolderClosed
             className={cn(
               'size-3.5 shrink-0',
-              folderTint ? decoration?.colourClass : 'text-fg-muted',
+              folderTint ? decoration?.colourClass : 'text-fg-gold',
             )}
           />
         )
       ) : entry.type === 'symlink' ? (
-        <Link2 className="size-3.5 shrink-0 text-fg-muted" />
+        <Link2 className="size-3.5 shrink-0 text-fg-gold" />
       ) : (
         <FileTypeIcon name={entry.name} dimmed={status === 'ignored'} />
       )}
@@ -341,7 +341,7 @@ function CreateRow({ depth, kind }: { depth: number; kind: 'file' | 'dir' }) {
       initial={name}
       icon={
         kind === 'dir' ? (
-          <FolderClosed className="size-3.5 shrink-0 text-fg-muted" />
+          <FolderClosed className="size-3.5 shrink-0 text-fg-gold" />
         ) : (
           <FileTypeIcon name={name || 'file'} />
         )

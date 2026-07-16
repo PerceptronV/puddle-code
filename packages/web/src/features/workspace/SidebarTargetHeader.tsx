@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import {
   ChevronDown,
   ChevronsDownUp,
@@ -8,7 +9,6 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { Session } from '@puddle/shared';
-import { HoverMarquee } from '../../components/hover-marquee';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,9 +21,31 @@ import { cn } from '../../lib/utils';
 import { useExplorerOptional } from '../explorer/explorer-context';
 import type { ExplorerTarget } from '../explorer/use-explorer-target';
 
-// Hovering anywhere in the navigator (the `group/nav` on NavigatorSidebar's root)
-// scrolls a too-long title into view — not just hovering the thin header row.
-const NAV_MARQUEE = 'group-hover/nav:[transform:translateX(var(--tail))]';
+/**
+ * The bound-worktree title: a horizontally scrollable strip (no scrollbar) that
+ * ANCHORS to its right end, so the deepest, most identifying part of an absolute
+ * path stays visible; scroll left to read the root. No auto-scroll — that read
+ * as distracting.
+ */
+function PathScroller({ text, className }: { text: string; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const anchorRight = () => {
+      el.scrollLeft = el.scrollWidth;
+    };
+    anchorRight();
+    const ro = new ResizeObserver(anchorRight);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [text]);
+  return (
+    <div ref={ref} className="no-scrollbar min-w-0 flex-1 overflow-x-auto">
+      <span className={cn('inline-block whitespace-nowrap', className)}>{text}</span>
+    </div>
+  );
+}
 
 /**
  * The left sidebar's bound-worktree header (SPEC §8), shown under the icon row
@@ -31,10 +53,7 @@ const NAV_MARQUEE = 'group-hover/nav:[transform:translateX(var(--tail))]';
  * its absolute path in Files & Search (what they operate over), its branch in
  * Changes — carries the pin toggle, and offers a dropdown to pin any other
  * project worktree by hand. In files mode (`showFileActions`) it also hosts the
- * explorer
- * utility cluster — New File · New Folder · Refresh · Collapse Folders — and
- * turns the branch title into a hover-marquee that eases its content leftwards
- * to reveal the tail the icons occlude.
+ * explorer utility cluster — New File · New Folder · Refresh · Collapse Folders.
  */
 export function SidebarTargetHeader({
   sessions,
@@ -57,11 +76,7 @@ export function SidebarTargetHeader({
 
   return (
     <div className="group relative flex h-8 shrink-0 items-center px-2">
-      <HoverMarquee
-        text={title}
-        className="font-mono text-xs text-fg-secondary"
-        hoverClass={NAV_MARQUEE}
-      />
+      <PathScroller text={title} className="font-mono text-xs text-fg-secondary" />
       {/* Controls overlay the right edge, revealed on hover/focus, so at rest
           the title uses the full width — no hidden icon reserves space (the pin
           stays shown while pinned to keep that state visible). The `bg-surface`
@@ -82,7 +97,7 @@ export function SidebarTargetHeader({
           onClick={() => (pinned ? unpin() : session && pin(session.id))}
           className={cn(
             'shrink-0 rounded-sm p-1 transition-colors disabled:pointer-events-none disabled:opacity-40',
-            pinned ? 'text-fg' : 'text-fg-muted hover:bg-elevated hover:text-fg',
+            pinned ? 'text-fg' : 'text-fg-gold hover:bg-elevated hover:text-fg',
           )}
         >
           <Pin className={cn('size-3.5', pinned && 'fill-current')} />
@@ -93,7 +108,7 @@ export function SidebarTargetHeader({
             <button
               type="button"
               title="Bind a different worktree"
-              className="shrink-0 rounded-sm p-1 text-fg-muted transition-colors hover:bg-elevated hover:text-fg"
+              className="shrink-0 rounded-sm p-1 text-fg-gold transition-colors hover:bg-elevated hover:text-fg"
             >
               <ChevronDown className="size-3.5" />
               <span className="sr-only">Choose a worktree</span>
@@ -143,7 +158,7 @@ function ExplorerActions() {
             <button
               type="button"
               onClick={() => run(key)}
-              className="rounded-sm p-1 text-fg-muted transition-colors hover:bg-elevated hover:text-fg"
+              className="rounded-sm p-1 text-fg-gold transition-colors hover:bg-elevated hover:text-fg"
             >
               <Icon className="size-3.5" />
               <span className="sr-only">{label}</span>

@@ -29,9 +29,7 @@ export function ChangesNav({
       <div className="h-px shrink-0 bg-border" />
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex h-7 shrink-0 items-center px-3">
-          <span className="text-2xs font-medium uppercase tracking-wide text-fg-muted">
-            History
-          </span>
+          <span className="text-2xs font-medium uppercase tracking-wide text-fg-gold">History</span>
         </div>
         <CommitGraph session={session} onOpenCommitFile={onOpenCommitFile} />
       </div>

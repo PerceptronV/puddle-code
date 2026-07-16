@@ -564,7 +564,7 @@ Puddle's UI must read as a polished, intentional developer cockpit — dense, ca
 
 - **Two-layer token architecture** in `packages/web/src/styles/tokens.css`:
   1. _Primitive palette_: theme-independent colour ramps derived from the five core colours below.
-  2. _Semantic tokens_: the only names components may use — `--bg-base`, `--bg-surface`, `--bg-elevated`, `--border`, `--text-primary/-secondary/-muted`, `--accent`, `--accent-hover`, `--action`, `--action-hover`, `--action-ink`, `--focus-ring`, `--danger`, `--status-running/-waiting/-interrupted/-idle/-terminal`, `--selection`, `--diff-added`, `--diff-removed`, plus the 16 `--ansi-*` terminal colours. A theme is one `[data-theme="<name>"]` block assigning primitives to **every** semantic token.
+  2. _Semantic tokens_: the only names components may use — `--bg-base`, `--bg-surface`, `--bg-elevated`, `--border`, `--text-primary/-secondary/-muted/-gold`, `--accent`, `--accent-hover`, `--action`, `--action-hover`, `--action-ink`, `--focus-ring`, `--danger`, `--status-running/-waiting/-interrupted/-idle/-terminal`, `--selection`, `--diff-added`, `--diff-removed`, plus the 16 `--ansi-*` terminal colours. A theme is one `[data-theme="<name>"]` block assigning primitives to **every** semantic token.
 
   The Tailwind theme maps utilities onto semantic tokens; the xterm.js theme object and the Monaco theme are **generated at runtime from the computed CSS variables**, so adding a theme is one CSS block plus one entry in a theme registry — zero TypeScript changes. A CI script asserts each theme block defines the complete semantic set and that text pairings pass WCAG AA (4.5:1 body, 3:1 large/UI elements). Terminal, editor, and chrome must visibly share one palette — a stock-dark xterm next to Monaco's default `vs-dark` inside a differently-dark app is forbidden.
 
@@ -593,6 +593,7 @@ Puddle's UI must read as a polished, intentional developer cockpit — dense, ca
   | `--text-primary`                    | `#EAF1FB` | `#001C3D` |
   | `--text-secondary`                  | `#B9C9E0` | `#163C6B` |
   | `--text-muted`                      | `#7E93B3` | `#6B6B6B` |
+  | `--text-gold`                       | `#DDB28C` | `#8A7663` |
   | `--accent` / `--focus-ring`         | `#7DADFF` | `#2E6BD6` |
   | `--accent-hover`                    | `#A7C7FF` | `#4A86E8` |
   | `--action` (primary-button fill)    | `#EAF1FB` | `#001C3D` |
@@ -604,7 +605,7 @@ Puddle's UI must read as a polished, intentional developer cockpit — dense, ca
   | `--status-idle`                     | `#7E93B3` | `#8A7663` |
   | `--status-terminal`                 | `#7DADFF` | `#2E6BD6` |
 
-  Primary actions (buttons, checked toggles) are **ink, not accent**: mist on the dark theme, storm navy on the light — the accent blue is reserved for links, focus, and selection. The dark theme is storm-navy ground with the pastel family as light; the light theme is a white ground (HUMANS.md: white, not beige) with navy ink for primary and secondary text and a neutral grey for muted (the earlier golden bark read as distracting on hints/metadata; gold stays a deliberate status accent), keeping the deep accent steps. Light `--status-running` uses a derived deeper krypton step (`#157A50`) because `#1FA26B` misses the 3:1 AA floor on the elevated ground.
+  Primary actions (buttons, checked toggles) are **ink, not accent**: mist on the dark theme, storm navy on the light — the accent blue is reserved for links, focus, and selection. The dark theme is storm-navy ground with the pastel family as light; the light theme is a white ground (HUMANS.md: white, not beige) with navy ink for primary and secondary text and a neutral grey for muted (the earlier golden bark read as distracting on hints/metadata), keeping the deep accent steps. The warm gold survives as a deliberate accent — `--text-gold` (gold in both themes) for the sidebar's glyph icons and its ALL-CAPS section headings, plus the status-waiting colour — while prose, paths, and metadata stay grey. Light `--status-running` uses a derived deeper krypton step (`#157A50`) because `#1FA26B` misses the 3:1 AA floor on the elevated ground.
 
 - **Terminal colour queries**: the web terminal answers the OSC 10 (foreground) and OSC 11 (background) dynamic-colour queries that xterm.js does not reply to itself, reporting the live `--text-primary` / `--bg-base` tokens as `rgb:RRRR/GGGG/BBBB`. An agent whose own theme is set to auto/system (e.g. Claude Code, which samples the background luminance at startup) thereby matches the puddle theme. The reply reflects the theme at query time; a theme switch takes effect on the next agent start/resume, since a running agent that already sampled the background does not re-query.
 

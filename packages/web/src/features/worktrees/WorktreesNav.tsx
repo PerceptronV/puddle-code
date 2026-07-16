@@ -64,7 +64,7 @@ function PruneButton({
           // width — the row's badges reach the sidebar edge (HUMANS.md). A
           // blocked control never shows and never occupies space.
           className={cn(
-            'rounded-sm p-1 text-fg-muted transition-colors hover:text-danger',
+            'rounded-sm p-1 text-fg-gold transition-colors hover:text-danger',
             blockReason !== null ? 'hidden' : 'hidden group-hover:inline-flex',
           )}
         >
@@ -164,7 +164,7 @@ export function WorktreesNav({
       {groups.map(([branch, wts]) => (
         <div key={`wt:${branch}`}>
           <div className="group flex items-center gap-1.5 px-3 pb-0.5 pt-2 text-2xs text-fg-muted">
-            <GitBranch className="size-3 shrink-0" />
+            <GitBranch className="size-3 shrink-0 text-fg-gold" />
             <HoverMarquee text={branch} className="font-mono" hoverClass={ROW_MARQUEE} />
           </div>
           {wts.map((wt) => {
@@ -216,7 +216,7 @@ export function WorktreesNav({
 
       {orphans.length > 0 && (
         <>
-          <div className="px-3 pb-0.5 pt-3 text-2xs font-medium uppercase tracking-wide text-fg-muted">
+          <div className="px-3 pb-0.5 pt-3 text-2xs font-medium uppercase tracking-wide text-fg-gold">
             Branches without a worktree
           </div>
           {orphans.map((b) => (
@@ -224,7 +224,7 @@ export function WorktreesNav({
               key={`br:${b.name}`}
               className="group flex items-center gap-2 px-3 py-1 transition-colors hover:bg-elevated"
             >
-              <GitBranch className="size-3 shrink-0 text-fg-muted" />
+              <GitBranch className="size-3 shrink-0 text-fg-gold" />
               <HoverMarquee
                 text={b.name}
                 className="font-mono text-xs text-fg"

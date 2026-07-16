@@ -54,7 +54,7 @@ function IconButton({
         <button
           type="button"
           onClick={onClick}
-          className="flex items-center rounded-md p-1.5 text-fg-muted transition-colors hover:bg-elevated hover:text-fg"
+          className="flex items-center rounded-md p-1.5 text-fg-gold transition-colors hover:bg-elevated hover:text-fg"
         >
           <Icon className="size-4" />
           <span className="sr-only">{label}</span>
@@ -235,7 +235,7 @@ function SessionRow({
           <span className="min-w-0 flex-1">
             <span className="block truncate font-sans text-xs text-fg">{renderTitle(session)}</span>
             <span className="flex items-center gap-1 truncate font-mono text-2xs text-fg-muted">
-              <GitBranch className="size-3 shrink-0" />
+              <GitBranch className="size-3 shrink-0 text-fg-gold" />
               <span className="truncate">{session.branch}</span>
             </span>
             {/* Terminal sessions have no account, so this line is agent-only. */}
@@ -343,7 +343,7 @@ export function SessionSidebar({
         {withSessions.map((group) => (
           <div key={group.projectId}>
             {group.name !== null && (
-              <div className="truncate px-3 pb-1 pt-2 text-2xs font-medium uppercase tracking-wide text-fg-muted">
+              <div className="truncate px-3 pb-1 pt-2 text-2xs font-medium uppercase tracking-wide text-fg-gold">
                 {group.name}
               </div>
             )}
@@ -381,7 +381,7 @@ export function SessionSidebar({
           <button
             type="button"
             onClick={() => setShowArchived((v) => !v)}
-            className="flex w-full items-center gap-1.5 px-3 py-1.5 text-2xs uppercase tracking-wide text-fg-muted transition-colors hover:text-fg"
+            className="flex w-full items-center gap-1.5 px-3 py-1.5 text-2xs uppercase tracking-wide text-fg-gold transition-colors hover:text-fg"
           >
             <ChevronRight
               className={cn('size-3 transition-transform', showArchived && 'rotate-90')}

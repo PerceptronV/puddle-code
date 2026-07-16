@@ -102,6 +102,8 @@
   --text-primary: var(--mist-100);
   --text-secondary: var(--mist-300);
   --text-muted: var(--mist-500);
+  /* A deliberate warm GOLD accent (sidebar glyph icons), gold in both themes. */
+  --text-gold: var(--khaki-300);
   --accent: var(--blue-300);
   --accent-hover: var(--blue-200);
   --focus-ring: var(--blue-300);
@@ -157,6 +159,8 @@
   --text-primary: var(--navy-800);
   --text-secondary: var(--navy-600);
   --text-muted: var(--neutral-500);
+  /* The warm gold that muted text used to be — kept for deliberate glyph icons. */
+  --text-gold: var(--bark-500);
   --accent: var(--blue-600);
   --accent-hover: var(--blue-500);
   --focus-ring: var(--blue-600);

@@ -63,7 +63,7 @@ export function CollapsedSidebarRail({
           <button
             type="button"
             onClick={onExpand}
-            className="flex items-center rounded-md p-1.5 text-fg-muted transition-colors hover:bg-elevated hover:text-fg"
+            className="flex items-center rounded-md p-1.5 text-fg-gold transition-colors hover:bg-elevated hover:text-fg"
           >
             <PanelLeftOpen className="size-4" />
             <span className="sr-only">Show sidebar</span>
@@ -82,7 +82,7 @@ export function CollapsedSidebarRail({
                 'flex items-center rounded-md p-1.5 transition-colors',
                 mode === key
                   ? 'bg-elevated text-fg'
-                  : 'text-fg-muted hover:bg-elevated hover:text-fg',
+                  : 'text-fg-gold hover:bg-elevated hover:text-fg',
               )}
             >
               <Icon className="size-4" />
@@ -140,10 +140,7 @@ export function NavigatorSidebar({
   const { session } = target;
 
   return (
-    // `group/nav`: hovering anywhere in the navigator scrolls a too-long
-    // worktree path/branch in the header into view (SidebarTargetHeader's marquee
-    // keys on `group-hover/nav`), not just hovering the thin header row itself.
-    <div className="group/nav flex h-full flex-col bg-surface">
+    <div className="flex h-full flex-col bg-surface">
       <div className="flex items-center gap-1 px-2 py-1.5">
         {MODES.map(({ key, label, icon: Icon }) => (
           <Tooltip key={key}>
@@ -156,7 +153,7 @@ export function NavigatorSidebar({
                   'flex items-center rounded-md p-1.5 transition-colors',
                   mode === key
                     ? 'bg-elevated text-fg'
-                    : 'text-fg-muted hover:bg-elevated hover:text-fg',
+                    : 'text-fg-gold hover:bg-elevated hover:text-fg',
                 )}
               >
                 <Icon className="size-4" />
@@ -171,7 +168,7 @@ export function NavigatorSidebar({
             <button
               type="button"
               onClick={onCollapse}
-              className="ml-auto flex items-center rounded-md p-1.5 text-fg-muted transition-colors hover:bg-elevated hover:text-fg"
+              className="ml-auto flex items-center rounded-md p-1.5 text-fg-gold transition-colors hover:bg-elevated hover:text-fg"
             >
               <PanelLeftClose className="size-4" />
               <span className="sr-only">Hide sidebar</span>

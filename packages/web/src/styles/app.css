@@ -18,6 +18,7 @@
   --color-fg: var(--text-primary);
   --color-fg-secondary: var(--text-secondary);
   --color-fg-muted: var(--text-muted);
+  --color-fg-gold: var(--text-gold);
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-action: var(--action);

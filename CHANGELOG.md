@@ -20,7 +20,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
-- **Light theme**: muted/hint text (gitignored files, input placeholders, search & empty-state hints, commit metadata, branch labels, setting descriptions) is now a neutral **grey** instead of the warm golden bark, which read as distracting. Dark theme was already a cool grey there; gold stays a deliberate status accent, consistent across both themes.
+- **Sidebar colours**: hint/metadata text (gitignored files, placeholders, search & empty-state hints, commit metadata, branch/path labels, setting descriptions) is now a neutral **grey** instead of the distracting warm golden bark. The gold survives as a deliberate accent — a new `--text-gold` token (gold in both themes) — for the sidebar's **glyph icons** and its **ALL-CAPS section headings**. Dark theme's muted was already grey.
+- The left navigator header (Files/Search/Changes) no longer auto-scrolls its title on hover (distracting); it's a plain horizontally-scrollable strip **anchored to the right**, so the deepest part of an absolute path stays visible. The Worktrees tab keeps its calmer per-item hover-scroll.
 - **Top bar** revamp: the puddle mark shrank and now sits beside the daemon's **host name** as one click-home block; the centre is a dimmed command field (hinting the active project name + ⌘K) that opens the palette; the separate ⌘K button is gone.
 - The empty workspace pane no longer reserves a blank tab bar; it shows a large, muted puddle mark and a dimmed **⌘K** button that opens the command palette.
 

@@ -120,7 +120,7 @@ export function SearchNav({
           <>
             {data!.files.length > 0 && (
               <section>
-                <div className="px-3 pb-0.5 pt-1.5 text-2xs font-medium uppercase tracking-wide text-fg-muted">
+                <div className="px-3 pb-0.5 pt-1.5 text-2xs font-medium uppercase tracking-wide text-fg-gold">
                   Files
                 </div>
                 {data!.files.map((path) => (
@@ -131,7 +131,7 @@ export function SearchNav({
                     onClick={() => onOpen(path)}
                     className="flex w-full items-center gap-1.5 px-3 py-1 text-left transition-colors hover:bg-elevated"
                   >
-                    <FileIcon className="size-3.5 shrink-0 text-fg-muted" />
+                    <FileIcon className="size-3.5 shrink-0 text-fg-gold" />
                     <span className="truncate font-mono text-xs text-fg">{path}</span>
                   </button>
                 ))}
@@ -140,7 +140,7 @@ export function SearchNav({
 
             {data!.content.length > 0 && (
               <section>
-                <div className="px-3 pb-0.5 pt-2 text-2xs font-medium uppercase tracking-wide text-fg-muted">
+                <div className="px-3 pb-0.5 pt-2 text-2xs font-medium uppercase tracking-wide text-fg-gold">
                   Contents
                 </div>
                 {data!.content.map((file) => (
