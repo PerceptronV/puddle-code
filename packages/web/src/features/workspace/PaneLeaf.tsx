@@ -1,6 +1,7 @@
 import { useDroppable } from '@dnd-kit/core';
-import { TerminalSquare } from 'lucide-react';
 import type { LayoutLeaf, Session, TabRef } from '@puddle/shared';
+import { PuddleGlyph } from '../../components/puddle-glyph';
+import { openCommandPalette } from '../../lib/command-palette';
 import { cn } from '../../lib/utils';
 import { LazyPaneEditorBody } from '../editor/lazy-editor-parts';
 import type { RevealTarget } from './editor-context';
@@ -42,14 +43,17 @@ export function PaneLeaf({
 
   return (
     <div className="flex h-full flex-col bg-ground" onMouseDownCapture={() => onFocusLeaf(leaf.id)}>
-      <PaneTabStrip
-        leaf={leaf}
-        sessions={sessions}
-        onActivate={(ref) => onActivateTab(leaf.id, ref)}
-        onClose={(ref) => onCloseTab(leaf.id, ref)}
-        onPromote={onPromoteTab}
-        onArchived={onArchived}
-      />
+      {/* No tabs → no strip: an empty pane reserves no blank bar (HUMANS.md). */}
+      {leaf.tabs.length > 0 && (
+        <PaneTabStrip
+          leaf={leaf}
+          sessions={sessions}
+          onActivate={(ref) => onActivateTab(leaf.id, ref)}
+          onClose={(ref) => onCloseTab(leaf.id, ref)}
+          onPromote={onPromoteTab}
+          onArchived={onArchived}
+        />
+      )}
       <div ref={setNodeRef} className="relative min-h-0 flex-1">
         {activeRef?.type === 'editor' && (
           <div className="absolute inset-0">
@@ -64,13 +68,15 @@ export function PaneLeaf({
         />
         {indicator?.leafId === leaf.id && <DropZoneOverlay zone={indicator.zone} />}
         {!activeRef && (
-          <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-            <TerminalSquare className="size-8 text-fg-muted" />
-            <p className="text-sm text-fg-secondary">
-              {sessions.some((s) => s.status !== 'archived')
-                ? 'Open a file, or pick a session from the sidebar.'
-                : 'No sessions yet — press ⌘K to start one.'}
-            </p>
+          <div className="flex h-full flex-col items-center justify-center gap-6 text-center">
+            <PuddleGlyph className="size-24 text-fg-muted/40" />
+            <button
+              type="button"
+              onClick={openCommandPalette}
+              className="rounded-md bg-elevated px-3 py-1.5 font-mono text-xs text-fg-muted transition-colors hover:bg-border hover:text-fg-secondary"
+            >
+              ⌘K
+            </button>
           </div>
         )}
       </div>

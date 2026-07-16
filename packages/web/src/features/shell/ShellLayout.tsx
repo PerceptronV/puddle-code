@@ -5,6 +5,7 @@ import { Settings } from 'lucide-react';
 import type { ProjectDetail, Session } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
+import { openCommandPalette } from '../../lib/command-palette';
 import { openSettings, settingsSection, useHash } from '../../lib/hash-route';
 import { useHostInfo, useProjectDetail } from '../../lib/queries';
 import { wsManager } from '../../lib/ws';
@@ -58,11 +59,6 @@ function useStatusCacheSync() {
       offRenamed();
     };
   }, [qc]);
-}
-
-/** Fires the same ⌘K the keyboard would, so every palette entry point is one path. */
-function openCommandPalette() {
-  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
 }
 
 /**

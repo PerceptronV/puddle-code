@@ -23,9 +23,10 @@ import type { ExplorerTarget } from '../explorer/use-explorer-target';
 
 /**
  * The left sidebar's bound-worktree header (SPEC §8), shown under the icon row
- * for every navigator (Files, Changes, Search): it names the bound worktree's
- * branch, carries the pin toggle, and offers a dropdown to pin any other project
- * worktree by hand. In files mode (`showFileActions`) it also hosts the explorer
+ * for every navigator (Files, Changes, Search): it names the bound worktree —
+ * its directory in Files, its branch in Changes/Search — carries the pin toggle,
+ * and offers a dropdown to pin any other project worktree by hand. In files mode
+ * (`showFileActions`) it also hosts the explorer
  * utility cluster — New File · New Folder · Refresh · Collapse Folders — and
  * turns the branch title into a hover-marquee that eases its content leftwards
  * to reveal the tail the icons occlude.
@@ -51,48 +52,60 @@ export function SidebarTargetHeader({
   const title = showFileActions ? dirLabel : branchLabel;
 
   return (
-    <div className="group flex h-8 shrink-0 items-center gap-1 px-2">
+    <div className="group relative flex h-8 shrink-0 items-center px-2">
       <MarqueeTitle text={title} />
-      {showFileActions && session && <ExplorerActions />}
-      <button
-        type="button"
-        aria-pressed={pinned}
-        disabled={!session}
-        title={pinned ? 'Unpin — follow the active session' : 'Pin the sidebar to this worktree'}
-        onClick={() => (pinned ? unpin() : session && pin(session.id))}
+      {/* Controls overlay the right edge, revealed on hover/focus, so at rest
+          the title uses the full width — no hidden icon reserves space (the pin
+          stays shown while pinned to keep that state visible). The `bg-surface`
+          (the sidebar's colour) masks the title tail beneath them. */}
+      <div
         className={cn(
-          'shrink-0 rounded-sm p-1 transition-colors disabled:pointer-events-none disabled:opacity-40',
-          pinned ? 'text-fg' : 'text-fg-muted hover:bg-elevated hover:text-fg',
+          'absolute inset-y-0 right-1 flex items-center gap-1 bg-surface pl-2 opacity-0 transition-opacity',
+          'pointer-events-none focus-within:pointer-events-auto focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100',
+          pinned && 'pointer-events-auto opacity-100',
         )}
       >
-        <Pin className={cn('size-3.5', pinned && 'fill-current')} />
-        <span className="sr-only">{pinned ? 'Unpin sidebar' : 'Pin sidebar'}</span>
-      </button>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            title="Bind a different worktree"
-            className="shrink-0 rounded-sm p-1 text-fg-muted transition-colors hover:bg-elevated hover:text-fg"
-          >
-            <ChevronDown className="size-3.5" />
-            <span className="sr-only">Choose a worktree</span>
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {pickable.length === 0 ? (
-            <div className="px-2 py-1.5 text-xs text-fg-muted">No sessions yet</div>
-          ) : (
-            pickable.map((s) => (
-              <DropdownMenuItem key={s.id} onSelect={() => pin(s.id)}>
-                <span className="truncate font-mono">
-                  {s.branch} — {sessionDisplayName(s)}
-                </span>
-              </DropdownMenuItem>
-            ))
+        {showFileActions && session && <ExplorerActions />}
+        <button
+          type="button"
+          aria-pressed={pinned}
+          disabled={!session}
+          title={pinned ? 'Unpin — follow the active session' : 'Pin the sidebar to this worktree'}
+          onClick={() => (pinned ? unpin() : session && pin(session.id))}
+          className={cn(
+            'shrink-0 rounded-sm p-1 transition-colors disabled:pointer-events-none disabled:opacity-40',
+            pinned ? 'text-fg' : 'text-fg-muted hover:bg-elevated hover:text-fg',
           )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        >
+          <Pin className={cn('size-3.5', pinned && 'fill-current')} />
+          <span className="sr-only">{pinned ? 'Unpin sidebar' : 'Pin sidebar'}</span>
+        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              title="Bind a different worktree"
+              className="shrink-0 rounded-sm p-1 text-fg-muted transition-colors hover:bg-elevated hover:text-fg"
+            >
+              <ChevronDown className="size-3.5" />
+              <span className="sr-only">Choose a worktree</span>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {pickable.length === 0 ? (
+              <div className="px-2 py-1.5 text-xs text-fg-muted">No sessions yet</div>
+            ) : (
+              pickable.map((s) => (
+                <DropdownMenuItem key={s.id} onSelect={() => pin(s.id)}>
+                  <span className="truncate font-mono">
+                    {s.branch} — {sessionDisplayName(s)}
+                  </span>
+                </DropdownMenuItem>
+              ))
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   );
 }
