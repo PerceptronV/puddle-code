@@ -54,7 +54,13 @@ function PruneButton({
           type="button"
           disabled={blockReason !== null}
           onClick={onClick}
-          className="rounded-sm p-1 text-fg-muted opacity-0 transition-opacity hover:text-danger group-hover:opacity-100 disabled:pointer-events-none disabled:opacity-0"
+          // Reveal by display, not opacity, so at rest the control reserves no
+          // width — the row's badges reach the sidebar edge (HUMANS.md). A
+          // blocked control never shows and never occupies space.
+          className={cn(
+            'rounded-sm p-1 text-fg-muted transition-colors hover:text-danger',
+            blockReason !== null ? 'hidden' : 'hidden group-hover:inline-flex',
+          )}
         >
           <Trash2 className="size-3.5" />
           <span className="sr-only">{label}</span>

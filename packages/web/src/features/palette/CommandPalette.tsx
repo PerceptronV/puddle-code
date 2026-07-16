@@ -20,6 +20,7 @@ import {
   CommandShortcut,
 } from '../../components/ui/command';
 import { applyTheme } from '../../lib/theme';
+import { registerCommandPalette } from '../../lib/command-palette';
 import { openSettings } from '../../lib/hash-route';
 import { useProjects, useSessions } from '../../lib/queries';
 import { collectCommands, type PaletteCommand } from './commands';
@@ -53,6 +54,9 @@ export function CommandPalette({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  // Let any affordance (e.g. an empty pane's ⌘K button) open this one palette.
+  useEffect(() => registerCommandPalette(() => setOpen(true)), []);
 
   const commands = useMemo(() => {
     const items: PaletteCommand[] = [];
