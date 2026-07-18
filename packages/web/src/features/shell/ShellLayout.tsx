@@ -6,12 +6,13 @@ import type { ProjectDetail, Session } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { openCommandPalette } from '../../lib/command-palette';
-import { openSettings, useSettingsSection } from '../../lib/hash-route';
+import { openSettings } from '../../lib/hash-route';
 import { useHostInfo, useProjectDetail } from '../../lib/queries';
 import { wsManager } from '../../lib/ws';
 import { Suspense, lazy, useState } from 'react';
 import { NewProjectDialog } from '../dashboard/NewProjectDialog';
 import { CommandPalette } from '../palette/CommandPalette';
+import { ConnectionBanner } from './ConnectionBanner';
 import { ProfilePanel } from '../profile/ProfilePanel';
 import { useCurrentProfileId } from '../profile/profile-store';
 import { NewSessionProvider, useNewSession } from './new-session-context';
@@ -132,20 +133,16 @@ function TopBar() {
 function ShellBody() {
   useStatusCacheSync();
   const { handler } = useNewSession();
-  const settingsSection = useSettingsSection();
   const profileId = useCurrentProfileId();
   const [creatingProject, setCreatingProject] = useState(false);
-  // Warm the settings chunk in the background so the dialog opens instantly and
-  // never suspends the (synchronous) open into a blank frame.
-  useEffect(() => {
-    void import('../settings/SettingsDialog');
-  }, []);
   return (
     <div className="flex h-screen flex-col bg-ground">
       <TopBar />
       <main className="min-h-0 flex-1">
         <Outlet />
       </main>
+      {/* Bottom-anchored, like the workspace's resume banner. */}
+      <ConnectionBanner />
       <CommandPalette
         onNewSession={handler ?? undefined}
         onNewProject={() => setCreatingProject(true)}
@@ -157,11 +154,14 @@ function ShellBody() {
           onOpenChange={setCreatingProject}
         />
       )}
-      {settingsSection !== null && (
-        <Suspense fallback={null}>
-          <SettingsDialog />
-        </Suspense>
-      )}
+      {/* ALWAYS mounted (like the profile panel — the reliable one): the dialog
+          gates itself on the settings store, so opening is one state flip in
+          one component, with no conditional-mount gate to fall out of sync.
+          The chunk loads once here, behind Suspense, instead of being warmed
+          separately. */}
+      <Suspense fallback={null}>
+        <SettingsDialog />
+      </Suspense>
     </div>
   );
 }
