@@ -16,8 +16,9 @@ const LIVE_STATUSES: Session['status'][] = ['running', 'waiting_input'];
 
 /**
  * Slim mono row of detected listening ports for one session (SPEC §9),
- * rendered inside that session's pane overlay (PaneSessionOverlay) — so a
- * pane only ever polls for the session it is showing. Hidden entirely when
+ * rendered IN FLOW at the bottom of that session's pane (PaneLeaf) — never an
+ * overlay, so it cannot sit over the terminal, and the pane only ever polls
+ * for the session it is showing. Hidden entirely when
  * the session isn't live or has no ports; no refresh control, the hook's 5s
  * poll is the refresh (HUMANS.md minimalism). Each chip opens a menu with
  * the access paths that make sense for this window's mode (the CLI's
