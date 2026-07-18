@@ -25,7 +25,7 @@ import {
   SessionContextMenuBody,
   useSessionMenu,
 } from './SessionActions';
-import { reorderIds } from './session-order';
+import { moveWithinGroups } from './session-order';
 
 /**
  * A project's sessions for the sidebar. `name` null → render no header (the
@@ -140,7 +140,6 @@ function CollapsedSessionDot({
 export function CollapsedSessionsRail({
   groups,
   activeSessionId,
-  reorderable,
   onReorder,
   onExpand,
   onNewTerminal,
@@ -149,7 +148,6 @@ export function CollapsedSessionsRail({
 }: {
   groups: SessionGroup[];
   activeSessionId: string | null;
-  reorderable: boolean;
   onReorder: (ids: string[]) => void;
   onExpand: () => void;
   onNewTerminal: () => void;
@@ -159,8 +157,8 @@ export function CollapsedSessionsRail({
   const [dragging, setDragging] = useState<string | null>(null);
   const withDots = groups.filter((g) => g.sessions.length > 0);
   const move = (id: string, before: string) => {
-    if (id === before || !reorderable) return;
-    onReorder(reorderIds(withDots[0]?.sessions.map((s) => s.id) ?? [], id, before));
+    const next = moveWithinGroups(withDots, id, before);
+    if (next) onReorder(next);
   };
   return (
     <div className="flex h-full w-9 shrink-0 flex-col items-center bg-surface py-1.5">
@@ -178,7 +176,7 @@ export function CollapsedSessionsRail({
             {group.sessions.map((session) => (
               <div
                 key={session.id}
-                draggable={reorderable}
+                draggable
                 onDragStart={() => setDragging(session.id)}
                 onDragEnd={() => setDragging(null)}
                 onDragOver={(e) => {
@@ -288,7 +286,6 @@ export function SessionSidebar({
   groups,
   accounts,
   activeSessionId,
-  reorderable,
   onReorder,
   archived,
   onNewSession,
@@ -299,10 +296,9 @@ export function SessionSidebar({
   groups: SessionGroup[];
   accounts: Account[];
   activeSessionId: string | null;
-  /** Single-project view: rows drag-reorder within the one group. */
-  reorderable: boolean;
+  /** Rows drag-reorder within their project group; `ids` is the full visible order. */
   onReorder: (ids: string[]) => void;
-  /** Current project's archived sessions (single-project view); [] otherwise. */
+  /** Current project's archived sessions. */
   archived: Session[];
   onNewSession: () => void;
   onNewTerminal: () => void;
@@ -316,8 +312,8 @@ export function SessionSidebar({
   const total = withSessions.reduce((n, g) => n + g.sessions.length, 0);
 
   const move = (id: string, before: string) => {
-    if (id === before || !reorderable) return;
-    onReorder(reorderIds(withSessions[0]?.sessions.map((s) => s.id) ?? [], id, before));
+    const next = moveWithinGroups(withSessions, id, before);
+    if (next) onReorder(next);
   };
 
   return (
@@ -351,7 +347,7 @@ export function SessionSidebar({
               {group.sessions.map((session) => (
                 <li
                   key={session.id}
-                  draggable={reorderable}
+                  draggable
                   onDragStart={() => setDragging(session.id)}
                   onDragEnd={() => setDragging(null)}
                   onDragOver={(e) => {

@@ -111,13 +111,12 @@ describe('debounce', () => {
 });
 
 describe('workingSetKey', () => {
-  it('namespaces by project and profile', () => {
-    expect(workingSetKey('proj-1', 'profile-1')).toBe('puddle.ws.proj-1.profile-1');
+  it('namespaces by profile alone — the workspace is shared across projects', () => {
+    expect(workingSetKey('profile-1')).toBe('puddle.ws.profile-1');
   });
 
-  it('differs for different projects or profiles', () => {
-    expect(workingSetKey('proj-1', 'profile-1')).not.toBe(workingSetKey('proj-2', 'profile-1'));
-    expect(workingSetKey('proj-1', 'profile-1')).not.toBe(workingSetKey('proj-1', 'profile-2'));
+  it('differs for different profiles', () => {
+    expect(workingSetKey('profile-1')).not.toBe(workingSetKey('profile-2'));
   });
 });
 

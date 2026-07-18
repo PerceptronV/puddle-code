@@ -2,8 +2,8 @@ import { Hono } from 'hono';
 import type { UpgradeWebSocket } from 'hono/ws';
 import type { AdapterRegistry } from '../agents/registry.js';
 import type { AccountStore } from '../db/stores/accounts.js';
+import type { ProfileStateStore } from '../db/stores/profile-states.js';
 import type { ProfileStore } from '../db/stores/profiles.js';
-import type { ProjectStateStore } from '../db/stores/project-states.js';
 import type { ProjectStore } from '../db/stores/projects.js';
 import type { RemovalStore } from '../db/stores/removals.js';
 import type { SessionStore } from '../db/stores/sessions.js';
@@ -42,7 +42,7 @@ export interface AppDeps {
     accounts: AccountStore;
     repos: RepoStore;
     projects: ProjectStore;
-    projectStates: ProjectStateStore;
+    profileStates: ProfileStateStore;
     removals: RemovalStore;
     sessions: SessionStore;
     adapters: AdapterRegistry;

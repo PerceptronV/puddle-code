@@ -75,7 +75,7 @@ describe('openDatabase', () => {
       'accounts',
       'repos',
       'projects',
-      'project_states',
+      'profile_states',
       'sessions',
       'prompts',
       'events',
@@ -212,7 +212,7 @@ describe('stores', () => {
     `);
     v1.close();
 
-    const db = openDatabase(file); // runs migrations 002–004
+    const db = openDatabase(file); // runs migrations 002 onwards
     const project = db.prepare(`SELECT * FROM projects`).get() as { id: string; name: string };
     expect(project.id).toMatch(/^[0-9a-f]{10}$/);
     expect(project.name).toBe('demo');
@@ -231,12 +231,11 @@ describe('stores', () => {
     expect(db.prepare(`SELECT profile_id FROM projects`).get()).toEqual({
       profile_id: profile.id,
     });
-    // Migration 003 re-keys the layout row to the project's owning profile.
-    const state = db.prepare(`SELECT project_id, profile_id FROM project_states`).get() as {
-      project_id: string;
+    // Migration 003 re-keyed the layout row to the project's owning profile;
+    // migration 013 re-keys it again to the profile alone.
+    const state = db.prepare(`SELECT profile_id FROM profile_states`).get() as {
       profile_id: string;
     };
-    expect(state.project_id).toBe(project.id);
     expect(state.profile_id).toBe(profile.id);
     expect(db.pragma('foreign_key_check')).toEqual([]);
     expect(db.prepare(`SELECT COUNT(*) AS n FROM events`).get()).toEqual({ n: 1 });

@@ -10,13 +10,13 @@ import { useClientSettings } from '../../lib/client-settings';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
 import {
   useAccounts,
-  useProfileSessions,
+  useAllSessions,
   useProfileSettings,
   useProjectDetail,
   useProjects,
   useSessionAction,
 } from '../../lib/queries';
-import { orderByDrag } from './session-order';
+import { mergeOrder, orderByDrag } from './session-order';
 import { useNewSession } from '../shell/new-session-context';
 import type { EditorTab } from '../editor/editor-tabs';
 import {
@@ -70,10 +70,11 @@ function SessionBanner({ session }: { session: Session }) {
 /**
  * Project workspace (SPEC §8): the left navigator, the centre free-form tiling
  * area (editor + terminal tabs in `layout_tree`, driven by `useLayoutTree`), and
- * the right session sidebar. The tiling tree and the shell sizes persist per
- * (project, client) and restore on open (SPEC §11). `EditorProvider` lets the
- * explorer and terminal links open files without prop-drilling; Monaco/xterm
- * stay behind lazy chunks (`KeepAliveHost` + the pane bodies).
+ * the right session sidebar. The tiling tree and the shell sizes persist PER
+ * PROFILE — the centre area is one surface shared across the profile's projects
+ * — and restore on open (SPEC §11). `EditorProvider` lets the explorer and
+ * terminal links open files without prop-drilling; Monaco/xterm stay behind
+ * lazy chunks (`KeepAliveHost` + the pane bodies).
  */
 export function Workspace() {
   return (
@@ -94,15 +95,20 @@ function WorkspaceInner() {
   const accounts = useAccounts(detail.data?.project.profile_id).data ?? [];
   const renderTitle = useSessionTitleRenderer();
 
-  const uiState = useUiState(validProject ? projectId : undefined);
+  // Profile-keyed (SPEC §11): the layout tree is shared across projects, so the
+  // tiling area needs every session it may hold a tab for — whatever the
+  // project — for labels, status dots, and restore-time pruning.
+  const uiState = useUiState();
+  const allSessions = useAllSessions();
+  const tabSessions = allSessions.data ?? sessions;
 
   // The right sidebar groups sessions by project (SPEC §12): the whole profile
   // in cross-project mode (client setting, default on — project order inherits
-  // the homescreen's projectOrder), or just this project otherwise, where drag
-  // reorders session_order.
+  // the homescreen's projectOrder, and the groups derive from the same
+  // all-sessions list the tiling area uses), or just this project otherwise;
+  // drag reorders session_order in both.
   const profileId = detail.data?.project.profile_id;
   const showAllSessions = useClientSettings().showAllProjectSessions;
-  const profileSessions = useProfileSessions(showAllSessions ? profileId : undefined);
   const profileProjects = useProjects(showAllSessions ? profileId : undefined);
   const profileSettings = useProfileSettings(showAllSessions ? profileId : undefined);
   const sessionGroups = useMemo<SessionGroup[]>(() => {
@@ -120,13 +126,16 @@ function WorkspaceInner() {
       (profileProjects.data ?? []).filter((p) => !p.archived),
       profileSettings.data?.projectOrder ?? [],
     );
-    const all = profileSessions.data ?? [];
+    const all = allSessions.data ?? sessions;
     return ordered.map((p) => ({
       projectId: p.id,
       name: p.name,
-      sessions: all
-        .filter((s) => s.project_id === p.id && active(s))
-        .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)),
+      // Each group applies the same saved order the single-project view uses
+      // (untracked sessions float to the top of their group, newest-first).
+      sessions: orderByDrag(
+        all.filter((s) => s.project_id === p.id && active(s)),
+        uiState.snapshot.session_order,
+      ),
     }));
   }, [
     showAllSessions,
@@ -135,7 +144,7 @@ function WorkspaceInner() {
     uiState.snapshot.session_order,
     profileProjects.data,
     profileSettings.data,
-    profileSessions.data,
+    allSessions.data,
   ]);
   const archivedSessions = useMemo(
     () => sessions.filter((s) => s.status === 'archived'),
@@ -153,6 +162,15 @@ function WorkspaceInner() {
   // the effect on EVERY render, not only when its real inputs change.
   const uiStateRef = useRef(uiState);
   uiStateRef.current = uiState;
+  // Reorder-persist, shared by the expanded sidebar and the collapsed rail:
+  // merge so a single-project reorder never forgets hidden projects' sessions.
+  const persistReorder = useCallback(
+    (ids: string[]) =>
+      uiStateRef.current.update({
+        session_order: mergeOrder(ids, uiStateRef.current.snapshot.session_order),
+      }),
+    [],
+  );
   const [restored, setRestored] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createKind, setCreateKind] = useState<SessionKind>('agent');
@@ -219,18 +237,39 @@ function WorkspaceInner() {
     return () => setHandler(null);
   }, [setHandler]);
 
-  // Restore-on-open: prune tabs whose sessions are gone from the tree, then land
-  // on the stored active session unless the URL already deep-links one.
+  // Restore-on-open: land on the stored active session unless the URL already
+  // deep-links one. Navigation only follows a stored session of THIS project
+  // (the project detail's own list decides — entering project A must not yank
+  // the URL to wherever the profile last worked), so restore never waits on
+  // anything beyond the detail fetch and terminals open immediately.
   useEffect(() => {
     if (restored || !uiState.loaded || !detail.data) return;
     setRestored(true);
-    const alive = new Set(sessions.filter((s) => s.status !== 'archived').map((s) => s.id));
-    layoutRef.current.pruneSessions(alive);
     const stored = uiState.snapshot.active_session;
-    if (!activeSessionId && stored && alive.has(stored)) {
-      void navigate(`/project/${projectId}/session/${stored}`, { replace: true });
+    const storedSession = sessions.find((s) => s.id === stored);
+    if (!activeSessionId && storedSession && storedSession.status !== 'archived') {
+      void navigate(`/project/${projectId}/session/${storedSession.id}`, { replace: true });
     }
   }, [restored, uiState, detail.data, sessions, activeSessionId, navigate, projectId]);
+
+  // Prune dead tabs (and dead session_order ids) once per mount, whenever the
+  // FULL session list first arrives — decoupled from `restored` so a slow or
+  // transiently failing fetch neither blocks the workspace nor forfeits the
+  // prune for the window's lifetime. The alive set must span EVERY session on
+  // the daemon: the profile-keyed tree holds cross-project tabs, and pruning
+  // against one project's list would wipe the rest.
+  const pruned = useRef(false);
+  useEffect(() => {
+    if (pruned.current || !uiState.loaded || !allSessions.data) return;
+    pruned.current = true;
+    const alive = new Set(allSessions.data.filter((s) => s.status !== 'archived').map((s) => s.id));
+    layoutRef.current.pruneSessions(alive);
+    const order = uiStateRef.current.snapshot.session_order;
+    const liveOrder = order.filter((id) => alive.has(id));
+    if (liveOrder.length !== order.length) {
+      uiStateRef.current.update({ session_order: liveOrder });
+    }
+  }, [uiState.loaded, allSessions.data]);
 
   // A genuine session navigation (the URL `sid` changed) ensures a terminal for
   // that session and focuses it — added to the currently focused pane if absent,
@@ -292,13 +331,16 @@ function WorkspaceInner() {
     (leafId: string, ref: TabRef) => {
       layout.activate(leafId, ref);
       if (ref.type === 'terminal') {
-        const owner =
-          (profileSessions.data ?? sessions).find((s) => s.id === ref.session)?.project_id ??
-          projectId;
-        void navigate(`/project/${owner}/session/${ref.session}`);
+        // Navigate only when the owner is KNOWN: guessing the current project
+        // while the all-sessions list is still loading would bind another
+        // project's session under the wrong URL (empty header + file tree).
+        // The tab itself activates regardless; the URL catches up on the next
+        // click once the list has landed.
+        const owner = tabSessions.find((s) => s.id === ref.session)?.project_id;
+        if (owner) void navigate(`/project/${owner}/session/${ref.session}`);
       }
     },
-    [layout, navigate, projectId, profileSessions.data, sessions],
+    [layout, navigate, tabSessions],
   );
   const onCloseTab = useCallback(
     (leafId: string, ref: TabRef) => {
@@ -315,8 +357,9 @@ function WorkspaceInner() {
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
   // The whole left sidebar binds to one worktree: the pinned session if any,
   // otherwise the active session tab. Files, Changes, and Search all follow it
-  // (SPEC §8, pin-across-tabs).
-  const sidebarTarget = useExplorerTarget(sessions, activeSessionId, uiState);
+  // (SPEC §8, pin-across-tabs). Resolved against the full session list so a
+  // profile-wide pin keeps binding while you visit another project.
+  const sidebarTarget = useExplorerTarget(tabSessions, activeSessionId, uiState);
   const targetSession = sidebarTarget.session;
   const sidebarMode: SidebarMode = normalizeSidebarMode(uiState.snapshot.sidebar_mode);
   const sidebarCollapsed = uiState.snapshot.sidebar_collapsed;
@@ -428,7 +471,7 @@ function WorkspaceInner() {
                   renderOverlay={(ref) => {
                     const s =
                       ref.type === 'terminal'
-                        ? sessions.find((x) => x.id === ref.session)
+                        ? tabSessions.find((x) => x.id === ref.session)
                         : undefined;
                     const label =
                       ref.type === 'terminal'
@@ -445,7 +488,7 @@ function WorkspaceInner() {
                 >
                   <TileTree
                     tree={layout.tree}
-                    sessions={sessions}
+                    sessions={tabSessions}
                     reveal={reveal}
                     onActivateTab={onActivateTab}
                     onCloseTab={onCloseTab}
@@ -473,8 +516,7 @@ function WorkspaceInner() {
                 groups={sessionGroups}
                 accounts={accounts}
                 activeSessionId={activeSessionId}
-                reorderable={!showAllSessions}
-                onReorder={(ids) => uiState.update({ session_order: ids })}
+                onReorder={persistReorder}
                 archived={archivedSessions}
                 onNewSession={() => openCreate('agent')}
                 onNewTerminal={() => openCreate('terminal')}
@@ -499,8 +541,7 @@ function WorkspaceInner() {
         <CollapsedSessionsRail
           groups={sessionGroups}
           activeSessionId={activeSessionId}
-          reorderable={!showAllSessions}
-          onReorder={(ids) => uiState.update({ session_order: ids })}
+          onReorder={persistReorder}
           onExpand={() => uiState.update({ sessions_collapsed: false })}
           onNewTerminal={() => openCreate('terminal')}
           onNewSession={() => openCreate('agent')}

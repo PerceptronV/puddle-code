@@ -81,10 +81,11 @@ export const layoutNodeSchema: z.ZodType<LayoutNode> = z.lazy(() =>
 );
 
 /**
- * Per-(project, client) workspace snapshot (SPEC §11 reload semantics).
- * Loose so later phases can extend the shape without a migration; unknown
- * keys round-trip untouched. `editor_tabs` is carried from day one even
- * though the editor itself arrives in Phase 3.
+ * Per-profile workspace snapshot (SPEC §11 reload semantics): the editor area
+ * is shared across a profile's projects, so the snapshot is keyed by profile
+ * alone. Loose so later phases can extend the shape without a migration;
+ * unknown keys round-trip untouched. `editor_tabs` is carried from day one
+ * even though the editor itself arrives in Phase 3.
  */
 export const uiStateSnapshotSchema = z.looseObject({
   session_tabs: z.array(sessionId).default([]),
@@ -124,12 +125,12 @@ export const uiStateSnapshotSchema = z.looseObject({
 });
 export type UiStateSnapshot = z.infer<typeof uiStateSnapshotSchema>;
 
-export const putProjectStateRequestSchema = z.object({
+export const putUiStateRequestSchema = z.object({
   ui_state: uiStateSnapshotSchema,
 });
 
-export const projectStateResponseSchema = z.object({
+export const uiStateResponseSchema = z.object({
   ui_state: uiStateSnapshotSchema,
   updated_at: isoTimestamp,
 });
-export type ProjectStateResponse = z.infer<typeof projectStateResponseSchema>;
+export type UiStateResponse = z.infer<typeof uiStateResponseSchema>;

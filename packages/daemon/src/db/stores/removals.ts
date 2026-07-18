@@ -75,14 +75,7 @@ export class RemovalStore {
         )
         .run(profileId, profileId);
       this.db.prepare(`DELETE FROM sessions WHERE ${sessionFilter}`).run(profileId, profileId);
-      // Both the layouts on its own projects and the layouts this profile
-      // wrote while viewing other profiles' projects.
-      this.db
-        .prepare(
-          `DELETE FROM project_states WHERE profile_id = ?
-             OR project_id IN (SELECT id FROM projects WHERE profile_id = ?)`,
-        )
-        .run(profileId, profileId);
+      this.db.prepare(`DELETE FROM profile_states WHERE profile_id = ?`).run(profileId);
       this.db.prepare(`DELETE FROM prompts WHERE profile_id = ?`).run(profileId);
       this.db.prepare(`DELETE FROM projects WHERE profile_id = ?`).run(profileId);
       this.db.prepare(`DELETE FROM accounts WHERE profile_id = ?`).run(profileId);

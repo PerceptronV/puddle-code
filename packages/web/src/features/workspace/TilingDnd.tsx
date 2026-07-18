@@ -3,8 +3,12 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  pointerWithin,
+  rectIntersection,
   useSensor,
   useSensors,
+  type ClientRect,
+  type CollisionDetection,
   type DragEndEvent,
   type DragMoveEvent,
   type DragStartEvent,
@@ -14,16 +18,24 @@ import { zoneForPointer } from './layout-dnd';
 import type { DropEdge, DropSpec } from './layout-tree';
 
 /**
- * Drag-and-drop for the tiling layout (SPEC §8): dragging a tab out of its strip
- * over a pane resolves to a drop zone (centre → append, edge → split), shown as a
- * live highlight and committed on release. The zone is computed from the dragged
- * chip's centre against the hovered pane's measured rect (both provided by
- * dnd-kit), so no manual pointer tracking is needed.
+ * Drag-and-drop for the tiling layout (SPEC §8): dragging a tab over a pane
+ * body resolves to a drop zone (centre → append, edge → split), while dragging
+ * it along a TAB STRIP resolves to an insertion index (reorder / place-between),
+ * both shown as a live highlight and committed on release. Both the collision
+ * detection (`pointerWithin`) and the zone/side maths use the POINTER position
+ * — one reference frame, so an off-centre grab of a wide chip cannot make the
+ * hit target and the computed side disagree.
  */
 
 export interface DropIndicator {
   leafId: string;
   zone: DropEdge;
+  /**
+   * Set when the drop is a strip insertion (hovering a tab or the strip's
+   * tail): the visible index the caret is drawn at, and the `DropSpec.index`
+   * committed on release. Absent for pane-body drops.
+   */
+  index?: number;
 }
 
 const IndicatorCtx = createContext<DropIndicator | null>(null);
@@ -34,6 +46,22 @@ export function useDropIndicator(): DropIndicator | null {
 }
 
 const LEAF_PREFIX = 'leaf:';
+const TAB_PREFIX = 'tabdrop:';
+const STRIP_PREFIX = 'strip:';
+
+/**
+ * Tab chips and the strip's tail sit visually above the pane grid, so whichever
+ * one the POINTER is inside wins outright (chips over their strip, strips over
+ * everything); only outside them does the pane-body intersection apply.
+ */
+const collisions: CollisionDetection = (args) => {
+  const within = pointerWithin(args);
+  for (const prefix of [TAB_PREFIX, STRIP_PREFIX]) {
+    const hits = within.filter((c) => String(c.id).startsWith(prefix));
+    if (hits.length > 0) return hits;
+  }
+  return within.length > 0 ? within : rectIntersection(args);
+};
 
 export function TilingDnd({
   onDrop,
@@ -61,20 +89,14 @@ export function TilingDnd({
 
   const onDragMove = (e: DragMoveEvent) => {
     const over = e.over;
-    const dragged = e.active.rect.current.translated;
-    if (!over || !dragged || !String(over.id).startsWith(LEAF_PREFIX)) {
-      setIndicator(null);
-      latest.current = null;
-      return;
-    }
-    const r = over.rect;
-    const cx = dragged.left + dragged.width / 2;
-    const cy = dragged.top + dragged.height / 2;
-    const zone = zoneForPointer(
-      { width: r.width, height: r.height },
-      { x: cx - r.left, y: cy - r.top },
-    );
-    const next: DropIndicator = { leafId: String(over.id).slice(LEAF_PREFIX.length), zone };
+    const pointer = pointerPosition(e);
+    const next =
+      over && pointer
+        ? resolveIndicator(String(over.id), over.rect, over.data.current, pointer)
+        : null;
+    // Bail on no-change: a fresh object per pointermove would re-render every
+    // strip (context subscribers) at mouse-move frequency for nothing.
+    if (sameIndicator(latest.current, next)) return;
     latest.current = next;
     setIndicator(next);
   };
@@ -85,13 +107,14 @@ export function TilingDnd({
     const fromLeafId = e.active.data.current?.['fromLeafId'] as string | undefined;
     clear();
     if (ind && ref && fromLeafId) {
-      onDrop({ ref, fromLeafId, toLeafId: ind.leafId, edge: ind.zone });
+      onDrop({ ref, fromLeafId, toLeafId: ind.leafId, edge: ind.zone, index: ind.index });
     }
   };
 
   return (
     <DndContext
       sensors={sensors}
+      collisionDetection={collisions}
       onDragStart={onDragStart}
       onDragMove={onDragMove}
       onDragEnd={onDragEnd}
@@ -101,4 +124,48 @@ export function TilingDnd({
       <DragOverlay dropAnimation={null}>{activeRef ? renderOverlay(activeRef) : null}</DragOverlay>
     </DndContext>
   );
+}
+
+/**
+ * The pointer's viewport position mid-drag: the activator pointerdown plus the
+ * accumulated delta. Null for non-pointer activations (defensive — the only
+ * sensor here is PointerSensor).
+ */
+function pointerPosition(e: DragMoveEvent): { x: number; y: number } | null {
+  const activator = e.activatorEvent as Partial<PointerEvent>;
+  if (typeof activator.clientX !== 'number' || typeof activator.clientY !== 'number') return null;
+  return { x: activator.clientX + e.delta.x, y: activator.clientY + e.delta.y };
+}
+
+function sameIndicator(a: DropIndicator | null, b: DropIndicator | null): boolean {
+  if (a === null || b === null) return a === b;
+  return a.leafId === b.leafId && a.zone === b.zone && a.index === b.index;
+}
+
+/** Map the hovered droppable (tab chip / strip tail / pane body) to an indicator. */
+function resolveIndicator(
+  overId: string,
+  overRect: ClientRect,
+  overData: Record<string, unknown> | undefined,
+  pointer: { x: number; y: number },
+): DropIndicator | null {
+  if (overId.startsWith(TAB_PREFIX)) {
+    const data = overData as { leafId: string; index: number } | undefined;
+    if (!data) return null;
+    // Left half of the chip → insert before it; right half → after.
+    const after = pointer.x > overRect.left + overRect.width / 2;
+    return { leafId: data.leafId, zone: 'center', index: data.index + (after ? 1 : 0) };
+  }
+  if (overId.startsWith(STRIP_PREFIX)) {
+    const data = overData as { leafId: string; count: number } | undefined;
+    return data ? { leafId: data.leafId, zone: 'center', index: data.count } : null;
+  }
+  if (overId.startsWith(LEAF_PREFIX)) {
+    const zone = zoneForPointer(
+      { width: overRect.width, height: overRect.height },
+      { x: pointer.x - overRect.left, y: pointer.y - overRect.top },
+    );
+    return { leafId: overId.slice(LEAF_PREFIX.length), zone };
+  }
+  return null;
 }

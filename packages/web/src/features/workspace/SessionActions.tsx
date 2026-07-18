@@ -1,4 +1,5 @@
 import { type ReactNode, useState } from 'react';
+import { useNavigate } from 'react-router';
 import {
   Archive,
   ArchiveRestore,
@@ -7,6 +8,7 @@ import {
   Pencil,
   Play,
   Square,
+  SquareTerminal,
   UserRoundCog,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -45,6 +47,7 @@ import { editorDeepLink, editorLinkHost } from '../../lib/editor-links';
 import {
   useAccounts,
   useArchiveSession,
+  useCreateSession,
   useMigrateSession,
   useRenameSession,
   useSessionAction,
@@ -71,6 +74,8 @@ export interface SessionMenu {
   resume: () => void;
   openKill: () => void;
   openRename: () => void;
+  /** Spawn a terminal session sharing this session's worktree directory. */
+  openTerminal: () => void;
   /** Archive straight away — no confirmation (SPEC §4: nothing is destroyed). */
   archive: () => void;
   unarchive: () => void;
@@ -113,6 +118,8 @@ export function useSessionMenu(
   const unarchive = useUnarchiveSession();
   const rename = useRenameSession();
   const migrate = useMigrateSession();
+  const createTerminal = useCreateSession();
+  const navigate = useNavigate();
   const profileId = useCurrentProfileId();
   const accounts = useAccounts(profileId ?? undefined);
   const [confirm, setConfirm] = useState<'kill' | null>(null);
@@ -138,6 +145,23 @@ export function useSessionMenu(
     sameAgent,
     resume: () => resume.mutate(session.id, { onError: (e) => toast.error(e.message) }),
     openKill: () => setConfirm('kill'),
+    // A plain shell in THIS session's working directory (SPEC §4: a terminal
+    // session joining an existing worktree) — for git surgery, running tests,
+    // or poking at files beside the agent. Lands in the new terminal.
+    openTerminal: () =>
+      createTerminal.mutate(
+        {
+          project_id: session.project_id,
+          kind: 'terminal',
+          separate_branch: false,
+          separate_worktree: false,
+          join_worktree: session.worktree_path,
+        },
+        {
+          onSuccess: (t) => void navigate(`/project/${t.project_id}/session/${t.id}`),
+          onError: (e) => toast.error(e.message),
+        },
+      ),
     openRename: () => {
       setNewTitle(session.title ?? ''); // seed from the current override, not the default
       setRenaming(true);
@@ -317,6 +341,9 @@ function SessionMenuItems({ kit, menu }: { kit: MenuKit; menu: SessionMenu }) {
       {!session.worktree_missing && (
         <>
           <Separator />
+          <Item onSelect={menu.openTerminal}>
+            <SquareTerminal /> Open terminal in worktree
+          </Item>
           {/* Deep links, not regular navigation — window.location.href hands the
               URL to the OS/editor and leaves the tab in place. */}
           <Item

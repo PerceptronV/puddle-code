@@ -27,7 +27,7 @@ export function sameRef(a: TabRef, b: TabRef): boolean {
   return tabRefKey(a) === tabRefKey(b);
 }
 
-export function isTerminal(ref: TabRef): boolean {
+function isTerminal(ref: TabRef): boolean {
   return ref.type === 'terminal';
 }
 
@@ -154,7 +154,12 @@ function transformLeaf(
   return { ...node, children: node.children.map((c) => transformLeaf(c, leafId, fn)) };
 }
 
-/** Remove the tab `key` from every leaf that holds it (used for moves and close). */
+/**
+ * Remove the tab `key` from every leaf that holds it (a drop's first half).
+ * Tree-wide on purpose: drags can no longer create duplicates, but trees
+ * persisted under the old editor-duplicates-on-drop behaviour may still hold
+ * one tab in two panes — a drag self-heals that back to a single copy.
+ */
 function removeKeyEverywhere(node: LayoutNode, key: string): LayoutNode {
   if (node.kind === 'leaf') {
     if (!node.tabs.some((t) => tabRefKey(t) === key)) return node;
@@ -200,40 +205,55 @@ export function splitLeaf(
 
 export interface DropSpec {
   ref: TabRef;
-  /** The leaf the tab was dragged from (for move-vs-duplicate + same-leaf reorder). */
+  /** The leaf the tab was dragged from (carried for context; the move removes the key tree-wide). */
   fromLeafId: string;
   toLeafId: string;
   edge: DropEdge;
-  /** Insertion index for a `center` drop (strip reorder); appended when absent. */
+  /**
+   * Insertion index for a `center` drop (strip reorder), counted in the target
+   * strip's VISIBLE order — including the dragged tab itself when it is already
+   * in that leaf (dropTab compensates). Appended when absent.
+   */
   index?: number;
 }
 
 /**
- * The single drag-drop entry point. A terminal always MOVES (it is unique — the
- * WS manager is 1:1); an editor dropped into a DIFFERENT leaf DUPLICATES (models
- * are shared/refcounted), while an editor dropped back into its own leaf moves
- * (reorder). `center` inserts into the target leaf; an edge splits it.
+ * The single drag-drop entry point. A drop always MOVES the tab — out of its
+ * source pane, into the target — so a drag leaves nothing behind; editors
+ * behave exactly like terminals here (this replaces the earlier
+ * duplicate-into-another-pane behaviour, which surprised more than it helped).
+ * `center` inserts into the target leaf at `index`; an edge splits it. A drop
+ * also PINS the tab: deliberately placing a preview tab promotes it, as in
+ * VSCode.
  */
 export function dropTab(tree: LayoutNode, spec: DropSpec): LayoutNode {
-  const { ref, fromLeafId, toLeafId, edge, index } = spec;
-  const move = isTerminal(ref) || fromLeafId === toLeafId;
-  const withoutSource = move ? removeKeyEverywhere(tree, tabRefKey(ref)) : tree;
+  const { ref, toLeafId, edge } = spec;
+  const key = tabRefKey(ref);
+  // `index` counts the target strip as the user sees it — the dragged tab is
+  // still in place while dragging. Removing it first shifts every later
+  // position left by one, so compensate before the move.
+  let index = spec.index;
+  if (edge === 'center' && index !== undefined) {
+    const current = findLeaf(tree, toLeafId)?.tabs.findIndex((t) => tabRefKey(t) === key) ?? -1;
+    if (current !== -1 && current < index) index -= 1;
+  }
+  const withoutSource = removeKeyEverywhere(tree, key);
 
   // The target leaf may have been pruned if it emptied during the move (dragging
   // a lone tab onto its own leaf's edge) — normalise at the end restores sanity.
   if (edge === 'center') {
     const next = transformLeaf(withoutSource, toLeafId, (leaf) => insertInLeaf(leaf, ref, index));
     // If the target leaf vanished (moved its only tab), re-seed it.
-    if (!findLeaf(next, toLeafId) && !leafContainingKey(next, tabRefKey(ref))) {
-      return normalise(appendToFirstLeaf(next, ref));
+    if (!findLeaf(next, toLeafId) && !leafContainingKey(next, key)) {
+      return promoteTab(normalise(appendToFirstLeaf(next, ref)), key);
     }
-    return normalise(next);
+    return promoteTab(normalise(next), key);
   }
   if (!findLeaf(withoutSource, toLeafId)) {
     // Target leaf was the source and emptied; the ref becomes the whole content.
     return normalise(makeLeaf([ref]));
   }
-  return splitLeaf(withoutSource, toLeafId, edge, ref);
+  return promoteTab(splitLeaf(withoutSource, toLeafId, edge, ref), key);
 }
 
 function appendToFirstLeaf(node: LayoutNode, ref: TabRef): LayoutNode {

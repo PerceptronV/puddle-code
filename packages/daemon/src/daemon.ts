@@ -8,7 +8,7 @@ import { openDatabase } from './db/db.js';
 import { AccountStore } from './db/stores/accounts.js';
 import { EventStore } from './db/stores/events.js';
 import { ProfileStore } from './db/stores/profiles.js';
-import { ProjectStateStore } from './db/stores/project-states.js';
+import { ProfileStateStore } from './db/stores/profile-states.js';
 import { ProjectStore } from './db/stores/projects.js';
 import { RemovalStore } from './db/stores/removals.js';
 import { RepoStore } from './db/stores/repos.js';
@@ -66,7 +66,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   const accounts = new AccountStore(db);
   const repos = new RepoStore(db);
   const projects = new ProjectStore(db);
-  const projectStates = new ProjectStateStore(db);
+  const profileStates = new ProfileStateStore(db);
   const removals = new RemovalStore(db);
   const sessions = new SessionStore(db);
   const events = new EventStore(db);
@@ -123,7 +123,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   // every account of a profile can still resolve its adopted conversations.
   void share.reconcile().catch((e) => console.warn(`conversation reconcile failed: ${e.message}`));
 
-  const sweptStates = projectStates.gc(config.uiStateRetentionDays);
+  const sweptStates = profileStates.gc(config.uiStateRetentionDays);
   if (sweptStates > 0) console.log(`ui-state gc: ${sweptStates} stale row(s) removed`);
 
   const reconciled = reconcilePass({ sessions, events, projects, onboarding });
@@ -163,7 +163,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       accounts,
       repos,
       projects,
-      projectStates,
+      profileStates,
       removals,
       sessions,
       adapters,

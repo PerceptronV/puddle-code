@@ -5,7 +5,12 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { Session, SessionStatus } from '@puddle/shared';
-import { orderSessions, reorderIds } from '../src/features/workspace/session-order';
+import {
+  mergeOrder,
+  moveWithinGroups,
+  orderSessions,
+  reorderIds,
+} from '../src/features/workspace/session-order';
 
 function session(id: string, createdAt: string, status: SessionStatus = 'running'): Session {
   return {
@@ -73,5 +78,43 @@ describe('reorderIds', () => {
 
   it('is a no-op when the target is missing', () => {
     expect(reorderIds(['a', 'b', 'c'], 'a', 'zzz')).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('moveWithinGroups', () => {
+  const groups = [
+    { sessions: [{ id: 'a' }, { id: 'b' }] },
+    { sessions: [{ id: 'c' }, { id: 'd' }] },
+  ];
+
+  it('reorders within a group over the flattened visible order', () => {
+    expect(moveWithinGroups(groups, 'd', 'c')).toEqual(['a', 'b', 'd', 'c']);
+    expect(moveWithinGroups(groups, 'b', 'a')).toEqual(['b', 'a', 'c', 'd']);
+  });
+
+  it('refuses a drag across groups (a session never changes project)', () => {
+    expect(moveWithinGroups(groups, 'a', 'c')).toBeNull();
+  });
+
+  it('refuses when either id is missing or the ids match', () => {
+    expect(moveWithinGroups(groups, 'zzz', 'a')).toBeNull();
+    expect(moveWithinGroups(groups, 'a', 'zzz')).toBeNull();
+    expect(moveWithinGroups(groups, 'a', 'a')).toBeNull();
+  });
+
+  it('returns null when the move changes nothing (dragover fires continuously)', () => {
+    // a already sits immediately before b — re-dropping it there is a no-op.
+    expect(moveWithinGroups(groups, 'a', 'b')).toBeNull();
+  });
+});
+
+describe('mergeOrder', () => {
+  it('keeps unseen stored ids after the visible ones, in stored order', () => {
+    expect(mergeOrder(['b', 'a'], ['a', 'x', 'b', 'y'])).toEqual(['b', 'a', 'x', 'y']);
+  });
+
+  it('drops nothing and dedupes nothing that is not duplicated', () => {
+    expect(mergeOrder(['a'], [])).toEqual(['a']);
+    expect(mergeOrder([], ['x', 'y'])).toEqual(['x', 'y']);
   });
 });

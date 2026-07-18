@@ -104,8 +104,8 @@ describe('dropTab', () => {
     expect(leafContainingKey(tree, 'term:t1')!.tabs.map(tabRefKey)).toContain('term:t1');
   });
 
-  it('duplicates an editor dropped into a different leaf', () => {
-    const a = makeLeaf([ed('a.ts')]);
+  it('moves an editor dropped into a different leaf (a drag leaves nothing behind)', () => {
+    const a = makeLeaf([ed('a.ts'), ed('x.ts')]);
     const tree = splitLeaf(a, a.id, 'right', ed('b.ts'));
     const leafA = leafWith(tree, ed('a.ts'));
     const leafB = leafWith(tree, ed('b.ts'));
@@ -115,8 +115,10 @@ describe('dropTab', () => {
       toLeafId: leafB.id,
       edge: 'center',
     });
-    // a.ts now appears in BOTH leaves
-    expect(flattenTabs(next).filter((t) => sameRef(t, ed('a.ts')))).toHaveLength(2);
+    // a.ts appears exactly once, in leaf B; the source keeps only x.ts.
+    expect(flattenTabs(next).filter((t) => sameRef(t, ed('a.ts')))).toHaveLength(1);
+    expect(leafWith(next, ed('a.ts')).id).toBe(leafB.id);
+    expect(findLeaf(next, leafA.id)!.tabs.map(tabRefKey)).toEqual(['editor:file:s1::x.ts']);
   });
 
   it('reorders within the same leaf (move, not duplicate)', () => {
@@ -129,8 +131,45 @@ describe('dropTab', () => {
     ]);
   });
 
-  it('edge-splits the target leaf', () => {
+  it('compensates a rightward same-leaf reorder for the dragged tab still being visible', () => {
+    // The strip shows [a, b, c]; the user drops `a` before `c` (visible index 2).
+    const leaf = makeLeaf([ed('a.ts'), ed('b.ts'), ed('c.ts')]);
+    const next = moveTab(leaf, ed('a.ts'), leaf.id, leaf.id, 2);
+    expect(allLeaves(next)[0]!.tabs.map(tabRefKey)).toEqual([
+      'editor:file:s1::b.ts',
+      'editor:file:s1::a.ts',
+      'editor:file:s1::c.ts',
+    ]);
+    // …and dropping past the last tab (visible index 3) lands at the end.
+    const toEnd = moveTab(leaf, ed('a.ts'), leaf.id, leaf.id, 3);
+    expect(allLeaves(toEnd)[0]!.tabs.map(tabRefKey)).toEqual([
+      'editor:file:s1::b.ts',
+      'editor:file:s1::c.ts',
+      'editor:file:s1::a.ts',
+    ]);
+  });
+
+  it('inserts at the given index on a cross-leaf center drop', () => {
     const a = makeLeaf([ed('a.ts')]);
+    const tree = splitLeaf(a, a.id, 'right', ed('b.ts'));
+    const leafB = leafWith(tree, ed('b.ts'));
+    const next = dropTab(tree, {
+      ref: ed('a.ts'),
+      fromLeafId: leafWith(tree, ed('a.ts')).id,
+      toLeafId: leafB.id,
+      edge: 'center',
+      index: 0,
+    });
+    // Source emptied and collapsed; B's strip is [a, b].
+    expect(allLeaves(next)).toHaveLength(1);
+    expect(allLeaves(next)[0]!.tabs.map(tabRefKey)).toEqual([
+      'editor:file:s1::a.ts',
+      'editor:file:s1::b.ts',
+    ]);
+  });
+
+  it('edge-splits the target leaf, moving the tab out of its source', () => {
+    const a = makeLeaf([ed('a.ts'), ed('x.ts')]);
     const tree = splitLeaf(a, a.id, 'right', ed('b.ts'));
     const leafB = leafWith(tree, ed('b.ts'));
     const next = dropTab(tree, {
@@ -139,8 +178,57 @@ describe('dropTab', () => {
       toLeafId: leafB.id,
       edge: 'bottom',
     });
-    // a.ts still in its original leaf (duplicate) + a new leaf below B
-    expect(flattenTabs(next).filter((t) => sameRef(t, ed('a.ts')))).toHaveLength(2);
+    // a.ts lives only in the new leaf below B.
+    expect(flattenTabs(next).filter((t) => sameRef(t, ed('a.ts')))).toHaveLength(1);
+    expect(leafWith(next, ed('a.ts')).id).not.toBe(leafB.id);
+  });
+
+  it('self-heals a legacy duplicated tab: a drag removes every copy tree-wide', () => {
+    // Old builds duplicated editors across panes; such trees still exist in
+    // storage. Dragging any copy must leave exactly ONE copy, at the drop site.
+    const a = makeLeaf([ed('a.ts'), ed('x.ts')]);
+    let tree = splitLeaf(a, a.id, 'right', ed('b.ts'));
+    const leafB = leafWith(tree, ed('b.ts'));
+    // Hand-plant the duplicate (as a legacy snapshot would): a.ts also in leafB.
+    tree = {
+      ...tree,
+      children: (tree as LayoutSplit).children.map((c) =>
+        c.id === leafB.id && c.kind === 'leaf' ? { ...c, tabs: [...c.tabs, ed('a.ts')] } : c,
+      ),
+    } as LayoutNode;
+    expect(flattenTabs(tree).filter((t) => sameRef(t, ed('a.ts')))).toHaveLength(2);
+    const next = dropTab(tree, {
+      ref: ed('a.ts'),
+      fromLeafId: leafWith(tree, ed('x.ts')).id,
+      toLeafId: leafB.id,
+      edge: 'center',
+      index: 0,
+    });
+    expect(flattenTabs(next).filter((t) => sameRef(t, ed('a.ts')))).toHaveLength(1);
+    expect(findLeaf(next, leafB.id)!.tabs.map(tabRefKey)[0]).toBe('editor:file:s1::a.ts');
+  });
+
+  it('pins a preview tab on any drop (drag = deliberate placement)', () => {
+    // Preview a.ts in its own leaf, then split another leaf off it and drag the
+    // preview across — the moved tab must arrive permanent.
+    const seed = makeLeaf([ed('x.ts')]);
+    const withPreview = openPreview(seed, seed.id, ed('a.ts'));
+    const src = leafWith(withPreview, ed('a.ts'));
+    expect(src.previewKey).toBe(tabRefKey(ed('a.ts')));
+    const tree = splitLeaf(withPreview, src.id, 'right', ed('b.ts'));
+    const to = leafWith(tree, ed('b.ts'));
+    const next = dropTab(tree, {
+      ref: ed('a.ts'),
+      fromLeafId: leafWith(tree, ed('a.ts')).id,
+      toLeafId: to.id,
+      edge: 'center',
+    });
+    for (const leaf of allLeaves(next)) {
+      expect(leaf.previewKey).not.toBe(tabRefKey(ed('a.ts')));
+    }
+    // A same-leaf reorder pins too.
+    const reordered = moveTab(withPreview, ed('a.ts'), src.id, src.id, 0);
+    expect(leafWith(reordered, ed('a.ts')).previewKey).toBeNull();
   });
 });
 

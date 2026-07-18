@@ -57,3 +57,34 @@ export function reorderIds(
   next.splice(at, 0, dragId);
   return next;
 }
+
+/**
+ * A sidebar drag across grouped-by-project sessions: moves `dragId` before
+ * `beforeId` when both sit in the SAME group (a session never changes project
+ * by drag), returning the full flattened visible order to persist — or null
+ * when the drag crosses groups, either id is missing, or the move changes
+ * nothing (dragover fires continuously; identical orders must not re-persist).
+ */
+export function moveWithinGroups(
+  groups: readonly { sessions: readonly { id: string }[] }[],
+  dragId: string,
+  beforeId: string,
+): string[] | null {
+  if (dragId === beforeId) return null;
+  const group = groups.find((g) => g.sessions.some((s) => s.id === dragId));
+  if (!group || !group.sessions.some((s) => s.id === beforeId)) return null;
+  const visible = groups.flatMap((g) => g.sessions.map((s) => s.id));
+  const next = reorderIds(visible, dragId, beforeId);
+  return next.some((id, i) => id !== visible[i]) ? next : null;
+}
+
+/**
+ * Merges a freshly reordered VISIBLE id list into the stored order: the visible
+ * ids take their new sequence; stored ids not currently visible (other
+ * projects' sessions, when only one project is shown) follow, keeping their
+ * relative order — a reorder never forgets sessions it can't see.
+ */
+export function mergeOrder(visible: readonly string[], stored: readonly string[]): string[] {
+  const seen = new Set(visible);
+  return [...visible, ...stored.filter((id) => !seen.has(id))];
+}

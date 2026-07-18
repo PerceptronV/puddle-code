@@ -13,7 +13,7 @@ import type {
   ProfileSettings,
   Project,
   ProjectDetail,
-  ProjectStateResponse,
+  UiStateResponse,
   RepoBranchesResponse,
   RepoWithOrphans,
   RepoWorktreesResponse,
@@ -93,14 +93,16 @@ export function useSessions(projectId: string | undefined) {
 }
 
 /**
- * All of a profile's sessions across its projects (the cross-project sidebar).
- * Keyed under `['sessions', …]` so the live status/rename sync patches it too.
+ * Every session on the daemon, whatever the profile (trusted shared box). The
+ * profile-keyed layout tree can hold tabs from any project the viewer opened,
+ * so tab labels, status dots, restore-time pruning, and the cross-project
+ * sidebar (which filters per project) all derive from this one list. Keyed
+ * under `['sessions', …]` so the live status/rename sync patches it too.
  */
-export function useProfileSessions(profileId: string | undefined) {
+export function useAllSessions() {
   return useQuery({
-    queryKey: ['sessions', 'profile', profileId],
-    queryFn: () => api<Session[]>('GET', `/api/sessions?profile=${profileId}`),
-    enabled: profileId !== undefined,
+    queryKey: ['sessions', 'all'],
+    queryFn: () => api<Session[]>('GET', '/api/sessions'),
   });
 }
 
@@ -412,29 +414,20 @@ export function usePatchConfig() {
 
 /* -- Workspace ui_state (SPEC §11 reload semantics) ---------------------- */
 
-export async function fetchProjectState(
-  projectId: string,
-  profileId: string,
-): Promise<ProjectStateResponse | null> {
+export async function fetchProfileState(profileId: string): Promise<UiStateResponse | null> {
   try {
-    return await api<ProjectStateResponse>(
-      'GET',
-      `/api/projects/${projectId}/state?profile=${profileId}`,
-    );
+    return await api<UiStateResponse>('GET', `/api/profiles/${profileId}/state`);
   } catch (e) {
     if (e instanceof Error && 'code' in e && e.code === 'no_state') return null;
     throw e;
   }
 }
 
-export function putProjectState(
-  projectId: string,
+export function putProfileState(
   profileId: string,
   uiState: UiStateSnapshot,
-): Promise<ProjectStateResponse> {
-  return api<ProjectStateResponse>('PUT', `/api/projects/${projectId}/state?profile=${profileId}`, {
-    ui_state: uiState,
-  });
+): Promise<UiStateResponse> {
+  return api<UiStateResponse>('PUT', `/api/profiles/${profileId}/state`, { ui_state: uiState });
 }
 
 /**

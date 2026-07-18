@@ -1,4 +1,5 @@
-import { useDraggable } from '@dnd-kit/core';
+import { Fragment } from 'react';
+import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { X } from 'lucide-react';
 import type { LayoutLeaf, Session, TabRef } from '@puddle/shared';
 import { cn } from '../../lib/utils';
@@ -9,6 +10,7 @@ import { tabKind, type EditorTab } from '../editor/editor-tabs';
 import { LazyEditorTabClose } from '../editor/lazy-editor-parts';
 import { SessionContextMenu } from './SessionActions';
 import { tabRefKey } from './layout-tree';
+import { useDropIndicator } from './TilingDnd';
 
 const TAB_CLASS =
   'group flex min-w-0 max-w-52 cursor-pointer items-center gap-1.5 rounded-t-md px-2.5 text-xs transition-colors';
@@ -16,9 +18,11 @@ const TAB_CLASS =
 /**
  * A tiling pane's tab strip (SPEC §8) — one unified strip over BOTH terminal and
  * editor tabs (merging the old `TabStrip` + `EditorTabStrip`). Each tab is
- * draggable (dnd-kit) so it can be reordered or dropped onto another pane to
- * split it; terminals carry the session lifecycle menu, editors a dirty-aware
- * close (behind the lazy editor chunk).
+ * draggable (dnd-kit) so it can be reordered within the strip (each chip and the
+ * strip's tail are droppables resolving to an insertion index, marked by a
+ * caret) or dropped onto another pane to move into or split it; terminals carry
+ * the session lifecycle menu, editors a dirty-aware close (behind the lazy
+ * editor chunk).
  */
 export function PaneTabStrip({
   leaf,
@@ -37,6 +41,14 @@ export function PaneTabStrip({
 }) {
   const branches = new Map(sessions.map((s) => [s.id, s.branch]));
   const editorTabs = leaf.tabs.flatMap((t) => (t.type === 'editor' ? [t.tab] : []));
+  const indicator = useDropIndicator();
+  const caretAt =
+    indicator?.leafId === leaf.id && indicator.index !== undefined ? indicator.index : null;
+  // The strip itself (its tail, past the last chip) drops as "append".
+  const { setNodeRef: setStripRef } = useDroppable({
+    id: `strip:${leaf.id}`,
+    data: { leafId: leaf.id, count: leaf.tabs.length },
+  });
 
   const labelFor = (tab: EditorTab): string => {
     const base = editorTabLabel(tab.path, tab.session, editorTabs, branches);
@@ -46,29 +58,44 @@ export function PaneTabStrip({
   };
 
   return (
-    <div className="flex h-9 shrink-0 items-stretch gap-0.5 overflow-x-auto bg-surface px-1 pt-1">
-      {leaf.tabs.map((ref) => (
-        <PaneTab
-          key={tabRefKey(ref)}
-          tab={ref}
-          leafId={leaf.id}
-          active={tabRefKey(ref) === leaf.activeKey}
-          preview={tabRefKey(ref) === leaf.previewKey}
-          session={ref.type === 'terminal' ? sessions.find((s) => s.id === ref.session) : undefined}
-          label={ref.type === 'editor' ? labelFor(ref.tab) : ''}
-          onActivate={() => onActivate(ref)}
-          onClose={() => onClose(ref)}
-          onPromote={() => onPromote(ref)}
-          onArchived={onArchived}
-        />
+    <div
+      ref={setStripRef}
+      className="flex h-9 shrink-0 items-stretch gap-0.5 overflow-x-auto bg-surface px-1 pt-1"
+    >
+      {leaf.tabs.map((ref, index) => (
+        <Fragment key={tabRefKey(ref)}>
+          {caretAt === index && <InsertionCaret />}
+          <PaneTab
+            tab={ref}
+            leafId={leaf.id}
+            index={index}
+            active={tabRefKey(ref) === leaf.activeKey}
+            preview={tabRefKey(ref) === leaf.previewKey}
+            session={
+              ref.type === 'terminal' ? sessions.find((s) => s.id === ref.session) : undefined
+            }
+            label={ref.type === 'editor' ? labelFor(ref.tab) : ''}
+            onActivate={() => onActivate(ref)}
+            onClose={() => onClose(ref)}
+            onPromote={() => onPromote(ref)}
+            onArchived={onArchived}
+          />
+        </Fragment>
       ))}
+      {caretAt === leaf.tabs.length && <InsertionCaret />}
     </div>
   );
+}
+
+/** The live insertion marker a strip drag will drop the tab at. */
+function InsertionCaret() {
+  return <div className="w-0.5 shrink-0 self-stretch rounded-full bg-accent" />;
 }
 
 function PaneTab({
   tab,
   leafId,
+  index,
   active,
   preview,
   session,
@@ -80,6 +107,7 @@ function PaneTab({
 }: {
   tab: TabRef;
   leafId: string;
+  index: number;
   active: boolean;
   preview: boolean;
   session: Session | undefined;
@@ -90,10 +118,22 @@ function PaneTab({
   onArchived: (session: string) => void;
 }) {
   const renderTitle = useSessionTitleRenderer();
+  const key = tabRefKey(tab);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: tabRefKey(tab),
+    // Keyed by leaf too: legacy trees may hold the same tab in two panes, and
+    // duplicate draggable ids confuse dnd-kit.
+    id: `drag:${leafId}:${key}`,
     data: { ref: tab, fromLeafId: leafId },
   });
+  // The chip is also a drop target, resolving to insert-before/after itself.
+  const { setNodeRef: setDropRef } = useDroppable({
+    id: `tabdrop:${leafId}:${key}`,
+    data: { leafId, index },
+  });
+  const setRefs = (el: HTMLElement | null) => {
+    setNodeRef(el);
+    setDropRef(el);
+  };
   const cls = cn(
     TAB_CLASS,
     active ? 'bg-ground text-fg' : 'text-fg-secondary hover:bg-elevated',
@@ -105,7 +145,7 @@ function PaneTab({
 
   const body = (
     <div
-      ref={setNodeRef}
+      ref={setRefs}
       {...attributes}
       {...listeners}
       onClick={onActivate}

@@ -66,7 +66,11 @@ export function PaneLeaf({
           ref={slotRef}
           className={cn('absolute inset-0 py-1 pl-4 pr-2', !terminalKey && 'hidden')}
         />
-        {indicator?.leafId === leaf.id && <DropZoneOverlay zone={indicator.zone} />}
+        {/* A strip insertion (index set) is marked by the strip's caret instead
+            of the pane-body highlight. */}
+        {indicator?.leafId === leaf.id && indicator.index === undefined && (
+          <DropZoneOverlay zone={indicator.zone} />
+        )}
         {!activeRef && (
           <div className="flex h-full flex-col items-center justify-center gap-6 text-center">
             <PuddleGlyph className="size-24 text-fg-muted/40" />

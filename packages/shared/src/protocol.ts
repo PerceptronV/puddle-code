@@ -16,4 +16,8 @@
 // 6.2 (2026-07-15): additive — POST /api/sessions/:id/unarchive (archive is now
 // a reversible hide, not a teardown), and the profile setting `restartTemplate`
 // (a loose key) for the resume-after-restart launch text.
-export const PROTOCOL_VERSION = { major: 6, minor: 2 } as const;
+// 7.0 (2026-07-17): breaking — workspace ui_state re-keyed from (project,
+// profile) to profile alone (the editor area is shared across projects):
+// GET/PUT /api/projects/:id/state moved to /api/profiles/:id/state, with no
+// cross-profile seeding.
+export const PROTOCOL_VERSION = { major: 7, minor: 0 } as const;

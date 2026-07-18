@@ -388,11 +388,9 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
     expect(all.every((s) => s.status === 'archived')).toBe(true);
   });
 
-  it('stores ui state per (project, profile); other profiles seed without clobbering', async () => {
+  it('stores ui state per profile; profiles never see each other’s workspaces', async () => {
     const c = client(daemon);
-    const noProfile = await c.req('GET', `/api/projects/${project.id}/state`);
-    expect(noProfile.status).toBe(400);
-    const noState = await c.req('GET', `/api/projects/${project.id}/state?profile=${profile.id}`);
+    const noState = await c.req('GET', `/api/profiles/${profile.id}/state`);
     expect(noState.status).toBe(404);
     expect(((await noState.json()) as { error: { code: string } }).error.code).toBe('no_state');
 
@@ -410,30 +408,26 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
       session_order: [],
       layout_tree: null,
     };
-    await c.json('PUT', `/api/projects/${project.id}/state?profile=${profile.id}`, {
-      ui_state: snapshotA,
-    });
+    await c.json('PUT', `/api/profiles/${profile.id}/state`, { ui_state: snapshotA });
 
     // The profile reads its own row back — from any browser or tunnel port.
     const ownRow = await c.json<{ ui_state: typeof snapshotA }>(
       'GET',
-      `/api/projects/${project.id}/state?profile=${profile.id}`,
+      `/api/profiles/${profile.id}/state`,
     );
     expect(ownRow.ui_state).toEqual(snapshotA);
 
-    // Another profile seeds from the latest snapshot but writes its own row.
+    // Another profile starts with a fresh workspace (no cross-profile seeding)
+    // and its writes never clobber the first profile's row.
     const bob = await c.json<Profile>('POST', '/api/profiles', { name: 'bob' });
-    const seeded = await c.json<{ ui_state: typeof snapshotA }>(
-      'GET',
-      `/api/projects/${project.id}/state?profile=${bob.id}`,
-    );
-    expect(seeded.ui_state).toEqual(snapshotA);
-    await c.json('PUT', `/api/projects/${project.id}/state?profile=${bob.id}`, {
+    const bobFresh = await c.req('GET', `/api/profiles/${bob.id}/state`);
+    expect(bobFresh.status).toBe(404);
+    await c.json('PUT', `/api/profiles/${bob.id}/state`, {
       ui_state: { ...snapshotA, active_session: s2.id },
     });
     const aliceAfter = await c.json<{ ui_state: { active_session: string } }>(
       'GET',
-      `/api/projects/${project.id}/state?profile=${profile.id}`,
+      `/api/profiles/${profile.id}/state`,
     );
     expect(aliceAfter.ui_state.active_session).toBe(s1.id);
     await c.req('DELETE', `/api/profiles/${bob.id}`); // keep the later delete test exact
