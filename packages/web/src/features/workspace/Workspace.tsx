@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Group, Panel, Separator, type Layout } from 'react-resizable-panels';
-import { Play } from 'lucide-react';
-import { toast } from 'sonner';
 import type { Session, SessionKind, TabRef } from '@puddle/shared';
-import { Button } from '../../components/ui/button';
 import { useExplorerTarget } from '../explorer/use-explorer-target';
 import { useClientSettings } from '../../lib/client-settings';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
@@ -14,7 +11,6 @@ import {
   useProfileSettings,
   useProjectDetail,
   useProjects,
-  useSessionAction,
 } from '../../lib/queries';
 import { mergeOrder, orderByDrag } from './session-order';
 import { useNewSession } from '../shell/new-session-context';
@@ -37,38 +33,11 @@ import {
   type SidebarMode,
 } from './NavigatorSidebar';
 import { NewSessionDialog } from './NewSessionDialog';
-import { PortsStrip } from '../ports/PortsStrip';
 import { CollapsedSessionsRail, SessionSidebar, type SessionGroup } from './SessionSidebar';
 import { TileTree } from './TileTree';
 import { TilingDnd } from './TilingDnd';
 import { useLayoutTree } from './useLayoutTree';
 import { useUiState } from './use-ui-state';
-
-/** Inline banner over the tiling area for the bound session that needs a nudge. */
-function SessionBanner({ session }: { session: Session }) {
-  const resume = useSessionAction('resume');
-  if (session.status !== 'interrupted' && session.status !== 'exited') return null;
-  return (
-    <div className="flex items-center gap-3 bg-elevated px-3 py-2">
-      <span className="text-xs text-fg-secondary">
-        {session.status === 'interrupted'
-          ? 'This session was interrupted (daemon restart or crash).'
-          : 'The agent process exited.'}
-      </span>
-      {!session.worktree_missing && (
-        <Button
-          size="sm"
-          className="ml-auto"
-          disabled={resume.isPending}
-          onClick={() => resume.mutate(session.id, { onError: (e) => toast.error(e.message) })}
-        >
-          <Play />
-          Resume
-        </Button>
-      )}
-    </div>
-  );
-}
 
 /**
  * Project workspace (SPEC §8): the left navigator, the centre free-form tiling
@@ -391,7 +360,6 @@ function WorkspaceInner() {
     [layout, activeSessionId, tabSessions, navigate],
   );
 
-  const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
   // The whole left sidebar binds to one worktree: the pinned session if any,
   // otherwise the FOCUSED pane's active tab — every tab carries the worktree
   // it was opened from (a file tab its `session`, a terminal its own), so
@@ -508,8 +476,8 @@ function WorkspaceInner() {
           {/* Free-form tiling area (SPEC §8): editor and terminal tabs live in a
               recursive split tree (`layout_tree`); every open terminal is kept
               mounted by `KeepAliveHost` and its DOM adopted into whichever pane
-              shows it, so PTYs never drop. The URL-bound session's resume banner
-              and port strip sit below the tree. */}
+              shows it, so PTYs never drop. A session's resume button and ports
+              overlay the bottom-right of ITS OWN pane (PaneSessionOverlay). */}
           <KeepAliveHost
             tree={layout.tree}
             onOpenFile={(session, path, line, column) =>
@@ -552,12 +520,6 @@ function WorkspaceInner() {
                   />
                 </TilingDnd>
               </div>
-              {/* The resume banner and ports strip sit BELOW the tree (they used
-                  to be above it). */}
-              {activeSession && <SessionBanner session={activeSession} />}
-              {activeSession && (
-                <PortsStrip sessionId={activeSession.id} status={activeSession.status} />
-              )}
             </div>
           </KeepAliveHost>
         </Panel>

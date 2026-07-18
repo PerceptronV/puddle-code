@@ -15,14 +15,15 @@ import { sshForwardCommand } from './ssh-command';
 const LIVE_STATUSES: Session['status'][] = ['running', 'waiting_input'];
 
 /**
- * Slim mono row of detected listening ports for the active session (SPEC
- * §9), rendered under the terminal — terminal view only, so diff/history
- * stay clean. Hidden entirely when the session isn't live or has no ports;
- * no refresh control, the hook's 5s poll is the refresh (HUMANS.md
- * minimalism). Each chip opens a menu with the access paths that make sense
- * for this window's mode (the CLI's `?host=` boot param — Phase 6): local
- * mode gets the direct localhost link, SSH mode the tier-2 proxy link;
- * `ssh -L` is always on offer as the manual fallback (SPEC §9).
+ * Slim mono row of detected listening ports for one session (SPEC §9),
+ * rendered inside that session's pane overlay (PaneSessionOverlay) — so a
+ * pane only ever polls for the session it is showing. Hidden entirely when
+ * the session isn't live or has no ports; no refresh control, the hook's 5s
+ * poll is the refresh (HUMANS.md minimalism). Each chip opens a menu with
+ * the access paths that make sense for this window's mode (the CLI's
+ * `?host=` boot param — Phase 6): local mode gets the direct localhost link,
+ * SSH mode the tier-2 proxy link; `ssh -L` is always on offer as the manual
+ * fallback (SPEC §9).
  */
 export function PortsStrip({
   sessionId,

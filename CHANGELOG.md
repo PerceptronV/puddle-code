@@ -24,6 +24,7 @@ Past releases: see docs/changelogs/.
 - Settings: the "Terminal & Editor" section is gone — the daemon agent search path and terminal scrollback moved into Sessions (order: permission gate, agent path, scrollback, launch text, tab title); tab size, word wrap, and the editor-link SSH host live in a new Editor section directly below Sessions. Old `#settings/terminal` links resolve to Sessions.
 - The Files/Search worktree header ~-compresses the daemon home directory (`/home/…`, `/Users/…`) so the identifying tail of the path gets the width.
 - File-tree icons are monochrome in the heading colour (navy in light, white in dark; per-type glyph shapes kept): colour on a tree icon now always means git status — default folders were gold, indistinguishable from the modified tint.
+- A session's Resume button and ports chips now overlay the bottom-right of its OWN pane — for agents and plain terminals alike — instead of a verbose banner strip at the bottom of the whole workspace; the overlay is click-transparent outside the controls.
 
 ### Fixed
 

@@ -8,6 +8,7 @@ import { LazyPaneEditorBody } from '../editor/lazy-editor-parts';
 import type { RevealTarget } from './editor-context';
 import { useKeepAliveSlot } from './keep-alive';
 import { zoneForPointer } from './layout-dnd';
+import { PaneSessionOverlay } from './PaneSessionOverlay';
 import { PaneTabStrip } from './PaneTabStrip';
 import { tabRefKey, type DropEdge } from './layout-tree';
 import { decodeTabTransfer, hasTabTransfer, TAB_MIME } from './tab-transfer';
@@ -43,6 +44,10 @@ export function PaneLeaf({
 }) {
   const activeRef = leaf.tabs.find((t) => tabRefKey(t) === leaf.activeKey) ?? null;
   const terminalKey = activeRef?.type === 'terminal' ? tabRefKey(activeRef) : null;
+  const shownSession =
+    activeRef?.type === 'terminal'
+      ? (sessions.find((s) => s.id === activeRef.session) ?? null)
+      : null;
   const slotRef = useKeepAliveSlot(terminalKey);
   const { setNodeRef } = useDroppable({ id: `leaf:${leaf.id}` });
   const indicator = useDropIndicator();
@@ -131,6 +136,8 @@ export function PaneLeaf({
           <DropZoneOverlay zone={indicator.zone} />
         )}
         {nativeZone !== null && <DropZoneOverlay zone={nativeZone} />}
+        {/* The shown session's own controls (resume, ports), inside ITS pane. */}
+        {shownSession && <PaneSessionOverlay session={shownSession} />}
         {!activeRef && (
           <div className="flex h-full flex-col items-center justify-center gap-6 text-center">
             <PuddleGlyph className="size-24 text-fg-muted/40" />
