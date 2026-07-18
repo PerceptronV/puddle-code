@@ -16,7 +16,9 @@ import {
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
+import { useHostInfo } from '../../lib/queries';
 import { sessionDisplayName } from '../../lib/session-display';
+import { tildify } from '../../lib/tildify';
 import { cn } from '../../lib/utils';
 import { useExplorerOptional } from '../explorer/explorer-context';
 import type { ExplorerTarget } from '../explorer/use-explorer-target';
@@ -69,9 +71,11 @@ export function SidebarTargetHeader({
   showPath?: boolean;
 }) {
   const { session, pinned, pin, unpin } = target;
+  const home = useHostInfo().data?.home;
   const pickable = sessions.filter((s) => s.status !== 'archived');
   const branchLabel = session ? session.branch || sessionDisplayName(session) : 'No worktree';
-  const pathLabel = session ? session.worktree_path : 'No worktree';
+  // ~-compress the daemon home so the identifying tail gets the width (SPEC §8).
+  const pathLabel = session ? tildify(session.worktree_path, home) : 'No worktree';
   const title = showPath ? pathLabel : branchLabel;
 
   return (
