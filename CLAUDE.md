@@ -45,7 +45,8 @@ For manual testing before a release exists: `pnpm build && pnpm build:tarball`, 
 `connect user@host --tarball …`). The daemon default port is 7434; the CLI serves the
 UI at 7433. `start`/`connect` background themselves once ready — pass `--foreground`
 when developing so the cockpit stays attached to your terminal (`puddle list` / `puddle
-kill` manage backgrounded ones).
+kill` manage backgrounded ones; `puddle refresh` is kill-then-start in one step, also
+reachable from the UI's connection banner).
 
 > **Never launch `puddled` from inside a coding-agent session** (e.g. a Claude Code terminal, including these dev sessions). The daemon inherits that agent's orchestration env vars — `CLAUDECODE=1`, `CLAUDE_CODE_*` — and passes them to the agents it spawns (PtyManager uses `{...process.env}` by design). A `claude` that sees `CLAUDECODE`/`CLAUDE_CODE_CHILD_SESSION` treats itself as a nested child and **does not write a resumable conversation transcript**, so `--resume` silently fails with "no conversation found" (verified against Claude Code 2.1.209: the identical session persists a transcript with these unset and writes nothing with them set). Start the daemon from a plain shell (systemd/launchd does this in production, so real deployments are unaffected). If a session won't resume during development, check the daemon's env first (`ps eww <pid> | tr ' ' '\n' | grep CLAUDE`).
 

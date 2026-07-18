@@ -4,6 +4,12 @@ export type Command =
   | {
       cmd: 'start';
       port?: number;
+      /**
+       * Start the UI-port probe here without insisting on it (unlike --port,
+       * which is strict). `refresh` uses this to land the new cockpit back on
+       * the old origin so an open browser tab survives the swap.
+       */
+      preferPort?: number;
       noBrowser: boolean;
       noUpgrade: boolean;
       tarball?: string;
@@ -12,6 +18,19 @@ export type Command =
   | {
       cmd: 'connect';
       host: string;
+      port?: number;
+      /** See the `start` variant — a preferred, non-strict UI port. */
+      preferPort?: number;
+      remotePort?: number;
+      noBrowser: boolean;
+      noUpgrade: boolean;
+      tarball?: string;
+      foreground: boolean;
+    }
+  | {
+      cmd: 'refresh';
+      /** 'local' or user@host; omitted → the sole running cockpit. */
+      target?: string;
       port?: number;
       remotePort?: number;
       noBrowser: boolean;
@@ -35,6 +54,8 @@ usage:
                  [--tarball <path>]
   puddle connect user@host [--port <local>] [--remote-port <p>] [--foreground]
                  [--no-browser] [--no-upgrade] [--tarball <path>]
+  puddle refresh [local | user@host] [--port <p>] [--remote-port <p>]
+                 [--foreground] [--no-browser] [--no-upgrade] [--tarball <path>]
   puddle list
   puddle kill    [local | user@host | --all]
   puddle status  [user@host]
@@ -47,8 +68,10 @@ start serves the cockpit at http://localhost:7433 against the daemon on this
 machine (installing it under ~/.puddle if needed); connect does the same for
 an SSH host through one tunnel. Both keep running in the background once
 ready, so the terminal may close (--foreground to stay attached; Ctrl-C then
-stops the cockpit). list shows running cockpits; kill stops one — sessions
-keep running on the host either way.`;
+stops the cockpit). refresh stops a target's cockpit (even a wedged one) and
+runs the full start/connect flow again — tunnel, daemon restart if needed —
+keeping the old UI port so open tabs survive. list shows running cockpits;
+kill stops one — sessions keep running on the host either way.`;
 
 /** Hand-rolled argv parser — the surface is small enough to own outright. */
 export function parseArgs(argv: string[]): Command {
@@ -63,7 +86,7 @@ export function parseArgs(argv: string[]): Command {
     const arg = rest[i];
     if (arg === undefined) continue;
     if (arg.startsWith('-')) {
-      const valued = new Set(['--port', '--remote-port', '--tarball', '--term']);
+      const valued = new Set(['--port', '--prefer-port', '--remote-port', '--tarball', '--term']);
       if (valued.has(arg)) {
         const value = rest[i + 1];
         if (value === undefined || value.startsWith('-')) {
@@ -109,11 +132,20 @@ export function parseArgs(argv: string[]): Command {
         );
       }
       const port = intFlag('--port');
+      const preferPort = intFlag('--prefer-port');
       const tarball = strFlag('--tarball');
-      expect('--port', '--no-browser', '--no-upgrade', '--tarball', '--foreground');
+      expect(
+        '--port',
+        '--prefer-port',
+        '--no-browser',
+        '--no-upgrade',
+        '--tarball',
+        '--foreground',
+      );
       return {
         cmd: 'start',
         ...(port !== undefined ? { port } : {}),
+        ...(preferPort !== undefined ? { preferPort } : {}),
         ...(tarball !== undefined ? { tarball } : {}),
         noBrowser: flags.has('--no-browser'),
         noUpgrade: flags.has('--no-upgrade'),
@@ -127,6 +159,35 @@ export function parseArgs(argv: string[]): Command {
       if (positionals.length > 1)
         throw new CliError('bad_arguments', 'connect takes exactly one host');
       const port = intFlag('--port');
+      const preferPort = intFlag('--prefer-port');
+      const remotePort = intFlag('--remote-port');
+      const tarball = strFlag('--tarball');
+      expect(
+        '--port',
+        '--prefer-port',
+        '--remote-port',
+        '--no-browser',
+        '--no-upgrade',
+        '--tarball',
+        '--foreground',
+      );
+      return {
+        cmd: 'connect',
+        host,
+        ...(port !== undefined ? { port } : {}),
+        ...(preferPort !== undefined ? { preferPort } : {}),
+        ...(remotePort !== undefined ? { remotePort } : {}),
+        ...(tarball !== undefined ? { tarball } : {}),
+        noBrowser: flags.has('--no-browser'),
+        noUpgrade: flags.has('--no-upgrade'),
+        foreground: flags.has('--foreground'),
+      };
+    }
+    case 'refresh': {
+      if (positionals.length > 1)
+        throw new CliError('bad_arguments', 'refresh takes at most one target');
+      const target = positionals[0];
+      const port = intFlag('--port');
       const remotePort = intFlag('--remote-port');
       const tarball = strFlag('--tarball');
       expect(
@@ -138,8 +199,8 @@ export function parseArgs(argv: string[]): Command {
         '--foreground',
       );
       return {
-        cmd: 'connect',
-        host,
+        cmd: 'refresh',
+        ...(target !== undefined ? { target } : {}),
         ...(port !== undefined ? { port } : {}),
         ...(remotePort !== undefined ? { remotePort } : {}),
         ...(tarball !== undefined ? { tarball } : {}),
@@ -221,4 +282,25 @@ export function parseArgs(argv: string[]): Command {
     default:
       throw new CliError('bad_arguments', `unknown command '${cmd}'`, 'see: puddle --help');
   }
+}
+
+/**
+ * The argv that parses back to this start/connect command — what a detached
+ * re-exec runs when the launching command was NOT start/connect itself
+ * (`refresh` kills the old cockpit, then detaches the rebuilt command).
+ * Kept next to `parseArgs` so the two stay inverse of each other.
+ */
+export function argvFor(command: Extract<Command, { cmd: 'start' | 'connect' }>): string[] {
+  const argv: string[] = [command.cmd];
+  if (command.cmd === 'connect') argv.push(command.host);
+  if (command.port !== undefined) argv.push('--port', String(command.port));
+  if (command.preferPort !== undefined) argv.push('--prefer-port', String(command.preferPort));
+  if (command.cmd === 'connect' && command.remotePort !== undefined) {
+    argv.push('--remote-port', String(command.remotePort));
+  }
+  if (command.tarball !== undefined) argv.push('--tarball', command.tarball);
+  if (command.noBrowser) argv.push('--no-browser');
+  if (command.noUpgrade) argv.push('--no-upgrade');
+  if (command.foreground) argv.push('--foreground');
+  return argv;
 }

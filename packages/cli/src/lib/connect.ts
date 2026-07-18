@@ -13,6 +13,9 @@ export interface ConnectOptions {
   host: string;
   /** UI port; auto-picks the next free one when omitted (7433 default). */
   port?: number;
+  /** Preferred (non-strict) UI port — where the probe starts. `refresh` passes
+   *  the old cockpit's port so an open browser tab keeps its origin. */
+  preferPort?: number;
   /** Daemon port on the host, when its config.json cannot be trusted. */
   remotePort?: number;
   /** Dev override: install the daemon from this local tarball. */
@@ -20,6 +23,9 @@ export interface ConnectOptions {
   assetsDir: string;
   noUpgrade?: boolean;
   logger?: Logger;
+  /** POST /cockpit/refresh (the UI's refresh button) invokes this — the CLI
+   *  layer supplies the process-spawning behaviour; lib stays process-free. */
+  onRefreshRequest?: () => void;
   /** Test seams. */
   sshBinary?: string;
   scpBinary?: string;
@@ -79,10 +85,13 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
 
   const ui = await startUiServer({
     assetsDir: opts.assetsDir,
-    port: opts.port,
-    strictPort: opts.port !== undefined,
+    port: opts.port ?? opts.preferPort,
+    strictPort: opts.port !== undefined, // a preferred port stays non-strict
     avoidPort,
     target: { host: '127.0.0.1', port: tunnel.localPort },
+    ...(opts.onRefreshRequest !== undefined
+      ? { control: { token: endpoint.token, onRefresh: opts.onRefreshRequest } }
+      : {}),
   });
   tunnel.onPortChange((port) => ui.setTarget({ host: '127.0.0.1', port }));
 

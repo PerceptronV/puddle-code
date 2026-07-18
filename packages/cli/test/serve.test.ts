@@ -36,6 +36,7 @@ describe('guard predicates', () => {
 describe('UI server in front of a real daemon', () => {
   let daemon: RunningDaemon;
   let ui: UiServer;
+  let refreshes = 0;
 
   beforeAll(async () => {
     daemon = await startDaemon({
@@ -48,6 +49,7 @@ describe('UI server in front of a real daemon', () => {
       assetsDir: withAssets(),
       port: 0 + 17500, // fixed-ish start; auto-picks the next free
       target: { host: '127.0.0.1', port: daemon.port },
+      control: { token: 'control-token', onRefresh: () => (refreshes += 1) },
     });
   });
   afterAll(async () => {
@@ -150,6 +152,37 @@ describe('UI server in front of a real daemon', () => {
       authorization: `Bearer ${daemon.token}`,
     });
     expect(badOrigin.status).toBe(403);
+  });
+
+  it('POST /cockpit/refresh: token-gated, 202 fires the callback exactly once', async () => {
+    const before = refreshes;
+    // Wrong or missing token → 401, no callback.
+    const post = (headers: Record<string, string> = {}) =>
+      fetch(`http://127.0.0.1:${ui.port}/cockpit/refresh`, {
+        method: 'POST',
+        headers: { host: `localhost:${ui.port}`, ...headers },
+      });
+    expect((await post()).status).toBe(401);
+    expect((await post({ authorization: 'Bearer wrong' })).status).toBe(401);
+    // Non-POST → 405; foreign Origin → 403 (same discipline as /api).
+    expect((await get('/cockpit/refresh', { authorization: 'Bearer control-token' })).status).toBe(
+      405,
+    );
+    expect(
+      (
+        await post({
+          authorization: 'Bearer control-token',
+          origin: 'https://evil.example.com',
+        })
+      ).status,
+    ).toBe(403);
+    expect(refreshes).toBe(before);
+    // The real thing: 202 with the refreshing body, callback fired.
+    const accepted = await post({ authorization: 'Bearer control-token' });
+    expect(accepted.status).toBe(202);
+    expect(await accepted.json()).toEqual({ status: 'refreshing' });
+    await new Promise((resolve) => setImmediate(resolve)); // the deferred callback
+    expect(refreshes).toBe(before + 1);
   });
 
   it('synthesises a daemon_unreachable 502 when the target is down', async () => {

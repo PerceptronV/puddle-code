@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { createServer, type Server } from 'node:http';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { CliError } from '../types.js';
 import { isLocalHostHeader, isLocalOrigin } from './guard.js';
 import { recoverProxiedPath } from './proxy-recovery.js';
@@ -27,6 +27,13 @@ export interface UiServerOptions {
   avoidPort?: number;
   /** Initial proxy target (daemon port locally, tunnel local end remotely). */
   target: ProxyTarget;
+  /**
+   * The cockpit-local control surface (SPEC §10): POST /cockpit/refresh, taken
+   * by the UI's refresh button, requires this bearer `token` (the daemon's)
+   * and invokes `onRefresh` — the caller replaces the whole cockpit. Absent →
+   * the endpoint answers 404 (e.g. embedded servers with no process to swap).
+   */
+  control?: { token: string; onRefresh: () => void };
 }
 
 export interface UiServer {
@@ -80,6 +87,10 @@ export async function startUiServer(opts: UiServerOptions): Promise<UiServer> {
       res.end();
       return;
     }
+    if ((url.split('?')[0] ?? '') === '/cockpit/refresh') {
+      handleRefresh(req, res, opts.control);
+      return;
+    }
     if (isProxiedPath(url)) {
       if (!isLocalHostHeader(req.headers.host) || !isLocalOrigin(req.headers.origin)) {
         res.writeHead(403, { 'content-type': 'application/json' });
@@ -127,6 +138,38 @@ export async function startUiServer(opts: UiServerOptions): Promise<UiServer> {
       });
     },
   };
+}
+
+/**
+ * POST /cockpit/refresh — the cockpit-local control endpoint behind the UI's
+ * "refresh connection" button. Same Host/Origin discipline as the proxied
+ * paths, plus the daemon's bearer token (which the UI already holds): a
+ * foreign page cannot restart the cockpit, and neither can an unauthenticated
+ * local request. Responds 202 first, THEN fires the callback — the requesting
+ * tab must receive the acknowledgement before the replacement kills us.
+ */
+function handleRefresh(
+  req: IncomingMessage,
+  res: ServerResponse,
+  control: UiServerOptions['control'],
+): void {
+  const fail = (status: number, code: string, message: string) => {
+    res.writeHead(status, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ error: { code, message } }));
+  };
+  if (!isLocalHostHeader(req.headers.host) || !isLocalOrigin(req.headers.origin)) {
+    return fail(403, 'forbidden_host', 'requests must address localhost');
+  }
+  if (control === undefined) {
+    return fail(404, 'refresh_unavailable', 'this cockpit has no refresh control');
+  }
+  if (req.method !== 'POST') return fail(405, 'method_not_allowed', 'use POST');
+  if (req.headers.authorization !== `Bearer ${control.token}`) {
+    return fail(401, 'unauthorised', 'missing or invalid token');
+  }
+  res.writeHead(202, { 'content-type': 'application/json' });
+  res.end(JSON.stringify({ status: 'refreshing' }));
+  setImmediate(control.onRefresh);
 }
 
 async function listen(

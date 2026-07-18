@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseArgs } from '../src/cli/args.js';
+import { argvFor, parseArgs } from '../src/cli/args.js';
 import { CliError } from '../src/lib/types.js';
 
 describe('argument parsing', () => {
@@ -35,6 +35,64 @@ describe('argument parsing', () => {
       cmd: 'connect',
       foreground: true,
     });
+  });
+
+  it('parses refresh: bare, with a target, and with pass-through flags', () => {
+    expect(parseArgs(['refresh'])).toEqual({
+      cmd: 'refresh',
+      noBrowser: false,
+      noUpgrade: false,
+      foreground: false,
+    });
+    expect(parseArgs(['refresh', 'alice@devbox', '--no-browser'])).toEqual({
+      cmd: 'refresh',
+      target: 'alice@devbox',
+      noBrowser: true,
+      noUpgrade: false,
+      foreground: false,
+    });
+    expect(parseArgs(['refresh', 'local', '--port', '7500', '--tarball', 'x.tar.gz'])).toEqual({
+      cmd: 'refresh',
+      target: 'local',
+      port: 7500,
+      tarball: 'x.tar.gz',
+      noBrowser: false,
+      noUpgrade: false,
+      foreground: false,
+    });
+    expect(() => parseArgs(['refresh', 'a@b', 'c@d'])).toThrow(/at most one target/);
+  });
+
+  it('parses --prefer-port on start and connect (non-strict UI port for refresh)', () => {
+    expect(parseArgs(['start', '--prefer-port', '7435'])).toMatchObject({
+      cmd: 'start',
+      preferPort: 7435,
+    });
+    expect(parseArgs(['connect', 'a@b', '--prefer-port', '7435'])).toMatchObject({
+      cmd: 'connect',
+      preferPort: 7435,
+    });
+  });
+
+  it('argvFor is the inverse of parseArgs for start/connect', () => {
+    const start = parseArgs([
+      'start',
+      '--port',
+      '7500',
+      '--prefer-port',
+      '7435',
+      '--tarball',
+      'x.tar.gz',
+      '--no-browser',
+      '--no-upgrade',
+      '--foreground',
+    ]);
+    if (start.cmd !== 'start') throw new Error('expected start');
+    expect(parseArgs(argvFor(start))).toEqual(start);
+
+    const connect = parseArgs(['connect', 'alice@devbox', '--remote-port', '7500']);
+    if (connect.cmd !== 'connect') throw new Error('expected connect');
+    expect(parseArgs(argvFor(connect))).toEqual(connect);
   });
 
   it('parses list and kill', () => {

@@ -40,6 +40,12 @@ export async function launchDetached(opts: {
   target: string;
   noBrowser: boolean;
   logger: Logger;
+  /**
+   * The argv the detached child runs; defaults to this process's own. Needed
+   * when the launching command is not what the child should run — `refresh`
+   * re-execs the rebuilt start/connect, not another refresh.
+   */
+  argv?: string[];
 }): Promise<number> {
   const { target, logger } = opts;
 
@@ -79,7 +85,8 @@ export async function launchDetached(opts: {
   const logFile = cockpitLogPath(target);
   mkdirSync(dirname(logFile), { recursive: true });
   const fd = openSync(logFile, 'w');
-  const child = spawn(process.execPath, [process.argv[1] ?? '', ...process.argv.slice(2)], {
+  const argv = opts.argv ?? process.argv.slice(2);
+  const child = spawn(process.execPath, [process.argv[1] ?? '', ...argv], {
     detached: true,
     stdio: ['ignore', fd, fd],
     env: { ...process.env, [COCKPIT_CHILD_ENV]: '1' },
@@ -152,6 +159,29 @@ async function followStartup(
   }
   const last = readCockpitRecord(target);
   return last !== null && last.pid === childPid ? last : null;
+}
+
+/**
+ * A UI-triggered refresh: hand the cockpit's replacement to a detached
+ * `puddle refresh` process and let it take over — it stops THIS process, then
+ * detaches a fresh cockpit on the same UI port. The child-env marker is
+ * STRIPPED: the refresh process is a launcher, not a cockpit, even when
+ * spawned from a detached cockpit that carries the marker itself. Its output
+ * appends to the cockpit log, so the whole swap reads as one story there.
+ */
+export function spawnDetachedRefresh(target: string, argv: string[]): void {
+  const logFile = cockpitLogPath(target);
+  mkdirSync(dirname(logFile), { recursive: true });
+  const fd = openSync(logFile, 'a');
+  const env = { ...process.env };
+  delete env[COCKPIT_CHILD_ENV];
+  const child = spawn(process.execPath, [process.argv[1] ?? '', ...argv], {
+    detached: true,
+    stdio: ['ignore', fd, fd],
+    env,
+  });
+  closeSync(fd);
+  child.unref();
 }
 
 /** SIGTERM (the cockpit's clean-shutdown path), escalate to SIGKILL after 5s. */

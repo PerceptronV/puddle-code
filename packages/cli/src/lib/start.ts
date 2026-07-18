@@ -9,12 +9,18 @@ import { silentLogger } from './types.js';
 export interface StartOptions {
   /** UI port; auto-picks the next free one when omitted (7433 default). */
   port?: number;
+  /** Preferred (non-strict) UI port — where the probe starts. `refresh` passes
+   *  the old cockpit's port so an open browser tab keeps its origin. */
+  preferPort?: number;
   /** Dev override: install the daemon from this local tarball. */
   tarball?: string;
   /** Directory holding the built web UI. */
   assetsDir: string;
   noUpgrade?: boolean;
   logger?: Logger;
+  /** POST /cockpit/refresh (the UI's refresh button) invokes this — the CLI
+   *  layer supplies the process-spawning behaviour; lib stays process-free. */
+  onRefreshRequest?: () => void;
 }
 
 /**
@@ -38,10 +44,13 @@ export async function startLocal(opts: StartOptions): Promise<RunningCockpit> {
 
   const ui = await startUiServer({
     assetsDir: opts.assetsDir,
-    port: opts.port,
-    strictPort: opts.port !== undefined,
+    port: opts.port ?? opts.preferPort,
+    strictPort: opts.port !== undefined, // a preferred port stays non-strict
     avoidPort: endpoint.port, // never squat the daemon's own port
     target: { host: '127.0.0.1', port: endpoint.port },
+    ...(opts.onRefreshRequest !== undefined
+      ? { control: { token: endpoint.token, onRefresh: opts.onRefreshRequest } }
+      : {}),
   });
 
   const eventCbs = new Set<(e: CliEvent) => void>();

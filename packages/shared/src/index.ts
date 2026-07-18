@@ -17,4 +17,5 @@ export * from './api/worktree-fs.js';
 export * from './api/worktree-git.js';
 export * from './api/worktree-search.js';
 export * from './api/ports.js';
+export * from './api/cockpit.js';
 export * from './ws/messages.js';

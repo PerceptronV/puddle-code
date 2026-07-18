@@ -26,8 +26,14 @@ import type { Transport } from '../lib/transport/transport.js';
 import { CliError, type Logger } from '../lib/types.js';
 import { upgradeDaemon } from '../lib/upgrade.js';
 import { cliVersion } from '../lib/version.js';
-import { USAGE, type Command } from './args.js';
-import { isCockpitChild, killHint, launchDetached, terminateCockpit } from './detach.js';
+import { argvFor, USAGE, type Command } from './args.js';
+import {
+  isCockpitChild,
+  killHint,
+  launchDetached,
+  spawnDetachedRefresh,
+  terminateCockpit,
+} from './detach.js';
 import { terminalLogger, timestampedLogger } from './output.js';
 
 /** The built web UI shipped inside this package (dist/public). */
@@ -115,6 +121,80 @@ export async function run(command: Command): Promise<number> {
         return launchDetached({ target, noBrowser: command.noBrowser, logger });
       }
       return runCockpit(command, target, logger);
+    }
+
+    case 'refresh': {
+      // Resolve the target the way `kill` does: explicit, else the sole cockpit.
+      let target = command.target;
+      if (target === undefined) {
+        const records = listCockpitRecords();
+        if (records.length === 1) target = records[0]!.target;
+        else if (records.length === 0) {
+          throw new CliError(
+            'no_cockpit',
+            'no cockpits are running — name the target to refresh',
+            'puddle refresh <local | user@host>',
+          );
+        } else {
+          throw new CliError(
+            'bad_arguments',
+            'several cockpits are running — name the one to refresh',
+            `puddle refresh <${records.map((r) => r.target).join(' | ')}>`,
+          );
+        }
+      }
+      if (target === 'local' && command.remotePort !== undefined) {
+        throw new CliError('bad_arguments', '--remote-port only applies to a remote target');
+      }
+
+      // Stop the old cockpit first — running, starting, or unverified alike
+      // (refresh exists precisely for the wedged ones); a dead record is just
+      // pruned. Remember its UI port so the new cockpit lands on the same
+      // origin and any open browser tab survives the swap.
+      const existing = readCockpitRecord(target);
+      let oldPort: number | undefined;
+      if (existing !== null) {
+        if (existing.origin !== undefined) {
+          const parsed = Number(new URL(existing.origin).port);
+          if (Number.isInteger(parsed) && parsed > 0) oldPort = parsed;
+        }
+        if ((await checkCockpit(existing)) === 'dead') {
+          removeCockpitRecord(target);
+        } else {
+          await terminateCockpit(existing);
+          logger.info(`stopped the old cockpit for ${target}`);
+        }
+      }
+
+      const shared = {
+        ...(command.port !== undefined ? { port: command.port } : {}),
+        ...(command.port === undefined && oldPort !== undefined ? { preferPort: oldPort } : {}),
+        ...(command.tarball !== undefined ? { tarball: command.tarball } : {}),
+        noBrowser: command.noBrowser,
+        noUpgrade: command.noUpgrade,
+        foreground: command.foreground,
+      };
+      const next: Extract<Command, { cmd: 'start' | 'connect' }> =
+        target === 'local'
+          ? { cmd: 'start', ...shared }
+          : {
+              cmd: 'connect',
+              host: target,
+              ...shared,
+              ...(command.remotePort !== undefined ? { remotePort: command.remotePort } : {}),
+            };
+
+      if (!command.foreground && !isCockpitChild()) {
+        // The detached child must run the rebuilt start/connect, not refresh
+        // again — hence the explicit argv.
+        return launchDetached({
+          target,
+          noBrowser: command.noBrowser,
+          logger,
+          argv: argvFor(next),
+        });
+      }
+      return runCockpit(next, target, logger);
     }
 
     case 'list': {
@@ -323,12 +403,31 @@ async function runCockpit(
   };
   writeCockpitRecord(base);
 
+  // The UI's "refresh connection" button: replace this cockpit wholesale. A
+  // detached `puddle refresh` takes over — it stops this process, then starts
+  // a fresh cockpit on the same UI port — carrying the original flags so a
+  // --tarball/--no-upgrade dev run refreshes into the same configuration.
+  const onRefreshRequest = () => {
+    logger.info('refresh requested from the UI — replacing this cockpit');
+    spawnDetachedRefresh(target, [
+      'refresh',
+      target,
+      '--no-browser', // the requesting tab reloads itself; no second tab
+      ...(command.port !== undefined ? ['--port', String(command.port)] : []),
+      ...(command.cmd === 'connect' && command.remotePort !== undefined
+        ? ['--remote-port', String(command.remotePort)]
+        : []),
+      ...(command.tarball !== undefined ? ['--tarball', command.tarball] : []),
+      ...(command.noUpgrade ? ['--no-upgrade'] : []),
+    ]);
+  };
+
   let cockpit: RunningCockpit;
   try {
     cockpit =
       command.cmd === 'start'
-        ? await startLocal({ ...command, assetsDir: assetsDir(), logger })
-        : await connectRemote({ ...command, assetsDir: assetsDir(), logger });
+        ? await startLocal({ ...command, assetsDir: assetsDir(), logger, onRefreshRequest })
+        : await connectRemote({ ...command, assetsDir: assetsDir(), logger, onRefreshRequest });
   } catch (err) {
     if (err instanceof CliError) {
       writeCockpitRecord({
