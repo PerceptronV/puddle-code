@@ -1,10 +1,10 @@
 import {
   Bell,
+  Code,
   FolderGit2,
   Palette,
   Server,
   SlidersHorizontal,
-  TerminalSquare,
   UserRound,
   Users,
 } from 'lucide-react';
@@ -18,7 +18,7 @@ import { ProfileSection } from './sections/profile';
 import { AccountsSection } from './sections/accounts';
 import { SessionsSection } from './sections/sessions';
 import { NotificationsSection } from './sections/notifications';
-import { TerminalSection } from './sections/terminal';
+import { EditorSection } from './sections/editor';
 import { RepositoriesSection } from './sections/repositories';
 import { HostSection } from './sections/host';
 
@@ -33,17 +33,12 @@ const SECTIONS: Array<{ id: string; label: string; icon: LucideIcon; render: () 
       icon: SlidersHorizontal,
       render: () => <SessionsSection />,
     },
+    { id: 'editor', label: 'Editor', icon: Code, render: () => <EditorSection /> },
     {
       id: 'notifications',
       label: 'Notifications',
       icon: Bell,
       render: () => <NotificationsSection />,
-    },
-    {
-      id: 'terminal',
-      label: 'Terminal & Editor',
-      icon: TerminalSquare,
-      render: () => <TerminalSection />,
     },
     {
       id: 'repositories',
@@ -54,10 +49,17 @@ const SECTIONS: Array<{ id: string; label: string; icon: LucideIcon; render: () 
     { id: 'host', label: 'Host', icon: Server, render: () => <HostSection /> },
   ];
 
+/** Pre-split section ids still deep-linked from old bookmarks/docs. */
+const LEGACY_SECTIONS: Record<string, string> = {
+  // "Terminal & Editor" split: terminal knobs joined Sessions, the rest is Editor.
+  terminal: 'sessions',
+};
+
 /** Route-addressable settings dialog: `#settings/<section>` (SPEC §11). */
 export function SettingsDialog() {
   const sectionId = useSettingsSection();
-  const section = SECTIONS.find((s) => s.id === sectionId) ?? SECTIONS[0]!;
+  const resolvedId = sectionId !== null ? (LEGACY_SECTIONS[sectionId] ?? sectionId) : null;
+  const section = SECTIONS.find((s) => s.id === resolvedId) ?? SECTIONS[0]!;
 
   return (
     <Dialog open={sectionId !== null} onOpenChange={(open) => !open && closeSettings()}>
