@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import {
+  Bot,
   FolderOpen,
   Moon,
   MonitorCog,
   Plus,
+  RefreshCw,
   Settings,
   Sun,
   TerminalSquare,
   UserRound,
 } from 'lucide-react';
+import type { SessionKind } from '@puddle/shared';
 import {
   CommandDialog,
   CommandEmpty,
@@ -20,6 +23,7 @@ import {
   CommandShortcut,
 } from '../../components/ui/command';
 import { applyTheme } from '../../lib/theme';
+import { triggerConnectionRefresh } from '../../lib/cockpit-refresh';
 import { registerCommandPalette } from '../../lib/command-palette';
 import { openSettings } from '../../lib/hash-route';
 import { useProjects, useSessions } from '../../lib/queries';
@@ -27,12 +31,13 @@ import { collectCommands, type PaletteCommand } from './commands';
 import { useCurrentProfileId, profileStore } from '../profile/profile-store';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
 
-/** ⌘K palette: switch project/session, new project/session, theme, settings (Phase 2). */
+/** ⌘K palette: switch project/session, new project/agent/terminal, theme, settings (Phase 2). */
 export function CommandPalette({
   onNewSession,
   onNewProject,
 }: {
-  onNewSession?: () => void;
+  /** Opens the new-session modal; `kind` picks agent (default) or terminal. */
+  onNewSession?: (opts?: { kind?: SessionKind }) => void;
   onNewProject?: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -82,14 +87,24 @@ export function CommandPalette({
       });
     }
     if (projectId !== undefined && onNewSession) {
-      items.push({
-        id: 'new-session',
-        group: 'Actions',
-        label: 'New session',
-        icon: Plus,
-        keywords: 'create start agent',
-        run: onNewSession,
-      });
+      items.push(
+        {
+          id: 'new-agent',
+          group: 'Actions',
+          label: 'New agent',
+          icon: Bot,
+          keywords: 'create start agent session',
+          run: () => onNewSession(),
+        },
+        {
+          id: 'new-terminal',
+          group: 'Actions',
+          label: 'New terminal',
+          icon: TerminalSquare,
+          keywords: 'create start shell session',
+          run: () => onNewSession({ kind: 'terminal' }),
+        },
+      );
     }
     if (onNewProject) {
       items.push({
@@ -138,6 +153,14 @@ export function CommandPalette({
         icon: UserRound,
         keywords: 'identity user change',
         run: () => profileStore.set(null),
+      },
+      {
+        id: 'refresh-connection',
+        group: 'Actions',
+        label: 'Refresh connection',
+        icon: RefreshCw,
+        keywords: 'reconnect restart cockpit tunnel ssh daemon',
+        run: () => triggerConnectionRefresh(),
       },
     );
     return [...items, ...collectCommands()];

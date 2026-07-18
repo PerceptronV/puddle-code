@@ -171,7 +171,7 @@ export function NewSessionDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isTerminal ? 'New terminal' : 'New session'}</DialogTitle>
+          <DialogTitle>{isTerminal ? 'New terminal' : 'New agent'}</DialogTitle>
           <DialogDescription>
             {isTerminal ? 'Opens' : 'Spawns'} {noun} {where}.
           </DialogDescription>
@@ -347,7 +347,7 @@ export function NewSessionDialog({
               type="submit"
               disabled={(!isTerminal && !effectiveAccountId) || create.isPending}
             >
-              {isTerminal ? 'Open terminal' : 'Start session'}
+              {isTerminal ? 'Open terminal' : 'Start agent'}
             </Button>
           </DialogFooter>
         </form>

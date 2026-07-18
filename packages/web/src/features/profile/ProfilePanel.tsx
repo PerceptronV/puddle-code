@@ -37,7 +37,7 @@ function relativeTime(iso: string | null): string {
 
 /**
  * One account row: a status dot, the label, usage summary, and the primary
- * action — logged out → sign in; logged in inside a project → new session on
+ * action — logged out → sign in; logged in inside a project → new agent on
  * this account. Rows are clickable in their entirety.
  */
 function AccountRow({
@@ -99,7 +99,7 @@ function AccountRow({
         <span className="shrink-0 text-2xs text-fg-muted">
           {account.logged_in ? (
             onStartSession ? (
-              'new session'
+              'new agent'
             ) : (
               ''
             )
