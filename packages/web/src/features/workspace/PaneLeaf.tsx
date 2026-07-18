@@ -1,4 +1,4 @@
-import { useState, type DragEvent } from 'react';
+import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import type { LayoutLeaf, Session, TabRef } from '@puddle/shared';
 import { PuddleGlyph } from '../../components/puddle-glyph';
@@ -47,6 +47,26 @@ export function PaneLeaf({
   const { setNodeRef } = useDroppable({ id: `leaf:${leaf.id}` });
   const indicator = useDropIndicator();
 
+  // Clicking INTO the pane body activates the shown tab, via a NATIVE capture
+  // listener — not React's onMouseDownCapture. An adopted terminal's DOM was
+  // rendered by the keep-alive host (a portal) and only MOVED here, so React's
+  // synthetic events route through the HOST's component tree and never reach
+  // this pane's React handlers; the editor is a normal child, which is why
+  // editor clicks worked while terminal clicks did nothing. Native capture
+  // follows the real DOM, adopted children included.
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const activateShownRef = useRef<() => void>(() => undefined);
+  activateShownRef.current = () => {
+    if (activeRef) onActivateTab(leaf.id, activeRef);
+  };
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    const onDown = () => activateShownRef.current();
+    el.addEventListener('mousedown', onDown, true);
+    return () => el.removeEventListener('mousedown', onDown, true);
+  }, []);
+
   // Native-DnD drop zone for sidebar drags (tab drags between panes ride
   // dnd-kit and the context indicator instead; the two never fire together).
   const [nativeZone, setNativeZone] = useState<DropEdge | null>(null);
@@ -71,15 +91,12 @@ export function PaneLeaf({
           onArchived={onArchived}
         />
       )}
-      {/* Clicking INTO the pane body (typing in its editor, clicking in its
-          terminal) activates the shown tab exactly like clicking its strip
-          chip — the left sidebar re-binds to that tab's worktree, and a
-          terminal also claims the URL. Capture phase, so xterm/Monaco still
-          receive the event untouched. */}
       <div
-        ref={setNodeRef}
+        ref={(el) => {
+          bodyRef.current = el;
+          setNodeRef(el);
+        }}
         className="relative min-h-0 flex-1"
-        onMouseDownCapture={() => activeRef && onActivateTab(leaf.id, activeRef)}
         onDragOver={(e) => {
           if (!hasTabTransfer(e.dataTransfer.types)) return;
           e.preventDefault();

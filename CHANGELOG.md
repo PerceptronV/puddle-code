@@ -27,6 +27,9 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Reloading a workspace no longer leaves every pane blank ("Loading editor…" / an empty terminal) until a tab click: the restored layout now mounts only after the Monaco/xterm chunks its tabs need are warm, so nothing suspends mid-restore — terminal-only workspaces still load no Monaco.
+- Clicking inside a terminal now activates its tab (re-binding the left sidebar and claiming the URL), matching editor clicks: the kept-alive terminal's DOM is portal-rendered and physically adopted into the pane, so React's synthetic events never reached the pane's handlers — a native capture listener follows the real DOM instead.
+
 - The settings button opens the dialog reliably: its open state is one `useSyncExternalStore` snapshot consumed by an always-mounted dialog (the profile panel's structure) — the previous per-consumer state copies behind a conditional mount could desync, turning the next click into a deduped no-op.
 - Worktree directory names in the Worktrees navigator get the same hover-scroll as branch names (full path stays on the tooltip), and hovering a row no longer makes it jump — the appearing prune control used to exceed the row's resting height.
 - Double-clicking a session in the right sidebar (row or collapsed dot) now pins its terminal tab, exactly like double-clicking a file — SPEC promised this; a single click still opens it as an italic preview tab.
