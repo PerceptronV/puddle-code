@@ -1,4 +1,4 @@
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, type ComponentType } from 'react';
 import type { RevealTarget } from '../workspace/editor-context';
 import type { EditorTab, EditorTabKind } from './editor-tabs';
 import type { HeldBuffer } from './ModelRefcount';
@@ -8,12 +8,35 @@ import type { HeldBuffer } from './ModelRefcount';
  * eager `TileTree`/`PaneLeaf`/`PaneTabStrip` chrome never pulls `buffer-store`
  * (→ Monaco) onto the startup bundle — a terminal-only workspace loads no editor
  * code. Each mirrors `LazyEditorPane`/`LazyTerminal`.
+ *
+ * `warmEditorChunk` loads the chunk ahead of mounting and flips the wrappers to
+ * render their components DIRECTLY — no Suspense pass. The workspace calls it
+ * before mounting a restored layout that contains editor tabs: a reload must
+ * never suspend the whole tiling tree into "Loading editor…" fallbacks (the
+ * reveal only reached the screen on the next render).
  */
+
+type BodyProps = { tab: EditorTab; reveal: RevealTarget | null };
+type RefcountProps = { buffers: HeldBuffer[] };
+
+let ReadyBody: ComponentType<BodyProps> | null = null;
+let ReadyRefcount: ComponentType<RefcountProps> | null = null;
+
+/** Load the editor chunk ahead of mounting (the workspace's restore gate). */
+export async function warmEditorChunk(): Promise<void> {
+  const [body, refcount] = await Promise.all([
+    import('./PaneEditorBody'),
+    import('./ModelRefcount'),
+  ]);
+  ReadyBody = body.PaneEditorBody;
+  ReadyRefcount = refcount.ModelRefcount;
+}
 
 const BodyInner = lazy(() =>
   import('./PaneEditorBody').then((m) => ({ default: m.PaneEditorBody })),
 );
-export function LazyPaneEditorBody(props: { tab: EditorTab; reveal: RevealTarget | null }) {
+export function LazyPaneEditorBody(props: BodyProps) {
+  if (ReadyBody) return <ReadyBody {...props} />;
   return (
     <Suspense
       fallback={
@@ -31,6 +54,7 @@ const RefcountInner = lazy(() =>
   import('./ModelRefcount').then((m) => ({ default: m.ModelRefcount })),
 );
 export function LazyModelRefcount({ buffers }: { buffers: HeldBuffer[] }) {
+  if (ReadyRefcount) return <ReadyRefcount buffers={buffers} />;
   return (
     <Suspense fallback={null}>
       <RefcountInner buffers={buffers} />

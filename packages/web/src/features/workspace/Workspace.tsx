@@ -25,8 +25,10 @@ import {
   type EditorPosition,
   type RevealTarget,
 } from './editor-context';
+import { warmEditorChunk } from '../editor/lazy-editor-parts';
+import { warmTerminalChunk } from '../terminal/LazyTerminal';
 import { KeepAliveHost } from './keep-alive';
-import { tabRefKey, type DropEdge } from './layout-tree';
+import { flattenTabs, tabRefKey, type DropEdge } from './layout-tree';
 import { layoutForPanels } from './panel-layout';
 import {
   CollapsedSidebarRail,
@@ -238,6 +240,25 @@ function WorkspaceInner() {
     return () => setHandler(null);
   }, [setHandler]);
 
+  // Reload must not suspend mid-restore: mounting the restored tree while the
+  // Monaco/xterm chunks are still cold suspended EVERY pane into its fallback
+  // ("Loading editor…" / a blank terminal) — and the reveal only reached the
+  // screen on the next render (a tab click). Warm exactly the chunks the
+  // restored tabs need behind the existing loading gate; once warm, the lazy
+  // wrappers render their components directly, with no Suspense pass at all.
+  // A terminal-only workspace still loads no Monaco (SPEC §8); an empty one
+  // warms nothing. `.finally`: a failed import degrades to the old lazy path
+  // rather than wedging the workspace.
+  const [chunksReady, setChunksReady] = useState(false);
+  useEffect(() => {
+    if (!uiState.loaded || chunksReady) return;
+    const tabs = flattenTabs(layoutRef.current.tree);
+    void Promise.all([
+      tabs.some((t) => t.type === 'terminal') ? warmTerminalChunk() : undefined,
+      tabs.some((t) => t.type === 'editor') ? warmEditorChunk() : undefined,
+    ]).finally(() => setChunksReady(true));
+  }, [uiState.loaded, chunksReady]);
+
   // Restore-on-open: land on the stored active session unless the URL already
   // deep-links one. Navigation only follows a stored session of THIS project
   // (the project detail's own list decides — entering project A must not yank
@@ -442,7 +463,7 @@ function WorkspaceInner() {
   ]);
 
   if (!validProject) return null;
-  if (!uiState.loaded || !detail.data) {
+  if (!uiState.loaded || !detail.data || !chunksReady) {
     return <div className="flex h-full items-center justify-center text-sm text-fg-muted">…</div>;
   }
 
