@@ -7,6 +7,9 @@ import {
   DEFAULT_RESTART_TEMPLATE,
   DEFAULT_TAB_TITLE_TEMPLATE,
   TAB_TITLE_VARIABLES,
+  type ProfileSettings,
+  type SessionDefaults,
+  type SessionKind,
 } from '@puddle/shared';
 import { renderSessionTitle, type TitleSession } from '../../../lib/session-display';
 import { Button } from '../../../components/ui/button';
@@ -30,6 +33,7 @@ import {
   useProfiles,
 } from '../../../lib/queries';
 import { useCurrentProfileId } from '../../profile/profile-store';
+import { resolveSessionSeed } from '../../workspace/session-seed';
 import { SectionTitle, SettingRow } from '../parts';
 
 /**
@@ -61,6 +65,85 @@ function AgentPathRow() {
         }}
       />
     </SettingRow>
+  );
+}
+
+/**
+ * One kind's new-session seed defaults (SPEC §11): what the modal OPENS with —
+ * every value stays editable per session in the modal itself. The base branch
+ * saves on blur; a separate branch always implies its own directory, so that
+ * switch pins on (matching the modal). Writes the WHOLE `sessionDefaults`
+ * object each time — the daemon's settings patch merges top-level keys only.
+ */
+function SessionSeedRows({
+  kind,
+  heading,
+  settings,
+  onSave,
+  pending,
+}: {
+  kind: SessionKind;
+  heading: string;
+  settings: ProfileSettings;
+  onSave: (next: SessionDefaults) => void;
+  pending: boolean;
+}) {
+  const seed = resolveSessionSeed(kind, settings);
+  const stored = settings.sessionDefaults ?? {};
+  const [branch, setBranch] = useState(seed.baseBranch);
+  const save = (change: SessionDefaults[SessionKind]) =>
+    onSave({ ...stored, [kind]: { ...stored[kind], ...change } });
+  return (
+    <>
+      <p className="mb-1 mt-4 text-xs font-medium uppercase tracking-wide text-fg-gold">
+        {heading}
+      </p>
+      <SettingRow
+        label="Base branch"
+        description="Blank = the repository's default base branch."
+        htmlFor={`${kind}-default-base`}
+      >
+        <Input
+          id={`${kind}-default-base`}
+          type="text"
+          placeholder="repository default"
+          className="w-48 font-mono"
+          value={branch}
+          onChange={(e) => setBranch(e.target.value)}
+          onBlur={() => {
+            if (branch.trim() !== seed.baseBranch) save({ baseBranch: branch.trim() });
+          }}
+        />
+      </SettingRow>
+      <SettingRow
+        label="Separate branch"
+        description="Start on a fresh branch off the base, in its own directory."
+        htmlFor={`${kind}-default-branch`}
+      >
+        <Switch
+          id={`${kind}-default-branch`}
+          checked={seed.separateBranch}
+          disabled={pending}
+          onCheckedChange={(v) => save({ separateBranch: v })}
+        />
+      </SettingRow>
+      <SettingRow
+        label="Separate directory"
+        description={
+          seed.separateBranch
+            ? 'Always on while a separate branch is used.'
+            : 'An own working copy of the base branch, instead of sharing one.'
+        }
+        htmlFor={`${kind}-default-dir`}
+      >
+        <Switch
+          id={`${kind}-default-dir`}
+          checked={seed.separateWorktree}
+          disabled={pending || seed.separateBranch}
+          onCheckedChange={(v) => save({ separateWorktree: v })}
+        />
+      </SettingRow>
+    </>
   );
 }
 
@@ -290,6 +373,36 @@ export function SessionsSection() {
       </SettingRow>
       <AgentPathRow />
       <ScrollbackRow />
+
+      <div className="mt-5">
+        <SectionTitle note="What the new-agent and new-terminal modals open with — everything stays editable per session.">
+          New session defaults
+        </SectionTitle>
+        {settings.data && (
+          <>
+            <SessionSeedRows
+              key={`${profileId}:agent-seed`}
+              kind="agent"
+              heading="New agents"
+              settings={settings.data}
+              onSave={(next) =>
+                patch.mutate({ sessionDefaults: next }, { onError: (e) => toast.error(e.message) })
+              }
+              pending={patch.isPending}
+            />
+            <SessionSeedRows
+              key={`${profileId}:terminal-seed`}
+              kind="terminal"
+              heading="New terminals"
+              settings={settings.data}
+              onSave={(next) =>
+                patch.mutate({ sessionDefaults: next }, { onError: (e) => toast.error(e.message) })
+              }
+              pending={patch.isPending}
+            />
+          </>
+        )}
+      </div>
 
       <div className="mt-5">
         <SectionTitle note="Sent to the agent as its opening message when a session starts. Leave a box empty to send no preamble.">

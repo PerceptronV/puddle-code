@@ -17,6 +17,8 @@ Past releases: see docs/changelogs/.
 - On Mac, ⌥+drag selects text in terminals whose TUI captures the mouse (e.g. Claude Code), so ⌘C copy works there too; Shift+drag has always worked.
 - Drag a file from the tree or a session from the right sidebar (row or collapsed dot) onto a tiling pane to open it as a permanent tab, positioned in one gesture — centre inserts, an edge splits, same zones as tab drags.
 
+- Settings → Sessions: per-kind new-session defaults — base branch, separate branch, separate directory — for new agents and new terminals alike; the modal opens on them, everything stays editable per session (profile setting `sessionDefaults`, protocol 7.0 → 7.1, additive).
+
 ### Changed
 
 - Creating an agent is now labelled "New agent" everywhere (sidebar buttons, ⌘K, the modal's title and submit, the profile panel's account rows), with a robot icon instead of a plus — "session" stays the umbrella term over agents and terminals.

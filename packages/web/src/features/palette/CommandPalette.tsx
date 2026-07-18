@@ -122,6 +122,7 @@ export function CommandPalette({
         group: 'Theme',
         label: 'Switch theme: dark',
         icon: Moon,
+        keywords: 'theme dark appearance',
         run: () => void applyTheme('dark'),
       },
       {
@@ -129,6 +130,7 @@ export function CommandPalette({
         group: 'Theme',
         label: 'Switch theme: light',
         icon: Sun,
+        keywords: 'theme light appearance',
         run: () => void applyTheme('light'),
       },
       {
@@ -136,6 +138,7 @@ export function CommandPalette({
         group: 'Theme',
         label: 'Switch theme: system',
         icon: MonitorCog,
+        keywords: 'theme system appearance',
         run: () => void applyTheme('system'),
       },
       {

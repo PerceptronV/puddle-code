@@ -92,6 +92,18 @@ export const patchProfileRequestSchema = z.object({
   branch_prefix: z.string().max(64).optional(),
 });
 
+/** One kind's new-session seed (all optional — absent falls back to built-ins). */
+const sessionSeedSchema = z.looseObject({
+  baseBranch: z.string().optional(),
+  separateBranch: z.boolean().optional(),
+  separateWorktree: z.boolean().optional(),
+});
+export const sessionDefaultsSchema = z.looseObject({
+  agent: sessionSeedSchema.optional(),
+  terminal: sessionSeedSchema.optional(),
+});
+export type SessionDefaults = z.infer<typeof sessionDefaultsSchema>;
+
 /**
  * Profile-scope settings JSON. Loose: later phases add keys (default account,
  * notifications, …) without a daemon migration. Phase 1 validates only the gate.
@@ -123,6 +135,14 @@ export const profileSettingsSchema = z.looseObject({
    * sidebar's cross-project grouping inherits this order (SPEC §11, §12).
    */
   projectOrder: z.array(z.string()).optional(),
+  /**
+   * Seed defaults for the new-session modal, per kind (SPEC §11). An absent
+   * key falls back to the built-ins — agents branch off the base in their own
+   * directory; terminals share the base branch's directory. `baseBranch`
+   * absent or empty means the repository's default base branch. The modal
+   * still enforces that a separate branch always gets its own directory.
+   */
+  sessionDefaults: sessionDefaultsSchema.optional(),
 });
 export type ProfileSettings = z.infer<typeof profileSettingsSchema>;
 

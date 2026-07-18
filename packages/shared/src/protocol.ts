@@ -20,4 +20,7 @@
 // profile) to profile alone (the editor area is shared across projects):
 // GET/PUT /api/projects/:id/state moved to /api/profiles/:id/state, with no
 // cross-profile seeding.
-export const PROTOCOL_VERSION = { major: 7, minor: 0 } as const;
+// 7.1 (2026-07-18): additive — the profile setting `sessionDefaults` (a loose
+// key): per-kind seed defaults for the new-session modal (base branch,
+// separate branch, separate directory).
+export const PROTOCOL_VERSION = { major: 7, minor: 1 } as const;

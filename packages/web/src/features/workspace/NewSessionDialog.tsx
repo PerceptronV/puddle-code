@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Session, SessionKind } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import {
@@ -31,14 +31,18 @@ import {
   useRepos,
 } from '../../lib/queries';
 import { useCurrentProfileId } from '../profile/profile-store';
+import { resolveSessionSeed } from './session-seed';
 
 /**
  * Account → branch → directory (SPEC §4/§11). Two independent axes decide where
- * the session lands: **separate branch** (a fresh branch in its own worktree,
- * default on for agents / off for terminals) and, when that is off, **separate
- * directory** (its own working copy of the base branch, default on; turn it off
- * to share a directory — picking an existing one to drop into). The skip toggle
- * renders only when the profile gate is on and the chosen account opted in.
+ * the session lands: **separate branch** (a fresh branch in its own worktree)
+ * and, when that is off, **separate directory** (its own working copy of the
+ * base branch; turn it off to share a directory — picking an existing one to
+ * drop into). Both axes and the base branch open on the profile's per-kind
+ * `sessionDefaults` (Settings → Sessions), falling back to the built-ins:
+ * agents on a new branch in their own directory, terminals sharing the base
+ * branch's directory. The skip toggle renders only when the profile gate is on
+ * and the chosen account opted in.
  */
 export function NewSessionDialog({
   projectId,
@@ -120,14 +124,19 @@ export function NewSessionDialog({
     if (open && seedAccountId !== undefined) setAccountId(String(seedAccountId));
   }, [open, seedAccountId]);
 
-  // Reset the axes each time the dialog opens (or its mode changes). Agents:
-  // separate branch on (own new branch). Terminals: separate branch off AND
-  // separate directory off, so a terminal shares the base branch's directory
-  // (the clone itself when that branch is checked out there).
+  // Reset the axes each time the dialog opens (or its mode changes), seeding
+  // from the profile's per-kind defaults (Settings → Sessions). Settings are
+  // read through a ref so their arrival mid-dialog never clobbers toggles the
+  // user already touched — a first-ever open racing the fetch simply seeds
+  // the built-ins.
+  const settingsRef = useRef(settings.data);
+  settingsRef.current = settings.data;
   useEffect(() => {
     if (open) {
-      setSeparateBranch(!isTerminal);
-      setSeparateWorktree(!isTerminal);
+      const seed = resolveSessionSeed(isTerminal ? 'terminal' : 'agent', settingsRef.current);
+      setBaseBranch(seed.baseBranch);
+      setSeparateBranch(seed.separateBranch);
+      setSeparateWorktree(seed.separateWorktree);
       setJoinWorktree('');
     }
   }, [open, isTerminal]);
