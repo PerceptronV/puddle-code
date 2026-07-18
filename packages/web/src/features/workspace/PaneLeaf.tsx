@@ -1,3 +1,4 @@
+import { useState, type DragEvent } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import type { LayoutLeaf, Session, TabRef } from '@puddle/shared';
 import { PuddleGlyph } from '../../components/puddle-glyph';
@@ -6,8 +7,10 @@ import { cn } from '../../lib/utils';
 import { LazyPaneEditorBody } from '../editor/lazy-editor-parts';
 import type { RevealTarget } from './editor-context';
 import { useKeepAliveSlot } from './keep-alive';
+import { zoneForPointer } from './layout-dnd';
 import { PaneTabStrip } from './PaneTabStrip';
 import { tabRefKey, type DropEdge } from './layout-tree';
+import { decodeTabTransfer, hasTabTransfer, TAB_MIME } from './tab-transfer';
 import { useDropIndicator } from './TilingDnd';
 
 /**
@@ -25,6 +28,7 @@ export function PaneLeaf({
   onPromoteTab,
   onArchived,
   onFocusLeaf,
+  onDropTab,
 }: {
   leaf: LayoutLeaf;
   sessions: Session[];
@@ -34,12 +38,25 @@ export function PaneLeaf({
   onPromoteTab: (ref: TabRef) => void;
   onArchived: (session: string) => void;
   onFocusLeaf: (leafId: string) => void;
+  /** A sidebar drag (file row / session) dropped on this pane — open + position. */
+  onDropTab: (leafId: string, ref: TabRef, edge: DropEdge) => void;
 }) {
   const activeRef = leaf.tabs.find((t) => tabRefKey(t) === leaf.activeKey) ?? null;
   const terminalKey = activeRef?.type === 'terminal' ? tabRefKey(activeRef) : null;
   const slotRef = useKeepAliveSlot(terminalKey);
   const { setNodeRef } = useDroppable({ id: `leaf:${leaf.id}` });
   const indicator = useDropIndicator();
+
+  // Native-DnD drop zone for sidebar drags (tab drags between panes ride
+  // dnd-kit and the context indicator instead; the two never fire together).
+  const [nativeZone, setNativeZone] = useState<DropEdge | null>(null);
+  const zoneOf = (e: DragEvent<HTMLDivElement>): DropEdge => {
+    const r = e.currentTarget.getBoundingClientRect();
+    return zoneForPointer(
+      { width: r.width, height: r.height },
+      { x: e.clientX - r.left, y: e.clientY - r.top },
+    );
+  };
 
   return (
     <div className="flex h-full flex-col bg-ground" onMouseDownCapture={() => onFocusLeaf(leaf.id)}>
@@ -54,7 +71,32 @@ export function PaneLeaf({
           onArchived={onArchived}
         />
       )}
-      <div ref={setNodeRef} className="relative min-h-0 flex-1">
+      {/* Clicking INTO the pane body (typing in its editor, clicking in its
+          terminal) activates the shown tab exactly like clicking its strip
+          chip — the left sidebar re-binds to that tab's worktree, and a
+          terminal also claims the URL. Capture phase, so xterm/Monaco still
+          receive the event untouched. */}
+      <div
+        ref={setNodeRef}
+        className="relative min-h-0 flex-1"
+        onMouseDownCapture={() => activeRef && onActivateTab(leaf.id, activeRef)}
+        onDragOver={(e) => {
+          if (!hasTabTransfer(e.dataTransfer.types)) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          setNativeZone(zoneOf(e));
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setNativeZone(null);
+        }}
+        onDrop={(e) => {
+          if (!hasTabTransfer(e.dataTransfer.types)) return;
+          e.preventDefault();
+          setNativeZone(null);
+          const ref = decodeTabTransfer(e.dataTransfer.getData(TAB_MIME));
+          if (ref) onDropTab(leaf.id, ref, zoneOf(e));
+        }}
+      >
         {activeRef?.type === 'editor' && (
           <div className="absolute inset-0">
             <LazyPaneEditorBody tab={activeRef.tab} reveal={reveal} />
@@ -71,6 +113,7 @@ export function PaneLeaf({
         {indicator?.leafId === leaf.id && indicator.index === undefined && (
           <DropZoneOverlay zone={indicator.zone} />
         )}
+        {nativeZone !== null && <DropZoneOverlay zone={nativeZone} />}
         {!activeRef && (
           <div className="flex h-full flex-col items-center justify-center gap-6 text-center">
             <PuddleGlyph className="size-24 text-fg-muted/40" />

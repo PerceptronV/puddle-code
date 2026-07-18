@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import {
   Archive,
+  Bot,
   ChevronRight,
   FolderX,
   GitBranch,
   PanelRightClose,
   PanelRightOpen,
-  Plus,
   ShieldOff,
   SquareTerminal,
   type LucideIcon,
@@ -26,6 +26,7 @@ import {
   useSessionMenu,
 } from './SessionActions';
 import { moveWithinGroups } from './session-order';
+import { encodeTabTransfer, TAB_MIME } from './tab-transfer';
 
 /**
  * A project's sessions for the sidebar. `name` null → render no header (the
@@ -85,10 +86,12 @@ function SessionLabel({ session }: { session: Session }) {
 function CollapsedSessionDot({
   session,
   activeSessionId,
+  onPromote,
   onArchived,
 }: {
   session: Session;
   activeSessionId: string | null;
+  onPromote: (id: string) => void;
   onArchived: (id: string) => void;
 }) {
   const { menu, dialogs } = useSessionMenu(session, onArchived);
@@ -101,6 +104,9 @@ function CollapsedSessionDot({
             <Link
               draggable={false}
               aria-current={session.id === activeSessionId ? 'true' : undefined}
+              // Single click opens the session's terminal as a preview tab
+              // (via navigation); double click pins it, like a file's tab.
+              onDoubleClick={() => onPromote(session.id)}
               to={`/project/${session.project_id}/session/${session.id}`}
               className={cn(
                 'flex items-center rounded-md p-1.5 transition-colors hover:bg-elevated',
@@ -141,6 +147,7 @@ export function CollapsedSessionsRail({
   groups,
   activeSessionId,
   onReorder,
+  onPromote,
   onExpand,
   onNewTerminal,
   onNewSession,
@@ -149,6 +156,8 @@ export function CollapsedSessionsRail({
   groups: SessionGroup[];
   activeSessionId: string | null;
   onReorder: (ids: string[]) => void;
+  /** Double-click: pin the session's (preview) terminal tab. */
+  onPromote: (id: string) => void;
   onExpand: () => void;
   onNewTerminal: () => void;
   onNewSession: () => void;
@@ -165,7 +174,7 @@ export function CollapsedSessionsRail({
       <div className="flex flex-col items-center gap-1">
         <IconButton icon={PanelRightOpen} label="Show sessions" onClick={onExpand} />
         <IconButton icon={SquareTerminal} label="New terminal" onClick={onNewTerminal} />
-        <IconButton icon={Plus} label="New session" onClick={onNewSession} />
+        <IconButton icon={Bot} label="New agent" onClick={onNewSession} />
       </div>
       <div className="no-scrollbar flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto">
         {withDots.map((group) => (
@@ -177,7 +186,15 @@ export function CollapsedSessionsRail({
               <div
                 key={session.id}
                 draggable
-                onDragStart={() => setDragging(session.id)}
+                onDragStart={(e) => {
+                  // The same drag reorders within the rail AND, dropped on a
+                  // tiling pane, opens the session there as a permanent tab.
+                  e.dataTransfer.setData(
+                    TAB_MIME,
+                    encodeTabTransfer({ type: 'terminal', session: session.id }),
+                  );
+                  setDragging(session.id);
+                }}
                 onDragEnd={() => setDragging(null)}
                 onDragOver={(e) => {
                   e.preventDefault();
@@ -188,6 +205,7 @@ export function CollapsedSessionsRail({
                 <CollapsedSessionDot
                   session={session}
                   activeSessionId={activeSessionId}
+                  onPromote={onPromote}
                   onArchived={onArchived}
                 />
               </div>
@@ -204,12 +222,15 @@ function SessionRow({
   session,
   activeSessionId,
   accountLabel,
+  onPromote,
   onArchived,
   ellipsis,
 }: {
   session: Session;
   activeSessionId: string | null;
   accountLabel: Map<number, string>;
+  /** Double-click: pin the session's (preview) terminal tab. */
+  onPromote?: (id: string) => void;
   onArchived: (id: string) => void;
   /** Whether to mount the hover ellipsis (archived rows omit it). */
   ellipsis: boolean;
@@ -223,6 +244,9 @@ function SessionRow({
           // anchor's native "drag the URL" behaviour. Click still navigates — to
           // its own project, so the cross-project list switches projects too.
           draggable={false}
+          // Single click = preview terminal (via navigation); double click
+          // pins it, matching the file tree's single/double-click semantics.
+          onDoubleClick={onPromote && (() => onPromote(session.id))}
           to={`/project/${session.project_id}/session/${session.id}`}
           className={cn(
             'group flex items-center gap-2 px-3 py-1.5 transition-colors hover:bg-elevated',
@@ -287,6 +311,7 @@ export function SessionSidebar({
   accounts,
   activeSessionId,
   onReorder,
+  onPromote,
   archived,
   onNewSession,
   onNewTerminal,
@@ -298,6 +323,8 @@ export function SessionSidebar({
   activeSessionId: string | null;
   /** Rows drag-reorder within their project group; `ids` is the full visible order. */
   onReorder: (ids: string[]) => void;
+  /** Double-click: pin the session's (preview) terminal tab. */
+  onPromote: (id: string) => void;
   /** Current project's archived sessions. */
   archived: Session[];
   onNewSession: () => void;
@@ -324,7 +351,7 @@ export function SessionSidebar({
         <IconButton icon={PanelRightClose} label="Hide sessions" onClick={onCollapse} />
         <div className="ml-auto flex items-center gap-1">
           <IconButton icon={SquareTerminal} label="New terminal" onClick={onNewTerminal} />
-          <IconButton icon={Plus} label="New session" onClick={onNewSession} />
+          <IconButton icon={Bot} label="New agent" onClick={onNewSession} />
         </div>
       </div>
       {/* No horizontal padding: the active/hover fill-shift bleeds to both
@@ -348,7 +375,15 @@ export function SessionSidebar({
                 <li
                   key={session.id}
                   draggable
-                  onDragStart={() => setDragging(session.id)}
+                  onDragStart={(e) => {
+                    // Reorders within the list AND, dropped on a tiling pane,
+                    // opens the session there as a permanent tab.
+                    e.dataTransfer.setData(
+                      TAB_MIME,
+                      encodeTabTransfer({ type: 'terminal', session: session.id }),
+                    );
+                    setDragging(session.id);
+                  }}
                   onDragEnd={() => setDragging(null)}
                   onDragOver={(e) => {
                     e.preventDefault();
@@ -360,6 +395,7 @@ export function SessionSidebar({
                     session={session}
                     activeSessionId={activeSessionId}
                     accountLabel={accountLabel}
+                    onPromote={onPromote}
                     onArchived={onArchived}
                     ellipsis
                   />

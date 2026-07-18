@@ -13,15 +13,17 @@ export interface ExplorerTarget {
 /**
  * Resolves the worktree the whole left sidebar is bound to (SPEC §8): the
  * session named by `explorer_pin` in the ui-state snapshot, if it still exists
- * and isn't archived; otherwise the active session tab; otherwise nothing. The
- * pin applies across every navigator — Files, Changes, and Search all follow
- * this one binding. `pin`/`unpin` only write the ui-state key; the binding
- * re-derives from the snapshot on every render, so unpinning immediately
- * resumes follow-the-active-session with no extra state to reconcile.
+ * and isn't archived; otherwise `boundSessionId` — the caller passes the
+ * focused pane's active tab's session (every tab carries the worktree it was
+ * opened from), falling back to the URL-bound session. The pin applies across
+ * every navigator — Files, Changes, and Search all follow this one binding.
+ * `pin`/`unpin` only write the ui-state key; the binding re-derives from the
+ * snapshot on every render, so unpinning immediately resumes
+ * follow-the-focused-tab with no extra state to reconcile.
  */
 export function useExplorerTarget(
   sessions: Session[],
-  activeSessionId: string | null,
+  boundSessionId: string | null,
   uiState: UiStateHandle,
 ): ExplorerTarget {
   const pinnedId = uiState.snapshot.explorer_pin;
@@ -30,7 +32,7 @@ export function useExplorerTarget(
       ? (sessions.find((s) => s.id === pinnedId && s.status !== 'archived') ?? null)
       : null;
 
-  const session = pinnedSession ?? sessions.find((s) => s.id === activeSessionId) ?? null;
+  const session = pinnedSession ?? sessions.find((s) => s.id === boundSessionId) ?? null;
 
   return {
     session,

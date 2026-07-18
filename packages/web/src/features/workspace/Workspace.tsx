@@ -26,6 +26,7 @@ import {
   type RevealTarget,
 } from './editor-context';
 import { KeepAliveHost } from './keep-alive';
+import { tabRefKey, type DropEdge } from './layout-tree';
 import { layoutForPanels } from './panel-layout';
 import {
   CollapsedSidebarRail,
@@ -330,17 +331,18 @@ function WorkspaceInner() {
   const onActivateTab = useCallback(
     (leafId: string, ref: TabRef) => {
       layout.activate(leafId, ref);
-      if (ref.type === 'terminal') {
+      if (ref.type === 'terminal' && ref.session !== activeSessionId) {
         // Navigate only when the owner is KNOWN: guessing the current project
         // while the all-sessions list is still loading would bind another
         // project's session under the wrong URL (empty header + file tree).
         // The tab itself activates regardless; the URL catches up on the next
-        // click once the list has landed.
+        // click once the list has landed. Already-bound sessions skip the
+        // navigate — pane-body clicks would otherwise pile up history entries.
         const owner = tabSessions.find((s) => s.id === ref.session)?.project_id;
         if (owner) void navigate(`/project/${owner}/session/${ref.session}`);
       }
     },
-    [layout, navigate, tabSessions],
+    [layout, navigate, tabSessions, activeSessionId],
   );
   const onCloseTab = useCallback(
     (leafId: string, ref: TabRef) => {
@@ -353,13 +355,42 @@ function WorkspaceInner() {
     },
     [layout, activeSessionId, uiState, navigate, projectId],
   );
+  // A sidebar drag (file row / session row or dot) dropped onto a pane: open a
+  // PERMANENT tab there through the same dropTab path strip drags use — centre
+  // inserts, an edge splits — so a drag opens and positions in one gesture. A
+  // dropped session also claims the URL, like activating its tab would.
+  const onDropTab = useCallback(
+    (leafId: string, ref: TabRef, edge: DropEdge) => {
+      layout.drop({ ref, fromLeafId: leafId, toLeafId: leafId, edge });
+      if (ref.type === 'terminal' && ref.session !== activeSessionId) {
+        const owner = tabSessions.find((s) => s.id === ref.session)?.project_id;
+        if (owner) void navigate(`/project/${owner}/session/${ref.session}`);
+      }
+    },
+    [layout, activeSessionId, tabSessions, navigate],
+  );
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
   // The whole left sidebar binds to one worktree: the pinned session if any,
-  // otherwise the active session tab. Files, Changes, and Search all follow it
-  // (SPEC §8, pin-across-tabs). Resolved against the full session list so a
-  // profile-wide pin keeps binding while you visit another project.
-  const sidebarTarget = useExplorerTarget(tabSessions, activeSessionId, uiState);
+  // otherwise the FOCUSED pane's active tab — every tab carries the worktree
+  // it was opened from (a file tab its `session`, a terminal its own), so
+  // Files, Changes, and Search follow whichever tab you are working in; the
+  // URL-bound session is only the fallback for an empty pane (SPEC §8,
+  // pin-across-tabs). Resolved against the full session list so cross-project
+  // tabs and profile-wide pins bind while you visit another project.
+  const focusedRef =
+    layout.focusedLeaf.tabs.find((t) => tabRefKey(t) === layout.focusedLeaf.activeKey) ?? null;
+  const focusedTabSession =
+    focusedRef === null
+      ? null
+      : focusedRef.type === 'terminal'
+        ? focusedRef.session
+        : focusedRef.tab.session;
+  const sidebarTarget = useExplorerTarget(
+    tabSessions,
+    focusedTabSession ?? activeSessionId,
+    uiState,
+  );
   const targetSession = sidebarTarget.session;
   const sidebarMode: SidebarMode = normalizeSidebarMode(uiState.snapshot.sidebar_mode);
   const sidebarCollapsed = uiState.snapshot.sidebar_collapsed;
@@ -496,6 +527,7 @@ function WorkspaceInner() {
                     onArchived={closeTab}
                     onFocusLeaf={layout.focusLeaf}
                     onResize={layout.resize}
+                    onDropTab={onDropTab}
                   />
                 </TilingDnd>
               </div>
@@ -517,6 +549,7 @@ function WorkspaceInner() {
                 accounts={accounts}
                 activeSessionId={activeSessionId}
                 onReorder={persistReorder}
+                onPromote={(id) => layout.ensureTerminal(id)}
                 archived={archivedSessions}
                 onNewSession={() => openCreate('agent')}
                 onNewTerminal={() => openCreate('terminal')}
@@ -542,6 +575,7 @@ function WorkspaceInner() {
           groups={sessionGroups}
           activeSessionId={activeSessionId}
           onReorder={persistReorder}
+          onPromote={(id) => layout.ensureTerminal(id)}
           onExpand={() => uiState.update({ sessions_collapsed: false })}
           onNewTerminal={() => openCreate('terminal')}
           onNewSession={() => openCreate('agent')}

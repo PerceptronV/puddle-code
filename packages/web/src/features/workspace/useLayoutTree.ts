@@ -118,7 +118,16 @@ export function useLayoutTree(uiState: UiStateHandle): LayoutController {
         const existing = leafContainingKey(tree, key);
         if (existing) {
           setFocusedLeafId(existing.id);
-          if (existing.activeKey !== key) persist(focusTab(tree, existing.id, key)); // else no-op
+          const needsFocus = existing.activeKey !== key;
+          // A PERMANENT ensure promotes an existing preview tab — double-click
+          // on a sidebar session pins it, exactly like double-click on a file.
+          const needsPromote = !opts?.preview && existing.previewKey === key;
+          if (needsFocus || needsPromote) {
+            let next = tree;
+            if (needsFocus) next = focusTab(next, existing.id, key);
+            if (needsPromote) next = promoteTab(next, key);
+            persist(next);
+          }
         } else {
           const target = focusedLeaf.id;
           setFocusedLeafId(target);
