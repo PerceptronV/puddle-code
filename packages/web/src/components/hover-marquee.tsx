@@ -16,10 +16,13 @@ export function HoverMarquee({
   text,
   hoverClass,
   className,
+  title,
 }: {
   text: string;
   hoverClass: string;
   className?: string;
+  /** Native tooltip (e.g. a row that shows a basename but knows the full path). */
+  title?: string;
 }) {
   const spanRef = useRef<HTMLSpanElement>(null);
   const [overflow, setOverflow] = useState(0);
@@ -38,6 +41,7 @@ export function HoverMarquee({
     <div className="min-w-0 flex-1 overflow-hidden">
       <span
         ref={spanRef}
+        title={title}
         className={cn(
           'block whitespace-nowrap transition-transform duration-[900ms] ease-linear',
           className,

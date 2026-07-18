@@ -17,9 +17,9 @@ import { cn } from '../../lib/utils';
 
 const LIVE = new Set(['starting', 'running', 'waiting_input']);
 
-// Each worktrees row/heading scrolls a too-long branch name into view only on
-// ITS OWN hover (the unnamed `group` on that element) — not all at once — so the
-// list stays calm. Literal so Tailwind generates it.
+// Each worktrees row/heading scrolls a too-long branch or directory name into
+// view only on ITS OWN hover (the unnamed `group` on that element) — not all at
+// once — so the list stays calm. Literal so Tailwind generates it.
 const ROW_MARQUEE = 'group-hover:[transform:translateX(var(--tail))]';
 
 function basename(path: string): string {
@@ -62,9 +62,12 @@ function PruneButton({
           onClick={onClick}
           // Reveal by display, not opacity, so at rest the control reserves no
           // width — the row's badges reach the sidebar edge (HUMANS.md). A
-          // blocked control never shows and never occupies space.
+          // blocked control never shows and never occupies space. The negative
+          // vertical margin cancels the padding's height so the appearing
+          // button never exceeds the row's resting text line — revealing it
+          // must not make the row (and the whole list below) jump.
           className={cn(
-            'rounded-sm p-1 text-fg-gold transition-colors hover:text-danger',
+            '-my-1 rounded-sm p-1 text-fg-gold transition-colors hover:text-danger',
             blockReason !== null ? 'hidden' : 'hidden group-hover:inline-flex',
           )}
         >
@@ -181,9 +184,12 @@ export function WorktreesNav({
                 key={wt.path}
                 className="group flex items-center gap-2 px-3 py-1 pl-6 transition-colors hover:bg-elevated"
               >
-                <span className="min-w-0 flex-1 truncate font-mono text-xs text-fg" title={wt.path}>
-                  {basename(wt.path)}
-                </span>
+                <HoverMarquee
+                  text={basename(wt.path)}
+                  title={wt.path}
+                  className="font-mono text-xs text-fg"
+                  hoverClass={ROW_MARQUEE}
+                />
                 {wt.is_primary && <Tag className="text-fg-muted">clone</Tag>}
                 {/* Terse badges (VSCode-style): M = modified/uncommitted (the
                     explorer's decoration colour), a green count of live sessions. */}
