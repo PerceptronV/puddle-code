@@ -63,6 +63,12 @@ export function Terminal({ stream, term = 'agent', className, onExit, onOpenFile
       fontSize: settings.terminalFontSize,
       scrollback: settings.terminalScrollback,
       cursorBlink: true,
+      // A TUI that enables mouse reporting (Claude Code does, for wheel
+      // scrolling) receives mouse drags itself — xterm then makes no local
+      // selection, so ⌘C has nothing to copy even though a plain shell copies
+      // fine. Shift+drag always forces a local selection; this makes ⌥+drag
+      // do the same on Mac, matching Terminal.app/iTerm convention.
+      macOptionClickForcesSelection: IS_MAC,
     });
     xtermRef.current = xterm;
     const fit = new FitAddon();
