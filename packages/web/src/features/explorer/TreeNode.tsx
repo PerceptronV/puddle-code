@@ -11,6 +11,7 @@ import {
 } from '../../components/ui/context-menu';
 import { cn } from '../../lib/utils';
 import { useWorktreeTree } from '../../lib/worktree-queries';
+import { encodeTabTransfer, TAB_MIME } from '../workspace/tab-transfer';
 import { useExplorer } from './explorer-context';
 import { dirOf, joinPath, type VisibleRow } from './explorer-paths';
 import { FileTypeIcon } from './file-icons';
@@ -137,7 +138,7 @@ export function TreeNode({
         initial={entry.name}
         icon={
           isDir ? (
-            <FolderClosed className="size-3.5 shrink-0 text-fg-gold" />
+            <FolderClosed className="size-3.5 shrink-0 text-fg" />
           ) : (
             <FileTypeIcon name={entry.name} />
           )
@@ -168,6 +169,14 @@ export function TreeNode({
       }}
       onDragStart={(e) => {
         e.dataTransfer.setData(PUDDLE_PATH_MIME, path);
+        // A file row is also draggable into the centre tiling area, where the
+        // drop opens it as a permanent, positioned editor tab (SPEC §8).
+        if (!isDir) {
+          e.dataTransfer.setData(
+            TAB_MIME,
+            encodeTabTransfer({ type: 'editor', tab: { kind: 'file', session: ex.sid, path } }),
+          );
+        }
         e.dataTransfer.effectAllowed = 'copyMove';
       }}
       onDragOver={(e) => {
@@ -206,24 +215,20 @@ export function TreeNode({
       ) : (
         <span className="size-3.5 shrink-0" />
       )}
+      {/* Untinted icons wear the heading colour (text-fg), never gold — colour
+          on a tree icon means git status (a gold default read as "modified"). */}
       {isDir ? (
         isOpen ? (
           <FolderOpen
-            className={cn(
-              'size-3.5 shrink-0',
-              folderTint ? decoration?.colourClass : 'text-fg-gold',
-            )}
+            className={cn('size-3.5 shrink-0', folderTint ? decoration?.colourClass : 'text-fg')}
           />
         ) : (
           <FolderClosed
-            className={cn(
-              'size-3.5 shrink-0',
-              folderTint ? decoration?.colourClass : 'text-fg-gold',
-            )}
+            className={cn('size-3.5 shrink-0', folderTint ? decoration?.colourClass : 'text-fg')}
           />
         )
       ) : entry.type === 'symlink' ? (
-        <Link2 className="size-3.5 shrink-0 text-fg-gold" />
+        <Link2 className="size-3.5 shrink-0 text-fg" />
       ) : (
         <FileTypeIcon name={entry.name} dimmed={status === 'ignored'} />
       )}
@@ -341,7 +346,7 @@ function CreateRow({ depth, kind }: { depth: number; kind: 'file' | 'dir' }) {
       initial={name}
       icon={
         kind === 'dir' ? (
-          <FolderClosed className="size-3.5 shrink-0 text-fg-gold" />
+          <FolderClosed className="size-3.5 shrink-0 text-fg" />
         ) : (
           <FileTypeIcon name={name || 'file'} />
         )
