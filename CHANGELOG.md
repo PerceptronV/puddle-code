@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Terminal now honours OSC 52 clipboard writes, so a mouse-reporting agent's own copy (e.g. Claude Code auto-copying the selection) lands in the system clipboard and ⌘V pastes it — no Shift+drag needed.

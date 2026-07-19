@@ -117,6 +117,25 @@ export function Terminal({ stream, term = 'agent', className, onExit, onOpenFile
     const oscForeground = xterm.parser.registerOscHandler(10, answerColour(10, '--text-primary'));
     const oscBackground = xterm.parser.registerOscHandler(11, answerColour(11, '--bg-base'));
 
+    // Honour OSC 52 clipboard *writes* so a TUI's own copy lands in the system
+    // clipboard. A mouse-reporting agent (Claude Code) receives the drag itself
+    // and copies the selection by emitting `OSC 52 ; c ; <base64>` — xterm.js
+    // takes no action on OSC 52 on its own, so without this the copy is dropped
+    // and ⌘V has nothing to paste. Read requests (`?`) are ignored on purpose:
+    // the PTY must never be able to exfiltrate the clipboard.
+    const oscClipboard = xterm.parser.registerOscHandler(52, (data) => {
+      const semi = data.indexOf(';');
+      const payload = semi === -1 ? '' : data.slice(semi + 1);
+      if (!payload || payload === '?') return true; // read/clear — leave the clipboard alone
+      try {
+        const bytes = Uint8Array.from(atob(payload), (c) => c.charCodeAt(0));
+        void navigator.clipboard?.writeText(new TextDecoder().decode(bytes));
+      } catch {
+        // malformed base64 — nothing safe to copy
+      }
+      return true;
+    });
+
     if (IS_MAC) {
       xterm.attachCustomKeyEventHandler((e) => {
         if (e.type !== 'keydown' || !e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return true;
@@ -166,6 +185,7 @@ export function Terminal({ stream, term = 'agent', className, onExit, onOpenFile
       unsubscribeTheme();
       oscForeground.dispose();
       oscBackground.dispose();
+      oscClipboard.dispose();
       fileLinks?.dispose();
       stdin.dispose();
       detach();
