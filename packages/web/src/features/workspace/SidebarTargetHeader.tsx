@@ -154,8 +154,12 @@ function ExplorerActions() {
     else if (key === 'refresh') ex.refresh();
     else if (key === 'collapse') ex.collapseAll();
   };
+  // `hidden` (not opacity-0) so at rest the cluster takes NO layout width —
+  // otherwise the header's bg-surface overlay masks that phantom span over the
+  // path tail, which is visible whenever the header is pinned (overlay always
+  // shown). Revealed by the parent header's hover/focus (HUMANS.md).
   return (
-    <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+    <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex group-focus-within:flex">
       {ACTIONS.map(({ key, label, icon: Icon }) => (
         <Tooltip key={key}>
           <TooltipTrigger asChild>

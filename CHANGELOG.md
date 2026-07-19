@@ -12,3 +12,4 @@ Past releases: see docs/changelogs/.
 ### Fixed
 
 - Terminal now honours OSC 52 clipboard writes, so a mouse-reporting agent's own copy (e.g. Claude Code auto-copying the selection) lands in the system clipboard and ⌘V pastes it — no Shift+drag needed.
+- Pinned sidebar worktree header no longer masks the path tail: the hover-only file-action icons take no layout width at rest, so their background strip stops occluding the filename when the header is pinned.
