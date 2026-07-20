@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { Hono } from 'hono';
 import {
@@ -91,17 +91,12 @@ export function worktreeRoutes(deps: { sessions: SessionStore }): Hono {
       throw ApiError.notFound('path', rawPath);
     }
 
-    // Symlink-escape hardening, same two-stage pattern as `containedPath`:
-    // resolve both sides for real and recheck containment, so a symlink
-    // planted inside the worktree pointing outside it can't be used to read
-    // arbitrary files.
-    const real = realpathSync(abs);
-    const realRoot = realpathSync(root);
-    if (real !== realRoot && !real.startsWith(realRoot + sep)) {
-      throw ApiError.notFound('path', rawPath);
-    }
-    // Directories aren't openable in Monaco (v1 scope) — nothing to link to.
-    if (!statSync(real).isFile()) {
+    // Symlinks are followed, even out of the worktree — consistent with the
+    // file explorer / `containedPath`: only lexical `..`/absolute escapes are
+    // rejected (above), never a real symlink the user placed in the worktree.
+    // `statSync` follows the link; directories aren't openable in Monaco (v1
+    // scope), so a link to one has nothing to point at.
+    if (!statSync(abs).isFile()) {
       throw ApiError.notFound('path', rawPath);
     }
 

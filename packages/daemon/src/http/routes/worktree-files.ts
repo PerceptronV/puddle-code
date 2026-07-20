@@ -76,13 +76,29 @@ function mediaMime(name: string): string | null {
   return MEDIA_MIME[name.slice(dot + 1).toLowerCase()] ?? null;
 }
 
-/** One tree entry for a directory child; `lstat` decides file/dir/symlink, never following the link. */
+/**
+ * One tree entry for a directory child. A plain file/dir is described from its
+ * `lstat`. A symlink is *resolved* so a link to a directory is explorable and a
+ * link to a file opens — its `type` reports the target kind and `symlink` flags
+ * it (the tree draws the link icon at that row). Targets outside the worktree
+ * are followed too (see `containedPath`); only a broken or unresolvable link
+ * (or a non-file/dir target like a socket) stays a `symlink` leaf.
+ */
 function describeEntry(dir: string, name: string): TreeEntry {
   const full = join(dir, name);
   const lst = lstatSync(full);
-  if (lst.isSymbolicLink()) return { name, type: 'symlink', size: null };
-  if (lst.isDirectory()) return { name, type: 'dir', size: null };
-  return { name, type: 'file', size: statSync(full).size };
+  if (!lst.isSymbolicLink()) {
+    if (lst.isDirectory()) return { name, type: 'dir', size: null, symlink: false };
+    return { name, type: 'file', size: statSync(full).size, symlink: false };
+  }
+  try {
+    const st = statSync(full); // follows the link, wherever it points
+    if (st.isDirectory()) return { name, type: 'dir', size: null, symlink: true };
+    if (st.isFile()) return { name, type: 'file', size: st.size, symlink: true };
+    return { name, type: 'symlink', size: null, symlink: true };
+  } catch {
+    return { name, type: 'symlink', size: null, symlink: true }; // dangling or unreadable
+  }
 }
 
 /** Recursively list zip-worthy files under `dir`, skipping `.git` and symlinks; `prefix` is the in-zip path so far. */

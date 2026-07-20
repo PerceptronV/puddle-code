@@ -1,5 +1,5 @@
-import { existsSync, realpathSync } from 'node:fs';
-import { dirname, isAbsolute, join, normalize, sep } from 'node:path';
+import { existsSync } from 'node:fs';
+import { isAbsolute, join, normalize, sep } from 'node:path';
 import type { Context } from 'hono';
 import type { Session } from '@puddle/shared';
 import type { SessionStore } from '../../db/stores/sessions.js';
@@ -24,12 +24,20 @@ export function resolveWorktree(
 
 /**
  * Resolve a client-supplied `rel` path against the worktree `root`, rejecting
- * any attempt to escape it. Mirrors the confinement check in `src/http/static.ts`
- * (normalise-then-prefix-check) plus a symlink hardening pass: the nearest
- * existing ancestor of the candidate is resolved with `realpathSync` and
- * re-checked against the worktree's own real path, so a symlink planted
- * inside the worktree (or the worktree path itself sitting behind one, as
- * macOS temp dirs do) can't be used to read or write outside it.
+ * path-injection escapes. Mirrors the confinement check in `src/http/static.ts`
+ * (normalise-then-prefix-check): the `rel` must be relative and must not use
+ * `..` to climb above `root` — the caller can never name a path outside the
+ * worktree directly.
+ *
+ * Symlinks ARE followed, even when their target lives outside the worktree: a
+ * symlink is a real filesystem object the user (or their tools) placed in the
+ * worktree, so following it is intended — `./workspaces` linked to a shared dir
+ * browses and edits as expected. The `..` normalisation happens lexically,
+ * BEFORE any symlink is resolved, so it can only cancel earlier path segments,
+ * never walk the external filesystem: through a symlink you reach exactly the
+ * target and its subtree, nothing beside or above it. This is a deliberate
+ * relaxation of an earlier realpath-based escape guard — puddle runs as the
+ * user, who already has shell access to whatever a worktree symlink points at.
  */
 export function containedPath(root: string, rel: string): string {
   if (isAbsolute(rel)) {
@@ -37,18 +45,6 @@ export function containedPath(root: string, rel: string): string {
   }
   const candidate = normalize(join(root, rel));
   if (candidate !== root && !candidate.startsWith(root + sep)) {
-    throw ApiError.badRequest('path_outside_worktree', `path escapes the worktree`);
-  }
-
-  const realRoot = realpathSync(root);
-  let ancestor = candidate;
-  while (!existsSync(ancestor)) {
-    const parent = dirname(ancestor);
-    if (parent === ancestor) break; // reached the filesystem root without finding one
-    ancestor = parent;
-  }
-  const realAncestor = realpathSync(ancestor);
-  if (realAncestor !== realRoot && !realAncestor.startsWith(realRoot + sep)) {
     throw ApiError.badRequest('path_outside_worktree', `path escapes the worktree`);
   }
   return candidate;

@@ -119,12 +119,40 @@ describe('GET /api/worktrees/:sid/tree', () => {
     expect(body.entries.map((e) => e.name)).toEqual(['index.ts']);
   });
 
-  it('reports symlinks distinctly with a null size', async () => {
+  it('resolves an in-worktree symlink to a file, flagged as a link', async () => {
     symlinkSync(join(worktree, 'apple.txt'), join(worktree, 'link-to-apple'));
     const res = await tree(sessionId);
     const body = treeResponseSchema.parse(await res.json());
     const link = body.entries.find((e) => e.name === 'link-to-apple');
-    expect(link).toMatchObject({ type: 'symlink', size: null });
+    // Resolves to the target's kind (a file) so it opens, but stays flagged.
+    expect(link).toMatchObject({ type: 'file', symlink: true });
+  });
+
+  it('resolves an in-worktree symlink to a directory as explorable', async () => {
+    symlinkSync(join(worktree, 'src'), join(worktree, 'link-to-src'));
+    const res = await tree(sessionId);
+    const body = treeResponseSchema.parse(await res.json());
+    const link = body.entries.find((e) => e.name === 'link-to-src');
+    expect(link).toMatchObject({ type: 'dir', size: null, symlink: true });
+    // …and listing through the link yields the target directory's children.
+    const inner = treeResponseSchema.parse(await (await tree(sessionId, 'link-to-src')).json());
+    expect(inner.entries.map((e) => e.name)).toEqual(['index.ts']);
+  });
+
+  it('follows a symlink whose directory target is outside the worktree', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'puddle-escape-'));
+    mkdirSync(join(outside, 'nested'), { recursive: true });
+    writeFileSync(join(outside, 'nested', 'far.txt'), 'over here\n');
+    symlinkSync(join(outside, 'nested'), join(worktree, 'escape-dir'));
+    const res = await tree(sessionId);
+    const body = treeResponseSchema.parse(await res.json());
+    const link = body.entries.find((e) => e.name === 'escape-dir');
+    // Resolved to its target kind and explorable — a symlink is a real object
+    // the user placed in the worktree, so following it out is intended.
+    expect(link).toMatchObject({ type: 'dir', size: null, symlink: true });
+    const inner = treeResponseSchema.parse(await (await tree(sessionId, 'escape-dir')).json());
+    expect(inner.entries.map((e) => e.name)).toEqual(['far.txt']);
+    rmSync(outside, { recursive: true, force: true });
   });
 
   it('rejects a relative traversal', async () => {
@@ -198,17 +226,28 @@ describe('GET /api/worktrees/:sid/file', () => {
     expect(errorCode(await res.json())).toBe('file_too_large');
   });
 
-  it('rejects a symlink planted inside the worktree that resolves outside it', async () => {
-    // A relative/absolute path check alone would pass this: the request path
-    // is a plain in-worktree name. Only the realpathSync hardening pass
-    // catches that the target itself escapes via the filesystem symlink.
+  it('reads and writes through a symlink whose file target is outside the worktree', async () => {
+    // The request path is a plain in-worktree name; the symlink resolves out.
+    // Following it is intended (read + write) — only lexical `..`/absolute
+    // escapes are rejected, never a real symlink the user placed here.
     const outside = mkdtempSync(join(tmpdir(), 'puddle-outside-'));
-    writeFileSync(join(outside, 'secret.txt'), 'top secret\n');
-    symlinkSync(join(outside, 'secret.txt'), join(worktree, 'escape-link.txt'));
+    const target = join(outside, 'shared.txt');
+    writeFileSync(target, 'shared v1\n');
+    symlinkSync(target, join(worktree, 'shared-link.txt'));
 
-    const res = await getFile(sessionId, 'escape-link.txt');
-    expect(res.status).toBe(400);
-    expect(errorCode(await res.json())).toBe('path_outside_worktree');
+    const read = await getFile(sessionId, 'shared-link.txt');
+    expect(read.status).toBe(200);
+    expect(fileResponseSchema.parse(await read.json()).content).toBe('shared v1\n');
+
+    const write = await app.request(`/api/worktrees/${sessionId}/file?path=shared-link.txt`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ content: 'shared v2\n' }),
+    });
+    expect(write.status).toBe(200);
+    // The write lands on the external target the symlink points at.
+    expect(readFileSync(target, 'utf8')).toBe('shared v2\n');
+    rmSync(outside, { recursive: true, force: true });
   });
 });
 

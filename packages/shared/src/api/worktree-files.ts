@@ -8,9 +8,18 @@ import { z } from 'zod';
  */
 export const treeEntrySchema = z.object({
   name: z.string(),
+  /**
+   * The *resolved* kind: a symlink to a directory is `dir` (so it's explorable)
+   * and a symlink to a file is `file` (so it opens); `symlink` is reserved for a
+   * link that is broken or whose target escapes the worktree — a non-expandable
+   * leaf. Pair with `symlink` to know whether the entry is itself a link.
+   */
   type: z.enum(['file', 'dir', 'symlink']),
   /** Bytes on disk; null for directories and symlinks (size is meaningless there). */
   size: z.number().int().nonnegative().nullable(),
+  /** The entry is a symbolic link — the tree shows the link icon at its root,
+   *  regardless of the resolved `type`. Optional for wire back-compat. */
+  symlink: z.boolean().default(false),
 });
 export type TreeEntry = z.infer<typeof treeEntrySchema>;
 

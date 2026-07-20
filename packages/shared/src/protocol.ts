@@ -23,4 +23,9 @@
 // 7.1 (2026-07-18): additive — the profile setting `sessionDefaults` (a loose
 // key): per-kind seed defaults for the new-session modal (base branch,
 // separate branch, separate directory).
-export const PROTOCOL_VERSION = { major: 7, minor: 1 } as const;
+// 7.2 (2026-07-20): additive — tree entries carry an optional `symlink` flag,
+// and a symlink's `type` now reports its resolved target kind (`dir`/`file`)
+// so symlinked directories are explorable; `symlink` stays reserved for a
+// broken or worktree-escaping link. Old clients ignore the field and already
+// handle the `dir`/`file` values.
+export const PROTOCOL_VERSION = { major: 7, minor: 2 } as const;

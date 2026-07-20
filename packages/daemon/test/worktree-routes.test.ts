@@ -180,13 +180,16 @@ describe('GET /api/worktrees/:sid/resolve', () => {
     expect(res.status).toBe(404);
   });
 
-  it('404s a symlink inside the worktree pointing outside it', async () => {
+  it('resolves a symlink inside the worktree pointing at an outside file', async () => {
     const outside = mkdtempSync(join(tmpdir(), 'puddle-resolve-outside-'));
     writeFileSync(join(outside, 'secret.ts'), 'top secret');
     symlinkSync(join(outside, 'secret.ts'), join(worktree, 'escape-link.ts'));
 
+    // Symlinks are followed (read+write policy) — a terminal link to a
+    // symlinked-out file opens just like the explorer opens it. Only lexical
+    // `..`/absolute escapes 404 (covered above).
     const res = await resolvePath(resolveSessionId, '?path=escape-link.ts');
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
   });
 
   it('404s a directory', async () => {

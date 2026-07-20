@@ -216,8 +216,13 @@ export function TreeNode({
         <span className="size-3.5 shrink-0" />
       )}
       {/* Untinted icons wear the heading colour (text-fg), never gold — colour
-          on a tree icon means git status (a gold default read as "modified"). */}
-      {isDir ? (
+          on a tree icon means git status (a gold default read as "modified").
+          The link icon marks the symlink ROOT and wins over the folder glyph,
+          so a symlinked directory reads as a link while its (normal) children
+          keep their own icons; the chevron above still makes it explorable. */}
+      {entry.symlink || entry.type === 'symlink' ? (
+        <Link2 className="size-3.5 shrink-0 text-fg" />
+      ) : isDir ? (
         isOpen ? (
           <FolderOpen
             className={cn('size-3.5 shrink-0', folderTint ? decoration?.colourClass : 'text-fg')}
@@ -227,8 +232,6 @@ export function TreeNode({
             className={cn('size-3.5 shrink-0', folderTint ? decoration?.colourClass : 'text-fg')}
           />
         )
-      ) : entry.type === 'symlink' ? (
-        <Link2 className="size-3.5 shrink-0 text-fg" />
       ) : (
         <FileTypeIcon name={entry.name} dimmed={status === 'ignored'} />
       )}
