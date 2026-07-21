@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import {
   Archive,
   ArchiveRestore,
+  Bot,
   ExternalLink,
   MoreHorizontal,
   Pencil,
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Account, Session } from '@puddle/shared';
+import { AgentIcon } from '../../components/agent-icon';
 import { Button } from '../../components/ui/button';
 import {
   ContextMenu,
@@ -49,6 +51,7 @@ import {
   useArchiveSession,
   useCreateSession,
   useMigrateSession,
+  useProfileSettings,
   useRenameSession,
   useSessionAction,
   useUnarchiveSession,
@@ -76,6 +79,12 @@ export interface SessionMenu {
   openRename: () => void;
   /** Spawn a terminal session sharing this session's worktree directory. */
   openTerminal: () => void;
+  /** Logged-in accounts an agent can spawn on, the default account first. */
+  spawnAccounts: Account[];
+  /** The profile's default account id (for the "default" marker), or null. */
+  defaultAccountId: number | null;
+  /** Spawn an agent sharing this session's worktree, on the given account. */
+  spawnAgent: (accountId: number) => void;
   /** Archive straight away — no confirmation (SPEC §4: nothing is destroyed). */
   archive: () => void;
   unarchive: () => void;
@@ -118,10 +127,11 @@ export function useSessionMenu(
   const unarchive = useUnarchiveSession();
   const rename = useRenameSession();
   const migrate = useMigrateSession();
-  const createTerminal = useCreateSession();
+  const createSession = useCreateSession();
   const navigate = useNavigate();
   const profileId = useCurrentProfileId();
   const accounts = useAccounts(profileId ?? undefined);
+  const settings = useProfileSettings(profileId ?? undefined);
   const [confirm, setConfirm] = useState<'kill' | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [newTitle, setNewTitle] = useState(session.title ?? '');
@@ -136,6 +146,20 @@ export function useSessionMenu(
     session.status !== 'archived' &&
     sameAgent.some((a) => a.id !== session.account_id);
 
+  // Accounts an agent can actually spawn on must be logged in; the profile's
+  // default account leads the list so opening the submenu and pressing Enter
+  // spawns the default (Radix focuses the first item on keyboard-open).
+  const rawDefault = settings.data?.['default_account_id'];
+  const defaultAccountId = typeof rawDefault === 'number' ? rawDefault : null;
+  const loggedIn = (accounts.data ?? []).filter((a) => a.logged_in);
+  const spawnAccounts =
+    defaultAccountId !== null
+      ? [
+          ...loggedIn.filter((a) => a.id === defaultAccountId),
+          ...loggedIn.filter((a) => a.id !== defaultAccountId),
+        ]
+      : loggedIn;
+
   const menu: SessionMenu = {
     session,
     resumable: RESUMABLE.includes(session.status),
@@ -149,7 +173,7 @@ export function useSessionMenu(
     // session joining an existing worktree) — for git surgery, running tests,
     // or poking at files beside the agent. Lands in the new terminal.
     openTerminal: () =>
-      createTerminal.mutate(
+      createSession.mutate(
         {
           project_id: session.project_id,
           kind: 'terminal',
@@ -159,6 +183,25 @@ export function useSessionMenu(
         },
         {
           onSuccess: (t) => void navigate(`/project/${t.project_id}/session/${t.id}`),
+          onError: (e) => toast.error(e.message),
+        },
+      ),
+    spawnAccounts,
+    defaultAccountId,
+    // An agent joining THIS session's worktree (shared directory, no new
+    // branch) on the chosen account — a second agent beside the first, or a
+    // fresh agent on a worktree whose original session has exited.
+    spawnAgent: (accountId: number) =>
+      createSession.mutate(
+        {
+          project_id: session.project_id,
+          account_id: accountId,
+          separate_branch: false,
+          separate_worktree: false,
+          join_worktree: session.worktree_path,
+        },
+        {
+          onSuccess: (s) => void navigate(`/project/${s.project_id}/session/${s.id}`),
           onError: (e) => toast.error(e.message),
         },
       ),
@@ -344,6 +387,24 @@ function SessionMenuItems({ kit, menu }: { kit: MenuKit; menu: SessionMenu }) {
           <Item onSelect={menu.openTerminal}>
             <SquareTerminal /> Open terminal in worktree
           </Item>
+          {menu.spawnAccounts.length > 0 && (
+            <Sub>
+              <SubTrigger>
+                <Bot /> Spawn agent in worktree
+              </SubTrigger>
+              <SubContent>
+                {menu.spawnAccounts.map((a) => (
+                  <Item key={a.id} onSelect={() => menu.spawnAgent(a.id)}>
+                    <AgentIcon type={a.agent_type} className="size-4 shrink-0" />
+                    {a.agent_type}/{a.label}
+                    {a.id === menu.defaultAccountId && (
+                      <span className="ml-auto pl-3 text-fg-muted">default</span>
+                    )}
+                  </Item>
+                ))}
+              </SubContent>
+            </Sub>
+          )}
           {/* Deep links, not regular navigation — window.location.href hands the
               URL to the OS/editor and leaves the tab in place. */}
           <Item
