@@ -30,6 +30,7 @@ import {
 import { closeSettings } from '../../../lib/hash-route';
 import { profileStore, useCurrentProfileId } from '../../profile/profile-store';
 import { SectionTitle, SettingRow } from '../parts';
+import { ProfileAppearance } from './profile-appearance';
 
 const NONE = '__none__';
 
@@ -111,6 +112,7 @@ export function ProfileSection() {
           Save
         </Button>
       </SettingRow>
+      <ProfileAppearance profile={profile} />
       <SettingRow label="Default account" description="Preselected in the new-session modal.">
         <Select
           value={typeof defaultAccount === 'number' ? String(defaultAccount) : NONE}

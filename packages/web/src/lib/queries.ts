@@ -224,13 +224,14 @@ export function usePatchProfile() {
     // Send only the fields present; JSON.stringify drops the undefined ones.
     mutationFn: ({
       id,
-      name,
-      branch_prefix,
+      ...patch
     }: {
       id: string;
       name?: string;
       branch_prefix?: string;
-    }) => api<Profile>('PATCH', `/api/profiles/${id}`, { name, branch_prefix }),
+      icon?: string | null;
+      icon_colour?: string | null;
+    }) => api<Profile>('PATCH', `/api/profiles/${id}`, patch),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['profiles'] }),
   });
 }

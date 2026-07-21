@@ -117,6 +117,27 @@ describe('stores', () => {
     expect(s.profiles.getSettings(p.id).allowSkipPermissions).toBe(true);
   });
 
+  it('sets and clears a profile icon and colour', () => {
+    const s = stores();
+    const p = s.profiles.create({ name: 'alice', branch_prefix: 'alice/' });
+    expect(p.icon).toBeNull();
+    expect(p.icon_colour).toBeNull();
+
+    const set = s.profiles.setAppearance(p.id, { icon: 'rocket', icon_colour: 'blue' });
+    expect(set).toMatchObject({ icon: 'rocket', icon_colour: 'blue' });
+    // Surfaced by both get and list.
+    expect(s.profiles.get(p.id).icon).toBe('rocket');
+    expect(s.profiles.list().find((x) => x.id === p.id)?.icon_colour).toBe('blue');
+
+    // A partial patch touches only the field sent…
+    expect(s.profiles.setAppearance(p.id, { icon_colour: 'gold' })).toMatchObject({
+      icon: 'rocket',
+      icon_colour: 'gold',
+    });
+    // …and null clears it.
+    expect(s.profiles.setAppearance(p.id, { icon: null }).icon).toBeNull();
+  });
+
   it('rejects duplicate profile names with a 409', () => {
     const s = stores();
     s.profiles.create({ name: 'alice', branch_prefix: '' });

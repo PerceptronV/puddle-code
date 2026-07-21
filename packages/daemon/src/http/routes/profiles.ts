@@ -46,6 +46,12 @@ export function profileRoutes(deps: {
         if (body.branch_prefix !== undefined) {
           profile = deps.profiles.setBranchPrefix(id, body.branch_prefix);
         }
+        if (body.icon !== undefined || body.icon_colour !== undefined) {
+          profile = deps.profiles.setAppearance(id, {
+            icon: body.icon,
+            icon_colour: body.icon_colour,
+          });
+        }
         return c.json(profile);
       })
       .delete('/:id', (c) => {

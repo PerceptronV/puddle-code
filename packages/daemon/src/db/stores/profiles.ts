@@ -7,12 +7,21 @@ interface Row {
   id: string;
   name: string;
   branch_prefix: string;
+  icon: string | null;
+  icon_colour: string | null;
   settings: string;
   created_at: string;
 }
 
 function toProfile(r: Row): Profile {
-  return { id: r.id, name: r.name, branch_prefix: r.branch_prefix, created_at: r.created_at };
+  return {
+    id: r.id,
+    name: r.name,
+    branch_prefix: r.branch_prefix,
+    icon: r.icon,
+    icon_colour: r.icon_colour,
+    created_at: r.created_at,
+  };
 }
 
 export class ProfileStore {
@@ -63,6 +72,26 @@ export class ProfileStore {
         throw ApiError.conflict('profile_exists', `profile '${name}' already exists`);
       }
       throw e;
+    }
+    return this.get(id);
+  }
+
+  /** Set/clear the profile's icon glyph and/or its colour (SPEC §11). */
+  setAppearance(id: string, patch: { icon?: string | null; icon_colour?: string | null }): Profile {
+    this.get(id); // 404 before a silent no-op UPDATE
+    const sets: string[] = [];
+    const values: Array<string | null> = [];
+    if (patch.icon !== undefined) {
+      sets.push('icon = ?');
+      values.push(patch.icon);
+    }
+    if (patch.icon_colour !== undefined) {
+      sets.push('icon_colour = ?');
+      values.push(patch.icon_colour);
+    }
+    if (sets.length > 0) {
+      values.push(id);
+      this.db.prepare(`UPDATE profiles SET ${sets.join(', ')} WHERE id = ?`).run(...values);
     }
     return this.get(id);
   }

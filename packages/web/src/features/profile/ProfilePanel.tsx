@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KeyRound, Plus, Settings2, UserRound } from 'lucide-react';
+import { KeyRound, Plus, Settings2 } from 'lucide-react';
 import type { Account } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
@@ -13,6 +13,7 @@ import {
 } from '../../lib/queries';
 import { LoginDialog } from '../accounts/LoginDialog';
 import { useNewSession } from '../shell/new-session-context';
+import { ProfileGlyph } from './ProfileGlyph';
 import { profileStore, useCurrentProfileId } from './profile-store';
 import { UsageBar } from './UsageBar';
 
@@ -162,7 +163,7 @@ export function ProfilePanel() {
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button variant="ghost" size="sm" className="font-sans">
-            <UserRound />
+            <ProfileGlyph icon={currentProfile?.icon} colour={currentProfile?.icon_colour} />
             {currentProfile?.name ?? '…'}
           </Button>
         </PopoverTrigger>

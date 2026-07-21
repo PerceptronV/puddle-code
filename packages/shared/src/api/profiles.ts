@@ -68,10 +68,30 @@ export const TAB_TITLE_VARIABLES = [
  */
 export const DEFAULT_TAB_TITLE_TEMPLATE = '${name}';
 
+/**
+ * The colour keys a profile icon may use (SPEC §11): theme-aware tokens the web
+ * maps to `text-*` classes, so the glyph recolours with the theme and adds no
+ * raw colours. `null`/absent → the default heading colour.
+ */
+export const PROFILE_ICON_COLOURS = [
+  'gold',
+  'blue',
+  'green',
+  'amber',
+  'red',
+  'violet',
+  'cyan',
+  'accent',
+] as const;
+
 export const profileSchema = z.object({
   id: profileId,
   name: fsSafeName,
   branch_prefix: z.string(),
+  /** Lucide icon name (kebab-case, e.g. `rocket`); null → the default person glyph. */
+  icon: z.string().nullable().default(null),
+  /** A `PROFILE_ICON_COLOURS` key; null → the default heading colour. */
+  icon_colour: z.string().nullable().default(null),
   created_at: isoTimestamp,
 });
 export type Profile = z.infer<typeof profileSchema>;
@@ -90,6 +110,10 @@ export const createProfileRequestSchema = z.object({
 export const patchProfileRequestSchema = z.object({
   name: fsSafeName.optional(),
   branch_prefix: z.string().max(64).optional(),
+  /** Set/clear the profile's lucide icon (kebab-case name); null clears it. */
+  icon: z.string().max(64).nullable().optional(),
+  /** Set/clear the icon colour (a `PROFILE_ICON_COLOURS` key); null clears it. */
+  icon_colour: z.string().max(32).nullable().optional(),
 });
 
 /** One kind's new-session seed (all optional — absent falls back to built-ins). */
