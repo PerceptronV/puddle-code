@@ -11,6 +11,7 @@ Past releases: see docs/changelogs/.
 
 ### Added
 
+- Customisable **keyboard shortcuts** (Settings → Hotkeys), stored per profile. Rebind the global/layout actions — command palette, close tab (⌘⌥W), toggle left/right sidebar (⌘⇧, / ⌘⇧.), open a navigator (⌘⇧E/F/G/Y), new agent (⌃⇧\`), new terminal (⌃\`), toggle Scratchpad (⌘⇧S), editor save/word-wrap — with a key recorder, reset-to-default, and conflict + browser-reserved warnings. Filetree and terminal line-edit keys stay fixed. (protocol 7.6)
 - The homescreen gains two action tiles in the projects grid: "Open project" (the new-project dialogue) and "Open terminal" — a shell at `~` on the daemon host in a heading-less bottom pane that exists only on the homescreen, for cloning repositories before opening them as projects. One shell at a time: while it lives, opening reattaches to it (the tile reads "Close terminal", which ends it). Protocol 7.5: the `home` PTY stream and the `kill-shell` WS message.
 - Storm-navy is now a profile icon colour (the theme-aware primary ink — navy in light, near-white in dark).
 

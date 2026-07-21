@@ -12,6 +12,7 @@ import { wsManager } from '../../lib/ws';
 import { Suspense, lazy, useState } from 'react';
 import { NewProjectDialog } from '../dashboard/NewProjectDialog';
 import { CommandPalette } from '../palette/CommandPalette';
+import { HotkeysHost } from './HotkeysHost';
 import { ConnectionBanner } from './ConnectionBanner';
 import { ProfilePanel } from '../profile/ProfilePanel';
 import { useCurrentProfileId } from '../profile/profile-store';
@@ -162,6 +163,7 @@ function ShellBody() {
       <Suspense fallback={null}>
         <SettingsDialog />
       </Suspense>
+      <HotkeysHost />
     </div>
   );
 }

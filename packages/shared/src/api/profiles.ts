@@ -166,6 +166,12 @@ export const profileSettingsSchema = z.looseObject({
    * still enforces that a separate branch always gets its own directory.
    */
   sessionDefaults: sessionDefaultsSchema.optional(),
+  /**
+   * Per-profile keyboard-shortcut overrides (SPEC §11): action-id → canonical
+   * binding string (e.g. `meta+shift+KeyE`). Absent keys use the app default;
+   * the web owns the action registry and the binding format.
+   */
+  hotkeys: z.record(z.string(), z.string()).optional(),
 });
 export type ProfileSettings = z.infer<typeof profileSettingsSchema>;
 

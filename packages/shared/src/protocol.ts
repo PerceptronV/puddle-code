@@ -38,4 +38,6 @@
 // 7.5 (2026-07-20): additive — the `home` PTY stream (a project-less shell in
 // the daemon host's home directory; `spawn-shell` on it reuses the live shell)
 // and the `kill-shell` client message (terminate a shell term, never the agent).
-export const PROTOCOL_VERSION = { major: 7, minor: 5 } as const;
+// 7.6 (2026-07-21): additive — the profile setting `hotkeys` (a loose key):
+// per-profile keyboard-shortcut overrides (action-id → binding string).
+export const PROTOCOL_VERSION = { major: 7, minor: 6 } as const;

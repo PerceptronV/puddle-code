@@ -2,6 +2,7 @@ import {
   Bell,
   Code,
   FolderGit2,
+  Keyboard,
   Palette,
   Server,
   SlidersHorizontal,
@@ -19,6 +20,7 @@ import { AccountsSection } from './sections/accounts';
 import { SessionsSection } from './sections/sessions';
 import { NotificationsSection } from './sections/notifications';
 import { EditorSection } from './sections/editor';
+import { HotkeysSection } from './sections/hotkeys';
 import { RepositoriesSection } from './sections/repositories';
 import { HostSection } from './sections/host';
 
@@ -34,6 +36,7 @@ const SECTIONS: Array<{ id: string; label: string; icon: LucideIcon; render: () 
       render: () => <SessionsSection />,
     },
     { id: 'editor', label: 'Editor', icon: Code, render: () => <EditorSection /> },
+    { id: 'hotkeys', label: 'Hotkeys', icon: Keyboard, render: () => <HotkeysSection /> },
     {
       id: 'notifications',
       label: 'Notifications',

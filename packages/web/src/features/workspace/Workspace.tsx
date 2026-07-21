@@ -25,6 +25,7 @@ import { toast } from 'sonner';
 import { warmEditorChunk } from '../editor/lazy-editor-parts';
 import { warmTerminalChunk } from '../terminal/LazyTerminal';
 import { wsManager } from '../../lib/ws';
+import { registerHotkey } from '../../lib/hotkeys';
 import { KeepAliveHost } from './keep-alive';
 import { flattenTabs, tabRefKey, type DropEdge } from './layout-tree';
 import { layoutForPanels } from './panel-layout';
@@ -413,6 +414,39 @@ function WorkspaceInner() {
     },
     [uiState, openCreate],
   );
+
+  // Global hotkey handlers (SPEC §11): register stable wrappers once; each reads
+  // the latest closures from a ref so re-renders don't churn the registry.
+  const hkRef = useRef<Record<string, () => void>>({});
+  const openNavigator = (mode: SidebarMode) =>
+    uiState.update({ sidebar_mode: mode, sidebar_collapsed: false });
+  hkRef.current = {
+    'tab.close': () => {
+      const leaf = layout.focusedLeaf;
+      const ref = leaf.tabs.find((t) => tabRefKey(t) === leaf.activeKey);
+      if (ref) onCloseTab(leaf.id, ref);
+    },
+    'sidebar.left': () =>
+      uiState.update({ sidebar_collapsed: !uiState.snapshot.sidebar_collapsed }),
+    'sidebar.right': () =>
+      uiState.update({ sessions_collapsed: !uiState.snapshot.sessions_collapsed }),
+    'nav.files': () => openNavigator('files'),
+    'nav.search': () => openNavigator('search'),
+    'nav.changes': () => openNavigator('changes'),
+    'nav.worktrees': () => openNavigator('worktrees'),
+    'session.newAgent': () => openCreateInSessions('agent'),
+    'session.newTerminal': () => openCreateInSessions('terminal'),
+    'scratchpad.toggle': () =>
+      uiState.update({
+        right_panel: uiState.snapshot.right_panel === 'scratchpad' ? 'sessions' : 'scratchpad',
+        sessions_collapsed: false,
+      }),
+  };
+  useEffect(() => {
+    const ids = Object.keys(hkRef.current);
+    const unregs = ids.map((id) => registerHotkey(id, () => hkRef.current[id]?.()));
+    return () => unregs.forEach((u) => u());
+  }, []);
 
   // Highlight the navigator entry for the focused pane's active editor tab.
   const activeTab = layout.activeEditorTab;

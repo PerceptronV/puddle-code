@@ -25,6 +25,7 @@ import {
 import { applyTheme } from '../../lib/theme';
 import { triggerConnectionRefresh } from '../../lib/cockpit-refresh';
 import { registerCommandPalette } from '../../lib/command-palette';
+import { registerHotkey } from '../../lib/hotkeys';
 import { openSettings } from '../../lib/hash-route';
 import { useProjects, useSessions } from '../../lib/queries';
 import { collectCommands, type PaletteCommand } from './commands';
@@ -49,16 +50,8 @@ export function CommandPalette({
   const sessions = useSessions(projectId);
   const renderTitle = useSessionTitleRenderer();
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        setOpen((o) => !o);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  // The ⌘K binding is the `palette.toggle` hotkey (customisable, SPEC §11).
+  useEffect(() => registerHotkey('palette.toggle', () => setOpen((o) => !o)), []);
 
   // Let any affordance (e.g. an empty pane's ⌘K button) open this one palette.
   useEffect(() => registerCommandPalette(() => setOpen(true)), []);
