@@ -40,4 +40,8 @@
 // and the `kill-shell` client message (terminate a shell term, never the agent).
 // 7.6 (2026-07-21): additive — the profile setting `hotkeys` (a loose key):
 // per-profile keyboard-shortcut overrides (action-id → binding string).
-export const PROTOCOL_VERSION = { major: 7, minor: 6 } as const;
+// 8.0 (2026-07-21): major bump with NO schema change, on purpose — forces every
+// connected daemon to hit a major mismatch on the next handshake and auto-upgrade
+// onto this build (see PROTOCOL.md "The rule"; mirrors the 6.0 bump). Rolls up the
+// additive 7.x features whose daemon-side code an older 7.x install still lacks.
+export const PROTOCOL_VERSION = { major: 8, minor: 0 } as const;
