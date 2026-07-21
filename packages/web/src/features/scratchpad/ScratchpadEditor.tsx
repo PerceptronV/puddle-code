@@ -56,14 +56,14 @@ export function ScratchpadEditor({
   };
 
   return (
-    <div className="flex flex-col gap-2 bg-elevated px-3 py-2">
+    <div className="flex flex-col gap-3">
       <Input
         value={title}
         placeholder="Title (optional)"
         spellCheck={false}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => e.stopPropagation()}
-        className="h-7 text-xs"
+        className="text-sm"
       />
       <Textarea
         autoFocus

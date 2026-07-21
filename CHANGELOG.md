@@ -17,3 +17,5 @@ Past releases: see docs/changelogs/.
 
 - The profile icon picker is now a small curated set of ~60 lucide glyphs in a simple grid, all statically imported — no lazy-loaded per-icon chunks, no search, no scroll. This replaces the full searchable set, which relied on lazy chunks that could 404 behind a stale shell and never scrolled reliably in the popover.
 - The profile icon "Default" now renders a neutral grey glyph rather than the navy heading ink (navy is its own explicit swatch), and the near-duplicate amber and accent swatches were dropped from the picker.
+- Scratchpad entries drag from anywhere on the row (the grip handle is gone, reclaiming the left gutter), and editing now happens in a modal opened by clicking the row (or the `+`/pencil) rather than expanding inline.
+- Deleting a Scratchpad entry now asks for confirmation inline — a warning line with Delete/Cancel — instead of removing it on the first click, since there is no undo.

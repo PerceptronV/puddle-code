@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { CornerDownLeft, Copy, GripVertical, Pencil, Plus, Trash2 } from 'lucide-react';
+import { CornerDownLeft, Copy, Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ScratchpadEntry } from '@puddle/shared';
 import { AgentIcon } from '../../components/agent-icon';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import {
   useAgents,
@@ -61,6 +62,9 @@ export function ScratchpadPanel({
   // Reordering operates on the full list only (ambiguous under a filter), so the
   // rendered list is the live filter result, or the in-drag local order.
   const rows = filterActive ? visible : (localOrder ?? entries);
+  // The entry the editor modal is editing (undefined for a new entry).
+  const editingEntry =
+    typeof editing === 'number' ? entries.find((e) => e.id === editing) : undefined;
 
   const saveNew = (draft: ScratchpadDraft) => {
     if (!profileId) return;
@@ -176,60 +180,66 @@ export function ScratchpadPanel({
       )}
 
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-2">
-        {editing === 'new' && (
-          <ScratchpadEditor
-            defaultScope="project"
-            agents={agents}
-            onSave={saveNew}
-            onCancel={() => setEditing(null)}
-          />
-        )}
-        {rows.length === 0 && editing !== 'new' && (
+        {rows.length === 0 && (
           <p className="px-3 py-3 text-xs text-fg-muted">
             {filterActive ? 'Nothing matches this filter.' : 'No entries yet — press + to add one.'}
           </p>
         )}
         <ul className="flex flex-col">
-          {rows.map((entry) =>
-            editing === entry.id ? (
-              <li key={entry.id}>
-                <ScratchpadEditor
-                  initial={entry}
-                  defaultScope="project"
-                  agents={agents}
-                  onSave={(draft) => saveEdit(entry.id, draft)}
-                  onCancel={() => setEditing(null)}
-                />
-              </li>
-            ) : (
-              <li
-                key={entry.id}
-                draggable={!filterActive}
-                onDragStart={(e) => {
-                  e.dataTransfer.effectAllowed = 'move';
-                  setDragging(entry.id);
-                }}
-                onDragOver={(e) => {
-                  if (dragging === null) return;
-                  e.preventDefault();
-                  if (dragging !== entry.id) moveLocal(dragging, entry.id);
-                }}
-                onDragEnd={commitReorder}
-                className={cn('transition-opacity', dragging === entry.id && 'opacity-50')}
-              >
-                <ScratchpadRow
-                  entry={entry}
-                  reorderable={!filterActive}
-                  onInsert={() => onInsert(entry.body)}
-                  onCopy={() => copy(entry)}
-                  onEdit={() => setEditing(entry.id)}
-                  onDelete={() => remove.mutate(entry.id)}
-                />
-              </li>
-            ),
-          )}
+          {rows.map((entry) => (
+            // The whole row is draggable (no grip handle); a double-click opens
+            // the editor modal.
+            <li
+              key={entry.id}
+              draggable={!filterActive}
+              onDragStart={(e) => {
+                e.dataTransfer.effectAllowed = 'move';
+                setDragging(entry.id);
+              }}
+              onDragOver={(e) => {
+                if (dragging === null) return;
+                e.preventDefault();
+                if (dragging !== entry.id) moveLocal(dragging, entry.id);
+              }}
+              onDragEnd={commitReorder}
+              // Single-click opens the editor modal — but not when the click
+              // lands on one of the row's action buttons (insert/copy/…).
+              onClick={(e) => {
+                if ((e.target as HTMLElement).closest('button')) return;
+                setEditing(entry.id);
+              }}
+              className={cn('transition-opacity', dragging === entry.id && 'opacity-50')}
+            >
+              <ScratchpadRow
+                entry={entry}
+                onInsert={() => onInsert(entry.body)}
+                onCopy={() => copy(entry)}
+                onEdit={() => setEditing(entry.id)}
+                onDelete={() => remove.mutate(entry.id)}
+              />
+            </li>
+          ))}
         </ul>
       </div>
+
+      {/* Open/edit/save an entry in a modal — new (`+`), the pencil action, or a
+          double-click on the row. */}
+      <Dialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editing === 'new' ? 'New entry' : 'Edit entry'}</DialogTitle>
+          </DialogHeader>
+          {editing !== null && (
+            <ScratchpadEditor
+              initial={editingEntry}
+              defaultScope="project"
+              agents={agents}
+              onSave={(draft) => (editing === 'new' ? saveNew(draft) : saveEdit(editing, draft))}
+              onCancel={() => setEditing(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -237,25 +247,21 @@ export function ScratchpadPanel({
 /** One entry row: title/first-line, scope + tag chips, agent mark, body preview, hover actions. */
 function ScratchpadRow({
   entry,
-  reorderable,
   onInsert,
   onCopy,
   onEdit,
   onDelete,
 }: {
   entry: ScratchpadEntry;
-  reorderable: boolean;
   onInsert: () => void;
   onCopy: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const heading = entry.title || entry.body.split('\n', 1)[0];
+  const [confirming, setConfirming] = useState(false);
   return (
-    <div className="group flex gap-1.5 px-3 py-1.5 transition-colors hover:bg-elevated">
-      {reorderable && (
-        <GripVertical className="mt-0.5 size-3.5 shrink-0 cursor-grab text-fg-muted opacity-0 transition-opacity group-hover:opacity-100" />
-      )}
+    <div className="group flex cursor-pointer gap-1.5 px-3 py-1.5 transition-colors hover:bg-elevated">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="min-w-0 flex-1 truncate text-xs text-fg">{heading}</span>
@@ -283,17 +289,44 @@ function ScratchpadRow({
             ))}
           </div>
         )}
-        {/* Actions: reserve no height until hover, then a compact icon row. */}
-        <div className="mt-1 hidden items-center gap-1 group-hover:flex">
-          <RowAction
-            icon={CornerDownLeft}
-            label="Insert into focused terminal"
-            onClick={onInsert}
-          />
-          <RowAction icon={Copy} label="Copy" onClick={onCopy} />
-          <RowAction icon={Pencil} label="Edit" onClick={onEdit} />
-          <RowAction icon={Trash2} label="Delete" onClick={onDelete} />
-        </div>
+        {/* Delete asks first (there is no undo). The confirm stays visible even
+            off-hover, since the click that summoned it may move the pointer. */}
+        {confirming ? (
+          <div className="mt-1 flex flex-col gap-1">
+            <span className="text-2xs text-fg-muted">Delete this entry? This can’t be undone.</span>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirming(false);
+                  onDelete();
+                }}
+                className="text-2xs font-medium text-interrupted transition-colors hover:underline"
+              >
+                Delete
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirming(false)}
+                className="text-2xs text-fg-muted transition-colors hover:text-fg"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Actions: reserve no height until hover, then a compact icon row. */
+          <div className="mt-1 hidden items-center gap-1 group-hover:flex">
+            <RowAction
+              icon={CornerDownLeft}
+              label="Insert into focused terminal"
+              onClick={onInsert}
+            />
+            <RowAction icon={Copy} label="Copy" onClick={onCopy} />
+            <RowAction icon={Pencil} label="Edit" onClick={onEdit} />
+            <RowAction icon={Trash2} label="Delete" onClick={() => setConfirming(true)} />
+          </div>
+        )}
       </div>
     </div>
   );
