@@ -77,7 +77,7 @@ export function ScratchpadEditor({
           if (e.key === 'Escape') onCancel();
           else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save();
         }}
-        className="resize-y font-mono text-xs"
+        className="resize-y text-xs"
       />
       <Input
         value={tagsText}

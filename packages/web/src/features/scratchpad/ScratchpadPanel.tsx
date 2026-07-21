@@ -267,7 +267,7 @@ function ScratchpadRow({
           )}
         </div>
         {entry.title && (
-          <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap font-mono text-2xs text-fg-muted">
+          <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap text-2xs text-fg-muted">
             {entry.body}
           </p>
         )}
