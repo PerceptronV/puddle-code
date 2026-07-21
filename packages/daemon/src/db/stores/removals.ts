@@ -76,7 +76,7 @@ export class RemovalStore {
         .run(profileId, profileId);
       this.db.prepare(`DELETE FROM sessions WHERE ${sessionFilter}`).run(profileId, profileId);
       this.db.prepare(`DELETE FROM profile_states WHERE profile_id = ?`).run(profileId);
-      this.db.prepare(`DELETE FROM prompts WHERE profile_id = ?`).run(profileId);
+      this.db.prepare(`DELETE FROM scratchpad WHERE profile_id = ?`).run(profileId);
       this.db.prepare(`DELETE FROM projects WHERE profile_id = ?`).run(profileId);
       this.db.prepare(`DELETE FROM accounts WHERE profile_id = ?`).run(profileId);
       this.db.prepare(`DELETE FROM profiles WHERE id = ?`).run(profileId);

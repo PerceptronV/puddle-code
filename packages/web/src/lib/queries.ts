@@ -13,6 +13,9 @@ import type {
   ProfileSettings,
   Project,
   ProjectDetail,
+  ScratchpadEntry,
+  CreateScratchpadRequest,
+  PatchScratchpadRequest,
   UiStateResponse,
   RepoBranchesResponse,
   RepoWithOrphans,
@@ -330,6 +333,49 @@ export function usePatchProject() {
     mutationFn: ({ id, ...patch }: { id: string; name?: string; archived?: boolean }) =>
       api<Project>('PATCH', `/api/projects/${id}`, patch),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['projects'] }),
+  });
+}
+
+/**
+ * Scratchpad entries visible in the current context: profile-scoped ones plus
+ * the current project's own (SPEC §11). Keyed by (profile, project) so
+ * switching project refetches the project-scoped slice.
+ */
+export function useScratchpad(profileId: string | undefined, projectId: string | undefined) {
+  return useQuery({
+    queryKey: ['scratchpad', profileId, projectId ?? 'none'],
+    queryFn: () =>
+      api<ScratchpadEntry[]>(
+        'GET',
+        `/api/scratchpad?profile=${profileId}${projectId ? `&project=${projectId}` : ''}`,
+      ),
+    enabled: profileId !== undefined,
+  });
+}
+
+export function useCreateScratchpad() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateScratchpadRequest) =>
+      api<ScratchpadEntry>('POST', '/api/scratchpad', body),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['scratchpad'] }),
+  });
+}
+
+export function usePatchScratchpad() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: { id: number } & PatchScratchpadRequest) =>
+      api<ScratchpadEntry>('PATCH', `/api/scratchpad/${id}`, patch),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['scratchpad'] }),
+  });
+}
+
+export function useDeleteScratchpad() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>('DELETE', `/api/scratchpad/${id}`),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['scratchpad'] }),
   });
 }
 

@@ -111,6 +111,12 @@ export const uiStateSnapshotSchema = z.looseObject({
   /** Whether the right sessions sidebar is collapsed to a slim rail. */
   sessions_collapsed: z.boolean().default(false),
   /**
+   * Which view the right sidebar shows: the session list or the Scratchpad
+   * panel (SPEC §8/§11). A loose extension key — an older daemon that omits it
+   * reads as `sessions`.
+   */
+  right_panel: z.enum(['sessions', 'scratchpad']).default('sessions'),
+  /**
    * User-chosen order of the sessions sidebar (session ids). Sessions not
    * listed here (newly created ones) sort to the top; the list is otherwise
    * drag-reorderable and this persists it (SPEC §8).

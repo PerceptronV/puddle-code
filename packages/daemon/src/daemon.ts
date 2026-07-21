@@ -12,6 +12,7 @@ import { ProfileStateStore } from './db/stores/profile-states.js';
 import { ProjectStore } from './db/stores/projects.js';
 import { RemovalStore } from './db/stores/removals.js';
 import { RepoStore } from './db/stores/repos.js';
+import { ScratchpadStore } from './db/stores/scratchpad.js';
 import { reconcileProfileDirs } from './db/profile-dirs.js';
 import { SessionStore } from './db/stores/sessions.js';
 import { KeyedMutex } from './git/mutex.js';
@@ -68,6 +69,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   const projects = new ProjectStore(db);
   const profileStates = new ProfileStateStore(db);
   const removals = new RemovalStore(db);
+  const scratchpad = new ScratchpadStore(db);
   const sessions = new SessionStore(db);
   const events = new EventStore(db);
 
@@ -165,6 +167,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       projects,
       profileStates,
       removals,
+      scratchpad,
       sessions,
       adapters,
       ptys,

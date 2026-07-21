@@ -77,11 +77,13 @@ describe('openDatabase', () => {
       'projects',
       'profile_states',
       'sessions',
-      'prompts',
+      'scratchpad',
       'events',
     ]) {
       expect(tables).toContain(t);
     }
+    // The dormant prompts table was replaced by scratchpad in migration 014.
+    expect(tables).not.toContain('prompts');
   });
 
   it('is idempotent across reopen', () => {

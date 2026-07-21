@@ -28,4 +28,8 @@
 // so symlinked directories are explorable; `symlink` stays reserved for a
 // broken or worktree-escaping link. Old clients ignore the field and already
 // handle the `dir`/`file` values.
-export const PROTOCOL_VERSION = { major: 7, minor: 2 } as const;
+// 7.3 (2026-07-20): additive — the Scratchpad endpoint group
+// (GET/POST/PATCH/DELETE /api/scratchpad): a per-profile bank of prompts/notes,
+// each project- or profile-scoped, plus the loose `right_panel` ui_state key
+// selecting the right sidebar's sessions/scratchpad view.
+export const PROTOCOL_VERSION = { major: 7, minor: 3 } as const;

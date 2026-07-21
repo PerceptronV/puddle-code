@@ -11,6 +11,7 @@ import { migration010 } from './010-agent-title.js';
 import { migration011 } from './011-project-archived.js';
 import { migration012 } from './012-osc-title.js';
 import { migration013 } from './013-profile-scoped-ui-state.js';
+import { migration014 } from './014-scratchpad.js';
 
 export interface Migration {
   version: number;
@@ -33,4 +34,5 @@ export const MIGRATIONS: Migration[] = [
   migration011,
   migration012,
   migration013,
+  migration014,
 ];

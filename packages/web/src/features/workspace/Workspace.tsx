@@ -21,8 +21,10 @@ import {
   type EditorPosition,
   type RevealTarget,
 } from './editor-context';
+import { toast } from 'sonner';
 import { warmEditorChunk } from '../editor/lazy-editor-parts';
 import { warmTerminalChunk } from '../terminal/LazyTerminal';
+import { wsManager } from '../../lib/ws';
 import { KeepAliveHost } from './keep-alive';
 import { flattenTabs, tabRefKey, type DropEdge } from './layout-tree';
 import { layoutForPanels } from './panel-layout';
@@ -384,6 +386,33 @@ function WorkspaceInner() {
   const sidebarMode: SidebarMode = normalizeSidebarMode(uiState.snapshot.sidebar_mode);
   const sidebarCollapsed = uiState.snapshot.sidebar_collapsed;
   const sessionsCollapsed = uiState.snapshot.sessions_collapsed;
+  const rightPanel = uiState.snapshot.right_panel;
+
+  // Insert a Scratchpad entry into the focused terminal's stdin, wrapped in
+  // bracketed-paste so a multi-line prompt lands as one paste and the agent
+  // never submits on an embedded newline (SPEC §11). Only a focused *terminal*
+  // tab accepts stdin; otherwise nudge the user to focus one.
+  const insertPrompt = useCallback(
+    (text: string) => {
+      const leaf = layout.focusedLeaf;
+      const ref = leaf.tabs.find((t) => tabRefKey(t) === leaf.activeKey) ?? null;
+      if (!ref || ref.type !== 'terminal') {
+        toast.error('Focus a terminal or agent to insert');
+        return;
+      }
+      wsManager.write(ref.session, 'agent', `\x1b[200~${text}\x1b[201~`);
+    },
+    [layout],
+  );
+  // New agent/terminal buttons also return the sidebar to the session list, so
+  // the freshly created session is visible.
+  const openCreateInSessions = useCallback(
+    (kind: SessionKind) => {
+      uiState.update({ right_panel: 'sessions' });
+      openCreate(kind);
+    },
+    [uiState, openCreate],
+  );
 
   // Highlight the navigator entry for the focused pane's active editor tab.
   const activeTab = layout.activeEditorTab;
@@ -534,10 +563,15 @@ function WorkspaceInner() {
                 onReorder={persistReorder}
                 onPromote={(id) => layout.ensureTerminal(id)}
                 archived={archivedSessions}
-                onNewSession={() => openCreate('agent')}
-                onNewTerminal={() => openCreate('terminal')}
+                onNewSession={() => openCreateInSessions('agent')}
+                onNewTerminal={() => openCreateInSessions('terminal')}
                 onCollapse={() => uiState.update({ sessions_collapsed: true })}
                 onArchived={closeTab}
+                rightPanel={rightPanel}
+                onSelectPanel={(panel) => uiState.update({ right_panel: panel })}
+                profileId={profileId ?? null}
+                scratchpadProjectId={projectId}
+                onInsertPrompt={insertPrompt}
               />
             </Panel>
           </>
@@ -560,8 +594,11 @@ function WorkspaceInner() {
           onReorder={persistReorder}
           onPromote={(id) => layout.ensureTerminal(id)}
           onExpand={() => uiState.update({ sessions_collapsed: false })}
-          onNewTerminal={() => openCreate('terminal')}
-          onNewSession={() => openCreate('agent')}
+          onNewTerminal={() => openCreateInSessions('terminal')}
+          onNewSession={() => openCreateInSessions('agent')}
+          onOpenScratchpad={() =>
+            uiState.update({ sessions_collapsed: false, right_panel: 'scratchpad' })
+          }
           onArchived={closeTab}
         />
       )}

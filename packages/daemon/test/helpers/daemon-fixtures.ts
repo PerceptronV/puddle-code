@@ -19,6 +19,7 @@ import { ProfileStore } from '../../src/db/stores/profiles.js';
 import { ProjectStore } from '../../src/db/stores/projects.js';
 import { RemovalStore } from '../../src/db/stores/removals.js';
 import { RepoStore } from '../../src/db/stores/repos.js';
+import { ScratchpadStore } from '../../src/db/stores/scratchpad.js';
 import { SessionStore } from '../../src/db/stores/sessions.js';
 import { KeyedMutex } from '../../src/git/mutex.js';
 import { LogStore } from '../../src/logs/log-store.js';
@@ -180,6 +181,7 @@ export interface Fixture {
     sessions: SessionStore;
     events: EventStore;
     removals: RemovalStore;
+    scratchpad: ScratchpadStore;
   };
   logs: LogStore;
   ptys: PtyManager;
@@ -208,6 +210,7 @@ export function fixture(
     sessions: new SessionStore(db),
     events: new EventStore(db),
     removals: new RemovalStore(db),
+    scratchpad: new ScratchpadStore(db),
   };
   const logs = new LogStore(paths.logsDir, 256 * 1024);
   const ptys = new PtyManager(logs);
