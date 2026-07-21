@@ -21,6 +21,8 @@ export interface SyncGroup {
   fields: SyncField[];
 }
 
+// Group order mirrors the settings sidebar's tab order (the non-exportable
+// tabs — Accounts, Notifications, Repositories, Host, Sync — simply absent).
 export const SYNC_GROUPS: SyncGroup[] = [
   {
     id: 'appearance',
@@ -36,12 +38,12 @@ export const SYNC_GROUPS: SyncGroup[] = [
     ],
   },
   {
-    id: 'editor',
-    label: 'Editor',
+    id: 'profile',
+    label: 'Profile',
     fields: [
-      { key: 'editorTabSize', store: 'client' },
-      { key: 'editorWordWrap', store: 'client' },
-      { key: 'editorLinkSshHost', store: 'client' },
+      { key: 'branch_prefix', store: 'profileColumn' },
+      { key: 'icon', store: 'profileColumn' },
+      { key: 'icon_colour', store: 'profileColumn' },
     ],
   },
   {
@@ -56,16 +58,16 @@ export const SYNC_GROUPS: SyncGroup[] = [
       { key: 'allowSkipPermissions', store: 'profileSettings' },
     ],
   },
-  { id: 'hotkeys', label: 'Hotkeys', fields: [{ key: 'hotkeys', store: 'profileSettings' }] },
   {
-    id: 'profile',
-    label: 'Profile',
+    id: 'editor',
+    label: 'Editor',
     fields: [
-      { key: 'branch_prefix', store: 'profileColumn' },
-      { key: 'icon', store: 'profileColumn' },
-      { key: 'icon_colour', store: 'profileColumn' },
+      { key: 'editorTabSize', store: 'client' },
+      { key: 'editorWordWrap', store: 'client' },
+      { key: 'editorLinkSshHost', store: 'client' },
     ],
   },
+  { id: 'hotkeys', label: 'Hotkeys', fields: [{ key: 'hotkeys', store: 'profileSettings' }] },
 ];
 
 /** Current values, per store, for `collectExport` to read. */
