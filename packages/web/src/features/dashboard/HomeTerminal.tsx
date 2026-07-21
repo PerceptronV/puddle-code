@@ -64,8 +64,11 @@ export function useHomeTerminal(): {
 /** The bottom pane: the shell alone on the page ground — no tab heading, no box. */
 export function HomeTerminalPane({ term, onExit }: { term: string | null; onExit: () => void }) {
   return (
-    <div className="h-72 shrink-0 px-6 pb-6">
-      <div className="mx-auto size-full max-w-4xl">
+    // The same column geometry as the projects grid above (`mx-auto max-w-4xl
+    // p-6`): padding INSIDE the max-width, so the terminal's edges line up
+    // with the tiles' — not with the column's outer edge.
+    <div className="h-72 shrink-0 pb-6">
+      <div className="mx-auto size-full max-w-4xl px-6">
         {term !== null && <LazyTerminal stream={HOME_STREAM} term={term} onExit={onExit} />}
       </div>
     </div>

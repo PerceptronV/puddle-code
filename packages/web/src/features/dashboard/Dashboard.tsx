@@ -29,7 +29,9 @@ function ActionTile({
     <button
       type="button"
       onClick={onClick}
-      className="group rounded-lg bg-surface p-4 text-left transition-colors hover:bg-elevated"
+      // flex-col so the stretched cell top-aligns the content like a card
+      // (a button vertically centres its content by default).
+      className="group flex flex-col rounded-lg bg-surface p-4 text-left transition-colors hover:bg-elevated"
     >
       <h2 className="flex items-center gap-2 truncate text-base font-semibold text-fg group-hover:text-accent">
         <Icon className="size-4 shrink-0" />
@@ -88,7 +90,10 @@ export function Dashboard() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {/* auto-rows-fr: every row takes the tallest row's height, so the
+              action tiles match the project cards instead of hugging their
+              two lines of content. */}
+          <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2">
             {active.map((project) => (
               <ProjectCard
                 key={project.id}
