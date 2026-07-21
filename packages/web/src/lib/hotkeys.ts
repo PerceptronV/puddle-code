@@ -35,19 +35,19 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
     id: 'tab.close',
     label: 'Close current tab',
     group: 'Layout & tabs',
-    defaultBinding: 'meta+alt+KeyW',
+    defaultBinding: 'ctrl+alt+KeyW',
   },
   {
     id: 'sidebar.left',
     label: 'Toggle left sidebar',
     group: 'Layout & tabs',
-    defaultBinding: 'meta+shift+Comma',
+    defaultBinding: 'alt+meta+Comma',
   },
   {
     id: 'sidebar.right',
     label: 'Toggle right sidebar',
     group: 'Layout & tabs',
-    defaultBinding: 'meta+shift+Period',
+    defaultBinding: 'alt+meta+Period',
   },
   { id: 'editor.save', label: 'Save', group: 'Editor', defaultBinding: 'meta+KeyS', editor: true },
   {
@@ -61,25 +61,25 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
     id: 'nav.files',
     label: 'Open Files',
     group: 'Left sidebar',
-    defaultBinding: 'meta+shift+KeyE',
+    defaultBinding: 'alt+meta+KeyE',
   },
   {
     id: 'nav.search',
     label: 'Open Search',
     group: 'Left sidebar',
-    defaultBinding: 'meta+shift+KeyF',
+    defaultBinding: 'alt+meta+KeyF',
   },
   {
     id: 'nav.changes',
     label: 'Open Changes',
     group: 'Left sidebar',
-    defaultBinding: 'meta+shift+KeyG',
+    defaultBinding: 'alt+meta+KeyV',
   },
   {
     id: 'nav.worktrees',
     label: 'Open Worktrees',
     group: 'Left sidebar',
-    defaultBinding: 'meta+shift+KeyY',
+    defaultBinding: 'alt+meta+KeyB',
   },
   {
     id: 'session.newAgent',
@@ -97,7 +97,7 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
     id: 'scratchpad.toggle',
     label: 'Toggle Scratchpad',
     group: 'Right sidebar',
-    defaultBinding: 'meta+shift+KeyS',
+    defaultBinding: 'alt+meta+KeyS',
   },
 ];
 
@@ -107,16 +107,17 @@ const ACTION_BY_ID = new Map(HOTKEY_ACTIONS.map((a) => [a.id, a]));
  * Browser-reserved combos a web page cannot intercept (macOS). Shown as such in
  * the settings panel; binding to one is allowed but flagged as won't-fire-here.
  */
+// Canonical modifier order (ctrl+alt+shift+meta), matching `eventBinding`.
 const RESERVED = new Set([
   'meta+KeyW', // close tab
-  'meta+shift+KeyW', // close window
+  'shift+meta+KeyW', // close window
   'meta+KeyT', // new tab
-  'meta+shift+KeyT', // reopen tab
+  'shift+meta+KeyT', // reopen tab
   'meta+KeyN', // new window
-  'meta+shift+KeyN', // incognito
+  'shift+meta+KeyN', // incognito
   'meta+KeyQ', // quit
-  'meta+shift+KeyB', // bookmarks bar
-  'meta+alt+KeyB', // bookmarks manager
+  'shift+meta+KeyB', // bookmarks bar
+  'alt+meta+KeyB', // bookmarks manager
   'meta+KeyL', // focus address bar
   'meta+KeyD', // bookmark page
   'meta+KeyR', // reload
