@@ -4,6 +4,7 @@ import {
   FolderGit2,
   Keyboard,
   Palette,
+  RefreshCw,
   Server,
   SlidersHorizontal,
   UserRound,
@@ -21,6 +22,7 @@ import { SessionsSection } from './sections/sessions';
 import { NotificationsSection } from './sections/notifications';
 import { EditorSection } from './sections/editor';
 import { HotkeysSection } from './sections/hotkeys';
+import { SyncSection } from './sections/sync';
 import { RepositoriesSection } from './sections/repositories';
 import { HostSection } from './sections/host';
 
@@ -50,6 +52,7 @@ const SECTIONS: Array<{ id: string; label: string; icon: LucideIcon; render: () 
       render: () => <RepositoriesSection />,
     },
     { id: 'host', label: 'Host', icon: Server, render: () => <HostSection /> },
+    { id: 'sync', label: 'Sync', icon: RefreshCw, render: () => <SyncSection /> },
   ];
 
 /** Pre-split section ids still deep-linked from old bookmarks/docs. */
