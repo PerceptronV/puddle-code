@@ -74,14 +74,13 @@ export const DEFAULT_TAB_TITLE_TEMPLATE = '${name}';
  * raw colours. `null`/absent → the default heading colour.
  */
 export const PROFILE_ICON_COLOURS = [
+  'navy',
   'gold',
   'blue',
   'green',
-  'amber',
   'red',
   'violet',
   'cyan',
-  'accent',
 ] as const;
 
 export const profileSchema = z.object({

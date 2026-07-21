@@ -1,45 +1,21 @@
-import { useMemo, useState, type UIEvent } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
-import { DynamicIcon, iconNames, type IconName } from 'lucide-react/dynamic';
 import { PROFILE_ICON_COLOURS, type Profile } from '@puddle/shared';
-import { Input } from '../../../components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '../../../components/ui/popover';
 import { usePatchProfile } from '../../../lib/queries';
 import { cn } from '../../../lib/utils';
 import { ProfileGlyph, profileColourClass } from '../../profile/ProfileGlyph';
+import { PROFILE_ICONS } from '../../profile/profile-icons';
 import { SettingRow } from '../parts';
 
-/** Icons rendered per page; the grid grows by this as it scrolls (each lazy-loads). */
-const PAGE = 120;
-
 /**
- * Profile appearance (SPEC §11): pick any lucide icon and any theme colour for
- * the profile's glyph, shown wherever the profile appears (top bar, picker).
+ * Profile appearance (SPEC §11): pick an icon from a small curated set and any
+ * theme colour for the profile's glyph, shown wherever the profile appears (top
+ * bar, picker). The set is static (no lazy loading, no search, no scroll).
  */
 export function ProfileAppearance({ profile }: { profile: Profile }) {
   const patch = usePatchProfile();
-  const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
-  // Every lucide icon is reachable — the grid renders a growing window and
-  // extends as it scrolls, so we never mount ~1600 lazy icons at once.
-  const [shown, setShown] = useState(PAGE);
-
-  const matches = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return q ? iconNames.filter((n) => n.includes(q)) : iconNames;
-  }, [query]);
-  const results = matches.slice(0, shown);
-
-  const onQuery = (value: string) => {
-    setQuery(value);
-    setShown(PAGE); // a new filter starts from the top
-  };
-  const onGridScroll = (e: UIEvent<HTMLDivElement>) => {
-    const el = e.currentTarget;
-    if (el.scrollHeight - el.scrollTop - el.clientHeight < 240) {
-      setShown((n) => Math.min(n + PAGE, matches.length));
-    }
-  };
 
   const setIcon = (icon: string | null) => {
     patch.mutate({ id: profile.id, icon }, { onError: (e) => toast.error(e.message) });
@@ -62,46 +38,33 @@ export function ProfileAppearance({ profile }: { profile: Profile }) {
             </button>
           </PopoverTrigger>
           <PopoverContent align="end" className="w-72">
-            <Input
-              autoFocus
-              value={query}
-              onChange={(e) => onQuery(e.target.value)}
-              placeholder={`Search ${iconNames.length} icons…`}
-              className="mb-2 h-8"
-            />
-            <div
-              onScroll={onGridScroll}
-              className="no-scrollbar grid max-h-64 grid-cols-8 gap-1 overflow-y-auto"
-            >
+            <div className="grid grid-cols-8 gap-1">
               <button
                 type="button"
                 title="Default"
                 onClick={() => setIcon(null)}
                 className={cn(
-                  'flex aspect-square items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-elevated hover:text-fg',
+                  'flex h-8 items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-elevated hover:text-fg',
                   !profile.icon && 'bg-elevated text-fg',
                 )}
               >
                 <ProfileGlyph icon={null} colour={null} className="size-4" />
               </button>
-              {results.map((name) => (
+              {PROFILE_ICONS.map(({ name, Icon }) => (
                 <button
                   key={name}
                   type="button"
                   title={name}
                   onClick={() => setIcon(name)}
                   className={cn(
-                    'flex aspect-square items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-elevated hover:text-fg',
+                    'flex h-8 items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-elevated hover:text-fg',
                     profile.icon === name && 'bg-elevated text-fg',
                   )}
                 >
-                  <DynamicIcon name={name as IconName} className="size-4" />
+                  <Icon className="size-4" />
                 </button>
               ))}
             </div>
-            {results.length === 0 && (
-              <p className="px-1 py-2 text-xs text-fg-muted">No icons match “{query}”.</p>
-            )}
           </PopoverContent>
         </Popover>
       </SettingRow>
