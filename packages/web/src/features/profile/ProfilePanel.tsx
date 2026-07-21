@@ -13,7 +13,7 @@ import {
 } from '../../lib/queries';
 import { LoginDialog } from '../accounts/LoginDialog';
 import { useNewSession } from '../shell/new-session-context';
-import { ProfileGlyph } from './ProfileGlyph';
+import { ProfileGlyph, profileColourClass } from './ProfileGlyph';
 import { profileStore, useCurrentProfileId } from './profile-store';
 import { UsageBar } from './UsageBar';
 
@@ -164,7 +164,9 @@ export function ProfilePanel() {
         <PopoverTrigger asChild>
           <Button variant="ghost" size="sm" className="font-sans">
             <ProfileGlyph icon={currentProfile?.icon} colour={currentProfile?.icon_colour} />
-            {currentProfile?.name ?? '…'}
+            <span className={profileColourClass(currentProfile?.icon_colour)}>
+              {currentProfile?.name ?? '…'}
+            </span>
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[28rem] max-w-[calc(100vw-1rem)]">

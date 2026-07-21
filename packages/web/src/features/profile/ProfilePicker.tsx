@@ -4,7 +4,8 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { useCreateProfile, useProfiles } from '../../lib/queries';
-import { ProfileGlyph } from './ProfileGlyph';
+import { cn } from '../../lib/utils';
+import { ProfileGlyph, profileColourClass } from './ProfileGlyph';
 import { selectProfile } from './profile-store';
 
 /**
@@ -44,7 +45,14 @@ export function ProfilePicker() {
                 className="flex items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-elevated active:bg-border/70"
               >
                 <ProfileGlyph icon={profile.icon} colour={profile.icon_colour} className="size-5" />
-                <span className="font-mono text-base text-fg">{profile.name}</span>
+                <span
+                  className={cn(
+                    'font-mono text-base',
+                    profileColourClass(profile.icon_colour) || 'text-fg',
+                  )}
+                >
+                  {profile.name}
+                </span>
                 {profile.branch_prefix && (
                   <span className="ml-auto font-mono text-2xs text-fg-muted">
                     {profile.branch_prefix}…

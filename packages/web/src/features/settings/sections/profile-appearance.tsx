@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type UIEvent } from 'react';
 import { toast } from 'sonner';
 import { DynamicIcon, iconNames, type IconName } from 'lucide-react/dynamic';
 import { PROFILE_ICON_COLOURS, type Profile } from '@puddle/shared';
@@ -9,8 +9,8 @@ import { cn } from '../../../lib/utils';
 import { ProfileGlyph, profileColourClass } from '../../profile/ProfileGlyph';
 import { SettingRow } from '../parts';
 
-/** How many icons to render in the picker grid at once (each lazy-loads). */
-const GRID_CAP = 60;
+/** Icons rendered per page; the grid grows by this as it scrolls (each lazy-loads). */
+const PAGE = 120;
 
 /**
  * Profile appearance (SPEC §11): pick any lucide icon and any theme colour for
@@ -20,12 +20,26 @@ export function ProfileAppearance({ profile }: { profile: Profile }) {
   const patch = usePatchProfile();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
+  // Every lucide icon is reachable — the grid renders a growing window and
+  // extends as it scrolls, so we never mount ~1600 lazy icons at once.
+  const [shown, setShown] = useState(PAGE);
 
-  const results = useMemo(() => {
+  const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const names = q ? iconNames.filter((n) => n.includes(q)) : iconNames;
-    return names.slice(0, GRID_CAP);
+    return q ? iconNames.filter((n) => n.includes(q)) : iconNames;
   }, [query]);
+  const results = matches.slice(0, shown);
+
+  const onQuery = (value: string) => {
+    setQuery(value);
+    setShown(PAGE); // a new filter starts from the top
+  };
+  const onGridScroll = (e: UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 240) {
+      setShown((n) => Math.min(n + PAGE, matches.length));
+    }
+  };
 
   const setIcon = (icon: string | null) => {
     patch.mutate({ id: profile.id, icon }, { onError: (e) => toast.error(e.message) });
@@ -51,11 +65,14 @@ export function ProfileAppearance({ profile }: { profile: Profile }) {
             <Input
               autoFocus
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search icons…"
+              onChange={(e) => onQuery(e.target.value)}
+              placeholder={`Search ${iconNames.length} icons…`}
               className="mb-2 h-8"
             />
-            <div className="no-scrollbar grid max-h-64 grid-cols-8 gap-1 overflow-y-auto">
+            <div
+              onScroll={onGridScroll}
+              className="no-scrollbar grid max-h-64 grid-cols-8 gap-1 overflow-y-auto"
+            >
               <button
                 type="button"
                 title="Default"
