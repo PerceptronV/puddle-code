@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { Archive, ChevronRight, FolderGit2 } from 'lucide-react';
-import { Button } from '../../components/ui/button';
+import { Archive, ChevronRight, FolderGit2, FolderOpen, SquareTerminal } from 'lucide-react';
 import {
   useProfileSettings,
   usePatchProfileSettings,
@@ -10,10 +9,38 @@ import {
 import { cn } from '../../lib/utils';
 import { orderByDrag, reorderIds } from '../workspace/session-order';
 import { useCurrentProfileId } from '../profile/profile-store';
+import { HomeTerminalPane, useHomeTerminal } from './HomeTerminal';
 import { NewProjectDialog } from './NewProjectDialog';
 import { ProjectCard } from './ProjectCard';
 
-/** The current profile's projects — creation lives in ⌘K and the empty state. */
+/** An action tile in the projects grid: the same surface as a project card. */
+function ActionTile({
+  icon: Icon,
+  label,
+  hint,
+  onClick,
+}: {
+  icon: typeof FolderOpen;
+  label: string;
+  hint: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group rounded-lg bg-surface p-4 text-left transition-colors hover:bg-elevated"
+    >
+      <h2 className="flex items-center gap-2 truncate text-base font-semibold text-fg group-hover:text-accent">
+        <Icon className="size-4 shrink-0" />
+        {label}
+      </h2>
+      <p className="mt-1 truncate text-2xs text-fg-muted">{hint}</p>
+    </button>
+  );
+}
+
+/** The current profile's projects — creation lives in ⌘K, the tiles, and the empty state. */
 export function Dashboard() {
   const profileId = useCurrentProfileId();
   const projects = useProjects(profileId ?? undefined);
@@ -23,6 +50,7 @@ export function Dashboard() {
   const [creating, setCreating] = useState(false);
   const [dragging, setDragging] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const home = useHomeTerminal();
 
   const repoPath = (repoId: number) => repos.data?.find((r) => r.id === repoId)?.path;
 
@@ -48,67 +76,86 @@ export function Dashboard() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
-      {all.length === 0 && (
-        <div className="mt-24 flex flex-col items-center gap-6 text-center">
-          <FolderGit2 className="size-8 text-fg-muted" />
-          <p className="text-sm text-fg-secondary">
-            No projects yet — press ⌘K or create one to get started.
-          </p>
-          <Button onClick={() => setCreating(true)}>New project</Button>
-        </div>
-      )}
+    <div className="flex h-full flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-4xl p-6">
+          {all.length === 0 && (
+            <div className="mb-8 mt-16 flex flex-col items-center gap-3 text-center">
+              <FolderGit2 className="size-8 text-fg-muted" />
+              <p className="text-sm text-fg-secondary">
+                No projects yet — open one below, or press ⌘K.
+              </p>
+            </div>
+          )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {active.map((project) => (
-          <ProjectCard
-            key={project.id}
-            project={project}
-            repoPath={repoPath(project.repo_id)}
-            draggable
-            dragging={dragging === project.id}
-            onDragStart={() => setDragging(project.id)}
-            onDragEnd={() => setDragging(null)}
-            onDragOver={(e) => {
-              e.preventDefault();
-              if (dragging && dragging !== project.id) move(dragging, project.id);
-            }}
-          />
-        ))}
-      </div>
-
-      {archived.length > 0 && (
-        <div className="mt-6">
-          <button
-            type="button"
-            onClick={() => setShowArchived((v) => !v)}
-            className="flex items-center gap-1.5 px-1 py-1.5 text-2xs uppercase tracking-wide text-fg-muted transition-colors hover:text-fg"
-          >
-            <ChevronRight
-              className={cn('size-3 transition-transform', showArchived && 'rotate-90')}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {active.map((project) => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                repoPath={repoPath(project.repo_id)}
+                draggable
+                dragging={dragging === project.id}
+                onDragStart={() => setDragging(project.id)}
+                onDragEnd={() => setDragging(null)}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  if (dragging && dragging !== project.id) move(dragging, project.id);
+                }}
+              />
+            ))}
+            <ActionTile
+              icon={FolderOpen}
+              label="Open project"
+              hint="Point at a repository on this host"
+              onClick={() => setCreating(true)}
             />
-            <Archive className="size-3" />
-            <span>Archived</span>
-            <span className="tabular-nums">{archived.length}</span>
-          </button>
-          {showArchived && (
-            <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {archived.map((project) => (
-                <ProjectCard
-                  key={project.id}
-                  project={project}
-                  repoPath={repoPath(project.repo_id)}
-                  draggable={false}
-                  dragging={false}
-                  onDragStart={() => {}}
-                  onDragEnd={() => {}}
-                  onDragOver={() => {}}
+            <ActionTile
+              icon={SquareTerminal}
+              label={home.open ? 'Close terminal' : 'Open terminal'}
+              hint={home.open ? 'End the shell below' : 'A shell at ~ for cloning repositories'}
+              onClick={home.toggle}
+            />
+          </div>
+
+          {archived.length > 0 && (
+            <div className="mt-6">
+              <button
+                type="button"
+                onClick={() => setShowArchived((v) => !v)}
+                className="flex items-center gap-1.5 px-1 py-1.5 text-2xs uppercase tracking-wide text-fg-muted transition-colors hover:text-fg"
+              >
+                <ChevronRight
+                  className={cn('size-3 transition-transform', showArchived && 'rotate-90')}
                 />
-              ))}
+                <Archive className="size-3" />
+                <span>Archived</span>
+                <span className="tabular-nums">{archived.length}</span>
+              </button>
+              {showArchived && (
+                <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {archived.map((project) => (
+                    <ProjectCard
+                      key={project.id}
+                      project={project}
+                      repoPath={repoPath(project.repo_id)}
+                      draggable={false}
+                      dragging={false}
+                      onDragStart={() => {}}
+                      onDragEnd={() => {}}
+                      onDragOver={() => {}}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
+      </div>
+
+      {/* Homescreen-only (this component IS the homescreen): the home shell,
+          bare on the page ground — no tab strip, no heading (SPEC §11). */}
+      {home.open && <HomeTerminalPane term={home.term} onExit={home.onExit} />}
 
       {profileId !== null && (
         <NewProjectDialog profileId={profileId} open={creating} onOpenChange={setCreating} />

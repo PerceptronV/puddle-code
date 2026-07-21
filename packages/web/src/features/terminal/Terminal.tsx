@@ -3,6 +3,7 @@ import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
+import { HOME_STREAM } from '@puddle/shared';
 import { tokenStore } from '../../lib/auth';
 import { useClientSettings } from '../../lib/client-settings';
 import { sshMode } from '../../lib/ssh-mode';
@@ -30,7 +31,7 @@ const MAC_LINE_EDITS: Record<string, string> = {
 };
 
 export interface TerminalProps {
-  /** PTY stream: a session uuid or `login-<accountId>`. */
+  /** PTY stream: a session uuid, `login-<accountId>`, or `home` (HOME_STREAM). */
   stream: string;
   term?: string;
   className?: string;
@@ -76,10 +77,11 @@ export function Terminal({ stream, term = 'agent', className, onExit, onOpenFile
     // URL links are safe everywhere (login terminals included): plain click or
     // cmd/ctrl+click both open the URL in a new tab (SPEC §7). In SSH mode a
     // host-localhost URL is rewritten to the tier-2 proxy path so it works
-    // from the client; login terminals have no session to proxy through.
+    // from the client; login and home terminals have no session to proxy through.
+    const sessionless = stream.startsWith('login-') || stream === HOME_STREAM;
     xterm.loadAddon(
       new WebLinksAddon((_event, uri) => {
-        const target = stream.startsWith('login-')
+        const target = sessionless
           ? uri
           : rewriteTerminalUri(uri, stream, sshMode() !== null, tokenStore.get());
         window.open(target, '_blank', 'noopener,noreferrer');
@@ -88,10 +90,10 @@ export function Terminal({ stream, term = 'agent', className, onExit, onOpenFile
     xterm.open(container);
     fit.fit();
 
-    // Validated file-path links: only for real sessions (login PTYs have no
-    // worktree to resolve against) and only when a handler is wired.
+    // Validated file-path links: only for real sessions (login/home PTYs have
+    // no worktree to resolve against) and only when a handler is wired.
     const fileLinks =
-      onOpenFileRef.current && !stream.startsWith('login-')
+      onOpenFileRef.current && !sessionless
         ? registerFileLinks(xterm, stream, (path, line, column) =>
             onOpenFileRef.current?.(path, line, column),
           )

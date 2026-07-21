@@ -1,5 +1,10 @@
 import { toast } from 'sonner';
-import { pasteImageMimeSchema, type PasteImageMime, type PasteImageResponse } from '@puddle/shared';
+import {
+  HOME_STREAM,
+  pasteImageMimeSchema,
+  type PasteImageMime,
+  type PasteImageResponse,
+} from '@puddle/shared';
 import { api } from '../../lib/api';
 import { wsManager } from '../../lib/ws';
 
@@ -18,7 +23,8 @@ import { wsManager } from '../../lib/ws';
  * are taken over.
  */
 export function interceptImagePaste(e: ClipboardEvent, stream: string, term: string): boolean {
-  if (stream.startsWith('login-')) return false; // login PTYs have no worktree
+  // Login/home PTYs have no worktree to upload into.
+  if (stream.startsWith('login-') || stream === HOME_STREAM) return false;
   const items = Array.from(e.clipboardData?.items ?? []);
   if (items.some((item) => item.type === 'text/plain')) return false;
   const image = items.find((item) => item.kind === 'file' && item.type.startsWith('image/'));

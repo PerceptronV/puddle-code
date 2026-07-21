@@ -35,4 +35,7 @@
 // 7.4 (2026-07-20): additive — a profile carries an optional `icon` (lucide
 // name) and `icon_colour` (theme-colour key); both settable via PATCH
 // /api/profiles/:id. Old clients ignore the fields and render the default glyph.
-export const PROTOCOL_VERSION = { major: 7, minor: 4 } as const;
+// 7.5 (2026-07-20): additive — the `home` PTY stream (a project-less shell in
+// the daemon host's home directory; `spawn-shell` on it reuses the live shell)
+// and the `kill-shell` client message (terminate a shell term, never the agent).
+export const PROTOCOL_VERSION = { major: 7, minor: 5 } as const;

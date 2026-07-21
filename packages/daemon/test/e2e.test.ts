@@ -305,6 +305,44 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
     viewer.close();
   });
 
+  it('serves the home-stream shell: reused while live, ended by kill-shell', async () => {
+    const viewer = wsClient(daemon);
+    await viewer.open;
+    const spawns = () =>
+      viewer.messages.filter((m) => m.t === 'shell-spawned' && m.session === 'home') as Array<{
+        term: string;
+      }>;
+
+    viewer.send({ t: 'spawn-shell', session: 'home' });
+    await waitFor(() => spawns().length === 1);
+    const term = spawns()[0]!.term;
+
+    // A second spawn while the shell lives returns the SAME term — the
+    // homescreen never stacks a second shell (SPEC §11).
+    viewer.send({ t: 'spawn-shell', session: 'home' });
+    await waitFor(() => spawns().length === 2);
+    expect(spawns()[1]!.term).toBe(term);
+
+    // The stream attaches like a session and the shell answers stdin.
+    viewer.send({ t: 'attach', session: 'home', term, cols: 80, rows: 24 });
+    viewer.send({ t: 'stdin', session: 'home', term, data: 'echo home-shell-ok\n' });
+    await waitFor(() => viewer.outputFor('home', term).includes('home-shell-ok'));
+
+    // kill-shell ends it; attached viewers learn through `exit`.
+    viewer.send({ t: 'kill-shell', session: 'home', term });
+    await waitFor(() =>
+      viewer.messages.some((m) => m.t === 'exit' && m.session === 'home' && m.term === term),
+    );
+
+    // With nothing live, the next spawn starts a FRESH shell (a new term, so
+    // the dead shell's scrollback never replays into it).
+    viewer.send({ t: 'spawn-shell', session: 'home' });
+    await waitFor(() => spawns().length === 3);
+    expect(spawns()[2]!.term).not.toBe(term);
+    viewer.send({ t: 'kill-shell', session: 'home', term: spawns()[2]!.term });
+    viewer.close();
+  });
+
   it('syncs .puddle/onboarding-notes.md into the repo row', async () => {
     const c = client(daemon);
     writeFileSync(

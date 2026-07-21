@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
+import { homedir } from 'node:os';
 import type { WSContext } from 'hono/ws';
-import { wsClientMessageSchema, type WsServerMessage } from '@puddle/shared';
+import { HOME_STREAM, wsClientMessageSchema, type WsServerMessage } from '@puddle/shared';
 import type { LogStore } from '../logs/log-store.js';
 import type { PtyDataEvent, PtyExitEvent, PtyManager } from '../pty/pty-manager.js';
 import type { RenameEvent, SessionService, StatusEvent } from '../sessions/service.js';
@@ -121,8 +122,19 @@ export class WsGateway {
             break;
           }
           case 'spawn-shell': {
-            const term = this.deps.service.spawnShell(msg.session);
+            const term =
+              msg.session === HOME_STREAM
+                ? this.spawnHomeShell()
+                : this.deps.service.spawnShell(msg.session);
             this.send(ws, { t: 'shell-spawned', session: msg.session, term });
+            break;
+          }
+          case 'kill-shell': {
+            this.assertStream(msg.session);
+            if (msg.term === 'agent') {
+              throw ApiError.badRequest('agent_term', 'the agent PTY is killed via its session');
+            }
+            this.deps.ptys.kill(msg.session, msg.term);
             break;
           }
           case 'subscribe-status':
@@ -143,10 +155,29 @@ export class WsGateway {
     return { onMessage, onClose };
   }
 
-  /** Session uuids must exist; `login-<id>` streams attach like sessions (SPEC §6). */
+  /** Session uuids must exist; `login-<id>` and `home` streams attach like sessions (SPEC §6). */
   private assertStream(stream: string): void {
-    if (/^login-[0-9]+$/.test(stream)) return;
+    if (stream === HOME_STREAM || /^login-[0-9]+$/.test(stream)) return;
     this.deps.service.get(stream); // throws 404 for unknown sessions
+  }
+
+  /**
+   * The homescreen shell (SPEC §11): a plain shell in the daemon host's home
+   * directory, on the project-less `home` stream. One at a time — while a
+   * shell is live, spawn requests return its term instead of adding another.
+   * Term numbering skips old log files so replay never mixes dead scrollback
+   * into a fresh shell.
+   */
+  private spawnHomeShell(): string {
+    const [live] = this.deps.ptys.liveTerms(HOME_STREAM);
+    if (live) return live;
+    const used = new Set(this.deps.logs.listTerms(HOME_STREAM));
+    let n = 1;
+    while (used.has(`shell-${n}`)) n++;
+    const term = `shell-${n}`;
+    const shell = process.env.SHELL ?? 'bash';
+    this.deps.ptys.spawn(HOME_STREAM, term, shell, [], { cwd: homedir() });
+    return term;
   }
 
   private tokenMatches(presented: string): boolean {
