@@ -85,7 +85,7 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
     id: 'session.newAgent',
     label: 'New agent',
     group: 'Right sidebar',
-    defaultBinding: 'ctrl+shift+Backquote',
+    defaultBinding: 'ctrl+alt+Backquote',
   },
   {
     id: 'session.newTerminal',
