@@ -5,7 +5,9 @@ import {
   migrateSessionRequestSchema,
   patchSessionRequestSchema,
   sessionStatusSchema,
+  type ClearSessionEnvResponse,
   type Session,
+  type SessionEnvResponse,
   type SessionPortsResponse,
 } from '@puddle/shared';
 import type { PortScanner } from '../../ports/scanner.js';
@@ -67,5 +69,11 @@ export function sessionRoutes(deps: { service: SessionService; scanner: PortScan
         const ports = await deps.scanner.scan(id);
         return c.json<SessionPortsResponse>({ ports, scanned_at: new Date().toISOString() });
       })
+      .get('/:id/env', (c) =>
+        c.json<SessionEnvResponse>(deps.service.capturedEnv(c.req.param('id'))),
+      )
+      .delete('/:id/env', (c) =>
+        c.json<ClearSessionEnvResponse>(deps.service.clearCapturedEnv(c.req.param('id'))),
+      )
   );
 }

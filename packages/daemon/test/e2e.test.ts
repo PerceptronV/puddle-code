@@ -10,6 +10,7 @@ import type {
   Repo,
   RepoWithOrphans,
   Session,
+  SessionEnvResponse,
   WsServerMessage,
 } from '@puddle/shared';
 import { startDaemon, type RunningDaemon } from '../src/daemon.js';
@@ -1100,6 +1101,93 @@ describe('tier-1 migration end-to-end (Workstream S / SPEC §5)', () => {
     expect(migrated.account_id).toBe(b.id);
     expect(migrated.status).toBe('running');
     expect(isAdopted()).toBe(true); // migrate forced the adopt, so B reads it
+    await c.json<Session>('POST', `/api/sessions/${s.id}/kill`);
+  });
+
+  it('captured env: REST lists names+sizes only; resume injects; clear stops it', async () => {
+    const home4 = mkdtempSync(join(tmpdir(), 'puddle-e2e-env-'));
+    const d4 = await startDaemon({
+      home: home4,
+      port: 0,
+      adapters: [fakeAdapter()],
+      version: 'e2e-env',
+      statusQuietMs: 150,
+    });
+    stops.push(() => d4.stop());
+    const c = client(d4);
+    const p = await c.json<Profile>('POST', '/api/profiles', { name: 'envy' });
+    const a = await c.json<Account>('POST', '/api/accounts', {
+      profile_id: p.id,
+      agent_type: 'fake',
+      label: 'personal',
+    });
+    writeFileSync(join(a.config_dir, 'creds.json'), '{}');
+    const repo4 = await c.json<Repo>('POST', '/api/repos', { path: initRepo() });
+    const proj = await c.json<Project>('POST', '/api/projects', {
+      profile_id: p.id,
+      repo_id: repo4.id,
+      name: 'env-demo',
+    });
+    const s = await c.json<Session>('POST', '/api/sessions', {
+      project_id: proj.id,
+      account_id: a.id,
+    });
+
+    // Empty to start; 404 for an unknown session.
+    expect(await c.json<SessionEnvResponse>('GET', `/api/sessions/${s.id}/env`)).toEqual({
+      vars: [],
+    });
+    const missing = await c.req('GET', '/api/sessions/00000000-0000-4000-8000-000000000000/env');
+    expect(missing.status).toBe(404);
+
+    // The fake agent PTY runs `cat`, which copies stdin bytes back verbatim —
+    // sending the raw OSC 7733 sequence makes the PTY EMIT it, exactly like the
+    // shell hook would from precmd.
+    const viewer = wsClient(d4);
+    await viewer.open;
+    await pollUntil(async () => {
+      const res = await c.req('GET', `/api/sessions/${s.id}`);
+      return ((await res.json()) as Session).status !== 'starting';
+    });
+    viewer.send({ t: 'attach', session: s.id, term: 'agent', cols: 100, rows: 30 });
+    viewer.send({
+      t: 'stdin',
+      session: s.id,
+      term: 'agent',
+      data: '\u001b]7733;set;Q0FQVFVSRURfUFJPQkU=;aHVudGVyMg==\u0007\n',
+    });
+    await pollUntil(async () => {
+      const env = await c.json<SessionEnvResponse>('GET', `/api/sessions/${s.id}/env`);
+      return env.vars.length === 1;
+    });
+    // Names and byte sizes only — the value (hunter2, 7 bytes) never rides the API.
+    expect((await c.json<SessionEnvResponse>('GET', `/api/sessions/${s.id}/env`)).vars).toEqual([
+      { name: 'CAPTURED_PROBE', bytes: 7 },
+    ]);
+    // The decoded value never appears in the WS stream (the b64 does, once, as
+    // the PTY's echo of what was typed — real hooks print, they don't type).
+    expect(viewer.outputFor(s.id)).not.toContain('hunter2');
+
+    // Resume injects: the fake adapter's resume script echoes ENVPROBE<<$CAPTURED_PROBE>>.
+    await c.json<Session>('POST', `/api/sessions/${s.id}/kill`);
+    await c.json<Session>('POST', `/api/sessions/${s.id}/resume`);
+    await pollUntil(async () => {
+      const res = await c.req('GET', `/api/sessions/${s.id}`);
+      return ((await res.json()) as Session).status !== 'starting';
+    });
+    viewer.send({ t: 'attach', session: s.id, term: 'agent', cols: 100, rows: 30 });
+    await pollUntil(async () =>
+      Promise.resolve(viewer.outputFor(s.id).includes('ENVPROBE<<hunter2>>')),
+    );
+
+    // Clear: the map empties and the next resume injects nothing.
+    const cleared = await c.json<{ cleared: number }>('DELETE', `/api/sessions/${s.id}/env`);
+    expect(cleared).toEqual({ cleared: 1 });
+    expect((await c.json<SessionEnvResponse>('GET', `/api/sessions/${s.id}/env`)).vars).toEqual([]);
+    await c.json<Session>('POST', `/api/sessions/${s.id}/kill`);
+    await c.json<Session>('POST', `/api/sessions/${s.id}/resume`);
+    await pollUntil(async () => Promise.resolve(viewer.outputFor(s.id).includes('ENVPROBE<<>>')));
+    viewer.close();
     await c.json<Session>('POST', `/api/sessions/${s.id}/kill`);
   });
 });

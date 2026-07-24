@@ -44,4 +44,10 @@
 // connected daemon to hit a major mismatch on the next handshake and auto-upgrade
 // onto this build (see PROTOCOL.md "The rule"; mirrors the 6.0 bump). Rolls up the
 // additive 7.x features whose daemon-side code an older 7.x install still lacks.
-export const PROTOCOL_VERSION = { major: 8, minor: 0 } as const;
+// 9.0 (2026-07-24): captured session environment (SPEC §4). Additive surface —
+// GET/DELETE /api/sessions/:id/env (captured var names + byte sizes, never
+// values) and the profile setting `captureSessionEnv` (a loose key, default
+// true) — but bumped major by decision: the release also changes daemon-side
+// PTY behaviour (shell hook injection, OSC 7733 stripping), so every connected
+// daemon must auto-upgrade onto this build rather than sit on 8.x.
+export const PROTOCOL_VERSION = { major: 9, minor: 0 } as const;

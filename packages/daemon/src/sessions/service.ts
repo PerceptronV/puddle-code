@@ -1,7 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { existsSync } from 'node:fs';
-import type { Account, CreateSessionRequest, Session, SessionStatus } from '@puddle/shared';
+import type {
+  Account,
+  ClearSessionEnvResponse,
+  CreateSessionRequest,
+  Session,
+  SessionEnvResponse,
+  SessionStatus,
+} from '@puddle/shared';
 import type { AgentAdapter } from '../agents/adapter.js';
 import type { AdapterRegistry } from '../agents/registry.js';
 import type { AccountStore } from '../db/stores/accounts.js';
@@ -870,6 +877,20 @@ export class SessionService extends EventEmitter {
     return Object.fromEntries(
       Object.entries(this.deps.sessions.getEnv(session.id)).filter(([k]) => !isDeniedEnvName(k)),
     );
+  }
+
+  /** Captured var names + byte sizes for GET /api/sessions/:id/env — never values (SPEC §4). */
+  capturedEnv(id: string): SessionEnvResponse {
+    const env = this.deps.sessions.getEnv(id); // 404s for an unknown session
+    const vars = Object.entries(env)
+      .map(([name, value]) => ({ name, bytes: Buffer.byteLength(value) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return { vars };
+  }
+
+  /** DELETE /api/sessions/:id/env: stop injecting; returns how many vars were dropped. */
+  clearCapturedEnv(id: string): ClearSessionEnvResponse {
+    return { cleared: this.deps.sessions.clearEnv(id) };
   }
 
   /** Shell command, hook args, and env for a session terminal spawn (SPEC §4). */

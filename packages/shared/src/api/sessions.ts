@@ -138,6 +138,27 @@ export const patchSessionRequestSchema = z.object({ title: z.string().max(200) }
 export const migrateSessionRequestSchema = z.object({ account_id: rowId });
 export type MigrateSessionRequest = z.infer<typeof migrateSessionRequestSchema>;
 
+/**
+ * `GET /api/sessions/:id/env` — the session's captured environment (SPEC §4):
+ * vars exported in its terminals, persisted for re-injection at PTY spawn.
+ * Names and byte sizes only — values are potential secrets and never leave
+ * the daemon.
+ */
+export const sessionEnvVarSchema = z.object({
+  name: z.string(),
+  bytes: z.number().int().nonnegative(),
+});
+export const sessionEnvResponseSchema = z.object({
+  vars: z.array(sessionEnvVarSchema),
+});
+export type SessionEnvResponse = z.infer<typeof sessionEnvResponseSchema>;
+
+/** `DELETE /api/sessions/:id/env` — drop every captured var (the manual purge). */
+export const clearSessionEnvResponseSchema = z.object({
+  cleared: z.number().int().nonnegative(),
+});
+export type ClearSessionEnvResponse = z.infer<typeof clearSessionEnvResponseSchema>;
+
 /** Shared by session archive and project archive (kill/discard confirmation). */
 export const archiveRequestSchema = z.object({
   force: z.boolean().default(false),
