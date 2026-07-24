@@ -21,6 +21,8 @@ import type {
   RepoWithOrphans,
   RepoWorktreesResponse,
   Session,
+  SessionEnvResponse,
+  ClearSessionEnvResponse,
   SessionPortsResponse,
   UiStateSnapshot,
 } from '@puddle/shared';
@@ -489,5 +491,32 @@ export function useSessionPorts(sessionId: string | undefined, live: boolean) {
     enabled: sessionId !== undefined && live,
     refetchInterval: 5_000,
     refetchIntervalInBackground: false,
+  });
+}
+
+/**
+ * Captured env strip (SPEC §4): the session's captured var names and byte
+ * sizes — never values. Mirrors useSessionPorts: polls only while live, the
+ * 5s interval is the refresh.
+ */
+export function useSessionEnv(sessionId: string | undefined, live: boolean) {
+  return useQuery({
+    queryKey: ['session-env', sessionId],
+    queryFn: () => api<SessionEnvResponse>('GET', `/api/sessions/${sessionId}/env`),
+    enabled: sessionId !== undefined && live,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
+  });
+}
+
+/** Clear a session's captured env: new shells and agent restarts stop receiving it. */
+export function useClearSessionEnv() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (sessionId: string) =>
+      api<ClearSessionEnvResponse>('DELETE', `/api/sessions/${sessionId}/env`),
+    onSuccess: (_res, sessionId) => {
+      qc.setQueryData(['session-env', sessionId], { vars: [] } satisfies SessionEnvResponse);
+    },
   });
 }

@@ -4,6 +4,7 @@ import {
   Archive,
   ArchiveRestore,
   Bot,
+  Eraser,
   ExternalLink,
   MoreHorizontal,
   Pencil,
@@ -49,6 +50,7 @@ import { editorDeepLink, editorLinkHost } from '../../lib/editor-links';
 import {
   useAccounts,
   useArchiveSession,
+  useClearSessionEnv,
   useCreateSession,
   useMigrateSession,
   useProfileSettings,
@@ -77,6 +79,8 @@ export interface SessionMenu {
   resume: () => void;
   openKill: () => void;
   openRename: () => void;
+  /** Confirm-then-clear the session's captured env (SPEC §4). */
+  openClearEnv: () => void;
   /** Spawn a terminal session sharing this session's worktree directory. */
   openTerminal: () => void;
   /** Logged-in accounts an agent can spawn on, the default account first. */
@@ -127,12 +131,13 @@ export function useSessionMenu(
   const unarchive = useUnarchiveSession();
   const rename = useRenameSession();
   const migrate = useMigrateSession();
+  const clearEnv = useClearSessionEnv();
   const createSession = useCreateSession();
   const navigate = useNavigate();
   const profileId = useCurrentProfileId();
   const accounts = useAccounts(profileId ?? undefined);
   const settings = useProfileSettings(profileId ?? undefined);
-  const [confirm, setConfirm] = useState<'kill' | null>(null);
+  const [confirm, setConfirm] = useState<'kill' | 'clear-env' | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [newTitle, setNewTitle] = useState(session.title ?? '');
   const [migrateTo, setMigrateTo] = useState<Account | null>(null);
@@ -169,6 +174,7 @@ export function useSessionMenu(
     sameAgent,
     resume: () => resume.mutate(session.id, { onError: (e) => toast.error(e.message) }),
     openKill: () => setConfirm('kill'),
+    openClearEnv: () => setConfirm('clear-env'),
     // A plain shell in THIS session's working directory (SPEC §4: a terminal
     // session joining an existing worktree) — for git surgery, running tests,
     // or poking at files beside the agent. Lands in the new terminal.
@@ -224,7 +230,52 @@ export function useSessionMenu(
   const dialogs = (
     <>
       <Dialog
-        open={confirm !== null}
+        open={confirm === 'clear-env'}
+        onOpenChange={(open) => {
+          if (open) return;
+          setConfirm(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Clear captured environment?</DialogTitle>
+            <DialogDescription>
+              Variables exported in this session&rsquo;s terminals will no longer be injected into
+              new shells or agent restarts.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirm(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              disabled={clearEnv.isPending}
+              onClick={() =>
+                clearEnv.mutate(session.id, {
+                  onSuccess: (res) => {
+                    setConfirm(null);
+                    toast.success(
+                      res.cleared === 0
+                        ? 'Nothing was captured'
+                        : `Cleared ${res.cleared} captured var${res.cleared === 1 ? '' : 's'}`,
+                    );
+                  },
+                  onError: (e) => {
+                    setConfirm(null);
+                    toast.error(e.message);
+                  },
+                })
+              }
+            >
+              Clear captured env
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={confirm === 'kill'}
         onOpenChange={(open) => {
           if (open) return;
           setConfirm(null);
@@ -363,6 +414,11 @@ function SessionMenuItems({ kit, menu }: { kit: MenuKit; menu: SessionMenu }) {
       <Item onSelect={menu.openRename}>
         <Pencil /> Rename
       </Item>
+      {!menu.archived && (
+        <Item onSelect={menu.openClearEnv}>
+          <Eraser /> Clear captured env
+        </Item>
+      )}
       {menu.canMigrate && (
         <Sub>
           <SubTrigger>

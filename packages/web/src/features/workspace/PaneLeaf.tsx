@@ -7,6 +7,7 @@ import { cn } from '../../lib/utils';
 import { LazyPaneEditorBody } from '../editor/lazy-editor-parts';
 import type { RevealTarget } from './editor-context';
 import { useKeepAliveSlot } from './keep-alive';
+import { EnvStrip } from '../env/EnvStrip';
 import { PortsStrip } from '../ports/PortsStrip';
 import { zoneForPointer } from './layout-dnd';
 import { PaneSessionOverlay } from './PaneSessionOverlay';
@@ -152,9 +153,11 @@ export function PaneLeaf({
           </div>
         )}
       </div>
-      {/* The shown session's ports, IN FLOW below the body — never an overlay,
-          so nothing sits over the terminal; the body shrinks to make room and
-          the strip vanishes (with the row's height) when there are no ports. */}
+      {/* The shown session's captured env and ports, IN FLOW below the body —
+          never overlays, so nothing sits over the terminal; the body shrinks
+          to make room and each strip vanishes (with its row's height) when
+          it has nothing to show. */}
+      {shownSession && <EnvStrip sessionId={shownSession.id} status={shownSession.status} />}
       {shownSession && <PortsStrip sessionId={shownSession.id} status={shownSession.status} />}
     </div>
   );

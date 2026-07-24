@@ -371,6 +371,24 @@ export function SessionsSection() {
           }}
         />
       </SettingRow>
+      <SettingRow
+        label="Capture exported env vars"
+        description={
+          settings.data?.captureSessionEnv !== false
+            ? 'Vars exported in a session terminal persist: re-injected into its new shells and agent restarts. Values stay on the daemon host.'
+            : 'Paused: session shells spawn plain — nothing new is captured or injected. Already-captured vars are kept for when this is re-enabled.'
+        }
+        htmlFor="capture-env"
+      >
+        <Switch
+          id="capture-env"
+          checked={settings.data?.captureSessionEnv !== false}
+          disabled={patch.isPending}
+          onCheckedChange={(v) =>
+            patch.mutate({ captureSessionEnv: v }, { onError: (e) => toast.error(e.message) })
+          }
+        />
+      </SettingRow>
       <AgentPathRow />
       <ScrollbackRow />
 
