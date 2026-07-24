@@ -13,6 +13,13 @@ export const editorTabRefSchema = z.object({
   path: z.string(),
   kind: z.enum(['file', 'diff', 'commit']).optional(),
   sha: z.string().optional(),
+  /**
+   * How a `file` tab renders: Monaco (`source`, the default when absent) or a
+   * rendered `preview` — meaningful only for previewable types (markdown,
+   * HTML; SPEC §8). Not part of the tab's identity: toggling rewrites the tab
+   * ref in place.
+   */
+  view: z.enum(['source', 'preview']).optional(),
 });
 export type EditorTabRef = z.infer<typeof editorTabRefSchema>;
 

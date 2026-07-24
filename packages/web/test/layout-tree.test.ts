@@ -17,6 +17,7 @@ import {
   promoteTab,
   resizeSplit,
   sameRef,
+  setTabView,
   splitLeaf,
   tabRefKey,
   addTabToLeaf,
@@ -420,5 +421,41 @@ describe('preview tabs (VSCode-style ephemeral tabs)', () => {
     const closed = leafWith(closeTab(withPreview, l.id, keyOf(ed('b.ts'))), ed('a.ts'));
     expect(closed.previewKey).toBeNull();
     expect(closed.tabs.map(keyOf)).toEqual([keyOf(ed('a.ts'))]);
+  });
+});
+
+describe('setTabView', () => {
+  it('rewrites the matching editor tab in place, keeping its key and active state', () => {
+    const a = ed('README.md');
+    const tree = makeLeaf([a, ed('b.ts'), term('t1')]);
+    const next = setTabView(tree, tabRefKey(a), 'preview');
+    const leaf = allLeaves(next)[0]!;
+    const updated = leaf.tabs[0]!;
+    expect(updated.type).toBe('editor');
+    expect(updated.type === 'editor' && updated.tab.view).toBe('preview');
+    // Identity unchanged: same key, active tab untouched, others untouched.
+    expect(tabRefKey(updated)).toBe(tabRefKey(a));
+    expect(leaf.activeKey).toBe(tree.activeKey);
+    expect(leaf.tabs[1]).toEqual(ed('b.ts'));
+    expect(leaf.tabs[2]).toEqual(term('t1'));
+    // Toggling back to source round-trips.
+    const back = setTabView(next, tabRefKey(a), 'source');
+    const backTab = allLeaves(back)[0]!.tabs[0]!;
+    expect(backTab.type === 'editor' && backTab.tab.view).toBe('source');
+  });
+
+  it('a tab ref carrying view survives the snapshot schema round-trip', () => {
+    const s = crypto.randomUUID();
+    const tree = normalise(
+      makeLeaf([{ type: 'editor', tab: { session: s, path: 'README.md', view: 'preview' } }]),
+    );
+    const parsed = uiStateSnapshotSchema.parse({ layout_tree: tree });
+    expect(parsed.layout_tree).toEqual(tree);
+  });
+
+  it('is a no-op for terminals and unknown keys', () => {
+    const tree = makeLeaf([term('t1')]);
+    expect(setTabView(tree, 'term:t1', 'preview')).toEqual(tree);
+    expect(setTabView(tree, 'editor:file:s1::nope.md', 'preview')).toEqual(tree);
   });
 });

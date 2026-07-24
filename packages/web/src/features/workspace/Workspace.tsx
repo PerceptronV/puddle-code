@@ -580,6 +580,7 @@ function WorkspaceInner() {
                     onFocusLeaf={layout.focusLeaf}
                     onResize={layout.resize}
                     onDropTab={onDropTab}
+                    onSetTabView={layout.setView}
                   />
                 </TilingDnd>
               </div>

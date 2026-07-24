@@ -32,6 +32,7 @@ export function PaneLeaf({
   onArchived,
   onFocusLeaf,
   onDropTab,
+  onSetTabView,
 }: {
   leaf: LayoutLeaf;
   sessions: Session[];
@@ -43,6 +44,8 @@ export function PaneLeaf({
   onFocusLeaf: (leafId: string) => void;
   /** A sidebar drag (file row / session) dropped on this pane — open + position. */
   onDropTab: (leafId: string, ref: TabRef, edge: DropEdge) => void;
+  /** Flip a previewable editor tab between source and rendered preview (SPEC §8). */
+  onSetTabView: (ref: TabRef, view: 'source' | 'preview') => void;
 }) {
   const activeRef = leaf.tabs.find((t) => tabRefKey(t) === leaf.activeKey) ?? null;
   const terminalKey = activeRef?.type === 'terminal' ? tabRefKey(activeRef) : null;
@@ -96,6 +99,7 @@ export function PaneLeaf({
           onClose={(ref) => onCloseTab(leaf.id, ref)}
           onPromote={onPromoteTab}
           onArchived={onArchived}
+          onSetView={onSetTabView}
         />
       )}
       <div

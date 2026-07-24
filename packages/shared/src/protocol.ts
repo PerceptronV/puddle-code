@@ -50,4 +50,8 @@
 // true) — but bumped major by decision: the release also changes daemon-side
 // PTY behaviour (shell hook injection, OSC 7733 stripping), so every connected
 // daemon must auto-upgrade onto this build rather than sit on 8.x.
-export const PROTOCOL_VERSION = { major: 9, minor: 0 } as const;
+// 9.1 (2026-07-24): additive — editor tab refs carry an optional `view`
+// ('source' | 'preview') so a markdown/HTML tab's rendered-preview mode
+// persists in `ui_state.layout_tree` (SPEC §8). Old clients/daemons ignore or
+// round-trip the field (the snapshot is a loose object).
+export const PROTOCOL_VERSION = { major: 9, minor: 1 } as const;

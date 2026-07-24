@@ -339,6 +339,28 @@ export function promoteTab(tree: LayoutNode, key: string): LayoutNode {
   return walk(tree);
 }
 
+/**
+ * Rewrite the editor tab `key` in place with `view` (source ⇄ preview toggle,
+ * SPEC §8), wherever it lives. `view` is not part of tab identity, so the key
+ * is unchanged and active/preview state is untouched.
+ */
+export function setTabView(
+  tree: LayoutNode,
+  key: string,
+  view: 'source' | 'preview' | undefined,
+): LayoutNode {
+  const walk = (node: LayoutNode): LayoutNode =>
+    node.kind === 'leaf'
+      ? {
+          ...node,
+          tabs: node.tabs.map((t) =>
+            t.type === 'editor' && tabRefKey(t) === key ? { ...t, tab: { ...t.tab, view } } : t,
+          ),
+        }
+      : { ...node, children: node.children.map(walk) };
+  return walk(tree);
+}
+
 /** Set the active tab of a leaf. */
 export function focusTab(tree: LayoutNode, leafId: string, key: string): LayoutNode {
   return transformLeaf(tree, leafId, (leaf) =>

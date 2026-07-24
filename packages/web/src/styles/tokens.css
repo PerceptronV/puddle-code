@@ -120,6 +120,10 @@
   --selection: #7dadff4d; /* blue-300 at 30% (8-digit hex: parseable at runtime) */
   --diff-added: #8be8b32e; /* krypton green-300 at 18% alpha over navy ground */
   --diff-removed: #f2957c2e; /* ember-200 (the dark-theme ansi-red) at 18% alpha over navy ground */
+  /* The browser-default white canvas an HTML preview document renders on
+     (SPEC §8) — a document's own colours assume it, so it stays white in
+     BOTH themes rather than following the app ground. */
+  --paper: var(--neutral-0);
 
   /* ANSI: pastel depth of each hue over --bg-base; brights one step up. */
   --ansi-black: var(--navy-700);
@@ -179,6 +183,8 @@
   --selection: #2e6bd638; /* blue-600 at 22% (8-digit hex: parseable at runtime) */
   --diff-added: #1fa26b24; /* green-600 (the light-theme ansi-green) at 14% alpha over white ground */
   --diff-removed: #c2472e24; /* ember-500 (the light-theme ansi-red/danger) at 14% alpha over white ground */
+  /* See the dark block: the HTML preview's document canvas, white in both themes. */
+  --paper: var(--neutral-0);
 
   /* ANSI: each hue's deep step so agent output stays legible on paper. */
   --ansi-black: var(--navy-800);

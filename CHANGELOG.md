@@ -25,3 +25,10 @@ Past releases: see docs/changelogs/.
   Settings → Sessions; an `env` strip under each session pane listing captured
   var names; and a confirmed "Clear captured env" session-menu action.
 - Manual acceptance script `docs/acceptance/captured-env.md`.
+- Markdown and HTML preview (SPEC §8): markdown/HTML file tabs carry a
+  source ⇄ preview toggle on the tab chip. Markdown renders inline as
+  theme-styled, DOMPurify-sanitised prose that tracks unsaved edits live and
+  resolves relative images through the authed media endpoint; HTML renders in
+  a fully sandboxed iframe (no same-origin access). The chosen view persists
+  per tab in the workspace layout (protocol **9.0 → 9.1**, additive `view`
+  field on editor tab refs).

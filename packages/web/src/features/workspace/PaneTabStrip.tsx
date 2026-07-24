@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { X } from 'lucide-react';
+import { Eye, FileCode, X } from 'lucide-react';
 import type { LayoutLeaf, Session, TabRef } from '@puddle/shared';
 import { cn } from '../../lib/utils';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
@@ -8,6 +8,7 @@ import { StatusDot } from '../status/StatusDot';
 import { editorTabLabel } from '../editor/buffer-logic';
 import { tabKind, type EditorTab } from '../editor/editor-tabs';
 import { LazyEditorTabClose } from '../editor/lazy-editor-parts';
+import { previewKind } from '../editor/preview-kind';
 import { SessionContextMenu } from './SessionActions';
 import { tabRefKey } from './layout-tree';
 import { useDropIndicator } from './TilingDnd';
@@ -31,6 +32,7 @@ export function PaneTabStrip({
   onClose,
   onPromote,
   onArchived,
+  onSetView,
 }: {
   leaf: LayoutLeaf;
   sessions: Session[];
@@ -38,6 +40,8 @@ export function PaneTabStrip({
   onClose: (ref: TabRef) => void;
   onPromote: (ref: TabRef) => void;
   onArchived: (session: string) => void;
+  /** Flip a previewable editor tab between Monaco source and rendered preview (SPEC §8). */
+  onSetView: (ref: TabRef, view: 'source' | 'preview') => void;
 }) {
   const branches = new Map(sessions.map((s) => [s.id, s.branch]));
   const editorTabs = leaf.tabs.flatMap((t) => (t.type === 'editor' ? [t.tab] : []));
@@ -79,6 +83,7 @@ export function PaneTabStrip({
             onClose={() => onClose(ref)}
             onPromote={() => onPromote(ref)}
             onArchived={onArchived}
+            onSetView={(view) => onSetView(ref, view)}
           />
         </Fragment>
       ))}
@@ -90,6 +95,33 @@ export function PaneTabStrip({
 /** The live insertion marker a strip drag will drop the tab at. */
 function InsertionCaret() {
   return <div className="w-0.5 shrink-0 self-stretch rounded-full bg-accent" />;
+}
+
+/**
+ * The markdown/HTML tab's source ⇄ preview toggle (SPEC §8) — appears on
+ * hover like the close button, styled identically (no borders, HUMANS.md).
+ */
+function ViewToggle({
+  view,
+  onSetView,
+}: {
+  view: 'source' | 'preview';
+  onSetView: (view: 'source' | 'preview') => void;
+}) {
+  const showingPreview = view === 'preview';
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onSetView(showingPreview ? 'source' : 'preview');
+      }}
+      className="rounded-sm p-0.5 text-fg-muted opacity-0 transition-opacity hover:text-fg group-hover:opacity-100"
+      aria-label={showingPreview ? 'Show source' : 'Show preview'}
+      title={showingPreview ? 'Show source' : 'Show preview'}
+    >
+      {showingPreview ? <FileCode className="size-3" /> : <Eye className="size-3" />}
+    </button>
+  );
 }
 
 function PaneTab({
@@ -104,6 +136,7 @@ function PaneTab({
   onClose,
   onPromote,
   onArchived,
+  onSetView,
 }: {
   tab: TabRef;
   leafId: string;
@@ -116,6 +149,7 @@ function PaneTab({
   onClose: () => void;
   onPromote: () => void;
   onArchived: (session: string) => void;
+  onSetView: (view: 'source' | 'preview') => void;
 }) {
   const renderTitle = useSessionTitleRenderer();
   const key = tabRefKey(tab);
@@ -172,6 +206,9 @@ function PaneTab({
       ) : (
         <>
           <span className="truncate font-mono">{label}</span>
+          {tabKind(tab.tab) === 'file' && previewKind(tab.tab.path) !== null && (
+            <ViewToggle view={tab.tab.view ?? 'source'} onSetView={onSetView} />
+          )}
           <LazyEditorTabClose
             session={tab.tab.session}
             path={tab.tab.path}

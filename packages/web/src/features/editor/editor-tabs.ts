@@ -18,6 +18,12 @@ export interface EditorTab {
   kind?: EditorTabKind;
   /** Set only for `commit` tabs: the commit whose file diff this shows. */
   sha?: string;
+  /**
+   * How a `file` tab renders: Monaco source (absent/`source`) or a rendered
+   * `preview` (markdown/HTML — SPEC §8). Deliberately NOT part of `tabKey`/
+   * `sameTab`: toggling the view rewrites the same tab, never opens a second.
+   */
+  view?: 'source' | 'preview';
 }
 
 /** The effective kind, treating an absent `kind` as `file`. */

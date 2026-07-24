@@ -168,9 +168,15 @@ importers:
       cmdk:
         specifier: ^1.1.1
         version: 1.1.1(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      dompurify:
+        specifier: ^3.4.12
+        version: 3.4.12
       lucide-react:
         specifier: ^1.24.0
         version: 1.24.0(react@19.2.7)
+      marked:
+        specifier: ^18.0.7
+        version: 18.0.7
       monaco-editor:
         specifier: ^0.55.1
         version: 0.55.1
@@ -1380,6 +1386,9 @@ packages:
   dompurify@3.2.7:
     resolution: {integrity: sha512-WhL/YuveyGXJaerVlMYGWhvQswa7myDG17P7Vu65EWC05o8vfeNbvNf4d/BOvH99+ZW+LlQsc1GDKMa1vNK6dw==}
 
+  dompurify@3.4.12:
+    resolution: {integrity: sha512-zQvGet8Z2sWbQhCmfFz/T5QWH2oBmjnqK3qvOjaqaNLrLEF912WamU+ohnTp0TCep/MFVHpdJuCZEdFOdTnEFg==}
+
   end-of-stream@1.4.5:
     resolution: {integrity: sha512-ooEGc6HP26xXq/N+GCGOT0JKCLDGrq2bQUZrQ7gyrJiZANJ/8YDTxTpQBXGMn+WbIQXNVpyWymm7KYVICQnyOg==}
 
@@ -1661,6 +1670,11 @@ packages:
   marked@14.0.0:
     resolution: {integrity: sha512-uIj4+faQ+MgHgwUW1l2PsPglZLOLOT1uErt06dAPtx2kjteLAkbsd/0FiYg/MGS+i7ZKLb7w2WClxHkzOOuryQ==}
     engines: {node: '>= 18'}
+    hasBin: true
+
+  marked@18.0.7:
+    resolution: {integrity: sha512-iDVQ5ldaiKXn6b2JroX5kgRfmwgqolW7NpaEzTl1k/2Zh1njIEN9yniyLV/mOvWwtsE8OGgkjsCYvijuPk1dtA==}
+    engines: {node: '>= 20'}
     hasBin: true
 
   mimic-response@3.1.0:
@@ -3160,6 +3174,10 @@ snapshots:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
 
+  dompurify@3.4.12:
+    optionalDependencies:
+      '@types/trusted-types': 2.0.7
+
   end-of-stream@1.4.5:
     dependencies:
       once: 1.4.0
@@ -3424,6 +3442,8 @@ snapshots:
       '@jridgewell/sourcemap-codec': 1.5.5
 
   marked@14.0.0: {}
+
+  marked@18.0.7: {}
 
   mimic-response@3.1.0: {}
 
