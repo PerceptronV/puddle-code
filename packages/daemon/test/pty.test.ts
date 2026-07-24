@@ -6,7 +6,8 @@ import { claudeCode } from '../src/agents/claude-code.js';
 import { AdapterRegistry } from '../src/agents/registry.js';
 import { LogStore } from '../src/logs/log-store.js';
 import { extractOscTitle, stripAnsi } from '../src/pty/ansi.js';
-import { PtyManager } from '../src/pty/pty-manager.js';
+import { EnvOscFilter, MAX_SEQ_BYTES, type EnvDelta } from '../src/pty/env-osc.js';
+import { PtyManager, type PtyEnvDeltaEvent } from '../src/pty/pty-manager.js';
 import { StatusDetector } from '../src/pty/status-detector.js';
 
 async function waitFor(cond: () => boolean, ms = 8000): Promise<void> {
@@ -208,6 +209,123 @@ describe('PtyManager', () => {
     ptys.note('s2', 'agent', 'skip-permissions not permitted; continuing with prompts on');
     expect(chunks.join('')).toContain('[puddle] skip-permissions not permitted');
     expect(logs.readTail('s2', 'agent')).toContain('[puddle]');
+  });
+});
+
+describe('EnvOscFilter', () => {
+  const b64 = (s: string) => Buffer.from(s, 'utf8').toString('base64');
+  const seq = (op: string, name: string, value?: string, term = '\u0007') =>
+    `\u001b]7733;${op};${b64(name)}${value === undefined ? '' : `;${b64(value)}`}${term}`;
+
+  function pushAll(f: EnvOscFilter, chunks: string[]) {
+    let data = '';
+    const deltas: EnvDelta[] = [];
+    for (const c of chunks) {
+      const r = f.push(c);
+      data += r.data;
+      deltas.push(...r.deltas);
+    }
+    return { data, deltas };
+  }
+
+  it('parses set/unset and strips them from the stream (BEL and ST)', () => {
+    const f = new EnvOscFilter();
+    const input = `before${seq('set', 'FOO', 'bar')}mid${seq('unset', 'FOO', undefined, '\u001b\\')}after`;
+    const { data, deltas } = pushAll(f, [input]);
+    expect(data).toBe('beforemidafter');
+    expect(deltas).toEqual([
+      { op: 'set', name: 'FOO', value: 'bar' },
+      { op: 'unset', name: 'FOO' },
+    ]);
+  });
+
+  it('handles sequences split across chunks at every byte boundary', () => {
+    const whole = `a${seq('set', 'MULTI', 'line one\nline "two" ✓')}z`;
+    for (let cut = 1; cut < whole.length; cut++) {
+      const f = new EnvOscFilter();
+      const { data, deltas } = pushAll(f, [whole.slice(0, cut), whole.slice(cut)]);
+      expect(data).toBe('az');
+      expect(deltas).toEqual([{ op: 'set', name: 'MULTI', value: 'line one\nline "two" ✓' }]);
+    }
+  });
+
+  it('does not swallow a lone trailing ESC in plain output', () => {
+    const f = new EnvOscFilter();
+    const first = f.push('text\u001b');
+    // The ESC is held as potential introducer head…
+    expect(first.data).toBe('text');
+    // …and released once the follow-up proves it ordinary.
+    expect(f.push('[31mred').data).toBe('\u001b[31mred');
+  });
+
+  it('accepts an empty value (export FOO="")', () => {
+    const f = new EnvOscFilter();
+    const { deltas } = pushAll(f, [seq('set', 'EMPTY', '')]);
+    expect(deltas).toEqual([{ op: 'set', name: 'EMPTY', value: '' }]);
+  });
+
+  it('drops malformed payloads without corrupting surrounding text', () => {
+    const f = new EnvOscFilter();
+    const bad = [
+      '\u001b]7733;set;not-base64!;YQ==\u0007',
+      '\u001b]7733;bogus;YQ==\u0007',
+      `\u001b]7733;set;${Buffer.from('1BAD NAME').toString('base64')};YQ==\u0007`,
+      '\u001b]7733;set\u0007',
+    ].join('between');
+    const { data, deltas } = pushAll(f, [`x${bad}y`]);
+    expect(deltas).toEqual([]);
+    expect(data).toBe('xbetweenbetweenbetweeny');
+  });
+
+  it('discards an oversized sequence and resyncs afterwards', () => {
+    const f = new EnvOscFilter();
+    const huge = '\u001b]7733;set;' + 'A'.repeat(MAX_SEQ_BYTES + 1024);
+    const r1 = f.push(`ok1${huge}`);
+    expect(r1.data).toBe('ok1');
+    // Terminator arrives much later; nothing of the payload ever surfaces.
+    const r2 = f.push('B'.repeat(2048) + '\u0007ok2' + seq('set', 'AFTER', '1'));
+    expect(r2.data).toBe('ok2');
+    expect(r2.deltas).toEqual([{ op: 'set', name: 'AFTER', value: '1' }]);
+  });
+});
+
+describe('PtyManager env-delta', () => {
+  function manager() {
+    const logsDir = mkdtempSync(join(tmpdir(), 'puddle-logs-'));
+    const logs = new LogStore(logsDir, 64 * 1024);
+    return { logsDir, logs, ptys: new PtyManager(logs) };
+  }
+
+  it('emits env-delta and strips OSC 7733 from stream and log', async () => {
+    const { logsDir, ptys } = manager();
+    const chunks: string[] = [];
+    const deltas: PtyEnvDeltaEvent[] = [];
+    ptys.on('data', (e: { data: string }) => chunks.push(e.data));
+    ptys.on('env-delta', (e: PtyEnvDeltaEvent) => deltas.push(e));
+    // Rk9P / YmFy are b64("FOO") / b64("bar").
+    ptys.spawn(
+      's9',
+      'shell-1',
+      'bash',
+      ['-c', String.raw`printf '\033]7733;set;Rk9P;YmFy\007'; echo visible; cat`],
+      {
+        cwd: tmpdir(),
+      },
+    );
+    await waitFor(() => deltas.length === 1 && chunks.join('').includes('visible'));
+    expect(deltas[0]).toMatchObject({
+      stream: 's9',
+      term: 'shell-1',
+      delta: { op: 'set', name: 'FOO', value: 'bar' },
+    });
+    ptys.kill('s9', 'shell-1');
+    const joined = chunks.join('');
+    const log = readFileSync(join(logsDir, 's9', 'shell-1.log'), 'utf8');
+    for (const text of [joined, log]) {
+      expect(text).toContain('visible');
+      expect(text).not.toContain('7733');
+      expect(text).not.toContain('YmFy');
+    }
   });
 });
 

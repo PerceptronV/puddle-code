@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import pty from 'node-pty';
 import type { LogStore } from '../logs/log-store.js';
+import { EnvOscFilter, type EnvDelta } from './env-osc.js';
 
 export interface PtyDataEvent {
   stream: string;
@@ -14,16 +15,27 @@ export interface PtyExitEvent {
   exitCode: number;
 }
 
+/** A captured-env report parsed (and stripped) from a PTY's OSC 7733 side-channel. */
+export interface PtyEnvDeltaEvent {
+  stream: string;
+  term: string;
+  delta: EnvDelta;
+}
+
 interface Live {
   proc: pty.IPty;
   record: boolean;
+  filter: EnvOscFilter;
 }
 
 /**
  * Owns every live PTY, keyed by (stream, term) where stream is a session id
  * or `login-<accountId>`. Tees recorded output to the LogStore. Emits
- * 'data' (PtyDataEvent) and 'exit' (PtyExitEvent). A PTY has exactly one
- * size — the most recent attach/resize wins (SPEC §6).
+ * 'data' (PtyDataEvent), 'exit' (PtyExitEvent), and 'env-delta'
+ * (PtyEnvDeltaEvent). A PTY has exactly one size — the most recent
+ * attach/resize wins (SPEC §6). Every PTY's output passes through an
+ * EnvOscFilter, so OSC 7733 payloads (captured env, potential secrets) are
+ * stripped before any log write or 'data' emit.
  */
 export class PtyManager extends EventEmitter {
   private readonly live = new Map<string, Live>();
@@ -49,8 +61,14 @@ export class PtyManager extends EventEmitter {
       cwd: opts.cwd,
       env: { ...process.env, ...opts.env } as Record<string, string>,
     });
-    this.live.set(key, { proc, record });
-    proc.onData((data) => {
+    const filter = new EnvOscFilter();
+    this.live.set(key, { proc, record, filter });
+    proc.onData((raw) => {
+      const { data, deltas } = filter.push(raw);
+      for (const delta of deltas) {
+        this.emit('env-delta', { stream, term, delta } satisfies PtyEnvDeltaEvent);
+      }
+      if (data === '') return; // chunk fully swallowed by the side-channel
       if (record) this.logs.append(stream, term, data);
       this.emit('data', { stream, term, data } satisfies PtyDataEvent);
     });
