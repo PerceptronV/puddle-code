@@ -23,6 +23,7 @@ import { PortScanner } from './ports/scanner.js';
 import { attachProxyUpgrade } from './proxy/upgrade.js';
 import { ProxySocketTracker } from './proxy/sockets.js';
 import { PtyManager } from './pty/pty-manager.js';
+import { installShellHooks } from './pty/shell-hooks.js';
 import { clearRuntime, writeRuntime } from './runtime-file.js';
 import { ensureToken } from './security/token.js';
 import { ConversationShare } from './sessions/conversation-share.js';
@@ -75,6 +76,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
 
   const logs = new LogStore(paths.logsDir, config.replayBytes);
   const ptys = new PtyManager(logs);
+  const shellHooks = installShellHooks(paths);
   const scanner = new PortScanner({ ptys });
   const worktrees = new WorktreeManager({ paths, mutex: new KeyedMutex(), repos, sessions });
   const onboarding = new MarkerFileSync({ repos, events, sessions });
@@ -99,6 +101,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     logs,
     onboarding,
     share,
+    shellHooks,
     statusQuietMs: opts.statusQuietMs,
   });
 

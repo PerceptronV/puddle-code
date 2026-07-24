@@ -24,6 +24,7 @@ describe('resolvePaths', () => {
     );
     expect(p.sessionWorktreeDir(3, 'abc')).toBe(join(home, 'worktrees', '3', 'abc'));
     expect(p.sessionLogDir('abc')).toBe(join(home, 'logs', 'abc'));
+    expect(p.shellHooksDir).toBe(join(home, 'shell-hooks'));
   });
 
   it('honours PUDDLE_HOME when no explicit home is given', () => {

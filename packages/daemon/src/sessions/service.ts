@@ -14,6 +14,7 @@ import { ApiError } from '../http/errors.js';
 import type { LogStore } from '../logs/log-store.js';
 import { extractOscTitle } from '../pty/ansi.js';
 import type { PtyDataEvent, PtyExitEvent, PtyManager } from '../pty/pty-manager.js';
+import type { ShellHooks } from '../pty/shell-hooks.js';
 import { StatusDetector, type DetectedStatus } from '../pty/status-detector.js';
 import type { CreateWorktreeResult, WorktreeManager } from '../worktrees/manager.js';
 import type { ConversationShare } from './conversation-share.js';
@@ -38,6 +39,8 @@ export interface SessionServiceDeps {
   onboarding: MarkerFileSync;
   /** Shared conversation store (Workstream S); absent → no adoption. */
   share?: ConversationShare;
+  /** Captured-env shell hooks (SPEC §4); absent → plain shells, no capture. */
+  shellHooks?: ShellHooks;
   /** waiting_input quiet window; overridable for tests. */
   statusQuietMs?: number;
   /** Periodic agent-name re-read interval; overridable for tests. */
