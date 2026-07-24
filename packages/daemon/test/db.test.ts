@@ -192,6 +192,41 @@ describe('stores', () => {
     expect(s.sessions.listActiveByRepo(repo.id)).toHaveLength(0);
   });
 
+  it('merges, unsets, and clears captured session env', () => {
+    const s = stores();
+    const { session } = seedSession(s);
+    expect(s.sessions.getEnv(session.id)).toEqual({});
+    s.sessions.mergeEnv(session.id, { FOO: 'bar', TOKEN: 'a\nb "quoted" ✓' }, []);
+    s.sessions.mergeEnv(session.id, { FOO: 'baz' }, []);
+    expect(s.sessions.getEnv(session.id)).toEqual({ FOO: 'baz', TOKEN: 'a\nb "quoted" ✓' });
+    // Unsetting a name the map doesn't own is a no-op.
+    s.sessions.mergeEnv(session.id, {}, ['NOT_OWNED', 'FOO']);
+    expect(s.sessions.getEnv(session.id)).toEqual({ TOKEN: 'a\nb "quoted" ✓' });
+    expect(s.sessions.clearEnv(session.id)).toBe(1);
+    expect(s.sessions.getEnv(session.id)).toEqual({});
+    expect(() => s.sessions.getEnv('missing')).toThrow(ApiError);
+  });
+
+  it('never exposes session_env on Session objects', () => {
+    const s = stores();
+    const { session } = seedSession(s);
+    s.sessions.mergeEnv(session.id, { SECRET: 'hunter2' }, []);
+    for (const sess of [s.sessions.get(session.id), ...s.sessions.list()]) {
+      expect(sess).not.toHaveProperty('session_env');
+      expect(JSON.stringify(sess)).not.toContain('hunter2');
+    }
+  });
+
+  it('degrades a corrupt session_env cell to an empty map', () => {
+    const s = stores();
+    const { session } = seedSession(s);
+    s.db.prepare(`UPDATE sessions SET session_env = 'not json' WHERE id = ?`).run(session.id);
+    expect(s.sessions.getEnv(session.id)).toEqual({});
+    // A merge over a corrupt cell heals it.
+    s.sessions.mergeEnv(session.id, { A: '1' }, []);
+    expect(s.sessions.getEnv(session.id)).toEqual({ A: '1' });
+  });
+
   it('patches repos and records fetch times', () => {
     const s = stores();
     const { repo } = seedSession(s);

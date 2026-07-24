@@ -21,6 +21,7 @@ interface Row {
   created_at: string;
   updated_at: string;
   last_activity_at: string | null;
+  session_env: string;
 }
 
 export interface NewSessionRow {
@@ -40,8 +41,10 @@ export interface NewSessionRow {
 }
 
 function toSession(r: Row): Session {
+  // session_env may hold secrets — it must never reach the sessions API (SPEC §4).
+  const { session_env, ...rest } = r;
   return {
-    ...r,
+    ...rest,
     skip_permissions: r.skip_permissions === 1,
     separate_branch: r.separate_branch === 1,
   };
@@ -231,5 +234,42 @@ export class SessionStore {
 
   touchActivity(id: string, iso: string): void {
     this.db.prepare(`UPDATE sessions SET last_activity_at = ? WHERE id = ?`).run(iso, id);
+  }
+
+  /** Captured `export`s for re-injection at PTY spawn (SPEC §4); {} when none. */
+  getEnv(id: string): Record<string, string> {
+    const row = this.db.prepare(`SELECT session_env FROM sessions WHERE id = ?`).get(id) as
+      { session_env: string } | undefined;
+    if (!row) throw ApiError.notFound('session', id);
+    try {
+      const parsed: unknown = JSON.parse(row.session_env);
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+      return Object.fromEntries(
+        Object.entries(parsed).filter(([, v]) => typeof v === 'string'),
+      ) as Record<string, string>;
+    } catch {
+      return {}; // A corrupt cell degrades to "nothing captured".
+    }
+  }
+
+  /**
+   * Per-variable merge, arrival order = last write wins across a session's
+   * terminals; unsetting a name the map doesn't own is a no-op (no tombstones
+   * over daemon-baseline env). Returns the merged map.
+   */
+  mergeEnv(id: string, set: Record<string, string>, unset: string[]): Record<string, string> {
+    const merged = { ...this.getEnv(id), ...set };
+    for (const name of unset) delete merged[name];
+    this.db
+      .prepare(`UPDATE sessions SET session_env = ? WHERE id = ?`)
+      .run(JSON.stringify(merged), id);
+    return merged;
+  }
+
+  /** Drop every captured var (the manual purge, SPEC §4). Returns how many were dropped. */
+  clearEnv(id: string): number {
+    const count = Object.keys(this.getEnv(id)).length;
+    this.db.prepare(`UPDATE sessions SET session_env = '{}' WHERE id = ?`).run(id);
+    return count;
   }
 }
