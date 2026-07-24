@@ -134,6 +134,12 @@ export type SessionDefaults = z.infer<typeof sessionDefaultsSchema>;
 export const profileSettingsSchema = z.looseObject({
   allowSkipPermissions: z.boolean().default(false),
   /**
+   * Captured session environment (SPEC §4): whether this profile's session
+   * shells carry the capture hook and whether captured vars are re-injected at
+   * PTY spawn. Off pauses the whole feature; stored maps are kept untouched.
+   */
+  captureSessionEnv: z.boolean().default(true),
+  /**
    * Launch-text templates (SPEC §4). A key that is ABSENT falls back to the
    * daemon's built-in default; an EMPTY string is an intentional empty preamble.
    * `onboardingTemplate` (freshly created worktree) supports a `{{rules}}` token

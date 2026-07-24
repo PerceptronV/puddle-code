@@ -13,8 +13,13 @@ import type { SessionStore } from '../db/stores/sessions.js';
 import { ApiError } from '../http/errors.js';
 import type { LogStore } from '../logs/log-store.js';
 import { extractOscTitle } from '../pty/ansi.js';
-import type { PtyDataEvent, PtyExitEvent, PtyManager } from '../pty/pty-manager.js';
-import type { ShellHooks } from '../pty/shell-hooks.js';
+import type {
+  PtyDataEvent,
+  PtyEnvDeltaEvent,
+  PtyExitEvent,
+  PtyManager,
+} from '../pty/pty-manager.js';
+import { isDeniedEnvName, type ShellHooks } from '../pty/shell-hooks.js';
 import { StatusDetector, type DetectedStatus } from '../pty/status-detector.js';
 import type { CreateWorktreeResult, WorktreeManager } from '../worktrees/manager.js';
 import type { ConversationShare } from './conversation-share.js';
@@ -84,6 +89,12 @@ const LIVE_STATUSES: SessionStatus[] = ['starting', 'running', 'waiting_input'];
 // that early-returns when unchanged) surfaces such renames within a few seconds.
 const TITLE_REFRESH_MS = 3000;
 
+// Captured-env caps (SPEC §4), enforced daemon-side regardless of what the
+// shell hook reports. Oversized values and overflow names are dropped with a
+// one-time [puddle] note in the reporting terminal.
+const MAX_ENV_VALUE_BYTES = 32 * 1024;
+const MAX_ENV_VARS = 128;
+
 /**
  * Orchestrates the session state machine (SPEC §4). SQLite rows are the
  * durable truth; `liveAgents` tracks the in-memory attachment (detector +
@@ -94,6 +105,8 @@ export class SessionService extends EventEmitter {
   private readonly liveAgents = new Map<string, LiveAgent>();
   /** Sessions whose conversation is already adopted — stops the retry loop. */
   private readonly adopted = new Set<string>();
+  /** `${sessionId}:${name}` pairs already warned about, so cap notes fire once. */
+  private readonly envDropNoted = new Set<string>();
   private shuttingDown = false;
   private readonly titleTimer: ReturnType<typeof setInterval>;
 
@@ -101,6 +114,7 @@ export class SessionService extends EventEmitter {
     super();
     deps.ptys.on('data', (e: PtyDataEvent) => this.onPtyData(e));
     deps.ptys.on('exit', (e: PtyExitEvent) => this.onPtyExit(e));
+    deps.ptys.on('env-delta', (e: PtyEnvDeltaEvent) => this.onEnvDelta(e));
     // Catch in-agent renames that emit no signal (see TITLE_REFRESH_MS). Unref'd
     // so it never keeps the process (or a test run) alive.
     this.titleTimer = setInterval(() => {
@@ -413,9 +427,9 @@ export class SessionService extends EventEmitter {
    * it dies (SPEC §4).
    */
   private spawnTerminal(sessionId: string, worktreePath: string): void {
-    const shell = process.env.SHELL ?? 'bash';
+    const { shell, args, env } = this.shellSpawnParts(sessionId);
     try {
-      this.deps.ptys.spawn(sessionId, 'agent', shell, [], { cwd: worktreePath });
+      this.deps.ptys.spawn(sessionId, 'agent', shell, args, { cwd: worktreePath, env });
     } catch (e) {
       this.transition(sessionId, 'exited');
       this.deps.events.record(sessionId, 'spawn_failed', { message: (e as Error).message });
@@ -758,8 +772,8 @@ export class SessionService extends EventEmitter {
     let n = 1;
     while (used.has(`shell-${n}`)) n++;
     const term = `shell-${n}`;
-    const shell = process.env.SHELL ?? 'bash';
-    this.deps.ptys.spawn(sessionId, term, shell, [], { cwd: session.worktree_path });
+    const { shell, args, env } = this.shellSpawnParts(sessionId);
+    this.deps.ptys.spawn(sessionId, term, shell, args, { cwd: session.worktree_path, env });
     return term;
   }
 
@@ -794,6 +808,86 @@ export class SessionService extends EventEmitter {
     return settings.allowSkipPermissions === true && account.skip_permissions_default;
   }
 
+  /** The profile gate for captured env (SPEC §4): hook injection, consumption, and re-injection. */
+  private captureEnvEnabled(projectId: string): boolean {
+    const project = this.deps.projects.get(projectId);
+    return this.deps.profiles.getSettings(project.profile_id).captureSessionEnv;
+  }
+
+  /**
+   * Consume a captured-env report from a session PTY's OSC 7733 side-channel.
+   * Non-session streams (home, login-*) report nothing consumable; denylist and
+   * caps are re-checked here even though the hook filters — the emitter is an
+   * arbitrary process in the worktree, not just our hook.
+   */
+  private onEnvDelta(e: PtyEnvDeltaEvent): void {
+    if (this.shuttingDown) return;
+    let session: Session;
+    try {
+      session = this.deps.sessions.get(e.stream);
+    } catch {
+      return;
+    }
+    if (!this.captureEnvEnabled(session.project_id)) return;
+    const { delta } = e;
+    if (isDeniedEnvName(delta.name)) return;
+    if (delta.op === 'unset') {
+      this.deps.sessions.mergeEnv(session.id, {}, [delta.name]);
+      return;
+    }
+    const value = delta.value ?? '';
+    if (Buffer.byteLength(value) > MAX_ENV_VALUE_BYTES) {
+      this.noteEnvDropOnce(session.id, e.term, delta.name, 'its value exceeds 32 KiB');
+      return;
+    }
+    const current = this.deps.sessions.getEnv(session.id);
+    if (!(delta.name in current) && Object.keys(current).length >= MAX_ENV_VARS) {
+      this.noteEnvDropOnce(
+        session.id,
+        e.term,
+        delta.name,
+        `the session already holds ${MAX_ENV_VARS} captured vars`,
+      );
+      return;
+    }
+    this.deps.sessions.mergeEnv(session.id, { [delta.name]: value }, []);
+  }
+
+  private noteEnvDropOnce(sessionId: string, term: string, name: string, reason: string): void {
+    const key = `${sessionId}:${name}`;
+    if (this.envDropNoted.has(key)) return;
+    this.envDropNoted.add(key);
+    this.deps.ptys.note(sessionId, term, `captured env: ${name} not persisted — ${reason}`);
+  }
+
+  /**
+   * Captured vars to merge into a session PTY's spawn env, denylist-refiltered
+   * (defence against rows written by an older build). Empty when the profile
+   * gate is off — the feature goes fully dormant, but the stored map is kept.
+   */
+  private capturedSpawnEnv(session: Session): Record<string, string> {
+    if (!this.captureEnvEnabled(session.project_id)) return {};
+    return Object.fromEntries(
+      Object.entries(this.deps.sessions.getEnv(session.id)).filter(([k]) => !isDeniedEnvName(k)),
+    );
+  }
+
+  /** Shell command, hook args, and env for a session terminal spawn (SPEC §4). */
+  private shellSpawnParts(sessionId: string): {
+    shell: string;
+    args: string[];
+    env: Record<string, string>;
+  } {
+    const shell = process.env.SHELL ?? 'bash';
+    const session = this.deps.sessions.get(sessionId);
+    const captured = this.capturedSpawnEnv(session);
+    const hook = this.captureEnvEnabled(session.project_id)
+      ? this.deps.shellHooks?.spawnConfig(shell)
+      : undefined;
+    // Hook control vars win over anything captured (ZDOTDIR is denylisted anyway).
+    return { shell, args: hook?.args ?? [], env: { ...captured, ...(hook?.env ?? {}) } };
+  }
+
   private spawnAgent(
     sessionId: string,
     worktreePath: string,
@@ -805,7 +899,12 @@ export class SessionService extends EventEmitter {
     try {
       this.deps.ptys.spawn(sessionId, 'agent', adapter.binary, args, {
         cwd: worktreePath,
-        env: adapter.env(account),
+        // Adapter env is sacrosanct (e.g. CLAUDE_CONFIG_DIR) — it wins over
+        // captured vars; process.env is merged underneath by PtyManager.
+        env: {
+          ...this.capturedSpawnEnv(this.deps.sessions.get(sessionId)),
+          ...adapter.env(account),
+        },
       });
     } catch (e) {
       this.transition(sessionId, 'exited');

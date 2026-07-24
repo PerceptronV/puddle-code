@@ -409,3 +409,128 @@ describe('session naming', () => {
     await f.service.kill(session.id);
   });
 });
+
+describe('captured env', () => {
+  const delta = (stream: string, name: string, value?: string, op: 'set' | 'unset' = 'set') => ({
+    stream,
+    term: 'shell-1',
+    delta: op === 'set' ? { op, name, value } : { op, name },
+  });
+
+  async function liveSession(f: ReturnType<typeof fixture>) {
+    const session = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+    });
+    await waitFor(() => f.service.get(session.id).status !== 'starting');
+    return session;
+  }
+
+  it('consumes deltas per-variable: last write wins, unset removes, unowned unset is a no-op', async () => {
+    const f = fixture();
+    const session = await liveSession(f);
+    f.ptys.emit('env-delta', delta(session.id, 'MY_TOKEN', 'first'));
+    f.ptys.emit('env-delta', delta(session.id, 'MY_TOKEN', 'second'));
+    f.ptys.emit('env-delta', delta(session.id, 'KEEP', 'kept'));
+    expect(f.stores.sessions.getEnv(session.id)).toEqual({ MY_TOKEN: 'second', KEEP: 'kept' });
+    f.ptys.emit('env-delta', delta(session.id, 'MY_TOKEN', undefined, 'unset'));
+    f.ptys.emit('env-delta', delta(session.id, 'NEVER_OWNED', undefined, 'unset'));
+    expect(f.stores.sessions.getEnv(session.id)).toEqual({ KEEP: 'kept' });
+    await f.service.kill(session.id);
+  });
+
+  it('ignores denylisted names, unknown streams, and hook-control vars', async () => {
+    const f = fixture();
+    const session = await liveSession(f);
+    f.ptys.emit('env-delta', delta(session.id, 'PWD', '/evil'));
+    f.ptys.emit('env-delta', delta(session.id, 'PUDDLE_ANYTHING', 'x'));
+    // Non-session streams (home terminal, login PTYs) must not throw or write.
+    f.ptys.emit('env-delta', delta('home', 'HOME_VAR', 'x'));
+    f.ptys.emit('env-delta', delta('login-3', 'LOGIN_VAR', 'x'));
+    expect(f.stores.sessions.getEnv(session.id)).toEqual({});
+    await f.service.kill(session.id);
+  });
+
+  it('enforces value and count caps with a one-time terminal note', async () => {
+    const f = fixture();
+    const session = await liveSession(f);
+    const huge = 'v'.repeat(32 * 1024 + 1);
+    f.ptys.emit('env-delta', delta(session.id, 'HUGE', huge));
+    f.ptys.emit('env-delta', delta(session.id, 'HUGE', huge));
+    expect(f.stores.sessions.getEnv(session.id)).toEqual({});
+    const log = f.logs.readTail(session.id, 'shell-1');
+    expect(log.split('HUGE not persisted').length).toBe(2); // exactly one note
+
+    const many = Object.fromEntries(Array.from({ length: 128 }, (_, i) => [`VAR_${i}`, 'x']));
+    f.stores.sessions.mergeEnv(session.id, many, []);
+    f.ptys.emit('env-delta', delta(session.id, 'ONE_TOO_MANY', 'x'));
+    expect(f.stores.sessions.getEnv(session.id)['ONE_TOO_MANY']).toBeUndefined();
+    // Updates to an already-captured name are always accepted at the cap.
+    f.ptys.emit('env-delta', delta(session.id, 'VAR_0', 'updated'));
+    expect(f.stores.sessions.getEnv(session.id)['VAR_0']).toBe('updated');
+    await f.service.kill(session.id);
+  });
+
+  it('injects captured env on resume; adapter env wins over a captured clash', async () => {
+    const f = fixture();
+    const session = await liveSession(f);
+    await f.service.kill(session.id);
+    f.stores.sessions.mergeEnv(
+      session.id,
+      { CAPTURED_PROBE: 'hello-from-capture', FAKE_CONFIG_DIR: '/evil' },
+      [],
+    );
+    await f.service.resume(session.id);
+    await waitFor(() => f.logs.readTail(session.id, 'agent').includes('ENVPROBE<<'));
+    const log = f.logs.readTail(session.id, 'agent');
+    expect(log).toContain('ENVPROBE<<hello-from-capture>>');
+    expect(log).not.toContain('CFG<</evil>>'); // adapter env is sacrosanct
+    await f.service.kill(session.id);
+  });
+
+  it('spawnShell passes captured env and the hook spawn config', async () => {
+    const spawnConfigCalls: string[] = [];
+    const stubHooks = {
+      spawnConfig: (shell: string) => {
+        spawnConfigCalls.push(shell);
+        return { args: [], env: { PUDDLE_HOOK_MARKER: '1' } };
+      },
+    } as unknown as import('../src/pty/shell-hooks.js').ShellHooks;
+    const f = fixture({ shellHooks: stubHooks });
+    const session = await liveSession(f);
+    f.stores.sessions.mergeEnv(session.id, { CAPTURED_PROBE: 'shell-sees-me' }, []);
+    const term = f.service.spawnShell(session.id);
+    expect(spawnConfigCalls).toHaveLength(1);
+    f.ptys.write(session.id, term, 'echo probe-$CAPTURED_PROBE-hook-$PUDDLE_HOOK_MARKER\n');
+    await waitFor(() => f.logs.readTail(session.id, term).includes('probe-shell-sees-me-hook-1'));
+    await f.service.kill(session.id);
+  });
+
+  it('profile toggle off: deltas ignored, no hook config, no injection; map kept', async () => {
+    const spawnConfigCalls: string[] = [];
+    const stubHooks = {
+      spawnConfig: (shell: string) => {
+        spawnConfigCalls.push(shell);
+        return { args: [], env: {} };
+      },
+    } as unknown as import('../src/pty/shell-hooks.js').ShellHooks;
+    const f = fixture({ shellHooks: stubHooks });
+    f.stores.profiles.patchSettings(f.ids.profile, { captureSessionEnv: false });
+    const session = await liveSession(f);
+
+    f.ptys.emit('env-delta', delta(session.id, 'MY_TOKEN', 'x'));
+    expect(f.stores.sessions.getEnv(session.id)).toEqual({});
+
+    f.stores.sessions.mergeEnv(session.id, { CAPTURED_PROBE: 'dormant' }, []);
+    f.service.spawnShell(session.id);
+    expect(spawnConfigCalls).toHaveLength(0);
+
+    await f.service.kill(session.id);
+    await f.service.resume(session.id);
+    await waitFor(() => f.logs.readTail(session.id, 'agent').includes('ENVPROBE<<'));
+    expect(f.logs.readTail(session.id, 'agent')).toContain('ENVPROBE<<>>');
+    // The stored map survives the off period.
+    expect(f.stores.sessions.getEnv(session.id)).toEqual({ CAPTURED_PROBE: 'dormant' });
+    await f.service.kill(session.id);
+  });
+});

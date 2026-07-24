@@ -26,6 +26,7 @@ import { LogStore } from '../../src/logs/log-store.js';
 import { ensureHome, resolvePaths } from '../../src/paths.js';
 import { PortScanner } from '../../src/ports/scanner.js';
 import { PtyManager } from '../../src/pty/pty-manager.js';
+import type { ShellHooks } from '../../src/pty/shell-hooks.js';
 import { ConversationShare } from '../../src/sessions/conversation-share.js';
 import { MarkerFileSync } from '../../src/sessions/onboarding.js';
 import { SessionService } from '../../src/sessions/service.js';
@@ -84,7 +85,9 @@ export function fakeAdapter(opts: { share?: boolean } = {}): AgentAdapter {
     ],
     resumeArgs: (ref, o) => [
       '-c',
-      'echo "RESUME ref=$1 skip=$2"; echo "PROMPT<<$3>>"; echo READY; cat',
+      // ENVPROBE/CFG surface the spawn env, so tests can assert captured-env
+      // injection and adapter-env precedence without inspecting the process.
+      'echo "RESUME ref=$1 skip=$2"; echo "PROMPT<<$3>>"; echo "ENVPROBE<<$CAPTURED_PROBE>>"; echo "CFG<<$FAKE_CONFIG_DIR>>"; echo READY; cat',
       'bash',
       ref,
       String(o.skipPermissions),
@@ -197,7 +200,12 @@ export interface Fixture {
 
 /** Full daemon wiring (minus HTTP/WS) on a temp home with a real git repo. */
 export function fixture(
-  opts: { quietMs?: number; share?: boolean; titleRefreshMs?: number } = {},
+  opts: {
+    quietMs?: number;
+    share?: boolean;
+    titleRefreshMs?: number;
+    shellHooks?: ShellHooks;
+  } = {},
 ): Fixture {
   const paths = resolvePaths(mkdtempSync(join(tmpdir(), 'puddle-home-')));
   ensureHome(paths);
@@ -242,6 +250,7 @@ export function fixture(
     logs,
     onboarding,
     share,
+    shellHooks: opts.shellHooks,
     statusQuietMs: opts.quietMs ?? 150,
     titleRefreshMs: opts.titleRefreshMs,
   });
