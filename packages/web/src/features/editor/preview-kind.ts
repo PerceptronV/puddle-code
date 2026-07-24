@@ -24,25 +24,27 @@ export function previewKind(path: string): PreviewKind | null {
 }
 
 /**
- * Resolve a relative asset reference inside a previewed document (`./img.png`,
- * `../shots/a.png`, `img.png`) against the document's worktree-relative path,
- * yielding a worktree-relative path the media endpoint accepts. Returns null
- * for anything that is not a worktree-relative reference: absolute paths and
- * URLs (http, data, blob, mailto, …) are left for the browser, and references
- * escaping the worktree root are refused.
+ * Resolve an asset reference inside a previewed document against the worktree:
+ * relative (`img.png`, `./img.png`, `../shots/a.png`) resolves against the
+ * document's directory; absolute (`/assets/logo.svg`) against the worktree
+ * ROOT — a previewed document's universe is its worktree, never the host
+ * filesystem. Yields a worktree-relative path the media endpoint accepts.
+ * Returns null for anything else: URLs (http, data, blob, mailto, …) and
+ * protocol-relative `//host/…` refs are left for the browser, fragments have
+ * no file, and references escaping the worktree root are refused.
  */
 export function resolvePreviewAsset(docPath: string, ref: string): string | null {
   if (
     ref === '' ||
-    ref.startsWith('/') ||
     ref.startsWith('#') ||
+    ref.startsWith('//') ||
     /^[a-z][a-z0-9+.-]*:/i.test(ref)
   ) {
     return null;
   }
   const clean = ref.split('#')[0]!.split('?')[0]!;
-  if (clean === '') return null;
-  const dir = docPath.split('/').slice(0, -1);
+  if (clean === '' || clean === '/') return null;
+  const dir = clean.startsWith('/') ? [] : docPath.split('/').slice(0, -1);
   const out = [...dir];
   for (const part of decodeURI(clean).split('/')) {
     if (part === '' || part === '.') continue;

@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useSyncExternalStore, type MouseEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent } from 'react';
 import DOMPurify from 'dompurify';
 import { apiFetchRaw } from '../../lib/api';
+import { useEditor } from '../workspace/editor-context';
 import { useWorktreeFile } from '../../lib/worktree-queries';
 import { bufferKey, getOrCreateModel, subscribe } from './buffer-store';
 import { markdownToHtml } from './markdown';
-import { resolvePreviewAsset, type PreviewKind } from './preview-kind';
+import { previewKind, resolvePreviewAsset, type PreviewKind } from './preview-kind';
 
 /**
  * The rendered view of a previewable file tab (SPEC §8): markdown as inline,
@@ -13,9 +14,13 @@ import { resolvePreviewAsset, type PreviewKind } from './preview-kind';
  * token, or storage). The text comes from the tab's shared Monaco model —
  * created from the fetched file on first use — so the preview tracks unsaved
  * edits live. Markdown is sanitised with DOMPurify before it touches
- * innerHTML; relative image references resolve through the authed media
- * endpoint to object URLs (element loads carry no bearer header). The HTML
- * iframe intentionally resolves no relative assets in v1.
+ * innerHTML. Worktree asset references — relative to the document, or
+ * absolute from the worktree root — resolve through the authed media endpoint
+ * (element loads carry no bearer header): object URLs for inline markdown,
+ * data URIs baked into the HTML iframe (a null-origin document cannot load
+ * this origin's blob URLs). Ctrl/⌘-click on a worktree link in a markdown
+ * preview opens that file as an editor tab, previewable files landing
+ * straight in their rendered view.
  */
 export function FilePreview({
   session,
@@ -31,7 +36,7 @@ export function FilePreview({
   return kind === 'markdown' ? (
     <MarkdownPreview session={session} path={path} text={text} />
   ) : (
-    <HtmlPreview path={path} text={text} />
+    <HtmlPreview session={session} path={path} text={text} />
   );
 }
 
@@ -54,7 +59,7 @@ function useLiveText(session: string, path: string): string | null {
   );
 }
 
-/** External links open a new tab; relative/anchor links have nowhere to go. */
+/** External links open a new tab; worktree links navigate via ctrl/⌘-click below. */
 DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   if (node.tagName === 'A' && /^https?:/i.test(node.getAttribute('href') ?? '')) {
     node.setAttribute('target', '_blank');
@@ -66,9 +71,9 @@ function MarkdownPreview({ session, path, text }: { session: string; path: strin
   const html = useMemo(() => DOMPurify.sanitize(markdownToHtml(text)), [text]);
   const bodyRef = useRef<HTMLDivElement | null>(null);
 
-  // Resolve relative images through the authed media endpoint: an <img src>
-  // carries no bearer header, so the bytes travel as a fetch → object URL
-  // (the MediaViewer pattern). Re-runs whenever the rendered HTML changes.
+  // Resolve worktree images (relative or /-absolute) through the authed media
+  // endpoint: an <img src> carries no bearer header, so the bytes travel as a
+  // fetch → object URL (the MediaViewer pattern). Re-runs on HTML changes.
   useEffect(() => {
     const root = bodyRef.current;
     if (!root) return;
@@ -94,10 +99,22 @@ function MarkdownPreview({ session, path, text }: { session: string; path: strin
     };
   }, [html, session, path]);
 
-  // Relative and same-document links have no navigation target inside the app.
+  // Worktree links navigate on ctrl/⌘-click (the terminal file-link gesture):
+  // the target opens as an editor tab, previewable files straight in their
+  // rendered view so documentation cross-links read like pages. A plain click
+  // on a worktree or same-document link stays inert (http(s) links keep their
+  // browser behaviour via target=_blank).
+  const { openFile } = useEditor();
   const onClick = (e: MouseEvent<HTMLDivElement>) => {
     const anchor = (e.target as HTMLElement).closest('a');
-    if (anchor && !/^https?:/i.test(anchor.getAttribute('href') ?? '')) e.preventDefault();
+    if (!anchor) return;
+    const href = anchor.getAttribute('href') ?? '';
+    if (/^https?:/i.test(href)) return;
+    e.preventDefault();
+    if (!e.metaKey && !e.ctrlKey) return;
+    const resolved = resolvePreviewAsset(path, href);
+    if (!resolved) return;
+    openFile(session, resolved, undefined, previewKind(resolved) ? { view: 'preview' } : undefined);
   };
 
   return (
@@ -113,15 +130,121 @@ function MarkdownPreview({ session, path, text }: { session: string; path: strin
   );
 }
 
-function HtmlPreview({ path, text }: { path: string; text: string }) {
+/** (element selector, URL attribute) pairs whose worktree references get inlined. */
+const HTML_ASSET_ATTRS: ReadonlyArray<readonly [string, string]> = [
+  ['img', 'src'],
+  ['script', 'src'],
+  ['link[rel~="stylesheet" i]', 'href'],
+  ['link[rel~="icon" i]', 'href'],
+  ['source', 'src'],
+  ['video', 'src'],
+  ['video', 'poster'],
+  ['audio', 'src'],
+];
+
+/** Assets above this stay unresolved — data URIs live in memory as the document. */
+const MAX_INLINE_ASSET_BYTES = 20 * 1024 * 1024;
+
+function HtmlPreview({ session, path, text }: { session: string; path: string; text: string }) {
+  const [doc, setDoc] = useState<string | null>(null);
+  // Resolved path → data-URI promise, per mount: an edit re-inlines the
+  // document without re-fetching every asset.
+  const assets = useRef(new Map<string, Promise<string | null>>());
+
+  useEffect(() => {
+    let cancelled = false;
+    void inlineWorktreeAssets(session, path, text, assets.current).then((html) => {
+      if (!cancelled) setDoc(html);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session, path, text]);
+
+  if (doc === null) return null; // first inline pass; later passes keep the old doc up
   return (
     <iframe
       // allow-scripts WITHOUT allow-same-origin: the document runs on a null
       // origin — it cannot read the app's cookies, storage, or daemon token.
+      // That null origin is also why assets are baked in as data URIs: it
+      // cannot load this origin's blob URLs, and giving it a tokened URL
+      // would hand the daemon token to arbitrary document scripts.
       sandbox="allow-scripts"
-      srcDoc={text}
+      srcDoc={doc}
       title={path}
       className="size-full bg-paper"
     />
   );
+}
+
+/**
+ * Rewrite the document's worktree asset references (relative or /-absolute;
+ * img/script/stylesheet/icon/media) to data URIs fetched through the authed
+ * API. Nested references — url(…) inside stylesheets, imports inside scripts
+ * — are not chased.
+ */
+async function inlineWorktreeAssets(
+  session: string,
+  docPath: string,
+  text: string,
+  cache: Map<string, Promise<string | null>>,
+): Promise<string> {
+  const parsed = new DOMParser().parseFromString(text, 'text/html');
+  const jobs: Array<Promise<void>> = [];
+  for (const [selector, attr] of HTML_ASSET_ATTRS) {
+    for (const el of parsed.querySelectorAll(selector)) {
+      const resolved = resolvePreviewAsset(docPath, el.getAttribute(attr) ?? '');
+      if (!resolved) continue;
+      el.removeAttribute(attr); // never let the iframe chase the raw reference
+      jobs.push(
+        fetchDataUri(session, resolved, cache).then((uri) => {
+          if (uri) el.setAttribute(attr, uri);
+        }),
+      );
+    }
+  }
+  await Promise.all(jobs);
+  return `<!doctype html>${parsed.documentElement.outerHTML}`;
+}
+
+function fetchDataUri(
+  session: string,
+  path: string,
+  cache: Map<string, Promise<string | null>>,
+): Promise<string | null> {
+  const hit = cache.get(path);
+  if (hit) return hit;
+  const job = apiFetchRaw('GET', `/api/worktrees/${session}/media?path=${encodeURIComponent(path)}`)
+    .then((res) => res.blob())
+    .then(async (blob) => {
+      if (blob.size > MAX_INLINE_ASSET_BYTES) return null;
+      return `data:${inlineMime(path, blob.type)};base64,${base64Of(await blob.arrayBuffer())}`;
+    })
+    .catch(() => null); // a missing asset just stays blank, like a browser
+  cache.set(path, job);
+  return job;
+}
+
+/**
+ * The MIME a data URI must carry for the browser to honour the asset: the
+ * media endpoint falls back to octet-stream for types it does not know
+ * (css/js), under which a stylesheet or script data URI would be ignored.
+ */
+function inlineMime(path: string, fromServer: string): string {
+  const ext = (path.split('/').pop() ?? '').split('.').pop()?.toLowerCase() ?? '';
+  if (ext === 'css') return 'text/css';
+  if (ext === 'js' || ext === 'mjs') return 'text/javascript';
+  return fromServer !== '' && fromServer !== 'application/octet-stream'
+    ? fromServer
+    : 'application/octet-stream';
+}
+
+function base64Of(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const CHUNK = 0x8000; // String.fromCharCode arg-count limit
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
 }

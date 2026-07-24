@@ -41,7 +41,19 @@ export interface RevealTarget extends EditorPosition {
   nonce: number;
 }
 
-export type OpenFile = (sessionId: string, path: string, position?: EditorPosition) => void;
+export interface OpenFileOpts {
+  /** Open as the pane's ephemeral preview TAB (italic, VSCode single-click). */
+  preview?: boolean;
+  /** Open a markdown/HTML file straight into its rendered view (SPEC §8). */
+  view?: 'source' | 'preview';
+}
+
+export type OpenFile = (
+  sessionId: string,
+  path: string,
+  position?: EditorPosition,
+  opts?: OpenFileOpts,
+) => void;
 
 interface EditorContextValue {
   /** Opens/focuses a file if a workspace is mounted; otherwise a muted toast. */
@@ -61,13 +73,13 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const [handler, setHandlerState] = useState<OpenFile | null>(null);
   const setHandler = useCallback((h: OpenFile | null) => setHandlerState(() => h), []);
   const openFile = useCallback<OpenFile>(
-    (sessionId, path, position) => {
+    (sessionId, path, position, opts) => {
       if (!handler) {
         // No workspace mounted (e.g. a stray deep-link) — fail soft, not silent.
         toast('The editor is not ready yet.');
         return;
       }
-      handler(sessionId, path, position);
+      handler(sessionId, path, position, opts);
     },
     [handler],
   );
@@ -91,7 +103,8 @@ export function useEditorHandler(handler: OpenFile): void {
   const ref = useRef(handler);
   ref.current = handler;
   useEffect(() => {
-    const stable: OpenFile = (sessionId, path, position) => ref.current(sessionId, path, position);
+    const stable: OpenFile = (sessionId, path, position, opts) =>
+      ref.current(sessionId, path, position, opts);
     setHandler(stable);
     return () => setHandler(null);
   }, [setHandler]);

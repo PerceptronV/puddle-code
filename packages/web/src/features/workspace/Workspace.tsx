@@ -187,8 +187,17 @@ function WorkspaceInner() {
   // permanent by default; the explorer opts into preview per single-vs-double
   // click (VSCode-style).
   const openFile = useCallback(
-    (sessionId: string, path: string, position?: EditorPosition, opts?: { preview?: boolean }) =>
-      openEditorTab({ kind: 'file', session: sessionId, path }, position, opts),
+    (
+      sessionId: string,
+      path: string,
+      position?: EditorPosition,
+      opts?: { preview?: boolean; view?: 'source' | 'preview' },
+    ) =>
+      openEditorTab(
+        { kind: 'file', session: sessionId, path, ...(opts?.view ? { view: opts.view } : {}) },
+        position,
+        opts,
+      ),
     [openEditorTab],
   );
   useEditorHandler(openFile);

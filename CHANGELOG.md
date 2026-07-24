@@ -8,3 +8,13 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Changed
+
+- Markdown/HTML preview (SPEC §8): both previews now resolve worktree asset
+  references — relative to the document or `/`-absolute from the worktree
+  root. The sandboxed HTML iframe inlines its assets (images, scripts,
+  stylesheets, icons, media) as data URIs through the authed API; markdown
+  images keep the object-URL path. Ctrl/⌘-click on a worktree link in a
+  markdown preview opens that file as an editor tab, with markdown/HTML
+  targets landing straight in their rendered view.
