@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronRight, FolderClosed, FolderOpen, Link2 } from 'lucide-react';
-import { toast } from 'sonner';
 import type { TreeEntry } from '@puddle/shared';
 import {
   ContextMenu,
@@ -19,15 +18,6 @@ import { folderStatus, gitDecoration } from './git-decoration';
 
 const INDENT_PX = 14;
 const PUDDLE_PATH_MIME = 'application/x-puddle-path';
-
-/** Rejects any dropped/pasted directory entries with a toast; returns only the plain files. */
-export function fileEntriesOnly(items: DataTransferItemList | undefined, files: FileList): File[] {
-  const entries = Array.from(items ?? []).map((item) => item.webkitGetAsEntry?.() ?? null);
-  if (entries.some((entry) => entry?.isDirectory)) {
-    toast.error("Folders can't be uploaded yet — zip them first");
-  }
-  return Array.from(files).filter((_, i) => entries[i]?.isDirectory !== true);
-}
 
 /** A short right-aligned keyboard-shortcut hint inside a menu row. */
 function Shortcut({ children }: { children: React.ReactNode }) {
@@ -195,7 +185,7 @@ export function TreeNode({
         ex.setDropTarget(null);
         const dragged = e.dataTransfer.getData(PUDDLE_PATH_MIME);
         if (dragged) ex.onInternalDrop(path, dragged);
-        else ex.onUpload(path, fileEntriesOnly(e.dataTransfer.items, e.dataTransfer.files));
+        else ex.onDropUpload(path, e.dataTransfer.items, e.dataTransfer.files);
       }}
       style={{ paddingLeft: depth * INDENT_PX + 8 }}
       className={cn(

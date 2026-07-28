@@ -11,7 +11,9 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { GitStatus, Session, TreeResponse } from '@puddle/shared';
+import { useDaemonVersion } from '../../lib/queries';
 import { downloadPath, uploadFiles, useWorktreeGitStatus } from '../../lib/worktree-queries';
+import { collectDroppedFiles } from './drop-files';
 import { buildStatusMap } from './git-decoration';
 import {
   basename,
@@ -70,6 +72,12 @@ export interface ExplorerCtx {
   refresh(): void;
 
   onUpload(dir: string, files: File[]): void;
+  /**
+   * OS drop/paste into `dir`: resolves the DataTransfer — walking dropped
+   * folders when the daemon supports them — then uploads. Call it synchronously
+   * from the event handler (the DataTransfer is only readable during dispatch).
+   */
+  onDropUpload(dir: string, items: DataTransferItemList | undefined, files: FileList): void;
   dropTarget: string | null;
   setDropTarget(path: string | null): void;
   onInternalDrop(targetDir: string, draggedPath: string): void;
@@ -124,6 +132,25 @@ export function ExplorerProvider({
         .catch((e: unknown) => toast.error(e instanceof Error ? e.message : 'Upload failed'));
     },
     [sid, qc],
+  );
+
+  // Folder drops need the daemon to honour relative upload paths (9.2); on an
+  // older daemon collectDroppedFiles falls back to rejecting folders. Unknown
+  // (still fetching) reads as supported — version skew within a major is rare.
+  const version = useDaemonVersion();
+  const protocol = version.data?.protocol;
+  const foldersSupported =
+    !protocol || protocol.major > 9 || (protocol.major === 9 && protocol.minor >= 2);
+
+  const onDropUpload = useCallback(
+    (dir: string, items: DataTransferItemList | undefined, files: FileList) => {
+      collectDroppedFiles(items, files, foldersSupported)
+        .then((collected) => onUpload(dir, collected))
+        .catch((e: unknown) =>
+          toast.error(e instanceof Error ? e.message : "Couldn't read the dropped folder"),
+        );
+    },
+    [onUpload, foldersSupported],
   );
 
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -455,6 +482,7 @@ export function ExplorerProvider({
     download,
     refresh,
     onUpload,
+    onDropUpload,
     dropTarget,
     setDropTarget,
     onInternalDrop,

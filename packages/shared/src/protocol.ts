@@ -56,5 +56,8 @@
 // round-trip the field (the snapshot is a loose object).
 // 9.2 (2026-07-27): additive — config.json gains `displayName` (a user-chosen
 // host label, editable in Settings → Host) and GET /api/host reports it as an
-// optional `displayName` the UI prefers over the OS hostname.
+// optional `displayName` the UI prefers over the OS hostname; the upload route
+// (POST /api/worktrees/:sid/upload) now honours relative paths in multipart
+// filenames, creating intermediate directories, so folder drag-and-drop works
+// (old daemons flatten to basenames — the UI feature-detects via this minor).
 export const PROTOCOL_VERSION = { major: 9, minor: 2 } as const;

@@ -2,6 +2,7 @@ import {
   createReadStream,
   existsSync,
   lstatSync,
+  mkdirSync,
   readdirSync,
   readFileSync,
   statSync,
@@ -222,16 +223,25 @@ export function worktreeFileRoutes(deps: { sessions: SessionStore }): Hono {
 
       const uploaded: UploadResponse['files'] = [];
       for (const file of files) {
-        // Basename first, then re-run through containedPath: a filename that
-        // arrives as `../../evil.txt` is neutralised to `evil.txt` and lands
-        // inside `dir`, mirroring an OS drag-and-drop copy rather than
-        // rejecting the whole upload.
-        const name = basename(file.name);
+        // A multipart filename may carry a dir-relative path (folder drag-in:
+        // the client walks the dropped directory and names each file with its
+        // path under the drop target). Sanitise per segment — `''`, `.` and
+        // `..` are dropped, so `../../evil.txt` is neutralised to `evil.txt`
+        // and lands inside `dir` — then contain the joined path as before.
+        const name = file.name
+          .split('/')
+          .filter((seg) => seg !== '' && seg !== '.' && seg !== '..')
+          .join('/');
+        if (!name) continue;
         const relPath = rel ? `${rel}/${name}` : name;
         const dest = containedPath(root, relPath);
+        mkdirSync(dirname(dest), { recursive: true });
         const bytes = Buffer.from(await file.arrayBuffer());
         writeFileSync(dest, bytes);
         uploaded.push({ path: relPath, size: bytes.byteLength });
+      }
+      if (uploaded.length === 0) {
+        throw ApiError.badRequest('nothing_uploaded', 'no files were present in the upload');
       }
       return c.json<UploadResponse>({ files: uploaded }, 201);
     })

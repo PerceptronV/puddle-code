@@ -15,6 +15,11 @@ Past releases: see docs/changelogs/.
   in place of the OS hostname across the UI — notably the top-left home button.
   `GET /api/host` reports it; ssh-forward commands keep the real hostname.
   Protocol 9.2.
+- Folder drag-and-drop upload: dropping a directory onto the file explorer now
+  uploads its whole tree (walked in the browser; each file travels under its
+  relative path and the daemon creates the intermediate directories — empty
+  directories are skipped). On a pre-9.2 daemon folders are still rejected with
+  the zip-first toast, feature-detected via `GET /api/version`. Protocol 9.2.
 
 ### Changed
 

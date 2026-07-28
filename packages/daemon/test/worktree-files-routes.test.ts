@@ -313,6 +313,30 @@ describe('POST /api/worktrees/:sid/upload', () => {
     expect(existsSync(join(worktree, 'evil.txt'))).toBe(false);
   });
 
+  it('rebuilds a folder drop: relative filenames create their directories under dir=', async () => {
+    mkdirSync(join(worktree, 'uploads'), { recursive: true });
+    const form = new FormData();
+    form.set('a', new File(['deep'], 'photos/cats/one.png'));
+    form.set('b', new File(['sneaky'], 'photos/../../../etc/passwd'));
+
+    const res = await upload(sessionId, 'uploads', form);
+    expect(res.status).toBe(201);
+    const body = uploadResponseSchema.parse(await res.json());
+    expect(body.files.map((f) => f.path).sort()).toEqual([
+      'uploads/photos/cats/one.png',
+      'uploads/photos/etc/passwd',
+    ]);
+
+    expect(readFileSync(join(worktree, 'uploads', 'photos', 'cats', 'one.png'), 'utf8')).toBe(
+      'deep',
+    );
+    // `..` segments are dropped, never resolved — the write stays inside dir=.
+    expect(readFileSync(join(worktree, 'uploads', 'photos', 'etc', 'passwd'), 'utf8')).toBe(
+      'sneaky',
+    );
+    expect(existsSync(join(worktree, 'etc'))).toBe(false);
+  });
+
   it('400s when dir does not exist', async () => {
     const form = new FormData();
     form.set('a', new File(['x'], 'x.txt'));

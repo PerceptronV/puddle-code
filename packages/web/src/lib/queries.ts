@@ -25,6 +25,7 @@ import type {
   ClearSessionEnvResponse,
   SessionPortsResponse,
   UiStateSnapshot,
+  VersionResponse,
 } from '@puddle/shared';
 import { api } from './api';
 
@@ -181,6 +182,19 @@ export function useDirSuggestions(prefix: string) {
     enabled: prefix.startsWith('/') || prefix.startsWith('~'), // ~ expands on the host
     placeholderData: (previous) => previous, // keep the list steady while typing
     staleTime: 10_000,
+  });
+}
+
+/**
+ * The daemon's app + protocol version, for feature-detecting within a major
+ * (PROTOCOL.md rule 3): a newer UI on an older daemon checks `protocol.minor`
+ * and hides what the daemon cannot do.
+ */
+export function useDaemonVersion() {
+  return useQuery({
+    queryKey: ['version'],
+    queryFn: () => api<VersionResponse>('GET', '/api/version'),
+    staleTime: Infinity, // changes only with a daemon swap, which reloads the UI
   });
 }
 

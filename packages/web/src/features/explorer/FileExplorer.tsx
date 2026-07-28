@@ -18,7 +18,7 @@ import {
 import { cn } from '../../lib/utils';
 import { useExplorer } from './explorer-context';
 import { basename } from './explorer-paths';
-import { DirEntries, fileEntriesOnly } from './TreeNode';
+import { DirEntries } from './TreeNode';
 
 /**
  * File explorer for one worktree (SPEC §8): a VSCode-grade tree with git
@@ -59,9 +59,7 @@ function ExplorerBody() {
           role="tree"
           tabIndex={0}
           onKeyDown={ex.handleKeyDown}
-          onPaste={(e) =>
-            ex.onUpload('', fileEntriesOnly(e.clipboardData.items, e.clipboardData.files))
-          }
+          onPaste={(e) => ex.onDropUpload('', e.clipboardData.items, e.clipboardData.files)}
           onDragOver={(e) => {
             e.preventDefault();
             ex.setDropTarget('');
@@ -74,7 +72,7 @@ function ExplorerBody() {
             ex.setDropTarget(null);
             const dragged = e.dataTransfer.getData('application/x-puddle-path');
             if (dragged) ex.onInternalDrop('', dragged);
-            else ex.onUpload('', fileEntriesOnly(e.dataTransfer.items, e.dataTransfer.files));
+            else ex.onDropUpload('', e.dataTransfer.items, e.dataTransfer.files);
           }}
           className={cn(
             'h-full overflow-y-auto py-1 outline-none',
