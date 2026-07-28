@@ -216,8 +216,9 @@ export function useSessionMenu(
       setRenaming(true);
     },
     // Archiving keeps everything (worktree, branch, conversation), so it needs no
-    // confirmation — one click hides it (SPEC §4). onArchived lets the caller drop
-    // the now-archived tab from the open panes.
+    // confirmation — one click hides it, and the daemon kills a live session as
+    // part of it (SPEC §4). onArchived lets the caller drop the now-archived tab
+    // from the open panes.
     archive: () =>
       archive.mutate(session.id, {
         onSuccess: () => onArchived?.(session.id),
@@ -487,7 +488,10 @@ function SessionMenuItems({ kit, menu }: { kit: MenuKit; menu: SessionMenu }) {
           </Item>
         </>
       )}
-      {menu.resumable && (
+      {/* Archive is always one click away, live or not — the daemon kills a
+          live session as part of archiving, and nothing is destroyed either
+          way (SPEC §4), so there is no confirmation. */}
+      {!menu.archived && (
         <>
           <Separator />
           <Item onSelect={menu.archive}>

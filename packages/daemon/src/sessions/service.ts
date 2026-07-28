@@ -706,18 +706,21 @@ export class SessionService extends EventEmitter {
   }
 
   /**
-   * Archive a session (SPEC §4): a reversible hide, NOT a teardown. The worktree,
-   * its branch, and the agent's conversation all stay exactly where they are, so
-   * the session can be unarchived later and — if its worktree is still on disk —
-   * resumed with its history intact. Reclaiming a worktree's disk is a separate,
-   * explicit action in the Worktrees manager; deleting a branch is done there
-   * too (git refuses while the branch is checked out in the kept worktree).
+   * Archive a session (SPEC §4): a reversible hide, NOT a teardown. A live
+   * session is killed first; the worktree, its branch, and the agent's
+   * conversation all stay exactly where they are, so the session can be
+   * unarchived later and — if its worktree is still on disk — resumed with
+   * its history intact. Reclaiming a worktree's disk is a separate, explicit
+   * action in the Worktrees manager; deleting a branch is done there too
+   * (git refuses while the branch is checked out in the kept worktree).
    */
   async archive(id: string): Promise<Session> {
     const session = this.deps.sessions.get(id);
-    if (session.status !== 'exited' && session.status !== 'interrupted') {
-      throw ApiError.conflict('session_live', 'a running session must be killed before archiving');
-    }
+    if (session.status === 'archived') return session; // an idempotent hide
+    // A live session is killed as part of archiving — one gesture from the
+    // UI, no kill-then-archive dance. Still nothing is destroyed: the
+    // conversation stays exactly as resumable after an unarchive.
+    if (LIVE_STATUSES.includes(session.status)) await this.kill(id);
     this.deps.onboarding.unwatch(id);
     this.adopted.delete(id);
     this.transition(id, 'archived');

@@ -169,15 +169,20 @@ describe('kill / resume / archive lifecycle', () => {
     await f.service.kill(session.id);
   });
 
-  it('refuses to archive a live session', async () => {
+  it('archives a live session by killing it first — one gesture, still reversible', async () => {
     const f = fixture();
     const session = await f.service.create({
       project_id: f.ids.project,
       account_id: f.ids.account,
       title: 'live',
     });
-    await expect(f.service.archive(session.id)).rejects.toMatchObject({ code: 'session_live' });
-    await f.service.kill(session.id);
+    const archived = await f.service.archive(session.id);
+    expect(archived.status).toBe('archived');
+    // Re-archiving is an idempotent hide, and the kill was not a teardown:
+    // unarchive brings the session back resumable.
+    expect((await f.service.archive(session.id)).status).toBe('archived');
+    expect((await f.service.unarchive(session.id)).status).toBe('exited');
+    await f.service.archive(session.id); // leave it hidden for the fixture teardown
   });
 
   it('archives a dirty worktree without complaint, keeping its uncommitted changes', async () => {

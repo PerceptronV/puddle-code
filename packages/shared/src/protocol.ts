@@ -64,4 +64,8 @@
 // right sidebar for a top-bar popover) went optional-without-default, so the
 // daemon stops injecting `'sessions'` into every stored snapshot; peers in
 // both directions tolerate its presence and absence.
-export const PROTOCOL_VERSION = { major: 9, minor: 2 } as const;
+// 9.3 (2026-07-28): additive behaviour — POST /api/sessions/:id/archive now
+// accepts a LIVE session (the daemon kills it as part of archiving) and is
+// idempotent on an archived one, instead of 409ing `session_live`. No shape
+// change; a newer UI on a 9.2 daemon degrades to the old conflict toast.
+export const PROTOCOL_VERSION = { major: 9, minor: 3 } as const;
