@@ -51,6 +51,9 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- File explorer: the inline input for New File… / New Folder… / Rename… now
+  reliably takes focus — the closing context menu used to steal it back, so
+  typing straight after creating went nowhere.
 - Stored workspace snapshots no longer grow a spurious `right_panel: 'sessions'`
   key on every write — the retired field went optional-without-default in the
   ui_state schema (protocol 9.2), which also un-breaks the e2e round-trip test.

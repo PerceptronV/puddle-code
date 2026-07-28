@@ -82,7 +82,14 @@ function ExplorerBody() {
           <DirEntries sid={ex.sid} path="" depth={0} />
         </div>
       </ContextMenuTrigger>
-      <ContextMenuContent>
+      <ContextMenuContent
+        // New File…/New Folder… mount an inline edit input; without this the
+        // menu's close-auto-focus steals focus back to the tree, so typing
+        // straight after creating would not name the entry.
+        onCloseAutoFocus={(e) => {
+          if (ex.editing) e.preventDefault();
+        }}
+      >
         <ContextMenuItem onSelect={() => ex.beginCreate('', 'file')}>New File…</ContextMenuItem>
         <ContextMenuItem onSelect={() => ex.beginCreate('', 'dir')}>New Folder…</ContextMenuItem>
         <ContextMenuSeparator />

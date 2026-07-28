@@ -43,10 +43,21 @@ function EditRow({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    el.focus();
-    // Select the basename, not the extension (matches VSCode rename).
-    const dot = initial.lastIndexOf('.');
-    el.setSelectionRange(0, dot > 0 ? dot : initial.length);
+    const claim = () => {
+      el.focus();
+      // Select the basename, not the extension (matches VSCode rename).
+      const dot = initial.lastIndexOf('.');
+      el.setSelectionRange(0, dot > 0 ? dot : initial.length);
+    };
+    claim();
+    // The context menu that summoned this row steals focus back to its trigger
+    // as it closes (its onCloseAutoFocus is prevented while editing, but any
+    // other same-tick focus juggling would too) — re-claim on the next frame
+    // so typing straight away always lands in the input.
+    const raf = requestAnimationFrame(() => {
+      if (document.activeElement !== el) claim();
+    });
+    return () => cancelAnimationFrame(raf);
   }, [initial]);
   const commit = () => {
     if (done.current) return;
@@ -238,7 +249,14 @@ export function TreeNode({
     <>
       <ContextMenu>
         <ContextMenuTrigger asChild>{rowEl}</ContextMenuTrigger>
-        <ContextMenuContent>
+        <ContextMenuContent
+          // New File…/New Folder…/Rename… mount an inline edit input; the
+          // menu's default close-auto-focus would steal focus back to this
+          // row, so typing straight after creating would go nowhere.
+          onCloseAutoFocus={(e) => {
+            if (ex.editing) e.preventDefault();
+          }}
+        >
           {isDir && (
             <>
               <ContextMenuItem onSelect={() => ex.beginCreate(path, 'file')}>
