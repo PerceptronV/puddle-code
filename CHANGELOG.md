@@ -16,3 +16,5 @@ Past releases: see docs/changelogs/.
   part of archiving (still a reversible hide; unarchive brings it back
   resumable), so there is no kill-first dance and no confirmation dialog.
   Protocol 9.3.
+- Kill lost its confirmation dialog too: it only stops the agent process (the
+  conversation stays resumable), so the menu action now fires immediately.

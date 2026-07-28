@@ -77,7 +77,8 @@ export interface SessionMenu {
   canMigrate: boolean;
   sameAgent: Account[];
   resume: () => void;
-  openKill: () => void;
+  /** Kill straight away — no confirmation (the conversation stays resumable). */
+  kill: () => void;
   openRename: () => void;
   /** Confirm-then-clear the session's captured env (SPEC §4). */
   openClearEnv: () => void;
@@ -137,7 +138,7 @@ export function useSessionMenu(
   const profileId = useCurrentProfileId();
   const accounts = useAccounts(profileId ?? undefined);
   const settings = useProfileSettings(profileId ?? undefined);
-  const [confirm, setConfirm] = useState<'kill' | 'clear-env' | null>(null);
+  const [confirm, setConfirm] = useState<'clear-env' | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [newTitle, setNewTitle] = useState(session.title ?? '');
   const [migrateTo, setMigrateTo] = useState<Account | null>(null);
@@ -173,7 +174,9 @@ export function useSessionMenu(
     canMigrate,
     sameAgent,
     resume: () => resume.mutate(session.id, { onError: (e) => toast.error(e.message) }),
-    openKill: () => setConfirm('kill'),
+    // Killing only stops the process — the conversation stays resumable — so
+    // it fires straight away, like archive.
+    kill: () => kill.mutate(session.id, { onError: (e) => toast.error(e.message) }),
     openClearEnv: () => setConfirm('clear-env'),
     // A plain shell in THIS session's working directory (SPEC §4: a terminal
     // session joining an existing worktree) — for git surgery, running tests,
@@ -275,43 +278,6 @@ export function useSessionMenu(
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={confirm === 'kill'}
-        onOpenChange={(open) => {
-          if (open) return;
-          setConfirm(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Kill this session?</DialogTitle>
-            <DialogDescription>
-              The agent process stops (SIGTERM, then SIGKILL). The conversation stays resumable.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setConfirm(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="danger"
-              disabled={kill.isPending}
-              onClick={() =>
-                kill.mutate(session.id, {
-                  onSuccess: () => setConfirm(null),
-                  onError: (e) => {
-                    setConfirm(null);
-                    toast.error(e.message);
-                  },
-                })
-              }
-            >
-              Kill session
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={renaming} onOpenChange={setRenaming}>
         <DialogContent>
           <DialogHeader>
@@ -408,7 +374,7 @@ function SessionMenuItems({ kit, menu }: { kit: MenuKit; menu: SessionMenu }) {
         </Item>
       )}
       {menu.live && (
-        <Item onSelect={menu.openKill}>
+        <Item onSelect={menu.kill}>
           <Square /> Kill
         </Item>
       )}
