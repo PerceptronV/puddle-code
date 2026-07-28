@@ -60,13 +60,14 @@ export function useLocalSyncEngine(): void {
     lastAppliedRef.current = null; // a different profile starts from scratch
   }, [profile?.name]);
 
+  const store = sync.data?.available === true ? sync.data.file : undefined;
   const ready =
     profile !== undefined &&
     profileId !== null &&
     settings.data !== undefined &&
     scratchpad.data !== undefined &&
-    sync.data?.available === true;
-  const entry = ready ? sync.data.file.profiles[profile.name] : undefined;
+    store !== undefined;
+  const entry = profile && store ? store.profiles[profile.name] : undefined;
   const busy =
     patchSettings.isPending ||
     patchProfile.isPending ||
