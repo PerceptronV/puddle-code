@@ -24,6 +24,12 @@ const fields = {
    * location (`~/.local/bin`). Takes effect on the next daemon start.
    */
   agentPath: z.string(),
+  /**
+   * User-chosen label for this host, shown across the UI in place of the OS
+   * hostname when non-empty (surfaced via GET /api/host as `displayName`).
+   * Purely cosmetic — never used for ssh commands or anything transport-level.
+   */
+  displayName: z.string().max(64),
 };
 
 /** Daemon-scope settings persisted in ~/.puddle/config.json. */
@@ -35,6 +41,7 @@ export const daemonConfigSchema = z.object({
   replayBytes: fields.replayBytes.default(256 * 1024),
   uiStateRetentionDays: fields.uiStateRetentionDays.default(90),
   agentPath: fields.agentPath.default('~/.local/bin:~/bin:/opt/homebrew/bin:/usr/local/bin'),
+  displayName: fields.displayName.default(''),
 });
 export type DaemonConfig = z.infer<typeof daemonConfigSchema>;
 

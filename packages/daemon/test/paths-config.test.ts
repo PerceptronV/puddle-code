@@ -49,6 +49,7 @@ describe('daemon config', () => {
       replayBytes: 256 * 1024,
       uiStateRetentionDays: 90,
       agentPath: '~/.local/bin:~/bin:/opt/homebrew/bin:/usr/local/bin',
+      displayName: '',
     });
     const onDisk = JSON.parse(readFileSync(paths.configFile, 'utf8'));
     expect(onDisk.port).toBe(7434);

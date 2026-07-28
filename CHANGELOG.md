@@ -9,6 +9,13 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Added
+
+- Host display name: `config.json` gains `displayName` (Settings → Host), shown
+  in place of the OS hostname across the UI — notably the top-left home button.
+  `GET /api/host` reports it; ssh-forward commands keep the real hostname.
+  Protocol 9.2.
+
 ### Changed
 
 - Markdown/HTML preview (SPEC §8): both previews now resolve worktree asset

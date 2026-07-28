@@ -54,4 +54,7 @@
 // ('source' | 'preview') so a markdown/HTML tab's rendered-preview mode
 // persists in `ui_state.layout_tree` (SPEC §8). Old clients/daemons ignore or
 // round-trip the field (the snapshot is a loose object).
-export const PROTOCOL_VERSION = { major: 9, minor: 1 } as const;
+// 9.2 (2026-07-27): additive — config.json gains `displayName` (a user-chosen
+// host label, editable in Settings → Host) and GET /api/host reports it as an
+// optional `displayName` the UI prefers over the OS hostname.
+export const PROTOCOL_VERSION = { major: 9, minor: 2 } as const;

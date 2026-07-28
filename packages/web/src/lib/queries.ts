@@ -457,7 +457,11 @@ export function usePatchConfig() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (patch: DaemonConfigPatch) => api<DaemonConfig>('PATCH', '/api/config', patch),
-    onSuccess: (config) => qc.setQueryData(['config'], config),
+    onSuccess: (config, patch) => {
+      qc.setQueryData(['config'], config);
+      // The host label mirrors config.displayName; refetch so it updates live.
+      if ('displayName' in patch) void qc.invalidateQueries({ queryKey: ['host'] });
+    },
   });
 }
 

@@ -53,6 +53,25 @@ export function HostSection() {
       {/* The port is deliberately absent: transport is the CLI's business
           (--port / config.json), never the UI's (decision 2026-07-13). */}
       <SectionTitle note="Affects all profiles on this host">Host</SectionTitle>
+      <SettingRow
+        label="Display name"
+        description="Shown in place of the hostname across the UI. Leave blank for the hostname."
+        htmlFor="host-displayName"
+      >
+        <Input
+          id="host-displayName"
+          type="text"
+          maxLength={64}
+          className="w-48"
+          defaultValue={config.data.displayName}
+          onBlur={(e) => {
+            const value = e.target.value.trim();
+            if (value !== config.data.displayName) {
+              patch.mutate({ displayName: value }, { onError: (err) => toast.error(err.message) });
+            }
+          }}
+        />
+      </SettingRow>
       <NumberSetting
         label="Fetch interval (minutes)"
         description="Periodic git fetch for repos with active sessions."

@@ -89,7 +89,7 @@ export function buildApp(deps: AppDeps): Hono {
     app.route('/api/config', configRoutes(api));
     app.route('/api/fs', fsRoutes());
     app.route('/api/worktrees', worktreeRoutes(api));
-    app.route('/api/host', hostRoutes());
+    app.route('/api/host', hostRoutes(api));
 
     // Tier-2 reverse proxy (SPEC §2/§9). Host/Origin guard, then the /proxy auth
     // (bearer/cookie/one-shot query param), then the router — all BEFORE the

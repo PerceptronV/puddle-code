@@ -79,7 +79,7 @@ function HomeButton() {
       <img src="/puddle.svg" alt="puddle" className="size-4" />
       {host.data && (
         <span className="truncate font-mono text-sm font-semibold text-fg-secondary">
-          {host.data.hostname}
+          {host.data.displayName || host.data.hostname}
         </span>
       )}
     </Link>
