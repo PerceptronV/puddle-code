@@ -40,7 +40,10 @@ Past releases: see docs/changelogs/.
   arm64, AppImage on linux x64) and attach it to the GitHub release with
   checksums in SHA256SUMS. macOS signing + notarisation switch on when the
   `MAC_CERT_P12`/`MAC_CERT_PASSWORD` and `APPLE_ID`/`APPLE_APP_SPECIFIC_PASSWORD`/
-  `APPLE_TEAM_ID` secrets exist; unsigned otherwise.
+  `APPLE_TEAM_ID` secrets exist; unsigned otherwise — the accepted default,
+  with the Gatekeeper "Open Anyway"/`xattr` path documented in the README.
+- Desktop app icon: the puddle mark in dark-theme gold on a navy squircle
+  (icon.svg → committed png/icns via `packages/desktop/scripts/render-icon.sh`).
 
 ### Fixed
 

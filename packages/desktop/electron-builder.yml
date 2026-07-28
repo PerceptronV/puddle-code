@@ -9,6 +9,9 @@
 # `-c.mac.notarize=true` (needs APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD,
 # APPLE_TEAM_ID) only when the certificate secrets exist — see
 # .github/workflows/release.yml "desktop" job.
+# Icon: build/icon.icns (mac) and build/icon.png (linux) are picked up from
+# the default buildResources dir — rendered from build/icon.svg by
+# scripts/render-icon.sh, and committed so CI needs no rasteriser.
 appId: code.puddle.desktop
 productName: Puddle
 directories:

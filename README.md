@@ -47,6 +47,18 @@ Daemon-only installs (no CLI) use the `install.sh` attached to each release — 
 curl -fsSL https://github.com/PerceptronV/puddle-code/releases/latest/download/install.sh | sh
 ```
 
+**Desktop app (optional):**
+
+The same cockpit also ships as a standalone desktop app — identical UI and engine, plus a File → "Connect to SSH Host…" menu for remote hosts. Grab the dmg (macOS arm64) or AppImage (Linux x64) from the Releases page.
+
+The macOS downloads are **not code-signed** (an open-source project without Apple Developer Program fees), so Gatekeeper will refuse the first launch. Either allow it once — open the app, let macOS block it, then System Settings → Privacy & Security → **Open Anyway** — or clear the download quarantine in a terminal:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Puddle.app
+```
+
+Building from source avoids the dance entirely (locally built apps are never quarantined): `pnpm build && pnpm --filter @puddle/desktop dist`.
+
 **Host requirements**: Linux (glibc — Ubuntu 22.04+, Debian 12+, RHEL 9+; Alpine is not supported) or macOS, with `git` and `curl`, plus whichever agent CLIs you want on `PATH`. The client side works from any OS with a browser and `ssh` (Windows works, with repeated auth prompts unless you use a key).
 
 ## How it works
