@@ -31,6 +31,16 @@ Past releases: see docs/changelogs/.
   in-process, notification clicks raise the window, and quitting never
   touches the daemon or running agents. `pnpm --filter @puddle/desktop start`
   to run, `… dist` to package (dmg/zip/AppImage).
+- Desktop remote hosts: File → "Connect to SSH Host…" (⌘⇧O, with a Recent
+  Hosts submenu) drives the CLI's `connectRemote` — one window per host,
+  closing it stops only that cockpit's tunnel/UI server. Key-authenticated
+  hosts only (no TTY for ssh prompts); the dialogue points password/2FA
+  hosts at `puddle connect`.
+- Desktop release packaging: tags now also build the app (dmg/zip on macOS
+  arm64, AppImage on linux x64) and attach it to the GitHub release with
+  checksums in SHA256SUMS. macOS signing + notarisation switch on when the
+  `MAC_CERT_P12`/`MAC_CERT_PASSWORD` and `APPLE_ID`/`APPLE_APP_SPECIFIC_PASSWORD`/
+  `APPLE_TEAM_ID` secrets exist; unsigned otherwise.
 
 ### Fixed
 

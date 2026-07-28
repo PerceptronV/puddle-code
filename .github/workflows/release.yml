@@ -47,8 +47,74 @@ jobs:
             dist-release/*.sha256
           if-no-files-found: error
 
+  desktop:
+    # Packages the Electron shell (packages/desktop). Signing is dormant
+    # until secrets exist (the npm-publish pattern): with MAC_CERT_P12 +
+    # MAC_CERT_PASSWORD set, the mac build is signed under hardened runtime
+    # and — with APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID —
+    # notarised; without them it ships unsigned (right-click-open territory,
+    # fine for self-hosters). AppImage needs no signing.
+    strategy:
+      matrix:
+        include:
+          - { runner: macos-14, target: darwin-arm64 }
+          - { runner: ubuntu-22.04, target: linux-x64 }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        env:
+          # electron-builder fetches its own Electron dist at package time;
+          # the node_modules binary is never launched here.
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - run: pnpm build
+        env:
+          # Bakes the release-source repository into the bundled lib so the
+          # embedded bootstrap fetches daemon tarballs from the repo that
+          # published it (same as the npm CLI build).
+          PUDDLE_REPO_SLUG: ${{ github.repository }}
+      - name: package (signed + notarised only when the cert secrets exist)
+        working-directory: packages/desktop
+        env:
+          CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ "$RUNNER_OS" != "macOS" ]; then
+            pnpm exec electron-builder
+          elif [ -n "$CSC_LINK" ]; then
+            pnpm exec electron-builder -c.mac.notarize=true
+          else
+            echo "no signing certificate secrets — building unsigned"
+            pnpm exec electron-builder -c.mac.identity=null
+          fi
+      - name: checksums
+        working-directory: packages/desktop/release
+        run: |
+          for f in *.dmg *.zip *.AppImage; do
+            if [ -f "$f" ]; then shasum -a 256 "$f"; fi
+          done > desktop-${{ matrix.target }}.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.target }}
+          # Explicit globs on purpose: never the .blockmap / latest-*.yml
+          # auto-update metadata (puddle has no updater).
+          path: |
+            packages/desktop/release/*.dmg
+            packages/desktop/release/*.zip
+            packages/desktop/release/*.AppImage
+            packages/desktop/release/*.sha256
+          if-no-files-found: error
+
   release:
-    needs: tarball
+    needs: [tarball, desktop]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -58,6 +124,11 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           pattern: tarball-*
+          merge-multiple: true
+          path: dist-release
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
           merge-multiple: true
           path: dist-release
       - name: assemble SHA256SUMS and bake the repository into install.sh
@@ -75,6 +146,9 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" \
             dist-release/*.tar.gz \
+            dist-release/*.dmg \
+            dist-release/*.zip \
+            dist-release/*.AppImage \
             dist-release/SHA256SUMS \
             dist-release/install.sh \
             --verify-tag --notes-file dist-release/RELEASE_NOTES.md

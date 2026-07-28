@@ -1,0 +1,154 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
+    />
+    <title>Connect to SSH Host</title>
+    <style>
+      /* Shell chrome, outside the web app's token system — a deliberately
+         tiny palette mirroring its feel (HUMANS.md: no borders, fill shifts,
+         aligned text, generous spacing). */
+      :root {
+        color-scheme: light dark;
+        --bg: #f6f6f4;
+        --fill: #e9e9e6;
+        --fill-hover: #dfdfdb;
+        --text: #1c1c1a;
+        --muted: #77776f;
+        --action: #2f6feb;
+        --action-hover: #275fd0;
+        --danger: #b3372f;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #171715;
+          --fill: #242421;
+          --fill-hover: #2d2d29;
+          --text: #e8e8e3;
+          --muted: #8f8f86;
+          --action: #4c82f0;
+          --action-hover: #6494f3;
+          --danger: #e06a60;
+        }
+      }
+      * {
+        margin: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font:
+          13px/1.45 system-ui,
+          sans-serif;
+        padding: 20px 22px;
+        user-select: none;
+      }
+      label {
+        display: block;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      input {
+        width: 100%;
+        border: 0;
+        outline: 0;
+        border-radius: 6px;
+        background: var(--fill);
+        color: var(--text);
+        font:
+          13px/1 ui-monospace,
+          monospace;
+        padding: 9px 10px;
+      }
+      input:focus {
+        background: var(--fill-hover);
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 14px;
+      }
+      #status {
+        flex: 1;
+        color: var(--muted);
+        max-height: 3.9em;
+        overflow-y: auto;
+        user-select: text;
+      }
+      #status.error {
+        color: var(--danger);
+      }
+      button {
+        border: 0;
+        border-radius: 6px;
+        padding: 7px 14px;
+        font: inherit;
+        cursor: pointer;
+        background: var(--fill);
+        color: var(--text);
+      }
+      button:hover {
+        background: var(--fill-hover);
+      }
+      button.primary {
+        background: var(--action);
+        color: #fff;
+      }
+      button.primary:hover {
+        background: var(--action-hover);
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+    </style>
+  </head>
+  <body>
+    <label for="host">user@host — or any destination your ssh config knows</label>
+    <input
+      id="host"
+      type="text"
+      spellcheck="false"
+      autocomplete="off"
+      placeholder="dev@build-box"
+    />
+    <div class="row">
+      <div id="status"></div>
+      <button id="cancel" type="button">Cancel</button>
+      <button id="connect" type="button" class="primary">Connect</button>
+    </div>
+    <script>
+      const host = document.getElementById('host');
+      const status = document.getElementById('status');
+      const connect = document.getElementById('connect');
+      const cancel = document.getElementById('cancel');
+
+      const submit = () => {
+        if (host.value.trim() === '') return;
+        window.puddlePrompt.submit(host.value);
+      };
+      connect.addEventListener('click', submit);
+      cancel.addEventListener('click', () => window.puddlePrompt.cancel());
+      host.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') submit();
+        if (e.key === 'Escape') window.puddlePrompt.cancel();
+      });
+
+      window.puddlePrompt.onStatus(({ state, message }) => {
+        const busy = state === 'connecting';
+        connect.disabled = busy;
+        host.disabled = busy;
+        status.classList.toggle('error', state === 'error');
+        status.textContent = busy ? `Connecting to ${host.value.trim()}…` : (message ?? '');
+        if (state === 'error') host.focus();
+      });
+
+      host.focus();
+    </script>
+  </body>
+</html>

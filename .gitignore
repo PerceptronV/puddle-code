@@ -6,3 +6,5 @@ coverage/
 .superpowers/
 /dist-release/
 tsc-out/
+# electron-builder output (packages/desktop)
+release/
