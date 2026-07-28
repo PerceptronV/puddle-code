@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { AgentAdapter, AgentUsage } from './adapter.js';
 import { claudeConversationShare } from './claude-share.js';
+import { installStatusHooks } from './claude-hooks.js';
 import { installStatusLine, readLiveUsage } from './claude-statusline.js';
 import { fetchSubscriptionUsage } from './claude-usage-cli.js';
 
@@ -103,6 +104,7 @@ export const claudeCode: AgentAdapter = {
       },
     );
     installStatusLine(configDir); // live-usage capture (context fill, cost)
+    installStatusHooks(configDir); // hook-driven running ⇄ waiting_input signals
   },
 
   async importConfigDir(sourceDir, configDir) {
@@ -123,6 +125,7 @@ export const claudeCode: AgentAdapter = {
     state['hasCompletedOnboarding'] = true;
     writeFileSync(stateFile, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
     installStatusLine(configDir); // respects an imported account's own statusLine
+    installStatusHooks(configDir); // additive beside any imported hooks
   },
 
   acceptSkipPermissions(account) {
@@ -241,8 +244,11 @@ export const claudeCode: AgentAdapter = {
 
   reconcileConfigDir(account) {
     // Bring pre-existing accounts up to the current setup (idempotent, and
-    // it never clobbers a status line the account already defines).
-    if (existsSync(account.config_dir)) installStatusLine(account.config_dir);
+    // it never clobbers a status line or hooks the account already defines).
+    if (existsSync(account.config_dir)) {
+      installStatusLine(account.config_dir);
+      installStatusHooks(account.config_dir);
+    }
   },
 
   launchArgs(opts) {

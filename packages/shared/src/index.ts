@@ -1,6 +1,7 @@
 export * from './protocol.js';
 export * from './api/common.js';
 export * from './api/version.js';
+export * from './api/agent-signal.js';
 export * from './api/config.js';
 export * from './api/fs.js';
 export * from './api/host.js';

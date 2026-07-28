@@ -9,6 +9,16 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Fixed
+
+- Status detection no longer sticks on green: agent status is now driven by
+  the agent's own hooks instead of scraping the terminal. For Claude Code the
+  daemon installs Stop / Notification(permission_prompt, idle_prompt) /
+  UserPromptSubmit / PreToolUse hooks (verified against 2.1.219) whose helper
+  reports to a new nonce-gated `POST /agent-signal` endpoint (protocol 9.4);
+  the old regex detection remains as a fallback until a session's first
+  signal. Existing accounts pick the hooks up at the next daemon boot.
+
 ### Changed
 
 - Archiving is one gesture for any session: the ⋯/right-click menu offers

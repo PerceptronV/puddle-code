@@ -68,4 +68,8 @@
 // accepts a LIVE session (the daemon kills it as part of archiving) and is
 // idempotent on an archived one, instead of 409ing `session_live`. No shape
 // change; a newer UI on a 9.2 daemon degrades to the old conflict toast.
-export const PROTOCOL_VERSION = { major: 9, minor: 3 } as const;
+// 9.4 (2026-07-28): additive — POST /agent-signal (outside /api: nonce-gated,
+// no bearer), the agent-hook status side-channel. The daemon injects
+// PUDDLE_AGENT_SIGNAL_URL/_NONCE into agent PTYs; hook processes report
+// working/waiting_input, which overrides the regex detector once seen.
+export const PROTOCOL_VERSION = { major: 9, minor: 4 } as const;

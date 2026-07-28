@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import type { UpgradeWebSocket } from 'hono/ws';
+import { agentSignalRequestSchema } from '@puddle/shared';
 import type { AdapterRegistry } from '../agents/registry.js';
 import type { AccountStore } from '../db/stores/accounts.js';
 import type { ProfileStateStore } from '../db/stores/profile-states.js';
@@ -21,6 +22,7 @@ import type { SessionService } from '../sessions/service.js';
 import type { WorktreeManager } from '../worktrees/manager.js';
 import type { WsGateway } from '../ws/gateway.js';
 import { ApiError } from './errors.js';
+import { parseBody } from './validate.js';
 import { accountRoutes } from './routes/accounts.js';
 import { agentRoutes } from './routes/agents.js';
 import { configRoutes } from './routes/config.js';
@@ -90,6 +92,19 @@ export function buildApp(deps: AppDeps): Hono {
     app.route('/api/fs', fsRoutes());
     app.route('/api/worktrees', worktreeRoutes(api));
     app.route('/api/host', hostRoutes(api));
+
+    // Agent-hook status side-channel (SPEC §4): deliberately OUTSIDE /api —
+    // the caller is a hook process on this host with no bearer token; the
+    // per-session nonce (injected into the agent PTY env) is the auth. Same
+    // Host/Origin discipline as everything else; never proxied by cockpits.
+    app.use('/agent-signal', hostOriginGuard());
+    app.post('/agent-signal', async (c) => {
+      const body = await parseBody(c, agentSignalRequestSchema);
+      if (!api.service.signalAgentStatus(body.nonce, body.state)) {
+        throw ApiError.notFound('signal', 'nonce');
+      }
+      return c.body(null, 204);
+    });
 
     // Tier-2 reverse proxy (SPEC §2/§9). Host/Origin guard, then the /proxy auth
     // (bearer/cookie/one-shot query param), then the router — all BEFORE the

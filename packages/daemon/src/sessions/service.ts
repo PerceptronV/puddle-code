@@ -84,6 +84,15 @@ interface LiveAgent {
   lastTitleCheck: number;
   /** Last OSC "sequence" title seen, to persist/broadcast only on a real change. */
   lastOscTitle: string | null;
+  /** Per-spawn secret for /agent-signal (SPEC §4); null for shells. */
+  signalNonce: string | null;
+  /**
+   * True once a hook signal arrived: from then on the agent's own hooks are
+   * authoritative for running ⇄ waiting_input and the regex detector is
+   * ignored (TUI redraws would otherwise flap an idle session back to
+   * running with no hook event to restore it).
+   */
+  signalled: boolean;
 }
 
 const LIVE_STATUSES: SessionStatus[] = ['starting', 'running', 'waiting_input'];
@@ -110,6 +119,10 @@ const MAX_ENV_VARS = 128;
  */
 export class SessionService extends EventEmitter {
   private readonly liveAgents = new Map<string, LiveAgent>();
+  /** nonce → session id for /agent-signal lookups; entries die with the PTY. */
+  private readonly signalNonces = new Map<string, string>();
+  /** The daemon's bound port, once known — enables the signal env injection. */
+  private signalPort: number | null = null;
   /** Sessions whose conversation is already adopted — stops the retry loop. */
   private readonly adopted = new Set<string>();
   /** `${sessionId}:${name}` pairs already warned about, so cap notes fire once. */
@@ -448,6 +461,8 @@ export class SessionService extends EventEmitter {
       lastTouch: 0,
       lastTitleCheck: 0,
       lastOscTitle: null,
+      signalNonce: null,
+      signalled: false,
     });
   }
 
@@ -920,6 +935,10 @@ export class SessionService extends EventEmitter {
     args: string[],
     initial: LiveAgent['status'],
   ): void {
+    // The status-signal side-channel (SPEC §4): a per-spawn nonce plus the
+    // daemon's own /agent-signal URL, injected so agent hook processes (which
+    // inherit this env) can report running ⇄ waiting_input authoritatively.
+    const signalNonce = this.signalPort !== null ? randomUUID() : null;
     try {
       this.deps.ptys.spawn(sessionId, 'agent', adapter.binary, args, {
         cwd: worktreePath,
@@ -928,6 +947,12 @@ export class SessionService extends EventEmitter {
         env: {
           ...this.capturedSpawnEnv(this.deps.sessions.get(sessionId)),
           ...adapter.env(account),
+          ...(signalNonce !== null
+            ? {
+                PUDDLE_AGENT_SIGNAL_URL: `http://127.0.0.1:${this.signalPort}/agent-signal`,
+                PUDDLE_AGENT_SIGNAL_NONCE: signalNonce,
+              }
+            : {}),
         },
       });
     } catch (e) {
@@ -953,7 +978,10 @@ export class SessionService extends EventEmitter {
       lastTouch: 0,
       lastTitleCheck: 0,
       lastOscTitle: null,
+      signalNonce,
+      signalled: false,
     });
+    if (signalNonce !== null) this.signalNonces.set(signalNonce, sessionId);
   }
 
   private onPtyData(e: PtyDataEvent): void {
@@ -1016,9 +1044,45 @@ export class SessionService extends EventEmitter {
     } satisfies RenameEvent);
   }
 
-  private onDetected(sessionId: string, detected: DetectedStatus): void {
+  /**
+   * The daemon's bound port, learnt after listen — from then on every agent
+   * spawn carries the /agent-signal env pair (see spawnAgent).
+   */
+  setSignalPort(port: number): void {
+    this.signalPort = port;
+  }
+
+  /** This session's live signal nonce (tests/diagnostics), or null. */
+  signalNonceFor(sessionId: string): string | null {
+    return this.liveAgents.get(sessionId)?.signalNonce ?? null;
+  }
+
+  /**
+   * POST /agent-signal (SPEC §4): an agent hook reports its own state. The
+   * nonce is the auth — unknown or stale (PTY exited) → false, and the route
+   * 404s without leaking whether the nonce ever existed. The first signal
+   * flips the session to hooks-are-authoritative (see LiveAgent.signalled).
+   */
+  signalAgentStatus(nonce: string, state: 'working' | 'waiting_input'): boolean {
+    const sessionId = this.signalNonces.get(nonce);
+    if (sessionId === undefined) return false;
+    const live = this.liveAgents.get(sessionId);
+    if (!live) return false;
+    live.signalled = true;
+    this.onDetected(sessionId, state === 'working' ? 'running' : 'waiting_input', 'signal');
+    return true;
+  }
+
+  private onDetected(
+    sessionId: string,
+    detected: DetectedStatus,
+    source: 'detector' | 'signal' = 'detector',
+  ): void {
     const live = this.liveAgents.get(sessionId);
     if (!live || live.status === detected || live.status === 'starting') return;
+    // Once hooks have spoken, the regex detector no longer drives status —
+    // its output-based flips misread idle TUI redraws as activity.
+    if (source === 'detector' && live.signalled) return;
     live.status = detected;
     this.transition(sessionId, detected);
     // Backstop for adoption: by waiting_input the agent has written its
@@ -1057,6 +1121,7 @@ export class SessionService extends EventEmitter {
     const live = this.liveAgents.get(e.stream);
     if (!live) return;
     live.detector?.dispose();
+    if (live.signalNonce !== null) this.signalNonces.delete(live.signalNonce);
     this.liveAgents.delete(e.stream);
     if (this.shuttingDown) return; // reconcile turns these into `interrupted` next boot
     this.transition(e.stream, 'exited');

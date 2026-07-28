@@ -169,6 +169,39 @@ describe('kill / resume / archive lifecycle', () => {
     await f.service.kill(session.id);
   });
 
+  it('hook signals drive status and mute the regex detector (SPEC §4)', async () => {
+    const f = fixture();
+    f.service.setSignalPort(65432); // pretend the daemon bound — enables nonce minting
+    const session = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      title: 'signalled',
+    });
+    // Pre-signal, the regex fallback still works: READY → waiting_input.
+    await waitFor(() => f.service.get(session.id).status === 'waiting_input');
+
+    const nonce = f.service.signalNonceFor(session.id);
+    expect(nonce).toBeTruthy();
+    expect(f.service.signalAgentStatus('not-a-real-nonce', 'working')).toBe(false);
+
+    // The first hook signal takes over: working → running…
+    expect(f.service.signalAgentStatus(nonce!, 'working')).toBe(true);
+    expect(f.service.get(session.id).status).toBe('running');
+    // …and the detector is muted from here on: fresh output re-matches READY
+    // in the rolling tail, but the flip back to waiting_input never fires.
+    f.ptys.write(session.id, 'agent', 'poke\n');
+    await new Promise((r) => setTimeout(r, 400)); // > quietMs (150) with margin
+    expect(f.service.get(session.id).status).toBe('running');
+
+    // The hook remains authoritative in the other direction too.
+    expect(f.service.signalAgentStatus(nonce!, 'waiting_input')).toBe(true);
+    expect(f.service.get(session.id).status).toBe('waiting_input');
+
+    // The nonce dies with the PTY.
+    await f.service.kill(session.id);
+    expect(f.service.signalAgentStatus(nonce!, 'working')).toBe(false);
+  });
+
   it('archives a live session by killing it first — one gesture, still reversible', async () => {
     const f = fixture();
     const session = await f.service.create({

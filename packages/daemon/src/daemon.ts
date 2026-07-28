@@ -135,12 +135,6 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   if (reconciled.interrupted.length > 0) {
     console.log(`reconcile: ${reconciled.interrupted.length} session(s) marked interrupted`);
   }
-  // Auto-resume is OFF by default (SPEC §4); interrupted sessions surface in the UI.
-  if (config.autoResume) {
-    for (const id of reconciled.interrupted) {
-      await service.resume(id).catch((e) => console.warn(`auto-resume ${id} failed: ${e.message}`));
-    }
-  }
 
   // Periodic fetch for repos with at least one non-archived session (SPEC §4).
   const fetchTimer = setInterval(
@@ -194,6 +188,17 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   // Record where we actually bound so clients (and a returning `puddle start`)
   // can find us even when the preferred port was taken.
   writeRuntime(paths, { port, pid: process.pid });
+  // Agent spawns from here on carry the /agent-signal env pair (SPEC §4).
+  service.setSignalPort(port);
+
+  // Auto-resume is OFF by default (SPEC §4); interrupted sessions surface in
+  // the UI. Runs AFTER the bind on purpose, so auto-resumed agents get the
+  // signal env too.
+  if (config.autoResume) {
+    for (const id of reconciled.interrupted) {
+      await service.resume(id).catch((e) => console.warn(`auto-resume ${id} failed: ${e.message}`));
+    }
+  }
 
   // Register the tier-2 proxy's raw WebSocket upgrade listener AFTER serve() so
   // it becomes the SECOND 'upgrade' listener — see attachProxyUpgrade for why
