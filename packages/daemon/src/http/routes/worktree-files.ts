@@ -27,8 +27,17 @@ import { containedPath, resolveWorktree } from './worktree-shared.js';
 
 /** Editor read cap: generous for source files, hostile to accidentally opening a media dump. */
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
-/** Multipart upload cap, checked against the raw `content-length` before parsing. */
-const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+/**
+ * Multipart upload cap, checked against the raw `content-length` before
+ * parsing. Sized for folder drops (the web splits those into ~64 MiB batches,
+ * so this effectively caps a single file).
+ */
+const MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
+
+/** `284972166` → `“271.8 MB”` — for error messages a human will read. */
+function formatMB(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, '')} MB`;
+}
 /** Binary sniffing looks for a NUL byte within this many leading bytes. */
 const SNIFF_BYTES = 8 * 1024;
 
@@ -203,7 +212,7 @@ export function worktreeFileRoutes(deps: { sessions: SessionStore }): Hono {
         throw new ApiError(
           413,
           'upload_too_large',
-          `upload is ${contentLength} bytes; the cap is ${MAX_UPLOAD_BYTES}`,
+          `This upload is ${formatMB(contentLength)}; the cap is ${formatMB(MAX_UPLOAD_BYTES)} per request`,
         );
       }
       const { root } = resolveWorktree(deps.sessions, c);

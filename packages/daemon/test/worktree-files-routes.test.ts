@@ -357,7 +357,7 @@ describe('POST /api/worktrees/:sid/upload', () => {
     const res = await app.request(`/api/worktrees/${sessionId}/upload?dir=uploads`, {
       method: 'POST',
       headers: {
-        'content-length': String(101 * 1024 * 1024),
+        'content-length': String(513 * 1024 * 1024),
         'content-type': 'multipart/form-data',
       },
       body: new Uint8Array(0),

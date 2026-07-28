@@ -33,6 +33,9 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Large uploads: folder drops are split into ~64 MiB requests client-side, the
+  daemon's per-request cap rose 100 → 512 MiB (it now only binds on a single
+  huge file), and the over-cap error reads in MB instead of raw bytes.
 - New agent/terminal dialog: the "Directory to join" select no longer overflows
   the dialog — the collapsed trigger shows just the directory name, and the open
   list shows the `~`-compressed path (full path on hover) with the menu capped

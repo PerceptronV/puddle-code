@@ -193,20 +193,50 @@ export function useCommitShow(sid: string | undefined, sha: string | undefined) 
   });
 }
 
-/** Drag-in / paste upload into a worktree directory (SPEC §8). */
+/**
+ * Target batch size for multipart uploads: a folder drop can be arbitrarily
+ * large, so files are grouped greedily into requests of roughly this size
+ * (well under the daemon's 512 MiB per-request cap, which then only binds on
+ * a single enormous file).
+ */
+const UPLOAD_BATCH_BYTES = 64 * 1024 * 1024;
+
+/** Greedy split preserving order; every batch has ≥1 file. */
+export function batchBySize(files: File[], limit: number): File[][] {
+  const batches: File[][] = [];
+  let batch: File[] = [];
+  let size = 0;
+  for (const file of files) {
+    if (batch.length > 0 && size + file.size > limit) {
+      batches.push(batch);
+      batch = [];
+      size = 0;
+    }
+    batch.push(file);
+    size += file.size;
+  }
+  if (batch.length > 0) batches.push(batch);
+  return batches;
+}
+
+/** Drag-in / paste upload into a worktree directory (SPEC §8), batched. */
 export async function uploadFiles(
   sid: string,
   dir: string,
   files: File[],
 ): Promise<UploadResponse> {
-  const form = new FormData();
-  for (const file of files) form.append('files', file, file.name);
-  const res = await apiFetchRaw(
-    'POST',
-    `/api/worktrees/${sid}/upload?dir=${encodeURIComponent(dir)}`,
-    { body: form },
-  );
-  return (await res.json()) as UploadResponse;
+  const uploaded: UploadResponse['files'] = [];
+  for (const batch of batchBySize(files, UPLOAD_BATCH_BYTES)) {
+    const form = new FormData();
+    for (const file of batch) form.append('files', file, file.name);
+    const res = await apiFetchRaw(
+      'POST',
+      `/api/worktrees/${sid}/upload?dir=${encodeURIComponent(dir)}`,
+      { body: form },
+    );
+    uploaded.push(...((await res.json()) as UploadResponse).files);
+  }
+  return { files: uploaded };
 }
 
 /**
