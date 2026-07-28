@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { CliError } from '../types.js';
 import { isLocalHostHeader, isLocalOrigin } from './guard.js';
+import { handleLocalSync, type LocalSyncOptions } from './local-sync.js';
 import { recoverProxiedPath } from './proxy-recovery.js';
 import { createStaticHandler } from './static.js';
 import {
@@ -34,6 +35,12 @@ export interface UiServerOptions {
    * the endpoint answers 404 (e.g. embedded servers with no process to swap).
    */
   control?: { token: string; onRefresh: () => void };
+  /**
+   * GET/PUT /cockpit/local-sync — the machine-shared settings-sync store (a
+   * JSON file under the client's ~/.puddle; see local-sync.ts). Absent → 404,
+   * and the web hides its "Sync locally" option.
+   */
+  localSync?: LocalSyncOptions;
 }
 
 export interface UiServer {
@@ -89,6 +96,10 @@ export async function startUiServer(opts: UiServerOptions): Promise<UiServer> {
     }
     if ((url.split('?')[0] ?? '') === '/cockpit/refresh') {
       handleRefresh(req, res, opts.control);
+      return;
+    }
+    if ((url.split('?')[0] ?? '') === '/cockpit/local-sync') {
+      handleLocalSync(req, res, opts.localSync);
       return;
     }
     if (isProxiedPath(url)) {

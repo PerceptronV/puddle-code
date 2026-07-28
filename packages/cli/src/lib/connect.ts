@@ -1,7 +1,9 @@
+import { join } from 'node:path';
 import { DaemonClient, readDaemonPort } from './daemon-client.js';
 import { ensureDaemon, makeUpgrader, type RunningCockpit } from './cockpit.js';
 import { runHandshake } from './handshake.js';
 import { waitForHttp } from './net.js';
+import { clientHome } from './paths.js';
 import { startUiServer } from './serve/ui-server.js';
 import { openTunnel } from './tunnel.js';
 import { LocalTransport } from './transport/local.js';
@@ -92,6 +94,9 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
     ...(opts.onRefreshRequest !== undefined
       ? { control: { token: endpoint.token, onRefresh: opts.onRefreshRequest } }
       : {}),
+    // The store lives on the CLIENT machine — every cockpit here shares it,
+    // whichever remote daemon each one drives.
+    localSync: { token: endpoint.token, file: join(clientHome(), 'local-sync.json') },
   });
   tunnel.onPortChange((port) => ui.setTarget({ host: '127.0.0.1', port }));
 

@@ -1,6 +1,8 @@
+import { join } from 'node:path';
 import { DaemonClient } from './daemon-client.js';
 import { ensureDaemon, makeUpgrader, type RunningCockpit } from './cockpit.js';
 import { runHandshake } from './handshake.js';
+import { clientHome } from './paths.js';
 import { startUiServer } from './serve/ui-server.js';
 import { LocalTransport } from './transport/local.js';
 import type { CliEvent, Logger } from './types.js';
@@ -51,6 +53,7 @@ export async function startLocal(opts: StartOptions): Promise<RunningCockpit> {
     ...(opts.onRefreshRequest !== undefined
       ? { control: { token: endpoint.token, onRefresh: opts.onRefreshRequest } }
       : {}),
+    localSync: { token: endpoint.token, file: join(clientHome(), 'local-sync.json') },
   });
 
   const eventCbs = new Set<(e: CliEvent) => void>();

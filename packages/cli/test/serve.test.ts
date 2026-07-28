@@ -50,6 +50,10 @@ describe('UI server in front of a real daemon', () => {
       port: 0 + 17500, // fixed-ish start; auto-picks the next free
       target: { host: '127.0.0.1', port: daemon.port },
       control: { token: 'control-token', onRefresh: () => (refreshes += 1) },
+      localSync: {
+        token: 'control-token',
+        file: join(mkdtempSync(join(tmpdir(), 'puddle-cli-sync-')), 'local-sync.json'),
+      },
     });
   });
   afterAll(async () => {
@@ -183,6 +187,45 @@ describe('UI server in front of a real daemon', () => {
     expect(await accepted.json()).toEqual({ status: 'refreshing' });
     await new Promise((resolve) => setImmediate(resolve)); // the deferred callback
     expect(refreshes).toBe(before + 1);
+  });
+
+  it('GET/PUT /cockpit/local-sync: token-gated, merges per profile key, survives rereads', async () => {
+    const call = (init: RequestInit & { headers?: Record<string, string> } = {}) =>
+      fetch(`http://127.0.0.1:${ui.port}/cockpit/local-sync`, {
+        ...init,
+        headers: { host: `localhost:${ui.port}`, ...init.headers },
+      });
+    expect((await call()).status).toBe(401);
+    expect((await call({ headers: { authorization: 'Bearer wrong' } })).status).toBe(401);
+
+    const auth = { authorization: 'Bearer control-token', 'content-type': 'application/json' };
+    // Empty store before any write.
+    expect(await (await call({ headers: auth })).json()).toEqual({ version: 1, profiles: {} });
+
+    const entry = { enabled: true, groups: ['appearance'], doc: { appearance: { theme: 'dark' } } };
+    const put = await call({
+      method: 'PUT',
+      headers: auth,
+      body: JSON.stringify({ profile: 'alice', entry }),
+    });
+    expect(put.status).toBe(200);
+
+    // A second profile's write merges rather than replacing the file.
+    await call({
+      method: 'PUT',
+      headers: auth,
+      body: JSON.stringify({ profile: 'bob', entry: { ...entry, enabled: false } }),
+    });
+    const store = (await (await call({ headers: auth })).json()) as {
+      profiles: Record<string, { enabled: boolean }>;
+    };
+    expect(Object.keys(store.profiles).sort()).toEqual(['alice', 'bob']);
+    expect(store.profiles['alice']!.enabled).toBe(true);
+    expect(store.profiles['bob']!.enabled).toBe(false);
+
+    // Malformed writes are rejected without touching the store.
+    expect((await call({ method: 'PUT', headers: auth, body: '{"profile":""}' })).status).toBe(400);
+    expect((await call({ method: 'DELETE', headers: auth })).status).toBe(405);
   });
 
   it('synthesises a daemon_unreachable 502 when the target is down', async () => {

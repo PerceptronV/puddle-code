@@ -17,6 +17,7 @@ import { ConnectionBanner } from './ConnectionBanner';
 import { ProfilePanel } from '../profile/ProfilePanel';
 import { useCurrentProfileId } from '../profile/profile-store';
 import { NewSessionProvider, useNewSession } from './new-session-context';
+import { useLocalSyncEngine } from './use-local-sync-engine';
 import { ScratchpadPopover } from '../scratchpad/ScratchpadPopover';
 
 // Settings (all eight sections) load only when the dialog first opens.
@@ -136,6 +137,7 @@ function TopBar() {
 
 function ShellBody() {
   useStatusCacheSync();
+  useLocalSyncEngine();
   const { handler } = useNewSession();
   const profileId = useCurrentProfileId();
   const [creatingProject, setCreatingProject] = useState(false);

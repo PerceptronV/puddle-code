@@ -20,6 +20,16 @@ Past releases: see docs/changelogs/.
   relative path and the daemon creates the intermediate directories — empty
   directories are skipped). On a pre-9.2 daemon folders are still rejected with
   the zip-first toast, feature-detected via `GET /api/version`. Protocol 9.2.
+- Settings sync spans more: `captureSessionEnv`, notification preferences
+  (desktop + sound; per-project mutes stay host-local — stripped on export,
+  preserved through import), and the profile's profile-wide Scratchpad entries.
+  Scratchpad import never overrides: an incoming entry is added unless an
+  existing one matches exactly on title, body, tags, and agent association.
+- "Sync locally" (Settings → Sync, default off): mirrors the selected sync
+  groups through a machine-shared store (`~/.puddle/local-sync.json`, served
+  by every cockpit at `GET/PUT /cockpit/local-sync`), keyed by profile name —
+  so all puddle windows on the machine stay in step across UI ports and
+  daemons. While enabled, the one checklist governs imports and exports alike.
 
 ### Changed
 
@@ -29,6 +39,8 @@ Past releases: see docs/changelogs/.
   (title, roomy body preview) with scope, tags, and always-visible tools on a
   line below, so hovering reflows nothing; create/edit happen inline in the
   list through a spacious composer — the old cramped modal is gone.
+- Settings export is one click: "Export & copy" builds the string, shows it,
+  and puts it on the clipboard — no separate copy button.
 - Markdown/HTML preview (SPEC §8): both previews now resolve worktree asset
   references — relative to the document or `/`-absolute from the worktree
   root. The sandboxed HTML iframe inlines its assets (images, scripts,
