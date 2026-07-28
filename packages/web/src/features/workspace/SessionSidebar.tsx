@@ -6,7 +6,6 @@ import {
   ChevronRight,
   FolderX,
   GitBranch,
-  NotebookPen,
   PanelRightClose,
   PanelRightOpen,
   ShieldOff,
@@ -19,7 +18,6 @@ import { ContextMenu, ContextMenuTrigger } from '../../components/ui/context-men
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utils';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
-import { ScratchpadPanel } from '../scratchpad/ScratchpadPanel';
 import { StatusDot } from '../status/StatusDot';
 import {
   SessionActionsEllipsis,
@@ -163,7 +161,6 @@ export function CollapsedSessionsRail({
   onExpand,
   onNewTerminal,
   onNewSession,
-  onOpenScratchpad,
   onArchived,
 }: {
   groups: SessionGroup[];
@@ -174,8 +171,6 @@ export function CollapsedSessionsRail({
   onExpand: () => void;
   onNewTerminal: () => void;
   onNewSession: () => void;
-  /** Expand the sidebar straight into the Scratchpad view. */
-  onOpenScratchpad: () => void;
   onArchived: (id: string) => void;
 }) {
   const [dragging, setDragging] = useState<string | null>(null);
@@ -190,7 +185,6 @@ export function CollapsedSessionsRail({
         <IconButton icon={PanelRightOpen} label="Show sessions" onClick={onExpand} />
         <IconButton icon={Bot} label="New agent" onClick={onNewSession} />
         <IconButton icon={SquareTerminal} label="New terminal" onClick={onNewTerminal} />
-        <IconButton icon={NotebookPen} label="Scratchpad" onClick={onOpenScratchpad} />
       </div>
       <div className="no-scrollbar flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto">
         {withDots.map((group) => (
@@ -333,11 +327,6 @@ export function SessionSidebar({
   onNewTerminal,
   onCollapse,
   onArchived,
-  rightPanel,
-  onSelectPanel,
-  profileId,
-  scratchpadProjectId,
-  onInsertPrompt,
 }: {
   groups: SessionGroup[];
   accounts: Account[];
@@ -352,49 +341,28 @@ export function SessionSidebar({
   onNewTerminal: () => void;
   onCollapse: () => void;
   onArchived: (id: string) => void;
-  /** Which body the sidebar shows: the session list or the Scratchpad (SPEC §11). */
-  rightPanel: 'sessions' | 'scratchpad';
-  onSelectPanel: (panel: 'sessions' | 'scratchpad') => void;
-  profileId: string | null;
-  scratchpadProjectId: string;
-  /** Insert a Scratchpad entry into the focused terminal (bracketed paste). */
-  onInsertPrompt: (text: string) => void;
 }) {
   return (
     <div className="flex h-full flex-col bg-surface">
-      {/* Fixed controls: collapse on the left edge; the Agent · Terminal ·
-          Scratchpad symbols on the right (SPEC §8). Agent/Terminal create a
-          session; Scratchpad toggles the sidebar body (HUMANS.md fill-shift). */}
+      {/* Fixed controls: collapse on the left edge; the Agent · Terminal
+          symbols on the right (SPEC §8) — the Scratchpad lives in the top bar
+          (SPEC §11), not here. */}
       <div className="flex shrink-0 items-center gap-1 px-2 py-1.5">
         <IconButton icon={PanelRightClose} label="Hide sessions" onClick={onCollapse} />
         <div className="ml-auto flex items-center gap-1">
           <IconButton icon={Bot} label="New agent" onClick={onNewSession} />
           <IconButton icon={SquareTerminal} label="New terminal" onClick={onNewTerminal} />
-          <IconButton
-            icon={NotebookPen}
-            label="Scratchpad"
-            active={rightPanel === 'scratchpad'}
-            onClick={() => onSelectPanel(rightPanel === 'scratchpad' ? 'sessions' : 'scratchpad')}
-          />
         </div>
       </div>
-      {rightPanel === 'scratchpad' ? (
-        <ScratchpadPanel
-          profileId={profileId}
-          projectId={scratchpadProjectId}
-          onInsert={onInsertPrompt}
-        />
-      ) : (
-        <SessionListBody
-          groups={groups}
-          accounts={accounts}
-          activeSessionId={activeSessionId}
-          onReorder={onReorder}
-          onPromote={onPromote}
-          archived={archived}
-          onArchived={onArchived}
-        />
-      )}
+      <SessionListBody
+        groups={groups}
+        accounts={accounts}
+        activeSessionId={activeSessionId}
+        onReorder={onReorder}
+        onPromote={onPromote}
+        archived={archived}
+        onArchived={onArchived}
+      />
     </div>
   );
 }

@@ -24,19 +24,24 @@ export interface ScratchpadDraft {
 export function ScratchpadEditor({
   initial,
   defaultScope,
+  allowProject = true,
   agents,
   onSave,
   onCancel,
 }: {
   initial?: ScratchpadEntry;
   defaultScope: ScratchpadScope;
+  /** False outside a project (dashboard): entries can only be profile-wide. */
+  allowProject?: boolean;
   agents: AgentType[];
   onSave: (draft: ScratchpadDraft) => void;
   onCancel: () => void;
 }) {
   const [title, setTitle] = useState(initial?.title ?? '');
   const [body, setBody] = useState(initial?.body ?? '');
-  const [scope, setScope] = useState<ScratchpadScope>(initial?.scope ?? defaultScope);
+  const [scope, setScope] = useState<ScratchpadScope>(
+    allowProject ? (initial?.scope ?? defaultScope) : 'profile',
+  );
   const [tagsText, setTagsText] = useState((initial?.tags ?? []).join(', '));
   const [agentType, setAgentType] = useState<string | null>(initial?.agent_type ?? null);
 
@@ -63,21 +68,22 @@ export function ScratchpadEditor({
         spellCheck={false}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => e.stopPropagation()}
-        className="text-sm"
+        className="h-9 text-sm font-medium"
       />
+      {/* The body is the point — give it room and readable type. */}
       <Textarea
         autoFocus
         value={body}
         placeholder="Prompt or note…"
         spellCheck={false}
-        rows={4}
+        rows={10}
         onChange={(e) => setBody(e.target.value)}
         onKeyDown={(e) => {
           e.stopPropagation();
           if (e.key === 'Escape') onCancel();
           else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save();
         }}
-        className="resize-y text-xs"
+        className="resize-y text-sm leading-relaxed"
       />
       <Input
         value={tagsText}
@@ -85,17 +91,20 @@ export function ScratchpadEditor({
         spellCheck={false}
         onChange={(e) => setTagsText(e.target.value)}
         onKeyDown={(e) => e.stopPropagation()}
-        className="h-7 text-xs"
+        className="h-8 text-xs"
       />
       <div className="flex items-center gap-2">
-        {/* Scope: off = project (default), on = profile-wide. */}
-        <label className="flex items-center gap-1.5 text-2xs text-fg-secondary">
-          <Switch
-            checked={scope === 'profile'}
-            onCheckedChange={(on) => setScope(on ? 'profile' : 'project')}
-          />
-          Profile-wide
-        </label>
+        {/* Scope: off = project (default), on = profile-wide. Outside a
+            project there is nothing to scope to — profile-wide is implied. */}
+        {allowProject && (
+          <label className="flex items-center gap-1.5 text-2xs text-fg-secondary">
+            <Switch
+              checked={scope === 'profile'}
+              onCheckedChange={(on) => setScope(on ? 'profile' : 'project')}
+            />
+            Profile-wide
+          </label>
+        )}
         {/* Agent association: a row of brand toggles, plus a clear. */}
         <div className="ml-auto flex items-center gap-1">
           {agents.map((a) => (

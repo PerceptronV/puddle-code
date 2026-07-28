@@ -26,6 +26,7 @@ import { warmEditorChunk } from '../editor/lazy-editor-parts';
 import { warmTerminalChunk } from '../terminal/LazyTerminal';
 import { wsManager } from '../../lib/ws';
 import { registerHotkey } from '../../lib/hotkeys';
+import { setScratchpadInsertHandler } from '../scratchpad/scratchpad-store';
 import { KeepAliveHost } from './keep-alive';
 import { flattenTabs, tabRefKey, type DropEdge } from './layout-tree';
 import { layoutForPanels } from './panel-layout';
@@ -396,7 +397,6 @@ function WorkspaceInner() {
   const sidebarMode: SidebarMode = normalizeSidebarMode(uiState.snapshot.sidebar_mode);
   const sidebarCollapsed = uiState.snapshot.sidebar_collapsed;
   const sessionsCollapsed = uiState.snapshot.sessions_collapsed;
-  const rightPanel = uiState.snapshot.right_panel;
 
   // Insert a Scratchpad entry into the focused terminal's stdin, wrapped in
   // bracketed-paste so a multi-line prompt lands as one paste and the agent
@@ -414,15 +414,12 @@ function WorkspaceInner() {
     },
     [layout],
   );
-  // New agent/terminal buttons also return the sidebar to the session list, so
-  // the freshly created session is visible.
-  const openCreateInSessions = useCallback(
-    (kind: SessionKind) => {
-      uiState.update({ right_panel: 'sessions' });
-      openCreate(kind);
-    },
-    [uiState, openCreate],
-  );
+  // The top-bar Scratchpad popover pastes entries through this workspace's
+  // focused terminal while it is mounted (scratchpad-store).
+  useEffect(() => {
+    setScratchpadInsertHandler(insertPrompt);
+    return () => setScratchpadInsertHandler(null);
+  }, [insertPrompt]);
 
   // Global hotkey handlers (SPEC §11): register stable wrappers once; each reads
   // the latest closures from a ref so re-renders don't churn the registry.
@@ -443,13 +440,9 @@ function WorkspaceInner() {
     'nav.search': () => openNavigator('search'),
     'nav.changes': () => openNavigator('changes'),
     'nav.worktrees': () => openNavigator('worktrees'),
-    'session.newAgent': () => openCreateInSessions('agent'),
-    'session.newTerminal': () => openCreateInSessions('terminal'),
-    'scratchpad.toggle': () =>
-      uiState.update({
-        right_panel: uiState.snapshot.right_panel === 'scratchpad' ? 'sessions' : 'scratchpad',
-        sessions_collapsed: false,
-      }),
+    'session.newAgent': () => openCreate('agent'),
+    'session.newTerminal': () => openCreate('terminal'),
+    // 'scratchpad.toggle' is registered by the top-bar popover (SPEC §11).
   };
   useEffect(() => {
     const ids = Object.keys(hkRef.current);
@@ -607,15 +600,10 @@ function WorkspaceInner() {
                 onReorder={persistReorder}
                 onPromote={(id) => layout.ensureTerminal(id)}
                 archived={archivedSessions}
-                onNewSession={() => openCreateInSessions('agent')}
-                onNewTerminal={() => openCreateInSessions('terminal')}
+                onNewSession={() => openCreate('agent')}
+                onNewTerminal={() => openCreate('terminal')}
                 onCollapse={() => uiState.update({ sessions_collapsed: true })}
                 onArchived={closeTab}
-                rightPanel={rightPanel}
-                onSelectPanel={(panel) => uiState.update({ right_panel: panel })}
-                profileId={profileId ?? null}
-                scratchpadProjectId={projectId}
-                onInsertPrompt={insertPrompt}
               />
             </Panel>
           </>
@@ -638,11 +626,8 @@ function WorkspaceInner() {
           onReorder={persistReorder}
           onPromote={(id) => layout.ensureTerminal(id)}
           onExpand={() => uiState.update({ sessions_collapsed: false })}
-          onNewTerminal={() => openCreateInSessions('terminal')}
-          onNewSession={() => openCreateInSessions('agent')}
-          onOpenScratchpad={() =>
-            uiState.update({ sessions_collapsed: false, right_panel: 'scratchpad' })
-          }
+          onNewTerminal={() => openCreate('terminal')}
+          onNewSession={() => openCreate('agent')}
           onArchived={closeTab}
         />
       )}

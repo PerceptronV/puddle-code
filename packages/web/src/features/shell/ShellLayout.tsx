@@ -17,6 +17,7 @@ import { ConnectionBanner } from './ConnectionBanner';
 import { ProfilePanel } from '../profile/ProfilePanel';
 import { useCurrentProfileId } from '../profile/profile-store';
 import { NewSessionProvider, useNewSession } from './new-session-context';
+import { ScratchpadPopover } from '../scratchpad/ScratchpadPopover';
 
 // Settings (all eight sections) load only when the dialog first opens.
 const SettingsDialog = lazy(() =>
@@ -124,7 +125,9 @@ function TopBar() {
           </TooltipTrigger>
           <TooltipContent>Settings</TooltipContent>
         </Tooltip>
-        {/* The panel anchors under this trigger — top-right, not centred. */}
+        {/* Scratchpad and profile both anchor under their triggers — top-right,
+            never centre stage (SPEC §11). */}
+        <ScratchpadPopover />
         <ProfilePanel />
       </div>
     </header>

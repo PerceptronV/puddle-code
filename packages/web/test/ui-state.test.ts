@@ -38,7 +38,7 @@ describe('uiStateSnapshotSchema', () => {
       sidebar_mode: 'files',
       sidebar_collapsed: false,
       sessions_collapsed: false,
-      right_panel: 'sessions',
+      // right_panel is retired: optional without a default, never injected.
       session_order: [],
       layout_tree: null,
     });

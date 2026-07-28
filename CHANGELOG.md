@@ -23,6 +23,12 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- The Scratchpad is now a top-bar popover between Settings and the profile
+  button — floating and scrollable like the profile panel, available on the
+  dashboard too — instead of a right-sidebar view. Entries read text-first
+  (title, roomy body preview) with scope, tags, and always-visible tools on a
+  line below, so hovering reflows nothing; create/edit happen inline in the
+  list through a spacious composer — the old cramped modal is gone.
 - Markdown/HTML preview (SPEC §8): both previews now resolve worktree asset
   references — relative to the document or `/`-absolute from the worktree
   root. The sandboxed HTML iframe inlines its assets (images, scripts,
@@ -33,6 +39,9 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Stored workspace snapshots no longer grow a spurious `right_panel: 'sessions'`
+  key on every write — the retired field went optional-without-default in the
+  ui_state schema (protocol 9.2), which also un-breaks the e2e round-trip test.
 - Large uploads: folder drops are split into ~64 MiB requests client-side, the
   daemon's per-request cap rose 100 → 512 MiB (it now only binds on a single
   huge file), and the over-cap error reads in MB instead of raw bytes.

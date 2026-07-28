@@ -60,4 +60,8 @@
 // (POST /api/worktrees/:sid/upload) now honours relative paths in multipart
 // filenames, creating intermediate directories, so folder drag-and-drop works
 // (old daemons flatten to basenames — the UI feature-detects via this minor).
+// Also in 9.2: the retired `ui_state.right_panel` key (the Scratchpad left the
+// right sidebar for a top-bar popover) went optional-without-default, so the
+// daemon stops injecting `'sessions'` into every stored snapshot; peers in
+// both directions tolerate its presence and absence.
 export const PROTOCOL_VERSION = { major: 9, minor: 2 } as const;
