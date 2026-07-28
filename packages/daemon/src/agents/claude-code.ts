@@ -198,13 +198,12 @@ export const claudeCode: AgentAdapter = {
   },
 
   sessionTitle(ref, account) {
-    const projectsDir = join(account.config_dir, 'projects');
-    if (!existsSync(projectsDir)) return null;
-    for (const dir of readdirSync(projectsDir)) {
-      const path = join(projectsDir, dir, `${ref}.jsonl`);
-      if (existsSync(path)) return readSessionTitle(path);
-    }
-    return null;
+    return transcriptEntry(account.config_dir, ref)?.title ?? null;
+  },
+
+  sessionActivityAt(ref, account) {
+    const entry = transcriptEntry(account.config_dir, ref);
+    return entry ? new Date(entry.mtimeMs) : null;
   },
 
   usageStats(account) {
@@ -286,6 +285,68 @@ export const claudeCode: AgentAdapter = {
     limitReached: [/usage limit reached/i, /out of extra usage/i],
   },
 };
+
+/**
+ * Transcript lookup cache backing `sessionTitle` and `sessionActivityAt`,
+ * keyed by `${configDir}:${ref}`. The title-refresh loop calls these every
+ * few seconds per live agent, so the steady state must be one `stat` — the
+ * path resolution (a readdir sweep) and the title scan (a 128 KiB read+parse)
+ * only re-run when (size, mtimeMs) changed. A vanished file drops its entry
+ * and re-resolves, so a transcript moved between config dirs is found again.
+ */
+interface TranscriptEntry {
+  path: string;
+  size: number;
+  mtimeMs: number;
+  title: string | null;
+}
+const transcriptCache = new Map<string, TranscriptEntry>();
+
+function findTranscript(configDir: string, ref: string): string | null {
+  const projectsDir = join(configDir, 'projects');
+  if (!existsSync(projectsDir)) return null;
+  for (const dir of readdirSync(projectsDir)) {
+    const path = join(projectsDir, dir, `${ref}.jsonl`);
+    if (existsSync(path)) return path;
+  }
+  return null;
+}
+
+function transcriptEntry(configDir: string, ref: string): TranscriptEntry | null {
+  const cacheKey = `${configDir}:${ref}`;
+  const cached = transcriptCache.get(cacheKey);
+  if (cached) {
+    try {
+      const stats = statSync(cached.path);
+      if (stats.size === cached.size && stats.mtimeMs === cached.mtimeMs) return cached;
+      const fresh: TranscriptEntry = {
+        path: cached.path,
+        size: stats.size,
+        mtimeMs: stats.mtimeMs,
+        title: readSessionTitle(cached.path),
+      };
+      transcriptCache.set(cacheKey, fresh);
+      return fresh;
+    } catch {
+      transcriptCache.delete(cacheKey); // gone — fall through and re-resolve
+    }
+  }
+  const path = findTranscript(configDir, ref);
+  if (path === null) return null;
+  try {
+    const stats = statSync(path);
+    const entry: TranscriptEntry = {
+      path,
+      size: stats.size,
+      mtimeMs: stats.mtimeMs,
+      title: readSessionTitle(path),
+    };
+    transcriptCache.set(cacheKey, entry);
+    return entry;
+  } catch {
+    return null;
+  }
+}
 
 /** Bounded window read for the transcript title scan (large transcripts). */
 const TITLE_WINDOW = 128 * 1024;

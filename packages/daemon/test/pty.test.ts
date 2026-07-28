@@ -297,7 +297,7 @@ describe('PtyManager env-delta', () => {
   }
 
   it('emits env-delta and strips OSC 7733 from stream and log', async () => {
-    const { logsDir, ptys } = manager();
+    const { logsDir, logs, ptys } = manager();
     const chunks: string[] = [];
     const deltas: PtyEnvDeltaEvent[] = [];
     ptys.on('data', (e: { data: string }) => chunks.push(e.data));
@@ -320,6 +320,7 @@ describe('PtyManager env-delta', () => {
     });
     ptys.kill('s9', 'shell-1');
     const joined = chunks.join('');
+    logs.flushAll(); // appends coalesce; force them out before reading the file raw
     const log = readFileSync(join(logsDir, 's9', 'shell-1.log'), 'utf8');
     for (const text of [joined, log]) {
       expect(text).toContain('visible');
@@ -338,5 +339,20 @@ describe('LogStore', () => {
     expect(logs.readTail('sid', 'agent')).toBe('aaaaaaaaaaaaaaaa'); // capped at 16 bytes
     expect(logs.readTail('sid', 'missing')).toBe('');
     expect(logs.listTerms('sid').sort()).toEqual(['agent', 'shell-1']);
+  });
+
+  it('rotates a log past maxBytes down to its newest tail', () => {
+    const logsDir = mkdtempSync(join(tmpdir(), 'puddle-logs-'));
+    const logs = new LogStore(logsDir, 8, 64); // replay 8, cap 64 → keeps 32
+    logs.append('sid', 'agent', `${'x'.repeat(100)}END`);
+    logs.flushAll();
+    const file = readFileSync(join(logsDir, 'sid', 'agent.log'), 'utf8');
+    expect(file.length).toBe(32); // max(replayBytes, maxBytes / 2)
+    expect(file.endsWith('END')).toBe(true);
+    expect(logs.readTail('sid', 'agent')).toBe('xxxxxEND');
+    // Appends keep landing on the reopened fd after a rotation.
+    logs.append('sid', 'agent', '+more');
+    logs.closeAll();
+    expect(readFileSync(join(logsDir, 'sid', 'agent.log'), 'utf8').endsWith('END+more')).toBe(true);
   });
 });

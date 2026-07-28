@@ -79,4 +79,7 @@
 // detection (a 9.x daemon leaves sessions stuck green) and archive killing
 // live sessions — so no daemon may sit on 9.x. Ships the unreleased 9.3/9.4
 // additions above.
-export const PROTOCOL_VERSION = { major: 10, minor: 0 } as const;
+// 10.1 (2026-07-28): additive — optional computed `stale_running` on the
+// session shape: a `running` agent whose transcript has been quiet for over
+// an hour, advisory only (the UI hints, the daemon never intervenes).
+export const PROTOCOL_VERSION = { major: 10, minor: 1 } as const;

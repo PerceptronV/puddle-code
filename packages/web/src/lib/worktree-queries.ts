@@ -14,6 +14,7 @@ import type {
   UploadResponse,
 } from '@puddle/shared';
 import { api, apiFetchRaw } from './api';
+import { focusAwareInterval } from './poll-focus';
 
 /**
  * TanStack Query hooks for a session's worktree: file browsing/editing (the
@@ -78,7 +79,7 @@ export function useWorktreeDiff(
     queryKey: ['wt-diff', sid, against],
     queryFn: () => api<DiffResponse>('GET', `/api/worktrees/${sid}/diff?against=${against}`),
     enabled: sid !== undefined && (opts?.enabled ?? true),
-    refetchInterval: 10_000,
+    refetchInterval: focusAwareInterval(10_000),
     refetchOnWindowFocus: true,
   });
 }
@@ -94,7 +95,7 @@ export function useWorktreeGitStatus(sid: string | undefined, opts?: { enabled?:
     queryKey: ['wt-git-status', sid],
     queryFn: () => api<GitStatusResponse>('GET', `/api/worktrees/${sid}/git-status`),
     enabled: sid !== undefined && (opts?.enabled ?? true),
-    refetchInterval: 10_000,
+    refetchInterval: focusAwareInterval(10_000),
     refetchOnWindowFocus: true,
   });
 }

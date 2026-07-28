@@ -117,7 +117,7 @@ export class WsGateway {
             break;
           case 'detach': {
             const key = this.key(msg.session, msg.term);
-            this.viewers.get(key)?.delete(ws);
+            this.dropViewer(key, ws);
             attached.delete(key);
             break;
           }
@@ -148,7 +148,7 @@ export class WsGateway {
     };
 
     const onClose = (_evt: unknown, ws: WSContext): void => {
-      for (const key of attached) this.viewers.get(key)?.delete(ws);
+      for (const key of attached) this.dropViewer(key, ws);
       this.statusSubs.delete(ws);
     };
 
@@ -196,6 +196,18 @@ export class WsGateway {
 
   private send(ws: WSContext, msg: WsServerMessage): void {
     if (ws.readyState === 1) ws.send(JSON.stringify(msg));
+  }
+
+  /**
+   * Removes a viewer and, crucially, the (stream, term) entry once its last
+   * viewer is gone — a lingering empty Set would keep `broadcast` JSON-encoding
+   * every output chunk of a stream nobody watches, forever.
+   */
+  private dropViewer(key: string, ws: WSContext): void {
+    const set = this.viewers.get(key);
+    if (!set) return;
+    set.delete(ws);
+    if (set.size === 0) this.viewers.delete(key);
   }
 
   private broadcast(key: string, msg: WsServerMessage): void {

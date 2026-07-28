@@ -74,7 +74,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   const sessions = new SessionStore(db);
   const events = new EventStore(db);
 
-  const logs = new LogStore(paths.logsDir, config.replayBytes);
+  const logs = new LogStore(paths.logsDir, config.replayBytes, config.logMaxBytes);
   const ptys = new PtyManager(logs);
   const shellHooks = installShellHooks(paths);
   const scanner = new PortScanner({ ptys });

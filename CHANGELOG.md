@@ -17,8 +17,34 @@ Past releases: see docs/changelogs/.
   with the count of waiting agents — honouring the Notifications settings and
   per-project mutes. Enabling the desktop toggle asks for browser permission.
 
+- A `running` agent that has recorded no transcript activity for over an hour
+  is flagged `stale_running` (computed on read, protocol **10.1** — additive):
+  the UI fades its status dot, drops the ripple, and hints "possibly stalled".
+  Advisory only — the daemon never interrupts an agent over it.
+
 ### Fixed
 
+- Battery: the web UI now idles properly. Terminals detach from their PTY
+  stream while hidden (background tab of a pane, or the whole browser tab
+  hidden) and repaint from the daemon's replay when shown again — a hidden
+  terminal no longer receives and parses every output byte. Visible terminals
+  render on the GPU (`@xterm/addon-webgl`, DOM-renderer fallback). The status
+  ripples/pulses are finite (~30 s / ~1 min after a status change) instead of
+  animating forever, and the ports/env (5 s) and git status/diff (10 s) polls
+  stretch 12× while the window is unfocused, snapping back on refocus. Agent
+  processes and PTYs are untouched by all of this — pausing is viewer-side
+  only.
+- Battery, daemon-side: the 3 s agent-title refresh stat-guards the transcript
+  and skips the 128 KiB read when unchanged; PTY log writes coalesce on a
+  100 ms flush instead of one synchronous write per output chunk; session logs
+  are now actually capped at `logMaxBytes` (the config existed but was never
+  enforced — logs grew without bound), rotating to the newest half; the status
+  detector compiles its regexes once instead of per chunk; and the WS gateway
+  stops JSON-encoding output for streams whose last viewer detached.
+- Replayed terminal history no longer re-executes OSC side effects: a stale
+  OSC 52 copy can't clobber the clipboard and stale colour-query replies are
+  never written into a working agent's stdin; a re-attach also repaints the
+  buffer from scratch instead of appending the replay to what it showed.
 - Status detection no longer sticks on green: agent status is now driven by
   the agent's own hooks instead of scraping the terminal. For Claude Code the
   daemon installs Stop / Notification(permission_prompt, idle_prompt) /

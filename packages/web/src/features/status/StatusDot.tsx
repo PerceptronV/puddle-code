@@ -11,19 +11,27 @@ import { cn } from '../../lib/utils';
 export function StatusDot({
   status,
   kind = 'agent',
+  stale = false,
   className,
 }: {
   status: SessionStatus;
   kind?: SessionKind;
+  /** `stale_running` (SPEC §4): running, but the agent has been quiet for over an hour. */
+  stale?: boolean;
   className?: string;
 }) {
+  const label = `${kind === 'terminal' ? 'terminal ' : ''}status: ${status.replace('_', ' ')}${
+    stale ? ' (no agent activity for over an hour — possibly stalled)' : ''
+  }`;
   return (
     <span
       className={cn('status-dot', className)}
       data-status={status}
       data-kind={kind}
+      data-stale={stale || undefined}
       role="img"
-      aria-label={`${kind === 'terminal' ? 'terminal ' : ''}status: ${status.replace('_', ' ')}`}
+      title={stale ? 'No agent activity for over an hour — possibly stalled' : undefined}
+      aria-label={label}
     />
   );
 }

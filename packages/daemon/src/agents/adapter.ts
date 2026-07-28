@@ -136,6 +136,14 @@ export interface AgentAdapter {
    */
   sessionTitle?(ref: string, account: Account): string | null;
   /**
+   * When the agent last recorded real work for conversation `ref` — for
+   * Claude Code, the transcript's mtime (a cached stat). Distinct from PTY
+   * activity: a wedged TUI can redraw forever without ever writing its
+   * transcript. Null when unknown; the daemon uses it to compute the advisory
+   * `stale_running` flag (SPEC §4) and never interrupts an agent over it.
+   */
+  sessionActivityAt?(ref: string, account: Account): Date | null;
+  /**
    * Token usage the agent recorded for this account, summed from its own
    * on-disk history. Best-effort and non-authoritative (not billing data);
    * null when the agent keeps no readable record.

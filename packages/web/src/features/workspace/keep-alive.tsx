@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useMemo, useRef } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { createPortal } from 'react-dom';
 import type { LayoutNode } from '@puddle/shared';
 import { LazyTerminal } from '../terminal/LazyTerminal';
@@ -22,6 +30,8 @@ import { allLeaves } from './layout-tree';
 interface KeepAliveCtx {
   parkingRef: React.RefObject<HTMLDivElement | null>;
   containers: Map<string, HTMLDivElement>;
+  /** A pane slot reporting that it adopted (or returned) a container. */
+  setAdopted: (key: string, adopted: boolean) => void;
 }
 
 const Ctx = createContext<KeepAliveCtx | null>(null);
@@ -37,6 +47,22 @@ export function KeepAliveHost({
 }) {
   const parkingRef = useRef<HTMLDivElement>(null);
   const containers = useRef<Map<string, HTMLDivElement>>(new Map()).current;
+
+  // Which containers a pane currently shows. A parked terminal stays mounted
+  // (scrollback, addons, handlers all survive) but is told to pause via the
+  // `paused` prop, so it detaches its PTY viewer and stops parsing output the
+  // hidden DOM could never show. The daemon PTY is untouched by this — pausing
+  // is purely a viewer-side economy (SPEC §6: viewers are ephemeral).
+  const [adopted, setAdoptedKeys] = useState<ReadonlySet<string>>(() => new Set());
+  const setAdopted = useCallback((key: string, isAdopted: boolean) => {
+    setAdoptedKeys((prev) => {
+      if (prev.has(key) === isAdopted) return prev;
+      const next = new Set(prev);
+      if (isAdopted) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
 
   const sessions = useMemo(() => {
     const set = new Set<string>();
@@ -75,7 +101,10 @@ export function KeepAliveHost({
     }
   }, [sessions, containers]);
 
-  const ctx = useMemo<KeepAliveCtx>(() => ({ parkingRef, containers }), [containers]);
+  const ctx = useMemo<KeepAliveCtx>(
+    () => ({ parkingRef, containers, setAdopted }),
+    [containers, setAdopted],
+  );
 
   return (
     <Ctx.Provider value={ctx}>
@@ -84,6 +113,7 @@ export function KeepAliveHost({
         createPortal(
           <LazyTerminal
             stream={session}
+            paused={!adopted.has(`term:${session}`)}
             onOpenFile={(path, line, column) => onOpenFile(session, path, line, column)}
           />,
           containerFor(session),
@@ -108,10 +138,14 @@ export function useKeepAliveSlot(key: string | null): React.RefObject<HTMLDivEle
     const slot = slotRef.current;
     if (!ctx || !key || !slot) return;
     const container = ctx.containers.get(key);
-    if (container) slot.appendChild(container);
+    if (container) {
+      slot.appendChild(container);
+      ctx.setAdopted(key, true);
+    }
     return () => {
       const parking = ctx.parkingRef.current;
       if (container && parking && container.parentElement === slot) parking.appendChild(container);
+      if (container) ctx.setAdopted(key, false);
     };
   }, [ctx, key]);
   return slotRef;

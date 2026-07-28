@@ -1,3 +1,4 @@
+import type Database from 'better-sqlite3';
 import type { Session, SessionStatus } from '@puddle/shared';
 import { ApiError } from '../../http/errors.js';
 import type { Db } from '../db.js';
@@ -232,8 +233,12 @@ export class SessionStore {
     this.db.prepare(`UPDATE sessions SET skip_permissions = ? WHERE id = ?`).run(on ? 1 : 0, id);
   }
 
+  // Cached: unlike its siblings this runs up to once a second per stream with
+  // live output, so the per-call prepare() is worth avoiding here.
+  private touchStmt: Database.Statement<[string, string]> | undefined;
   touchActivity(id: string, iso: string): void {
-    this.db.prepare(`UPDATE sessions SET last_activity_at = ? WHERE id = ?`).run(iso, id);
+    this.touchStmt ??= this.db.prepare(`UPDATE sessions SET last_activity_at = ? WHERE id = ?`);
+    this.touchStmt.run(iso, id);
   }
 
   /** Captured `export`s for re-injection at PTY spawn (SPEC §4); {} when none. */

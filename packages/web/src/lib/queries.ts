@@ -28,6 +28,7 @@ import type {
   VersionResponse,
 } from '@puddle/shared';
 import { api } from './api';
+import { focusAwareInterval } from './poll-focus';
 
 /** TanStack Query hooks per daemon resource. Types come from @puddle/shared. */
 
@@ -500,14 +501,15 @@ export function putProfileState(
 /**
  * Ports strip (SPEC §9): polls only while `live` (the active session is
  * `running`/`waiting_input`) — no refresh button, the 5s interval IS the
- * refresh, and background tabs stop polling entirely.
+ * refresh; background tabs stop polling entirely and an unfocused window
+ * slows down (poll-focus.ts).
  */
 export function useSessionPorts(sessionId: string | undefined, live: boolean) {
   return useQuery({
     queryKey: ['ports', sessionId],
     queryFn: () => api<SessionPortsResponse>('GET', `/api/sessions/${sessionId}/ports`),
     enabled: sessionId !== undefined && live,
-    refetchInterval: 5_000,
+    refetchInterval: focusAwareInterval(5_000),
     refetchIntervalInBackground: false,
   });
 }
@@ -522,7 +524,7 @@ export function useSessionEnv(sessionId: string | undefined, live: boolean) {
     queryKey: ['session-env', sessionId],
     queryFn: () => api<SessionEnvResponse>('GET', `/api/sessions/${sessionId}/env`),
     enabled: sessionId !== undefined && live,
-    refetchInterval: 5_000,
+    refetchInterval: focusAwareInterval(5_000),
     refetchIntervalInBackground: false,
   });
 }

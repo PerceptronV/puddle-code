@@ -101,9 +101,15 @@ const LIVE_STATUSES: SessionStatus[] = ['starting', 'running', 'waiting_input'];
 // the agent (e.g. Claude Code's `/rename`) is a client-side transcript edit that
 // triggers no status change and — while the session sits idle — no terminal-title
 // escape either, so the event-driven refreshes (status change, OSC title, exit)
-// all miss it. This cheap periodic re-read (adapter.sessionTitle is a tail read
-// that early-returns when unchanged) surfaces such renames within a few seconds.
+// all miss it. Cheap per tick: adapter.sessionTitle is a cached stat that
+// early-returns while the transcript's (size, mtime) are unchanged.
 const TITLE_REFRESH_MS = 3000;
+
+// A `running` agent whose transcript has been quiet this long is flagged
+// `stale_running` (computed on read, like worktree_missing) — probably a
+// wedged agent process. Advisory only: a genuinely long tool call looks the
+// same, so the daemon must never kill or downgrade the session itself.
+const STALE_RUNNING_MS = 60 * 60 * 1000;
 
 // Captured-env caps (SPEC §4), enforced daemon-side regardless of what the
 // shell hook reports. Oversized values and overflow names are dropped with a
@@ -1138,9 +1144,34 @@ export class SessionService extends EventEmitter {
     } satisfies StatusEvent);
   }
 
-  /** Worktree-missing badge is computed, never stored (SPEC §4). */
-  private withComputed(session: Session): Session & { worktree_missing?: boolean } {
+  /** Worktree-missing and stale-running badges are computed, never stored (SPEC §4). */
+  private withComputed(session: Session): Session {
     if (session.status === 'archived') return session;
-    return existsSync(session.worktree_path) ? session : { ...session, worktree_missing: true };
+    const computed = existsSync(session.worktree_path)
+      ? session
+      : { ...session, worktree_missing: true };
+    return this.staleRunning(computed) ? { ...computed, stale_running: true } : computed;
+  }
+
+  /** See STALE_RUNNING_MS. Best-effort: any failure reads as "not stale". */
+  private staleRunning(session: Session): boolean {
+    if (
+      session.status !== 'running' ||
+      session.kind !== 'agent' ||
+      !session.agent_session_ref ||
+      session.account_id === null ||
+      !this.liveAgents.has(session.id)
+    )
+      return false;
+    try {
+      const account = this.deps.accounts.get(session.account_id);
+      const adapter = this.deps.adapters.get(session.agent_type ?? account.agent_type);
+      const activityAt = adapter.sessionActivityAt?.(session.agent_session_ref, account);
+      return activityAt !== null && activityAt !== undefined
+        ? Date.now() - activityAt.getTime() > STALE_RUNNING_MS
+        : false;
+    } catch {
+      return false;
+    }
   }
 }

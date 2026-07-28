@@ -1,11 +1,13 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
+import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
 import { HOME_STREAM } from '@puddle/shared';
 import { tokenStore } from '../../lib/auth';
 import { useClientSettings } from '../../lib/client-settings';
+import { useDocumentVisible } from '../../lib/use-document-visible';
 import { sshMode } from '../../lib/ssh-mode';
 import { cssTokenReader, onThemeChange, xtermThemeFromCss } from '../../lib/theme';
 import { cn } from '../../lib/utils';
@@ -38,21 +40,66 @@ export interface TerminalProps {
   onExit?: (code: number) => void;
   /** Cmd/Ctrl+click on a validated file path opens it in the editor (SPEC §7). */
   onOpenFile?: (path: string, line?: number, column?: number) => void;
+  /**
+   * True while this terminal's DOM is parked out of sight (a background tab in
+   * the tiling layout). A paused terminal detaches its PTY viewer — no output
+   * arrives, nothing is parsed — and re-attaches on unpause, where the daemon's
+   * replay repaints it. The PTY and its agent run on regardless; viewers are
+   * ephemeral by design (SPEC §6).
+   */
+  paused?: boolean;
 }
+
+/**
+ * Deferred false: flips to true immediately, but holds a true value for
+ * `delayMs` after the input goes false. Rapid tab switches therefore keep the
+ * PTY attachment (no replay churn); only a settled pause detaches.
+ */
+function useLingeringTrue(value: boolean, delayMs: number): boolean {
+  const [lingering, setLingering] = useState(value);
+  useEffect(() => {
+    if (value) {
+      setLingering(true);
+      return;
+    }
+    const timer = setTimeout(() => setLingering(false), delayMs);
+    return () => clearTimeout(timer);
+  }, [value, delayMs]);
+  return lingering;
+}
+
+const DETACH_LINGER_MS = 1_500;
 
 /**
  * One xterm bound to one daemon PTY via the WS manager. The attach replay
  * repaints prior scrollback; the theme regenerates from the CSS variables on
  * every theme switch so terminal and chrome never drift apart (SPEC §12).
  */
-export function Terminal({ stream, term = 'agent', className, onExit, onOpenFile }: TerminalProps) {
+export function Terminal({
+  stream,
+  term = 'agent',
+  className,
+  onExit,
+  onOpenFile,
+  paused = false,
+}: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
+  const fitRef = useRef<FitAddon | null>(null);
+  // True while the buffer is replaying history: OSC side effects (clipboard
+  // writes, colour-query replies) must not re-fire for bytes the agent emitted
+  // in the past — a stale clipboard overwrite, or a stale reply written into a
+  // working agent's stdin.
+  const replayingRef = useRef(false);
   const settings = useClientSettings();
   const onExitRef = useRef(onExit);
   onExitRef.current = onExit;
   const onOpenFileRef = useRef(onOpenFile);
   onOpenFileRef.current = onOpenFile;
+  // Also pause when the whole document is hidden: a backgrounded browser tab
+  // otherwise keeps receiving and parsing every byte of PTY output.
+  const visible = useDocumentVisible();
+  const attached = useLingeringTrue(!paused && visible, DETACH_LINGER_MS);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -89,6 +136,7 @@ export function Terminal({ stream, term = 'agent', className, onExit, onOpenFile
     );
     xterm.open(container);
     fit.fit();
+    fitRef.current = fit;
 
     // Validated file-path links: only for real sessions (login/home PTYs have
     // no worktree to resolve against) and only when a handler is wired.
@@ -99,10 +147,6 @@ export function Terminal({ stream, term = 'agent', className, onExit, onOpenFile
           )
         : null;
 
-    const detach = wsManager.attach(stream, term, xterm.cols, xterm.rows, {
-      onData: (data) => xterm.write(data),
-      onExit: (code) => onExitRef.current?.(code),
-    });
     const stdin = xterm.onData((data) => wsManager.write(stream, term, data));
 
     // Answer the terminal dynamic-colour queries (OSC 10 foreground, OSC 11
@@ -112,6 +156,7 @@ export function Terminal({ stream, term = 'agent', className, onExit, onOpenFile
     // Tokens are read live so the answer reflects the theme at query time.
     const answerColour = (code: DynamicColourCode, token: string) => (data: string) => {
       if (data !== '?') return false; // a set request, not a query — leave it to xterm
+      if (replayingRef.current) return true; // a historical query — never re-answer it
       const report = dynamicColourReport(code, cssTokenReader()(token));
       if (report) wsManager.write(stream, term, report);
       return true;
@@ -126,6 +171,7 @@ export function Terminal({ stream, term = 'agent', className, onExit, onOpenFile
     // and ⌘V has nothing to paste. Read requests (`?`) are ignored on purpose:
     // the PTY must never be able to exfiltrate the clipboard.
     const oscClipboard = xterm.parser.registerOscHandler(52, (data) => {
+      if (replayingRef.current) return true; // a historical copy — never clobber the clipboard
       const semi = data.indexOf(';');
       const payload = semi === -1 ? '' : data.slice(semi + 1);
       if (!payload || payload === '?') return true; // read/clear — leave the clipboard alone
@@ -190,14 +236,64 @@ export function Terminal({ stream, term = 'agent', className, onExit, onOpenFile
       oscClipboard.dispose();
       fileLinks?.dispose();
       stdin.dispose();
-      detach();
       xterm.dispose();
       xtermRef.current = null;
+      fitRef.current = null;
     };
     // Deliberately keyed on the PTY identity only: recreating the terminal on
     // settings change would drop scrollback; the effect below patches the
     // live instance instead.
   }, [stream, term]);
+
+  // The PTY attachment, gated on `attached`: paused/hidden terminals detach
+  // (the daemon stops sending, nothing is parsed) and re-attach on return,
+  // where the daemon's replay repaints the buffer from scratch. Note a session
+  // that exits while detached delivers no `exit` event here; the status feed
+  // carries that news to the UI.
+  useEffect(() => {
+    const xterm = xtermRef.current;
+    if (!xterm || !attached) return;
+    // Adoption may have just given the container real dimensions — size the
+    // buffer first so the attach carries the dims the PTY should have.
+    const container = containerRef.current;
+    if (container && container.clientWidth > 0) fitRef.current?.fit();
+    // GPU rendering only while attached: browsers cap live WebGL contexts
+    // (~16 per page), so contexts must track the handful of visible panes,
+    // never the full set of mounted terminals. Unavailable/lost context
+    // falls back to xterm's DOM renderer.
+    let webgl: WebglAddon | null = null;
+    try {
+      webgl = new WebglAddon();
+      webgl.onContextLoss(() => {
+        webgl?.dispose();
+        webgl = null;
+      });
+      xterm.loadAddon(webgl);
+    } catch {
+      webgl = null;
+    }
+    const detach = wsManager.attach(stream, term, xterm.cols, xterm.rows, {
+      onData: (data, kind) => {
+        if (kind === 'replay') {
+          // Start from a clean screen: the replayed tail must repaint the
+          // buffer, not append to what it already shows.
+          replayingRef.current = true;
+          xterm.reset();
+          xterm.write(data, () => {
+            replayingRef.current = false;
+          });
+          return;
+        }
+        xterm.write(data);
+      },
+      onExit: (code) => onExitRef.current?.(code),
+    });
+    return () => {
+      webgl?.dispose();
+      webgl = null;
+      detach();
+    };
+  }, [stream, term, attached]);
 
   useEffect(() => {
     const xterm = xtermRef.current;

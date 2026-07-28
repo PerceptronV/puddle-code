@@ -131,6 +131,7 @@ function CollapsedSessionDot({
               <StatusDot
                 status={session.status}
                 kind={session.kind}
+                stale={session.stale_running}
                 className="[--puddle-ripple-scale:2.3]"
               />
               <span className="sr-only">{renderTitle(session)}</span>
@@ -263,7 +264,7 @@ function SessionRow({
             session.id === activeSessionId && 'bg-elevated',
           )}
         >
-          <StatusDot status={session.status} kind={session.kind} />
+          <StatusDot status={session.status} kind={session.kind} stale={session.stale_running} />
           <span className="min-w-0 flex-1">
             <span className="block truncate font-sans text-xs text-fg">{renderTitle(session)}</span>
             <span className="flex items-center gap-1 truncate font-mono text-2xs text-fg-muted">

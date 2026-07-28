@@ -60,6 +60,14 @@ export const sessionSchema = z.object({
   /** Computed on read: the worktree dir is gone; the session can only be archived. */
   worktree_missing: z.boolean().optional(),
   /**
+   * Computed on read: the session says `running` but the agent's own
+   * transcript has been quiet for over an hour — the agent process is likely
+   * wedged (SPEC §4). Advisory only: the daemon never interrupts an agent on
+   * the strength of it (a very long tool call looks identical), it just lets
+   * the UI say "this may be stalled". Optional: older daemons omit it.
+   */
+  stale_running: z.boolean().optional(),
+  /**
    * Ahead/behind counts vs. the base branch plus a dirty-file count. Optional:
    * older daemons omit it, and it is computed only on the single-session GET
    * (`GET /api/sessions/:id`) — never on the list endpoint, where it would be

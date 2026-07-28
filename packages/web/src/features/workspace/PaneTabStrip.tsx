@@ -188,7 +188,9 @@ function PaneTab({
     >
       {tab.type === 'terminal' ? (
         <>
-          {session && <StatusDot status={session.status} kind={session.kind} />}
+          {session && (
+            <StatusDot status={session.status} kind={session.kind} stale={session.stale_running} />
+          )}
           <span className="truncate font-mono">
             {session ? renderTitle(session) : tab.session.slice(0, 8)}
           </span>
