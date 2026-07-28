@@ -41,7 +41,7 @@ export function SelectContent({
         position={position}
         sideOffset={4}
         className={cn(
-          'z-50 max-h-72 min-w-[var(--radix-select-trigger-width)] overflow-y-auto rounded-md bg-elevated p-1 shadow-xl',
+          'z-50 max-h-72 min-w-[var(--radix-select-trigger-width)] max-w-[var(--radix-select-content-available-width)] overflow-y-auto rounded-md bg-elevated p-1 shadow-xl',
           className,
         )}
         {...props}
@@ -55,8 +55,17 @@ export function SelectContent({
 export function SelectItem({
   className,
   children,
+  detail,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Item>) {
+}: React.ComponentProps<typeof SelectPrimitive.Item> & {
+  /**
+   * Menu-only annotation rendered beside the label while the list is open.
+   * It sits OUTSIDE ItemText, so the collapsed trigger's SelectValue (which
+   * mirrors ItemText alone) never shows it — long detail cannot overflow the
+   * trigger.
+   */
+  detail?: React.ReactNode;
+}) {
   return (
     <SelectPrimitive.Item
       className={cn(menuRow, menuHighlightRadix, 'py-1.5 pl-7 pr-2', className)}
@@ -68,6 +77,7 @@ export function SelectItem({
         </SelectPrimitive.ItemIndicator>
       </span>
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+      {detail}
     </SelectPrimitive.Item>
   );
 }

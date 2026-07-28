@@ -25,11 +25,13 @@ import { openSettings } from '../../lib/hash-route';
 import {
   useAccounts,
   useCreateSession,
+  useHostInfo,
   useProfileSettings,
   useRepoBranches,
   useRepoWorktrees,
   useRepos,
 } from '../../lib/queries';
+import { tildify } from '../../lib/tildify';
 import { useCurrentProfileId } from '../profile/profile-store';
 import { resolveSessionSeed } from './session-seed';
 
@@ -68,6 +70,7 @@ export function NewSessionDialog({
   const accounts = useAccounts(profileId ?? undefined);
   const settings = useProfileSettings(profileId ?? undefined);
   const repos = useRepos();
+  const host = useHostInfo();
   const create = useCreateSession();
 
   const [accountId, setAccountId] = useState<string>('');
@@ -315,12 +318,21 @@ export function NewSessionDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    {/* The trigger shows only the label (detail is menu-only),
+                        so a deep path can never overflow the dialog; the open
+                        list gets the ~-compressed path, the title the full one. */}
                     {joinable.map((j) => (
-                      <SelectItem key={j.path} value={j.path}>
-                        <span className="truncate">{j.label}</span>
-                        <span className="ml-2 truncate font-mono text-2xs text-fg-muted">
-                          {j.path}
-                        </span>
+                      <SelectItem
+                        key={j.path}
+                        value={j.path}
+                        title={j.path}
+                        detail={
+                          <span className="ml-auto min-w-0 truncate font-mono text-2xs text-fg-muted">
+                            {tildify(j.path, host.data?.home)}
+                          </span>
+                        }
+                      >
+                        {j.label}
                       </SelectItem>
                     ))}
                   </SelectContent>

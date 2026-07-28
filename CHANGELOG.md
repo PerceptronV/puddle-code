@@ -30,3 +30,10 @@ Past releases: see docs/changelogs/.
   images keep the object-URL path. Ctrl/⌘-click on a worktree link in a
   markdown preview opens that file as an editor tab, with markdown/HTML
   targets landing straight in their rendered view.
+
+### Fixed
+
+- New agent/terminal dialog: the "Directory to join" select no longer overflows
+  the dialog — the collapsed trigger shows just the directory name, and the open
+  list shows the `~`-compressed path (full path on hover) with the menu capped
+  to the viewport.
