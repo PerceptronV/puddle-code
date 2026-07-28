@@ -13,8 +13,10 @@ interface NotificationPrefs {
 const DEFAULTS: NotificationPrefs = { desktop: true, sound: false, muted_projects: [] };
 
 /**
- * Preference storage only in Phase 2 — the notifications themselves land in
- * Phase 8, which reads this profile-settings shape as-is.
+ * Notification preferences (SPEC §11); delivery lives in the shell's
+ * use-waiting-notifications hook, which reads this profile-settings shape.
+ * Enabling the desktop toggle asks the browser for permission there and then —
+ * a user gesture is required, and this click is it.
  */
 export function NotificationsSection() {
   const profileId = useCurrentProfileId();
@@ -31,16 +33,23 @@ export function NotificationsSection() {
 
   return (
     <div>
-      <SectionTitle note="Delivery lands in a later phase">Notifications</SectionTitle>
+      <SectionTitle note="When an agent flips to waiting for input">Notifications</SectionTitle>
       <SettingRow
         label="Desktop notification on waiting"
-        description="When a session flips to waiting for input."
+        description="Shown while this window is unfocused; clicking it opens the session."
         htmlFor="notify-desktop"
       >
         <Switch
           id="notify-desktop"
           checked={prefs.desktop}
-          onCheckedChange={(checked) => save({ ...prefs, desktop: checked })}
+          onCheckedChange={(checked) => {
+            // The toggle click is the user gesture browsers require for the
+            // permission prompt — ask here, not at delivery time.
+            if (checked && typeof Notification !== 'undefined') {
+              void Notification.requestPermission();
+            }
+            save({ ...prefs, desktop: checked });
+          }}
         />
       </SettingRow>
       <SettingRow label="Sound" htmlFor="notify-sound">

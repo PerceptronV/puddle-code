@@ -9,6 +9,14 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Added
+
+- Notifications actually fire now: when an agent flips to waiting for input,
+  puddle shows a desktop notification (while the window is unfocused; clicking
+  it opens the session), plays the optional sound, and badges the tab title
+  with the count of waiting agents — honouring the Notifications settings and
+  per-project mutes. Enabling the desktop toggle asks for browser permission.
+
 ### Fixed
 
 - Status detection no longer sticks on green: agent status is now driven by
