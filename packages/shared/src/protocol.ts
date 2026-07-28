@@ -72,4 +72,11 @@
 // no bearer), the agent-hook status side-channel. The daemon injects
 // PUDDLE_AGENT_SIGNAL_URL/_NONCE into agent PTYs; hook processes report
 // working/waiting_input, which overrides the regex detector once seen.
-export const PROTOCOL_VERSION = { major: 9, minor: 4 } as const;
+// 10.0 (2026-07-28): major bump with NO further schema change, on purpose —
+// forces every connected daemon to auto-upgrade at the next handshake (see
+// PROTOCOL.md "The rule"; mirrors the 6.0/8.0 bumps). This release changes
+// daemon-side behaviour the UI silently depends on — hook-driven status
+// detection (a 9.x daemon leaves sessions stuck green) and archive killing
+// live sessions — so no daemon may sit on 9.x. Ships the unreleased 9.3/9.4
+// additions above.
+export const PROTOCOL_VERSION = { major: 10, minor: 0 } as const;

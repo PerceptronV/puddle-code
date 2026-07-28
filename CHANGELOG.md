@@ -29,6 +29,13 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- `PROTOCOL_VERSION` → **10.0**: a deliberate major bump (the 6.0/8.0
+  pattern) so every connected daemon auto-upgrades at the next handshake —
+  this release's hook-driven status detection and archive-kills-live
+  behaviour live daemon-side, and a 9.x daemon would leave sessions stuck
+  green. Rolls up the unreleased 9.3/9.4 additions (`POST /agent-signal`,
+  archive accepting live sessions).
+
 - Archiving is one gesture for any session: the ⋯/right-click menu offers
   Archive on live agents and terminals too — the daemon kills the session as
   part of archiving (still a reversible hide; unarchive brings it back
