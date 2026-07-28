@@ -34,6 +34,10 @@ jobs:
       # (node-gyp for node-pty on Linux, prebuilds elsewhere) — the tarball
       # build refuses to cross-compile by design.
       - run: pnpm install --frozen-lockfile
+        env:
+          # Workflows build the desktop shell with esbuild only and never
+          # launch Electron - skip its ~100 MB binary download.
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - run: node scripts/build-tarball.mjs --version "${GITHUB_REF_NAME#v}"
       - uses: actions/upload-artifact@v4
         with:

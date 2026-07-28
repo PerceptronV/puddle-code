@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "noEmit": true,
+    "types": ["node"],
+    // Typecheck against the SOURCE of the shared seam, exactly as the build
+    // bundles it (scripts/build.mjs aliases the same two entries).
+    "paths": {
+      "@puddle-code/cli/lib": ["../cli/src/lib/index.ts"],
+      "@puddle/shared": ["../shared/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

@@ -1,0 +1,21 @@
+# Packaging for the desktop shell (`pnpm --filter @puddle/desktop dist`).
+# The bundle is self-contained (dist/ carries main, preload, install.sh and
+# the web UI); install.sh is READ from inside app.asar (Electron patches fs),
+# never executed from disk, so nothing needs asarUnpack.
+appId: code.puddle.desktop
+productName: Puddle
+directories:
+  output: release
+files:
+  - dist/**
+  - package.json
+asar: true
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - dmg
+    - zip
+linux:
+  target:
+    - AppImage
+  category: Development

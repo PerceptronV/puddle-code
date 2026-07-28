@@ -22,6 +22,16 @@ Past releases: see docs/changelogs/.
   the UI fades its status dot, drops the ripple, and hints "possibly stalled".
   Advisory only — the daemon never interrupts an agent over it.
 
+- Desktop shell (`packages/desktop`): puddle now also builds as a standalone
+  Electron app. The main process drives the exact same cockpit engine as the
+  `puddle` CLI (`startLocal` from the new embedder surface
+  `@puddle-code/cli/lib`) and opens a window on the embedded cockpit — one
+  codebase, two downstream builds. External links and editor deep links open
+  via the OS, the connection banner's refresh restarts the cockpit
+  in-process, notification clicks raise the window, and quitting never
+  touches the daemon or running agents. `pnpm --filter @puddle/desktop start`
+  to run, `… dist` to package (dmg/zip/AppImage).
+
 ### Fixed
 
 - Battery: the web UI now idles properly. Terminals detach from their PTY

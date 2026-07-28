@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type { ProjectDetail, Session } from '@puddle/shared';
+import { desktopBridge } from '../../lib/desktop';
 import { useProfileSettings } from '../../lib/queries';
 import { wsManager } from '../../lib/ws';
 import { useCurrentProfileId } from '../profile/profile-store';
@@ -110,11 +111,20 @@ export function useWaitingNotifications(): void {
 
       const session = findSession(qc, event.session);
       if (!session || session.kind === 'terminal') return; // shells never "wait for input"
+      // Under the desktop shell Notification.permission is unreliable (macOS
+      // reports 'default' even though notifications deliver) — the shell's
+      // presence is the grant.
+      const permission =
+        typeof Notification === 'undefined'
+          ? ('unsupported' as const)
+          : desktopBridge()
+            ? ('granted' as const)
+            : Notification.permission;
       const verdict = decideNotification({
         prefs: prefsRef.current,
         projectId: session.project_id,
         windowFocused: document.hasFocus(),
-        permission: typeof Notification === 'undefined' ? 'unsupported' : Notification.permission,
+        permission,
       });
       if (verdict.sound) playPing();
       if (verdict.desktop) {
@@ -123,6 +133,9 @@ export function useWaitingNotifications(): void {
           tag: `puddle-waiting-${session.id}`, // replaces, never stacks per session
         });
         n.onclick = () => {
+          // window.focus() raises a browser tab; only the desktop shell's
+          // main process can raise an OS window.
+          desktopBridge()?.raiseWindow();
           window.focus();
           void navigate(`/project/${session.project_id}/session/${session.id}`);
           n.close();

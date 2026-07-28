@@ -15,6 +15,10 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+        env:
+          # Workflows build the desktop shell with esbuild only and never
+          # launch Electron - skip its ~100 MB binary download.
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test

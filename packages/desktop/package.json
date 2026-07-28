@@ -1,0 +1,25 @@
+{
+  "name": "@puddle/desktop",
+  "version": "0.0.11",
+  "private": true,
+  "description": "puddle desktop — the cockpit as a standalone app, driving the same engine as the puddle CLI.",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "start": "electron .",
+    "dist": "node scripts/build.mjs && electron-builder"
+  },
+  "devDependencies": {
+    "@puddle-code/cli": "workspace:*",
+    "@puddle/shared": "workspace:*",
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.0",
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.25.0",
+    "ws": "^8.21.0"
+  }
+}
