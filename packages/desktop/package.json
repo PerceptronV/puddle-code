@@ -1,6 +1,6 @@
 {
   "name": "@puddle/desktop",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "private": true,
   "description": "puddle desktop — the cockpit as a standalone app, driving the same engine as the puddle CLI.",
   "license": "MIT",
