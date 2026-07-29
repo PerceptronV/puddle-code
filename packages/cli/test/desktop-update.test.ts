@@ -1,0 +1,216 @@
+import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { basename, join } from 'node:path';
+import { promisify } from 'node:util';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import {
+  applyDesktopUpdate,
+  checkForDesktopUpdate,
+  isNewerVersion,
+  parseSums,
+  pickDesktopAsset,
+  stageDesktopUpdate,
+  type DesktopUpdate,
+} from '../src/lib/desktop-update.js';
+
+const sha256 = (data: string): string => createHash('sha256').update(data).digest('hex');
+
+describe('isNewerVersion', () => {
+  it('compares x.y.z numerically, not lexically', () => {
+    expect(isNewerVersion('0.0.14', '0.0.13')).toBe(true);
+    expect(isNewerVersion('0.0.13', '0.0.13')).toBe(false);
+    expect(isNewerVersion('0.0.9', '0.0.13')).toBe(false);
+    expect(isNewerVersion('0.10.0', '0.9.9')).toBe(true);
+    expect(isNewerVersion('1.0.0', '0.99.99')).toBe(true);
+  });
+
+  it('tolerates a v prefix and rejects anything unparseable', () => {
+    expect(isNewerVersion('v0.0.14', '0.0.13')).toBe(true);
+    expect(isNewerVersion('nightly', '0.0.13')).toBe(false);
+    expect(isNewerVersion('0.0.14-rc.1', '0.0.13')).toBe(false);
+  });
+});
+
+describe('pickDesktopAsset', () => {
+  const assets = [
+    { name: 'Puddle-0.0.14-arm64-mac.zip', browser_download_url: 'u1' },
+    { name: 'Puddle-0.0.14-arm64.dmg', browser_download_url: 'u2' },
+    { name: 'Puddle-0.0.14.AppImage', browser_download_url: 'u3' },
+    { name: 'Puddle-0.0.14-arm64.AppImage', browser_download_url: 'u4' },
+    { name: 'SHA256SUMS', browser_download_url: 'u5' },
+  ];
+
+  it('matches platform + arch against electron-builder names', () => {
+    expect(pickDesktopAsset(assets, 'darwin', 'arm64')?.name).toBe('Puddle-0.0.14-arm64-mac.zip');
+    expect(pickDesktopAsset(assets, 'linux', 'x64')?.name).toBe('Puddle-0.0.14.AppImage');
+    expect(pickDesktopAsset(assets, 'linux', 'arm64')?.name).toBe('Puddle-0.0.14-arm64.AppImage');
+  });
+
+  it('returns null when the release has nothing for this machine', () => {
+    expect(pickDesktopAsset(assets, 'darwin', 'x64')).toBeNull(); // not published
+    expect(pickDesktopAsset(assets, 'win32', 'x64')).toBeNull();
+  });
+});
+
+describe('parseSums', () => {
+  it('reads shasum output, ignoring noise', () => {
+    const hex = 'a'.repeat(64);
+    const sums = parseSums(`${hex}  Puddle-0.0.14-arm64-mac.zip\nnot a sum line\n`);
+    expect(sums.get('Puddle-0.0.14-arm64-mac.zip')).toBe(hex);
+    expect(sums.size).toBe(1);
+  });
+});
+
+describe('checkForDesktopUpdate', () => {
+  const release = (tag: string) =>
+    new Response(
+      JSON.stringify({
+        tag_name: tag,
+        assets: [
+          { name: `Puddle-${tag.slice(1)}-arm64-mac.zip`, browser_download_url: 'https://a/zip' },
+          { name: 'SHA256SUMS', browser_download_url: 'https://a/sums' },
+        ],
+      }),
+    );
+
+  beforeAll(() => {
+    process.env.PUDDLE_REPO = 'example/puddle';
+  });
+  afterAll(() => {
+    delete process.env.PUDDLE_REPO;
+  });
+
+  it('offers a newer release for this platform', async () => {
+    const update = await checkForDesktopUpdate('0.0.13', {
+      platform: 'darwin',
+      arch: 'arm64',
+      fetchFn: () => Promise.resolve(release('v0.0.14')),
+    });
+    expect(update).toEqual({
+      version: '0.0.14',
+      asset: { name: 'Puddle-0.0.14-arm64-mac.zip', url: 'https://a/zip' },
+      sumsUrl: 'https://a/sums',
+    });
+  });
+
+  it('returns null when current, or when nothing fits this machine', async () => {
+    const current = await checkForDesktopUpdate('0.0.14', {
+      platform: 'darwin',
+      arch: 'arm64',
+      fetchFn: () => Promise.resolve(release('v0.0.14')),
+    });
+    expect(current).toBeNull();
+    const wrongArch = await checkForDesktopUpdate('0.0.13', {
+      platform: 'darwin',
+      arch: 'x64',
+      fetchFn: () => Promise.resolve(release('v0.0.14')),
+    });
+    expect(wrongArch).toBeNull();
+  });
+
+  it('throws on API failure so pollers can retry', async () => {
+    await expect(
+      checkForDesktopUpdate('0.0.13', {
+        fetchFn: () => Promise.resolve(new Response('rate limited', { status: 403 })),
+      }),
+    ).rejects.toThrow(/HTTP 403/);
+  });
+});
+
+describe('stageDesktopUpdate + applyDesktopUpdate (AppImage path)', () => {
+  let dir: string;
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'puddle-update-'));
+  });
+  afterAll(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  const NAME = 'Puddle-0.0.14.AppImage';
+  const BODY = '#!/bin/sh\necho new-version\n';
+  const update: DesktopUpdate = {
+    version: '0.0.14',
+    asset: { name: NAME, url: 'https://a/appimage' },
+    sumsUrl: 'https://a/sums',
+  };
+  const serve =
+    (sums: string): typeof fetch =>
+    (input) =>
+      Promise.resolve(String(input).endsWith('/sums') ? new Response(sums) : new Response(BODY));
+
+  it('downloads, verifies, and stages; the swap replaces the target and cleans up', async () => {
+    const staged = await stageDesktopUpdate(update, {
+      cacheDir: join(dir, 'cache'),
+      fetchFn: serve(`${sha256(BODY)}  ${NAME}\n`),
+    });
+    expect(staged.kind).toBe('appimage');
+    expect((await stat(staged.stagedPath)).mode & 0o100).toBeTruthy(); // executable
+
+    const target = join(dir, 'installed.AppImage');
+    await writeFile(target, '#!/bin/sh\necho old-version\n');
+    await chmod(target, 0o755);
+    await applyDesktopUpdate(staged, { targetPath: target, detach: false, relaunch: false });
+    expect(await readFile(target, 'utf8')).toBe(BODY);
+    await expect(stat(staged.dir)).rejects.toThrow(); // staging dir removed
+  });
+
+  it('rejects a checksum mismatch and leaves no staging directory behind', async () => {
+    const cacheDir = join(dir, 'cache-bad');
+    await mkdir(cacheDir, { recursive: true });
+    await expect(
+      stageDesktopUpdate(update, {
+        cacheDir,
+        fetchFn: serve(`${'b'.repeat(64)}  ${NAME}\n`),
+      }),
+    ).rejects.toThrow(/checksum mismatch/);
+    await expect(stat(join(cacheDir, update.version))).rejects.toThrow();
+  });
+});
+
+// The mac path needs ditto(1), so it only runs where it will in production.
+describe.runIf(process.platform === 'darwin')('mac zip staging + swap', () => {
+  it('unpacks the .app with ditto and the helper swaps the bundle', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'puddle-update-mac-'));
+    try {
+      // A fake release zip: <root>/Puddle.app/Contents/Info.plist, zipped the
+      // way electron-builder ships it (the bundle at the archive root).
+      const src = join(dir, 'src');
+      await mkdir(join(src, 'Puddle.app', 'Contents'), { recursive: true });
+      await writeFile(join(src, 'Puddle.app', 'Contents', 'Info.plist'), 'new-bundle');
+      const zip = join(dir, 'Puddle-9.9.9-arm64-mac.zip');
+      await promisify(execFile)('/usr/bin/ditto', ['-c', '-k', src, zip]);
+      const bytes = await readFile(zip);
+
+      const update: DesktopUpdate = {
+        version: '9.9.9',
+        asset: { name: basename(zip), url: 'https://a/zip' },
+        sumsUrl: 'https://a/sums',
+      };
+      const staged = await stageDesktopUpdate(update, {
+        cacheDir: join(dir, 'cache'),
+        fetchFn: (input) =>
+          Promise.resolve(
+            String(input).endsWith('/sums')
+              ? new Response(
+                  `${createHash('sha256').update(bytes).digest('hex')}  ${basename(zip)}\n`,
+                )
+              : new Response(bytes),
+          ),
+      });
+      expect(staged.kind).toBe('mac-app');
+      expect(staged.stagedPath.endsWith('Puddle.app')).toBe(true);
+
+      const target = join(dir, 'Applications', 'Puddle.app');
+      await mkdir(join(target, 'Contents'), { recursive: true });
+      await writeFile(join(target, 'Contents', 'Info.plist'), 'old-bundle');
+      await applyDesktopUpdate(staged, { targetPath: target, detach: false, relaunch: false });
+      expect(await readFile(join(target, 'Contents', 'Info.plist'), 'utf8')).toBe('new-bundle');
+      await expect(stat(`${target}.old`)).rejects.toThrow(); // no leftovers
+      await expect(stat(staged.dir)).rejects.toThrow();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

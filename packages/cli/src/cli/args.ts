@@ -43,7 +43,7 @@ export type Command =
   | { cmd: 'status'; host?: string }
   | { cmd: 'attach'; host?: string; session: string; term?: string }
   | { cmd: 'logs'; host?: string; session?: string; term?: string; follow: boolean }
-  | { cmd: 'upgrade'; host?: string }
+  | { cmd: 'upgrade'; what: 'cli' | 'daemon' | 'desktop'; host?: string }
   | { cmd: 'help' }
   | { cmd: 'version' };
 
@@ -61,7 +61,7 @@ usage:
   puddle status  [user@host]
   puddle attach  [user@host] <session> [--term <id>]
   puddle logs    [user@host] [session] [--term <id>] [-f|--follow]
-  puddle upgrade [user@host]
+  puddle upgrade <cli | daemon | desktop> [user@host]
   puddle --version | --help
 
 start serves the cockpit at http://localhost:7433 against the daemon on this
@@ -273,11 +273,20 @@ export function parseArgs(argv: string[]): Command {
         : { cmd: 'logs', session: first, follow, ...(term !== undefined ? { term } : {}) };
     }
     case 'upgrade': {
-      if (positionals.length > 1)
-        throw new CliError('bad_arguments', 'upgrade takes at most a host');
+      const [what, host, extra] = positionals;
+      if (what !== 'cli' && what !== 'daemon' && what !== 'desktop') {
+        throw new CliError(
+          'bad_arguments',
+          'upgrade needs a subject: puddle upgrade <cli | daemon | desktop> [user@host]',
+          what !== undefined && what.includes('@')
+            ? `to upgrade the daemon on ${what}: puddle upgrade daemon ${what}`
+            : undefined,
+        );
+      }
+      if (extra !== undefined)
+        throw new CliError('bad_arguments', 'upgrade takes at most a subject + host');
       expect();
-      const host = positionals[0];
-      return { cmd: 'upgrade', ...(host !== undefined ? { host } : {}) };
+      return { cmd: 'upgrade', what, ...(host !== undefined ? { host } : {}) };
     }
     default:
       throw new CliError('bad_arguments', `unknown command '${cmd}'`, 'see: puddle --help');

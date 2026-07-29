@@ -10,11 +10,15 @@ import {
   type MenuItemConstructorOptions,
 } from 'electron';
 import {
+  applyDesktopUpdate,
+  checkForDesktopUpdate,
   CliError,
   connectRemote,
+  stageDesktopUpdate,
   startLocal,
   type Logger,
   type RunningCockpit,
+  type StagedDesktopUpdate,
 } from '@puddle-code/cli/lib';
 import { addRecentHost, loadRecentHosts } from './recent-hosts.js';
 
@@ -250,6 +254,55 @@ ipcMain.on('puddle:raise', (event) => {
 });
 
 // ---------------------------------------------------------------------------
+// Self-update (SPEC §10): the CLI-style pipeline from lib/desktop-update —
+// check GitHub releases, stage (download + SHA256SUMS verify + unpack) into
+// ~/.puddle/cache/desktop, then swap on demand. No Squirrel, no signing
+// requirement: a detached helper waits for this process to exit, replaces
+// the install, and relaunches. The renderer only ever sees "an update is
+// ready" and asks for the restart — everything else stays in this process.
+
+const UPDATE_POLL_MS = 6 * 60 * 60 * 1000;
+let stagedUpdate: StagedDesktopUpdate | null = null;
+
+/** The path the swap replaces, or null when not running from a real install. */
+function installTarget(): string | null {
+  if (!app.isPackaged) return null;
+  if (process.platform === 'darwin') {
+    const bundle = app.getPath('exe').replace(/(\.app)\/Contents\/.*$/, '$1');
+    return bundle.endsWith('.app') ? bundle : null;
+  }
+  return process.env.APPIMAGE ?? null; // set by the AppImage runtime
+}
+
+async function pollForUpdate(): Promise<void> {
+  if (installTarget() === null) return;
+  try {
+    const update = await checkForDesktopUpdate(app.getVersion());
+    if (update === null || stagedUpdate?.version === update.version) return;
+    const staged = await stageDesktopUpdate(update, { logger });
+    stagedUpdate = staged;
+    logger.info(`update ${staged.version} staged — offering the restart banner`);
+    for (const shell of shells.values()) {
+      shell.win.webContents.send('puddle:update-ready', staged.version);
+    }
+  } catch (e) {
+    logger.warn(`update check failed: ${errorText(e)}`); // offline is normal; retry next poll
+  }
+}
+
+ipcMain.handle('puddle:update-ready', () => stagedUpdate?.version ?? null);
+ipcMain.on('puddle:install-update', () => {
+  const target = installTarget();
+  if (stagedUpdate === null || target === null) return;
+  void applyDesktopUpdate(stagedUpdate, {
+    targetPath: target,
+    waitPid: process.pid,
+    relaunch: true,
+    logger,
+  }).then(() => app.quit());
+});
+
+// ---------------------------------------------------------------------------
 // Application menu
 
 function buildMenu(): void {
@@ -303,6 +356,8 @@ if (!app.requestSingleInstanceLock()) {
 
   void app.whenReady().then(async () => {
     buildMenu();
+    void pollForUpdate();
+    setInterval(() => void pollForUpdate(), UPDATE_POLL_MS);
     try {
       await openShell(LOCAL);
     } catch (e) {

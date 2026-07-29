@@ -9,6 +9,19 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Added
+
+- Desktop self-update, no code signing required: the app polls GitHub
+  releases, downloads and SHA256SUMS-verifies the new build into
+  `~/.puddle/cache/desktop/`, and offers a "Restart to update" banner; a
+  detached helper swaps the install after quit and relaunches (SPEC §10 —
+  the CLI-style alternative to Squirrel, which refuses unsigned bundles).
+- `puddle upgrade` now names its subject: `puddle upgrade daemon [user@host]`
+  (the previous behaviour), `puddle upgrade cli` (npm under the hood), and
+  `puddle upgrade desktop` (the app's update pipeline, run while the app is
+  closed). `cli`/`desktop` refuse remote targets — only the daemon lives on
+  remote hosts.
+
 ### Fixed
 
 - Battery: the file explorer no longer pins a CPU core for as long as it is

@@ -105,7 +105,9 @@ jobs:
         with:
           name: desktop-${{ matrix.target }}
           # Explicit globs on purpose: never the .blockmap / latest-*.yml
-          # auto-update metadata (puddle has no updater).
+          # electron-updater metadata — the desktop app self-updates through
+          # lib/desktop-update (SPEC §10), which consumes the artefacts +
+          # SHA256SUMS directly, not Squirrel's metadata.
           path: |
             packages/desktop/release/*.dmg
             packages/desktop/release/*.zip

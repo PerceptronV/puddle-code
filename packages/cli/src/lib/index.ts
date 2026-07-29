@@ -15,3 +15,12 @@ export type { RunningCockpit } from './cockpit.js';
 export { CliError, silentLogger, type CliErrorCode, type CliEvent, type Logger } from './types.js';
 export { cliVersion, pinnedDaemonVersion } from './version.js';
 export { clientHome } from './paths.js';
+export {
+  applyDesktopUpdate,
+  checkForDesktopUpdate,
+  findInstalledDesktopApp,
+  isDesktopAppRunning,
+  stageDesktopUpdate,
+  type DesktopUpdate,
+  type StagedDesktopUpdate,
+} from './desktop-update.js';

@@ -17,6 +17,7 @@ import { ConnectionBanner } from './ConnectionBanner';
 import { ProfilePanel } from '../profile/ProfilePanel';
 import { useCurrentProfileId } from '../profile/profile-store';
 import { NewSessionProvider, useNewSession } from './new-session-context';
+import { UpdateBanner } from './UpdateBanner';
 import { useLocalSyncEngine } from './use-local-sync-engine';
 import { useWaitingNotifications } from './use-waiting-notifications';
 import { ScratchpadPopover } from '../scratchpad/ScratchpadPopover';
@@ -179,6 +180,7 @@ function ShellBody() {
       </main>
       {/* Bottom-anchored, like the workspace's resume banner. */}
       <ConnectionBanner />
+      <UpdateBanner />
       <CommandPalette
         onNewSession={handler ?? undefined}
         onNewProject={() => setCreatingProject(true)}

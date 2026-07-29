@@ -142,6 +142,25 @@ describe('argument parsing', () => {
     expect(parseArgs(['logs'])).toEqual({ cmd: 'logs', follow: false });
   });
 
+  it('upgrade: a required subject, then an optional host', () => {
+    expect(parseArgs(['upgrade', 'daemon'])).toEqual({ cmd: 'upgrade', what: 'daemon' });
+    expect(parseArgs(['upgrade', 'daemon', 'user@host'])).toEqual({
+      cmd: 'upgrade',
+      what: 'daemon',
+      host: 'user@host',
+    });
+    expect(parseArgs(['upgrade', 'cli'])).toEqual({ cmd: 'upgrade', what: 'cli' });
+    expect(parseArgs(['upgrade', 'desktop'])).toEqual({ cmd: 'upgrade', what: 'desktop' });
+    expect(() => parseArgs(['upgrade'])).toThrow(CliError);
+    // The pre-split form (`puddle upgrade user@host`) gets a pointed hint.
+    try {
+      parseArgs(['upgrade', 'user@host']);
+      expect.unreachable('a bare host must not parse');
+    } catch (e) {
+      expect((e as CliError).hint).toContain('upgrade daemon user@host');
+    }
+  });
+
   it('help and version', () => {
     expect(parseArgs([])).toEqual({ cmd: 'help' });
     expect(parseArgs(['--help'])).toEqual({ cmd: 'help' });
