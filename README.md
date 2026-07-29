@@ -3,6 +3,13 @@
 [![npm](https://img.shields.io/npm/v/@puddle-code/cli?logo=npm)](https://www.npmjs.com/package/@puddle-code/cli)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/cockpit-dark.png">
+    <img src="docs/assets/cockpit-light.png" alt="The Puddle desktop app: a live Claude Code session split beside the rendered README, with the file explorer on the left and parallel agent sessions on their own branches and accounts in the sidebar" width="920">
+  </picture>
+</p>
+
 Puddle is an open-source, multi-account coding agent orchestrator with first-class SSH support and a lightweight GUI. With a single command,
 
 ```bash

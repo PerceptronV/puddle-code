@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Added
+
+- README: hero screenshot of the desktop cockpit — a live Claude Code session split beside the rendered README (light + dark under `docs/assets/`).
