@@ -15,7 +15,7 @@ import { SshTransport } from '../lib/transport/ssh.js';
 import { CliError, type Logger } from '../lib/types.js';
 
 /**
- * Backgrounding a cockpit: `puddle start`/`connect` re-execs itself detached
+ * Backgrounding a cockpit: `puddle launch` re-execs itself detached
  * (stdio to ~/.puddle/logs/cockpit-<target>.log), streams that log to the
  * launching terminal until the child's registry record turns ready, prints
  * the URL and exits — the terminal may then close. Everything interactive

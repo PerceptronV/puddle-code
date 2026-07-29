@@ -1,7 +1,7 @@
 import { localValue } from './local-store';
 
 /**
- * Daemon bearer token. `puddle start` opens the UI as `/#token=<hex>`; the
+ * Daemon bearer token. `puddle launch` opens the UI as `/#token=<hex>`; the
  * fragment is captured once, stripped from the URL (fragments never reach the
  * server, but they linger in history), and kept in localStorage.
  */

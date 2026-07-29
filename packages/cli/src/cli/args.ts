@@ -2,7 +2,9 @@ import { CliError } from '../lib/types.js';
 
 export type Command =
   | {
-      cmd: 'start';
+      cmd: 'launch';
+      /** 'local' or user@host — the parser normalises "no argument" to 'local'. */
+      target: string;
       port?: number;
       /**
        * Start the UI-port probe here without insisting on it (unlike --port,
@@ -10,17 +12,7 @@ export type Command =
        * the old origin so an open browser tab survives the swap.
        */
       preferPort?: number;
-      noBrowser: boolean;
-      noUpgrade: boolean;
-      tarball?: string;
-      foreground: boolean;
-    }
-  | {
-      cmd: 'connect';
-      host: string;
-      port?: number;
-      /** See the `start` variant — a preferred, non-strict UI port. */
-      preferPort?: number;
+      /** Daemon port on the remote host; meaningless (and rejected) locally. */
       remotePort?: number;
       noBrowser: boolean;
       noUpgrade: boolean;
@@ -50,10 +42,8 @@ export type Command =
 export const USAGE = `puddle — self-hosted orchestrator for CLI coding agents
 
 usage:
-  puddle start   [--port <p>] [--foreground] [--no-browser] [--no-upgrade]
-                 [--tarball <path>]
-  puddle connect user@host [--port <local>] [--remote-port <p>] [--foreground]
-                 [--no-browser] [--no-upgrade] [--tarball <path>]
+  puddle launch  [local | user@host] [--port <p>] [--remote-port <p>]
+                 [--foreground] [--no-browser] [--no-upgrade] [--tarball <path>]
   puddle refresh [local | user@host] [--port <p>] [--remote-port <p>]
                  [--foreground] [--no-browser] [--no-upgrade] [--tarball <path>]
   puddle list
@@ -64,14 +54,15 @@ usage:
   puddle upgrade <cli | daemon | desktop> [user@host]
   puddle --version | --help
 
-start serves the cockpit at http://localhost:7433 against the daemon on this
-machine (installing it under ~/.puddle if needed); connect does the same for
-an SSH host through one tunnel. Both keep running in the background once
-ready, so the terminal may close (--foreground to stay attached; Ctrl-C then
-stops the cockpit). refresh stops a target's cockpit (even a wedged one) and
-runs the full start/connect flow again — tunnel, daemon restart if needed —
-keeping the old UI port so open tabs survive. list shows running cockpits;
-kill stops one — sessions keep running on the host either way.`;
+launch serves the cockpit at http://localhost:7433 against the daemon on this
+machine when no host (or 'local') is given — installing it under ~/.puddle if
+needed — and does the same for an SSH host through one tunnel. It keeps
+running in the background once ready, so the terminal may close (--foreground
+to stay attached; Ctrl-C then stops the cockpit). refresh stops a target's
+cockpit (even a wedged one) and runs the full launch flow again — tunnel,
+daemon restart if needed — keeping the old UI port so open tabs survive.
+list shows running cockpits; kill stops one — sessions keep running on the
+host either way.`;
 
 /** Hand-rolled argv parser — the surface is small enough to own outright. */
 export function parseArgs(argv: string[]): Command {
@@ -124,40 +115,10 @@ export function parseArgs(argv: string[]): Command {
   };
 
   switch (cmd) {
-    case 'start': {
-      if (positionals.length > 0) {
-        throw new CliError(
-          'bad_arguments',
-          `start takes no positional arguments (got '${positionals[0]}')`,
-        );
-      }
-      const port = intFlag('--port');
-      const preferPort = intFlag('--prefer-port');
-      const tarball = strFlag('--tarball');
-      expect(
-        '--port',
-        '--prefer-port',
-        '--no-browser',
-        '--no-upgrade',
-        '--tarball',
-        '--foreground',
-      );
-      return {
-        cmd: 'start',
-        ...(port !== undefined ? { port } : {}),
-        ...(preferPort !== undefined ? { preferPort } : {}),
-        ...(tarball !== undefined ? { tarball } : {}),
-        noBrowser: flags.has('--no-browser'),
-        noUpgrade: flags.has('--no-upgrade'),
-        foreground: flags.has('--foreground'),
-      };
-    }
-    case 'connect': {
-      const host = positionals[0];
-      if (host === undefined)
-        throw new CliError('bad_arguments', 'connect needs a host: puddle connect user@host');
+    case 'launch': {
       if (positionals.length > 1)
-        throw new CliError('bad_arguments', 'connect takes exactly one host');
+        throw new CliError('bad_arguments', 'launch takes at most one target');
+      const target = positionals[0] ?? 'local';
       const port = intFlag('--port');
       const preferPort = intFlag('--prefer-port');
       const remotePort = intFlag('--remote-port');
@@ -171,9 +132,12 @@ export function parseArgs(argv: string[]): Command {
         '--tarball',
         '--foreground',
       );
+      if (target === 'local' && remotePort !== undefined) {
+        throw new CliError('bad_arguments', '--remote-port only applies to an SSH target');
+      }
       return {
-        cmd: 'connect',
-        host,
+        cmd: 'launch',
+        target,
         ...(port !== undefined ? { port } : {}),
         ...(preferPort !== undefined ? { preferPort } : {}),
         ...(remotePort !== undefined ? { remotePort } : {}),
@@ -183,6 +147,14 @@ export function parseArgs(argv: string[]): Command {
         foreground: flags.has('--foreground'),
       };
     }
+    // The pre-unification verbs, kept only to say what replaced them.
+    case 'start':
+      throw new CliError('bad_arguments', `'start' is now: puddle launch`);
+    case 'connect':
+      throw new CliError(
+        'bad_arguments',
+        `'connect' is now: puddle launch ${positionals[0] ?? 'user@host'}`,
+      );
     case 'refresh': {
       if (positionals.length > 1)
         throw new CliError('bad_arguments', 'refresh takes at most one target');
@@ -294,19 +266,17 @@ export function parseArgs(argv: string[]): Command {
 }
 
 /**
- * The argv that parses back to this start/connect command — what a detached
- * re-exec runs when the launching command was NOT start/connect itself
- * (`refresh` kills the old cockpit, then detaches the rebuilt command).
- * Kept next to `parseArgs` so the two stay inverse of each other.
+ * The argv that parses back to this launch command — what a detached re-exec
+ * runs when the launching command was NOT launch itself (`refresh` kills the
+ * old cockpit, then detaches the rebuilt command). Kept next to `parseArgs`
+ * so the two stay inverse of each other.
  */
-export function argvFor(command: Extract<Command, { cmd: 'start' | 'connect' }>): string[] {
-  const argv: string[] = [command.cmd];
-  if (command.cmd === 'connect') argv.push(command.host);
+export function argvFor(command: Extract<Command, { cmd: 'launch' }>): string[] {
+  const argv: string[] = ['launch'];
+  if (command.target !== 'local') argv.push(command.target);
   if (command.port !== undefined) argv.push('--port', String(command.port));
   if (command.preferPort !== undefined) argv.push('--prefer-port', String(command.preferPort));
-  if (command.cmd === 'connect' && command.remotePort !== undefined) {
-    argv.push('--remote-port', String(command.remotePort));
-  }
+  if (command.remotePort !== undefined) argv.push('--remote-port', String(command.remotePort));
   if (command.tarball !== undefined) argv.push('--tarball', command.tarball);
   if (command.noBrowser) argv.push('--no-browser');
   if (command.noUpgrade) argv.push('--no-upgrade');

@@ -22,7 +22,7 @@ export interface UiServerOptions {
   strictPort?: boolean;
   /**
    * Never auto-pick this port (the daemon's own port in local mode): a UI
-   * server squatting it would make the next `puddle start` handshake with a
+   * server squatting it would make the next `puddle launch` handshake with a
    * proxy instead of the daemon. Ignored for an explicit --port.
    */
   avoidPort?: number;

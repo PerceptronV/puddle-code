@@ -6,7 +6,7 @@
 Puddle is an open-source, multi-account coding agent orchestrator with first-class SSH support and a lightweight GUI. With a single command,
 
 ```bash
-puddle connect <user>@<host>
+puddle launch <user>@<host>
 ```
 
 Puddle manages parallel agents anywhere you SSH into, insulates agents in dedicated worktrees, and keeps your agents alive across disconnects and restarts.
@@ -22,7 +22,7 @@ npm install -g @puddle-code/cli
 **To launch agents on a remote host:**
 
 ```sh
-puddle connect <user>@<host>
+puddle launch <user>@<host>
 ```
 
 This connects Puddle to the remote host over SSH, bootstrapping the Puddle daemon on first contact and enabling you to begin development.
@@ -32,7 +32,7 @@ Puddle works using your system `ssh`, so `~/.ssh/config`, agents, and jump hosts
 **For development on your own machine:**
 
 ```sh
-puddle start
+puddle launch
 ```
 
 This installs the Puddle daemon under `~/.puddle` and serves the GUI at `http://localhost:7433`.
@@ -106,7 +106,7 @@ systemctl --user disable --now puddled              # Linux (systemd user unit)
 kill "$(cat ~/.puddle/puddled.pid)"                 # nohup fallback (no supervisor)
 ```
 
-**Restore the production daemon.** When you're done testing, put the release build back over your dev one: stop the daemon (above), clear the installed binaries with `rm -rf ~/.puddle/bin` (your `~/.puddle` state — profiles, sessions, worktrees — is untouched), then run the production `puddle start`, which refetches the daemon from GitHub Releases. (Clearing `bin` is what forces the refetch: the installer skips a version whose files are already present, so a dev build sharing the release's version number would otherwise stay put.)
+**Restore the production daemon.** When you're done testing, put the release build back over your dev one: stop the daemon (above), clear the installed binaries with `rm -rf ~/.puddle/bin` (your `~/.puddle` state — profiles, sessions, worktrees — is untouched), then run the production `puddle launch`, which refetches the daemon from GitHub Releases. (Clearing `bin` is what forces the refetch: the installer skips a version whose files are already present, so a dev build sharing the release's version number would otherwise stay put.)
 
 **Uninstall.** Removing the CLI alone leaves the daemon installed and running — a full teardown stops the daemon, then removes its state, its service file, and the production CLI:
 

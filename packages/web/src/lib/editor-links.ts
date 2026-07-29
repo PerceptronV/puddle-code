@@ -75,8 +75,8 @@ export function parseHostParam(search: string): string | null {
 /**
  * Pure decision core for `captureHostParam`, testable without a DOM: what the
  * stored host should become given this boot's URL. A CLI launch always
- * carries `#token=`; when it carries no `?host=` it was `puddle start` —
- * LOCAL mode — so a host stored by yesterday's `puddle connect` on the same
+ * carries `#token=`; when it carries no `?host=` it was `puddle launch` —
+ * LOCAL mode — so a host stored by yesterday's `puddle launch` on the same
  * origin must be cleared, or the window would still think it is tunnelled.
  * A boot with neither (a plain reload) keeps whatever is stored.
  */

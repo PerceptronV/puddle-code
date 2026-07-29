@@ -3,38 +3,38 @@ import { argvFor, parseArgs } from '../src/cli/args.js';
 import { CliError } from '../src/lib/types.js';
 
 describe('argument parsing', () => {
-  it('parses start with flags', () => {
-    expect(parseArgs(['start', '--port', '7500', '--no-browser', '--tarball', 'x.tar.gz'])).toEqual(
-      {
-        cmd: 'start',
-        port: 7500,
-        tarball: 'x.tar.gz',
-        noBrowser: true,
-        noUpgrade: false,
-        foreground: false,
-      },
-    );
-  });
-
-  it('parses connect with a host', () => {
-    expect(parseArgs(['connect', 'alice@devbox', '--remote-port', '7500', '--no-upgrade'])).toEqual(
-      {
-        cmd: 'connect',
-        host: 'alice@devbox',
-        remotePort: 7500,
-        noBrowser: false,
-        noUpgrade: true,
-        foreground: false,
-      },
-    );
-  });
-
-  it('parses --foreground on start and connect', () => {
-    expect(parseArgs(['start', '--foreground'])).toMatchObject({ cmd: 'start', foreground: true });
-    expect(parseArgs(['connect', 'a@b', '--foreground'])).toMatchObject({
-      cmd: 'connect',
+  it('parses launch: bare and local mean local, a host means SSH', () => {
+    expect(
+      parseArgs(['launch', '--port', '7500', '--no-browser', '--tarball', 'x.tar.gz']),
+    ).toEqual({
+      cmd: 'launch',
+      target: 'local',
+      port: 7500,
+      tarball: 'x.tar.gz',
+      noBrowser: true,
+      noUpgrade: false,
+      foreground: false,
+    });
+    expect(parseArgs(['launch', 'local'])).toMatchObject({ cmd: 'launch', target: 'local' });
+    expect(parseArgs(['launch', 'alice@devbox', '--remote-port', '7500', '--no-upgrade'])).toEqual({
+      cmd: 'launch',
+      target: 'alice@devbox',
+      remotePort: 7500,
+      noBrowser: false,
+      noUpgrade: true,
+      foreground: false,
+    });
+    expect(parseArgs(['launch', '--foreground'])).toMatchObject({
+      cmd: 'launch',
       foreground: true,
     });
+    expect(() => parseArgs(['launch', 'a@b', 'c@d'])).toThrow(/at most one target/);
+    expect(() => parseArgs(['launch', '--remote-port', '7500'])).toThrow(/SSH target/);
+  });
+
+  it('start and connect say what replaced them', () => {
+    expect(() => parseArgs(['start'])).toThrow(/puddle launch/);
+    expect(() => parseArgs(['connect', 'a@b'])).toThrow(/puddle launch a@b/);
   });
 
   it('parses refresh: bare, with a target, and with pass-through flags', () => {
@@ -63,20 +63,21 @@ describe('argument parsing', () => {
     expect(() => parseArgs(['refresh', 'a@b', 'c@d'])).toThrow(/at most one target/);
   });
 
-  it('parses --prefer-port on start and connect (non-strict UI port for refresh)', () => {
-    expect(parseArgs(['start', '--prefer-port', '7435'])).toMatchObject({
-      cmd: 'start',
+  it('parses --prefer-port on launch (non-strict UI port for refresh)', () => {
+    expect(parseArgs(['launch', '--prefer-port', '7435'])).toMatchObject({
+      cmd: 'launch',
       preferPort: 7435,
     });
-    expect(parseArgs(['connect', 'a@b', '--prefer-port', '7435'])).toMatchObject({
-      cmd: 'connect',
+    expect(parseArgs(['launch', 'a@b', '--prefer-port', '7435'])).toMatchObject({
+      cmd: 'launch',
+      target: 'a@b',
       preferPort: 7435,
     });
   });
 
-  it('argvFor is the inverse of parseArgs for start/connect', () => {
-    const start = parseArgs([
-      'start',
+  it('argvFor is the inverse of parseArgs for launch', () => {
+    const local = parseArgs([
+      'launch',
       '--port',
       '7500',
       '--prefer-port',
@@ -87,12 +88,12 @@ describe('argument parsing', () => {
       '--no-upgrade',
       '--foreground',
     ]);
-    if (start.cmd !== 'start') throw new Error('expected start');
-    expect(parseArgs(argvFor(start))).toEqual(start);
+    if (local.cmd !== 'launch') throw new Error('expected launch');
+    expect(parseArgs(argvFor(local))).toEqual(local);
 
-    const connect = parseArgs(['connect', 'alice@devbox', '--remote-port', '7500']);
-    if (connect.cmd !== 'connect') throw new Error('expected connect');
-    expect(parseArgs(argvFor(connect))).toEqual(connect);
+    const remote = parseArgs(['launch', 'alice@devbox', '--remote-port', '7500']);
+    if (remote.cmd !== 'launch') throw new Error('expected launch');
+    expect(parseArgs(argvFor(remote))).toEqual(remote);
   });
 
   it('parses list and kill', () => {
@@ -108,14 +109,13 @@ describe('argument parsing', () => {
     expect(() => parseArgs(['list', 'extra'])).toThrow(CliError);
   });
 
-  it('rejects connect without a host and unknown flags', () => {
-    expect(() => parseArgs(['connect'])).toThrow(CliError);
-    expect(() => parseArgs(['start', '--frobnicate'])).toThrow(/unknown flag/);
+  it('rejects unknown flags and commands', () => {
+    expect(() => parseArgs(['launch', '--frobnicate'])).toThrow(/unknown flag/);
     expect(() => parseArgs(['nonsense'])).toThrow(/unknown command/);
   });
 
   it('rejects an out-of-range port', () => {
-    expect(() => parseArgs(['start', '--port', '99999'])).toThrow(/between 1 and 65535/);
+    expect(() => parseArgs(['launch', '--port', '99999'])).toThrow(/between 1 and 65535/);
   });
 
   it('attach: one positional is a session, two are host + session', () => {

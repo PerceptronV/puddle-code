@@ -112,7 +112,7 @@ type ProbeResult = 'ok' | 'unauthorised' | 'down';
  * Reachability AND identity of the daemon on 127.0.0.1:<port>, checked from
  * its own host: only a 200 with this host's token counts as "our daemon is
  * up". A 401/403 means SOMETHING answers but not our daemon (typically a
- * `puddle connect` UI server that auto-picked the port) — proceeding would
+ * `puddle launch` UI server that auto-picked the port) — proceeding would
  * silently wire the cockpit to the wrong backend. Node is guaranteed on the
  * host only under ~/.puddle/bin, so this rides curl, degrading to a plain
  * TCP check (bash /dev/tcp) that cannot verify identity.

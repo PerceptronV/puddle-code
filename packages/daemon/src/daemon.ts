@@ -185,7 +185,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     websocket: { server: wss },
   });
   const port = await listenWithFallback(server, opts.port ?? config.port, '127.0.0.1');
-  // Record where we actually bound so clients (and a returning `puddle start`)
+  // Record where we actually bound so clients (and a returning `puddle launch`)
   // can find us even when the preferred port was taken.
   writeRuntime(paths, { port, pid: process.pid });
   // Agent spawns from here on carry the /agent-signal env pair (SPEC §4).

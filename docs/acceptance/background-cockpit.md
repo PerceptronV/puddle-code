@@ -21,7 +21,7 @@ Prerequisites: `pnpm build`; an SSH host you can reach (key or password).
    `running` with its pid and origin. `curl -sI <origin>/ | grep -i x-puddle-cockpit`
    matches the `nonce` in `~/.puddle/cockpits/user@host.json`.
 
-4. **Idempotence.** `puddle connect user@host` again → reports the running
+4. **Idempotence.** `puddle launch user@host` again → reports the running
    cockpit's URL and exits; no second process (`puddle list` still shows one).
 
 5. **Proxy recovery.** In a session on the host, start a Vite dev server (its
@@ -38,5 +38,5 @@ Prerequisites: `pnpm build`; an SSH host you can reach (key or password).
    `no cockpits are running`, and sessions on the host survive
    (`puddle status user@host` still lists them).
 
-8. **Foreground escape hatch.** `puddle connect user@host --foreground` stays
+8. **Foreground escape hatch.** `puddle launch user@host --foreground` stays
    attached; Ctrl-C stops it and removes its registry record.

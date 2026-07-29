@@ -26,19 +26,19 @@ there) and use its path with `--tarball` after copying it back — the flag
 takes a CLIENT-side path and delivers it over scp.
 
 1. **Local mode, fresh machine.** With no `~/.puddle` (or `PUDDLE_HOME` set to
-   a scratch dir): `puddle start --tarball dist-release/puddled-v*-<os>-<arch>.tar.gz`.
+   a scratch dir): `puddle launch --tarball dist-release/puddled-v*-<os>-<arch>.tar.gz`.
    Expect: installer output, then `puddle cockpit at http://localhost:7433`,
    the browser opening a working cockpit (no token gate — the `#token=`
    fragment authenticates and is stripped from the address bar). Create a
    project and a session; the agent runs. `~/.puddle/bin/current` points at
    `versions/<v>`; on macOS `launchctl list | grep puddle` shows the agent,
    on Linux `systemctl --user status puddled` is active.
-2. **Ctrl-C detaches, not kills.** Ctrl-C the `puddle start` process — it
+2. **Ctrl-C detaches, not kills.** Ctrl-C the `puddle launch` process — it
    prints that sessions keep running. The daemon still answers (`puddle
-   status` — expect the version line and your session). Re-run `puddle start`:
+   status` — expect the version line and your session). Re-run `puddle launch`:
    the same cockpit returns without reinstalling.
 3. **SSH mode, fresh host.** On a box with no puddle installed:
-   `puddle connect user@host [--tarball <linux tarball>]`. Expect: one ssh
+   `puddle launch user@host [--tarball <linux tarball>]`. Expect: one ssh
    auth prompt at most (key or password), installer output, then a cockpit at
    `http://localhost:7433` (or the next free port) whose top bar shows
    `user@host`. The browser URL carried `?host=user@host` (stripped after
@@ -49,10 +49,10 @@ takes a CLIENT-side path and delivers it over scp.
    **Open via proxy** (no localhost link — this window is tunnelled) and the
    proxied tab works. A `http://localhost:8000` URL printed in the terminal
    opens via the proxy too (cmd+click it).
-5. **Sessions survive the laptop.** Ctrl-C `puddle connect`, close the
+5. **Sessions survive the laptop.** Ctrl-C `puddle launch`, close the
    browser. On the host the agent keeps working (`puddle status user@host`
    from the client, or `systemctl --user status puddled` on the host).
-   `puddle connect user@host` again: the cockpit returns, terminals replay.
+   `puddle launch user@host` again: the cockpit returns, terminals replay.
 6. **Attach from a raw terminal.** `puddle attach user@host <session-prefix>`:
    the log tail replays, keystrokes reach the agent, window resize reflows,
    Ctrl-] detaches leaving the session running. `puddle logs user@host
@@ -60,12 +60,12 @@ takes a CLIENT-side path and delivers it over scp.
 7. **Older-major auto-update.** On the host, fake an older protocol:
    `ln -sfn versions/<old> ~/.puddle/bin/current && systemctl --user restart
    puddled` with any earlier-major build (or temporarily edit
-   `PROTOCOL_VERSION` and rebuild a tarball). `puddle connect user@host`
+   `PROTOCOL_VERSION` and rebuild a tarball). `puddle launch user@host`
    prints the live-session interruption count, reinstalls, restarts, and
    lands in the cockpit; the interrupted sessions show resume buttons and
    resume with history. `--no-upgrade` instead aborts with the count.
 8. **Mode switching on one origin.** After the SSH session, run a local
-   `puddle start` on the same machine. The ports strip now offers **Open
+   `puddle launch` on the same machine. The ports strip now offers **Open
    localhost** (the stale `user@host` from step 3 was cleared by the local
    boot); editor deep links open local paths.
 9. **install.sh by hand (daemon-only path).** On a scratch host:

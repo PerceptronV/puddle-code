@@ -41,7 +41,7 @@ describe('SshTransport argv shapes', () => {
   });
 });
 
-describe('puddle connect against a fake ssh + real daemon', () => {
+describe('puddle launch against a fake ssh + real daemon (SSH mode)', () => {
   const fakeClientHome = mkdtempSync(join(tmpdir(), 'puddle-cli-client-'));
   const fakeHostHome = mkdtempSync(join(tmpdir(), 'puddle-cli-hosthome-'));
   const hostPuddle = join(fakeHostHome, '.puddle');

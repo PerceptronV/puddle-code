@@ -69,7 +69,7 @@ async function openTarget(host: string | undefined) {
     throw new CliError(
       'not_installed',
       `no puddle daemon is set up on ${transport.label}`,
-      host === undefined ? 'run: puddle start' : `run: puddle connect ${host}`,
+      host === undefined ? 'run: puddle launch' : `run: puddle launch ${host}`,
     );
   }
   const daemonPort = await readDaemonPort(transport);
@@ -120,9 +120,8 @@ export async function run(command: Command): Promise<number> {
       process.stdout.write(`puddle ${cliVersion()}\n`);
       return 0;
 
-    case 'start':
-    case 'connect': {
-      const target = command.cmd === 'connect' ? command.host : 'local';
+    case 'launch': {
+      const target = command.target;
       // Background by default: re-exec detached, follow the child's log until
       // its registry record turns ready, then hand the terminal back.
       if (!command.foreground && !isCockpitChild()) {
@@ -182,18 +181,17 @@ export async function run(command: Command): Promise<number> {
         noUpgrade: command.noUpgrade,
         foreground: command.foreground,
       };
-      const next: Extract<Command, { cmd: 'start' | 'connect' }> =
-        target === 'local'
-          ? { cmd: 'start', ...shared }
-          : {
-              cmd: 'connect',
-              host: target,
-              ...shared,
-              ...(command.remotePort !== undefined ? { remotePort: command.remotePort } : {}),
-            };
+      const next: Extract<Command, { cmd: 'launch' }> = {
+        cmd: 'launch',
+        target,
+        ...shared,
+        ...(target !== 'local' && command.remotePort !== undefined
+          ? { remotePort: command.remotePort }
+          : {}),
+      };
 
       if (!command.foreground && !isCockpitChild()) {
-        // The detached child must run the rebuilt start/connect, not refresh
+        // The detached child must run the rebuilt launch, not refresh
         // again — hence the explicit argv.
         return launchDetached({
           target,
@@ -468,7 +466,7 @@ async function upgradeDesktop(logger: Logger): Promise<number> {
  * origin + nonce, or 'error' with the failure relayed to the launcher.
  */
 async function runCockpit(
-  command: Extract<Command, { cmd: 'start' | 'connect' }>,
+  command: Extract<Command, { cmd: 'launch' }>,
   target: string,
   terminal: Logger,
 ): Promise<number> {
@@ -508,9 +506,7 @@ async function runCockpit(
       target,
       '--no-browser', // the requesting tab reloads itself; no second tab
       ...(command.port !== undefined ? ['--port', String(command.port)] : []),
-      ...(command.cmd === 'connect' && command.remotePort !== undefined
-        ? ['--remote-port', String(command.remotePort)]
-        : []),
+      ...(command.remotePort !== undefined ? ['--remote-port', String(command.remotePort)] : []),
       ...(command.tarball !== undefined ? ['--tarball', command.tarball] : []),
       ...(command.noUpgrade ? ['--no-upgrade'] : []),
     ]);
@@ -518,10 +514,11 @@ async function runCockpit(
 
   let cockpit: RunningCockpit;
   try {
+    const common = { ...command, assetsDir: assetsDir(), logger, onRefreshRequest };
     cockpit =
-      command.cmd === 'start'
-        ? await startLocal({ ...command, assetsDir: assetsDir(), logger, onRefreshRequest })
-        : await connectRemote({ ...command, assetsDir: assetsDir(), logger, onRefreshRequest });
+      command.target === 'local'
+        ? await startLocal(common)
+        : await connectRemote({ ...common, host: command.target });
   } catch (err) {
     if (err instanceof CliError) {
       writeCockpitRecord({
@@ -543,14 +540,14 @@ async function runCockpit(
     nonce: cockpit.nonce,
   });
 
-  const arrow = command.cmd === 'connect' ? ` → ${command.host}` : '';
+  const arrow = command.target === 'local' ? '' : ` → ${command.target}`;
   logger.info(`puddle cockpit at ${cockpit.origin}${arrow} (daemon ${cockpit.daemon.version})`);
   if (!detached) {
     if (!command.noBrowser) openBrowser(cockpit.browserUrl);
     logger.info(`open: ${cockpit.browserUrl}`);
   }
 
-  const where = command.cmd === 'start' ? 'this machine' : command.host;
+  const where = command.target === 'local' ? 'this machine' : command.target;
   await runUntilInterrupted(async () => {
     await cockpit.stop();
     removeCockpitRecord(target);

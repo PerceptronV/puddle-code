@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * A stand-in for the system ssh binary so the full `puddle connect` flow runs
+ * A stand-in for the system ssh binary so the full `puddle launch user@host` flow runs
  * with zero real SSH. Interprets the argv shapes SshTransport and the tunnel
  * produce:
  *

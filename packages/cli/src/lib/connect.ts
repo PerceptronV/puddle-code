@@ -77,7 +77,7 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
     logger,
   });
 
-  // Never squat the port a local `puddle start` will probe for its own daemon,
+  // Never squat the port a local `puddle launch` will probe for its own daemon,
   // or that probe would find this cockpit's proxy answering for a different
   // (remote) daemon and abort with a port conflict. That target is the LOCAL
   // daemon's configured port — read from this machine's config.json the same

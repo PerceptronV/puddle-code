@@ -17,7 +17,7 @@ export function TokenGate() {
         <div className="flex flex-col gap-3 text-sm leading-relaxed text-fg-secondary">
           <p>This page needs the daemon&apos;s access token.</p>
           <p>
-            Launch the UI with <span className="font-mono text-accent">puddle start</span> and it
+            Launch the UI with <span className="font-mono text-accent">puddle launch</span> and it
             arrives automatically — or paste it from{' '}
             <span className="font-mono text-accent">~/.puddle/token</span> on the machine running
             puddled.

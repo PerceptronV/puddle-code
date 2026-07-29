@@ -11,7 +11,7 @@ its deferred callback (`test/serve.test.ts`).
 ## 1. CLI refresh, local
 
 ```sh
-puddle start                    # note the origin, e.g. http://localhost:7433
+puddle launch                    # note the origin, e.g. http://localhost:7433
 puddle refresh local
 puddle list
 ```
@@ -24,7 +24,7 @@ puddle list
 ## 2. CLI refresh, remote, after a real cut
 
 ```sh
-puddle connect user@host
+puddle launch user@host
 # now break it: drop the network / restart the remote box's sshd / pkill the
 # forward — wait until the UI shows the "Connection to the daemon lost" banner
 puddle refresh user@host

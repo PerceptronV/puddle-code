@@ -40,6 +40,18 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- `puddle start` and `puddle connect` are unified into
+  `puddle launch [local | user@host]` — no target means local, and every flag
+  from both verbs (`--port`, `--prefer-port`, `--remote-port`, `--no-browser`,
+  `--no-upgrade`, `--tarball`, `--foreground`) rides along. The old verbs
+  error with the exact replacement.
+- Desktop: new windows no longer default to local. Launching the app, ⌘N,
+  Window → New Window, and the macOS dock icon's right-click New Window all
+  open a host picker — "This machine" on top, then recent hosts, then
+  "Other SSH host…" — and nothing connects until you pick.
+- Desktop: recent hosts moved from the app's userData dir to
+  `~/.puddle/recent-hosts.json` (migrated automatically), so they survive
+  app updates and reinstalls.
 - Desktop (macOS): the merged title bar is a little slimmer (44 → 40px, traffic
   lights re-centred), so the workspace chrome sits closer to the lights.
 

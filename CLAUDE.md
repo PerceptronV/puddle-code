@@ -1,6 +1,6 @@
 # CLAUDE.md — puddle
 
-Puddle is a self-hosted orchestrator for CLI coding agents with first-class SSH support: a persistent daemon (`puddled`) runs on whatever machine hosts the work — your own laptop (`puddle start`) or a remote box (`puddle connect user@host`) — and owns agent PTYs, git worktrees, and session state; a web UI provides project workspaces with terminals, editing, diffs, git history, and port forwarding. The full design is in `SPEC.md` — read it before making architectural changes.
+Puddle is a self-hosted orchestrator for CLI coding agents with first-class SSH support: a persistent daemon (`puddled`) runs on whatever machine hosts the work — your own laptop (`puddle launch`) or a remote box (`puddle launch user@host`) — and owns agent PTYs, git worktrees, and session state; a web UI provides project workspaces with terminals, editing, diffs, git history, and port forwarding. The full design is in `SPEC.md` — read it before making architectural changes.
 
 **Read `HUMANS.md` at the start of every session.** It is the human-authored design brief for the UI's feel (minimalism, transparency, no boxes/borders, hover responsiveness) and it overrides SPEC §12 and any framework default wherever they conflict. Any UI work that ignores it is wrong by definition.
 
@@ -51,11 +51,11 @@ pnpm --filter @puddle-code/desktop dist    # package it (dmg/zip/AppImage via el
 ```
 
 For manual testing before a release exists: `pnpm build && pnpm build:tarball`, then
-`node packages/cli/dist/index.js start --tarball dist-release/puddled-v*.tar.gz` (or
-`connect user@host --tarball …`). The daemon default port is 7434; the CLI serves the
-UI at 7433. `start`/`connect` background themselves once ready — pass `--foreground`
-when developing so the cockpit stays attached to your terminal (`puddle list` / `puddle
-kill` manage backgrounded ones; `puddle refresh` is kill-then-start in one step, also
+`node packages/cli/dist/index.js launch --tarball dist-release/puddled-v*.tar.gz` (or
+`launch user@host --tarball …`). The daemon default port is 7434; the CLI serves the
+UI at 7433. `launch` backgrounds itself once ready — pass `--foreground` when
+developing so the cockpit stays attached to your terminal (`puddle list` / `puddle
+kill` manage backgrounded ones; `puddle refresh` is kill-then-launch in one step, also
 reachable from the UI's connection banner).
 
 > **Never launch `puddled` from inside a coding-agent session** (e.g. a Claude Code terminal, including these dev sessions). The daemon inherits that agent's orchestration env vars — `CLAUDECODE=1`, `CLAUDE_CODE_*` — and passes them to the agents it spawns (PtyManager uses `{...process.env}` by design). A `claude` that sees `CLAUDECODE`/`CLAUDE_CODE_CHILD_SESSION` treats itself as a nested child and **does not write a resumable conversation transcript**, so `--resume` silently fails with "no conversation found" (verified against Claude Code 2.1.209: the identical session persists a transcript with these unset and writes nothing with them set). Start the daemon from a plain shell (systemd/launchd does this in production, so real deployments are unaffected). If a session won't resume during development, check the daemon's env first (`ps eww <pid> | tr ' ' '\n' | grep CLAUDE`).
