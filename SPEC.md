@@ -664,7 +664,7 @@ Puddle's UI must read as a polished, intentional developer cockpit — dense, ca
   | `--status-running`                  | `#8BE8B3` | `#157A50` |
   | `--status-waiting`                  | `#F0B36E` | `#A9743D` |
   | `--status-interrupted` / `--danger` | `#F2957C` | `#C2472E` |
-  | `--status-idle`                     | `#7E93B3` | `#8A7663` |
+  | `--status-idle`                     | `#7E93B3` | `#6B6B6B` |
   | `--status-terminal`                 | `#7DADFF` | `#2E6BD6` |
 
   Primary actions (buttons, checked toggles) are **ink, not accent**: mist on the dark theme, storm navy on the light — the accent blue is reserved for links, focus, and selection. The dark theme is storm-navy ground with the pastel family as light; the light theme is a white ground (HUMANS.md: white, not beige) with navy ink for primary and secondary text and a neutral grey for muted (the earlier golden bark read as distracting on hints/metadata), keeping the deep accent steps. The warm gold survives as a deliberate accent — `--text-gold` (gold in both themes) for the sidebar's glyph icons and its ALL-CAPS section headings, plus the status-waiting colour — while prose, paths, and metadata stay grey. Light `--status-running` uses a derived deeper krypton step (`#157A50`) because `#1FA26B` misses the 3:1 AA floor on the elevated ground.

@@ -26,7 +26,7 @@ import { cn } from '../../lib/utils';
 // Under the macOS desktop shell the native title bar is hidden and the top
 // bar IS the title bar: draggable, inset on the left for the inlaid traffic
 // lights (positioned by the shell at x:12 — three 12px buttons + gaps end
-// around 64px, so 76px keeps the home button clear of them).
+// around 64px, so 88px gives the host name clear air after them).
 const shellTitleBar = desktopBridge() !== undefined && /Mac/.test(navigator.platform);
 
 // Settings (all eight sections) load only when the dialog first opens.
@@ -135,7 +135,7 @@ function TopBar() {
         'relative flex h-9 shrink-0 items-center gap-3 bg-surface pl-3 pr-3',
         // Taller as a title bar (44px) so the content breathes rather than
         // being squashed against the traffic lights.
-        shellTitleBar && 'h-11 pl-[76px] [-webkit-app-region:drag]',
+        shellTitleBar && 'h-11 pl-[88px] [-webkit-app-region:drag]',
       )}
     >
       <HomeButton />

@@ -178,7 +178,10 @@
   --status-running: var(--green-700);
   --status-waiting: var(--khaki-600);
   --status-interrupted: var(--ember-500);
-  --status-idle: var(--bark-500);
+  /* Neutral grey, not bark: an exited/idle dot is metadata, and the warm brown
+     read as a status of its own (same reasoning as --text-muted, 2026-07-16).
+     Dark theme's mist-500 is already grey. */
+  --status-idle: var(--neutral-500);
   --status-terminal: var(--blue-600); /* terminal sessions ripple blue, not agent green */
   --selection: #2e6bd638; /* blue-600 at 22% (8-digit hex: parseable at runtime) */
   --diff-added: #1fa26b24; /* green-600 (the light-theme ansi-green) at 14% alpha over white ground */
