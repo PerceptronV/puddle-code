@@ -5,6 +5,7 @@ import { chmod, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
 import { clientHome } from './paths.js';
 import { CliError, type Logger, silentLogger } from './types.js';
 import { repoSlug } from './version.js';
@@ -161,7 +162,12 @@ export async function stageDesktopUpdate(
     if (!response.ok || response.body === null) {
       throw new CliError('not_installed', `download failed (HTTP ${response.status})`);
     }
-    await pipeline(Readable.fromWeb(response.body), createWriteStream(archive));
+    // The DOM-typed body IS a node web stream at runtime; the lib types just
+    // disagree about pipeThrough's generics.
+    await pipeline(
+      Readable.fromWeb(response.body as unknown as NodeReadableStream<Uint8Array>),
+      createWriteStream(archive),
+    );
 
     const sumsResponse = await fetchFn(update.sumsUrl, {
       headers: { 'user-agent': 'puddle-desktop' },
