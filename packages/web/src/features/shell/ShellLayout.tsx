@@ -133,9 +133,9 @@ function TopBar() {
     <header
       className={cn(
         'relative flex h-9 shrink-0 items-center gap-3 bg-surface pl-3 pr-3',
-        // Taller as a title bar (44px) so the content breathes rather than
-        // being squashed against the traffic lights.
-        shellTitleBar && 'h-11 pl-[88px] [-webkit-app-region:drag]',
+        // Slightly taller as a title bar (40px) so the content breathes
+        // without pushing the workspace chrome away from the traffic lights.
+        shellTitleBar && 'h-10 pl-[88px] [-webkit-app-region:drag]',
       )}
     >
       <HomeButton />

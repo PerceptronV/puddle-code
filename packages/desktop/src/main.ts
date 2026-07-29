@@ -119,10 +119,10 @@ function createWindow(target: string, cockpit: RunningCockpit): BrowserWindow {
     // On macOS the native title bar goes away entirely: the web app's own
     // top bar (host, ⌘K field, settings/scratchpad/profile) doubles as the
     // drag region, with the traffic lights inlaid — ShellLayout detects the
-    // shell, insets for them, and grows the bar to 44px so nothing squashes.
-    // y centres the 12px buttons in that 44px bar.
+    // shell, insets for them, and grows the bar to 40px so nothing squashes.
+    // y centres the 12px buttons in that 40px bar.
     ...(process.platform === 'darwin'
-      ? { titleBarStyle: 'hidden' as const, trafficLightPosition: { x: 12, y: 16 } }
+      ? { titleBarStyle: 'hidden' as const, trafficLightPosition: { x: 12, y: 14 } }
       : {}),
     webPreferences: {
       preload: join(here, 'preload.cjs'),
