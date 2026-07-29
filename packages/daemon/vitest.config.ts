@@ -8,5 +8,11 @@ export default defineConfig({
       '@puddle/shared': fileURLToPath(new URL('../shared/src/index.ts', import.meta.url)),
     },
   },
-  test: { name: 'daemon', testTimeout: 20000 },
+  // Generous ceilings on purpose: the e2e suite spawns real PTYs and polls
+  // real timers, so under a loaded machine (full-workspace vitest run, 4-core
+  // CI runner) tight timeouts starve mid-test. Worst observed cascade: the
+  // restart test dying between daemon stop and reassign left every later
+  // test fetching a dead port. Slow-but-passing beats fast-but-flaky here —
+  // a healthy run never gets near these numbers.
+  test: { name: 'daemon', testTimeout: 60000, hookTimeout: 60000 },
 });

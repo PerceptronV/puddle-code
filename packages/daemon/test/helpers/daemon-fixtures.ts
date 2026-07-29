@@ -294,7 +294,7 @@ export function fixture(
   };
 }
 
-export async function waitFor(cond: () => boolean, ms = 10000): Promise<void> {
+export async function waitFor(cond: () => boolean, ms = 30000): Promise<void> {
   const start = Date.now();
   while (!cond()) {
     if (Date.now() - start > ms) throw new Error('waitFor timed out');

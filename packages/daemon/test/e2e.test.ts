@@ -76,7 +76,7 @@ function wsClient(daemon: RunningDaemon) {
   };
 }
 
-async function pollUntil(cond: () => Promise<boolean>, ms = 10000): Promise<void> {
+async function pollUntil(cond: () => Promise<boolean>, ms = 30000): Promise<void> {
   const start = Date.now();
   while (!(await cond())) {
     if (Date.now() - start > ms) throw new Error('pollUntil timed out');
@@ -774,7 +774,7 @@ describe('tier-2 reverse proxy end-to-end (Phase 5 acceptance)', () => {
     const first = await new Promise<string>((resolve, reject) => {
       ws.addEventListener('message', (evt) => resolve(String(evt.data)));
       ws.addEventListener('error', () => reject(new Error('proxied ws error')));
-      setTimeout(() => reject(new Error('proxied ws timeout')), 5000);
+      setTimeout(() => reject(new Error('proxied ws timeout')), 15000);
     });
     expect(first).toBe('hi');
     ws.close();
@@ -796,7 +796,7 @@ describe('tier-2 reverse proxy end-to-end (Phase 5 acceptance)', () => {
     await new Promise<void>((resolve, reject) => {
       ws.addEventListener('message', () => resolve());
       ws.addEventListener('error', () => reject(new Error('proxied ws error')));
-      setTimeout(() => reject(new Error('proxied ws timeout')), 5000);
+      setTimeout(() => reject(new Error('proxied ws timeout')), 15000);
     });
     // With the upstream socket still live, stop() must not hang.
     await daemon.stop();
