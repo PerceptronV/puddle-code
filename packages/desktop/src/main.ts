@@ -12,6 +12,7 @@ import {
 import {
   applyDesktopUpdate,
   checkForDesktopUpdate,
+  clientHome,
   CliError,
   connectRemote,
   stageDesktopUpdate,
@@ -20,7 +21,7 @@ import {
   type RunningCockpit,
   type StagedDesktopUpdate,
 } from '@puddle-code/cli/lib';
-import { addRecentHost, loadRecentHosts } from './recent-hosts.js';
+import { addRecentHost, loadRecentHosts, migrateRecentHosts } from './recent-hosts.js';
 
 /**
  * The desktop shell (SPEC §10): an Electron main process that drives the SAME
@@ -40,7 +41,7 @@ import { addRecentHost, loadRecentHosts } from './recent-hosts.js';
  *
  * Remote-host caveat, same as detached CLI cockpits (SPEC §10): there is no
  * TTY here, so ssh cannot prompt — key-authenticated hosts (or a warm
- * ControlMaster) connect fine; password/2FA hosts need `puddle connect` in a
+ * ControlMaster) connect fine; password/2FA hosts need `puddle launch` in a
  * terminal.
  */
 
@@ -62,9 +63,13 @@ interface Shell {
 const shells = new Map<string, Shell>();
 const connecting = new Set<string>();
 let promptWin: BrowserWindow | null = null;
+let pickerWin: BrowserWindow | null = null;
 let stopped = false;
 
-const recentsFile = () => join(app.getPath('userData'), 'recent-hosts.json');
+// Recents live in ~/.puddle (durable client state) so they survive app
+// updates and reinstalls; older installs kept them in userData — migrate once.
+const recentsFile = () => join(clientHome(), 'recent-hosts.json');
+const legacyRecentsFile = () => join(app.getPath('userData'), 'recent-hosts.json');
 
 function openCockpit(target: string, preferPort?: number): Promise<RunningCockpit> {
   const common = {
@@ -233,7 +238,7 @@ async function connectFromPrompt(rawHost: string): Promise<void> {
     const auth =
       e instanceof CliError && e.code === 'ssh_unreachable'
         ? ' The app has no terminal for ssh prompts, so the host must accept key authentication ' +
-          '(ssh-copy-id) — for password/2FA hosts, use `puddle connect` in a terminal.'
+          '(ssh-copy-id) — for password/2FA hosts, use `puddle launch user@host` in a terminal.'
         : '';
     promptStatus('error', `${errorText(e)}${auth}`);
   }
@@ -243,6 +248,71 @@ ipcMain.on('puddle:connect-submit', (_event, host: unknown) => {
   if (typeof host === 'string') void connectFromPrompt(host);
 });
 ipcMain.on('puddle:connect-cancel', () => promptWin?.close());
+
+// ---------------------------------------------------------------------------
+// New-window host picker — the DEFAULT new-window behaviour: no window opens
+// a cockpit until the user says where the work is. Local sits on top, recents
+// follow, and "Other SSH host…" hands over to the connect prompt.
+
+function openHostPicker(): void {
+  if (pickerWin) {
+    pickerWin.focus();
+    return;
+  }
+  pickerWin = new BrowserWindow({
+    width: 380,
+    height: 400,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    title: 'New Puddle Window',
+    webPreferences: { preload: join(here, 'picker-preload.cjs') },
+  });
+  pickerWin.setMenuBarVisibility(false);
+  void pickerWin.loadFile(join(here, 'host-picker.html'));
+  pickerWin.on('closed', () => {
+    pickerWin = null;
+  });
+}
+
+function pickerStatus(state: 'connecting' | 'error', message?: string): void {
+  pickerWin?.webContents.send('puddle:picker-status', { state, message });
+}
+
+async function openFromPicker(target: string): Promise<void> {
+  if (shells.has(target)) {
+    pickerWin?.close();
+    raise(shells.get(target)!.win);
+    return;
+  }
+  pickerStatus('connecting', target === LOCAL ? 'Starting…' : `Connecting to ${target}…`);
+  try {
+    await openShell(target);
+    if (target !== LOCAL) {
+      addRecentHost(recentsFile(), target);
+      buildMenu();
+    }
+    pickerWin?.close();
+  } catch (e) {
+    const auth =
+      e instanceof CliError && e.code === 'ssh_unreachable'
+        ? ' The app has no terminal for ssh prompts — for password/2FA hosts, use ' +
+          '`puddle launch user@host` in a terminal.'
+        : '';
+    pickerStatus('error', `${errorText(e)}${auth}`);
+  }
+}
+
+ipcMain.handle('puddle:picker-recents', () => loadRecentHosts(recentsFile()));
+ipcMain.on('puddle:picker-choose', (_event, target: unknown) => {
+  if (typeof target === 'string') void openFromPicker(target);
+});
+ipcMain.on('puddle:picker-other', () => {
+  pickerWin?.close();
+  openConnectPrompt();
+});
+ipcMain.on('puddle:picker-cancel', () => pickerWin?.close());
 
 // A waiting-input notification's click must bring the app forward —
 // window.focus() cannot raise an OS window from the renderer (see the web's
@@ -338,9 +408,29 @@ function buildMenu(): void {
     // editMenu is load-bearing on macOS: without it ⌘C/⌘V/⌘A do nothing.
     { role: 'editMenu' },
     { role: 'viewMenu' },
-    { role: 'windowMenu' },
+    {
+      // The windowMenu role keeps macOS's automatic open-window list; the
+      // custom submenu puts New Window (the host picker) at the top.
+      role: 'windowMenu',
+      submenu: [
+        { label: 'New Window', accelerator: 'CmdOrCtrl+N', click: openHostPicker },
+        { type: 'separator' },
+        { role: 'minimize' },
+        { role: 'zoom' },
+        ...(process.platform === 'darwin'
+          ? [
+              { type: 'separator' } satisfies MenuItemConstructorOptions,
+              { role: 'front' } satisfies MenuItemConstructorOptions,
+            ]
+          : [{ role: 'close' } satisfies MenuItemConstructorOptions]),
+      ],
+    },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+  // macOS dock right-click: the same New Window entry.
+  if (process.platform === 'darwin') {
+    app.dock?.setMenu(Menu.buildFromTemplate([{ label: 'New Window', click: openHostPicker }]));
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -352,27 +442,22 @@ if (!app.requestSingleInstanceLock()) {
   app.on('second-instance', () => {
     const first = shells.get(LOCAL) ?? [...shells.values()][0];
     if (first) raise(first.win);
+    else openHostPicker();
   });
 
-  void app.whenReady().then(async () => {
+  void app.whenReady().then(() => {
+    migrateRecentHosts(legacyRecentsFile(), recentsFile());
     buildMenu();
     void pollForUpdate();
     setInterval(() => void pollForUpdate(), UPDATE_POLL_MS);
-    try {
-      await openShell(LOCAL);
-    } catch (e) {
-      dialog.showErrorBox('puddle could not start', errorText(e));
-      app.quit();
-    }
+    // No default target: every new window starts at the host picker — the
+    // user says where the work is (local on top, then recents).
+    openHostPicker();
   });
 
-  // macOS dock re-activation with every window closed: reopen local.
+  // macOS dock re-activation with every window closed: back to the picker.
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      void openShell(LOCAL).catch((e) =>
-        dialog.showErrorBox('puddle could not start', errorText(e)),
-      );
-    }
+    if (BrowserWindow.getAllWindows().length === 0) openHostPicker();
   });
 
   // Closing the last window quits the shell on every platform (no tray, no

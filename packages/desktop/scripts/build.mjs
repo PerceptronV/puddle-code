@@ -53,13 +53,18 @@ await build({
 // Preload scripts run sandboxed and must be CommonJS.
 await build({
   ...shared,
-  entryPoints: [join(pkgRoot, 'src/preload.ts'), join(pkgRoot, 'src/prompt-preload.ts')],
+  entryPoints: [
+    join(pkgRoot, 'src/preload.ts'),
+    join(pkgRoot, 'src/prompt-preload.ts'),
+    join(pkgRoot, 'src/picker-preload.ts'),
+  ],
   outdir: join(pkgRoot, 'dist'),
   outExtension: { '.js': '.cjs' },
   format: 'cjs',
 });
 
 cpSync(join(pkgRoot, 'src/connect-prompt.html'), join(pkgRoot, 'dist/connect-prompt.html'));
+cpSync(join(pkgRoot, 'src/host-picker.html'), join(pkgRoot, 'dist/host-picker.html'));
 cpSync(join(repoRoot, 'scripts/install.sh'), join(pkgRoot, 'dist/install.sh'));
 
 const webDist = join(repoRoot, 'packages/web/dist');
