@@ -20,6 +20,36 @@ describe('markdownToHtml', () => {
     expect(markdownToHtml('one\ntwo')).not.toContain('<br');
   });
 
+  it('typesets inline and display maths', () => {
+    expect(markdownToHtml('mass $E=mc^2$ today')).toContain('class="katex"');
+    expect(markdownToHtml('$$\n\\int_0^1 x\\,dx\n$$')).toContain('math math-display');
+    expect(markdownToHtml('\\(a+b\\)')).toContain('class="katex"');
+    expect(markdownToHtml('```math\nx^2\n```')).toContain('math math-display');
+  });
+
+  it('claims maths before the emphasis and escape rules can chew on it', () => {
+    const html = markdownToHtml('$a_1 + b_2$');
+    expect(html).not.toContain('<em>');
+    expect(html).toContain('aria-label="a_1 + b_2"');
+  });
+
+  it('leaves maths inside code spans and fences as text', () => {
+    expect(markdownToHtml('`$x$`')).not.toContain('class="katex"');
+    expect(markdownToHtml('```\n$x$\n```')).not.toContain('class="katex"');
+  });
+
+  it('leaves prose dollars alone', () => {
+    expect(markdownToHtml('it costs $5 or $10 today')).not.toContain('class="katex"');
+  });
+
+  it('keeps macros within one document', () => {
+    // `\gdef` in a preamble expression holds for the rest of the file...
+    expect(markdownToHtml('$\\gdef\\pud{\\alpha}$ then $\\pud$')).not.toContain('var(--danger)');
+    // ...and never leaks into the next one (undefined macros print in the
+    // error colour).
+    expect(markdownToHtml('$\\pud$')).toContain('var(--danger)');
+  });
+
   it('passes raw HTML through for the sanitiser to handle', () => {
     // Sanitisation is DOMPurify's job in FilePreview (needs a browser DOM);
     // the parser itself must not be relied on to strip anything.

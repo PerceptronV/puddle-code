@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent } from 'react';
 import DOMPurify from 'dompurify';
+import 'katex/dist/katex.min.css';
 import { apiFetchRaw } from '../../lib/api';
 import { useEditor } from '../workspace/editor-context';
 import { useWorktreeFile } from '../../lib/worktree-queries';
 import { bufferKey, getOrCreateModel, subscribe } from './buffer-store';
 import { markdownToHtml } from './markdown';
+import { MATH_LAYOUT_CSS } from './math';
+import { renderMathInDocument } from './math-dom';
 import { previewKind, resolvePreviewAsset, type PreviewKind } from './preview-kind';
 
 /**
@@ -18,9 +21,11 @@ import { previewKind, resolvePreviewAsset, type PreviewKind } from './preview-ki
  * absolute from the worktree root — resolve through the authed media endpoint
  * (element loads carry no bearer header): object URLs for inline markdown,
  * data URIs baked into the HTML iframe (a null-origin document cannot load
- * this origin's blob URLs). Ctrl/⌘-click on a worktree link in a markdown
- * preview opens that file as an editor tab, previewable files landing
- * straight in their rendered view.
+ * this origin's blob URLs). LaTeX (`$…$`, `$$…$$`, `\(…\)`, `\[…\]`) is
+ * typeset by KaTeX in BOTH views — for the iframe, before the document is
+ * serialised, since that document is on its own once it is. Ctrl/⌘-click on a
+ * worktree link in a markdown preview opens that file as an editor tab,
+ * previewable files landing straight in their rendered view.
  */
 export function FilePreview({
   session,
@@ -180,8 +185,8 @@ function HtmlPreview({ session, path, text }: { session: string; path: string; t
 /**
  * Rewrite the document's worktree asset references (relative or /-absolute;
  * img/script/stylesheet/icon/media) to data URIs fetched through the authed
- * API. Nested references — url(…) inside stylesheets, imports inside scripts
- * — are not chased.
+ * API, and typeset its maths. Nested references — url(…) inside stylesheets,
+ * imports inside scripts — are not chased.
  */
 async function inlineWorktreeAssets(
   session: string,
@@ -190,6 +195,7 @@ async function inlineWorktreeAssets(
   cache: Map<string, Promise<string | null>>,
 ): Promise<string> {
   const parsed = new DOMParser().parseFromString(text, 'text/html');
+  if (renderMathInDocument(parsed)) await inlineKatexStyles(parsed);
   const jobs: Array<Promise<void>> = [];
   for (const [selector, attr] of HTML_ASSET_ATTRS) {
     for (const el of parsed.querySelectorAll(selector)) {
@@ -205,6 +211,19 @@ async function inlineWorktreeAssets(
   }
   await Promise.all(jobs);
   return `<!doctype html>${parsed.documentElement.outerHTML}`;
+}
+
+/**
+ * Give a document that turned out to hold maths the KaTeX stylesheet, fonts
+ * baked in (`plugins/katex-css.ts`) — the iframe's null origin cannot fetch
+ * them from here. Loaded on demand: a document without maths never pays for
+ * the ~400 KB of embedded faces.
+ */
+async function inlineKatexStyles(doc: Document): Promise<void> {
+  const { default: css } = await import('virtual:katex-inline-css');
+  const style = doc.createElement('style');
+  style.textContent = `${css}\n${MATH_LAYOUT_CSS}`;
+  (doc.head ?? doc.documentElement).appendChild(style);
 }
 
 function fetchDataUri(
