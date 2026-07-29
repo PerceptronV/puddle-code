@@ -275,6 +275,11 @@ function swapScript(staged: StagedDesktopUpdate, opts: ApplyOptions): string {
       `rm -rf "$target.old"`,
       `mv "$target" "$target.old" || exit 1`,
       `if mv "$staged" "$target" 2>/dev/null || /usr/bin/ditto "$staged" "$target"; then`,
+      // Defence in depth: the normal path never quarantines (node's fetch is
+      // not a quarantine-opted-in app, and ditto only propagates what the
+      // zip already carries), but if the bundle ever acquires the attribute
+      // the swap must not resurrect the Gatekeeper prompt.
+      `  /usr/bin/xattr -dr com.apple.quarantine "$target" 2>/dev/null`,
       `  rm -rf "$target.old" ${q(staged.dir)}`,
       ...(opts.relaunch ? [`  open "$target"`] : []),
       `else`,

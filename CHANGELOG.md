@@ -16,6 +16,9 @@ Past releases: see docs/changelogs/.
   `~/.puddle/cache/desktop/`, and offers a "Restart to update" banner; a
   detached helper swaps the install after quit and relaunches (SPEC §10 —
   the CLI-style alternative to Squirrel, which refuses unsigned bundles).
+  The helper strips `com.apple.quarantine` from the swapped bundle as
+  defence in depth, and a Linux AppImage updates in place at `$APPIMAGE`,
+  wherever the user keeps it.
 - `puddle upgrade` now names its subject: `puddle upgrade daemon [user@host]`
   (the previous behaviour), `puddle upgrade cli` (npm under the hood), and
   `puddle upgrade desktop` (the app's update pipeline, run while the app is

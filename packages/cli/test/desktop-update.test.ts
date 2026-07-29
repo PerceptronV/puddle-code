@@ -202,6 +202,15 @@ describe.runIf(process.platform === 'darwin')('mac zip staging + swap', () => {
       expect(staged.kind).toBe('mac-app');
       expect(staged.stagedPath.endsWith('Puddle.app')).toBe(true);
 
+      // Worst case: the staged bundle somehow carries quarantine (translocated
+      // first install, hand-downloaded zip) — the swap must strip it.
+      await promisify(execFile)('/usr/bin/xattr', [
+        '-w',
+        'com.apple.quarantine',
+        '0081;00000000;test;',
+        staged.stagedPath,
+      ]);
+
       const target = join(dir, 'Applications', 'Puddle.app');
       await mkdir(join(target, 'Contents'), { recursive: true });
       await writeFile(join(target, 'Contents', 'Info.plist'), 'old-bundle');
@@ -209,6 +218,9 @@ describe.runIf(process.platform === 'darwin')('mac zip staging + swap', () => {
       expect(await readFile(join(target, 'Contents', 'Info.plist'), 'utf8')).toBe('new-bundle');
       await expect(stat(`${target}.old`)).rejects.toThrow(); // no leftovers
       await expect(stat(staged.dir)).rejects.toThrow();
+      await expect(
+        promisify(execFile)('/usr/bin/xattr', ['-p', 'com.apple.quarantine', target]),
+      ).rejects.toThrow(); // quarantine stripped by the helper
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
