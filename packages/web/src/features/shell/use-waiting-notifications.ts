@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type { ProjectDetail, Session } from '@puddle/shared';
 import { desktopBridge } from '../../lib/desktop';
-import { useProfileSettings } from '../../lib/queries';
+import { hostLabel, useHostInfo, useProfileSettings } from '../../lib/queries';
 import { wsManager } from '../../lib/ws';
 import { useCurrentProfileId } from '../profile/profile-store';
 
@@ -76,8 +76,6 @@ function playPing(): void {
   }
 }
 
-const BASE_TITLE = 'puddle';
-
 /**
  * waiting_input delivery (SPEC §11, task of the Notifications settings tab):
  * on a session's live transition to waiting_input — the WS status feed only
@@ -96,10 +94,24 @@ export function useWaitingNotifications(): void {
     ...((settings.data?.['notifications'] as Partial<NotificationPrefs> | undefined) ?? {}),
   };
 
+  // The title's base is the machine's label (display-name customisation
+  // first, then hostname) — same base the workspace title builds on. A ref,
+  // so a late-loaded label doesn't tear down the WS subscription (that would
+  // drop the waiting set).
+  const host = useHostInfo();
+  const baseTitle = hostLabel(host.data) ?? 'puddle';
+  const baseRef = useRef(baseTitle);
+  useEffect(() => {
+    // Adopt a late-loaded (or renamed) host label only when the title still
+    // shows the stale base — never stomp a workspace's "project — host".
+    if (document.title === baseRef.current) document.title = baseTitle;
+    baseRef.current = baseTitle;
+  }, [baseTitle]);
+
   useEffect(() => {
     const waiting = new Set<string>();
     const updateBadge = () => {
-      document.title = waiting.size > 0 ? `(${waiting.size}) ${BASE_TITLE}` : BASE_TITLE;
+      document.title = waiting.size > 0 ? `(${waiting.size}) ${baseRef.current}` : baseRef.current;
     };
 
     const off = wsManager.onStatus((event) => {
@@ -144,7 +156,7 @@ export function useWaitingNotifications(): void {
     });
     return () => {
       off();
-      document.title = BASE_TITLE;
+      document.title = baseRef.current;
     };
   }, [qc, navigate]);
 }

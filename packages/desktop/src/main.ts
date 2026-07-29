@@ -116,6 +116,14 @@ function createWindow(target: string, cockpit: RunningCockpit): BrowserWindow {
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
+    // On macOS the native title bar goes away entirely: the web app's own
+    // top bar (host, ⌘K field, settings/scratchpad/profile) doubles as the
+    // drag region, with the traffic lights inlaid — ShellLayout detects the
+    // shell, insets for them, and grows the bar to 44px so nothing squashes.
+    // y centres the 12px buttons in that 44px bar.
+    ...(process.platform === 'darwin'
+      ? { titleBarStyle: 'hidden' as const, trafficLightPosition: { x: 12, y: 16 } }
+      : {}),
     webPreferences: {
       preload: join(here, 'preload.cjs'),
       // Chromium's PDF viewer, for the editor's PDF preview iframe — off by

@@ -6,8 +6,10 @@ import { useExplorerTarget } from '../explorer/use-explorer-target';
 import { useClientSettings } from '../../lib/client-settings';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
 import {
+  hostLabel,
   useAccounts,
   useAllSessions,
+  useHostInfo,
   useProfileSettings,
   useProjectDetail,
   useProjects,
@@ -301,15 +303,19 @@ function WorkspaceInner() {
     }
   }, [restored, activeSessionId]);
 
-  // waiting_input is mirrored in the tab title (SPEC §12).
+  // waiting_input is mirrored in the tab title (SPEC §12). The title's base
+  // is the machine's label (display-name customisation first, then hostname),
+  // not the app name — the window says which host and project it drives.
+  const host = useHostInfo();
   useEffect(() => {
+    const base = hostLabel(host.data) ?? 'puddle';
     const waiting = sessions.filter((s) => s.status === 'waiting_input').length;
     const name = detail.data?.project.name ?? 'puddle';
-    document.title = waiting > 0 ? `● ${waiting} waiting — ${name}` : `${name} — puddle`;
+    document.title = waiting > 0 ? `● ${waiting} waiting — ${name}` : `${name} — ${base}`;
     return () => {
-      document.title = 'puddle';
+      document.title = base;
     };
-  }, [sessions, detail.data?.project.name]);
+  }, [sessions, detail.data?.project.name, host.data]);
 
   // Closing a session from the sidebar / its lifecycle menu removes its terminal
   // from the tree; if it was the URL-bound one, drop the binding.

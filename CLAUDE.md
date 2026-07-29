@@ -24,11 +24,11 @@ packages/
 │   │          # access there — the desktop shell reuses it; src/lib/index.ts is the deliberate
 │   │          # embedder surface), the bin in src/cli/
 │   └── scripts/build.mjs   # esbuild bundle + embeds install.sh + copies web assets into dist/
-└── desktop/   # @puddle/desktop (private): the Electron shell — a thin main process calling
+└── desktop/   # @puddle-code/desktop (private): the Electron shell — a thin main process calling
                # startLocal() from @puddle-code/cli/lib and opening a BrowserWindow on the
                # embedded cockpit. Shell concerns only (windows, OS links, notification raise);
                # anything both shells need goes in cli/src/lib, NEVER here. Build mirrors the
-               # CLI's (scripts/build.mjs); `pnpm --filter @puddle/desktop dist` packages it.
+               # CLI's (scripts/build.mjs); `pnpm --filter @puddle-code/desktop dist` packages it.
 scripts/build-tarball.mjs   # self-contained puddled release tarball for the CURRENT platform
 scripts/install.sh          # THE daemon bootstrap (curl-pipeable; the CLI pipes it over ssh)
 docs/changelogs/      # archived per-version changelogs (see Changelog discipline)
@@ -44,9 +44,9 @@ pnpm build              # all packages; web assets land inside the CLI (packages
 pnpm test               # vitest across workspaces
 pnpm lint               # eslint + prettier check
 pnpm build:tarball      # self-contained puddled tarball for this platform (dist-release/)
-pnpm --filter @puddle/desktop start   # run the Electron shell (after pnpm build; NOT from
+pnpm --filter @puddle-code/desktop start   # run the Electron shell (after pnpm build; NOT from
                                       # inside an agent session — see the puddled warning below)
-pnpm --filter @puddle/desktop dist    # package it (dmg/zip/AppImage via electron-builder)
+pnpm --filter @puddle-code/desktop dist    # package it (dmg/zip/AppImage via electron-builder)
 ```
 
 For manual testing before a release exists: `pnpm build && pnpm build:tarball`, then

@@ -207,6 +207,11 @@ export function useHostInfo() {
   });
 }
 
+/** The machine's label: the user's display-name customisation, else its hostname. */
+export function hostLabel(host: HostInfo | undefined): string | undefined {
+  return host ? host.displayName || host.hostname : undefined;
+}
+
 export function useAgents() {
   return useQuery({
     queryKey: ['agents'],

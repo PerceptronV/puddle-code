@@ -7,7 +7,7 @@ import { Button } from '../../components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { openCommandPalette } from '../../lib/command-palette';
 import { openSettings } from '../../lib/hash-route';
-import { useHostInfo, useProjectDetail } from '../../lib/queries';
+import { hostLabel, useHostInfo, useProjectDetail } from '../../lib/queries';
 import { wsManager } from '../../lib/ws';
 import { Suspense, lazy, useState } from 'react';
 import { NewProjectDialog } from '../dashboard/NewProjectDialog';
@@ -20,6 +20,14 @@ import { NewSessionProvider, useNewSession } from './new-session-context';
 import { useLocalSyncEngine } from './use-local-sync-engine';
 import { useWaitingNotifications } from './use-waiting-notifications';
 import { ScratchpadPopover } from '../scratchpad/ScratchpadPopover';
+import { desktopBridge } from '../../lib/desktop';
+import { cn } from '../../lib/utils';
+
+// Under the macOS desktop shell the native title bar is hidden and the top
+// bar IS the title bar: draggable, inset on the left for the inlaid traffic
+// lights (positioned by the shell at x:12 — three 12px buttons + gaps end
+// around 64px, so 76px keeps the home button clear of them).
+const shellTitleBar = desktopBridge() !== undefined && /Mac/.test(navigator.platform);
 
 // Settings (all eight sections) load only when the dialog first opens.
 const SettingsDialog = lazy(() =>
@@ -76,13 +84,18 @@ function HomeButton() {
   return (
     <Link
       to="/"
-      className="flex shrink-0 items-center gap-2 transition-opacity hover:opacity-70"
+      className={cn(
+        'flex shrink-0 items-center gap-2 transition-opacity hover:opacity-70',
+        shellTitleBar && '[-webkit-app-region:no-drag]',
+      )}
       title="All projects"
     >
-      <img src="/puddle.svg" alt="puddle" className="size-4" />
+      {/* Under the macOS shell the app's own chrome already says puddle —
+          the title bar shows the host name alone. */}
+      {!shellTitleBar && <img src="/puddle.svg" alt="puddle" className="size-4" />}
       {host.data && (
         <span className="truncate font-mono text-sm font-semibold text-fg-secondary">
-          {host.data.displayName || host.data.hostname}
+          {hostLabel(host.data)}
         </span>
       )}
     </Link>
@@ -103,7 +116,10 @@ function CommandField() {
     <button
       type="button"
       onClick={openCommandPalette}
-      className="absolute left-1/2 flex h-6 w-[min(30rem,42%)] -translate-x-1/2 items-center justify-center gap-2 rounded-md bg-ground text-fg-muted transition-colors hover:bg-elevated hover:text-fg-secondary"
+      className={cn(
+        'absolute left-1/2 flex h-6 w-[min(30rem,42%)] -translate-x-1/2 items-center justify-center gap-2 rounded-md bg-ground text-fg-muted transition-colors hover:bg-elevated hover:text-fg-secondary',
+        shellTitleBar && '[-webkit-app-region:no-drag]',
+      )}
     >
       <span className="truncate text-xs">{projectName ?? 'puddle'}</span>
       <span className="text-2xs">⌘K</span>
@@ -114,10 +130,22 @@ function CommandField() {
 function TopBar() {
   return (
     // pl-3 ≈ the right side's visual inset (pr-3 + the ghost buttons' own padding).
-    <header className="relative flex h-9 shrink-0 items-center gap-3 bg-surface pl-3 pr-3">
+    <header
+      className={cn(
+        'relative flex h-9 shrink-0 items-center gap-3 bg-surface pl-3 pr-3',
+        // Taller as a title bar (44px) so the content breathes rather than
+        // being squashed against the traffic lights.
+        shellTitleBar && 'h-11 pl-[76px] [-webkit-app-region:drag]',
+      )}
+    >
       <HomeButton />
       <CommandField />
-      <div className="ml-auto flex items-center gap-1">
+      <div
+        className={cn(
+          'ml-auto flex items-center gap-1',
+          shellTitleBar && '[-webkit-app-region:no-drag]',
+        )}
+      >
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon" onClick={() => openSettings()}>

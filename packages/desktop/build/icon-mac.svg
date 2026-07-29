@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- The LINUX app icon source: the puddle mark (packages/web/public/puddle.svg,
-     stroke geometry unchanged) in the dark theme's gold (khaki-300 #ddb28c)
-     on a navy-900→950 squircle, laid out on the Apple icon grid (1024 canvas,
-     824 squircle, radius ~185) — Linux applies no mask, so the artwork rounds
-     itself. Rasterised to icon.png by scripts/render-icon.sh — re-run it after
-     editing this file. The macOS icns comes from icon-mac.svg (full-bleed;
-     macOS 26+ masks icons itself and plates self-rounded artwork on white). -->
+<!-- The macOS app icon source: same artwork as icon.svg but FULL-BLEED —
+     macOS 26 (Tahoe) masks every app icon into its own squircle and plates
+     icons that draw their own rounded shape on a white background, so the
+     mac icns must fill the canvas edge to edge and leave the rounding to the
+     OS. The mark keeps the visual proportion it has inside icon.svg's 824px
+     squircle (648/824 ≈ 79% → 0.402 × 2000 units on the 1024 canvas).
+     Rasterised to icon.icns by scripts/render-icon.sh — re-run it after
+     editing this file. icon.svg remains the Linux source (no OS masking
+     there). -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
@@ -13,8 +15,8 @@
       <stop offset="1" stop-color="#000a14"/>
     </linearGradient>
   </defs>
-  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
-  <g transform="translate(512 512) scale(0.324) translate(-1000 -1000)"
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <g transform="translate(512 512) scale(0.402) translate(-1000 -1000)"
      fill="none" stroke="#ddb28c" stroke-linecap="round" stroke-linejoin="round" stroke-width="110">
     <line x1="491.66" y1="1916.78" x2="1558.47" y2="83.22"/>
     <path d="M491.66,1916.78c-329.28-191.58-441.36-613.07-250.32-941.41,191.04-328.34,612.84-439.21,942.13-247.62"/>
