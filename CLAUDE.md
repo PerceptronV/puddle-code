@@ -33,6 +33,7 @@ scripts/build-tarball.mjs   # self-contained puddled release tarball for the CUR
 scripts/install.sh          # THE daemon bootstrap (curl-pipeable; the CLI pipes it over ssh)
 docs/changelogs/      # archived per-version changelogs (see Changelog discipline)
 docs/acceptance/      # manual per-phase acceptance scripts (real-agent verification CI can't do)
+docs/reports/         # dated investigation write-ups (root cause + measurements), e.g. perf/battery
 ```
 
 ## Commands

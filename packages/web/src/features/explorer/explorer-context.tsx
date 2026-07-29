@@ -173,6 +173,13 @@ export function ExplorerProvider({
   const [rowsVersion, setRowsVersion] = useState(0);
   useEffect(() => {
     const unsub = qc.getQueryCache().subscribe((event) => {
+      // Only query-state events can change what `getQueryData` returns. The
+      // observer* events fire during React renders themselves (`useQuery`
+      // re-emits `observerOptionsUpdated` on every render because its inline
+      // `queryFn` defeats the shallow options comparison) — bumping state on
+      // those turns render → event → bump → render into a busy-loop that pins
+      // a core for as long as the explorer is mounted.
+      if (event.type !== 'added' && event.type !== 'removed' && event.type !== 'updated') return;
       const key = event.query.queryKey;
       if (Array.isArray(key) && key[0] === 'wt-tree' && key[1] === sid) {
         setRowsVersion((v) => v + 1);
