@@ -75,6 +75,7 @@ Past releases: see docs/changelogs/.
   reports to a new nonce-gated `POST /agent-signal` endpoint (protocol 9.4);
   the old regex detection remains as a fallback until a session's first
   signal. Existing accounts pick the hooks up at the next daemon boot.
+- Desktop Linux packaging: the AppImage build failed because electron-builder derived the executable name from the package name (`@puddle/desktop` → `@puddledesktop`, rejected for the `@`); set `linux.executableName: puddle-desktop` explicitly, plus `desktopName` + `linux.syncDesktopName` so the `.desktop` entry, `StartupWMClass`, and Electron's app_id all match for window association.
 
 ### Changed
 

@@ -30,6 +30,13 @@ mac:
     - dmg
     - zip
 linux:
+  # Without this, electron-builder derives the executable name from the package
+  # name (`@puddle/desktop` → `@puddledesktop`) and the AppImage build rejects
+  # the `@` as unsafe in file paths.
+  executableName: puddle-desktop
+  # Name the installed .desktop file after `desktopName` in package.json so it
+  # matches StartupWMClass and Electron's app_id (window association).
+  syncDesktopName: true
   target:
     - AppImage
   category: Development
