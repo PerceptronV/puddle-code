@@ -634,6 +634,7 @@ function WorkspaceInner() {
             <div className="min-w-0 flex-1">{mainArea}</div>
             <CollapsedSessionsRail
               groups={sessionGroups}
+              accounts={accounts}
               activeSessionId={activeSessionId}
               onReorder={persistReorder}
               onPromote={(id) => layout.ensureTerminal(id)}
@@ -705,6 +706,7 @@ function WorkspaceInner() {
             {sessionsCollapsed && (
               <CollapsedSessionsRail
                 groups={sessionGroups}
+                accounts={accounts}
                 activeSessionId={activeSessionId}
                 onReorder={persistReorder}
                 onPromote={(id) => layout.ensureTerminal(id)}

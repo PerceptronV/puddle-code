@@ -49,11 +49,14 @@ function IconButton({
   label,
   onClick,
   active = false,
+  tooltipSide,
 }: {
   icon: LucideIcon;
   label: string;
   onClick: () => void;
   active?: boolean;
+  /** The collapsed rail opens its tooltips inward (left), like the left rail. */
+  tooltipSide?: 'left';
 }) {
   return (
     <Tooltip>
@@ -71,18 +74,32 @@ function IconButton({
           <span className="sr-only">{label}</span>
         </button>
       </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
+      <TooltipContent side={tooltipSide}>{label}</TooltipContent>
     </Tooltip>
   );
 }
 
-/** Name over branch — the tooltip for a collapsed dot and any hover label. */
-function SessionLabel({ session }: { session: Session }) {
+/** Name over branch over agent · account — the tooltip for a collapsed dot. */
+function SessionLabel({ session, accountLabel }: { session: Session; accountLabel?: string }) {
   const renderTitle = useSessionTitleRenderer();
   return (
     <span className="flex flex-col">
       <span>{renderTitle(session)}</span>
       <span className="font-mono text-2xs text-fg-muted">{session.branch}</span>
+      <span className="mt-0.5 flex items-center gap-1 font-mono text-2xs text-fg-muted">
+        {session.kind === 'terminal' ? (
+          <>
+            <SquareTerminal className="size-3 shrink-0" />
+            <span>terminal</span>
+          </>
+        ) : (
+          <>
+            <AgentIcon type={session.agent_type ?? ''} className="size-3 shrink-0" />
+            <span>{session.agent_type}</span>
+            {accountLabel && <span> · {accountLabel}</span>}
+          </>
+        )}
+      </span>
     </span>
   );
 }
@@ -95,11 +112,13 @@ function SessionLabel({ session }: { session: Session }) {
  */
 function CollapsedSessionDot({
   session,
+  accountLabel,
   activeSessionId,
   onPromote,
   onArchived,
 }: {
   session: Session;
+  accountLabel?: string;
   activeSessionId: string | null;
   onPromote: (id: string) => void;
   onArchived: (id: string) => void;
@@ -138,8 +157,10 @@ function CollapsedSessionDot({
             </Link>
           </TooltipTrigger>
         </ContextMenuTrigger>
-        <TooltipContent>
-          <SessionLabel session={session} />
+        {/* To the left, into the workspace — a tooltip above the dot would sit
+            on the dots before it in the rail. */}
+        <TooltipContent side="left">
+          <SessionLabel session={session} accountLabel={accountLabel} />
         </TooltipContent>
       </Tooltip>
       <SessionContextMenuBody menu={menu} />
@@ -156,6 +177,7 @@ function CollapsedSessionDot({
  */
 export function CollapsedSessionsRail({
   groups,
+  accounts,
   activeSessionId,
   onReorder,
   onPromote,
@@ -165,6 +187,7 @@ export function CollapsedSessionsRail({
   onArchived,
 }: {
   groups: SessionGroup[];
+  accounts: Account[];
   activeSessionId: string | null;
   onReorder: (ids: string[]) => void;
   /** Double-click: pin the session's (preview) terminal tab. */
@@ -175,6 +198,7 @@ export function CollapsedSessionsRail({
   onArchived: (id: string) => void;
 }) {
   const [dragging, setDragging] = useState<string | null>(null);
+  const accountLabel = new Map(accounts.map((a) => [a.id, a.label]));
   const withDots = groups.filter((g) => g.sessions.length > 0);
   const move = (id: string, before: string) => {
     const next = moveWithinGroups(withDots, id, before);
@@ -183,9 +207,19 @@ export function CollapsedSessionsRail({
   return (
     <div className="flex h-full w-9 shrink-0 flex-col items-center bg-surface py-1.5">
       <div className="flex flex-col items-center gap-1">
-        <IconButton icon={PanelRightOpen} label="Show sessions" onClick={onExpand} />
-        <IconButton icon={Bot} label="New agent" onClick={onNewSession} />
-        <IconButton icon={SquareTerminal} label="New terminal" onClick={onNewTerminal} />
+        <IconButton
+          icon={PanelRightOpen}
+          label="Show sessions"
+          onClick={onExpand}
+          tooltipSide="left"
+        />
+        <IconButton icon={Bot} label="New agent" onClick={onNewSession} tooltipSide="left" />
+        <IconButton
+          icon={SquareTerminal}
+          label="New terminal"
+          onClick={onNewTerminal}
+          tooltipSide="left"
+        />
       </div>
       <div className="no-scrollbar flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto">
         {withDots.map((group) => (
@@ -215,6 +249,9 @@ export function CollapsedSessionsRail({
               >
                 <CollapsedSessionDot
                   session={session}
+                  accountLabel={
+                    session.account_id === null ? undefined : accountLabel.get(session.account_id)
+                  }
                   activeSessionId={activeSessionId}
                   onPromote={onPromote}
                   onArchived={onArchived}
