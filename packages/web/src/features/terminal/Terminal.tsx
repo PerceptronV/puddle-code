@@ -274,7 +274,21 @@ export function Terminal({
     // Adoption may have just given the container real dimensions — size the
     // buffer first so the attach carries the dims the PTY should have.
     const container = containerRef.current;
-    if (container && container.clientWidth > 0) fitRef.current?.fit();
+    if (container && container.clientWidth > 0) {
+      fitRef.current?.fit();
+      // Un-wedge wheel scrolling (xterm 6): the viewport syncs its scroll
+      // range from the renderer's cached dimensions, and a sync that fired
+      // while this DOM was parked (display:none — output during the detach
+      // linger, the WebGL renderer swap) latched it at height 0, where the
+      // scrollable element silently drops wheel input though typing still
+      // works. fit() skips resize() when cols/rows are unchanged — the
+      // normal case for a tab returning to the same pane — so nothing
+      // re-syncs it. BufferService.resize fires onResize UNCONDITIONALLY,
+      // so a same-size resize queues the viewport sync that re-reads the
+      // now-visible dimensions (fixed 2026-07-31; this never reaches the
+      // PTY — SIGWINCH only comes from the ResizeObserver's real resizes).
+      xterm.resize(xterm.cols, xterm.rows);
+    }
     // GPU rendering only while attached: browsers cap live WebGL contexts
     // (~16 per page), so contexts must track the handful of visible panes,
     // never the full set of mounted terminals. Unavailable/lost context

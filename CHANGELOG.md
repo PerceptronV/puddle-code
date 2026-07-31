@@ -19,6 +19,8 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Returning to a session could leave the terminal unable to scroll (typing still worked) until a reload: a viewport sync that fired while the tab's DOM was parked latched the scroll range at zero height, and returning to an unchanged pane size never re-synced it. Re-attaching now forces the sync.
+
 - Part of the terminal (typically the bottom half) could go blank after a resize until a selection forced a repaint: the terminal now repaints in full after every geometry change and renderer swap.
 - The collapsed session rail's tooltips opened upward, covering the dots above; they now open to the left, and a dot's tooltip additionally shows the session's agent type and account.
 - The editor find widget's close button could not be clicked: Monaco 0.55's button tooltips render inside the editor container, and for the rightmost button the label wrapped into a box tall enough to cover the button and swallow its clicks. Tooltips are now single-line and click-transparent.
