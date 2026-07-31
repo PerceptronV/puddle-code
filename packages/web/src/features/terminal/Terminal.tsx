@@ -219,6 +219,11 @@ export function Terminal({
     const observer = new ResizeObserver(() => {
       if (container.clientWidth === 0) return; // hidden tab — keep the last size
       fit.fit();
+      // Repaint every row after a geometry change: the WebGL renderer's canvas
+      // clears on resize but only rows it considers dirty repaint, which could
+      // blank the static part of a TUI (typically the bottom half) until a
+      // selection forced a full pass (fixed 2026-07-31).
+      xterm.refresh(0, xterm.rows - 1);
       wsManager.resize(stream, term, xterm.cols, xterm.rows);
     });
     observer.observe(container);
@@ -267,11 +272,17 @@ export function Terminal({
       webgl.onContextLoss(() => {
         webgl?.dispose();
         webgl = null;
+        // Back on the DOM renderer: repaint in full — the lost context may
+        // have left any part of the canvas blank.
+        xterm.refresh(0, xterm.rows - 1);
       });
       xterm.loadAddon(webgl);
     } catch {
       webgl = null;
     }
+    // A renderer swap starts from a cleared canvas — repaint everything (the
+    // same reasoning as the post-fit refresh in the ResizeObserver above).
+    xterm.refresh(0, xterm.rows - 1);
     const detach = wsManager.attach(stream, term, xterm.cols, xterm.rows, {
       onData: (data, kind) => {
         if (kind === 'replay') {
