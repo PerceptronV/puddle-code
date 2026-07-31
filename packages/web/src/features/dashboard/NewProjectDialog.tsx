@@ -43,9 +43,10 @@ function parentDir(dir: string): string {
  * The graphical folder picker behind "browse…": walks the DAEMON host's
  * directories over the same `GET /api/fs/dirs` the path field's autocomplete
  * uses, so it works identically for local and SSH hosts — no OS file dialog
- * (which could only ever see the client machine). Clicking a git repository
- * chooses it; a plain directory descends; the header steps up and can choose
- * the current directory itself.
+ * (which could only ever see the client machine). Clicking a row always
+ * descends — git repositories included (monorepos nest further repos) — and
+ * a git row carries its own "choose" action; the header steps up and can
+ * choose the current directory itself.
  */
 function DirBrowser({
   dir,
@@ -85,20 +86,32 @@ function DirBrowser({
       </div>
       <div className="max-h-48 overflow-y-auto">
         {(entries.data?.entries ?? []).map((entry) => (
-          <button
+          <div
             key={entry.path}
-            type="button"
-            onClick={() => (entry.is_git ? onChoose(entry.path, true) : onNavigate(entry.path))}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition-colors hover:bg-elevated"
+            className="flex items-center rounded-md transition-colors hover:bg-elevated"
           >
-            {entry.is_git ? (
-              <FolderGit2 className="size-3.5 shrink-0 text-success" />
-            ) : (
-              <Folder className="size-3.5 shrink-0 text-fg-gold" />
+            <button
+              type="button"
+              onClick={() => onNavigate(entry.path)}
+              className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1 text-left"
+            >
+              {entry.is_git ? (
+                <FolderGit2 className="size-3.5 shrink-0 text-success" />
+              ) : (
+                <Folder className="size-3.5 shrink-0 text-fg-gold" />
+              )}
+              <span className="truncate font-mono text-xs text-fg">{entry.name}</span>
+            </button>
+            {entry.is_git && (
+              <button
+                type="button"
+                onClick={() => onChoose(entry.path, true)}
+                className="shrink-0 px-2 py-1 text-2xs text-fg-muted transition-colors hover:text-fg"
+              >
+                choose
+              </button>
             )}
-            <span className="truncate font-mono text-xs text-fg">{entry.name}</span>
-            {entry.is_git && <span className="ml-auto text-2xs text-fg-muted">git</span>}
-          </button>
+          </div>
         ))}
         {entries.data !== undefined && entries.data.entries.length === 0 && (
           <p className="px-2 py-1 text-xs text-fg-muted">No subdirectories.</p>
