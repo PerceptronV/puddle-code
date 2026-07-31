@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import type { Session } from '@puddle/shared';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
+import { useDaemonVersion } from '../../lib/queries';
 import { cn } from '../../lib/utils';
 import { ChangesNav } from '../changes/ChangesNav';
 import { BrowseTree } from '../explorer/BrowseTree';
@@ -158,7 +159,16 @@ export function NavigatorSidebar({
   // the tree away mid-browse. Ephemeral local state on purpose — a reload
   // lands back on the worktree.
   const [browse, setBrowse] = useState<{ forSession: string; root: string } | null>(null);
-  const browseRoot = browse !== null && browse.forSession === session?.id ? browse.root : null;
+  // `?root=` needs a 10.2+ daemon: an older one IGNORES the param and serves
+  // worktree-relative paths as if they were the parent directory — silently
+  // wrong data — so the whole browse entry point hides on version skew (the
+  // same stance as folder drops gating on 9.2). Unknown (still fetching)
+  // reads as supported; skew within a major is rare.
+  const protocol = useDaemonVersion().data?.protocol;
+  const browseSupported =
+    !protocol || protocol.major > 10 || (protocol.major === 10 && protocol.minor >= 2);
+  const browseRoot =
+    browseSupported && browse !== null && browse.forSession === session?.id ? browse.root : null;
   const enterBrowse = (root: string) => {
     if (!session) return;
     if (!target.pinned) target.pin(session.id);
@@ -242,15 +252,17 @@ export function NavigatorSidebar({
             {/* The way OUT of the worktree: '..' enters the browse tree at
                 the parent, pinning the sidebar so the bound session cannot
                 change underneath the browse (SPEC §8). */}
-            <button
-              type="button"
-              onClick={() => enterBrowse(parentDir(session.worktree_path))}
-              title="Browse the parent directory"
-              className="flex shrink-0 items-center gap-1.5 px-3 py-1 text-left transition-colors hover:bg-elevated"
-            >
-              <CornerLeftUp className="size-3 shrink-0 text-fg-gold" />
-              <span className="font-mono text-xs text-fg-muted">..</span>
-            </button>
+            {browseSupported && (
+              <button
+                type="button"
+                onClick={() => enterBrowse(parentDir(session.worktree_path))}
+                title="Browse the parent directory"
+                className="flex shrink-0 items-center gap-1.5 px-3 py-1 text-left transition-colors hover:bg-elevated"
+              >
+                <CornerLeftUp className="size-3 shrink-0 text-fg-gold" />
+                <span className="font-mono text-xs text-fg-muted">..</span>
+              </button>
+            )}
             <div className="flex min-h-0 flex-1 flex-col">
               <FileExplorer />
             </div>
