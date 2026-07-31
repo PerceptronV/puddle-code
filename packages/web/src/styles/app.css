@@ -236,6 +236,24 @@
     content: none;
   }
 
+  /* Monaco 0.55's widget-button tooltips (find widget ↑/↓/✕ etc.) render as
+     context views absolutely positioned INSIDE the editor's container. For
+     the rightmost button the containing block runs out of width, so the
+     label wraps into a box tall enough to land on the button itself and
+     swallow its clicks (reproduced 2026-07-30; the position is computed from
+     the pre-wrap measured height). Keep the label to one line — !important
+     because monaco sets `white-space: pre-wrap` as an inline style — and
+     make the tooltip click-transparent so no placement can ever eat a click.
+     Scoped to .workbench-hover*: the editor's CONTENT hovers (docs on hover,
+     which need scrolling/links) use a different widget and keep their
+     pointer events. */
+  .workbench-hover .hover-contents {
+    white-space: nowrap !important;
+  }
+  .workbench-hover-container {
+    pointer-events: none;
+  }
+
   /* Scroll without a visible scrollbar — the sessions rail/list scrolls when
      there are many sessions but keeps the chrome clean (HUMANS.md minimalism). */
   .no-scrollbar {

@@ -15,6 +15,7 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- The editor find widget's close button could not be clicked: Monaco 0.55's button tooltips render inside the editor container, and for the rightmost button the label wrapped into a box tall enough to cover the button and swallow its clicks. Tooltips are now single-line and click-transparent.
 - Waiting-input notifications silently never fired for browsers that had not granted permission: the desktop toggle defaults to on but the permission prompt only ever ran on a toggle click. The Notifications settings row now shows the live permission state (unrequested, blocked, or unsupported) with an inline request link.
 - Waiting-input notifications were dropped when the session was in no cached query list (e.g. a tab parked on the dashboard); delivery now falls back to fetching the session list.
 
