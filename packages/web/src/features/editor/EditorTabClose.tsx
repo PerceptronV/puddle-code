@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from '../../components/ui/dialog';
 import { Button } from '../../components/ui/button';
+import { cn } from '../../lib/utils';
 import { deleteDraft } from '../../lib/drafts';
 import { bufferKey, isDirty, subscribe } from './buffer-store';
 import { announceDraftDiscarded } from './editor-sync';
@@ -64,7 +65,13 @@ export function EditorTabClose({
           e.stopPropagation();
           requestClose();
         }}
-        className="flex size-4 items-center justify-center rounded-sm text-fg-muted transition-colors hover:text-fg"
+        // Reveal by display, not opacity, so a clean tab's close reserves no
+        // width at rest (HUMANS.md); a dirty tab always shows its dot, which
+        // morphs into the × on hover.
+        className={cn(
+          'size-4 items-center justify-center rounded-sm text-fg-muted transition-colors hover:text-fg',
+          dirty ? 'flex' : 'hidden group-hover:flex pointer-coarse:flex',
+        )}
         aria-label={`Close ${label}`}
       >
         {dirty ? (
@@ -73,7 +80,7 @@ export function EditorTabClose({
             <X className="hidden size-3 group-hover:block" />
           </>
         ) : (
-          <X className="size-3 opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100" />
+          <X className="size-3" />
         )}
       </button>
       <Dialog open={confirm} onOpenChange={(open) => !open && setConfirm(false)}>

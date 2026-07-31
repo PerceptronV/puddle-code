@@ -31,5 +31,6 @@ Past releases: see docs/changelogs/.
 
 - The file tree fully honours a multi-selection: dragging a selected row moves the whole selection (with an "N items" drag chip), and Download and Copy (Relative) Path act on every selected entry — like cut/copy/delete already did. A selection holding a folder and its descendants is pruned to the folder before acting.
 - The Files header sheds its New File / New Folder buttons — creation lives in the tree's context menus (right-click a folder or empty space), leaving the header cluster at Refresh · Collapse Folders.
+- Tab-chip close and preview-toggle buttons no longer reserve width when hidden: they appear only on the tab's hover (always shown on touch), so at rest the title runs to the chip's edge with no trailing gap. A dirty editor tab keeps its always-visible dot, morphing into the × on hover.
 - Highlighting text in a terminal no longer auto-copies it: an agent's selection-copy (OSC 52) is held back until the copy chord — ⌘C on Mac, Ctrl+Shift+C elsewhere — commits it, matching how a local selection copies.
 - Swap the session status colours: a running agent now shows amber (work in motion) and one awaiting input shows green (ready for you), in both themes. Git badges, sign-in states, and caution copy move to new `--success`/`--warning` tokens so they keep their conventional green/amber hues.

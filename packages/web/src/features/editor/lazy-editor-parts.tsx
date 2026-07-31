@@ -83,7 +83,7 @@ export function LazyEditorTabClose(props: {
             e.stopPropagation();
             props.onClose();
           }}
-          className="flex size-4 items-center justify-center rounded-sm text-fg-muted opacity-0 transition-opacity hover:text-fg group-hover:opacity-100 pointer-coarse:opacity-100"
+          className="hidden size-4 items-center justify-center rounded-sm text-fg-muted transition-colors hover:text-fg group-hover:flex pointer-coarse:flex"
           aria-label={`Close ${props.label}`}
         >
           ×

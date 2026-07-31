@@ -123,7 +123,7 @@ function ViewToggle({
         e.stopPropagation();
         onSetView(showingPreview ? 'source' : 'preview');
       }}
-      className="rounded-sm p-0.5 text-fg-muted opacity-0 transition-opacity hover:text-fg group-hover:opacity-100 pointer-coarse:opacity-100"
+      className="hidden rounded-sm p-0.5 text-fg-muted transition-colors hover:text-fg group-hover:inline-flex pointer-coarse:inline-flex"
       aria-label={showingPreview ? 'Show source' : 'Show preview'}
       title={showingPreview ? 'Show source' : 'Show preview'}
     >
@@ -207,7 +207,7 @@ function PaneTab({
               e.stopPropagation();
               onClose();
             }}
-            className="rounded-sm p-0.5 text-fg-muted opacity-0 transition-opacity hover:text-fg group-hover:opacity-100 pointer-coarse:opacity-100"
+            className="hidden rounded-sm p-0.5 text-fg-muted transition-colors hover:text-fg group-hover:inline-flex pointer-coarse:inline-flex"
             aria-label="Close tab"
           >
             <X className="size-3" />
