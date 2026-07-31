@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type {
   Account,
   AccountUsage,
@@ -106,11 +106,22 @@ export function useSessions(projectId: string | undefined) {
  * sidebar (which filters per project) all derive from this one list. Keyed
  * under `['sessions', …]` so the live status/rename sync patches it too.
  */
+const allSessionsQuery = {
+  queryKey: ['sessions', 'all'],
+  queryFn: () => api<Session[]>('GET', '/api/sessions'),
+};
+
 export function useAllSessions() {
-  return useQuery({
-    queryKey: ['sessions', 'all'],
-    queryFn: () => api<Session[]>('GET', '/api/sessions'),
-  });
+  return useQuery(allSessionsQuery);
+}
+
+/**
+ * Imperative fetch of the same list, through the same cache entry — for code
+ * outside the hook tree (the waiting-input notifier, whose session may not be
+ * in any mounted query's cache).
+ */
+export function fetchAllSessions(qc: QueryClient): Promise<Session[]> {
+  return qc.fetchQuery(allSessionsQuery);
 }
 
 export function useConfig() {

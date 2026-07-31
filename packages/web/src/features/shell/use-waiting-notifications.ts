@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type { ProjectDetail, Session } from '@puddle/shared';
 import { desktopBridge } from '../../lib/desktop';
-import { hostLabel, useHostInfo, useProfileSettings } from '../../lib/queries';
+import { notificationPermission } from '../../lib/notification-permission';
+import { fetchAllSessions, hostLabel, useHostInfo, useProfileSettings } from '../../lib/queries';
 import { wsManager } from '../../lib/ws';
 import { useCurrentProfileId } from '../profile/profile-store';
 
@@ -19,8 +20,8 @@ const DEFAULT_PREFS: NotificationPrefs = { desktop: true, sound: false, muted_pr
  * Whether a waiting_input transition should raise a desktop notification /
  * sound. Pure, so the policy is testable: muted projects are silent, the
  * desktop notification additionally needs granted permission and an
- * UNFOCUSED window (a focused one already shows the amber pulse — an OS
- * banner over it would be noise).
+ * UNFOCUSED window (a focused one already shows the green waiting pulse —
+ * an OS banner over it would be noise).
  */
 export function decideNotification(args: {
   prefs: NotificationPrefs;
@@ -121,38 +122,42 @@ export function useWaitingNotifications(): void {
       updateBadge();
       if (event.status !== 'waiting_input' || wasWaiting) return;
 
-      const session = findSession(qc, event.session);
-      if (!session || session.kind === 'terminal') return; // shells never "wait for input"
-      // Under the desktop shell Notification.permission is unreliable (macOS
-      // reports 'default' even though notifications deliver) — the shell's
-      // presence is the grant.
-      const permission =
-        typeof Notification === 'undefined'
-          ? ('unsupported' as const)
-          : desktopBridge()
-            ? ('granted' as const)
-            : Notification.permission;
-      const verdict = decideNotification({
-        prefs: prefsRef.current,
-        projectId: session.project_id,
-        windowFocused: document.hasFocus(),
-        permission,
-      });
-      if (verdict.sound) playPing();
-      if (verdict.desktop) {
-        const n = new Notification(displayTitle(session), {
-          body: 'Waiting for your input',
-          tag: `puddle-waiting-${session.id}`, // replaces, never stacks per session
+      void (async () => {
+        // A tab parked on the dashboard (or one whose caches were collected
+        // after idling) may not hold the session anywhere — fetch the list
+        // rather than silently dropping the notification.
+        let session = findSession(qc, event.session);
+        if (!session) {
+          try {
+            session = (await fetchAllSessions(qc)).find((s) => s.id === event.session);
+          } catch {
+            return; // connection lost mid-transition; nothing sane to show
+          }
+        }
+        if (!session || session.kind === 'terminal') return; // shells never "wait for input"
+        const found = session;
+        const verdict = decideNotification({
+          prefs: prefsRef.current,
+          projectId: found.project_id,
+          windowFocused: document.hasFocus(),
+          permission: notificationPermission(),
         });
-        n.onclick = () => {
-          // window.focus() raises a browser tab; only the desktop shell's
-          // main process can raise an OS window.
-          desktopBridge()?.raiseWindow();
-          window.focus();
-          void navigate(`/project/${session.project_id}/session/${session.id}`);
-          n.close();
-        };
-      }
+        if (verdict.sound) playPing();
+        if (verdict.desktop) {
+          const n = new Notification(displayTitle(found), {
+            body: 'Waiting for your input',
+            tag: `puddle-waiting-${found.id}`, // replaces, never stacks per session
+          });
+          n.onclick = () => {
+            // window.focus() raises a browser tab; only the desktop shell's
+            // main process can raise an OS window.
+            desktopBridge()?.raiseWindow();
+            window.focus();
+            void navigate(`/project/${found.project_id}/session/${found.id}`);
+            n.close();
+          };
+        }
+      })();
     });
     return () => {
       off();

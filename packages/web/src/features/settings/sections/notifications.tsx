@@ -1,5 +1,10 @@
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Switch } from '../../../components/ui/switch';
+import {
+  notificationPermission,
+  type EffectiveNotificationPermission,
+} from '../../../lib/notification-permission';
 import { usePatchProfileSettings, useProfileSettings, useProjects } from '../../../lib/queries';
 import { useCurrentProfileId } from '../../profile/profile-store';
 import { SectionTitle, SettingRow } from '../parts';
@@ -13,16 +18,67 @@ interface NotificationPrefs {
 const DEFAULTS: NotificationPrefs = { desktop: true, sound: false, muted_projects: [] };
 
 /**
+ * The live browser permission behind the desktop toggle. Re-read on window
+ * focus: granting or revoking happens in the browser's own UI (the prompt, a
+ * site-settings page, System Settings), and the user comes back here to see
+ * whether it took.
+ */
+function usePermissionState(): [EffectiveNotificationPermission, () => void] {
+  const [permission, setPermission] = useState(notificationPermission);
+  const refresh = () => setPermission(notificationPermission());
+  useEffect(() => {
+    const onFocus = () => setPermission(notificationPermission());
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, []);
+  return [permission, refresh];
+}
+
+/** The warning under the desktop toggle when it is on but cannot deliver. */
+function PermissionHint({
+  permission,
+  onRequest,
+}: {
+  permission: EffectiveNotificationPermission;
+  onRequest: () => void;
+}) {
+  if (permission === 'granted') return null;
+  return (
+    <p className="pb-2 text-xs text-warning">
+      {permission === 'default' && (
+        <>
+          The browser has not been asked for permission yet, so nothing will show —{' '}
+          <button
+            type="button"
+            onClick={onRequest}
+            className="underline underline-offset-2 transition-colors hover:text-fg"
+          >
+            request it now
+          </button>
+          .
+        </>
+      )}
+      {permission === 'denied' &&
+        'Blocked by the browser — allow notifications for this site in its site settings, then return here.'}
+      {permission === 'unsupported' && 'This browser cannot show desktop notifications.'}
+    </p>
+  );
+}
+
+/**
  * Notification preferences (SPEC §11); delivery lives in the shell's
  * use-waiting-notifications hook, which reads this profile-settings shape.
- * Enabling the desktop toggle asks the browser for permission there and then —
- * a user gesture is required, and this click is it.
+ * The desktop toggle's browser permission is requested by a click on the
+ * toggle or the inline hint (a user gesture is required), and the row shows
+ * the live permission state — the toggle defaults to on, so without the hint
+ * an ungranted browser would silently deliver nothing.
  */
 export function NotificationsSection() {
   const profileId = useCurrentProfileId();
   const settings = useProfileSettings(profileId ?? undefined);
   const patch = usePatchProfileSettings(profileId ?? '');
   const projects = useProjects(profileId ?? undefined);
+  const [permission, refreshPermission] = usePermissionState();
 
   const prefs: NotificationPrefs = {
     ...DEFAULTS,
@@ -30,6 +86,11 @@ export function NotificationsSection() {
   };
   const save = (next: NotificationPrefs) =>
     patch.mutate({ notifications: next }, { onError: (e) => toast.error(e.message) });
+
+  const requestPermission = () => {
+    if (typeof Notification === 'undefined') return;
+    void Notification.requestPermission().then(refreshPermission);
+  };
 
   return (
     <div>
@@ -45,13 +106,12 @@ export function NotificationsSection() {
           onCheckedChange={(checked) => {
             // The toggle click is the user gesture browsers require for the
             // permission prompt — ask here, not at delivery time.
-            if (checked && typeof Notification !== 'undefined') {
-              void Notification.requestPermission();
-            }
+            if (checked) requestPermission();
             save({ ...prefs, desktop: checked });
           }}
         />
       </SettingRow>
+      {prefs.desktop && <PermissionHint permission={permission} onRequest={requestPermission} />}
       <SettingRow label="Sound" htmlFor="notify-sound">
         <Switch
           id="notify-sound"
