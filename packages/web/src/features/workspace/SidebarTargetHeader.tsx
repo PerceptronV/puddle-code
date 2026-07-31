@@ -1,13 +1,5 @@
 import { useEffect, useRef } from 'react';
-import {
-  ChevronDown,
-  ChevronsDownUp,
-  FilePlus,
-  FolderPlus,
-  Pin,
-  RefreshCw,
-  type LucideIcon,
-} from 'lucide-react';
+import { ChevronDown, ChevronsDownUp, Pin, RefreshCw, type LucideIcon } from 'lucide-react';
 import type { Session } from '@puddle/shared';
 import {
   DropdownMenu,
@@ -55,7 +47,8 @@ function PathScroller({ text, className }: { text: string; className?: string })
  * its absolute path in Files & Search (what they operate over), its branch in
  * Changes — carries the pin toggle, and offers a dropdown to pin any other
  * project worktree by hand. In files mode (`showFileActions`) it also hosts the
- * explorer utility cluster — New File · New Folder · Refresh · Collapse Folders.
+ * explorer utility cluster — Refresh · Collapse Folders (creation lives in the
+ * tree's context menus, not here — the header stays uncluttered).
  */
 export function SidebarTargetHeader({
   sessions,
@@ -138,8 +131,6 @@ export function SidebarTargetHeader({
 }
 
 const ACTIONS: { key: string; label: string; icon: LucideIcon }[] = [
-  { key: 'new-file', label: 'New File', icon: FilePlus },
-  { key: 'new-folder', label: 'New Folder', icon: FolderPlus },
   { key: 'refresh', label: 'Refresh', icon: RefreshCw },
   { key: 'collapse', label: 'Collapse Folders', icon: ChevronsDownUp },
 ];
@@ -149,9 +140,7 @@ function ExplorerActions() {
   const ex = useExplorerOptional();
   if (!ex) return null;
   const run = (key: string) => {
-    if (key === 'new-file') ex.beginCreate('', 'file');
-    else if (key === 'new-folder') ex.beginCreate('', 'dir');
-    else if (key === 'refresh') ex.refresh();
+    if (key === 'refresh') ex.refresh();
     else if (key === 'collapse') ex.collapseAll();
   };
   // `hidden` (not opacity-0) so at rest the cluster takes NO layout width —
