@@ -62,17 +62,19 @@ export function useWorktreeFile(
   });
 }
 
-export function useSaveWorktreeFile(sid: string | undefined) {
+export function useSaveWorktreeFile(sid: string | undefined, root?: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ path, ...body }: { path: string } & PutFileRequest) =>
       api<PutFileResponse>(
         'PUT',
-        `/api/worktrees/${sid}/file?path=${encodeURIComponent(path)}`,
+        `/api/worktrees/${sid}/file?path=${encodeURIComponent(path)}${rootParam(root)}`,
         body,
       ),
     onSuccess: (_res, { path }) => {
-      void qc.invalidateQueries({ queryKey: ['wt-file', sid, path] });
+      void qc.invalidateQueries({
+        queryKey: root === undefined ? ['wt-file', sid, path] : ['wt-file', sid, path, root],
+      });
       void qc.invalidateQueries({ queryKey: ['wt-diff', sid] });
     },
   });
@@ -276,10 +278,10 @@ export function filenameFromDisposition(header: string | null, fallback: string)
 }
 
 /** Downloads a worktree path (file, or zipped directory) to the browser's Downloads (SPEC §8). */
-export async function downloadPath(sid: string, path: string): Promise<void> {
+export async function downloadPath(sid: string, path: string, root?: string): Promise<void> {
   const res = await apiFetchRaw(
     'GET',
-    `/api/worktrees/${sid}/download?path=${encodeURIComponent(path)}`,
+    `/api/worktrees/${sid}/download?path=${encodeURIComponent(path)}${rootParam(root)}`,
   );
   const blob = await res.blob();
   const fallback = path.split('/').filter(Boolean).pop() ?? 'worktree';

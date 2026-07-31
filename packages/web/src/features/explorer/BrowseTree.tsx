@@ -8,13 +8,13 @@ import { FileTypeIcon } from './file-icons';
 import { joinPath } from './explorer-paths';
 
 /**
- * The read-only tree the explorer switches to when navigating ABOVE the
- * worktree (SPEC §8): plain browse — expand directories, open files as
- * read-only `external` tabs — with none of the worktree tree's machinery
+ * The tree the explorer switches to when navigating ABOVE the worktree
+ * (SPEC §8): plain browse — expand directories, open files as fully editable
+ * `external` tabs (10.4) — with none of the worktree tree's TREE machinery
  * (selection, clipboard, inline edits, DnD, git decorations). That absence is
- * deliberate: every mutation endpoint resolves paths against the WORKTREE
- * root, so offering them here would act on the wrong files. The header walks
- * further up and returns to the worktree.
+ * deliberate: every fs-mutation endpoint resolves paths against the WORKTREE
+ * root, so offering rename/delete here would act on the wrong files. The
+ * header walks further up and returns to the worktree.
  */
 export function BrowseTree({
   sid,
@@ -27,7 +27,7 @@ export function BrowseTree({
   root: string;
   onNavigateUp: () => void;
   onReset: () => void;
-  /** Open `path` (relative to `root`) as an external read-only tab. */
+  /** Open `path` (relative to `root`) as an external editor tab. */
   onOpenFile: (path: string, opts?: { preview?: boolean }) => void;
 }) {
   const host = useHostInfo();
@@ -44,10 +44,7 @@ export function BrowseTree({
           <CornerLeftUp className="size-3.5" />
           <span className="sr-only">Parent directory</span>
         </button>
-        <span
-          className="min-w-0 truncate font-mono text-xs text-fg-secondary"
-          title={`${root} — read-only`}
-        >
+        <span className="min-w-0 truncate font-mono text-xs text-fg-secondary" title={root}>
           {tildify(root, host.data?.home)}
         </span>
         <button

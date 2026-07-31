@@ -6,7 +6,6 @@ import type { RevealTarget } from '../workspace/editor-context';
 import { CodeEditor } from './CodeEditor';
 import { CommitTabBody } from '../history/CommitTabBody';
 import { DiffTabBody } from '../diff/DiffTabBody';
-import { ExternalFileBody } from './ExternalFileBody';
 import { UntitledTabBody } from './UntitledTabBody';
 import { FilePreview } from './FilePreview';
 import { mediaKind } from './media-kind';
@@ -29,9 +28,30 @@ export function PaneEditorBody({ tab, reveal }: { tab: EditorTab; reveal: Reveal
   if (kind === 'commit' && tab.sha) {
     return <CommitTabBody key={tabKey(tab)} session={tab.session} sha={tab.sha} path={tab.path} />;
   }
+  // External tabs (SPEC §8): the SAME editor/viewer pipeline as worktree
+  // files, with the browse root threaded through — buffers, drafts, sync,
+  // and saves all key and route by (session, path, root).
   if (kind === 'external' && tab.root !== undefined) {
+    const externalMedia = mediaKind(tab.path);
+    if (externalMedia) {
+      return (
+        <MediaViewer
+          key={tabKey(tab)}
+          session={tab.session}
+          path={tab.path}
+          kind={externalMedia}
+          root={tab.root}
+        />
+      );
+    }
     return (
-      <ExternalFileBody key={tabKey(tab)} session={tab.session} path={tab.path} root={tab.root} />
+      <CodeEditor
+        key={tabKey(tab)}
+        session={tab.session}
+        path={tab.path}
+        reveal={reveal}
+        root={tab.root}
+      />
     );
   }
   // Untitled drafts are worktree-agnostic (their `session` is the nil uuid):

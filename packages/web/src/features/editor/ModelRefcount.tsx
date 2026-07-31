@@ -1,10 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { bufferKey, releaseModel, retainModel } from './buffer-store';
 
-/** A (session, path) pair whose shared editor model should be kept alive. */
+/** A (session, path[, root]) triple whose shared editor model should be kept alive. */
 export interface HeldBuffer {
   session: string;
   path: string;
+  /** Absolute browse root of an `external` tab (SPEC §8). */
+  root?: string;
 }
 
 /**
@@ -21,7 +23,7 @@ export function ModelRefcount({ buffers }: { buffers: HeldBuffer[] }) {
   const held = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    const want = new Set(buffers.map((b) => bufferKey(b.session, b.path)));
+    const want = new Set(buffers.map((b) => bufferKey(b.session, b.path, b.root)));
     const cur = held.current;
     for (const key of want) {
       if (!cur.has(key)) {

@@ -14,9 +14,9 @@ import { bufferKey, isDirty, subscribe } from './buffer-store';
 import { announceDraftDiscarded } from './editor-sync';
 import type { EditorTabKind } from './editor-tabs';
 
-/** Reactive dirty flag for one (session, path) buffer. */
-function useDirty(session: string, path: string): boolean {
-  const key = bufferKey(session, path);
+/** Reactive dirty flag for one (session, path[, root]) buffer. */
+function useDirty(session: string, path: string, root?: string): boolean {
+  const key = bufferKey(session, path, root);
   return useSyncExternalStore(
     useCallback((cb: () => void) => subscribe(key, cb), [key]),
     () => isDirty(key),
@@ -34,22 +34,25 @@ export function EditorTabClose({
   session,
   path,
   kind,
+  root,
   label,
   onClose,
 }: {
   session: string;
   path: string;
   kind: EditorTabKind;
+  /** Absolute browse root of an `external` tab (SPEC §8). */
+  root?: string;
   label: string;
   onClose: () => void;
 }) {
-  const dirty = useDirty(session, path) && kind !== 'commit';
+  const dirty = useDirty(session, path, root) && kind !== 'commit';
   const [confirm, setConfirm] = useState(false);
 
   const requestClose = () => (dirty ? setConfirm(true) : onClose());
   const discard = () => {
-    void deleteDraft(session, path);
-    announceDraftDiscarded(session, path);
+    void deleteDraft(session, path, root);
+    announceDraftDiscarded(session, path, root);
     setConfirm(false);
     onClose();
   };

@@ -41,15 +41,16 @@ export function resolveWorktree(
  * user, who already has shell access to whatever a worktree symlink points at.
  */
 /**
- * The effective root for the READ-ONLY browse routes (protocol 10.2): an
+ * The effective root for the file routes (protocol 10.2, writes 10.4): an
  * optional absolute `?root=` query overrides the session's worktree so the
- * explorer can walk parent directories (SPEC §8). Trusted single-user box —
- * the token holder already has a shell, so reading anywhere grants nothing
- * new (the same rationale as `GET /api/fs/dirs`). Mutation routes and the
- * file PUT deliberately never call this: everything that writes stays
- * confined to the worktree, so a stray relative path can never land outside
- * it. Paths under the override still go through `containedPath` against the
- * OVERRIDDEN root, keeping the `..`-escape guard.
+ * explorer can walk parent directories and `external` tabs can read AND save
+ * their files (SPEC §8). Trusted single-user box — the token holder already
+ * has a shell, so touching files anywhere grants nothing new (the same
+ * rationale as `GET /api/fs/dirs`). The fs MUTATION routes (create/rename/
+ * copy/delete/upload) deliberately never call this: the browse tree offers
+ * no such actions, and a stray relative path there must never land outside
+ * the worktree. Paths under the override still go through `containedPath`
+ * against the OVERRIDDEN root, keeping the `..`-escape guard.
  */
 export function browseRoot(c: Context, worktreeRoot: string): string {
   const raw = c.req.query('root');

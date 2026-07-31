@@ -24,7 +24,7 @@ export const editorTabRefSchema = z.object({
   /**
    * Set only for `external` tabs (protocol 10.2): the absolute browse root the
    * explorer's parent-navigation opened this file under — `path` is relative
-   * to it. External tabs are read-only (SPEC §8).
+   * to it. External tabs are full editors since 10.4 (SPEC §8).
    */
   root: z.string().optional(),
   /**

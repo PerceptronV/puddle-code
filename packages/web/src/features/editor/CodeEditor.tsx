@@ -13,11 +13,13 @@ function Fallback({
   message,
   session,
   path,
+  root,
   download,
 }: {
   message: string;
   session: string;
   path: string;
+  root?: string;
   download?: boolean;
 }) {
   return (
@@ -27,7 +29,7 @@ function Fallback({
         <button
           type="button"
           onClick={() =>
-            void downloadPath(session, path).catch((e: unknown) =>
+            void downloadPath(session, path, root).catch((e: unknown) =>
               toast.error(e instanceof Error ? e.message : 'Download failed'),
             )
           }
@@ -52,13 +54,17 @@ export function CodeEditor({
   session,
   path,
   reveal,
+  root,
 }: {
   session: string;
   path: string;
   reveal: RevealTarget | null;
+  /** Absolute browse root of an `external` tab (SPEC §8) — buffers, drafts,
+   * sync, and saves all key and route through it. */
+  root?: string;
 }) {
   const settings = useClientSettings();
-  const buffer = useEditorBuffer(session, path, reveal);
+  const buffer = useEditorBuffer(session, path, reveal, root);
   const fontMono = useMemo(
     () =>
       getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim() ||
@@ -67,7 +73,15 @@ export function CodeEditor({
   );
 
   if (buffer.status === 'binary') {
-    return <Fallback message="Binary file — use Download" session={session} path={path} download />;
+    return (
+      <Fallback
+        message="Binary file — use Download"
+        session={session}
+        path={path}
+        root={root}
+        download
+      />
+    );
   }
   if (buffer.status === 'too-large') {
     return (
@@ -75,6 +89,7 @@ export function CodeEditor({
         message="File too large to edit — use Download"
         session={session}
         path={path}
+        root={root}
         download
       />
     );
@@ -85,6 +100,7 @@ export function CodeEditor({
         message={buffer.errorMessage ?? 'Failed to load file'}
         session={session}
         path={path}
+        root={root}
       />
     );
   }

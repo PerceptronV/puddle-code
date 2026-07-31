@@ -11,7 +11,7 @@ Past releases: see docs/changelogs/.
 
 ### Added
 
-- The file tree can now walk above the worktree: a `..` row enters a read-only browse of parent directories (auto-pinning the sidebar so it stays put), and files open as read-only tabs — checking something elsewhere on the host no longer needs a terminal. Protocol 10.2: optional `root=` on the read-only worktree routes.
+- The file tree can now walk above the worktree: a `..` row enters a browse of parent directories (auto-pinning the sidebar so it stays put), and files open as fully editable tabs — drafts, dirty dots, conflict-safe saves, and cross-window sync all work outside the worktree, keyed by the file's absolute location. The browse tree itself stays mutation-free (no rename/delete out there). Protocol 10.2/10.4: optional `root=` on the worktree file routes.
 - The new-project dialog gains a "browse…" folder picker that walks the daemon host's directories graphically (git repositories flagged, chosen on click) — works identically over SSH, unlike an OS file dialog.
 - Double-clicking the blank tail of a pane's tab strip opens a fresh untitled draft — worktree-agnostic, held in the profile's untitled store and persisted while you type; ⌘S opens a save-as dialogue that places it into the bound worktree, and closing the tab discards it (confirmed first). Protocol 10.3.
 - Desktop app: File → Refresh Connection (⌘⌥R) restarts the focused window's cockpit — the same stop-and-reconnect as the UI's connection banner, reachable even when the page is wedged.

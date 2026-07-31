@@ -32,14 +32,15 @@
  */
 
 /** Mirrors `bufferKey` in `buffer-store.ts` — see the module doc comment above. */
-function peerKey(session: string, path: string): string {
-  return `${encodeURIComponent(session)}:${encodeURIComponent(path)}`;
+function peerKey(session: string, path: string, root?: string): string {
+  const base = `${encodeURIComponent(session)}:${encodeURIComponent(path)}`;
+  return root === undefined ? base : `${base}:${encodeURIComponent(root)}`;
 }
 
 export type EditorSyncMessage =
-  | { t: 'saved'; session: string; path: string; mtime_ms: number }
-  | { t: 'draft-updated'; session: string; path: string }
-  | { t: 'draft-discarded'; session: string; path: string };
+  | { t: 'saved'; session: string; path: string; mtime_ms: number; root?: string }
+  | { t: 'draft-updated'; session: string; path: string; root?: string }
+  | { t: 'draft-discarded'; session: string; path: string; root?: string };
 
 export interface PeerState {
   /** Another window has unsaved edits for this (session, path). */
@@ -90,7 +91,7 @@ function setPeerState(key: string, patch: Partial<PeerState>): void {
 }
 
 channel.onMessage((msg) => {
-  const key = peerKey(msg.session, msg.path);
+  const key = peerKey(msg.session, msg.path, msg.root);
   switch (msg.t) {
     case 'draft-updated':
       setPeerState(key, { dirtyElsewhere: true });
@@ -104,16 +105,22 @@ channel.onMessage((msg) => {
   }
 });
 
-export function announceSaved(session: string, path: string, mtimeMs: number): void {
-  channel.post({ t: 'saved', session, path, mtime_ms: mtimeMs });
+export function announceSaved(session: string, path: string, mtimeMs: number, root?: string): void {
+  channel.post({
+    t: 'saved',
+    session,
+    path,
+    mtime_ms: mtimeMs,
+    ...(root === undefined ? {} : { root }),
+  });
 }
 
-export function announceDraftUpdated(session: string, path: string): void {
-  channel.post({ t: 'draft-updated', session, path });
+export function announceDraftUpdated(session: string, path: string, root?: string): void {
+  channel.post({ t: 'draft-updated', session, path, ...(root === undefined ? {} : { root }) });
 }
 
-export function announceDraftDiscarded(session: string, path: string): void {
-  channel.post({ t: 'draft-discarded', session, path });
+export function announceDraftDiscarded(session: string, path: string, root?: string): void {
+  channel.post({ t: 'draft-discarded', session, path, ...(root === undefined ? {} : { root }) });
 }
 
 /** Subscribe to every raw sync message (any session/path), e.g. for logging. */

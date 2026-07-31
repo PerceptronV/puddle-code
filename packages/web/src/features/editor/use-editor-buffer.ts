@@ -56,10 +56,14 @@ export function useEditorBuffer(
   session: string,
   path: string,
   reveal: RevealTarget | null,
+  /** Absolute browse root of an `external` tab (SPEC §8): keys the buffer,
+   * drafts, and peer sync apart from a worktree file with the same relative
+   * path, and threads through the file GET/PUT. */
+  root?: string,
 ): EditorBuffer {
-  const key = bufferKey(session, path);
-  const file = useWorktreeFile(session, path);
-  const saveMutation = useSaveWorktreeFile(session);
+  const key = bufferKey(session, path, root);
+  const file = useWorktreeFile(session, path, { root });
+  const saveMutation = useSaveWorktreeFile(session, root);
 
   const [model, setModel] = useState<monaco.editor.ITextModel | null>(null);
   const [restoredNotice, setRestoredNotice] = useState(false);
@@ -106,10 +110,10 @@ export function useEditorBuffer(
     if (!data || data.binary || data.content === null || createdRef.current) return;
     createdRef.current = true;
     const existedBefore = savedMtime(key) !== undefined;
-    const created = getOrCreateModel(session, path, data.content, data.mtime_ms);
+    const created = getOrCreateModel(session, path, data.content, data.mtime_ms, root);
     setModel(created);
     if (existedBefore) return;
-    void loadDraft(session, path).then((draft) => {
+    void loadDraft(session, path, root).then((draft) => {
       if (!draft) return;
       if (draft.base_mtime_ms === data.mtime_ms) {
         // The file has not moved under the draft — restore it as dirty edits.
@@ -128,24 +132,24 @@ export function useEditorBuffer(
         });
       }
     });
-  }, [file.data, key, session, path]);
+  }, [file.data, key, session, path, root]);
 
   // Persist edits to a browser draft (debounced) and tell peer windows.
   useEffect(() => {
     if (!model) return;
-    const writer = draftWriter(session, path);
+    const writer = draftWriter(session, path, root);
     writerRef.current = writer;
     const sub = model.onDidChangeContent(() => {
       if (reloadingRef.current) return; // disk reload, not a user edit
       writer(model.getValue(), savedMtime(key) ?? 0);
-      announceDraftUpdated(session, path);
+      announceDraftUpdated(session, path, root);
     });
     return () => {
       writer.flush();
       sub.dispose();
       writerRef.current = null;
     };
-  }, [model, key, session, path]);
+  }, [model, key, session, path, root]);
 
   // A peer saved this file: if we are clean, silently adopt the new disk
   // content; if we are dirty, leave it and show a passive badge instead.
@@ -188,11 +192,11 @@ export function useEditorBuffer(
     (versionId: number, mtimeMs: number) => {
       markSaved(key, versionId, mtimeMs);
       writerRef.current?.cancel();
-      void deleteDraft(session, path);
-      announceSaved(session, path, mtimeMs);
+      void deleteDraft(session, path, root);
+      announceSaved(session, path, mtimeMs, root);
       setRestoredNotice(false);
     },
-    [key, session, path],
+    [key, session, path, root],
   );
 
   const reload = useCallback(() => {
@@ -200,7 +204,7 @@ export function useEditorBuffer(
       if (res.data && res.data.content !== null) {
         reloadModel(res.data.content, res.data.mtime_ms);
       }
-      void deleteDraft(session, path);
+      void deleteDraft(session, path, root);
       setRestoredNotice(false);
     });
   }, [key, session, path, reloadModel]);
@@ -247,11 +251,14 @@ export function useEditorBuffer(
   const applyReveal = useCallback(() => {
     const ed = editorRef.current;
     const r = revealRef.current;
+    // Reveals are worktree-scoped (terminal links, search hits): a rooted tab
+    // sharing the same (session, relative path) must never intercept them.
+    if (root !== undefined) return;
     if (!ed || !r || r.session !== session || r.path !== path) return;
     ed.revealLineInCenter(r.line);
     ed.setPosition({ lineNumber: r.line, column: r.column ?? 1 });
     ed.focus();
-  }, [session, path]);
+  }, [session, path, root]);
 
   const onMount = useCallback(
     (editor: monaco.editor.IStandaloneCodeEditor) => {

@@ -69,6 +69,8 @@ export function LazyEditorTabClose(props: {
   session: string;
   path: string;
   kind: EditorTabKind;
+  /** Absolute browse root of an `external` tab (SPEC §8). */
+  root?: string;
   label: string;
   onClose: () => void;
 }) {

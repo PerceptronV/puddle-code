@@ -33,6 +33,8 @@ const WRITE_DEBOUNCE_MS = 1000;
 export interface Draft {
   session: string;
   path: string;
+  /** The absolute browse root of an `external` tab's draft (SPEC §8). */
+  root?: string;
   content: string;
   base_mtime_ms: number;
   updated_at: number;
@@ -44,8 +46,9 @@ export interface Draft {
  * module: no IndexedDB is needed to verify it never collides across
  * sessions/paths that share a delimiter.
  */
-export function draftKey(session: string, path: string): string {
-  return `${encodeURIComponent(session)}:${encodeURIComponent(path)}`;
+export function draftKey(session: string, path: string, root?: string): string {
+  const base = `${encodeURIComponent(session)}:${encodeURIComponent(path)}`;
+  return root === undefined ? base : `${base}:${encodeURIComponent(root)}`;
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -104,6 +107,7 @@ export async function saveDraft(
   path: string,
   content: string,
   baseMtimeMs: number,
+  root?: string,
 ): Promise<void> {
   const draft: Draft = {
     session,
@@ -111,18 +115,25 @@ export async function saveDraft(
     content,
     base_mtime_ms: baseMtimeMs,
     updated_at: Date.now(),
+    ...(root === undefined ? {} : { root }),
   };
   try {
-    await withStore('readwrite', (store) => reqDone(store.put(draft, draftKey(session, path))));
+    await withStore('readwrite', (store) =>
+      reqDone(store.put(draft, draftKey(session, path, root))),
+    );
   } catch (e) {
     console.warn(`saveDraft failed: ${(e as Error).message}`);
   }
 }
 
-export async function loadDraft(session: string, path: string): Promise<Draft | null> {
+export async function loadDraft(
+  session: string,
+  path: string,
+  root?: string,
+): Promise<Draft | null> {
   try {
     const result = await withStore<Draft | undefined>('readonly', (store) =>
-      reqDone(store.get(draftKey(session, path))),
+      reqDone(store.get(draftKey(session, path, root))),
     );
     return result ?? null;
   } catch (e) {
@@ -131,9 +142,9 @@ export async function loadDraft(session: string, path: string): Promise<Draft | 
   }
 }
 
-export async function deleteDraft(session: string, path: string): Promise<void> {
+export async function deleteDraft(session: string, path: string, root?: string): Promise<void> {
   try {
-    await withStore('readwrite', (store) => reqDone(store.delete(draftKey(session, path))));
+    await withStore('readwrite', (store) => reqDone(store.delete(draftKey(session, path, root))));
   } catch (e) {
     console.warn(`deleteDraft failed: ${(e as Error).message}`);
   }
@@ -173,8 +184,9 @@ export async function deleteSessionDrafts(session: string): Promise<void> {
 export function draftWriter(
   session: string,
   path: string,
+  root?: string,
 ): Debounced<[content: string, baseMtimeMs: number]> {
   return debounce((content: string, baseMtimeMs: number) => {
-    void saveDraft(session, path, content, baseMtimeMs);
+    void saveDraft(session, path, content, baseMtimeMs, root);
   }, WRITE_DEBOUNCE_MS);
 }

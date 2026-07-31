@@ -21,15 +21,23 @@ import {
 
 export { applyDraft, editorTabLabel, type OpenTab };
 
-/** Stable identity for a (session, path) pair — the store's map key. */
-export function bufferKey(session: string, path: string): string {
-  return `${encodeURIComponent(session)}:${encodeURIComponent(path)}`;
+/**
+ * Stable identity for a (session, path[, root]) triple — the store's map key.
+ * `root` is the absolute browse root of an `external` tab (SPEC §8): a rooted
+ * file and a worktree file may share the same relative path, so the root must
+ * be part of the identity or they would silently share one buffer. Absent
+ * root keeps the historical two-part key (drafts in IndexedDB reuse it).
+ */
+export function bufferKey(session: string, path: string, root?: string): string {
+  const base = `${encodeURIComponent(session)}:${encodeURIComponent(path)}`;
+  return root === undefined ? base : `${base}:${encodeURIComponent(root)}`;
 }
 
-/** `puddle://<session>/<path>`, with every path segment percent-encoded. */
-function modelUri(session: string, path: string): monaco.Uri {
+/** `puddle://<session>/<path>[?root=…]`, with every path segment percent-encoded. */
+function modelUri(session: string, path: string, root?: string): monaco.Uri {
   const segments = path.split('/').map(encodeURIComponent);
-  return monaco.Uri.parse(`puddle://${encodeURIComponent(session)}/${segments.join('/')}`);
+  const query = root === undefined ? '' : `?root=${encodeURIComponent(root)}`;
+  return monaco.Uri.parse(`puddle://${encodeURIComponent(session)}/${segments.join('/')}${query}`);
 }
 
 function extensionOf(path: string): string {
@@ -95,12 +103,13 @@ export function getOrCreateModel(
   path: string,
   content: string,
   mtimeMs: number,
+  root?: string,
 ): monaco.editor.ITextModel {
-  const key = bufferKey(session, path);
+  const key = bufferKey(session, path, root);
   const existing = entries.get(key);
   if (existing) return existing.model;
 
-  const uri = modelUri(session, path);
+  const uri = modelUri(session, path, root);
   const model =
     monaco.editor.getModel(uri) ?? monaco.editor.createModel(content, languageForPath(path), uri);
   const disposable = model.onDidChangeContent(() => notify(key));

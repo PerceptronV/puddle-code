@@ -223,6 +223,7 @@ function PaneTab({
             session={tab.tab.session}
             path={tab.tab.path}
             kind={tabKind(tab.tab)}
+            root={tab.tab.root}
             label={label}
             onClose={onClose}
           />

@@ -89,4 +89,8 @@
 // 10.3 (2026-07-31): additive — profile-scoped untitled drafts (SPEC §8):
 // POST/GET/PUT/DELETE /api/profiles/:id/untitled[/:name], plus the `untitled`
 // editor-tab kind whose `session` is the nil uuid (worktree-agnostic).
-export const PROTOCOL_VERSION = { major: 10, minor: 3 } as const;
+// 10.4 (2026-07-31): additive — PUT /api/worktrees/:sid/file now accepts the
+// `?root=` override (10.2 introduced it read-only): `external` tabs are full
+// editors, saving to the absolute file their GET read. The fs mutation
+// routes still never take a root.
+export const PROTOCOL_VERSION = { major: 10, minor: 4 } as const;

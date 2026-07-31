@@ -178,12 +178,11 @@ export function worktreeFileRoutes(deps: { sessions: SessionStore }): Hono {
     })
 
     .put('/:sid/file', async (c) => {
-      // Writes never take the browse override: everything outside the
-      // worktree is read-only (SPEC §8), so reject rather than ignore.
-      if (c.req.query('root') !== undefined) {
-        throw ApiError.badRequest('read_only_root', 'files outside the worktree are read-only');
-      }
-      const { root } = resolveWorktree(deps.sessions, c);
+      // The file PUT accepts the browse override (10.4): an `external` tab is
+      // a full editor, so its save must route to the same absolute file its
+      // GET read. The fs MUTATIONS (create/rename/copy/delete/upload) still
+      // never take a root — the browse tree deliberately has no such actions.
+      const root = browseRoot(c, resolveWorktree(deps.sessions, c).root);
       const rel = c.req.query('path') ?? '';
       const target = containedPath(root, rel);
       const body = await parseBody(c, putFileRequestSchema);

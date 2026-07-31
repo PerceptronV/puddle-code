@@ -134,7 +134,7 @@ export function NavigatorSidebar({
   /** The worktree the whole sidebar is bound to, plus its pin controls. */
   target: ExplorerTarget;
   onOpenFile: (sessionId: string, path: string, opts?: { preview?: boolean }) => void;
-  /** Open a read-only `external` tab: `path` is relative to the browse `root` (SPEC §8). */
+  /** Open an `external` editor tab: `path` is relative to the browse `root` (SPEC §8). */
   onOpenExternalFile: (
     sessionId: string,
     path: string,
@@ -152,7 +152,7 @@ export function NavigatorSidebar({
   const { session } = target;
 
   // Parent-directory browsing (SPEC §8): navigating above the worktree swaps
-  // the files tree for the read-only BrowseTree, rooted here. Keyed to the
+  // the files tree for the BrowseTree, rooted here. Keyed to the
   // session it was opened for so a rebind (unpin, session switch) drops it;
   // entering it PINS the sidebar, so follow-the-active-session cannot yank
   // the tree away mid-browse. Ephemeral local state on purpose — a reload
@@ -219,9 +219,10 @@ export function NavigatorSidebar({
 
       {mode === 'files' &&
         (session && browseRoot !== null ? (
-          // Browsing ABOVE the worktree: the read-only tree, rooted at
-          // `browseRoot` (SPEC §8). No ExplorerProvider — none of its
-          // machinery (mutations, git status, selection) applies out here.
+          // Browsing ABOVE the worktree, rooted at `browseRoot` (SPEC §8).
+          // No ExplorerProvider — none of its tree machinery (mutations, git
+          // status, selection) applies out here; files opened from it are
+          // ordinary editors keyed by their browse root.
           <>
             <SidebarTargetHeader sessions={sessions} target={target} showPath />
             <BrowseTree
@@ -238,13 +239,13 @@ export function NavigatorSidebar({
           // min-h-0 column filling the space under the icon row + header.
           <ExplorerProvider session={session} onOpenFile={onOpenFile} activePath={activeFilePath}>
             <SidebarTargetHeader sessions={sessions} target={target} showFileActions showPath />
-            {/* The way OUT of the worktree: '..' enters the read-only browse
-                tree at the parent, pinning the sidebar so the bound session
-                cannot change underneath the browse (SPEC §8). */}
+            {/* The way OUT of the worktree: '..' enters the browse tree at
+                the parent, pinning the sidebar so the bound session cannot
+                change underneath the browse (SPEC §8). */}
             <button
               type="button"
               onClick={() => enterBrowse(parentDir(session.worktree_path))}
-              title="Browse the parent directory (read-only)"
+              title="Browse the parent directory"
               className="flex shrink-0 items-center gap-1.5 px-3 py-1 text-left transition-colors hover:bg-elevated"
             >
               <CornerLeftUp className="size-3 shrink-0 text-fg-gold" />

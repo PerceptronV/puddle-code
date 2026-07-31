@@ -477,18 +477,33 @@ describe('read-only browse root override (?root=, protocol 10.2)', () => {
     expect(errorCode(await res.json())).toBe('path_outside_worktree');
   });
 
-  it('rejects writes under an override — outside files are read-only', async () => {
-    const res = await app.request(
-      `/api/worktrees/${sessionId}/file?path=notes%2Ftodo.md&root=${encodeURIComponent(outside)}`,
-      {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ content: 'clobbered' }),
-      },
-    );
-    expect(res.status).toBe(400);
-    expect(errorCode(await res.json())).toBe('read_only_root');
-    expect(readFileSync(join(outside, 'notes', 'todo.md'), 'utf8')).toBe('remember\n');
+  it('writes under an override (10.4), with the stale-file guard intact', async () => {
+    const target = `/api/worktrees/${sessionId}/file?path=notes%2Ftodo.md&root=${encodeURIComponent(outside)}`;
+    const res = await app.request(target, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ content: 'edited outside\n' }),
+    });
+    expect(res.status).toBe(200);
+    expect(readFileSync(join(outside, 'notes', 'todo.md'), 'utf8')).toBe('edited outside\n');
+
+    const stale = await app.request(target, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ content: 'x', expected_mtime_ms: 1 }),
+    });
+    expect(stale.status).toBe(409);
+    expect(errorCode(await stale.json())).toBe('stale_file');
+  });
+
+  it('still refuses the fs mutations any root override', async () => {
+    const res = await app.request(`/api/worktrees/${sessionId}/create`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path: `${outside}/evil.txt`, kind: 'file' }),
+    });
+    expect(res.status).toBe(400); // absolute path → path_outside_worktree
+    expect(errorCode(await res.json())).toBe('path_outside_worktree');
   });
 });
 
