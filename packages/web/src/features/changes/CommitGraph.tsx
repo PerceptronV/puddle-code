@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { HoverMarquee } from '../../components/hover-marquee';
 import { useCommitShow, useWorktreeLog } from '../../lib/worktree-queries';
 import { cn } from '../../lib/utils';
 import { diffStatusStyle } from '../diff/diff-status';
@@ -12,6 +13,11 @@ const NODE_R = 4;
 const STROKE = 1.5;
 const COMMIT_ROW_H = 40;
 const FILE_ROW_H = 22;
+
+// A too-long commit subject eases into view on ITS OWN row's hover (the
+// unnamed `group` on the row button), matching the worktrees navigator's
+// branch rows. Literal so Tailwind generates it.
+const ROW_MARQUEE = 'group-hover:[transform:translateX(var(--tail))]';
 
 /** Column centre x for a lane index. */
 function laneX(col: number): number {
@@ -188,24 +194,28 @@ export function CommitGraph({
               type="button"
               onClick={() => setOpenSha(open ? null : row.sha)}
               className={cn(
-                'flex w-full items-center text-left transition-colors hover:bg-elevated',
+                'group flex w-full items-center text-left transition-colors hover:bg-elevated',
                 open && 'bg-selection',
               )}
               style={{ height: COMMIT_ROW_H }}
             >
               <GraphCell row={row} width={gutterW} />
-              <span className="flex min-w-0 flex-1 flex-col gap-0.5 pr-3">
-                <span className="flex items-baseline gap-2">
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5 pr-3">
+                <div className="flex items-baseline gap-2">
                   <span className="shrink-0 font-mono text-2xs text-fg-muted">
                     {row.sha.slice(0, SHA_LEN)}
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-xs text-fg">{commit.subject}</span>
-                </span>
+                  <HoverMarquee
+                    text={commit.subject}
+                    className="text-xs text-fg"
+                    hoverClass={ROW_MARQUEE}
+                  />
+                </div>
                 <span className="truncate text-2xs text-fg-muted">
                   {commit.author_name} ·{' '}
                   <span className="tabular-nums">{relativeTime(commit.authored_at)}</span>
                 </span>
-              </span>
+              </div>
             </button>
             {open && (
               <CommitFiles
