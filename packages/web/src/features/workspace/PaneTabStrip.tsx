@@ -33,6 +33,7 @@ export function PaneTabStrip({
   onPromote,
   onArchived,
   onSetView,
+  onNewFile,
 }: {
   leaf: LayoutLeaf;
   sessions: Session[];
@@ -42,6 +43,8 @@ export function PaneTabStrip({
   onArchived: (session: string) => void;
   /** Flip a previewable editor tab between Monaco source and rendered preview (SPEC §8). */
   onSetView: (ref: TabRef, view: 'source' | 'preview') => void;
+  /** Double-click on the strip's blank tail: open a fresh untitled file (SPEC §8). */
+  onNewFile: () => void;
 }) {
   const branches = new Map(sessions.map((s) => [s.id, s.branch]));
   const editorTabs = leaf.tabs.flatMap((t) => (t.type === 'editor' ? [t.tab] : []));
@@ -65,6 +68,11 @@ export function PaneTabStrip({
     <div
       ref={setStripRef}
       className="flex h-9 shrink-0 items-stretch gap-0.5 overflow-x-auto bg-surface px-1 pt-1"
+      // Blank space only: a double-click on a tab bubbles here with the tab
+      // as the target, and that gesture is already "promote to permanent".
+      onDoubleClick={(e) => {
+        if (e.target === e.currentTarget) onNewFile();
+      }}
     >
       {leaf.tabs.map((ref, index) => (
         <Fragment key={tabRefKey(ref)}>

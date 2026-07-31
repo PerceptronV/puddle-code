@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { Group, Panel, Separator, type Layout } from 'react-resizable-panels';
-import type { Session, SessionKind, TabRef } from '@puddle/shared';
+import type { LayoutLeaf, Session, SessionKind, TabRef } from '@puddle/shared';
+import { ApiError } from '../../lib/api';
+import { createEntry } from '../../lib/worktree-queries';
 import { useExplorerTarget } from '../explorer/use-explorer-target';
 import { useClientSettings } from '../../lib/client-settings';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
@@ -224,6 +227,41 @@ function WorkspaceInner() {
     [openFile],
   );
   const promoteTab = useCallback((ref: TabRef) => layout.promote(ref), [layout]);
+
+  // Double-click on a strip's blank tail: a fresh untitled file in the pane's
+  // bound worktree (SPEC §8). A REAL file — `untitled.md`, suffixed until the
+  // name is free — so the ordinary buffer/save/draft machinery applies
+  // unchanged; rename or delete it from the explorer like any other file.
+  const qc = useQueryClient();
+  const onNewUntitled = useCallback(
+    (leaf: LayoutLeaf) => {
+      const active = leaf.tabs.find((t) => tabRefKey(t) === leaf.activeKey) ?? leaf.tabs[0];
+      const sid =
+        active === undefined
+          ? null
+          : active.type === 'terminal'
+            ? active.session
+            : active.tab.session;
+      if (sid === null) return; // the strip only renders with tabs, but be safe
+      void (async () => {
+        for (let n = 1; n <= 50; n++) {
+          const path = n === 1 ? 'untitled.md' : `untitled-${n}.md`;
+          try {
+            await createEntry(sid, path, 'file');
+          } catch (e) {
+            if (e instanceof ApiError && e.code === 'already_exists') continue;
+            toast.error(e instanceof Error ? e.message : 'Could not create the file');
+            return;
+          }
+          void qc.invalidateQueries({ queryKey: ['wt-tree', sid] });
+          openEditorTab({ kind: 'file', session: sid, path });
+          return;
+        }
+        toast.error('Too many untitled files — tidy some up first');
+      })();
+    },
+    [openEditorTab, qc],
+  );
 
   // The ⌘K palette, top bar, and profile panel reuse this modal; an account
   // id seeds the picker (profile panel → session on a chosen account).
@@ -601,6 +639,7 @@ function WorkspaceInner() {
             onResize={layout.resize}
             onDropTab={onDropTab}
             onSetTabView={layout.setView}
+            onNewUntitled={onNewUntitled}
           />
         </TilingDnd>
       </div>

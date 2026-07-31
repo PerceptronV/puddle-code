@@ -33,6 +33,7 @@ export function PaneLeaf({
   onFocusLeaf,
   onDropTab,
   onSetTabView,
+  onNewUntitled,
 }: {
   leaf: LayoutLeaf;
   sessions: Session[];
@@ -46,6 +47,8 @@ export function PaneLeaf({
   onDropTab: (leafId: string, ref: TabRef, edge: DropEdge) => void;
   /** Flip a previewable editor tab between source and rendered preview (SPEC §8). */
   onSetTabView: (ref: TabRef, view: 'source' | 'preview') => void;
+  /** Double-click on the strip's blank tail: open a fresh untitled file here. */
+  onNewUntitled: (leaf: LayoutLeaf) => void;
 }) {
   const activeRef = leaf.tabs.find((t) => tabRefKey(t) === leaf.activeKey) ?? null;
   const terminalKey = activeRef?.type === 'terminal' ? tabRefKey(activeRef) : null;
@@ -100,6 +103,7 @@ export function PaneLeaf({
           onPromote={onPromoteTab}
           onArchived={onArchived}
           onSetView={onSetTabView}
+          onNewFile={() => onNewUntitled(leaf)}
         />
       )}
       <div
