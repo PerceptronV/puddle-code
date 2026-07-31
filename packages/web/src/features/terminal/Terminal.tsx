@@ -13,6 +13,7 @@ import { cssTokenReader, onThemeChange, xtermThemeFromCss } from '../../lib/them
 import { cn } from '../../lib/utils';
 import { wsManager } from '../../lib/ws';
 import { dynamicColourReport, type DynamicColourCode } from './osc-colour';
+import { isCopyShortcut } from './copy-shortcut';
 import { interceptImagePaste } from './paste-image';
 import { rewriteTerminalUri } from './proxy-links';
 import { registerFileLinks } from './file-links';
@@ -147,7 +148,19 @@ export function Terminal({
           )
         : null;
 
-    const stdin = xterm.onData((data) => wsManager.write(stream, term, data));
+    // The last OSC 52 payload an agent asked to copy, NOT yet on the clipboard.
+    // A mouse-reporting TUI (Claude Code) copies on EVERY drag selection, so
+    // committing it immediately meant highlighting clobbered the clipboard
+    // (decision 2026-07-31): the copy shortcut below is what commits it.
+    const osc52 = { stash: null as string | null };
+
+    const stdin = xterm.onData((data) => {
+      // Typing dismisses the TUI selection behind the stash — drop it so a
+      // later copy chord cannot commit stale text. Mouse reports (wheel
+      // scrolling, `ESC[<…`) are not typing and keep it.
+      if (!data.startsWith('\x1b[<')) osc52.stash = null;
+      wsManager.write(stream, term, data);
+    });
 
     // Answer the terminal dynamic-colour queries (OSC 10 foreground, OSC 11
     // background) that xterm.js leaves unanswered. An agent with auto/system
@@ -164,47 +177,47 @@ export function Terminal({
     const oscForeground = xterm.parser.registerOscHandler(10, answerColour(10, '--text-primary'));
     const oscBackground = xterm.parser.registerOscHandler(11, answerColour(11, '--bg-base'));
 
-    // Honour OSC 52 clipboard *writes* so a TUI's own copy lands in the system
-    // clipboard. A mouse-reporting agent (Claude Code) receives the drag itself
-    // and copies the selection by emitting `OSC 52 ; c ; <base64>` — xterm.js
-    // takes no action on OSC 52 on its own, so without this the copy is dropped
-    // and ⌘V has nothing to paste. Read requests (`?`) are ignored on purpose:
+    // OSC 52 clipboard *writes* land in the stash, not the clipboard: xterm.js
+    // takes no action on OSC 52 on its own, and a mouse-reporting agent
+    // (Claude Code) emits `OSC 52 ; c ; <base64>` for every drag selection —
+    // committing directly meant highlighting auto-copied. The copy shortcut
+    // commits the stash instead. Read requests (`?`) are ignored on purpose:
     // the PTY must never be able to exfiltrate the clipboard.
     const oscClipboard = xterm.parser.registerOscHandler(52, (data) => {
-      if (replayingRef.current) return true; // a historical copy — never clobber the clipboard
+      if (replayingRef.current) return true; // a historical copy — never resurface it
       const semi = data.indexOf(';');
       const payload = semi === -1 ? '' : data.slice(semi + 1);
-      if (!payload || payload === '?') return true; // read/clear — leave the clipboard alone
+      if (!payload || payload === '?') return true; // read/clear — nothing to stash
       try {
         const bytes = Uint8Array.from(atob(payload), (c) => c.charCodeAt(0));
-        void navigator.clipboard?.writeText(new TextDecoder().decode(bytes));
+        osc52.stash = new TextDecoder().decode(bytes);
       } catch {
         // malformed base64 — nothing safe to copy
       }
       return true;
     });
 
-    if (IS_MAC) {
-      xterm.attachCustomKeyEventHandler((e) => {
-        if (e.type !== 'keydown' || !e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return true;
-        // ⌘C copies the selection to the clipboard — xterm has no built-in copy,
-        // and Ctrl-C stays the interrupt. With nothing selected it falls through,
-        // so ⌘C then does nothing. ⌘V needs no handling: xterm already pastes on
-        // the browser's native paste event, so intercepting it would paste twice.
-        if (e.key === 'c') {
-          const selection = xterm.getSelection();
-          if (!selection) return true;
-          void navigator.clipboard?.writeText(selection);
-          e.preventDefault();
-          return false;
-        }
-        const seq = MAC_LINE_EDITS[e.key];
-        if (!seq) return true;
-        e.preventDefault(); // stop the browser's ⌘←/⌘→ history navigation
-        wsManager.write(stream, term, seq);
-        return false; // consume: xterm must not also emit its default bytes
-      });
-    }
+    xterm.attachCustomKeyEventHandler((e) => {
+      // The copy chord (⌘C on Mac, Ctrl+Shift+C elsewhere — plain Ctrl-C stays
+      // the interrupt) copies the local selection, else the stashed OSC 52
+      // payload; with neither it falls through and does nothing. ⌘V needs no
+      // handling: xterm already pastes on the browser's native paste event, so
+      // intercepting it would paste twice.
+      if (isCopyShortcut(e, IS_MAC)) {
+        const text = xterm.getSelection() || osc52.stash;
+        if (!text) return true;
+        void navigator.clipboard?.writeText(text);
+        e.preventDefault();
+        return false;
+      }
+      if (!IS_MAC) return true;
+      if (e.type !== 'keydown' || !e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return true;
+      const seq = MAC_LINE_EDITS[e.key];
+      if (!seq) return true;
+      e.preventDefault(); // stop the browser's ⌘←/⌘→ history navigation
+      wsManager.write(stream, term, seq);
+      return false; // consume: xterm must not also emit its default bytes
+    });
 
     // Capture phase so this runs before xterm's own paste handler (which only
     // reads text/plain and would drop a clipboard image on the floor).
