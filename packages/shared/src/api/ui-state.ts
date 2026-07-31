@@ -8,10 +8,18 @@ import { isoTimestamp, sessionId } from './common.js';
  * and read back as files. `sha` is set only for `commit` tabs (the commit the
  * file diff belongs to).
  */
+/**
+ * The `session` an `untitled` tab carries (protocol 10.3): untitled drafts
+ * are worktree-agnostic, so no real session applies — the nil uuid keeps the
+ * field valid while every session lookup misses on purpose. `path` holds the
+ * draft's name in the profile's untitled store (SPEC §8).
+ */
+export const UNTITLED_SESSION = '00000000-0000-0000-0000-000000000000';
+
 export const editorTabRefSchema = z.object({
   session: sessionId,
   path: z.string(),
-  kind: z.enum(['file', 'diff', 'commit', 'external']).optional(),
+  kind: z.enum(['file', 'diff', 'commit', 'external', 'untitled']).optional(),
   sha: z.string().optional(),
   /**
    * Set only for `external` tabs (protocol 10.2): the absolute browse root the

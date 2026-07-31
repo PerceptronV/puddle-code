@@ -9,7 +9,7 @@
  * editor chunk in.
  */
 
-export type EditorTabKind = 'file' | 'diff' | 'commit' | 'external';
+export type EditorTabKind = 'file' | 'diff' | 'commit' | 'external' | 'untitled';
 
 export interface EditorTab {
   session: string;

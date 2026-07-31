@@ -5,7 +5,13 @@ import {
   patchProfileRequestSchema,
   patchProfileSettingsRequestSchema,
   putUiStateRequestSchema,
+  putUntitledRequestSchema,
+  untitledNameSchema,
+  type CreateUntitledResponse,
+  type PutUntitledResponse,
+  type UntitledFileResponse,
 } from '@puddle/shared';
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AdapterRegistry } from '../../agents/registry.js';
 import type { AccountStore } from '../../db/stores/accounts.js';
@@ -75,6 +81,60 @@ export function profileRoutes(deps: {
         const profile = deps.profiles.get(hexIdParam(c));
         const body = await parseBody(c, putUiStateRequestSchema);
         return c.json(deps.profileStates.put(profile.id, body.ui_state));
+      })
+
+      // Untitled drafts (protocol 10.3, SPEC §8): worktree-AGNOSTIC scratch
+      // files held under the profile's own subtree until an explicit save-as
+      // places them into a worktree. The name schema (`untitled-<n>.md`) is
+      // the traversal guard — nothing else is a valid name.
+      .post('/:id/untitled', (c) => {
+        const profile = deps.profiles.get(hexIdParam(c));
+        const dir = join(deps.paths.profilesDir, profile.id, 'untitled');
+        mkdirSync(dir, { recursive: true });
+        for (let n = 1; n <= 500; n++) {
+          const name = `untitled-${n}.md`;
+          const target = join(dir, name);
+          if (existsSync(target)) continue;
+          writeFileSync(target, '');
+          return c.json<CreateUntitledResponse>({ name }, 201);
+        }
+        throw ApiError.conflict('too_many_untitled', 'tidy up some untitled drafts first');
+      })
+      .get('/:id/untitled/:name', (c) => {
+        const profile = deps.profiles.get(hexIdParam(c));
+        const name = c.req.param('name') ?? '';
+        if (!untitledNameSchema.safeParse(name).success) {
+          throw ApiError.badRequest('invalid_name', 'not an untitled draft name');
+        }
+        const target = join(deps.paths.profilesDir, profile.id, 'untitled', name);
+        if (!existsSync(target)) throw ApiError.notFound('untitled draft', name);
+        return c.json<UntitledFileResponse>({
+          name,
+          content: readFileSync(target, 'utf8'),
+          mtime_ms: statSync(target).mtimeMs,
+        });
+      })
+      .put('/:id/untitled/:name', async (c) => {
+        const profile = deps.profiles.get(hexIdParam(c));
+        const name = c.req.param('name') ?? '';
+        if (!untitledNameSchema.safeParse(name).success) {
+          throw ApiError.badRequest('invalid_name', 'not an untitled draft name');
+        }
+        const body = await parseBody(c, putUntitledRequestSchema);
+        const dir = join(deps.paths.profilesDir, profile.id, 'untitled');
+        mkdirSync(dir, { recursive: true });
+        const target = join(dir, name);
+        writeFileSync(target, body.content, 'utf8');
+        return c.json<PutUntitledResponse>({ mtime_ms: statSync(target).mtimeMs });
+      })
+      .delete('/:id/untitled/:name', (c) => {
+        const profile = deps.profiles.get(hexIdParam(c));
+        const name = c.req.param('name') ?? '';
+        if (!untitledNameSchema.safeParse(name).success) {
+          throw ApiError.badRequest('invalid_name', 'not an untitled draft name');
+        }
+        rmSync(join(deps.paths.profilesDir, profile.id, 'untitled', name), { force: true });
+        return c.body(null, 204);
       })
       .get('/:id/settings', (c) => c.json(deps.profiles.getSettings(hexIdParam(c))))
       .patch('/:id/settings', async (c) => {

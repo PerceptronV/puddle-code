@@ -2,9 +2,30 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Group, Panel, Separator, type Layout } from 'react-resizable-panels';
-import type { LayoutLeaf, Session, SessionKind, TabRef } from '@puddle/shared';
-import { ApiError } from '../../lib/api';
-import { createEntry } from '../../lib/worktree-queries';
+import {
+  UNTITLED_SESSION,
+  type LayoutLeaf,
+  type Session,
+  type SessionKind,
+  type TabRef,
+} from '@puddle/shared';
+import { createUntitled, deleteUntitled } from '../../lib/untitled-queries';
+import { tabKind } from '../editor/editor-tabs';
+import {
+  forgetUntitledContent,
+  setUntitledSaveHandler,
+  type UntitledSaveRequest,
+} from '../editor/untitled-save-store';
+import { UntitledSaveDialog } from './UntitledSaveDialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../components/ui/dialog';
+import { Button } from '../../components/ui/button';
 import { useExplorerTarget } from '../explorer/use-explorer-target';
 import { useClientSettings } from '../../lib/client-settings';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
@@ -33,7 +54,7 @@ import { wsManager } from '../../lib/ws';
 import { registerHotkey } from '../../lib/hotkeys';
 import { setScratchpadInsertHandler } from '../scratchpad/scratchpad-store';
 import { KeepAliveHost } from './keep-alive';
-import { flattenTabs, tabRefKey, type DropEdge } from './layout-tree';
+import { allLeaves, flattenTabs, tabRefKey, type DropEdge } from './layout-tree';
 import { NARROW_VIEWPORT, useMediaQuery } from '../../lib/use-media-query';
 import { layoutForPanels } from './panel-layout';
 import {
@@ -238,40 +259,68 @@ function WorkspaceInner() {
     [openEditorTab],
   );
 
-  // Double-click on a strip's blank tail: a fresh untitled file in the pane's
-  // bound worktree (SPEC §8). A REAL file — `untitled.md`, suffixed until the
-  // name is free — so the ordinary buffer/save/draft machinery applies
-  // unchanged; rename or delete it from the explorer like any other file.
+  // Double-click on a strip's blank tail: a fresh untitled draft (SPEC §8) —
+  // worktree-AGNOSTIC, held in the profile's untitled store until ⌘S places
+  // it into the bound worktree via the save-as dialogue below. The nil-uuid
+  // `session` keeps the tab schema-valid while binding to nothing.
   const qc = useQueryClient();
   const onNewUntitled = useCallback(
-    (leaf: LayoutLeaf) => {
-      const active = leaf.tabs.find((t) => tabRefKey(t) === leaf.activeKey) ?? leaf.tabs[0];
-      const sid =
-        active === undefined
-          ? null
-          : active.type === 'terminal'
-            ? active.session
-            : active.tab.session;
-      if (sid === null) return; // the strip only renders with tabs, but be safe
-      void (async () => {
-        for (let n = 1; n <= 50; n++) {
-          const path = n === 1 ? 'untitled.md' : `untitled-${n}.md`;
-          try {
-            await createEntry(sid, path, 'file');
-          } catch (e) {
-            if (e instanceof ApiError && e.code === 'already_exists') continue;
-            toast.error(e instanceof Error ? e.message : 'Could not create the file');
-            return;
-          }
-          void qc.invalidateQueries({ queryKey: ['wt-tree', sid] });
-          openEditorTab({ kind: 'file', session: sid, path });
-          return;
-        }
-        toast.error('Too many untitled files — tidy some up first');
-      })();
+    (_leaf: LayoutLeaf) => {
+      if (profileId === undefined) return;
+      createUntitled(profileId)
+        .then(({ name }) =>
+          openEditorTab({ kind: 'untitled', session: UNTITLED_SESSION, path: name }),
+        )
+        .catch((e: unknown) =>
+          toast.error(e instanceof Error ? e.message : 'Could not create a draft'),
+        );
     },
-    [openEditorTab, qc],
+    [openEditorTab, profileId],
   );
+
+  // Save-as for untitled drafts: pick a path in the BOUND worktree, write it
+  // there, drop the draft, and swap the tab for an ordinary file tab.
+  const [savingUntitled, setSavingUntitled] = useState<UntitledSaveRequest | null>(null);
+  useEffect(() => {
+    setUntitledSaveHandler(setSavingUntitled);
+    return () => setUntitledSaveHandler(null);
+  }, []);
+
+  // Closing an untitled tab discards its draft — confirmed first, since the
+  // draft file is deleted with it (nothing lists orphaned drafts).
+  const [discardingUntitled, setDiscardingUntitled] = useState<{
+    leafId: string;
+    ref: TabRef;
+  } | null>(null);
+  const confirmDiscardUntitled = () => {
+    const d = discardingUntitled;
+    setDiscardingUntitled(null);
+    if (!d || d.ref.type !== 'editor') return;
+    const name = d.ref.tab.path;
+    if (profileId !== undefined) void deleteUntitled(profileId, name).catch(() => undefined);
+    forgetUntitledContent(name);
+    layout.close(d.leafId, d.ref);
+  };
+
+  // A saved draft: drop its untitled tab (wherever it sits) and open the real
+  // file tab in its place. Two layout ops, deliberately split across a tick —
+  // each op persists against the tree its render saw, so the second must run
+  // after the first has committed.
+  const finishUntitledSave = (name: string, sessionId: string, path: string) => {
+    setSavingUntitled(null);
+    const ref: TabRef = {
+      type: 'editor',
+      tab: { kind: 'untitled', session: UNTITLED_SESSION, path: name },
+    };
+    const key = tabRefKey(ref);
+    for (const leaf of allLeaves(layoutRef.current.tree)) {
+      if (leaf.tabs.some((t) => tabRefKey(t) === key)) layoutRef.current.close(leaf.id, ref);
+    }
+    void qc.invalidateQueries({ queryKey: ['wt-tree', sessionId] });
+    setTimeout(() => {
+      layoutRef.current.openEditor({ kind: 'file', session: sessionId, path });
+    }, 0);
+  };
 
   // The ⌘K palette, top bar, and profile panel reuse this modal; an account
   // id seeds the picker (profile panel → session on a chosen account).
@@ -417,6 +466,12 @@ function WorkspaceInner() {
   );
   const onCloseTab = useCallback(
     (leafId: string, ref: TabRef) => {
+      // Closing an untitled tab discards its profile-store draft — confirm
+      // first (the dialogue below); nothing else lists orphaned drafts.
+      if (ref.type === 'editor' && tabKind(ref.tab) === 'untitled') {
+        setDiscardingUntitled({ leafId, ref });
+        return;
+      }
       layout.close(leafId, ref);
       if (ref.type === 'terminal' && ref.session === activeSessionId) {
         justClosedActive.current = ref.session;
@@ -450,12 +505,15 @@ function WorkspaceInner() {
   // tabs and profile-wide pins bind while you visit another project.
   const focusedRef =
     layout.focusedLeaf.tabs.find((t) => tabRefKey(t) === layout.focusedLeaf.activeKey) ?? null;
-  const focusedTabSession =
+  const rawFocusedSession =
     focusedRef === null
       ? null
       : focusedRef.type === 'terminal'
         ? focusedRef.session
         : focusedRef.tab.session;
+  // An untitled tab binds to nothing (nil-uuid session) — fall through to the
+  // URL-bound session rather than looking up a session that cannot exist.
+  const focusedTabSession = rawFocusedSession === UNTITLED_SESSION ? null : rawFocusedSession;
   const sidebarTarget = useExplorerTarget(
     tabSessions,
     focusedTabSession ?? activeSessionId,
@@ -777,6 +835,34 @@ function WorkspaceInner() {
           onOpenChange={setCreating}
           onCreated={(session) => void navigate(`/project/${projectId}/session/${session.id}`)}
         />
+        <UntitledSaveDialog
+          request={savingUntitled}
+          targetSession={targetSession}
+          profileId={profileId}
+          onClose={() => setSavingUntitled(null)}
+          onSaved={finishUntitledSave}
+        />
+        <Dialog
+          open={discardingUntitled !== null}
+          onOpenChange={(open) => !open && setDiscardingUntitled(null)}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Discard this draft?</DialogTitle>
+              <DialogDescription>
+                Closing an untitled tab deletes its draft — ⌘S saves it into the worktree instead.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setDiscardingUntitled(null)}>
+                Keep editing
+              </Button>
+              <Button variant="danger" onClick={confirmDiscardUntitled}>
+                Discard
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </KeepAliveHost>
   );

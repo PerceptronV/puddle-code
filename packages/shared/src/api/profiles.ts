@@ -182,3 +182,27 @@ export const profileSettingsSchema = z.looseObject({
 export type ProfileSettings = z.infer<typeof profileSettingsSchema>;
 
 export const patchProfileSettingsRequestSchema = z.record(z.string(), z.unknown());
+
+/**
+ * Untitled drafts (protocol 10.3, SPEC §8): worktree-AGNOSTIC scratch files a
+ * pane's blank-strip double-click creates, held in the profile's own
+ * `profiles/<id>/untitled/` directory until an explicit save-as places them
+ * into a worktree. The name pattern doubles as the traversal guard.
+ */
+export const untitledNameSchema = z.string().regex(/^untitled-\d+\.md$/);
+
+export const createUntitledResponseSchema = z.object({ name: untitledNameSchema });
+export type CreateUntitledResponse = z.infer<typeof createUntitledResponseSchema>;
+
+export const untitledFileResponseSchema = z.object({
+  name: untitledNameSchema,
+  content: z.string(),
+  mtime_ms: z.number(),
+});
+export type UntitledFileResponse = z.infer<typeof untitledFileResponseSchema>;
+
+export const putUntitledRequestSchema = z.object({ content: z.string() });
+export type PutUntitledRequest = z.infer<typeof putUntitledRequestSchema>;
+
+export const putUntitledResponseSchema = z.object({ mtime_ms: z.number() });
+export type PutUntitledResponse = z.infer<typeof putUntitledResponseSchema>;

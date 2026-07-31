@@ -7,6 +7,7 @@ import { CodeEditor } from './CodeEditor';
 import { CommitTabBody } from '../history/CommitTabBody';
 import { DiffTabBody } from '../diff/DiffTabBody';
 import { ExternalFileBody } from './ExternalFileBody';
+import { UntitledTabBody } from './UntitledTabBody';
 import { FilePreview } from './FilePreview';
 import { mediaKind } from './media-kind';
 import { MediaViewer } from './MediaViewer';
@@ -32,6 +33,11 @@ export function PaneEditorBody({ tab, reveal }: { tab: EditorTab; reveal: Reveal
     return (
       <ExternalFileBody key={tabKey(tab)} session={tab.session} path={tab.path} root={tab.root} />
     );
+  }
+  // Untitled drafts are worktree-agnostic (their `session` is the nil uuid):
+  // `path` is the draft's name in the profile's untitled store (SPEC §8).
+  if (kind === 'untitled') {
+    return <UntitledTabBody key={tabKey(tab)} name={tab.path} />;
   }
   const media = mediaKind(tab.path);
   if (media) {

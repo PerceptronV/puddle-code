@@ -86,4 +86,7 @@
 // file / media / download) accept an optional absolute `?root=` override for
 // the explorer's parent-directory browsing (mutations and PUT never do), and
 // `editorTabRefSchema` gains the matching optional `root` + `external` kind.
-export const PROTOCOL_VERSION = { major: 10, minor: 2 } as const;
+// 10.3 (2026-07-31): additive — profile-scoped untitled drafts (SPEC §8):
+// POST/GET/PUT/DELETE /api/profiles/:id/untitled[/:name], plus the `untitled`
+// editor-tab kind whose `session` is the nil uuid (worktree-agnostic).
+export const PROTOCOL_VERSION = { major: 10, minor: 3 } as const;
