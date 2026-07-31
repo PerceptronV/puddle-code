@@ -11,6 +11,7 @@ Past releases: see docs/changelogs/.
 
 ### Added
 
+- Desktop app: File → Refresh Connection (⌘⌥R) restarts the focused window's cockpit — the same stop-and-reconnect as the UI's connection banner, reachable even when the page is wedged.
 - Narrow-viewport (phone) workspace layout: below 768px the sidebars open as overlays from their rails instead of crushing the terminal, dismissing on backdrop tap or navigation; hover-revealed controls (tab closes, row menus, card actions) are always visible on touch devices.
 
 ### Fixed

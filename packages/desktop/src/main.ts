@@ -402,6 +402,19 @@ function buildMenu(): void {
           })),
         },
         { type: 'separator' },
+        {
+          // The same stop-and-reconnect the UI's connection banner and ⌘K
+          // "Refresh connection" trigger via POST /cockpit/refresh — reachable
+          // from the menu when the page itself is too wedged to serve it.
+          // ⌘⇧R would collide with viewMenu's Force Reload, hence ⌥.
+          label: 'Refresh Connection',
+          accelerator: 'CmdOrCtrl+Alt+R',
+          click: (_item, win) => {
+            const shell = [...shells.values()].find((s) => s.win === win);
+            if (shell) void refreshShell(shell);
+          },
+        },
+        { type: 'separator' },
         { role: 'close' },
       ],
     },
