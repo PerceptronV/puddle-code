@@ -33,6 +33,7 @@ import {
   hostLabel,
   useAccounts,
   useAllSessions,
+  useDaemonVersion,
   useHostInfo,
   useProfileSettings,
   useProjectDetail,
@@ -264,9 +265,22 @@ function WorkspaceInner() {
   // it into the bound worktree via the save-as dialogue below. The nil-uuid
   // `session` keeps the tab schema-valid while binding to nothing.
   const qc = useQueryClient();
+  // Feature-detect the untitled store (PROTOCOL.md rule 3): on a pre-10.3
+  // daemon the POST would 404, which reads as a bug rather than a version
+  // gap — say what is actually missing. Unknown (still fetching) reads as
+  // supported, like every other gate.
+  const daemonProtocol = useDaemonVersion().data?.protocol;
+  const untitledSupported =
+    !daemonProtocol ||
+    daemonProtocol.major > 10 ||
+    (daemonProtocol.major === 10 && daemonProtocol.minor >= 3);
   const onNewUntitled = useCallback(
     (_leaf: LayoutLeaf) => {
       if (profileId === undefined) return;
+      if (!untitledSupported) {
+        toast.error('Untitled drafts need a newer daemon — refresh the connection to update it');
+        return;
+      }
       createUntitled(profileId)
         .then(({ name }) =>
           openEditorTab({ kind: 'untitled', session: UNTITLED_SESSION, path: name }),
@@ -275,7 +289,7 @@ function WorkspaceInner() {
           toast.error(e instanceof Error ? e.message : 'Could not create a draft'),
         );
     },
-    [openEditorTab, profileId],
+    [openEditorTab, profileId, untitledSupported],
   );
 
   // Save-as for untitled drafts: pick a path in the BOUND worktree, write it
