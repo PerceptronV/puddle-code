@@ -15,8 +15,8 @@ import type { ClipboardState } from './explorer-context';
 export interface ExplorerFs {
   create(parentDir: string, name: string, kind: 'file' | 'dir'): Promise<string | null>;
   rename(from: string, newName: string): Promise<string | null>;
-  /** Move an entry into another directory, keeping its name (drag-move / cut-paste). */
-  move(from: string, targetDir: string): Promise<string | null>;
+  /** Move entries into another directory, keeping their names (drag-move). */
+  move(paths: string[], targetDir: string): Promise<void>;
   remove(paths: string[]): Promise<void>;
   paste(clipboard: ClipboardState, targetDir: string): Promise<void>;
 }
@@ -57,14 +57,18 @@ export function useExplorerFs(sid: string): ExplorerFs {
           return null;
         }
       },
-      async move(from, targetDir) {
-        try {
-          const res = await renameEntry(sid, from, joinPath(targetDir, basename(from)));
-          invalidate();
-          return res.path;
-        } catch (e) {
-          toast.error(message(e, `Couldn't move ${basename(from)}`));
-          return null;
+      async move(paths, targetDir) {
+        const results = await Promise.allSettled(
+          paths.map((p) => renameEntry(sid, p, joinPath(targetDir, basename(p)))),
+        );
+        invalidate();
+        const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+        if (failed.length > 0) {
+          toast.error(
+            paths.length === 1
+              ? message(failed[0]!.reason, `Couldn't move ${basename(paths[0]!)}`)
+              : `Couldn't move ${failed.length} item${failed.length > 1 ? 's' : ''}`,
+          );
         }
       },
       async remove(paths) {

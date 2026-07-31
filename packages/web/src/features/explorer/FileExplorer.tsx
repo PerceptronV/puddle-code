@@ -17,7 +17,7 @@ import {
 } from '../../components/ui/dialog';
 import { cn } from '../../lib/utils';
 import { useExplorer } from './explorer-context';
-import { basename } from './explorer-paths';
+import { basename, decodeDragPaths, EXPLORER_DRAG_MIME } from './explorer-paths';
 import { DirEntries } from './TreeNode';
 
 /**
@@ -70,8 +70,8 @@ function ExplorerBody() {
           onDrop={(e) => {
             e.preventDefault();
             ex.setDropTarget(null);
-            const dragged = e.dataTransfer.getData('application/x-puddle-path');
-            if (dragged) ex.onInternalDrop('', dragged);
+            const dragged = decodeDragPaths(e.dataTransfer.getData(EXPLORER_DRAG_MIME));
+            if (dragged.length > 0) ex.onInternalDrop('', dragged);
             else ex.onDropUpload('', e.dataTransfer.items, e.dataTransfer.files);
           }}
           className={cn(
@@ -97,10 +97,10 @@ function ExplorerBody() {
           Paste
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem onSelect={() => ex.copyPathToClipboard('', false)}>
+        <ContextMenuItem onSelect={() => ex.copyPathToClipboard([''], false)}>
           Copy Path
         </ContextMenuItem>
-        <ContextMenuItem onSelect={() => ex.download('')}>Download worktree</ContextMenuItem>
+        <ContextMenuItem onSelect={() => ex.download([''])}>Download worktree</ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
   );

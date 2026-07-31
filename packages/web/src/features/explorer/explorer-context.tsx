@@ -19,6 +19,7 @@ import {
   basename,
   buildVisibleRows,
   joinPath,
+  pruneNested,
   rangeBetween,
   type VisibleRow,
 } from './explorer-paths';
@@ -67,8 +68,10 @@ export interface ExplorerCtx {
   commitEdit(name: string): void;
 
   requestDelete(paths: string[]): void;
-  copyPathToClipboard(path: string, relative: boolean): void;
-  download(path: string): void;
+  /** Copy the given paths (absolute or worktree-relative), one per line. */
+  copyPathToClipboard(paths: string[], relative: boolean): void;
+  /** Download each path in turn (a directory arrives as a zip). */
+  download(paths: string[]): void;
   refresh(): void;
 
   onUpload(dir: string, files: File[]): void;
@@ -80,7 +83,7 @@ export interface ExplorerCtx {
   onDropUpload(dir: string, items: DataTransferItemList | undefined, files: FileList): void;
   dropTarget: string | null;
   setDropTarget(path: string | null): void;
-  onInternalDrop(targetDir: string, draggedPath: string): void;
+  onInternalDrop(targetDir: string, draggedPaths: string[]): void;
 
   handleKeyDown(e: ReactKeyboardEvent): void;
 
@@ -248,8 +251,16 @@ export function ExplorerProvider({
     anchorRef.current = path;
   }, []);
 
-  const cut = useCallback((paths: string[]) => setClipboard({ paths, mode: 'cut' }), []);
-  const copy = useCallback((paths: string[]) => setClipboard({ paths, mode: 'copy' }), []);
+  // Prune nested paths so a selection of a folder plus its children acts on
+  // the folder once (pasting/moving/deleting the parent already covers them).
+  const cut = useCallback(
+    (paths: string[]) => setClipboard({ paths: pruneNested(paths), mode: 'cut' }),
+    [],
+  );
+  const copy = useCallback(
+    (paths: string[]) => setClipboard({ paths: pruneNested(paths), mode: 'copy' }),
+    [],
+  );
   const paste = useCallback(
     (targetDir: string) => {
       if (!clipboard) return;
@@ -288,7 +299,8 @@ export function ExplorerProvider({
   );
 
   const requestDelete = useCallback((paths: string[]) => {
-    if (paths.length > 0) setPendingDelete(paths);
+    const pruned = pruneNested(paths);
+    if (pruned.length > 0) setPendingDelete(pruned);
   }, []);
   const confirmDelete = useCallback(() => {
     const paths = pendingDelete;
@@ -298,18 +310,23 @@ export function ExplorerProvider({
   const cancelDelete = useCallback(() => setPendingDelete(null), []);
 
   const copyPathToClipboard = useCallback(
-    (path: string, relative: boolean) => {
-      const text = relative ? path : joinPath(session.worktree_path, path);
+    (paths: string[], relative: boolean) => {
+      const text = paths.map((p) => (relative ? p : joinPath(session.worktree_path, p))).join('\n');
       void navigator.clipboard.writeText(text);
-      toast.success(relative ? 'Relative path copied' : 'Path copied');
+      const label = relative ? 'Relative path' : 'Path';
+      toast.success(
+        paths.length > 1 ? `${paths.length} ${label.toLowerCase()}s copied` : `${label} copied`,
+      );
     },
     [session.worktree_path],
   );
   const download = useCallback(
-    (path: string) => {
-      void downloadPath(sid, path).catch((e: unknown) =>
-        toast.error(e instanceof Error ? e.message : 'Download failed'),
-      );
+    (paths: string[]) => {
+      // Sequential, not parallel — several simultaneous programmatic anchor
+      // clicks make browsers drop all but the last download.
+      void (async () => {
+        for (const path of pruneNested(paths)) await downloadPath(sid, path);
+      })().catch((e: unknown) => toast.error(e instanceof Error ? e.message : 'Download failed'));
     },
     [sid],
   );
@@ -319,9 +336,9 @@ export function ExplorerProvider({
   }, [qc, sid]);
 
   const onInternalDrop = useCallback(
-    (targetDir: string, draggedPath: string) => {
-      if (!canMoveInto(draggedPath, targetDir)) return;
-      void fs.move(draggedPath, targetDir);
+    (targetDir: string, draggedPaths: string[]) => {
+      const movable = pruneNested(draggedPaths).filter((p) => canMoveInto(p, targetDir));
+      if (movable.length > 0) void fs.move(movable, targetDir);
     },
     [fs],
   );
@@ -405,7 +422,7 @@ export function ExplorerProvider({
       if (meta && (e.key === 'c' || e.key === 'C')) {
         e.preventDefault();
         const targets = actionTargets();
-        if (e.altKey) copyPathToClipboard(targets[0] ?? '', e.shiftKey);
+        if (e.altKey) copyPathToClipboard(targets, e.shiftKey);
         else copy(targets);
         return;
       }

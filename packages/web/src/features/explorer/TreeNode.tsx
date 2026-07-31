@@ -12,12 +12,34 @@ import { cn } from '../../lib/utils';
 import { useWorktreeTree } from '../../lib/worktree-queries';
 import { encodeTabTransfer, TAB_MIME } from '../workspace/tab-transfer';
 import { useExplorer } from './explorer-context';
-import { dirOf, joinPath, type VisibleRow } from './explorer-paths';
+import {
+  decodeDragPaths,
+  dirOf,
+  encodeDragPaths,
+  EXPLORER_DRAG_MIME,
+  joinPath,
+  pruneNested,
+  type VisibleRow,
+} from './explorer-paths';
 import { FileTypeIcon } from './file-icons';
 import { folderStatus, gitDecoration } from './git-decoration';
 
 const INDENT_PX = 14;
-const PUDDLE_PATH_MIME = 'application/x-puddle-path';
+
+/**
+ * VSCode-style drag image for a multi-item drag: a small "N items" chip (the
+ * browser default would show only the grabbed row). Parked off-screen for the
+ * snapshot and removed on the next frame.
+ */
+function setCountDragImage(e: React.DragEvent, count: number) {
+  const chip = document.createElement('div');
+  chip.textContent = `${count} items`;
+  chip.className =
+    'fixed -top-12 left-0 rounded-md bg-elevated px-2 py-1 font-mono text-xs text-fg';
+  document.body.appendChild(chip);
+  e.dataTransfer.setDragImage(chip, 12, 12);
+  requestAnimationFrame(() => chip.remove());
+}
 
 /** A short right-aligned keyboard-shortcut hint inside a menu row. */
 function Shortcut({ children }: { children: React.ReactNode }) {
@@ -169,10 +191,14 @@ export function TreeNode({
         if (!isSelected) ex.selectOnly(path);
       }}
       onDragStart={(e) => {
-        e.dataTransfer.setData(PUDDLE_PATH_MIME, path);
-        // A file row is also draggable into the centre tiling area, where the
-        // drop opens it as a permanent, positioned editor tab (SPEC §8).
-        if (!isDir) {
+        // Dragging a selected row drags the whole selection (nested paths
+        // pruned — moving the parent moves them); an unselected row drags alone.
+        const dragPaths = pruneNested(targets);
+        e.dataTransfer.setData(EXPLORER_DRAG_MIME, encodeDragPaths(dragPaths));
+        if (dragPaths.length > 1) setCountDragImage(e, dragPaths.length);
+        // A single file row is also draggable into the centre tiling area,
+        // where the drop opens it as a permanent, positioned editor tab (SPEC §8).
+        if (!isDir && dragPaths.length === 1) {
           e.dataTransfer.setData(
             TAB_MIME,
             encodeTabTransfer({ type: 'editor', tab: { kind: 'file', session: ex.sid, path } }),
@@ -194,8 +220,8 @@ export function TreeNode({
         e.preventDefault();
         e.stopPropagation();
         ex.setDropTarget(null);
-        const dragged = e.dataTransfer.getData(PUDDLE_PATH_MIME);
-        if (dragged) ex.onInternalDrop(path, dragged);
+        const dragged = decodeDragPaths(e.dataTransfer.getData(EXPLORER_DRAG_MIME));
+        if (dragged.length > 0) ex.onInternalDrop(path, dragged);
         else ex.onDropUpload(path, e.dataTransfer.items, e.dataTransfer.files);
       }}
       style={{ paddingLeft: depth * INDENT_PX + 8 }}
@@ -278,10 +304,10 @@ export function TreeNode({
             Paste <Shortcut>⌘V</Shortcut>
           </ContextMenuItem>
           <ContextMenuSeparator />
-          <ContextMenuItem onSelect={() => ex.copyPathToClipboard(path, false)}>
+          <ContextMenuItem onSelect={() => ex.copyPathToClipboard(targets, false)}>
             Copy Path <Shortcut>⌥⌘C</Shortcut>
           </ContextMenuItem>
-          <ContextMenuItem onSelect={() => ex.copyPathToClipboard(path, true)}>
+          <ContextMenuItem onSelect={() => ex.copyPathToClipboard(targets, true)}>
             Copy Relative Path <Shortcut>⌥⇧⌘C</Shortcut>
           </ContextMenuItem>
           <ContextMenuSeparator />
@@ -292,7 +318,7 @@ export function TreeNode({
             Delete <Shortcut>⌘⌫</Shortcut>
           </ContextMenuItem>
           <ContextMenuSeparator />
-          <ContextMenuItem onSelect={() => ex.download(path)}>Download</ContextMenuItem>
+          <ContextMenuItem onSelect={() => ex.download(targets)}>Download</ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
       {isDir && isOpen && <DirEntries sid={ex.sid} path={path} depth={depth + 1} />}

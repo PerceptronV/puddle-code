@@ -3,9 +3,12 @@ import type { TreeResponse } from '@puddle/shared';
 import {
   basename,
   buildVisibleRows,
+  decodeDragPaths,
   dirOf,
+  encodeDragPaths,
   isInside,
   joinPath,
+  pruneNested,
   rangeBetween,
 } from '../src/features/explorer/explorer-paths';
 
@@ -23,6 +26,21 @@ describe('path helpers', () => {
     expect(isInside('a/b', 'a')).toBe(true);
     expect(isInside('a', 'a')).toBe(true);
     expect(isInside('ab/c', 'a')).toBe(false); // prefix but not a path boundary
+  });
+
+  it('pruneNested drops paths covered by a selected ancestor', () => {
+    expect(pruneNested(['a', 'a/b', 'a/b/c', 'd'])).toEqual(['a', 'd']);
+    expect(pruneNested(['a/b', 'ab/c', 'a'])).toEqual(['ab/c', 'a']); // prefix ≠ ancestor
+    expect(pruneNested([''])).toEqual(['']); // the root is its own dirOf — never self-pruned
+    expect(pruneNested(['', 'a', 'a/b'])).toEqual(['']); // …but covers everything else
+  });
+
+  it('drag payload round-trips and rejects foreign data', () => {
+    expect(decodeDragPaths(encodeDragPaths(['a', 'b/c']))).toEqual(['a', 'b/c']);
+    expect(decodeDragPaths('')).toEqual([]);
+    expect(decodeDragPaths('not json')).toEqual([]);
+    expect(decodeDragPaths('{"x":1}')).toEqual([]);
+    expect(decodeDragPaths('[1,"a"]')).toEqual(['a']); // non-strings dropped
   });
 });
 

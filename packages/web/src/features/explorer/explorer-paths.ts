@@ -48,6 +48,40 @@ export function isInside(path: string, ancestor: string): boolean {
 }
 
 /**
+ * Drop every path whose ancestor is also in the set, keeping input order — a
+ * multi-selection holding both a folder and its child must act on the folder
+ * once (moving/copying/deleting the parent already covers the child; acting on
+ * the child separately would double-copy or fail on the already-gone path).
+ */
+export function pruneNested(paths: readonly string[]): string[] {
+  const set = new Set(paths);
+  return paths.filter((p) => {
+    if (p === '') return true; // the worktree root — nothing above it
+    for (let dir = dirOf(p); ; dir = dirOf(dir)) {
+      if (set.has(dir)) return false;
+      if (dir === '') return true;
+    }
+  });
+}
+
+/** DataTransfer type for internal tree drags: a JSON array of worktree-relative paths. */
+export const EXPLORER_DRAG_MIME = 'application/x-puddle-paths';
+
+export function encodeDragPaths(paths: readonly string[]): string {
+  return JSON.stringify(paths);
+}
+
+/** Decode a drag payload; [] when the data is absent or not ours. */
+export function decodeDragPaths(data: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(data);
+    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Flatten the loaded-and-expanded tree into an ordered visible-row list.
  * `read(dir)` returns the cached `TreeResponse` for a directory (or undefined
  * if not yet loaded); a directory contributes children only when it is in
