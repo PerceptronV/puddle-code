@@ -26,6 +26,8 @@
   --color-action-ink: var(--action-ink);
   --color-focus: var(--focus-ring);
   --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
   --color-running: var(--status-running);
   --color-waiting: var(--status-waiting);
   --color-interrupted: var(--status-interrupted);
@@ -160,7 +162,7 @@
     animation-delay: 1.3s;
   }
   /* Terminal sessions carry the same ripple, recoloured blue — a running shell
-     reads as blue, not agent green (higher specificity wins over the rules
+     reads as blue, not agent amber (higher specificity wins over the rules
      above). */
   .status-dot[data-kind='terminal'][data-status='running'],
   .status-dot[data-kind='terminal'][data-status='starting'] {
@@ -173,7 +175,7 @@
   }
   .status-dot[data-status='waiting_input'] {
     background: var(--status-waiting);
-    /* ~1 min of pulsing to catch the eye, then a steady waiting-amber dot. */
+    /* ~1 min of pulsing to catch the eye, then a steady waiting-green dot. */
     animation: puddle-pulse 1.3s ease-in-out 45;
   }
   .status-dot[data-status='interrupted'] {

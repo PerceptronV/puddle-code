@@ -17,7 +17,7 @@ describe('diffStatusStyle', () => {
     expect(diffStatusStyle('added')).toEqual({
       letter: 'A',
       label: 'added',
-      colourClass: 'text-running',
+      colourClass: 'text-success',
     });
     expect(diffStatusStyle('modified')).toEqual({
       letter: 'M',
@@ -32,7 +32,7 @@ describe('diffStatusStyle', () => {
     expect(diffStatusStyle('renamed')).toEqual({
       letter: 'R',
       label: 'renamed',
-      colourClass: 'text-waiting',
+      colourClass: 'text-warning',
     });
   });
 });

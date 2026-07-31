@@ -150,7 +150,7 @@ function AccountRow({ account, gateOpen }: { account: Account; gateOpen: boolean
           aria-label="Account name"
           className="-mx-1 block w-full truncate rounded-sm bg-transparent px-1 py-0.5 font-mono text-sm text-fg transition-colors hover:bg-elevated focus:bg-elevated focus:outline-none"
         />
-        <span className={`text-2xs ${account.logged_in ? 'text-running' : 'text-waiting'}`}>
+        <span className={`text-2xs ${account.logged_in ? 'text-success' : 'text-warning'}`}>
           {account.logged_in ? 'logged in' : 'not logged in'}
         </span>
       </span>

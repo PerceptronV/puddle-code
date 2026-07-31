@@ -282,7 +282,7 @@ function SessionRow({
           {session.skip_permissions && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <ShieldOff className="size-3.5 shrink-0 text-waiting" />
+                <ShieldOff className="size-3.5 shrink-0 text-warning" />
               </TooltipTrigger>
               <TooltipContent>Running with permission prompts skipped</TooltipContent>
             </Tooltip>

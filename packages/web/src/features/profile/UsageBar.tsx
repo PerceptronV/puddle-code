@@ -10,7 +10,7 @@ export function UsageBar({
 }) {
   const pct = Math.max(0, Math.min(100, percentage));
   // Fills stay ink until high, then warn/danger — the meter reads at a glance.
-  const tone = pct >= 90 ? 'bg-danger' : pct >= 75 ? 'bg-waiting' : 'bg-action';
+  const tone = pct >= 90 ? 'bg-danger' : pct >= 75 ? 'bg-warning' : 'bg-action';
 
   return (
     <span className="flex items-center gap-2">

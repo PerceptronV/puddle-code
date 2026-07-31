@@ -7,9 +7,9 @@ import {
 
 describe('gitDecoration', () => {
   it('gives untracked/added a green U/A and modified an amber M', () => {
-    expect(gitDecoration('untracked')).toEqual({ letter: 'U', colourClass: 'text-running' });
-    expect(gitDecoration('added')).toEqual({ letter: 'A', colourClass: 'text-running' });
-    expect(gitDecoration('modified')).toEqual({ letter: 'M', colourClass: 'text-waiting' });
+    expect(gitDecoration('untracked')).toEqual({ letter: 'U', colourClass: 'text-success' });
+    expect(gitDecoration('added')).toEqual({ letter: 'A', colourClass: 'text-success' });
+    expect(gitDecoration('modified')).toEqual({ letter: 'M', colourClass: 'text-warning' });
     expect(gitDecoration('deleted').colourClass).toBe('text-interrupted');
     expect(gitDecoration('conflicted')).toEqual({ letter: 'C', colourClass: 'text-interrupted' });
   });

@@ -16,10 +16,10 @@ export interface GitDecoration {
 }
 
 const DECORATIONS: Record<GitStatus, GitDecoration> = {
-  untracked: { letter: 'U', colourClass: 'text-running' },
-  added: { letter: 'A', colourClass: 'text-running' },
-  modified: { letter: 'M', colourClass: 'text-waiting' },
-  renamed: { letter: 'R', colourClass: 'text-waiting' },
+  untracked: { letter: 'U', colourClass: 'text-success' },
+  added: { letter: 'A', colourClass: 'text-success' },
+  modified: { letter: 'M', colourClass: 'text-warning' },
+  renamed: { letter: 'R', colourClass: 'text-warning' },
   deleted: { letter: 'D', colourClass: 'text-interrupted' },
   conflicted: { letter: 'C', colourClass: 'text-interrupted' },
   ignored: { letter: '', colourClass: 'text-fg-muted' },

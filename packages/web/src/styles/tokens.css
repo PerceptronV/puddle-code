@@ -17,8 +17,8 @@
 :root {
   /* -- Core palette --------------------------------------------------- */
   --altitude-blue: #7dadff; /* primary accent family */
-  --krypton-green: #8be8b3; /* success / running family */
-  --quiet-khaki: #ddb28c; /* warm neutral / attention family */
+  --krypton-green: #8be8b3; /* success / waiting family */
+  --quiet-khaki: #ddb28c; /* warm neutral / attention / running family */
   --storm-navy: #001c3d; /* dark ground / light-theme ink */
   --burnt-wood: #5a2f22; /* warm ink / danger family root */
 
@@ -112,11 +112,17 @@
   --action-hover: var(--mist-300);
   --action-ink: var(--navy-800);
   --danger: var(--ember-200);
-  --status-running: var(--green-300);
-  --status-waiting: var(--amber-300);
+  --success: var(--green-300);
+  --warning: var(--amber-300);
+  /* Session status inverts the naive mapping (decision 2026-07-29): a running
+     agent is amber — work in motion, eyes-off — and waiting is green — ready
+     for you. Git badges and caution copy use --success/--warning above, which
+     keep the conventional hues. */
+  --status-running: var(--amber-300);
+  --status-waiting: var(--green-300);
   --status-interrupted: var(--ember-200);
   --status-idle: var(--mist-500);
-  --status-terminal: var(--blue-300); /* terminal sessions ripple blue, not agent green */
+  --status-terminal: var(--blue-300); /* terminal sessions ripple blue, not agent amber */
   --selection: #7dadff4d; /* blue-300 at 30% (8-digit hex: parseable at runtime) */
   --diff-added: #8be8b32e; /* krypton green-300 at 18% alpha over navy ground */
   --diff-removed: #f2957c2e; /* ember-200 (the dark-theme ansi-red) at 18% alpha over navy ground */
@@ -158,7 +164,7 @@
   /* Text hierarchy is navy ink throughout; muted is a neutral GREY (2026-07-16,
      superseding the golden bark — that warm gold read as distracting for hints,
      placeholders, gitignored files, and metadata). Gold stays a deliberate
-     ACCENT (status-waiting), consistent across themes. Dark's muted is already a
+     ACCENT (status-running), consistent across themes. Dark's muted is already a
      cool grey (mist-500), so this only re-greys the light theme. */
   --text-primary: var(--navy-800);
   --text-secondary: var(--navy-600);
@@ -173,16 +179,19 @@
   --action-hover: var(--navy-700);
   --action-ink: var(--neutral-0);
   --danger: var(--ember-500);
-  /* SPEC §12 lists green-600 here, but it misses 3:1 on --bg-elevated; the
-     assignment steps one deeper (ramp unchanged) to keep the AA floor. */
-  --status-running: var(--green-700);
-  --status-waiting: var(--khaki-600);
+  /* SPEC §12 lists green-600 for the green assignments, but it misses 3:1 on
+     --bg-elevated; they step one deeper (ramp unchanged) to keep the AA floor. */
+  --success: var(--green-700);
+  --warning: var(--khaki-600);
+  /* Running amber, waiting green — see the dark block (decision 2026-07-29). */
+  --status-running: var(--khaki-600);
+  --status-waiting: var(--green-700);
   --status-interrupted: var(--ember-500);
   /* Neutral grey, not bark: an exited/idle dot is metadata, and the warm brown
      read as a status of its own (same reasoning as --text-muted, 2026-07-16).
      Dark theme's mist-500 is already grey. */
   --status-idle: var(--neutral-500);
-  --status-terminal: var(--blue-600); /* terminal sessions ripple blue, not agent green */
+  --status-terminal: var(--blue-600); /* terminal sessions ripple blue, not agent amber */
   --selection: #2e6bd638; /* blue-600 at 22% (8-digit hex: parseable at runtime) */
   --diff-added: #1fa26b24; /* green-600 (the light-theme ansi-green) at 14% alpha over white ground */
   --diff-removed: #c2472e24; /* ember-500 (the light-theme ansi-red/danger) at 14% alpha over white ground */

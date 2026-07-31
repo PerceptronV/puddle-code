@@ -192,9 +192,10 @@ export function WorktreesNav({
                 />
                 {wt.is_primary && <Tag className="text-fg-muted">clone</Tag>}
                 {/* Terse badges (VSCode-style): M = modified/uncommitted (the
-                    explorer's decoration colour), a green count of live sessions. */}
+                    explorer's decoration colour), a count of live sessions in
+                    the running colour. */}
                 {wt.dirty && (
-                  <Tag className="text-waiting" title="Modified — uncommitted changes">
+                  <Tag className="text-warning" title="Modified — uncommitted changes">
                     M
                   </Tag>
                 )}
@@ -236,7 +237,7 @@ export function WorktreesNav({
                 className="font-mono text-xs text-fg"
                 hoverClass={ROW_MARQUEE}
               />
-              {b.local_only && <Tag className="text-waiting">local only</Tag>}
+              {b.local_only && <Tag className="text-warning">local only</Tag>}
               <PruneButton
                 label="Delete branch"
                 blockReason={null}
@@ -267,7 +268,7 @@ export function WorktreesNav({
                 </DialogDescription>
               </DialogHeader>
               {target.localOnly && (
-                <p className="text-xs text-waiting">
+                <p className="text-xs text-warning">
                   <span className="font-mono">{target.name}</span> has commits on no remote —
                   deleting it discards that work permanently.
                 </p>

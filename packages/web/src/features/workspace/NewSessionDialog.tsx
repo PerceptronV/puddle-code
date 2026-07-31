@@ -222,7 +222,7 @@ export function NewSessionDialog({
                           {a.agent_type}/{a.label}
                         </span>
                         {!a.logged_in && (
-                          <span className="ml-2 text-2xs text-waiting">not logged in</span>
+                          <span className="ml-2 text-2xs text-warning">not logged in</span>
                         )}
                       </SelectItem>
                     ))}
@@ -342,7 +342,7 @@ export function NewSessionDialog({
           )}
 
           {!separateBranch && !isTerminal && (
-            <p className="text-xs text-waiting">
+            <p className="text-xs text-warning">
               The {isTerminal ? 'shell' : 'agent'} commits straight to{' '}
               <span className="font-mono">{baseName || '…'}</span>
               {sharingDirectory
@@ -354,7 +354,7 @@ export function NewSessionDialog({
           {showSkipToggle && (
             <div className="flex items-center gap-2 rounded-md bg-surface px-3 py-2">
               <Switch id="skip-permissions" checked={skip} onCheckedChange={setSkip} />
-              <Label htmlFor="skip-permissions" className="text-waiting">
+              <Label htmlFor="skip-permissions" className="text-warning">
                 Skip permission prompts for this session
               </Label>
             </div>

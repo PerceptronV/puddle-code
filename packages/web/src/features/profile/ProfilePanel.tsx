@@ -63,7 +63,7 @@ function AccountRow({
         className="flex w-full items-center gap-3 text-left disabled:cursor-default"
       >
         <span
-          className={`size-2 shrink-0 rounded-full ${account.logged_in ? 'bg-running' : 'bg-idle'}`}
+          className={`size-2 shrink-0 rounded-full ${account.logged_in ? 'bg-success' : 'bg-idle'}`}
           aria-hidden
         />
         <span className="min-w-0 flex-1">
@@ -105,7 +105,7 @@ function AccountRow({
               ''
             )
           ) : (
-            <span className="flex items-center gap-1 text-waiting">
+            <span className="flex items-center gap-1 text-warning">
               <KeyRound className="size-3" />
               sign in
             </span>

@@ -13,18 +13,18 @@ export interface DiffStatusStyle {
   /** Lower-case word used in the header summary ("3 modified · 1 added"). */
   label: string;
   /**
-   * A semantic colour utility (never a raw hex) reused from the status palette:
-   * added→running (green), deleted→interrupted (red), modified→fg-secondary,
-   * renamed→waiting (amber). See SPEC §12 / tokens.css.
+   * A semantic colour utility (never a raw hex): added→success (green),
+   * deleted→interrupted (red), modified→fg-secondary, renamed→warning
+   * (amber). See SPEC §12 / tokens.css.
    */
   colourClass: string;
 }
 
 const STYLES: Record<DiffStatus, DiffStatusStyle> = {
-  added: { letter: 'A', label: 'added', colourClass: 'text-running' },
+  added: { letter: 'A', label: 'added', colourClass: 'text-success' },
   modified: { letter: 'M', label: 'modified', colourClass: 'text-fg-secondary' },
   deleted: { letter: 'D', label: 'deleted', colourClass: 'text-interrupted' },
-  renamed: { letter: 'R', label: 'renamed', colourClass: 'text-waiting' },
+  renamed: { letter: 'R', label: 'renamed', colourClass: 'text-warning' },
 };
 
 export function diffStatusStyle(status: DiffStatus): DiffStatusStyle {
