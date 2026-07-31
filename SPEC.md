@@ -687,6 +687,8 @@ Puddle's UI must read as a polished, intentional developer cockpit — dense, ca
 
 - **Density**: compact paddings, information-dense lists, tabular numerals for ports/counts; generosity is reserved for primary actions and empty states.
 
+- **Narrow viewports (phones)**: below 768px the workspace drops the three-panel shell for the two slim rails plus overlays — expanding the navigator or the session list opens it **above** the tiling area over a translucent ground (tap the backdrop to dismiss), and opening a file or navigating to a session dismisses it, so the content is never left covered. Overlay visibility is ephemeral local state: the persisted `sidebar_collapsed`/`sessions_collapsed` flags describe the desktop layout, and a phone visit never rewrites them. Controls revealed on hover (tab closes, row menus, card actions) are always visible on coarse-pointer devices (`pointer-coarse:` variants) — touch has no hover, and an invisible control is not a control.
+
 - **Quality floor**: visible keyboard focus everywhere (`--focus-ring`); session tabs, palette, and explorer fully keyboard-navigable; empty states direct action ("No sessions yet — press ⌘K to start one"); error copy states cause and fix, never apologises vaguely.
 
 ## 13. Repository conventions

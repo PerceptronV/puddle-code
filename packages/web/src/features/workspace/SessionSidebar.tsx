@@ -299,7 +299,7 @@ function SessionRow({
               row's whole width; on hover it appears and shoves them left. Stays
               shown while its menu is open even if the pointer has left the row. */}
           {ellipsis && (
-            <span className="hidden group-hover:inline-flex has-[[data-state=open]]:inline-flex">
+            <span className="hidden group-hover:inline-flex has-[[data-state=open]]:inline-flex pointer-coarse:inline-flex">
               <SessionActionsEllipsis menu={menu} />
             </span>
           )}

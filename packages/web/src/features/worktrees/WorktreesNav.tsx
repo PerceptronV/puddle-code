@@ -68,7 +68,9 @@ function PruneButton({
           // must not make the row (and the whole list below) jump.
           className={cn(
             '-my-1 rounded-sm p-1 text-fg-gold transition-colors hover:text-danger',
-            blockReason !== null ? 'hidden' : 'hidden group-hover:inline-flex',
+            blockReason !== null
+              ? 'hidden'
+              : 'hidden group-hover:inline-flex pointer-coarse:inline-flex',
           )}
         >
           <Trash2 className="size-3.5" />

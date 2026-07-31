@@ -70,7 +70,7 @@ export function EditorTabClose({
             <X className="hidden size-3 group-hover:block" />
           </>
         ) : (
-          <X className="size-3 opacity-0 group-hover:opacity-100" />
+          <X className="size-3 opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100" />
         )}
       </button>
       <Dialog open={confirm} onOpenChange={(open) => !open && setConfirm(false)}>

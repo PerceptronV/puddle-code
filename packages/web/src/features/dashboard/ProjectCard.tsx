@@ -154,7 +154,7 @@ export function ProjectCard({
             </Link>
             {/* Actions sit over the card's top-right, revealed on hover; siblings
                 of the Link so a click never navigates. */}
-            <div className="absolute right-2 top-2 hidden gap-0.5 group-hover:flex has-[[data-state=open]]:flex">
+            <div className="absolute right-2 top-2 hidden gap-0.5 group-hover:flex has-[[data-state=open]]:flex pointer-coarse:flex">
               {project.archived ? (
                 <CardIconButton
                   icon={ArchiveRestore}

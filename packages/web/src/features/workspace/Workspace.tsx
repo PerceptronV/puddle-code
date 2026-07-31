@@ -31,6 +31,7 @@ import { registerHotkey } from '../../lib/hotkeys';
 import { setScratchpadInsertHandler } from '../scratchpad/scratchpad-store';
 import { KeepAliveHost } from './keep-alive';
 import { flattenTabs, tabRefKey, type DropEdge } from './layout-tree';
+import { NARROW_VIEWPORT, useMediaQuery } from '../../lib/use-media-query';
 import { layoutForPanels } from './panel-layout';
 import {
   CollapsedSidebarRail,
@@ -149,6 +150,15 @@ function WorkspaceInner() {
       }),
     [],
   );
+  // Narrow (phone) layout, SPEC §12: the sidebars leave the panel row and
+  // open as overlays from their rails. Overlay visibility is LOCAL state, not
+  // ui_state — the persisted collapse flags belong to the desktop layout, and
+  // a phone visit must not clobber them (ui_state is shared per profile).
+  const isNarrow = useMediaQuery(NARROW_VIEWPORT);
+  const isNarrowRef = useRef(isNarrow);
+  isNarrowRef.current = isNarrow;
+  const [narrowNav, setNarrowNav] = useState(false);
+  const [narrowSessions, setNarrowSessions] = useState(false);
   const [restored, setRestored] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createKind, setCreateKind] = useState<SessionKind>('agent');
@@ -173,6 +183,8 @@ function WorkspaceInner() {
   const openEditorTab = useCallback(
     (tab: EditorTab, position?: EditorPosition, opts?: { preview?: boolean }) => {
       layout.openEditor(tab, { preview: opts?.preview });
+      // On a phone the navigator overlay covers the pane it just opened into.
+      if (isNarrowRef.current) setNarrowNav(false);
       if (position && (tab.kind ?? 'file') === 'file') {
         setReveal({
           session: tab.session,
@@ -287,6 +299,8 @@ function WorkspaceInner() {
   // and the deps limited to what actually changes on navigation.
   useEffect(() => {
     if (!restored) return;
+    // Navigation is how a phone picks a session — the overlay's job is done.
+    setNarrowSessions(false);
     if (!activeSessionId) {
       justClosedActive.current = null; // close completed; the URL caught up
       return;
@@ -430,8 +444,14 @@ function WorkspaceInner() {
   // Global hotkey handlers (SPEC §11): register stable wrappers once; each reads
   // the latest closures from a ref so re-renders don't churn the registry.
   const hkRef = useRef<Record<string, () => void>>({});
-  const openNavigator = (mode: SidebarMode) =>
-    uiState.update({ sidebar_mode: mode, sidebar_collapsed: false });
+  const openNavigator = (mode: SidebarMode) => {
+    if (isNarrow) {
+      uiState.update({ sidebar_mode: mode });
+      setNarrowNav(true);
+    } else {
+      uiState.update({ sidebar_mode: mode, sidebar_collapsed: false });
+    }
+  };
   hkRef.current = {
     'tab.close': () => {
       const leaf = layout.focusedLeaf;
@@ -439,9 +459,13 @@ function WorkspaceInner() {
       if (ref) onCloseTab(leaf.id, ref);
     },
     'sidebar.left': () =>
-      uiState.update({ sidebar_collapsed: !uiState.snapshot.sidebar_collapsed }),
+      isNarrow
+        ? setNarrowNav((v) => !v)
+        : uiState.update({ sidebar_collapsed: !uiState.snapshot.sidebar_collapsed }),
     'sidebar.right': () =>
-      uiState.update({ sessions_collapsed: !uiState.snapshot.sessions_collapsed }),
+      isNarrow
+        ? setNarrowSessions((v) => !v)
+        : uiState.update({ sessions_collapsed: !uiState.snapshot.sessions_collapsed }),
     'nav.files': () => openNavigator('files'),
     'nav.search': () => openNavigator('search'),
     'nav.changes': () => openNavigator('changes'),
@@ -506,115 +530,192 @@ function WorkspaceInner() {
     return <div className="flex h-full items-center justify-center text-sm text-fg-muted">…</div>;
   }
 
-  return (
-    <div className="flex h-full">
-      {sidebarCollapsed && (
-        <CollapsedSidebarRail
-          mode={sidebarMode}
-          onExpand={() => uiState.update({ sidebar_collapsed: false })}
-          onSelect={(m) => uiState.update({ sidebar_collapsed: false, sidebar_mode: m })}
-        />
-      )}
-      <Group
-        orientation="horizontal"
-        className="h-full min-w-0 flex-1"
-        defaultLayout={horizontalLayout}
-        onLayoutChanged={mergeLayout}
-      >
-        {!sidebarCollapsed && (
-          <>
-            <Panel id="nav" defaultSize={280} minSize={200} maxSize={560}>
-              <NavigatorSidebar
-                mode={sidebarMode}
-                onModeChange={(m) => uiState.update({ sidebar_mode: m })}
-                onCollapse={() => uiState.update({ sidebar_collapsed: true })}
-                projectId={projectId}
-                repoId={detail.data.project.repo_id}
-                sessions={sessions}
-                target={sidebarTarget}
-                onOpenFile={openTreeFile}
-                activeFilePath={activeFilePath}
-                activeDiffPath={activeDiffPath}
-                onOpenDiff={openDiff}
-                onOpenCommitFile={openCommitFile}
-                onOpenSearchFile={openSearchFile}
-              />
-            </Panel>
-            <Separator className="w-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
-          </>
-        )}
-        <Panel id="main">
-          {/* Free-form tiling area (SPEC §8): editor and terminal tabs live in a
-              recursive split tree (`layout_tree`); every open terminal is kept
-              mounted by `KeepAliveHost` and its DOM adopted into whichever pane
-              shows it, so PTYs never drop. A session's resume button and ports
-              overlay the bottom-right of ITS OWN pane (PaneSessionOverlay). */}
-          <KeepAliveHost
-            tree={layout.tree}
-            onOpenFile={(session, path, line, column) =>
-              openFile(session, path, line !== undefined ? { line, column } : undefined)
-            }
-          >
-            <div className="flex h-full flex-col bg-ground">
-              <div className="min-h-0 flex-1">
-                <TilingDnd
-                  onDrop={layout.drop}
-                  renderOverlay={(ref) => {
-                    const s =
-                      ref.type === 'terminal'
-                        ? tabSessions.find((x) => x.id === ref.session)
-                        : undefined;
-                    const label =
-                      ref.type === 'terminal'
-                        ? s
-                          ? renderTitle(s)
-                          : ref.session.slice(0, 8)
-                        : (ref.tab.path.split('/').pop() ?? ref.tab.path);
-                    return (
-                      <div className="rounded-md bg-elevated px-2.5 py-1 text-xs font-mono text-fg shadow-lg">
-                        {label}
-                      </div>
-                    );
-                  }}
-                >
-                  <TileTree
-                    tree={layout.tree}
-                    sessions={tabSessions}
-                    reveal={reveal}
-                    onActivateTab={onActivateTab}
-                    onCloseTab={onCloseTab}
-                    onPromoteTab={promoteTab}
-                    onArchived={closeTab}
-                    onFocusLeaf={layout.focusLeaf}
-                    onResize={layout.resize}
-                    onDropTab={onDropTab}
-                    onSetTabView={layout.setView}
-                  />
-                </TilingDnd>
+  // The sidebars render identically in both layouts; only the collapse/close
+  // action differs (panel-collapse on desktop, overlay-dismiss on a phone).
+  const navigatorPanel = (onCollapse: () => void) => (
+    <NavigatorSidebar
+      mode={sidebarMode}
+      onModeChange={(m) => uiState.update({ sidebar_mode: m })}
+      onCollapse={onCollapse}
+      projectId={projectId}
+      repoId={detail.data.project.repo_id}
+      sessions={sessions}
+      target={sidebarTarget}
+      onOpenFile={openTreeFile}
+      activeFilePath={activeFilePath}
+      activeDiffPath={activeDiffPath}
+      onOpenDiff={openDiff}
+      onOpenCommitFile={openCommitFile}
+      onOpenSearchFile={openSearchFile}
+    />
+  );
+  const sessionsPanel = (onCollapse: () => void) => (
+    <SessionSidebar
+      groups={sessionGroups}
+      accounts={accounts}
+      activeSessionId={activeSessionId}
+      onReorder={persistReorder}
+      onPromote={(id) => layout.ensureTerminal(id)}
+      archived={archivedSessions}
+      onNewSession={() => openCreate('agent')}
+      onNewTerminal={() => openCreate('terminal')}
+      onCollapse={onCollapse}
+      onArchived={closeTab}
+    />
+  );
+  // Free-form tiling area (SPEC §8): editor and terminal tabs live in a
+  // recursive split tree (`layout_tree`); every open terminal is kept mounted
+  // by `KeepAliveHost` and its DOM adopted into whichever pane shows it, so
+  // PTYs never drop. A session's resume button and ports overlay the
+  // bottom-right of ITS OWN pane (PaneSessionOverlay).
+  const mainArea = (
+    <div className="flex h-full flex-col bg-ground">
+      <div className="min-h-0 flex-1">
+        <TilingDnd
+          onDrop={layout.drop}
+          renderOverlay={(ref) => {
+            const s =
+              ref.type === 'terminal' ? tabSessions.find((x) => x.id === ref.session) : undefined;
+            const label =
+              ref.type === 'terminal'
+                ? s
+                  ? renderTitle(s)
+                  : ref.session.slice(0, 8)
+                : (ref.tab.path.split('/').pop() ?? ref.tab.path);
+            return (
+              <div className="rounded-md bg-elevated px-2.5 py-1 text-xs font-mono text-fg shadow-lg">
+                {label}
               </div>
-            </div>
-          </KeepAliveHost>
-        </Panel>
-        {!sessionsCollapsed && (
+            );
+          }}
+        >
+          <TileTree
+            tree={layout.tree}
+            sessions={tabSessions}
+            reveal={reveal}
+            onActivateTab={onActivateTab}
+            onCloseTab={onCloseTab}
+            onPromoteTab={promoteTab}
+            onArchived={closeTab}
+            onFocusLeaf={layout.focusLeaf}
+            onResize={layout.resize}
+            onDropTab={onDropTab}
+            onSetTabView={layout.setView}
+          />
+        </TilingDnd>
+      </div>
+    </div>
+  );
+
+  // KeepAliveHost wraps BOTH layouts: crossing the breakpoint (a tablet
+  // rotation, a resized window) swaps the shell without remounting it, so
+  // open terminals keep their scrollback and PTY attachments.
+  return (
+    <KeepAliveHost
+      tree={layout.tree}
+      onOpenFile={(session, path, line, column) =>
+        openFile(session, path, line !== undefined ? { line, column } : undefined)
+      }
+    >
+      <div className="relative flex h-full">
+        {isNarrow ? (
+          /* Narrow (SPEC §12): both rails stay put; expanding opens the sidebar
+             as an overlay above the tiling area — a translucent ground dims
+             what stays behind (HUMANS.md transparency, no borders). */
           <>
-            <Separator className="w-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
-            <Panel id="sessions" defaultSize={260} minSize={180} maxSize={480}>
-              <SessionSidebar
+            <CollapsedSidebarRail
+              mode={sidebarMode}
+              onExpand={() => setNarrowNav(true)}
+              onSelect={(m) => {
+                uiState.update({ sidebar_mode: m });
+                setNarrowNav(true);
+              }}
+            />
+            <div className="min-w-0 flex-1">{mainArea}</div>
+            <CollapsedSessionsRail
+              groups={sessionGroups}
+              activeSessionId={activeSessionId}
+              onReorder={persistReorder}
+              onPromote={(id) => layout.ensureTerminal(id)}
+              onExpand={() => setNarrowSessions(true)}
+              onNewTerminal={() => openCreate('terminal')}
+              onNewSession={() => openCreate('agent')}
+              onArchived={closeTab}
+            />
+            {narrowNav && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Close the navigator"
+                  className="absolute inset-0 z-30 bg-ground/60"
+                  onClick={() => setNarrowNav(false)}
+                />
+                <div className="absolute inset-y-0 left-9 z-40 w-[min(20rem,calc(100%-4.5rem))] shadow-xl">
+                  {navigatorPanel(() => setNarrowNav(false))}
+                </div>
+              </>
+            )}
+            {narrowSessions && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Close the session list"
+                  className="absolute inset-0 z-30 bg-ground/60"
+                  onClick={() => setNarrowSessions(false)}
+                />
+                <div className="absolute inset-y-0 right-9 z-40 w-[min(20rem,calc(100%-4.5rem))] shadow-xl">
+                  {sessionsPanel(() => setNarrowSessions(false))}
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            {sidebarCollapsed && (
+              <CollapsedSidebarRail
+                mode={sidebarMode}
+                onExpand={() => uiState.update({ sidebar_collapsed: false })}
+                onSelect={(m) => uiState.update({ sidebar_collapsed: false, sidebar_mode: m })}
+              />
+            )}
+            <Group
+              orientation="horizontal"
+              className="h-full min-w-0 flex-1"
+              defaultLayout={horizontalLayout}
+              onLayoutChanged={mergeLayout}
+            >
+              {!sidebarCollapsed && (
+                <>
+                  <Panel id="nav" defaultSize={280} minSize={200} maxSize={560}>
+                    {navigatorPanel(() => uiState.update({ sidebar_collapsed: true }))}
+                  </Panel>
+                  <Separator className="w-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
+                </>
+              )}
+              <Panel id="main">{mainArea}</Panel>
+              {!sessionsCollapsed && (
+                <>
+                  <Separator className="w-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
+                  <Panel id="sessions" defaultSize={260} minSize={180} maxSize={480}>
+                    {sessionsPanel(() => uiState.update({ sessions_collapsed: true }))}
+                  </Panel>
+                </>
+              )}
+            </Group>
+            {sessionsCollapsed && (
+              <CollapsedSessionsRail
                 groups={sessionGroups}
-                accounts={accounts}
                 activeSessionId={activeSessionId}
                 onReorder={persistReorder}
                 onPromote={(id) => layout.ensureTerminal(id)}
-                archived={archivedSessions}
-                onNewSession={() => openCreate('agent')}
+                onExpand={() => uiState.update({ sessions_collapsed: false })}
                 onNewTerminal={() => openCreate('terminal')}
-                onCollapse={() => uiState.update({ sessions_collapsed: true })}
+                onNewSession={() => openCreate('agent')}
                 onArchived={closeTab}
               />
-            </Panel>
+            )}
           </>
         )}
-
         <NewSessionDialog
           projectId={projectId}
           repoId={detail.data.project.repo_id}
@@ -624,19 +725,7 @@ function WorkspaceInner() {
           onOpenChange={setCreating}
           onCreated={(session) => void navigate(`/project/${projectId}/session/${session.id}`)}
         />
-      </Group>
-      {sessionsCollapsed && (
-        <CollapsedSessionsRail
-          groups={sessionGroups}
-          activeSessionId={activeSessionId}
-          onReorder={persistReorder}
-          onPromote={(id) => layout.ensureTerminal(id)}
-          onExpand={() => uiState.update({ sessions_collapsed: false })}
-          onNewTerminal={() => openCreate('terminal')}
-          onNewSession={() => openCreate('agent')}
-          onArchived={closeTab}
-        />
-      )}
-    </div>
+      </div>
+    </KeepAliveHost>
   );
 }
