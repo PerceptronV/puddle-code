@@ -101,7 +101,7 @@
     </style>
   </head>
   <body>
-    <p class="hint">Where is the work?</p>
+    <p class="hint">Host</p>
     <div id="hosts"></div>
     <div id="status"></div>
     <script>
@@ -131,11 +131,11 @@
       };
 
       window.puddlePicker.recents().then((recents) => {
-        row('This machine', 'local', () => window.puddlePicker.choose('local'));
+        row('this machine', 'local', () => window.puddlePicker.choose('local'));
         for (const host of recents) {
           row(host, 'ssh', () => window.puddlePicker.choose(host));
         }
-        row('Other SSH host…', '⌘⇧O', () => window.puddlePicker.other());
+        row('remote ssh', '⌘⇧O', () => window.puddlePicker.other());
       });
 
       window.puddlePicker.onStatus(({ state, message }) => {
