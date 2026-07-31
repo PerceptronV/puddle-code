@@ -23,7 +23,7 @@ import {
 import type { SessionStore } from '../../db/stores/sessions.js';
 import { ApiError } from '../errors.js';
 import { parseBody } from '../validate.js';
-import { containedPath, resolveWorktree } from './worktree-shared.js';
+import { browseRoot, containedPath, resolveWorktree } from './worktree-shared.js';
 
 /** Editor read cap: generous for source files, hostile to accidentally opening a media dump. */
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
@@ -133,7 +133,8 @@ function collectZipEntries(dir: string, prefix: string): Array<{ abs: string; re
 export function worktreeFileRoutes(deps: { sessions: SessionStore }): Hono {
   return new Hono()
     .get('/:sid/tree', (c) => {
-      const { root } = resolveWorktree(deps.sessions, c);
+      // `?root=` (protocol 10.2): browse outside the worktree, read-only.
+      const root = browseRoot(c, resolveWorktree(deps.sessions, c).root);
       const rel = c.req.query('path') ?? '';
       const dir = containedPath(root, rel);
       if (!existsSync(dir)) throw ApiError.notFound('path', rel || '.');
@@ -152,7 +153,7 @@ export function worktreeFileRoutes(deps: { sessions: SessionStore }): Hono {
     })
 
     .get('/:sid/file', (c) => {
-      const { root } = resolveWorktree(deps.sessions, c);
+      const root = browseRoot(c, resolveWorktree(deps.sessions, c).root);
       const rel = c.req.query('path') ?? '';
       const target = containedPath(root, rel);
       if (!existsSync(target)) throw ApiError.notFound('file', rel);
@@ -177,6 +178,11 @@ export function worktreeFileRoutes(deps: { sessions: SessionStore }): Hono {
     })
 
     .put('/:sid/file', async (c) => {
+      // Writes never take the browse override: everything outside the
+      // worktree is read-only (SPEC §8), so reject rather than ignore.
+      if (c.req.query('root') !== undefined) {
+        throw ApiError.badRequest('read_only_root', 'files outside the worktree are read-only');
+      }
       const { root } = resolveWorktree(deps.sessions, c);
       const rel = c.req.query('path') ?? '';
       const target = containedPath(root, rel);
@@ -260,7 +266,7 @@ export function worktreeFileRoutes(deps: { sessions: SessionStore }): Hono {
       // the real content-type + `inline` disposition, unlike `/download`'s
       // always-`attachment` octet-stream. The web viewer fetches this through
       // the authed API and hands the element an object URL (SPEC §8).
-      const { root } = resolveWorktree(deps.sessions, c);
+      const root = browseRoot(c, resolveWorktree(deps.sessions, c).root);
       const rel = c.req.query('path') ?? '';
       const target = containedPath(root, rel);
       if (!existsSync(target)) throw ApiError.notFound('path', rel);
@@ -278,7 +284,7 @@ export function worktreeFileRoutes(deps: { sessions: SessionStore }): Hono {
     })
 
     .get('/:sid/download', (c) => {
-      const { root } = resolveWorktree(deps.sessions, c);
+      const root = browseRoot(c, resolveWorktree(deps.sessions, c).root);
       const rel = c.req.query('path') ?? '';
       const target = containedPath(root, rel);
       if (!existsSync(target)) throw ApiError.notFound('path', rel);

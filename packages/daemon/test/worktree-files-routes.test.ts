@@ -433,6 +433,65 @@ describe('GET /api/worktrees/:sid/media', () => {
   });
 });
 
+describe('read-only browse root override (?root=, protocol 10.2)', () => {
+  let outside: string;
+
+  beforeAll(() => {
+    outside = mkdtempSync(join(tmpdir(), 'puddle-browse-'));
+    mkdirSync(join(outside, 'notes'));
+    writeFileSync(join(outside, 'notes', 'todo.md'), 'remember\n');
+  });
+  afterAll(() => rmSync(outside, { recursive: true, force: true }));
+
+  it('lists and reads outside the worktree under the override', async () => {
+    const res = await app.request(
+      `/api/worktrees/${sessionId}/tree?path=&root=${encodeURIComponent(outside)}`,
+    );
+    expect(res.status).toBe(200);
+    const body = treeResponseSchema.parse(await res.json());
+    expect(body.entries.map((e) => e.name)).toContain('notes');
+
+    const file = await app.request(
+      `/api/worktrees/${sessionId}/file?path=notes%2Ftodo.md&root=${encodeURIComponent(outside)}`,
+    );
+    expect(file.status).toBe(200);
+    expect(fileResponseSchema.parse(await file.json()).content).toBe('remember\n');
+  });
+
+  it('rejects a relative or missing root', async () => {
+    const rel = await app.request(`/api/worktrees/${sessionId}/tree?path=&root=notes`);
+    expect(rel.status).toBe(400);
+    expect(errorCode(await rel.json())).toBe('invalid_root');
+
+    const gone = await app.request(
+      `/api/worktrees/${sessionId}/tree?path=&root=${encodeURIComponent(join(outside, 'absent'))}`,
+    );
+    expect(gone.status).toBe(404);
+  });
+
+  it('still confines paths under the OVERRIDDEN root', async () => {
+    const res = await app.request(
+      `/api/worktrees/${sessionId}/file?path=..%2F..%2Fetc%2Fpasswd&root=${encodeURIComponent(outside)}`,
+    );
+    expect(res.status).toBe(400);
+    expect(errorCode(await res.json())).toBe('path_outside_worktree');
+  });
+
+  it('rejects writes under an override — outside files are read-only', async () => {
+    const res = await app.request(
+      `/api/worktrees/${sessionId}/file?path=notes%2Ftodo.md&root=${encodeURIComponent(outside)}`,
+      {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ content: 'clobbered' }),
+      },
+    );
+    expect(res.status).toBe(400);
+    expect(errorCode(await res.json())).toBe('read_only_root');
+    expect(readFileSync(join(outside, 'notes', 'todo.md'), 'utf8')).toBe('remember\n');
+  });
+});
+
 describe('worktree-files: shared error conditions', () => {
   it('404s an unknown session on every endpoint', async () => {
     const uploadForm = new FormData();

@@ -31,6 +31,13 @@ export function dirOf(path: string): string {
 }
 
 /** Join a directory and a name into a worktree-relative path. */
+/** Parent of an ABSOLUTE directory path; '/' is its own parent. */
+export function parentDir(dir: string): string {
+  const cut = dir.replace(/\/+$/, '');
+  const idx = cut.lastIndexOf('/');
+  return idx <= 0 ? '/' : cut.slice(0, idx);
+}
+
 export function joinPath(dir: string, name: string): string {
   return dir === '' ? name : `${dir}/${name}`;
 }

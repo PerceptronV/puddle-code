@@ -6,6 +6,7 @@ import type { RevealTarget } from '../workspace/editor-context';
 import { CodeEditor } from './CodeEditor';
 import { CommitTabBody } from '../history/CommitTabBody';
 import { DiffTabBody } from '../diff/DiffTabBody';
+import { ExternalFileBody } from './ExternalFileBody';
 import { FilePreview } from './FilePreview';
 import { mediaKind } from './media-kind';
 import { MediaViewer } from './MediaViewer';
@@ -26,6 +27,11 @@ export function PaneEditorBody({ tab, reveal }: { tab: EditorTab; reveal: Reveal
   }
   if (kind === 'commit' && tab.sha) {
     return <CommitTabBody key={tabKey(tab)} session={tab.session} sha={tab.sha} path={tab.path} />;
+  }
+  if (kind === 'external' && tab.root !== undefined) {
+    return (
+      <ExternalFileBody key={tabKey(tab)} session={tab.session} path={tab.path} root={tab.root} />
+    );
   }
   const media = mediaKind(tab.path);
   if (media) {

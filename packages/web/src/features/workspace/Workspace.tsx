@@ -227,6 +227,16 @@ function WorkspaceInner() {
     [openFile],
   );
   const promoteTab = useCallback((ref: TabRef) => layout.promote(ref), [layout]);
+  // Files opened from the explorer's parent-directory browse: a read-only
+  // `external` tab carrying its browse root (SPEC §8). Preview by default,
+  // like tree clicks.
+  const openExternalFile = useCallback(
+    (sessionId: string, path: string, root: string, opts?: { preview?: boolean }) =>
+      openEditorTab({ kind: 'external', session: sessionId, path, root }, undefined, {
+        preview: opts?.preview ?? true,
+      }),
+    [openEditorTab],
+  );
 
   // Double-click on a strip's blank tail: a fresh untitled file in the pane's
   // bound worktree (SPEC §8). A REAL file — `untitled.md`, suffixed until the
@@ -580,6 +590,7 @@ function WorkspaceInner() {
       sessions={sessions}
       target={sidebarTarget}
       onOpenFile={openTreeFile}
+      onOpenExternalFile={openExternalFile}
       activeFilePath={activeFilePath}
       activeDiffPath={activeDiffPath}
       onOpenDiff={openDiff}

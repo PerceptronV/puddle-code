@@ -82,4 +82,8 @@
 // 10.1 (2026-07-28): additive — optional computed `stale_running` on the
 // session shape: a `running` agent whose transcript has been quiet for over
 // an hour, advisory only (the UI hints, the daemon never intervenes).
-export const PROTOCOL_VERSION = { major: 10, minor: 1 } as const;
+// 10.2 (2026-07-31): additive — the read-only worktree routes (GET tree /
+// file / media / download) accept an optional absolute `?root=` override for
+// the explorer's parent-directory browsing (mutations and PUT never do), and
+// `editorTabRefSchema` gains the matching optional `root` + `external` kind.
+export const PROTOCOL_VERSION = { major: 10, minor: 2 } as const;

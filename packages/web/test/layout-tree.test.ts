@@ -34,7 +34,7 @@ const leafWith = (tree: LayoutNode, ref: TabRef) => leafContainingKey(tree, tabR
 describe('tab identity', () => {
   it('keys editors by tab identity and terminals by session', () => {
     expect(tabRefKey(term('t1'))).toBe('term:t1');
-    expect(tabRefKey(ed('a.ts'))).toBe('editor:file:s1::a.ts');
+    expect(tabRefKey(ed('a.ts'))).toBe('editor:file:s1:::a.ts');
     expect(sameRef(ed('a.ts'), ed('a.ts'))).toBe(true);
     expect(sameRef(ed('a.ts'), ed('b.ts'))).toBe(false);
     expect(sameRef(term('t1'), term('t2'))).toBe(false);
@@ -77,7 +77,7 @@ describe('flattenTabs', () => {
   it('lists every tab in DFS order', () => {
     const a = makeLeaf([ed('a.ts')]);
     const tree = splitLeaf(a, a.id, 'right', term('t1'));
-    expect(flattenTabs(tree).map(tabRefKey)).toEqual(['editor:file:s1::a.ts', 'term:t1']);
+    expect(flattenTabs(tree).map(tabRefKey)).toEqual(['editor:file:s1:::a.ts', 'term:t1']);
   });
 });
 
@@ -119,16 +119,16 @@ describe('dropTab', () => {
     // a.ts appears exactly once, in leaf B; the source keeps only x.ts.
     expect(flattenTabs(next).filter((t) => sameRef(t, ed('a.ts')))).toHaveLength(1);
     expect(leafWith(next, ed('a.ts')).id).toBe(leafB.id);
-    expect(findLeaf(next, leafA.id)!.tabs.map(tabRefKey)).toEqual(['editor:file:s1::x.ts']);
+    expect(findLeaf(next, leafA.id)!.tabs.map(tabRefKey)).toEqual(['editor:file:s1:::x.ts']);
   });
 
   it('reorders within the same leaf (move, not duplicate)', () => {
     const leaf = makeLeaf([ed('a.ts'), ed('b.ts'), ed('c.ts')]);
     const next = moveTab(leaf, ed('c.ts'), leaf.id, leaf.id, 0);
     expect(allLeaves(next)[0]!.tabs.map((t) => tabRefKey(t))).toEqual([
-      'editor:file:s1::c.ts',
-      'editor:file:s1::a.ts',
-      'editor:file:s1::b.ts',
+      'editor:file:s1:::c.ts',
+      'editor:file:s1:::a.ts',
+      'editor:file:s1:::b.ts',
     ]);
   });
 
@@ -137,16 +137,16 @@ describe('dropTab', () => {
     const leaf = makeLeaf([ed('a.ts'), ed('b.ts'), ed('c.ts')]);
     const next = moveTab(leaf, ed('a.ts'), leaf.id, leaf.id, 2);
     expect(allLeaves(next)[0]!.tabs.map(tabRefKey)).toEqual([
-      'editor:file:s1::b.ts',
-      'editor:file:s1::a.ts',
-      'editor:file:s1::c.ts',
+      'editor:file:s1:::b.ts',
+      'editor:file:s1:::a.ts',
+      'editor:file:s1:::c.ts',
     ]);
     // …and dropping past the last tab (visible index 3) lands at the end.
     const toEnd = moveTab(leaf, ed('a.ts'), leaf.id, leaf.id, 3);
     expect(allLeaves(toEnd)[0]!.tabs.map(tabRefKey)).toEqual([
-      'editor:file:s1::b.ts',
-      'editor:file:s1::c.ts',
-      'editor:file:s1::a.ts',
+      'editor:file:s1:::b.ts',
+      'editor:file:s1:::c.ts',
+      'editor:file:s1:::a.ts',
     ]);
   });
 
@@ -164,8 +164,8 @@ describe('dropTab', () => {
     // Source emptied and collapsed; B's strip is [a, b].
     expect(allLeaves(next)).toHaveLength(1);
     expect(allLeaves(next)[0]!.tabs.map(tabRefKey)).toEqual([
-      'editor:file:s1::a.ts',
-      'editor:file:s1::b.ts',
+      'editor:file:s1:::a.ts',
+      'editor:file:s1:::b.ts',
     ]);
   });
 
@@ -206,7 +206,7 @@ describe('dropTab', () => {
       index: 0,
     });
     expect(flattenTabs(next).filter((t) => sameRef(t, ed('a.ts')))).toHaveLength(1);
-    expect(findLeaf(next, leafB.id)!.tabs.map(tabRefKey)[0]).toBe('editor:file:s1::a.ts');
+    expect(findLeaf(next, leafB.id)!.tabs.map(tabRefKey)[0]).toBe('editor:file:s1:::a.ts');
   });
 
   it('pins a preview tab on any drop (drag = deliberate placement)', () => {
@@ -248,7 +248,7 @@ describe('closeTab', () => {
     const leafB = leafWith(tree, ed('b.ts'));
     const collapsed = closeTab(tree, leafB.id, tabRefKey(ed('b.ts')));
     expect(collapsed.kind).toBe('leaf'); // split collapsed to the surviving leaf
-    expect(flattenTabs(collapsed).map(tabRefKey)).toEqual(['editor:file:s1::a.ts']);
+    expect(flattenTabs(collapsed).map(tabRefKey)).toEqual(['editor:file:s1:::a.ts']);
   });
 
   it('preserves a sole empty root leaf (the empty-workspace state)', () => {
@@ -310,7 +310,7 @@ describe('buildInitialTree (legacy migration)', () => {
     const tree = asSplit(buildInitialTree(snap));
     expect(tree.direction).toBe('col');
     expect(tree.sizes).toEqual([35, 65]);
-    expect(flattenTabs(tree).map(tabRefKey)).toEqual([`editor:file:${s}::a.ts`, `term:${s}`]);
+    expect(flattenTabs(tree).map(tabRefKey)).toEqual([`editor:file:${s}:::a.ts`, `term:${s}`]);
   });
 
   it('collapses to a single leaf when only one side has tabs', () => {
@@ -456,6 +456,6 @@ describe('setTabView', () => {
   it('is a no-op for terminals and unknown keys', () => {
     const tree = makeLeaf([term('t1')]);
     expect(setTabView(tree, 'term:t1', 'preview')).toEqual(tree);
-    expect(setTabView(tree, 'editor:file:s1::nope.md', 'preview')).toEqual(tree);
+    expect(setTabView(tree, 'editor:file:s1:::nope.md', 'preview')).toEqual(tree);
   });
 });

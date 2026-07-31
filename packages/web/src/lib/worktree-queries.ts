@@ -26,11 +26,21 @@ import { focusAwareInterval } from './poll-focus';
 
 const LOG_PAGE_SIZE = 50;
 
-export function useWorktreeTree(sid: string | undefined, path: string) {
+/** `&root=` suffix for the read-only browse override (protocol 10.2), or ''. */
+export function rootParam(root: string | undefined): string {
+  return root === undefined ? '' : `&root=${encodeURIComponent(root)}`;
+}
+
+export function useWorktreeTree(sid: string | undefined, path: string, root?: string) {
   return useQuery({
-    queryKey: ['wt-tree', sid, path],
+    // The extra key element only when overridden keeps every existing
+    // `['wt-tree', sid, …]` invalidation prefix working unchanged.
+    queryKey: root === undefined ? ['wt-tree', sid, path] : ['wt-tree', sid, path, root],
     queryFn: () =>
-      api<TreeResponse>('GET', `/api/worktrees/${sid}/tree?path=${encodeURIComponent(path)}`),
+      api<TreeResponse>(
+        'GET',
+        `/api/worktrees/${sid}/tree?path=${encodeURIComponent(path)}${rootParam(root)}`,
+      ),
     enabled: sid !== undefined,
   });
 }
@@ -38,12 +48,16 @@ export function useWorktreeTree(sid: string | undefined, path: string) {
 export function useWorktreeFile(
   sid: string | undefined,
   path: string,
-  opts?: { enabled?: boolean },
+  opts?: { enabled?: boolean; root?: string },
 ) {
+  const root = opts?.root;
   return useQuery({
-    queryKey: ['wt-file', sid, path],
+    queryKey: root === undefined ? ['wt-file', sid, path] : ['wt-file', sid, path, root],
     queryFn: () =>
-      api<FileResponse>('GET', `/api/worktrees/${sid}/file?path=${encodeURIComponent(path)}`),
+      api<FileResponse>(
+        'GET',
+        `/api/worktrees/${sid}/file?path=${encodeURIComponent(path)}${rootParam(root)}`,
+      ),
     enabled: sid !== undefined && (opts?.enabled ?? true),
   });
 }

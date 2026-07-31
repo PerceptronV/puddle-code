@@ -11,8 +11,14 @@ import { isoTimestamp, sessionId } from './common.js';
 export const editorTabRefSchema = z.object({
   session: sessionId,
   path: z.string(),
-  kind: z.enum(['file', 'diff', 'commit']).optional(),
+  kind: z.enum(['file', 'diff', 'commit', 'external']).optional(),
   sha: z.string().optional(),
+  /**
+   * Set only for `external` tabs (protocol 10.2): the absolute browse root the
+   * explorer's parent-navigation opened this file under — `path` is relative
+   * to it. External tabs are read-only (SPEC §8).
+   */
+  root: z.string().optional(),
   /**
    * How a `file` tab renders: Monaco (`source`, the default when absent) or a
    * rendered `preview` — meaningful only for previewable types (markdown,

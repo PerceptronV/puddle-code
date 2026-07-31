@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import {
+  CornerLeftUp,
   GitBranch,
   FolderGit2,
   FolderTree,
@@ -11,7 +13,9 @@ import type { Session } from '@puddle/shared';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utils';
 import { ChangesNav } from '../changes/ChangesNav';
+import { BrowseTree } from '../explorer/BrowseTree';
 import { ExplorerProvider } from '../explorer/explorer-context';
+import { parentDir } from '../explorer/explorer-paths';
 import { FileExplorer } from '../explorer/FileExplorer';
 import type { ExplorerTarget } from '../explorer/use-explorer-target';
 import { SearchNav } from '../search/SearchNav';
@@ -114,6 +118,7 @@ export function NavigatorSidebar({
   sessions,
   target,
   onOpenFile,
+  onOpenExternalFile,
   activeFilePath,
   activeDiffPath,
   onOpenDiff,
@@ -129,6 +134,13 @@ export function NavigatorSidebar({
   /** The worktree the whole sidebar is bound to, plus its pin controls. */
   target: ExplorerTarget;
   onOpenFile: (sessionId: string, path: string, opts?: { preview?: boolean }) => void;
+  /** Open a read-only `external` tab: `path` is relative to the browse `root` (SPEC §8). */
+  onOpenExternalFile: (
+    sessionId: string,
+    path: string,
+    root: string,
+    opts?: { preview?: boolean },
+  ) => void;
   /** Path of the active editor tab when it is a file in the bound worktree — highlighted in the tree. */
   activeFilePath: string | null;
   /** Path of the active editor tab when it is an uncommitted diff for the bound worktree. */
@@ -138,6 +150,20 @@ export function NavigatorSidebar({
   onOpenSearchFile: (path: string, line?: number) => void;
 }) {
   const { session } = target;
+
+  // Parent-directory browsing (SPEC §8): navigating above the worktree swaps
+  // the files tree for the read-only BrowseTree, rooted here. Keyed to the
+  // session it was opened for so a rebind (unpin, session switch) drops it;
+  // entering it PINS the sidebar, so follow-the-active-session cannot yank
+  // the tree away mid-browse. Ephemeral local state on purpose — a reload
+  // lands back on the worktree.
+  const [browse, setBrowse] = useState<{ forSession: string; root: string } | null>(null);
+  const browseRoot = browse !== null && browse.forSession === session?.id ? browse.root : null;
+  const enterBrowse = (root: string) => {
+    if (!session) return;
+    if (!target.pinned) target.pin(session.id);
+    setBrowse({ forSession: session.id, root });
+  };
 
   return (
     <div className="flex h-full flex-col bg-surface">
@@ -192,12 +218,38 @@ export function NavigatorSidebar({
       )}
 
       {mode === 'files' &&
-        (session ? (
+        (session && browseRoot !== null ? (
+          // Browsing ABOVE the worktree: the read-only tree, rooted at
+          // `browseRoot` (SPEC §8). No ExplorerProvider — none of its
+          // machinery (mutations, git status, selection) applies out here.
+          <>
+            <SidebarTargetHeader sessions={sessions} target={target} showPath />
+            <BrowseTree
+              sid={session.id}
+              root={browseRoot}
+              onNavigateUp={() => enterBrowse(parentDir(browseRoot))}
+              onReset={() => setBrowse(null)}
+              onOpenFile={(path, opts) => onOpenExternalFile(session.id, path, browseRoot, opts)}
+            />
+          </>
+        ) : session ? (
           // The provider wraps both the header (its utility actions) and the
           // tree; FileExplorer's root is `h-full`, so its wrapper is a flex-1
           // min-h-0 column filling the space under the icon row + header.
           <ExplorerProvider session={session} onOpenFile={onOpenFile} activePath={activeFilePath}>
             <SidebarTargetHeader sessions={sessions} target={target} showFileActions showPath />
+            {/* The way OUT of the worktree: '..' enters the read-only browse
+                tree at the parent, pinning the sidebar so the bound session
+                cannot change underneath the browse (SPEC §8). */}
+            <button
+              type="button"
+              onClick={() => enterBrowse(parentDir(session.worktree_path))}
+              title="Browse the parent directory (read-only)"
+              className="flex shrink-0 items-center gap-1.5 px-3 py-1 text-left transition-colors hover:bg-elevated"
+            >
+              <CornerLeftUp className="size-3 shrink-0 text-fg-gold" />
+              <span className="font-mono text-xs text-fg-muted">..</span>
+            </button>
             <div className="flex min-h-0 flex-1 flex-col">
               <FileExplorer />
             </div>

@@ -9,7 +9,7 @@
  * editor chunk in.
  */
 
-export type EditorTabKind = 'file' | 'diff' | 'commit';
+export type EditorTabKind = 'file' | 'diff' | 'commit' | 'external';
 
 export interface EditorTab {
   session: string;
@@ -18,6 +18,12 @@ export interface EditorTab {
   kind?: EditorTabKind;
   /** Set only for `commit` tabs: the commit whose file diff this shows. */
   sha?: string;
+  /**
+   * Set only for `external` tabs: the absolute browse root the explorer's
+   * parent navigation opened this file under — `path` is relative to it,
+   * and the tab is read-only (SPEC §8).
+   */
+  root?: string;
   /**
    * How a `file` tab renders: Monaco source (absent/`source`) or a rendered
    * `preview` (markdown/HTML — SPEC §8). Deliberately NOT part of `tabKey`/
@@ -33,7 +39,7 @@ export function tabKind(tab: EditorTab): EditorTabKind {
 
 /** Stable React key / map key for a tab, unique across every kind. */
 export function tabKey(tab: EditorTab): string {
-  return `${tabKind(tab)}:${tab.session}:${tab.sha ?? ''}:${tab.path}`;
+  return `${tabKind(tab)}:${tab.session}:${tab.sha ?? ''}:${tab.root ?? ''}:${tab.path}`;
 }
 
 export function sameTab(a: EditorTab, b: EditorTab): boolean {
@@ -41,7 +47,8 @@ export function sameTab(a: EditorTab, b: EditorTab): boolean {
     a.session === b.session &&
     a.path === b.path &&
     tabKind(a) === tabKind(b) &&
-    (a.sha ?? '') === (b.sha ?? '')
+    (a.sha ?? '') === (b.sha ?? '') &&
+    (a.root ?? '') === (b.root ?? '')
   );
 }
 

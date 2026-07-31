@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { apiFetchRaw } from '../../lib/api';
-import { downloadPath } from '../../lib/worktree-queries';
+import { downloadPath, rootParam } from '../../lib/worktree-queries';
 import type { MediaKind } from './media-kind';
 
 /**
@@ -15,12 +15,15 @@ export function MediaViewer({
   session,
   path,
   kind,
+  root,
 }: {
   session: string;
   path: string;
   kind: MediaKind;
+  /** Read-only browse root for `external` tabs (protocol 10.2). */
+  root?: string;
 }) {
-  const { url, error } = useMediaObjectUrl(session, path);
+  const { url, error } = useMediaObjectUrl(session, path, root);
 
   if (error) {
     return (
@@ -89,7 +92,11 @@ function DownloadButton({ session, path }: { session: string; path: string }) {
 }
 
 /** Fetches `path` as an object URL, revoking it on change/unmount. */
-function useMediaObjectUrl(session: string, path: string): { url: string | null; error: boolean } {
+function useMediaObjectUrl(
+  session: string,
+  path: string,
+  root?: string,
+): { url: string | null; error: boolean } {
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
@@ -98,7 +105,10 @@ function useMediaObjectUrl(session: string, path: string): { url: string | null;
     let cancelled = false;
     setUrl(null);
     setError(false);
-    apiFetchRaw('GET', `/api/worktrees/${session}/media?path=${encodeURIComponent(path)}`)
+    apiFetchRaw(
+      'GET',
+      `/api/worktrees/${session}/media?path=${encodeURIComponent(path)}${rootParam(root)}`,
+    )
       .then((res) => res.blob())
       .then((blob) => {
         if (cancelled) return;
@@ -112,7 +122,7 @@ function useMediaObjectUrl(session: string, path: string): { url: string | null;
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [session, path]);
+  }, [session, path, root]);
 
   return { url, error };
 }
