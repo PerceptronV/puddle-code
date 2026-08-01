@@ -227,7 +227,11 @@ export function useAgents() {
   return useQuery({
     queryKey: ['agents'],
     queryFn: () => api<AgentType[]>('GET', '/api/agents'),
-    staleTime: Infinity, // the adapter set changes only with a daemon upgrade
+    // The adapter set changes only with a daemon upgrade, but `available`
+    // tracks whether each agent's CLI is on PATH — so installing one mid-session
+    // must show up without a daemon restart or a reload.
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
   });
 }
 

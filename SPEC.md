@@ -297,6 +297,14 @@ When a capability is `false`, degrade gracefully: e.g. no `resume` → offer "ne
 
 Adding an agent = adding one file + registering it; PRs adding adapters must not touch core session logic.
 
+### Is the agent even installed?
+
+`binary` is resolved on the daemon's PATH (already extended with `config.agentPath` at boot — §11). Nothing may spawn an agent without checking it first: node-pty does **not** fail loudly for a missing executable — on macOS its spawn-helper `execvp`s and returns 1 — so an absent CLI otherwise produces a PTY that dies instantly with no output. A login dialog then flashes open on an empty terminal and vanishes, and a session goes `starting → exited` with nothing to explain why.
+
+`assertBinaryAvailable` (`agents/binary.ts`) therefore guards login, session create/resume, migration and hand-off, rejecting with **`424 agent_not_installed`** and a message naming both the executable and the `agentPath` setting. It runs **before** `checkLoggedIn` everywhere, and the boot re-verification sweep skips uninstalled agents: adapters answer `checkLoggedIn` by asking their own CLI, so an absent binary reads as "logged out" and would otherwise clear a perfectly good `logged_in` flag. Lookups are cached for 30 s, so installing an agent mid-session un-sticks the UI without a daemon restart.
+
+`GET /api/agents` reports `binary` and `available` per adapter so the UI disables the add-account and login affordances up front, with a plain inline note, rather than letting the user click into a guaranteed failure. Both fields are optional on the wire; a daemon that omits them is assumed available.
+
 ### Continuing work across accounts and agents
 
 Two tiers, surfaced as one "Continue on…" action in the session menu (and offered proactively when `limitReached` fires — see below):
@@ -326,7 +334,8 @@ Profiles   GET  /api/profiles                POST /api/profiles {name, branch_pr
            GET  /api/profiles/:id/untitled/:name   PUT {content}   DELETE      # draft content round-trip; the name pattern is the traversal guard
 Config     GET  /api/config                  PATCH (daemon-scope settings; affects all profiles; the port lives in config.json / --port only and is never surfaced in the UI)
 Host       GET  /api/host                    # daemon identity {username, hostname, home, displayName?} — the UI's location indicator; displayName is config.json's user-chosen host label, shown in place of the hostname when set (ssh commands always use the real hostname); the origin/port never appears in the UI
-Agents     GET  /api/agents                  # registered adapters: id, display name, capabilities the UI gates on
+Agents     GET  /api/agents                  # registered adapters: id, display name, capabilities the UI gates on,
+                                             # plus `binary` and `available` (is that executable on the daemon's PATH)
 Accounts   GET  /api/accounts?profile=…      POST /api/accounts {profile_id, agent_type, label, skip_permissions_default?, import_dir?}   # import_dir: copy a pre-existing config dir (§2)
            PATCH /api/accounts/:id {label?, skip_permissions_default?}   # rename (label only; config dir stays put) + §11 gate opt-in
            DELETE /api/accounts/:id                  # 409 while any of its sessions is non-archived; removes the config dir (logs the account out)

@@ -105,7 +105,16 @@ function ImportDialog({
   );
 }
 
-function AccountRow({ account, gateOpen }: { account: Account; gateOpen: boolean }) {
+function AccountRow({
+  account,
+  gateOpen,
+  installed,
+}: {
+  account: Account;
+  gateOpen: boolean;
+  /** False when the agent's CLI is missing: logging in cannot possibly work. */
+  installed: boolean;
+}) {
   const login = useLoginAccount();
   const patch = usePatchAccount();
   const remove = useDeleteAccount();
@@ -171,7 +180,7 @@ function AccountRow({ account, gateOpen }: { account: Account; gateOpen: boolean
       <Button
         size="sm"
         variant="secondary"
-        disabled={login.isPending}
+        disabled={login.isPending || !installed}
         onClick={() =>
           login.mutate(account.id, {
             onSuccess: (res) => setLoginStream(res.stream),
@@ -256,10 +265,12 @@ export function AccountsSection() {
       {
         onSuccess: (account) => {
           setNewLabels((labels) => ({ ...labels, [agentId]: '' }));
-          // Straight into the login flow (SPEC §11).
+          // Straight into the login flow (SPEC §11). The account exists either
+          // way, so a login failure is reported without undoing the create.
           login.mutate(account.id, {
             onSuccess: (res) =>
               setLoginStream({ stream: res.stream, label: `${agentId}/${account.label}` }),
+            onError: (e) => toast.error(e.message),
           });
         },
         onError: (e) => toast.error(e.message),
@@ -272,11 +283,17 @@ export function AccountsSection() {
       <SectionTitle>Accounts</SectionTitle>
       {agents.data?.map((agent) => {
         const agentAccounts = accounts.data?.filter((a) => a.agent_type === agent.id) ?? [];
+        // Older daemons omit `available`; absent means "cannot tell", so allow.
+        const installed = agent.available !== false;
         return (
           <div key={agent.id} className="mb-5">
             <SettingRow
               label={agent.display_name}
-              description="Accounts are isolated config dirs under this profile."
+              description={
+                installed
+                  ? 'Accounts are isolated config dirs under this profile.'
+                  : `Not installed — no ${agent.binary ?? agent.id} on the daemon’s PATH. Install it, or add its directory to the agent search path in Sessions.`
+              }
               className="py-1"
             >
               <span className="font-mono text-2xs text-fg-muted">{agent.id}</span>
@@ -287,6 +304,7 @@ export function AccountsSection() {
                   key={account.id}
                   account={account}
                   gateOpen={gateOpen && agent.capabilities.skip_permissions}
+                  installed={installed}
                 />
               ))}
               <form
@@ -301,12 +319,13 @@ export function AccountsSection() {
                   value={newLabels[agent.id] ?? ''}
                   onChange={(e) => setNewLabels((l) => ({ ...l, [agent.id]: e.target.value }))}
                   className="w-48 font-mono"
+                  disabled={!installed}
                 />
                 <Button
                   type="submit"
                   size="sm"
                   variant="secondary"
-                  disabled={!(newLabels[agent.id] ?? '').trim() || create.isPending}
+                  disabled={!installed || !(newLabels[agent.id] ?? '').trim() || create.isPending}
                 >
                   <Plus />
                   Add account
@@ -315,6 +334,7 @@ export function AccountsSection() {
                   type="button"
                   size="sm"
                   variant="ghost"
+                  disabled={!installed}
                   onClick={() => setImportingAgent(agent.id)}
                 >
                   <FolderInput />

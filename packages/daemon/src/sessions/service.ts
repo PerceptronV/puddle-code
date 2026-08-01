@@ -10,6 +10,7 @@ import type {
   SessionStatus,
 } from '@puddle/shared';
 import type { AgentAdapter } from '../agents/adapter.js';
+import { assertBinaryAvailable } from '../agents/binary.js';
 import type { AdapterRegistry } from '../agents/registry.js';
 import type { AccountStore } from '../db/stores/accounts.js';
 import type { EventStore } from '../db/stores/events.js';
@@ -245,6 +246,7 @@ export class SessionService extends EventEmitter {
       );
     }
     const adapter = this.deps.adapters.get(account.agent_type);
+    assertBinaryAvailable(adapter); // before assertLoggedIn — see its doc comment
     await this.assertLoggedIn(account, adapter);
 
     // Permissions gate (SPEC §11): create REJECTS a denied request outright.
@@ -508,6 +510,7 @@ export class SessionService extends EventEmitter {
         `${adapter.displayName} cannot resume conversations`,
       );
     }
+    assertBinaryAvailable(adapter); // before assertLoggedIn — see its doc comment
     await this.assertLoggedIn(account, adapter);
     let ref = session.agent_session_ref;
     if (!ref) throw ApiError.conflict('no_session_ref', 'no agent session ref recorded');
@@ -633,6 +636,7 @@ export class SessionService extends EventEmitter {
     // exhaustion). kill() waits for the PTY to die before returning.
     if (LIVE_STATUSES.includes(session.status)) await this.kill(id);
     // The target must be logged in — the same probe create/resume use.
+    assertBinaryAvailable(adapter); // before assertLoggedIn — see its doc comment
     await this.assertLoggedIn(target, adapter);
 
     const ref = session.agent_session_ref;
@@ -813,6 +817,11 @@ export class SessionService extends EventEmitter {
    * path change) — ask the agent before anything spawns, and keep the flag
    * truthful. A logged-out account would otherwise show its login screen
    * INSIDE the session and discard the preset session id.
+   *
+   * ALWAYS call `assertBinaryAvailable` first. Adapters implement `checkLoggedIn`
+   * by asking their own CLI, so an uninstalled agent reports "logged out" — and
+   * the write below would then clear a perfectly good `logged_in` flag and send
+   * the user to a login flow that cannot work. This assumes the binary exists.
    */
   private async assertLoggedIn(account: Account, adapter: AgentAdapter): Promise<void> {
     if (!adapter.checkLoggedIn) return;

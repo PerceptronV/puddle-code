@@ -44,17 +44,22 @@ function fakeStoreKey(worktreePath: string): string {
  * A deterministic agent for tests: bash echoing its launch/resume arguments,
  * then `cat`-ing stdin back. READY lines drive the waiting_input detector.
  *
+ * `{ binary }` overrides the executable, so a test can register an adapter whose
+ * CLI is guaranteed absent from PATH.
+ *
  * With `{ share: true }` the agent also writes a real conversation store —
  * `<config>/projects/<key>/<ref>.jsonl` plus `<config>/todos/<ref>.json` — and
  * gains the conversationShare hooks, so the adoption/mirror/archive paths are
  * exercisable without a real claude. The default (no options) is unchanged so
  * the rest of the suite keeps its simple marker-based conversation model.
  */
-export function fakeAdapter(opts: { share?: boolean } = {}): AgentAdapter {
+export function fakeAdapter(opts: { share?: boolean; binary?: string } = {}): AgentAdapter {
   const base: AgentAdapter = {
     id: 'fake',
     displayName: 'Fake Agent',
-    binary: 'bash',
+    // `bash` is always on PATH; override with a name that is not, to exercise
+    // the agent_not_installed guard.
+    binary: opts.binary ?? 'bash',
     capabilities: {
       resume: true,
       presetSessionId: true,
@@ -205,6 +210,8 @@ export function fixture(
     share?: boolean;
     titleRefreshMs?: number;
     shellHooks?: ShellHooks;
+    /** Adapter executable; pass a name absent from PATH to test the install guard. */
+    agentBinary?: string;
   } = {},
 ): Fixture {
   const paths = resolvePaths(mkdtempSync(join(tmpdir(), 'puddle-home-')));
@@ -234,7 +241,9 @@ export function fixture(
     events: stores.events,
     sessions: stores.sessions,
   });
-  const adapters = new AdapterRegistry([fakeAdapter({ share: opts.share })]);
+  const adapters = new AdapterRegistry([
+    fakeAdapter({ share: opts.share, binary: opts.agentBinary }),
+  ]);
   const share = new ConversationShare({
     accounts: stores.accounts,
     adapters,

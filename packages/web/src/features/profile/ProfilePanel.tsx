@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { KeyRound, Plus, Settings2 } from 'lucide-react';
+import { toast } from 'sonner';
 import type { Account } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
@@ -45,13 +46,16 @@ function AccountRow({
   account,
   onLogin,
   onStartSession,
+  installed = true,
 }: {
   account: Account;
   onLogin: () => void;
   onStartSession: (() => void) | null;
+  /** False when the agent's CLI is missing: neither action can succeed. */
+  installed?: boolean;
 }) {
   const usage = useAccountUsage(account.id);
-  const action = account.logged_in ? onStartSession : onLogin;
+  const action = account.logged_in ? onStartSession : installed ? onLogin : null;
   const subscription = usage.data?.subscription;
 
   return (
@@ -98,7 +102,9 @@ function AccountRow({
           )}
         </span>
         <span className="shrink-0 text-2xs text-fg-muted">
-          {account.logged_in ? (
+          {!installed ? (
+            'unavailable'
+          ) : account.logged_in ? (
             onStartSession ? (
               'new agent'
             ) : (
@@ -151,6 +157,7 @@ export function ProfilePanel() {
     login.mutate(account.id, {
       onSuccess: (res) =>
         setLoginStream({ stream: res.stream, label: `${account.agent_type}/${account.label}` }),
+      onError: (e) => toast.error(e.message),
     });
 
   const startSession = (account: Account) => {
@@ -174,18 +181,27 @@ export function ProfilePanel() {
             {(agents.data ?? []).map((agent) => {
               const forAgent = accounts.data?.filter((a) => a.agent_type === agent.id) ?? [];
               if (forAgent.length === 0) return null;
+              // Older daemons omit `available`; absent means "cannot tell".
+              const installed = agent.available !== false;
               return (
                 <div key={agent.id} className="flex flex-col gap-0.5">
                   <span className="px-2 text-2xs font-medium uppercase tracking-wide text-fg-muted">
                     {agent.display_name}
+                    {!installed && (
+                      <span className="ml-2 normal-case tracking-normal text-fg-muted">
+                        not installed — no {agent.binary ?? agent.id} on PATH
+                      </span>
+                    )}
                   </span>
                   {forAgent.map((account) => (
                     <AccountRow
                       key={account.id}
                       account={account}
                       onLogin={() => startLogin(account)}
-                      // A session can only start inside a workspace.
-                      onStartSession={handler ? () => startSession(account) : null}
+                      // A session can only start inside a workspace, and neither
+                      // action can work without the agent's CLI.
+                      onStartSession={handler && installed ? () => startSession(account) : null}
+                      installed={installed}
                     />
                   ))}
                 </div>

@@ -93,4 +93,10 @@
 // `?root=` override (10.2 introduced it read-only): `external` tabs are full
 // editors, saving to the absolute file their GET read. The fs mutation
 // routes still never take a root.
-export const PROTOCOL_VERSION = { major: 10, minor: 4 } as const;
+// 10.5 (2026-07-31): additive — GET /api/agents entries gain optional
+// `binary` (the executable the adapter spawns) and `available` (whether it
+// resolves on the daemon's PATH). An unavailable agent is rejected up front
+// with 424 `agent_not_installed` on login, session create/resume and migrate,
+// instead of spawning a PTY that dies silently. Older daemons omit both
+// fields and the UI then assumes available.
+export const PROTOCOL_VERSION = { major: 10, minor: 5 } as const;

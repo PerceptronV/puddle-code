@@ -7,6 +7,7 @@ import {
   type AccountUsage,
   type LoginResponse,
 } from '@puddle/shared';
+import { assertBinaryAvailable } from '../../agents/binary.js';
 import type { AdapterRegistry } from '../../agents/registry.js';
 import type { ConversationShare } from '../../sessions/conversation-share.js';
 import type { AccountStore } from '../../db/stores/accounts.js';
@@ -136,6 +137,9 @@ export function accountRoutes(deps: AccountRouteDeps): Hono {
     .post('/:id/login', (c) => {
       const account = deps.accounts.get(idParam(c));
       const adapter = deps.adapters.get(account.agent_type);
+      // Before the PTY: an absent CLI would otherwise spawn a terminal that dies
+      // silently with no output, so the login dialog opens on nothing (SPEC §5).
+      assertBinaryAvailable(adapter);
       const stream = `login-${account.id}`;
       if (!deps.ptys.has(stream, 'agent')) {
         // Not recorded: login output can carry secrets and needs no replay.

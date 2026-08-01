@@ -1,6 +1,7 @@
 import { createAdaptorServer, upgradeWebSocket, type ServerType } from '@hono/node-server';
 import { WebSocketServer } from 'ws';
 import type { AgentAdapter } from './agents/adapter.js';
+import { isBinaryAvailable } from './agents/binary.js';
 import { claudeCode } from './agents/claude-code.js';
 import { AdapterRegistry } from './agents/registry.js';
 import { loadConfig } from './config.js';
@@ -115,7 +116,9 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       try {
         const adapter = adapters.get(account.agent_type);
         adapter.reconcileConfigDir?.(account); // idempotent upkeep (e.g. status line)
-        if (adapter.checkLoggedIn) {
+        // An uninstalled agent answers "logged out" to every probe; booting
+        // without it on PATH must not clear every stored flag (SPEC §5).
+        if (adapter.checkLoggedIn && isBinaryAvailable(adapter)) {
           accounts.setLoggedIn(account.id, await adapter.checkLoggedIn(account));
         }
       } catch {
