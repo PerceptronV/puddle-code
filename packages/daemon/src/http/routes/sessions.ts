@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { Hono } from 'hono';
 import {
   createSessionRequestSchema,
+  handoffSessionRequestSchema,
   migrateSessionRequestSchema,
   patchSessionRequestSchema,
   sessionStatusSchema,
@@ -57,6 +58,11 @@ export function sessionRoutes(deps: { service: SessionService; scanner: PortScan
       .post('/:id/migrate', async (c) => {
         const body = await parseBody(c, migrateSessionRequestSchema);
         return c.json(await deps.service.migrate(c.req.param('id'), body.account_id));
+      })
+      // Tier 2: returns the NEW session, not the one in the path (SPEC §5).
+      .post('/:id/handoff', async (c) => {
+        const body = await parseBody(c, handoffSessionRequestSchema);
+        return c.json(await deps.service.handoff(c.req.param('id'), body.account_id));
       })
       .post('/:id/kill', async (c) => c.json(await deps.service.kill(c.req.param('id'))))
       // Archive is now a reversible hide with no options (SPEC §4) — the worktree

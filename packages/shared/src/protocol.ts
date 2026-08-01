@@ -99,4 +99,10 @@
 // with 424 `agent_not_installed` on login, session create/resume and migrate,
 // instead of spawning a PTY that dies silently. Older daemons omit both
 // fields and the UI then assumes available.
-export const PROTOCOL_VERSION = { major: 10, minor: 5 } as const;
+// 10.6 (2026-07-31): additive — POST /api/sessions/:id/handoff {account_id},
+// the tier-2 cross-agent continuation (SPEC §5). Unlike /migrate it returns a
+// NEW session: one created in the source's worktree and branch on a different
+// agent, seeded with a briefing built from the source's transcript plus the
+// branch's commits and status. The source session is left untouched and the
+// pair is linked by `handed_off_to` / `handed_off_from` events.
+export const PROTOCOL_VERSION = { major: 10, minor: 6 } as const;

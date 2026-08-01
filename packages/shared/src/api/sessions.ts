@@ -147,6 +147,21 @@ export const migrateSessionRequestSchema = z.object({ account_id: rowId });
 export type MigrateSessionRequest = z.infer<typeof migrateSessionRequestSchema>;
 
 /**
+ * `POST /api/sessions/:id/handoff` — tier-2 cross-agent hand-off (SPEC §5, §6):
+ * continue this session's work on an account running a DIFFERENT agent. No
+ * shared conversation format exists, so nothing moves: a NEW session is created
+ * in the same worktree and branch, seeded with a briefing built from the source
+ * adapter's transcript plus the branch's commits and `git status`. The source
+ * session is left exactly as it was, and the two are linked by events.
+ *
+ * Distinct from `/migrate` in outcome, not just in target — this returns a
+ * different session from the one addressed in the path. Same-agent targets
+ * belong on `/migrate` and are rejected here with `same_agent`.
+ */
+export const handoffSessionRequestSchema = z.object({ account_id: rowId });
+export type HandoffSessionRequest = z.infer<typeof handoffSessionRequestSchema>;
+
+/**
  * `GET /api/sessions/:id/env` — the session's captured environment (SPEC §4):
  * vars exported in its terminals, persisted for re-injection at PTY spawn.
  * Names and byte sizes only — values are potential secrets and never leave

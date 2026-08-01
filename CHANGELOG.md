@@ -12,6 +12,7 @@ Past releases: see docs/changelogs/.
 ### Added
 
 - Three new coding agents: **Codex**, **OpenCode** and **Gemini CLI**, each an adapter under `packages/daemon/src/agents/` with its flags pinned against a verified version (codex-cli 0.146.0, opencode 1.18.10, @google/gemini-cli 0.53.1). Accounts, login, sessions, resume and skip-permissions work for all three; the sidebar gains their brand marks. Manual checks that need a logged-in account live in `docs/acceptance/phase-7-agents.md`.
+- **Cross-agent hand-off**: the session menu gains "Hand off to agent…", which starts a new session on a different agent in the same worktree and branch, opening with a summary of the conversation so far plus the branch's commits and working-tree status. The original session keeps running and the two are linked. `POST /api/sessions/:id/handoff`, protocol 10.6 (additive).
 - Agent-binary detection: `GET /api/agents` now reports each adapter's `binary` and whether it is `available` on the daemon's PATH, and Settings → Accounts and the profile panel disable the add-account and login controls for an agent whose CLI is missing, explaining which executable was not found and pointing at the agent search path. Protocol 10.5 (additive).
 
 ### Fixed

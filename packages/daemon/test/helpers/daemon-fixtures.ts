@@ -53,10 +53,19 @@ function fakeStoreKey(worktreePath: string): string {
  * exercisable without a real claude. The default (no options) is unchanged so
  * the rest of the suite keeps its simple marker-based conversation model.
  */
-export function fakeAdapter(opts: { share?: boolean; binary?: string } = {}): AgentAdapter {
+export function fakeAdapter(
+  opts: {
+    share?: boolean;
+    binary?: string;
+    /** Distinct id, for tests needing two agent types (e.g. cross-agent hand-off). */
+    id?: string;
+    /** Renders a transcript; absent exercises the hand-off's PTY-log fallback. */
+    exportTranscript?: AgentAdapter['exportTranscript'];
+  } = {},
+): AgentAdapter {
   const base: AgentAdapter = {
-    id: 'fake',
-    displayName: 'Fake Agent',
+    id: opts.id ?? 'fake',
+    displayName: opts.id === undefined ? 'Fake Agent' : `Fake Agent ${opts.id}`,
     // `bash` is always on PATH; override with a name that is not, to exercise
     // the agent_not_installed guard.
     binary: opts.binary ?? 'bash',
@@ -117,6 +126,7 @@ export function fakeAdapter(opts: { share?: boolean; binary?: string } = {}): Ag
       return existsSync(file) ? readFileSync(file, 'utf8').trim() : null;
     },
     statusPatterns: { waitingInput: [/READY/], busy: [/BUSY-MARKER/] },
+    ...(opts.exportTranscript ? { exportTranscript: opts.exportTranscript } : {}),
   };
   if (!opts.share) return base;
 
@@ -199,7 +209,7 @@ export interface Fixture {
   share: ConversationShare;
   adapters: AdapterRegistry;
   onboarding: MarkerFileSync;
-  ids: { profile: string; account: number; repo: number; project: string };
+  ids: { profile: string; account: number; repo: number; project: string; account2?: number };
   repoPath: string;
 }
 
@@ -212,6 +222,12 @@ export function fixture(
     shellHooks?: ShellHooks;
     /** Adapter executable; pass a name absent from PATH to test the install guard. */
     agentBinary?: string;
+    /**
+     * Registers a second agent type ('fake2') with its own account, for
+     * cross-agent hand-off. Its `exportTranscript` is provided, so the primary
+     * 'fake' agent (which has none) exercises the PTY-log fallback.
+     */
+    secondAgent?: boolean;
   } = {},
 ): Fixture {
   const paths = resolvePaths(mkdtempSync(join(tmpdir(), 'puddle-home-')));
@@ -243,6 +259,15 @@ export function fixture(
   });
   const adapters = new AdapterRegistry([
     fakeAdapter({ share: opts.share, binary: opts.agentBinary }),
+    ...(opts.secondAgent
+      ? [
+          fakeAdapter({
+            id: 'fake2',
+            binary: opts.agentBinary,
+            exportTranscript: async (ref) => `## User\n\nfake2 transcript for ${ref}`,
+          }),
+        ]
+      : []),
   ]);
   const share = new ConversationShare({
     accounts: stores.accounts,
@@ -276,6 +301,19 @@ export function fixture(
     config_dir: configDir,
     skip_permissions_default: false,
   });
+  let account2: number | undefined;
+  if (opts.secondAgent) {
+    const dir2 = paths.accountConfigDir(profile.id, 'fake2', 'personal');
+    mkdirSync(dir2, { recursive: true });
+    writeFileSync(join(dir2, 'creds.json'), '{}'); // logged-in marker
+    account2 = stores.accounts.create({
+      profile_id: profile.id,
+      agent_type: 'fake2',
+      label: 'personal',
+      config_dir: dir2,
+      skip_permissions_default: false,
+    }).id;
+  }
   const repo = stores.repos.create({
     path: repoPath,
     default_base_branch: 'main',
@@ -299,7 +337,7 @@ export function fixture(
     adapters,
     onboarding,
     repoPath,
-    ids: { profile: profile.id, account: account.id, repo: repo.id, project: project.id },
+    ids: { profile: profile.id, account: account.id, repo: repo.id, project: project.id, account2 },
   };
 }
 

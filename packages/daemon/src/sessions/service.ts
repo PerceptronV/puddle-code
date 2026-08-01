@@ -31,6 +31,7 @@ import { isDeniedEnvName, type ShellHooks } from '../pty/shell-hooks.js';
 import { StatusDetector, type DetectedStatus } from '../pty/status-detector.js';
 import type { CreateWorktreeResult, WorktreeManager } from '../worktrees/manager.js';
 import type { ConversationShare } from './conversation-share.js';
+import { buildHandoffPrompt } from './handoff.js';
 import {
   buildConcurrentWorktreeNote,
   buildInterruptedResumeNote,
@@ -705,6 +706,78 @@ export class SessionService extends EventEmitter {
     // session keeps title/onboarding markers flowing after migration.
     this.deps.onboarding.watch(id, project.repo_id, session.worktree_path);
     return this.get(id);
+  }
+
+  /**
+   * Tier-2 cross-agent hand-off (SPEC §5): continue this session's work on a
+   * DIFFERENT agent. Nothing moves — no shared conversation format exists — so
+   * a new session is created in the same worktree and branch, seeded with a
+   * briefing summarising the conversation and the branch state. The source
+   * session is deliberately left alone: it keeps its status and its history,
+   * and the two are linked by events.
+   */
+  async handoff(id: string, targetAccountId: number): Promise<Session> {
+    const session = this.deps.sessions.get(id);
+    if (session.kind === 'terminal' || session.account_id === null || session.agent_type === null) {
+      throw ApiError.badRequest('not_migratable', 'a terminal session has no agent to hand off');
+    }
+    const project = this.deps.projects.get(session.project_id);
+    const target = this.deps.accounts.get(targetAccountId); // 404 if unknown
+    // Validations mirror migrate()'s, in the same order (SPEC §5).
+    if (target.profile_id !== project.profile_id) {
+      throw ApiError.badRequest(
+        'cross_profile_account',
+        'the target account belongs to a different profile',
+      );
+    }
+    if (target.agent_type === session.agent_type) {
+      throw ApiError.badRequest(
+        'same_agent',
+        `the target account also runs ${session.agent_type}; use migrate to move between accounts of one agent`,
+      );
+    }
+    if (session.status === 'archived') {
+      throw ApiError.conflict('session_archived', 'an archived session cannot hand off');
+    }
+    if (!existsSync(session.worktree_path)) {
+      throw ApiError.conflict(
+        'worktree_missing',
+        'worktree is gone; the session can only be archived',
+      );
+    }
+    const targetAdapter = this.deps.adapters.get(target.agent_type);
+    assertBinaryAvailable(targetAdapter); // before assertLoggedIn — see its doc comment
+    await this.assertLoggedIn(target, targetAdapter);
+
+    const prompt = await buildHandoffPrompt({
+      adapter: this.deps.adapters.get(session.agent_type),
+      account: this.deps.accounts.get(session.account_id),
+      session,
+      logs: this.deps.logs,
+    });
+    // `join_worktree` lands the new session in the source's directory, on
+    // whatever branch is checked out there — no second `git worktree add`, and
+    // no onboarding, since the worktree is a reuse rather than a fresh one.
+    const created = await this.create({
+      project_id: session.project_id,
+      account_id: target.id,
+      separate_branch: false,
+      separate_worktree: false,
+      join_worktree: session.worktree_path,
+      prompt,
+      skip_permissions: session.skip_permissions,
+    });
+    this.deps.events.record(id, 'handed_off_to', {
+      to_session: created.id,
+      to_account: target.id,
+      to_agent: target.agent_type,
+    });
+    this.deps.events.record(created.id, 'handed_off_from', {
+      from_session: id,
+      from_account: session.account_id,
+      from_agent: session.agent_type,
+    });
+    return created;
   }
 
   /** SIGTERM the session's PTYs and wait for the agent to exit. */

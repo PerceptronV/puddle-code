@@ -459,6 +459,23 @@ export function useMigrateSession() {
 }
 
 /**
+ * Tier-2 cross-agent hand-off (SPEC §5). Unlike migrate this RETURNS A NEW
+ * SESSION — one created in the source's worktree on a different agent — so the
+ * source's own queries are invalidated too, for its new linking event.
+ */
+export function useHandoffSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sessionId, accountId }: { sessionId: string; accountId: number }) =>
+      api<Session>('POST', `/api/sessions/${sessionId}/handoff`, { account_id: accountId }),
+    onSuccess: (created, { sessionId }) => {
+      invalidateSessions(qc, created);
+      void qc.invalidateQueries({ queryKey: ['session', sessionId] });
+    },
+  });
+}
+
+/**
  * Archive is now a reversible hide (SPEC §4): the worktree and conversation are
  * kept, so there is nothing to force or confirm — a bare POST hides the session.
  */

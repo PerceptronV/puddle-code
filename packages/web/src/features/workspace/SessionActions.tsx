@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import {
   Archive,
   ArchiveRestore,
+  ArrowRightLeft,
   Bot,
   Eraser,
   ExternalLink,
@@ -52,6 +53,7 @@ import {
   useArchiveSession,
   useClearSessionEnv,
   useCreateSession,
+  useHandoffSession,
   useMigrateSession,
   useProfileSettings,
   useRenameSession,
@@ -76,6 +78,9 @@ export interface SessionMenu {
   archived: boolean;
   canMigrate: boolean;
   sameAgent: Account[];
+  /** Logged-in accounts running a DIFFERENT agent — tier-2 hand-off targets. */
+  handoffTargets: Account[];
+  setHandoffTo: (account: Account) => void;
   resume: () => void;
   /** Kill straight away — no confirmation (the conversation stays resumable). */
   kill: () => void;
@@ -132,6 +137,7 @@ export function useSessionMenu(
   const unarchive = useUnarchiveSession();
   const rename = useRenameSession();
   const migrate = useMigrateSession();
+  const handoff = useHandoffSession();
   const clearEnv = useClearSessionEnv();
   const createSession = useCreateSession();
   const navigate = useNavigate();
@@ -142,6 +148,7 @@ export function useSessionMenu(
   const [renaming, setRenaming] = useState(false);
   const [newTitle, setNewTitle] = useState(session.title ?? '');
   const [migrateTo, setMigrateTo] = useState<Account | null>(null);
+  const [handoffTo, setHandoffTo] = useState<Account | null>(null);
 
   // Migration targets: accounts of the same agent on this profile (SPEC §5).
   // The current account is shown but disabled; a session with no other same-
@@ -151,6 +158,13 @@ export function useSessionMenu(
     !session.worktree_missing &&
     session.status !== 'archived' &&
     sameAgent.some((a) => a.id !== session.account_id);
+
+  // Hand-off targets: a DIFFERENT agent, logged in (SPEC §5 tier 2). Same-agent
+  // accounts belong on migrate, which keeps the conversation rather than
+  // summarising it, so the two never overlap.
+  const handoffTargets = (accounts.data ?? []).filter(
+    (a) => a.agent_type !== session.agent_type && a.logged_in,
+  );
 
   // Accounts an agent can actually spawn on must be logged in; the profile's
   // default account leads the list so opening the submenu and pressing Enter
@@ -173,6 +187,9 @@ export function useSessionMenu(
     archived: session.status === 'archived',
     canMigrate,
     sameAgent,
+    handoffTargets:
+      !session.worktree_missing && session.status !== 'archived' ? handoffTargets : [],
+    setHandoffTo,
     resume: () => resume.mutate(session.id, { onError: (e) => toast.error(e.message) }),
     // Killing only stops the process — the conversation stays resumable — so
     // it fires straight away, like archive.
@@ -356,6 +373,48 @@ export function useSessionMenu(
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={handoffTo !== null} onOpenChange={(open) => !open && setHandoffTo(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Hand off to {handoffTo?.agent_type}?</DialogTitle>
+            <DialogDescription>
+              A new session starts in this worktree and branch on{' '}
+              <span className="font-mono">{handoffTo?.label}</span>, opening with a summary of the
+              conversation so far plus the branch&rsquo;s commits and status. The conversation
+              itself is summarised, not moved — the new agent will not have the old one&rsquo;s
+              reasoning. This session is left as it is.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setHandoffTo(null)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={handoff.isPending}
+              onClick={() => {
+                if (!handoffTo) return;
+                handoff.mutate(
+                  { sessionId: session.id, accountId: handoffTo.id },
+                  {
+                    onSuccess: (created) => {
+                      setHandoffTo(null);
+                      toast.success(`Handed off to ${handoffTo.agent_type}`);
+                      navigate(`/session/${created.id}`);
+                    },
+                    onError: (e) => {
+                      setHandoffTo(null);
+                      toast.error(e.message);
+                    },
+                  },
+                );
+              }}
+            >
+              Hand off
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 
@@ -401,6 +460,22 @@ function SessionMenuItems({ kit, menu }: { kit: MenuKit; menu: SessionMenu }) {
                 </Item>
               );
             })}
+          </SubContent>
+        </Sub>
+      )}
+      {menu.handoffTargets.length > 0 && (
+        <Sub>
+          <SubTrigger>
+            <ArrowRightLeft /> Hand off to agent…
+          </SubTrigger>
+          <SubContent>
+            {menu.handoffTargets.map((a) => (
+              <Item key={a.id} onSelect={() => menu.setHandoffTo(a)}>
+                <AgentIcon type={a.agent_type} className="size-4" />
+                {a.agent_type}
+                <span className="ml-auto font-mono text-fg-muted">{a.label}</span>
+              </Item>
+            ))}
           </SubContent>
         </Sub>
       )}
