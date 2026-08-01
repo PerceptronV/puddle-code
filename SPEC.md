@@ -255,7 +255,7 @@ The core is agent-agnostic. Each agent is one module in `packages/daemon/src/age
 
 ```ts
 export interface AgentAdapter {
-  id: string; // 'claude-code', 'codex', 'opencode'
+  id: string; // 'claude-code', 'codex', 'opencode', 'gemini-cli'
   displayName: string;
   binary: string; // executable name to resolve on PATH
   capabilities: {
@@ -290,8 +290,11 @@ export interface AgentAdapter {
 Capability notes per adapter (**verify every flag against the installed version during Phase 1/7 — agent CLIs change fast; encode findings in the adapter, never in core**):
 
 - **claude-code**: isolation via `CLAUDE_CONFIG_DIR`; supports `--session-id <uuid>` at launch (→ `presetSessionId: true`) and `claude --resume <uuid>`; skip mode `--dangerously-skip-permissions`; conversations stored as JSONL under `<config_dir>/projects/<escaped-cwd>/<uuid>.jsonl`.
-- **codex**: isolation via `CODEX_HOME`; sessions recorded under `$CODEX_HOME/sessions/`; resume via `codex resume <id>` (or `--last`); bypass mode `--dangerously-bypass-approvals-and-sandbox`. Session id is discovered post-launch.
-- **opencode**: config/state via its config dir env (XDG-based); has session continue/resume support; permissions configured rather than flagged.
+- **codex** (verified against codex-cli 0.146.0): isolation via `CODEX_HOME` alone, which relocates config, sessions and credentials together. Rollouts at `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-<ts>-<uuid>.jsonl`, whose first `session_meta` line carries the session `id` and the `cwd` conversation lookup matches on. Resume `codex resume <id> [prompt]` (or `--last`); bypass `--dangerously-bypass-approvals-and-sandbox` — **`--yolo` does not exist in 0.146.0** despite the published docs. `codex login status` exits non-zero when logged out, so the exit code alone drives `checkLoggedIn`. Session ids are not presettable, so `presetSessionId: false` and `agent_session_ref !== sessions.id` — the first adapter where those diverge.
+- **opencode** (verified against opencode 1.18.10): isolation needs **all four XDG roots** — `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `XDG_STATE_HOME` — because `auth.json` and the session store live under the DATA root, not the config one. `OPENCODE_CONFIG_DIR` relocates _nothing_ (verified with `opencode debug paths`) and is useless for account isolation. Resume `--session <ses_id>`; skip mode is `--auto`, so `skipPermissions: true` — an earlier revision of this spec wrongly said opencode's permissions were configured rather than flagged. `opencode export <id>` yields the transcript. Caveat: redirecting `XDG_CONFIG_HOME` also hides an XDG-located global gitignore from git commands the agent runs; identity is unaffected (`~/.gitconfig` is HOME-based).
+- **gemini-cli** (verified against @google/gemini-cli 0.53.1): isolation via **`GEMINI_CLI_HOME`**, which the CLI checks before `os.homedir()`; state lands at `<config_dir>/.gemini/`. The widely cited `GEMINI_CONFIG_DIR` is ignored and would leave the CLI writing into the user's real `~/.gemini`, breaching §2. `--session-id <uuid>` presets the id (`presetSessionId: true`); resume `--resume <ref>`; skip mode `--approval-mode yolo`. `--prompt` is headless and exits, so an initial prompt must use `--prompt-interactive`. It has **no `auth` subcommand**, so login is a bare launch into the first-run picker and `checkLoggedIn` inspects the credentials file.
+
+Status regexes for the three newer adapters are best-effort until exercised against a logged-in account — none of them has a hook side-channel, so `statusPatterns` is their only status driver. `docs/acceptance/phase-7-agents.md` carries the manual checks.
 
 When a capability is `false`, degrade gracefully: e.g. no `resume` → offer "new session in the same worktree", pre-filling a prompt that summarises the branch state (`git log --oneline base..HEAD` + `git status`).
 
@@ -729,7 +732,7 @@ Each phase must be independently verifiable before the next starts.
 
 ## 15. Open questions (resolve during build, record decisions in CLAUDE.md)
 
-1. Exact resume/session flags for the installed codex and opencode versions (verify with `--help`; pin findings in each adapter with the version checked).
+1. ~~Exact resume/session flags for the installed codex and opencode versions.~~ **Resolved (Phase 7).** Verified against codex-cli 0.146.0, opencode 1.18.10 and @google/gemini-cli 0.53.1; every finding is pinned in the adapter header with the version checked, and the per-adapter notes in §5 are rewritten from those runs. What `--help` cannot answer — the status regexes, whether codex honours its bypass flag on resume (openai/codex#9144), and whether gemini's `--resume` accepts a UUID as well as an index — needs a logged-in account and is tracked in `docs/acceptance/phase-7-agents.md`.
 2. ~~Session-file portability between accounts (tier-1 migration).~~ **Resolved (Workstream S).** For claude-code no file moves at all: the conversation lives in the profile's shared store and every account reads it through a symlink, so migration is "resume under the other account's config". Verified against Claude Code **2.1.209** that `--resume` reads a conversation through a symlinked `projects/<dir>` and tolerates missing `todos/` (per-account, does not travel). The `migrateSession` copy-and-rollback hook remains the specified fallback for agents that can't share state; the full two-account end-to-end flow (adopt under A, resume under B with B's real credentials) is the acceptance script `docs/acceptance/tier1-migration.md`.
 3. Whether `claude --session-id` is accepted by the currently installed Claude Code version; if not, fall back to post-launch discovery of the newest JSONL in `<config_dir>/projects/<cwd>/`.
 4. systemd user-session availability on the target box (`loginctl enable-linger`); confirm the fallback supervisor path works.

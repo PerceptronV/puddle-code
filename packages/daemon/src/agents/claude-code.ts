@@ -201,6 +201,16 @@ export const claudeCode: AgentAdapter = {
     return transcriptEntry(account.config_dir, ref)?.title ?? null;
   },
 
+  async exportTranscript(ref, account) {
+    const projectsDir = join(account.config_dir, 'projects');
+    if (!existsSync(projectsDir)) return '';
+    for (const dir of readdirSync(projectsDir)) {
+      const path = join(projectsDir, dir, `${ref}.jsonl`);
+      if (existsSync(path)) return renderTranscript(path);
+    }
+    return '';
+  },
+
   sessionActivityAt(ref, account) {
     const entry = transcriptEntry(account.config_dir, ref);
     return entry ? new Date(entry.mtimeMs) : null;
@@ -477,4 +487,58 @@ function fileUsage(path: string): AgentUsage {
   }
   usageCache.set(path, { size: stat.size, mtimeMs: stat.mtimeMs, usage });
   return usage;
+}
+
+/**
+ * The conversation as readable text for a cross-agent hand-off (SPEC §5).
+ * User and assistant text only: thinking blocks are the agent's private
+ * reasoning (tier 2 is "degraded by design") and tool payloads are bulky, so a
+ * run of them collapses to a single count line.
+ */
+function renderTranscript(path: string): string {
+  let raw: string;
+  try {
+    raw = readFileSync(path, 'utf8');
+  } catch {
+    return '';
+  }
+  const out: string[] = [];
+  let toolCalls = 0;
+  const flushTools = () => {
+    if (toolCalls > 0) out.push(`_(ran ${toolCalls} tool call${toolCalls === 1 ? '' : 's'})_`);
+    toolCalls = 0;
+  };
+  for (const line of raw.split('\n')) {
+    if (line === '') continue;
+    let record: { type?: string; message?: { role?: string; content?: unknown } };
+    try {
+      record = JSON.parse(line) as typeof record;
+    } catch {
+      continue; // a partial trailing line from a live writer
+    }
+    if (record.type !== 'user' && record.type !== 'assistant') continue;
+    const text = transcriptText(record.message?.content, () => toolCalls++);
+    if (text === '') continue;
+    flushTools();
+    out.push(`## ${record.type === 'user' ? 'User' : 'Assistant'}\n\n${text}`);
+  }
+  flushTools();
+  return out.join('\n\n');
+}
+
+/** Plain text of a message's content, counting tool uses via `onTool`. */
+function transcriptText(content: unknown, onTool: () => void): string {
+  if (typeof content === 'string') return content.trim();
+  if (!Array.isArray(content)) return '';
+  const parts: string[] = [];
+  for (const block of content) {
+    if (block === null || typeof block !== 'object') continue;
+    const { type, text } = block as { type?: string; text?: string };
+    if (type === 'tool_use' || type === 'tool_result') onTool();
+    else if (type === 'text' && typeof text === 'string' && text.trim() !== '') {
+      parts.push(text.trim());
+    }
+    // 'thinking' / 'redacted_thinking' deliberately dropped.
+  }
+  return parts.join('\n\n');
 }

@@ -3,6 +3,9 @@ import { WebSocketServer } from 'ws';
 import type { AgentAdapter } from './agents/adapter.js';
 import { isBinaryAvailable } from './agents/binary.js';
 import { claudeCode } from './agents/claude-code.js';
+import { codex } from './agents/codex.js';
+import { geminiCli } from './agents/gemini-cli.js';
+import { opencode } from './agents/opencode.js';
 import { AdapterRegistry } from './agents/registry.js';
 import { loadConfig } from './config.js';
 import { openDatabase } from './db/db.js';
@@ -81,7 +84,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   const scanner = new PortScanner({ ptys });
   const worktrees = new WorktreeManager({ paths, mutex: new KeyedMutex(), repos, sessions });
   const onboarding = new MarkerFileSync({ repos, events, sessions });
-  const adapters = new AdapterRegistry(opts.adapters ?? [claudeCode]);
+  const adapters = new AdapterRegistry(opts.adapters ?? [claudeCode, codex, opencode, geminiCli]);
   const share = new ConversationShare({
     accounts,
     adapters,
