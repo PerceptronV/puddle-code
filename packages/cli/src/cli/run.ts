@@ -389,7 +389,7 @@ export async function run(command: Command): Promise<number> {
 }
 
 /**
- * `puddle upgrade cli` — the CLI is distributed through npm, so its upgrade
+ * `puddle upgrade` (no subject) — the CLI is distributed through npm, so its upgrade
  * IS an npm install; anything cleverer would fight the package manager. The
  * npm output streams through so failures explain themselves.
  */

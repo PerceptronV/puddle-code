@@ -51,7 +51,7 @@ usage:
   puddle status  [user@host]
   puddle attach  [user@host] <session> [--term <id>]
   puddle logs    [user@host] [session] [--term <id>] [-f|--follow]
-  puddle upgrade <cli | daemon | desktop> [user@host]
+  puddle upgrade [daemon [user@host] | desktop]
   puddle --version | --help
 
 launch serves the cockpit at http://localhost:7433 against the daemon on this
@@ -62,7 +62,9 @@ to stay attached; Ctrl-C then stops the cockpit). refresh stops a target's
 cockpit (even a wedged one) and runs the full launch flow again — tunnel,
 daemon restart if needed — keeping the old UI port so open tabs survive.
 list shows running cockpits; kill stops one — sessions keep running on the
-host either way.`;
+host either way. upgrade with no subject updates the CLI itself through npm;
+'daemon' updates puddled (on this machine, or on a user@host) and 'desktop'
+updates the app bundle.`;
 
 /** Hand-rolled argv parser — the surface is small enough to own outright. */
 export function parseArgs(argv: string[]): Command {
@@ -246,13 +248,28 @@ export function parseArgs(argv: string[]): Command {
     }
     case 'upgrade': {
       const [what, host, extra] = positionals;
-      if (what !== 'cli' && what !== 'daemon' && what !== 'desktop') {
+      // Bare `puddle upgrade` upgrades the CLI — the overwhelmingly common
+      // case, and the one you reach for when `puddle` itself is out of date.
+      // The `cli` subject it replaces is gone rather than kept as a silent
+      // alias, so there is exactly one spelling; typing it lands on the hint.
+      if (what === undefined) {
+        expect();
+        return { cmd: 'upgrade', what: 'cli' };
+      }
+      if (what === 'cli') {
         throw new CliError(
           'bad_arguments',
-          'upgrade needs a subject: puddle upgrade <cli | daemon | desktop> [user@host]',
-          what !== undefined && what.includes('@')
+          '`puddle upgrade cli` is now just `puddle upgrade`',
+          'run: puddle upgrade',
+        );
+      }
+      if (what !== 'daemon' && what !== 'desktop') {
+        throw new CliError(
+          'bad_arguments',
+          'upgrade takes no subject (the CLI) or one of: daemon | desktop',
+          what.includes('@')
             ? `to upgrade the daemon on ${what}: puddle upgrade daemon ${what}`
-            : undefined,
+            : 'see: puddle --help',
         );
       }
       if (extra !== undefined)

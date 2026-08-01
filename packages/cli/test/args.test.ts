@@ -142,17 +142,30 @@ describe('argument parsing', () => {
     expect(parseArgs(['logs'])).toEqual({ cmd: 'logs', follow: false });
   });
 
-  it('upgrade: a required subject, then an optional host', () => {
+  it('upgrade: bare means the CLI, with an optional subject and host', () => {
+    // The common case, and the one you reach for when `puddle` is out of date.
+    expect(parseArgs(['upgrade'])).toEqual({ cmd: 'upgrade', what: 'cli' });
     expect(parseArgs(['upgrade', 'daemon'])).toEqual({ cmd: 'upgrade', what: 'daemon' });
     expect(parseArgs(['upgrade', 'daemon', 'user@host'])).toEqual({
       cmd: 'upgrade',
       what: 'daemon',
       host: 'user@host',
     });
-    expect(parseArgs(['upgrade', 'cli'])).toEqual({ cmd: 'upgrade', what: 'cli' });
     expect(parseArgs(['upgrade', 'desktop'])).toEqual({ cmd: 'upgrade', what: 'desktop' });
-    expect(() => parseArgs(['upgrade'])).toThrow(CliError);
-    // The pre-split form (`puddle upgrade user@host`) gets a pointed hint.
+  });
+
+  it('upgrade: the retired `cli` subject points at the bare form', () => {
+    try {
+      parseArgs(['upgrade', 'cli']);
+      expect.unreachable('`upgrade cli` is retired');
+    } catch (e) {
+      expect(e).toBeInstanceOf(CliError);
+      expect((e as CliError).hint).toContain('puddle upgrade');
+    }
+  });
+
+  it('upgrade: a bare host still points at the daemon form', () => {
+    // `puddle upgrade user@host` cannot mean "upgrade the CLI over there".
     try {
       parseArgs(['upgrade', 'user@host']);
       expect.unreachable('a bare host must not parse');

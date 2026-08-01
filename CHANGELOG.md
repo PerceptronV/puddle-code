@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- `puddle upgrade` with no subject now upgrades the CLI — the case you reach for when `puddle` itself is out of date. The `cli` subject it replaces is gone rather than kept as a quiet alias; typing it prints the new spelling. `puddle upgrade daemon [user@host]` and `puddle upgrade desktop` are unchanged.
+- **Protocol 11.0 — every daemon upgrades on the next connection.** A deliberate major bump with no further schema change: 0.0.17 moved behaviour the UI silently depends on into the daemon (the new agent adapters, the hand-off endpoint, `agent_not_installed` refusals and the agent-availability fields, and the failure notices that surface agent and terminal errors). A 10.x daemon serves none of it and fails quietly rather than visibly, so no daemon may stay on 10.x.
 - Tab chips shrink back to their title: the minimum width added in 0.0.17 is now just wide enough for the preview and close icons, rather than wide enough to keep a short filename legible beneath them. Chips still never resize on hover.
 
 ### Fixed

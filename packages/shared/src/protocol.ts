@@ -110,4 +110,14 @@
 // carrying the process's own last output as `detail`. Broadcast to every
 // status subscriber, not just clients attached to the stream, and surfaced as
 // a toast. Older clients ignore the unknown `t` per PROTOCOL.md wire rule 1.
-export const PROTOCOL_VERSION = { major: 10, minor: 7 } as const;
+// 11.0 (2026-08-01): major bump with NO further schema change, on purpose —
+// forces every connected daemon to auto-upgrade at the next handshake (see
+// PROTOCOL.md "The rule"; mirrors the 6.0/8.0/10.0 bumps). This release
+// changes daemon-side behaviour the UI silently depends on: three new agent
+// adapters, the tier-2 hand-off endpoint, `agent_not_installed` refusals with
+// the `binary`/`available` fields the accounts UI gates on, and the `notice`
+// message that carries agent and terminal failures to the user. A 10.x daemon
+// serves none of it and fails quietly rather than visibly — an unavailable
+// agent would still read as "logged out" — so no daemon may sit on 10.x.
+// Ships the 10.5/10.6/10.7 additions above.
+export const PROTOCOL_VERSION = { major: 11, minor: 0 } as const;
