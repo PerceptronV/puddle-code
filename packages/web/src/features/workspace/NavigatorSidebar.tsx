@@ -153,11 +153,12 @@ export function NavigatorSidebar({
   const { session } = target;
 
   // Parent-directory browsing (SPEC §8): navigating above the worktree swaps
-  // the files tree for the BrowseTree, rooted here. Keyed to the
-  // session it was opened for so a rebind (unpin, session switch) drops it;
-  // entering it PINS the sidebar, so follow-the-active-session cannot yank
-  // the tree away mid-browse. Ephemeral local state on purpose — a reload
-  // lands back on the worktree.
+  // the files tree for the BrowseTree, rooted here. Keyed to the session it was
+  // opened for, so binding to a DIFFERENT session drops it; leaving the pin
+  // drops it explicitly (see sidebarTarget below), since that is not a change
+  // of session. Entering it PINS the sidebar, so follow-the-active-session
+  // cannot yank the tree away mid-browse. Ephemeral local state on purpose — a
+  // reload lands back on the worktree.
   const [browse, setBrowse] = useState<{ forSession: string; root: string } | null>(null);
   // `?root=` needs a 10.2+ daemon: an older one IGNORES the param and serves
   // worktree-relative paths as if they were the parent directory — silently
@@ -173,6 +174,21 @@ export function NavigatorSidebar({
     if (!session) return;
     if (!target.pinned) target.pin(session.id);
     setBrowse({ forSession: session.id, root });
+  };
+
+  // Unpinning leaves the browse too. The pin was applied BY entering the browse,
+  // so releasing it has to hand the tree back — and keying the browse to a
+  // session id alone could not do that, because unpinning usually does not
+  // change which session is bound (it only changes how it is resolved), leaving
+  // the tree stranded above the worktree while claiming to follow the active
+  // tab. Every unpin path in this sidebar goes through the header, so wrapping
+  // the target once here covers all of them.
+  const sidebarTarget: ExplorerTarget = {
+    ...target,
+    unpin() {
+      setBrowse(null);
+      target.unpin();
+    },
   };
 
   return (
@@ -220,7 +236,11 @@ export function NavigatorSidebar({
           utility actions can drive the tree. */}
       {mode !== 'worktrees' && mode !== 'files' && (
         // Search names the absolute worktree path (like Files); Changes keeps the branch.
-        <SidebarTargetHeader sessions={sessions} target={target} showPath={mode === 'search'} />
+        <SidebarTargetHeader
+          sessions={sessions}
+          target={sidebarTarget}
+          showPath={mode === 'search'}
+        />
       )}
 
       {mode === 'worktrees' && (
@@ -234,7 +254,7 @@ export function NavigatorSidebar({
           // status, selection) applies out here; files opened from it are
           // ordinary editors keyed by their browse root.
           <>
-            <SidebarTargetHeader sessions={sessions} target={target} showPath />
+            <SidebarTargetHeader sessions={sessions} target={sidebarTarget} showPath />
             <BrowseTree
               sid={session.id}
               root={browseRoot}
@@ -248,7 +268,12 @@ export function NavigatorSidebar({
           // tree; FileExplorer's root is `h-full`, so its wrapper is a flex-1
           // min-h-0 column filling the space under the icon row + header.
           <ExplorerProvider session={session} onOpenFile={onOpenFile} activePath={activeFilePath}>
-            <SidebarTargetHeader sessions={sessions} target={target} showFileActions showPath />
+            <SidebarTargetHeader
+              sessions={sessions}
+              target={sidebarTarget}
+              showFileActions
+              showPath
+            />
             {/* The way OUT of the worktree: '..' enters the browse tree at
                 the parent, pinning the sidebar so the bound session cannot
                 change underneath the browse (SPEC §8). */}
@@ -269,7 +294,7 @@ export function NavigatorSidebar({
           </ExplorerProvider>
         ) : (
           <>
-            <SidebarTargetHeader sessions={sessions} target={target} />
+            <SidebarTargetHeader sessions={sessions} target={sidebarTarget} />
             <div className="px-3 py-2 text-xs text-fg-muted">No worktree to show.</div>
           </>
         ))}

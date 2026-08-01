@@ -13,15 +13,14 @@ import { SessionContextMenu } from './SessionActions';
 import { tabRefKey } from './layout-tree';
 import { useDropIndicator } from './TilingDnd';
 
-// `min-w-36` (144px) is what stops a short title vanishing under the hover
-// controls, which overlay the chip's right edge (see TabControls). Measured,
-// not guessed: the controls occupy ~51px of solid width, the chip has 10px of
-// left padding, and a 9-character name like `CLAUDE.md` is 72px — so 144px is
-// the first spacing step that leaves a short title fully legible while hovered.
-// `relative` anchors the controls; `max-w-52` still caps a long title, which
-// truncates under them exactly as it did before.
+// `min-w-16` (64px) is exactly the room the hover controls need and no more:
+// measured, not guessed — the preview + close cluster is 49.4px wide and the
+// chip carries 11px of left padding. A chip never shrinks below the icons it
+// may show, and never grows to accommodate them either, since they overlay the
+// right edge rather than sitting in the flow (see TabControls). `relative`
+// anchors them; `max-w-52` still caps a long title, which truncates as before.
 const TAB_CLASS =
-  'group relative flex min-w-36 max-w-52 cursor-pointer items-center gap-1.5 rounded-t-md px-2.5 text-xs transition-colors';
+  'group relative flex min-w-16 max-w-52 cursor-pointer items-center gap-1.5 rounded-t-md px-2.5 text-xs transition-colors';
 
 /**
  * A tiling pane's tab strip (SPEC §8) — one unified strip over BOTH terminal and
