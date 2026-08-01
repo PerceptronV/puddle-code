@@ -62,7 +62,9 @@ export function browseRoot(c: Context, worktreeRoot: string): string {
   if (!existsSync(root) || !statSync(root).isDirectory()) {
     throw ApiError.notFound('root', raw);
   }
-  return root;
+  // Canonical: no trailing separator, except for the filesystem root itself,
+  // which IS one. Keeps roots comparable and the containment prefix honest.
+  return root.length > 1 && root.endsWith(sep) ? root.slice(0, -1) : root;
 }
 
 export function containedPath(root: string, rel: string): string {
@@ -70,7 +72,14 @@ export function containedPath(root: string, rel: string): string {
     throw ApiError.badRequest('path_outside_worktree', `path must be relative to the worktree`);
   }
   const candidate = normalize(join(root, rel));
-  if (candidate !== root && !candidate.startsWith(root + sep)) {
+  // The prefix is the root with EXACTLY one trailing separator. Appending one
+  // unconditionally breaks the two roots that already end in it: browsing at
+  // the filesystem root made the prefix `//`, so every child of `/` — every
+  // path reachable by walking to the top of the browse tree — was rejected as
+  // an escape. Deriving it instead keeps the guard identical everywhere else
+  // (`/wt` still admits `/wt/x` and still rejects `/wt-evil`).
+  const prefix = root.endsWith(sep) ? root : root + sep;
+  if (candidate !== root && !candidate.startsWith(prefix)) {
     throw ApiError.badRequest('path_outside_worktree', `path escapes the worktree`);
   }
   return candidate;

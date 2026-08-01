@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Browsing to the top of the file tree no longer reports "path escapes the worktree" for every entry. Walking up to the filesystem root left the containment check comparing paths against `//`, so nothing under `/` could be listed, opened, or saved — expanding `Users` failed even though the browse root explicitly allowed it. Reading and editing files anywhere above the worktree now works, and genuine escapes are still refused.

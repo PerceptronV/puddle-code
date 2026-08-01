@@ -8,7 +8,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { Hono } from 'hono';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as yauzl from 'yauzl';
@@ -467,6 +467,57 @@ describe('read-only browse root override (?root=, protocol 10.2)', () => {
       `/api/worktrees/${sessionId}/tree?path=&root=${encodeURIComponent(join(outside, 'absent'))}`,
     );
     expect(gone.status).toBe(404);
+  });
+
+  it('browses the filesystem root, whose children are not escapes', async () => {
+    // The regression: the containment prefix was built as `root + sep`, which
+    // for `/` is `//` — so every child of the filesystem root, i.e. everything
+    // reachable by walking the browse tree to the top, was rejected outright.
+    const listing = await app.request(`/api/worktrees/${sessionId}/tree?path=&root=%2F`);
+    expect(listing.status).toBe(200);
+    expect(treeResponseSchema.parse(await listing.json()).entries.length).toBeGreaterThan(0);
+
+    // …and descending into one of them works, which is what the tree does on
+    // expand. `outside` is an absolute tmpdir path, so walk to it from `/`.
+    const rel = outside.replace(/^\//, '');
+    const deep = await app.request(
+      `/api/worktrees/${sessionId}/tree?path=${encodeURIComponent(rel)}&root=%2F`,
+    );
+    expect(deep.status).toBe(200);
+    expect(treeResponseSchema.parse(await deep.json()).entries.map((e) => e.name)).toContain(
+      'notes',
+    );
+
+    const file = await app.request(
+      `/api/worktrees/${sessionId}/file?path=${encodeURIComponent(`${rel}/notes/todo.md`)}&root=%2F`,
+    );
+    expect(file.status).toBe(200);
+  });
+
+  it('accepts a root with a trailing separator', async () => {
+    const res = await app.request(
+      `/api/worktrees/${sessionId}/tree?path=notes&root=${encodeURIComponent(`${outside}/`)}`,
+    );
+    expect(res.status).toBe(200);
+    expect(treeResponseSchema.parse(await res.json()).entries.map((e) => e.name)).toContain(
+      'todo.md',
+    );
+  });
+
+  it('still rejects a sibling that merely shares the root prefix', async () => {
+    // `/x` must not admit `/x-evil`: the fix derives the prefix, it does not
+    // drop the separator check.
+    const sibling = `${outside}-evil`;
+    mkdirSync(sibling, { recursive: true });
+    try {
+      const res = await app.request(
+        `/api/worktrees/${sessionId}/file?path=..%2F${encodeURIComponent(`${basename(sibling)}/x`)}&root=${encodeURIComponent(outside)}`,
+      );
+      expect(res.status).toBe(400);
+      expect(errorCode(await res.json())).toBe('path_outside_worktree');
+    } finally {
+      rmSync(sibling, { recursive: true, force: true });
+    }
   });
 
   it('still confines paths under the OVERRIDDEN root', async () => {
