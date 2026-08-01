@@ -105,4 +105,9 @@
 // agent, seeded with a briefing built from the source's transcript plus the
 // branch's commits and status. The source session is left untouched and the
 // pair is linked by `handed_off_to` / `handed_off_from` events.
-export const PROTOCOL_VERSION = { major: 10, minor: 6 } as const;
+// 10.7 (2026-07-31): additive — the `notice` WS server message: a failure the
+// user must SEE (an agent or shell exiting non-zero without being asked to),
+// carrying the process's own last output as `detail`. Broadcast to every
+// status subscriber, not just clients attached to the stream, and surfaced as
+// a toast. Older clients ignore the unknown `t` per PROTOCOL.md wire rule 1.
+export const PROTOCOL_VERSION = { major: 10, minor: 7 } as const;

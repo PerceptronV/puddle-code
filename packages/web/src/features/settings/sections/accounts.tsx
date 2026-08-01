@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FolderInput, KeyRound, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastError } from '../../../lib/errors';
 import type { Account } from '@puddle/shared';
 import { Button } from '../../../components/ui/button';
 import {
@@ -91,7 +92,7 @@ function ImportDialog({
                     if (!account.logged_in)
                       toast.info('Imported without credentials — press Login to authenticate.');
                   },
-                  onError: (e) => toast.error(e.message),
+                  onError: (e) => toastError(e),
                 },
               )
             }
@@ -135,7 +136,7 @@ function AccountRow({
       { id: account.id, label: next },
       {
         onError: (e) => {
-          toast.error(e.message);
+          toastError(e);
           setLabel(account.label);
         },
       },
@@ -171,7 +172,7 @@ function AccountRow({
             onCheckedChange={(checked) =>
               patch.mutate(
                 { id: account.id, skip_permissions_default: checked },
-                { onError: (e) => toast.error(e.message) },
+                { onError: (e) => toastError(e) },
               )
             }
           />
@@ -184,7 +185,7 @@ function AccountRow({
         onClick={() =>
           login.mutate(account.id, {
             onSuccess: (res) => setLoginStream(res.stream),
-            onError: (e) => toast.error(e.message),
+            onError: (e) => toastError(e),
           })
         }
       >
@@ -230,7 +231,7 @@ function AccountRow({
                   onSuccess: () => setConfirmingDelete(false),
                   onError: (e) => {
                     setConfirmingDelete(false);
-                    toast.error(e.message);
+                    toastError(e);
                   },
                 })
               }
@@ -270,10 +271,10 @@ export function AccountsSection() {
           login.mutate(account.id, {
             onSuccess: (res) =>
               setLoginStream({ stream: res.stream, label: `${agentId}/${account.label}` }),
-            onError: (e) => toast.error(e.message),
+            onError: (e) => toastError(e),
           });
         },
-        onError: (e) => toast.error(e.message),
+        onError: (e) => toastError(e),
       },
     );
   };

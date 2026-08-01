@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Suspense, lazy, useSyncExternalStore } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router';
 import { Toaster } from './components/ui/sonner';
@@ -8,6 +8,7 @@ import { ProfilePicker } from './features/profile/ProfilePicker';
 import { useCurrentProfileId } from './features/profile/profile-store';
 import { ShellLayout } from './features/shell/ShellLayout';
 import { tokenStore } from './lib/auth';
+import { toastError } from './lib/errors';
 import { useProfiles } from './lib/queries';
 
 // Route-level chunks: each page loads on first visit, not up front.
@@ -22,6 +23,11 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: { retry: 1, staleTime: 5_000 },
   },
+  // The safety net: an action that fails is ALWAYS reported, even if its call
+  // site forgot a handler. Local `onError`s still run for their side effects
+  // and report through the same helper, whose message-derived toast id
+  // collapses the pair into one toast rather than stacking duplicates.
+  mutationCache: new MutationCache({ onError: (error) => toastError(error) }),
 });
 
 function Gated() {

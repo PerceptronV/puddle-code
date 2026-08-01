@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { toast } from 'sonner';
+import { toastError } from '../../../lib/errors';
 import { PROFILE_ICON_COLOURS, type Profile } from '@puddle/shared';
 import { Popover, PopoverContent, PopoverTrigger } from '../../../components/ui/popover';
 import { usePatchProfile } from '../../../lib/queries';
@@ -18,11 +18,11 @@ export function ProfileAppearance({ profile }: { profile: Profile }) {
   const [open, setOpen] = useState(false);
 
   const setIcon = (icon: string | null) => {
-    patch.mutate({ id: profile.id, icon }, { onError: (e) => toast.error(e.message) });
+    patch.mutate({ id: profile.id, icon }, { onError: (e) => toastError(e) });
     setOpen(false);
   };
   const setColour = (icon_colour: string | null) =>
-    patch.mutate({ id: profile.id, icon_colour }, { onError: (e) => toast.error(e.message) });
+    patch.mutate({ id: profile.id, icon_colour }, { onError: (e) => toastError(e) });
 
   return (
     <>

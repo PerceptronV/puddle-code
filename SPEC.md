@@ -300,6 +300,15 @@ When a capability is `false`, degrade gracefully: e.g. no `resume` → offer "ne
 
 Adding an agent = adding one file + registering it; PRs adding adapters must not touch core session logic.
 
+### Errors are never silent
+
+A failure the user cannot see is a bug. Two mechanisms guarantee they surface:
+
+- **Abnormal PTY exits raise a `notice`.** When an agent or shell exits non-zero without having been asked to, the daemon emits a `notice` WS message (`level`, `title`, and `detail` — the ANSI-stripped tail of whatever the process printed). It is broadcast to **every status subscriber**, not just clients attached to that stream, because the user is usually looking at another tab; the UI renders it as a toast. An exit within `STARTUP_FAILURE_MS` of spawn is titled "failed to start" — the flag-drift and bad-credential case — and the process's own error text is normally the entire diagnosis. Note that the session _status_ cannot classify this: a launch error printed to the terminal is output like any other, so it flips the session to `running` on the way out.
+- **Nothing fires for a stop we asked for.** `kill`, `archive` (which kills), a `kill-shell` request, and daemon shutdown mark the stream as an expected exit, consumed by the matching exit. A notice the user learns to ignore is worse than no notice.
+
+Client-side, every mutation is covered by a global handler, so an action can never fail silently because its call site forgot one; local handlers still run for their side effects and report through the same helper, whose message-derived toast id collapses the pair into a single toast.
+
 ### Is the agent even installed?
 
 `binary` is resolved on the daemon's PATH (already extended with `config.agentPath` at boot — §11). Nothing may spawn an agent without checking it first: node-pty does **not** fail loudly for a missing executable — on macOS its spawn-helper `execvp`s and returns 1 — so an absent CLI otherwise produces a PTY that dies instantly with no output. A login dialog then flashes open on an empty terminal and vanishes, and a session goes `starting → exited` with nothing to explain why.

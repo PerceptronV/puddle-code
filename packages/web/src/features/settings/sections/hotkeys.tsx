@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { RotateCcw } from 'lucide-react';
-import { toast } from 'sonner';
+import { toastError } from '../../../lib/errors';
 import {
   eventBinding,
   formatBinding,
@@ -85,14 +85,11 @@ export function HotkeysSection() {
   }
 
   const save = (id: string, binding: string) =>
-    patch.mutate(
-      { hotkeys: { ...overrides, [id]: binding } },
-      { onError: (e) => toast.error(e.message) },
-    );
+    patch.mutate({ hotkeys: { ...overrides, [id]: binding } }, { onError: (e) => toastError(e) });
   const reset = (id: string) => {
     const rest = { ...overrides };
     delete rest[id];
-    patch.mutate({ hotkeys: rest }, { onError: (e) => toast.error(e.message) });
+    patch.mutate({ hotkeys: rest }, { onError: (e) => toastError(e) });
   };
 
   return (

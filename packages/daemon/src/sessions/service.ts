@@ -20,7 +20,7 @@ import type { RepoStore } from '../db/stores/repos.js';
 import type { SessionStore } from '../db/stores/sessions.js';
 import { ApiError } from '../http/errors.js';
 import type { LogStore } from '../logs/log-store.js';
-import { extractOscTitle } from '../pty/ansi.js';
+import { extractOscTitle, stripAnsi } from '../pty/ansi.js';
 import type {
   PtyDataEvent,
   PtyEnvDeltaEvent,
@@ -67,6 +67,15 @@ export interface StatusEvent {
   last_activity_at: string | null;
 }
 
+/** A failure the user must see, relayed to every client as a toast (SPEC §4). */
+export interface NoticeEvent {
+  level: 'error' | 'warning';
+  title: string;
+  detail?: string;
+  session?: string;
+  term?: string;
+}
+
 export interface RenameEvent {
   session: string;
   /** User override (null → use agent_title, then osc_title, then the id prefix). */
@@ -80,6 +89,8 @@ export interface RenameEvent {
 interface LiveAgent {
   /** Null for terminal sessions — a plain shell has no status detector. */
   detector: StatusDetector | null;
+  /** When this PTY was spawned, to tell a failed launch from a later crash. */
+  startedAt: number;
   status: Extract<SessionStatus, 'starting' | 'running' | 'waiting_input'>;
   lastTouch: number;
   /** Throttle for the OSC-title-driven agent-name re-read (see onPtyData). */
@@ -113,6 +124,12 @@ const TITLE_REFRESH_MS = 3000;
 // same, so the daemon must never kill or downgrade the session itself.
 const STALE_RUNNING_MS = 60 * 60 * 1000;
 
+// An agent dying this soon after spawn failed to START — a rejected flag, a
+// missing credential — rather than crashing mid-work. The status is no use for
+// telling these apart: a launch error printed to the terminal is output like
+// any other, so it flips the session to `running` on its way out.
+const STARTUP_FAILURE_MS = 5000;
+
 // Captured-env caps (SPEC §4), enforced daemon-side regardless of what the
 // shell hook reports. Oversized values and overflow names are dropped with a
 // one-time [puddle] note in the reporting terminal.
@@ -133,6 +150,11 @@ export class SessionService extends EventEmitter {
   private signalPort: number | null = null;
   /** Sessions whose conversation is already adopted — stops the retry loop. */
   private readonly adopted = new Set<string>();
+  /**
+   * Streams (or `${stream}:${term}` pairs) being stopped on purpose, so their
+   * non-zero exit raises no notice. Entries are consumed by the matching exit.
+   */
+  private readonly expectedExits = new Set<string>();
   /** `${sessionId}:${name}` pairs already warned about, so cap notes fire once. */
   private readonly envDropNoted = new Set<string>();
   private shuttingDown = false;
@@ -466,6 +488,7 @@ export class SessionService extends EventEmitter {
     }
     this.liveAgents.set(sessionId, {
       detector: null,
+      startedAt: Date.now(),
       status: 'starting',
       lastTouch: 0,
       lastTitleCheck: 0,
@@ -783,6 +806,7 @@ export class SessionService extends EventEmitter {
   /** SIGTERM the session's PTYs and wait for the agent to exit. */
   async kill(id: string): Promise<Session> {
     const session = this.deps.sessions.get(id);
+    this.expectExit(id); // asked for: its non-zero exit raises no notice
     this.deps.ptys.killAll(id);
     const deadline = Date.now() + 4000;
     let escalated = false;
@@ -1027,6 +1051,9 @@ export class SessionService extends EventEmitter {
     // daemon's own /agent-signal URL, injected so agent hook processes (which
     // inherit this env) can report running ⇄ waiting_input authoritatively.
     const signalNonce = this.signalPort !== null ? randomUUID() : null;
+    // A fresh agent is never an expected exit — clear any flag a previous
+    // kill left behind so this run's crash is reported.
+    this.expectedExits.delete(sessionId);
     try {
       this.deps.ptys.spawn(sessionId, 'agent', adapter.binary, args, {
         cwd: worktreePath,
@@ -1062,6 +1089,7 @@ export class SessionService extends EventEmitter {
     );
     this.liveAgents.set(sessionId, {
       detector,
+      startedAt: Date.now(),
       status: initial,
       lastTouch: 0,
       lastTitleCheck: 0,
@@ -1205,9 +1233,15 @@ export class SessionService extends EventEmitter {
   }
 
   private onPtyExit(e: PtyExitEvent): void {
-    if (e.term !== 'agent') return;
     const live = this.liveAgents.get(e.stream);
+    // Shells have no agent state to tear down, but a shell dying on its own is
+    // still something the user should hear about.
+    if (e.term !== 'agent') {
+      this.noticeOnAbnormalExit(e, false);
+      return;
+    }
     if (!live) return;
+    const startupFailure = Date.now() - live.startedAt < STARTUP_FAILURE_MS;
     live.detector?.dispose();
     if (live.signalNonce !== null) this.signalNonces.delete(live.signalNonce);
     this.liveAgents.delete(e.stream);
@@ -1215,6 +1249,63 @@ export class SessionService extends EventEmitter {
     this.transition(e.stream, 'exited');
     this.refreshAgentTitle(e.stream); // capture the final name for the exited/archived row
     this.deps.events.record(e.stream, 'exited', { code: e.exitCode });
+    this.noticeOnAbnormalExit(e, startupFailure);
+  }
+
+  /**
+   * Turns an unexpected non-zero exit into a user-visible notice (SPEC §4).
+   * Errors used to be silent here: a bad flag or a failed auth killed the
+   * process in milliseconds, and unless the user happened to be looking at
+   * that exact terminal they saw nothing at all.
+   *
+   * Deliberately quiet for exits we asked for (kill, archive, delete, shell
+   * close, shutdown) and for clean ones — a notice the user learns to ignore
+   * is worse than no notice.
+   */
+  private noticeOnAbnormalExit(e: PtyExitEvent, startupFailure: boolean): void {
+    if (this.shuttingDown || e.exitCode === 0) return;
+    if (this.expectedExits.delete(`${e.stream}:${e.term}`)) return;
+    // A whole-session stop covers every term, so the flag is consumed by the
+    // agent's exit rather than the first shell's — otherwise it would linger
+    // and silence a genuine crash after the next resume.
+    if (this.expectedExits.has(e.stream)) {
+      if (e.term === 'agent') this.expectedExits.delete(e.stream);
+      return;
+    }
+    const label = e.term === 'agent' ? 'Agent' : 'Terminal';
+    this.emit('notice', {
+      level: 'error',
+      title: startupFailure
+        ? `${label} failed to start (exit ${e.exitCode})`
+        : `${label} exited unexpectedly (exit ${e.exitCode})`,
+      detail: this.exitDetail(e),
+      session: e.stream,
+      term: e.term,
+    } satisfies NoticeEvent);
+  }
+
+  /** The last few lines the process printed — usually the whole diagnosis. */
+  private exitDetail(e: PtyExitEvent): string | undefined {
+    let tail: string;
+    try {
+      tail = stripAnsi(this.deps.logs.readTail(e.stream, e.term));
+    } catch {
+      return undefined;
+    }
+    const lines = tail
+      .split('\n')
+      .map((l) => l.trimEnd())
+      .filter((l) => l.trim() !== '');
+    if (lines.length === 0) return undefined;
+    return lines.slice(-4).join('\n').slice(-400);
+  }
+
+  /**
+   * Marks a stream (or one term of it) as being stopped on purpose, so its
+   * exit does not raise a notice. Cleared by the matching exit.
+   */
+  expectExit(stream: string, term?: string): void {
+    this.expectedExits.add(term === undefined ? stream : `${stream}:${term}`);
   }
 
   private transition(id: string, status: SessionStatus): void {

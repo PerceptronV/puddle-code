@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { KeyRound, Plus, Settings2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toastError } from '../../lib/errors';
 import type { Account } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
@@ -157,7 +157,7 @@ export function ProfilePanel() {
     login.mutate(account.id, {
       onSuccess: (res) =>
         setLoginStream({ stream: res.stream, label: `${account.agent_type}/${account.label}` }),
-      onError: (e) => toast.error(e.message),
+      onError: (e) => toastError(e),
     });
 
   const startSession = (account: Account) => {

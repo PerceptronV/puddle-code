@@ -15,6 +15,7 @@ import {
   UserRoundCog,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastError } from '../../lib/errors';
 import type { Account, Session } from '@puddle/shared';
 import { AgentIcon } from '../../components/agent-icon';
 import { Button } from '../../components/ui/button';
@@ -190,10 +191,10 @@ export function useSessionMenu(
     handoffTargets:
       !session.worktree_missing && session.status !== 'archived' ? handoffTargets : [],
     setHandoffTo,
-    resume: () => resume.mutate(session.id, { onError: (e) => toast.error(e.message) }),
+    resume: () => resume.mutate(session.id, { onError: (e) => toastError(e) }),
     // Killing only stops the process — the conversation stays resumable — so
     // it fires straight away, like archive.
-    kill: () => kill.mutate(session.id, { onError: (e) => toast.error(e.message) }),
+    kill: () => kill.mutate(session.id, { onError: (e) => toastError(e) }),
     openClearEnv: () => setConfirm('clear-env'),
     // A plain shell in THIS session's working directory (SPEC §4: a terminal
     // session joining an existing worktree) — for git surgery, running tests,
@@ -209,7 +210,7 @@ export function useSessionMenu(
         },
         {
           onSuccess: (t) => void navigate(`/project/${t.project_id}/session/${t.id}`),
-          onError: (e) => toast.error(e.message),
+          onError: (e) => toastError(e),
         },
       ),
     spawnAccounts,
@@ -228,7 +229,7 @@ export function useSessionMenu(
         },
         {
           onSuccess: (s) => void navigate(`/project/${s.project_id}/session/${s.id}`),
-          onError: (e) => toast.error(e.message),
+          onError: (e) => toastError(e),
         },
       ),
     openRename: () => {
@@ -242,9 +243,9 @@ export function useSessionMenu(
     archive: () =>
       archive.mutate(session.id, {
         onSuccess: () => onArchived?.(session.id),
-        onError: (e) => toast.error(e.message),
+        onError: (e) => toastError(e),
       }),
-    unarchive: () => unarchive.mutate(session.id, { onError: (e) => toast.error(e.message) }),
+    unarchive: () => unarchive.mutate(session.id, { onError: (e) => toastError(e) }),
     setMigrateTo,
   };
 
@@ -284,7 +285,7 @@ export function useSessionMenu(
                   },
                   onError: (e) => {
                     setConfirm(null);
-                    toast.error(e.message);
+                    toastError(e);
                   },
                 })
               }
@@ -313,7 +314,7 @@ export function useSessionMenu(
                 { sessionId: session.id, title: newTitle.trim() },
                 {
                   onSuccess: () => setRenaming(false),
-                  onError: (err) => toast.error(err.message),
+                  onError: (err) => toastError(err),
                 },
               );
             }}
@@ -362,7 +363,7 @@ export function useSessionMenu(
                     },
                     onError: (e) => {
                       setMigrateTo(null);
-                      toast.error(e.message);
+                      toastError(e);
                     },
                   },
                 );
@@ -404,7 +405,7 @@ export function useSessionMenu(
                     },
                     onError: (e) => {
                       setHandoffTo(null);
-                      toast.error(e.message);
+                      toastError(e);
                     },
                   },
                 );

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastError } from '../../../lib/errors';
 import type { RepoWithOrphans } from '@puddle/shared';
 import { Button } from '../../../components/ui/button';
 import { Input, Textarea } from '../../../components/ui/input';
@@ -14,7 +15,7 @@ function RepoCard({ repo }: { repo: RepoWithOrphans }) {
   const [base, setBase] = useState(repo.default_base_branch);
   const [notes, setNotes] = useState(repo.onboarding_notes ?? '');
 
-  const onError = (e: Error) => toast.error(e.message);
+  const onError = (e: Error) => toastError(e);
 
   return (
     <div className="mb-4 rounded-lg bg-surface p-3">

@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import type { SessionStatus, WsClientMessage, WsServerMessage } from '@puddle/shared';
 import { tokenStore } from './auth';
 
@@ -224,8 +225,17 @@ export class WsManager {
         if (next) next(msg.term);
         break;
       }
+      // Failures are never swallowed: the daemon raises these precisely
+      // because the user needs to see them, and they arrive whichever tab is
+      // open. `detail` is the process's own last output, shown verbatim.
+      case 'notice':
+        (msg.level === 'warning' ? toast.warning : toast.error)(msg.title, {
+          ...(msg.detail !== undefined ? { description: msg.detail } : {}),
+          duration: 12_000, // long enough to read an error and act on it
+        });
+        break;
       case 'error':
-        console.warn('ws error:', msg.message);
+        toast.error('Connection error', { description: msg.message });
         break;
     }
   }

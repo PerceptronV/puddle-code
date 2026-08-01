@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
+import { toastError } from '../../../lib/errors';
 import { Switch } from '../../../components/ui/switch';
 import {
   notificationPermission,
@@ -85,7 +85,7 @@ export function NotificationsSection() {
     ...((settings.data?.['notifications'] as Partial<NotificationPrefs> | undefined) ?? {}),
   };
   const save = (next: NotificationPrefs) =>
-    patch.mutate({ notifications: next }, { onError: (e) => toast.error(e.message) });
+    patch.mutate({ notifications: next }, { onError: (e) => toastError(e) });
 
   const requestPermission = () => {
     if (typeof Notification === 'undefined') return;

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastError } from '../../../lib/errors';
 import { Button } from '../../../components/ui/button';
 import { Textarea } from '../../../components/ui/input';
 import { Switch } from '../../../components/ui/switch';
@@ -107,11 +108,10 @@ export function SyncSection() {
     setTheme: (v) => {
       if (typeof v === 'string') applyTheme(v as ThemePreference);
     },
-    patchProfileSettings: (p) =>
-      patchSettings.mutate(p, { onError: (e) => toast.error(e.message) }),
+    patchProfileSettings: (p) => patchSettings.mutate(p, { onError: (e) => toastError(e) }),
     patchProfileColumns: (p) => {
       if (profileId)
-        patchProfile.mutate({ id: profileId, ...p }, { onError: (e) => toast.error(e.message) });
+        patchProfile.mutate({ id: profileId, ...p }, { onError: (e) => toastError(e) });
     },
     createScratchpad: (entries) => {
       if (!profileId) return;
@@ -140,7 +140,7 @@ export function SyncSection() {
           updatedAt: new Date().toISOString(),
         },
       },
-      { onError: (e) => toast.error(e.message) },
+      { onError: (e) => toastError(e) },
     );
   };
 

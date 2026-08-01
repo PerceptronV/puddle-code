@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
+import { toastError } from '../../../lib/errors';
 import { Button } from '../../../components/ui/button';
 import {
   Dialog,
@@ -77,10 +77,7 @@ export function ProfileSection() {
           variant="secondary"
           disabled={name === profile.name || name.trim() === '' || patchProfile.isPending}
           onClick={() =>
-            patchProfile.mutate(
-              { id: profile.id, name },
-              { onError: (e) => toast.error(e.message) },
-            )
+            patchProfile.mutate({ id: profile.id, name }, { onError: (e) => toastError(e) })
           }
         >
           Save
@@ -105,7 +102,7 @@ export function ProfileSection() {
           onClick={() =>
             patchProfile.mutate(
               { id: profile.id, branch_prefix: prefix },
-              { onError: (e) => toast.error(e.message) },
+              { onError: (e) => toastError(e) },
             )
           }
         >
@@ -119,7 +116,7 @@ export function ProfileSection() {
           onValueChange={(value) =>
             patchSettings.mutate(
               { default_account_id: value === NONE ? null : Number(value) },
-              { onError: (e) => toast.error(e.message) },
+              { onError: (e) => toastError(e) },
             )
           }
         >
@@ -202,7 +199,7 @@ export function ProfileSection() {
                   onError: (e) => {
                     setConfirmingDelete(false);
                     setTypedName('');
-                    toast.error(e.message);
+                    toastError(e);
                   },
                 })
               }

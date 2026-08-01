@@ -48,4 +48,21 @@ export type WsServerMessage =
       osc_title?: string | null;
     }
   | { t: 'exit'; session: string; term: string; code: number }
+  /**
+   * Something went wrong that the user must SEE, not just something a log
+   * records. Broadcast to every status subscriber rather than only to a client
+   * attached to the stream, because the whole point is to reach someone whose
+   * tab is elsewhere. The UI surfaces these as toasts.
+   *
+   * `detail` is the tail of whatever the process printed — for a failed launch
+   * that is the agent's own error text, which is usually the entire diagnosis.
+   */
+  | {
+      t: 'notice';
+      level: 'error' | 'warning';
+      title: string;
+      detail?: string;
+      session?: string;
+      term?: string;
+    }
   | { t: 'error'; message: string };

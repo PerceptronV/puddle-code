@@ -1,7 +1,7 @@
 import { type DragEvent, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { ArchiveRestore, Archive as ArchiveIcon, Pencil } from 'lucide-react';
-import { toast } from 'sonner';
+import { toastError } from '../../lib/errors';
 import type { Project, SessionStatus } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import {
@@ -114,7 +114,7 @@ export function ProjectCard({
   const [name, setName] = useState(project.name);
 
   const archive = (archived: boolean) =>
-    patch.mutate({ id: project.id, archived }, { onError: (e) => toast.error(e.message) });
+    patch.mutate({ id: project.id, archived }, { onError: (e) => toastError(e) });
 
   const submitRename = () => {
     const trimmed = name.trim();
@@ -124,7 +124,7 @@ export function ProjectCard({
     }
     patch.mutate(
       { id: project.id, name: trimmed },
-      { onSuccess: () => setRenaming(false), onError: (e) => toast.error(e.message) },
+      { onSuccess: () => setRenaming(false), onError: (e) => toastError(e) },
     );
   };
 

@@ -17,6 +17,9 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- **Agent and terminal failures are no longer silent.** An agent or shell that exits non-zero without being asked to now raises a toast naming what happened and quoting the process's own last output — a rejected CLI flag, a failed credential, a crash. It reaches you whichever tab you are on, rather than only a client attached to that terminal, and stays quiet for stops you asked for (kill, archive, closing a shell). Protocol 10.7 (additive `notice` message).
+- WebSocket errors were written to the browser console and nowhere else; they are now toasts.
+- Every mutation now has a global error handler, so an action can never fail silently because its call site forgot one. Duplicate reports of the same failure collapse into a single toast.
 - Logging in to an account whose agent CLI is not installed no longer opens a terminal dialog that flashes open on an empty screen and vanishes. Login, session create/resume and migration now fail up front with `424 agent_not_installed`, naming the missing executable. node-pty does not report a missing executable on macOS, so nothing had ever caught this.
 - A missing agent CLI no longer clears an account's stored logged-in flag. `checkLoggedIn` asks the agent's own CLI, so an uninstalled agent answered "logged out" and the daemon believed it — downgrading authenticated accounts on every boot and on every rejected session create.
 - The login dialog no longer closes silently when the login process exits non-zero; it stays open and reports the exit code so the agent's own output remains readable.

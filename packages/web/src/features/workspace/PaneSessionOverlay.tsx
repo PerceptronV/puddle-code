@@ -1,5 +1,5 @@
 import { Play } from 'lucide-react';
-import { toast } from 'sonner';
+import { toastError } from '../../lib/errors';
 import type { Session } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { useSessionAction } from '../../lib/queries';
@@ -28,7 +28,7 @@ export function PaneSessionOverlay({ session }: { session: Session }) {
         size="sm"
         className="pointer-events-auto"
         disabled={resume.isPending}
-        onClick={() => resume.mutate(session.id, { onError: (e) => toast.error(e.message) })}
+        onClick={() => resume.mutate(session.id, { onError: (e) => toastError(e) })}
       >
         <Play />
         Resume

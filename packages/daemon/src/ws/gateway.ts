@@ -4,7 +4,7 @@ import type { WSContext } from 'hono/ws';
 import { HOME_STREAM, wsClientMessageSchema, type WsServerMessage } from '@puddle/shared';
 import type { LogStore } from '../logs/log-store.js';
 import type { PtyDataEvent, PtyExitEvent, PtyManager } from '../pty/pty-manager.js';
-import type { RenameEvent, SessionService, StatusEvent } from '../sessions/service.js';
+import type { NoticeEvent, RenameEvent, SessionService, StatusEvent } from '../sessions/service.js';
 import { ApiError } from '../http/errors.js';
 
 export interface WsGatewayDeps {
@@ -53,6 +53,20 @@ export class WsGateway {
           session: e.session,
           status: e.status,
           last_activity_at: e.last_activity_at,
+        });
+      }
+    });
+    // Failures go to EVERY status subscriber, not just a client attached to the
+    // stream — the user is usually looking at another tab when one happens.
+    deps.service.on('notice', (e: NoticeEvent) => {
+      for (const ws of this.statusSubs) {
+        this.send(ws, {
+          t: 'notice',
+          level: e.level,
+          title: e.title,
+          ...(e.detail !== undefined ? { detail: e.detail } : {}),
+          ...(e.session !== undefined ? { session: e.session } : {}),
+          ...(e.term !== undefined ? { term: e.term } : {}),
         });
       }
     });
@@ -134,6 +148,7 @@ export class WsGateway {
             if (msg.term === 'agent') {
               throw ApiError.badRequest('agent_term', 'the agent PTY is killed via its session');
             }
+            this.deps.service.expectExit(msg.session, msg.term); // asked for: no notice
             this.deps.ptys.kill(msg.session, msg.term);
             break;
           }

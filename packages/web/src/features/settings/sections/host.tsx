@@ -1,4 +1,4 @@
-import { toast } from 'sonner';
+import { toastError } from '../../../lib/errors';
 import type { DaemonConfig } from '@puddle/shared';
 import { Input } from '../../../components/ui/input';
 import { Switch } from '../../../components/ui/switch';
@@ -34,7 +34,7 @@ function NumberSetting({
         onBlur={(e) => {
           const value = Number(e.target.value);
           if (Number.isFinite(value) && value !== config[field]) {
-            patch.mutate({ [field]: value }, { onError: (err) => toast.error(err.message) });
+            patch.mutate({ [field]: value }, { onError: (err) => toastError(err) });
           }
         }}
       />
@@ -67,7 +67,7 @@ export function HostSection() {
           onBlur={(e) => {
             const value = e.target.value.trim();
             if (value !== config.data.displayName) {
-              patch.mutate({ displayName: value }, { onError: (err) => toast.error(err.message) });
+              patch.mutate({ displayName: value }, { onError: (err) => toastError(err) });
             }
           }}
         />
@@ -111,7 +111,7 @@ export function HostSection() {
           id="host-autoResume"
           checked={config.data.autoResume}
           onCheckedChange={(checked) =>
-            patch.mutate({ autoResume: checked }, { onError: (e) => toast.error(e.message) })
+            patch.mutate({ autoResume: checked }, { onError: (e) => toastError(e) })
           }
         />
       </SettingRow>

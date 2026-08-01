@@ -16,6 +16,13 @@ export function Toaster() {
           boxShadow: '0 8px 30px rgb(0 0 0 / 0.25)',
           color: 'var(--text-primary)',
         },
+        classNames: {
+          // Failure toasts carry the process's own output as the description:
+          // keep its line breaks and set it in the terminal's typeface, or a
+          // stack trace arrives as one unreadable run-on line.
+          description:
+            'whitespace-pre-wrap break-words font-mono text-2xs leading-snug max-h-40 overflow-y-auto',
+        },
       }}
     />
   );

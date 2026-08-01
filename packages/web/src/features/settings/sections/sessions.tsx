@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ShieldAlert } from 'lucide-react';
-import { toast } from 'sonner';
+import { toastError } from '../../../lib/errors';
 import {
   DEFAULT_CONCURRENT_TEMPLATE,
   DEFAULT_ONBOARDING_TEMPLATE,
@@ -336,14 +336,14 @@ export function SessionsSection() {
           setConfirming(false);
           setTyped('');
         },
-        onError: (e) => toast.error(e.message),
+        onError: (e) => toastError(e),
       },
     );
 
   const saveTemplate =
     (key: 'onboardingTemplate' | 'concurrentTemplate' | 'restartTemplate' | 'tabTitleTemplate') =>
     (text: string) =>
-      patch.mutate({ [key]: text }, { onError: (e) => toast.error(e.message) });
+      patch.mutate({ [key]: text }, { onError: (e) => toastError(e) });
 
   return (
     <div>
@@ -385,7 +385,7 @@ export function SessionsSection() {
           checked={settings.data?.captureSessionEnv !== false}
           disabled={patch.isPending}
           onCheckedChange={(v) =>
-            patch.mutate({ captureSessionEnv: v }, { onError: (e) => toast.error(e.message) })
+            patch.mutate({ captureSessionEnv: v }, { onError: (e) => toastError(e) })
           }
         />
       </SettingRow>
@@ -404,7 +404,7 @@ export function SessionsSection() {
               heading="New agents"
               settings={settings.data}
               onSave={(next) =>
-                patch.mutate({ sessionDefaults: next }, { onError: (e) => toast.error(e.message) })
+                patch.mutate({ sessionDefaults: next }, { onError: (e) => toastError(e) })
               }
               pending={patch.isPending}
             />
@@ -414,7 +414,7 @@ export function SessionsSection() {
               heading="New terminals"
               settings={settings.data}
               onSave={(next) =>
-                patch.mutate({ sessionDefaults: next }, { onError: (e) => toast.error(e.message) })
+                patch.mutate({ sessionDefaults: next }, { onError: (e) => toastError(e) })
               }
               pending={patch.isPending}
             />
