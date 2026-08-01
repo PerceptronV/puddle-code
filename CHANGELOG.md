@@ -17,6 +17,7 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Hovering a tab with a short filename no longer widens the chip (and shifts every tab after it) to fit the preview and close icons. The icons now sit over the chip's right edge instead of in its flow, so a chip never changes size on hover — the same behaviour long filenames already had. Chips gain a minimum width so a short name stays readable underneath, and the title fades into the chip's background rather than being cut off.
 - **Agent and terminal failures are no longer silent.** An agent or shell that exits non-zero without being asked to now raises a toast naming what happened and quoting the process's own last output — a rejected CLI flag, a failed credential, a crash. It reaches you whichever tab you are on, rather than only a client attached to that terminal, and stays quiet for stops you asked for (kill, archive, closing a shell). Protocol 10.7 (additive `notice` message).
 - WebSocket errors were written to the browser console and nowhere else; they are now toasts.
 - Every mutation now has a global error handler, so an action can never fail silently because its call site forgot one. Duplicate reports of the same failure collapse into a single toast.

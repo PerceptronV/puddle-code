@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Eye, FileCode, X } from 'lucide-react';
 import type { LayoutLeaf, Session, TabRef } from '@puddle/shared';
@@ -13,8 +13,15 @@ import { SessionContextMenu } from './SessionActions';
 import { tabRefKey } from './layout-tree';
 import { useDropIndicator } from './TilingDnd';
 
+// `min-w-36` (144px) is what stops a short title vanishing under the hover
+// controls, which overlay the chip's right edge (see TabControls). Measured,
+// not guessed: the controls occupy ~51px of solid width, the chip has 10px of
+// left padding, and a 9-character name like `CLAUDE.md` is 72px — so 144px is
+// the first spacing step that leaves a short title fully legible while hovered.
+// `relative` anchors the controls; `max-w-52` still caps a long title, which
+// truncates under them exactly as it did before.
 const TAB_CLASS =
-  'group flex min-w-0 max-w-52 cursor-pointer items-center gap-1.5 rounded-t-md px-2.5 text-xs transition-colors';
+  'group relative flex min-w-36 max-w-52 cursor-pointer items-center gap-1.5 rounded-t-md px-2.5 text-xs transition-colors';
 
 /**
  * A tiling pane's tab strip (SPEC §8) — one unified strip over BOTH terminal and
@@ -103,6 +110,39 @@ export function PaneTabStrip({
 /** The live insertion marker a strip drag will drop the tab at. */
 function InsertionCaret() {
   return <div className="w-0.5 shrink-0 self-stretch rounded-full bg-accent" />;
+}
+
+/**
+ * The chip's trailing controls, laid OVER the title rather than beside it.
+ *
+ * In flow they widened a short chip on hover — and shoved every tab after it
+ * along — while a chip already at `max-w-52` merely truncated instead, so the
+ * same gesture did two different things depending on how long the filename
+ * was. Absolutely positioned, they cost no width at all, so every chip keeps a
+ * fixed size and only the title underneath is masked.
+ *
+ * The background comes in only on hover, so a clean tab at rest is still
+ * exactly its title with nothing trailing it (HUMANS.md). It fades in from the
+ * left rather than starting as a hard edge, so a truncated title slides under
+ * the icons instead of being chopped.
+ */
+function TabControls({ active, children }: { active: boolean; children: ReactNode }) {
+  const fade = active
+    ? 'group-hover:bg-[linear-gradient(to_right,transparent,var(--color-ground)_1.25rem)]'
+    : 'group-hover:bg-[linear-gradient(to_right,transparent,var(--color-elevated)_1.25rem)]';
+  return (
+    <span
+      className={cn(
+        'pointer-events-none absolute inset-y-0 right-0 flex items-center gap-1 pl-5 pr-2.5',
+        // Only the controls themselves take clicks; the masked title beneath
+        // stays draggable and clickable like the rest of the chip.
+        '[&>*]:pointer-events-auto',
+        fade,
+      )}
+    >
+      {children}
+    </span>
+  );
 }
 
 /**
@@ -202,31 +242,35 @@ function PaneTab({
           <span className="truncate font-mono">
             {session ? renderTitle(session) : tab.session.slice(0, 8)}
           </span>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onClose();
-            }}
-            className="hidden rounded-sm p-0.5 text-fg-muted transition-colors hover:text-fg group-hover:inline-flex pointer-coarse:inline-flex"
-            aria-label="Close tab"
-          >
-            <X className="size-3" />
-          </button>
+          <TabControls active={active}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
+              className="hidden rounded-sm p-0.5 text-fg-muted transition-colors hover:text-fg group-hover:inline-flex pointer-coarse:inline-flex"
+              aria-label="Close tab"
+            >
+              <X className="size-3" />
+            </button>
+          </TabControls>
         </>
       ) : (
         <>
           <span className="truncate font-mono">{label}</span>
-          {tabKind(tab.tab) === 'file' && previewKind(tab.tab.path) !== null && (
-            <ViewToggle view={tab.tab.view ?? 'source'} onSetView={onSetView} />
-          )}
-          <LazyEditorTabClose
-            session={tab.tab.session}
-            path={tab.tab.path}
-            kind={tabKind(tab.tab)}
-            root={tab.tab.root}
-            label={label}
-            onClose={onClose}
-          />
+          <TabControls active={active}>
+            {tabKind(tab.tab) === 'file' && previewKind(tab.tab.path) !== null && (
+              <ViewToggle view={tab.tab.view ?? 'source'} onSetView={onSetView} />
+            )}
+            <LazyEditorTabClose
+              session={tab.tab.session}
+              path={tab.tab.path}
+              kind={tabKind(tab.tab)}
+              root={tab.tab.root}
+              label={label}
+              onClose={onClose}
+            />
+          </TabControls>
         </>
       )}
     </div>
