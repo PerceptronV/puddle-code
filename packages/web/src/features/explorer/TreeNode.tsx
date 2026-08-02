@@ -291,6 +291,11 @@ export function TreeNode({
               <ContextMenuItem onSelect={() => ex.beginCreate(path, 'dir')}>
                 New Folder…
               </ContextMenuItem>
+              {ex.onOpenTerminal && (
+                <ContextMenuItem onSelect={() => ex.onOpenTerminal?.(path)}>
+                  Open Terminal in Directory
+                </ContextMenuItem>
+              )}
               <ContextMenuSeparator />
             </>
           )}

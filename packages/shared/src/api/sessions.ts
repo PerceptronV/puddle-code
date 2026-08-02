@@ -122,6 +122,14 @@ export const createSessionRequestSchema = z.object({
    * branch is checked out there, else the canonical shared worktree.
    */
   join_worktree: z.string().optional(),
+  /**
+   * Directory the shell starts in, RELATIVE to the session's worktree — the
+   * file tree's "Open terminal in directory". `terminal` sessions only (an
+   * agent is given its worktree and decides for itself); rejected otherwise.
+   * Must stay inside the worktree. Applies to the initial spawn: the session
+   * still belongs to the worktree, so a later resume starts at its root.
+   */
+  cwd: z.string().optional(),
   title: z.string().min(1).max(200).optional(),
   prompt: z.string().optional(),
   skip_permissions: z.boolean().optional(),

@@ -39,6 +39,8 @@ export interface ExplorerCtx {
   sid: string;
   worktreePath: string;
   onOpenFile?: (sid: string, path: string, opts?: { preview?: boolean }) => void;
+  /** Spawn a terminal whose shell starts in this worktree-relative directory. */
+  onOpenTerminal?: (dir: string) => void;
   activePath: string | null;
 
   expanded: ReadonlySet<string>;
@@ -109,11 +111,13 @@ export function useExplorerOptional(): ExplorerCtx | null {
 export function ExplorerProvider({
   session,
   onOpenFile,
+  onOpenTerminal,
   activePath,
   children,
 }: {
   session: Session;
   onOpenFile?: (sid: string, path: string, opts?: { preview?: boolean }) => void;
+  onOpenTerminal?: (dir: string) => void;
   activePath: string | null;
   children: React.ReactNode;
 }) {
@@ -481,6 +485,7 @@ export function ExplorerProvider({
     sid,
     worktreePath: session.worktree_path,
     onOpenFile,
+    onOpenTerminal,
     activePath,
     expanded,
     toggle,

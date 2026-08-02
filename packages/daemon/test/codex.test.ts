@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import Database from 'better-sqlite3';
 import { describe, expect, it } from 'vitest';
 import type { Account } from '@puddle/shared';
 import { codex } from '../src/agents/codex.js';
@@ -142,5 +143,61 @@ describe('codex adapter — transcript export', () => {
     ]);
     expect(await codex.exportTranscript?.(UUID_A, account(cfg), '/wt')).toContain('hello');
     expect(await codex.exportTranscript?.(UUID_B, account(cfg), '/wt')).toBe('');
+  });
+});
+
+describe('codex adapter — session title', () => {
+  /** A minimal stand-in for codex's own `state_<n>.sqlite` thread index. */
+  function writeStateDb(
+    configDir: string,
+    version: number,
+    rows: Array<[string, string | null, string | null]>,
+  ) {
+    const db = new Database(join(configDir, `state_${version}.sqlite`));
+    db.exec('create table threads (id text primary key, name text, title text)');
+    const insert = db.prepare('insert into threads (id, name, title) values (?, ?, ?)');
+    for (const [id, name, title] of rows) insert.run(id, name, title);
+    db.close();
+  }
+
+  it('prefers the thread NAME — the thing a rename sets', () => {
+    const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
+    writeStateDb(cfg, 5, [[UUID_A, 'auth refactor', 'some long opening message']]);
+    expect(codex.sessionTitle?.(UUID_A, account(cfg))).toBe('auth refactor');
+  });
+
+  it('falls back to the opening message, cut to one ≤80-char line', () => {
+    const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
+    // Codex stores the first user message verbatim and untruncated here.
+    const opening = `===== Chat history ====\n\nPrompt:\n${'x'.repeat(200)}`;
+    writeStateDb(cfg, 5, [[UUID_A, '', opening]]);
+    const title = codex.sessionTitle?.(UUID_A, account(cfg));
+    expect(title).not.toBeNull();
+    expect(title!.length).toBeLessThanOrEqual(80);
+    expect(title).not.toContain('\n');
+    expect(title!.startsWith('===== Chat history ==== Prompt:')).toBe(true);
+  });
+
+  it('reads the highest schema version present', () => {
+    const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
+    writeStateDb(cfg, 5, [[UUID_A, 'old schema', null]]);
+    writeStateDb(cfg, 12, [[UUID_A, 'new schema', null]]);
+    expect(codex.sessionTitle?.(UUID_A, account(cfg))).toBe('new schema');
+  });
+
+  it('returns null rather than throwing when the index is absent or unusable', () => {
+    const bare = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
+    expect(codex.sessionTitle?.(UUID_A, account(bare))).toBeNull();
+
+    // An unknown thread, and a file whose schema has drifted out from under us.
+    const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
+    writeStateDb(cfg, 5, [[UUID_A, 'known', null]]);
+    expect(codex.sessionTitle?.(UUID_B, account(cfg))).toBeNull();
+
+    const drifted = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
+    const db = new Database(join(drifted, 'state_9.sqlite'));
+    db.exec('create table something_else (x text)');
+    db.close();
+    expect(codex.sessionTitle?.(UUID_A, account(drifted))).toBeNull();
   });
 });

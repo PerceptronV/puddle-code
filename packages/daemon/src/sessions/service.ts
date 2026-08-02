@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import type {
   Account,
   ClearSessionEnvResponse,
@@ -19,6 +19,7 @@ import type { ProjectStore } from '../db/stores/projects.js';
 import type { RepoStore } from '../db/stores/repos.js';
 import type { SessionStore } from '../db/stores/sessions.js';
 import { ApiError } from '../http/errors.js';
+import { containedPath } from '../http/routes/worktree-shared.js';
 import type { LogStore } from '../logs/log-store.js';
 import { extractOscTitle, stripAnsi } from '../pty/ansi.js';
 import type {
@@ -258,6 +259,9 @@ export class SessionService extends EventEmitter {
     if ((input.kind ?? 'agent') === 'terminal') {
       return this.createTerminal(input, project, profile, repo);
     }
+    if (input.cwd !== undefined) {
+      throw ApiError.badRequest('cwd_terminal_only', 'cwd applies to terminal sessions only');
+    }
     if (input.account_id === undefined) {
       throw ApiError.badRequest('account_required', 'an agent session needs an account_id');
     }
@@ -459,7 +463,17 @@ export class SessionService extends EventEmitter {
       title: input.title ?? null,
       skip_permissions: false,
     });
-    this.spawnTerminal(sessionId, worktree.worktreePath);
+    // "Open terminal in directory" (SPEC §8): the shell starts in a subdirectory
+    // of the worktree the session still belongs to. Confined by the same guard
+    // the file routes use, so a `..` can never walk out of it.
+    const startIn =
+      input.cwd === undefined || input.cwd === ''
+        ? worktree.worktreePath
+        : containedPath(worktree.worktreePath, input.cwd);
+    if (!existsSync(startIn) || !statSync(startIn).isDirectory()) {
+      throw ApiError.badRequest('cwd_not_a_directory', `cwd '${input.cwd}' is not a directory`);
+    }
+    this.spawnTerminal(sessionId, startIn);
     this.deps.events.record(sessionId, 'created', {
       branch: worktree.branch,
       base_ref: worktree.baseRef,

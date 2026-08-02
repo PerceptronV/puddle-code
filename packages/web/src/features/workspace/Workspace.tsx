@@ -33,6 +33,7 @@ import {
   hostLabel,
   useAccounts,
   useAllSessions,
+  useCreateSession,
   useDaemonVersion,
   useHostInfo,
   useProfileSettings,
@@ -49,6 +50,7 @@ import {
   type RevealTarget,
 } from './editor-context';
 import { toast } from 'sonner';
+import { toastError } from '../../lib/errors';
 import { warmEditorChunk } from '../editor/lazy-editor-parts';
 import { warmTerminalChunk } from '../terminal/LazyTerminal';
 import { wsManager } from '../../lib/ws';
@@ -91,6 +93,7 @@ export function Workspace() {
 function WorkspaceInner() {
   const params = useParams();
   const navigate = useNavigate();
+  const createSession = useCreateSession();
   const projectId = params['id'] ?? '';
   const validProject = /^[0-9a-f]{10}$/.test(projectId);
   const activeSessionId = params['sid'] ?? null;
@@ -247,6 +250,31 @@ function WorkspaceInner() {
     (sessionId: string, path: string, opts?: { preview?: boolean }) =>
       openFile(sessionId, path, undefined, { preview: opts?.preview ?? true }),
     [openFile],
+  );
+  // "Open terminal in directory" from the file tree's context menu: a terminal
+  // session joining the SAME worktree, whose shell simply starts in the folder
+  // that was right-clicked (SPEC §8). It belongs to the worktree like any other
+  // terminal — only the initial cwd differs.
+  const openTerminalIn = useCallback(
+    (sessionId: string, dir: string) => {
+      const owner = sessions.find((s) => s.id === sessionId);
+      if (!owner) return;
+      createSession.mutate(
+        {
+          project_id: owner.project_id,
+          kind: 'terminal',
+          separate_branch: false,
+          separate_worktree: false,
+          join_worktree: owner.worktree_path,
+          cwd: dir,
+        },
+        {
+          onSuccess: (t) => void navigate(`/project/${t.project_id}/session/${t.id}`),
+          onError: (e) => toastError(e),
+        },
+      );
+    },
+    [sessions, createSession, navigate],
   );
   const promoteTab = useCallback((ref: TabRef) => layout.promote(ref), [layout]);
   // Files opened from the explorer's parent-directory browse: a read-only
@@ -663,6 +691,7 @@ function WorkspaceInner() {
       target={sidebarTarget}
       onOpenFile={openTreeFile}
       onOpenExternalFile={openExternalFile}
+      onOpenTerminalIn={openTerminalIn}
       activeFilePath={activeFilePath}
       activeDiffPath={activeDiffPath}
       onOpenDiff={openDiff}

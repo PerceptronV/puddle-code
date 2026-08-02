@@ -3,6 +3,7 @@ import { statSync } from 'node:fs';
 import { promisify } from 'node:util';
 import type { AgentAdapter } from './adapter.js';
 import { newestRolloutFor, renderRollout, rolloutFiles } from './codex-rollout.js';
+import { threadTitle } from './codex-threads.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -33,6 +34,12 @@ const execFileAsync = promisify(execFile);
  * - Rollouts live at `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-<ts>-<uuid>.jsonl`
  *   (verified against real files). Line 1 is a `session_meta` record whose
  *   payload carries `id` and **`cwd`** — the field conversation lookup matches.
+ *
+ * - Session NAMES live in `$CODEX_HOME/state_<n>.sqlite` (`threads.name`), not in
+ *   the rollout — see codex-threads.ts. Without reading it a codex session has
+ *   no `agent_title` at all and falls back to the terminal title, which codex
+ *   sets to the working directory's basename, so every session in a repo showed
+ *   the same static name and a rename never appeared.
  *
  * No `conversationShare`: rollouts are date-bucketed files, not per-conversation
  * directories, so the Workstream S store model does not apply and
@@ -110,6 +117,10 @@ export const codex: AgentAdapter = {
 
   hasConversation(ref, account) {
     return rolloutPath(account.config_dir, ref) !== null;
+  },
+
+  sessionTitle(ref, account) {
+    return threadTitle(account.config_dir, ref);
   },
 
   sessionActivityAt(ref, account) {

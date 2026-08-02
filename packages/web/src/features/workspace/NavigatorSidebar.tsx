@@ -120,6 +120,7 @@ export function NavigatorSidebar({
   target,
   onOpenFile,
   onOpenExternalFile,
+  onOpenTerminalIn,
   activeFilePath,
   activeDiffPath,
   onOpenDiff,
@@ -135,6 +136,8 @@ export function NavigatorSidebar({
   /** The worktree the whole sidebar is bound to, plus its pin controls. */
   target: ExplorerTarget;
   onOpenFile: (sessionId: string, path: string, opts?: { preview?: boolean }) => void;
+  /** Spawn a terminal whose shell starts in this worktree-relative directory. */
+  onOpenTerminalIn: (sessionId: string, dir: string) => void;
   /** Open an `external` editor tab: `path` is relative to the browse `root` (SPEC §8). */
   onOpenExternalFile: (
     sessionId: string,
@@ -267,7 +270,12 @@ export function NavigatorSidebar({
           // The provider wraps both the header (its utility actions) and the
           // tree; FileExplorer's root is `h-full`, so its wrapper is a flex-1
           // min-h-0 column filling the space under the icon row + header.
-          <ExplorerProvider session={session} onOpenFile={onOpenFile} activePath={activeFilePath}>
+          <ExplorerProvider
+            session={session}
+            onOpenFile={onOpenFile}
+            onOpenTerminal={(dir) => onOpenTerminalIn(session.id, dir)}
+            activePath={activeFilePath}
+          >
             <SidebarTargetHeader
               sessions={sessions}
               target={sidebarTarget}
