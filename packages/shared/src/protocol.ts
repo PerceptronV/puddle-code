@@ -121,8 +121,9 @@
 // agent would still read as "logged out" — so no daemon may sit on 10.x.
 // Ships the 10.5/10.6/10.7 additions above.
 // 11.1 (2026-08-02): additive — POST /api/sessions accepts an optional `cwd`
-// on TERMINAL sessions: a worktree-relative directory the shell starts in,
-// backing the file tree's "Open terminal in directory". Confined to the
-// worktree by the same guard the file routes use, and rejected outright on an
-// agent session. Applies to the initial spawn only.
+// on TERMINAL sessions (a worktree-relative directory the shell starts in,
+// backing the file tree's "Open Terminal in Directory"), and the session shape
+// reports it back as an optional nullable `cwd`. Confined to the worktree by
+// the same guard the file routes use, and rejected outright on an agent
+// session. PERSISTED (migration 017), so a resume returns to the directory.
 export const PROTOCOL_VERSION = { major: 11, minor: 1 } as const;

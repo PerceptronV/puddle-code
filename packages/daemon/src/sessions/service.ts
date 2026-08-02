@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { existsSync, statSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import type {
   Account,
   ClearSessionEnvResponse,
@@ -462,18 +463,10 @@ export class SessionService extends EventEmitter {
       agent_type: null,
       title: input.title ?? null,
       skip_permissions: false,
+      // Validated before the row exists, so a bad cwd leaves no half-made session.
+      cwd: this.validateCwd(worktree.worktreePath, input.cwd),
     });
-    // "Open terminal in directory" (SPEC §8): the shell starts in a subdirectory
-    // of the worktree the session still belongs to. Confined by the same guard
-    // the file routes use, so a `..` can never walk out of it.
-    const startIn =
-      input.cwd === undefined || input.cwd === ''
-        ? worktree.worktreePath
-        : containedPath(worktree.worktreePath, input.cwd);
-    if (!existsSync(startIn) || !statSync(startIn).isDirectory()) {
-      throw ApiError.badRequest('cwd_not_a_directory', `cwd '${input.cwd}' is not a directory`);
-    }
-    this.spawnTerminal(sessionId, startIn);
+    this.spawnTerminal(sessionId, this.startDirOf(session));
     this.deps.events.record(sessionId, 'created', {
       branch: worktree.branch,
       base_ref: worktree.baseRef,
@@ -491,6 +484,38 @@ export class SessionService extends EventEmitter {
    * a shell only flips `starting → running` on first output and `→ exited` when
    * it dies (SPEC §4).
    */
+  /**
+   * Validates a requested terminal start directory and returns it in the
+   * WORKTREE-RELATIVE form the column stores, or null for the worktree root.
+   *
+   * Relative so the stored value cannot drift from `worktree_path`, and run
+   * through the same containment guard the file routes use, so a `..` can never
+   * name a directory outside the worktree.
+   */
+  private validateCwd(worktreeRoot: string, cwd: string | undefined): string | null {
+    if (cwd === undefined || cwd === '') return null;
+    const absolute = containedPath(worktreeRoot, cwd);
+    if (!existsSync(absolute) || !statSync(absolute).isDirectory()) {
+      throw ApiError.badRequest('cwd_not_a_directory', `cwd '${cwd}' is not a directory`);
+    }
+    const rel = relative(worktreeRoot, absolute);
+    return rel === '' ? null : rel;
+  }
+
+  /**
+   * Where this session's shells start: its recorded `cwd` under the worktree,
+   * else the worktree root. Falls back to the root if the directory has since
+   * been deleted — a stale `cwd` must not make the session unspawnable.
+   */
+  private startDirOf(session: Session): string {
+    const cwd = session.cwd ?? null;
+    if (cwd === null || cwd === '') return session.worktree_path;
+    const absolute = join(session.worktree_path, cwd);
+    return existsSync(absolute) && statSync(absolute).isDirectory()
+      ? absolute
+      : session.worktree_path;
+  }
+
   private spawnTerminal(sessionId: string, worktreePath: string): void {
     const { shell, args, env } = this.shellSpawnParts(sessionId);
     try {
@@ -528,10 +553,10 @@ export class SessionService extends EventEmitter {
     }
     // A terminal session has no conversation to resume — a shell process cannot
     // be reattached across a restart — so "resume" just relaunches a fresh
-    // shell in the same worktree, keeping it alive like any other session.
+    // shell, in the SAME directory it was opened in (`cwd`, SPEC §4).
     if (session.kind === 'terminal') {
       const wasInterrupted = session.status === 'interrupted';
-      this.spawnTerminal(session.id, session.worktree_path);
+      this.spawnTerminal(session.id, this.startDirOf(session));
       this.transition(session.id, 'running');
       this.deps.events.record(id, 'resumed', { was_interrupted: wasInterrupted });
       return this.get(id);
@@ -919,7 +944,8 @@ export class SessionService extends EventEmitter {
     while (used.has(`shell-${n}`)) n++;
     const term = `shell-${n}`;
     const { shell, args, env } = this.shellSpawnParts(sessionId);
-    this.deps.ptys.spawn(sessionId, term, shell, args, { cwd: session.worktree_path, env });
+    // A second shell opens where the session lives, matching its first one.
+    this.deps.ptys.spawn(sessionId, term, shell, args, { cwd: this.startDirOf(session), env });
     return term;
   }
 

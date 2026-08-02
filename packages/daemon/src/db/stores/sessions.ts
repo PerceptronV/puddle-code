@@ -23,6 +23,7 @@ interface Row {
   updated_at: string;
   last_activity_at: string | null;
   session_env: string;
+  cwd: string | null;
 }
 
 export interface NewSessionRow {
@@ -39,6 +40,8 @@ export interface NewSessionRow {
   agent_type: string | null;
   title: string | null;
   skip_permissions: boolean;
+  /** Worktree-relative start directory for a terminal's shell; null = the root. */
+  cwd?: string | null;
 }
 
 function toSession(r: Row): Session {
@@ -61,8 +64,9 @@ export class SessionStore {
     this.db
       .prepare(
         `INSERT INTO sessions (id, project_id, account_id, worktree_path, base_branch, branch,
-           separate_branch, kind, agent_type, title, status, skip_permissions, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?, ?)`,
+           separate_branch, kind, agent_type, title, status, skip_permissions, created_at, updated_at,
+           cwd)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?, ?, ?)`,
       )
       .run(
         row.id,
@@ -78,6 +82,7 @@ export class SessionStore {
         row.skip_permissions ? 1 : 0,
         now,
         now,
+        row.cwd ?? null,
       );
     return this.get(row.id);
   }

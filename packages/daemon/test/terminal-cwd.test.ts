@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { fixture, waitFor } from './helpers/daemon-fixtures.js';
@@ -35,6 +35,70 @@ describe('terminal session cwd', () => {
 
     await f.service.kill(term.id).catch(() => undefined);
     await f.service.kill(owner.id).catch(() => undefined);
+  });
+
+  it('persists the cwd and resumes back into it', async () => {
+    const f = fixture();
+    const owner = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+    });
+    mkdirSync(join(owner.worktree_path, 'nested', 'deep'), { recursive: true });
+    const term = await f.service.create({
+      project_id: f.ids.project,
+      kind: 'terminal',
+      separate_branch: false,
+      separate_worktree: false,
+      join_worktree: owner.worktree_path,
+      cwd: 'nested/deep',
+    });
+    // Stored worktree-RELATIVE, so it cannot drift from worktree_path.
+    expect(f.service.get(term.id).cwd).toBe('nested/deep');
+
+    // The restart case this exists for: kill the shell, resume, still there.
+    await f.service.kill(term.id);
+    await f.service.resume(term.id);
+    f.ptys.write(term.id, 'agent', 'pwd\n');
+    await waitFor(() => f.logs.readTail(term.id, 'agent').includes('nested/deep'), 10_000);
+
+    await f.service.kill(term.id).catch(() => undefined);
+    await f.service.kill(owner.id).catch(() => undefined);
+  });
+
+  it('falls back to the worktree root when the directory has since gone', async () => {
+    const f = fixture();
+    const owner = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+    });
+    const doomed = join(owner.worktree_path, 'temporary');
+    mkdirSync(doomed, { recursive: true });
+    const term = await f.service.create({
+      project_id: f.ids.project,
+      kind: 'terminal',
+      separate_branch: false,
+      separate_worktree: false,
+      join_worktree: owner.worktree_path,
+      cwd: 'temporary',
+    });
+    await f.service.kill(term.id);
+    rmSync(doomed, { recursive: true, force: true });
+
+    // A stale cwd must not make the session unspawnable.
+    await expect(f.service.resume(term.id)).resolves.toBeTruthy();
+    await f.service.kill(term.id).catch(() => undefined);
+    await f.service.kill(owner.id).catch(() => undefined);
+  });
+
+  it('leaves an ordinary terminal at the worktree root', async () => {
+    const f = fixture();
+    const term = await f.service.create({
+      project_id: f.ids.project,
+      kind: 'terminal',
+      separate_branch: false,
+    });
+    expect(f.service.get(term.id).cwd ?? null).toBeNull();
+    await f.service.kill(term.id).catch(() => undefined);
   });
 
   it('rejects a cwd that escapes the worktree, or is not a directory', async () => {

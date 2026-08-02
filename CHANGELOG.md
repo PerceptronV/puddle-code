@@ -11,7 +11,7 @@ Past releases: see docs/changelogs/.
 
 ### Added
 
-- **Open Terminal in Directory** on the file tree's folder context menu: starts a terminal session whose shell begins in that folder rather than the worktree root. The session still belongs to the worktree, so this applies to the initial shell — a later resume starts at the root. Protocol 11.1 (additive `cwd` on terminal session creation).
+- **Open Terminal in Directory** on the file tree's folder context menu: starts a terminal session whose shell begins in that folder rather than the worktree root. The directory is remembered, so resuming the session after a daemon restart returns to it, and extra shell tabs open there too. Protocol 11.1 (additive `cwd` on the session shape and on terminal creation).
 - Session tabs now carry the agent's brand mark beside the status dot, matching the sidebar, so you can tell a Claude Code tab from a Codex one at a glance. Terminal tabs are unchanged — the status dot already says what they are.
 
 ### Fixed

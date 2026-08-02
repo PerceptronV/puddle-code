@@ -53,6 +53,13 @@ export const sessionSchema = z.object({
    */
   osc_title: z.string().nullable().optional(),
   status: sessionStatusSchema,
+  /**
+   * Where a TERMINAL session's shell starts, relative to `worktree_path`; null
+   * (or absent, on an older daemon) means the worktree root. Set by the file
+   * tree's "Open Terminal in Directory" and persisted, so a resume after a
+   * daemon restart comes back to the same directory. Always null for agents.
+   */
+  cwd: z.string().nullable().optional(),
   skip_permissions: z.boolean(),
   created_at: isoTimestamp,
   updated_at: isoTimestamp,
@@ -126,8 +133,8 @@ export const createSessionRequestSchema = z.object({
    * Directory the shell starts in, RELATIVE to the session's worktree — the
    * file tree's "Open terminal in directory". `terminal` sessions only (an
    * agent is given its worktree and decides for itself); rejected otherwise.
-   * Must stay inside the worktree. Applies to the initial spawn: the session
-   * still belongs to the worktree, so a later resume starts at its root.
+   * Must stay inside the worktree, and is PERSISTED on the session: a resume
+   * after a daemon restart brings the shell back to the same directory.
    */
   cwd: z.string().optional(),
   title: z.string().min(1).max(200).optional(),
