@@ -1,12 +1,8 @@
 import { Input } from '../../../components/ui/input';
 import { Switch } from '../../../components/ui/switch';
-import {
-  DEFAULT_CLIENT_SETTINGS,
-  updateClientSettings,
-  useClientSettings,
-} from '../../../lib/client-settings';
+import { updateClientSettings, useClientSettings } from '../../../lib/client-settings';
 import { hostParamStore } from '../../../lib/editor-links';
-import { SectionTitle, SettingRow } from '../parts';
+import { NumberField, SectionTitle, SettingRow } from '../parts';
 
 /**
  * Editor settings (SPEC §11, client scope): the Monaco knobs plus the
@@ -20,18 +16,13 @@ export function EditorSection() {
     <div>
       <SectionTitle note="This browser only">Editor</SectionTitle>
       <SettingRow label="Tab size" description="Spaces per indent level." htmlFor="tab-size">
-        <Input
+        <NumberField
           id="tab-size"
-          type="number"
           min={1}
           max={8}
           className="w-20 tabular-nums"
           value={settings.editorTabSize}
-          onChange={(e) =>
-            updateClientSettings({
-              editorTabSize: Number(e.target.value) || DEFAULT_CLIENT_SETTINGS.editorTabSize,
-            })
-          }
+          onCommit={(editorTabSize) => updateClientSettings({ editorTabSize })}
         />
       </SettingRow>
       <SettingRow label="Word wrap" htmlFor="word-wrap">

@@ -7,7 +7,7 @@ import { useSessionTitleRenderer } from '../profile/use-session-title';
 import { SessionGlyph } from '../status/SessionGlyph';
 import { editorTabLabel } from '../editor/buffer-logic';
 import { tabKind, type EditorTab } from '../editor/editor-tabs';
-import { LazyEditorTabClose } from '../editor/lazy-editor-parts';
+import { LazyEditorDirtyDot, LazyEditorTabClose } from '../editor/lazy-editor-parts';
 import { previewKind } from '../editor/preview-kind';
 import { SessionContextMenu } from './SessionActions';
 import { tabRefKey } from './layout-tree';
@@ -262,7 +262,16 @@ function PaneTab({
         </>
       ) : (
         <>
-          <span className="truncate font-mono">{label}</span>
+          <span className="min-w-0 truncate font-mono">{label}</span>
+          {/* In flow AFTER the filename — the chip widens for it (to its cap;
+              past that the name truncates), and it never occludes the name.
+              Hidden on hover, where the overlay × appears. */}
+          <LazyEditorDirtyDot
+            session={tab.tab.session}
+            path={tab.tab.path}
+            kind={tabKind(tab.tab)}
+            root={tab.tab.root}
+          />
           <TabControls active={active}>
             {tabKind(tab.tab) === 'file' && previewKind(tab.tab.path) !== null && (
               <ViewToggle view={tab.tab.view ?? 'source'} onSetView={onSetView} />

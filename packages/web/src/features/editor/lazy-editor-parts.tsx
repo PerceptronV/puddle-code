@@ -62,6 +62,23 @@ export function LazyModelRefcount({ buffers }: { buffers: HeldBuffer[] }) {
   );
 }
 
+const DirtyDotInner = lazy(() =>
+  import('./EditorTabClose').then((m) => ({ default: m.EditorDirtyDot })),
+);
+/** The in-flow dirty dot after a chip's filename; nothing until the chunk lands. */
+export function LazyEditorDirtyDot(props: {
+  session: string;
+  path: string;
+  kind: EditorTabKind;
+  root?: string;
+}) {
+  return (
+    <Suspense fallback={null}>
+      <DirtyDotInner {...props} />
+    </Suspense>
+  );
+}
+
 const CloseInner = lazy(() =>
   import('./EditorTabClose').then((m) => ({ default: m.EditorTabClose })),
 );

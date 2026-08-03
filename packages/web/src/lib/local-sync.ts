@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authHeaders } from './api';
+import { SYNC_GROUPS } from './settings-sync-manifest';
 
 /**
  * Client for the cockpit's machine-shared sync store (SPEC §11, "Sync
@@ -30,6 +31,24 @@ export interface LocalSyncState {
 }
 
 const EMPTY: LocalSyncFile = { version: 1, profiles: {} };
+
+/**
+ * The entry to act on for a profile: its stored one, or — when the store has
+ * never seen this profile — a default that is ENABLED across every group
+ * (decision 2026-08-03: sync locally is on by default; the first export pass
+ * persists this entry, and the toggle still turns it off). The empty doc means
+ * the first pass imports nothing and simply mirrors local state out.
+ */
+export function effectiveSyncEntry(file: LocalSyncFile, profileName: string): LocalSyncEntry {
+  return (
+    file.profiles[profileName] ?? {
+      enabled: true,
+      groups: SYNC_GROUPS.map((g) => g.id),
+      doc: {},
+      updatedAt: new Date(0).toISOString(),
+    }
+  );
+}
 
 async function fetchLocalSync(): Promise<LocalSyncState> {
   try {

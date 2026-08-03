@@ -9,7 +9,6 @@ import {
   DialogTitle,
 } from '../../components/ui/dialog';
 import { Button } from '../../components/ui/button';
-import { cn } from '../../lib/utils';
 import { deleteDraft } from '../../lib/drafts';
 import { bufferKey, isDirty, subscribe } from './buffer-store';
 import { announceDraftDiscarded } from './editor-sync';
@@ -25,11 +24,38 @@ function useDirty(session: string, path: string, root?: string): boolean {
 }
 
 /**
- * The close control for an editor tab in a tiling pane (SPEC §8): a dirty dot
- * that becomes a close × on hover, and a discard-confirm when closing an unsaved
- * file. Lives behind the lazy editor chunk (it reads `buffer-store` → Monaco);
- * the strip renders it under Suspense so a terminal-only workspace never loads
- * Monaco. `commit` tabs are read-only and never dirty.
+ * The IN-FLOW dirty marker after a tab chip's filename (SPEC §12): it takes
+ * real width — widening the chip up to its cap, the filename truncating past
+ * it — instead of sitting over the title. Hidden on hover, where the overlay
+ * close × takes its place. Lives behind the lazy editor chunk like the close
+ * control below.
+ */
+export function EditorDirtyDot({
+  session,
+  path,
+  kind,
+  root,
+}: {
+  session: string;
+  path: string;
+  kind: EditorTabKind;
+  /** Absolute browse root of an `external` tab (SPEC §8). */
+  root?: string;
+}) {
+  const dirty = useDirty(session, path, root) && kind !== 'commit';
+  if (!dirty) return null;
+  return (
+    <Circle aria-hidden className="size-2 shrink-0 fill-current text-fg-muted group-hover:hidden" />
+  );
+}
+
+/**
+ * The close control for an editor tab in a tiling pane (SPEC §8): a hover ×
+ * (the resting dirty state is `EditorDirtyDot`, in flow after the filename)
+ * and a discard-confirm when closing an unsaved file. Lives behind the lazy
+ * editor chunk (it reads `buffer-store` → Monaco); the strip renders it under
+ * Suspense so a terminal-only workspace never loads Monaco. `commit` tabs are
+ * read-only and never dirty.
  */
 export function EditorTabClose({
   session,
@@ -65,23 +91,14 @@ export function EditorTabClose({
           e.stopPropagation();
           requestClose();
         }}
-        // Reveal by display, not opacity, so a clean tab's close reserves no
-        // width at rest (HUMANS.md); a dirty tab always shows its dot, which
-        // morphs into the × on hover.
-        className={cn(
-          'size-4 items-center justify-center rounded-sm text-fg-muted transition-colors hover:text-fg',
-          dirty ? 'flex' : 'hidden group-hover:flex pointer-coarse:flex',
-        )}
+        // Reveal by display, not opacity, so a tab's close reserves no width
+        // at rest (HUMANS.md). The resting dirty dot is EditorDirtyDot, in
+        // flow after the filename — never over it — so this is purely the
+        // hover ×.
+        className="hidden size-4 items-center justify-center rounded-sm text-fg-muted transition-colors hover:text-fg group-hover:flex pointer-coarse:flex"
         aria-label={`Close ${label}`}
       >
-        {dirty ? (
-          <>
-            <Circle className="size-2 fill-current group-hover:hidden" />
-            <X className="hidden size-3 group-hover:block" />
-          </>
-        ) : (
-          <X className="size-3" />
-        )}
+        <X className="size-3" />
       </button>
       <Dialog open={confirm} onOpenChange={(open) => !open && setConfirm(false)}>
         <DialogContent>

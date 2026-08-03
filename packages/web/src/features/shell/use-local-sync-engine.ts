@@ -4,7 +4,7 @@ import {
   useClientSettings,
   type ClientSettings,
 } from '../../lib/client-settings';
-import { useLocalSync, usePutLocalSync } from '../../lib/local-sync';
+import { effectiveSyncEntry, useLocalSync, usePutLocalSync } from '../../lib/local-sync';
 import {
   useCreateScratchpad,
   usePatchProfile,
@@ -67,7 +67,9 @@ export function useLocalSyncEngine(): void {
     settings.data !== undefined &&
     scratchpad.data !== undefined &&
     store !== undefined;
-  const entry = profile && store ? store.profiles[profile.name] : undefined;
+  // Default-enabled when the store has no entry yet (sync locally is on by
+  // default): the first export pass persists the entry.
+  const entry = profile && store ? effectiveSyncEntry(store, profile.name) : undefined;
   const busy =
     patchSettings.isPending ||
     patchProfile.isPending ||

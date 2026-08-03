@@ -247,19 +247,21 @@ function CollapsedSessionDot({
               onDoubleClick={() => onPromote(session.id)}
               to={`/project/${session.project_id}/session/${session.id}`}
               className={cn(
-                'flex items-center rounded-md p-1.5 transition-colors hover:bg-elevated',
+                'flex items-center rounded-md p-1.5 transition-colors hover:bg-elevated compact:p-1',
                 session.id === activeSessionId && 'bg-elevated',
               )}
             >
               {/* Active session marked with the same bg-elevated fill-shift the
                   expanded list and the navigator's mode icons use — a theme
-                  colour, no border, no default-blue ring (HUMANS.md). */}
+                  colour, no border, no default-blue ring (HUMANS.md). The glyph
+                  fills more of its container than the expanded rows' (SPEC §12:
+                  the dot IS the row here). */}
               <SessionGlyph
                 status={session.status}
                 kind={session.kind}
                 agentType={session.agent_type}
                 stale={session.stale_running}
-                className="size-3.5"
+                className="size-4"
               />
               <span className="sr-only">{renderTitle(session)}</span>
             </Link>
@@ -327,8 +329,8 @@ export function CollapsedSessionsRail({
     patchProject.mutate({ id: group.projectId, abbrev: next }, { onError: (e) => toastError(e) });
   };
   return (
-    <div className="flex h-full w-9 shrink-0 flex-col items-center bg-surface py-1.5">
-      <div className="flex flex-col items-center gap-1">
+    <div className="flex h-full w-9 shrink-0 flex-col items-center bg-surface py-1.5 compact:py-1">
+      <div className="flex flex-col items-center gap-1 compact:gap-0.5">
         <IconButton
           icon={PanelRightOpen}
           label="Show sessions"
@@ -343,13 +345,13 @@ export function CollapsedSessionsRail({
           tooltipSide="left"
         />
       </div>
-      <div className="no-scrollbar flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto">
+      <div className="no-scrollbar flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto compact:gap-0.5">
         {groups.map((group) => (
           // A divider precedes every group (the first one separates dots from
           // the controls above; the rest separate one project from the next).
           <div
             key={group.projectId}
-            className="flex flex-col items-center gap-1"
+            className="flex flex-col items-center gap-1 compact:gap-0.5"
             onDragOver={(e) => {
               if (!dragProject) return;
               e.preventDefault();
@@ -404,7 +406,7 @@ export function CollapsedSessionsRail({
               </ContextMenu>
             )}
             <CollapsibleSessions collapsed={dragProject !== null}>
-              <div className="flex flex-col items-center gap-1 overflow-hidden">
+              <div className="flex flex-col items-center gap-1 overflow-hidden compact:gap-0.5">
                 {group.sessions.map((session) => (
                   <div
                     key={session.id}
@@ -479,7 +481,7 @@ function SessionRow({
           onDoubleClick={onPromote && (() => onPromote(session.id))}
           to={`/project/${session.project_id}/session/${session.id}`}
           className={cn(
-            'group flex items-center gap-2 px-3 py-1.5 transition-colors hover:bg-elevated',
+            'group flex items-center gap-2 px-3 py-1.5 transition-colors hover:bg-elevated compact:gap-1.5 compact:py-1',
             session.id === activeSessionId && 'bg-elevated',
           )}
         >
@@ -694,7 +696,7 @@ function SessionListBody({
                     }}
                     onDragEnd={() => setDragProject(null)}
                     className={cn(
-                      'block truncate px-3 pb-1 pt-2 text-2xs font-medium uppercase tracking-wide text-fg-gold transition-colors hover:text-fg',
+                      'block truncate px-3 pb-1 pt-2 text-2xs font-medium uppercase tracking-wide text-fg-gold transition-colors hover:text-fg compact:pb-0.5 compact:pt-1.5',
                       dragProject === group.projectId && 'opacity-50',
                     )}
                   >
@@ -705,7 +707,7 @@ function SessionListBody({
               </ContextMenu>
             )}
             <CollapsibleSessions collapsed={dragProject !== null}>
-              <ul className="flex flex-col gap-0.5 overflow-hidden">
+              <ul className="flex flex-col gap-0.5 overflow-hidden compact:gap-0">
                 {group.sessions.map((session) => (
                   <li
                     key={session.id}
@@ -759,7 +761,7 @@ function SessionListBody({
             <span className="ml-auto tabular-nums">{archived.length}</span>
           </button>
           {showArchived && (
-            <ul className="no-scrollbar flex max-h-48 flex-col gap-0.5 overflow-y-auto">
+            <ul className="no-scrollbar flex max-h-48 flex-col gap-0.5 overflow-y-auto compact:gap-0">
               {archived.map((session) => (
                 <li key={session.id}>
                   <SessionRow

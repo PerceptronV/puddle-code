@@ -1,5 +1,61 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Input } from '../../components/ui/input';
 import { cn } from '../../lib/utils';
+
+/**
+ * A numeric setting input that commits on BLUR (or Enter), never per
+ * keystroke: mid-edit states — a cleared field, a half-typed number — must not
+ * write through, or the value could never be retyped (a font size applying
+ * instantly on '1' of '14' famously fought the user). Empty or invalid input
+ * reverts to the stored value; a committed value is clamped to [min, max].
+ */
+export function NumberField({
+  id,
+  value,
+  min,
+  max,
+  step,
+  className,
+  onCommit,
+}: {
+  id?: string;
+  value: number;
+  min?: number;
+  max?: number;
+  step?: number;
+  className?: string;
+  onCommit: (value: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+  // External changes (settings sync, another window) refresh the draft.
+  useEffect(() => setDraft(String(value)), [value]);
+  const commit = () => {
+    const n = Number(draft);
+    if (draft.trim() === '' || !Number.isFinite(n)) {
+      setDraft(String(value)); // revert — emptiness is not a request for 0
+      return;
+    }
+    const clamped = Math.min(max ?? n, Math.max(min ?? n, n));
+    setDraft(String(clamped));
+    if (clamped !== value) onCommit(clamped);
+  };
+  return (
+    <Input
+      id={id}
+      type="number"
+      min={min}
+      max={max}
+      step={step}
+      className={className}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+      }}
+    />
+  );
+}
 
 /** One labelled setting: text on the left, control on the right. */
 export function SettingRow({

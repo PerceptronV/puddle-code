@@ -88,7 +88,7 @@ function EditRow({
   };
   return (
     <div
-      className="flex h-6 items-center gap-1 pr-2"
+      className="flex h-6 items-center gap-1 pr-2 compact:h-5"
       style={{ paddingLeft: depth * INDENT_PX + 8 }}
     >
       <span className="size-3.5 shrink-0" />
@@ -226,7 +226,7 @@ export function TreeNode({
       }}
       style={{ paddingLeft: depth * INDENT_PX + 8 }}
       className={cn(
-        'flex h-6 cursor-pointer items-center gap-1 pr-2 text-sm transition-colors hover:bg-elevated',
+        'flex h-6 cursor-pointer items-center gap-1 pr-2 text-sm transition-colors hover:bg-elevated compact:h-5',
         isSelected ? 'bg-selection' : isActive && 'bg-elevated',
         isDropTarget && 'bg-selection',
         isCut && 'opacity-50',

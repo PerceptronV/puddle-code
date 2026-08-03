@@ -107,7 +107,7 @@ function AddAccountDialog({
           <HintInput
             value={dir}
             onValueChange={setDir}
-            placeholder={`import an existing config dir (optional), e.g. ~/.claude`}
+            placeholder={`(optional) existing config dir, e.g. ~/.claude`}
             hints={(suggestions.data?.entries ?? []).map((e) => ({ value: e.path, label: e.name }))}
             className="font-mono"
           />

@@ -2,9 +2,10 @@ import type { ProfileSettings, SessionKind } from '@puddle/shared';
 
 /**
  * Resolves what the new-session modal opens WITH (SPEC §11): the profile's
- * per-kind `sessionDefaults`, falling back to the built-ins — agents branch
- * off the base in their own directory; terminals share the base branch's
- * directory. Pure and DOM-free — unit-testable.
+ * per-kind `sessionDefaults`, falling back to the built-ins — both kinds
+ * work directly on the base branch in its shared directory (decision
+ * 2026-08-03; separate branch/directory are one toggle away, and a profile
+ * can re-seed them in Settings → Sessions). Pure and DOM-free — unit-testable.
  */
 
 export interface SessionSeed {
@@ -15,7 +16,7 @@ export interface SessionSeed {
 }
 
 const BUILT_IN: Record<SessionKind, SessionSeed> = {
-  agent: { baseBranch: '', separateBranch: true, separateWorktree: true },
+  agent: { baseBranch: '', separateBranch: false, separateWorktree: false },
   terminal: { baseBranch: '', separateBranch: false, separateWorktree: false },
 };
 

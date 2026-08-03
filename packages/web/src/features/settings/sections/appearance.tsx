@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Input } from '../../../components/ui/input';
 import {
   Select,
   SelectContent,
@@ -8,13 +7,9 @@ import {
   SelectValue,
 } from '../../../components/ui/select';
 import { Switch } from '../../../components/ui/switch';
-import {
-  DEFAULT_CLIENT_SETTINGS,
-  updateClientSettings,
-  useClientSettings,
-} from '../../../lib/client-settings';
+import { updateClientSettings, useClientSettings } from '../../../lib/client-settings';
 import { applyTheme, storedPreference, type ThemePreference } from '../../../lib/theme';
-import { SectionTitle, SettingRow } from '../parts';
+import { NumberField, SectionTitle, SettingRow } from '../parts';
 
 export function AppearanceSection() {
   const settings = useClientSettings();
@@ -42,57 +37,45 @@ export function AppearanceSection() {
         </Select>
       </SettingRow>
       <SettingRow label="UI font size" htmlFor="ui-font-size">
-        <Input
+        <NumberField
           id="ui-font-size"
-          type="number"
           min={12}
           max={24}
           step={0.5}
           className="w-20 tabular-nums"
           value={settings.uiFontSize}
-          onChange={(e) =>
-            updateClientSettings({
-              uiFontSize: Number(e.target.value) || DEFAULT_CLIENT_SETTINGS.uiFontSize,
-            })
-          }
+          onCommit={(uiFontSize) => updateClientSettings({ uiFontSize })}
         />
       </SettingRow>
       <SettingRow label="Terminal font size" htmlFor="terminal-font-size">
-        <Input
+        <NumberField
           id="terminal-font-size"
-          type="number"
           min={9}
           max={24}
           className="w-20 tabular-nums"
           value={settings.terminalFontSize}
-          onChange={(e) =>
-            updateClientSettings({
-              terminalFontSize: Number(e.target.value) || DEFAULT_CLIENT_SETTINGS.terminalFontSize,
-            })
-          }
+          onCommit={(terminalFontSize) => updateClientSettings({ terminalFontSize })}
         />
       </SettingRow>
       <SettingRow
         label="Editor font size"
-        description="Monaco text only; terminal text keeps its own size."
+        description="Monaco text and rendered previews; terminal text keeps its own size."
         htmlFor="editor-font-size"
       >
-        <Input
+        <NumberField
           id="editor-font-size"
-          type="number"
           min={9}
           max={32}
           step={0.5}
           className="w-20 tabular-nums"
           value={settings.editorFontSize}
-          onChange={(e) =>
-            updateClientSettings({
-              editorFontSize: Number(e.target.value) || DEFAULT_CLIENT_SETTINGS.editorFontSize,
-            })
-          }
+          onCommit={(editorFontSize) => updateClientSettings({ editorFontSize })}
         />
       </SettingRow>
-      <SettingRow label="Density">
+      <SettingRow
+        label="Density"
+        description="Compact tightens the sidebars' vertical rhythm; comfortable keeps the roomier spacing."
+      >
         <Select
           value={settings.density}
           onValueChange={(value) =>

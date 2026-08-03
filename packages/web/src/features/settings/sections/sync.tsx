@@ -10,7 +10,12 @@ import {
   updateClientSettings,
   type ClientSettings,
 } from '../../../lib/client-settings';
-import { useLocalSync, usePutLocalSync, type LocalSyncEntry } from '../../../lib/local-sync';
+import {
+  effectiveSyncEntry,
+  useLocalSync,
+  usePutLocalSync,
+  type LocalSyncEntry,
+} from '../../../lib/local-sync';
 import {
   useCreateScratchpad,
   usePatchProfile,
@@ -90,7 +95,9 @@ export function SyncSection() {
   const [busy, setBusy] = useState(false);
   const [localSelection, setLocalSelection] = useState<string[]>(storedSelection);
 
-  const entry = profile ? localSync.data?.file.profiles[profile.name] : undefined;
+  // Default-enabled when the profile has no stored entry (on by default).
+  const entry =
+    profile && localSync.data ? effectiveSyncEntry(localSync.data.file, profile.name) : undefined;
   const enabled = entry?.enabled === true;
   // Once local sync owns a selection, it is THE selection everywhere.
   const selected = enabled && entry ? entry.groups : localSelection;

@@ -166,10 +166,10 @@ export const profileSettingsSchema = z.looseObject({
   projectOrder: z.array(z.string()).optional(),
   /**
    * Seed defaults for the new-session modal, per kind (SPEC §11). An absent
-   * key falls back to the built-ins — agents branch off the base in their own
-   * directory; terminals share the base branch's directory. `baseBranch`
-   * absent or empty means the repository's default base branch. The modal
-   * still enforces that a separate branch always gets its own directory.
+   * key falls back to the built-ins — since 2026-08-03 both kinds share the
+   * base branch's directory. `baseBranch` absent or empty means the
+   * repository's default base branch. The modal still enforces that a
+   * separate branch always gets its own directory.
    */
   sessionDefaults: sessionDefaultsSchema.optional(),
   /**

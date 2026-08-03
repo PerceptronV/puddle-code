@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseE
 import DOMPurify from 'dompurify';
 import 'katex/dist/katex.min.css';
 import { apiFetchRaw } from '../../lib/api';
+import { useClientSettings } from '../../lib/client-settings';
 import { useEditor } from '../workspace/editor-context';
 import { useWorktreeFile } from '../../lib/worktree-queries';
 import { bufferKey, getOrCreateModel, subscribe } from './buffer-store';
@@ -122,12 +123,17 @@ function MarkdownPreview({ session, path, text }: { session: string; path: strin
     openFile(session, resolved, undefined, previewKind(resolved) ? { view: 'preview' } : undefined);
   };
 
+  // The preview is the editor's rendered view, so it follows the editor font
+  // size (Settings → Appearance); the md-preview scale is em-based, so
+  // headings, code, and spacing all track the base.
+  const fontSize = useClientSettings().editorFontSize;
   return (
     <div className="h-full overflow-y-auto bg-ground">
       <div
         ref={bodyRef}
         onClick={onClick}
-        className="md-preview mx-auto max-w-3xl px-6 py-5 text-sm text-fg-secondary"
+        style={{ fontSize }}
+        className="md-preview mx-auto max-w-3xl px-6 py-5 text-fg-secondary"
         // Sanitised above — DOMPurify with the default profile, no raw input.
         dangerouslySetInnerHTML={{ __html: html }}
       />
@@ -155,16 +161,17 @@ function HtmlPreview({ session, path, text }: { session: string; path: string; t
   // Resolved path → data-URI promise, per mount: an edit re-inlines the
   // document without re-fetching every asset.
   const assets = useRef(new Map<string, Promise<string | null>>());
+  const fontSize = useClientSettings().editorFontSize;
 
   useEffect(() => {
     let cancelled = false;
-    void inlineWorktreeAssets(session, path, text, assets.current).then((html) => {
+    void inlineWorktreeAssets(session, path, text, assets.current, fontSize).then((html) => {
       if (!cancelled) setDoc(html);
     });
     return () => {
       cancelled = true;
     };
-  }, [session, path, text]);
+  }, [session, path, text, fontSize]);
 
   if (doc === null) return null; // first inline pass; later passes keep the old doc up
   return (
@@ -193,8 +200,17 @@ async function inlineWorktreeAssets(
   docPath: string,
   text: string,
   cache: Map<string, Promise<string | null>>,
+  baseFontSize?: number,
 ): Promise<string> {
   const parsed = new DOMParser().parseFromString(text, 'text/html');
+  // The preview follows the editor font size, as a ZERO-specificity default
+  // (`:where`), prepended so any stylesheet the document carries wins.
+  if (baseFontSize !== undefined) {
+    const base = parsed.createElement('style');
+    base.textContent = `:where(html) { font-size: ${baseFontSize}px; }`;
+    const head = parsed.head ?? parsed.documentElement;
+    head.insertBefore(base, head.firstChild);
+  }
   if (renderMathInDocument(parsed)) await inlineKatexStyles(parsed);
   const jobs: Array<Promise<void>> = [];
   for (const [selector, attr] of HTML_ASSET_ATTRS) {

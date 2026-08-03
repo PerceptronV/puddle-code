@@ -6,10 +6,11 @@ const settings = (sessionDefaults: unknown) => profileSettingsSchema.parse({ ses
 
 describe('resolveSessionSeed', () => {
   it('falls back to the built-ins when nothing is stored', () => {
+    // Both kinds share the base branch's directory by default (2026-08-03).
     expect(resolveSessionSeed('agent', undefined)).toEqual({
       baseBranch: '',
-      separateBranch: true,
-      separateWorktree: true,
+      separateBranch: false,
+      separateWorktree: false,
     });
     expect(resolveSessionSeed('terminal', profileSettingsSchema.parse({}))).toEqual({
       baseBranch: '',

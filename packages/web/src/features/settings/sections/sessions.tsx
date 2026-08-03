@@ -24,11 +24,7 @@ import {
 import { Input, Textarea } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { Switch } from '../../../components/ui/switch';
-import {
-  DEFAULT_CLIENT_SETTINGS,
-  updateClientSettings,
-  useClientSettings,
-} from '../../../lib/client-settings';
+import { updateClientSettings, useClientSettings } from '../../../lib/client-settings';
 import {
   useConfig,
   usePatchConfig,
@@ -38,7 +34,7 @@ import {
 } from '../../../lib/queries';
 import { useCurrentProfileId } from '../../profile/profile-store';
 import { resolveSessionSeed } from '../../workspace/session-seed';
-import { SectionTitle, SettingRow } from '../parts';
+import { NumberField, SectionTitle, SettingRow } from '../parts';
 
 /**
  * The daemon's agent-search PATH (host-wide, config.json): colon-separated dirs
@@ -160,20 +156,14 @@ function ScrollbackRow() {
       description="Lines kept per terminal. This browser only."
       htmlFor="scrollback"
     >
-      <Input
+      <NumberField
         id="scrollback"
-        type="number"
         min={500}
         max={100000}
         step={500}
         className="w-28 tabular-nums"
         value={settings.terminalScrollback}
-        onChange={(e) =>
-          updateClientSettings({
-            terminalScrollback:
-              Number(e.target.value) || DEFAULT_CLIENT_SETTINGS.terminalScrollback,
-          })
-        }
+        onCommit={(terminalScrollback) => updateClientSettings({ terminalScrollback })}
       />
     </SettingRow>
   );

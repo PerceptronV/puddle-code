@@ -20,6 +20,13 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Markdown and HTML previews follow the editor font size setting (HTML as a zero-specificity default the document's own styles override).
+- A dirty editor tab's dot now sits after the filename — the chip widens for it up to its cap, past which the name truncates — instead of overlaying the title; it hides on hover where the close × appears.
+- New sessions default to working directly on the base branch in its shared directory, for agents and terminals alike; separate branch/directory remain one toggle away and per-profile seeds still override.
+- "Sync locally" is enabled by default (every group) for profiles with no stored entry; the toggle still turns it off.
+- The Density setting does something: compact (the default) tightens vertical spacing in both sidebars — session rows, rail dots, file-tree rows — and the collapsed rail's session glyphs grew to fill their containers; comfortable keeps the previous roomier spacing.
+- Numeric settings inputs commit on blur or Enter instead of every keystroke, so a font size can be cleared and retyped without applying mid-edit; empty or invalid input reverts.
+
 - The "All projects in the sidebar" setting became "Project-based layout" (its inverse; a stored choice migrates). The sidebar's Archived disclosure now follows the same scoping: every project's archived sessions in the default profile-based layout, only the current project's under project-based layout.
 - Protocol major bumped to 12.0 (no schema change beyond 11.2's additive keys, on purpose): every connected daemon auto-upgrades at the next `puddle launch` handshake, so all deployments parse the project-based-layout snapshot keys instead of merely round-tripping them, and none linger on early 11.x.
 

@@ -64,6 +64,8 @@ function load(): ClientSettings {
 /** Non-colour knobs still flow through CSS variables / data attributes. */
 function applyToDocument(settings: ClientSettings): void {
   document.documentElement.style.setProperty('--ui-font-size', `${settings.uiFontSize}px`);
+  // Drives the `compact:` utilities (app.css @custom-variant).
+  document.documentElement.dataset['density'] = settings.density;
 }
 
 export function clientSettings(): ClientSettings {

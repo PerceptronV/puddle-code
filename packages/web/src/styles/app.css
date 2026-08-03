@@ -3,6 +3,14 @@
 @import 'tailwindcss';
 
 /*
+ * Density (SPEC §12): `compact:` utilities apply while the root carries
+ * data-density="compact" (set by client-settings). Comfortable is the
+ * unmodified baseline — compact tightens vertical rhythm, chiefly in the
+ * two sidebars.
+ */
+@custom-variant compact (&:where([data-density='compact'], [data-density='compact'] *));
+
+/*
  * Tailwind v4 theme: utilities map onto semantic tokens only (SPEC §12).
  * `inline` keeps the var() references so [data-theme] swaps restyle
  * everything without regenerating utility classes.
