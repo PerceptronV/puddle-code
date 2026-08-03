@@ -48,7 +48,10 @@ export function projectRoutes(deps: ProjectRouteDeps): Hono {
       const id = hexIdParam(c);
       deps.projects.get(id); // 404 guard
       const body = await parseBody(c, patchProjectRequestSchema);
-      let project = body.name !== undefined ? deps.projects.rename(id, body.name) : undefined;
+      let project =
+        body.name !== undefined || body.abbrev !== undefined
+          ? deps.projects.rename(id, { name: body.name, abbrev: body.abbrev })
+          : undefined;
       // Archive is a pure hide flag — reversible, retains every session and
       // worktree (distinct from POST /:id/archive, which archives the sessions).
       if (body.archived !== undefined) project = deps.projects.setArchived(id, body.archived);

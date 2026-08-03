@@ -8,6 +8,7 @@ interface Row {
   profile_id: string;
   repo_id: number;
   name: string;
+  abbrev: string | null;
   archived: number;
   created_at: string;
   updated_at: string;
@@ -20,16 +21,16 @@ function toProject(r: Row): Project {
 export class ProjectStore {
   constructor(private readonly db: Db) {}
 
-  create(input: { profile_id: string; repo_id: number; name: string }): Project {
+  create(input: { profile_id: string; repo_id: number; name: string; abbrev?: string }): Project {
     const now = new Date().toISOString();
     // 10 hex chars (5 random bytes): short, stable URL handles.
     const id = randomBytes(5).toString('hex');
     try {
       this.db
         .prepare(
-          `INSERT INTO projects (id, profile_id, repo_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO projects (id, profile_id, repo_id, name, abbrev, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(id, input.profile_id, input.repo_id, input.name, now, now);
+        .run(id, input.profile_id, input.repo_id, input.name, input.abbrev ?? null, now, now);
       return this.get(id);
     } catch (e) {
       if (e instanceof Error && e.message.includes('UNIQUE')) {
@@ -60,15 +61,29 @@ export class ProjectStore {
     return toProject(row);
   }
 
-  /** Rename; the UNIQUE(profile_id, name) collision surfaces as a 409. */
-  rename(id: string, name: string): Project {
+  /** Rename and/or re-abbreviate; the UNIQUE(profile_id, name) collision surfaces as a 409. */
+  rename(id: string, fields: { name?: string; abbrev?: string }): Project {
+    const sets: string[] = [];
+    const args: unknown[] = [];
+    if (fields.name !== undefined) {
+      sets.push('name = ?');
+      args.push(fields.name);
+    }
+    if (fields.abbrev !== undefined) {
+      sets.push('abbrev = ?');
+      args.push(fields.abbrev);
+    }
+    if (sets.length === 0) return this.get(id);
     try {
       this.db
-        .prepare(`UPDATE projects SET name = ?, updated_at = ? WHERE id = ?`)
-        .run(name, new Date().toISOString(), id);
+        .prepare(`UPDATE projects SET ${sets.join(', ')}, updated_at = ? WHERE id = ?`)
+        .run(...args, new Date().toISOString(), id);
     } catch (e) {
       if (e instanceof Error && e.message.includes('UNIQUE')) {
-        throw ApiError.conflict('project_exists', `a project named '${name}' already exists`);
+        throw ApiError.conflict(
+          'project_exists',
+          `a project named '${fields.name}' already exists`,
+        );
       }
       throw e;
     }

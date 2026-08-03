@@ -213,8 +213,23 @@ export function ExplorerProvider({
   }, []);
   const collapseAll = useCallback(() => setExpanded(new Set()), []);
 
+  // Finder-style click-to-rename: a plain click on the row that is ALREADY the
+  // sole selection starts an inline rename — after a beat, so the second click
+  // of a double-click (which pins the file instead) can cancel it. Any other
+  // click cancels a pending rename first: the timer must never fire for a row
+  // the user has already moved on from.
+  const renameTimer = useRef<number | null>(null);
+  const cancelPendingRename = useCallback(() => {
+    if (renameTimer.current !== null) {
+      window.clearTimeout(renameTimer.current);
+      renameTimer.current = null;
+    }
+  }, []);
+  useEffect(() => cancelPendingRename, [cancelPendingRename]);
+
   const onRowClick = useCallback<ExplorerCtx['onRowClick']>(
     (row, e) => {
+      cancelPendingRename();
       setFocusedPath(row.path);
       if (e.metaKey || e.ctrlKey) {
         setSelection((prev) => {
@@ -230,6 +245,13 @@ export function ExplorerProvider({
         setSelection(new Set(rangeBetween(visibleRows, anchorRef.current, row.path)));
         return;
       }
+      if (!editing && selection.size === 1 && selection.has(row.path)) {
+        renameTimer.current = window.setTimeout(() => {
+          renameTimer.current = null;
+          setEditing({ mode: 'rename', path: row.path });
+        }, 500);
+        return;
+      }
       setSelection(new Set([row.path]));
       anchorRef.current = row.path;
       // A single click opens a file as an ephemeral preview tab (the default);
@@ -237,16 +259,18 @@ export function ExplorerProvider({
       if (row.type === 'dir') toggle(row.path);
       else onOpenFile?.(sid, row.path);
     },
-    [visibleRows, toggle, onOpenFile, sid],
+    [visibleRows, toggle, onOpenFile, sid, selection, editing, cancelPendingRename],
   );
 
   // A double click pins the file — opening it (or promoting its preview tab) as
-  // a permanent tab, matching VSCode. Directories have no preview notion.
+  // a permanent tab, matching VSCode. Directories have no preview notion. It
+  // also cancels a click-to-rename the second click just scheduled.
   const onRowDoubleClick = useCallback<ExplorerCtx['onRowDoubleClick']>(
     (row) => {
+      cancelPendingRename();
       if (row.type !== 'dir') onOpenFile?.(sid, row.path, { preview: false });
     },
-    [onOpenFile, sid],
+    [onOpenFile, sid, cancelPendingRename],
   );
 
   const selectOnly = useCallback((path: string) => {

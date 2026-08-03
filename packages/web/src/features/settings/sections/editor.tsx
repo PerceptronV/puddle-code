@@ -1,6 +1,11 @@
 import { Input } from '../../../components/ui/input';
 import { Switch } from '../../../components/ui/switch';
-import { updateClientSettings, useClientSettings } from '../../../lib/client-settings';
+import {
+  DEFAULT_CLIENT_SETTINGS,
+  updateClientSettings,
+  useClientSettings,
+} from '../../../lib/client-settings';
+import { hostParamStore } from '../../../lib/editor-links';
 import { SectionTitle, SettingRow } from '../parts';
 
 /**
@@ -22,7 +27,11 @@ export function EditorSection() {
           max={8}
           className="w-20 tabular-nums"
           value={settings.editorTabSize}
-          onChange={(e) => updateClientSettings({ editorTabSize: Number(e.target.value) || 2 })}
+          onChange={(e) =>
+            updateClientSettings({
+              editorTabSize: Number(e.target.value) || DEFAULT_CLIENT_SETTINGS.editorTabSize,
+            })
+          }
         />
       </SettingRow>
       <SettingRow label="Word wrap" htmlFor="word-wrap">
@@ -40,7 +49,9 @@ export function EditorSection() {
         <Input
           id="editor-link-host"
           type="text"
-          placeholder="user@host"
+          // When a tunnelled host is already in effect (the ?host= boot param),
+          // an empty field falls back to it — show that, not a generic hint.
+          placeholder={hostParamStore.get() ?? 'user@host'}
           className="w-48"
           value={settings.editorLinkSshHost}
           onChange={(e) => updateClientSettings({ editorLinkSshHost: e.target.value })}

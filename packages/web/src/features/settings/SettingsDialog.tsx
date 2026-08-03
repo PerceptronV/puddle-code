@@ -46,8 +46,8 @@ const SECTIONS: Array<{ id: string; label: string; icon: LucideIcon; render: () 
       render: () => <NotificationsSection />,
     },
     {
-      id: 'repositories',
-      label: 'Repositories',
+      id: 'projects',
+      label: 'Projects',
       icon: FolderGit2,
       render: () => <RepositoriesSection />,
     },
@@ -59,6 +59,9 @@ const SECTIONS: Array<{ id: string; label: string; icon: LucideIcon; render: () 
 const LEGACY_SECTIONS: Record<string, string> = {
   // "Terminal & Editor" split: terminal knobs joined Sessions, the rest is Editor.
   terminal: 'sessions',
+  // Renamed to Projects (decision 2026-08-03): the rows are per-repository
+  // settings, but users reach them thinking in projects.
+  repositories: 'projects',
 };
 
 /** Route-addressable settings dialog: `#settings/<section>` (SPEC §11). */

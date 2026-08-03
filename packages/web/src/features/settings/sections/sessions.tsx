@@ -24,7 +24,11 @@ import {
 import { Input, Textarea } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { Switch } from '../../../components/ui/switch';
-import { updateClientSettings, useClientSettings } from '../../../lib/client-settings';
+import {
+  DEFAULT_CLIENT_SETTINGS,
+  updateClientSettings,
+  useClientSettings,
+} from '../../../lib/client-settings';
 import {
   useConfig,
   usePatchConfig,
@@ -165,7 +169,10 @@ function ScrollbackRow() {
         className="w-28 tabular-nums"
         value={settings.terminalScrollback}
         onChange={(e) =>
-          updateClientSettings({ terminalScrollback: Number(e.target.value) || 5000 })
+          updateClientSettings({
+            terminalScrollback:
+              Number(e.target.value) || DEFAULT_CLIENT_SETTINGS.terminalScrollback,
+          })
         }
       />
     </SettingRow>
@@ -469,7 +476,9 @@ export function SessionsSection() {
         {settings.data && (
           <TabTitleEditor
             key={`${profileId}:tab-title`}
-            initial={settings.data.tabTitleTemplate ?? DEFAULT_TAB_TITLE_TEMPLATE}
+            // `||`, not `??`: a stored '' also renders as the default, so the
+            // field must show the template actually in effect.
+            initial={settings.data.tabTitleTemplate || DEFAULT_TAB_TITLE_TEMPLATE}
             onSave={saveTemplate('tabTitleTemplate')}
             pending={patch.isPending}
           />

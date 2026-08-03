@@ -142,4 +142,8 @@
 // long-term dependency: after it, every daemon PARSES `layout_mode` and
 // `project_layouts` (validating slices instead of carrying them blind), and
 // no deployment lingers on early 11.x. Ships the 11.1/11.2 additions above.
-export const PROTOCOL_VERSION = { major: 12, minor: 0 } as const;
+// 12.1 (2026-08-03): additive — projects gain an optional `abbrev` (≤5 chars,
+// stored uppercase; nullable — null derives the collapsed-rail label from the
+// name as before). Accepted on POST /api/projects and PATCH /api/projects/:id,
+// reported on the project shape. Older daemons omit it and the UI derives.
+export const PROTOCOL_VERSION = { major: 12, minor: 1 } as const;

@@ -15,6 +15,8 @@ Past releases: see docs/changelogs/.
 - The collapsed rail's project label shows the full project name in a tooltip.
 - Project-based layout (Settings → Appearance, default off; protocol 11.2): the centre editor persists one layout per profile **and project** — switching projects swaps in that project's own tiling tree and restores its active session — while the sidebar keeps every project name but lists only the current project's sessions. Toggling converts the snapshot once: on splits the shared tree into per-project slices (each keeping its structure with only that project's tabs), off unions the slices back side by side with tabs deduplicated.
 - The desktop app gets its own default hotkey set where native gestures are more intuitive: ⌘W closes the current tab (the shell's Close Window moves to ⌘⇧W), ⌘B toggles the left sidebar, ⌘T opens a new agent. Web defaults are unchanged, and per-profile custom bindings still apply in both shells.
+- Projects carry a customisable ≤5-character abbreviation (protocol 12.1) — the collapsed sidebar rail's label. Set it at creation (prefilled from the name), edit it with the name in the homescreen card's Edit dialogue, or single-click the active project's label in the sidebar to edit in place: the abbreviation on the collapsed rail, the full name on the expanded header. Clicking any other project still navigates.
+- Single-clicking the already-selected file or folder in the file tree starts an inline rename (Finder-style, after a beat so double-click still opens); F2 keeps working.
 
 ### Changed
 
@@ -24,3 +26,7 @@ Past releases: see docs/changelogs/.
 ### Removed
 
 - The "browser-reserved" warnings in Settings → Hotkeys (the ⌘W/⌘T/… flagging and the intro's caveat): any combo is bindable without commentary; the conflict warning between two app shortcuts remains.
+
+### Fixed
+
+- Optional form fields no longer sit empty and get silently reinterpreted on submit: the profile-creation branch prefix, the new-session base branch, and the tab-title template are prefilled with the default they would have become (clearing the profile branch prefix now honestly means no prefix). Placeholders that lied were corrected — the settings branch prefix says "no prefix", the host display name shows the real hostname fallback, the editor SSH-host field shows the tunnelled host already in effect — and clearing a numeric host setting no longer PATCHes a rejected 0. The settings "Repositories" tab is now "Projects" (old #settings/repositories links still resolve).

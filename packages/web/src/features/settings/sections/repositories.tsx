@@ -123,10 +123,10 @@ export function RepositoriesSection() {
   const repos = useRepos();
   return (
     <div>
-      <SectionTitle>Repositories</SectionTitle>
+      <SectionTitle note="Per repository — projects sharing one share these">Projects</SectionTitle>
       {repos.data?.length === 0 && (
         <p className="text-sm text-fg-muted">
-          No repositories yet — register one from the new-project flow on the dashboard.
+          No projects yet — create one from the dashboard, pointing at a repository.
         </p>
       )}
       {repos.data?.map((repo) => (

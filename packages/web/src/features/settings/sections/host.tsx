@@ -2,7 +2,7 @@ import { toastError } from '../../../lib/errors';
 import type { DaemonConfig } from '@puddle/shared';
 import { Input } from '../../../components/ui/input';
 import { Switch } from '../../../components/ui/switch';
-import { useConfig, usePatchConfig } from '../../../lib/queries';
+import { useConfig, useHostInfo, usePatchConfig } from '../../../lib/queries';
 import { SectionTitle, SettingRow } from '../parts';
 
 function NumberSetting({
@@ -32,6 +32,11 @@ function NumberSetting({
         className="w-32 tabular-nums"
         defaultValue={config[field]}
         onBlur={(e) => {
+          // A cleared field is not a request for 0 — restore the stored value.
+          if (e.target.value.trim() === '') {
+            e.target.value = String(config[field]);
+            return;
+          }
           const value = Number(e.target.value);
           if (Number.isFinite(value) && value !== config[field]) {
             patch.mutate({ [field]: value }, { onError: (err) => toastError(err) });
@@ -46,6 +51,7 @@ function NumberSetting({
 export function HostSection() {
   const config = useConfig();
   const patch = usePatchConfig();
+  const host = useHostInfo();
   if (!config.data) return null;
 
   return (
@@ -63,6 +69,9 @@ export function HostSection() {
           type="text"
           maxLength={64}
           className="w-48"
+          // The fallback an empty field means — the actual hostname, not a
+          // generic hint.
+          placeholder={host.data?.hostname}
           defaultValue={config.data.displayName}
           onBlur={(e) => {
             const value = e.target.value.trim();

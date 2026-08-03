@@ -20,6 +20,7 @@ import {
   useHostInfo,
   useRepos,
 } from '../../lib/queries';
+import { ABBREV_MAX, deriveAbbrev, normaliseAbbrev } from '../../lib/project-abbrev';
 import { tildify } from '../../lib/tildify';
 import { useDebouncedValue } from '../../lib/use-debounced-value';
 
@@ -144,6 +145,11 @@ export function NewProjectDialog({
   const [path, setPath] = useState('');
   const [name, setName] = useState('');
   const [nameTouched, setNameTouched] = useState(false);
+  // The collapsed-rail label (SPEC §12): follows the name until edited, so the
+  // field always shows exactly what will be stored — never an empty field
+  // reinterpreted later.
+  const [abbrev, setAbbrev] = useState('');
+  const [abbrevTouched, setAbbrevTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The picker's current directory; null while it is closed.
   const [browseDir, setBrowseDir] = useState<string | null>(null);
@@ -161,10 +167,16 @@ export function NewProjectDialog({
           : (home ?? '/');
     setBrowseDir(seeded);
   };
+  // Every name change keeps the (untouched) abbreviation in step, so the
+  // abbrev field always displays the value that will actually be stored.
+  const applyName = (next: string) => {
+    setName(next);
+    if (!abbrevTouched) setAbbrev(deriveAbbrev(next));
+  };
   const chooseDir = (dir: string, isGit: boolean) => {
     setPath(dir);
     setBrowseDir(null);
-    if (!nameTouched && isGit) setName(dir.split('/').filter(Boolean).pop() ?? '');
+    if (!nameTouched && isGit) applyName(dir.split('/').filter(Boolean).pop() ?? '');
   };
 
   const debouncedPath = useDebouncedValue(path, 150);
@@ -198,6 +210,9 @@ export function NewProjectDialog({
         profile_id: profileId,
         repo_id: repoId,
         name: name.trim(),
+        // A cleared field falls back to deriving from the name — which is
+        // exactly what the field showed before it was cleared.
+        ...(normaliseAbbrev(abbrev) ? { abbrev: normaliseAbbrev(abbrev) } : {}),
       });
       onOpenChange(false);
       void navigate(`/project/${project.id}`);
@@ -243,7 +258,7 @@ export function NewProjectDialog({
               onChoose={(hint) => {
                 const chosen = hint as Hint & { is_git: boolean };
                 if (!nameTouched && chosen.is_git) {
-                  setName(hint.value.split('/').filter(Boolean).pop() ?? '');
+                  applyName(hint.value.split('/').filter(Boolean).pop() ?? '');
                 }
               }}
               hints={hints}
@@ -265,10 +280,27 @@ export function NewProjectDialog({
               placeholder="e.g. checkout-rework"
               value={name}
               onChange={(e) => {
-                setName(e.target.value);
+                applyName(e.target.value);
                 setNameTouched(true);
               }}
             />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="project-abbrev">Abbreviation</Label>
+            <Input
+              id="project-abbrev"
+              placeholder={name.trim() ? deriveAbbrev(name) : 'ABBRV'}
+              maxLength={ABBREV_MAX}
+              value={abbrev}
+              onChange={(e) => {
+                setAbbrev(normaliseAbbrev(e.target.value));
+                setAbbrevTouched(true);
+              }}
+              className="w-24 font-mono uppercase"
+            />
+            <p className="text-2xs text-fg-muted">
+              Up to {ABBREV_MAX} characters — the project's label on the collapsed sidebar rail.
+            </p>
           </div>
           {error && <p className="text-xs text-danger">{error}</p>}
           <DialogFooter>

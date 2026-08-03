@@ -144,6 +144,17 @@ export function NewSessionDialog({
     }
   }, [open, isTerminal]);
 
+  // Prefill the base branch with the value an empty field would resolve to
+  // (the repository's default) — the field shows what will actually be used.
+  // Functional update so a late repos fetch fills only a still-empty field and
+  // never overwrites something the user typed; clearing it still means "the
+  // repository default", which the placeholder continues to say.
+  const repoDefaultBranch = repos.data?.find((r) => r.id === repoId)?.default_base_branch;
+  useEffect(() => {
+    if (!open || !repoDefaultBranch) return;
+    setBaseBranch((prev) => (prev === '' ? repoDefaultBranch : prev));
+  }, [open, repoDefaultBranch]);
+
   const submit = () => {
     setError(null);
     create.mutate(

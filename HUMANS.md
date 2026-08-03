@@ -15,3 +15,7 @@ Emphasise the following elements in your frontend design:
 - Never fill in a block with both a background colour and a border; either the space is coloured, or the border is coloured, never both.
 - Always be responsive: cursors should change upon hover over componenets.
 - Responsiveness should never employ borders: e.g. make buttons or entry boxes dim or change colour upon hover and clicking, but their borders should not change. In fact, ideal if no borders shown at all.
+
+## Practical design choices
+
+- Empty fields should be truly empty. Agents have a habit of leaving optional fields empty and filling them with default values after user submits form. This is very counter-intuitive. If empty fields will be re-interpreted as something else, just fill in that field with the something else. Note: placeholders and descs for such fields should continue to remain meaningful.

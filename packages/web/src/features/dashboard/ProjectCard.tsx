@@ -19,6 +19,7 @@ import {
 } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
+import { ABBREV_MAX, normaliseAbbrev, projectAbbrev } from '../../lib/project-abbrev';
 import { usePatchProject, useSessions } from '../../lib/queries';
 import { cn } from '../../lib/utils';
 
@@ -112,18 +113,36 @@ export function ProjectCard({
   const patch = usePatchProject();
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(project.name);
+  const [abbrev, setAbbrev] = useState(projectAbbrev(project));
 
   const archive = (archived: boolean) =>
     patch.mutate({ id: project.id, archived }, { onError: (e) => toastError(e) });
 
+  const openEdit = () => {
+    setName(project.name);
+    // Prefilled with the label the rail actually shows (stored or derived) —
+    // never an empty field that means something else.
+    setAbbrev(projectAbbrev(project));
+    setRenaming(true);
+  };
+
   const submitRename = () => {
     const trimmed = name.trim();
-    if (!trimmed || trimmed === project.name) {
+    const nextAbbrev = normaliseAbbrev(abbrev);
+    if (!trimmed) {
+      setRenaming(false);
+      return;
+    }
+    const patchBody = {
+      ...(trimmed !== project.name ? { name: trimmed } : {}),
+      ...(nextAbbrev && nextAbbrev !== projectAbbrev(project) ? { abbrev: nextAbbrev } : {}),
+    };
+    if (Object.keys(patchBody).length === 0) {
       setRenaming(false);
       return;
     }
     patch.mutate(
-      { id: project.id, name: trimmed },
+      { id: project.id, ...patchBody },
       { onSuccess: () => setRenaming(false), onError: (e) => toastError(e) },
     );
   };
@@ -163,14 +182,7 @@ export function ProjectCard({
                 />
               ) : (
                 <>
-                  <CardIconButton
-                    icon={Pencil}
-                    label="Rename project"
-                    onClick={() => {
-                      setName(project.name);
-                      setRenaming(true);
-                    }}
-                  />
+                  <CardIconButton icon={Pencil} label="Edit project" onClick={openEdit} />
                   <CardIconButton
                     icon={ArchiveIcon}
                     label="Archive project"
@@ -188,13 +200,8 @@ export function ProjectCard({
             </ContextMenuItem>
           ) : (
             <>
-              <ContextMenuItem
-                onSelect={() => {
-                  setName(project.name);
-                  setRenaming(true);
-                }}
-              >
-                <Pencil /> Rename
+              <ContextMenuItem onSelect={openEdit}>
+                <Pencil /> Edit
               </ContextMenuItem>
               <ContextMenuItem onSelect={() => archive(true)}>
                 <ArchiveIcon /> Archive
@@ -207,7 +214,7 @@ export function ProjectCard({
       <Dialog open={renaming} onOpenChange={setRenaming}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rename project</DialogTitle>
+            <DialogTitle>Edit project</DialogTitle>
           </DialogHeader>
           <form
             className="flex flex-col gap-3"
@@ -216,7 +223,28 @@ export function ProjectCard({
               submitRename();
             }}
           >
-            <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`project-name-${project.id}`}>Name</Label>
+              <Input
+                id={`project-name-${project.id}`}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`project-abbrev-${project.id}`}>Abbreviation</Label>
+              <Input
+                id={`project-abbrev-${project.id}`}
+                maxLength={ABBREV_MAX}
+                value={abbrev}
+                onChange={(e) => setAbbrev(normaliseAbbrev(e.target.value))}
+                className="w-24 font-mono uppercase"
+              />
+              <p className="text-2xs text-fg-muted">
+                Up to {ABBREV_MAX} characters — the label on the collapsed sidebar rail.
+              </p>
+            </div>
             <div className="flex flex-col gap-1">
               <Label className="text-fg-muted">Path</Label>
               <p className="truncate font-mono text-2xs text-fg-muted">{repoPath ?? '…'}</p>
@@ -226,7 +254,7 @@ export function ProjectCard({
                 Cancel
               </Button>
               <Button type="submit" disabled={!name.trim() || patch.isPending}>
-                Rename
+                Save
               </Button>
             </DialogFooter>
           </form>

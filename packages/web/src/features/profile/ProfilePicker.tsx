@@ -16,12 +16,14 @@ export function ProfilePicker() {
   const profiles = useProfiles();
   const create = useCreateProfile();
   const [name, setName] = useState('');
-  const [branchPrefix, setBranchPrefix] = useState('');
+  // Prefilled with the default it would otherwise silently become: the field
+  // always shows what will be stored, and clearing it honestly means NO prefix.
+  const [branchPrefix, setBranchPrefix] = useState(DEFAULT_BRANCH_PREFIX);
 
   const submit = () => {
     if (!name.trim()) return;
     create.mutate(
-      { name: name.trim(), branch_prefix: branchPrefix.trim() || DEFAULT_BRANCH_PREFIX },
+      { name: name.trim(), branch_prefix: branchPrefix.trim() },
       { onSuccess: (profile) => selectProfile(profile.id) },
     );
   };
@@ -90,7 +92,7 @@ export function ProfilePicker() {
             <Label htmlFor="branch-prefix">Branch prefix</Label>
             <Input
               id="branch-prefix"
-              placeholder={DEFAULT_BRANCH_PREFIX}
+              placeholder="no prefix"
               value={branchPrefix}
               onChange={(e) => setBranchPrefix(e.target.value)}
               className="h-10 font-mono"

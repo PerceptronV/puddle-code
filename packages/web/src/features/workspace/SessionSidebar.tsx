@@ -21,6 +21,9 @@ import {
   ContextMenuTrigger,
 } from '../../components/ui/context-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
+import { toastError } from '../../lib/errors';
+import { ABBREV_MAX, normaliseAbbrev } from '../../lib/project-abbrev';
+import { usePatchProject } from '../../lib/queries';
 import { cn } from '../../lib/utils';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
 import { SessionGlyph } from '../status/SessionGlyph';
@@ -40,6 +43,8 @@ import { encodeTabTransfer, TAB_MIME } from './tab-transfer';
 export interface SessionGroup {
   projectId: string;
   name: string;
+  /** The collapsed rail's ≤5-char label (stored abbrev, else derived — SPEC §12). */
+  abbrev: string;
   /** The project's repository — seeds the create dialogue for "new … in project". */
   repoId: number;
   sessions: Session[];
@@ -85,6 +90,43 @@ function ProjectMenuBody({
         New terminal
       </ContextMenuItem>
     </ContextMenuContent>
+  );
+}
+
+/**
+ * Inline label editor for the ACTIVE project's name (expanded header) or
+ * abbreviation (collapsed rail): commit on Enter or blur, Esc cancels.
+ * Keystrokes stay here — the global hotkey dispatcher must not see them.
+ */
+function InlineLabelEdit({
+  initial,
+  maxLength,
+  className,
+  onCommit,
+  onCancel,
+}: {
+  initial: string;
+  maxLength?: number;
+  className?: string;
+  onCommit: (value: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(initial);
+  return (
+    <input
+      autoFocus
+      value={value}
+      maxLength={maxLength}
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => onCommit(value)}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') onCommit(value);
+        else if (e.key === 'Escape') onCancel();
+      }}
+      className={cn('bg-transparent outline-none', className)}
+    />
   );
 }
 
@@ -245,6 +287,7 @@ function CollapsedSessionDot({
 export function CollapsedSessionsRail({
   groups,
   accounts,
+  activeProjectId,
   activeSessionId,
   onReorder,
   onPromote,
@@ -256,6 +299,8 @@ export function CollapsedSessionsRail({
 }: {
   groups: SessionGroup[];
   accounts: Account[];
+  /** The URL-bound project: clicking ITS label edits the abbreviation in place. */
+  activeProjectId: string | null;
   activeSessionId: string | null;
   onReorder: (ids: string[]) => void;
   /** Double-click: pin the session's (preview) terminal tab. */
@@ -268,10 +313,18 @@ export function CollapsedSessionsRail({
 }) {
   const [dragging, setDragging] = useState<string | null>(null);
   const [dragProject, setDragProject] = useState<string | null>(null);
+  const [editingAbbrev, setEditingAbbrev] = useState<string | null>(null);
+  const patchProject = usePatchProject();
   const accountLabel = new Map(accounts.map((a) => [a.id, a.label]));
   const move = (id: string, before: string) => {
     const next = moveWithinGroups(groups, id, before);
     if (next) onReorder(next);
+  };
+  const commitAbbrev = (group: SessionGroup, value: string) => {
+    setEditingAbbrev(null);
+    const next = normaliseAbbrev(value);
+    if (!next || next === group.abbrev) return;
+    patchProject.mutate({ id: group.projectId, abbrev: next }, { onError: (e) => toastError(e) });
   };
   return (
     <div className="flex h-full w-9 shrink-0 flex-col items-center bg-surface py-1.5">
@@ -306,34 +359,50 @@ export function CollapsedSessionsRail({
           >
             <div className="my-0.5 h-px w-7 shrink-0 bg-border" />
             {/* Both triggers stack over the single <Link> (as the dots do): the
-                tooltip shows the FULL project name the five-character label
-                truncates; right-click opens the new-agent/terminal menu; the
-                label drags to reorder projects. */}
-            <ContextMenu>
-              <Tooltip>
-                <ContextMenuTrigger asChild>
-                  <TooltipTrigger asChild>
-                    <Link
-                      to={`/project/${group.projectId}`}
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData(PROJECT_MIME, group.projectId);
-                        setDragProject(group.projectId);
-                      }}
-                      onDragEnd={() => setDragProject(null)}
-                      className={cn(
-                        'w-7 truncate text-center font-mono text-[8px] uppercase leading-3 text-fg-muted transition-colors hover:text-fg',
-                        dragProject === group.projectId && 'opacity-50',
-                      )}
-                    >
-                      {group.name.slice(0, 5)}
-                    </Link>
-                  </TooltipTrigger>
-                </ContextMenuTrigger>
-                <TooltipContent side="left">{group.name}</TooltipContent>
-              </Tooltip>
-              <ProjectMenuBody projectId={group.projectId} actions={projectActions} />
-            </ContextMenu>
+                tooltip shows the FULL project name the abbreviation stands for;
+                right-click opens the new-agent/terminal menu; the label drags
+                to reorder projects. Clicking the ACTIVE project's label edits
+                the abbreviation in place — other labels navigate (SPEC §12). */}
+            {editingAbbrev === group.projectId ? (
+              <InlineLabelEdit
+                initial={group.abbrev}
+                maxLength={ABBREV_MAX}
+                className="w-7 text-center font-mono text-[8px] uppercase leading-3 text-fg"
+                onCommit={(v) => commitAbbrev(group, v)}
+                onCancel={() => setEditingAbbrev(null)}
+              />
+            ) : (
+              <ContextMenu>
+                <Tooltip>
+                  <ContextMenuTrigger asChild>
+                    <TooltipTrigger asChild>
+                      <Link
+                        to={`/project/${group.projectId}`}
+                        onClick={(e) => {
+                          if (group.projectId !== activeProjectId) return;
+                          e.preventDefault();
+                          setEditingAbbrev(group.projectId);
+                        }}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData(PROJECT_MIME, group.projectId);
+                          setDragProject(group.projectId);
+                        }}
+                        onDragEnd={() => setDragProject(null)}
+                        className={cn(
+                          'w-7 truncate text-center font-mono text-[8px] uppercase leading-3 text-fg-muted transition-colors hover:text-fg',
+                          dragProject === group.projectId && 'opacity-50',
+                        )}
+                      >
+                        {group.abbrev}
+                      </Link>
+                    </TooltipTrigger>
+                  </ContextMenuTrigger>
+                  <TooltipContent side="left">{group.name}</TooltipContent>
+                </Tooltip>
+                <ProjectMenuBody projectId={group.projectId} actions={projectActions} />
+              </ContextMenu>
+            )}
             <CollapsibleSessions collapsed={dragProject !== null}>
               <div className="flex flex-col items-center gap-1 overflow-hidden">
                 {group.sessions.map((session) => (
@@ -476,6 +545,7 @@ function SessionRow({
 export function SessionSidebar({
   groups,
   accounts,
+  activeProjectId,
   activeSessionId,
   onReorder,
   onPromote,
@@ -488,6 +558,8 @@ export function SessionSidebar({
 }: {
   groups: SessionGroup[];
   accounts: Account[];
+  /** The URL-bound project: clicking ITS name header edits the name in place. */
+  activeProjectId: string | null;
   activeSessionId: string | null;
   /** Rows drag-reorder within their project group; `ids` is the full visible order. */
   onReorder: (ids: string[]) => void;
@@ -516,6 +588,7 @@ export function SessionSidebar({
       <SessionListBody
         groups={groups}
         accounts={accounts}
+        activeProjectId={activeProjectId}
         activeSessionId={activeSessionId}
         onReorder={onReorder}
         onPromote={onPromote}
@@ -531,6 +604,7 @@ export function SessionSidebar({
 function SessionListBody({
   groups,
   accounts,
+  activeProjectId,
   activeSessionId,
   onReorder,
   onPromote,
@@ -540,6 +614,7 @@ function SessionListBody({
 }: {
   groups: SessionGroup[];
   accounts: Account[];
+  activeProjectId: string | null;
   activeSessionId: string | null;
   onReorder: (ids: string[]) => void;
   onPromote: (id: string) => void;
@@ -549,13 +624,21 @@ function SessionListBody({
 }) {
   const [dragging, setDragging] = useState<string | null>(null);
   const [dragProject, setDragProject] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const patchProject = usePatchProject();
   const accountLabel = new Map(accounts.map((a) => [a.id, a.label]));
   const total = groups.reduce((n, g) => n + g.sessions.length, 0);
 
   const move = (id: string, before: string) => {
     const next = moveWithinGroups(groups, id, before);
     if (next) onReorder(next);
+  };
+  const commitName = (group: SessionGroup, value: string) => {
+    setEditingName(null);
+    const next = value.trim();
+    if (!next || next === group.name) return;
+    patchProject.mutate({ id: group.projectId, name: next }, { onError: (e) => toastError(e) });
   };
 
   return (
@@ -583,27 +666,44 @@ function SessionListBody({
             {/* The header right-clicks into the new-agent/terminal menu and
                 drags to reorder projects (the same projectOrder the homescreen
                 cards persist); while any header drags, the session lists
-                collapse so only the names reposition. */}
-            <ContextMenu>
-              <ContextMenuTrigger asChild>
-                <Link
-                  to={`/project/${group.projectId}`}
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData(PROJECT_MIME, group.projectId);
-                    setDragProject(group.projectId);
-                  }}
-                  onDragEnd={() => setDragProject(null)}
-                  className={cn(
-                    'block truncate px-3 pb-1 pt-2 text-2xs font-medium uppercase tracking-wide text-fg-gold transition-colors hover:text-fg',
-                    dragProject === group.projectId && 'opacity-50',
-                  )}
-                >
-                  {group.name}
-                </Link>
-              </ContextMenuTrigger>
-              <ProjectMenuBody projectId={group.projectId} actions={projectActions} />
-            </ContextMenu>
+                collapse so only the names reposition. Clicking the ACTIVE
+                project's header edits the name in place — other headers
+                navigate (SPEC §12). */}
+            {editingName === group.projectId ? (
+              <InlineLabelEdit
+                initial={group.name}
+                maxLength={100}
+                className="block w-full px-3 pb-1 pt-2 text-2xs font-medium tracking-wide text-fg"
+                onCommit={(v) => commitName(group, v)}
+                onCancel={() => setEditingName(null)}
+              />
+            ) : (
+              <ContextMenu>
+                <ContextMenuTrigger asChild>
+                  <Link
+                    to={`/project/${group.projectId}`}
+                    onClick={(e) => {
+                      if (group.projectId !== activeProjectId) return;
+                      e.preventDefault();
+                      setEditingName(group.projectId);
+                    }}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData(PROJECT_MIME, group.projectId);
+                      setDragProject(group.projectId);
+                    }}
+                    onDragEnd={() => setDragProject(null)}
+                    className={cn(
+                      'block truncate px-3 pb-1 pt-2 text-2xs font-medium uppercase tracking-wide text-fg-gold transition-colors hover:text-fg',
+                      dragProject === group.projectId && 'opacity-50',
+                    )}
+                  >
+                    {group.name}
+                  </Link>
+                </ContextMenuTrigger>
+                <ProjectMenuBody projectId={group.projectId} actions={projectActions} />
+              </ContextMenu>
+            )}
             <CollapsibleSessions collapsed={dragProject !== null}>
               <ul className="flex flex-col gap-0.5 overflow-hidden">
                 {group.sessions.map((session) => (

@@ -358,18 +358,25 @@ export function useFetchRepo() {
 export function useCreateProject() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { profile_id: string; repo_id: number; name: string }) =>
+    mutationFn: (body: { profile_id: string; repo_id: number; name: string; abbrev?: string }) =>
       api<Project>('POST', '/api/projects', body),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['projects'] }),
   });
 }
 
-/** Rename and/or archive a project (archive is a reversible hide, SPEC §11). */
+/** Rename/re-abbreviate and/or archive a project (archive is a reversible hide, SPEC §11). */
 export function usePatchProject() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...patch }: { id: string; name?: string; archived?: boolean }) =>
-      api<Project>('PATCH', `/api/projects/${id}`, patch),
+    mutationFn: ({
+      id,
+      ...patch
+    }: {
+      id: string;
+      name?: string;
+      abbrev?: string;
+      archived?: boolean;
+    }) => api<Project>('PATCH', `/api/projects/${id}`, patch),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['projects'] }),
   });
 }

@@ -65,7 +65,11 @@ export function AppearanceSection() {
           max={24}
           className="w-20 tabular-nums"
           value={settings.terminalFontSize}
-          onChange={(e) => updateClientSettings({ terminalFontSize: Number(e.target.value) || 13 })}
+          onChange={(e) =>
+            updateClientSettings({
+              terminalFontSize: Number(e.target.value) || DEFAULT_CLIENT_SETTINGS.terminalFontSize,
+            })
+          }
         />
       </SettingRow>
       <SettingRow

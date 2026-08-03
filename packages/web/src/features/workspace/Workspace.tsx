@@ -60,6 +60,7 @@ import { setScratchpadInsertHandler } from '../scratchpad/scratchpad-store';
 import { KeepAliveHost } from './keep-alive';
 import { allLeaves, flattenTabs, pruneTabs, tabRefKey, type DropEdge } from './layout-tree';
 import { scopeUiState, splitToProjects, unionToProfile } from './project-layout';
+import { projectAbbrev } from '../../lib/project-abbrev';
 import { NARROW_VIEWPORT, useMediaQuery } from '../../lib/use-media-query';
 import { layoutForPanels } from './panel-layout';
 import {
@@ -152,6 +153,7 @@ function WorkspaceInner() {
     return orderedProjects.map((p) => ({
       projectId: p.id,
       name: p.name,
+      abbrev: projectAbbrev(p),
       repoId: p.repo_id,
       // Each group applies the same saved order the single-project view uses
       // (untracked sessions float to the top of their group, newest-first).
@@ -829,6 +831,7 @@ function WorkspaceInner() {
     <SessionSidebar
       groups={sessionGroups}
       accounts={accounts}
+      activeProjectId={projectId}
       activeSessionId={activeSessionId}
       onReorder={persistReorder}
       onPromote={(id) => layout.ensureTerminal(id)}
@@ -913,6 +916,7 @@ function WorkspaceInner() {
             <CollapsedSessionsRail
               groups={sessionGroups}
               accounts={accounts}
+              activeProjectId={projectId}
               activeSessionId={activeSessionId}
               onReorder={persistReorder}
               onPromote={(id) => layout.ensureTerminal(id)}
@@ -986,6 +990,7 @@ function WorkspaceInner() {
               <CollapsedSessionsRail
                 groups={sessionGroups}
                 accounts={accounts}
+                activeProjectId={projectId}
                 activeSessionId={activeSessionId}
                 onReorder={persistReorder}
                 onPromote={(id) => layout.ensureTerminal(id)}
