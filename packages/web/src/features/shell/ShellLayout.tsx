@@ -21,6 +21,7 @@ import { UpdateBanner } from './UpdateBanner';
 import { useLocalSyncEngine } from './use-local-sync-engine';
 import { useWaitingNotifications } from './use-waiting-notifications';
 import { ScratchpadPopover } from '../scratchpad/ScratchpadPopover';
+import { LayoutsPopover } from '../layouts/LayoutsPopover';
 import { desktopBridge } from '../../lib/desktop';
 import { cn } from '../../lib/utils';
 
@@ -156,8 +157,9 @@ function TopBar() {
           </TooltipTrigger>
           <TooltipContent>Settings</TooltipContent>
         </Tooltip>
-        {/* Scratchpad and profile both anchor under their triggers — top-right,
-            never centre stage (SPEC §11). */}
+        {/* Layouts, scratchpad and profile all anchor under their triggers —
+            top-right, never centre stage (SPEC §11). */}
+        <LayoutsPopover />
         <ScratchpadPopover />
         <ProfilePanel />
       </div>

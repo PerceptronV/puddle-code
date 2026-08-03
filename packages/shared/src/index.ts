@@ -12,6 +12,7 @@ export * from './api/repos.js';
 export * from './api/sessions.js';
 export * from './api/projects.js';
 export * from './api/scratchpad.js';
+export * from './api/layouts.js';
 export * from './api/ui-state.js';
 export * from './api/worktrees.js';
 export * from './api/worktree-files.js';

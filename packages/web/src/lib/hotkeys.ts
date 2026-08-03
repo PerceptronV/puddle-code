@@ -113,6 +113,12 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
     group: 'Right sidebar',
     defaultBinding: 'alt+meta+KeyS',
   },
+  {
+    id: 'layouts.toggle',
+    label: 'Toggle Layouts',
+    group: 'Right sidebar',
+    defaultBinding: 'alt+meta+KeyL',
+  },
 ];
 
 const ACTION_BY_ID = new Map(HOTKEY_ACTIONS.map((a) => [a.id, a]));

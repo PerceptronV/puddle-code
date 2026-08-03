@@ -17,7 +17,8 @@ packages/
 │   ├── src/lib/       # token gate, TanStack Query hooks, singleton WS manager, theme registry
 │   └── src/features/  # dashboard, workspace (sidebar/tabs/xterm), editor/explorer/changes/search/worktrees
 │                      # (Monaco tabs + drafts, file tree + transfer, unified changes view = uncommitted
-│                      #  + commit-graph SVG, filename+content search), settings, ⌘K palette
+│                      #  + commit-graph SVG, filename+content search), scratchpad + layouts (top-bar
+│                      #  popovers), settings, ⌘K palette
 ├── cli/       # @puddle-code/cli (the command is `puddle`): serves the UI at localhost:7433 and
 │   │          # proxies /api + /ws + /proxy to the daemon on 127.0.0.1:7434 (through the ssh
 │   │          # tunnel remotely); bootstrap/handshake/attach live in src/lib/ (no process/TTY

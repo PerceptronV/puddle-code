@@ -4,6 +4,7 @@ import { toastError } from '../../lib/errors';
 import type { Account } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { openSettings } from '../../lib/hash-route';
 import {
   useAccountUsage,
@@ -168,14 +169,19 @@ export function ProfilePanel() {
   return (
     <>
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button variant="ghost" size="sm" className="font-sans">
-            <ProfileGlyph icon={currentProfile?.icon} colour={currentProfile?.icon_colour} />
-            <span className={profileColourClass(currentProfile?.icon_colour)}>
-              {currentProfile?.name ?? '…'}
-            </span>
-          </Button>
-        </PopoverTrigger>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="sm" className="font-sans">
+                <ProfileGlyph icon={currentProfile?.icon} colour={currentProfile?.icon_colour} />
+                <span className={profileColourClass(currentProfile?.icon_colour)}>
+                  {currentProfile?.name ?? '…'}
+                </span>
+              </Button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent>Profile</TooltipContent>
+        </Tooltip>
         <PopoverContent className="w-[28rem] max-w-[calc(100vw-1rem)]">
           <div className="flex flex-col gap-4">
             {(agents.data ?? []).map((agent) => {

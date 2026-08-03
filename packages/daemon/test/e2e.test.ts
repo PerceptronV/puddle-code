@@ -454,6 +454,7 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
       session_order: [],
       layout_tree: null,
       project_layouts: {},
+      layout_ref: null,
     };
     await c.json('PUT', `/api/profiles/${profile.id}/state`, { ui_state: snapshotA });
 

@@ -16,6 +16,9 @@ import type {
   ScratchpadEntry,
   CreateScratchpadRequest,
   PatchScratchpadRequest,
+  SavedLayout,
+  CreateLayoutRequest,
+  PatchLayoutRequest,
   UiStateResponse,
   RepoBranchesResponse,
   RepoWithOrphans,
@@ -421,6 +424,48 @@ export function useDeleteScratchpad() {
   return useMutation({
     mutationFn: (id: number) => api<void>('DELETE', `/api/scratchpad/${id}`),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['scratchpad'] }),
+  });
+}
+
+/**
+ * Saved layouts visible in the current context (SPEC §11): profile-scoped ones
+ * plus the current project's own — the same keying as the Scratchpad. Without
+ * a project (the dashboard), every layout of the profile.
+ */
+export function useLayouts(profileId: string | undefined, projectId: string | undefined) {
+  return useQuery({
+    queryKey: ['layouts', profileId, projectId ?? 'none'],
+    queryFn: () =>
+      api<SavedLayout[]>(
+        'GET',
+        `/api/layouts?profile=${profileId}${projectId ? `&project=${projectId}` : ''}`,
+      ),
+    enabled: profileId !== undefined,
+  });
+}
+
+export function useCreateLayout() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateLayoutRequest) => api<SavedLayout>('POST', '/api/layouts', body),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['layouts'] }),
+  });
+}
+
+export function usePatchLayout() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: { id: number } & PatchLayoutRequest) =>
+      api<SavedLayout>('PATCH', `/api/layouts/${id}`, patch),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['layouts'] }),
+  });
+}
+
+export function useDeleteLayout() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>('DELETE', `/api/layouts/${id}`),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['layouts'] }),
   });
 }
 

@@ -146,4 +146,10 @@
 // stored uppercase; nullable — null derives the collapsed-rail label from the
 // name as before). Accepted on POST /api/projects and PATCH /api/projects/:id,
 // reported on the project shape. Older daemons omit it and the UI derives.
-export const PROTOCOL_VERSION = { major: 12, minor: 1 } as const;
+// 12.2 (2026-08-03): additive — the saved-layouts endpoint group
+// (GET/POST/PATCH/DELETE /api/layouts): named snapshots of the centre tiling
+// tree, each profile- or project-scoped like the Scratchpad, backing the
+// top-bar Layouts popover. The ui_state snapshot and each `project_layouts`
+// slice gain an optional-with-default `layout_ref` (the saved layout the live
+// layout was last loaded from or saved as); old peers round-trip it untouched.
+export const PROTOCOL_VERSION = { major: 12, minor: 2 } as const;

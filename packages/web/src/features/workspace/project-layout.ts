@@ -19,7 +19,11 @@ import type { UiStateHandle } from './use-ui-state';
  * slices). DOM-free and unit-tested.
  */
 
-const EMPTY_PROJECT_LAYOUT: ProjectLayout = { layout_tree: null, active_session: null };
+const EMPTY_PROJECT_LAYOUT: ProjectLayout = {
+  layout_tree: null,
+  active_session: null,
+  layout_ref: null,
+};
 
 /** The session a tab binds to (a terminal its own, an editor tab its worktree's). */
 function tabSession(ref: TabRef): string {
@@ -38,6 +42,7 @@ export function scopedSnapshot(base: UiStateSnapshot, projectId: string): UiStat
     ...base,
     layout_tree: slice?.layout_tree ?? null,
     active_session: slice?.active_session ?? null,
+    layout_ref: slice?.layout_ref ?? null,
     session_tabs: [],
     editor_tabs: [],
     active_editor_tab: null,
@@ -47,7 +52,7 @@ export function scopedSnapshot(base: UiStateSnapshot, projectId: string): UiStat
 /**
  * A UiStateHandle whose layout keys are scoped to one project: reads come from
  * `project_layouts[projectId]`, and updates touching `layout_tree` /
- * `active_session` are routed back into that slice (reading the LATEST record
+ * `active_session` / `layout_ref` are routed back into that slice (reading the LATEST record
  * through `current()`, so same-tick updates never clobber each other). Every
  * other key passes through untouched. Disabled, it is the base handle itself.
  */
@@ -71,6 +76,10 @@ export function scopeUiState(
       if ('active_session' in patch) {
         slice.active_session = patch.active_session ?? null;
         delete rest.active_session;
+      }
+      if ('layout_ref' in patch) {
+        slice.layout_ref = patch.layout_ref ?? null;
+        delete rest.layout_ref;
       }
       if (Object.keys(slice).length > 0) {
         const record = base.current().project_layouts;
@@ -112,9 +121,27 @@ export function splitToProjects(
         snap.active_session !== null && sessionProject.get(snap.active_session) === pid
           ? snap.active_session
           : null,
+      // A shard is a derived fragment, not the saved layout it split from.
+      layout_ref: null,
     };
   }
   return { layout_mode: 'project', project_layouts: layouts };
+}
+
+/**
+ * How a freshly sharded record lands over whatever slices a snapshot already
+ * holds (SPEC §11): an existing slice always wins — per-project layout storage
+ * is never erased by a transition, so slices preserved through an earlier
+ * profile-layout load survive the round trip — the shard only fills projects
+ * without one, and explicit `overrides` beat both (the saved-layout load path
+ * pins the current project to the layout being loaded).
+ */
+export function mergeShardedLayouts(
+  sharded: Record<string, ProjectLayout>,
+  existing: Record<string, ProjectLayout>,
+  overrides: Record<string, ProjectLayout> = {},
+): Record<string, ProjectLayout> {
+  return { ...sharded, ...existing, ...overrides };
 }
 
 /**
@@ -139,5 +166,7 @@ export function unionToProfile(
     project_layouts: {},
     layout_tree: joinTrees(slices.map((s) => s.layout_tree).filter((t) => t !== null)),
     active_session: slices.map((s) => s.active_session).find((s) => s !== null) ?? null,
+    // The union is a merged derivation — no single saved layout names it.
+    layout_ref: null,
   };
 }

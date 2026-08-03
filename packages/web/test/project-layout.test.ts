@@ -7,6 +7,7 @@ import {
 } from '@puddle/shared';
 import { flattenTabs, joinTrees, makeLeaf, tabRefKey } from '../src/features/workspace/layout-tree';
 import {
+  mergeShardedLayouts,
   scopedSnapshot,
   scopeUiState,
   splitToProjects,
@@ -70,6 +71,31 @@ describe('splitToProjects', () => {
     expect(keys(layouts[PA]!.layout_tree!)).toEqual([tabRefKey(term(S1))]);
     expect(layouts[PA]!.active_session).toBe(S1);
     expect(keys(layouts[PB]!.layout_tree!)).toEqual([tabRefKey(term(S2))]);
+  });
+
+  it('stamps shards as unnamed (layout_ref null)', () => {
+    const s = snap({ layout_tree: makeLeaf([term(S1)]), layout_ref: 7 });
+    const layouts = splitToProjects(s, [PA], OWNER, null).project_layouts!;
+    expect(layouts[PA]!.layout_ref).toBeNull();
+  });
+});
+
+describe('mergeShardedLayouts', () => {
+  const slice = (session: string, layoutRef: number | null = null) => ({
+    layout_tree: makeLeaf([term(session)]),
+    active_session: null,
+    layout_ref: layoutRef,
+  });
+
+  it('lets existing slices win, fills gaps from the shard, and overrides beat both', () => {
+    const sharded = { [PA]: slice(S1), [PB]: slice(S2) };
+    const existing = { [PA]: slice(S3, 4) };
+    const override = { [PB]: slice(S3, 9) };
+    const merged = mergeShardedLayouts(sharded, existing, override);
+    expect(merged[PA]).toEqual(existing[PA]); // preserved, not re-sharded
+    expect(merged[PB]).toEqual(override[PB]); // the loaded layout wins
+    const noOverride = mergeShardedLayouts(sharded, existing);
+    expect(noOverride[PB]).toEqual(sharded[PB]); // shard fills the gap
   });
 });
 
@@ -179,6 +205,10 @@ describe('scopeUiState', () => {
     const tree = makeLeaf([term(S1)]);
     scoped.update({ layout_tree: tree });
     scoped.update({ active_session: S1 });
-    expect(state().project_layouts[PA]).toEqual({ layout_tree: tree, active_session: S1 });
+    expect(state().project_layouts[PA]).toEqual({
+      layout_tree: tree,
+      active_session: S1,
+      layout_ref: null,
+    });
   });
 });

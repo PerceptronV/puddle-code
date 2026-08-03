@@ -5,6 +5,8 @@ import { Group, Panel, Separator, type Layout } from 'react-resizable-panels';
 import {
   UNTITLED_SESSION,
   type LayoutLeaf,
+  type ProjectLayout,
+  type SavedLayout,
   type Session,
   type SessionKind,
   type TabRef,
@@ -27,7 +29,7 @@ import {
 } from '../../components/ui/dialog';
 import { Button } from '../../components/ui/button';
 import { useExplorerTarget } from '../explorer/use-explorer-target';
-import { useClientSettings } from '../../lib/client-settings';
+import { clientSettings, updateClientSettings, useClientSettings } from '../../lib/client-settings';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
 import {
   hostLabel,
@@ -58,9 +60,16 @@ import { warmTerminalChunk } from '../terminal/LazyTerminal';
 import { wsManager } from '../../lib/ws';
 import { registerHotkey } from '../../lib/hotkeys';
 import { setScratchpadInsertHandler } from '../scratchpad/scratchpad-store';
+import { setLayoutBridge } from '../layouts/layouts-store';
 import { KeepAliveHost } from './keep-alive';
 import { allLeaves, flattenTabs, pruneTabs, tabRefKey, type DropEdge } from './layout-tree';
-import { scopeUiState, splitToProjects, unionToProfile } from './project-layout';
+import {
+  mergeShardedLayouts,
+  scopeUiState,
+  splitToProjects,
+  unionToProfile,
+} from './project-layout';
+import { layoutSignature } from './layout-signature';
 import { projectAbbrev } from '../../lib/project-abbrev';
 import { NARROW_VIEWPORT, useMediaQuery } from '../../lib/use-media-query';
 import { layoutForPanels } from './panel-layout';
@@ -128,6 +137,9 @@ function WorkspaceInner() {
   );
   const baseUiStateRef = useRef(baseUiState);
   baseUiStateRef.current = baseUiState;
+  // Imperative reads for the saved-layout load path (layouts-store bridge).
+  const allSessionsRef = useRef(allSessions.data);
+  allSessionsRef.current = allSessions.data;
 
   // The right sidebar groups sessions by project (SPEC §12): every project's
   // sessions in the default profile-based layout (project order inherits the
@@ -203,6 +215,8 @@ function WorkspaceInner() {
   // flipped while no workspace was open (or in another browser).
   const orderedProjectsRef = useRef(orderedProjects);
   orderedProjectsRef.current = orderedProjects;
+  const profileProjectsRef = useRef(profileProjects.data);
+  profileProjectsRef.current = profileProjects.data;
   useEffect(() => {
     const base = baseUiStateRef.current;
     if (!base.loaded) return;
@@ -214,14 +228,19 @@ function WorkspaceInner() {
       // somewhere); wait until both have arrived.
       if (!allSessions.data || !profileProjects.data) return;
       const sessionProject = new Map(allSessions.data.map((s) => [s.id, s.project_id]));
-      base.update(
-        splitToProjects(
-          snap,
-          profileProjects.data.map((p) => p.id),
-          sessionProject,
-          projectId,
-        ),
+      const patch = splitToProjects(
+        snap,
+        profileProjects.data.map((p) => p.id),
+        sessionProject,
+        projectId,
       );
+      base.update({
+        ...patch,
+        // Slices preserved through an earlier profile-layout load beat their
+        // shard: flipping the setting must never erase stored per-project
+        // layouts (SPEC §11).
+        project_layouts: mergeShardedLayouts(patch.project_layouts ?? {}, snap.project_layouts),
+      });
     } else if (!projectMode && mode === 'project') {
       // Union order: the current project's slice leads, the rest follow the
       // sidebar's project order.
@@ -712,6 +731,106 @@ function WorkspaceInner() {
     setScratchpadInsertHandler(insertPrompt);
     return () => setScratchpadInsertHandler(null);
   }, [insertPrompt]);
+
+  // Load a saved layout (SPEC §11). The saved tree is pruned against the live
+  // session set first (untitled tabs are worktree-agnostic and always keep).
+  // When the layout's scope disagrees with the client's project-based-layout
+  // setting, the load performs the mode transition ITSELF — stamping
+  // `layout_mode` before flipping the setting, so the one-shot transition
+  // effect above finds nothing to convert and the default union/shard cannot
+  // overwrite the layout being loaded:
+  //  - profile-scoped under project mode: the loaded tree becomes the
+  //    top-level layout and the stored per-project slices stay untouched
+  //    (no union — but nothing is erased either);
+  //  - project-scoped under profile mode: the current profile tree shards
+  //    into the other projects as the setting flip would have done, existing
+  //    slices win over their shard, and the target project takes the loaded
+  //    layout instead of a shard.
+  const applyLayout = useCallback(
+    (saved: SavedLayout): boolean => {
+      const base = baseUiStateRef.current;
+      const live = allSessionsRef.current;
+      const projects = profileProjectsRef.current;
+      if (!base.loaded || !live || !projects) return false;
+      const alive = new Set(live.filter((s) => s.status !== 'archived').map((s) => s.id));
+      const keep = (ref: TabRef) => {
+        const sid = ref.type === 'terminal' ? ref.session : ref.tab.session;
+        return sid === UNTITLED_SESSION || alive.has(sid);
+      };
+      const tree = saved.layout_tree ? pruneTabs(saved.layout_tree, keep) : null;
+      const active =
+        saved.active_session !== null && alive.has(saved.active_session)
+          ? saved.active_session
+          : null;
+      const snap = base.current();
+
+      if (saved.scope === 'profile') {
+        base.update({
+          layout_mode: 'profile',
+          layout_tree: tree,
+          active_session: active,
+          layout_ref: saved.id,
+        });
+        if (clientSettings().projectBasedLayout) {
+          updateClientSettings({ projectBasedLayout: false });
+        }
+        return true;
+      }
+
+      const target = saved.project_id ?? projectId;
+      const slice: ProjectLayout = {
+        layout_tree: tree,
+        active_session: active,
+        layout_ref: saved.id,
+      };
+      if ((snap.layout_mode ?? 'profile') === 'project') {
+        base.update({ project_layouts: { ...snap.project_layouts, [target]: slice } });
+      } else {
+        const sessionProject = new Map(live.map((s) => [s.id, s.project_id]));
+        const patch = splitToProjects(
+          snap,
+          projects.map((p) => p.id),
+          sessionProject,
+          target,
+        );
+        base.update({
+          ...patch,
+          project_layouts: mergeShardedLayouts(patch.project_layouts ?? {}, snap.project_layouts, {
+            [target]: slice,
+          }),
+        });
+      }
+      if (!clientSettings().projectBasedLayout) {
+        updateClientSettings({ projectBasedLayout: true });
+      }
+      return true;
+    },
+    [projectId],
+  );
+
+  // The top-bar Layouts popover reads the live layout — and loads saved ones —
+  // through this bridge while a workspace is mounted (layouts-store). The
+  // scoped snapshot keeps `layout_ref`/`layout_tree` pointing at whichever
+  // slice is live, so the bridge is mode-agnostic.
+  const savedScope =
+    projectMode && baseUiState.snapshot.layout_mode === 'project' ? 'project' : 'profile';
+  const scopedTree = uiState.snapshot.layout_tree;
+  const scopedLayoutRef = uiState.snapshot.layout_ref;
+  useEffect(() => {
+    if (!baseUiState.loaded) return;
+    setLayoutBridge({
+      scope: savedScope,
+      projectId,
+      layoutRef: scopedLayoutRef,
+      signature: layoutSignature(scopedTree),
+      capture: () => {
+        const cur = uiStateRef.current.current();
+        return { layout_tree: cur.layout_tree, active_session: cur.active_session };
+      },
+      apply: applyLayout,
+    });
+  }, [baseUiState.loaded, savedScope, projectId, scopedTree, scopedLayoutRef, applyLayout]);
+  useEffect(() => () => setLayoutBridge(null), []);
 
   // Global hotkey handlers (SPEC §11): register stable wrappers once; each reads
   // the latest closures from a ref so re-renders don't churn the registry.

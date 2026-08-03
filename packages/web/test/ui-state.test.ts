@@ -43,6 +43,7 @@ describe('uiStateSnapshotSchema', () => {
       layout_tree: null,
       // layout_mode is optional without a default: absent means profile.
       project_layouts: {},
+      layout_ref: null,
     });
   });
 

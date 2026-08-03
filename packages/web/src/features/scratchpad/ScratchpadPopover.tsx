@@ -143,12 +143,17 @@ export function ScratchpadPopover() {
 
   return (
     <Popover open={open} onOpenChange={setScratchpadOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon">
-          <NotebookPen />
-          <span className="sr-only">Scratchpad</span>
-        </Button>
-      </PopoverTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <NotebookPen />
+              <span className="sr-only">Scratchpad</span>
+            </Button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Scratchpad</TooltipContent>
+      </Tooltip>
       <PopoverContent className="w-[34rem] max-w-[calc(100vw-1rem)] p-0">
         <div className="flex items-center gap-2 px-5 pb-2 pt-4">
           <span className="text-2xs font-medium uppercase tracking-wide text-fg-gold">

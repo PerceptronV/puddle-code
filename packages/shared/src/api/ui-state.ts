@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isoTimestamp, sessionId } from './common.js';
+import { isoTimestamp, rowId, sessionId } from './common.js';
 
 /**
  * An open tab in the centre editor zone. `kind` distinguishes a plain file
@@ -110,6 +110,12 @@ export const layoutNodeSchema: z.ZodType<LayoutNode> = z.lazy(() =>
 export const projectLayoutSchema = z.looseObject({
   layout_tree: layoutNodeSchema.nullable().default(null),
   active_session: sessionId.nullable().default(null),
+  /**
+   * The saved layout (12.2, `/api/layouts` row id) this slice was last loaded
+   * from or saved as — the popover shows the layout as named while it matches
+   * and "unsaved changes" once the tree drifts. Null: an unnamed layout.
+   */
+  layout_ref: rowId.nullable().default(null),
 });
 export type ProjectLayout = z.infer<typeof projectLayoutSchema>;
 
@@ -178,6 +184,12 @@ export const uiStateSnapshotSchema = z.looseObject({
    * `project`: project id → that project's tiling tree and bound session.
    */
   project_layouts: z.record(z.string(), projectLayoutSchema).default({}),
+  /**
+   * The saved layout (12.2) the top-level profile-wide layout was last loaded
+   * from or saved as, live only while `layout_mode` is absent or `profile` —
+   * the per-project counterpart lives on each `project_layouts` slice.
+   */
+  layout_ref: rowId.nullable().default(null),
 });
 export type UiStateSnapshot = z.infer<typeof uiStateSnapshotSchema>;
 

@@ -16,6 +16,7 @@ import { migration015 } from './015-profile-icon.js';
 import { migration016 } from './016-session-env.js';
 import { migration017 } from './017-session-cwd.js';
 import { migration018 } from './018-project-abbrev.js';
+import { migration019 } from './019-layouts.js';
 
 export interface Migration {
   version: number;
@@ -43,4 +44,5 @@ export const MIGRATIONS: Migration[] = [
   migration016,
   migration017,
   migration018,
+  migration019,
 ];
