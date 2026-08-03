@@ -1235,7 +1235,12 @@ export class SessionService extends EventEmitter {
     source: 'detector' | 'signal' = 'detector',
   ): void {
     const live = this.liveAgents.get(sessionId);
-    if (!live || live.status === detected || live.status === 'starting') return;
+    if (!live || live.status === detected) return;
+    // Regex output cannot establish an idle state before the PTY has produced
+    // its first chunk. An authoritative hook can: Claude's first Stop hook may
+    // beat its first visible TUI draw, and dropping it leaves the session amber
+    // until another hook happens to fire.
+    if (live.status === 'starting' && source === 'detector') return;
     // Once hooks have spoken, the regex detector no longer drives status —
     // its output-based flips misread idle TUI redraws as activity.
     if (source === 'detector' && live.signalled) return;

@@ -140,15 +140,13 @@ export const codex: AgentAdapter = {
   },
 
   /**
-   * UNVERIFIED against a live session — codex requires a logged-in account to
-   * reach its composer, so these come from strings in the 0.146.0 binary rather
-   * than observed output: the busy footer carries "… to interrupt" and the idle
-   * footer "? for shortcuts". Confirm with docs/acceptance/phase-7-agents.md and
-   * correct here. Codex has no hook side-channel, so these are the ONLY status
-   * driver for it (unlike claude-code, where they are a fallback).
+   * Verified against a live 0.146.0 PTY (2026-08-03): a screen redraw places
+   * the `›` composer before the `<model> · <directory>` footer in the stripped
+   * stream; the previously guessed "? for shortcuts" string never appears.
+   * Codex has no hook side-channel, so these are its only status driver.
    */
   statusPatterns: {
-    waitingInput: [/\?\s+for shortcuts/i],
+    waitingInput: [/›[^\r\n]{0,1000}\s·\s/],
     busy: [/to interrupt/i],
     limitReached: [/you've (hit|reached) your usage limit/i],
   },

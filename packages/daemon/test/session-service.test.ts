@@ -202,6 +202,27 @@ describe('kill / resume / archive lifecycle', () => {
     expect(f.service.signalAgentStatus(nonce!, 'working')).toBe(false);
   });
 
+  it('accepts an authoritative waiting hook before the first PTY output', async () => {
+    const f = fixture({ agentStartDelayMs: 500 });
+    f.service.setSignalPort(65432);
+    const session = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      title: 'early signal',
+    });
+    expect(f.service.get(session.id).status).toBe('starting');
+
+    const nonce = f.service.signalNonceFor(session.id);
+    expect(nonce).toBeTruthy();
+    expect(f.service.signalAgentStatus(nonce!, 'waiting_input')).toBe(true);
+    expect(f.service.get(session.id).status).toBe('waiting_input');
+
+    // The delayed first draw must not overwrite the hook-owned idle state.
+    await waitFor(() => f.logs.readTail(session.id, 'agent').includes('READY'));
+    expect(f.service.get(session.id).status).toBe('waiting_input');
+    await f.service.kill(session.id);
+  });
+
   it('archives a live session by killing it first — one gesture, still reversible', async () => {
     const f = fixture();
     const session = await f.service.create({

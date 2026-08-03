@@ -85,17 +85,6 @@ export function AppearanceSection() {
         </Select>
       </SettingRow>
       <SettingRow
-        label="Reduced motion"
-        description="Status ripples become static dots."
-        htmlFor="reduced-motion"
-      >
-        <Switch
-          id="reduced-motion"
-          checked={settings.reducedMotion}
-          onCheckedChange={(checked) => updateClientSettings({ reducedMotion: checked })}
-        />
-      </SettingRow>
-      <SettingRow
         label="All projects in the sidebar"
         description="Show every project's sessions in the right sidebar, grouped by project."
         htmlFor="all-project-sessions"

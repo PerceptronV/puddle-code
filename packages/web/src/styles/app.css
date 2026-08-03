@@ -124,14 +124,14 @@
 
 @layer components {
   /*
-   * Status ripples (SPEC §12, the one animated flourish). Running emits slow
-   * concentric ripples; waiting pulses. Both are FINITE: they run for a while
-   * after the status changes, then settle to a static dot — an infinite
-   * animation keeps the browser's compositor producing frames forever, which
-   * on a laptop is a real battery cost for sessions that sit running for
-   * days. Motion means "this just changed"; the colour keeps meaning the
-   * state. Reduced motion — via the OS setting or the client toggle
-   * (html[data-reduced-motion='true']) — leaves a static dot.
+   * Session status indicators (SPEC §12). Colour alone carries the state —
+   * running, waiting, interrupted, idle, terminal-blue — with no motion at all.
+   * The ripple and pulse this file used to run were removed deliberately
+   * (decision 2026-08-03): even bounded to ~30 s they kept the compositor
+   * producing frames after every status change across every visible session,
+   * and the colour already said everything the motion did. Nothing here
+   * animates, so there is no reduced-motion variant to honour and no client
+   * toggle to offer.
    */
   .status-dot {
     position: relative;
@@ -146,48 +146,20 @@
   .status-dot[data-status='starting'] {
     background: var(--status-running);
   }
-  .status-dot[data-status='running']::before,
-  .status-dot[data-status='running']::after,
-  .status-dot[data-status='starting']::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: 9999px;
-    border: 1px solid var(--status-running);
-    /* ~30 s of rippling after a status change; `forwards` parks the final
-       frame at opacity 0 so the rings vanish rather than freeze mid-ripple. */
-    animation: puddle-ripple 2.6s ease-out 12 forwards;
-  }
-  .status-dot[data-status='running']::after {
-    animation-delay: 1.3s;
-  }
-  /* Terminal sessions carry the same ripple, recoloured blue — a running shell
-     reads as blue, not agent amber (higher specificity wins over the rules
-     above). */
+  /* A running shell reads as blue, not agent amber. */
   .status-dot[data-kind='terminal'][data-status='running'],
   .status-dot[data-kind='terminal'][data-status='starting'] {
     background: var(--status-terminal);
   }
-  .status-dot[data-kind='terminal'][data-status='running']::before,
-  .status-dot[data-kind='terminal'][data-status='running']::after,
-  .status-dot[data-kind='terminal'][data-status='starting']::after {
-    border-color: var(--status-terminal);
-  }
   .status-dot[data-status='waiting_input'] {
     background: var(--status-waiting);
-    /* ~1 min of pulsing to catch the eye, then a steady waiting-green dot. */
-    animation: puddle-pulse 1.3s ease-in-out 45;
   }
   .status-dot[data-status='interrupted'] {
     background: var(--status-interrupted);
   }
   /* stale_running (SPEC §4): still nominally running, but the agent has been
-     quiet for over an hour — fade the dot and drop the ripple, so a possibly
-     wedged session no longer advertises progress. */
-  .status-dot[data-stale]::before,
-  .status-dot[data-stale]::after {
-    content: none;
-  }
+     quiet for over an hour — fade it, so a possibly wedged session no longer
+     advertises progress. A flat opacity, not an animation. */
   .status-dot[data-stale] {
     opacity: 0.45;
   }
@@ -221,7 +193,6 @@
   }
   .status-glyph[data-status='waiting_input'] {
     color: var(--status-waiting);
-    animation: puddle-pulse 1.3s ease-in-out 45;
   }
   .status-glyph[data-status='interrupted'] {
     color: var(--status-interrupted);
@@ -229,50 +200,6 @@
   /* stale_running: still nominally running, but quiet for over an hour. */
   .status-glyph[data-stale] {
     opacity: 0.45;
-  }
-
-  /* --puddle-ripple-scale caps how far a ripple reaches; the collapsed session
-     rail overrides it (a narrower value) so the ripple stays inside each dot's
-     cell and is never cropped by the rail's scroll container. */
-  @keyframes puddle-ripple {
-    from {
-      transform: scale(1);
-      opacity: 0.7;
-    }
-    to {
-      transform: scale(var(--puddle-ripple-scale, 3.4));
-      opacity: 0;
-    }
-  }
-  @keyframes puddle-pulse {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.35;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .status-dot,
-    .status-dot::before,
-    .status-dot::after {
-      animation: none;
-    }
-    .status-dot::before,
-    .status-dot::after {
-      content: none;
-    }
-  }
-  html[data-reduced-motion='true'] .status-dot,
-  html[data-reduced-motion='true'] .status-dot::before,
-  html[data-reduced-motion='true'] .status-dot::after {
-    animation: none;
-  }
-  html[data-reduced-motion='true'] .status-dot::before,
-  html[data-reduced-motion='true'] .status-dot::after {
-    content: none;
   }
 
   /* Monaco 0.55's widget-button tooltips (find widget ↑/↓/✕ etc.) render as

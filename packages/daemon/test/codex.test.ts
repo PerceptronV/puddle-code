@@ -2,10 +2,11 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Account } from '@puddle/shared';
 import { codex } from '../src/agents/codex.js';
 import { newestRolloutFor, renderRollout } from '../src/agents/codex-rollout.js';
+import { StatusDetector } from '../src/pty/status-detector.js';
 
 function account(configDir: string): Account {
   return {
@@ -76,6 +77,27 @@ describe('codex adapter — args', () => {
 
   it('cannot preset its session id', () => {
     expect(codex.capabilities.presetSessionId).toBe(false);
+  });
+});
+
+describe('codex adapter — status', () => {
+  it('recognises the live 0.146.0 composer as waiting for input', () => {
+    vi.useFakeTimers();
+    const statuses: string[] = [];
+    const detector = new StatusDetector(
+      codex.statusPatterns,
+      { onStatus: (status) => statuses.push(status) },
+      2000,
+    );
+
+    detector.feed('Working (4s • esc to interrupt)');
+    expect(statuses).toEqual(['running']);
+    detector.feed('› Explain this codebasegpt-5.6-sol default fast · ~/src/puddle');
+    vi.advanceTimersByTime(2100);
+    expect(statuses).toEqual(['running', 'waiting_input']);
+
+    detector.dispose();
+    vi.useRealTimers();
   });
 });
 

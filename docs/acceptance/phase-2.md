@@ -58,10 +58,11 @@ when the OAuth flow completes).
    and one click on Resume replays the scrollback and continues the
    conversation with the injected interruption note.
 
-7. **Status ripples.** A running session's dot emits slow green concentric
-   ripples; waiting_input pulses amber and the count appears in the browser
-   tab title (`● n waiting`). With OS reduced motion on (or Settings →
-   Appearance → Reduced motion), both become static dots.
+7. **Status colours.** A session's indicator carries its state by colour alone
+   — running amber, waiting green, interrupted ember, idle grey, a terminal
+   blue — and the waiting count appears in the browser tab title
+   (`● n waiting`). Nothing animates: the ripple, the pulse, and the
+   reduced-motion setting were all removed (2026-08-03, SPEC §12).
 
 Record any UI/daemon mismatches found here as issues; adapter corrections
 still go to `packages/daemon/src/agents/claude-code.ts` per phase-1.

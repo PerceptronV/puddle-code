@@ -46,7 +46,7 @@ The current patterns and where they came from:
 
 | adapter | waitingInput | busy | source |
 | --- | --- | --- | --- |
-| codex | `/\?\s+for shortcuts/i` | `/to interrupt/i` | strings in the 0.146.0 binary, **not** observed output |
+| codex | `/›[^\r\n]{0,1000}\s·\s/` | `/to interrupt/i` | observed in a live 0.146.0 PTY on 2026-08-03 |
 | opencode | `/esc\s+interrupt/i`, `/^\s*>\s*$/m` | `/working/i`, `/thinking/i` | guessed — **most likely to be wrong** |
 | gemini-cli | `/Type your message/i`, `/esc\s+to\s+cancel/i` | `/esc\s+to\s+cancel/i` | guessed; the two overlap, which the position-based detector tolerates but which should be tightened once observed |
 

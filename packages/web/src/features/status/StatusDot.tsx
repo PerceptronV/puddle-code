@@ -2,11 +2,14 @@ import type { SessionKind, SessionStatus } from '@puddle/shared';
 import { cn } from '../../lib/utils';
 
 /**
- * The signature element (SPEC §12): a dot that ripples concentrically in
- * --status-running while the agent works — the puddle motif — and pulses
- * --status-waiting when input is needed. prefers-reduced-motion (or the
- * client setting) degrades both to a static dot; styles in app.css. Terminal
- * sessions ripple in blue (--status-terminal) instead of the agent amber.
+ * A session's status as a small dot in the status colour (SPEC §12): amber
+ * running, green waiting, ember interrupted, blue for a terminal, grey idle,
+ * faded when stale. Static — the ripple and pulse were removed (2026-08-03);
+ * styles in app.css.
+ *
+ * Used where there is no room for the agent's brand mark: the collapsed session
+ * rail. Rows and tab chips use `SessionGlyph`, which is the mark itself in the
+ * same colours.
  */
 export function StatusDot({
   status,

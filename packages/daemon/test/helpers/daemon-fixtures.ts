@@ -57,6 +57,8 @@ export function fakeAdapter(
   opts: {
     share?: boolean;
     binary?: string;
+    /** Hold back the first PTY output so tests can exercise `starting`. */
+    startDelayMs?: number;
     /** Distinct id, for tests needing two agent types (e.g. cross-agent hand-off). */
     id?: string;
     /** Renders a transcript; absent exercises the hand-off's PTY-log fallback. */
@@ -92,7 +94,8 @@ export function fakeAdapter(
     },
     launchArgs: (o) => [
       '-c',
-      'echo "LAUNCH skip=$1"; echo "PROMPT<<$2>>"; echo READY; cat',
+      `${opts.startDelayMs ? `sleep ${opts.startDelayMs / 1000}; ` : ''}` +
+        'echo "LAUNCH skip=$1"; echo "PROMPT<<$2>>"; echo READY; cat',
       'bash',
       String(o.skipPermissions),
       o.prompt ?? '',
@@ -222,6 +225,8 @@ export function fixture(
     shellHooks?: ShellHooks;
     /** Adapter executable; pass a name absent from PATH to test the install guard. */
     agentBinary?: string;
+    /** Hold back the fake agent's first output, for `starting` status tests. */
+    agentStartDelayMs?: number;
     /**
      * Registers a second agent type ('fake2') with its own account, for
      * cross-agent hand-off. Its `exportTranscript` is provided, so the primary
@@ -258,7 +263,11 @@ export function fixture(
     sessions: stores.sessions,
   });
   const adapters = new AdapterRegistry([
-    fakeAdapter({ share: opts.share, binary: opts.agentBinary }),
+    fakeAdapter({
+      share: opts.share,
+      binary: opts.agentBinary,
+      startDelayMs: opts.agentStartDelayMs,
+    }),
     ...(opts.secondAgent
       ? [
           fakeAdapter({

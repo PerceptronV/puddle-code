@@ -8,8 +8,6 @@ export interface ClientSettings {
   uiFontSize: number;
   terminalFontSize: number;
   density: 'compact' | 'comfortable';
-  /** Forces reduced motion even when the OS does not request it. */
-  reducedMotion: boolean;
   terminalScrollback: number;
   /** Editor keys are stored now, consumed when the editor lands in Phase 3. */
   editorTabSize: number;
@@ -25,7 +23,6 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettings = {
   uiFontSize: 16,
   terminalFontSize: 13,
   density: 'compact',
-  reducedMotion: false,
   terminalScrollback: 5000,
   editorTabSize: 2,
   editorWordWrap: false,
@@ -52,7 +49,6 @@ function load(): ClientSettings {
 /** Non-colour knobs still flow through CSS variables / data attributes. */
 function applyToDocument(settings: ClientSettings): void {
   document.documentElement.style.setProperty('--ui-font-size', `${settings.uiFontSize}px`);
-  document.documentElement.dataset['reducedMotion'] = String(settings.reducedMotion);
 }
 
 export function clientSettings(): ClientSettings {

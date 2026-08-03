@@ -6,9 +6,9 @@ import { cn } from '../../lib/utils';
 /**
  * One glyph carrying BOTH facts a session row needs: which agent is driving it,
  * and what that session is doing. The agent's own brand mark (a terminal glyph
- * for a shell session) rendered in the status colour, rippling and pulsing
- * exactly as the status dot does — it keeps SPEC §12's motif while spending one
- * glyph instead of two. A dot beside an icon said the same thing twice.
+ * for a shell session) rendered in the status colour — one glyph instead of two,
+ * where a dot beside an icon said the same thing twice. Static: colour alone
+ * carries the state (SPEC §12).
  *
  * The dot itself (`StatusDot`) survives where there is no room for a mark and
  * nothing to deduplicate: the collapsed session rail.
