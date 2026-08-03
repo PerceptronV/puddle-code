@@ -103,27 +103,6 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
 
 const ACTION_BY_ID = new Map(HOTKEY_ACTIONS.map((a) => [a.id, a]));
 
-/**
- * Browser-reserved combos a web page cannot intercept (macOS). Shown as such in
- * the settings panel; binding to one is allowed but flagged as won't-fire-here.
- */
-// Canonical modifier order (ctrl+alt+shift+meta), matching `eventBinding`.
-const RESERVED = new Set([
-  'meta+KeyW', // close tab
-  'shift+meta+KeyW', // close window
-  'meta+KeyT', // new tab
-  'shift+meta+KeyT', // reopen tab
-  'meta+KeyN', // new window
-  'shift+meta+KeyN', // incognito
-  'meta+KeyQ', // quit
-  'shift+meta+KeyB', // bookmarks bar
-  'alt+meta+KeyB', // bookmarks manager
-  'meta+KeyL', // focus address bar
-  'meta+KeyD', // bookmark page
-  'meta+KeyR', // reload
-]);
-export const isReservedBinding = (b: string): boolean => RESERVED.has(b);
-
 /** The canonical binding a keydown maps to, or null for a bare modifier press. */
 export function eventBinding(e: KeyboardEvent): string | null {
   const code = e.code;

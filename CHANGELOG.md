@@ -19,3 +19,7 @@ Past releases: see docs/changelogs/.
 
 - The "All projects in the sidebar" setting became "Project-based layout" (its inverse; a stored choice migrates). The sidebar's Archived disclosure now follows the same scoping: every project's archived sessions in the default profile-based layout, only the current project's under project-based layout.
 - Protocol major bumped to 12.0 (no schema change beyond 11.2's additive keys, on purpose): every connected daemon auto-upgrades at the next `puddle launch` handshake, so all deployments parse the project-based-layout snapshot keys instead of merely round-tripping them, and none linger on early 11.x.
+
+### Removed
+
+- The "browser-reserved" warnings in Settings → Hotkeys (the ⌘W/⌘T/… flagging and the intro's caveat): any combo is bindable without commentary; the conflict warning between two app shortcuts remains.

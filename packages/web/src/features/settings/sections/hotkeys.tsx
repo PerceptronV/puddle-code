@@ -1,13 +1,7 @@
 import { useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { toastError } from '../../../lib/errors';
-import {
-  eventBinding,
-  formatBinding,
-  HOTKEY_ACTIONS,
-  HOTKEY_GROUPS,
-  isReservedBinding,
-} from '../../../lib/hotkeys';
+import { eventBinding, formatBinding, HOTKEY_ACTIONS, HOTKEY_GROUPS } from '../../../lib/hotkeys';
 import { usePatchProfileSettings, useProfileSettings } from '../../../lib/queries';
 import { cn } from '../../../lib/utils';
 import { useCurrentProfileId } from '../../profile/profile-store';
@@ -97,7 +91,6 @@ export function HotkeysSection() {
       <SectionTitle>Hotkeys</SectionTitle>
       <p className="mb-4 text-xs text-fg-muted">
         Per-profile keyboard shortcuts. Filetree navigation and terminal line-edits are fixed.
-        Browser-reserved combos (⌘W, ⌘T, ⌘⇧B, …) can’t be captured by a web tab.
       </p>
       {HOTKEY_GROUPS.map((group) => {
         const actions = HOTKEY_ACTIONS.filter((a) => a.group === group);
@@ -110,12 +103,7 @@ export function HotkeysSection() {
             {actions.map((a) => {
               const binding = effective(a.id, a.defaultBinding);
               const clash = (counts.get(binding) ?? 0) > 1;
-              const reserved = isReservedBinding(binding);
-              const warn = reserved
-                ? 'Browser-reserved — won’t fire in a tab.'
-                : clash
-                  ? 'Conflicts with another shortcut.'
-                  : undefined;
+              const warn = clash ? 'Conflicts with another shortcut.' : undefined;
               return (
                 <SettingRow
                   key={a.id}
