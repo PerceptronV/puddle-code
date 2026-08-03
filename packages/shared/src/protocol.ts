@@ -126,4 +126,11 @@
 // reports it back as an optional nullable `cwd`. Confined to the worktree by
 // the same guard the file routes use, and rejected outright on an agent
 // session. PERSISTED (migration 017), so a resume returns to the directory.
-export const PROTOCOL_VERSION = { major: 11, minor: 1 } as const;
+// 11.2 (2026-08-03): additive — the ui_state snapshot gains `layout_mode`
+// ('profile' | 'project', absent = profile) and `project_layouts` (project id
+// → { layout_tree, active_session }), backing the client's project-based
+// layout setting (SPEC §11): with it on, each project keeps its own tiling
+// tree while the profile row still carries the whole snapshot. Both keys are
+// optional-with-default, and the snapshot is a loose object, so old peers
+// round-trip them untouched.
+export const PROTOCOL_VERSION = { major: 11, minor: 2 } as const;

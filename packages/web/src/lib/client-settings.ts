@@ -16,8 +16,13 @@ export interface ClientSettings {
   editorWordWrap: boolean;
   /** `user@host` for `vscode://`/`cursor://` remote deep links; `''` = unset. */
   editorLinkSshHost: string;
-  /** Show every project's sessions in the right sidebar, grouped by project. */
-  showAllProjectSessions: boolean;
+  /**
+   * Project-based layout (SPEC §11): the centre editor keeps a layout per
+   * project (and the sidebar lists only the current project's sessions)
+   * instead of one profile-wide surface. Replaces the inverse
+   * `showAllProjectSessions` (see the load() migration).
+   */
+  projectBasedLayout: boolean;
 }
 
 export const DEFAULT_CLIENT_SETTINGS: ClientSettings = {
@@ -30,7 +35,7 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettings = {
   editorTabSize: 2,
   editorWordWrap: false,
   editorLinkSshHost: '',
-  showAllProjectSessions: true,
+  projectBasedLayout: false,
 };
 
 const KEY = 'puddle.client-settings';
@@ -39,12 +44,19 @@ let cache: ClientSettings | null = null;
 
 function load(): ClientSettings {
   if (cache) return cache;
-  let stored: Partial<ClientSettings> = {};
+  let stored: Partial<ClientSettings> & { showAllProjectSessions?: boolean } = {};
   try {
-    stored = JSON.parse(localStorage.getItem(KEY) ?? '{}') as Partial<ClientSettings>;
+    stored = JSON.parse(localStorage.getItem(KEY) ?? '{}') as typeof stored;
   } catch {
     // Corrupt JSON → fall back to defaults.
   }
+  // Migrate the retired `showAllProjectSessions` (default on): its OFF state —
+  // only the current project's sessions in the sidebar — is what project-based
+  // layout now means, so carry that choice over rather than resetting it.
+  if (stored.projectBasedLayout === undefined && stored.showAllProjectSessions !== undefined) {
+    stored.projectBasedLayout = !stored.showAllProjectSessions;
+  }
+  delete stored.showAllProjectSessions;
   cache = { ...DEFAULT_CLIENT_SETTINGS, ...stored };
   return cache;
 }

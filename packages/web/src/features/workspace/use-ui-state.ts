@@ -11,6 +11,12 @@ export interface UiStateHandle {
   loaded: boolean;
   /** The restored snapshot; defaults when the profile has none. */
   snapshot: UiStateSnapshot;
+  /**
+   * The latest snapshot including same-tick updates — `update` merges
+   * synchronously, so a second update in the same tick must read through this
+   * rather than the render's `snapshot` or it would clobber the first.
+   */
+  current(): UiStateSnapshot;
   /** Merge a change and schedule the debounced PUT (SPEC §11: ~2 s). */
   update(patch: Partial<UiStateSnapshot>): void;
 }
@@ -131,6 +137,7 @@ export function useUiState(): UiStateHandle {
   return {
     loaded,
     snapshot,
+    current: () => snapshotRef.current,
     update(patch) {
       if (profileId === null) return;
       const next = { ...snapshotRef.current, ...patch };

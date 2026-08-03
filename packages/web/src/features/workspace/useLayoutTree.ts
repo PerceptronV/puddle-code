@@ -51,11 +51,24 @@ export interface LayoutController {
   drop(spec: DropSpec): void;
 }
 
-export function useLayoutTree(uiState: UiStateHandle): LayoutController {
+/**
+ * @param scopeKey identifies WHICH tree the handle exposes (the profile-wide
+ * one, or one project's slice under project-based layout — SPEC §11). When it
+ * changes, the cached migration tree resets: a null `layout_tree` must rebuild
+ * against the new scope's snapshot, not reuse a tree built for the old one.
+ */
+export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): LayoutController {
   const snapshot = uiState.snapshot;
 
   // Compute the migration tree at most once (stable ids) until it is persisted.
   const initialRef = useRef<LayoutNode | null>(null);
+  const scopeRef = useRef(scopeKey);
+  const migrated = useRef(false);
+  if (scopeRef.current !== scopeKey) {
+    scopeRef.current = scopeKey;
+    initialRef.current = null;
+    migrated.current = false;
+  }
   if (!snapshot.layout_tree && !initialRef.current) {
     initialRef.current = buildInitialTree(snapshot);
   }
@@ -76,7 +89,6 @@ export function useLayoutTree(uiState: UiStateHandle): LayoutController {
   // concurrent open, and `persistRef` keeps the churny `persist` out of the deps.
   const persistRef = useRef(persist);
   persistRef.current = persist;
-  const migrated = useRef(false);
   useEffect(() => {
     if (migrated.current) return;
     if (uiState.loaded && !snapshot.layout_tree && initialRef.current) {

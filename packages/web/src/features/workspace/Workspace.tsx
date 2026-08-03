@@ -58,7 +58,8 @@ import { wsManager } from '../../lib/ws';
 import { registerHotkey } from '../../lib/hotkeys';
 import { setScratchpadInsertHandler } from '../scratchpad/scratchpad-store';
 import { KeepAliveHost } from './keep-alive';
-import { allLeaves, flattenTabs, tabRefKey, type DropEdge } from './layout-tree';
+import { allLeaves, flattenTabs, pruneTabs, tabRefKey, type DropEdge } from './layout-tree';
+import { scopeUiState, splitToProjects, unionToProfile } from './project-layout';
 import { NARROW_VIEWPORT, useMediaQuery } from '../../lib/use-media-query';
 import { layoutForPanels } from './panel-layout';
 import {
@@ -79,7 +80,8 @@ import { useUiState } from './use-ui-state';
  * area (editor + terminal tabs in `layout_tree`, driven by `useLayoutTree`), and
  * the right session sidebar. The tiling tree and the shell sizes persist PER
  * PROFILE — the centre area is one surface shared across the profile's projects
- * — and restore on open (SPEC §11). `EditorProvider` lets the explorer and
+ * — and restore on open (SPEC §11); the project-based layout setting narrows
+ * the tree (not the shell) to per profile+project via `scopeUiState`. `EditorProvider` lets the explorer and
  * terminal links open files without prop-drilling; Monaco/xterm stay behind
  * lazy chunks (`KeepAliveHost` + the pane bodies).
  */
@@ -106,17 +108,32 @@ function WorkspaceInner() {
   // Profile-keyed (SPEC §11): the layout tree is shared across projects, so the
   // tiling area needs every session it may hold a tab for — whatever the
   // project — for labels, status dots, and restore-time pruning.
-  const uiState = useUiState();
+  const baseUiState = useUiState();
   const allSessions = useAllSessions();
   const tabSessions = allSessions.data ?? sessions;
 
-  // The right sidebar groups sessions by project (SPEC §12): the whole profile
-  // in cross-project mode (client setting, default on — project order inherits
-  // the homescreen's projectOrder, and the groups derive from the same
-  // all-sessions list the tiling area uses), or just this project otherwise;
-  // drag reorders session_order in both.
+  // Project-based layout (SPEC §11, client setting): the centre editor keeps a
+  // layout per project instead of one profile-wide surface. Scoping waits for
+  // the snapshot to say `layout_mode: 'project'` — the transition effect below
+  // converts it — so a snapshot mid-transition is never read through the wrong
+  // keys. Everything downstream uses the scoped handle; only the transition
+  // and slice-prune effects reach for the base one.
+  const projectMode = useClientSettings().projectBasedLayout;
+  const uiState = scopeUiState(
+    baseUiState,
+    projectId,
+    projectMode && baseUiState.snapshot.layout_mode === 'project',
+  );
+  const baseUiStateRef = useRef(baseUiState);
+  baseUiStateRef.current = baseUiState;
+
+  // The right sidebar groups sessions by project (SPEC §12): every project's
+  // sessions in the default profile-based layout (project order inherits the
+  // homescreen's projectOrder, and the groups derive from the same
+  // all-sessions list the tiling area uses), or just the current project's
+  // under project-based layout — project names always stay as navigation
+  // targets; drag reorders session_order in both.
   const profileId = detail.data?.project.profile_id;
-  const showAllSessions = useClientSettings().showAllProjectSessions;
   const profileProjects = useProjects(profileId);
   const profileSettings = useProfileSettings(profileId);
   const patchProfileSettings = usePatchProfileSettings(profileId ?? '');
@@ -140,13 +157,13 @@ function WorkspaceInner() {
       // (untracked sessions float to the top of their group, newest-first).
       sessions: orderByDrag(
         all.filter(
-          (s) => s.project_id === p.id && active(s) && (showAllSessions || p.id === projectId),
+          (s) => s.project_id === p.id && active(s) && (!projectMode || p.id === projectId),
         ),
         uiState.snapshot.session_order,
       ),
     }));
   }, [
-    showAllSessions,
+    projectMode,
     sessions,
     projectId,
     uiState.snapshot.session_order,
@@ -164,12 +181,59 @@ function WorkspaceInner() {
     },
     [orderedProjects, patchProfileSettings],
   );
-  const archivedSessions = useMemo(
-    () => sessions.filter((s) => s.status === 'archived'),
-    [sessions],
-  );
+  // The archived disclosure follows the same scoping as the live groups
+  // (SPEC §12): only this project's archived sessions under project-based
+  // layout, every project's (in sidebar project order) otherwise.
+  const archivedSessions = useMemo(() => {
+    if (projectMode) return sessions.filter((s) => s.status === 'archived');
+    const all = allSessions.data ?? sessions;
+    return orderedProjects.flatMap((p) =>
+      all.filter((s) => s.project_id === p.id && s.status === 'archived'),
+    );
+  }, [projectMode, sessions, allSessions.data, orderedProjects]);
 
-  const layout = useLayoutTree(uiState);
+  // One-shot layout-mode transitions (SPEC §11): when the client's
+  // project-based layout setting disagrees with the mode the snapshot was last
+  // maintained in, convert it — split the shared tree into per-project slices
+  // on the way in, union the slices back on the way out — and stamp
+  // `layout_mode`, so a snapshot converts exactly once even when the setting
+  // flipped while no workspace was open (or in another browser).
+  const orderedProjectsRef = useRef(orderedProjects);
+  orderedProjectsRef.current = orderedProjects;
+  useEffect(() => {
+    const base = baseUiStateRef.current;
+    if (!base.loaded) return;
+    const snap = base.current();
+    const mode = snap.layout_mode ?? 'profile';
+    if (projectMode && mode !== 'project') {
+      // The split needs the session → project map and the full project list
+      // (archived projects included — their sessions' tabs must land
+      // somewhere); wait until both have arrived.
+      if (!allSessions.data || !profileProjects.data) return;
+      const sessionProject = new Map(allSessions.data.map((s) => [s.id, s.project_id]));
+      base.update(
+        splitToProjects(
+          snap,
+          profileProjects.data.map((p) => p.id),
+          sessionProject,
+          projectId,
+        ),
+      );
+    } else if (!projectMode && mode === 'project') {
+      // Union order: the current project's slice leads, the rest follow the
+      // sidebar's project order.
+      base.update(
+        unionToProfile(snap, [projectId, ...orderedProjectsRef.current.map((p) => p.id)]),
+      );
+    }
+  }, [projectMode, baseUiState.loaded, allSessions.data, profileProjects.data, projectId]);
+
+  const layout = useLayoutTree(
+    uiState,
+    projectMode && baseUiState.snapshot.layout_mode === 'project'
+      ? `project:${projectId}`
+      : 'profile',
+  );
   // Effects reference the controller through a ref so they don't list `layout`
   // (which changes on every tree edit) as a dependency — otherwise a
   // focus/ensure op would re-trigger the effect that made it, looping.
@@ -198,7 +262,11 @@ function WorkspaceInner() {
   isNarrowRef.current = isNarrow;
   const [narrowNav, setNarrowNav] = useState(false);
   const [narrowSessions, setNarrowSessions] = useState(false);
-  const [restored, setRestored] = useState(false);
+  // Restore-on-open runs once per project VISIT, not per mount: switching
+  // projects in the sidebar re-runs it against the new project's stored
+  // active session (which per-project layouts make a distinct value).
+  const [restoredProject, setRestoredProject] = useState<string | null>(null);
+  const restored = restoredProject === projectId;
   const [creating, setCreating] = useState(false);
   const [createKind, setCreateKind] = useState<SessionKind>('agent');
   const [seedAccountId, setSeedAccountId] = useState<number | undefined>(undefined);
@@ -430,7 +498,7 @@ function WorkspaceInner() {
   // anything beyond the detail fetch and terminals open immediately.
   useEffect(() => {
     if (restored || !uiState.loaded || !detail.data) return;
-    setRestored(true);
+    setRestoredProject(projectId);
     const stored = uiState.snapshot.active_session;
     const storedSession = sessions.find((s) => s.id === stored);
     if (!activeSessionId && storedSession && storedSession.status !== 'archived') {
@@ -450,6 +518,30 @@ function WorkspaceInner() {
     pruned.current = true;
     const alive = new Set(allSessions.data.filter((s) => s.status !== 'archived').map((s) => s.id));
     layoutRef.current.pruneSessions(alive);
+    // Project-based slices hold trees the visible prune above never touches
+    // (it sees only the scoped tree) — prune every stored slice the same way.
+    // Read through current(): the visible prune has already written this tick.
+    const base = baseUiStateRef.current;
+    const record = base.current().project_layouts;
+    if (Object.keys(record).length > 0) {
+      const keep = (ref: TabRef) =>
+        alive.has(ref.type === 'terminal' ? ref.session : ref.tab.session);
+      base.update({
+        project_layouts: Object.fromEntries(
+          Object.entries(record).map(([pid, slice]) => [
+            pid,
+            {
+              ...slice,
+              layout_tree: slice.layout_tree ? pruneTabs(slice.layout_tree, keep) : null,
+              active_session:
+                slice.active_session !== null && alive.has(slice.active_session)
+                  ? slice.active_session
+                  : null,
+            },
+          ]),
+        ),
+      });
+    }
     const order = uiStateRef.current.snapshot.session_order;
     const liveOrder = order.filter((id) => alive.has(id));
     if (liveOrder.length !== order.length) {

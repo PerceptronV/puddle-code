@@ -105,14 +105,14 @@ export function AppearanceSection() {
         </Select>
       </SettingRow>
       <SettingRow
-        label="All projects in the sidebar"
-        description="Show every project's sessions in the right sidebar, grouped by project."
-        htmlFor="all-project-sessions"
+        label="Project-based layout"
+        description="Each project keeps its own editor layout, and the sidebar lists only the current project's sessions. Off, one layout spans every project."
+        htmlFor="project-based-layout"
       >
         <Switch
-          id="all-project-sessions"
-          checked={settings.showAllProjectSessions}
-          onCheckedChange={(checked) => updateClientSettings({ showAllProjectSessions: checked })}
+          id="project-based-layout"
+          checked={settings.projectBasedLayout}
+          onCheckedChange={(checked) => updateClientSettings({ projectBasedLayout: checked })}
         />
       </SettingRow>
     </div>

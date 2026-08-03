@@ -389,6 +389,28 @@ export function pruneTabs(tree: LayoutNode, keep: (ref: TabRef) => boolean): Lay
   return normalise(walk(tree));
 }
 
+/**
+ * Union several trees into one (the project-based → profile-based layout
+ * transition, SPEC §11): each tree keeps its own structure and they sit
+ * side-by-side in a row split, deduplicated left-to-right — a tab already
+ * present in an earlier tree is pruned from the later one, and a tree that
+ * empties (or was empty) contributes nothing. No trees → a single empty leaf.
+ */
+export function joinTrees(trees: LayoutNode[]): LayoutNode {
+  const seen = new Set<string>();
+  const kept: LayoutNode[] = [];
+  for (const tree of trees) {
+    const pruned = normalise(pruneTabs(tree, (ref) => !seen.has(tabRefKey(ref))));
+    const tabs = flattenTabs(pruned);
+    if (tabs.length === 0) continue;
+    for (const tab of tabs) seen.add(tabRefKey(tab));
+    kept.push(pruned);
+  }
+  if (kept.length === 0) return makeLeaf([]);
+  if (kept.length === 1) return kept[0]!;
+  return normalise(makeSplit('row', kept));
+}
+
 // ---- Migration from the legacy flat snapshot ------------------------------
 
 /**

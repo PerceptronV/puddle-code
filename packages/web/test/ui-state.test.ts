@@ -41,6 +41,8 @@ describe('uiStateSnapshotSchema', () => {
       // right_panel is retired: optional without a default, never injected.
       session_order: [],
       layout_tree: null,
+      // layout_mode is optional without a default: absent means profile.
+      project_layouts: {},
     });
   });
 

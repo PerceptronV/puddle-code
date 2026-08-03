@@ -102,6 +102,18 @@ export const layoutNodeSchema: z.ZodType<LayoutNode> = z.lazy(() =>
 );
 
 /**
+ * One project's slice of the workspace when the client's project-based layout
+ * is on (11.2, SPEC §11): its own tiling tree and URL-bound session, keyed by
+ * project id in `project_layouts`. Loose for the same forward-compatibility
+ * reason as the snapshot itself.
+ */
+export const projectLayoutSchema = z.looseObject({
+  layout_tree: layoutNodeSchema.nullable().default(null),
+  active_session: sessionId.nullable().default(null),
+});
+export type ProjectLayout = z.infer<typeof projectLayoutSchema>;
+
+/**
  * Per-profile workspace snapshot (SPEC §11 reload semantics): the editor area
  * is shared across a profile's projects, so the snapshot is keyed by profile
  * alone. Loose so later phases can extend the shape without a migration;
@@ -151,6 +163,21 @@ export const uiStateSnapshotSchema = z.looseObject({
    * tree from `editor_tabs`/`session_tabs`/`layout` on first load.
    */
   layout_tree: layoutNodeSchema.nullable().default(null),
+  /**
+   * Which keying the snapshot's layouts were last maintained under (11.2,
+   * SPEC §11): absent or `profile` means the top-level `layout_tree`/
+   * `active_session` are live; `project` means `project_layouts` is. The web
+   * transitions between the two when the client's project-based layout
+   * setting flips (split on the way in, union on the way out) and stamps the
+   * mode it left the snapshot in, so a snapshot toggled elsewhere converts
+   * exactly once.
+   */
+  layout_mode: z.enum(['profile', 'project']).optional(),
+  /**
+   * Per-project layouts (11.2, SPEC §11), live only while `layout_mode` is
+   * `project`: project id → that project's tiling tree and bound session.
+   */
+  project_layouts: z.record(z.string(), projectLayoutSchema).default({}),
 });
 export type UiStateSnapshot = z.infer<typeof uiStateSnapshotSchema>;
 
