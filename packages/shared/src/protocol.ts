@@ -133,4 +133,13 @@
 // tree while the profile row still carries the whole snapshot. Both keys are
 // optional-with-default, and the snapshot is a loose object, so old peers
 // round-trip them untouched.
-export const PROTOCOL_VERSION = { major: 11, minor: 2 } as const;
+// 12.0 (2026-08-03): major bump with NO schema change beyond 11.2's additive
+// keys, on purpose — forces every connected daemon to auto-upgrade at the
+// next handshake (see PROTOCOL.md "The rule"; mirrors the 6.0/8.0/10.0/11.0
+// bumps). Strictly, an 11.x daemon would keep working — project-based layout
+// is client-driven, and the loose ui_state schema round-trips the new keys as
+// unknown fields — but that tolerance is exactly what this bump retires as a
+// long-term dependency: after it, every daemon PARSES `layout_mode` and
+// `project_layouts` (validating slices instead of carrying them blind), and
+// no deployment lingers on early 11.x. Ships the 11.1/11.2 additions above.
+export const PROTOCOL_VERSION = { major: 12, minor: 0 } as const;
