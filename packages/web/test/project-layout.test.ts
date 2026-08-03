@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   UNTITLED_SESSION,
   uiStateSnapshotSchema,
+  type SavedLayout,
   type TabRef,
   type UiStateSnapshot,
 } from '@puddle/shared';
 import { flattenTabs, joinTrees, makeLeaf, tabRefKey } from '../src/features/workspace/layout-tree';
 import {
+  loadLayoutPatch,
   mergeShardedLayouts,
   scopedSnapshot,
   scopeUiState,
@@ -145,6 +147,96 @@ describe('joinTrees', () => {
     const only = makeLeaf([term(S1)]);
     expect(joinTrees([only])).toEqual(only);
     expect(flattenTabs(joinTrees([]))).toEqual([]);
+  });
+});
+
+describe('loadLayoutPatch', () => {
+  const saved = (over: Partial<SavedLayout>): SavedLayout => ({
+    id: 7,
+    profile_id: 'ffffffffff',
+    scope: 'profile',
+    project_id: null,
+    name: 'test',
+    layout_tree: null,
+    active_session: null,
+    created_at: '2026-08-03T00:00:00Z',
+    updated_at: '2026-08-03T00:00:00Z',
+    ...over,
+  });
+  const ctx = (currentProject: string | null = PA) => ({
+    alive: new Set([S1, S2]),
+    sessionProject: OWNER,
+    projectIds: [PA, PB],
+    currentProject,
+  });
+
+  it('profile scope: installs top-level, prunes dead tabs, keeps slices untouched', () => {
+    const s = snap({
+      layout_mode: 'project',
+      project_layouts: { [PB]: { layout_tree: makeLeaf([term(S2)]), active_session: null } },
+    });
+    const dead = '99999999-9999-4999-8999-999999999999';
+    const { patch, projectBased } = loadLayoutPatch(
+      s,
+      saved({ layout_tree: makeLeaf([term(S1), term(dead), untitled()]), active_session: dead }),
+      ctx(),
+    );
+    expect(projectBased).toBe(false);
+    expect(patch.layout_mode).toBe('profile');
+    expect(patch.layout_ref).toBe(7);
+    // the dead terminal pruned, the untitled draft kept
+    expect(keys(patch.layout_tree!)).toEqual([tabRefKey(term(S1)), tabRefKey(untitled())]);
+    expect(patch.active_session).toBeNull();
+    // the union is suppressed AND nothing is erased: slices stay out of the patch
+    expect(patch.project_layouts).toBeUndefined();
+  });
+
+  it('project scope under project mode: replaces only the target slice', () => {
+    const s = snap({
+      layout_mode: 'project',
+      project_layouts: { [PB]: { layout_tree: makeLeaf([term(S2)]), active_session: S2 } },
+    });
+    const { patch, projectBased } = loadLayoutPatch(
+      s,
+      saved({ scope: 'project', project_id: PA, layout_tree: makeLeaf([term(S1)]) }),
+      ctx(),
+    );
+    expect(projectBased).toBe(true);
+    expect(patch.layout_mode).toBeUndefined(); // already project — no restamp
+    expect(keys(patch.project_layouts![PA]!.layout_tree!)).toEqual([tabRefKey(term(S1))]);
+    expect(patch.project_layouts![PA]!.layout_ref).toBe(7);
+    expect(patch.project_layouts![PB]).toEqual(s.project_layouts[PB]); // untouched
+  });
+
+  it('project scope under profile mode: shards the others, target takes the layout', () => {
+    const s = snap({ layout_tree: makeLeaf([term(S1), term(S2)]) });
+    const { patch, projectBased } = loadLayoutPatch(
+      s,
+      saved({ scope: 'project', project_id: PA, layout_tree: makeLeaf([ed(S1, 'a.ts')]) }),
+      ctx(),
+    );
+    expect(projectBased).toBe(true);
+    expect(patch.layout_mode).toBe('project');
+    // PA gets the LOADED layout, not its shard of the profile tree
+    expect(keys(patch.project_layouts![PA]!.layout_tree!)).toEqual([tabRefKey(ed(S1, 'a.ts'))]);
+    expect(patch.project_layouts![PA]!.layout_ref).toBe(7);
+    // PB gets its shard, as the plain setting flip would have given it
+    expect(keys(patch.project_layouts![PB]!.layout_tree!)).toEqual([tabRefKey(term(S2))]);
+    expect(patch.project_layouts![PB]!.layout_ref).toBeNull();
+  });
+
+  it('project scope under profile mode: an existing stored slice beats its shard', () => {
+    const stored = { layout_tree: makeLeaf([ed(S2, 'kept.ts')]), active_session: null };
+    const s = snap({
+      layout_tree: makeLeaf([term(S1), term(S2)]),
+      project_layouts: { [PB]: stored },
+    });
+    const { patch } = loadLayoutPatch(
+      s,
+      saved({ scope: 'project', project_id: PA, layout_tree: null }),
+      ctx(),
+    );
+    expect(patch.project_layouts![PB]).toEqual(s.project_layouts[PB]);
   });
 });
 

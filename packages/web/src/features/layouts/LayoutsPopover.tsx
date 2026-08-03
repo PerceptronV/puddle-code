@@ -8,11 +8,18 @@ import { Input } from '../../components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { registerHotkey } from '../../lib/hotkeys';
-import { useCreateLayout, useDeleteLayout, useLayouts, usePatchLayout } from '../../lib/queries';
+import {
+  useCreateLayout,
+  useDeleteLayout,
+  useLayouts,
+  usePatchLayout,
+  useProjects,
+} from '../../lib/queries';
 import { cn } from '../../lib/utils';
 import { useCurrentProfileId } from '../profile/profile-store';
 import { layoutSignature } from '../workspace/layout-signature';
 import { setLayoutsOpen, toggleLayouts, useLayoutBridge, useLayoutsOpen } from './layouts-store';
+import { useDashboardLayouts } from './use-dashboard-layouts';
 
 const EMPTY_SIGNATURE = layoutSignature(null);
 
@@ -33,10 +40,16 @@ export function LayoutsPopover() {
   const open = useLayoutsOpen();
   const profileId = useCurrentProfileId();
   // Inside a project route the list shows that project's layouts too; the
-  // dashboard (no workspace, no bridge) lists everything but cannot load.
+  // dashboard lists every layout of the profile.
   const projectId = useParams()['id'];
-  const bridge = useLayoutBridge();
+  const workspaceBridge = useLayoutBridge();
+  // Without a workspace the dashboard bridge drives the persisted snapshot
+  // directly — loads work everywhere; it reads only while the popover is open
+  // (and only when no workspace ui-state handle exists to race with).
+  const dashboard = useDashboardLayouts(profileId, open && workspaceBridge === null);
+  const bridge = workspaceBridge ?? dashboard;
   const layouts = useLayouts(profileId ?? undefined, projectId).data ?? [];
+  const projects = useProjects(profileId ?? undefined, open && profileId !== null).data ?? [];
   const create = useCreateLayout();
   const patch = usePatchLayout();
   const remove = useDeleteLayout();
@@ -53,12 +66,42 @@ export function LayoutsPopover() {
     }
   }, [open]);
 
-  const current = bridge === null ? null : (layouts.find((l) => l.id === bridge.layoutRef) ?? null);
+  const headless = bridge?.headless === true;
+  const current =
+    bridge === null || headless ? null : (layouts.find((l) => l.id === bridge.layoutRef) ?? null);
   const dirty =
     bridge !== null &&
+    !headless &&
     (current === null
       ? bridge.signature !== EMPTY_SIGNATURE
       : layoutSignature(current.layout_tree) !== bridge.signature);
+
+  // Whether loading `layout` would discard unsaved layout state. With a head
+  // (a workspace, or the dashboard under profile mode) that is the head's own
+  // dirtiness; headless (dashboard under project-based layout) it is the
+  // TARGET project's slice that gets replaced, so compare that slice against
+  // the saved layout it derives from.
+  const discards = (layout: SavedLayout): boolean => {
+    if (bridge === null) return false;
+    if (!headless) return dirty;
+    if (layout.scope !== 'project' || layout.project_id === null) return false;
+    const slice = bridge.slices?.[layout.project_id];
+    if (!slice) return false; // no stored slice — nothing to lose
+    const named = slice.layoutRef === null ? null : layouts.find((l) => l.id === slice.layoutRef);
+    return named
+      ? layoutSignature(named.layout_tree) !== slice.signature
+      : slice.signature !== EMPTY_SIGNATURE;
+  };
+
+  const isCurrent = (layout: SavedLayout): boolean => {
+    if (bridge === null) return false;
+    if (!headless) return bridge.layoutRef === layout.id;
+    if (layout.project_id === null) return false;
+    return bridge.slices?.[layout.project_id]?.layoutRef === layout.id;
+  };
+
+  const projectName = (id: string | null): string =>
+    (id !== null ? projects.find((p) => p.id === id)?.name : undefined) ?? 'Project';
 
   const saveNew = (name: string) => {
     if (!bridge || !profileId) return;
@@ -115,7 +158,12 @@ export function LayoutsPopover() {
         {/* The live layout: name, scope, and an honest saved/unsaved state. */}
         <div className="px-5 pb-3">
           {bridge === null ? (
-            <p className="text-sm text-fg-muted">Open a project to capture or load layouts.</p>
+            <p className="text-sm text-fg-muted">Loading the profile’s layout state…</p>
+          ) : headless ? (
+            <p className="text-sm text-fg-muted">
+              Project-based layout is on — every project keeps its own layout. Open a project to
+              name or save it; loading works from here.
+            </p>
           ) : (
             <div className="flex flex-col gap-2">
               <div className="flex items-baseline gap-2">
@@ -199,9 +247,12 @@ export function LayoutsPopover() {
               <li key={layout.id}>
                 <LayoutRow
                   layout={layout}
-                  isCurrent={bridge !== null && bridge.layoutRef === layout.id}
+                  scopeLabel={
+                    layout.scope === 'profile' ? 'Profile-wide' : projectName(layout.project_id)
+                  }
+                  isCurrent={isCurrent(layout)}
                   loadable={bridge !== null}
-                  confirmBeforeLoad={dirty}
+                  confirmBeforeLoad={discards(layout)}
                   onLoad={() => load(layout)}
                   onRename={(name) => patch.mutate({ id: layout.id, name })}
                   onDelete={() => remove.mutate(layout.id)}
@@ -222,6 +273,7 @@ export function LayoutsPopover() {
  */
 function LayoutRow({
   layout,
+  scopeLabel,
   isCurrent,
   loadable,
   confirmBeforeLoad,
@@ -230,10 +282,12 @@ function LayoutRow({
   onDelete,
 }: {
   layout: SavedLayout;
+  /** "Profile-wide", or the owning project's name for a project-scoped row. */
+  scopeLabel: string;
   isCurrent: boolean;
-  /** False while no workspace is mounted (nothing to load into). */
+  /** False while the layout state is still loading (nothing to load into yet). */
   loadable: boolean;
-  /** The live layout has unsaved changes a load would discard — confirm first. */
+  /** Loading would discard unsaved layout changes — confirm first. */
   confirmBeforeLoad: boolean;
   onLoad: () => void;
   onRename: (name: string) => void;
@@ -339,9 +393,7 @@ function LayoutRow({
         </div>
       ) : (
         <div className="mt-2 flex items-center gap-1.5">
-          <span className="text-2xs uppercase tracking-wide text-fg-muted">
-            {layout.scope === 'profile' ? 'Profile-wide' : 'Project'}
-          </span>
+          <span className="text-2xs uppercase tracking-wide text-fg-muted">{scopeLabel}</span>
           <div className="ml-auto flex items-center gap-1">
             <RowAction
               icon={Pencil}

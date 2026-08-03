@@ -5,7 +5,6 @@ import { Group, Panel, Separator, type Layout } from 'react-resizable-panels';
 import {
   UNTITLED_SESSION,
   type LayoutLeaf,
-  type ProjectLayout,
   type SavedLayout,
   type Session,
   type SessionKind,
@@ -64,6 +63,7 @@ import { setLayoutBridge } from '../layouts/layouts-store';
 import { KeepAliveHost } from './keep-alive';
 import { allLeaves, flattenTabs, pruneTabs, tabRefKey, type DropEdge } from './layout-tree';
 import {
+  loadLayoutPatch,
   mergeShardedLayouts,
   scopeUiState,
   splitToProjects,
@@ -732,76 +732,25 @@ function WorkspaceInner() {
     return () => setScratchpadInsertHandler(null);
   }, [insertPrompt]);
 
-  // Load a saved layout (SPEC §11). The saved tree is pruned against the live
-  // session set first (untitled tabs are worktree-agnostic and always keep).
-  // When the layout's scope disagrees with the client's project-based-layout
-  // setting, the load performs the mode transition ITSELF — stamping
-  // `layout_mode` before flipping the setting, so the one-shot transition
-  // effect above finds nothing to convert and the default union/shard cannot
-  // overwrite the layout being loaded:
-  //  - profile-scoped under project mode: the loaded tree becomes the
-  //    top-level layout and the stored per-project slices stay untouched
-  //    (no union — but nothing is erased either);
-  //  - project-scoped under profile mode: the current profile tree shards
-  //    into the other projects as the setting flip would have done, existing
-  //    slices win over their shard, and the target project takes the loaded
-  //    layout instead of a shard.
+  // Load a saved layout (SPEC §11): `loadLayoutPatch` is the whole
+  // transformation — the patch is applied BEFORE the setting flips, so the
+  // one-shot transition effect above finds nothing to convert and the default
+  // union/shard cannot overwrite the layout being loaded.
   const applyLayout = useCallback(
     (saved: SavedLayout): boolean => {
       const base = baseUiStateRef.current;
       const live = allSessionsRef.current;
       const projects = profileProjectsRef.current;
       if (!base.loaded || !live || !projects) return false;
-      const alive = new Set(live.filter((s) => s.status !== 'archived').map((s) => s.id));
-      const keep = (ref: TabRef) => {
-        const sid = ref.type === 'terminal' ? ref.session : ref.tab.session;
-        return sid === UNTITLED_SESSION || alive.has(sid);
-      };
-      const tree = saved.layout_tree ? pruneTabs(saved.layout_tree, keep) : null;
-      const active =
-        saved.active_session !== null && alive.has(saved.active_session)
-          ? saved.active_session
-          : null;
-      const snap = base.current();
-
-      if (saved.scope === 'profile') {
-        base.update({
-          layout_mode: 'profile',
-          layout_tree: tree,
-          active_session: active,
-          layout_ref: saved.id,
-        });
-        if (clientSettings().projectBasedLayout) {
-          updateClientSettings({ projectBasedLayout: false });
-        }
-        return true;
-      }
-
-      const target = saved.project_id ?? projectId;
-      const slice: ProjectLayout = {
-        layout_tree: tree,
-        active_session: active,
-        layout_ref: saved.id,
-      };
-      if ((snap.layout_mode ?? 'profile') === 'project') {
-        base.update({ project_layouts: { ...snap.project_layouts, [target]: slice } });
-      } else {
-        const sessionProject = new Map(live.map((s) => [s.id, s.project_id]));
-        const patch = splitToProjects(
-          snap,
-          projects.map((p) => p.id),
-          sessionProject,
-          target,
-        );
-        base.update({
-          ...patch,
-          project_layouts: mergeShardedLayouts(patch.project_layouts ?? {}, snap.project_layouts, {
-            [target]: slice,
-          }),
-        });
-      }
-      if (!clientSettings().projectBasedLayout) {
-        updateClientSettings({ projectBasedLayout: true });
+      const { patch, projectBased } = loadLayoutPatch(base.current(), saved, {
+        alive: new Set(live.filter((s) => s.status !== 'archived').map((s) => s.id)),
+        sessionProject: new Map(live.map((s) => [s.id, s.project_id])),
+        projectIds: projects.map((p) => p.id),
+        currentProject: projectId,
+      });
+      base.update(patch);
+      if (clientSettings().projectBasedLayout !== projectBased) {
+        updateClientSettings({ projectBasedLayout: projectBased });
       }
       return true;
     },

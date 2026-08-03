@@ -1,6 +1,7 @@
 import {
   UNTITLED_SESSION,
   type ProjectLayout,
+  type SavedLayout,
   type TabRef,
   type UiStateSnapshot,
 } from '@puddle/shared';
@@ -142,6 +143,83 @@ export function mergeShardedLayouts(
   overrides: Record<string, ProjectLayout> = {},
 ): Record<string, ProjectLayout> {
   return { ...sharded, ...existing, ...overrides };
+}
+
+export interface LoadLayoutContext {
+  /** Live (non-archived) session ids — dead tabs prune out of the loaded tree. */
+  alive: ReadonlySet<string>;
+  sessionProject: ReadonlyMap<string, string>;
+  /** Every project of the profile (archived included), for the shard. */
+  projectIds: readonly string[];
+  /** The open project, if any — the fallback target for a project-scoped layout. */
+  currentProject: string | null;
+}
+
+/**
+ * Loading a saved layout, as a pure snapshot transformation (SPEC §11
+ * Layouts) — shared by the workspace bridge and the dashboard fallback. The
+ * saved tree is pruned against the live session set first (untitled tabs are
+ * worktree-agnostic and always keep). When the layout's scope disagrees with
+ * the snapshot's `layout_mode`, the load performs the mode transition ITSELF
+ * — the caller flips the client setting to the returned `projectBased` AFTER
+ * applying the patch, so the one-shot union/split conversion finds the
+ * snapshot already converted and cannot overwrite the layout being loaded:
+ *
+ *  - profile-scoped under project mode: the loaded tree becomes the top-level
+ *    layout and the stored per-project slices stay untouched (no union — but
+ *    nothing is erased either);
+ *  - project-scoped under profile mode: the current profile tree shards into
+ *    the other projects as the setting flip would have done, existing slices
+ *    win over their shard, and the target project takes the loaded layout
+ *    instead of a shard.
+ */
+export function loadLayoutPatch(
+  snap: UiStateSnapshot,
+  saved: SavedLayout,
+  ctx: LoadLayoutContext,
+): { patch: Partial<UiStateSnapshot>; projectBased: boolean } {
+  const keep = (ref: TabRef) => {
+    const sid = tabSession(ref);
+    return sid === UNTITLED_SESSION || ctx.alive.has(sid);
+  };
+  const tree = saved.layout_tree ? pruneTabs(saved.layout_tree, keep) : null;
+  const active =
+    saved.active_session !== null && ctx.alive.has(saved.active_session)
+      ? saved.active_session
+      : null;
+
+  if (saved.scope === 'profile') {
+    return {
+      projectBased: false,
+      patch: {
+        layout_mode: 'profile',
+        layout_tree: tree,
+        active_session: active,
+        layout_ref: saved.id,
+      },
+    };
+  }
+
+  // The store enforces project scope ⇒ project_id; the fallbacks are for
+  // malformed rows only.
+  const target = saved.project_id ?? ctx.currentProject ?? ctx.projectIds[0] ?? '';
+  const slice: ProjectLayout = { layout_tree: tree, active_session: active, layout_ref: saved.id };
+  if ((snap.layout_mode ?? 'profile') === 'project') {
+    return {
+      projectBased: true,
+      patch: { project_layouts: { ...snap.project_layouts, [target]: slice } },
+    };
+  }
+  const patch = splitToProjects(snap, ctx.projectIds, ctx.sessionProject, target);
+  return {
+    projectBased: true,
+    patch: {
+      ...patch,
+      project_layouts: mergeShardedLayouts(patch.project_layouts ?? {}, snap.project_layouts, {
+        [target]: slice,
+      }),
+    },
+  };
 }
 
 /**

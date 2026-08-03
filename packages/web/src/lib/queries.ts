@@ -75,7 +75,7 @@ export function useRepos() {
 }
 
 /** All projects when profileId is undefined (the "everyone" view). */
-export function useProjects(profileId: string | undefined) {
+export function useProjects(profileId: string | undefined, enabled = true) {
   return useQuery({
     queryKey: ['projects', profileId ?? 'all'],
     queryFn: () =>
@@ -83,6 +83,7 @@ export function useProjects(profileId: string | undefined) {
         'GET',
         profileId === undefined ? '/api/projects' : `/api/projects?profile=${profileId}`,
       ),
+    enabled,
   });
 }
 
@@ -114,8 +115,8 @@ const allSessionsQuery = {
   queryFn: () => api<Session[]>('GET', '/api/sessions'),
 };
 
-export function useAllSessions() {
-  return useQuery(allSessionsQuery);
+export function useAllSessions(enabled = true) {
+  return useQuery({ ...allSessionsQuery, enabled });
 }
 
 /**

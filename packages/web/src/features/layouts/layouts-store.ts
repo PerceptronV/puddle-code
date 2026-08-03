@@ -13,7 +13,12 @@ import type { LayoutNode, LayoutScope, SavedLayout } from '@puddle/shared';
  *    `useUiState` handle ever existing (two would race the debounced writer).
  */
 
-/** What the workspace exposes to the popover; null while none is mounted. */
+/**
+ * What the popover renders and loads through. The mounted workspace registers
+ * one here; without a workspace the popover falls back to the dashboard
+ * bridge (`useDashboardLayouts`), which drives the persisted snapshot
+ * directly — the same shape either way.
+ */
 export interface LayoutBridge {
   /** The scope a save captures right now (the client setting at this moment). */
   scope: LayoutScope;
@@ -23,12 +28,25 @@ export interface LayoutBridge {
   layoutRef: number | null;
   /** `layoutSignature` of the live scoped tree, for dirty comparison. */
   signature: string;
+  /**
+   * True when there is no single live layout to describe — the dashboard
+   * under project-based layout, where every project keeps its own. The
+   * popover hides the head (nothing to name or save); loads still work.
+   */
+  headless?: boolean;
+  /**
+   * Per-project slice state, reported by a headless bridge so the popover can
+   * mark the current layout and confirm before a load discards a slice's
+   * unsaved changes. Keyed by project id.
+   */
+  slices?: Record<string, { layoutRef: number | null; signature: string }>;
   /** The live scoped slice, as a saved layout would store it. */
   capture(): { layout_tree: LayoutNode | null; active_session: string | null };
   /**
-   * Load a saved layout into the workspace, switching the project-based-layout
-   * setting (with the union/shard transition suppressed) when the layout's
-   * scope disagrees with it. False: not ready yet (data still loading).
+   * Load a saved layout into the live state, switching the
+   * project-based-layout setting (with the union/shard transition suppressed)
+   * when the layout's scope disagrees with it. False: not ready yet (data
+   * still loading).
    */
   apply(layout: SavedLayout): boolean;
 }
