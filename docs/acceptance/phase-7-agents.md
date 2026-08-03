@@ -106,8 +106,7 @@ With an agent's CLI absent from PATH (rename it, or just test an agent you have
 not installed):
 
 1. Settings → Accounts shows that agent's block with "Not installed — no
-   `<binary>` on the daemon's PATH", and the label input, **Add account** and
-   **Import existing…** are all disabled.
+   `<binary>` on the daemon's PATH", and its **Add account** button is disabled.
 2. Any existing account of that agent has a disabled **Login** button.
 3. The profile panel shows the agent's group labelled "not installed" and its
    rows read `unavailable`, with no clickable sign-in.

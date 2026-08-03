@@ -9,6 +9,10 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Changed
+
+- Adding an account is one button and one dialogue. The inline label field, **Add account** and **Import existing…** — three controls per agent for what is really one action — collapse into a single **Add account** that opens the dialogue import already used. The config directory there is optional: name the account and puddle creates it and takes you to the agent's login, or point at an existing config dir to copy it in.
+
 ### Added
 
 - **Open Terminal in Directory** on the file tree's folder context menu: starts a terminal session whose shell begins in that folder rather than the worktree root. The directory is remembered, so resuming the session after a daemon restart returns to it, and extra shell tabs open there too. Protocol 11.1 (additive `cwd` on the session shape and on terminal creation).

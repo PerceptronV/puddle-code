@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { FolderInput, KeyRound, Plus, Trash2 } from 'lucide-react';
+import { KeyRound, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { toastError } from '../../../lib/errors';
-import type { Account } from '@puddle/shared';
+import type { Account, AgentType } from '@puddle/shared';
 import { Button } from '../../../components/ui/button';
 import {
   Dialog,
@@ -30,35 +30,75 @@ import { LoginDialog } from '../../accounts/LoginDialog';
 import { useCurrentProfileId } from '../../profile/profile-store';
 import { SectionTitle, SettingRow } from '../parts';
 
-/** Import an existing config dir: puddle copies it, the source stays put. */
-function ImportDialog({
-  agentId,
+/**
+ * The one way to add an account (SPEC §11). The import directory is OPTIONAL:
+ * leave it blank for a fresh puddle-owned account, or point it at an existing
+ * config dir to copy that in. One dialogue rather than a label field plus two
+ * buttons — the two paths differ by a single optional input, so presenting them
+ * as separate commands only asked the user to decide something twice.
+ */
+function AddAccountDialog({
+  agent,
   profileId,
   onClose,
+  onCreated,
 }: {
-  agentId: string;
+  agent: AgentType;
   profileId: string;
   onClose: () => void;
+  /** `imported` distinguishes the two follow-ups: log in, or say credentials may not have travelled. */
+  onCreated: (account: Account, imported: boolean) => void;
 }) {
   const create = useCreateAccount();
   const [label, setLabel] = useState('');
   const [dir, setDir] = useState('');
   const debouncedDir = useDebouncedValue(dir, 150);
   const suggestions = useDirSuggestions(debouncedDir);
-  const ready = label.trim() !== '' && (dir.startsWith('/') || dir.startsWith('~'));
+  const importDir = dir.trim();
+  // A path is only checked when one is given at all — blank is the normal case.
+  const dirValid = importDir === '' || importDir.startsWith('/') || importDir.startsWith('~');
+  const ready = label.trim() !== '' && dirValid;
+
+  const submit = () => {
+    if (!ready || create.isPending) return;
+    create.mutate(
+      {
+        profile_id: profileId,
+        agent_type: agent.id,
+        label: label.trim(),
+        ...(importDir === '' ? {} : { import_dir: importDir }),
+      },
+      {
+        onSuccess: (account) => {
+          onClose();
+          onCreated(account, importDir !== '');
+        },
+        onError: (e) => toastError(e),
+      },
+    );
+  };
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Import an existing account</DialogTitle>
+          <DialogTitle>Add a {agent.display_name} account</DialogTitle>
           <DialogDescription>
-            The directory is copied into a puddle-owned account; the original is never touched. If
-            credentials do not travel (macOS keychain), log in once afterwards.
+            Accounts are isolated config dirs under this profile. Naming one is enough — puddle
+            creates it and takes you straight to {agent.display_name}&rsquo;s login. To reuse an
+            account you already have on this machine, give its config directory: it is copied in and
+            the original is never touched.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-3">
+        <form
+          className="flex flex-col gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
+          }}
+        >
           <Input
+            autoFocus
             placeholder="label, e.g. personal"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
@@ -67,38 +107,18 @@ function ImportDialog({
           <HintInput
             value={dir}
             onValueChange={setDir}
-            placeholder="config dir on the host, e.g. ~/.claude"
+            placeholder={`import an existing config dir (optional), e.g. ~/.claude`}
             hints={(suggestions.data?.entries ?? []).map((e) => ({ value: e.path, label: e.name }))}
             className="font-mono"
           />
-        </div>
+        </form>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            disabled={!ready || create.isPending}
-            onClick={() =>
-              create.mutate(
-                {
-                  profile_id: profileId,
-                  agent_type: agentId,
-                  label: label.trim(),
-                  import_dir: dir.trim(),
-                },
-                {
-                  onSuccess: (account) => {
-                    onClose();
-                    if (!account.logged_in)
-                      toast.info('Imported without credentials — press Login to authenticate.');
-                  },
-                  onError: (e) => toastError(e),
-                },
-              )
-            }
-          >
-            <FolderInput />
-            Import
+          <Button disabled={!ready || create.isPending} onClick={submit}>
+            <Plus />
+            Add account
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -250,33 +270,30 @@ export function AccountsSection() {
   const agents = useAgents();
   const accounts = useAccounts(profileId ?? undefined);
   const settings = useProfileSettings(profileId ?? undefined);
-  const create = useCreateAccount();
   const login = useLoginAccount();
-  const [newLabels, setNewLabels] = useState<Record<string, string>>({});
   const [loginStream, setLoginStream] = useState<{ stream: string; label: string } | null>(null);
-  const [importingAgent, setImportingAgent] = useState<string | null>(null);
+  const [addingTo, setAddingTo] = useState<AgentType | null>(null);
 
   const gateOpen = settings.data?.allowSkipPermissions === true;
 
-  const addAccount = (agentId: string) => {
-    const label = (newLabels[agentId] ?? '').trim();
-    if (!label || profileId === null) return;
-    create.mutate(
-      { profile_id: profileId, agent_type: agentId, label },
-      {
-        onSuccess: (account) => {
-          setNewLabels((labels) => ({ ...labels, [agentId]: '' }));
-          // Straight into the login flow (SPEC §11). The account exists either
-          // way, so a login failure is reported without undoing the create.
-          login.mutate(account.id, {
-            onSuccess: (res) =>
-              setLoginStream({ stream: res.stream, label: `${agentId}/${account.label}` }),
-            onError: (e) => toastError(e),
-          });
-        },
-        onError: (e) => toastError(e),
-      },
-    );
+  // A fresh account goes straight into the agent's login (SPEC §11); an
+  // imported one may already carry credentials, so it only says so when it
+  // does not — macOS keychain tokens are bound to the source path and do not
+  // travel with a copy.
+  const afterCreate = (account: Account, imported: boolean) => {
+    if (imported) {
+      if (!account.logged_in)
+        toast.info('Imported without credentials — press Login to authenticate.');
+      return;
+    }
+    login.mutate(account.id, {
+      onSuccess: (res) =>
+        setLoginStream({
+          stream: res.stream,
+          label: `${account.agent_type}/${account.label}`,
+        }),
+      onError: (e) => toastError(e),
+    });
   };
 
   return (
@@ -308,40 +325,18 @@ export function AccountsSection() {
                   installed={installed}
                 />
               ))}
-              <form
-                className="flex gap-2"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  addAccount(agent.id);
-                }}
-              >
-                <Input
-                  placeholder="label, e.g. personal"
-                  value={newLabels[agent.id] ?? ''}
-                  onChange={(e) => setNewLabels((l) => ({ ...l, [agent.id]: e.target.value }))}
-                  className="w-48 font-mono"
-                  disabled={!installed}
-                />
+              <div className="flex">
                 <Button
-                  type="submit"
+                  type="button"
                   size="sm"
                   variant="secondary"
-                  disabled={!installed || !(newLabels[agent.id] ?? '').trim() || create.isPending}
+                  disabled={!installed}
+                  onClick={() => setAddingTo(agent)}
                 >
                   <Plus />
                   Add account
                 </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  disabled={!installed}
-                  onClick={() => setImportingAgent(agent.id)}
-                >
-                  <FolderInput />
-                  Import existing…
-                </Button>
-              </form>
+              </div>
             </div>
           </div>
         );
@@ -353,11 +348,12 @@ export function AccountsSection() {
           onClose={() => setLoginStream(null)}
         />
       )}
-      {importingAgent !== null && profileId !== null && (
-        <ImportDialog
-          agentId={importingAgent}
+      {addingTo !== null && profileId !== null && (
+        <AddAccountDialog
+          agent={addingTo}
           profileId={profileId}
-          onClose={() => setImportingAgent(null)}
+          onClose={() => setAddingTo(null)}
+          onCreated={afterCreate}
         />
       )}
     </div>
