@@ -2,10 +2,9 @@ import { Fragment, type ReactNode } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Eye, FileCode, X } from 'lucide-react';
 import type { LayoutLeaf, Session, TabRef } from '@puddle/shared';
-import { AgentIcon } from '../../components/agent-icon';
 import { cn } from '../../lib/utils';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
-import { StatusDot } from '../status/StatusDot';
+import { SessionGlyph } from '../status/SessionGlyph';
 import { editorTabLabel } from '../editor/buffer-logic';
 import { tabKind, type EditorTab } from '../editor/editor-tabs';
 import { LazyEditorTabClose } from '../editor/lazy-editor-parts';
@@ -236,15 +235,14 @@ function PaneTab({
     >
       {tab.type === 'terminal' ? (
         <>
+          {/* One glyph for both facts: which agent, in the status colour. */}
           {session && (
-            <StatusDot status={session.status} kind={session.kind} stale={session.stale_running} />
-          )}
-          {/* Which agent is driving this tab, matching the sidebar's row glyph.
-              Only for agent sessions — a terminal has no agent_type, and the
-              fallback person glyph would say nothing the status dot's kind
-              does not already. */}
-          {session?.agent_type != null && (
-            <AgentIcon type={session.agent_type} className="size-3 shrink-0" />
+            <SessionGlyph
+              status={session.status}
+              kind={session.kind}
+              agentType={session.agent_type}
+              stale={session.stale_running}
+            />
           )}
           <span className="truncate font-mono">
             {session ? renderTitle(session) : tab.session.slice(0, 8)}

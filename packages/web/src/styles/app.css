@@ -192,6 +192,45 @@
     opacity: 0.45;
   }
 
+  /* The session glyph: the agent's brand mark (or a terminal glyph) doing the
+     status dot's job, so a row spends one glyph on "which agent" and "what is
+     it doing" instead of two. The SVG inherits `color` through currentColor.
+
+     Deliberately NO ripple rings. On an 8px dot a ring reads as a ripple; drawn
+     around a 14px glyph it reads as a border badge around the icon, which
+     HUMANS.md rules out and which is exactly the visual doubling this element
+     exists to remove. The waiting pulse stays — it is opacity on the glyph
+     itself, adds nothing, and marks the one state that wants attention. The
+     full motif lives on in the collapsed rail's dot, where a mark would not
+     fit and there is nothing to deduplicate. */
+  .status-glyph {
+    position: relative;
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    color: var(--status-idle);
+  }
+  .status-glyph[data-status='running'],
+  .status-glyph[data-status='starting'] {
+    color: var(--status-running);
+  }
+  .status-glyph[data-kind='terminal'][data-status='running'],
+  .status-glyph[data-kind='terminal'][data-status='starting'] {
+    color: var(--status-terminal);
+  }
+  .status-glyph[data-status='waiting_input'] {
+    color: var(--status-waiting);
+    animation: puddle-pulse 1.3s ease-in-out 45;
+  }
+  .status-glyph[data-status='interrupted'] {
+    color: var(--status-interrupted);
+  }
+  /* stale_running: still nominally running, but quiet for over an hour. */
+  .status-glyph[data-stale] {
+    opacity: 0.45;
+  }
+
   /* --puddle-ripple-scale caps how far a ripple reaches; the collapsed session
      rail overrides it (a narrower value) so the ripple stays inside each dot's
      cell and is never cropped by the rail's scroll container. */

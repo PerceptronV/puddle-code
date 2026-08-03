@@ -18,6 +18,7 @@ import { ContextMenu, ContextMenuTrigger } from '../../components/ui/context-men
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utils';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
+import { SessionGlyph } from '../status/SessionGlyph';
 import { StatusDot } from '../status/StatusDot';
 import {
   SessionActionsEllipsis,
@@ -301,7 +302,12 @@ function SessionRow({
             session.id === activeSessionId && 'bg-elevated',
           )}
         >
-          <StatusDot status={session.status} kind={session.kind} stale={session.stale_running} />
+          <SessionGlyph
+            status={session.status}
+            kind={session.kind}
+            agentType={session.agent_type}
+            stale={session.stale_running}
+          />
           <span className="min-w-0 flex-1">
             <span className="block truncate font-sans text-xs text-fg">{renderTitle(session)}</span>
             <span className="flex items-center gap-1 truncate font-mono text-2xs text-fg-muted">
@@ -311,7 +317,7 @@ function SessionRow({
             {/* Terminal sessions have no account, so this line is agent-only. */}
             {session.account_id !== null && accountLabel.has(session.account_id) && (
               <span className="flex items-center gap-1 truncate font-mono text-2xs text-fg-muted">
-                <AgentIcon type={session.agent_type ?? ''} className="size-3 shrink-0" />
+                {/* No agent mark here — the row's leading glyph already is one. */}
                 <span className="truncate">{accountLabel.get(session.account_id)}</span>
               </span>
             )}
