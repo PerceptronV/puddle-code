@@ -14,6 +14,7 @@ Past releases: see docs/changelogs/.
 - Sidebar project names (expanded header and collapsed rail label) right-click into a menu that starts a new agent or terminal in that project, and drag to reorder projects — persisting the same `projectOrder` the homescreen cards drag; while a name drags, the session lists collapse so only the names reposition.
 - The collapsed rail's project label shows the full project name in a tooltip.
 - Project-based layout (Settings → Appearance, default off; protocol 11.2): the centre editor persists one layout per profile **and project** — switching projects swaps in that project's own tiling tree and restores its active session — while the sidebar keeps every project name but lists only the current project's sessions. Toggling converts the snapshot once: on splits the shared tree into per-project slices (each keeping its structure with only that project's tabs), off unions the slices back side by side with tabs deduplicated.
+- The desktop app gets its own default hotkey set where native gestures are more intuitive: ⌘W closes the current tab (the shell's Close Window moves to ⌘⇧W), ⌘B toggles the left sidebar, ⌘T opens a new agent. Web defaults are unchanged, and per-profile custom bindings still apply in both shells.
 
 ### Changed
 

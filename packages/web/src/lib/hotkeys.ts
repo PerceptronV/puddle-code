@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { desktopBridge } from './desktop';
 
 /**
  * The app's customisable keyboard shortcuts (SPEC §11). One registry of actions,
@@ -10,12 +11,19 @@ import { useSyncExternalStore } from 'react';
  * A binding is a canonical string: the modifiers `ctrl`/`alt`/`shift`/`meta` in
  * that fixed order, then a `KeyboardEvent.code` (e.g. `meta+shift+KeyE`,
  * `ctrl+Backquote`), so it is keyboard-layout-independent.
+ *
+ * Two default sets (SPEC §11): the web defaults avoid combos browser chrome
+ * would swallow; the DESKTOP shell — no chrome competing for keys — forks the
+ * few where a native gesture is more intuitive (`desktopBinding`). Only the
+ * defaults fork: a per-profile override applies in both shells.
  */
 export interface HotkeyAction {
   id: string;
   label: string;
   group: string;
   defaultBinding: string;
+  /** Desktop-shell default, where it differs from the web-safe one. */
+  desktopBinding?: string;
   /** Bound inside Monaco (not the DOM dispatcher) — the editor owns the keys. */
   editor?: boolean;
   /** Yield to a focused terminal, which uses this key itself (e.g. ⌃A, ⌃`). */
@@ -36,12 +44,16 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
     label: 'Close current tab',
     group: 'Layout & tabs',
     defaultBinding: 'ctrl+alt+KeyW',
+    // The native close gesture; the shell's Close Window yields it (⌘⇧W).
+    desktopBinding: 'meta+KeyW',
   },
   {
     id: 'sidebar.left',
     label: 'Toggle left sidebar',
     group: 'Layout & tabs',
     defaultBinding: 'alt+meta+Comma',
+    // VSCode's primary-sidebar toggle.
+    desktopBinding: 'meta+KeyB',
   },
   {
     id: 'sidebar.right',
@@ -86,6 +98,8 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
     label: 'New agent',
     group: 'Right sidebar',
     defaultBinding: 'ctrl+alt+Backquote',
+    // "New tab" muscle memory — the primary new-thing here is an agent.
+    desktopBinding: 'meta+KeyT',
   },
   {
     id: 'session.newTerminal',
@@ -102,6 +116,18 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
 ];
 
 const ACTION_BY_ID = new Map(HOTKEY_ACTIONS.map((a) => [a.id, a]));
+
+/**
+ * Which default set this window uses — evaluated once at import (the preload
+ * bridge exists before any script runs). The `typeof window` guard keeps the
+ * module importable under plain-Node vitest.
+ */
+const IS_DESKTOP = typeof window !== 'undefined' && desktopBridge() !== undefined;
+
+/** The shell's default binding for an action: the desktop fork when in the shell, else the web-safe one. */
+export function shellDefaultBinding(action: HotkeyAction, desktop: boolean = IS_DESKTOP): string {
+  return desktop && action.desktopBinding ? action.desktopBinding : action.defaultBinding;
+}
 
 /** The canonical binding a keydown maps to, or null for a bare modifier press. */
 export function eventBinding(e: KeyboardEvent): string | null {
@@ -163,7 +189,7 @@ let bindingsSnapshot: Record<string, string> = mergeBindings();
 
 function mergeBindings(): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const a of HOTKEY_ACTIONS) out[a.id] = overrides[a.id] || a.defaultBinding;
+  for (const a of HOTKEY_ACTIONS) out[a.id] = overrides[a.id] || shellDefaultBinding(a);
   return out;
 }
 

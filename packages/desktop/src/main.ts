@@ -415,7 +415,9 @@ function buildMenu(): void {
           },
         },
         { type: 'separator' },
-        { role: 'close' },
+        // ⌘⇧W (the browser close-window convention): plain ⌘W must reach the
+        // renderer, where it is the desktop default for closing a tab.
+        { role: 'close', accelerator: 'CmdOrCtrl+Shift+W' },
       ],
     },
     // editMenu is load-bearing on macOS: without it ⌘C/⌘V/⌘A do nothing.
@@ -435,7 +437,13 @@ function buildMenu(): void {
               { type: 'separator' } satisfies MenuItemConstructorOptions,
               { role: 'front' } satisfies MenuItemConstructorOptions,
             ]
-          : [{ role: 'close' } satisfies MenuItemConstructorOptions]),
+          : [
+              // Same yield as the File menu's close: Ctrl+W belongs to the tab.
+              {
+                role: 'close',
+                accelerator: 'CmdOrCtrl+Shift+W',
+              } satisfies MenuItemConstructorOptions,
+            ]),
       ],
     },
   ];

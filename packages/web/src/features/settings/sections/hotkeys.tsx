@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { toastError } from '../../../lib/errors';
-import { eventBinding, formatBinding, HOTKEY_ACTIONS, HOTKEY_GROUPS } from '../../../lib/hotkeys';
+import {
+  eventBinding,
+  formatBinding,
+  HOTKEY_ACTIONS,
+  HOTKEY_GROUPS,
+  shellDefaultBinding,
+} from '../../../lib/hotkeys';
 import { usePatchProfileSettings, useProfileSettings } from '../../../lib/queries';
 import { cn } from '../../../lib/utils';
 import { useCurrentProfileId } from '../../profile/profile-store';
@@ -70,11 +76,13 @@ export function HotkeysSection() {
   const patch = usePatchProfileSettings(profileId ?? '');
   const overrides = (settings.data?.['hotkeys'] as Record<string, string> | undefined) ?? {};
 
+  // Defaults are shell-aware (the desktop set forks a few — SPEC §11), so the
+  // panel shows, and resets to, the set this window actually runs.
   const effective = (id: string, def: string) => overrides[id] || def;
   // Count each binding across all actions, to flag a clash on both rows.
   const counts = new Map<string, number>();
   for (const a of HOTKEY_ACTIONS) {
-    const b = effective(a.id, a.defaultBinding);
+    const b = effective(a.id, shellDefaultBinding(a));
     counts.set(b, (counts.get(b) ?? 0) + 1);
   }
 
@@ -101,7 +109,7 @@ export function HotkeysSection() {
               {group}
             </div>
             {actions.map((a) => {
-              const binding = effective(a.id, a.defaultBinding);
+              const binding = effective(a.id, shellDefaultBinding(a));
               const clash = (counts.get(binding) ?? 0) > 1;
               const warn = clash ? 'Conflicts with another shortcut.' : undefined;
               return (
