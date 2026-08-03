@@ -26,7 +26,8 @@ Past releases: see docs/changelogs/.
 - "Sync locally" is enabled by default (every group) for profiles with no stored entry; the toggle still turns it off.
 - The Density setting does something: compact (the default) tightens vertical spacing in both sidebars — session rows, rail dots, file-tree rows — and the collapsed rail's session glyphs grew to fill their containers; comfortable keeps the previous roomier spacing.
 - Numeric settings inputs commit on blur or Enter instead of every keystroke, so a font size can be cleared and retyped without applying mid-edit; empty or invalid input reverts.
-
+- Click-to-rename (file tree rows, the sidebar's project name/abbreviation) now needs a SECOND click within ~1.5 s of the first, Finder-style — clicking an item selected longer ago behaves normally, so an active folder still toggles and the active project still navigates.
+- The new-project "browse…" picker treats the path input as its single source of truth: navigating writes the browsed directory into the field (the picker's own path line is gone), and "choose" fills the project name from the directory's basename and closes the picker.
 - The "All projects in the sidebar" setting became "Project-based layout" (its inverse; a stored choice migrates). The sidebar's Archived disclosure now follows the same scoping: every project's archived sessions in the default profile-based layout, only the current project's under project-based layout.
 - Protocol major bumped to 12.0 (no schema change beyond 11.2's additive keys, on purpose): every connected daemon auto-upgrades at the next `puddle launch` handshake, so all deployments parse the project-based-layout snapshot keys instead of merely round-tripping them, and none linger on early 11.x.
 
@@ -36,4 +37,5 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- `~` paths autocomplete properly everywhere (project picker, account import path, any directory field): the daemon's tilde expansion dropped the trailing slash, so `~/` completed home's own name inside its parent instead of listing home, and any deeper `~/…/` prefix suggested nothing.
 - Optional form fields no longer sit empty and get silently reinterpreted on submit: the profile-creation branch prefix, the new-session base branch, and the tab-title template are prefilled with the default they would have become (clearing the profile branch prefix now honestly means no prefix). Placeholders that lied were corrected — the settings branch prefix says "no prefix", the host display name shows the real hostname fallback, the editor SSH-host field shows the tunnelled host already in effect — and clearing a numeric host setting no longer PATCHes a rejected 0. The settings "Repositories" tab is now "Projects" (old #settings/repositories links still resolve).

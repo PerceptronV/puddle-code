@@ -1,5 +1,5 @@
 import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { PROTOCOL_VERSION, versionResponseSchema } from '@puddle/shared';
@@ -219,9 +219,16 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
     const relative = await c.req('GET', '/api/fs/dirs?prefix=not-absolute');
     expect(relative.status).toBe(400);
 
-    // A leading ~ expands against the host home directory.
-    const tilde = await c.json<{ entries: unknown[] }>('GET', '/api/fs/dirs?prefix=~/');
-    expect(Array.isArray(tilde.entries)).toBe(true);
+    // A leading ~ expands against the host home directory, and the trailing
+    // slash survives expansion: `~/` lists HOME's contents — it must never
+    // complete home's own basename inside its parent (the join() slash-drop
+    // bug that made `~/…/` paths suggest nothing).
+    const tilde = await c.json<{ entries: Array<{ path: string }> }>(
+      'GET',
+      '/api/fs/dirs?prefix=~/',
+    );
+    expect(tilde.entries.every((e) => e.path.startsWith(`${homedir()}/`))).toBe(true);
+    expect(tilde.entries.some((e) => e.path === homedir())).toBe(false);
 
     // Re-registering a known path (however spelt) returns the existing repo.
     const again = await c.json<Repo>('POST', '/api/repos', { path: repoPath });

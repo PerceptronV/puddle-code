@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import {
   Archive,
@@ -24,6 +24,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/too
 import { toastError } from '../../lib/errors';
 import { ABBREV_MAX, normaliseAbbrev } from '../../lib/project-abbrev';
 import { usePatchProject } from '../../lib/queries';
+import { isSecondClick, type ClickStamp } from '../../lib/second-click';
 import { cn } from '../../lib/utils';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
 import { SessionGlyph } from '../status/SessionGlyph';
@@ -316,6 +317,9 @@ export function CollapsedSessionsRail({
   const [dragging, setDragging] = useState<string | null>(null);
   const [dragProject, setDragProject] = useState<string | null>(null);
   const [editingAbbrev, setEditingAbbrev] = useState<string | null>(null);
+  // Rename needs a SECOND recent click (Finder-style): a lone click on the
+  // active label navigates like any other project's.
+  const lastLabelClick = useRef<ClickStamp | null>(null);
   const patchProject = usePatchProject();
   const accountLabel = new Map(accounts.map((a) => [a.id, a.label]));
   const move = (id: string, before: string) => {
@@ -381,7 +385,11 @@ export function CollapsedSessionsRail({
                       <Link
                         to={`/project/${group.projectId}`}
                         onClick={(e) => {
+                          const now = Date.now();
+                          const prev = lastLabelClick.current;
+                          lastLabelClick.current = { id: group.projectId, at: now };
                           if (group.projectId !== activeProjectId) return;
+                          if (!isSecondClick(prev, group.projectId, now)) return;
                           e.preventDefault();
                           setEditingAbbrev(group.projectId);
                         }}
@@ -628,6 +636,8 @@ function SessionListBody({
   const [dragProject, setDragProject] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  // Rename needs a SECOND recent click (Finder-style) — see the rail's twin.
+  const lastLabelClick = useRef<ClickStamp | null>(null);
   const patchProject = usePatchProject();
   const accountLabel = new Map(accounts.map((a) => [a.id, a.label]));
   const total = groups.reduce((n, g) => n + g.sessions.length, 0);
@@ -685,7 +695,11 @@ function SessionListBody({
                   <Link
                     to={`/project/${group.projectId}`}
                     onClick={(e) => {
+                      const now = Date.now();
+                      const prev = lastLabelClick.current;
+                      lastLabelClick.current = { id: group.projectId, at: now };
                       if (group.projectId !== activeProjectId) return;
+                      if (!isSecondClick(prev, group.projectId, now)) return;
                       e.preventDefault();
                       setEditingName(group.projectId);
                     }}

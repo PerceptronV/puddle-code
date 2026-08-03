@@ -12,6 +12,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { GitStatus, Session, TreeResponse } from '@puddle/shared';
 import { useDaemonVersion } from '../../lib/queries';
+import { isSecondClick, type ClickStamp } from '../../lib/second-click';
 import { downloadPath, uploadFiles, useWorktreeGitStatus } from '../../lib/worktree-queries';
 import { collectDroppedFiles } from './drop-files';
 import { buildStatusMap } from './git-decoration';
@@ -215,10 +216,13 @@ export function ExplorerProvider({
 
   // Finder-style click-to-rename: a plain click on the row that is ALREADY the
   // sole selection starts an inline rename — after a beat, so the second click
-  // of a double-click (which pins the file instead) can cancel it. Any other
-  // click cancels a pending rename first: the timer must never fire for a row
-  // the user has already moved on from.
+  // of a double-click (which pins the file instead) can cancel it — and only
+  // when the PREVIOUS click on that row was recent (`isSecondClick`): clicking
+  // a folder selected ages ago toggles it like any other click instead of
+  // surprising with an edit field. Any other click cancels a pending rename
+  // first: the timer must never fire for a row the user has moved on from.
   const renameTimer = useRef<number | null>(null);
+  const lastRowClick = useRef<ClickStamp | null>(null);
   const cancelPendingRename = useCallback(() => {
     if (renameTimer.current !== null) {
       window.clearTimeout(renameTimer.current);
@@ -245,7 +249,15 @@ export function ExplorerProvider({
         setSelection(new Set(rangeBetween(visibleRows, anchorRef.current, row.path)));
         return;
       }
-      if (!editing && selection.size === 1 && selection.has(row.path)) {
+      const now = Date.now();
+      const prev = lastRowClick.current;
+      lastRowClick.current = { id: row.path, at: now };
+      if (
+        !editing &&
+        selection.size === 1 &&
+        selection.has(row.path) &&
+        isSecondClick(prev, row.path, now)
+      ) {
         renameTimer.current = window.setTimeout(() => {
           renameTimer.current = null;
           setEditing({ mode: 'rename', path: row.path });

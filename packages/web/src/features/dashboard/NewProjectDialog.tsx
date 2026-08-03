@@ -21,7 +21,6 @@ import {
   useRepos,
 } from '../../lib/queries';
 import { ABBREV_MAX, deriveAbbrev, normaliseAbbrev } from '../../lib/project-abbrev';
-import { tildify } from '../../lib/tildify';
 import { useDebouncedValue } from '../../lib/use-debounced-value';
 
 /** '/a/b/' → '/a/b'; keeps the root slash. */
@@ -44,21 +43,22 @@ function parentDir(dir: string): string {
  * The graphical folder picker behind "browse…": walks the DAEMON host's
  * directories over the same `GET /api/fs/dirs` the path field's autocomplete
  * uses, so it works identically for local and SSH hosts — no OS file dialog
- * (which could only ever see the client machine). Clicking a row always
- * descends — git repositories included (monorepos nest further repos) — and
- * a git row carries its own "choose" action; the header steps up and can
- * choose the current directory itself.
+ * (which could only ever see the client machine). The path input above is the
+ * single source of truth: every navigation writes the browsed directory into
+ * it (no duplicate path line here). Clicking a row always descends — git
+ * repositories included (monorepos nest further repos) — and a git row
+ * carries its own "choose" action; the header steps up and can choose the
+ * current directory itself. Choosing fills the project NAME from the
+ * directory and closes the browser (the path is already in the field).
  */
 function DirBrowser({
   dir,
-  home,
   onNavigate,
   onChoose,
 }: {
   dir: string;
-  home: string | undefined;
   onNavigate: (dir: string) => void;
-  onChoose: (dir: string, isGit: boolean) => void;
+  onChoose: (dir: string) => void;
 }) {
   const entries = useDirSuggestions(dir.endsWith('/') ? dir : `${dir}/`);
   return (
@@ -74,12 +74,9 @@ function DirBrowser({
           <CornerLeftUp className="size-3.5" />
           <span className="sr-only">Parent directory</span>
         </button>
-        <span className="min-w-0 truncate font-mono text-xs text-fg-secondary">
-          {tildify(dir, home)}
-        </span>
         <button
           type="button"
-          onClick={() => onChoose(dir, false)}
+          onClick={() => onChoose(dir)}
           className="ml-auto shrink-0 text-2xs text-fg-muted transition-colors hover:text-fg"
         >
           choose this folder
@@ -106,7 +103,7 @@ function DirBrowser({
             {entry.is_git && (
               <button
                 type="button"
-                onClick={() => onChoose(entry.path, true)}
+                onClick={() => onChoose(entry.path)}
                 className="shrink-0 px-2 py-1 text-2xs text-fg-muted transition-colors hover:text-fg"
               >
                 choose
@@ -165,7 +162,7 @@ export function NewProjectDialog({
         : isPathish(typed) && typed.startsWith('/')
           ? normalisePath(typed)
           : (home ?? '/');
-    setBrowseDir(seeded);
+    navigateBrowser(seeded);
   };
   // Every name change keeps the (untouched) abbreviation in step, so the
   // abbrev field always displays the value that will actually be stored.
@@ -173,10 +170,20 @@ export function NewProjectDialog({
     setName(next);
     if (!abbrevTouched) setAbbrev(deriveAbbrev(next));
   };
-  const chooseDir = (dir: string, isGit: boolean) => {
+  // Browsing keeps the path input in step (single source of truth): every
+  // navigation writes the browsed directory into the field.
+  const navigateBrowser = (dir: string) => {
+    setBrowseDir(dir);
+    setPath(dir);
+  };
+  // Choosing is an explicit act: it names the project after the directory
+  // (overwriting a stale name) and closes the browser — the path is already
+  // in the field from browsing there.
+  const chooseDir = (dir: string) => {
     setPath(dir);
     setBrowseDir(null);
-    if (!nameTouched && isGit) applyName(dir.split('/').filter(Boolean).pop() ?? '');
+    applyName(dir.split('/').filter(Boolean).pop() ?? '');
+    setNameTouched(true);
   };
 
   const debouncedPath = useDebouncedValue(path, 150);
@@ -265,12 +272,7 @@ export function NewProjectDialog({
               className="font-mono"
             />
             {browseDir !== null && (
-              <DirBrowser
-                dir={browseDir}
-                home={home}
-                onNavigate={setBrowseDir}
-                onChoose={chooseDir}
-              />
+              <DirBrowser dir={browseDir} onNavigate={navigateBrowser} onChoose={chooseDir} />
             )}
           </div>
           <div className="flex flex-col gap-1.5">
