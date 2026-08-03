@@ -36,11 +36,12 @@ import {
   useCreateSession,
   useDaemonVersion,
   useHostInfo,
+  usePatchProfileSettings,
   useProfileSettings,
   useProjectDetail,
   useProjects,
 } from '../../lib/queries';
-import { mergeOrder, orderByDrag } from './session-order';
+import { mergeOrder, orderByDrag, reorderIds } from './session-order';
 import { useNewSession } from '../shell/new-session-context';
 import type { EditorTab } from '../editor/editor-tabs';
 import {
@@ -118,17 +119,23 @@ function WorkspaceInner() {
   const showAllSessions = useClientSettings().showAllProjectSessions;
   const profileProjects = useProjects(profileId);
   const profileSettings = useProfileSettings(profileId);
-  const sessionGroups = useMemo<SessionGroup[]>(() => {
-    const active = (s: Session) => s.status !== 'archived';
+  const patchProfileSettings = usePatchProfileSettings(profileId ?? '');
+  // The profile's live projects in sidebar order (the homescreen's
+  // projectOrder) — the base for the session groups and for header drags.
+  const orderedProjects = useMemo(() => {
     const projectRows = profileProjects.data ?? (detail.data ? [detail.data.project] : []);
-    const ordered = orderByDrag(
+    return orderByDrag(
       projectRows.filter((p) => !p.archived),
       profileSettings.data?.projectOrder ?? [],
     );
+  }, [profileProjects.data, detail.data, profileSettings.data]);
+  const sessionGroups = useMemo<SessionGroup[]>(() => {
+    const active = (s: Session) => s.status !== 'archived';
     const all = allSessions.data ?? sessions;
-    return ordered.map((p) => ({
+    return orderedProjects.map((p) => ({
       projectId: p.id,
       name: p.name,
+      repoId: p.repo_id,
       // Each group applies the same saved order the single-project view uses
       // (untracked sessions float to the top of their group, newest-first).
       sessions: orderByDrag(
@@ -143,10 +150,20 @@ function WorkspaceInner() {
     sessions,
     projectId,
     uiState.snapshot.session_order,
-    profileProjects.data,
-    profileSettings.data,
+    orderedProjects,
     allSessions.data,
   ]);
+  // A sidebar project-header drag persists into the SAME projectOrder the
+  // homescreen cards drag (SPEC §11) — one source of truth for project order.
+  // dragover fires continuously, so identical orders never re-persist.
+  const moveProject = useCallback(
+    (dragId: string, beforeId: string) => {
+      const ids = orderedProjects.map((p) => p.id);
+      const next = reorderIds(ids, dragId, beforeId);
+      if (next.some((id, i) => id !== ids[i])) patchProfileSettings.mutate({ projectOrder: next });
+    },
+    [orderedProjects, patchProfileSettings],
+  );
   const archivedSessions = useMemo(
     () => sessions.filter((s) => s.status === 'archived'),
     [sessions],
@@ -185,11 +202,29 @@ function WorkspaceInner() {
   const [creating, setCreating] = useState(false);
   const [createKind, setCreateKind] = useState<SessionKind>('agent');
   const [seedAccountId, setSeedAccountId] = useState<number | undefined>(undefined);
-  const openCreate = useCallback((kind: SessionKind = 'agent') => {
-    setSeedAccountId(undefined);
-    setCreateKind(kind);
-    setCreating(true);
-  }, []);
+  // Where the create dialogue lands its session: null = the current project;
+  // a project-header context menu retargets it (SPEC §12) via `openCreateIn`.
+  const [createTarget, setCreateTarget] = useState<{ projectId: string; repoId: number } | null>(
+    null,
+  );
+  const openCreate = useCallback(
+    (kind: SessionKind = 'agent', target?: { projectId: string; repoId: number }) => {
+      setSeedAccountId(undefined);
+      setCreateTarget(target ?? null);
+      setCreateKind(kind);
+      setCreating(true);
+    },
+    [],
+  );
+  // "New agent/terminal in this project" from a project header's right-click:
+  // the SAME create dialogue, seeded with that project instead of the current.
+  const openCreateIn = useCallback(
+    (kind: SessionKind, pid: string) => {
+      const p = orderedProjects.find((x) => x.id === pid);
+      openCreate(kind, p ? { projectId: p.id, repoId: p.repo_id } : undefined);
+    },
+    [orderedProjects, openCreate],
+  );
   // Set when the active tab is closed: the router clears the URL param a
   // render later, so this stops the deep-link effect resurrecting the tab in
   // the interim (it would otherwise leave a zombie header — no active session).
@@ -693,6 +728,11 @@ function WorkspaceInner() {
       onOpenSearchFile={openSearchFile}
     />
   );
+  const projectActions = {
+    onNewSessionIn: (pid: string) => openCreateIn('agent', pid),
+    onNewTerminalIn: (pid: string) => openCreateIn('terminal', pid),
+    onMoveProject: moveProject,
+  };
   const sessionsPanel = (onCollapse: () => void) => (
     <SessionSidebar
       groups={sessionGroups}
@@ -705,6 +745,7 @@ function WorkspaceInner() {
       onNewTerminal={() => openCreate('terminal')}
       onCollapse={onCollapse}
       onArchived={closeTab}
+      projectActions={projectActions}
     />
   );
   // Free-form tiling area (SPEC §8): editor and terminal tabs live in a
@@ -787,6 +828,7 @@ function WorkspaceInner() {
               onNewTerminal={() => openCreate('terminal')}
               onNewSession={() => openCreate('agent')}
               onArchived={closeTab}
+              projectActions={projectActions}
             />
             {narrowNav && (
               <>
@@ -859,18 +901,23 @@ function WorkspaceInner() {
                 onNewTerminal={() => openCreate('terminal')}
                 onNewSession={() => openCreate('agent')}
                 onArchived={closeTab}
+                projectActions={projectActions}
               />
             )}
           </>
         )}
         <NewSessionDialog
-          projectId={projectId}
-          repoId={detail.data.project.repo_id}
+          projectId={createTarget?.projectId ?? projectId}
+          repoId={createTarget?.repoId ?? detail.data.project.repo_id}
           open={creating}
           kind={createKind}
           seedAccountId={seedAccountId}
           onOpenChange={setCreating}
-          onCreated={(session) => void navigate(`/project/${projectId}/session/${session.id}`)}
+          // Navigate to the session's OWN project — a header context menu can
+          // create it in a project other than the one the URL names.
+          onCreated={(session) =>
+            void navigate(`/project/${session.project_id}/session/${session.id}`)
+          }
         />
         <UntitledSaveDialog
           request={savingUntitled}

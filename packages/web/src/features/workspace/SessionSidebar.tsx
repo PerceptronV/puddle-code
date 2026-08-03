@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import {
   Archive,
@@ -14,7 +14,12 @@ import {
 } from 'lucide-react';
 import type { Account, Session } from '@puddle/shared';
 import { AgentIcon } from '../../components/agent-icon';
-import { ContextMenu, ContextMenuTrigger } from '../../components/ui/context-menu';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '../../components/ui/context-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utils';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
@@ -35,7 +40,70 @@ import { encodeTabTransfer, TAB_MIME } from './tab-transfer';
 export interface SessionGroup {
   projectId: string;
   name: string;
+  /** The project's repository — seeds the create dialogue for "new … in project". */
+  repoId: number;
   sessions: Session[];
+}
+
+/** Callbacks every project header carries (context menu + drag reorder). */
+export interface ProjectHeaderActions {
+  /** Open the new-agent dialogue targeting this project. */
+  onNewSessionIn: (projectId: string) => void;
+  /** Open the new-terminal dialogue targeting this project. */
+  onNewTerminalIn: (projectId: string) => void;
+  /** A project-header drag: move `dragId` before `beforeId` in `projectOrder`. */
+  onMoveProject: (dragId: string, beforeId: string) => void;
+}
+
+/**
+ * A project-name drag reorders projects; its payload is this private MIME so no
+ * pane or list mistakes it for a tab drag (reordering rides dragover, the
+ * payload itself is never dropped anywhere).
+ */
+const PROJECT_MIME = 'application/x-puddle-project';
+
+/**
+ * The project name's right-click menu: start a new agent or terminal IN that
+ * project — the same create dialogue the sidebar's fixed controls open, seeded
+ * with this project instead of the current one.
+ */
+function ProjectMenuBody({
+  projectId,
+  actions,
+}: {
+  projectId: string;
+  actions: ProjectHeaderActions;
+}) {
+  return (
+    <ContextMenuContent>
+      <ContextMenuItem onSelect={() => actions.onNewSessionIn(projectId)}>
+        <Bot />
+        New agent
+      </ContextMenuItem>
+      <ContextMenuItem onSelect={() => actions.onNewTerminalIn(projectId)}>
+        <SquareTerminal />
+        New terminal
+      </ContextMenuItem>
+    </ContextMenuContent>
+  );
+}
+
+/**
+ * While any project name is being dragged, every group's session list collapses
+ * (0fr grid row) so the list reads as just the project names — the dragged name
+ * repositions against its neighbours, exactly like a homescreen card.
+ */
+function CollapsibleSessions({ collapsed, children }: { collapsed: boolean; children: ReactNode }) {
+  return (
+    <div
+      className={cn(
+        'grid transition-[grid-template-rows] duration-200',
+        collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]',
+      )}
+    >
+      {children}
+    </div>
+  );
 }
 
 /**
@@ -184,6 +252,7 @@ export function CollapsedSessionsRail({
   onNewTerminal,
   onNewSession,
   onArchived,
+  projectActions,
 }: {
   groups: SessionGroup[];
   accounts: Account[];
@@ -195,8 +264,10 @@ export function CollapsedSessionsRail({
   onNewTerminal: () => void;
   onNewSession: () => void;
   onArchived: (id: string) => void;
+  projectActions: ProjectHeaderActions;
 }) {
   const [dragging, setDragging] = useState<string | null>(null);
+  const [dragProject, setDragProject] = useState<string | null>(null);
   const accountLabel = new Map(accounts.map((a) => [a.id, a.label]));
   const move = (id: string, before: string) => {
     const next = moveWithinGroups(groups, id, before);
@@ -223,46 +294,83 @@ export function CollapsedSessionsRail({
         {groups.map((group) => (
           // A divider precedes every group (the first one separates dots from
           // the controls above; the rest separate one project from the next).
-          <div key={group.projectId} className="flex flex-col items-center gap-1">
+          <div
+            key={group.projectId}
+            className="flex flex-col items-center gap-1"
+            onDragOver={(e) => {
+              if (!dragProject) return;
+              e.preventDefault();
+              if (dragProject !== group.projectId)
+                projectActions.onMoveProject(dragProject, group.projectId);
+            }}
+          >
             <div className="my-0.5 h-px w-7 shrink-0 bg-border" />
-            <Link
-              to={`/project/${group.projectId}`}
-              title={group.name}
-              className="w-7 truncate text-center font-mono text-[8px] uppercase leading-3 text-fg-muted transition-colors hover:text-fg"
-            >
-              {group.name.slice(0, 5)}
-            </Link>
-            {group.sessions.map((session) => (
-              <div
-                key={session.id}
-                draggable
-                onDragStart={(e) => {
-                  // The same drag reorders within the rail AND, dropped on a
-                  // tiling pane, opens the session there as a permanent tab.
-                  e.dataTransfer.setData(
-                    TAB_MIME,
-                    encodeTabTransfer({ type: 'terminal', session: session.id }),
-                  );
-                  setDragging(session.id);
-                }}
-                onDragEnd={() => setDragging(null)}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  if (dragging && dragging !== session.id) move(dragging, session.id);
-                }}
-                className={cn('transition-opacity', dragging === session.id && 'opacity-50')}
-              >
-                <CollapsedSessionDot
-                  session={session}
-                  accountLabel={
-                    session.account_id === null ? undefined : accountLabel.get(session.account_id)
-                  }
-                  activeSessionId={activeSessionId}
-                  onPromote={onPromote}
-                  onArchived={onArchived}
-                />
+            {/* Both triggers stack over the single <Link> (as the dots do): the
+                tooltip shows the FULL project name the five-character label
+                truncates; right-click opens the new-agent/terminal menu; the
+                label drags to reorder projects. */}
+            <ContextMenu>
+              <Tooltip>
+                <ContextMenuTrigger asChild>
+                  <TooltipTrigger asChild>
+                    <Link
+                      to={`/project/${group.projectId}`}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData(PROJECT_MIME, group.projectId);
+                        setDragProject(group.projectId);
+                      }}
+                      onDragEnd={() => setDragProject(null)}
+                      className={cn(
+                        'w-7 truncate text-center font-mono text-[8px] uppercase leading-3 text-fg-muted transition-colors hover:text-fg',
+                        dragProject === group.projectId && 'opacity-50',
+                      )}
+                    >
+                      {group.name.slice(0, 5)}
+                    </Link>
+                  </TooltipTrigger>
+                </ContextMenuTrigger>
+                <TooltipContent side="left">{group.name}</TooltipContent>
+              </Tooltip>
+              <ProjectMenuBody projectId={group.projectId} actions={projectActions} />
+            </ContextMenu>
+            <CollapsibleSessions collapsed={dragProject !== null}>
+              <div className="flex flex-col items-center gap-1 overflow-hidden">
+                {group.sessions.map((session) => (
+                  <div
+                    key={session.id}
+                    draggable
+                    onDragStart={(e) => {
+                      // The same drag reorders within the rail AND, dropped on a
+                      // tiling pane, opens the session there as a permanent tab.
+                      e.dataTransfer.setData(
+                        TAB_MIME,
+                        encodeTabTransfer({ type: 'terminal', session: session.id }),
+                      );
+                      setDragging(session.id);
+                    }}
+                    onDragEnd={() => setDragging(null)}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (dragging && dragging !== session.id) move(dragging, session.id);
+                    }}
+                    className={cn('transition-opacity', dragging === session.id && 'opacity-50')}
+                  >
+                    <CollapsedSessionDot
+                      session={session}
+                      accountLabel={
+                        session.account_id === null
+                          ? undefined
+                          : accountLabel.get(session.account_id)
+                      }
+                      activeSessionId={activeSessionId}
+                      onPromote={onPromote}
+                      onArchived={onArchived}
+                    />
+                  </div>
+                ))}
               </div>
-            ))}
+            </CollapsibleSessions>
           </div>
         ))}
       </div>
@@ -376,6 +484,7 @@ export function SessionSidebar({
   onNewTerminal,
   onCollapse,
   onArchived,
+  projectActions,
 }: {
   groups: SessionGroup[];
   accounts: Account[];
@@ -390,6 +499,7 @@ export function SessionSidebar({
   onNewTerminal: () => void;
   onCollapse: () => void;
   onArchived: (id: string) => void;
+  projectActions: ProjectHeaderActions;
 }) {
   return (
     <div className="flex h-full flex-col bg-surface">
@@ -411,6 +521,7 @@ export function SessionSidebar({
         onPromote={onPromote}
         archived={archived}
         onArchived={onArchived}
+        projectActions={projectActions}
       />
     </div>
   );
@@ -425,6 +536,7 @@ function SessionListBody({
   onPromote,
   archived,
   onArchived,
+  projectActions,
 }: {
   groups: SessionGroup[];
   accounts: Account[];
@@ -433,8 +545,10 @@ function SessionListBody({
   onPromote: (id: string) => void;
   archived: Session[];
   onArchived: (id: string) => void;
+  projectActions: ProjectHeaderActions;
 }) {
   const [dragging, setDragging] = useState<string | null>(null);
+  const [dragProject, setDragProject] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const accountLabel = new Map(accounts.map((a) => [a.id, a.label]));
   const total = groups.reduce((n, g) => n + g.sessions.length, 0);
@@ -457,45 +571,73 @@ function SessionListBody({
           </p>
         )}
         {groups.map((group) => (
-          <div key={group.projectId}>
-            <Link
-              to={`/project/${group.projectId}`}
-              className="block truncate px-3 pb-1 pt-2 text-2xs font-medium uppercase tracking-wide text-fg-gold transition-colors hover:text-fg"
-            >
-              {group.name}
-            </Link>
-            <ul className="flex flex-col gap-0.5">
-              {group.sessions.map((session) => (
-                <li
-                  key={session.id}
+          <div
+            key={group.projectId}
+            onDragOver={(e) => {
+              if (!dragProject) return;
+              e.preventDefault();
+              if (dragProject !== group.projectId)
+                projectActions.onMoveProject(dragProject, group.projectId);
+            }}
+          >
+            {/* The header right-clicks into the new-agent/terminal menu and
+                drags to reorder projects (the same projectOrder the homescreen
+                cards persist); while any header drags, the session lists
+                collapse so only the names reposition. */}
+            <ContextMenu>
+              <ContextMenuTrigger asChild>
+                <Link
+                  to={`/project/${group.projectId}`}
                   draggable
                   onDragStart={(e) => {
-                    // Reorders within the list AND, dropped on a tiling pane,
-                    // opens the session there as a permanent tab.
-                    e.dataTransfer.setData(
-                      TAB_MIME,
-                      encodeTabTransfer({ type: 'terminal', session: session.id }),
-                    );
-                    setDragging(session.id);
+                    e.dataTransfer.setData(PROJECT_MIME, group.projectId);
+                    setDragProject(group.projectId);
                   }}
-                  onDragEnd={() => setDragging(null)}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    if (dragging && dragging !== session.id) move(dragging, session.id);
-                  }}
-                  className={cn('transition-opacity', dragging === session.id && 'opacity-50')}
+                  onDragEnd={() => setDragProject(null)}
+                  className={cn(
+                    'block truncate px-3 pb-1 pt-2 text-2xs font-medium uppercase tracking-wide text-fg-gold transition-colors hover:text-fg',
+                    dragProject === group.projectId && 'opacity-50',
+                  )}
                 >
-                  <SessionRow
-                    session={session}
-                    activeSessionId={activeSessionId}
-                    accountLabel={accountLabel}
-                    onPromote={onPromote}
-                    onArchived={onArchived}
-                    ellipsis
-                  />
-                </li>
-              ))}
-            </ul>
+                  {group.name}
+                </Link>
+              </ContextMenuTrigger>
+              <ProjectMenuBody projectId={group.projectId} actions={projectActions} />
+            </ContextMenu>
+            <CollapsibleSessions collapsed={dragProject !== null}>
+              <ul className="flex flex-col gap-0.5 overflow-hidden">
+                {group.sessions.map((session) => (
+                  <li
+                    key={session.id}
+                    draggable
+                    onDragStart={(e) => {
+                      // Reorders within the list AND, dropped on a tiling pane,
+                      // opens the session there as a permanent tab.
+                      e.dataTransfer.setData(
+                        TAB_MIME,
+                        encodeTabTransfer({ type: 'terminal', session: session.id }),
+                      );
+                      setDragging(session.id);
+                    }}
+                    onDragEnd={() => setDragging(null)}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (dragging && dragging !== session.id) move(dragging, session.id);
+                    }}
+                    className={cn('transition-opacity', dragging === session.id && 'opacity-50')}
+                  >
+                    <SessionRow
+                      session={session}
+                      activeSessionId={activeSessionId}
+                      accountLabel={accountLabel}
+                      onPromote={onPromote}
+                      onArchived={onArchived}
+                      ellipsis
+                    />
+                  </li>
+                ))}
+              </ul>
+            </CollapsibleSessions>
           </div>
         ))}
       </div>

@@ -590,7 +590,7 @@ Implement the CLI as a thin `bin` wrapper over library functions in `packages/cl
 
 ## 11. Profiles and projects
 
-The right session sidebar keeps every non-archived project visible as a navigation target, including projects with no sessions. Expanded groups use clickable project-name headers; the collapsed rail shows a five-character project label above each group's divider and uses the session's agent or terminal glyph. With `showAllProjectSessions` disabled, other projects retain their labels while their sessions are hidden.
+The right session sidebar keeps every non-archived project visible as a navigation target, including projects with no sessions. Expanded groups use clickable project-name headers; the collapsed rail shows a five-character project label above each group's divider and uses the session's agent or terminal glyph — the label's tooltip shows the full project name the five characters truncate. A project name (header or collapsed label) right-clicks into a menu that starts a **new agent or new terminal in that project** — the same create dialogue the sidebar's fixed controls open, seeded with that project — and **drags to reorder projects**: while a name drags, every group's session list collapses so only the names reposition, and the drop persists into the same `profileSettings.projectOrder` the homescreen cards drag (one source of truth for project order, both sidebar modes). With `showAllProjectSessions` disabled, other projects retain their labels while their sessions are hidden.
 
 Profiles are identity, not auth. First load shows a profile picker (create-or-select), remembered in localStorage.
 
