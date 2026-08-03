@@ -142,48 +142,15 @@
    * animates, so there is no reduced-motion variant to honour and no client
    * toggle to offer.
    */
-  .status-dot {
-    position: relative;
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    flex-shrink: 0;
-    border-radius: 9999px;
-    background: var(--status-idle);
-  }
-  .status-dot[data-status='running'],
-  .status-dot[data-status='starting'] {
-    background: var(--status-running);
-  }
-  /* A running shell reads as blue, not agent amber. */
-  .status-dot[data-kind='terminal'][data-status='running'],
-  .status-dot[data-kind='terminal'][data-status='starting'] {
-    background: var(--status-terminal);
-  }
-  .status-dot[data-status='waiting_input'] {
-    background: var(--status-waiting);
-  }
-  .status-dot[data-status='interrupted'] {
-    background: var(--status-interrupted);
-  }
-  /* stale_running (SPEC §4): still nominally running, but the agent has been
-     quiet for over an hour — fade it, so a possibly wedged session no longer
-     advertises progress. A flat opacity, not an animation. */
-  .status-dot[data-stale] {
-    opacity: 0.45;
-  }
-
   /* The session glyph: the agent's brand mark (or a terminal glyph) doing the
      status dot's job, so a row spends one glyph on "which agent" and "what is
      it doing" instead of two. The SVG inherits `color` through currentColor.
 
-     Deliberately NO ripple rings. On an 8px dot a ring reads as a ripple; drawn
-     around a 14px glyph it reads as a border badge around the icon, which
-     HUMANS.md rules out and which is exactly the visual doubling this element
-     exists to remove. The waiting pulse stays — it is opacity on the glyph
-     itself, adds nothing, and marks the one state that wants attention. The
-     full motif lives on in the collapsed rail's dot, where a mark would not
-     fit and there is nothing to deduplicate. */
+     Deliberately NO ripple rings: drawn around a 14px glyph a ring reads as a
+     border badge around the icon, which HUMANS.md rules out and which is
+     exactly the visual doubling this element exists to remove. This is the
+     only status indicator left — the collapsed rail was the last bare dot and
+     it shows the mark too (2026-08-03), so `.status-dot` is gone. */
   .status-glyph {
     position: relative;
     display: inline-flex;

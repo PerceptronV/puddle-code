@@ -198,9 +198,8 @@ export function CollapsedSessionsRail({
 }) {
   const [dragging, setDragging] = useState<string | null>(null);
   const accountLabel = new Map(accounts.map((a) => [a.id, a.label]));
-  const visibleGroups = groups;
   const move = (id: string, before: string) => {
-    const next = moveWithinGroups(visibleGroups, id, before);
+    const next = moveWithinGroups(groups, id, before);
     if (next) onReorder(next);
   };
   return (
@@ -221,7 +220,7 @@ export function CollapsedSessionsRail({
         />
       </div>
       <div className="no-scrollbar flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto">
-        {visibleGroups.map((group) => (
+        {groups.map((group) => (
           // A divider precedes every group (the first one separates dots from
           // the controls above; the rest separate one project from the next).
           <div key={group.projectId} className="flex flex-col items-center gap-1">

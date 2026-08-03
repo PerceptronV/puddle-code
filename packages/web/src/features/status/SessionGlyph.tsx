@@ -10,8 +10,8 @@ import { cn } from '../../lib/utils';
  * where a dot beside an icon said the same thing twice. Static: colour alone
  * carries the state (SPEC §12).
  *
- * The dot itself (`StatusDot`) survives where there is no room for a mark and
- * nothing to deduplicate: the collapsed session rail.
+ * This is now the only status indicator: the collapsed rail was the last place
+ * a bare dot survived, and it shows the mark too (2026-08-03).
  */
 export function SessionGlyph({
   status,

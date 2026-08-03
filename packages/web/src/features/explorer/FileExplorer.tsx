@@ -92,6 +92,11 @@ function ExplorerBody() {
       >
         <ContextMenuItem onSelect={() => ex.beginCreate('', 'file')}>New File…</ContextMenuItem>
         <ContextMenuItem onSelect={() => ex.beginCreate('', 'dir')}>New Folder…</ContextMenuItem>
+        {ex.onOpenTerminal && (
+          <ContextMenuItem onSelect={() => ex.onOpenTerminal?.('')}>
+            Open Terminal in Directory
+          </ContextMenuItem>
+        )}
         <ContextMenuSeparator />
         <ContextMenuItem disabled={!canPaste} onSelect={() => ex.paste('')}>
           Paste
