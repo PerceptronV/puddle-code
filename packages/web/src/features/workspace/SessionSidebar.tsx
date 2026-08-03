@@ -1,4 +1,5 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useState, type DragEvent, type ReactNode } from 'react';
+import { useDroppable } from '@dnd-kit/core';
 import { Link } from 'react-router';
 import {
   Archive,
@@ -24,7 +25,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/too
 import { toastError } from '../../lib/errors';
 import { ABBREV_MAX, normaliseAbbrev } from '../../lib/project-abbrev';
 import { usePatchProject } from '../../lib/queries';
-import { isSecondClick, type ClickStamp } from '../../lib/second-click';
 import { cn } from '../../lib/utils';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
 import { SessionGlyph } from '../status/SessionGlyph';
@@ -35,7 +35,8 @@ import {
   useSessionMenu,
 } from './SessionActions';
 import { moveWithinGroups } from './session-order';
-import { encodeTabTransfer, TAB_MIME } from './tab-transfer';
+import { decodeTabTransfer, encodeTabTransfer, hasTabTransfer, TAB_MIME } from './tab-transfer';
+import { ARCHIVE_DROP_PREFIX, useActiveDragRef } from './TilingDnd';
 
 /**
  * A project's sessions for the sidebar. Groups are retained even when empty so
@@ -128,6 +129,71 @@ function InlineLabelEdit({
       }}
       className={cn('bg-transparent outline-none', className)}
     />
+  );
+}
+
+/**
+ * Archive-by-drag plumbing (SPEC §12): a session dragged onto an archive
+ * target is archived. Two payload paths land here — the sidebar's own rows and
+ * rail dots ride native HTML5 DnD (`TAB_MIME`), while centre tab chips ride
+ * dnd-kit (a droppable under the workspace-wide `TilingDnd` context, which
+ * routes the release via its `onArchive`). Editor payloads are ignored — only
+ * a terminal ref names a session.
+ */
+function useArchiveDrop(id: string, onArchiveDrop: (session: string) => void) {
+  const { isOver, setNodeRef } = useDroppable({ id: `${ARCHIVE_DROP_PREFIX}${id}` });
+  const activeRef = useActiveDragRef();
+  const [nativeOver, setNativeOver] = useState(false);
+  return {
+    setNodeRef,
+    /** Arm the highlight for either payload path. */
+    armed: nativeOver || (isOver && activeRef?.type === 'terminal'),
+    props: {
+      onDragOver: (e: DragEvent) => {
+        if (!hasTabTransfer(e.dataTransfer.types)) return;
+        e.preventDefault();
+        setNativeOver(true);
+      },
+      onDragLeave: () => setNativeOver(false),
+      onDrop: (e: DragEvent) => {
+        setNativeOver(false);
+        const ref = decodeTabTransfer(e.dataTransfer.getData(TAB_MIME));
+        if (ref?.type !== 'terminal') return;
+        e.preventDefault();
+        onArchiveDrop(ref.session);
+      },
+    },
+  };
+}
+
+/** The collapsed rail's archive target: an icon at the rail's foot. */
+function RailArchiveTarget({
+  onArchiveDrop,
+  onExpand,
+}: {
+  onArchiveDrop: (session: string) => void;
+  onExpand: () => void;
+}) {
+  const drop = useArchiveDrop('rail', onArchiveDrop);
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          ref={drop.setNodeRef}
+          type="button"
+          onClick={onExpand}
+          {...drop.props}
+          className={cn(
+            'mt-1 flex shrink-0 items-center rounded-md p-1.5 text-fg-muted transition-colors hover:bg-elevated hover:text-fg compact:p-1',
+            drop.armed && 'bg-selection text-fg',
+          )}
+        >
+          <Archive className="size-4" />
+          <span className="sr-only">Archived sessions</span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="left">Drop a session here to archive it</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -290,7 +356,6 @@ function CollapsedSessionDot({
 export function CollapsedSessionsRail({
   groups,
   accounts,
-  activeProjectId,
   activeSessionId,
   onReorder,
   onPromote,
@@ -298,12 +363,11 @@ export function CollapsedSessionsRail({
   onNewTerminal,
   onNewSession,
   onArchived,
+  onArchiveDrop,
   projectActions,
 }: {
   groups: SessionGroup[];
   accounts: Account[];
-  /** The URL-bound project: clicking ITS label edits the abbreviation in place. */
-  activeProjectId: string | null;
   activeSessionId: string | null;
   onReorder: (ids: string[]) => void;
   /** Double-click: pin the session's (preview) terminal tab. */
@@ -312,14 +376,13 @@ export function CollapsedSessionsRail({
   onNewTerminal: () => void;
   onNewSession: () => void;
   onArchived: (id: string) => void;
+  /** A session dropped on the rail's archive icon: archive it (SPEC §12). */
+  onArchiveDrop: (session: string) => void;
   projectActions: ProjectHeaderActions;
 }) {
   const [dragging, setDragging] = useState<string | null>(null);
   const [dragProject, setDragProject] = useState<string | null>(null);
   const [editingAbbrev, setEditingAbbrev] = useState<string | null>(null);
-  // Rename needs a SECOND recent click (Finder-style): a lone click on the
-  // active label navigates like any other project's.
-  const lastLabelClick = useRef<ClickStamp | null>(null);
   const patchProject = usePatchProject();
   const accountLabel = new Map(accounts.map((a) => [a.id, a.label]));
   const move = (id: string, before: string) => {
@@ -367,8 +430,9 @@ export function CollapsedSessionsRail({
             {/* Both triggers stack over the single <Link> (as the dots do): the
                 tooltip shows the FULL project name the abbreviation stands for;
                 right-click opens the new-agent/terminal menu; the label drags
-                to reorder projects. Clicking the ACTIVE project's label edits
-                the abbreviation in place — other labels navigate (SPEC §12). */}
+                to reorder projects. A single click navigates (any project);
+                a DOUBLE-click edits the abbreviation in place — the first
+                click's navigation has already made it the active project. */}
             {editingAbbrev === group.projectId ? (
               <InlineLabelEdit
                 initial={group.abbrev}
@@ -384,12 +448,7 @@ export function CollapsedSessionsRail({
                     <TooltipTrigger asChild>
                       <Link
                         to={`/project/${group.projectId}`}
-                        onClick={(e) => {
-                          const now = Date.now();
-                          const prev = lastLabelClick.current;
-                          lastLabelClick.current = { id: group.projectId, at: now };
-                          if (group.projectId !== activeProjectId) return;
-                          if (!isSecondClick(prev, group.projectId, now)) return;
+                        onDoubleClick={(e) => {
                           e.preventDefault();
                           setEditingAbbrev(group.projectId);
                         }}
@@ -453,6 +512,9 @@ export function CollapsedSessionsRail({
           </div>
         ))}
       </div>
+      {/* The rail's foot: sessions dragged here — dots above or centre tab
+          chips — archive; a click expands the sidebar to the full list. */}
+      <RailArchiveTarget onArchiveDrop={onArchiveDrop} onExpand={onExpand} />
     </div>
   );
 }
@@ -555,7 +617,6 @@ function SessionRow({
 export function SessionSidebar({
   groups,
   accounts,
-  activeProjectId,
   activeSessionId,
   onReorder,
   onPromote,
@@ -564,12 +625,11 @@ export function SessionSidebar({
   onNewTerminal,
   onCollapse,
   onArchived,
+  onArchiveDrop,
   projectActions,
 }: {
   groups: SessionGroup[];
   accounts: Account[];
-  /** The URL-bound project: clicking ITS name header edits the name in place. */
-  activeProjectId: string | null;
   activeSessionId: string | null;
   /** Rows drag-reorder within their project group; `ids` is the full visible order. */
   onReorder: (ids: string[]) => void;
@@ -581,6 +641,8 @@ export function SessionSidebar({
   onNewTerminal: () => void;
   onCollapse: () => void;
   onArchived: (id: string) => void;
+  /** A session dropped on the Archived header: archive it (SPEC §12). */
+  onArchiveDrop: (session: string) => void;
   projectActions: ProjectHeaderActions;
 }) {
   return (
@@ -598,12 +660,12 @@ export function SessionSidebar({
       <SessionListBody
         groups={groups}
         accounts={accounts}
-        activeProjectId={activeProjectId}
         activeSessionId={activeSessionId}
         onReorder={onReorder}
         onPromote={onPromote}
         archived={archived}
         onArchived={onArchived}
+        onArchiveDrop={onArchiveDrop}
         projectActions={projectActions}
       />
     </div>
@@ -614,30 +676,34 @@ export function SessionSidebar({
 function SessionListBody({
   groups,
   accounts,
-  activeProjectId,
   activeSessionId,
   onReorder,
   onPromote,
   archived,
   onArchived,
+  onArchiveDrop,
   projectActions,
 }: {
   groups: SessionGroup[];
   accounts: Account[];
-  activeProjectId: string | null;
   activeSessionId: string | null;
   onReorder: (ids: string[]) => void;
   onPromote: (id: string) => void;
   archived: Session[];
   onArchived: (id: string) => void;
+  onArchiveDrop: (session: string) => void;
   projectActions: ProjectHeaderActions;
 }) {
   const [dragging, setDragging] = useState<string | null>(null);
   const [dragProject, setDragProject] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
-  // Rename needs a SECOND recent click (Finder-style) — see the rail's twin.
-  const lastLabelClick = useRef<ClickStamp | null>(null);
+  // The Archived header doubles as the archive drop target; while a session
+  // drags (a row here, or a centre tab chip) it appears even with nothing
+  // archived yet, so there is always somewhere to drop.
+  const archiveDrop = useArchiveDrop('list', onArchiveDrop);
+  const activeDragRef = useActiveDragRef();
+  const sessionDragActive = dragging !== null || activeDragRef?.type === 'terminal';
   const patchProject = usePatchProject();
   const accountLabel = new Map(accounts.map((a) => [a.id, a.label]));
   const total = groups.reduce((n, g) => n + g.sessions.length, 0);
@@ -678,9 +744,9 @@ function SessionListBody({
             {/* The header right-clicks into the new-agent/terminal menu and
                 drags to reorder projects (the same projectOrder the homescreen
                 cards persist); while any header drags, the session lists
-                collapse so only the names reposition. Clicking the ACTIVE
-                project's header edits the name in place — other headers
-                navigate (SPEC §12). */}
+                collapse so only the names reposition. A single click navigates
+                (any project); a DOUBLE-click edits the name in place — the
+                first click's navigation has already made it active. */}
             {editingName === group.projectId ? (
               <InlineLabelEdit
                 initial={group.name}
@@ -694,12 +760,7 @@ function SessionListBody({
                 <ContextMenuTrigger asChild>
                   <Link
                     to={`/project/${group.projectId}`}
-                    onClick={(e) => {
-                      const now = Date.now();
-                      const prev = lastLabelClick.current;
-                      lastLabelClick.current = { id: group.projectId, at: now };
-                      if (group.projectId !== activeProjectId) return;
-                      if (!isSecondClick(prev, group.projectId, now)) return;
+                    onDoubleClick={(e) => {
                       e.preventDefault();
                       setEditingName(group.projectId);
                     }}
@@ -760,12 +821,17 @@ function SessionListBody({
       {/* Archived sessions: hidden by default under a collapsible header at the
           bottom, never deleted — click one to reopen it and read its history
           (SPEC §4). */}
-      {archived.length > 0 && (
+      {(archived.length > 0 || sessionDragActive) && (
         <div className="shrink-0 pb-1.5">
           <button
+            ref={archiveDrop.setNodeRef}
             type="button"
             onClick={() => setShowArchived((v) => !v)}
-            className="flex w-full items-center gap-1.5 px-3 py-1.5 text-2xs uppercase tracking-wide text-fg-gold transition-colors hover:text-fg"
+            {...archiveDrop.props}
+            className={cn(
+              'flex w-full items-center gap-1.5 px-3 py-1.5 text-2xs uppercase tracking-wide text-fg-gold transition-colors hover:text-fg',
+              archiveDrop.armed && 'bg-selection text-fg',
+            )}
           >
             <ChevronRight
               className={cn('size-3 transition-transform', showArchived && 'rotate-90')}

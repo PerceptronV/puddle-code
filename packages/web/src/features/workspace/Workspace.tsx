@@ -33,6 +33,7 @@ import {
   hostLabel,
   useAccounts,
   useAllSessions,
+  useArchiveSession,
   useCreateSession,
   useDaemonVersion,
   useHostInfo,
@@ -831,7 +832,6 @@ function WorkspaceInner() {
     <SessionSidebar
       groups={sessionGroups}
       accounts={accounts}
-      activeProjectId={projectId}
       activeSessionId={activeSessionId}
       onReorder={persistReorder}
       onPromote={(id) => layout.ensureTerminal(id)}
@@ -840,50 +840,46 @@ function WorkspaceInner() {
       onNewTerminal={() => openCreate('terminal')}
       onCollapse={onCollapse}
       onArchived={closeTab}
+      onArchiveDrop={archiveFromDrag}
       projectActions={projectActions}
     />
   );
+  // A session dropped on an archive target (rail icon / list header): archive
+  // it — no confirmation, nothing is destroyed (SPEC §4) — and drop its tab.
+  const archiveSession = useArchiveSession();
+  const archiveFromDrag = useCallback(
+    (id: string) =>
+      archiveSession.mutate(id, {
+        onSuccess: () => closeTab(id),
+        onError: (e) => toastError(e),
+      }),
+    [archiveSession, closeTab],
+  );
+
   // Free-form tiling area (SPEC §8): editor and terminal tabs live in a
   // recursive split tree (`layout_tree`); every open terminal is kept mounted
   // by `KeepAliveHost` and its DOM adopted into whichever pane shows it, so
   // PTYs never drop. A session's resume button and ports overlay the
-  // bottom-right of ITS OWN pane (PaneSessionOverlay).
+  // bottom-right of ITS OWN pane (PaneSessionOverlay). The DnD context wraps
+  // the WHOLE workspace (not just this area) so a strip drag can land on the
+  // sidebar's archive targets.
   const mainArea = (
     <div className="flex h-full flex-col bg-ground">
       <div className="min-h-0 flex-1">
-        <TilingDnd
-          onDrop={layout.drop}
-          renderOverlay={(ref) => {
-            const s =
-              ref.type === 'terminal' ? tabSessions.find((x) => x.id === ref.session) : undefined;
-            const label =
-              ref.type === 'terminal'
-                ? s
-                  ? renderTitle(s)
-                  : ref.session.slice(0, 8)
-                : (ref.tab.path.split('/').pop() ?? ref.tab.path);
-            return (
-              <div className="rounded-md bg-elevated px-2.5 py-1 text-xs font-mono text-fg shadow-lg">
-                {label}
-              </div>
-            );
-          }}
-        >
-          <TileTree
-            tree={layout.tree}
-            sessions={tabSessions}
-            reveal={reveal}
-            onActivateTab={onActivateTab}
-            onCloseTab={onCloseTab}
-            onPromoteTab={promoteTab}
-            onArchived={closeTab}
-            onFocusLeaf={layout.focusLeaf}
-            onResize={layout.resize}
-            onDropTab={onDropTab}
-            onSetTabView={layout.setView}
-            onNewUntitled={onNewUntitled}
-          />
-        </TilingDnd>
+        <TileTree
+          tree={layout.tree}
+          sessions={tabSessions}
+          reveal={reveal}
+          onActivateTab={onActivateTab}
+          onCloseTab={onCloseTab}
+          onPromoteTab={promoteTab}
+          onArchived={closeTab}
+          onFocusLeaf={layout.focusLeaf}
+          onResize={layout.resize}
+          onDropTab={onDropTab}
+          onSetTabView={layout.setView}
+          onNewUntitled={onNewUntitled}
+        />
       </div>
     </div>
   );
@@ -898,153 +894,173 @@ function WorkspaceInner() {
         openFile(session, path, line !== undefined ? { line, column } : undefined)
       }
     >
-      <div className="relative flex h-full">
-        {isNarrow ? (
-          /* Narrow (SPEC §12): both rails stay put; expanding opens the sidebar
+      <TilingDnd
+        onDrop={layout.drop}
+        onArchive={archiveFromDrag}
+        renderOverlay={(ref) => {
+          const s =
+            ref.type === 'terminal' ? tabSessions.find((x) => x.id === ref.session) : undefined;
+          const label =
+            ref.type === 'terminal'
+              ? s
+                ? renderTitle(s)
+                : ref.session.slice(0, 8)
+              : (ref.tab.path.split('/').pop() ?? ref.tab.path);
+          return (
+            <div className="rounded-md bg-elevated px-2.5 py-1 text-xs font-mono text-fg shadow-lg">
+              {label}
+            </div>
+          );
+        }}
+      >
+        <div className="relative flex h-full">
+          {isNarrow ? (
+            /* Narrow (SPEC §12): both rails stay put; expanding opens the sidebar
              as an overlay above the tiling area — a translucent ground dims
              what stays behind (HUMANS.md transparency, no borders). */
-          <>
-            <CollapsedSidebarRail
-              mode={sidebarMode}
-              onExpand={() => setNarrowNav(true)}
-              onSelect={(m) => {
-                uiState.update({ sidebar_mode: m });
-                setNarrowNav(true);
-              }}
-            />
-            <div className="min-w-0 flex-1">{mainArea}</div>
-            <CollapsedSessionsRail
-              groups={sessionGroups}
-              accounts={accounts}
-              activeProjectId={projectId}
-              activeSessionId={activeSessionId}
-              onReorder={persistReorder}
-              onPromote={(id) => layout.ensureTerminal(id)}
-              onExpand={() => setNarrowSessions(true)}
-              onNewTerminal={() => openCreate('terminal')}
-              onNewSession={() => openCreate('agent')}
-              onArchived={closeTab}
-              projectActions={projectActions}
-            />
-            {narrowNav && (
-              <>
-                <button
-                  type="button"
-                  aria-label="Close the navigator"
-                  className="absolute inset-0 z-30 bg-ground/60"
-                  onClick={() => setNarrowNav(false)}
-                />
-                <div className="absolute inset-y-0 left-9 z-40 w-[min(20rem,calc(100%-4.5rem))] shadow-xl">
-                  {navigatorPanel(() => setNarrowNav(false))}
-                </div>
-              </>
-            )}
-            {narrowSessions && (
-              <>
-                <button
-                  type="button"
-                  aria-label="Close the session list"
-                  className="absolute inset-0 z-30 bg-ground/60"
-                  onClick={() => setNarrowSessions(false)}
-                />
-                <div className="absolute inset-y-0 right-9 z-40 w-[min(20rem,calc(100%-4.5rem))] shadow-xl">
-                  {sessionsPanel(() => setNarrowSessions(false))}
-                </div>
-              </>
-            )}
-          </>
-        ) : (
-          <>
-            {sidebarCollapsed && (
+            <>
               <CollapsedSidebarRail
                 mode={sidebarMode}
-                onExpand={() => uiState.update({ sidebar_collapsed: false })}
-                onSelect={(m) => uiState.update({ sidebar_collapsed: false, sidebar_mode: m })}
+                onExpand={() => setNarrowNav(true)}
+                onSelect={(m) => {
+                  uiState.update({ sidebar_mode: m });
+                  setNarrowNav(true);
+                }}
               />
-            )}
-            <Group
-              orientation="horizontal"
-              className="h-full min-w-0 flex-1"
-              defaultLayout={horizontalLayout}
-              onLayoutChanged={mergeLayout}
-            >
-              {!sidebarCollapsed && (
-                <>
-                  <Panel id="nav" defaultSize={280} minSize={200} maxSize={560}>
-                    {navigatorPanel(() => uiState.update({ sidebar_collapsed: true }))}
-                  </Panel>
-                  <Separator className="w-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
-                </>
-              )}
-              <Panel id="main">{mainArea}</Panel>
-              {!sessionsCollapsed && (
-                <>
-                  <Separator className="w-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
-                  <Panel id="sessions" defaultSize={260} minSize={180} maxSize={480}>
-                    {sessionsPanel(() => uiState.update({ sessions_collapsed: true }))}
-                  </Panel>
-                </>
-              )}
-            </Group>
-            {sessionsCollapsed && (
+              <div className="min-w-0 flex-1">{mainArea}</div>
               <CollapsedSessionsRail
                 groups={sessionGroups}
                 accounts={accounts}
-                activeProjectId={projectId}
                 activeSessionId={activeSessionId}
                 onReorder={persistReorder}
                 onPromote={(id) => layout.ensureTerminal(id)}
-                onExpand={() => uiState.update({ sessions_collapsed: false })}
+                onExpand={() => setNarrowSessions(true)}
                 onNewTerminal={() => openCreate('terminal')}
                 onNewSession={() => openCreate('agent')}
                 onArchived={closeTab}
+                onArchiveDrop={archiveFromDrag}
                 projectActions={projectActions}
               />
-            )}
-          </>
-        )}
-        <NewSessionDialog
-          projectId={createTarget?.projectId ?? projectId}
-          repoId={createTarget?.repoId ?? detail.data.project.repo_id}
-          open={creating}
-          kind={createKind}
-          seedAccountId={seedAccountId}
-          onOpenChange={setCreating}
-          // Navigate to the session's OWN project — a header context menu can
-          // create it in a project other than the one the URL names.
-          onCreated={(session) =>
-            void navigate(`/project/${session.project_id}/session/${session.id}`)
-          }
-        />
-        <UntitledSaveDialog
-          request={savingUntitled}
-          targetSession={targetSession}
-          profileId={profileId}
-          onClose={() => setSavingUntitled(null)}
-          onSaved={finishUntitledSave}
-        />
-        <Dialog
-          open={discardingUntitled !== null}
-          onOpenChange={(open) => !open && setDiscardingUntitled(null)}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Discard this draft?</DialogTitle>
-              <DialogDescription>
-                Closing an untitled tab deletes its draft — ⌘S saves it into the worktree instead.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setDiscardingUntitled(null)}>
-                Keep editing
-              </Button>
-              <Button variant="danger" onClick={confirmDiscardUntitled}>
-                Discard
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+              {narrowNav && (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Close the navigator"
+                    className="absolute inset-0 z-30 bg-ground/60"
+                    onClick={() => setNarrowNav(false)}
+                  />
+                  <div className="absolute inset-y-0 left-9 z-40 w-[min(20rem,calc(100%-4.5rem))] shadow-xl">
+                    {navigatorPanel(() => setNarrowNav(false))}
+                  </div>
+                </>
+              )}
+              {narrowSessions && (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Close the session list"
+                    className="absolute inset-0 z-30 bg-ground/60"
+                    onClick={() => setNarrowSessions(false)}
+                  />
+                  <div className="absolute inset-y-0 right-9 z-40 w-[min(20rem,calc(100%-4.5rem))] shadow-xl">
+                    {sessionsPanel(() => setNarrowSessions(false))}
+                  </div>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              {sidebarCollapsed && (
+                <CollapsedSidebarRail
+                  mode={sidebarMode}
+                  onExpand={() => uiState.update({ sidebar_collapsed: false })}
+                  onSelect={(m) => uiState.update({ sidebar_collapsed: false, sidebar_mode: m })}
+                />
+              )}
+              <Group
+                orientation="horizontal"
+                className="h-full min-w-0 flex-1"
+                defaultLayout={horizontalLayout}
+                onLayoutChanged={mergeLayout}
+              >
+                {!sidebarCollapsed && (
+                  <>
+                    <Panel id="nav" defaultSize={280} minSize={200} maxSize={560}>
+                      {navigatorPanel(() => uiState.update({ sidebar_collapsed: true }))}
+                    </Panel>
+                    <Separator className="w-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
+                  </>
+                )}
+                <Panel id="main">{mainArea}</Panel>
+                {!sessionsCollapsed && (
+                  <>
+                    <Separator className="w-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
+                    <Panel id="sessions" defaultSize={260} minSize={180} maxSize={480}>
+                      {sessionsPanel(() => uiState.update({ sessions_collapsed: true }))}
+                    </Panel>
+                  </>
+                )}
+              </Group>
+              {sessionsCollapsed && (
+                <CollapsedSessionsRail
+                  groups={sessionGroups}
+                  accounts={accounts}
+                  activeSessionId={activeSessionId}
+                  onReorder={persistReorder}
+                  onPromote={(id) => layout.ensureTerminal(id)}
+                  onExpand={() => uiState.update({ sessions_collapsed: false })}
+                  onNewTerminal={() => openCreate('terminal')}
+                  onNewSession={() => openCreate('agent')}
+                  onArchived={closeTab}
+                  onArchiveDrop={archiveFromDrag}
+                  projectActions={projectActions}
+                />
+              )}
+            </>
+          )}
+          <NewSessionDialog
+            projectId={createTarget?.projectId ?? projectId}
+            repoId={createTarget?.repoId ?? detail.data.project.repo_id}
+            open={creating}
+            kind={createKind}
+            seedAccountId={seedAccountId}
+            onOpenChange={setCreating}
+            // Navigate to the session's OWN project — a header context menu can
+            // create it in a project other than the one the URL names.
+            onCreated={(session) =>
+              void navigate(`/project/${session.project_id}/session/${session.id}`)
+            }
+          />
+          <UntitledSaveDialog
+            request={savingUntitled}
+            targetSession={targetSession}
+            profileId={profileId}
+            onClose={() => setSavingUntitled(null)}
+            onSaved={finishUntitledSave}
+          />
+          <Dialog
+            open={discardingUntitled !== null}
+            onOpenChange={(open) => !open && setDiscardingUntitled(null)}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Discard this draft?</DialogTitle>
+                <DialogDescription>
+                  Closing an untitled tab deletes its draft — ⌘S saves it into the worktree instead.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setDiscardingUntitled(null)}>
+                  Keep editing
+                </Button>
+                <Button variant="danger" onClick={confirmDiscardUntitled}>
+                  Discard
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </TilingDnd>
     </KeepAliveHost>
   );
 }

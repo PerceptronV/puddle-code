@@ -45,9 +45,21 @@ export function useDropIndicator(): DropIndicator | null {
   return useContext(IndicatorCtx);
 }
 
+const ActiveRefCtx = createContext<TabRef | null>(null);
+
+/**
+ * The tab currently mid-drag (dnd-kit strip drags only), for targets outside
+ * the panes — the sidebar's archive drop — to arm themselves by payload type.
+ */
+export function useActiveDragRef(): TabRef | null {
+  return useContext(ActiveRefCtx);
+}
+
 const LEAF_PREFIX = 'leaf:';
 const TAB_PREFIX = 'tabdrop:';
 const STRIP_PREFIX = 'strip:';
+/** Droppable-id prefix for the sidebar's archive targets (rail icon, list header). */
+export const ARCHIVE_DROP_PREFIX = 'archive:';
 
 /**
  * Tab chips and the strip's tail sit visually above the pane grid, so whichever
@@ -65,10 +77,13 @@ const collisions: CollisionDetection = (args) => {
 
 export function TilingDnd({
   onDrop,
+  onArchive,
   renderOverlay,
   children,
 }: {
   onDrop: (spec: DropSpec) => void;
+  /** A terminal tab released over an archive target (SPEC §12). */
+  onArchive?: (session: string) => void;
   renderOverlay: (ref: TabRef) => React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -105,7 +120,14 @@ export function TilingDnd({
     const ind = latest.current;
     const ref = e.active.data.current?.['ref'] as TabRef | undefined;
     const fromLeafId = e.active.data.current?.['fromLeafId'] as string | undefined;
+    const overId = e.over !== null ? String(e.over.id) : null;
     clear();
+    // Released over an archive target: archive the session instead of moving
+    // the tab (editor tabs have no session to archive — ignored).
+    if (overId !== null && overId.startsWith(ARCHIVE_DROP_PREFIX)) {
+      if (ref?.type === 'terminal') onArchive?.(ref.session);
+      return;
+    }
     if (ind && ref && fromLeafId) {
       onDrop({ ref, fromLeafId, toLeafId: ind.leafId, edge: ind.zone, index: ind.index });
     }
@@ -120,7 +142,9 @@ export function TilingDnd({
       onDragEnd={onDragEnd}
       onDragCancel={clear}
     >
-      <IndicatorCtx.Provider value={indicator}>{children}</IndicatorCtx.Provider>
+      <IndicatorCtx.Provider value={indicator}>
+        <ActiveRefCtx.Provider value={activeRef}>{children}</ActiveRefCtx.Provider>
+      </IndicatorCtx.Provider>
       <DragOverlay dropAnimation={null}>{activeRef ? renderOverlay(activeRef) : null}</DragOverlay>
     </DndContext>
   );
