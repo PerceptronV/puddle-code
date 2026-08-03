@@ -8,6 +8,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   applyDesktopUpdate,
   checkForDesktopUpdate,
+  desktopAppInstallPath,
+  findInstalledDesktopApp,
   isNewerVersion,
   parseSums,
   pickDesktopAsset,
@@ -60,6 +62,63 @@ describe('parseSums', () => {
     const sums = parseSums(`${hex}  Puddle-0.0.14-arm64-mac.zip\nnot a sum line\n`);
     expect(sums.get('Puddle-0.0.14-arm64-mac.zip')).toBe(hex);
     expect(sums.size).toBe(1);
+  });
+});
+
+describe('mac desktop app locations', () => {
+  it('discovers an existing app in the system or user Applications directory', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'puddle-app-location-'));
+    try {
+      const systemApplications = join(dir, 'system-applications');
+      const home = join(dir, 'home');
+      const app = join(home, 'Applications', 'Puddle.app', 'Contents');
+      await mkdir(app, { recursive: true });
+      await writeFile(
+        join(app, 'Info.plist'),
+        '<key>CFBundleShortVersionString</key><string>1.2.3</string>',
+      );
+      await expect(
+        findInstalledDesktopApp({
+          platform: 'darwin',
+          homeDir: home,
+          systemApplicationsDir: systemApplications,
+        }),
+      ).resolves.toEqual({
+        appPath: join(home, 'Applications', 'Puddle.app'),
+        version: '1.2.3',
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('prefers writable /Applications and falls back to a created ~/Applications', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'puddle-app-target-'));
+    try {
+      const systemApplications = join(dir, 'Applications');
+      const home = join(dir, 'home');
+      await mkdir(systemApplications, { recursive: true });
+      await expect(
+        desktopAppInstallPath({
+          platform: 'darwin',
+          homeDir: home,
+          systemApplicationsDir: systemApplications,
+          canWrite: () => Promise.resolve(true),
+        }),
+      ).resolves.toBe(join(systemApplications, 'Puddle.app'));
+
+      await expect(
+        desktopAppInstallPath({
+          platform: 'darwin',
+          homeDir: home,
+          systemApplicationsDir: systemApplications,
+          canWrite: () => Promise.resolve(false),
+        }),
+      ).resolves.toBe(join(home, 'Applications', 'Puddle.app'));
+      expect((await stat(join(home, 'Applications'))).isDirectory()).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -221,6 +280,27 @@ describe.runIf(process.platform === 'darwin')('mac zip staging + swap', () => {
       await expect(
         promisify(execFile)('/usr/bin/xattr', ['-p', 'com.apple.quarantine', target]),
       ).rejects.toThrow(); // quarantine stripped by the helper
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('installs a staged bundle when the Applications target does not exist yet', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'puddle-install-mac-'));
+    try {
+      const stagedDir = join(dir, 'staged');
+      const stagedPath = join(stagedDir, 'extract', 'Puddle.app');
+      await mkdir(join(stagedPath, 'Contents'), { recursive: true });
+      await writeFile(join(stagedPath, 'Contents', 'Info.plist'), 'fresh-bundle');
+
+      const target = join(dir, 'new-home', 'Applications', 'Puddle.app');
+      await applyDesktopUpdate(
+        { version: '9.9.9', kind: 'mac-app', stagedPath, dir: stagedDir },
+        { targetPath: target, detach: false, relaunch: false },
+      );
+      expect(await readFile(join(target, 'Contents', 'Info.plist'), 'utf8')).toBe('fresh-bundle');
+      await expect(stat(`${target}.old`)).rejects.toThrow();
+      await expect(stat(stagedDir)).rejects.toThrow();
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

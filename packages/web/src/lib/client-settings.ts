@@ -7,6 +7,8 @@ import { useSyncExternalStore } from 'react';
 export interface ClientSettings {
   uiFontSize: number;
   terminalFontSize: number;
+  /** Monaco text size; intentionally independent from the terminal size. */
+  editorFontSize: number;
   density: 'compact' | 'comfortable';
   terminalScrollback: number;
   /** Editor keys are stored now, consumed when the editor lands in Phase 3. */
@@ -22,6 +24,7 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettings = {
   // 1.1× the browser default (16px) — the whole rem-based scale follows.
   uiFontSize: 16,
   terminalFontSize: 13,
+  editorFontSize: 14,
   density: 'compact',
   terminalScrollback: 5000,
   editorTabSize: 2,

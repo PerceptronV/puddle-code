@@ -64,7 +64,7 @@ daemon restart if needed — keeping the old UI port so open tabs survive.
 list shows running cockpits; kill stops one — sessions keep running on the
 host either way. upgrade with no subject updates the CLI itself through npm;
 'daemon' updates puddled (on this machine, or on a user@host) and 'desktop'
-updates the app bundle.`;
+installs or updates the macOS app bundle (Linux AppImages update in-app).`;
 
 /** Hand-rolled argv parser — the surface is small enough to own outright. */
 export function parseArgs(argv: string[]): Command {

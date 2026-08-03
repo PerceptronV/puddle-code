@@ -8,3 +8,9 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Let `puddle upgrade desktop` install the latest macOS app when no existing Puddle bundle is present, choosing writable `/Applications` or falling back to `~/Applications` and no longer requiring an old bundle to swap aside.
+- Add an independent Monaco editor font-size control in Appearance; changing it does not change terminal text.
+- Tighten adjacent captured-environment and ports rows beneath a terminal pane.

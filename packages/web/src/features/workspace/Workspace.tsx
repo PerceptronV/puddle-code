@@ -116,21 +116,13 @@ function WorkspaceInner() {
   // drag reorders session_order in both.
   const profileId = detail.data?.project.profile_id;
   const showAllSessions = useClientSettings().showAllProjectSessions;
-  const profileProjects = useProjects(showAllSessions ? profileId : undefined);
-  const profileSettings = useProfileSettings(showAllSessions ? profileId : undefined);
+  const profileProjects = useProjects(profileId);
+  const profileSettings = useProfileSettings(profileId);
   const sessionGroups = useMemo<SessionGroup[]>(() => {
     const active = (s: Session) => s.status !== 'archived';
-    if (!showAllSessions) {
-      return [
-        {
-          projectId,
-          name: null,
-          sessions: orderByDrag(sessions.filter(active), uiState.snapshot.session_order),
-        },
-      ];
-    }
+    const projectRows = profileProjects.data ?? (detail.data ? [detail.data.project] : []);
     const ordered = orderByDrag(
-      (profileProjects.data ?? []).filter((p) => !p.archived),
+      projectRows.filter((p) => !p.archived),
       profileSettings.data?.projectOrder ?? [],
     );
     const all = allSessions.data ?? sessions;
@@ -140,7 +132,9 @@ function WorkspaceInner() {
       // Each group applies the same saved order the single-project view uses
       // (untracked sessions float to the top of their group, newest-first).
       sessions: orderByDrag(
-        all.filter((s) => s.project_id === p.id && active(s)),
+        all.filter(
+          (s) => s.project_id === p.id && active(s) && (showAllSessions || p.id === projectId),
+        ),
         uiState.snapshot.session_order,
       ),
     }));

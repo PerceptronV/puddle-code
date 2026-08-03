@@ -19,7 +19,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/too
 import { cn } from '../../lib/utils';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
 import { SessionGlyph } from '../status/SessionGlyph';
-import { StatusDot } from '../status/StatusDot';
 import {
   SessionActionsEllipsis,
   SessionContextMenu,
@@ -30,13 +29,12 @@ import { moveWithinGroups } from './session-order';
 import { encodeTabTransfer, TAB_MIME } from './tab-transfer';
 
 /**
- * A project's sessions for the sidebar. `name` null → render no header (the
- * single-project view); a name renders a header + divider so the cross-project
- * view reads as grouped-by-project (SPEC §12). `sessions` arrive pre-ordered.
+ * A project's sessions for the sidebar. Groups are retained even when empty so
+ * the project itself remains a navigation target (SPEC §12).
  */
 export interface SessionGroup {
   projectId: string;
-  name: string | null;
+  name: string;
   sessions: Session[];
 }
 
@@ -146,10 +144,12 @@ function CollapsedSessionDot({
               {/* Active session marked with the same bg-elevated fill-shift the
                   expanded list and the navigator's mode icons use — a theme
                   colour, no border, no default-blue ring (HUMANS.md). */}
-              <StatusDot
+              <SessionGlyph
                 status={session.status}
                 kind={session.kind}
+                agentType={session.agent_type}
                 stale={session.stale_running}
+                className="size-3.5"
               />
               <span className="sr-only">{renderTitle(session)}</span>
             </Link>
@@ -169,9 +169,10 @@ function CollapsedSessionDot({
 
 /**
  * The collapsed right sidebar: a slim rail whose expand / new-terminal /
- * new-session controls stay fixed at the top, then one clickable status dot per
- * live session — grouped by project with a divider between groups (SPEC §12).
- * The dots scroll (no visible scrollbar) so a long list still works.
+ * new-session controls stay fixed at the top, then one clickable agent or
+ * terminal glyph per live session — grouped by project with a divider and
+ * compact project label between groups (SPEC §12). The glyphs scroll (no
+ * visible scrollbar) so a long list still works.
  */
 export function CollapsedSessionsRail({
   groups,
@@ -197,9 +198,9 @@ export function CollapsedSessionsRail({
 }) {
   const [dragging, setDragging] = useState<string | null>(null);
   const accountLabel = new Map(accounts.map((a) => [a.id, a.label]));
-  const withDots = groups.filter((g) => g.sessions.length > 0);
+  const visibleGroups = groups;
   const move = (id: string, before: string) => {
-    const next = moveWithinGroups(withDots, id, before);
+    const next = moveWithinGroups(visibleGroups, id, before);
     if (next) onReorder(next);
   };
   return (
@@ -220,11 +221,18 @@ export function CollapsedSessionsRail({
         />
       </div>
       <div className="no-scrollbar flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto">
-        {withDots.map((group) => (
+        {visibleGroups.map((group) => (
           // A divider precedes every group (the first one separates dots from
           // the controls above; the rest separate one project from the next).
           <div key={group.projectId} className="flex flex-col items-center gap-1">
-            <div className="my-0.5 h-px w-5 shrink-0 bg-border" />
+            <div className="my-0.5 h-px w-7 shrink-0 bg-border" />
+            <Link
+              to={`/project/${group.projectId}`}
+              title={group.name}
+              className="w-7 truncate text-center font-mono text-[8px] uppercase leading-3 text-fg-muted transition-colors hover:text-fg"
+            >
+              {group.name.slice(0, 5)}
+            </Link>
             {group.sessions.map((session) => (
               <div
                 key={session.id}
@@ -311,13 +319,14 @@ function SessionRow({
               <GitBranch className="size-3 shrink-0 text-fg-gold" />
               <span className="truncate">{session.branch}</span>
             </span>
-            {/* Terminal sessions have no account, so this line is agent-only. */}
-            {session.account_id !== null && accountLabel.has(session.account_id) && (
-              <span className="flex items-center gap-1 truncate font-mono text-2xs text-fg-muted">
-                {/* No agent mark here — the row's leading glyph already is one. */}
-                <span className="truncate">{accountLabel.get(session.account_id)}</span>
+            <span className="flex items-center gap-1 truncate font-mono text-2xs text-fg-muted">
+              <span className="truncate">
+                {session.kind === 'terminal' ? 'terminal' : (session.agent_type ?? 'agent')}
+                {session.account_id !== null && accountLabel.has(session.account_id)
+                  ? ` · ${accountLabel.get(session.account_id)}`
+                  : ''}
               </span>
-            )}
+            </span>
           </span>
           {session.skip_permissions && (
             <Tooltip>
@@ -429,11 +438,10 @@ function SessionListBody({
   const [dragging, setDragging] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const accountLabel = new Map(accounts.map((a) => [a.id, a.label]));
-  const withSessions = groups.filter((g) => g.sessions.length > 0);
-  const total = withSessions.reduce((n, g) => n + g.sessions.length, 0);
+  const total = groups.reduce((n, g) => n + g.sessions.length, 0);
 
   const move = (id: string, before: string) => {
-    const next = moveWithinGroups(withSessions, id, before);
+    const next = moveWithinGroups(groups, id, before);
     if (next) onReorder(next);
   };
 
@@ -449,13 +457,14 @@ function SessionListBody({
             No sessions yet — press ⌘K to start one.
           </p>
         )}
-        {withSessions.map((group) => (
+        {groups.map((group) => (
           <div key={group.projectId}>
-            {group.name !== null && (
-              <div className="truncate px-3 pb-1 pt-2 text-2xs font-medium uppercase tracking-wide text-fg-gold">
-                {group.name}
-              </div>
-            )}
+            <Link
+              to={`/project/${group.projectId}`}
+              className="block truncate px-3 pb-1 pt-2 text-2xs font-medium uppercase tracking-wide text-fg-gold transition-colors hover:text-fg"
+            >
+              {group.name}
+            </Link>
             <ul className="flex flex-col gap-0.5">
               {group.sessions.map((session) => (
                 <li

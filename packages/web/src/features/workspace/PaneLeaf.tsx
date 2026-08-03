@@ -165,8 +165,10 @@ export function PaneLeaf({
           never overlays, so nothing sits over the terminal; the body shrinks
           to make room and each strip vanishes (with its row's height) when
           it has nothing to show. */}
-      {shownSession && <EnvStrip sessionId={shownSession.id} status={shownSession.status} />}
-      {shownSession && <PortsStrip sessionId={shownSession.id} status={shownSession.status} />}
+      <div className="pane-session-strips">
+        {shownSession && <EnvStrip sessionId={shownSession.id} status={shownSession.status} />}
+        {shownSession && <PortsStrip sessionId={shownSession.id} status={shownSession.status} />}
+      </div>
     </div>
   );
 }

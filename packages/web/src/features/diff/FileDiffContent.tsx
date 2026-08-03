@@ -79,6 +79,7 @@ export function ReadOnlyView({
   path: string;
   content: string;
 }) {
+  const settings = useClientSettings();
   const fontMono = useMemo(
     () =>
       getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim() ||
@@ -95,6 +96,7 @@ export function ReadOnlyView({
         readOnly: true,
         automaticLayout: true,
         fontFamily: fontMono,
+        fontSize: settings.editorFontSize,
         minimap: { enabled: false },
         fixedOverflowWidgets: true,
         scrollBeyondLastLine: false,
@@ -229,6 +231,7 @@ function ModifiedContent({
         renderSideBySide: true,
         automaticLayout: true,
         fontFamily: fontMono,
+        fontSize: settings.editorFontSize,
         wordWrap: settings.editorWordWrap ? 'on' : 'off',
         minimap: { enabled: false },
         fixedOverflowWidgets: true,

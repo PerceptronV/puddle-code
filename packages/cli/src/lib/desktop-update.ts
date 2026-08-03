@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { createReadStream, createWriteStream } from 'node:fs';
-import { chmod, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { constants, createReadStream, createWriteStream } from 'node:fs';
+import { access, chmod, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
@@ -277,9 +277,15 @@ function swapScript(staged: StagedDesktopUpdate, opts: ApplyOptions): string {
       `# puddle desktop update ${staged.version} — swap once the app exits`,
       ...wait,
       `target=${q(opts.targetPath)}`,
+      `target_dir=${q(dirname(opts.targetPath))}`,
       `staged=${q(staged.stagedPath)}`,
+      `mkdir -p "$target_dir" || exit 1`,
       `rm -rf "$target.old"`,
-      `mv "$target" "$target.old" || exit 1`,
+      `had_old=0`,
+      `if [ -e "$target" ]; then`,
+      `  mv "$target" "$target.old" || exit 1`,
+      `  had_old=1`,
+      `fi`,
       `if mv "$staged" "$target" 2>/dev/null || /usr/bin/ditto "$staged" "$target"; then`,
       // Defence in depth: the normal path never quarantines (node's fetch is
       // not a quarantine-opted-in app, and ditto only propagates what the
@@ -289,7 +295,8 @@ function swapScript(staged: StagedDesktopUpdate, opts: ApplyOptions): string {
       `  rm -rf "$target.old" ${q(staged.dir)}`,
       ...(opts.relaunch ? [`  open "$target"`] : []),
       `else`,
-      `  mv "$target.old" "$target"`,
+      `  rm -rf "$target"`,
+      `  [ "$had_old" -eq 0 ] || mv "$target.old" "$target"`,
       `  exit 1`,
       `fi`,
       ``,
@@ -308,19 +315,31 @@ function swapScript(staged: StagedDesktopUpdate, opts: ApplyOptions): string {
   ].join('\n');
 }
 
+export interface DesktopAppLocationOptions {
+  platform?: NodeJS.Platform;
+  homeDir?: string;
+  systemApplicationsDir?: string;
+  /** Injectable permission probe for tests. */
+  canWrite?: (path: string) => Promise<boolean>;
+}
+
 /**
  * The installed desktop app this machine could upgrade — macOS only: an
  * AppImage can live anywhere, so on Linux discovery is the app's own job
  * (the in-app updater knows its $APPIMAGE) and the CLI declines.
  */
-export async function findInstalledDesktopApp(): Promise<{
-  appPath: string;
-  version: string;
-} | null> {
-  if (process.platform !== 'darwin') return null;
+export async function findInstalledDesktopApp(
+  opts: DesktopAppLocationOptions = {},
+): Promise<{ appPath: string; version: string } | null> {
+  if ((opts.platform ?? process.platform) !== 'darwin') return null;
   const { readFile } = await import('node:fs/promises');
   const { homedir } = await import('node:os');
-  for (const appPath of ['/Applications/Puddle.app', join(homedir(), 'Applications/Puddle.app')]) {
+  const systemApplications = opts.systemApplicationsDir ?? '/Applications';
+  const home = opts.homeDir ?? homedir();
+  for (const appPath of [
+    join(systemApplications, 'Puddle.app'),
+    join(home, 'Applications', 'Puddle.app'),
+  ]) {
     try {
       const plist = await readFile(join(appPath, 'Contents/Info.plist'), 'utf8');
       const match = /<key>CFBundleShortVersionString<\/key>\s*<string>([^<]+)<\/string>/.exec(
@@ -332,6 +351,35 @@ export async function findInstalledDesktopApp(): Promise<{
     }
   }
   return null;
+}
+
+/**
+ * Where a fresh `puddle upgrade desktop` should install on macOS. Prefer the
+ * conventional system Applications directory when this user can write it;
+ * otherwise create and use the user's own ~/Applications directory. Linux
+ * AppImages have no conventional install location, so return null there.
+ */
+export async function desktopAppInstallPath(
+  opts: DesktopAppLocationOptions = {},
+): Promise<string | null> {
+  if ((opts.platform ?? process.platform) !== 'darwin') return null;
+  const { homedir } = await import('node:os');
+  const systemApplications = opts.systemApplicationsDir ?? '/Applications';
+  const canWrite =
+    opts.canWrite ??
+    (async (path: string) => {
+      try {
+        await access(path, constants.W_OK);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+  if (await canWrite(systemApplications)) return join(systemApplications, 'Puddle.app');
+
+  const userApplications = join(opts.homeDir ?? homedir(), 'Applications');
+  await mkdir(userApplications, { recursive: true });
+  return join(userApplications, 'Puddle.app');
 }
 
 /** Whether the installed app is currently running (its swap must wait). */

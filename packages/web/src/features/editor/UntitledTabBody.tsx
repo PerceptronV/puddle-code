@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import { toast } from 'sonner';
+import { useClientSettings } from '../../lib/client-settings';
 import { debounce, type Debounced } from '../../lib/debounce';
 import { putUntitled, useUntitledFile } from '../../lib/untitled-queries';
 import { useCurrentProfileId } from '../profile/profile-store';
@@ -21,6 +22,7 @@ const PERSIST_DEBOUNCE_MS = 800;
  * keyed to worktree files, which a draft only becomes on save.
  */
 export function UntitledTabBody({ name }: { name: string }) {
+  const settings = useClientSettings();
   const profileId = useCurrentProfileId();
   const file = useUntitledFile(profileId, name);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -90,6 +92,7 @@ export function UntitledTabBody({ name }: { name: string }) {
           options={{
             automaticLayout: true,
             fontFamily: fontMono,
+            fontSize: settings.editorFontSize,
             minimap: { enabled: false },
             fixedOverflowWidgets: true,
             scrollBeyondLastLine: false,

@@ -73,5 +73,12 @@ takes a CLIENT-side path and delivers it over scp.
    Expect platform detection, checksum verification, versioned install,
    supervisor start, and a status line. Re-running is a no-op; `--version
    <older>` flips the symlink back (rollback).
+10. **Fresh desktop install (macOS).** With Puddle absent from both
+    `/Applications` and `~/Applications`, run `puddle upgrade desktop` from a
+    released CLI. It downloads and verifies the latest mac zip, then installs
+    `/Applications/Puddle.app` when that directory is writable, otherwise
+    creates `~/Applications/Puddle.app`. No `.old` bundle is required or left
+    behind. Run the command again with the app closed: it reports current (or
+    performs the normal replacement if a newer release exists).
 
 Record any deviations as issues before ticking the phase off.

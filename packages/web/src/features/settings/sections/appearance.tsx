@@ -68,6 +68,26 @@ export function AppearanceSection() {
           onChange={(e) => updateClientSettings({ terminalFontSize: Number(e.target.value) || 13 })}
         />
       </SettingRow>
+      <SettingRow
+        label="Editor font size"
+        description="Monaco text only; terminal text keeps its own size."
+        htmlFor="editor-font-size"
+      >
+        <Input
+          id="editor-font-size"
+          type="number"
+          min={9}
+          max={32}
+          step={0.5}
+          className="w-20 tabular-nums"
+          value={settings.editorFontSize}
+          onChange={(e) =>
+            updateClientSettings({
+              editorFontSize: Number(e.target.value) || DEFAULT_CLIENT_SETTINGS.editorFontSize,
+            })
+          }
+        />
+      </SettingRow>
       <SettingRow label="Density">
         <Select
           value={settings.density}

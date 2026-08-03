@@ -6,6 +6,7 @@ import { attachSession } from '../lib/attach.js';
 import {
   applyDesktopUpdate,
   checkForDesktopUpdate,
+  desktopAppInstallPath,
   findInstalledDesktopApp,
   isDesktopAppRunning,
   stageDesktopUpdate,
@@ -420,14 +421,16 @@ function upgradeCli(logger: Logger): Promise<number> {
 }
 
 /**
- * `puddle upgrade desktop` — the same check → stage → swap pipeline the app's
- * own update banner uses (lib/desktop-update.ts), run inline while the app is
- * closed. A running app must update from its banner instead: its swap has to
- * wait for the process to exit, which from here would just hang.
+ * `puddle upgrade desktop` — install a fresh macOS app, or run the same check
+ * → stage → swap pipeline the app's own update banner uses
+ * (lib/desktop-update.ts), inline while the app is closed. A running app must
+ * update from its banner instead: its swap has to wait for the process to
+ * exit, which from here would just hang.
  */
 async function upgradeDesktop(logger: Logger): Promise<number> {
   const installed = await findInstalledDesktopApp();
-  if (installed === null) {
+  const targetPath = installed?.appPath ?? (await desktopAppInstallPath());
+  if (targetPath === null) {
     throw new CliError(
       'not_installed',
       'no Puddle.app in /Applications or ~/Applications',
@@ -436,26 +439,33 @@ async function upgradeDesktop(logger: Logger): Promise<number> {
         : undefined,
     );
   }
-  if (await isDesktopAppRunning(installed.appPath)) {
+  if (installed !== null && (await isDesktopAppRunning(installed.appPath))) {
     throw new CliError(
       'already_running',
       'Puddle is running — use its update banner, or quit it and rerun',
     );
   }
-  const update = await checkForDesktopUpdate(installed.version);
+  const update = await checkForDesktopUpdate(installed?.version ?? '0.0.0');
   if (update === null) {
+    if (installed === null) {
+      throw new CliError(
+        'not_installed',
+        'no Puddle desktop release is available for this macOS architecture',
+      );
+    }
     logger.info(`Puddle ${installed.version} is already the latest release`);
     return 0;
   }
-  logger.info(`Puddle ${installed.version} → ${update.version}`);
+  if (installed === null) logger.info(`installing Puddle ${update.version}`);
+  else logger.info(`Puddle ${installed.version} → ${update.version}`);
   const staged = await stageDesktopUpdate(update, { logger });
   await applyDesktopUpdate(staged, {
-    targetPath: installed.appPath,
+    targetPath,
     detach: false,
     relaunch: false,
     logger,
   });
-  logger.info(`Puddle ${update.version} installed at ${installed.appPath}`);
+  logger.info(`Puddle ${update.version} installed at ${targetPath}`);
   return 0;
 }
 

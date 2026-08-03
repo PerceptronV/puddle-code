@@ -139,6 +139,7 @@ export function CodeEditor({
             options={{
               automaticLayout: true,
               fontFamily: fontMono,
+              fontSize: settings.editorFontSize,
               tabSize: settings.editorTabSize,
               wordWrap: settings.editorWordWrap ? 'on' : 'off',
               minimap: { enabled: false },

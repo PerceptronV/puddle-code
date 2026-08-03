@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { DiffEditor } from '@monaco-editor/react';
 import type { DiffEntry } from '@puddle/shared';
+import { useClientSettings } from '../../lib/client-settings';
 import { useFileAt } from '../../lib/worktree-queries';
 import { ApiError } from '../../lib/api';
 import { DeletedContent, Note, ReadOnlyView, viewerUri } from '../diff/FileDiffContent';
@@ -52,6 +53,7 @@ function HistoryDiffEditor({
   modifiedPath: string;
   modifiedContent: string;
 }) {
+  const settings = useClientSettings();
   const editorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
   const fontMono = useMemo(
     () =>
@@ -96,6 +98,7 @@ function HistoryDiffEditor({
         renderSideBySide: true,
         automaticLayout: true,
         fontFamily: fontMono,
+        fontSize: settings.editorFontSize,
         minimap: { enabled: false },
         fixedOverflowWidgets: true,
         scrollBeyondLastLine: false,
