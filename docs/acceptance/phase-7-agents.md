@@ -17,15 +17,17 @@ Pinned in each adapter's header comment from a scratch install on 2026-07-31:
 codex-cli **0.146.0**, opencode **1.18.10**, @google/gemini-cli **0.53.1**.
 Flags, subcommands, config-dir isolation variables, and codex's rollout format
 were all checked against those versions. The items below are the ones that
-`--help` and an unauthenticated run genuinely cannot answer.
+`--help` and an unauthenticated run genuinely cannot answer. Codex's live idle
+status was subsequently verified against 0.146.0 on 2026-08-03 and is retained
+below as a pinned regression; its other live-only checks remain open.
 
-## 1. Status regexes (all three) — the highest-value check
+## 1. Status regexes — OpenCode and Gemini CLI remain
 
 None of these adapters has a hook side-channel, so `statusPatterns` is the
 **only** thing driving session status. Wrong regexes leave sessions stuck on
 `starting` or permanently `running`.
 
-For each of codex, opencode and gemini-cli:
+For OpenCode and Gemini CLI:
 
 1. Create a session and send a prompt that takes a while (e.g. "read every file
    in packages/daemon/src and summarise the architecture").
@@ -33,6 +35,9 @@ For each of codex, opencode and gemini-cli:
 3. When it finishes and waits for input, it must flip to **waiting_input**
    within the quiet-debounce window (~2 s).
 4. Send a second prompt: it must go back to **running**.
+
+Codex completed this check on 2026-08-03. Re-run it when upgrading Codex or if
+its TUI changes; the table below records the observed 0.146.0 signature.
 
 If a state never appears, capture the real TUI output and correct the adapter's
 `statusPatterns`:

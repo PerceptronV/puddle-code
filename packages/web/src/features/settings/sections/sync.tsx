@@ -68,8 +68,8 @@ function GroupChecklist({
  *  - "Sync locally": mirror the selected groups through the machine-shared
  *    cockpit store, so every puddle window (any port, any daemon) follows —
  *    the checklist then governs BOTH directions;
- *  - Import: paste an exported string;
  *  - Export: one click encodes, shows, and copies the string.
+ *  - Import: paste an exported string.
  * All three route through the same manifest; scratchpad entries always merge
  * additively on import, never overriding.
  */
@@ -238,6 +238,26 @@ export function SyncSection() {
       </div>
 
       <div className="mb-6">
+        <h3 className="text-sm font-medium text-fg">Export</h3>
+        <p className="mb-2 mt-1 text-xs text-fg-muted">
+          One click builds the string from the checklist above and copies it to your clipboard.
+        </p>
+        <Button size="sm" disabled={busy} onClick={() => void onExport()}>
+          Export &amp; copy
+        </Button>
+        {exported && (
+          <Textarea
+            readOnly
+            value={exported}
+            rows={3}
+            spellCheck={false}
+            onFocus={(e) => e.currentTarget.select()}
+            className="mt-2 resize-y font-mono text-xs"
+          />
+        )}
+      </div>
+
+      <div>
         <h3 className="text-sm font-medium text-fg">Import</h3>
         <p className="mb-2 text-xs text-fg-muted">
           Paste an exported string — only the settings it carries are updated. Scratchpad entries
@@ -257,26 +277,6 @@ export function SyncSection() {
             Import
           </Button>
         </div>
-      </div>
-
-      <div>
-        <h3 className="text-sm font-medium text-fg">Export</h3>
-        <p className="mb-2 mt-1 text-xs text-fg-muted">
-          One click builds the string from the checklist above and copies it to your clipboard.
-        </p>
-        <Button size="sm" disabled={busy} onClick={() => void onExport()}>
-          Export &amp; copy
-        </Button>
-        {exported && (
-          <Textarea
-            readOnly
-            value={exported}
-            rows={3}
-            spellCheck={false}
-            onFocus={(e) => e.currentTarget.select()}
-            className="mt-2 resize-y font-mono text-xs"
-          />
-        )}
       </div>
     </div>
   );

@@ -64,5 +64,10 @@ when the OAuth flow completes).
    (`● n waiting`). Nothing animates: the ripple, the pulse, and the
    reduced-motion setting were all removed (2026-08-03, SPEC §12).
 
+8. **Settings transfer order.** Open Settings → Sync. Below “Sync locally” and
+   the shared checklist, **Export** appears before **Import**. “Export & copy”
+   still produces and copies a string in one click; pasting that string into
+   the following Import field restores only the selected groups.
+
 Record any UI/daemon mismatches found here as issues; adapter corrections
 still go to `packages/daemon/src/agents/claude-code.ts` per phase-1.
