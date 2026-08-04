@@ -163,4 +163,22 @@
 // daemon IGNORES the param and would resolve those paths against the
 // WORKTREE, silently mutating the wrong files, so the UI gates every browse-
 // tree mutation on this minor (the same stance browse entry takes on 10.2).
-export const PROTOCOL_VERSION = { major: 12, minor: 3 } as const;
+// 12.4 (2026-08-03): additive — a **directory target** for the worktree routes.
+// The NIL uuid in place of `:sid` means "no session": the route then works
+// against the absolute `?root=` it is given, which is what lets the left
+// sidebar bind to a project's own repository directory instead of showing
+// nothing at all in a project whose sessions are archived, or which has none
+// yet, or which simply has none in focus (SPEC §8). `root` is required with
+// it; a real session id is unaffected. In the same bump the GIT inspection
+// routes (diff/git-status/file-at/log/show) start HONOURING `?root=`, which
+// they had ignored since 10.2 — a `base` diff against a directory target
+// compares with the default branch of the repo registered at that path (else
+// `HEAD`, so it reads as "nothing ahead" rather than erroring). No persisted
+// shape changed: the nil uuid is already a valid `sessionId` (the untitled
+// convention, 10.3), so an `external` tab opened from a project directory
+// round-trips on any client. An older daemon 404s the nil session id and
+// ignores `root` on the git routes — it would answer with the WRONG
+// repository's status — so the UI gates the whole project-directory binding on
+// this minor, exactly as browse entry gates on 10.2 and browse mutations on
+// 12.3.
+export const PROTOCOL_VERSION = { major: 12, minor: 4 } as const;

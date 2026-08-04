@@ -8,7 +8,6 @@ import type {
   SearchResponse,
   ShowCommitResponse,
 } from '@puddle/shared';
-import type { SessionStore } from '../../db/stores/sessions.js';
 import { git } from '../../git/exec.js';
 import { worktreeGitStatus } from '../../worktrees/git-status.js';
 import {
@@ -23,7 +22,7 @@ import {
 } from '../../worktrees/inspect.js';
 import { searchWorktree } from '../../worktrees/search.js';
 import { ApiError } from '../errors.js';
-import { resolveWorktree } from './worktree-shared.js';
+import { browseRoot, resolveWorktree, type WorktreeDeps } from './worktree-shared.js';
 
 /** Longest search query we accept — long enough for a phrase, short of abuse. */
 const MAX_QUERY_LEN = 500;
@@ -86,14 +85,15 @@ function assertContainedRelPath(rel: string): string {
  * of this mutates the repo (precedent: `GET /api/repos/:id/branches`).
  * Mounted by `worktrees.ts`.
  */
-export function worktreeGitRoutes(deps: { sessions: SessionStore }): Hono {
+export function worktreeGitRoutes(deps: WorktreeDeps): Hono {
   return new Hono()
     .get('/:sid/diff', async (c) => {
-      const { session, root } = resolveWorktree(deps.sessions, c);
+      const { baseBranch, root: target } = resolveWorktree(deps, c);
+      const root = browseRoot(c, target);
       const against = c.req.query('against') ?? 'base';
 
       if (against === 'base') {
-        const { sha, ref } = await resolveBaseSha(root, session.base_branch);
+        const { sha, ref } = await resolveBaseSha(root, baseBranch);
         const entries = await diffNameStatus(root, sha);
         return c.json<DiffResponse>({ against: sha, base_ref: ref, entries });
       }
@@ -120,13 +120,13 @@ export function worktreeGitRoutes(deps: { sessions: SessionStore }): Hono {
     })
 
     .get('/:sid/git-status', async (c) => {
-      const { root } = resolveWorktree(deps.sessions, c);
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
       const entries = await worktreeGitStatus(root);
       return c.json<GitStatusResponse>({ entries });
     })
 
     .get('/:sid/file-at', async (c) => {
-      const { root } = resolveWorktree(deps.sessions, c);
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
       const ref = c.req.query('ref') ?? '';
       assertSafeRef(ref);
       const rel = assertContainedRelPath(c.req.query('path') ?? '');
@@ -144,7 +144,7 @@ export function worktreeGitRoutes(deps: { sessions: SessionStore }): Hono {
     })
 
     .get('/:sid/log', async (c) => {
-      const { root } = resolveWorktree(deps.sessions, c);
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
       const limit = parseIntParam(c.req.query('limit'), 50, 1, 200);
       const skip = parseIntParam(c.req.query('skip'), 0, 0, Number.MAX_SAFE_INTEGER);
       const result = await logPage(root, limit, skip);
@@ -152,7 +152,7 @@ export function worktreeGitRoutes(deps: { sessions: SessionStore }): Hono {
     })
 
     .get('/:sid/show/:sha', async (c) => {
-      const { root } = resolveWorktree(deps.sessions, c);
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
       const sha = c.req.param('sha');
       assertSha(sha);
       if (!(await commitExists(root, sha))) {
@@ -162,7 +162,7 @@ export function worktreeGitRoutes(deps: { sessions: SessionStore }): Hono {
     })
 
     .get('/:sid/search', async (c) => {
-      const { root } = resolveWorktree(deps.sessions, c);
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
       const query = c.req.query('q') ?? '';
       if (query.length === 0) {
         throw ApiError.badRequest('empty_query', `'q' must not be empty`);

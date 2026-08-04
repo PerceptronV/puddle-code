@@ -2,41 +2,47 @@ import { existsSync, statSync } from 'node:fs';
 import { isAbsolute, join, normalize, sep } from 'node:path';
 import type { Context } from 'hono';
 import type { Session } from '@puddle/shared';
+import type { RepoStore } from '../../db/stores/repos.js';
 import type { SessionStore } from '../../db/stores/sessions.js';
 import { ApiError } from '../errors.js';
 import { expandTilde } from '../tilde.js';
 
 /**
- * Shared guard for every worktree-scoped route: the session must exist
- * (`SessionStore.get` throws 404) and its worktree must still be on disk
- * (409 `worktree_missing` otherwise — e.g. archived-and-removed, or force-
- * removed out of band).
+ * The nil uuid in place of a `:sid` names NO session — a **directory target**
+ * (protocol 12.4). The route then works against the absolute `?root=` it is
+ * given instead of a session's worktree, which is what lets the left sidebar
+ * bind to a project's own repository directory: a project with no sessions (or
+ * none in focus) used to leave Files, Changes, and Search showing nothing at
+ * all. `root` is REQUIRED with it; a real session id behaves exactly as before,
+ * `?root=` override included.
+ *
+ * The nil uuid is deliberate rather than a new id syntax: it is already a
+ * wire-valid `sessionId` (the untitled-draft convention, protocol 10.3, uses it
+ * the same way — "no session applies"), so an `external` tab opened from a
+ * project directory round-trips through `uiStateSnapshotSchema` on any client,
+ * and nothing about the persisted shapes had to change.
  */
-export function resolveWorktree(
-  sessions: SessionStore,
-  c: Context,
-): { session: Session; root: string } {
-  const session = sessions.get(c.req.param('sid') ?? '');
-  if (!existsSync(session.worktree_path)) {
-    throw ApiError.conflict('worktree_missing', `session ${session.id} has no worktree on disk`);
-  }
-  return { session, root: session.worktree_path };
+export const NO_SESSION = '00000000-0000-0000-0000-000000000000';
+
+export interface WorktreeTarget {
+  /** The session, when the target is one; null for a directory target. */
+  session: Session | null;
+  /** The directory the route operates on. */
+  root: string;
+  /**
+   * What a `base` diff compares against: the session's base branch, or — for a
+   * directory target — the default of the repo registered at that path.
+   */
+  baseBranch: string;
 }
 
-/**
- * The effective root for the file routes (protocol 10.2, writes 10.4,
- * mutations 12.3): an optional absolute `?root=` query overrides the session's
- * worktree so the explorer can walk parent directories and browse them with
- * the SAME tree it gives the worktree — read, save, create, rename, copy,
- * delete, upload, download (SPEC §8). Trusted single-user box — the token
- * holder already has a shell, so touching files anywhere grants nothing new
- * (the same rationale as `GET /api/fs/dirs`). Paths under the override still
- * go through `containedPath` against the OVERRIDDEN root, so a relative path
- * can never escape the directory the client is actually looking at.
- */
-export function browseRoot(c: Context, worktreeRoot: string): string {
-  const raw = c.req.query('root');
-  if (raw === undefined || raw === '') return worktreeRoot;
+export interface WorktreeDeps {
+  sessions: SessionStore;
+  repos: RepoStore;
+}
+
+/** Validate a client-supplied absolute directory (`?root=`), tilde expanded. */
+function absoluteDir(raw: string): string {
   const root = normalize(expandTilde(raw));
   if (!isAbsolute(root)) {
     throw ApiError.badRequest('invalid_root', `'root' must be an absolute path`);
@@ -47,6 +53,57 @@ export function browseRoot(c: Context, worktreeRoot: string): string {
   // Canonical: no trailing separator, except for the filesystem root itself,
   // which IS one. Keeps roots comparable and the containment prefix honest.
   return root.length > 1 && root.endsWith(sep) ? root.slice(0, -1) : root;
+}
+
+/**
+ * Shared guard for every worktree-scoped route. For a session target the
+ * session must exist (`SessionStore.get` throws 404) and its worktree must
+ * still be on disk (409 `worktree_missing` otherwise — e.g. archived-and-
+ * removed, or force-removed out of band). For the nil uuid see `NO_SESSION`.
+ */
+export function resolveWorktree(deps: WorktreeDeps, c: Context): WorktreeTarget {
+  const sid = c.req.param('sid') ?? '';
+  if (sid === NO_SESSION) {
+    const raw = c.req.query('root');
+    if (raw === undefined || raw === '') {
+      throw ApiError.badRequest(
+        'root_required',
+        `a directory target (the nil session id) requires 'root'`,
+      );
+    }
+    const root = absoluteDir(raw);
+    // A project's directory is always a registered repo, so its own default
+    // base branch is the honest comparison. A directory that is NOT a
+    // registered repo (a parent-directory browse) has no base: `HEAD` makes a
+    // `base` diff read as "nothing ahead" instead of erroring.
+    return {
+      session: null,
+      root,
+      baseBranch: deps.repos.getByPath(root)?.default_base_branch ?? 'HEAD',
+    };
+  }
+  const session = deps.sessions.get(sid);
+  if (!existsSync(session.worktree_path)) {
+    throw ApiError.conflict('worktree_missing', `session ${session.id} has no worktree on disk`);
+  }
+  return { session, root: session.worktree_path, baseBranch: session.base_branch };
+}
+
+/**
+ * The effective root for the file routes (protocol 10.2, writes 10.4,
+ * mutations 12.3, git 12.4): an optional absolute `?root=` query overrides the
+ * session's worktree so the explorer can walk parent directories and browse them
+ * with the SAME tree it gives the worktree — read, save, create, rename, copy,
+ * delete, upload, download (SPEC §8). Trusted single-user box — the token
+ * holder already has a shell, so touching files anywhere grants nothing new
+ * (the same rationale as `GET /api/fs/dirs`). Paths under the override still
+ * go through `containedPath` against the OVERRIDDEN root, so a relative path
+ * can never escape the directory the client is actually looking at.
+ */
+export function browseRoot(c: Context, worktreeRoot: string): string {
+  const raw = c.req.query('root');
+  if (raw === undefined || raw === '') return worktreeRoot;
+  return absoluteDir(raw);
 }
 
 /**

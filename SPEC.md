@@ -425,11 +425,18 @@ Layouts    GET  /api/layouts?profile=…&project=…   # saved layouts (12.2): p
            PATCH/DELETE /api/layouts/:id      # PATCH name = rename; layout_tree (+active_session) = save over
 Files      GET  /api/worktrees/:sid/tree?path=…      # + optional absolute `root=` (10.2): browse override for parent-directory
            GET  /api/worktrees/:sid/file?path=…      #   navigation (§8) — on GET tree/file/media/download, the file PUT (10.4,
-           #                                             so external tabs save to the file they read) and, since 12.3, the fs
-           #                                             mutations + upload, making the browse tree the worktree tree. Every path
-           #                                             stays `containedPath`-confined under the OVERRIDDEN root, and each
+           #                                             so external tabs save to the file they read), since 12.3 the fs
+           #                                             mutations + upload (making the browse tree the worktree tree), and
+           #                                             since 12.4 the git family below. Every path stays
+           #                                             `containedPath`-confined under the OVERRIDDEN root, and each
            #                                             mutation's returned `path` is relative to it. Body paths stay relative:
            #                                             an absolute one is still a 400 `path_outside_worktree`.
+           # `:sid` = the NIL uuid (12.4): a DIRECTORY target — no session, work against `root=` (400 `root_required`
+           #                                             without it). What binds the left sidebar to a project's own repository
+           #                                             directory when no session qualifies (§8); a `base` diff then compares
+           #                                             against the default branch of the repo registered at that path, else
+           #                                             `HEAD`. The nil uuid is already a valid `sessionId` (10.3), so nothing
+           #                                             persisted had to change.
            #                                         # file GET: 5 MiB read cap (413 `file_too_large`)
                 PUT (write; body = full content; optimistic `expected_mtime_ms` — mismatch or a file that
                 # no longer exists → 409 `stale_file`; omit it to overwrite unconditionally)
@@ -444,6 +451,8 @@ Files      GET  /api/worktrees/:sid/tree?path=…      # + optional absolute `ro
            POST /api/worktrees/:sid/rename {from, to}       # one fs.rename — rename or move; 404 missing, 409 `already_exists` (§8)
            POST /api/worktrees/:sid/copy   {from, to}       # recursive copy; `to` auto-suffixed ` copy` on collision; returns the final {path} (§8)
            POST /api/worktrees/:sid/delete {path}           # recursive remove — no host trash (§8)
+Git        # every route below takes the same optional absolute `root=` since 12.4 (ignored before it), so the
+           # Changes, History, and Search navigators can report a DIRECTORY target's git state (the nil `:sid` above)
 Git        GET  /api/worktrees/:sid/git-status                # whole-worktree porcelain map [{path, status}] for tree decorations; status ∈ untracked|modified|added|deleted|renamed|conflicted|ignored (§8)
            GET  /api/worktrees/:sid/diff?against=base|head|<sha>   # name-status list; `against=base` resolves to the
                 # merge-base of the base branch (`origin/<base>` when it exists, else local) and HEAD;

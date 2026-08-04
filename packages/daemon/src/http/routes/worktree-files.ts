@@ -20,10 +20,14 @@ import {
   type TreeResponse,
   type UploadResponse,
 } from '@puddle/shared';
-import type { SessionStore } from '../../db/stores/sessions.js';
 import { ApiError } from '../errors.js';
 import { parseBody } from '../validate.js';
-import { browseRoot, containedPath, resolveWorktree } from './worktree-shared.js';
+import {
+  browseRoot,
+  containedPath,
+  resolveWorktree,
+  type WorktreeDeps,
+} from './worktree-shared.js';
 
 /** Editor read cap: generous for source files, hostile to accidentally opening a media dump. */
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
@@ -130,11 +134,11 @@ function collectZipEntries(dir: string, prefix: string): Array<{ abs: string; re
  * Browse, read, write, upload to, and download from a session's worktree
  * (SPEC §6/§8, Phase 3 file explorer). Mounted by `worktrees.ts`.
  */
-export function worktreeFileRoutes(deps: { sessions: SessionStore }): Hono {
+export function worktreeFileRoutes(deps: WorktreeDeps): Hono {
   return new Hono()
     .get('/:sid/tree', (c) => {
       // `?root=` (protocol 10.2): browse outside the worktree, read-only.
-      const root = browseRoot(c, resolveWorktree(deps.sessions, c).root);
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
       const rel = c.req.query('path') ?? '';
       const dir = containedPath(root, rel);
       if (!existsSync(dir)) throw ApiError.notFound('path', rel || '.');
@@ -153,7 +157,7 @@ export function worktreeFileRoutes(deps: { sessions: SessionStore }): Hono {
     })
 
     .get('/:sid/file', (c) => {
-      const root = browseRoot(c, resolveWorktree(deps.sessions, c).root);
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
       const rel = c.req.query('path') ?? '';
       const target = containedPath(root, rel);
       if (!existsSync(target)) throw ApiError.notFound('file', rel);
@@ -181,7 +185,7 @@ export function worktreeFileRoutes(deps: { sessions: SessionStore }): Hono {
       // The file PUT accepts the browse override (10.4): an `external` tab is
       // a full editor, so its save must route to the same absolute file its
       // GET read. The fs mutation routes take it too, since 12.3.
-      const root = browseRoot(c, resolveWorktree(deps.sessions, c).root);
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
       const rel = c.req.query('path') ?? '';
       const target = containedPath(root, rel);
       const body = await parseBody(c, putFileRequestSchema);
@@ -221,7 +225,7 @@ export function worktreeFileRoutes(deps: { sessions: SessionStore }): Hono {
       }
       // `?root=` (12.3): a drop into the browse tree lands under that root, not
       // the worktree — the browse tree is the worktree tree, moved elsewhere.
-      const root = browseRoot(c, resolveWorktree(deps.sessions, c).root);
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
       const rel = c.req.query('dir') ?? '';
       const dir = containedPath(root, rel);
       if (!existsSync(dir) || !statSync(dir).isDirectory()) {
@@ -266,7 +270,7 @@ export function worktreeFileRoutes(deps: { sessions: SessionStore }): Hono {
       // the real content-type + `inline` disposition, unlike `/download`'s
       // always-`attachment` octet-stream. The web viewer fetches this through
       // the authed API and hands the element an object URL (SPEC §8).
-      const root = browseRoot(c, resolveWorktree(deps.sessions, c).root);
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
       const rel = c.req.query('path') ?? '';
       const target = containedPath(root, rel);
       if (!existsSync(target)) throw ApiError.notFound('path', rel);
@@ -284,7 +288,7 @@ export function worktreeFileRoutes(deps: { sessions: SessionStore }): Hono {
     })
 
     .get('/:sid/download', (c) => {
-      const root = browseRoot(c, resolveWorktree(deps.sessions, c).root);
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
       const rel = c.req.query('path') ?? '';
       const target = containedPath(root, rel);
       if (!existsSync(target)) throw ApiError.notFound('path', rel);

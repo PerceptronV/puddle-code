@@ -28,7 +28,10 @@ beforeAll(() => {
       ? c.json({ error: { code: err.code, message: err.message } }, err.status as 400)
       : c.json({ error: { code: 'internal', message: String(err) } }, 500),
   );
-  app.route('/api/worktrees', worktreeRoutes({ sessions: fx.stores.sessions }));
+  app.route(
+    '/api/worktrees',
+    worktreeRoutes({ sessions: fx.stores.sessions, repos: fx.stores.repos }),
+  );
   app.route('/api/sessions', sessionRoutes({ service: fx.service, scanner: fx.scanner }));
 });
 

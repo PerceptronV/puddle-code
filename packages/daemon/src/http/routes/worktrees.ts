@@ -8,13 +8,12 @@ import {
   type PasteImageResponse,
   type ResolvePathResponse,
 } from '@puddle/shared';
-import type { SessionStore } from '../../db/stores/sessions.js';
 import { ApiError } from '../errors.js';
 import { parseBody } from '../validate.js';
 import { worktreeFileRoutes } from './worktree-files.js';
 import { worktreeFsOpsRoutes } from './worktree-fs-ops.js';
 import { worktreeGitRoutes } from './worktree-git.js';
-import { resolveWorktree } from './worktree-shared.js';
+import { resolveWorktree, type WorktreeDeps } from './worktree-shared.js';
 
 /** Decoded-size cap for pasted images; generous for screenshots, hostile to abuse. */
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
@@ -33,11 +32,11 @@ const EXTENSION: Record<PasteImageMime, string> = {
  * (§8, `worktree-fs-ops.ts`), and the read-only git inspection family
  * (diff/git-status/file-at/log/show, `worktree-git.ts`).
  */
-export function worktreeRoutes(deps: { sessions: SessionStore }): Hono {
+export function worktreeRoutes(deps: WorktreeDeps): Hono {
   const app = new Hono();
 
   app.post('/:sid/paste', async (c) => {
-    const { session } = resolveWorktree(deps.sessions, c);
+    const { root } = resolveWorktree(deps, c);
     const body = await parseBody(c, pasteImageRequestSchema);
     const bytes = Buffer.from(body.data, 'base64');
     if (bytes.byteLength === 0) {
@@ -55,7 +54,7 @@ export function worktreeRoutes(deps: { sessions: SessionStore }): Hono {
     // coordination, and sorts chronologically for humans.
     const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15);
     const name = `paste-${stamp}-${randomBytes(3).toString('hex')}.${EXTENSION[body.mime]}`;
-    const dir = join(session.worktree_path, '.puddle', 'pastes');
+    const dir = join(root, '.puddle', 'pastes');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, name), bytes);
 
@@ -69,7 +68,7 @@ export function worktreeRoutes(deps: { sessions: SessionStore }): Hono {
   // same plain 404 `not_found` — the client only ever learns "don't
   // underline", never *why* it can't.
   app.get('/:sid/resolve', (c) => {
-    const { root } = resolveWorktree(deps.sessions, c);
+    const { root } = resolveWorktree(deps, c);
     const rawPath = c.req.query('path');
     if (!rawPath) {
       throw ApiError.badRequest('invalid_request', `'path' query parameter is required`);

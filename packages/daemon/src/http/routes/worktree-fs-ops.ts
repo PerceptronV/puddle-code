@@ -8,10 +8,14 @@ import {
   renameEntryRequestSchema,
   type FsOpResponse,
 } from '@puddle/shared';
-import type { SessionStore } from '../../db/stores/sessions.js';
 import { ApiError } from '../errors.js';
 import { parseBody } from '../validate.js';
-import { browseRoot, containedPath, resolveWorktree } from './worktree-shared.js';
+import {
+  browseRoot,
+  containedPath,
+  resolveWorktree,
+  type WorktreeDeps,
+} from './worktree-shared.js';
 
 /**
  * The on-disk mutations the file explorer drives (SPEC §8): create,
@@ -44,10 +48,10 @@ function uniqueDestination(abs: string): string {
   }
 }
 
-export function worktreeFsOpsRoutes(deps: { sessions: SessionStore }): Hono {
+export function worktreeFsOpsRoutes(deps: WorktreeDeps): Hono {
   return new Hono()
     .post('/:sid/create', async (c) => {
-      const root = browseRoot(c, resolveWorktree(deps.sessions, c).root);
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
       const body = await parseBody(c, createEntryRequestSchema);
       const target = containedPath(root, body.path);
       if (existsSync(target)) {
@@ -63,7 +67,7 @@ export function worktreeFsOpsRoutes(deps: { sessions: SessionStore }): Hono {
     })
 
     .post('/:sid/rename', async (c) => {
-      const root = browseRoot(c, resolveWorktree(deps.sessions, c).root);
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
       const body = await parseBody(c, renameEntryRequestSchema);
       const from = containedPath(root, body.from);
       const to = containedPath(root, body.to);
@@ -77,7 +81,7 @@ export function worktreeFsOpsRoutes(deps: { sessions: SessionStore }): Hono {
     })
 
     .post('/:sid/copy', async (c) => {
-      const root = browseRoot(c, resolveWorktree(deps.sessions, c).root);
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
       const body = await parseBody(c, copyEntryRequestSchema);
       const from = containedPath(root, body.from);
       const requestedTo = containedPath(root, body.to);
@@ -89,7 +93,7 @@ export function worktreeFsOpsRoutes(deps: { sessions: SessionStore }): Hono {
     })
 
     .post('/:sid/delete', async (c) => {
-      const root = browseRoot(c, resolveWorktree(deps.sessions, c).root);
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
       const body = await parseBody(c, deleteEntryRequestSchema);
       const target = containedPath(root, body.path);
       if (!existsSync(target)) throw ApiError.notFound('path', body.path);
