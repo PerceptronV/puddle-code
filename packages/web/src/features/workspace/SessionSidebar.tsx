@@ -1,4 +1,4 @@
-import { useState, type DragEvent, type ReactNode } from 'react';
+import { useEffect, useState, type DragEvent, type ReactNode } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { Link } from 'react-router';
 import {
@@ -121,6 +121,13 @@ function useArchiveDrop(id: string, onArchiveDrop: (session: string) => void) {
   const { isOver, setNodeRef } = useDroppable({ id: `${ARCHIVE_DROP_PREFIX}${id}` });
   const activeRef = useActiveDragRef();
   const [nativeOver, setNativeOver] = useState(false);
+  // A drag that ends anywhere disarms the highlight: released over a pane or
+  // cancelled with Esc, no `dragleave`/`drop` of ours fires (see PaneLeaf).
+  useEffect(() => {
+    const clear = () => setNativeOver(false);
+    window.addEventListener('dragend', clear);
+    return () => window.removeEventListener('dragend', clear);
+  }, []);
   return {
     setNodeRef,
     /** Arm the highlight for either payload path. */

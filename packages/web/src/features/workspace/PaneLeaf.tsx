@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type DragEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import type { LayoutLeaf, Session, TabRef } from '@puddle/shared';
 import { PuddleGlyph } from '../../components/puddle-glyph';
@@ -84,14 +84,67 @@ export function PaneLeaf({
 
   // Native-DnD drop zone for sidebar drags (tab drags between panes ride
   // dnd-kit and the context indicator instead; the two never fire together).
+  //
+  // Bound as NATIVE CAPTURE listeners on the body element, not as React props:
+  // both things a pane can show hid these events from React's synthetic tree.
+  // An adopted terminal's DOM was rendered by the keep-alive host, so its drag
+  // events route through THAT component tree (the same reason the mousedown
+  // above is native), and Monaco stops `drop` on its own node before it can
+  // reach React's root listener. Either way the highlight armed on the way in
+  // had nothing left to disarm it and no tab ever opened — a blue overlay stuck
+  // over the pane (fixed 2026-08-04). Capture on this element follows the real
+  // DOM, adopted children included, and runs ahead of any descendant's handler.
   const [nativeZone, setNativeZone] = useState<DropEdge | null>(null);
-  const zoneOf = (e: DragEvent<HTMLDivElement>): DropEdge => {
-    const r = e.currentTarget.getBoundingClientRect();
-    return zoneForPointer(
-      { width: r.width, height: r.height },
-      { x: e.clientX - r.left, y: e.clientY - r.top },
-    );
-  };
+  const dropTabRef = useRef(onDropTab);
+  dropTabRef.current = onDropTab;
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    const carriesTab = (e: DragEvent) =>
+      e.dataTransfer !== null && hasTabTransfer(e.dataTransfer.types);
+    const zoneOf = (e: DragEvent): DropEdge => {
+      const r = el.getBoundingClientRect();
+      return zoneForPointer(
+        { width: r.width, height: r.height },
+        { x: e.clientX - r.left, y: e.clientY - r.top },
+      );
+    };
+    const onOver = (e: DragEvent) => {
+      if (!carriesTab(e)) return;
+      e.preventDefault();
+      e.stopPropagation(); // the pane owns this gesture, not Monaco or xterm
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      setNativeZone(zoneOf(e));
+    };
+    const onLeave = (e: DragEvent) => {
+      if (!el.contains(e.relatedTarget as Node | null)) setNativeZone(null);
+    };
+    const onDrop = (e: DragEvent) => {
+      if (!carriesTab(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setNativeZone(null);
+      const ref = decodeTabTransfer(e.dataTransfer?.getData(TAB_MIME) ?? '');
+      if (ref) dropTabRef.current(leaf.id, ref, zoneOf(e));
+    };
+    // Whatever ends the drag clears the highlight: released over another pane,
+    // over no drop target at all, or cancelled with Esc, none of which reaches
+    // the drop/leave handlers above. `dragend` fires on the source for every
+    // outcome, so it is the one signal that always arrives.
+    const onEnd = () => setNativeZone(null);
+    el.addEventListener('dragenter', onOver, true);
+    el.addEventListener('dragover', onOver, true);
+    el.addEventListener('dragleave', onLeave, true);
+    el.addEventListener('drop', onDrop, true);
+    window.addEventListener('dragend', onEnd);
+    return () => {
+      el.removeEventListener('dragenter', onOver, true);
+      el.removeEventListener('dragover', onOver, true);
+      el.removeEventListener('dragleave', onLeave, true);
+      el.removeEventListener('drop', onDrop, true);
+      window.removeEventListener('dragend', onEnd);
+    };
+  }, [leaf.id]);
 
   return (
     <div className="flex h-full flex-col bg-ground" onMouseDownCapture={() => onFocusLeaf(leaf.id)}>
@@ -114,22 +167,6 @@ export function PaneLeaf({
           setNodeRef(el);
         }}
         className="relative min-h-0 flex-1"
-        onDragOver={(e) => {
-          if (!hasTabTransfer(e.dataTransfer.types)) return;
-          e.preventDefault();
-          e.dataTransfer.dropEffect = 'move';
-          setNativeZone(zoneOf(e));
-        }}
-        onDragLeave={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setNativeZone(null);
-        }}
-        onDrop={(e) => {
-          if (!hasTabTransfer(e.dataTransfer.types)) return;
-          e.preventDefault();
-          setNativeZone(null);
-          const ref = decodeTabTransfer(e.dataTransfer.getData(TAB_MIME));
-          if (ref) onDropTab(leaf.id, ref, zoneOf(e));
-        }}
       >
         {activeRef?.type === 'editor' && (
           <div className="absolute inset-0">

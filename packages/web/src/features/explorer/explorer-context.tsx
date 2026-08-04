@@ -210,6 +210,16 @@ export function ExplorerProvider({
   const [pendingDelete, setPendingDelete] = useState<string[] | null>(null);
   const anchorRef = useRef<string | null>(null);
 
+  // A drag released outside the tree — over a pane, over nothing, or cancelled
+  // with Esc — fires no `dragleave` on the row it was last over, which left that
+  // row highlighted for good. `dragend` fires on the source for every outcome,
+  // so it is the one signal that always disarms the highlight.
+  useEffect(() => {
+    const clear = () => setDropTarget(null);
+    window.addEventListener('dragend', clear);
+    return () => window.removeEventListener('dragend', clear);
+  }, []);
+
   // Git decorations are worktree-scoped: the status endpoint takes no root, and
   // its paths are worktree-relative, so under a browse root they would decorate
   // rows by coincidence of relative path. Don't ask for them at all out there.

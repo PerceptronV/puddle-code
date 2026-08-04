@@ -49,3 +49,16 @@ Past releases: see docs/changelogs/.
   change. Saving the live layout under a new name is the `+` above.
 - A layout row's tools follow the Scratchpad's order — act, copy, edit, delete —
   so save-as and duplicate lead and rename sits beside delete.
+
+### Fixed
+
+- **Dragging a session or a file from a sidebar into the centre area now opens
+  it** instead of leaving a blue rectangle stuck over the pane. A pane whose body
+  showed a terminal or an editor never received the drop at all: the terminal's
+  DOM belongs to the keep-alive host (so its events route through that component
+  tree, not the pane's) and Monaco stops the drop on its own node — so the
+  highlight armed on the way in had nothing left to disarm it. The pane now
+  listens on the real DOM, in the capture phase, ahead of both.
+- A drag released over nothing, or cancelled with **Esc**, no longer leaves a
+  highlighted drop target behind in the files tree, the pane bodies, or on the
+  Archived header.
