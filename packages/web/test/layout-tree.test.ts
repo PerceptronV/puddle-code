@@ -434,7 +434,7 @@ describe('setTabView', () => {
   it('rewrites the matching editor tab in place, keeping its key and active state', () => {
     const a = ed('README.md');
     const tree = makeLeaf([a, ed('b.ts'), term('t1')]);
-    const next = setTabView(tree, tabRefKey(a), 'preview');
+    const next = setTabView(tree, tree.id, tabRefKey(a), 'preview');
     const leaf = allLeaves(next)[0]!;
     const updated = leaf.tabs[0]!;
     expect(updated.type).toBe('editor');
@@ -445,7 +445,7 @@ describe('setTabView', () => {
     expect(leaf.tabs[1]).toEqual(ed('b.ts'));
     expect(leaf.tabs[2]).toEqual(term('t1'));
     // Toggling back to source round-trips.
-    const back = setTabView(next, tabRefKey(a), 'source');
+    const back = setTabView(next, allLeaves(next)[0]!.id, tabRefKey(a), 'source');
     const backTab = allLeaves(back)[0]!.tabs[0]!;
     expect(backTab.type === 'editor' && backTab.tab.view).toBe('source');
   });
@@ -461,8 +461,31 @@ describe('setTabView', () => {
 
   it('is a no-op for terminals and unknown keys', () => {
     const tree = makeLeaf([term('t1')]);
-    expect(setTabView(tree, 'term:t1', 'preview')).toEqual(tree);
-    expect(setTabView(tree, 'editor:file:s1:::nope.md', 'preview')).toEqual(tree);
+    expect(setTabView(tree, tree.id, 'term:t1', 'preview')).toEqual(tree);
+    expect(setTabView(tree, tree.id, 'editor:file:s1:::nope.md', 'preview')).toEqual(tree);
+  });
+
+  // The same file open in two panes: one key, two tabs. Toggling one pane's view
+  // must leave the other pane's alone, or source-beside-preview is impossible.
+  it('touches only the named leaf when the same file is open in two panes', () => {
+    const a = ed('README.md');
+    const base = makeLeaf([a, ed('b.ts')]);
+    const split = dropTab(base, {
+      ref: ed('b.ts'),
+      fromLeafId: base.id,
+      toLeafId: base.id,
+      edge: 'right',
+    });
+    // Put the same file in the second pane too, then flip only that one.
+    const both = addTabToLeaf(split, allLeaves(split)[1]!.id, a);
+    const next = setTabView(both, allLeaves(both)[1]!.id, tabRefKey(a), 'preview');
+    const [first, second] = allLeaves(next);
+    const viewIn = (leaf: typeof first) => {
+      const t = leaf?.tabs.find((x) => tabRefKey(x) === tabRefKey(a));
+      return t?.type === 'editor' ? t.tab.view : undefined;
+    };
+    expect(viewIn(second)).toBe('preview');
+    expect(viewIn(first)).toBeUndefined();
   });
 });
 

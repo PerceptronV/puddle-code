@@ -390,25 +390,29 @@ export function promoteTab(tree: LayoutNode, key: string): LayoutNode {
 }
 
 /**
- * Rewrite the editor tab `key` in place with `view` (source ⇄ preview toggle,
- * SPEC §8), wherever it lives. `view` is not part of tab identity, so the key
- * is unchanged and active/preview state is untouched.
+ * Rewrite the editor tab `key` IN ONE LEAF with `view` (source ⇄ preview toggle,
+ * SPEC §8). `view` is not part of tab identity, so the key is unchanged and
+ * active/preview state is untouched.
+ *
+ * Deliberately scoped to `leafId` (fixed 2026-08-04): the same file open in two
+ * panes shares one key, so rewriting every match flipped both tabs at once and
+ * source-beside-preview — the whole point of splitting a pane on a markdown file
+ * — was impossible. A leaf holds at most one tab per key, so per-leaf IS
+ * per-tab. The shared editor BUFFER is untouched by this: both tabs still show
+ * the same text and the same unsaved edits, they just render it differently.
  */
 export function setTabView(
   tree: LayoutNode,
+  leafId: string,
   key: string,
   view: 'source' | 'preview' | undefined,
 ): LayoutNode {
-  const walk = (node: LayoutNode): LayoutNode =>
-    node.kind === 'leaf'
-      ? {
-          ...node,
-          tabs: node.tabs.map((t) =>
-            t.type === 'editor' && tabRefKey(t) === key ? { ...t, tab: { ...t.tab, view } } : t,
-          ),
-        }
-      : { ...node, children: node.children.map(walk) };
-  return walk(tree);
+  return transformLeaf(tree, leafId, (leaf) => ({
+    ...leaf,
+    tabs: leaf.tabs.map((t) =>
+      t.type === 'editor' && tabRefKey(t) === key ? { ...t, tab: { ...t.tab, view } } : t,
+    ),
+  })) as LayoutNode;
 }
 
 /** Set the active tab of a leaf. */

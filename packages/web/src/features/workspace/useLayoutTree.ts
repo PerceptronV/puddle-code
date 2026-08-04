@@ -45,8 +45,12 @@ export interface LayoutController {
   ensureTerminal(session: string, opts?: { preview?: boolean }): void;
   /** Promote a preview tab to permanent (double-click), wherever it lives. */
   promote(ref: TabRef): void;
-  /** Toggle an editor tab between Monaco source and rendered preview (SPEC §8). */
-  setView(ref: TabRef, view: 'source' | 'preview'): void;
+  /**
+   * Toggle ONE pane's editor tab between Monaco source and rendered preview
+   * (SPEC §8) — per tab, so the same file can be source in one pane and preview
+   * in another.
+   */
+  setView(leafId: string, ref: TabRef, view: 'source' | 'preview'): void;
   removeTerminal(session: string): void;
   pruneSessions(alive: ReadonlySet<string>): void;
   resize(splitId: string, sizes: number[]): void;
@@ -170,7 +174,7 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
         }
       },
       promote: (ref) => persist(promoteTab(tree, tabRefKey(ref))),
-      setView: (ref, view) => persist(setTabView(tree, tabRefKey(ref), view)),
+      setView: (leafId, ref, view) => persist(setTabView(tree, leafId, tabRefKey(ref), view)),
       removeTerminal: (session) => {
         const leaf = leafContainingKey(tree, `term:${session}`);
         if (leaf) persist(closeTab(tree, leaf.id, `term:${session}`));

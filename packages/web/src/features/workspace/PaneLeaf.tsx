@@ -46,8 +46,8 @@ export function PaneLeaf({
   onFocusLeaf: (leafId: string) => void;
   /** A sidebar drag (file row / session) dropped on this pane — open + position. */
   onDropTab: (leafId: string, ref: TabRef, edge: DropEdge) => void;
-  /** Flip a previewable editor tab between source and rendered preview (SPEC §8). */
-  onSetTabView: (ref: TabRef, view: 'source' | 'preview') => void;
+  /** Flip THIS pane's previewable editor tab between source and preview (SPEC §8). */
+  onSetTabView: (leafId: string, ref: TabRef, view: 'source' | 'preview') => void;
   /** Double-click on the strip's blank tail: open a fresh untitled file here. */
   onNewUntitled: (leaf: LayoutLeaf) => void;
 }) {
@@ -157,7 +157,7 @@ export function PaneLeaf({
           onClose={(ref) => onCloseTab(leaf.id, ref)}
           onPromote={onPromoteTab}
           onArchived={onArchived}
-          onSetView={onSetTabView}
+          onSetView={(ref, view) => onSetTabView(leaf.id, ref, view)}
           onNewFile={() => onNewUntitled(leaf)}
         />
       )}
