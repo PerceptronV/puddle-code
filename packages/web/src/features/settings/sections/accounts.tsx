@@ -309,8 +309,8 @@ export function AccountsSection() {
               label={agent.display_name}
               description={
                 installed
-                  ? 'Accounts are isolated config dirs under this profile.'
-                  : `Not installed — no ${agent.binary ?? agent.id} on the daemon’s PATH. Install it, or add its directory to the agent search path in Sessions.`
+                  ? 'Accounts are initialised in config dirs owned by this profile.'
+                  : `No ${agent.binary ?? agent.id} on the daemon’s PATH. Install it or add its directory to the agent search path in Sessions.`
               }
               className="py-1"
             >

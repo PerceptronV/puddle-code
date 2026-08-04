@@ -62,7 +62,7 @@ export function ProfileSection() {
       <SectionTitle>Profile</SectionTitle>
       <SettingRow
         label="Name"
-        description="A display label. Letters, digits, dot, underscore and hyphen; must be unique."
+        description="Letters, digits, dot, underscore and hyphen."
         htmlFor="profile-name"
       >
         <Input
@@ -138,7 +138,7 @@ export function ProfileSection() {
       </SettingRow>
       <SettingRow
         label="Delete profile"
-        description="Removes its projects, accounts (logging them out), and archived history. Non-archived sessions block deletion."
+        description="Non-archived sessions block deletion."
         className="mt-4"
       >
         <Button variant="danger" size="sm" onClick={() => setConfirmingDelete(true)}>

@@ -51,7 +51,7 @@ function AgentPathRow() {
   return (
     <SettingRow
       label="Agent search path (host-wide)"
-      description="Colon-separated dirs the daemon prepends to PATH to find agent CLIs like claude (e.g. ~/.local/bin). Applies after the daemon restarts."
+      description="Colon-separated dirs the daemon prepends to PATH; helps find agent CLIs like claude (e.g. ~/.local/bin)."
       htmlFor="agent-path"
     >
       <Input
@@ -132,7 +132,7 @@ function SessionSeedRows({
         description={
           seed.separateBranch
             ? 'Always on while a separate branch is used.'
-            : 'An own working copy of the base branch, instead of sharing one.'
+            : 'Start on working copy of the selected branch instead of sharing one directory.'
         }
         htmlFor={`${kind}-default-dir`}
       >
@@ -153,7 +153,6 @@ function ScrollbackRow() {
   return (
     <SettingRow
       label="Terminal scrollback"
-      description="Lines kept per terminal. This browser only."
       htmlFor="scrollback"
     >
       <NumberField
@@ -345,18 +344,8 @@ export function SessionsSection() {
   return (
     <div>
       <SectionTitle>Sessions</SectionTitle>
-      <p className="mb-3 text-xs text-fg-secondary">
-        Permission prompts are on by default, everywhere. Skipping them requires this profile gate,
-        a per-account opt-in, and a per-session toggle — and the daemon re-checks all three on every
-        launch, resume, and hand-off.
-      </p>
       <SettingRow
-        label="Allow skipping permission prompts"
-        description={
-          gateOpen
-            ? 'The gate is open: opted-in accounts can start prompt-free sessions.'
-            : 'The gate is closed: every session keeps its permission prompts.'
-        }
+        label="Skip permission prompts"
         htmlFor="gate"
       >
         <Switch
@@ -369,11 +358,11 @@ export function SessionsSection() {
         />
       </SettingRow>
       <SettingRow
-        label="Capture exported env vars"
+        label="Capture exported env variables"
         description={
           settings.data?.captureSessionEnv !== false
-            ? 'Vars exported in a session terminal persist: re-injected into its new shells and agent restarts. Values stay on the daemon host.'
-            : 'Paused: session shells spawn plain — nothing new is captured or injected. Already-captured vars are kept for when this is re-enabled.'
+            ? 'Variables exported in a session persist and are re-injected upon terminal and agent restarts.'
+            : 'No variables are captured or injected; already-captured variabless are kept for when this is re-enabled.'
         }
         htmlFor="capture-env"
       >
@@ -390,7 +379,7 @@ export function SessionsSection() {
       <ScrollbackRow />
 
       <div className="mt-5">
-        <SectionTitle note="What the new-agent and new-terminal modals open with — everything stays editable per session.">
+        <SectionTitle>
           New session defaults
         </SectionTitle>
         {settings.data && (
@@ -420,7 +409,7 @@ export function SessionsSection() {
       </div>
 
       <div className="mt-5">
-        <SectionTitle note="Sent to the agent as its opening message when a session starts. Leave a box empty to send no preamble.">
+        <SectionTitle note="Sent to agent as opening message when a session (re)starts. You can make this empty.">
           Launch text
         </SectionTitle>
         {settings.data && (
@@ -429,7 +418,7 @@ export function SessionsSection() {
               key={`${profileId}:onboarding`}
               id="onboarding-template"
               label="New worktree"
-              description="For a freshly created worktree. Use {{rules}} where the repo's onboarding notes should appear."
+              description="Use {{rules}} where the repo's onboarding notes should appear."
               initial={settings.data.onboardingTemplate ?? DEFAULT_ONBOARDING_TEMPLATE}
               defaultText={DEFAULT_ONBOARDING_TEMPLATE}
               onSave={saveTemplate('onboardingTemplate')}
@@ -449,7 +438,7 @@ export function SessionsSection() {
               key={`${profileId}:restart`}
               id="restart-template"
               label="Resume after restart"
-              description="Sent when a session resumes after a daemon restart or machine reboot — its processes are gone."
+              description="Sent when a session resumes after a daemon restart or machine reboot."
               initial={settings.data.restartTemplate ?? DEFAULT_RESTART_TEMPLATE}
               defaultText={DEFAULT_RESTART_TEMPLATE}
               onSave={saveTemplate('restartTemplate')}
@@ -460,7 +449,7 @@ export function SessionsSection() {
       </div>
 
       <div className="mt-5">
-        <SectionTitle note="How each session's tab and sidebar label is composed from its parts.">
+        <SectionTitle>
           Tab title
         </SectionTitle>
         {settings.data && (

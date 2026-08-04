@@ -17,8 +17,8 @@ export function AppearanceSection() {
 
   return (
     <div>
-      <SectionTitle note="This browser only">Appearance</SectionTitle>
-      <SettingRow label="Theme" description="Chrome, terminal, and editor restyle together.">
+      <SectionTitle>Appearance</SectionTitle>
+      <SettingRow label="Theme">
         <Select
           value={themePref}
           onValueChange={(value) => {
@@ -59,7 +59,6 @@ export function AppearanceSection() {
       </SettingRow>
       <SettingRow
         label="Editor font size"
-        description="Monaco text and rendered previews; terminal text keeps its own size."
         htmlFor="editor-font-size"
       >
         <NumberField
@@ -74,7 +73,6 @@ export function AppearanceSection() {
       </SettingRow>
       <SettingRow
         label="Density"
-        description="Compact tightens the sidebars' vertical rhythm; comfortable keeps the roomier spacing."
       >
         <Select
           value={settings.density}
@@ -93,7 +91,7 @@ export function AppearanceSection() {
       </SettingRow>
       <SettingRow
         label="Project-based layout"
-        description="Each project keeps its own editor layout. Off, one layout spans every project."
+        description="Whether each project keeps its own editor layout."
         htmlFor="project-based-layout"
       >
         <Switch
@@ -104,7 +102,7 @@ export function AppearanceSection() {
       </SettingRow>
       <SettingRow
         label="All projects in the session list"
-        description="The right sidebar lists every project's sessions, grouped by project. Off, only the current project's — project names stay as navigation targets either way."
+        description="Whether right sidebar displays sessions from all projects."
         htmlFor="show-all-project-sessions"
       >
         <Switch

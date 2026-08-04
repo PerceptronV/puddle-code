@@ -14,7 +14,7 @@ export function EditorSection() {
 
   return (
     <div>
-      <SectionTitle note="This browser only">Editor</SectionTitle>
+      <SectionTitle>Editor</SectionTitle>
       <SettingRow label="Tab size" description="Spaces per indent level." htmlFor="tab-size">
         <NumberField
           id="tab-size"

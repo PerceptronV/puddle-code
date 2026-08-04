@@ -210,11 +210,10 @@ export function SyncSection() {
         ) : (
           <>
             <p className="mb-2 mt-1 text-xs text-fg-muted">
-              Mirror the selected groups through this machine’s{' '}
-              <span className="font-mono">~/.puddle</span>, so every puddle window — any port, any
-              host — stays in step for profiles named{' '}
-              <span className="font-mono">{profile?.name ?? '…'}</span>. The checklist below then
-              applies to imports and exports alike; scratchpad entries merge and never overwrite.
+              Sync selected groups through this machine’s{' '}
+              <span className="font-mono">~/.puddle</span>, so every puddle window
+              stays in step for profiles named{' '}
+              <span className="font-mono">{profile?.name ?? '…'}</span>.
             </p>
             <label className="flex items-center gap-2 text-sm text-fg">
               <Switch
@@ -247,7 +246,7 @@ export function SyncSection() {
       <div className="mb-6">
         <h3 className="text-sm font-medium text-fg">Export</h3>
         <p className="mb-2 mt-1 text-xs text-fg-muted">
-          One click builds the string from the checklist above and copies it to your clipboard.
+          Builds a puddle magic string that encodes settings from the checklist above.
         </p>
         <Button size="sm" disabled={busy} onClick={() => void onExport()}>
           Export &amp; copy
@@ -267,8 +266,7 @@ export function SyncSection() {
       <div>
         <h3 className="text-sm font-medium text-fg">Import</h3>
         <p className="mb-2 text-xs text-fg-muted">
-          Paste an exported string — only the settings it carries are updated. Scratchpad entries
-          are added alongside yours, never replacing them.
+          Paste a puddle magic string to import its settings.
         </p>
         <Textarea
           value={importText}

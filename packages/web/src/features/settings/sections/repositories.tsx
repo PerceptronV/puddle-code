@@ -123,7 +123,7 @@ export function RepositoriesSection() {
   const repos = useRepos();
   return (
     <div>
-      <SectionTitle note="Per repository — projects sharing one share these">Projects</SectionTitle>
+      <SectionTitle>Projects</SectionTitle>
       {repos.data?.length === 0 && (
         <p className="text-sm text-fg-muted">
           No projects yet — create one from the dashboard, pointing at a repository.

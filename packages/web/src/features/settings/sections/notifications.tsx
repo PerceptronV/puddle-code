@@ -94,10 +94,9 @@ export function NotificationsSection() {
 
   return (
     <div>
-      <SectionTitle note="When an agent flips to waiting for input">Notifications</SectionTitle>
+      <SectionTitle>Notifications</SectionTitle>
       <SettingRow
         label="Desktop notification on waiting"
-        description="Shown while this window is unfocused; clicking it opens the session."
         htmlFor="notify-desktop"
       >
         <Switch

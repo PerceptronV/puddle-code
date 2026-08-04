@@ -26,7 +26,7 @@ export function ProfileAppearance({ profile }: { profile: Profile }) {
 
   return (
     <>
-      <SettingRow label="Icon" description="The glyph shown wherever this profile appears.">
+      <SettingRow label="Icon">
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <button
@@ -69,7 +69,7 @@ export function ProfileAppearance({ profile }: { profile: Profile }) {
         </Popover>
       </SettingRow>
 
-      <SettingRow label="Icon colour" description="Any theme colour; recolours with light/dark.">
+      <SettingRow label="Icon colour">
         <div className="flex flex-wrap items-center gap-1">
           <button
             type="button"
