@@ -123,7 +123,9 @@ function InsertionCaret() {
  * The background comes in only on hover, so a clean tab at rest is still
  * exactly its title with nothing trailing it (HUMANS.md). It fades in from the
  * left rather than starting as a hard edge, so a truncated title slides under
- * the icons instead of being chopped.
+ * the icons instead of being chopped. It also carries the chip's own
+ * `rounded-tr-md`: laid over the chip's top-right corner, a square overlay
+ * squared the tab off the moment it was hovered.
  */
 function TabControls({ active, children }: { active: boolean; children: ReactNode }) {
   const fade = active
@@ -132,7 +134,7 @@ function TabControls({ active, children }: { active: boolean; children: ReactNod
   return (
     <span
       className={cn(
-        'pointer-events-none absolute inset-y-0 right-0 flex items-center gap-1 pl-5 pr-2.5',
+        'pointer-events-none absolute inset-y-0 right-0 flex items-center gap-1 rounded-tr-md pl-5 pr-2.5',
         // Only the controls themselves take clicks; the masked title beneath
         // stays draggable and clickable like the rest of the chip.
         '[&>*]:pointer-events-auto',
