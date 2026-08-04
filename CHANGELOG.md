@@ -73,3 +73,13 @@ Past releases: see docs/changelogs/.
 - A drag released over nothing, or cancelled with **Esc**, no longer leaves a
   highlighted drop target behind in the files tree, the pane bodies, or on the
   Archived header.
+- **Terminals fill their pane again after the things that used to leave them
+  half-drawn.** Changing the terminal font size resizes the cell, not the
+  container, so nothing re-measured the grid: the terminal kept the old rows and
+  columns — dead ground below smaller type, wrapped and overflowing lines above
+  larger. And a **resume** or a **move to another account** replaces the process
+  under a terminal that is already attached, where neither an attach nor a
+  container change happens, so the new agent drew to a 120×32 screen that was not
+  there. The daemon now starts a replacement PTY at the size its viewer last
+  asked for, and the terminal re-measures, repaints, and re-sends its size on
+  both events.

@@ -29,6 +29,12 @@ interface Live {
 }
 
 /**
+ * The size a PTY starts at when no viewer has ever sized this (stream, term) —
+ * a plausible terminal, not the one on screen (nothing is attached yet).
+ */
+const DEFAULT_SIZE = { cols: 120, rows: 32 } as const;
+
+/**
  * Owns every live PTY, keyed by (stream, term) where stream is a session id
  * or `login-<accountId>`. Tees recorded output to the LogStore. Emits
  * 'data' (PtyDataEvent), 'exit' (PtyExitEvent), and 'env-delta'
@@ -39,6 +45,15 @@ interface Live {
  */
 export class PtyManager extends EventEmitter {
   private readonly live = new Map<string, Live>();
+  /**
+   * The last size a viewer asked for, per (stream, term) — kept whether or not a
+   * PTY is live so the NEXT one starts at it. A resume or an account migration
+   * replaces the PTY under an attached viewer, and nothing re-sends the size
+   * then: the viewer is already attached (no fresh `attach`) and its container
+   * has not changed (no resize), so a fixed default left the agent rendering to
+   * a screen that wasn't there — a TUI wrapped or short of the pane it sits in.
+   */
+  private readonly sizes = new Map<string, { cols: number; rows: number }>();
 
   constructor(private readonly logs: LogStore) {
     super();
@@ -54,10 +69,11 @@ export class PtyManager extends EventEmitter {
     const key = this.key(stream, term);
     if (this.live.has(key)) throw new Error(`pty ${key} already live`);
     const record = opts.record ?? true;
+    const size = this.sizes.get(key) ?? DEFAULT_SIZE;
     const proc = pty.spawn(file, args, {
       name: 'xterm-256color',
-      cols: 120,
-      rows: 32,
+      cols: size.cols,
+      rows: size.rows,
       cwd: opts.cwd,
       env: { ...process.env, ...opts.env } as Record<string, string>,
     });
@@ -83,12 +99,27 @@ export class PtyManager extends EventEmitter {
     this.live.get(this.key(stream, term))?.proc.write(data);
   }
 
+  /**
+   * Size a PTY, remembering the size for whatever PTY takes this (stream, term)
+   * next — a resize that arrives while nothing is live (a viewer attached to an
+   * exited session) is therefore not lost, it just applies to the resume.
+   */
   resize(stream: string, term: string, cols: number, rows: number): void {
+    if (cols > 0 && rows > 0) this.sizes.set(this.key(stream, term), { cols, rows });
     try {
       this.live.get(this.key(stream, term))?.proc.resize(cols, rows);
     } catch {
       // Resizing a PTY that exited between lookup and call is harmless.
     }
+  }
+
+  /**
+   * Drop the remembered sizes for a stream — its session is gone for good, so no
+   * later PTY can want them (an archive is NOT gone: it resumes at its size).
+   */
+  forget(stream: string): void {
+    const prefix = `${stream} `;
+    for (const key of [...this.sizes.keys()]) if (key.startsWith(prefix)) this.sizes.delete(key);
   }
 
   kill(stream: string, term: string, signal?: string): boolean {

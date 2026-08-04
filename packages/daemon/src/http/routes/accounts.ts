@@ -131,6 +131,7 @@ export function accountRoutes(deps: AccountRouteDeps): Hono {
       // 409 while any of its sessions is non-archived; cascade otherwise.
       const removed = deps.removals.deleteAccount(id);
       deps.ptys.killAll(`login-${id}`); // an in-flight login PTY dies with the account
+      deps.ptys.forget(`login-${id}`); // …and the stream is retired: no size to keep
       removeDirWithin(deps.paths.profilesDir, removed.config_dir);
       return c.body(null, 204);
     })

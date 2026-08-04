@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
-import { HOME_STREAM } from '@puddle/shared';
+import { HOME_STREAM, type SessionStatus } from '@puddle/shared';
 import { tokenStore } from '../../lib/auth';
 import { useClientSettings } from '../../lib/client-settings';
 import { useDocumentVisible } from '../../lib/use-document-visible';
@@ -19,6 +19,9 @@ import { rewriteTerminalUri } from './proxy-links';
 import { registerFileLinks } from './file-links';
 
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
+
+/** Statuses in which a process is attached to the PTY (see the restart refit). */
+const LIVE_STATUSES: SessionStatus[] = ['starting', 'running', 'waiting_input'];
 
 /**
  * macOS line-editing shortcuts the browser would otherwise eat: ⌘←/⌘→ move to
@@ -101,6 +104,31 @@ export function Terminal({
   // otherwise keeps receiving and parsing every byte of PTY output.
   const visible = useDocumentVisible();
   const attached = useLingeringTrue(!paused && visible, DETACH_LINGER_MS);
+
+  /**
+   * Re-measure the grid against the container, repaint it, and tell the PTY: the
+   * whole recovery for "the geometry — or the process drawing into it — changed
+   * under us". Idempotent and cheap, so anything that suspects a stale grid can
+   * just call it. A container with no size yet is left alone (a parked pane keeps
+   * its last size rather than collapsing to 1×1).
+   */
+  const refit = useCallback(() => {
+    const xterm = xtermRef.current;
+    const container = containerRef.current;
+    if (!xterm || !container || container.clientWidth === 0) return;
+    fitRef.current?.fit();
+    // fit() short-circuits when cols/rows come out unchanged, so force the
+    // buffer resize: BufferService.resize fires onResize unconditionally, which
+    // is what re-syncs the viewport's scroll range (see the attach effect) and
+    // what makes the repaint below cover a canvas the renderer thinks is clean.
+    xterm.resize(xterm.cols, xterm.rows);
+    // Repaint every row after a geometry change: the WebGL renderer's canvas
+    // clears on resize but only rows it considers dirty repaint, which could
+    // blank the static part of a TUI (typically the bottom half) until a
+    // selection forced a full pass (fixed 2026-07-31).
+    xterm.refresh(0, xterm.rows - 1);
+    wsManager.resize(stream, term, xterm.cols, xterm.rows);
+  }, [stream, term]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -229,16 +257,7 @@ export function Terminal({
     };
     container.addEventListener('paste', onPaste, true);
 
-    const observer = new ResizeObserver(() => {
-      if (container.clientWidth === 0) return; // hidden tab — keep the last size
-      fit.fit();
-      // Repaint every row after a geometry change: the WebGL renderer's canvas
-      // clears on resize but only rows it considers dirty repaint, which could
-      // blank the static part of a TUI (typically the bottom half) until a
-      // selection forced a full pass (fixed 2026-07-31).
-      xterm.refresh(0, xterm.rows - 1);
-      wsManager.resize(stream, term, xterm.cols, xterm.rows);
-    });
+    const observer = new ResizeObserver(() => refit());
     observer.observe(container);
 
     const unsubscribeTheme = onThemeChange(() => {
@@ -260,8 +279,9 @@ export function Terminal({
     };
     // Deliberately keyed on the PTY identity only: recreating the terminal on
     // settings change would drop scrollback; the effect below patches the
-    // live instance instead.
-  }, [stream, term]);
+    // live instance instead. (`refit` is keyed on the same two, so listing it
+    // adds no churn.)
+  }, [stream, term, refit]);
 
   // The PTY attachment, gated on `attached`: paused/hidden terminals detach
   // (the daemon stops sending, nothing is parsed) and re-attach on return,
@@ -333,12 +353,42 @@ export function Terminal({
     };
   }, [stream, term, attached]);
 
+  // Font size and scrollback patch the LIVE instance (recreating it would drop
+  // scrollback). A font change resizes the CELL, not the container, so the
+  // ResizeObserver never fires for it: without refitting here the grid kept the
+  // old cols/rows and the terminal stopped filling its pane — smaller type left
+  // a margin of dead ground, larger type wrapped and overflowed (fixed
+  // 2026-08-04). `refit` also tells the PTY, so the agent's TUI redraws itself
+  // at the size actually on screen.
   useEffect(() => {
     const xterm = xtermRef.current;
     if (!xterm) return;
     xterm.options.fontSize = settings.terminalFontSize;
     xterm.options.scrollback = settings.terminalScrollback;
-  }, [settings.terminalFontSize, settings.terminalScrollback]);
+    refit();
+  }, [settings.terminalFontSize, settings.terminalScrollback, refit]);
+
+  // A FRESH PTY under an attached viewer (a resume, or an account migration —
+  // "stop the process, repoint the account, resume", SPEC §5) needs the same
+  // treatment: nothing else re-sizes or repaints then, since the viewer is
+  // already attached (no new `attach`) and its container never changed (no
+  // resize). The status feed is the signal — a session becoming live again after
+  // being anything else means a new process is drawing into this buffer — and
+  // the daemon starts that PTY at the size this viewer last asked for, so the
+  // refit's job is to repaint and to re-assert the size if it drifted meanwhile.
+  useEffect(() => {
+    // Only a spawn can take a session from a dead status back to a live one, so
+    // that edge IS the new process. `waiting_input` is a live status here on
+    // purpose: it alternates with `running` every turn of a conversation, and
+    // treating it as dead would refit on each of them.
+    let wasLive = false; // nothing seen yet ⇒ the first live report is a start
+    return wsManager.onStatus((e) => {
+      if (e.session !== stream) return;
+      const live = LIVE_STATUSES.includes(e.status);
+      if (live && !wasLive) refit();
+      wasLive = live;
+    });
+  }, [stream, refit]);
 
   return <div ref={containerRef} className={cn('size-full', className)} />;
 }

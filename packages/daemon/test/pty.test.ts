@@ -202,6 +202,43 @@ describe('PtyManager', () => {
     ptys.killAll();
   });
 
+  it('starts a PTY at the size its viewer last asked for, live or not', async () => {
+    const { ptys } = manager();
+    const chunks: string[] = [];
+    ptys.on('data', (e: { data: string }) => chunks.push(e.data));
+    const size = () => ['-c', 'stty size; cat'];
+
+    // A viewer attached to an EXITED session sizes a stream with nothing live:
+    // the size must survive to the resume, which is the whole point (a migration
+    // or a resume replaces the PTY under an attached viewer, and nothing
+    // re-sends the size — no fresh attach, no container change).
+    ptys.resize('s7', 'agent', 100, 40);
+    ptys.spawn('s7', 'agent', 'bash', size(), { cwd: tmpdir() });
+    await waitFor(() => /40\s+100/.test(chunks.join('')));
+
+    // A resize while live is remembered the same way, for the NEXT process.
+    ptys.resize('s7', 'agent', 90, 30);
+    ptys.kill('s7', 'agent');
+    await waitFor(() => !ptys.has('s7', 'agent'));
+    chunks.length = 0;
+    ptys.spawn('s7', 'agent', 'bash', size(), { cwd: tmpdir() });
+    await waitFor(() => /30\s+90/.test(chunks.join('')));
+
+    // A stream nobody sized starts at the default, and `forget` returns a
+    // retired stream (a deleted account's login PTY) to it.
+    chunks.length = 0;
+    ptys.spawn('s8', 'agent', 'bash', size(), { cwd: tmpdir() });
+    await waitFor(() => /32\s+120/.test(chunks.join('')));
+    ptys.resize('s8', 'agent', 70, 20);
+    ptys.forget('s8');
+    ptys.kill('s8', 'agent');
+    await waitFor(() => !ptys.has('s8', 'agent'));
+    chunks.length = 0;
+    ptys.spawn('s8', 'agent', 'bash', size(), { cwd: tmpdir() });
+    await waitFor(() => /32\s+120/.test(chunks.join('')));
+    ptys.killAll();
+  });
+
   it('injects daemon notes into log and stream', async () => {
     const { logs, ptys } = manager();
     const chunks: string[] = [];
