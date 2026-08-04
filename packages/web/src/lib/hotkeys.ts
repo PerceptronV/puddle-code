@@ -82,6 +82,11 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
     label: 'Toggle right sidebar',
     group: 'Layout & tabs',
     defaultBinding: 'alt+meta+Period',
+    // ⇧⌘B, the pair to the left sidebar's ⌘B (decision 2026-08-03). NOT VSCode's
+    // own secondary-sidebar ⌥⌘B: that is Open Worktrees here, and a pair the eye
+    // reads as one gesture beats matching a foreign app key-for-key. A browser
+    // keeps ⇧⌘B for its bookmarks bar, so only the desktop default forks.
+    desktopBinding: 'shift+meta+KeyB',
   },
   { id: 'editor.save', label: 'Save', group: 'Editor', defaultBinding: 'meta+KeyS', editor: true },
   {

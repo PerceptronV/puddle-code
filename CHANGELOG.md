@@ -28,6 +28,11 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- The right sidebar's desktop shortcut is **⇧⌘B**, pairing with the left
+  sidebar's ⌘B — it had never been given a desktop default and was still on the
+  browser-safe ⌥⌘. (⌥⌘B is Open Worktrees, which is why the pair is ⇧⌘B rather
+  than VSCode's secondary-sidebar key.) In a browser both stay as they were: the
+  chrome keeps ⇧⌘B for its bookmarks bar.
 - Settings → Appearance splits **project-based layout** into two independent
   toggles: **Project-based layout** now only decides whether the centre editor
   keeps a layout per project, and **All projects in the session list** (default

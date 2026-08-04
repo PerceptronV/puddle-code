@@ -25,6 +25,10 @@ describe('shellDefaultBinding', () => {
     expect(shellDefaultBinding(byId('tab.close'), true)).toBe('meta+KeyW');
     expect(shellDefaultBinding(byId('tab.close'), false)).toBe('ctrl+alt+KeyW');
     expect(shellDefaultBinding(byId('sidebar.left'), true)).toBe('meta+KeyB');
+    // The right sidebar pairs with it: ⌘B / ⇧⌘B. ⌥⌘B is Open Worktrees.
+    expect(shellDefaultBinding(byId('sidebar.right'), true)).toBe('shift+meta+KeyB');
+    expect(shellDefaultBinding(byId('sidebar.right'), false)).toBe('alt+meta+Period');
+    expect(shellDefaultBinding(byId('nav.worktrees'), true)).toBe('alt+meta+KeyB');
     expect(shellDefaultBinding(byId('session.newAgent'), true)).toBe('meta+KeyT');
     // Close window and reopen-tab dodge what the browser reserves for itself
     // (⌘W closes the tab, ⇧⌘T reopens the browser's own last one). Modifiers in
