@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
-import { Link, Outlet, useParams } from 'react-router';
+import { Link, Outlet, useLocation, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Settings } from 'lucide-react';
 import type { ProjectDetail, Session } from '@puddle/shared';
+import { ErrorBoundary } from '../../components/error-boundary';
 import { InlineLabelEdit, editOnDoubleClick } from '../../components/inline-label-edit';
 import { Button } from '../../components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
@@ -212,12 +213,22 @@ function ShellBody() {
   useWaitingNotifications();
   const { handler } = useNewSession();
   const profileId = useCurrentProfileId();
+  const { pathname } = useLocation();
   const [creatingProject, setCreatingProject] = useState(false);
   return (
     <div className="flex h-screen flex-col bg-ground">
       <TopBar />
       <main className="min-h-0 flex-1">
-        <Outlet />
+        {/* The routed view gets its OWN boundary so a crash in it leaves the top
+            bar alive — the shell still navigates, and walking away from the
+            broken route clears the boundary (it is keyed by pathname) with no
+            reload. `App` keeps an outer one for the shell itself. */}
+        <ErrorBoundary
+          key={pathname}
+          scope={pathname.startsWith('/project/') ? 'workspace' : 'view'}
+        >
+          <Outlet />
+        </ErrorBoundary>
       </main>
       {/* Bottom-anchored, like the workspace's resume banner. */}
       <ConnectionBanner />

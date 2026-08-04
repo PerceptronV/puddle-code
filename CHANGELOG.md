@@ -11,6 +11,14 @@ Past releases: see docs/changelogs/.
 
 ### Added
 
+- **A crash no longer blanks the window.** React unmounts any tree it cannot
+  render, so an exception left a white page with no message and no way back —
+  which is what made the v0.0.22 and v0.0.23 bugs look catastrophic. There is now
+  an error boundary around the routed view (a crash there leaves the top bar
+  alive, and navigating away clears it without a reload) and another at the root.
+  It names what stopped rendering, shows the error, says that sessions and
+  worktrees are safe on the daemon, and offers Try again / Reload — while still
+  logging the error and component stack to the console.
 - **Double-clicking the host label or the profile name in the top bar renames it
   in place** — the same two fields Settings offers, without opening Settings.
   Clearing the host label unsets it, so it falls back to the machine's hostname.

@@ -1,6 +1,7 @@
 import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Suspense, lazy, useSyncExternalStore } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router';
+import { ErrorBoundary } from './components/error-boundary';
 import { Toaster } from './components/ui/sonner';
 import { TooltipProvider } from './components/ui/tooltip';
 import { TokenGate } from './features/auth/TokenGate';
@@ -71,7 +72,10 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider delayDuration={300}>
-        {token ? <Gated /> : <TokenGate />}
+        {/* The outer net: whatever the routed view's own boundary does not catch
+            — the shell, the providers, the token gate — still says something
+            rather than emptying the window (components/error-boundary). */}
+        <ErrorBoundary scope="app">{token ? <Gated /> : <TokenGate />}</ErrorBoundary>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
