@@ -103,7 +103,7 @@ function CommitFiles({
   root?: string;
   lanes: GraphLane[];
   gutterW: number;
-  onOpen: (path: string, sha: string) => void;
+  onOpen: (path: string, sha: string, opts?: { preview?: boolean }) => void;
 }) {
   const show = useCommitShow(session, sha, root);
   const note = (text: string) => (
@@ -132,7 +132,10 @@ function CommitFiles({
             key={`${entry.status}:${entry.old_path ?? ''}:${entry.path}`}
             type="button"
             title={label}
+            // Peek on a single click, pin on a double — a files-tree click's
+            // semantics, so a result behaves like a file (SPEC §8).
             onClick={() => onOpen(entry.path, sha)}
+            onDoubleClick={() => onOpen(entry.path, sha, { preview: false })}
             className="flex w-full items-center text-left transition-colors hover:bg-elevated"
             style={{ height: FILE_ROW_H }}
           >
@@ -165,7 +168,7 @@ export function CommitGraph({
   session: string;
   /** `?root=` for a directory target (protocol 12.4); undefined for a worktree. */
   root?: string;
-  onOpenCommitFile: (path: string, sha: string) => void;
+  onOpenCommitFile: (path: string, sha: string, opts?: { preview?: boolean }) => void;
 }) {
   const log = useWorktreeLog(session, { root });
   const [openSha, setOpenSha] = useState<string | null>(null);

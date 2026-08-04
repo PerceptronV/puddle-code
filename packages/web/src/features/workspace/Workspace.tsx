@@ -951,16 +951,31 @@ function WorkspaceInner() {
   // a directory target the tab carries that directory as its `root`, which is
   // both what its requests send and what keys it apart from a worktree tab for
   // the same relative path (SPEC §8).
+  // Every one of them opens PREVIEW by default, exactly as a files-tree click
+  // does (SPEC §8): a single click on a result is a peek that the next click
+  // replaces in the same slot, and a double click — on the row or on its tab —
+  // pins it. `opts.preview === false` is the pin.
   const targetRoot = sidebarTarget.root;
   const rooted = targetRoot === undefined ? {} : { root: targetRoot };
-  const openDiff = (path: string) => {
-    if (targetSession) openEditorTab({ kind: 'diff', session: targetSession.id, path, ...rooted });
-  };
-  const openCommitFile = (path: string, sha: string) => {
+  type OpenOpts = { preview?: boolean } | undefined;
+  const previewing = (opts: OpenOpts) => ({ preview: opts?.preview ?? true });
+  const openDiff = (path: string, opts?: OpenOpts) => {
     if (targetSession)
-      openEditorTab({ kind: 'commit', session: targetSession.id, path, sha, ...rooted });
+      openEditorTab(
+        { kind: 'diff', session: targetSession.id, path, ...rooted },
+        undefined,
+        previewing(opts),
+      );
   };
-  const openSearchFile = (path: string, line?: number) => {
+  const openCommitFile = (path: string, sha: string, opts?: OpenOpts) => {
+    if (targetSession)
+      openEditorTab(
+        { kind: 'commit', session: targetSession.id, path, sha, ...rooted },
+        undefined,
+        previewing(opts),
+      );
+  };
+  const openSearchFile = (path: string, line?: number, opts?: OpenOpts) => {
     if (!targetSession) return;
     const position = line !== undefined ? { line, column: 1 } : undefined;
     // A directory target's files are `external` tabs — the kind that carries a
@@ -969,10 +984,11 @@ function WorkspaceInner() {
       openEditorTab(
         { kind: 'external', session: targetSession.id, path, root: targetRoot },
         position,
+        previewing(opts),
       );
       return;
     }
-    openFile(targetSession.id, path, position);
+    openFile(targetSession.id, path, position, previewing(opts));
   };
 
   // The horizontal shell (nav | main | sessions) persists its sizes into the

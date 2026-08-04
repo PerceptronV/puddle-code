@@ -152,9 +152,10 @@ export function NavigatorSidebar({
   activeExternalTab: { path: string; root: string } | null;
   /** Path of the active editor tab when it is an uncommitted diff for the bound worktree. */
   activeDiffPath: string | null;
-  onOpenDiff: (path: string) => void;
-  onOpenCommitFile: (path: string, sha: string) => void;
-  onOpenSearchFile: (path: string, line?: number) => void;
+  /** Results open PREVIEW tabs like a tree click; `preview: false` pins (SPEC §8). */
+  onOpenDiff: (path: string, opts?: { preview?: boolean }) => void;
+  onOpenCommitFile: (path: string, sha: string, opts?: { preview?: boolean }) => void;
+  onOpenSearchFile: (path: string, line?: number, opts?: { preview?: boolean }) => void;
 }) {
   const { session } = target;
 

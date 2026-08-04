@@ -25,6 +25,10 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Results in **Changes, History, and Search** now open as **preview tabs** on a
+  single click — italic, reusing one slot, replaced by the next peek — and pin on
+  a double click, exactly as the files tree has always behaved. Scanning a result
+  list used to leave a permanent tab behind for every row you looked at.
 - **Duplicate** on a layout row now means the same thing everywhere: a copy of
   what is SAVED there. On the current layout that means its saved version
   _without_ the unsaved changes on top, and which layout is active does not

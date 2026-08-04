@@ -55,7 +55,7 @@ export function SearchNav({
   session: string;
   /** `?root=` for a directory target (protocol 12.4); undefined for a worktree. */
   root?: string;
-  onOpen: (path: string, line?: number) => void;
+  onOpen: (path: string, line?: number, opts?: { preview?: boolean }) => void;
 }) {
   const [input, setInput] = useState('');
   const [query, setQuery] = useState('');
@@ -132,6 +132,7 @@ export function SearchNav({
                     type="button"
                     title={path}
                     onClick={() => onOpen(path)}
+                    onDoubleClick={() => onOpen(path, undefined, { preview: false })}
                     className="flex w-full items-center gap-1.5 px-3 py-1 text-left transition-colors hover:bg-elevated"
                   >
                     <FileIcon className="size-3.5 shrink-0 text-fg-gold" />
@@ -159,6 +160,7 @@ export function SearchNav({
                         key={`${match.line}:${i}`}
                         type="button"
                         onClick={() => onOpen(file.path, match.line)}
+                        onDoubleClick={() => onOpen(file.path, match.line, { preview: false })}
                         className="flex w-full items-baseline gap-2 py-0.5 pl-6 pr-3 text-left transition-colors hover:bg-elevated"
                       >
                         <span className="shrink-0 font-mono text-2xs tabular-nums text-fg-muted">

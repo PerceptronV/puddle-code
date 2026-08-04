@@ -20,14 +20,17 @@ function FileRow({
   status: import('@puddle/shared').DiffStatus;
   depth: number;
   active: boolean;
-  onOpen: (path: string) => void;
+  onOpen: (path: string, opts?: { preview?: boolean }) => void;
 }) {
   const style = diffStatusStyle(status);
   return (
     <button
       type="button"
       title={fullPath}
+      // Single click peeks (a preview tab), double click pins — the files
+      // tree's semantics, so a result behaves like a file (SPEC §8).
       onClick={() => onOpen(fullPath)}
+      onDoubleClick={() => onOpen(fullPath, { preview: false })}
       className={cn(
         'flex w-full items-center gap-1.5 py-1 pr-3 text-left transition-colors hover:bg-elevated',
         active && 'bg-selection',
@@ -52,7 +55,7 @@ function TreeRows({
   nodes: TreeNode[];
   depth: number;
   activePath: string | null;
-  onOpen: (path: string) => void;
+  onOpen: (path: string, opts?: { preview?: boolean }) => void;
 }) {
   // Directories default to expanded — a diff is usually small and worth seeing.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -127,7 +130,7 @@ export function UncommittedPanel({
   /** `?root=` for a directory target (protocol 12.4); undefined for a worktree. */
   root?: string;
   activePath: string | null;
-  onOpen: (path: string) => void;
+  onOpen: (path: string, opts?: { preview?: boolean }) => void;
 }) {
   const [flat, setFlat] = useState(false);
   const diff = useWorktreeDiff(session, { against: 'head', root });

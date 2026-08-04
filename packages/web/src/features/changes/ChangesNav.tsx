@@ -24,8 +24,8 @@ export function ChangesNav({
   root?: string;
   /** Path of the active editor tab when it is an uncommitted diff for `session`. */
   activeDiffPath: string | null;
-  onOpenDiff: (path: string) => void;
-  onOpenCommitFile: (path: string, sha: string) => void;
+  onOpenDiff: (path: string, opts?: { preview?: boolean }) => void;
+  onOpenCommitFile: (path: string, sha: string, opts?: { preview?: boolean }) => void;
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
