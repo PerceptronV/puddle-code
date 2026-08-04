@@ -212,6 +212,15 @@ export function NavigatorSidebar({
     },
   };
 
+  // What Changes and Search are actually ABOUT: a directory, not a session.
+  // Their remount key is therefore the worktree path (plus any request root),
+  // not the session id (fixed 2026-08-04) — sessions joining one worktree, which
+  // is puddle's default, used to remount both panels on every switch between
+  // them, blanking a commit graph and a file list that were already showing the
+  // right answer. A genuinely different directory still remounts, which is what
+  // resets the graph's expansion and the search box.
+  const navigatorScope = `${session?.worktree_path ?? ''}:${requestRoot ?? ''}`;
+
   return (
     <div className="flex h-full flex-col bg-surface">
       <div className="flex items-center gap-1 px-2 py-1.5">
@@ -358,7 +367,7 @@ export function NavigatorSidebar({
       {mode === 'changes' &&
         (session ? (
           <ChangesNav
-            key={`${session.id}:${requestRoot ?? ''}`}
+            key={navigatorScope}
             session={session.id}
             root={requestRoot}
             activeDiffPath={activeDiffPath}
@@ -372,7 +381,7 @@ export function NavigatorSidebar({
       {mode === 'search' &&
         (session ? (
           <SearchNav
-            key={`${session.id}:${requestRoot ?? ''}`}
+            key={navigatorScope}
             session={session.id}
             root={requestRoot}
             onOpen={onOpenSearchFile}

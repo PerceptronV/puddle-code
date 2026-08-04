@@ -1,4 +1,10 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+} from '@tanstack/react-query';
 import type {
   DiffResponse,
   FileAtResponse,
@@ -31,7 +37,28 @@ export function rootParam(root: string | undefined): string {
   return root === undefined ? '' : `&root=${encodeURIComponent(root)}`;
 }
 
+/**
+ * Keep the previous answer on screen while the next one is in flight (decision
+ * 2026-08-04). Every one of these queries is keyed by the SESSION, and the whole
+ * left sidebar re-binds whenever the focused tab changes — so without this, each
+ * switch dropped the file tree, the git decorations, the uncommitted list, and
+ * the commit graph back to "Loading…" and rebuilt them, which reads as a blink.
+ * It is not merely cosmetic: sessions joining one worktree (puddle's default)
+ * ask the same questions of the same directory under different ids, so the
+ * "previous" data is usually the very data the new query returns.
+ *
+ * Only ever applied to an ENABLED query: a disabled one has no request coming to
+ * replace the placeholder, so it would sit there showing a directory it is not
+ * bound to (the git-status query is disabled under a directory target).
+ */
+function keepPrevious<T>(enabled: boolean): {
+  placeholderData?: (previous: T | undefined) => T | undefined;
+} {
+  return enabled ? { placeholderData: (previous) => previous } : {};
+}
+
 export function useWorktreeTree(sid: string | undefined, path: string, root?: string) {
+  const enabled = sid !== undefined;
   return useQuery({
     // The extra key element only when overridden keeps every existing
     // `['wt-tree', sid, …]` invalidation prefix working unchanged.
@@ -41,7 +68,8 @@ export function useWorktreeTree(sid: string | undefined, path: string, root?: st
         'GET',
         `/api/worktrees/${sid}/tree?path=${encodeURIComponent(path)}${rootParam(root)}`,
       ),
-    enabled: sid !== undefined,
+    enabled,
+    ...keepPrevious<TreeResponse>(enabled),
   });
 }
 
@@ -92,13 +120,15 @@ export function useWorktreeDiff(
 ) {
   const against = opts?.against ?? 'base';
   const root = opts?.root;
+  const enabled = sid !== undefined && (opts?.enabled ?? true);
   return useQuery({
     queryKey: root === undefined ? ['wt-diff', sid, against] : ['wt-diff', sid, against, root],
     queryFn: () =>
       api<DiffResponse>('GET', `/api/worktrees/${sid}/diff?against=${against}${rootParam(root)}`),
-    enabled: sid !== undefined && (opts?.enabled ?? true),
+    enabled,
     refetchInterval: focusAwareInterval(10_000),
     refetchOnWindowFocus: true,
+    ...keepPrevious<DiffResponse>(enabled),
   });
 }
 
@@ -113,13 +143,15 @@ export function useWorktreeGitStatus(
   opts?: { enabled?: boolean; root?: string },
 ) {
   const root = opts?.root;
+  const enabled = sid !== undefined && (opts?.enabled ?? true);
   return useQuery({
     queryKey: root === undefined ? ['wt-git-status', sid] : ['wt-git-status', sid, root],
     queryFn: () =>
       api<GitStatusResponse>('GET', `/api/worktrees/${sid}/git-status${opQuery(root)}`),
-    enabled: sid !== undefined && (opts?.enabled ?? true),
+    enabled,
     refetchInterval: focusAwareInterval(10_000),
     refetchOnWindowFocus: true,
+    ...keepPrevious<GitStatusResponse>(enabled),
   });
 }
 
@@ -214,6 +246,7 @@ export function useWorktreeLog(
   opts?: { enabled?: boolean; root?: string },
 ) {
   const root = opts?.root;
+  const enabled = sid !== undefined && (opts?.enabled ?? true);
   return useInfiniteQuery({
     queryKey: root === undefined ? ['wt-log', sid] : ['wt-log', sid, root],
     queryFn: ({ pageParam }) =>
@@ -224,7 +257,11 @@ export function useWorktreeLog(
     initialPageParam: 0,
     getNextPageParam: (lastPage, pages) =>
       lastPage.has_more ? pages.length * LOG_PAGE_SIZE : undefined,
-    enabled: sid !== undefined && (opts?.enabled ?? true),
+    enabled,
+    // The graph keeps the commits it is showing while the next worktree's land
+    // (see `keepPrevious`); pages carried over are replaced wholesale by the
+    // first page of the new query, never appended to.
+    ...keepPrevious<InfiniteData<LogResponse, number>>(enabled),
   });
 }
 
