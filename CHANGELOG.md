@@ -21,3 +21,4 @@ Past releases: see docs/changelogs/.
 - **Archived sessions group by project**, in the same order the live list uses, and each row says when it was last active instead of naming its account.
 - The **archived pane and the Changes navigator's History pane resize by dragging their top border**; both heights persist per browser.
 - **Compact density tightens the top bar's right-hand cluster** (settings · layouts · scratchpad · profile): the gap closes and each control's box narrows, 28px tall instead of 32.
+- **Project-based layout is now ON by default** — returning to a project brings its own panes back. Stored preferences are untouched; Settings → Appearance still toggles it, independently of the all-projects session list (also on).

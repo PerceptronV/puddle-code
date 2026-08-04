@@ -18,7 +18,8 @@ export interface ClientSettings {
   editorLinkSshHost: string;
   /**
    * Project-based layout (SPEC §11): the centre editor keeps a layout per
-   * project instead of one profile-wide surface.
+   * project instead of one profile-wide surface. ON by default since 2026-08-04
+   * — a project's panes are what you want back when you return to it.
    */
   projectBasedLayout: boolean;
   /**
@@ -41,7 +42,7 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettings = {
   editorTabSize: 2,
   editorWordWrap: false,
   editorLinkSshHost: '',
-  projectBasedLayout: false,
+  projectBasedLayout: true,
   showAllProjectSessions: true,
 };
 

@@ -101,9 +101,10 @@ import { useUiState } from './use-ui-state';
  * Project workspace (SPEC §8): the left navigator, the centre free-form tiling
  * area (editor + terminal tabs in `layout_tree`, driven by `useLayoutTree`), and
  * the right session sidebar. The tiling tree and the shell sizes persist PER
- * PROFILE — the centre area is one surface shared across the profile's projects
- * — and restore on open (SPEC §11); the project-based layout setting narrows
- * the tree (not the shell) to per profile+project via `scopeUiState`. `EditorProvider` lets the explorer and
+ * PROFILE — the shell sizes are one surface across the profile's projects — and
+ * restore on open (SPEC §11); the project-based layout setting (ON by default
+ * since 2026-08-04) narrows the TREE (not the shell) to per profile+project via
+ * `scopeUiState`, so each project keeps its own panes. `EditorProvider` lets the explorer and
  * terminal links open files without prop-drilling; Monaco/xterm stay behind
  * lazy chunks (`KeepAliveHost` + the pane bodies).
  */
