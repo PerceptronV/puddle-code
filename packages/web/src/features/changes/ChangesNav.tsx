@@ -1,3 +1,4 @@
+import { HeightHandle, useResizableHeight } from '../../components/resizable-height';
 import { CommitGraph } from './CommitGraph';
 import { UncommittedPanel } from './UncommittedPanel';
 
@@ -27,9 +28,16 @@ export function ChangesNav({
   onOpenDiff: (path: string, opts?: { preview?: boolean }) => void;
   onOpenCommitFile: (path: string, sha: string, opts?: { preview?: boolean }) => void;
 }) {
+  // The border between the two panels drags (SPEC §8): the uncommitted list
+  // above is sized, History below takes the rest. The percentage cap keeps a
+  // height dragged in a tall sidebar from crowding History in a short one.
+  const { height, handle } = useResizableHeight('changes-uncommitted', 240, {
+    sized: 'above',
+    min: 80,
+  });
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <section className="flex max-h-[45%] min-h-0 flex-col">
+      <section className="flex shrink-0 flex-col" style={{ height, maxHeight: '70%' }}>
         <UncommittedPanel
           session={session}
           root={root}
@@ -37,7 +45,7 @@ export function ChangesNav({
           onOpen={onOpenDiff}
         />
       </section>
-      <div className="h-px shrink-0 bg-border" />
+      <HeightHandle handle={handle} label="Resize the uncommitted changes" />
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex h-7 shrink-0 items-center px-3">
           <span className="text-2xs font-medium uppercase tracking-wide text-fg-gold">History</span>

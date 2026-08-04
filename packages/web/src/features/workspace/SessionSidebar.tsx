@@ -1,4 +1,4 @@
-import { useEffect, useState, type DragEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type DragEvent, type ReactNode } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { Link } from 'react-router';
 import {
@@ -17,6 +17,7 @@ import {
 import type { Account, Session } from '@puddle/shared';
 import { AgentIcon } from '../../components/agent-icon';
 import { InlineLabelEdit, editOnDoubleClick } from '../../components/inline-label-edit';
+import { HeightHandle, useResizableHeight } from '../../components/resizable-height';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -30,6 +31,7 @@ import { ABBREV_MAX, normaliseAbbrev } from '../../lib/project-abbrev';
 import { usePatchProject } from '../../lib/queries';
 import { useHotkeyLabel } from '../../lib/hotkeys';
 import { cn } from '../../lib/utils';
+import { relativeTime } from '../history/history-logic';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
 import { SessionGlyph } from '../status/SessionGlyph';
 import {
@@ -515,6 +517,7 @@ function SessionRow({
   onPromote,
   onArchived,
   ellipsis,
+  lastActive = false,
 }: {
   session: Session;
   activeSessionId: string | null;
@@ -524,8 +527,25 @@ function SessionRow({
   onArchived: (id: string) => void;
   /** Whether to mount the hover ellipsis (archived rows omit it). */
   ellipsis: boolean;
+  /**
+   * Show when the session was last active instead of its agent · account line —
+   * for archived rows, where "how long ago did I stop working on this" is the
+   * only thing that orders a long list (nothing is running to have a status).
+   */
+  lastActive?: boolean;
 }) {
   const renderTitle = useSessionTitleRenderer();
+  const kindLabel = session.kind === 'terminal' ? 'terminal' : (session.agent_type ?? 'agent');
+  // An archived row trades its account for its last activity — the account is
+  // fixed for the session's life and interesting while it runs; once archived,
+  // when you last touched it is what tells the list apart.
+  const suffix = lastActive
+    ? session.last_activity_at === null
+      ? ''
+      : ` · ${relativeTime(session.last_activity_at)}`
+    : session.account_id !== null && accountLabel.has(session.account_id)
+      ? ` · ${accountLabel.get(session.account_id)}`
+      : '';
   return (
     <SessionContextMenu session={session} onArchived={onArchived}>
       {(menu) => (
@@ -557,10 +577,8 @@ function SessionRow({
             </span>
             <span className="flex items-center gap-1 truncate font-mono text-2xs text-fg-muted">
               <span className="truncate">
-                {session.kind === 'terminal' ? 'terminal' : (session.agent_type ?? 'agent')}
-                {session.account_id !== null && accountLabel.has(session.account_id)
-                  ? ` · ${accountLabel.get(session.account_id)}`
-                  : ''}
+                {kindLabel}
+                {suffix}
               </span>
             </span>
           </span>
@@ -696,6 +714,30 @@ function SessionListBody({
   const paletteKey = useHotkeyLabel('palette.toggle');
   const accountLabel = new Map(accounts.map((a) => [a.id, a.label]));
   const total = groups.reduce((n, g) => n + g.sessions.length, 0);
+  // The open archived pane's height, dragged by the border above its header.
+  const { height: archivedHeight, handle } = useResizableHeight('sessions-archived', 200, {
+    sized: 'below',
+    min: 96,
+  });
+  // Archived sessions grouped like the live ones (SPEC §12), in the same project
+  // order — a flat list of every project's archives was unreadable once more
+  // than one project had any. A session whose project has no group (an archived
+  // project) still lists, under no header, rather than disappearing.
+  const archivedGroups = useMemo<SessionGroup[]>(() => {
+    const placed = new Set<string>();
+    const byProject = groups.map((g) => {
+      const rows = archived.filter((s) => s.project_id === g.projectId);
+      for (const s of rows) placed.add(s.id);
+      return { ...g, sessions: rows };
+    });
+    const orphans = archived.filter((s) => !placed.has(s.id));
+    return [
+      ...byProject.filter((g) => g.sessions.length > 0),
+      ...(orphans.length > 0
+        ? [{ projectId: '', name: '', abbrev: '', repoId: -1, sessions: orphans }]
+        : []),
+    ];
+  }, [groups, archived]);
 
   const move = (id: string, before: string) => {
     const next = moveWithinGroups(groups, id, before);
@@ -813,42 +855,68 @@ function SessionListBody({
       </div>
       {/* Archived sessions: hidden by default under a collapsible header at the
           bottom, never deleted — click one to reopen it and read its history
-          (SPEC §4). */}
+          (SPEC §4). Open, the pane is GROUPED BY PROJECT exactly as the live
+          list is, each row saying when it was last active, and its top border
+          drags to give the pane more (or less) of the sidebar. */}
       {(archived.length > 0 || sessionDragActive) && (
-        <div className="shrink-0 pb-1.5">
-          <button
-            ref={archiveDrop.setNodeRef}
-            type="button"
-            onClick={() => setShowArchived((v) => !v)}
-            {...archiveDrop.props}
-            className={cn(
-              'flex w-full items-center gap-1.5 px-3 py-1.5 text-2xs uppercase tracking-wide text-fg-gold transition-colors hover:text-fg',
-              archiveDrop.armed && 'bg-selection text-fg',
-            )}
+        <>
+          {showArchived && <HeightHandle handle={handle} label="Resize the archived sessions" />}
+          <div
+            className="flex shrink-0 flex-col pb-1.5"
+            // Sized only while open (closed, the header is all there is). The
+            // percentage cap resolves against the sidebar's own definite height,
+            // so a pane dragged tall elsewhere cannot swallow the live list here.
+            style={showArchived ? { height: archivedHeight, maxHeight: '70%' } : undefined}
           >
-            <ChevronRight
-              className={cn('size-3 transition-transform', showArchived && 'rotate-90')}
-            />
-            <Archive className="size-3" />
-            <span>Archived</span>
-            <span className="ml-auto tabular-nums">{archived.length}</span>
-          </button>
-          {showArchived && (
-            <ul className="no-scrollbar flex max-h-48 flex-col gap-0.5 overflow-y-auto compact:gap-0">
-              {archived.map((session) => (
-                <li key={session.id}>
-                  <SessionRow
-                    session={session}
-                    activeSessionId={activeSessionId}
-                    accountLabel={accountLabel}
-                    onArchived={onArchived}
-                    ellipsis
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+            <button
+              ref={archiveDrop.setNodeRef}
+              type="button"
+              onClick={() => setShowArchived((v) => !v)}
+              {...archiveDrop.props}
+              className={cn(
+                'flex w-full items-center gap-1.5 px-3 py-1.5 text-2xs uppercase tracking-wide text-fg-gold transition-colors hover:text-fg',
+                archiveDrop.armed && 'bg-selection text-fg',
+              )}
+            >
+              <ChevronRight
+                className={cn('size-3 transition-transform', showArchived && 'rotate-90')}
+              />
+              <Archive className="size-3" />
+              <span>Archived</span>
+              <span className="ml-auto tabular-nums">{archived.length}</span>
+            </button>
+            {showArchived && (
+              <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
+                {archivedGroups.map((group) => (
+                  <div key={group.projectId}>
+                    {/* Dimmer than a live group's header and inert: archived rows
+                        are for finding one session again, not for navigating
+                        projects (that is the live list's header, right above). */}
+                    {group.name !== '' && (
+                      <div className="truncate px-3 pb-0.5 pt-1.5 text-2xs font-medium uppercase tracking-wide text-fg-muted">
+                        {group.name}
+                      </div>
+                    )}
+                    <ul className="flex flex-col gap-0.5 compact:gap-0">
+                      {group.sessions.map((session) => (
+                        <li key={session.id}>
+                          <SessionRow
+                            session={session}
+                            activeSessionId={activeSessionId}
+                            accountLabel={accountLabel}
+                            onArchived={onArchived}
+                            ellipsis
+                            lastActive
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
       )}
     </>
   );

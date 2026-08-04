@@ -18,3 +18,5 @@ Past releases: see docs/changelogs/.
 ### Changed
 
 - **Folders no longer rename on a click gesture** in the file tree: a folder's clicks belong to expand/collapse (double-clicking one now opens and closes it), and Rename… on the right-click menu — or `F2` — is the only way in. Files keep the Finder-style second-click rename.
+- **Archived sessions group by project**, in the same order the live list uses, and each row says when it was last active instead of naming its account.
+- The **archived pane and the Changes navigator's History pane resize by dragging their top border**; both heights persist per browser.
