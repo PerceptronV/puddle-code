@@ -5,6 +5,43 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/puddle.svg" />
     <title>Puddle</title>
+    <!--
+      Theme before the first paint (SPEC §12). Every semantic colour token lives
+      in a [data-theme] block (styles/tokens.css), and the app's module — which
+      sets that attribute — is deferred, so the browser painted one unthemed
+      frame first: no ground colour at all, i.e. white, on every single load
+      (measured 2026-08-04: at the first animation frame data-theme was unset
+      and body's background was transparent). This runs synchronously in <head>,
+      so the first frame is already the right colour.
+
+      Deliberately duplicates the resolution in lib/theme.ts (`initTheme`) and
+      lib/client-settings.ts, which still run and are still authoritative — this
+      cannot import them, and keeping it to the two attributes that decide how
+      the shell PAINTS keeps the duplication small. Any change to those storage
+      keys or their defaults belongs here too.
+    -->
+    <script>
+      try {
+        var pref = localStorage.getItem('puddle.theme') || 'system';
+        document.documentElement.dataset.theme =
+          pref === 'dark' || pref === 'light'
+            ? pref
+            : window.matchMedia('(prefers-color-scheme: light)').matches
+              ? 'light'
+              : 'dark';
+        var client = JSON.parse(localStorage.getItem('puddle.client-settings') || '{}');
+        document.documentElement.dataset.density =
+          client.density === 'comfortable' ? 'comfortable' : 'compact';
+        // Always set, stored or not, so the rem base of the first frame is the
+        // one the app will keep (app.css's fallback is a different value).
+        document.documentElement.style.setProperty(
+          '--ui-font-size',
+          (typeof client.uiFontSize === 'number' ? client.uiFontSize : 16) + 'px',
+        );
+      } catch (e) {
+        // Storage disabled or unreadable: the module's own init still runs.
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
