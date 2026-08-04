@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Session, SessionKind } from '@puddle/shared';
+import { ChevronDown } from 'lucide-react';
+import type { Project, Session, SessionKind } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import {
   Dialog,
@@ -9,6 +10,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../../components/ui/dropdown-menu';
 import { HintInput } from '../../components/ui/hint-input';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
@@ -27,6 +34,7 @@ import {
   useCreateSession,
   useHostInfo,
   useProfileSettings,
+  useProjects,
   useRepoBranches,
   useRepoWorktrees,
   useRepos,
@@ -36,15 +44,22 @@ import { useCurrentProfileId } from '../profile/profile-store';
 import { resolveSessionSeed } from './session-seed';
 
 /**
- * Account → branch → directory (SPEC §4/§11). Two independent axes decide where
- * the session lands: **separate branch** (a fresh branch in its own worktree)
- * and, when that is off, **separate directory** (its own working copy of the
- * base branch; turn it off to share a directory — picking an existing one to
- * drop into). Both axes and the base branch open on the profile's per-kind
+ * Project → account → branch → directory (SPEC §4/§11). Two independent axes
+ * decide where the session lands: **separate branch** (a fresh branch in its own
+ * worktree) and, when that is off, **separate directory** (its own working copy
+ * of the base branch; turn it off to share a directory — picking an existing one
+ * to drop into). Both axes and the base branch open on the profile's per-kind
  * `sessionDefaults` (Settings → Sessions), falling back to the built-ins:
  * agents on a new branch in their own directory, terminals sharing the base
  * branch's directory. The skip toggle renders only when the profile gate is on
  * and the chosen account opted in.
+ *
+ * The PROJECT is retargetable here too (decision 2026-08-03), seeded from
+ * `projectId` — the workspace's current project, or the one whose sidebar header
+ * was right-clicked. Deliberately NOT a peer of the pickers below: it sits in
+ * the description sentence as a dim inline control (SPEC §12), because it is
+ * almost always already correct and a full field would read as one more decision
+ * to make. Switching it re-seeds the branch state against the new repository.
  */
 export function NewSessionDialog({
   projectId,
@@ -55,7 +70,9 @@ export function NewSessionDialog({
   onOpenChange,
   onCreated,
 }: {
+  /** Seeds the project control; the user can retarget it. */
   projectId: string;
+  /** The seed project's repository — the fallback until `useProjects` lands. */
   repoId: number;
   open: boolean;
   /** 'terminal' opens the dialog in shell mode (no account); defaults to 'agent'. */
@@ -73,6 +90,7 @@ export function NewSessionDialog({
   const host = useHostInfo();
   const create = useCreateSession();
 
+  const [project, setProject] = useState('');
   const [accountId, setAccountId] = useState<string>('');
   const [baseBranch, setBaseBranch] = useState('');
   const [separateBranch, setSeparateBranch] = useState(true);
@@ -82,15 +100,35 @@ export function NewSessionDialog({
   const [skip, setSkip] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const repo = repos.data?.find((r) => r.id === repoId);
-  const branches = useRepoBranches(open ? repoId : undefined);
-  const worktrees = useRepoWorktrees(open ? repoId : undefined);
+  // The project the session will land in, and the repository that follows from
+  // it. The `projectId` prop only SEEDS this (see the effect below), so every
+  // query downstream keys off the live choice; `repoId` covers the window before
+  // the projects list arrives.
+  const projects = useProjects(profileId ?? undefined);
+  const pickableProjects = useMemo(
+    () => (projects.data ?? []).filter((p) => !p.archived),
+    [projects.data],
+  );
+  const effectiveProjectId = project || projectId;
+  const targetProject = pickableProjects.find((p) => p.id === effectiveProjectId);
+  const effectiveRepoId = targetProject?.repo_id ?? repoId;
+
+  const repo = repos.data?.find((r) => r.id === effectiveRepoId);
+  const branches = useRepoBranches(open ? effectiveRepoId : undefined);
+  const worktrees = useRepoWorktrees(open ? effectiveRepoId : undefined);
   const branchPreview = `leave blank for auto`;
   const account = accounts.data?.find((a) => String(a.id) === accountId);
   const gateOpen = settings.data?.allowSkipPermissions === true;
   const showSkipToggle = !isTerminal && gateOpen && account?.skip_permissions_default === true;
 
   const baseName = baseBranch.trim() || repo?.default_base_branch || '';
+
+  // Re-seed the project each time the dialog opens: `projectId` is where the
+  // gesture came from (the workspace's project, or a right-clicked sidebar
+  // header), and a previous open's choice must never carry over.
+  useEffect(() => {
+    if (open) setProject(projectId);
+  }, [open, projectId]);
 
   // Every git worktree already checked out on the base branch — the clone
   // itself and any puddle worktree — so a shared session can drop into one.
@@ -127,11 +165,13 @@ export function NewSessionDialog({
     if (open && seedAccountId !== undefined) setAccountId(String(seedAccountId));
   }, [open, seedAccountId]);
 
-  // Reset the axes each time the dialog opens (or its mode changes), seeding
-  // from the profile's per-kind defaults (Settings → Sessions). Settings are
-  // read through a ref so their arrival mid-dialog never clobbers toggles the
-  // user already touched — a first-ever open racing the fetch simply seeds
-  // the built-ins.
+  // Reset the axes each time the dialog opens (or its mode or project changes),
+  // seeding from the profile's per-kind defaults (Settings → Sessions). Settings
+  // are read through a ref so their arrival mid-dialog never clobbers toggles
+  // the user already touched — a first-ever open racing the fetch simply seeds
+  // the built-ins. Retargeting the project re-seeds because the branch state
+  // belongs to a repository: a base branch and a directory to join in the old
+  // project mean nothing in the new one.
   const settingsRef = useRef(settings.data);
   settingsRef.current = settings.data;
   useEffect(() => {
@@ -142,24 +182,25 @@ export function NewSessionDialog({
       setSeparateWorktree(seed.separateWorktree);
       setJoinWorktree('');
     }
-  }, [open, isTerminal]);
+  }, [open, isTerminal, effectiveProjectId]);
 
   // Prefill the base branch with the value an empty field would resolve to
   // (the repository's default) — the field shows what will actually be used.
   // Functional update so a late repos fetch fills only a still-empty field and
   // never overwrites something the user typed; clearing it still means "the
-  // repository default", which the placeholder continues to say.
-  const repoDefaultBranch = repos.data?.find((r) => r.id === repoId)?.default_base_branch;
+  // repository default", which the placeholder continues to say. Runs after the
+  // re-seed above (declaration order), so a project switch refills it.
+  const repoDefaultBranch = repo?.default_base_branch;
   useEffect(() => {
     if (!open || !repoDefaultBranch) return;
     setBaseBranch((prev) => (prev === '' ? repoDefaultBranch : prev));
-  }, [open, repoDefaultBranch]);
+  }, [open, effectiveProjectId, repoDefaultBranch]);
 
   const submit = () => {
     setError(null);
     create.mutate(
       {
-        project_id: projectId,
+        project_id: effectiveProjectId,
         ...(isTerminal
           ? { kind: 'terminal' as const }
           : { account_id: Number(effectiveAccountId) }),
@@ -195,8 +236,17 @@ export function NewSessionDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{isTerminal ? 'New terminal' : 'New agent'}</DialogTitle>
+          {/* The project rides IN the sentence rather than above the fields —
+              it is nearly always already right, and a field of its own would
+              present it as another decision to make (HUMANS.md). */}
           <DialogDescription>
-            {isTerminal ? 'Opens' : 'Spawns'} {noun} {where}.
+            {isTerminal ? 'Opens' : 'Spawns'} {noun} in{' '}
+            <ProjectPicker
+              projects={pickableProjects}
+              value={effectiveProjectId}
+              onChange={setProject}
+            />{' '}
+            {where}.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -385,5 +435,53 @@ export function NewSessionDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Which project the session lands in — one dim word inside the header sentence,
+ * plus a small chevron to say it is live (HUMANS.md: no border, a colour shift
+ * on hover, and a pointer cursor). Deliberately quieter than the fields below:
+ * it is seeded correctly for the gesture that opened the dialogue, so it should
+ * read as a fact you CAN change rather than a choice you must make. With nothing
+ * to switch to it degrades to plain text.
+ */
+function ProjectPicker({
+  projects,
+  value,
+  onChange,
+}: {
+  projects: Project[];
+  value: string;
+  onChange: (projectId: string) => void;
+}) {
+  // Before the projects list lands there is a project but no name for it; say
+  // so rather than flashing a wrong one.
+  const label = projects.find((p) => p.id === value)?.name ?? 'this project';
+  if (projects.length < 2) return <span className="text-fg-secondary">{label}</span>;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          title="Choose the project"
+          className="inline-flex items-center gap-0.5 text-fg-secondary transition-colors hover:text-fg"
+        >
+          {label}
+          <ChevronDown className="size-3 shrink-0" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {projects.map((p) => (
+          <DropdownMenuItem
+            key={p.id}
+            onSelect={() => onChange(p.id)}
+            className={cn('truncate', p.id === value && 'text-fg')}
+          >
+            {p.name}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
