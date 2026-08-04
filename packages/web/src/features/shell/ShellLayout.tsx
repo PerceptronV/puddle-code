@@ -26,7 +26,7 @@ import { useLocalSyncEngine } from './use-local-sync-engine';
 import { useWaitingNotifications } from './use-waiting-notifications';
 import { ScratchpadPopover } from '../scratchpad/ScratchpadPopover';
 import { LayoutsPopover } from '../layouts/LayoutsPopover';
-import { desktopBridge } from '../../lib/desktop';
+import { desktopBridge, useDesktopFullScreen } from '../../lib/desktop';
 import { cn } from '../../lib/utils';
 
 // Under the macOS desktop shell the native title bar is hidden and the top
@@ -175,6 +175,13 @@ function CommandField() {
 }
 
 function TopBar() {
+  // macOS hides the inlaid traffic lights in full-screen, so the inset kept for
+  // them would indent the host name against nothing (jarring on every
+  // enter/leave). Full-screen therefore drops back to the ordinary bar: name at
+  // the left edge, standard height. The drag region goes too — there is no
+  // window to move.
+  const fullScreen = useDesktopFullScreen();
+  const inlaidLights = shellTitleBar && !fullScreen;
   return (
     // pl-3 ≈ the right side's visual inset (pr-3 + the ghost buttons' own padding).
     <header
@@ -182,7 +189,7 @@ function TopBar() {
         'relative flex h-9 shrink-0 items-center gap-3 bg-surface pl-3 pr-3',
         // Slightly taller as a title bar (40px) so the content breathes
         // without pushing the workspace chrome away from the traffic lights.
-        shellTitleBar && 'h-10 pl-[88px] [-webkit-app-region:drag]',
+        inlaidLights && 'h-10 pl-[88px] [-webkit-app-region:drag]',
       )}
     >
       <HomeButton />

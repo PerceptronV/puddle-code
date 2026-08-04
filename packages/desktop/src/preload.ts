@@ -25,4 +25,16 @@ contextBridge.exposeInMainWorld('puddleDesktop', {
   },
   /** Quit, swap the install, relaunch — the banner's "Restart to update". */
   installUpdate: () => ipcRenderer.send('puddle:install-update'),
+  /**
+   * Whether this window is full-screen — a window fact the renderer cannot read.
+   * The top bar insets for the inlaid macOS traffic lights, which are hidden in
+   * full-screen, so it needs to know (ShellLayout).
+   */
+  isFullScreen: (): Promise<boolean> => ipcRenderer.invoke('puddle:is-fullscreen'),
+  /** Fires on enter/leave full-screen with the new state; returns the unsubscribe. */
+  onFullScreenChange: (callback: (full: boolean) => void): (() => void) => {
+    const handler = (_event: unknown, full: boolean) => callback(full);
+    ipcRenderer.on('puddle:fullscreen', handler);
+    return () => ipcRenderer.removeListener('puddle:fullscreen', handler);
+  },
 });

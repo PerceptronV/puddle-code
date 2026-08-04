@@ -141,6 +141,17 @@ function createWindow(target: string, cockpit: RunningCockpit): BrowserWindow {
     },
   });
 
+  // Full-screen state is a WINDOW fact only the main process knows, and the top
+  // bar needs it: with the native title bar hidden the bar insets 88px for the
+  // inlaid traffic lights, which macOS HIDES in full-screen — leaving the host
+  // name indented against nothing. Tell the renderer whenever it changes (it
+  // also asks once on mount, below, for a window already full-screen).
+  const sendFullScreen = () => {
+    if (!win.isDestroyed()) win.webContents.send('puddle:fullscreen', win.isFullScreen());
+  };
+  win.on('enter-full-screen', sendFullScreen);
+  win.on('leave-full-screen', sendFullScreen);
+
   // Links that leave the cockpit (terminal web links, the ports strip,
   // markdown previews) open in the system browser — never a chromeless
   // child window.
@@ -328,6 +339,15 @@ ipcMain.on('puddle:raise', (event) => {
 // rather than a menu accelerator precisely so a rebind in Settings → Hotkeys is
 // honoured (the File → Close item below keeps the glyph but registers nothing).
 ipcMain.on('puddle:close-window', (event) => BrowserWindow.fromWebContents(event.sender)?.close());
+
+// The renderer's first read of its own window's full-screen state (the events in
+// createWindow carry every later change). A reload while full-screen fires no
+// enter/leave event, so without this the top bar would come back inset for
+// traffic lights that are not there.
+ipcMain.handle(
+  'puddle:is-fullscreen',
+  (event) => BrowserWindow.fromWebContents(event.sender)?.isFullScreen() ?? false,
+);
 
 // ---------------------------------------------------------------------------
 // Self-update (SPEC §10): the CLI-style pipeline from lib/desktop-update —
