@@ -57,7 +57,7 @@ import { toastError } from '../../lib/errors';
 import { warmEditorChunk } from '../editor/lazy-editor-parts';
 import { warmTerminalChunk } from '../terminal/LazyTerminal';
 import { wsManager } from '../../lib/ws';
-import { registerHotkey } from '../../lib/hotkeys';
+import { registerHotkey, useHotkeyLabel } from '../../lib/hotkeys';
 import { setScratchpadInsertHandler } from '../scratchpad/scratchpad-store';
 import { setLayoutBridge } from '../layouts/layouts-store';
 import { KeepAliveHost } from './keep-alive';
@@ -115,6 +115,7 @@ function WorkspaceInner() {
   const sessions = useMemo(() => detail.data?.sessions ?? [], [detail.data]);
   const accounts = useAccounts(detail.data?.project.profile_id).data ?? [];
   const renderTitle = useSessionTitleRenderer();
+  const saveKey = useHotkeyLabel('editor.save');
 
   // Profile-keyed (SPEC §11): the layout tree is shared across projects, so the
   // tiling area needs every session it may hold a tab for — whatever the
@@ -1133,7 +1134,8 @@ function WorkspaceInner() {
               <DialogHeader>
                 <DialogTitle>Discard this draft?</DialogTitle>
                 <DialogDescription>
-                  Closing an untitled tab deletes its draft — ⌘S saves it into the worktree instead.
+                  Closing an untitled tab deletes its draft — {saveKey} saves it into the worktree
+                  instead.
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>

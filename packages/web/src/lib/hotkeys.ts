@@ -215,6 +215,19 @@ export function actionForBinding(binding: string): string | undefined {
   return undefined;
 }
 
+/**
+ * An action's effective binding as Mac glyphs (`⌘K`), re-rendering when the
+ * profile rebinds it. Every place that NAMES a shortcut in UI copy — the top
+ * bar's palette hint, an empty pane, an empty session list, the homescreen, the
+ * draft-save prompts — reads it from here rather than hard-coding the default,
+ * so a rebind is honest everywhere at once (SPEC §11). Actions deliberately
+ * left out of the registry (filetree ops, terminal line-edits) still spell
+ * their fixed keys literally; those cannot be rebound.
+ */
+export function useHotkeyLabel(id: string): string {
+  return formatBinding(useHotkeyBindings()[id] ?? '');
+}
+
 /** Subscribe to the effective bindings (React) — re-render on rebind. */
 export function useHotkeyBindings(): Record<string, string> {
   return useSyncExternalStore(

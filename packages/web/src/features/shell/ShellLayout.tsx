@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { openCommandPalette } from '../../lib/command-palette';
 import { openSettings } from '../../lib/hash-route';
+import { useHotkeyLabel } from '../../lib/hotkeys';
 import { hostLabel, useHostInfo, useProjectDetail } from '../../lib/queries';
 import { wsManager } from '../../lib/ws';
 import { Suspense, lazy, useState } from 'react';
@@ -106,12 +107,13 @@ function HomeButton() {
 
 /**
  * The centre command field (SPEC §12): a thin, background-dimmed pseudo-input
- * that opens the ⌘K palette on click. Its centred hint names the active project
+ * that opens the command palette on click. Its centred hint names the active project
  * so the bar always says where you are — no border, a fill-shift on hover
  * (HUMANS.md).
  */
 function CommandField() {
   const params = useParams();
+  const paletteKey = useHotkeyLabel('palette.toggle');
   const detail = useProjectDetail(params['id']);
   const projectName = detail.data?.project.name;
   return (
@@ -124,7 +126,7 @@ function CommandField() {
       )}
     >
       <span className="truncate text-xs">{projectName ?? 'puddle'}</span>
-      <span className="text-2xs">⌘K</span>
+      <span className="text-2xs">{paletteKey}</span>
     </button>
   );
 }

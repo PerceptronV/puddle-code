@@ -41,6 +41,7 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Rebinding a shortcut is reflected in the copy that names it: the top bar's command field, an empty pane's palette button, the empty session list and empty dashboard all show the live command-palette binding instead of a hard-coded ⌘K, and the two draft-save prompts show the live Save binding instead of ⌘S.
 - A file tab's hover controls no longer square off its top-right corner — their background carries the chip's own rounding.
 - `~` paths autocomplete properly everywhere (project picker, account import path, any directory field): the daemon's tilde expansion dropped the trailing slash, so `~/` completed home's own name inside its parent instead of listing home, and any deeper `~/…/` prefix suggested nothing.
 - Optional form fields no longer sit empty and get silently reinterpreted on submit: the profile-creation branch prefix, the new-session base branch, and the tab-title template are prefilled with the default they would have become (clearing the profile branch prefix now honestly means no prefix). Placeholders that lied were corrected — the settings branch prefix says "no prefix", the host display name shows the real hostname fallback, the editor SSH-host field shows the tunnelled host already in effect — and clearing a numeric host setting no longer PATCHes a rejected 0. The settings "Repositories" tab is now "Projects" (old #settings/repositories links still resolve).

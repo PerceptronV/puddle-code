@@ -3,6 +3,7 @@ import { useDroppable } from '@dnd-kit/core';
 import type { LayoutLeaf, Session, TabRef } from '@puddle/shared';
 import { PuddleGlyph } from '../../components/puddle-glyph';
 import { openCommandPalette } from '../../lib/command-palette';
+import { useHotkeyLabel } from '../../lib/hotkeys';
 import { cn } from '../../lib/utils';
 import { LazyPaneEditorBody } from '../editor/lazy-editor-parts';
 import type { RevealTarget } from './editor-context';
@@ -59,6 +60,7 @@ export function PaneLeaf({
   const slotRef = useKeepAliveSlot(terminalKey);
   const { setNodeRef } = useDroppable({ id: `leaf:${leaf.id}` });
   const indicator = useDropIndicator();
+  const paletteKey = useHotkeyLabel('palette.toggle');
 
   // Clicking INTO the pane body activates the shown tab, via a NATIVE capture
   // listener — not React's onMouseDownCapture. An adopted terminal's DOM was
@@ -156,7 +158,7 @@ export function PaneLeaf({
               onClick={openCommandPalette}
               className="rounded-md bg-elevated px-3 py-1.5 font-mono text-xs text-fg-muted transition-colors hover:bg-border hover:text-fg-secondary"
             >
-              ⌘K
+              {paletteKey}
             </button>
           </div>
         )}

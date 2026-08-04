@@ -25,6 +25,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/too
 import { toastError } from '../../lib/errors';
 import { ABBREV_MAX, normaliseAbbrev } from '../../lib/project-abbrev';
 import { usePatchProject } from '../../lib/queries';
+import { useHotkeyLabel } from '../../lib/hotkeys';
 import { cn } from '../../lib/utils';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
 import { SessionGlyph } from '../status/SessionGlyph';
@@ -705,6 +706,7 @@ function SessionListBody({
   const activeDragRef = useActiveDragRef();
   const sessionDragActive = dragging !== null || activeDragRef?.type === 'terminal';
   const patchProject = usePatchProject();
+  const paletteKey = useHotkeyLabel('palette.toggle');
   const accountLabel = new Map(accounts.map((a) => [a.id, a.label]));
   const total = groups.reduce((n, g) => n + g.sessions.length, 0);
 
@@ -728,7 +730,7 @@ function SessionListBody({
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto py-1.5">
         {total === 0 && archived.length === 0 && (
           <p className="px-3 py-3 text-xs text-fg-muted">
-            No sessions yet — press ⌘K to start one.
+            No sessions yet — press {paletteKey} to start one.
           </p>
         )}
         {groups.map((group) => (

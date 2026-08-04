@@ -6,6 +6,7 @@ import {
   useProjects,
   useRepos,
 } from '../../lib/queries';
+import { useHotkeyLabel } from '../../lib/hotkeys';
 import { cn } from '../../lib/utils';
 import { orderByDrag, reorderIds } from '../workspace/session-order';
 import { useCurrentProfileId } from '../profile/profile-store';
@@ -42,7 +43,7 @@ function ActionTile({
   );
 }
 
-/** The current profile's projects — creation lives in ⌘K, the tiles, and the empty state. */
+/** The current profile's projects — creation lives in the palette, the tiles, and the empty state. */
 export function Dashboard() {
   const profileId = useCurrentProfileId();
   const projects = useProjects(profileId ?? undefined);
@@ -53,6 +54,7 @@ export function Dashboard() {
   const [dragging, setDragging] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const home = useHomeTerminal();
+  const paletteKey = useHotkeyLabel('palette.toggle');
 
   const repoPath = (repoId: number) => repos.data?.find((r) => r.id === repoId)?.path;
 
@@ -85,7 +87,7 @@ export function Dashboard() {
             <div className="mb-8 mt-16 flex flex-col items-center gap-3 text-center">
               <FolderGit2 className="size-8 text-fg-muted" />
               <p className="text-sm text-fg-secondary">
-                No projects yet — open one below, or press ⌘K.
+                No projects yet — open one below, or press {paletteKey}.
               </p>
             </div>
           )}

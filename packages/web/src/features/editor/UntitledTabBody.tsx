@@ -3,6 +3,7 @@ import Editor from '@monaco-editor/react';
 import { toast } from 'sonner';
 import { useClientSettings } from '../../lib/client-settings';
 import { debounce, type Debounced } from '../../lib/debounce';
+import { useHotkeyLabel } from '../../lib/hotkeys';
 import { putUntitled, useUntitledFile } from '../../lib/untitled-queries';
 import { useCurrentProfileId } from '../profile/profile-store';
 import { registerEditorKeybindings } from './editor-keybindings';
@@ -25,6 +26,7 @@ export function UntitledTabBody({ name }: { name: string }) {
   const settings = useClientSettings();
   const profileId = useCurrentProfileId();
   const file = useUntitledFile(profileId, name);
+  const saveKey = useHotkeyLabel('editor.save');
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const writerRef = useRef<Debounced<[content: string]> | null>(null);
   const fontMono = useMemo(
@@ -70,7 +72,7 @@ export function UntitledTabBody({ name }: { name: string }) {
   return (
     <div className="flex h-full flex-col bg-ground">
       <div className="bg-surface px-3 py-1 text-xs text-fg-muted">
-        Draft — not in any worktree; ⌘S saves it into one
+        Draft — not in any worktree; {saveKey} saves it into one
       </div>
       <div className="min-h-0 flex-1">
         <Editor
