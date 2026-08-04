@@ -619,9 +619,9 @@ function WorkspaceInner() {
   // not the app name — the window says which host and project it drives.
   const host = useHostInfo();
   useEffect(() => {
-    const base = hostLabel(host.data) ?? 'puddle';
+    const base = hostLabel(host.data) ?? 'Puddle';
     const waiting = sessions.filter((s) => s.status === 'waiting_input').length;
-    const name = detail.data?.project.name ?? 'puddle';
+    const name = detail.data?.project.name ?? 'Puddle';
     document.title = waiting > 0 ? `● ${waiting} waiting — ${name}` : `${name} — ${base}`;
     return () => {
       document.title = base;

@@ -69,7 +69,7 @@ async function openTarget(host: string | undefined) {
   if (token === null) {
     throw new CliError(
       'not_installed',
-      `no puddle daemon is set up on ${transport.label}`,
+      `no Puddle daemon is set up on ${transport.label}`,
       host === undefined ? 'run: puddle launch' : `run: puddle launch ${host}`,
     );
   }
@@ -118,7 +118,7 @@ export async function run(command: Command): Promise<number> {
       process.stdout.write(USAGE + '\n');
       return 0;
     case 'version':
-      process.stdout.write(`puddle ${cliVersion()}\n`);
+      process.stdout.write(`Puddle ${cliVersion()}\n`);
       return 0;
 
     case 'launch': {
@@ -551,7 +551,7 @@ async function runCockpit(
   });
 
   const arrow = command.target === 'local' ? '' : ` → ${command.target}`;
-  logger.info(`puddle cockpit at ${cockpit.origin}${arrow} (daemon ${cockpit.daemon.version})`);
+  logger.info(`Puddle cockpit at ${cockpit.origin}${arrow} (daemon ${cockpit.daemon.version})`);
   if (!detached) {
     if (!command.noBrowser) openBrowser(cockpit.browserUrl);
     logger.info(`open: ${cockpit.browserUrl}`);

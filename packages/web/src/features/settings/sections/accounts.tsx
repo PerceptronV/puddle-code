@@ -84,7 +84,7 @@ function AddAccountDialog({
         <DialogHeader>
           <DialogTitle>Add a {agent.display_name} account</DialogTitle>
           <DialogDescription>
-            Accounts are isolated config dirs under this profile. Naming one is enough — puddle
+            Accounts are isolated config dirs under this profile. Naming one is enough — Puddle
             creates it and takes you straight to {agent.display_name}&rsquo;s login. To reuse an
             account you already have on this machine, give its config directory: it is copied in and
             the original is never touched.

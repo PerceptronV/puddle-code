@@ -115,7 +115,7 @@ export async function launchDetached(opts: {
   }
 
   const arrow = target === 'local' ? '' : ` → ${target}`;
-  logger.info(`puddle cockpit at ${record.origin ?? '?'}${arrow} — running in the background`);
+  logger.info(`Puddle cockpit at ${record.origin ?? '?'}${arrow} — running in the background`);
   if (record.browserUrl !== undefined) {
     if (!opts.noBrowser) openBrowser(record.browserUrl);
     logger.info(`open: ${record.browserUrl}`);

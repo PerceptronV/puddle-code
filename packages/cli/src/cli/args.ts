@@ -39,7 +39,7 @@ export type Command =
   | { cmd: 'help' }
   | { cmd: 'version' };
 
-export const USAGE = `puddle — self-hosted orchestrator for CLI coding agents
+export const USAGE = `Puddle — self-hosted orchestrator for CLI coding agents
 
 usage:
   puddle launch  [local | user@host] [--port <p>] [--remote-port <p>]

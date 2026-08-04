@@ -49,8 +49,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const LOCAL = 'local';
 
 const logger: Logger = {
-  info: (message) => console.log(`[puddle] ${message}`),
-  warn: (message) => console.warn(`[puddle] ${message}`),
+  info: (message) => console.log(`[Puddle] ${message}`),
+  warn: (message) => console.warn(`[Puddle] ${message}`),
 };
 
 interface Shell {

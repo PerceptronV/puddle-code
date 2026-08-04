@@ -71,7 +71,7 @@ function GroupChecklist({
 /**
  * Settings → Sync (SPEC §11). Three blocks:
  *  - "Sync locally": mirror the selected groups through the machine-shared
- *    cockpit store, so every puddle window (any port, any daemon) follows —
+ *    cockpit store, so every Puddle window (any port, any daemon) follows —
  *    the checklist then governs BOTH directions;
  *  - Export: one click encodes, shows, and copies the string.
  *  - Import: paste an exported string.
@@ -205,13 +205,13 @@ export function SyncSection() {
         <h3 className="text-sm font-medium text-fg">Sync locally</h3>
         {localSync.data?.available === false ? (
           <p className="mt-1 text-xs text-fg-muted">
-            Not available in this cockpit — start the UI with the puddle CLI to sync across windows.
+            Not available in this cockpit — start the UI with the Puddle CLI to sync across windows.
           </p>
         ) : (
           <>
             <p className="mb-2 mt-1 text-xs text-fg-muted">
               Sync selected groups through this machine’s{' '}
-              <span className="font-mono">~/.puddle</span>, so every puddle window
+              <span className="font-mono">~/.puddle</span>, so every Puddle window
               stays in step for profiles named{' '}
               <span className="font-mono">{profile?.name ?? '…'}</span>.
             </p>
@@ -246,7 +246,7 @@ export function SyncSection() {
       <div className="mb-6">
         <h3 className="text-sm font-medium text-fg">Export</h3>
         <p className="mb-2 mt-1 text-xs text-fg-muted">
-          Builds a puddle magic string that encodes settings from the checklist above.
+          Builds a Puddle magic string that encodes settings from the checklist above.
         </p>
         <Button size="sm" disabled={busy} onClick={() => void onExport()}>
           Export &amp; copy
@@ -266,7 +266,7 @@ export function SyncSection() {
       <div>
         <h3 className="text-sm font-medium text-fg">Import</h3>
         <p className="mb-2 text-xs text-fg-muted">
-          Paste a puddle magic string to import its settings.
+          Paste a Puddle magic string to import its settings.
         </p>
         <Textarea
           value={importText}

@@ -274,7 +274,7 @@ function swapScript(staged: StagedDesktopUpdate, opts: ApplyOptions): string {
   if (staged.kind === 'mac-app') {
     return [
       `#!/bin/sh`,
-      `# puddle desktop update ${staged.version} — swap once the app exits`,
+      `# Puddle desktop update ${staged.version} — swap once the app exits`,
       ...wait,
       `target=${q(opts.targetPath)}`,
       `target_dir=${q(dirname(opts.targetPath))}`,
@@ -304,7 +304,7 @@ function swapScript(staged: StagedDesktopUpdate, opts: ApplyOptions): string {
   }
   return [
     `#!/bin/sh`,
-    `# puddle desktop update ${staged.version} — swap once the app exits`,
+    `# Puddle desktop update ${staged.version} — swap once the app exits`,
     ...wait,
     `target=${q(opts.targetPath)}`,
     `cp -f ${q(staged.stagedPath)} "$target" || exit 1`,

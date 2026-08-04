@@ -34,7 +34,7 @@ export function ProfilePicker() {
     <div className="flex min-h-screen items-center justify-center bg-ground">
       <div className="flex w-full max-w-md flex-col gap-10 px-8 pb-16">
         <div className="flex flex-col gap-2">
-          <h1 className="font-mono text-2xl font-semibold text-fg">puddle</h1>
+          <h1 className="font-mono text-2xl font-semibold text-fg">Puddle</h1>
           <p className="text-sm text-fg-secondary">Who is working?</p>
         </div>
 

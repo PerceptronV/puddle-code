@@ -108,7 +108,7 @@ function HomeButton() {
     );
   };
 
-  const mark = !shellTitleBar && <img src="/puddle.svg" alt="puddle" className="size-4" />;
+  const mark = !shellTitleBar && <img src="/puddle.svg" alt="Puddle" className="size-4" />;
   const box = cn(
     'flex shrink-0 items-center gap-2',
     shellTitleBar && '[-webkit-app-region:no-drag]',
@@ -163,7 +163,7 @@ function CommandField() {
         shellTitleBar && '[-webkit-app-region:no-drag]',
       )}
     >
-      <span className="truncate text-xs">{projectName ?? 'puddle'}</span>
+      <span className="truncate text-xs">{projectName ?? 'Puddle'}</span>
       <span className="text-2xs">{paletteKey}</span>
     </button>
   );

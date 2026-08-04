@@ -7,7 +7,7 @@ export function terminalLogger(): Logger {
       process.stderr.write(`${message}\n`);
     },
     warn(message) {
-      process.stderr.write(`puddle: ${message}\n`);
+      process.stderr.write(`Puddle: ${message}\n`);
     },
   };
 }
@@ -20,7 +20,7 @@ export function timestampedLogger(): Logger {
       process.stderr.write(line(message));
     },
     warn(message) {
-      process.stderr.write(line(`puddle: ${message}`));
+      process.stderr.write(line(`Puddle: ${message}`));
     },
   };
 }

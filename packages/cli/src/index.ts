@@ -8,7 +8,7 @@ try {
   process.exit(await run(command));
 } catch (err) {
   if (err instanceof CliError) {
-    process.stderr.write(`puddle: ${err.message}\n`);
+    process.stderr.write(`Puddle: ${err.message}\n`);
     if (err.hint !== undefined) process.stderr.write(`  hint: ${err.hint}\n`);
     process.exit(1);
   }

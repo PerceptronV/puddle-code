@@ -37,7 +37,7 @@ export class ErrorBoundary extends Component<
   override componentDidCatch(error: Error, info: ErrorInfo): void {
     // Keep the component stack: the message alone rarely names the component,
     // and this is where a bug report starts.
-    console.error(`puddle: the ${this.props.scope} crashed`, error, info.componentStack);
+    console.error(`Puddle: the ${this.props.scope} crashed`, error, info.componentStack);
   }
 
   override render(): ReactNode {

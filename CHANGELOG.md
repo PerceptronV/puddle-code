@@ -33,6 +33,12 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- The product is **Puddle** wherever it is named to a person: the browser tab and
+  window titles, the token gate and profile picker headings, settings copy, the
+  `--help` banner and `--version` line, CLI diagnostics, and the desktop shell's
+  log prefix. Three things stay lowercase because they are not the name in prose:
+  commands you type (`puddle launch`), the daemon binary (`puddled`), and paths,
+  keys and identifiers (`~/.puddle`, `puddle.svg`).
 - Results in **Changes, History, and Search** now open as **preview tabs** on a
   single click — italic, reusing one slot, replaced by the next peek — and pin on
   a double click, exactly as the files tree has always behaved. Scanning a result

@@ -100,7 +100,7 @@ function portConflict(transport: Transport, port: number): CliError {
   return new CliError(
     'port_in_use',
     `something on ${transport.label} answers on 127.0.0.1:${port} but rejects this host's token`,
-    `it is probably not this host's daemon — another puddle cockpit's UI server that auto-picked ${port}, ` +
+    `it is probably not this host's daemon — another Puddle cockpit's UI server that auto-picked ${port}, ` +
       `or a daemon started before the token changed. Close it (or restart it), or point the daemon at ` +
       `another port in ~/.puddle/config.json.`,
   );

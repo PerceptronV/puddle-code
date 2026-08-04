@@ -100,7 +100,7 @@ export function useWaitingNotifications(): void {
   // so a late-loaded label doesn't tear down the WS subscription (that would
   // drop the waiting set).
   const host = useHostInfo();
-  const baseTitle = hostLabel(host.data) ?? 'puddle';
+  const baseTitle = hostLabel(host.data) ?? 'Puddle';
   const baseRef = useRef(baseTitle);
   useEffect(() => {
     // Adopt a late-loaded (or renamed) host label only when the title still
