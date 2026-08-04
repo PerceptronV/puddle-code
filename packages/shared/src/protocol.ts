@@ -181,4 +181,14 @@
 // repository's status — so the UI gates the whole project-directory binding on
 // this minor, exactly as browse entry gates on 10.2 and browse mutations on
 // 12.3.
-export const PROTOCOL_VERSION = { major: 12, minor: 4 } as const;
+// 13.0 (2026-08-03): major bump with NO schema change beyond 12.4's additive
+// keys, on purpose — forces every connected daemon to auto-upgrade at the
+// next handshake (see PROTOCOL.md "The rule"; mirrors the 6.0/8.0/10.0/11.0/
+// 12.0 bumps). The 12.4 directory-target behaviour the project-directory
+// sidebar binding depends on (the nil-session route and `?root=` on the git
+// inspection routes) is daemon-side code an older 12.x install simply lacks:
+// it 404s the nil id and answers git questions about the wrong repository.
+// Rather than lean on the client's feature gate to hide the binding forever,
+// this bump retires early 12.x as a dependency so every deployment serves it.
+// Ships the 12.1/12.2/12.3/12.4 additions above.
+export const PROTOCOL_VERSION = { major: 13, minor: 0 } as const;

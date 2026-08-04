@@ -64,6 +64,10 @@ Past releases: see docs/changelogs/.
   came with a project-scoped session list whether you wanted it or not. Existing
   choices carry over untouched in both directions: a window that had
   project-based layout on keeps its scoped session list until you say otherwise.
+- Protocol major bumped to 13.0 (no schema change beyond 12.4's additive keys,
+  on purpose): every connected daemon auto-upgrades at the next `puddle launch`
+  handshake, so all deployments serve the 12.4 directory-target routes the
+  project-directory sidebar binding needs, and none lingers on early 12.x.
 
 ### Fixed
 
