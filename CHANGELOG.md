@@ -11,6 +11,10 @@ Past releases: see docs/changelogs/.
 
 ### Added
 
+- Right-clicking a project in the session sidebar can now edit its label:
+  **Change project name** on the expanded header, **Change project abbreviation**
+  on the collapsed rail. Both open the same in-place editor a double-click has
+  always opened — which was the only way to find it.
 - A **`+`** in the Layouts header, where the Scratchpad's is: it opens the same
   name field an unsaved layout shows, saves the **live** layout under that name
   (provenance from the project-based-layout setting), and makes it the active

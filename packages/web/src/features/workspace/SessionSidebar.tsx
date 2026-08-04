@@ -9,6 +9,7 @@ import {
   GitBranch,
   PanelRightClose,
   PanelRightOpen,
+  Pencil,
   ShieldOff,
   SquareTerminal,
   type LucideIcon,
@@ -19,6 +20,7 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
   ContextMenuTrigger,
 } from '../../components/ui/context-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
@@ -71,16 +73,21 @@ export interface ProjectHeaderActions {
 const PROJECT_MIME = 'application/x-puddle-project';
 
 /**
- * The project name's right-click menu: start a new agent or terminal IN that
+ * The project header's right-click menu: start a new agent or terminal IN that
  * project — the same create dialogue the sidebar's fixed controls open, seeded
- * with this project instead of the current one.
+ * with this project instead of the current one — and edit the label the header
+ * is showing. `editLabel` names THAT label (the name in the expanded header, the
+ * abbreviation on the collapsed rail) and opens the very editor a double-click
+ * on it opens, so each menu offers exactly the field under the cursor.
  */
 function ProjectMenuBody({
   projectId,
   actions,
+  editLabel,
 }: {
   projectId: string;
   actions: ProjectHeaderActions;
+  editLabel: { label: string; onSelect: () => void };
 }) {
   return (
     <ContextMenuContent>
@@ -91,6 +98,11 @@ function ProjectMenuBody({
       <ContextMenuItem onSelect={() => actions.onNewTerminalIn(projectId)}>
         <SquareTerminal />
         New terminal
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ContextMenuItem onSelect={editLabel.onSelect}>
+        <Pencil />
+        {editLabel.label}
       </ContextMenuItem>
     </ContextMenuContent>
   );
@@ -470,7 +482,14 @@ export function CollapsedSessionsRail({
                   </ContextMenuTrigger>
                   <TooltipContent side="left">{group.name}</TooltipContent>
                 </Tooltip>
-                <ProjectMenuBody projectId={group.projectId} actions={projectActions} />
+                <ProjectMenuBody
+                  projectId={group.projectId}
+                  actions={projectActions}
+                  editLabel={{
+                    label: 'Change project abbreviation',
+                    onSelect: () => setEditingAbbrev(group.projectId),
+                  }}
+                />
               </ContextMenu>
             )}
             <CollapsibleSessions collapsed={dragProject !== null}>
@@ -780,7 +799,14 @@ function SessionListBody({
                     {group.name}
                   </Link>
                 </ContextMenuTrigger>
-                <ProjectMenuBody projectId={group.projectId} actions={projectActions} />
+                <ProjectMenuBody
+                  projectId={group.projectId}
+                  actions={projectActions}
+                  editLabel={{
+                    label: 'Change project name',
+                    onSelect: () => setEditingName(group.projectId),
+                  }}
+                />
               </ContextMenu>
             )}
             <CollapsibleSessions collapsed={dragProject !== null}>
