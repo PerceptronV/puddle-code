@@ -17,6 +17,7 @@ import {
 import {
   loadLayoutPatch,
   mergeShardedLayouts,
+  parkedTerminalSessions,
   scopedSnapshot,
   scopeUiState,
   splitToProjects,
@@ -371,5 +372,46 @@ describe('scopeUiState', () => {
       active_session: S1,
       layout_ref: null,
     });
+  });
+});
+
+describe('parkedTerminalSessions', () => {
+  const slices = (over: Record<string, { tabs: TabRef[] }>) =>
+    Object.fromEntries(
+      Object.entries(over).map(([pid, { tabs }]) => [
+        pid,
+        { layout_tree: makeLeaf(tabs), active_session: null, layout_ref: null },
+      ]),
+    );
+
+  it('collects the terminals other projects hold open, and not this project’s', () => {
+    const record = slices({
+      [PA]: { tabs: [term(S1), ed(S1, 'a.ts')] },
+      [PB]: { tabs: [term(S2), term(S3)] },
+    });
+    expect(parkedTerminalSessions(record, PA).sort()).toEqual([S2, S3].sort());
+    expect(parkedTerminalSessions(record, PB)).toEqual([S1]);
+  });
+
+  it('ignores editor tabs, empty slices, and duplicates across projects', () => {
+    const record = {
+      ...slices({
+        [PA]: { tabs: [ed(S1, 'a.ts'), untitled()] },
+        [PB]: { tabs: [term(S2)] },
+      }),
+      cccccccccc: { layout_tree: null, active_session: null, layout_ref: null },
+      dddddddddd: {
+        layout_tree: makeLeaf([term(S2)]),
+        active_session: null,
+        layout_ref: null,
+      },
+    };
+    // S1 only ever has an editor tab, so nothing keeps a terminal for it; S2 is
+    // in two slices and is listed once.
+    expect(parkedTerminalSessions(record, PA)).toEqual([S2]);
+  });
+
+  it('is empty when only the current project has a slice', () => {
+    expect(parkedTerminalSessions(slices({ [PA]: { tabs: [term(S1)] } }), PA)).toEqual([]);
   });
 });

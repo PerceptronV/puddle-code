@@ -5,7 +5,7 @@ import {
   type TabRef,
   type UiStateSnapshot,
 } from '@puddle/shared';
-import { buildInitialTree, joinTrees, pruneTabs, reidNodes } from './layout-tree';
+import { buildInitialTree, flattenTabs, joinTrees, pruneTabs, reidNodes } from './layout-tree';
 import type { UiStateHandle } from './use-ui-state';
 
 /**
@@ -29,6 +29,31 @@ const EMPTY_PROJECT_LAYOUT: ProjectLayout = {
 /** The session a tab binds to (a terminal its own, an editor tab its worktree's). */
 function tabSession(ref: TabRef): string {
   return ref.type === 'terminal' ? ref.session : ref.tab.session;
+}
+
+/**
+ * Every session with a TERMINAL tab in a stored slice other than `exceptProject`
+ * — the terminals another project's layout is holding open while you work in
+ * this one. They stay mounted (parked and detached) rather than being rebuilt
+ * on return: a project switch changes which tree is live, and without this the
+ * keep-alive host saw the other project's terminals vanish, disposed their DOM,
+ * and every switch back rebuilt an xterm and replayed its scrollback — the
+ * blink project-based layout used to cost (fixed 2026-08-04, when the setting
+ * became the default). Profile-wide layout never had the problem: one tree
+ * holds every tab, so nothing left it.
+ */
+export function parkedTerminalSessions(
+  slices: Record<string, ProjectLayout>,
+  exceptProject: string,
+): string[] {
+  const out = new Set<string>();
+  for (const [projectId, slice] of Object.entries(slices)) {
+    if (projectId === exceptProject || !slice.layout_tree) continue;
+    for (const ref of flattenTabs(slice.layout_tree)) {
+      if (ref.type === 'terminal') out.add(ref.session);
+    }
+  }
+  return [...out];
 }
 
 /**

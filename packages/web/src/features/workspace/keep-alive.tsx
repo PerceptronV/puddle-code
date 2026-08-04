@@ -25,6 +25,11 @@ import { allLeaves } from './layout-tree';
  * stable container, so its deletion always targets that container (never a
  * pane), sidestepping the adopt/unmount race a naive portal-with-changing-target
  * would hit. Do NOT "simplify" this to a portal whose target is a pane element.
+ *
+ * Which terminals are mounted is the union of the live tree's and `parked` — the
+ * ones other projects' layouts hold open under project-based layout (SPEC §11).
+ * A terminal only ever detaches from its PTY (`paused`); it unmounts when it is
+ * closed everywhere, not when you look at another project.
  */
 
 interface KeepAliveCtx {
@@ -38,10 +43,18 @@ const Ctx = createContext<KeepAliveCtx | null>(null);
 
 export function KeepAliveHost({
   tree,
+  parked = [],
   onOpenFile,
   children,
 }: {
   tree: LayoutNode;
+  /**
+   * Sessions to keep mounted although the LIVE tree has no tab for them — the
+   * terminals other projects' layouts hold open under project-based layout
+   * (SPEC §11). They are never adopted by a pane, so they stay paused; keeping
+   * them spares a rebuild-and-replay on every project switch.
+   */
+  parked?: string[];
   onOpenFile: (session: string, path: string, line?: number, column?: number) => void;
   children: React.ReactNode;
 }) {
@@ -64,13 +77,19 @@ export function KeepAliveHost({
     });
   }, []);
 
+  // Sorted so the portal list's order — and therefore React's reconciliation of
+  // it — doesn't depend on which tree a session came from: a project switch
+  // moves sessions between the two sources, and an order that shuffled would
+  // remount the very terminals this is keeping alive.
+  const parkedKey = [...parked].sort().join(',');
   const sessions = useMemo(() => {
     const set = new Set<string>();
     for (const leaf of allLeaves(tree)) {
       for (const t of leaf.tabs) if (t.type === 'terminal') set.add(t.session);
     }
-    return [...set];
-  }, [tree]);
+    for (const session of parkedKey === '' ? [] : parkedKey.split(',')) set.add(session);
+    return [...set].sort();
+  }, [tree, parkedKey]);
 
   // A stable container per open terminal, keyed by `term:<session>`. Created
   // detached; parented into the parking area (or left where a pane adopted it).

@@ -76,6 +76,7 @@ import {
 import {
   loadLayoutPatch,
   mergeShardedLayouts,
+  parkedTerminalSessions,
   scopeUiState,
   splitToProjects,
   unionToProfile,
@@ -290,6 +291,16 @@ function WorkspaceInner() {
   // — a reopen must land in the tree the tab was closed from.
   const scopeKey = projectScoped ? `project:${projectId}` : 'profile';
   const layout = useLayoutTree(uiState, scopeKey);
+  // The terminals the OTHER projects' layouts hold open. Only under
+  // project-based layout: the profile-wide tree already contains every tab, so
+  // there is nothing outside it to keep alive (and a preserved slice's tabs are
+  // not open in that mode). Keeping them mounted is what makes a project switch
+  // park terminals rather than rebuild them (SPEC §11).
+  const projectSlices = baseUiState.snapshot.project_layouts;
+  const parkedSessions = useMemo(
+    () => (projectScoped ? parkedTerminalSessions(projectSlices, projectId) : []),
+    [projectScoped, projectSlices, projectId],
+  );
   // Effects reference the controller through a ref so they don't list `layout`
   // (which changes on every tree edit) as a dependency — otherwise a
   // focus/ensure op would re-trigger the effect that made it, looping.
@@ -1147,10 +1158,13 @@ function WorkspaceInner() {
 
   // KeepAliveHost wraps BOTH layouts: crossing the breakpoint (a tablet
   // rotation, a resized window) swaps the shell without remounting it, so
-  // open terminals keep their scrollback and PTY attachments.
+  // open terminals keep their scrollback and PTY attachments. Under
+  // project-based layout it also holds the OTHER projects' terminals (parked,
+  // detached) so switching project parks them instead of rebuilding them.
   return (
     <KeepAliveHost
       tree={layout.tree}
+      parked={parkedSessions}
       onOpenFile={(session, path, line, column) =>
         openFile(session, path, line !== undefined ? { line, column } : undefined)
       }
