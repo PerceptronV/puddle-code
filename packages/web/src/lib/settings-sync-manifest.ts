@@ -52,6 +52,7 @@ export const SYNC_GROUPS: SyncGroup[] = [
       { key: 'density', store: 'client' },
       { key: 'terminalScrollback', store: 'client' },
       { key: 'projectBasedLayout', store: 'client' },
+      { key: 'showAllProjectSessions', store: 'client' },
     ],
   },
   {

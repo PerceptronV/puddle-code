@@ -127,6 +127,8 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
     id: 'session.newTerminal',
     label: 'New terminal',
     group: 'Right sidebar',
+    // ⌃`, not ⌘`: macOS owns ⌘` for "move focus to the next window"
+    // (considered and rejected 2026-08-03).
     defaultBinding: 'ctrl+Backquote',
   },
   {

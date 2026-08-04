@@ -138,7 +138,12 @@ function WorkspaceInner() {
   // converts it — so a snapshot mid-transition is never read through the wrong
   // keys. Everything downstream uses the scoped handle; only the transition
   // and slice-prune effects reach for the base one.
-  const projectMode = useClientSettings().projectBasedLayout;
+  const clientSettingsNow = useClientSettings();
+  const projectMode = clientSettingsNow.projectBasedLayout;
+  // Independent of the layout mode since 2026-08-03 (they were one setting
+  // through v0.0.24): this one only decides whether the right sidebar lists
+  // every project's sessions or just this project's.
+  const showAllSessions = clientSettingsNow.showAllProjectSessions;
   const projectScoped = projectMode && baseUiState.snapshot.layout_mode === 'project';
   const uiState = scopeUiState(baseUiState, projectId, projectScoped);
   const baseUiStateRef = useRef(baseUiState);
@@ -178,13 +183,13 @@ function WorkspaceInner() {
       // (untracked sessions float to the top of their group, newest-first).
       sessions: orderByDrag(
         all.filter(
-          (s) => s.project_id === p.id && active(s) && (!projectMode || p.id === projectId),
+          (s) => s.project_id === p.id && active(s) && (showAllSessions || p.id === projectId),
         ),
         uiState.snapshot.session_order,
       ),
     }));
   }, [
-    projectMode,
+    showAllSessions,
     sessions,
     projectId,
     uiState.snapshot.session_order,
@@ -203,15 +208,15 @@ function WorkspaceInner() {
     [orderedProjects, patchProfileSettings],
   );
   // The archived disclosure follows the same scoping as the live groups
-  // (SPEC §12): only this project's archived sessions under project-based
-  // layout, every project's (in sidebar project order) otherwise.
+  // (SPEC §12): only this project's archived sessions when the sidebar is
+  // scoped to the project, every project's (in sidebar project order) otherwise.
   const archivedSessions = useMemo(() => {
-    if (projectMode) return sessions.filter((s) => s.status === 'archived');
+    if (!showAllSessions) return sessions.filter((s) => s.status === 'archived');
     const all = allSessions.data ?? sessions;
     return orderedProjects.flatMap((p) =>
       all.filter((s) => s.project_id === p.id && s.status === 'archived'),
     );
-  }, [projectMode, sessions, allSessions.data, orderedProjects]);
+  }, [showAllSessions, sessions, allSessions.data, orderedProjects]);
 
   // One-shot layout-mode transitions (SPEC §11): when the client's
   // project-based layout setting disagrees with the mode the snapshot was last

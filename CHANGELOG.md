@@ -9,6 +9,17 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Changed
+
+- Settings → Appearance splits **project-based layout** into two independent
+  toggles: **Project-based layout** now only decides whether the centre editor
+  keeps a layout per project, and **All projects in the session list** (default
+  on) decides whether the right sidebar lists every project's sessions or only
+  the current project's. They were one setting, so a per-project editor layout
+  came with a project-scoped session list whether you wanted it or not. Existing
+  choices carry over untouched in both directions: a window that had
+  project-based layout on keeps its scoped session list until you say otherwise.
+
 ### Fixed
 
 - **Reopen last closed tab** (⇧⌘T) and **Close window** (⇧⌘W) did nothing in the
