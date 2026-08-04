@@ -9,6 +9,23 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Added
+
+- The left sidebar binds to the **project's own repository directory** whenever no
+  session qualifies — all sessions archived, none created yet, or simply none in
+  focus. Files, Changes, History, and Search were four empty panels in that
+  state; now they show the project itself, as a full binding: the tree mutates,
+  files open and save, Changes lists the directory's uncommitted work, History
+  its commits, Search greps it, and ⌘S can place a draft in it. Needs a daemon at
+  protocol 12.4 (`puddle refresh` after updating); an older one keeps the empty
+  state rather than answering about the wrong repository.
+
+### Fixed
+
+- Untitled drafts no longer vanish from the layout when the workspace prunes dead
+  sessions. Their tab carries the nil "no session" id, which the prune read as a
+  session that had gone away.
+
 ### Changed
 
 - Settings → Appearance splits **project-based layout** into two independent

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { LayoutNode, LayoutSplit, TabRef, UiStateSnapshot } from '@puddle/shared';
-import { uiStateSnapshotSchema } from '@puddle/shared';
+import { UNTITLED_SESSION, uiStateSnapshotSchema } from '@puddle/shared';
 import {
   allLeaves,
   buildInitialTree,
+  boundToLiveSession,
   closeTab,
   dedupeIds,
   dropTab,
@@ -24,8 +25,10 @@ import {
   splitLeaf,
   tabRefKey,
   addTabToLeaf,
+  pruneTabs,
 } from '../src/features/workspace/layout-tree';
 
+const NIL = UNTITLED_SESSION;
 const ed = (path: string, session = 's1'): TabRef => ({ type: 'editor', tab: { session, path } });
 const term = (session: string): TabRef => ({ type: 'terminal', session });
 const asSplit = (n: LayoutNode): LayoutSplit => {
@@ -501,5 +504,37 @@ describe('node identity', () => {
     expect(first!.id).toBe(allLeaves(corrupt)[0]!.id);
     expect(second!.id).not.toBe(first!.id);
     expect(second!.tabs).toEqual(first!.tabs);
+  });
+});
+
+describe('session-less tabs', () => {
+  const untitled = (): TabRef => ({
+    type: 'editor',
+    tab: { session: NIL, path: 'untitled-1.md', kind: 'untitled' },
+  });
+  const external = (): TabRef => ({
+    type: 'editor',
+    tab: { session: NIL, path: 'README.md', kind: 'external', root: '/repos/thing' },
+  });
+
+  it('survive a prune against the live session set', () => {
+    // The nil uuid means "no session applies" — an untitled draft (10.3) and a
+    // directory-target tab (12.4) both carry it, and neither can be orphaned by
+    // a session ending. Pruning them away silently dropped drafts on reload.
+    const keep = boundToLiveSession(new Set(['live']));
+    expect(keep(untitled())).toBe(true);
+    expect(keep(external())).toBe(true);
+    expect(keep(term('live'))).toBe(true);
+    expect(keep(term('gone'))).toBe(false);
+  });
+
+  it('are kept by pruneTabs while dead-session tabs go', () => {
+    const tree = makeLeaf([untitled(), term('live'), term('gone'), external()]);
+    const pruned = pruneTabs(tree, boundToLiveSession(new Set(['live'])));
+    expect(flattenTabs(pruned).map(tabRefKey)).toEqual([
+      tabRefKey(untitled()),
+      'term:live',
+      tabRefKey(external()),
+    ]);
   });
 });

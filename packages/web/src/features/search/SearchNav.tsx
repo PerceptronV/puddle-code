@@ -49,9 +49,12 @@ function Toggle({
  */
 export function SearchNav({
   session,
+  root,
   onOpen,
 }: {
   session: string;
+  /** `?root=` for a directory target (protocol 12.4); undefined for a worktree. */
+  root?: string;
   onOpen: (path: string, line?: number) => void;
 }) {
   const [input, setInput] = useState('');
@@ -67,7 +70,7 @@ export function SearchNav({
   }, [input]);
 
   const params = { query, regex, caseSensitive, wholeWord };
-  const search = useWorktreeSearch(session, params);
+  const search = useWorktreeSearch(session, params, root);
   const matcher = useMemo(() => buildMatcher(params), [query, regex, caseSensitive, wholeWord]);
 
   const data = search.data;

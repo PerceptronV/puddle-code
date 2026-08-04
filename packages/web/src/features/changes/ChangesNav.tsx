@@ -11,11 +11,17 @@ import { UncommittedPanel } from './UncommittedPanel';
  */
 export function ChangesNav({
   session,
+  root,
   activeDiffPath,
   onOpenDiff,
   onOpenCommitFile,
 }: {
   session: string;
+  /**
+   * `?root=` for a directory target — the project's own repository, when no
+   * session is bound (protocol 12.4). Undefined for a session's worktree.
+   */
+  root?: string;
   /** Path of the active editor tab when it is an uncommitted diff for `session`. */
   activeDiffPath: string | null;
   onOpenDiff: (path: string) => void;
@@ -24,14 +30,19 @@ export function ChangesNav({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <section className="flex max-h-[45%] min-h-0 flex-col">
-        <UncommittedPanel session={session} activePath={activeDiffPath} onOpen={onOpenDiff} />
+        <UncommittedPanel
+          session={session}
+          root={root}
+          activePath={activeDiffPath}
+          onOpen={onOpenDiff}
+        />
       </section>
       <div className="h-px shrink-0 bg-border" />
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex h-7 shrink-0 items-center px-3">
           <span className="text-2xs font-medium uppercase tracking-wide text-fg-gold">History</span>
         </div>
-        <CommitGraph session={session} onOpenCommitFile={onOpenCommitFile} />
+        <CommitGraph session={session} root={root} onOpenCommitFile={onOpenCommitFile} />
       </div>
     </div>
   );

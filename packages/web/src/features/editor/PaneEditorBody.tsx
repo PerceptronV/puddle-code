@@ -23,10 +23,18 @@ import { tabKey, tabKind, type EditorTab } from './editor-tabs';
 export function PaneEditorBody({ tab, reveal }: { tab: EditorTab; reveal: RevealTarget | null }) {
   const kind = tabKind(tab);
   if (kind === 'diff') {
-    return <DiffTabBody key={tabKey(tab)} session={tab.session} path={tab.path} />;
+    return <DiffTabBody key={tabKey(tab)} session={tab.session} path={tab.path} root={tab.root} />;
   }
   if (kind === 'commit' && tab.sha) {
-    return <CommitTabBody key={tabKey(tab)} session={tab.session} sha={tab.sha} path={tab.path} />;
+    return (
+      <CommitTabBody
+        key={tabKey(tab)}
+        session={tab.session}
+        sha={tab.sha}
+        path={tab.path}
+        root={tab.root}
+      />
+    );
   }
   // External tabs (SPEC §8): the SAME editor/viewer pipeline as worktree
   // files, with the browse root threaded through — buffers, drafts, sync,

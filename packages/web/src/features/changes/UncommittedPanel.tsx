@@ -119,15 +119,18 @@ function TreeRows({
  */
 export function UncommittedPanel({
   session,
+  root,
   activePath,
   onOpen,
 }: {
   session: string;
+  /** `?root=` for a directory target (protocol 12.4); undefined for a worktree. */
+  root?: string;
   activePath: string | null;
   onOpen: (path: string) => void;
 }) {
   const [flat, setFlat] = useState(false);
-  const diff = useWorktreeDiff(session, { against: 'head' });
+  const diff = useWorktreeDiff(session, { against: 'head', root });
   const entries = diff.data?.entries ?? [];
   const tree = useMemo(() => (flat ? null : buildFileTree(entries)), [flat, entries]);
   const flatList = useMemo(() => (flat ? flatFileList(entries) : null), [flat, entries]);

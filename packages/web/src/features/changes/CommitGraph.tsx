@@ -93,17 +93,19 @@ function ContinuationCell({ lanes, width }: { lanes: GraphLane[]; width: number 
 function CommitFiles({
   session,
   sha,
+  root,
   lanes,
   gutterW,
   onOpen,
 }: {
   session: string;
   sha: string;
+  root?: string;
   lanes: GraphLane[];
   gutterW: number;
   onOpen: (path: string, sha: string) => void;
 }) {
-  const show = useCommitShow(session, sha);
+  const show = useCommitShow(session, sha, root);
   const note = (text: string) => (
     <div className="flex items-center" style={{ height: FILE_ROW_H }}>
       <ContinuationCell lanes={lanes} width={gutterW} />
@@ -157,12 +159,15 @@ function CommitFiles({
  */
 export function CommitGraph({
   session,
+  root,
   onOpenCommitFile,
 }: {
   session: string;
+  /** `?root=` for a directory target (protocol 12.4); undefined for a worktree. */
+  root?: string;
   onOpenCommitFile: (path: string, sha: string) => void;
 }) {
-  const log = useWorktreeLog(session);
+  const log = useWorktreeLog(session, { root });
   const [openSha, setOpenSha] = useState<string | null>(null);
 
   const commits = useMemo(() => log.data?.pages.flatMap((p) => p.commits) ?? [], [log.data]);
@@ -221,6 +226,7 @@ export function CommitGraph({
               <CommitFiles
                 session={session}
                 sha={row.sha}
+                root={root}
                 lanes={row.below}
                 gutterW={gutterW}
                 onOpen={onOpenCommitFile}

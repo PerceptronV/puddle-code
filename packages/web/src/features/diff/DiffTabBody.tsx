@@ -9,8 +9,17 @@ import { FileDiffContent } from './FileDiffContent';
  * modified side IS the shared editor buffer, so ⌘S here saves through the very
  * same path a file tab uses (FileDiffContent owns that).
  */
-export function DiffTabBody({ session, path }: { session: string; path: string }) {
-  const diff = useWorktreeDiff(session);
+export function DiffTabBody({
+  session,
+  path,
+  root,
+}: {
+  session: string;
+  path: string;
+  /** `?root=` when the tab was opened against a directory target (12.4). */
+  root?: string;
+}) {
+  const diff = useWorktreeDiff(session, { root });
 
   if (diff.isPending) {
     return <div className="px-4 py-3 text-xs text-fg-muted">Loading diff…</div>;
@@ -34,7 +43,7 @@ export function DiffTabBody({ session, path }: { session: string; path: string }
 
   return (
     <div className="h-full">
-      <FileDiffContent session={session} against={diff.data.against} entry={entry} />
+      <FileDiffContent session={session} against={diff.data.against} entry={entry} root={root} />
     </div>
   );
 }

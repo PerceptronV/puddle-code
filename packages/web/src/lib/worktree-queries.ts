@@ -88,12 +88,14 @@ export function useSaveWorktreeFile(sid: string | undefined, root?: string) {
  */
 export function useWorktreeDiff(
   sid: string | undefined,
-  opts?: { enabled?: boolean; against?: 'base' | 'head' },
+  opts?: { enabled?: boolean; against?: 'base' | 'head'; root?: string },
 ) {
   const against = opts?.against ?? 'base';
+  const root = opts?.root;
   return useQuery({
-    queryKey: ['wt-diff', sid, against],
-    queryFn: () => api<DiffResponse>('GET', `/api/worktrees/${sid}/diff?against=${against}`),
+    queryKey: root === undefined ? ['wt-diff', sid, against] : ['wt-diff', sid, against, root],
+    queryFn: () =>
+      api<DiffResponse>('GET', `/api/worktrees/${sid}/diff?against=${against}${rootParam(root)}`),
     enabled: sid !== undefined && (opts?.enabled ?? true),
     refetchInterval: focusAwareInterval(10_000),
     refetchOnWindowFocus: true,
@@ -106,10 +108,15 @@ export function useWorktreeDiff(
  * carries the full VSCode-grade set (untracked/conflicted/ignored) and is keyed
  * to the whole worktree, so the tree can decorate every row from one map.
  */
-export function useWorktreeGitStatus(sid: string | undefined, opts?: { enabled?: boolean }) {
+export function useWorktreeGitStatus(
+  sid: string | undefined,
+  opts?: { enabled?: boolean; root?: string },
+) {
+  const root = opts?.root;
   return useQuery({
-    queryKey: ['wt-git-status', sid],
-    queryFn: () => api<GitStatusResponse>('GET', `/api/worktrees/${sid}/git-status`),
+    queryKey: root === undefined ? ['wt-git-status', sid] : ['wt-git-status', sid, root],
+    queryFn: () =>
+      api<GitStatusResponse>('GET', `/api/worktrees/${sid}/git-status${opQuery(root)}`),
     enabled: sid !== undefined && (opts?.enabled ?? true),
     refetchInterval: focusAwareInterval(10_000),
     refetchOnWindowFocus: true,
@@ -160,15 +167,16 @@ export interface SearchParams {
  * change under a running agent. The flags key the cache so toggling one
  * refetches without clobbering the previous result.
  */
-export function useWorktreeSearch(sid: string | undefined, params: SearchParams) {
+export function useWorktreeSearch(sid: string | undefined, params: SearchParams, root?: string) {
   const { query, regex, caseSensitive, wholeWord } = params;
   return useQuery({
-    queryKey: ['wt-search', sid, query, regex, caseSensitive, wholeWord],
+    queryKey: ['wt-search', sid, query, regex, caseSensitive, wholeWord, root],
     queryFn: () => {
       const qs = new URLSearchParams({ q: query });
       if (regex) qs.set('regex', '1');
       if (caseSensitive) qs.set('case', '1');
       if (wholeWord) qs.set('word', '1');
+      if (root !== undefined) qs.set('root', root);
       return api<SearchResponse>('GET', `/api/worktrees/${sid}/search?${qs.toString()}`);
     },
     enabled: sid !== undefined && query.length > 0,
@@ -186,25 +194,33 @@ export function useFileAt(
   sid: string | undefined,
   ref: string,
   path: string,
-  opts?: { enabled?: boolean },
+  opts?: { enabled?: boolean; root?: string },
 ) {
+  const root = opts?.root;
   return useQuery({
-    queryKey: ['wt-file-at', sid, ref, path],
+    queryKey: ['wt-file-at', sid, ref, path, root],
     queryFn: () =>
       api<FileAtResponse>(
         'GET',
-        `/api/worktrees/${sid}/file-at?ref=${encodeURIComponent(ref)}&path=${encodeURIComponent(path)}`,
+        `/api/worktrees/${sid}/file-at?ref=${encodeURIComponent(ref)}&path=${encodeURIComponent(path)}${rootParam(root)}`,
       ),
     enabled: sid !== undefined && (opts?.enabled ?? true),
     staleTime: Infinity,
   });
 }
 
-export function useWorktreeLog(sid: string | undefined, opts?: { enabled?: boolean }) {
+export function useWorktreeLog(
+  sid: string | undefined,
+  opts?: { enabled?: boolean; root?: string },
+) {
+  const root = opts?.root;
   return useInfiniteQuery({
-    queryKey: ['wt-log', sid],
+    queryKey: root === undefined ? ['wt-log', sid] : ['wt-log', sid, root],
     queryFn: ({ pageParam }) =>
-      api<LogResponse>('GET', `/api/worktrees/${sid}/log?limit=${LOG_PAGE_SIZE}&skip=${pageParam}`),
+      api<LogResponse>(
+        'GET',
+        `/api/worktrees/${sid}/log?limit=${LOG_PAGE_SIZE}&skip=${pageParam}${rootParam(root)}`,
+      ),
     initialPageParam: 0,
     getNextPageParam: (lastPage, pages) =>
       lastPage.has_more ? pages.length * LOG_PAGE_SIZE : undefined,
@@ -212,10 +228,11 @@ export function useWorktreeLog(sid: string | undefined, opts?: { enabled?: boole
   });
 }
 
-export function useCommitShow(sid: string | undefined, sha: string | undefined) {
+export function useCommitShow(sid: string | undefined, sha: string | undefined, root?: string) {
   return useQuery({
-    queryKey: ['wt-show', sid, sha],
-    queryFn: () => api<ShowCommitResponse>('GET', `/api/worktrees/${sid}/show/${sha}`),
+    queryKey: root === undefined ? ['wt-show', sid, sha] : ['wt-show', sid, sha, root],
+    queryFn: () =>
+      api<ShowCommitResponse>('GET', `/api/worktrees/${sid}/show/${sha}${opQuery(root)}`),
     enabled: sid !== undefined && sha !== undefined,
     staleTime: Infinity,
   });

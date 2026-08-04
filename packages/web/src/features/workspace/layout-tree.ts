@@ -1,3 +1,4 @@
+import { UNTITLED_SESSION } from '@puddle/shared';
 import type { LayoutLeaf, LayoutNode, LayoutSplit, TabRef, UiStateSnapshot } from '@puddle/shared';
 import { tabKey, type EditorTab } from '../editor/editor-tabs';
 
@@ -427,6 +428,25 @@ export function resizeSplit(tree: LayoutNode, splitId: string, sizes: number[]):
     return { ...node, children: node.children.map(walk) };
   }
   return walk(tree);
+}
+
+/**
+ * The session a tab binds to, or null when it binds to none — the nil uuid,
+ * which is what an untitled draft (10.3) and a directory-target tab (12.4)
+ * carry. "No session" can never be dead, so liveness checks must not treat it
+ * as a missing session and prune the tab away.
+ */
+export function tabSessionId(ref: TabRef): string | null {
+  const sid = ref.type === 'terminal' ? ref.session : ref.tab.session;
+  return sid === UNTITLED_SESSION ? null : sid;
+}
+
+/** Keep a tab whose session is still alive — and any tab that binds to none. */
+export function boundToLiveSession(alive: ReadonlySet<string>): (ref: TabRef) => boolean {
+  return (ref) => {
+    const sid = tabSessionId(ref);
+    return sid === null || alive.has(sid);
+  };
 }
 
 /** Drop every tab for which `keep` is false (e.g. a dead session); collapses emptied leaves. */

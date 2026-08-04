@@ -28,6 +28,7 @@ import {
 } from '../../components/ui/dialog';
 import { Button } from '../../components/ui/button';
 import { useExplorerTarget } from '../explorer/use-explorer-target';
+import { directoryTargetSupported, untitledSupported } from '../../lib/protocol-support';
 import { clientSettings, updateClientSettings, useClientSettings } from '../../lib/client-settings';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
 import {
@@ -42,6 +43,7 @@ import {
   useProfileSettings,
   useProjectDetail,
   useProjects,
+  useRepos,
 } from '../../lib/queries';
 import { mergeOrder, orderByDrag, reorderIds } from './session-order';
 import { useNewSession } from '../shell/new-session-context';
@@ -64,6 +66,7 @@ import { KeepAliveHost } from './keep-alive';
 import { rememberClosedTab, takeClosedTab } from './closed-tabs';
 import {
   allLeaves,
+  boundToLiveSession,
   findLeaf,
   flattenTabs,
   pruneTabs,
@@ -427,14 +430,11 @@ function WorkspaceInner() {
   // gap — say what is actually missing. Unknown (still fetching) reads as
   // supported, like every other gate.
   const daemonProtocol = useDaemonVersion().data?.protocol;
-  const untitledSupported =
-    !daemonProtocol ||
-    daemonProtocol.major > 10 ||
-    (daemonProtocol.major === 10 && daemonProtocol.minor >= 3);
+  const draftsSupported = untitledSupported(daemonProtocol);
   const onNewUntitled = useCallback(
     (_leaf: LayoutLeaf) => {
       if (profileId === undefined) return;
-      if (!untitledSupported) {
+      if (!draftsSupported) {
         toast.error('Untitled drafts need a newer daemon — refresh the connection to update it');
         return;
       }
@@ -446,7 +446,7 @@ function WorkspaceInner() {
           toast.error(e instanceof Error ? e.message : 'Could not create a draft'),
         );
     },
-    [openEditorTab, profileId, untitledSupported],
+    [openEditorTab, profileId, draftsSupported],
   );
 
   // Save-as for untitled drafts: pick a path in the BOUND worktree, write it
@@ -477,7 +477,7 @@ function WorkspaceInner() {
   // file tab in its place. Two layout ops, deliberately split across a tick —
   // each op persists against the tree its render saw, so the second must run
   // after the first has committed.
-  const finishUntitledSave = (name: string, sessionId: string, path: string) => {
+  const finishUntitledSave = (name: string, sessionId: string, path: string, root?: string) => {
     setSavingUntitled(null);
     const ref: TabRef = {
       type: 'editor',
@@ -489,7 +489,13 @@ function WorkspaceInner() {
     }
     void qc.invalidateQueries({ queryKey: ['wt-tree', sessionId] });
     setTimeout(() => {
-      layoutRef.current.openEditor({ kind: 'file', session: sessionId, path });
+      // A draft saved into a directory target becomes an `external` tab: that is
+      // the kind whose identity and requests carry a root (SPEC §8).
+      layoutRef.current.openEditor(
+        root === undefined
+          ? { kind: 'file', session: sessionId, path }
+          : { kind: 'external', session: sessionId, path, root },
+      );
     }, 0);
   };
 
@@ -556,8 +562,7 @@ function WorkspaceInner() {
     const base = baseUiStateRef.current;
     const record = base.current().project_layouts;
     if (Object.keys(record).length > 0) {
-      const keep = (ref: TabRef) =>
-        alive.has(ref.type === 'terminal' ? ref.session : ref.tab.session);
+      const keep = boundToLiveSession(alive);
       base.update({
         project_layouts: Object.fromEntries(
           Object.entries(record).map(([pid, slice]) => [
@@ -759,10 +764,29 @@ function WorkspaceInner() {
   // An untitled tab binds to nothing (nil-uuid session) — fall through to the
   // URL-bound session rather than looking up a session that cannot exist.
   const focusedTabSession = rawFocusedSession === UNTITLED_SESSION ? null : rawFocusedSession;
+  // …and when nothing qualifies — no session in focus, none in this project, or
+  // none created yet — the sidebar binds to the PROJECT'S OWN directory rather
+  // than showing four empty panels (SPEC §8, decision 2026-08-03). The daemon
+  // resolves that through a directory target, so an older one keeps the empty
+  // state instead of asking questions it would answer about the wrong repo.
+  const repo = useRepos().data?.find((r) => r.id === detail.data?.project.repo_id);
+  const projectDirectory = useMemo(
+    () =>
+      directoryTargetSupported(daemonProtocol) && repo && detail.data
+        ? {
+            path: repo.path,
+            projectId: detail.data.project.id,
+            name: detail.data.project.name,
+            defaultBranch: repo.default_base_branch,
+          }
+        : null,
+    [daemonProtocol, repo, detail.data],
+  );
   const sidebarTarget = useExplorerTarget(
     tabSessions,
     focusedTabSession ?? activeSessionId,
     uiState,
+    projectDirectory,
   );
   const targetSession = sidebarTarget.session;
   const sidebarMode: SidebarMode = normalizeSidebarMode(uiState.snapshot.sidebar_mode);
@@ -923,16 +947,32 @@ function WorkspaceInner() {
       : null;
 
   // A changes / commit-file / search-result click opens its content as a
-  // centre-editor tab against the BOUND worktree (openEditorTab dedupes).
+  // centre-editor tab against the BOUND worktree (openEditorTab dedupes). Under
+  // a directory target the tab carries that directory as its `root`, which is
+  // both what its requests send and what keys it apart from a worktree tab for
+  // the same relative path (SPEC §8).
+  const targetRoot = sidebarTarget.root;
+  const rooted = targetRoot === undefined ? {} : { root: targetRoot };
   const openDiff = (path: string) => {
-    if (targetSession) openEditorTab({ kind: 'diff', session: targetSession.id, path });
+    if (targetSession) openEditorTab({ kind: 'diff', session: targetSession.id, path, ...rooted });
   };
   const openCommitFile = (path: string, sha: string) => {
-    if (targetSession) openEditorTab({ kind: 'commit', session: targetSession.id, path, sha });
+    if (targetSession)
+      openEditorTab({ kind: 'commit', session: targetSession.id, path, sha, ...rooted });
   };
   const openSearchFile = (path: string, line?: number) => {
-    if (targetSession)
-      openFile(targetSession.id, path, line !== undefined ? { line, column: 1 } : undefined);
+    if (!targetSession) return;
+    const position = line !== undefined ? { line, column: 1 } : undefined;
+    // A directory target's files are `external` tabs — the kind that carries a
+    // root through the editor, its buffer, its drafts, and its save.
+    if (targetRoot !== undefined) {
+      openEditorTab(
+        { kind: 'external', session: targetSession.id, path, root: targetRoot },
+        position,
+      );
+      return;
+    }
+    openFile(targetSession.id, path, position);
   };
 
   // The horizontal shell (nav | main | sessions) persists its sizes into the
@@ -1178,6 +1218,14 @@ function WorkspaceInner() {
           <UntitledSaveDialog
             request={savingUntitled}
             targetSession={targetSession}
+            targetRoot={targetRoot}
+            targetLabel={
+              targetSession === null
+                ? ''
+                : targetRoot !== undefined
+                  ? targetRoot
+                  : targetSession.branch
+            }
             profileId={profileId}
             onClose={() => setSavingUntitled(null)}
             onSaved={finishUntitledSave}

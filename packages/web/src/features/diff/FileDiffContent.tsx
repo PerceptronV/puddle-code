@@ -115,12 +115,14 @@ export function DeletedContent({
   session,
   against,
   path,
+  root,
 }: {
   session: string;
   against: string;
   path: string;
+  root?: string;
 }) {
-  const base = useFileAt(session, against, path);
+  const base = useFileAt(session, against, path, { root });
   if (base.isPending) return <Note>…</Note>;
   if (base.error) {
     return <Note>{base.error instanceof Error ? base.error.message : 'Failed to load'}</Note>;
@@ -147,19 +149,21 @@ function ModifiedContent({
   against,
   path,
   basePath,
+  root,
 }: {
   session: string;
   against: string;
   path: string;
   basePath: string;
+  root?: string;
 }) {
   const settings = useClientSettings();
   // NB: when the same file is also open as an editor tab, its useEditorBuffer
   // instance and this one BOTH persist a draft per keystroke. The writes are
   // idempotent (same key, same content, debounced) — merely duplicated — and
   // there is no clean focus-ownership seam today, so this is left as is.
-  const buffer = useEditorBuffer(session, path, null);
-  const base = useFileAt(session, against, basePath);
+  const buffer = useEditorBuffer(session, path, null, root);
+  const base = useFileAt(session, against, basePath, { root });
 
   // Detach-before-release (see useRetainedModel): pull both models out of the
   // diff editor, then dispose the private original-side model ourselves — the
@@ -242,11 +246,11 @@ function ModifiedContent({
 }
 
 /** `added` (and a base that 404s as `not_at_ref`): a plain editable buffer. */
-function AddedContent({ session, path }: { session: string; path: string }) {
-  useRetainedModel(bufferKey(session, path));
+function AddedContent({ session, path, root }: { session: string; path: string; root?: string }) {
+  useRetainedModel(bufferKey(session, path, root));
   // CodeEditor owns the shared buffer, save flow, and binary/too-large
   // fallbacks (SPEC §8: a new file renders as a plain editor, not a diff).
-  return <CodeEditor session={session} path={path} reveal={null} />;
+  return <CodeEditor session={session} path={path} reveal={null} root={root} />;
 }
 
 /**
@@ -259,16 +263,19 @@ export function FileDiffContent({
   session,
   against,
   entry,
+  root,
 }: {
   session: string;
   against: string;
   entry: DiffEntry;
+  /** `?root=` when the diff is against a directory target (12.4). */
+  root?: string;
 }) {
   switch (entry.status) {
     case 'added':
-      return <AddedContent session={session} path={entry.path} />;
+      return <AddedContent session={session} path={entry.path} root={root} />;
     case 'deleted':
-      return <DeletedContent session={session} against={against} path={entry.path} />;
+      return <DeletedContent session={session} against={against} path={entry.path} root={root} />;
     case 'modified':
     case 'renamed':
       return (
@@ -277,6 +284,7 @@ export function FileDiffContent({
           against={against}
           path={entry.path}
           basePath={entry.old_path ?? entry.path}
+          root={root}
         />
       );
     default:

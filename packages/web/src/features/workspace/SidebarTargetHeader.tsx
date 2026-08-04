@@ -63,10 +63,17 @@ export function SidebarTargetHeader({
    *  Changes keeps the branch name (more intuitive per surface). */
   showPath?: boolean;
 }) {
-  const { session, pinned, pin, unpin } = target;
+  const { session, pinned, pin, unpin, isProjectDirectory } = target;
   const home = useHostInfo().data?.home;
   const pickable = sessions.filter((s) => s.status !== 'archived');
-  const branchLabel = session ? session.branch || sessionDisplayName(session) : 'No worktree';
+  // A directory target is the project's own repository, not a session's
+  // worktree: it has no session name to fall back on and no branch of its own
+  // worth claiming, so Changes names the directory too (SPEC §8).
+  const branchLabel = !session
+    ? 'No worktree'
+    : isProjectDirectory
+      ? tildify(session.worktree_path, home)
+      : session.branch || sessionDisplayName(session);
   // ~-compress the daemon home so the identifying tail gets the width (SPEC §8).
   const pathLabel = session ? tildify(session.worktree_path, home) : 'No worktree';
   const title = showPath ? pathLabel : branchLabel;
@@ -89,8 +96,14 @@ export function SidebarTargetHeader({
         <button
           type="button"
           aria-pressed={pinned}
-          disabled={!session}
-          title={pinned ? 'Unpin — follow the active session' : 'Pin the sidebar to this worktree'}
+          disabled={!session || isProjectDirectory}
+          title={
+            isProjectDirectory
+              ? 'The project directory is the fallback binding — nothing to pin'
+              : pinned
+                ? 'Unpin — follow the active session'
+                : 'Pin the sidebar to this worktree'
+          }
           onClick={() => (pinned ? unpin() : session && pin(session.id))}
           className={cn(
             'shrink-0 rounded-sm p-1 transition-colors disabled:pointer-events-none disabled:opacity-40',

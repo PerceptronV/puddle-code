@@ -12,12 +12,15 @@ export function CommitTabBody({
   session,
   sha,
   path,
+  root,
 }: {
   session: string;
   sha: string;
   path: string;
+  /** `?root=` when the commit belongs to a directory target (12.4). */
+  root?: string;
 }) {
-  const show = useCommitShow(session, sha);
+  const show = useCommitShow(session, sha, root);
 
   if (show.isPending) {
     return <div className="px-4 py-3 text-xs text-fg-muted">Loading commit…</div>;

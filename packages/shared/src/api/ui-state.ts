@@ -22,9 +22,13 @@ export const editorTabRefSchema = z.object({
   kind: z.enum(['file', 'diff', 'commit', 'external', 'untitled']).optional(),
   sha: z.string().optional(),
   /**
-   * Set only for `external` tabs (protocol 10.2): the absolute browse root the
-   * explorer's parent-navigation opened this file under — `path` is relative
-   * to it. External tabs are full editors since 10.4 (SPEC §8).
+   * The absolute root `path` is relative to, and part of the tab's identity.
+   * Set for `external` tabs (protocol 10.2) — the browse root the explorer's
+   * parent-navigation opened the file under; external tabs are full editors
+   * since 10.4 — and, since 12.4, for `diff`/`commit`/`file` tabs opened
+   * against a DIRECTORY target, where it is the `?root=` their requests carry
+   * (SPEC §8). Absent for an ordinary worktree tab, whose session names the
+   * root by itself.
    */
   root: z.string().optional(),
   /**

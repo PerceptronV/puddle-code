@@ -13,6 +13,7 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { ApiError, api } from '../../lib/api';
 import { deleteUntitled } from '../../lib/untitled-queries';
+import { rootParam } from '../../lib/worktree-queries';
 import { forgetUntitledContent, type UntitledSaveRequest } from '../editor/untitled-save-store';
 
 /**
@@ -25,6 +26,8 @@ import { forgetUntitledContent, type UntitledSaveRequest } from '../editor/untit
 export function UntitledSaveDialog({
   request,
   targetSession,
+  targetRoot,
+  targetLabel,
   profileId,
   onClose,
   onSaved,
@@ -32,9 +35,17 @@ export function UntitledSaveDialog({
   request: UntitledSaveRequest | null;
   /** The sidebar-bound worktree the draft saves into. */
   targetSession: Session | null;
+  /**
+   * `?root=` when the binding is a directory rather than a worktree (the
+   * project's own repository, protocol 12.4) — a draft saves in there just the
+   * same, and the tab that replaces it carries the root.
+   */
+  targetRoot?: string;
+  /** What the description names as the destination: a branch, or a directory. */
+  targetLabel: string;
   profileId: string | undefined;
   onClose: () => void;
-  onSaved: (name: string, sessionId: string, path: string) => void;
+  onSaved: (name: string, sessionId: string, path: string, root?: string) => void;
 }) {
   const [path, setPath] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -59,24 +70,29 @@ export function UntitledSaveDialog({
       // Never overwrite silently: the target must not already exist.
       let exists = true;
       try {
-        await api('GET', `/api/worktrees/${targetSession.id}/file?path=${encodeURIComponent(rel)}`);
+        await api(
+          'GET',
+          `/api/worktrees/${targetSession.id}/file?path=${encodeURIComponent(rel)}${rootParam(targetRoot)}`,
+        );
       } catch (e) {
         if (e instanceof ApiError && e.status === 404) exists = false;
         else if (e instanceof ApiError && e.status === 413) exists = true;
         else throw e;
       }
       if (exists) {
-        setError(`${rel} already exists in this worktree.`);
+        setError(`${rel} already exists in ${targetLabel}.`);
         return;
       }
-      await api('PUT', `/api/worktrees/${targetSession.id}/file?path=${encodeURIComponent(rel)}`, {
-        content: request.content,
-      });
+      await api(
+        'PUT',
+        `/api/worktrees/${targetSession.id}/file?path=${encodeURIComponent(rel)}${rootParam(targetRoot)}`,
+        { content: request.content },
+      );
       if (profileId !== undefined) {
         await deleteUntitled(profileId, request.name).catch(() => undefined);
       }
       forgetUntitledContent(request.name);
-      onSaved(request.name, targetSession.id, rel);
+      onSaved(request.name, targetSession.id, rel, targetRoot);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed');
     } finally {
@@ -92,8 +108,8 @@ export function UntitledSaveDialog({
           <DialogDescription>
             {targetSession ? (
               <>
-                Saves into <span className="font-mono">{targetSession.branch}</span> — the worktree
-                the sidebar is bound to.
+                Saves into <span className="font-mono">{targetLabel}</span> — what the sidebar is
+                bound to.
               </>
             ) : (
               'No worktree is bound — open or focus a session first.'

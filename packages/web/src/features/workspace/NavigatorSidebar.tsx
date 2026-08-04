@@ -165,6 +165,12 @@ export function NavigatorSidebar({
   // of session. Entering it PINS the sidebar, so follow-the-active-session
   // cannot yank the tree away mid-browse. Ephemeral local state on purpose — a
   // reload lands back on the worktree.
+  // A directory target (the project's own repository — SPEC §8) carries the
+  // `?root=` every request for it must send. It is already "a directory that is
+  // not a worktree", so the parent-directory browse has nothing to add on top:
+  // walking up from here would need a second root, and the tree already IS
+  // rooted. Hence `targetRoot` below feeds the explorer directly.
+  const targetRoot = target.root;
   const [browse, setBrowse] = useState<{ forSession: string; root: string } | null>(null);
   // `?root=` needs a 10.2+ daemon: an older one IGNORES the param and serves
   // worktree-relative paths as if they were the parent directory — silently
@@ -181,6 +187,9 @@ export function NavigatorSidebar({
     !protocol || protocol.major > 12 || (protocol.major === 12 && protocol.minor >= 3);
   const browseRoot =
     browseSupported && browse !== null && browse.forSession === session?.id ? browse.root : null;
+  // What the file/git/search requests send: an explicit browse root wins, then
+  // the target's own (a directory target), else nothing (a real worktree).
+  const requestRoot = browseRoot ?? targetRoot;
   const enterBrowse = (root: string) => {
     if (!session) return;
     if (!target.pinned) target.pin(session.id);
@@ -292,9 +301,27 @@ export function NavigatorSidebar({
           // min-h-0 column filling the space under the icon row + header.
           <ExplorerProvider
             session={session}
-            onOpenFile={onOpenFile}
-            onOpenTerminal={(dir) => onOpenTerminalIn(session.id, dir)}
-            activePath={activeFilePath}
+            root={targetRoot}
+            // A directory target's files are `external` tabs — the kind that
+            // carries a root through the editor, its buffer, and its save;
+            // a worktree's are ordinary file tabs, whose session names the root.
+            onOpenFile={
+              targetRoot === undefined
+                ? onOpenFile
+                : (sid, path, opts) => onOpenExternalFile(sid, path, targetRoot, opts)
+            }
+            // "Open Terminal in Directory" needs a worktree: the daemon confines
+            // a terminal's cwd to one (11.1), and this target has no session.
+            onOpenTerminal={
+              targetRoot === undefined ? (dir) => onOpenTerminalIn(session.id, dir) : undefined
+            }
+            activePath={
+              targetRoot === undefined
+                ? activeFilePath
+                : activeExternalTab?.root === targetRoot
+                  ? activeExternalTab.path
+                  : null
+            }
           >
             <SidebarTargetHeader
               sessions={sessions}
@@ -305,7 +332,7 @@ export function NavigatorSidebar({
             {/* The way OUT of the worktree: '..' enters the browse tree at
                 the parent, pinning the sidebar so the bound session cannot
                 change underneath the browse (SPEC §8). */}
-            {browseSupported && (
+            {browseSupported && targetRoot === undefined && (
               <button
                 type="button"
                 onClick={() => enterBrowse(parentDir(session.worktree_path))}
@@ -330,8 +357,9 @@ export function NavigatorSidebar({
       {mode === 'changes' &&
         (session ? (
           <ChangesNav
-            key={session.id}
+            key={`${session.id}:${requestRoot ?? ''}`}
             session={session.id}
+            root={requestRoot}
             activeDiffPath={activeDiffPath}
             onOpenDiff={onOpenDiff}
             onOpenCommitFile={onOpenCommitFile}
@@ -342,7 +370,12 @@ export function NavigatorSidebar({
 
       {mode === 'search' &&
         (session ? (
-          <SearchNav key={session.id} session={session.id} onOpen={onOpenSearchFile} />
+          <SearchNav
+            key={`${session.id}:${requestRoot ?? ''}`}
+            session={session.id}
+            root={requestRoot}
+            onOpen={onOpenSearchFile}
+          />
         ) : (
           <div className="px-3 py-2 text-xs text-fg-muted">No worktree to search.</div>
         ))}

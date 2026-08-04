@@ -1,0 +1,41 @@
+import type { VersionResponse } from '@puddle/shared';
+
+/**
+ * Feature gates against the DAEMON's protocol version (PROTOCOL.md rule 3: a
+ * client must not send a request an older daemon would answer wrongly). Each
+ * gate is named for the capability rather than the number, so a call site reads
+ * as intent and the version arithmetic lives in exactly one place.
+ *
+ * Unknown (the version query still in flight) reads as SUPPORTED throughout —
+ * the same stance every gate in the app has taken: skew is rare, the request
+ * fails honestly if it turns out to be unsupported, and gating optimistically
+ * keeps the UI from flickering its fallbacks on every load.
+ */
+export type Protocol = VersionResponse['protocol'] | undefined;
+
+/** `protocol` is at least `major.minor` (or unknown — see above). */
+export function atLeast(protocol: Protocol, major: number, minor: number): boolean {
+  if (!protocol) return true;
+  return protocol.major > major || (protocol.major === major && protocol.minor >= minor);
+}
+
+/** Worktree-agnostic untitled drafts in the profile store (10.3). */
+export const untitledSupported = (p: Protocol): boolean => atLeast(p, 10, 3);
+
+/** `?root=` on the file READ routes — the parent-directory browse tree (10.2). */
+export const browseSupported = (p: Protocol): boolean => atLeast(p, 10, 2);
+
+/**
+ * `?root=` on the fs MUTATION routes (12.3). Between 10.2 and 12.3 the browse
+ * tree is served but a create/rename/delete would resolve against the worktree,
+ * so the tree goes read-only rather than touching the wrong files.
+ */
+export const browseMutationsSupported = (p: Protocol): boolean => atLeast(p, 12, 3);
+
+/**
+ * Directory targets: the nil session id + `?root=`, and `?root=` honoured by the
+ * git routes (12.4). Without it the left sidebar has nothing to bind to in a
+ * project with no session in focus — an older daemon 404s the nil id and would
+ * answer git questions about the wrong repository.
+ */
+export const directoryTargetSupported = (p: Protocol): boolean => atLeast(p, 12, 4);

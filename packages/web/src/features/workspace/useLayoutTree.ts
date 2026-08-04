@@ -5,6 +5,7 @@ import type { UiStateHandle } from './use-ui-state';
 import {
   addTabToLeaf,
   allLeaves,
+  boundToLiveSession,
   buildInitialTree,
   closeTab,
   dedupeIds,
@@ -174,12 +175,9 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
         const leaf = leafContainingKey(tree, `term:${session}`);
         if (leaf) persist(closeTab(tree, leaf.id, `term:${session}`));
       },
-      pruneSessions: (alive) =>
-        persist(
-          pruneTabs(tree, (ref) =>
-            ref.type === 'terminal' ? alive.has(ref.session) : alive.has(ref.tab.session),
-          ),
-        ),
+      // Session-less tabs (untitled drafts, directory targets) survive: the nil
+      // uuid names no session, so no session of theirs can have died.
+      pruneSessions: (alive) => persist(pruneTabs(tree, boundToLiveSession(alive))),
       resize: (splitId, sizes) => persist(resizeSplit(tree, splitId, sizes)),
       drop: (spec) => {
         setFocusedLeafId(spec.toLeafId);
