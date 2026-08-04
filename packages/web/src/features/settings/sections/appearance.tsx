@@ -57,10 +57,7 @@ export function AppearanceSection() {
           onCommit={(terminalFontSize) => updateClientSettings({ terminalFontSize })}
         />
       </SettingRow>
-      <SettingRow
-        label="Editor font size"
-        htmlFor="editor-font-size"
-      >
+      <SettingRow label="Editor font size" htmlFor="editor-font-size">
         <NumberField
           id="editor-font-size"
           min={9}
@@ -71,9 +68,7 @@ export function AppearanceSection() {
           onCommit={(editorFontSize) => updateClientSettings({ editorFontSize })}
         />
       </SettingRow>
-      <SettingRow
-        label="Density"
-      >
+      <SettingRow label="Density">
         <Select
           value={settings.density}
           onValueChange={(value) =>

@@ -95,10 +95,7 @@ export function NotificationsSection() {
   return (
     <div>
       <SectionTitle>Notifications</SectionTitle>
-      <SettingRow
-        label="Desktop notification on waiting"
-        htmlFor="notify-desktop"
-      >
+      <SettingRow label="Desktop notification on waiting" htmlFor="notify-desktop">
         <Switch
           id="notify-desktop"
           checked={prefs.desktop}

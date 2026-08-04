@@ -151,10 +151,7 @@ function SessionSeedRows({
 function ScrollbackRow() {
   const settings = useClientSettings();
   return (
-    <SettingRow
-      label="Terminal scrollback"
-      htmlFor="scrollback"
-    >
+    <SettingRow label="Terminal scrollback" htmlFor="scrollback">
       <NumberField
         id="scrollback"
         min={500}
@@ -344,10 +341,7 @@ export function SessionsSection() {
   return (
     <div>
       <SectionTitle>Sessions</SectionTitle>
-      <SettingRow
-        label="Skip permission prompts"
-        htmlFor="gate"
-      >
+      <SettingRow label="Skip permission prompts" htmlFor="gate">
         <Switch
           id="gate"
           checked={gateOpen}
@@ -379,9 +373,7 @@ export function SessionsSection() {
       <ScrollbackRow />
 
       <div className="mt-5">
-        <SectionTitle>
-          New session defaults
-        </SectionTitle>
+        <SectionTitle>New session defaults</SectionTitle>
         {settings.data && (
           <>
             <SessionSeedRows
@@ -449,9 +441,7 @@ export function SessionsSection() {
       </div>
 
       <div className="mt-5">
-        <SectionTitle>
-          Tab title
-        </SectionTitle>
+        <SectionTitle>Tab title</SectionTitle>
         {settings.data && (
           <TabTitleEditor
             key={`${profileId}:tab-title`}

@@ -211,9 +211,8 @@ export function SyncSection() {
           <>
             <p className="mb-2 mt-1 text-xs text-fg-muted">
               Sync selected groups through this machine’s{' '}
-              <span className="font-mono">~/.puddle</span>, so every Puddle window
-              stays in step for profiles named{' '}
-              <span className="font-mono">{profile?.name ?? '…'}</span>.
+              <span className="font-mono">~/.puddle</span>, so every Puddle window stays in step for
+              profiles named <span className="font-mono">{profile?.name ?? '…'}</span>.
             </p>
             <label className="flex items-center gap-2 text-sm text-fg">
               <Switch
