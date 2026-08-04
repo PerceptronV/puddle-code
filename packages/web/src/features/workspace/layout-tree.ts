@@ -87,6 +87,55 @@ export function flattenTabs(node: LayoutNode): TabRef[] {
   return allLeaves(node).flatMap((leaf) => leaf.tabs);
 }
 
+// ---- Node identity --------------------------------------------------------
+
+/**
+ * Node ids must be unique WITHIN a tree. They are the tiling area's React keys
+ * and its resizable-panel ids, and every op addresses a pane by id, so two
+ * nodes sharing one id alias each other: `findLeaf`/`transformLeaf` reach only
+ * the first (closing a tab in one pane closes it in its twin), a `Group`'s
+ * `defaultLayout` collapses their entries into a single key and silently drops
+ * the pane sizes, and React gets two siblings under one key — which took the
+ * whole workspace down. Copying a tree (project-based layout shards ONE tree
+ * into a slice per project, SPEC §11) must therefore re-id the copies, or the
+ * union that puts the slices back side by side collides with itself.
+ */
+
+/** Every node id in the tree, DFS, splits and leaves alike. */
+function nodeIds(node: LayoutNode): string[] {
+  return node.kind === 'leaf' ? [node.id] : [node.id, ...node.children.flatMap(nodeIds)];
+}
+
+/** True when a node id repeats anywhere in the tree. */
+export function hasDuplicateIds(node: LayoutNode): boolean {
+  const ids = nodeIds(node);
+  return new Set(ids).size !== ids.length;
+}
+
+/** A structurally identical copy that shares no node id with the original. */
+export function reidNodes(node: LayoutNode): LayoutNode {
+  return node.kind === 'leaf'
+    ? { ...node, id: newId() }
+    : { ...node, id: newId(), children: node.children.map(reidNodes) };
+}
+
+/**
+ * Heal repeated ids: the first occurrence keeps its id, every later one gets a
+ * fresh one. Returns the tree UNCHANGED (same object) when the ids are already
+ * unique, so it is safe to run on every load — which is how a snapshot written
+ * by a build that unioned colliding slices repairs itself.
+ */
+export function dedupeIds(node: LayoutNode): LayoutNode {
+  if (!hasDuplicateIds(node)) return node;
+  const seen = new Set<string>();
+  const walk = (n: LayoutNode): LayoutNode => {
+    const id = seen.has(n.id) ? newId() : n.id;
+    seen.add(id);
+    return n.kind === 'leaf' ? { ...n, id } : { ...n, id, children: n.children.map(walk) };
+  };
+  return walk(node);
+}
+
 // ---- Normalisation --------------------------------------------------------
 
 function normaliseLeaf(leaf: LayoutLeaf): LayoutLeaf {
@@ -395,6 +444,10 @@ export function pruneTabs(tree: LayoutNode, keep: (ref: TabRef) => boolean): Lay
  * side-by-side in a row split, deduplicated left-to-right — a tab already
  * present in an earlier tree is pruned from the later one, and a tree that
  * empties (or was empty) contributes nothing. No trees → a single empty leaf.
+ *
+ * The slices being joined were sharded from ONE tree, so `dedupeIds` has the
+ * last word: without it the union hands the renderer several panes under one
+ * id (see "Node identity" above).
  */
 export function joinTrees(trees: LayoutNode[]): LayoutNode {
   const seen = new Set<string>();
@@ -407,8 +460,7 @@ export function joinTrees(trees: LayoutNode[]): LayoutNode {
     kept.push(pruned);
   }
   if (kept.length === 0) return makeLeaf([]);
-  if (kept.length === 1) return kept[0]!;
-  return normalise(makeSplit('row', kept));
+  return dedupeIds(kept.length === 1 ? kept[0]! : normalise(makeSplit('row', kept)));
 }
 
 // ---- Migration from the legacy flat snapshot ------------------------------

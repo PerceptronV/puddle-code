@@ -5,8 +5,11 @@ import {
   allLeaves,
   buildInitialTree,
   closeTab,
+  dedupeIds,
   dropTab,
   findLeaf,
+  hasDuplicateIds,
+  reidNodes,
   flattenTabs,
   focusTab,
   leafContainingKey,
@@ -457,5 +460,46 @@ describe('setTabView', () => {
     const tree = makeLeaf([term('t1')]);
     expect(setTabView(tree, 'term:t1', 'preview')).toEqual(tree);
     expect(setTabView(tree, 'editor:file:s1:::nope.md', 'preview')).toEqual(tree);
+  });
+});
+
+describe('node identity', () => {
+  const twin = (): LayoutNode => {
+    const leaf = makeLeaf([term('t1')]);
+    // Two panes under one id: what sharding one tree into copies used to yield.
+    return { kind: 'split', id: 'sp', direction: 'row', children: [leaf, leaf], sizes: [50, 50] };
+  };
+
+  it('detects a repeated id and treats a healthy tree as clean', () => {
+    expect(hasDuplicateIds(twin())).toBe(true);
+    expect(hasDuplicateIds(makeLeaf([term('t1')]))).toBe(false);
+    expect(hasDuplicateIds(splitLeaf(makeLeaf([ed('a.ts')]), '', 'right', term('t1')))).toBe(false);
+  });
+
+  it('reidNodes copies the structure and shares no id with the original', () => {
+    const tree = splitLeaf(
+      makeLeaf([ed('a.ts')]),
+      allLeaves(makeLeaf([]))[0]!.id,
+      'right',
+      term('t1'),
+    );
+    const copy = reidNodes(tree);
+    expect(flattenTabs(copy)).toEqual(flattenTabs(tree));
+    expect(hasDuplicateIds(copy)).toBe(false);
+    const ids = new Set(allLeaves(tree).map((l) => l.id));
+    expect(allLeaves(copy).some((l) => ids.has(l.id))).toBe(false);
+  });
+
+  it('dedupeIds re-ids only the repeats and leaves a clean tree untouched', () => {
+    const clean = makeLeaf([term('t1')]);
+    expect(dedupeIds(clean)).toBe(clean); // same object — safe on every load
+    const corrupt = twin();
+    const healed = dedupeIds(corrupt);
+    expect(hasDuplicateIds(healed)).toBe(false);
+    // the first occurrence keeps its id, so a focused pane survives the repair
+    const [first, second] = allLeaves(healed);
+    expect(first!.id).toBe(allLeaves(corrupt)[0]!.id);
+    expect(second!.id).not.toBe(first!.id);
+    expect(second!.tabs).toEqual(first!.tabs);
   });
 });

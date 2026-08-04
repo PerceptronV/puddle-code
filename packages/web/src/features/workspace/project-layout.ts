@@ -5,7 +5,7 @@ import {
   type TabRef,
   type UiStateSnapshot,
 } from '@puddle/shared';
-import { buildInitialTree, joinTrees, pruneTabs } from './layout-tree';
+import { buildInitialTree, joinTrees, pruneTabs, reidNodes } from './layout-tree';
 import type { UiStateHandle } from './use-ui-state';
 
 /**
@@ -101,6 +101,11 @@ export function scopeUiState(
  * project open when the setting flipped). Returns the patch to apply to the
  * BASE snapshot; the top-level tree is left untouched — nothing reads it while
  * `layout_mode` is `project`, and the union overwrites it on the way back.
+ *
+ * Every shard is re-id'd (`reidNodes`): the slices are copies of ONE tree, and
+ * ids that survived the copy would collide the moment the union sets the
+ * slices side by side — panes aliasing each other and a renderer holding two
+ * siblings under one key (see layout-tree's "Node identity").
  */
 export function splitToProjects(
   snap: UiStateSnapshot,
@@ -117,7 +122,7 @@ export function splitToProjects(
       return sessionProject.get(sid) === pid;
     });
     layouts[pid] = {
-      layout_tree: pruned,
+      layout_tree: reidNodes(pruned),
       active_session:
         snap.active_session !== null && sessionProject.get(snap.active_session) === pid
           ? snap.active_session

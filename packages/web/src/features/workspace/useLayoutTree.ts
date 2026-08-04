@@ -7,6 +7,7 @@ import {
   allLeaves,
   buildInitialTree,
   closeTab,
+  dedupeIds,
   dropTab,
   findLeaf,
   flattenTabs,
@@ -72,7 +73,15 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
   if (!snapshot.layout_tree && !initialRef.current) {
     initialRef.current = buildInitialTree(snapshot);
   }
-  const tree = snapshot.layout_tree ?? initialRef.current ?? makeLeaf([]);
+  const storedTree = snapshot.layout_tree ?? initialRef.current ?? makeLeaf([]);
+  // Every rendered tree passes through here, so this is where a snapshot with
+  // REPEATED node ids is healed — a build before this fix unioned project-based
+  // slices that all carried the sharded tree's ids, and the renderer cannot
+  // survive two panes under one id (layout-tree's "Node identity"). `dedupeIds`
+  // returns the same object when the ids are already unique, so the memo keeps
+  // tree identity stable for the healthy case; the effect below writes the
+  // repair back once, and the repaired snapshot then heals nothing further.
+  const tree = useMemo(() => dedupeIds(storedTree), [storedTree]);
 
   const persist = useCallback(
     (next: LayoutNode) => uiState.update({ layout_tree: next }),
@@ -100,6 +109,15 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
       if (flattenTabs(initialRef.current).length > 0) persistRef.current(initialRef.current);
     }
   }, [uiState.loaded, snapshot.layout_tree]);
+
+  // Write a healed tree back, so the repair outlives this render. Keyed on the
+  // two identities: once the persisted snapshot arrives, `tree === storedTree`
+  // and this stops firing.
+  useEffect(() => {
+    if (uiState.loaded && tree !== storedTree && snapshot.layout_tree) {
+      persistRef.current(tree);
+    }
+  }, [uiState.loaded, tree, storedTree, snapshot.layout_tree]);
 
   const [focusedLeafId, setFocusedLeafId] = useState<string | null>(null);
   const focusedLeaf =

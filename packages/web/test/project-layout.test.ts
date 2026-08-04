@@ -6,7 +6,14 @@ import {
   type TabRef,
   type UiStateSnapshot,
 } from '@puddle/shared';
-import { flattenTabs, joinTrees, makeLeaf, tabRefKey } from '../src/features/workspace/layout-tree';
+import type { LayoutNode } from '@puddle/shared';
+import {
+  flattenTabs,
+  hasDuplicateIds,
+  joinTrees,
+  makeLeaf,
+  tabRefKey,
+} from '../src/features/workspace/layout-tree';
 import {
   loadLayoutPatch,
   mergeShardedLayouts,
@@ -31,6 +38,8 @@ const untitled = (): TabRef => ({
 });
 const snap = (over: Record<string, unknown>): UiStateSnapshot => uiStateSnapshotSchema.parse(over);
 const keys = (tree: Parameters<typeof flattenTabs>[0]) => flattenTabs(tree).map(tabRefKey);
+const nodeIds = (node: LayoutNode): string[] =>
+  node.kind === 'leaf' ? [node.id] : [node.id, ...node.children.flatMap(nodeIds)];
 
 const OWNER = new Map([
   [S1, PA],
@@ -79,6 +88,14 @@ describe('splitToProjects', () => {
     const s = snap({ layout_tree: makeLeaf([term(S1)]), layout_ref: 7 });
     const layouts = splitToProjects(s, [PA], OWNER, null).project_layouts!;
     expect(layouts[PA]!.layout_ref).toBeNull();
+  });
+
+  it('gives every shard its own node ids — they are copies of one tree', () => {
+    const s = snap({ layout_tree: makeLeaf([term(S1), term(S2)]) });
+    const layouts = splitToProjects(s, [PA, PB], OWNER, null).project_layouts!;
+    const ids = [PA, PB].flatMap((p) => nodeIds(layouts[p]!.layout_tree!));
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).not.toContain((s.layout_tree as { id: string }).id);
   });
 });
 
@@ -132,6 +149,40 @@ describe('unionToProfile', () => {
     const empty = unionToProfile(snap({ layout_mode: 'project' }), [PA]);
     expect(flattenTabs(empty.layout_tree!)).toEqual([]);
     expect(empty.active_session).toBeNull();
+  });
+});
+
+describe('the profile → project → profile round trip', () => {
+  // The v0.0.23 crash: the shards all kept the source tree's node ids, so the
+  // union set several panes side by side under ONE id — duplicate React keys
+  // and a Group whose `defaultLayout` collapsed to a single entry, which took
+  // the workspace down in every window that loaded the snapshot.
+  it('never unions two panes under one node id', () => {
+    const start = snap({ layout_tree: makeLeaf([term(S1), term(S2), term(S3)]) });
+    const split = splitToProjects(start, [PA, PB], OWNER, PA);
+    const inProject = snap({ ...start, ...split });
+    // each project's own slice is a healthy tree on its own
+    for (const p of [PA, PB]) {
+      expect(hasDuplicateIds(inProject.project_layouts[p]!.layout_tree!)).toBe(false);
+    }
+    const union = unionToProfile(inProject, [PA, PB]);
+    expect(hasDuplicateIds(union.layout_tree!)).toBe(false);
+    // and no tab is lost on the way back
+    expect(keys(union.layout_tree!).sort()).toEqual(
+      [term(S1), term(S2), term(S3)].map(tabRefKey).sort(),
+    );
+  });
+
+  it('heals a snapshot whose slices already share ids (written before the fix)', () => {
+    const shared = makeLeaf([term(S1)]);
+    const corrupt = snap({
+      layout_mode: 'project',
+      project_layouts: {
+        [PA]: { layout_tree: shared, active_session: null },
+        [PB]: { layout_tree: { ...shared, tabs: [term(S2)] }, active_session: null },
+      },
+    });
+    expect(hasDuplicateIds(unionToProfile(corrupt, [PA, PB]).layout_tree!)).toBe(false);
   });
 });
 
