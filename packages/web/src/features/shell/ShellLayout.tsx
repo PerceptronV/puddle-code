@@ -153,7 +153,12 @@ function CommandField() {
   const params = useParams();
   const paletteKey = useHotkeyLabel('palette.toggle');
   const detail = useProjectDetail(params['id']);
-  const projectName = detail.data?.project.name;
+  // The query keeps the previous project's detail while the next is in flight
+  // (so the workspace under it never unmounts) — name the project in the URL or
+  // nothing, never the one we just left.
+  const project = detail.data?.project;
+  const projectName =
+    project !== undefined && project.id === params['id'] ? project.name : undefined;
   return (
     <button
       type="button"

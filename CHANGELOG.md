@@ -50,6 +50,17 @@ Past releases: see docs/changelogs/.
 - A layout row's tools follow the Scratchpad's order — act, copy, edit, delete —
   so save-as and duplicate lead and rename sits beside delete.
 
+- **Opening another project's session from the sidebar now lands in that
+  project's layout.** Under project-based layouts each project keeps its own
+  centre area, so a session clicked, double-clicked, or dragged out of another
+  project's group switches to that project and opens there — preview on a single
+  click, pinned on a double click or a drag. Dragging one used to file it under
+  the project you were leaving, where the switch immediately hid it.
+- **Switching projects no longer blanks the workspace.** The centre area stayed
+  mounted through the fetch instead of being replaced by a spinner, so open
+  terminals keep their viewport and a double-click on another project's session
+  is no longer cut in half by the sidebar disappearing between its two clicks.
+
 ### Fixed
 
 - **Dragging a session or a file from a sidebar into the centre area now opens

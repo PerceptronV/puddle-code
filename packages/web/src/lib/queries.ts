@@ -87,11 +87,21 @@ export function useProjects(profileId: string | undefined, enabled = true) {
   });
 }
 
+/**
+ * `placeholderData` keeps the PREVIOUS project's detail on screen while the next
+ * one is in flight, so switching projects never unmounts the workspace: without
+ * it the loading gate replaced the whole shell for the length of one fetch,
+ * which tore down every open terminal (they re-attach, but the flash cost their
+ * viewport) and — worse — pulled the sidebar out from under a double-click
+ * mid-gesture. Consumers must therefore check `project.id` before trusting the
+ * data for the project in the URL; `Workspace` does.
+ */
 export function useProjectDetail(projectId: string | undefined) {
   return useQuery({
     queryKey: ['project', projectId],
     queryFn: () => api<ProjectDetail>('GET', `/api/projects/${projectId}`),
     enabled: projectId !== undefined,
+    placeholderData: (previous) => previous,
   });
 }
 

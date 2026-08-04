@@ -122,8 +122,15 @@ function WorkspaceInner() {
   const projectId = params['id'] ?? '';
   const validProject = /^[0-9a-f]{10}$/.test(projectId);
   const activeSessionId = params['sid'] ?? null;
+  // The detail query keeps the PREVIOUS project's data while the next one is in
+  // flight, so a project switch never unmounts this component (open terminals
+  // keep their viewport, and a sidebar double-click is not yanked out from under
+  // the second click). `projectDetail` is therefore the id-checked handle —
+  // undefined until THIS project's own detail has landed — and everything that
+  // must be about this project reads it. The stale row is still good for the
+  // PROFILE, which a within-profile switch does not change.
   const detail = useProjectDetail(validProject ? projectId : undefined);
-  const sessions = useMemo(() => detail.data?.sessions ?? [], [detail.data]);
+  const projectDetail = detail.data?.project.id === projectId ? detail.data : undefined;
   const accounts = useAccounts(detail.data?.project.profile_id).data ?? [];
   const renderTitle = useSessionTitleRenderer();
   const saveKey = useHotkeyLabel('editor.save');
@@ -133,6 +140,14 @@ function WorkspaceInner() {
   // project — for labels, status dots, and restore-time pruning.
   const baseUiState = useUiState();
   const allSessions = useAllSessions();
+  // This project's sessions: its detail's list, or the all-sessions list
+  // filtered — which is already in hand when the URL changes, so the navigators
+  // never blink through an empty project while the detail is in flight.
+  const sessions = useMemo(
+    () =>
+      projectDetail?.sessions ?? allSessions.data?.filter((s) => s.project_id === projectId) ?? [],
+    [projectDetail, allSessions.data, projectId],
+  );
   const tabSessions = allSessions.data ?? sessions;
 
   // Project-based layout (SPEC §11, client setting): the centre editor keeps a
@@ -165,15 +180,20 @@ function WorkspaceInner() {
   const profileProjects = useProjects(profileId);
   const profileSettings = useProfileSettings(profileId);
   const patchProfileSettings = usePatchProfileSettings(profileId ?? '');
+  // THIS project's row: from its own detail once that lands, else from the
+  // profile's project list — which already holds every project, so a switch
+  // inside the profile knows the name, repo, and abbreviation at once and the
+  // gate below never blanks for it. Only a cross-profile jump has neither.
+  const project = projectDetail?.project ?? profileProjects.data?.find((p) => p.id === projectId);
   // The profile's live projects in sidebar order (the homescreen's
   // projectOrder) — the base for the session groups and for header drags.
   const orderedProjects = useMemo(() => {
-    const projectRows = profileProjects.data ?? (detail.data ? [detail.data.project] : []);
+    const projectRows = profileProjects.data ?? (project ? [project] : []);
     return orderByDrag(
       projectRows.filter((p) => !p.archived),
       profileSettings.data?.projectOrder ?? [],
     );
-  }, [profileProjects.data, detail.data, profileSettings.data]);
+  }, [profileProjects.data, project, profileSettings.data]);
   const sessionGroups = useMemo<SessionGroup[]>(() => {
     const active = (s: Session) => s.status !== 'archived';
     const all = allSessions.data ?? sessions;
@@ -332,6 +352,14 @@ function WorkspaceInner() {
   // render later, so this stops the deep-link effect resurrecting the tab in
   // the interim (it would otherwise leave a zombie header — no active session).
   const justClosedActive = useRef<string | null>(null);
+  // A session opened from ANOTHER project's group in the sidebar (SPEC §11):
+  // under project-based layouts that project keeps its own tree, so the tab
+  // cannot be opened here — the gesture navigates instead, and the navigation
+  // effect opens it once THAT project's layout is the live one. `pin` carries
+  // whether the gesture meant permanent (a drop, a double-click) or preview (a
+  // single click). This survives the switch because the query keeps the previous
+  // detail, so the workspace re-renders rather than remounting.
+  const pendingOpen = useRef<{ session: string; pin: boolean } | null>(null);
   const { setHandler } = useNewSession();
 
   // Opening any tab from a navigator (files tree, diff list, history list) or a
@@ -518,31 +546,37 @@ function WorkspaceInner() {
   // wrappers render their components directly, with no Suspense pass at all.
   // A terminal-only workspace still loads no Monaco (SPEC §8); an empty one
   // warms nothing. `.finally`: a failed import degrades to the old lazy path
-  // rather than wedging the workspace.
+  // rather than wedging the workspace. This gates the FIRST open only — a later
+  // project switch keeps the workspace mounted (and its warmed chunks), and
+  // must not re-blank it to wait on a chunk the new tree may not even need. It
+  // still re-runs per scope, so the tree a switch brings up warms what it needs
+  // as early as possible — just without holding the render back.
   const [chunksReady, setChunksReady] = useState(false);
   useEffect(() => {
-    if (!uiState.loaded || chunksReady) return;
+    if (!uiState.loaded) return;
     const tabs = flattenTabs(layoutRef.current.tree);
     void Promise.all([
       tabs.some((t) => t.type === 'terminal') ? warmTerminalChunk() : undefined,
       tabs.some((t) => t.type === 'editor') ? warmEditorChunk() : undefined,
     ]).finally(() => setChunksReady(true));
-  }, [uiState.loaded, chunksReady]);
+  }, [uiState.loaded, scopeKey]);
 
   // Restore-on-open: land on the stored active session unless the URL already
   // deep-links one. Navigation only follows a stored session of THIS project
   // (the project detail's own list decides — entering project A must not yank
   // the URL to wherever the profile last worked), so restore never waits on
   // anything beyond the detail fetch and terminals open immediately.
+  // It waits for THIS project's detail (`projectDetail`), never the stale row a
+  // switch renders through: the stored session is looked up in that list.
   useEffect(() => {
-    if (restored || !uiState.loaded || !detail.data) return;
+    if (restored || !uiState.loaded || !projectDetail) return;
     setRestoredProject(projectId);
     const stored = uiState.snapshot.active_session;
     const storedSession = sessions.find((s) => s.id === stored);
     if (!activeSessionId && storedSession && storedSession.status !== 'archived') {
       void navigate(`/project/${projectId}/session/${storedSession.id}`, { replace: true });
     }
-  }, [restored, uiState, detail.data, sessions, activeSessionId, navigate, projectId]);
+  }, [restored, uiState, projectDetail, sessions, activeSessionId, navigate, projectId]);
 
   // Prune dead tabs (and dead session_order ids) once per mount, whenever the
   // FULL session list first arrives — decoupled from `restored` so a slow or
@@ -605,9 +639,17 @@ function WorkspaceInner() {
     // Don't re-open the tab we're closing while the URL param still lags.
     if (activeSessionId === justClosedActive.current) return;
     justClosedActive.current = null;
+    // A gesture that had to cross projects to reach its layout (see
+    // `pendingOpen`) says how the tab lands; any other navigation is a plain
+    // single click. One navigation consumes the intent whether it matched or not,
+    // so a stale one cannot pin a later open.
+    const intent = pendingOpen.current;
+    pendingOpen.current = null;
     // Single-click navigation opens the session as an ephemeral preview tab
     // (VSCode-style); double-clicking its tab promotes it to permanent.
-    layoutRef.current.ensureTerminal(activeSessionId, { preview: true });
+    layoutRef.current.ensureTerminal(activeSessionId, {
+      preview: intent?.session === activeSessionId ? !intent.pin : true,
+    });
     const ui = uiStateRef.current;
     if (ui.snapshot.active_session !== activeSessionId) {
       ui.update({ active_session: activeSessionId });
@@ -621,12 +663,12 @@ function WorkspaceInner() {
   useEffect(() => {
     const base = hostLabel(host.data) ?? 'Puddle';
     const waiting = sessions.filter((s) => s.status === 'waiting_input').length;
-    const name = detail.data?.project.name ?? 'Puddle';
+    const name = project?.name ?? 'Puddle';
     document.title = waiting > 0 ? `● ${waiting} waiting — ${name}` : `${name} — ${base}`;
     return () => {
       document.title = base;
     };
-  }, [sessions, detail.data?.project.name, host.data]);
+  }, [sessions, project?.name, host.data]);
 
   // Closing a session from the sidebar / its lifecycle menu removes its terminal
   // from the tree; if it was the URL-bound one, drop the binding.
@@ -737,13 +779,27 @@ function WorkspaceInner() {
   // dropped session also claims the URL, like activating its tab would.
   const onDropTab = useCallback(
     (leafId: string, ref: TabRef, edge: DropEdge) => {
+      const owner =
+        ref.type === 'terminal'
+          ? tabSessions.find((s) => s.id === ref.session)?.project_id
+          : undefined;
+      // Under project-based layouts, a session from another project belongs in
+      // THAT project's tree — dropping it here would file it under this project
+      // and then navigate away from the pane it landed in, so the tab vanished
+      // with the layout it was filed in. Switch projects and open it there
+      // instead, permanent as a drop implies. The dropped POSITION cannot
+      // follow: it names a pane in a tree that is not the destination's.
+      if (projectScoped && owner !== undefined && owner !== projectId && ref.type === 'terminal') {
+        pendingOpen.current = { session: ref.session, pin: true };
+        void navigate(`/project/${owner}/session/${ref.session}`);
+        return;
+      }
       layout.drop({ ref, fromLeafId: leafId, toLeafId: leafId, edge });
-      if (ref.type === 'terminal' && ref.session !== activeSessionId) {
-        const owner = tabSessions.find((s) => s.id === ref.session)?.project_id;
-        if (owner) void navigate(`/project/${owner}/session/${ref.session}`);
+      if (ref.type === 'terminal' && ref.session !== activeSessionId && owner !== undefined) {
+        void navigate(`/project/${owner}/session/${ref.session}`);
       }
     },
-    [layout, activeSessionId, tabSessions, navigate],
+    [layout, activeSessionId, tabSessions, navigate, projectScoped, projectId],
   );
 
   // The whole left sidebar binds to one worktree: the pinned session if any,
@@ -769,18 +825,18 @@ function WorkspaceInner() {
   // than showing four empty panels (SPEC §8, decision 2026-08-03). The daemon
   // resolves that through a directory target, so an older one keeps the empty
   // state instead of asking questions it would answer about the wrong repo.
-  const repo = useRepos().data?.find((r) => r.id === detail.data?.project.repo_id);
+  const repo = useRepos().data?.find((r) => r.id === project?.repo_id);
   const projectDirectory = useMemo(
     () =>
-      directoryTargetSupported(daemonProtocol) && repo && detail.data
+      directoryTargetSupported(daemonProtocol) && repo && project
         ? {
             path: repo.path,
-            projectId: detail.data.project.id,
-            name: detail.data.project.name,
+            projectId: project.id,
+            name: project.name,
             defaultBranch: repo.default_base_branch,
           }
         : null,
-    [daemonProtocol, repo, detail.data],
+    [daemonProtocol, repo, project],
   );
   const sidebarTarget = useExplorerTarget(
     tabSessions,
@@ -1008,7 +1064,11 @@ function WorkspaceInner() {
   ]);
 
   if (!validProject) return null;
-  if (!uiState.loaded || !detail.data || !chunksReady) {
+  // The gate needs the project ROW, not its detail: within a profile the row is
+  // already in hand when the URL changes, so switching projects renders straight
+  // into the new one (its session list arriving a beat later) instead of
+  // replacing the workspace with a spinner.
+  if (!uiState.loaded || !project || !chunksReady) {
     return <div className="flex h-full items-center justify-center text-sm text-fg-muted">…</div>;
   }
 
@@ -1020,7 +1080,7 @@ function WorkspaceInner() {
       onModeChange={(m) => uiState.update({ sidebar_mode: m })}
       onCollapse={onCollapse}
       projectId={projectId}
-      repoId={detail.data.project.repo_id}
+      repoId={project.repo_id}
       sessions={sessions}
       target={sidebarTarget}
       onOpenFile={openTreeFile}
@@ -1220,7 +1280,7 @@ function WorkspaceInner() {
           )}
           <NewSessionDialog
             projectId={createTarget?.projectId ?? projectId}
-            repoId={createTarget?.repoId ?? detail.data.project.repo_id}
+            repoId={createTarget?.repoId ?? project.repo_id}
             open={creating}
             kind={createKind}
             seedAccountId={seedAccountId}
