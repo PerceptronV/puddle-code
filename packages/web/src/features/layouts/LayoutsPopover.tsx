@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { LayoutTemplate, Pencil, Trash2 } from 'lucide-react';
-import { useParams } from 'react-router';
 import { toast } from 'sonner';
 import type { SavedLayout } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
@@ -28,27 +27,31 @@ const EMPTY_SIGNATURE = layoutSignature(null);
  * Scratchpad, in the Scratchpad's mould. The head is the LIVE layout — named
  * after the saved layout it derives from (or "Unnamed layout"), with an honest
  * Saved / Unsaved changes state driven by `layoutSignature` — and the list
- * below is the saved catalogue: profile-wide layouts plus the current
- * project's own. Clicking a row loads it (an inline confirm first whenever
- * that would discard unsaved changes — HUMANS.md, no modal); saving captures
- * the live tree under the scope the client's project-based-layout setting
- * implies right now. Loading a layout whose scope disagrees with that setting
- * flips the setting through the workspace bridge, which suppresses the
- * default union/shard transition so the loaded layout survives it.
+ * below is the whole profile's saved catalogue, project-scoped rows labelled
+ * with their project's name. Every project keeps its own current layout under
+ * project-based layout, so any row is loadable from anywhere: a cross-project
+ * load lands in its own project's slice and leaves the visible layout alone,
+ * and the inline discard-confirm checks exactly the state a load replaces
+ * (HUMANS.md, no modal). Saving captures the live tree under the scope the
+ * client's project-based-layout setting implies right now; loading a layout
+ * whose scope disagrees with that setting flips the setting through the
+ * bridge, which suppresses the default union/shard transition so the loaded
+ * layout survives it.
  */
 export function LayoutsPopover() {
   const open = useLayoutsOpen();
   const profileId = useCurrentProfileId();
-  // Inside a project route the list shows that project's layouts too; the
-  // dashboard lists every layout of the profile.
-  const projectId = useParams()['id'];
   const workspaceBridge = useLayoutBridge();
   // Without a workspace the dashboard bridge drives the persisted snapshot
   // directly — loads work everywhere; it reads only while the popover is open
   // (and only when no workspace ui-state handle exists to race with).
   const dashboard = useDashboardLayouts(profileId, open && workspaceBridge === null);
   const bridge = workspaceBridge ?? dashboard;
-  const layouts = useLayouts(profileId ?? undefined, projectId).data ?? [];
+  // The catalogue is always the WHOLE profile's (SPEC §11 Layouts): every
+  // project keeps its own current layout, so any project's layouts are
+  // loadable from anywhere — a cross-project load lands in ITS project's
+  // slice and leaves the visible one alone.
+  const layouts = useLayouts(profileId ?? undefined, undefined).data ?? [];
   const projects = useProjects(profileId ?? undefined, open && profileId !== null).data ?? [];
   const create = useCreateLayout();
   const patch = usePatchLayout();
@@ -76,27 +79,48 @@ export function LayoutsPopover() {
       ? bridge.signature !== EMPTY_SIGNATURE
       : layoutSignature(current.layout_tree) !== bridge.signature);
 
-  // Whether loading `layout` would discard unsaved layout state. With a head
-  // (a workspace, or the dashboard under profile mode) that is the head's own
-  // dirtiness; headless (dashboard under project-based layout) it is the
-  // TARGET project's slice that gets replaced, so compare that slice against
+  // A stored slice's own unsaved state: unnamed with content, or drifted from
   // the saved layout it derives from.
-  const discards = (layout: SavedLayout): boolean => {
-    if (bridge === null) return false;
-    if (!headless) return dirty;
-    if (layout.scope !== 'project' || layout.project_id === null) return false;
-    const slice = bridge.slices?.[layout.project_id];
+  const sliceDirty = (pid: string): boolean => {
+    const slice = bridge?.slices?.[pid];
     if (!slice) return false; // no stored slice — nothing to lose
-    const named = slice.layoutRef === null ? null : layouts.find((l) => l.id === slice.layoutRef);
+    const named =
+      slice.layoutRef === null ? null : (layouts.find((l) => l.id === slice.layoutRef) ?? null);
     return named
       ? layoutSignature(named.layout_tree) !== slice.signature
       : slice.signature !== EMPTY_SIGNATURE;
   };
 
+  // Whether loading `layout` would discard unsaved layout state — checked
+  // against what the load actually replaces, never the unrelated visible
+  // layout. A profile-scoped load under project mode retains every slice
+  // (SPEC §11 Layouts), so there is nothing to confirm; a project-scoped load
+  // replaces its OWN project's slice (the head when that is the open project);
+  // under profile mode it additionally shards the live profile layout away.
+  const discards = (layout: SavedLayout): boolean => {
+    if (bridge === null) return false;
+    if (layout.scope === 'profile') return bridge.scope === 'profile' && dirty;
+    if (layout.project_id === null) return false;
+    if (bridge.scope === 'project') {
+      return !headless && layout.project_id === bridge.projectId
+        ? dirty
+        : sliceDirty(layout.project_id);
+    }
+    return dirty || sliceDirty(layout.project_id);
+  };
+
+  // The layout a live state currently derives from: the head's ref for the
+  // visible layout, a slice's ref for the other projects under project-based
+  // layout. Slices preserved under profile mode are dormant, not current.
   const isCurrent = (layout: SavedLayout): boolean => {
     if (bridge === null) return false;
-    if (!headless) return bridge.layoutRef === layout.id;
-    if (layout.project_id === null) return false;
+    if (layout.scope === 'profile') {
+      return bridge.scope === 'profile' && bridge.layoutRef === layout.id;
+    }
+    if (bridge.scope !== 'project' || layout.project_id === null) return false;
+    if (!headless && layout.project_id === bridge.projectId) {
+      return bridge.layoutRef === layout.id;
+    }
     return bridge.slices?.[layout.project_id]?.layoutRef === layout.id;
   };
 
@@ -373,9 +397,7 @@ function LayoutRow({
         </div>
       ) : confirming === 'load' ? (
         <div className="mt-2 flex items-center gap-3">
-          <span className="text-2xs text-fg-muted">
-            Loading discards the current layout’s unsaved changes.
-          </span>
+          <span className="text-2xs text-fg-muted">Loading discards unsaved layout changes.</span>
           <button
             type="button"
             onClick={requestLoad}

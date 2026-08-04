@@ -765,6 +765,7 @@ function WorkspaceInner() {
     projectMode && baseUiState.snapshot.layout_mode === 'project' ? 'project' : 'profile';
   const scopedTree = uiState.snapshot.layout_tree;
   const scopedLayoutRef = uiState.snapshot.layout_ref;
+  const projectLayouts = baseUiState.snapshot.project_layouts;
   useEffect(() => {
     if (!baseUiState.loaded) return;
     setLayoutBridge({
@@ -772,13 +773,31 @@ function WorkspaceInner() {
       projectId,
       layoutRef: scopedLayoutRef,
       signature: layoutSignature(scopedTree),
+      // Every stored slice, not just this project's: other projects' current
+      // layouts (project mode) or slices preserved through a profile-load —
+      // a cross-project load replaces one of THESE, and the popover confirms
+      // against exactly what it replaces.
+      slices: Object.fromEntries(
+        Object.entries(projectLayouts).map(([pid, slice]) => [
+          pid,
+          { layoutRef: slice.layout_ref, signature: layoutSignature(slice.layout_tree) },
+        ]),
+      ),
       capture: () => {
         const cur = uiStateRef.current.current();
         return { layout_tree: cur.layout_tree, active_session: cur.active_session };
       },
       apply: applyLayout,
     });
-  }, [baseUiState.loaded, savedScope, projectId, scopedTree, scopedLayoutRef, applyLayout]);
+  }, [
+    baseUiState.loaded,
+    savedScope,
+    projectId,
+    scopedTree,
+    scopedLayoutRef,
+    projectLayouts,
+    applyLayout,
+  ]);
   useEffect(() => () => setLayoutBridge(null), []);
 
   // Global hotkey handlers (SPEC §11): register stable wrappers once; each reads

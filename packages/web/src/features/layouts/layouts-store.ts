@@ -35,9 +35,11 @@ export interface LayoutBridge {
    */
   headless?: boolean;
   /**
-   * Per-project slice state, reported by a headless bridge so the popover can
-   * mark the current layout and confirm before a load discards a slice's
-   * unsaved changes. Keyed by project id.
+   * Per-project slice state, keyed by project id: under project-based layout
+   * every project's own current layout; under profile mode any slices
+   * preserved through an earlier profile-load. The popover marks other
+   * projects' current layouts and confirms a load against the slice it would
+   * actually replace — never against the unrelated visible layout.
    */
   slices?: Record<string, { layoutRef: number | null; signature: string }>;
   /** The live scoped slice, as a saved layout would store it. */

@@ -89,6 +89,15 @@ export function useDashboardLayouts(
       return true;
     };
 
+    // Slices in BOTH modes: every project's own current layout under
+    // project-based layout, or slices preserved through an earlier
+    // profile-load — either way, what a project-scoped load would replace.
+    const slices = Object.fromEntries(
+      Object.entries(snap.project_layouts).map(([pid, slice]) => [
+        pid,
+        { layoutRef: slice.layout_ref, signature: layoutSignature(slice.layout_tree) },
+      ]),
+    );
     if ((snap.layout_mode ?? 'profile') === 'project') {
       return {
         headless: true,
@@ -96,12 +105,7 @@ export function useDashboardLayouts(
         projectId: '',
         layoutRef: null,
         signature: layoutSignature(null),
-        slices: Object.fromEntries(
-          Object.entries(snap.project_layouts).map(([pid, slice]) => [
-            pid,
-            { layoutRef: slice.layout_ref, signature: layoutSignature(slice.layout_tree) },
-          ]),
-        ),
+        slices,
         capture: () => ({ layout_tree: null, active_session: null }),
         apply,
       };
@@ -111,6 +115,7 @@ export function useDashboardLayouts(
       projectId: '',
       layoutRef: snap.layout_ref,
       signature: layoutSignature(snap.layout_tree),
+      slices,
       capture: () => ({ layout_tree: snap.layout_tree, active_session: snap.active_session }),
       apply,
     };

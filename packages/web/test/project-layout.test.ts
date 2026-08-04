@@ -208,6 +208,24 @@ describe('loadLayoutPatch', () => {
     expect(patch.project_layouts![PB]).toEqual(s.project_layouts[PB]); // untouched
   });
 
+  it("cross-project load targets the layout's own project, never the open one", () => {
+    const s = snap({
+      layout_mode: 'project',
+      project_layouts: {
+        // the open project's layout: unnamed and unsaved
+        [PA]: { layout_tree: makeLeaf([term(S1)]), active_session: S1 },
+      },
+    });
+    const { patch } = loadLayoutPatch(
+      s,
+      saved({ scope: 'project', project_id: PB, layout_tree: makeLeaf([term(S2)]) }),
+      ctx(PA), // PA is the open project — it must not be overridden
+    );
+    expect(patch.project_layouts![PA]).toEqual(s.project_layouts[PA]);
+    expect(keys(patch.project_layouts![PB]!.layout_tree!)).toEqual([tabRefKey(term(S2))]);
+    expect(patch.project_layouts![PB]!.layout_ref).toBe(7);
+  });
+
   it('project scope under profile mode: shards the others, target takes the layout', () => {
     const s = snap({ layout_tree: makeLeaf([term(S1), term(S2)]) });
     const { patch, projectBased } = loadLayoutPatch(
