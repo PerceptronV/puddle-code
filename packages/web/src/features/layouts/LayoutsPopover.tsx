@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Copy, CopyPlus, LayoutTemplate, Pencil, Save, Trash2 } from 'lucide-react';
+import { Copy, LayoutTemplate, Pencil, Plus, Save, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { SavedLayout } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
@@ -29,9 +29,10 @@ const EMPTY_SIGNATURE = layoutSignature(null);
  * Scratchpad, in the Scratchpad's mould. It is a LIST, not a dashboard — the
  * live layout's own state is carried by its row (its name reads green/`Active`
  * when it matches what is saved, red/`Unsaved` when it has drifted), so nothing
- * above the list repeats it. The one exception is a live layout that has never
- * been saved: it has no row to live in, so the head names it and offers the
- * field that gives it one.
+ * above the list repeats it. What appears above it is only ever the name FIELD
+ * for the live layout — permanently while it has no row of its own (never
+ * saved), and on demand from the header's `+` (the Scratchpad's composer
+ * gesture), which saves the live layout under a new name and adopts it.
  *
  * Under project-based layout the catalogue narrows to this project's layouts
  * plus the profile-wide ones (decision 2026-08-03): another project's layout is
@@ -64,6 +65,9 @@ export function LayoutsPopover() {
   const remove = useDeleteLayout();
 
   const [nameDraft, setNameDraft] = useState('');
+  // `+` opens the name form for the LIVE layout, exactly as an unnamed one
+  // always shows it — the one way to save the live layout under a fresh name.
+  const [composing, setComposing] = useState(false);
   // 'profile' filters to profile-wide layouts; a project id to that project's.
   const [filterProject, setFilterProject] = useState<string | 'profile' | null>(null);
 
@@ -72,6 +76,7 @@ export function LayoutsPopover() {
   useEffect(() => {
     if (!open) {
       setNameDraft('');
+      setComposing(false);
       setFilterProject(null);
     }
   }, [open]);
@@ -213,23 +218,19 @@ export function LayoutsPopover() {
   };
 
   /**
-   * A new layout under `name`: the LIVE layout when copying the current row
-   * (save-as-new — unsaved changes included, and the live layout adopts it), or
-   * the row's own stored tree when duplicating any other. Provenance follows
-   * the current setting either way, so duplicating a profile-wide layout under
-   * project-based layout gives this project its own copy.
+   * A copy of a row's SAVED tree under a new name — the same thing on every row,
+   * the current layout included: duplicating it copies what is stored, NOT the
+   * unsaved changes on top, and leaves the live layout where it was. (Saving the
+   * live layout under a fresh name is the `+` above, which is a different act
+   * and says so.) Provenance follows the current setting, so duplicating a
+   * profile-wide layout under project-based layout gives this project its copy.
    */
-  const duplicate = (layout: SavedLayout, name: string) => {
-    if (!bridge) return;
-    const live = isCurrent(layout);
+  const duplicate = (layout: SavedLayout, name: string) =>
     createUnder(
       name,
-      live
-        ? bridge.capture()
-        : { layout_tree: layout.layout_tree, active_session: layout.active_session },
-      live,
+      { layout_tree: layout.layout_tree, active_session: layout.active_session },
+      false,
     );
-  };
 
   const load = (layout: SavedLayout) => {
     if (!bridge) return;
@@ -265,9 +266,20 @@ export function LayoutsPopover() {
       <PopoverContent className="w-[26rem] max-w-[calc(100vw-1rem)] p-0">
         <div className="flex items-center gap-2 px-5 pb-2 pt-4">
           <span className="text-2xs font-medium uppercase tracking-wide text-fg-gold">Layouts</span>
+          {bridge !== null && !headless && (
+            <button
+              type="button"
+              onClick={() => setComposing((c) => !c)}
+              className="ml-auto flex items-center rounded-md p-1 text-fg-gold transition-colors hover:bg-surface hover:text-fg"
+            >
+              <Plus className="size-4" />
+              <span className="sr-only">Save the current layout as a new layout</span>
+            </button>
+          )}
         </div>
 
-        {/* Only what the list cannot say for itself: a live layout with no row. */}
+        {/* Only what the list cannot say for itself: the live layout, when it has
+            no row of its own (never saved) or is being saved under a new name. */}
         {bridge === null ? (
           <p className="px-5 pb-3 text-sm text-fg-muted">Loading the profile’s layout state…</p>
         ) : headless ? (
@@ -276,15 +288,17 @@ export function LayoutsPopover() {
             or save it; loading works from here.
           </p>
         ) : (
-          current === null && (
+          (current === null || composing) && (
             <div className="flex flex-col gap-2 px-5 pb-3">
-              <div className="flex items-baseline gap-2">
-                <span className="text-sm font-medium text-fg">Unnamed layout</span>
-                <span className="text-2xs uppercase tracking-wide text-fg-muted">
-                  {bridge.scope === 'profile' ? 'Profile-wide' : 'Project'}
-                </span>
-                <span className="ml-auto text-2xs text-interrupted">Unsaved</span>
-              </div>
+              {current === null && (
+                <div className="flex items-baseline gap-2">
+                  <span className="text-sm font-medium text-fg">Unnamed layout</span>
+                  <span className="text-2xs uppercase tracking-wide text-fg-muted">
+                    {bridge.scope === 'profile' ? 'Profile-wide' : 'Project'}
+                  </span>
+                  <span className="ml-auto text-2xs text-interrupted">Unsaved</span>
+                </div>
+              )}
               <form
                 className="flex items-center gap-1.5"
                 onSubmit={(e) => {
@@ -293,19 +307,29 @@ export function LayoutsPopover() {
                   if (!name) return;
                   createUnder(name, bridge.capture(), true);
                   setNameDraft('');
+                  setComposing(false);
                 }}
               >
                 <Input
+                  autoFocus={composing}
                   value={nameDraft}
-                  placeholder="Name this layout…"
+                  placeholder={current === null ? 'Name this layout…' : 'Save as a new layout…'}
                   spellCheck={false}
                   onChange={(e) => setNameDraft(e.target.value)}
-                  onKeyDown={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                    if (e.key === 'Escape') setComposing(false);
+                  }}
                   className="h-8 flex-1 text-sm"
                 />
                 <Button size="sm" type="submit" disabled={!nameDraft.trim()}>
                   Save
                 </Button>
+                {current !== null && (
+                  <Button variant="ghost" size="sm" onClick={() => setComposing(false)}>
+                    Cancel
+                  </Button>
+                )}
               </form>
             </div>
           )
@@ -367,6 +391,10 @@ export function LayoutsPopover() {
  * copy, and every confirm expand inline (HUMANS.md — no modal). The CURRENT
  * layout wears its state in its name: green/`Active` when it matches what is
  * saved, red/`Unsaved` when the live layout has drifted from it.
+ *
+ * Duplicate means the same thing on every row — a copy of what is SAVED there,
+ * leaving the live layout alone. Only save-as reads the live layout, and only
+ * `+` in the header creates from it.
  */
 function LayoutRow({
   layout,
@@ -530,8 +558,8 @@ function LayoutRow({
           {projectLabel !== null && (
             <span className="text-2xs uppercase tracking-wide text-fg-muted">{projectLabel}</span>
           )}
+          {/* Same order as a Scratchpad row's tools: act, copy, edit, delete. */}
           <div className="ml-auto flex items-center gap-1">
-            <RowAction icon={Pencil} label="Rename" onClick={() => startEditing('rename')} />
             {savable && (
               <>
                 <RowAction
@@ -540,12 +568,13 @@ function LayoutRow({
                   onClick={requestSave}
                 />
                 <RowAction
-                  icon={isCurrent ? CopyPlus : Copy}
-                  label={isCurrent ? 'Save as new…' : 'Duplicate…'}
+                  icon={Copy}
+                  label="Duplicate the saved layout…"
                   onClick={() => startEditing('duplicate')}
                 />
               </>
             )}
+            <RowAction icon={Pencil} label="Rename" onClick={() => startEditing('rename')} />
             <RowAction icon={Trash2} label="Delete" onClick={() => setConfirming('delete')} />
           </div>
         </div>

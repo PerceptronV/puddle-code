@@ -8,3 +8,19 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Added
+
+- A **`+`** in the Layouts header, where the Scratchpad's is: it opens the same
+  name field an unsaved layout shows, saves the **live** layout under that name
+  (provenance from the project-based-layout setting), and makes it the active
+  layout.
+
+### Changed
+
+- **Duplicate** on a layout row now means the same thing everywhere: a copy of
+  what is SAVED there. On the current layout that means its saved version
+  _without_ the unsaved changes on top, and which layout is active does not
+  change. Saving the live layout under a new name is the `+` above.
+- A layout row's tools follow the Scratchpad's order — act, copy, edit, delete —
+  so save-as and duplicate lead and rename sits beside delete.
