@@ -226,10 +226,11 @@ function ShellBody() {
       <main className="min-h-0 flex-1">
         {/* The routed view gets its OWN boundary so a crash in it leaves the top
             bar alive — the shell still navigates, and walking away from the
-            broken route clears the boundary (it is keyed by pathname) with no
-            reload. `App` keeps an outer one for the shell itself. */}
+            broken route clears the boundary (`resetOn`, NOT a key: a key would
+            remount the workspace on every session switch) with no reload. `App`
+            keeps an outer one for the shell itself. */}
         <ErrorBoundary
-          key={pathname}
+          resetOn={pathname}
           scope={pathname.startsWith('/project/') ? 'workspace' : 'view'}
         >
           <Outlet />

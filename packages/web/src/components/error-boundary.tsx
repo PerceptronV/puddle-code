@@ -14,24 +14,45 @@ import { Component, type ErrorInfo, type ReactNode } from 'react';
  * failure and a way out.
  *
  * Mounted twice, on purpose:
- *  - around the ROUTED view (`ShellLayout`), keyed by pathname, so a crash in a
- *    workspace leaves the top bar alive — the shell still navigates, and walking
- *    away from the broken route clears the boundary with no reload at all;
+ *  - around the ROUTED view (`ShellLayout`), with the pathname as `resetOn`, so a
+ *    crash in a workspace leaves the top bar alive — the shell still navigates,
+ *    and walking away from the broken route clears the boundary with no reload at
+ *    all;
  *  - at the ROOT (`App`), which catches what is left: the shell itself, the
  *    providers, the token gate.
+ *
+ * `resetOn` is deliberately NOT a `key`. Keying the boundary by pathname clears
+ * it on navigation all right, but it also remounts the entire routed view on
+ * every session and project switch — the workspace re-reads its ui-state behind
+ * the loading gate, and every terminal and editor is rebuilt from scratch. That
+ * shipped in v0.0.26 as a visible blink on each switch. Resetting on change
+ * instead touches the tree only when there is an error to clear.
  *
  * A crash costs no work: sessions, agents, and worktrees live in the daemon, and
  * the layout is persisted server-side — the copy says so, because a blank window
  * has taught users otherwise.
  */
 export class ErrorBoundary extends Component<
-  { children: ReactNode; scope: string },
+  { children: ReactNode; scope: string; resetOn?: string },
   { error: Error | null }
 > {
   override state: { error: Error | null } = { error: null };
 
   static getDerivedStateFromError(error: Error): { error: Error } {
     return { error };
+  }
+
+  /**
+   * A changed `resetOn` (the route, for the view boundary) retries the children
+   * — the equivalent of the user pressing "Try again", without the remount a
+   * `key` would force on every navigation. If the new tree throws too,
+   * `getDerivedStateFromError` simply catches it again; `resetOn` is unchanged by
+   * then, so this cannot loop.
+   */
+  override componentDidUpdate(prev: { resetOn?: string }): void {
+    if (this.state.error !== null && prev.resetOn !== this.props.resetOn) {
+      this.setState({ error: null });
+    }
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
