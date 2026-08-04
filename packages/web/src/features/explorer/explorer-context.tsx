@@ -267,14 +267,17 @@ export function ExplorerProvider({
   }, []);
   const collapseAll = useCallback(() => setExpanded(new Set()), []);
 
-  // Click-to-rename, split by row type (SPEC §8). FILES rename Finder-style:
-  // a plain click on the sole-selected row, when the previous click on it was
-  // recent (`isSecondClick`), starts an inline rename after a beat — so the
-  // second click of a double-click (which pins the file instead) can cancel
-  // it. FOLDERS rename on DOUBLE-click instead (their double-click was free,
-  // and the second-click gesture fought rapid open/close toggling). Any other
-  // click cancels a pending rename first: the timer must never fire for a row
-  // the user has moved on from.
+  // Click-to-rename, FILES ONLY (SPEC §8). A plain click on the sole-selected
+  // file row, when the previous click on it was recent (`isSecondClick`), starts
+  // an inline rename after a beat — so the second click of a double-click (which
+  // pins the file instead) can cancel it. Any other click cancels a pending
+  // rename first: the timer must never fire for a row the user has moved on from.
+  //
+  // FOLDERS have no click gesture for renaming at all (decision 2026-08-04): a
+  // folder's clicks belong to expand/collapse, and every variant tried fought
+  // that — the second-click timer fired mid-toggle, and moving it to
+  // double-click meant flipping a folder open and shut quickly opened a rename
+  // box. The context menu's Rename… (and F2) is the whole story for a folder.
   const renameTimer = useRef<number | null>(null);
   const lastRowClick = useRef<ClickStamp | null>(null);
   const cancelPendingRename = useCallback(() => {
@@ -323,27 +326,24 @@ export function ExplorerProvider({
       setSelection(new Set([row.path]));
       anchorRef.current = row.path;
       // A single click opens a file as an ephemeral preview tab (the default);
-      // a directory toggles — except on the second click of a double-click
-      // (e.detail 2), which is about to rename it, not flip it back.
-      if (row.type === 'dir') {
-        if ((e.detail ?? 1) <= 1) toggle(row.path);
-      } else onOpenFile?.(sid, row.path);
+      // a directory toggles on EVERY click, so double-clicking a folder opens
+      // and closes it again — nothing else competes for a folder's clicks.
+      if (row.type === 'dir') toggle(row.path);
+      else onOpenFile?.(sid, row.path);
     },
     [visibleRows, toggle, onOpenFile, sid, selection, editing, readOnly, cancelPendingRename],
   );
 
   // A double click pins a FILE — opening it (or promoting its preview tab) as
   // a permanent tab, matching VSCode — and cancels a click-to-rename the
-  // second click just scheduled. On a FOLDER (no preview notion, opening is
-  // the single click's job) it starts the inline rename instead.
+  // second click just scheduled. A FOLDER has nothing to do here: its two
+  // clicks have already toggled it twice, which is the gesture.
   const onRowDoubleClick = useCallback<ExplorerCtx['onRowDoubleClick']>(
     (row) => {
       cancelPendingRename();
-      if (row.type === 'dir') {
-        if (!readOnly) setEditing({ mode: 'rename', path: row.path });
-      } else onOpenFile?.(sid, row.path, { preview: false });
+      if (row.type !== 'dir') onOpenFile?.(sid, row.path, { preview: false });
     },
-    [onOpenFile, sid, readOnly, cancelPendingRename],
+    [onOpenFile, sid, cancelPendingRename],
   );
 
   const selectOnly = useCallback((path: string) => {
