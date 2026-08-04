@@ -855,6 +855,13 @@ function WorkspaceInner() {
     activeTab.session === targetSession.id
       ? activeTab.path
       : null;
+  // The same highlight for the browse tree above the worktree: an `external`
+  // tab's path is relative to its own root, so the row only matches when that
+  // root is the one currently being browsed (the sidebar decides).
+  const activeExternalTab =
+    activeTab?.kind === 'external' && activeTab.root !== undefined
+      ? { path: activeTab.path, root: activeTab.root }
+      : null;
 
   // A changes / commit-file / search-result click opens its content as a
   // centre-editor tab against the BOUND worktree (openEditorTab dedupes).
@@ -905,6 +912,7 @@ function WorkspaceInner() {
       onOpenExternalFile={openExternalFile}
       onOpenTerminalIn={openTerminalIn}
       activeFilePath={activeFilePath}
+      activeExternalTab={activeExternalTab}
       activeDiffPath={activeDiffPath}
       onOpenDiff={openDiff}
       onOpenCommitFile={openCommitFile}

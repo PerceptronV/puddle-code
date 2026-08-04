@@ -11,6 +11,10 @@ import type { ClipboardState } from './explorer-context';
  * status map (prefix-keyed invalidation) so decorations and rows stay live —
  * including edits a concurrent agent makes in the same worktree. Errors surface
  * as a toast and resolve to a falsy result rather than throwing.
+ *
+ * `root` (protocol 12.3) sends each op the browse override: the same mutations,
+ * resolved against a directory ABOVE the worktree. Paths stay relative — they
+ * are simply relative to that root — so nothing else here changes.
  */
 export interface ExplorerFs {
   create(parentDir: string, name: string, kind: 'file' | 'dir'): Promise<string | null>;
@@ -23,7 +27,7 @@ export interface ExplorerFs {
 
 const message = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
 
-export function useExplorerFs(sid: string): ExplorerFs {
+export function useExplorerFs(sid: string, root?: string): ExplorerFs {
   const qc = useQueryClient();
 
   const invalidate = useCallback(() => {
@@ -35,7 +39,7 @@ export function useExplorerFs(sid: string): ExplorerFs {
     () => ({
       async create(parentDir, name, kind) {
         try {
-          const res = await createEntry(sid, joinPath(parentDir, name), kind);
+          const res = await createEntry(sid, joinPath(parentDir, name), kind, root);
           invalidate();
           return res.path;
         } catch (e) {
@@ -49,7 +53,7 @@ export function useExplorerFs(sid: string): ExplorerFs {
           newName,
         );
         try {
-          const res = await renameEntry(sid, from, to);
+          const res = await renameEntry(sid, from, to, root);
           invalidate();
           return res.path;
         } catch (e) {
@@ -59,7 +63,7 @@ export function useExplorerFs(sid: string): ExplorerFs {
       },
       async move(paths, targetDir) {
         const results = await Promise.allSettled(
-          paths.map((p) => renameEntry(sid, p, joinPath(targetDir, basename(p)))),
+          paths.map((p) => renameEntry(sid, p, joinPath(targetDir, basename(p)), root)),
         );
         invalidate();
         const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
@@ -72,7 +76,7 @@ export function useExplorerFs(sid: string): ExplorerFs {
         }
       },
       async remove(paths) {
-        const results = await Promise.allSettled(paths.map((p) => deleteEntry(sid, p)));
+        const results = await Promise.allSettled(paths.map((p) => deleteEntry(sid, p, root)));
         invalidate();
         const failed = results.filter((r) => r.status === 'rejected').length;
         if (failed > 0) toast.error(`Couldn't delete ${failed} item${failed > 1 ? 's' : ''}`);
@@ -84,14 +88,14 @@ export function useExplorerFs(sid: string): ExplorerFs {
       async paste(clipboard, targetDir) {
         const op = clipboard.mode === 'cut' ? renameEntry : copyEntry;
         const results = await Promise.allSettled(
-          clipboard.paths.map((p) => op(sid, p, joinPath(targetDir, basename(p)))),
+          clipboard.paths.map((p) => op(sid, p, joinPath(targetDir, basename(p)), root)),
         );
         invalidate();
         const failed = results.filter((r) => r.status === 'rejected').length;
         if (failed > 0) toast.error(`Couldn't paste ${failed} item${failed > 1 ? 's' : ''}`);
       },
     }),
-    [sid, invalidate],
+    [sid, root, invalidate],
   );
 }
 

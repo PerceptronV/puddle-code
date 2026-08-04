@@ -116,24 +116,35 @@ export function useWorktreeGitStatus(sid: string | undefined, opts?: { enabled?:
   });
 }
 
+/**
+ * The four fs mutations. Each takes the same optional `root` the read routes do
+ * (protocol 12.3, gated by `MUTATION_ROOT_MINOR` below): with it, every path in
+ * the body is relative to that root instead of the worktree, so the browse tree
+ * mutates the directory it is actually showing. `?root=` rides the query string
+ * rather than the body precisely so these stay one shape with the read routes.
+ */
+function opQuery(root: string | undefined): string {
+  return root === undefined ? '' : `?root=${encodeURIComponent(root)}`;
+}
+
 /** Create an empty file or a folder (SPEC §8). */
-export function createEntry(sid: string, path: string, kind: 'file' | 'dir') {
-  return api<FsOpResponse>('POST', `/api/worktrees/${sid}/create`, { path, kind });
+export function createEntry(sid: string, path: string, kind: 'file' | 'dir', root?: string) {
+  return api<FsOpResponse>('POST', `/api/worktrees/${sid}/create${opQuery(root)}`, { path, kind });
 }
 
 /** Rename or move an entry — one server-side `fs.rename` (SPEC §8). */
-export function renameEntry(sid: string, from: string, to: string) {
-  return api<FsOpResponse>('POST', `/api/worktrees/${sid}/rename`, { from, to });
+export function renameEntry(sid: string, from: string, to: string, root?: string) {
+  return api<FsOpResponse>('POST', `/api/worktrees/${sid}/rename${opQuery(root)}`, { from, to });
 }
 
 /** Copy an entry recursively; the server auto-suffixes ` copy` on collision (SPEC §8). */
-export function copyEntry(sid: string, from: string, to: string) {
-  return api<FsOpResponse>('POST', `/api/worktrees/${sid}/copy`, { from, to });
+export function copyEntry(sid: string, from: string, to: string, root?: string) {
+  return api<FsOpResponse>('POST', `/api/worktrees/${sid}/copy${opQuery(root)}`, { from, to });
 }
 
 /** Delete an entry recursively — irreversible, no host trash (SPEC §8). */
-export function deleteEntry(sid: string, path: string) {
-  return api<FsOpResponse>('POST', `/api/worktrees/${sid}/delete`, { path });
+export function deleteEntry(sid: string, path: string, root?: string) {
+  return api<FsOpResponse>('POST', `/api/worktrees/${sid}/delete${opQuery(root)}`, { path });
 }
 
 export interface SearchParams {
@@ -236,11 +247,12 @@ export function batchBySize(files: File[], limit: number): File[][] {
   return batches;
 }
 
-/** Drag-in / paste upload into a worktree directory (SPEC §8), batched. */
+/** Drag-in / paste upload into a worktree (or browse-`root`) directory (SPEC §8), batched. */
 export async function uploadFiles(
   sid: string,
   dir: string,
   files: File[],
+  root?: string,
 ): Promise<UploadResponse> {
   const uploaded: UploadResponse['files'] = [];
   for (const batch of batchBySize(files, UPLOAD_BATCH_BYTES)) {
@@ -248,7 +260,7 @@ export async function uploadFiles(
     for (const file of batch) form.append('files', file, file.name);
     const res = await apiFetchRaw(
       'POST',
-      `/api/worktrees/${sid}/upload?dir=${encodeURIComponent(dir)}`,
+      `/api/worktrees/${sid}/upload?dir=${encodeURIComponent(dir)}${rootParam(root)}`,
       { body: form },
     );
     uploaded.push(...((await res.json()) as UploadResponse).files);

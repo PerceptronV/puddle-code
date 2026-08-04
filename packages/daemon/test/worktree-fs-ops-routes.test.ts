@@ -1,4 +1,13 @@
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Hono } from 'hono';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -170,6 +179,85 @@ describe('POST /:sid/delete', () => {
     const res = await post(sessionId, 'delete', { path: '../../etc' });
     expect(res.status).toBe(400);
     expect(errorCode(await res.json())).toBe('path_outside_worktree');
+  });
+});
+
+describe('browse root override on the mutations (?root=, protocol 12.3)', () => {
+  let outside: string;
+
+  beforeAll(() => {
+    outside = mkdtempSync(join(tmpdir(), 'puddle-fs-ops-browse-'));
+    mkdirSync(join(outside, 'notes'), { recursive: true });
+    writeFileSync(join(outside, 'notes', 'todo.md'), 'remember\n');
+  });
+  afterAll(() => rmSync(outside, { recursive: true, force: true }));
+
+  /** Same POST, with the override — the browse tree's every mutation. */
+  function rooted(op: string, body: unknown, root = outside) {
+    return app.request(`/api/worktrees/${sessionId}/${op}?root=${encodeURIComponent(root)}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+
+  it('creates, renames, copies and deletes under the override', async () => {
+    const created = await rooted('create', { path: 'notes/fresh.txt', kind: 'file' });
+    expect(created.status).toBe(201);
+    // The response path is relative to the OVERRIDE, so the client can select it.
+    expect(fsOpResponseSchema.parse(await created.json()).path).toBe('notes/fresh.txt');
+    expect(existsSync(join(outside, 'notes', 'fresh.txt'))).toBe(true);
+    // The worktree is untouched — the whole reason the override exists.
+    expect(existsSync(join(worktree, 'notes', 'fresh.txt'))).toBe(false);
+
+    const renamed = await rooted('rename', { from: 'notes/fresh.txt', to: 'notes/moved.txt' });
+    expect(renamed.status).toBe(200);
+    expect(fsOpResponseSchema.parse(await renamed.json()).path).toBe('notes/moved.txt');
+    expect(existsSync(join(outside, 'notes', 'moved.txt'))).toBe(true);
+
+    const copied = await rooted('copy', { from: 'notes/moved.txt', to: 'notes/moved.txt' });
+    expect(copied.status).toBe(201);
+    expect(fsOpResponseSchema.parse(await copied.json()).path).toBe('notes/moved copy.txt');
+
+    const deleted = await rooted('delete', { path: 'notes/moved.txt' });
+    expect(deleted.status).toBe(200);
+    expect(existsSync(join(outside, 'notes', 'moved.txt'))).toBe(false);
+  });
+
+  it('creates a directory tree under the override', async () => {
+    const res = await rooted('create', { path: 'deep/er/still', kind: 'dir' });
+    expect(res.status).toBe(201);
+    expect(statSync(join(outside, 'deep/er/still')).isDirectory()).toBe(true);
+  });
+
+  it('confines every path to the OVERRIDDEN root, not the worktree', async () => {
+    for (const [op, body] of [
+      ['create', { path: '../escaped.txt', kind: 'file' }],
+      ['rename', { from: 'notes/todo.md', to: '../escaped.md' }],
+      ['copy', { from: 'notes/todo.md', to: '../escaped.md' }],
+      ['delete', { path: '../notes' }],
+    ] as const) {
+      const res = await rooted(op, body);
+      expect(res.status, op).toBe(400);
+      expect(errorCode(await res.json()), op).toBe('path_outside_worktree');
+    }
+    expect(existsSync(join(outside, '..', 'escaped.txt'))).toBe(false);
+  });
+
+  it('rejects a relative or missing root, like the read routes', async () => {
+    const rel = await rooted('create', { path: 'x.txt', kind: 'file' }, 'notes');
+    expect(rel.status).toBe(400);
+    expect(errorCode(await rel.json())).toBe('invalid_root');
+
+    const gone = await rooted('create', { path: 'x.txt', kind: 'file' }, join(outside, 'absent'));
+    expect(gone.status).toBe(404);
+  });
+
+  it('leaves the worktree as the root when no override is given', async () => {
+    const res = await post(sessionId, 'create', { path: 'plain.txt', kind: 'file' });
+    expect(res.status).toBe(201);
+    expect(existsSync(join(worktree, 'plain.txt'))).toBe(true);
+    expect(existsSync(join(outside, 'plain.txt'))).toBe(false);
   });
 });
 

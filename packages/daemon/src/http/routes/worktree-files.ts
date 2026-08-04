@@ -180,8 +180,7 @@ export function worktreeFileRoutes(deps: { sessions: SessionStore }): Hono {
     .put('/:sid/file', async (c) => {
       // The file PUT accepts the browse override (10.4): an `external` tab is
       // a full editor, so its save must route to the same absolute file its
-      // GET read. The fs MUTATIONS (create/rename/copy/delete/upload) still
-      // never take a root — the browse tree deliberately has no such actions.
+      // GET read. The fs mutation routes take it too, since 12.3.
       const root = browseRoot(c, resolveWorktree(deps.sessions, c).root);
       const rel = c.req.query('path') ?? '';
       const target = containedPath(root, rel);
@@ -220,7 +219,9 @@ export function worktreeFileRoutes(deps: { sessions: SessionStore }): Hono {
           `This upload is ${formatMB(contentLength)}; the cap is ${formatMB(MAX_UPLOAD_BYTES)} per request`,
         );
       }
-      const { root } = resolveWorktree(deps.sessions, c);
+      // `?root=` (12.3): a drop into the browse tree lands under that root, not
+      // the worktree — the browse tree is the worktree tree, moved elsewhere.
+      const root = browseRoot(c, resolveWorktree(deps.sessions, c).root);
       const rel = c.req.query('dir') ?? '';
       const dir = containedPath(root, rel);
       if (!existsSync(dir) || !statSync(dir).isDirectory()) {

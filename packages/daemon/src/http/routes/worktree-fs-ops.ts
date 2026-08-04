@@ -11,15 +11,20 @@ import {
 import type { SessionStore } from '../../db/stores/sessions.js';
 import { ApiError } from '../errors.js';
 import { parseBody } from '../validate.js';
-import { containedPath, resolveWorktree } from './worktree-shared.js';
+import { browseRoot, containedPath, resolveWorktree } from './worktree-shared.js';
 
 /**
- * The worktree's on-disk mutations from the file explorer (SPEC §8): create,
+ * The on-disk mutations the file explorer drives (SPEC §8): create,
  * rename/move, copy, delete. Every path argument is run through
- * `containedPath` (worktree-shared.ts) — the same escape-the-worktree guard the
+ * `containedPath` (worktree-shared.ts) — the same escape-the-root guard the
  * read/upload/download routes use — before it touches the filesystem. Mounted
  * by `worktrees.ts`. Deliberately separate from the read-only `worktree-git.ts`
  * and browsing `worktree-files.ts`: these are the only client-driven writes.
+ *
+ * Each accepts the `?root=` override (12.3) the read routes have taken since
+ * 10.2, so the parent-directory browse tree is the SAME tree as the worktree's,
+ * mutations included — the paths in the body are then relative to that root and
+ * the returned `path` is too.
  */
 
 /**
@@ -42,7 +47,7 @@ function uniqueDestination(abs: string): string {
 export function worktreeFsOpsRoutes(deps: { sessions: SessionStore }): Hono {
   return new Hono()
     .post('/:sid/create', async (c) => {
-      const { root } = resolveWorktree(deps.sessions, c);
+      const root = browseRoot(c, resolveWorktree(deps.sessions, c).root);
       const body = await parseBody(c, createEntryRequestSchema);
       const target = containedPath(root, body.path);
       if (existsSync(target)) {
@@ -58,7 +63,7 @@ export function worktreeFsOpsRoutes(deps: { sessions: SessionStore }): Hono {
     })
 
     .post('/:sid/rename', async (c) => {
-      const { root } = resolveWorktree(deps.sessions, c);
+      const root = browseRoot(c, resolveWorktree(deps.sessions, c).root);
       const body = await parseBody(c, renameEntryRequestSchema);
       const from = containedPath(root, body.from);
       const to = containedPath(root, body.to);
@@ -72,7 +77,7 @@ export function worktreeFsOpsRoutes(deps: { sessions: SessionStore }): Hono {
     })
 
     .post('/:sid/copy', async (c) => {
-      const { root } = resolveWorktree(deps.sessions, c);
+      const root = browseRoot(c, resolveWorktree(deps.sessions, c).root);
       const body = await parseBody(c, copyEntryRequestSchema);
       const from = containedPath(root, body.from);
       const requestedTo = containedPath(root, body.to);
@@ -84,7 +89,7 @@ export function worktreeFsOpsRoutes(deps: { sessions: SessionStore }): Hono {
     })
 
     .post('/:sid/delete', async (c) => {
-      const { root } = resolveWorktree(deps.sessions, c);
+      const root = browseRoot(c, resolveWorktree(deps.sessions, c).root);
       const body = await parseBody(c, deleteEntryRequestSchema);
       const target = containedPath(root, body.path);
       if (!existsSync(target)) throw ApiError.notFound('path', body.path);

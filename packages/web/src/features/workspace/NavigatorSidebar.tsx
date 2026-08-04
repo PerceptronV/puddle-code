@@ -122,6 +122,7 @@ export function NavigatorSidebar({
   onOpenExternalFile,
   onOpenTerminalIn,
   activeFilePath,
+  activeExternalTab,
   activeDiffPath,
   onOpenDiff,
   onOpenCommitFile,
@@ -147,6 +148,8 @@ export function NavigatorSidebar({
   ) => void;
   /** Path of the active editor tab when it is a file in the bound worktree — highlighted in the tree. */
   activeFilePath: string | null;
+  /** The active editor tab when it is an `external` file, for the browse tree's highlight. */
+  activeExternalTab: { path: string; root: string } | null;
   /** Path of the active editor tab when it is an uncommitted diff for the bound worktree. */
   activeDiffPath: string | null;
   onOpenDiff: (path: string) => void;
@@ -171,6 +174,11 @@ export function NavigatorSidebar({
   const protocol = useDaemonVersion().data?.protocol;
   const browseSupported =
     !protocol || protocol.major > 10 || (protocol.major === 10 && protocol.minor >= 2);
+  // Mutating out there needs 12.3 (`?root=` on the fs routes). A 12.0–12.2
+  // daemon serves the browse tree fine but would resolve a create/rename/delete
+  // against the WORKTREE, so the tree goes read-only rather than wrong.
+  const browseMutable =
+    !protocol || protocol.major > 12 || (protocol.major === 12 && protocol.minor >= 3);
   const browseRoot =
     browseSupported && browse !== null && browse.forSession === session?.id ? browse.root : null;
   const enterBrowse = (root: string) => {
@@ -252,18 +260,30 @@ export function NavigatorSidebar({
 
       {mode === 'files' &&
         (session && browseRoot !== null ? (
-          // Browsing ABOVE the worktree, rooted at `browseRoot` (SPEC §8).
-          // No ExplorerProvider — none of its tree machinery (mutations, git
-          // status, selection) applies out here; files opened from it are
-          // ordinary editors keyed by their browse root.
+          // Browsing ABOVE the worktree, rooted at `browseRoot` (SPEC §8) — the
+          // same explorer, given that root: BrowseTree mounts its own
+          // ExplorerProvider so create/rename/delete/clipboard/DnD all work out
+          // here too. Files opened from it are editors keyed by their root.
           <>
-            <SidebarTargetHeader sessions={sessions} target={sidebarTarget} showPath />
             <BrowseTree
-              sid={session.id}
+              session={session}
               root={browseRoot}
+              readOnly={!browseMutable}
+              // Passed in rather than rendered here so it sits inside the
+              // browse tree's provider and its Refresh · Collapse utilities
+              // drive that tree (neither mutates, so `readOnly` keeps them).
+              boundHeader={
+                <SidebarTargetHeader
+                  sessions={sessions}
+                  target={sidebarTarget}
+                  showFileActions
+                  showPath
+                />
+              }
               onNavigateUp={() => enterBrowse(parentDir(browseRoot))}
               onReset={() => setBrowse(null)}
               onOpenFile={(path, opts) => onOpenExternalFile(session.id, path, browseRoot, opts)}
+              activePath={activeExternalTab?.root === browseRoot ? activeExternalTab.path : null}
             />
           </>
         ) : session ? (

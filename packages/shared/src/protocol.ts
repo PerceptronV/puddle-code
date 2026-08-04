@@ -152,4 +152,15 @@
 // top-bar Layouts popover. The ui_state snapshot and each `project_layouts`
 // slice gain an optional-with-default `layout_ref` (the saved layout the live
 // layout was last loaded from or saved as); old peers round-trip it untouched.
-export const PROTOCOL_VERSION = { major: 12, minor: 2 } as const;
+// 12.3 (2026-08-03): additive — the worktree fs MUTATION routes (POST
+// create/rename/copy/delete) and POST upload now accept the same optional
+// absolute `?root=` override the read routes have taken since 10.2 (and PUT
+// file since 10.4). Every `path`/`from`/`to`/`dir` is then relative to that
+// root, guarded by the unchanged `containedPath` check against it, and the
+// response's `path` is relative to it too. This makes the parent-directory
+// browse tree the SAME tree as the worktree's — create/rename/delete/
+// clipboard/drag-move/upload all work above the worktree (SPEC §8). An older
+// daemon IGNORES the param and would resolve those paths against the
+// WORKTREE, silently mutating the wrong files, so the UI gates every browse-
+// tree mutation on this minor (the same stance browse entry takes on 10.2).
+export const PROTOCOL_VERSION = { major: 12, minor: 3 } as const;

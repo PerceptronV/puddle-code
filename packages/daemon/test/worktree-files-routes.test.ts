@@ -547,13 +547,39 @@ describe('read-only browse root override (?root=, protocol 10.2)', () => {
     expect(errorCode(await stale.json())).toBe('stale_file');
   });
 
-  it('still refuses the fs mutations any root override', async () => {
+  it('uploads under an override (12.3), still confined to it', async () => {
+    const form = new FormData();
+    form.set('files', new File(['dropped\n'], 'dropped.txt'));
+    const res = await app.request(
+      `/api/worktrees/${sessionId}/upload?dir=notes&root=${encodeURIComponent(outside)}`,
+      { method: 'POST', body: form },
+    );
+    expect(res.status).toBe(201);
+    expect(readFileSync(join(outside, 'notes', 'dropped.txt'), 'utf8')).toBe('dropped\n');
+    // …and the worktree is untouched, which is the whole point of the override.
+    expect(existsSync(join(worktree, 'notes', 'dropped.txt'))).toBe(false);
+
+    const escape = new FormData();
+    escape.set('files', new File(['x'], '../escaped.txt'));
+    const contained = await app.request(
+      `/api/worktrees/${sessionId}/upload?dir=notes&root=${encodeURIComponent(outside)}`,
+      { method: 'POST', body: escape },
+    );
+    // Per-segment sanitising neutralises `..`, so it lands inside `notes`.
+    expect(contained.status).toBe(201);
+    expect(existsSync(join(outside, 'notes', 'escaped.txt'))).toBe(true);
+    expect(existsSync(join(outside, 'escaped.txt'))).toBe(false);
+  });
+
+  it('still rejects an ABSOLUTE path in a mutation body, override or not', async () => {
+    // `?root=` is the only way to name another directory; a body path stays
+    // relative, so an absolute one is a bug rather than a shortcut.
     const res = await app.request(`/api/worktrees/${sessionId}/create`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ path: `${outside}/evil.txt`, kind: 'file' }),
     });
-    expect(res.status).toBe(400); // absolute path → path_outside_worktree
+    expect(res.status).toBe(400);
     expect(errorCode(await res.json())).toBe('path_outside_worktree');
   });
 });

@@ -1,164 +1,122 @@
-import { useState } from 'react';
-import { ChevronRight, CornerLeftUp, FolderClosed, FolderOpen, Undo2 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import type { ReactNode } from 'react';
+import { CornerLeftUp, Undo2 } from 'lucide-react';
+import type { Session } from '@puddle/shared';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { tildify } from '../../lib/tildify';
 import { useHostInfo } from '../../lib/queries';
-import { useWorktreeTree } from '../../lib/worktree-queries';
-import { FileTypeIcon } from './file-icons';
-import { joinPath } from './explorer-paths';
+import { ExplorerProvider } from './explorer-context';
+import { FileExplorer } from './FileExplorer';
 
 /**
  * The tree the explorer switches to when navigating ABOVE the worktree
- * (SPEC §8): plain browse — expand directories, open files as fully editable
- * `external` tabs (10.4) — with none of the worktree tree's TREE machinery
- * (selection, clipboard, inline edits, DnD, git decorations). That absence is
- * deliberate: every fs-mutation endpoint resolves paths against the WORKTREE
- * root, so offering rename/delete here would act on the wrong files. The
- * header walks further up and returns to the worktree.
+ * (SPEC §8). It is the SAME tree — `ExplorerProvider` + `FileExplorer`, given a
+ * browse `root` instead of the session's worktree — so everything a right-click
+ * offers inside the worktree works out here too: create, rename, delete,
+ * cut/copy/paste, drag-move, upload, download. Files open as fully editable
+ * `external` tabs (10.4). Only two things are genuinely worktree-shaped and so
+ * absent: git decorations (the status endpoint is worktree-scoped) and "Open
+ * Terminal in Directory" (the daemon confines a terminal's `cwd` to the
+ * worktree, 11.1).
+ *
+ * `readOnly` covers the one case where the mutations must NOT be offered: a
+ * daemon older than protocol 12.3 ignores `?root=` on the fs routes and would
+ * resolve those paths against the worktree, silently touching the wrong files.
+ *
+ * The header walks further up and returns to the worktree.
  */
 export function BrowseTree({
-  sid,
+  session,
   root,
+  readOnly,
+  boundHeader,
   onNavigateUp,
   onReset,
   onOpenFile,
+  activePath,
 }: {
-  sid: string;
+  session: Session;
   root: string;
+  readOnly: boolean;
+  /**
+   * The sidebar's bound-worktree header, rendered INSIDE the provider so its
+   * explorer utilities (Refresh · Collapse Folders) drive this tree — the same
+   * arrangement files mode uses for the worktree.
+   */
+  boundHeader: ReactNode;
   onNavigateUp: () => void;
   onReset: () => void;
   /** Open `path` (relative to `root`) as an external editor tab. */
   onOpenFile: (path: string, opts?: { preview?: boolean }) => void;
+  /** Path of the active editor tab when it is a file under this root. */
+  activePath: string | null;
 }) {
-  const host = useHostInfo();
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-8 shrink-0 items-center gap-1 px-2">
-        <button
-          type="button"
-          onClick={onNavigateUp}
-          disabled={root === '/'}
-          title="Parent directory"
-          className="shrink-0 rounded-sm p-1 text-fg-gold transition-colors hover:bg-elevated hover:text-fg disabled:pointer-events-none disabled:opacity-40"
-        >
-          <CornerLeftUp className="size-3.5" />
-          <span className="sr-only">Parent directory</span>
-        </button>
-        <span className="min-w-0 truncate font-mono text-xs text-fg-secondary" title={root}>
-          {tildify(root, host.data?.home)}
-        </span>
-        <button
-          type="button"
-          onClick={onReset}
-          title="Back to the worktree"
-          className="ml-auto shrink-0 rounded-sm p-1 text-fg-gold transition-colors hover:bg-elevated hover:text-fg"
-        >
-          <Undo2 className="size-3.5" />
-          <span className="sr-only">Back to the worktree</span>
-        </button>
+    // Keyed by root: walking up is a different tree, so its expansion,
+    // selection, and any in-flight inline edit start fresh.
+    <ExplorerProvider
+      key={root}
+      session={session}
+      root={root}
+      readOnly={readOnly}
+      onOpenFile={(_sid, path, opts) => onOpenFile(path, opts)}
+      activePath={activePath}
+    >
+      {boundHeader}
+      <BrowseHeader root={root} onNavigateUp={onNavigateUp} onReset={onReset} />
+      <div className="flex min-h-0 flex-1 flex-col">
+        <FileExplorer />
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto pb-2">
-        <BrowseDir sid={sid} root={root} dir="" depth={0} onOpenFile={onOpenFile} />
-      </div>
-    </div>
+    </ExplorerProvider>
   );
 }
 
-function BrowseDir({
-  sid,
+/**
+ * Where you are, and the two ways out. The path itself is part of the
+ * walk-up control rather than inert text beside it: the whole line up to the
+ * return button takes you up a level, so the gesture that got you here keeps
+ * working without aiming at a 14px icon.
+ */
+function BrowseHeader({
   root,
-  dir,
-  depth,
-  onOpenFile,
+  onNavigateUp,
+  onReset,
 }: {
-  sid: string;
   root: string;
-  dir: string;
-  depth: number;
-  onOpenFile: (path: string, opts?: { preview?: boolean }) => void;
+  onNavigateUp: () => void;
+  onReset: () => void;
 }) {
-  const tree = useWorktreeTree(sid, dir, root);
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
-
-  if (tree.isPending) {
-    return (
-      <div className="px-3 py-1 text-2xs text-fg-muted" style={{ paddingLeft: depth * 12 + 12 }}>
-        …
-      </div>
-    );
-  }
-  if (tree.error) {
-    return (
-      <div className="px-3 py-1 text-2xs text-fg-muted" style={{ paddingLeft: depth * 12 + 12 }}>
-        {tree.error instanceof Error ? tree.error.message : 'Unreadable'}
-      </div>
-    );
-  }
-
+  const home = useHostInfo().data?.home;
   return (
-    <>
-      {tree.data.entries.map((entry) => {
-        const path = joinPath(dir, entry.name);
-        const isDir = entry.type === 'dir';
-        const open = expanded.has(path);
-        return (
-          <div key={path}>
-            <button
-              type="button"
-              onClick={() => {
-                if (isDir) {
-                  setExpanded((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(path)) next.delete(path);
-                    else next.add(path);
-                    return next;
-                  });
-                } else {
-                  onOpenFile(path);
-                }
-              }}
-              onDoubleClick={() => {
-                if (!isDir) onOpenFile(path, { preview: false });
-              }}
-              className="flex w-full items-center gap-1.5 py-0.5 pr-2 text-left transition-colors hover:bg-elevated"
-              style={{ paddingLeft: depth * 12 + 8 }}
-            >
-              <ChevronRight
-                className={cn(
-                  'size-3 shrink-0 text-fg-muted transition-transform',
-                  open && 'rotate-90',
-                  !isDir && 'invisible',
-                )}
-              />
-              {isDir ? (
-                open ? (
-                  <FolderOpen className="size-3.5 shrink-0 text-fg" />
-                ) : (
-                  <FolderClosed className="size-3.5 shrink-0 text-fg" />
-                )
-              ) : (
-                <FileTypeIcon name={entry.name} />
-              )}
-              <span className="truncate font-mono text-xs text-fg">{entry.name}</span>
-              {entry.symlink && <span className="text-2xs text-fg-muted">→</span>}
-            </button>
-            {isDir && open && (
-              <BrowseDir
-                sid={sid}
-                root={root}
-                dir={path}
-                depth={depth + 1}
-                onOpenFile={onOpenFile}
-              />
-            )}
-          </div>
-        );
-      })}
-      {tree.data.entries.length === 0 && (
-        <div className="px-3 py-1 text-2xs text-fg-muted" style={{ paddingLeft: depth * 12 + 12 }}>
-          Empty.
-        </div>
-      )}
-    </>
+    <div className="flex h-8 shrink-0 items-center px-2">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={onNavigateUp}
+            disabled={root === '/'}
+            className="flex min-w-0 flex-1 items-center gap-1.5 rounded-sm px-1 py-1 text-left text-fg-gold transition-colors hover:bg-elevated hover:text-fg disabled:pointer-events-none disabled:opacity-40"
+          >
+            <CornerLeftUp className="size-3.5 shrink-0" />
+            <span className="min-w-0 truncate font-mono text-xs text-fg-secondary">
+              {tildify(root, home)}
+            </span>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>{root === '/' ? root : 'Browse the parent directory'}</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={onReset}
+            className="ml-1 shrink-0 rounded-sm p-1 text-fg-gold transition-colors hover:bg-elevated hover:text-fg"
+          >
+            <Undo2 className="size-3.5" />
+            <span className="sr-only">Back to the worktree</span>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>Back to the worktree</TooltipContent>
+      </Tooltip>
+    </div>
   );
 }

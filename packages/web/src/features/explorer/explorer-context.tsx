@@ -38,7 +38,24 @@ export type EditingState =
 /** Everything a tree row and the header need, provided once by `ExplorerProvider`. */
 export interface ExplorerCtx {
   sid: string;
-  worktreePath: string;
+  /**
+   * Absolute path every row is relative to: the session's worktree, or the
+   * browse `root` when the tree is showing a directory above it (SPEC §8).
+   */
+  rootPath: string;
+  /**
+   * The `?root=` override to send with every request, or undefined in the
+   * worktree (where the session id alone names the root). Tree rows pass it
+   * to their own queries; `useExplorerFs` sends it with each mutation.
+   */
+  root: string | undefined;
+  /**
+   * No mutations offered: the menus drop create/rename/delete/clipboard, rows
+   * stop being drag sources, and drops stop uploading. Set when browsing above
+   * the worktree against a daemon older than protocol 12.3, which would resolve
+   * those paths against the WORKTREE and silently touch the wrong files.
+   */
+  readOnly: boolean;
   onOpenFile?: (sid: string, path: string, opts?: { preview?: boolean }) => void;
   /** Spawn a terminal whose shell starts in this worktree-relative directory. */
   onOpenTerminal?: (dir: string) => void;
@@ -115,12 +132,22 @@ export function useExplorerOptional(): ExplorerCtx | null {
 
 export function ExplorerProvider({
   session,
+  root,
+  readOnly = false,
   onOpenFile,
   onOpenTerminal,
   activePath,
   children,
 }: {
   session: Session;
+  /**
+   * Browse a directory ABOVE the session's worktree instead of the worktree
+   * itself (SPEC §8): every row, query, and mutation is resolved against this
+   * absolute path via `?root=`. Omit it for the worktree.
+   */
+  root?: string;
+  /** Offer no mutations — see `ExplorerCtx.readOnly`. */
+  readOnly?: boolean;
   onOpenFile?: (sid: string, path: string, opts?: { preview?: boolean }) => void;
   onOpenTerminal?: (dir: string) => void;
   activePath: string | null;
@@ -128,14 +155,23 @@ export function ExplorerProvider({
 }) {
   const sid = session.id;
   const qc = useQueryClient();
-  const fs = useExplorerFs(sid);
+  const fs = useExplorerFs(sid, root);
+  const rootPath = root ?? session.worktree_path;
+
+  // Every tree query is keyed by root when one is set, matching
+  // `useWorktreeTree` — so a browse of `/Users/me` and the worktree tree can be
+  // cached side by side without either serving the other's rows.
+  const treeKey = useCallback(
+    (dir: string) => (root === undefined ? ['wt-tree', sid, dir] : ['wt-tree', sid, dir, root]),
+    [sid, root],
+  );
 
   const onUpload = useCallback(
     (dir: string, files: File[]) => {
-      if (files.length === 0) return;
-      uploadFiles(sid, dir, files)
+      if (files.length === 0 || readOnly) return;
+      uploadFiles(sid, dir, files, root)
         .then(() => {
-          void qc.invalidateQueries({ queryKey: ['wt-tree', sid, dir] });
+          void qc.invalidateQueries({ queryKey: treeKey(dir) });
           void qc.invalidateQueries({ queryKey: ['wt-git-status', sid] });
           toast.success(
             files.length === 1 ? `Uploaded ${files[0]!.name}` : `Uploaded ${files.length} files`,
@@ -143,7 +179,7 @@ export function ExplorerProvider({
         })
         .catch((e: unknown) => toast.error(e instanceof Error ? e.message : 'Upload failed'));
     },
-    [sid, qc],
+    [sid, root, readOnly, qc, treeKey],
   );
 
   // Folder drops need the daemon to honour relative upload paths (9.2); on an
@@ -174,7 +210,10 @@ export function ExplorerProvider({
   const [pendingDelete, setPendingDelete] = useState<string[] | null>(null);
   const anchorRef = useRef<string | null>(null);
 
-  const statusQuery = useWorktreeGitStatus(sid);
+  // Git decorations are worktree-scoped: the status endpoint takes no root, and
+  // its paths are worktree-relative, so under a browse root they would decorate
+  // rows by coincidence of relative path. Don't ask for them at all out there.
+  const statusQuery = useWorktreeGitStatus(sid, { enabled: root === undefined });
   const statusMap = useMemo(
     () => buildStatusMap(statusQuery.data?.entries ?? []),
     [statusQuery.data],
@@ -200,9 +239,9 @@ export function ExplorerProvider({
     return unsub;
   }, [qc, sid]);
   const visibleRows = useMemo(
-    () => buildVisibleRows((dir) => qc.getQueryData<TreeResponse>(['wt-tree', sid, dir]), expanded),
+    () => buildVisibleRows((dir) => qc.getQueryData<TreeResponse>(treeKey(dir)), expanded),
     // rowsVersion invalidates the memo when cache data changes under the same key set.
-    [qc, sid, expanded, rowsVersion],
+    [qc, treeKey, expanded, rowsVersion],
   );
 
   const toggle = useCallback((path: string) => {
@@ -259,6 +298,7 @@ export function ExplorerProvider({
       lastRowClick.current = { id: row.path, at: now };
       if (
         row.type !== 'dir' &&
+        !readOnly &&
         !editing &&
         selection.size === 1 &&
         selection.has(row.path) &&
@@ -279,7 +319,7 @@ export function ExplorerProvider({
         if ((e.detail ?? 1) <= 1) toggle(row.path);
       } else onOpenFile?.(sid, row.path);
     },
-    [visibleRows, toggle, onOpenFile, sid, selection, editing, cancelPendingRename],
+    [visibleRows, toggle, onOpenFile, sid, selection, editing, readOnly, cancelPendingRename],
   );
 
   // A double click pins a FILE — opening it (or promoting its preview tab) as
@@ -289,10 +329,11 @@ export function ExplorerProvider({
   const onRowDoubleClick = useCallback<ExplorerCtx['onRowDoubleClick']>(
     (row) => {
       cancelPendingRename();
-      if (row.type === 'dir') setEditing({ mode: 'rename', path: row.path });
-      else onOpenFile?.(sid, row.path, { preview: false });
+      if (row.type === 'dir') {
+        if (!readOnly) setEditing({ mode: 'rename', path: row.path });
+      } else onOpenFile?.(sid, row.path, { preview: false });
     },
-    [onOpenFile, sid, cancelPendingRename],
+    [onOpenFile, sid, readOnly, cancelPendingRename],
   );
 
   const selectOnly = useCallback((path: string) => {
@@ -311,23 +352,32 @@ export function ExplorerProvider({
     (paths: string[]) => setClipboard({ paths: pruneNested(paths), mode: 'copy' }),
     [],
   );
+  // The mutating entry points all short-circuit under `readOnly`, so a keyboard
+  // shortcut or a stale menu can never reach `fs` — the menus merely stop
+  // OFFERING them.
   const paste = useCallback(
     (targetDir: string) => {
-      if (!clipboard) return;
+      if (!clipboard || readOnly) return;
       void fs.paste(clipboard, targetDir).then(() => {
         if (clipboard.mode === 'cut') setClipboard(null);
       });
     },
-    [clipboard, fs],
+    [clipboard, fs, readOnly],
   );
 
-  const beginRename = useCallback((path: string) => setEditing({ mode: 'rename', path }), []);
+  const beginRename = useCallback(
+    (path: string) => {
+      if (!readOnly) setEditing({ mode: 'rename', path });
+    },
+    [readOnly],
+  );
   const beginCreate = useCallback(
     (parentDir: string, kind: 'file' | 'dir') => {
+      if (readOnly) return;
       if (parentDir !== '') expand(parentDir);
       setEditing({ mode: 'create', parentDir, kind });
     },
-    [expand],
+    [expand, readOnly],
   );
   const cancelEdit = useCallback(() => setEditing(null), []);
   const commitEdit = useCallback(
@@ -348,10 +398,14 @@ export function ExplorerProvider({
     [editing, fs, onOpenFile, sid],
   );
 
-  const requestDelete = useCallback((paths: string[]) => {
-    const pruned = pruneNested(paths);
-    if (pruned.length > 0) setPendingDelete(pruned);
-  }, []);
+  const requestDelete = useCallback(
+    (paths: string[]) => {
+      if (readOnly) return;
+      const pruned = pruneNested(paths);
+      if (pruned.length > 0) setPendingDelete(pruned);
+    },
+    [readOnly],
+  );
   const confirmDelete = useCallback(() => {
     const paths = pendingDelete;
     setPendingDelete(null);
@@ -361,24 +415,24 @@ export function ExplorerProvider({
 
   const copyPathToClipboard = useCallback(
     (paths: string[], relative: boolean) => {
-      const text = paths.map((p) => (relative ? p : joinPath(session.worktree_path, p))).join('\n');
+      const text = paths.map((p) => (relative ? p : joinPath(rootPath, p))).join('\n');
       void navigator.clipboard.writeText(text);
       const label = relative ? 'Relative path' : 'Path';
       toast.success(
         paths.length > 1 ? `${paths.length} ${label.toLowerCase()}s copied` : `${label} copied`,
       );
     },
-    [session.worktree_path],
+    [rootPath],
   );
   const download = useCallback(
     (paths: string[]) => {
       // Sequential, not parallel — several simultaneous programmatic anchor
       // clicks make browsers drop all but the last download.
       void (async () => {
-        for (const path of pruneNested(paths)) await downloadPath(sid, path);
+        for (const path of pruneNested(paths)) await downloadPath(sid, path, root);
       })().catch((e: unknown) => toast.error(e instanceof Error ? e.message : 'Download failed'));
     },
-    [sid],
+    [sid, root],
   );
   const refresh = useCallback(() => {
     void qc.invalidateQueries({ queryKey: ['wt-tree', sid] });
@@ -387,10 +441,11 @@ export function ExplorerProvider({
 
   const onInternalDrop = useCallback(
     (targetDir: string, draggedPaths: string[]) => {
+      if (readOnly) return;
       const movable = pruneNested(draggedPaths).filter((p) => canMoveInto(p, targetDir));
       if (movable.length > 0) void fs.move(movable, targetDir);
     },
-    [fs],
+    [fs, readOnly],
   );
 
   // Selection to act on for keyboard ops: the multi-selection if it holds the
@@ -529,7 +584,9 @@ export function ExplorerProvider({
 
   const value: ExplorerCtx = {
     sid,
-    worktreePath: session.worktree_path,
+    rootPath,
+    root,
+    readOnly,
     onOpenFile,
     onOpenTerminal,
     activePath,

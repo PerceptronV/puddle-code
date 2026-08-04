@@ -15,18 +15,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../components/ui/dialog';
+import { useHostInfo } from '../../lib/queries';
+import { tildify } from '../../lib/tildify';
 import { cn } from '../../lib/utils';
 import { useExplorer } from './explorer-context';
 import { basename, decodeDragPaths, EXPLORER_DRAG_MIME } from './explorer-paths';
 import { DirEntries } from './TreeNode';
 
 /**
- * File explorer for one worktree (SPEC §8): a VSCode-grade tree with git
+ * File explorer for one directory tree (SPEC §8): a VSCode-grade tree with git
  * decorations, rich context menus, a cut/copy/paste clipboard, multi-select and
  * arrow-key navigation, and inline create/rename. State lives in the
  * surrounding `ExplorerProvider` (shared with the header's utility actions in
  * `NavigatorSidebar`); this renders the scroll surface, keyboard host,
  * empty-space menu, and the single delete confirmation.
+ *
+ * The provider's root decides WHICH tree: the session's worktree, or — when
+ * browsing above it — a parent directory. This surface is identical either way;
+ * only `readOnly` (an old daemon out there, see `ExplorerCtx`) thins the menus.
  */
 export function FileExplorer() {
   return (
@@ -61,6 +67,7 @@ function ExplorerBody() {
           onKeyDown={ex.handleKeyDown}
           onPaste={(e) => ex.onDropUpload('', e.clipboardData.items, e.clipboardData.files)}
           onDragOver={(e) => {
+            if (ex.readOnly) return;
             e.preventDefault();
             ex.setDropTarget('');
           }}
@@ -68,6 +75,7 @@ function ExplorerBody() {
             if (e.currentTarget === e.target) ex.setDropTarget(null);
           }}
           onDrop={(e) => {
+            if (ex.readOnly) return;
             e.preventDefault();
             ex.setDropTarget(null);
             const dragged = decodeDragPaths(e.dataTransfer.getData(EXPLORER_DRAG_MIME));
@@ -90,22 +98,32 @@ function ExplorerBody() {
           if (ex.editing) e.preventDefault();
         }}
       >
-        <ContextMenuItem onSelect={() => ex.beginCreate('', 'file')}>New File…</ContextMenuItem>
-        <ContextMenuItem onSelect={() => ex.beginCreate('', 'dir')}>New Folder…</ContextMenuItem>
-        {ex.onOpenTerminal && (
-          <ContextMenuItem onSelect={() => ex.onOpenTerminal?.('')}>
-            Open Terminal in Directory
-          </ContextMenuItem>
+        {!ex.readOnly && (
+          <>
+            <ContextMenuItem onSelect={() => ex.beginCreate('', 'file')}>New File…</ContextMenuItem>
+            <ContextMenuItem onSelect={() => ex.beginCreate('', 'dir')}>
+              New Folder…
+            </ContextMenuItem>
+            {ex.onOpenTerminal && (
+              <ContextMenuItem onSelect={() => ex.onOpenTerminal?.('')}>
+                Open Terminal in Directory
+              </ContextMenuItem>
+            )}
+            <ContextMenuSeparator />
+            <ContextMenuItem disabled={!canPaste} onSelect={() => ex.paste('')}>
+              Paste
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
         )}
-        <ContextMenuSeparator />
-        <ContextMenuItem disabled={!canPaste} onSelect={() => ex.paste('')}>
-          Paste
-        </ContextMenuItem>
-        <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => ex.copyPathToClipboard([''], false)}>
           Copy Path
         </ContextMenuItem>
-        <ContextMenuItem onSelect={() => ex.download([''])}>Download worktree</ContextMenuItem>
+        {/* Names what it will actually zip: the worktree, or the directory
+            being browsed above it. */}
+        <ContextMenuItem onSelect={() => ex.download([''])}>
+          Download {basename(ex.rootPath) || 'folder'}
+        </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
   );
@@ -114,6 +132,7 @@ function ExplorerBody() {
 /** The single, provider-owned delete confirmation (deletion is irreversible — no host trash). */
 function DeleteDialog() {
   const ex = useExplorer();
+  const home = useHostInfo().data?.home;
   const paths = ex.pendingDelete;
   const open = paths !== null;
   const label =
@@ -123,9 +142,11 @@ function DeleteDialog() {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Delete {label}?</DialogTitle>
+          {/* Names the directory it will vanish from — under a browse root that
+              is not the worktree, and saying "the worktree" would be a lie. */}
           <DialogDescription>
-            This permanently removes {paths && paths.length > 1 ? 'them' : 'it'} from the worktree.
-            There is no undo.
+            This permanently removes {paths && paths.length > 1 ? 'them' : 'it'} from{' '}
+            <span className="font-mono">{tildify(ex.rootPath, home)}</span>. There is no undo.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

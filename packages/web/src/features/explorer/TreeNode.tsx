@@ -179,7 +179,8 @@ export function TreeNode({
       aria-expanded={isDir ? isOpen : undefined}
       aria-selected={isSelected}
       tabIndex={-1}
-      draggable
+      // A read-only tree has nowhere to drop, so it is no drag source either.
+      draggable={!ex.readOnly}
       onClick={(e) => {
         (e.currentTarget.closest('[data-explorer-root]') as HTMLElement | null)?.focus();
         ex.onRowClick(row, e);
@@ -198,16 +199,25 @@ export function TreeNode({
         if (dragPaths.length > 1) setCountDragImage(e, dragPaths.length);
         // A single file row is also draggable into the centre tiling area,
         // where the drop opens it as a permanent, positioned editor tab (SPEC §8).
+        // Above the worktree it must be an `external` tab carrying the browse
+        // root — a `file` tab would resolve this root-relative path against the
+        // WORKTREE and open a different file, or none.
         if (!isDir && dragPaths.length === 1) {
           e.dataTransfer.setData(
             TAB_MIME,
-            encodeTabTransfer({ type: 'editor', tab: { kind: 'file', session: ex.sid, path } }),
+            encodeTabTransfer({
+              type: 'editor',
+              tab:
+                ex.root === undefined
+                  ? { kind: 'file', session: ex.sid, path }
+                  : { kind: 'external', session: ex.sid, path, root: ex.root },
+            }),
           );
         }
         e.dataTransfer.effectAllowed = 'copyMove';
       }}
       onDragOver={(e) => {
-        if (!isDir) return;
+        if (!isDir || ex.readOnly) return;
         e.preventDefault();
         e.stopPropagation();
         ex.setDropTarget(path);
@@ -216,7 +226,7 @@ export function TreeNode({
         if (isDir && e.currentTarget === e.target) ex.setDropTarget(null);
       }}
       onDrop={(e) => {
-        if (!isDir) return;
+        if (!isDir || ex.readOnly) return;
         e.preventDefault();
         e.stopPropagation();
         ex.setDropTarget(null);
@@ -283,7 +293,7 @@ export function TreeNode({
             if (ex.editing) e.preventDefault();
           }}
         >
-          {isDir && (
+          {isDir && !ex.readOnly && (
             <>
               <ContextMenuItem onSelect={() => ex.beginCreate(path, 'file')}>
                 New File…
@@ -299,16 +309,20 @@ export function TreeNode({
               <ContextMenuSeparator />
             </>
           )}
-          <ContextMenuItem onSelect={() => ex.cut(targets)}>
-            Cut <Shortcut>⌘X</Shortcut>
-          </ContextMenuItem>
-          <ContextMenuItem onSelect={() => ex.copy(targets)}>
-            Copy <Shortcut>⌘C</Shortcut>
-          </ContextMenuItem>
-          <ContextMenuItem disabled={!canPaste} onSelect={() => ex.paste(pasteDir)}>
-            Paste <Shortcut>⌘V</Shortcut>
-          </ContextMenuItem>
-          <ContextMenuSeparator />
+          {!ex.readOnly && (
+            <>
+              <ContextMenuItem onSelect={() => ex.cut(targets)}>
+                Cut <Shortcut>⌘X</Shortcut>
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => ex.copy(targets)}>
+                Copy <Shortcut>⌘C</Shortcut>
+              </ContextMenuItem>
+              <ContextMenuItem disabled={!canPaste} onSelect={() => ex.paste(pasteDir)}>
+                Paste <Shortcut>⌘V</Shortcut>
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+            </>
+          )}
           <ContextMenuItem onSelect={() => ex.copyPathToClipboard(targets, false)}>
             Copy Path <Shortcut>⌥⌘C</Shortcut>
           </ContextMenuItem>
@@ -316,13 +330,17 @@ export function TreeNode({
             Copy Relative Path <Shortcut>⌥⇧⌘C</Shortcut>
           </ContextMenuItem>
           <ContextMenuSeparator />
-          <ContextMenuItem onSelect={() => ex.beginRename(path)}>
-            Rename… <Shortcut>F2</Shortcut>
-          </ContextMenuItem>
-          <ContextMenuItem onSelect={() => ex.requestDelete(targets)}>
-            Delete <Shortcut>⌘⌫</Shortcut>
-          </ContextMenuItem>
-          <ContextMenuSeparator />
+          {!ex.readOnly && (
+            <>
+              <ContextMenuItem onSelect={() => ex.beginRename(path)}>
+                Rename… <Shortcut>F2</Shortcut>
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => ex.requestDelete(targets)}>
+                Delete <Shortcut>⌘⌫</Shortcut>
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+            </>
+          )}
           <ContextMenuItem onSelect={() => ex.download(targets)}>Download</ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
@@ -334,7 +352,9 @@ export function TreeNode({
 /** A directory's children: mounts its own `useWorktreeTree` and renders a `TreeNode` per entry. */
 export function DirEntries({ sid, path, depth }: { sid: string; path: string; depth: number }) {
   const ex = useExplorer();
-  const tree = useWorktreeTree(sid, path);
+  // `ex.root` is undefined in the worktree and the browse root above it, so one
+  // tree serves both (SPEC §8) — the query key follows suit.
+  const tree = useWorktreeTree(sid, path, ex.root);
   const pad = { paddingLeft: depth * INDENT_PX + 8 };
 
   const editing = ex.editing;
