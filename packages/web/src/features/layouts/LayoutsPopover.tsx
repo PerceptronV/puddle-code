@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LayoutTemplate, Pencil, Trash2 } from 'lucide-react';
+import { LayoutTemplate, Pencil, Save, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { SavedLayout } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
@@ -59,13 +59,16 @@ export function LayoutsPopover() {
 
   const [savingAs, setSavingAs] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
+  // 'profile' filters to profile-wide layouts; a project id to that project's.
+  const [filterProject, setFilterProject] = useState<string | 'profile' | null>(null);
 
   useEffect(() => registerHotkey('layouts.toggle', toggleLayouts), []);
-  // A closed popover drops any in-progress naming state.
+  // A closed popover drops any in-progress naming/filter state.
   useEffect(() => {
     if (!open) {
       setSavingAs(false);
       setNameDraft('');
+      setFilterProject(null);
     }
   }, [open]);
 
@@ -126,6 +129,42 @@ export function LayoutsPopover() {
 
   const projectName = (id: string | null): string =>
     (id !== null ? projects.find((p) => p.id === id)?.name : undefined) ?? 'Project';
+
+  // Filter chips (the Scratchpad's pattern): narrowing only. Shown once any
+  // project-scoped layout exists — with only profile-wide ones there is
+  // nothing to narrow by.
+  const filterableProjects = [
+    ...new Set(layouts.flatMap((l) => (l.project_id !== null ? [l.project_id] : []))),
+  ]
+    .map((id) => ({ id, name: projectName(id) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const visible =
+    filterProject === null
+      ? layouts
+      : filterProject === 'profile'
+        ? layouts.filter((l) => l.scope === 'profile')
+        : layouts.filter((l) => l.project_id === filterProject);
+
+  // An UNNAMED live layout can be saved into an existing saved layout —
+  // adopting its name, after an inline overwrite confirm — when the row is
+  // compatible with what a save would capture right now: same scope, and for
+  // project scope the open project's own.
+  const canSaveInto = (layout: SavedLayout): boolean =>
+    bridge !== null &&
+    !headless &&
+    current === null &&
+    layout.scope === bridge.scope &&
+    (layout.scope === 'profile' || layout.project_id === bridge.projectId);
+
+  const saveInto = (layout: SavedLayout) => {
+    if (!bridge) return;
+    patch.mutate(
+      { id: layout.id, ...bridge.capture() },
+      // Adopt the overwritten layout as the live one's name: same tree, so
+      // apply only stamps `layout_ref`.
+      { onSuccess: (updated) => bridge.apply(updated) },
+    );
+  };
 
   const saveNew = (name: string) => {
     if (!bridge || !profileId) return;
@@ -260,14 +299,36 @@ export function LayoutsPopover() {
           )}
         </div>
 
+        {filterableProjects.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1 px-5 pb-2">
+            <FilterChip
+              active={filterProject === 'profile'}
+              onClick={() => setFilterProject((cur) => (cur === 'profile' ? null : 'profile'))}
+            >
+              Profile-wide
+            </FilterChip>
+            {filterableProjects.map((p) => (
+              <FilterChip
+                key={p.id}
+                active={filterProject === p.id}
+                onClick={() => setFilterProject((cur) => (cur === p.id ? null : p.id))}
+              >
+                {p.name}
+              </FilterChip>
+            ))}
+          </div>
+        )}
+
         <div className="no-scrollbar max-h-[60vh] overflow-y-auto px-2 pb-3">
-          {layouts.length === 0 && (
+          {visible.length === 0 && (
             <p className="px-3 py-3 text-sm text-fg-muted">
-              No layouts yet — name and save the current layout to keep it.
+              {filterProject !== null
+                ? 'Nothing matches this filter.'
+                : 'No layouts yet — name and save the current layout to keep it.'}
             </p>
           )}
           <ul className="flex flex-col">
-            {layouts.map((layout) => (
+            {visible.map((layout) => (
               <li key={layout.id}>
                 <LayoutRow
                   layout={layout}
@@ -280,6 +341,7 @@ export function LayoutsPopover() {
                   onLoad={() => load(layout)}
                   onRename={(name) => patch.mutate({ id: layout.id, name })}
                   onDelete={() => remove.mutate(layout.id)}
+                  onSaveInto={canSaveInto(layout) ? () => saveInto(layout) : null}
                 />
               </li>
             ))}
@@ -304,6 +366,7 @@ function LayoutRow({
   onLoad,
   onRename,
   onDelete,
+  onSaveInto,
 }: {
   layout: SavedLayout;
   /** "Profile-wide", or the owning project's name for a project-scoped row. */
@@ -316,8 +379,10 @@ function LayoutRow({
   onLoad: () => void;
   onRename: (name: string) => void;
   onDelete: () => void;
+  /** Overwrite this row with the UNNAMED live layout; null when incompatible. */
+  onSaveInto: (() => void) | null;
 }) {
-  const [confirming, setConfirming] = useState<'load' | 'delete' | null>(null);
+  const [confirming, setConfirming] = useState<'load' | 'delete' | 'overwrite' | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState(layout.name);
 
@@ -374,7 +439,30 @@ function LayoutRow({
         </p>
       )}
 
-      {confirming === 'delete' ? (
+      {confirming === 'overwrite' ? (
+        <div className="mt-2 flex items-center gap-3">
+          <span className="text-2xs text-fg-muted">
+            Overwrite “{layout.name}” with the current layout?
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setConfirming(null);
+              onSaveInto?.();
+            }}
+            className="text-2xs font-medium text-interrupted transition-colors hover:underline"
+          >
+            Overwrite
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirming(null)}
+            className="text-2xs text-fg-muted transition-colors hover:text-fg"
+          >
+            Cancel
+          </button>
+        </div>
+      ) : confirming === 'delete' ? (
         <div className="mt-2 flex items-center gap-3">
           <span className="text-2xs text-fg-muted">Delete this layout? This can’t be undone.</span>
           <button
@@ -417,6 +505,13 @@ function LayoutRow({
         <div className="mt-2 flex items-center gap-1.5">
           <span className="text-2xs uppercase tracking-wide text-fg-muted">{scopeLabel}</span>
           <div className="ml-auto flex items-center gap-1">
+            {onSaveInto && (
+              <RowAction
+                icon={Save}
+                label="Overwrite with current layout"
+                onClick={() => setConfirming('overwrite')}
+              />
+            )}
             <RowAction
               icon={Pencil}
               label="Rename"
@@ -430,6 +525,30 @@ function LayoutRow({
         </div>
       )}
     </div>
+  );
+}
+
+function FilterChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        'rounded-full px-2 py-0.5 text-2xs transition-colors',
+        active ? 'bg-action text-action-ink' : 'bg-surface text-fg-secondary hover:text-fg',
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
