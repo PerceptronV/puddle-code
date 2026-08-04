@@ -28,6 +28,29 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- The Layouts popover is a list again. The block above it described the current
+  layout in text — name, scope, saved state, two save links — all of which the
+  list itself can say, so it is gone: the filters are now the first thing under
+  the title, and the **current layout wears its state in its name** — green with
+  `Active` when it matches what is saved, red with `Unsaved` when it has drifted.
+  A live layout that has never been saved is the one thing a list cannot show, so
+  that alone keeps a head with the field that names it. Profile-wide rows lose
+  their `PROFILE-WIDE` label: no project name under a row is what profile-wide
+  means.
+- Under project-based layout the popover shows only this project's layouts and
+  the profile-wide ones, so there is exactly one current layout in the list
+  instead of one per project.
+- Every layout row gains **save-as** and **duplicate** beside rename and delete.
+  Save-as on the current layout is just Save; on any other row it asks first,
+  then writes the live layout there and adopts it. Duplicate on the current
+  layout saves the live layout (unsaved changes included) under a new name; on
+  any other row it copies that row. Everything saved takes the provenance the
+  current setting implies, so duplicating a profile-wide layout under
+  project-based layout gives this project its own copy.
+- **Loading a project-scoped layout now opens that project.** It always landed in
+  that project's slice, so loading one from profile-wide layout (or from the
+  dashboard) changed nothing you could see; now the setting flips and the
+  workspace follows to the layout's own project.
 - The right sidebar's desktop shortcut is **⇧⌘B**, pairing with the left
   sidebar's ⌘B — it had never been given a desktop default and was still on the
   browser-safe ⌥⌘. (⌥⌘B is Open Worktrees, which is why the pair is ⇧⌘B rather
