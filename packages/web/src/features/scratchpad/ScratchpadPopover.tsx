@@ -146,7 +146,8 @@ export function ScratchpadPopover() {
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="icon">
+            {/* compact: narrower box, so the top-bar cluster closes up (§12). */}
+            <Button variant="ghost" size="icon" className="compact:h-7 compact:w-7">
               <NotebookPen />
               <span className="sr-only">Scratchpad</span>
             </Button>

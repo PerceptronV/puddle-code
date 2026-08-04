@@ -206,7 +206,8 @@ export function ProfilePanel() {
         <Tooltip>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="sm" className="font-sans">
+              {/* compact: tighter padding, matching the icon buttons beside it (§12). */}
+              <Button variant="ghost" size="sm" className="font-sans compact:h-7 compact:px-1.5">
                 <ProfileGlyph icon={currentProfile?.icon} colour={currentProfile?.icon_colour} />
                 <span
                   className={profileColourClass(currentProfile?.icon_colour)}

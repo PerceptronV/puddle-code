@@ -194,15 +194,23 @@ function TopBar() {
     >
       <HomeButton />
       <CommandField />
+      {/* Compact density closes this cluster up (SPEC §12): the gap goes, and
+          each control's own box narrows — most of the air between these icons is
+          their padding, not the gap between them. */}
       <div
         className={cn(
-          'ml-auto flex items-center gap-1',
+          'ml-auto flex items-center gap-1 compact:gap-0',
           shellTitleBar && '[-webkit-app-region:no-drag]',
         )}
       >
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" onClick={() => openSettings()}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="compact:h-7 compact:w-7"
+              onClick={() => openSettings()}
+            >
               <Settings />
               <span className="sr-only">Settings</span>
             </Button>
