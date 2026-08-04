@@ -4,7 +4,7 @@ import { nextWordWrap } from './editor-keybindings-logic';
 import { monaco } from './monaco-setup';
 
 /**
- * Translate one canonical hotkey binding (`meta+shift+KeyS`) into a Monaco
+ * Translate one canonical hotkey binding (`shift+meta+KeyS`) into a Monaco
  * keybinding number, or null if a code has no Monaco equivalent. `meta` maps to
  * CtrlCmd (⌘ on Mac), `ctrl` to WinCtrl.
  */

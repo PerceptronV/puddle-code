@@ -9,8 +9,11 @@ import { desktopBridge } from './desktop';
  * fixed and are deliberately NOT here (SPEC §11 "global actions only").
  *
  * A binding is a canonical string: the modifiers `ctrl`/`alt`/`shift`/`meta` in
- * that fixed order, then a `KeyboardEvent.code` (e.g. `meta+shift+KeyE`,
- * `ctrl+Backquote`), so it is keyboard-layout-independent.
+ * that fixed order, then a `KeyboardEvent.code` (e.g. `shift+meta+KeyE`,
+ * `ctrl+Backquote`), so it is keyboard-layout-independent. The order is NOT
+ * cosmetic and nothing validates it: the dispatcher compares `eventBinding`'s
+ * output for equality, so a default written `meta+shift+…` is simply a shortcut
+ * that never fires (`hotkeys.test.ts` guards the whole table).
  *
  * Two default sets (SPEC §11): the web defaults avoid combos browser chrome
  * would swallow; the DESKTOP shell — no chrome competing for keys — forks the
@@ -54,7 +57,7 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
     // ⌘⇧T is the browser's own reopen-closed-tab and never reaches the page,
     // so the web default follows `tab.close`'s ⌃⌥ pattern instead.
     defaultBinding: 'ctrl+alt+KeyT',
-    desktopBinding: 'meta+shift+KeyT',
+    desktopBinding: 'shift+meta+KeyT',
   },
   {
     id: 'window.close',
@@ -64,7 +67,7 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
     // intercept it (SPEC §11), and the chrome closes the window either way.
     defaultBinding: 'meta+KeyW',
     // The desktop shell's File → Close, which yields plain ⌘W to `tab.close`.
-    desktopBinding: 'meta+shift+KeyW',
+    desktopBinding: 'shift+meta+KeyW',
   },
   {
     id: 'sidebar.left',
