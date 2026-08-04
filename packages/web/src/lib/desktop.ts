@@ -8,6 +8,12 @@
 interface PuddleDesktopBridge {
   /** Bring the app window to the front — renderer window.focus() cannot. */
   raiseWindow(): void;
+  /**
+   * Close this window (optional: absent on shells older than the feature).
+   * A renderer's `window.close()` is ignored for a window it did not open, so
+   * only the main process can honour the `window.close` hotkey.
+   */
+  closeWindow?(): void;
   // Self-update (optional: absent on shells older than the feature). The
   // shell polls GitHub releases and stages updates itself; the renderer only
   // learns a version is ready and asks for the restart (UpdateBanner).

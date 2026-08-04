@@ -323,6 +323,12 @@ ipcMain.on('puddle:raise', (event) => {
   if (win) raise(win);
 });
 
+// The `window.close` hotkey (⌘⇧W by default). A renderer cannot close a window
+// it did not open, so the key travels here — and it comes through the renderer
+// rather than a menu accelerator precisely so a rebind in Settings → Hotkeys is
+// honoured (the File → Close item below keeps the glyph but registers nothing).
+ipcMain.on('puddle:close-window', (event) => BrowserWindow.fromWebContents(event.sender)?.close());
+
 // ---------------------------------------------------------------------------
 // Self-update (SPEC §10): the CLI-style pipeline from lib/desktop-update —
 // check GitHub releases, stage (download + SHA256SUMS verify + unpack) into
@@ -416,8 +422,11 @@ function buildMenu(): void {
         },
         { type: 'separator' },
         // ⌘⇧W (the browser close-window convention): plain ⌘W must reach the
-        // renderer, where it is the desktop default for closing a tab.
-        { role: 'close', accelerator: 'CmdOrCtrl+Shift+W' },
+        // renderer, where it is the desktop default for closing a tab. The
+        // accelerator is DISPLAYED but not registered — the renderer's hotkey
+        // registry owns the key (`window.close`), so rebinding it in Settings →
+        // Hotkeys actually moves the shortcut. Clicking the item still closes.
+        { role: 'close', accelerator: 'CmdOrCtrl+Shift+W', registerAccelerator: false },
       ],
     },
     // editMenu is load-bearing on macOS: without it ⌘C/⌘V/⌘A do nothing.
@@ -438,10 +447,12 @@ function buildMenu(): void {
               { role: 'front' } satisfies MenuItemConstructorOptions,
             ]
           : [
-              // Same yield as the File menu's close: Ctrl+W belongs to the tab.
+              // Same yield as the File menu's close: Ctrl+W belongs to the tab,
+              // and the renderer owns Ctrl+Shift+W so a rebind is honoured.
               {
                 role: 'close',
                 accelerator: 'CmdOrCtrl+Shift+W',
+                registerAccelerator: false,
               } satisfies MenuItemConstructorOptions,
             ]),
       ],

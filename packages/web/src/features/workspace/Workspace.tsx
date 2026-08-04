@@ -61,7 +61,15 @@ import { registerHotkey, useHotkeyLabel } from '../../lib/hotkeys';
 import { setScratchpadInsertHandler } from '../scratchpad/scratchpad-store';
 import { setLayoutBridge } from '../layouts/layouts-store';
 import { KeepAliveHost } from './keep-alive';
-import { allLeaves, flattenTabs, pruneTabs, tabRefKey, type DropEdge } from './layout-tree';
+import { rememberClosedTab, takeClosedTab } from './closed-tabs';
+import {
+  allLeaves,
+  findLeaf,
+  flattenTabs,
+  pruneTabs,
+  tabRefKey,
+  type DropEdge,
+} from './layout-tree';
 import {
   loadLayoutPatch,
   mergeShardedLayouts,
@@ -131,11 +139,8 @@ function WorkspaceInner() {
   // keys. Everything downstream uses the scoped handle; only the transition
   // and slice-prune effects reach for the base one.
   const projectMode = useClientSettings().projectBasedLayout;
-  const uiState = scopeUiState(
-    baseUiState,
-    projectId,
-    projectMode && baseUiState.snapshot.layout_mode === 'project',
-  );
+  const projectScoped = projectMode && baseUiState.snapshot.layout_mode === 'project';
+  const uiState = scopeUiState(baseUiState, projectId, projectScoped);
   const baseUiStateRef = useRef(baseUiState);
   baseUiStateRef.current = baseUiState;
   // Imperative reads for the saved-layout load path (layouts-store bridge).
@@ -251,12 +256,11 @@ function WorkspaceInner() {
     }
   }, [projectMode, baseUiState.loaded, allSessions.data, profileProjects.data, projectId]);
 
-  const layout = useLayoutTree(
-    uiState,
-    projectMode && baseUiState.snapshot.layout_mode === 'project'
-      ? `project:${projectId}`
-      : 'profile',
-  );
+  // WHICH tree is live: the profile-wide surface, or this project's slice. It
+  // keys the layout controller's migration cache and the closed-tab stack alike
+  // — a reopen must land in the tree the tab was closed from.
+  const scopeKey = projectScoped ? `project:${projectId}` : 'profile';
+  const layout = useLayoutTree(uiState, scopeKey);
   // Effects reference the controller through a ref so they don't list `layout`
   // (which changes on every tree edit) as a dependency — otherwise a
   // focus/ensure op would re-trigger the effect that made it, looping.
@@ -672,6 +676,12 @@ function WorkspaceInner() {
         setDiscardingUntitled({ leafId, ref });
         return;
       }
+      // Remember where it sat so `tab.reopen` can put it back in the same pane
+      // at the same position (SPEC §11). Untitled drafts return above: closing
+      // one DELETES it, so there is nothing to reopen.
+      const from = findLeaf(layout.tree, leafId);
+      const index = from?.tabs.findIndex((t) => tabRefKey(t) === tabRefKey(ref)) ?? -1;
+      rememberClosedTab(scopeKey, { leafId, index: Math.max(0, index), ref });
       layout.close(leafId, ref);
       if (ref.type === 'terminal' && ref.session === activeSessionId) {
         justClosedActive.current = ref.session;
@@ -679,8 +689,38 @@ function WorkspaceInner() {
         void navigate(`/project/${projectId}`);
       }
     },
-    [layout, activeSessionId, uiState, navigate, projectId],
+    [layout, activeSessionId, uiState, navigate, projectId, scopeKey],
   );
+  // `tab.reopen`: put the last closed tab back where it was — same pane, same
+  // position in its strip — through the very path a drag takes (`center` drop),
+  // so it lands permanent and focused. A closure whose session has since gone is
+  // discarded rather than resurrected; while the full session list is still
+  // loading nothing is known to be dead, so everything stays reopenable.
+  const reopenClosedTab = useCallback(() => {
+    const live = allSessionsRef.current;
+    const alive = live
+      ? new Set(live.filter((s) => s.status !== 'archived').map((s) => s.id))
+      : null;
+    const entry = takeClosedTab(scopeKey, (ref) => {
+      if (alive === null) return true;
+      const sid = ref.type === 'terminal' ? ref.session : ref.tab.session;
+      return alive.has(sid);
+    });
+    if (!entry) return;
+    const { ref } = entry;
+    // The pane it came from may itself be gone (a leaf that loses its last tab
+    // collapses): then the tab joins the pane being worked in, appended rather
+    // than forced to a position in a strip it never belonged to.
+    const home = findLeaf(layout.tree, entry.leafId);
+    const leafId = home ? entry.leafId : layout.focusedLeaf.id;
+    const index = home ? entry.index : undefined;
+    layout.drop({ ref, fromLeafId: leafId, toLeafId: leafId, edge: 'center', index });
+    // A reopened terminal claims the URL, exactly as activating its tab does.
+    if (ref.type === 'terminal' && ref.session !== activeSessionId) {
+      const owner = tabSessions.find((s) => s.id === ref.session)?.project_id;
+      if (owner) void navigate(`/project/${owner}/session/${ref.session}`);
+    }
+  }, [layout, scopeKey, activeSessionId, tabSessions, navigate]);
   // A sidebar drag (file row / session row or dot) dropped onto a pane: open a
   // PERMANENT tab there through the same dropTab path strip drags use — centre
   // inserts, an edge splits — so a drag opens and positions in one gesture. A
@@ -776,8 +816,7 @@ function WorkspaceInner() {
   // through this bridge while a workspace is mounted (layouts-store). The
   // scoped snapshot keeps `layout_ref`/`layout_tree` pointing at whichever
   // slice is live, so the bridge is mode-agnostic.
-  const savedScope =
-    projectMode && baseUiState.snapshot.layout_mode === 'project' ? 'project' : 'profile';
+  const savedScope = projectScoped ? 'project' : 'profile';
   const scopedTree = uiState.snapshot.layout_tree;
   const scopedLayoutRef = uiState.snapshot.layout_ref;
   const projectLayouts = baseUiState.snapshot.project_layouts;
@@ -832,6 +871,7 @@ function WorkspaceInner() {
       const ref = leaf.tabs.find((t) => tabRefKey(t) === leaf.activeKey);
       if (ref) onCloseTab(leaf.id, ref);
     },
+    'tab.reopen': reopenClosedTab,
     'sidebar.left': () =>
       isNarrow
         ? setNarrowNav((v) => !v)

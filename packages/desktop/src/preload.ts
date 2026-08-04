@@ -13,6 +13,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('puddleDesktop', {
   /** Bring the app window to the front (renderer window.focus() cannot). */
   raiseWindow: () => ipcRenderer.send('puddle:raise'),
+  /** Close this window — the `window.close` hotkey (renderer close() cannot). */
+  closeWindow: () => ipcRenderer.send('puddle:close-window'),
   /** The staged update's version, or null — for banners mounting late. */
   updateReady: (): Promise<string | null> => ipcRenderer.invoke('puddle:update-ready'),
   /** Fires when a poll stages an update; returns the unsubscribe. */

@@ -9,6 +9,12 @@ describe('shellDefaultBinding', () => {
     expect(shellDefaultBinding(byId('tab.close'), false)).toBe('ctrl+alt+KeyW');
     expect(shellDefaultBinding(byId('sidebar.left'), true)).toBe('meta+KeyB');
     expect(shellDefaultBinding(byId('session.newAgent'), true)).toBe('meta+KeyT');
+    // Close window and reopen-tab dodge what the browser reserves for itself
+    // (⌘W closes the tab, ⌘⇧T reopens the browser's own last one).
+    expect(shellDefaultBinding(byId('window.close'), true)).toBe('meta+shift+KeyW');
+    expect(shellDefaultBinding(byId('window.close'), false)).toBe('meta+KeyW');
+    expect(shellDefaultBinding(byId('tab.reopen'), true)).toBe('meta+shift+KeyT');
+    expect(shellDefaultBinding(byId('tab.reopen'), false)).toBe('ctrl+alt+KeyT');
     // an action without a desktop fork uses the one default everywhere
     expect(shellDefaultBinding(byId('palette.toggle'), true)).toBe('meta+KeyK');
     expect(shellDefaultBinding(byId('palette.toggle'), false)).toBe('meta+KeyK');

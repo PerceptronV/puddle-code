@@ -48,6 +48,25 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
     desktopBinding: 'meta+KeyW',
   },
   {
+    id: 'tab.reopen',
+    label: 'Reopen last closed tab',
+    group: 'Layout & tabs',
+    // ⌘⇧T is the browser's own reopen-closed-tab and never reaches the page,
+    // so the web default follows `tab.close`'s ⌃⌥ pattern instead.
+    defaultBinding: 'ctrl+alt+KeyT',
+    desktopBinding: 'meta+shift+KeyT',
+  },
+  {
+    id: 'window.close',
+    label: 'Close window',
+    group: 'Layout & tabs',
+    // Naming the browser's own ⌘W is honest rather than useful: a tab cannot
+    // intercept it (SPEC §11), and the chrome closes the window either way.
+    defaultBinding: 'meta+KeyW',
+    // The desktop shell's File → Close, which yields plain ⌘W to `tab.close`.
+    desktopBinding: 'meta+shift+KeyW',
+  },
+  {
     id: 'sidebar.left',
     label: 'Toggle left sidebar',
     group: 'Layout & tabs',

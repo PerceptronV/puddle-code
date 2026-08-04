@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
+import { desktopBridge } from '../../lib/desktop';
 import {
   actionForBinding,
   eventBinding,
   getHotkeyAction,
   getHotkeyHandler,
+  registerHotkey,
   setHotkeyOverrides,
 } from '../../lib/hotkeys';
 import { useProfileSettings } from '../../lib/queries';
@@ -33,6 +35,21 @@ export function HotkeysHost() {
         : undefined,
     );
   }, [overrides]);
+
+  // Closing the window is a shell action, not a workspace one: it belongs here
+  // so it works on the dashboard too. In the desktop shell only the main
+  // process can do it (a renderer's close() is ignored for a window it did not
+  // open); in a browser tab the chrome has already acted on ⌘W by the time this
+  // runs, and `window.close()` is the honest fallback for a script-opened one.
+  useEffect(
+    () =>
+      registerHotkey('window.close', () => {
+        const bridge = desktopBridge();
+        if (bridge?.closeWindow) bridge.closeWindow();
+        else window.close();
+      }),
+    [],
+  );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

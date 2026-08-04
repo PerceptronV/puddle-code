@@ -9,6 +9,16 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Added
+
+- Two shortcuts, both rebindable in Settings → Hotkeys: **Close window** (⌘W in a
+  browser, ⌘⇧W in the desktop shell) and **Reopen last closed tab** (⌃⌥T in a
+  browser, ⌘⇧T in the desktop shell — the browser keeps ⌘⇧T for its own tabs). A
+  reopened tab returns to the pane it was closed from, at its old position in
+  that pane's strip, and belongs to the layout it was closed in: the profile-wide
+  surface, or that project's own layout under project-based layout. A tab whose
+  session has since been archived or deleted is not resurrected.
+
 ### Fixed
 
 - Toggling project-based layout in Settings no longer blanks every open window.
@@ -19,3 +29,9 @@ Past releases: see docs/changelogs/.
   every window that loaded the snapshot. Shards now get fresh ids, the union
   deduplicates, and a snapshot already written with colliding ids is repaired
   when it loads (so an affected workspace fixes itself).
+
+### Changed
+
+- Desktop: File → Close Window still shows ⌘⇧W, but the key now reaches the
+  renderer instead of the menu, so rebinding **Close window** in Settings →
+  Hotkeys actually moves the shortcut. Clicking the menu item still closes.
