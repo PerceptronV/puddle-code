@@ -78,6 +78,7 @@ update-only because an AppImage has no fixed install path.
 - This is a public MIT repo: no company-, team-, or person-specific names anywhere (code, tests, docs, examples). Do not copy code from AGPL-licensed projects.
 - **Terminology**: a "session" is always a _puddle_ session (agent + worktree + PTY, `sessions.id`). An agent's own conversation identifier is the "agent session ref" (`sessions.agent_session_ref`). Never conflate the two in code, comments, or UI copy.
 - Design tokens in `packages/web/src/styles/tokens.css` are the single source for colour, type, radius, and spacing; the Tailwind config, xterm theme, and Monaco theme derive from them. Never hard-code a hex value or font stack in a component. UI conventions live in `SPEC.md` §12.
+- Every hook in a React component runs **above** that component's loading gate. `pnpm lint` enforces `react-hooks/rules-of-hooks`: a hook after an early return changes the hook count when the gate flips and React blanks the whole page (this shipped once, in v0.0.22).
 - Prefer small modules with one responsibility over utils grab-bags. If a file passes ~300 lines, look for a seam.
 
 ## Housekeeping — read this, future agents

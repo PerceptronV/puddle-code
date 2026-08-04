@@ -628,6 +628,20 @@ function WorkspaceInner() {
     },
     [layout, uiState, activeSessionId, navigate, projectId],
   );
+  // A session dropped on an archive target (rail icon / list header): archive
+  // it — no confirmation, nothing is destroyed (SPEC §4) — and drop its tab.
+  // Declared HERE, with the other hooks: every hook in this component must run
+  // before the loading gate below returns early, or the gate flipping changes
+  // the hook count mid-life and React blanks the workspace (React #310).
+  const archiveSession = useArchiveSession();
+  const archiveFromDrag = useCallback(
+    (id: string) =>
+      archiveSession.mutate(id, {
+        onSuccess: () => closeTab(id),
+        onError: (e) => toastError(e),
+      }),
+    [archiveSession, closeTab],
+  );
 
   // Activating a tab focuses its pane; activating a terminal also navigates so
   // the left sidebar binds to it. A terminal tab may belong to ANOTHER project
@@ -939,17 +953,6 @@ function WorkspaceInner() {
       onArchiveDrop={archiveFromDrag}
       projectActions={projectActions}
     />
-  );
-  // A session dropped on an archive target (rail icon / list header): archive
-  // it — no confirmation, nothing is destroyed (SPEC §4) — and drop its tab.
-  const archiveSession = useArchiveSession();
-  const archiveFromDrag = useCallback(
-    (id: string) =>
-      archiveSession.mutate(id, {
-        onSuccess: () => closeTab(id),
-        onError: (e) => toastError(e),
-      }),
-    [archiveSession, closeTab],
   );
 
   // Free-form tiling area (SPEC §8): editor and terminal tabs live in a

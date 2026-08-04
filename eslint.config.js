@@ -2,6 +2,7 @@
 import js from '@eslint/js';
 import { defineConfig } from 'eslint/config';
 import prettier from 'eslint-config-prettier';
+import reactHooks from 'eslint-plugin-react-hooks';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig(
@@ -35,5 +36,17 @@ export default defineConfig(
         { argsIgnorePattern: '^_', ignoreRestSiblings: true },
       ],
     },
+  },
+  {
+    // Rules of Hooks, on every React file. A hook called after a component's
+    // loading gate returns early changes the hook COUNT between renders, and
+    // React tears the whole tree down with a blank page the moment the gate
+    // flips — exactly how v0.0.22 shipped a workspace that never opened. Only
+    // this rule is on: `exhaustive-deps` and the compiler rules would drown a
+    // codebase whose effects deliberately narrow their deps (each documented
+    // at its site), and a noisy rule is a rule that gets ignored.
+    files: ['packages/*/src/**/*.{ts,tsx}'],
+    plugins: { 'react-hooks': reactHooks },
+    rules: { 'react-hooks/rules-of-hooks': 'error' },
   },
 );
