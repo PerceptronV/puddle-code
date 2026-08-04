@@ -3,12 +3,14 @@ import { Link, Outlet, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Settings } from 'lucide-react';
 import type { ProjectDetail, Session } from '@puddle/shared';
+import { InlineLabelEdit, editOnDoubleClick } from '../../components/inline-label-edit';
 import { Button } from '../../components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { openCommandPalette } from '../../lib/command-palette';
+import { toastError } from '../../lib/errors';
 import { openSettings } from '../../lib/hash-route';
 import { useHotkeyLabel } from '../../lib/hotkeys';
-import { hostLabel, useHostInfo, useProjectDetail } from '../../lib/queries';
+import { hostLabel, useHostInfo, usePatchConfig, useProjectDetail } from '../../lib/queries';
 import { wsManager } from '../../lib/ws';
 import { Suspense, lazy, useState } from 'react';
 import { NewProjectDialog } from '../dashboard/NewProjectDialog';
@@ -81,24 +83,59 @@ function useStatusCacheSync() {
  * The way home: the small puddle mark and the daemon's host name, as one
  * clickable block → all projects. The host tells you which machine you're
  * driving (the daemon reports it via /api/host; the origin/port never shows).
+ *
+ * A DOUBLE-click on the name renames the host in place — it writes the daemon's
+ * `displayName` (§11 Host), the same field Settings offers — and clearing it (or
+ * typing the real hostname back) unsets it, so the label falls back to the
+ * hostname rather than storing it twice. As with a project header, the
+ * double-click's own first click still navigates; the label is in the persistent
+ * top bar, so it stays under the cursor.
  */
 function HomeButton() {
   const host = useHostInfo();
+  const patchConfig = usePatchConfig();
+  const [editing, setEditing] = useState(false);
+  const label = hostLabel(host.data);
+
+  const commit = (value: string) => {
+    setEditing(false);
+    const next = value.trim();
+    if (next === label) return;
+    patchConfig.mutate(
+      { displayName: next === host.data?.hostname ? '' : next },
+      { onError: (e) => toastError(e) },
+    );
+  };
+
+  const mark = !shellTitleBar && <img src="/puddle.svg" alt="puddle" className="size-4" />;
+  const box = cn(
+    'flex shrink-0 items-center gap-2',
+    shellTitleBar && '[-webkit-app-region:no-drag]',
+  );
+  const type = 'truncate font-mono text-sm font-semibold text-fg-secondary';
+
+  if (editing && label !== undefined) {
+    return (
+      <div className={box}>
+        {mark}
+        <InlineLabelEdit
+          initial={host.data?.displayName ?? label}
+          maxLength={64}
+          className={cn(type, 'w-40')}
+          onCommit={commit}
+          onCancel={() => setEditing(false)}
+        />
+      </div>
+    );
+  }
   return (
-    <Link
-      to="/"
-      className={cn(
-        'flex shrink-0 items-center gap-2 transition-opacity hover:opacity-70',
-        shellTitleBar && '[-webkit-app-region:no-drag]',
-      )}
-      title="All projects"
-    >
+    <Link to="/" className={cn(box, 'transition-opacity hover:opacity-70')} title="All projects">
       {/* Under the macOS shell the app's own chrome already says puddle —
           the title bar shows the host name alone. */}
-      {!shellTitleBar && <img src="/puddle.svg" alt="puddle" className="size-4" />}
-      {host.data && (
-        <span className="truncate font-mono text-sm font-semibold text-fg-secondary">
-          {hostLabel(host.data)}
+      {mark}
+      {label !== undefined && (
+        <span className={type} {...editOnDoubleClick(() => setEditing(true))}>
+          {label}
         </span>
       )}
     </Link>

@@ -2,15 +2,18 @@ import { useState } from 'react';
 import { KeyRound, Plus, Settings2 } from 'lucide-react';
 import { toastError } from '../../lib/errors';
 import type { Account } from '@puddle/shared';
+import { InlineLabelEdit, editOnDoubleClick } from '../../components/inline-label-edit';
 import { Button } from '../../components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { openSettings } from '../../lib/hash-route';
+import { cn } from '../../lib/utils';
 import {
   useAccountUsage,
   useAccounts,
   useAgents,
   useLoginAccount,
+  usePatchProfile,
   useProfiles,
 } from '../../lib/queries';
 import { LoginDialog } from '../accounts/LoginDialog';
@@ -142,11 +145,19 @@ function AccountRow({
  * The profile panel: its own top-bar trigger (the profile's name), opening an
  * anchored popover beneath it with accounts grouped by agent type — status,
  * usage, actions. Unlike ⌘K and settings, this never takes the centre stage.
+ *
+ * A DOUBLE-click on the name renames the profile in place (the same field
+ * Settings → Profile offers; a clashing name is a 409 and surfaces as a toast).
+ * The first click of that double-click has already opened the panel, so entering
+ * the editor closes it again — the name is the trigger, and it must not sit
+ * under an open popover while being typed into.
  */
 export function ProfilePanel() {
   const [open, setOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
   const profileId = useCurrentProfileId();
   const profiles = useProfiles();
+  const patchProfile = usePatchProfile();
   const currentProfile = profiles.data?.find((p) => p.id === profileId);
   const accounts = useAccounts(profileId ?? undefined);
   const agents = useAgents();
@@ -166,6 +177,29 @@ export function ProfilePanel() {
     openNewSession({ accountId: account.id });
   };
 
+  const commitName = (value: string) => {
+    setRenaming(false);
+    const next = value.trim();
+    if (!profileId || !next || next === currentProfile?.name) return;
+    patchProfile.mutate({ id: profileId, name: next }, { onError: (e) => toastError(e) });
+  };
+
+  // The trigger's own row, minus the popover, while the name is being typed.
+  if (renaming && currentProfile) {
+    return (
+      <div className="flex h-8 items-center gap-2 px-3">
+        <ProfileGlyph icon={currentProfile.icon} colour={currentProfile.icon_colour} />
+        <InlineLabelEdit
+          initial={currentProfile.name}
+          maxLength={100}
+          className={cn('w-32 text-sm', profileColourClass(currentProfile.icon_colour))}
+          onCommit={commitName}
+          onCancel={() => setRenaming(false)}
+        />
+      </div>
+    );
+  }
+
   return (
     <>
       <Popover open={open} onOpenChange={setOpen}>
@@ -174,7 +208,13 @@ export function ProfilePanel() {
             <PopoverTrigger asChild>
               <Button variant="ghost" size="sm" className="font-sans">
                 <ProfileGlyph icon={currentProfile?.icon} colour={currentProfile?.icon_colour} />
-                <span className={profileColourClass(currentProfile?.icon_colour)}>
+                <span
+                  className={profileColourClass(currentProfile?.icon_colour)}
+                  {...editOnDoubleClick(() => {
+                    setOpen(false);
+                    setRenaming(true);
+                  })}
+                >
                   {currentProfile?.name ?? '…'}
                 </span>
               </Button>

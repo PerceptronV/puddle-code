@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { Account, Session } from '@puddle/shared';
 import { AgentIcon } from '../../components/agent-icon';
+import { InlineLabelEdit, editOnDoubleClick } from '../../components/inline-label-edit';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -105,43 +106,6 @@ function ProjectMenuBody({
         {editLabel.label}
       </ContextMenuItem>
     </ContextMenuContent>
-  );
-}
-
-/**
- * Inline label editor for the ACTIVE project's name (expanded header) or
- * abbreviation (collapsed rail): commit on Enter or blur, Esc cancels.
- * Keystrokes stay here — the global hotkey dispatcher must not see them.
- */
-function InlineLabelEdit({
-  initial,
-  maxLength,
-  className,
-  onCommit,
-  onCancel,
-}: {
-  initial: string;
-  maxLength?: number;
-  className?: string;
-  onCommit: (value: string) => void;
-  onCancel: () => void;
-}) {
-  const [value, setValue] = useState(initial);
-  return (
-    <input
-      autoFocus
-      value={value}
-      maxLength={maxLength}
-      onFocus={(e) => e.currentTarget.select()}
-      onChange={(e) => setValue(e.target.value)}
-      onBlur={() => onCommit(value)}
-      onKeyDown={(e) => {
-        e.stopPropagation();
-        if (e.key === 'Enter') onCommit(value);
-        else if (e.key === 'Escape') onCancel();
-      }}
-      className={cn('bg-transparent outline-none', className)}
-    />
   );
 }
 
@@ -461,10 +425,7 @@ export function CollapsedSessionsRail({
                     <TooltipTrigger asChild>
                       <Link
                         to={`/project/${group.projectId}`}
-                        onDoubleClick={(e) => {
-                          e.preventDefault();
-                          setEditingAbbrev(group.projectId);
-                        }}
+                        {...editOnDoubleClick(() => setEditingAbbrev(group.projectId))}
                         draggable
                         onDragStart={(e) => {
                           e.dataTransfer.setData(PROJECT_MIME, group.projectId);
@@ -781,10 +742,7 @@ function SessionListBody({
                 <ContextMenuTrigger asChild>
                   <Link
                     to={`/project/${group.projectId}`}
-                    onDoubleClick={(e) => {
-                      e.preventDefault();
-                      setEditingName(group.projectId);
-                    }}
+                    {...editOnDoubleClick(() => setEditingName(group.projectId))}
                     draggable
                     onDragStart={(e) => {
                       e.dataTransfer.setData(PROJECT_MIME, group.projectId);

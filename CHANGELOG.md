@@ -11,6 +11,9 @@ Past releases: see docs/changelogs/.
 
 ### Added
 
+- **Double-clicking the host label or the profile name in the top bar renames it
+  in place** — the same two fields Settings offers, without opening Settings.
+  Clearing the host label unsets it, so it falls back to the machine's hostname.
 - Right-clicking a project in the session sidebar can now edit its label:
   **Change project name** on the expanded header, **Change project abbreviation**
   on the collapsed rail. Both open the same in-place editor a double-click has
