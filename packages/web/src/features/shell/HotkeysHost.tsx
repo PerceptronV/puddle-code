@@ -18,6 +18,17 @@ function terminalFocused(): boolean {
 }
 
 /**
+ * Whether the caret is inside a Monaco editor, which binds the `editor: true`
+ * actions on the instance itself. Outside one, those keys are the shell's to
+ * dispatch — otherwise ⌘S in a rendered preview, or in a pane focused by its tab
+ * chip, fell through to the browser's Save Page dialogue (SPEC §11).
+ */
+function monacoFocused(): boolean {
+  const el = document.activeElement;
+  return el instanceof Element && el.closest('.monaco-editor') !== null;
+}
+
+/**
  * Installs the one global hotkey dispatcher and keeps the effective bindings in
  * sync with the profile's overrides (SPEC §11). Mounted once in the shell.
  * Editor actions (save, word wrap) are bound inside Monaco, so the dispatcher
@@ -58,7 +69,8 @@ export function HotkeysHost() {
       const id = actionForBinding(binding);
       if (!id) return;
       const action = getHotkeyAction(id);
-      if (!action || action.editor) return; // Monaco owns editor keys
+      if (!action) return;
+      if (action.editor && monacoFocused()) return; // the caret's editor owns them
       if (action.deferInTerminal && terminalFocused()) return;
       const handler = getHotkeyHandler(id);
       if (!handler) return;

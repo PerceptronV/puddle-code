@@ -76,7 +76,7 @@ export function useWorktreeTree(sid: string | undefined, path: string, root?: st
 export function useWorktreeFile(
   sid: string | undefined,
   path: string,
-  opts?: { enabled?: boolean; root?: string },
+  opts?: { enabled?: boolean; root?: string; live?: boolean },
 ) {
   const root = opts?.root;
   return useQuery({
@@ -87,6 +87,15 @@ export function useWorktreeFile(
         `/api/worktrees/${sid}/file?path=${encodeURIComponent(path)}${rootParam(root)}`,
       ),
     enabled: sid !== undefined && (opts?.enabled ?? true),
+    // `live`: keep re-reading the file so a view that only READS it (a rendered
+    // preview) tracks what an agent writes, instead of waiting for a window
+    // refocus. The daemon has no file-watch to subscribe to, so this is the same
+    // focus-aware poll the diff and git-status queries use — and the same reason
+    // it stays opt-in: an editor tab has a caret and does not need it, and a poll
+    // per open file would be paid for in battery (docs/reports).
+    ...(opts?.live === true
+      ? { refetchInterval: focusAwareInterval(3_000), refetchOnWindowFocus: true }
+      : {}),
   });
 }
 

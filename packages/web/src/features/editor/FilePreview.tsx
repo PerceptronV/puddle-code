@@ -4,8 +4,8 @@ import 'katex/dist/katex.min.css';
 import { apiFetchRaw } from '../../lib/api';
 import { useClientSettings } from '../../lib/client-settings';
 import { useEditor } from '../workspace/editor-context';
-import { useWorktreeFile } from '../../lib/worktree-queries';
-import { bufferKey, getOrCreateModel, subscribe } from './buffer-store';
+import { bufferKey, subscribe } from './buffer-store';
+import { useEditorBuffer } from './use-editor-buffer';
 import { markdownToHtml } from './markdown';
 import { MATH_LAYOUT_CSS } from './math';
 import { renderMathInDocument } from './math-dom';
@@ -47,18 +47,25 @@ export function FilePreview({
 }
 
 /**
- * The tab's live text: the shared (session, path) model the source editor
- * uses, created from the fetched file when the preview mounts first. The
- * model is retained by the tree-wide ModelRefcount for every open editor tab,
- * so no retain/release is needed here.
+ * The tab's live text — live in BOTH directions (SPEC §8):
+ *
+ * - **the buffer**, when one is open: the very model the source editor edits, so
+ *   a preview beside an editor re-renders on every keystroke and ⌘S in either
+ *   view saves the one buffer (the preview registers its save, since it has no
+ *   Monaco to own the chord — `save-registry.ts`);
+ * - **the file**, otherwise: `live` polls it and the hook's clean-refocus rule
+ *   adopts anything newer, so a preview of a document an AGENT is writing keeps
+ *   up. Before this the model was created once from the first read and the
+ *   rendered view then never moved again.
+ *
+ * `passive` is what makes it safe to hold the buffer beside a real editor: a
+ * reading view writes no drafts and announces nothing. The model is retained by
+ * the tree-wide ModelRefcount for every open editor tab, so no retain/release
+ * is needed here.
  */
 function useLiveText(session: string, path: string): string | null {
-  const file = useWorktreeFile(session, path);
-  const content = file.data && !file.data.binary ? file.data.content : null;
-  const model =
-    content !== null && file.data
-      ? getOrCreateModel(session, path, content, file.data.mtime_ms)
-      : null;
+  const buffer = useEditorBuffer(session, path, null, undefined, { passive: true, live: true });
+  const model = buffer.model;
   return useSyncExternalStore(
     (onChange) => subscribe(bufferKey(session, path), onChange),
     () => model?.getValue() ?? null,

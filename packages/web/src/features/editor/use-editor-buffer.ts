@@ -21,8 +21,16 @@ import {
   peerState,
   subscribePeerState,
 } from './editor-sync';
+import {
+  clearConflict,
+  conflictFor,
+  setConflict,
+  subscribeConflict,
+  type DiskConflict,
+} from './conflict-store';
 import { registerEditorKeybindings } from './editor-keybindings';
 import { monaco } from './monaco-setup';
+import { registerSaver, saverKey } from './save-registry';
 import type { RevealTarget } from '../workspace/editor-context';
 
 /** What the CodeEditor view renders for a (session, path) tab. */
@@ -39,9 +47,29 @@ export interface EditorBuffer {
   discardRestore(): void;
   /** A passive one-line badge for cross-window activity, or null. */
   peerBadge: 'saved-elsewhere' | 'dirty-elsewhere' | null;
+  /** A save the daemon refused because the file moved on disk, until reconciled. */
+  conflict: DiskConflict | null;
+  /** Resolve a conflict by discarding the buffer and taking the file on disk. */
+  takeDisk(): void;
+  /** Resolve a conflict by writing the buffer over whatever is on disk. */
+  keepMine(): void;
   save(): void;
   /** Wire into `<Editor onMount>` — binds ⌘S and the reveal-on-open caret. */
   onMount(editor: monaco.editor.IStandaloneCodeEditor): void;
+}
+
+/**
+ * How a view holds the buffer. A READING view (a rendered preview) shows the
+ * same buffer without owning the keyboard: it must not write drafts — there is
+ * nothing to type into it, and a second writer for one model would persist and
+ * announce the same content twice — and it wants the file re-read as it changes
+ * on disk, since it has no caret and is often watching an agent write.
+ */
+export interface BufferOptions {
+  /** Read-only holder: no draft writer, no draft-updated announcements. */
+  passive?: boolean;
+  /** Poll the file so disk changes appear without a window refocus. */
+  live?: boolean;
 }
 
 /**
@@ -51,6 +79,9 @@ export interface EditorBuffer {
  * out of `CodeEditor.tsx` so that file stays a thin view under the ~300-line
  * guidance. Behind the lazy editor boundary — imports the buffer store, which
  * imports monaco.
+ *
+ * Both views of a previewable file use it, source and rendered alike (see
+ * `BufferOptions`), so they share one model, one dirty flag, and one save.
  */
 export function useEditorBuffer(
   session: string,
@@ -60,9 +91,11 @@ export function useEditorBuffer(
    * drafts, and peer sync apart from a worktree file with the same relative
    * path, and threads through the file GET/PUT. */
   root?: string,
+  opts?: BufferOptions,
 ): EditorBuffer {
+  const passive = opts?.passive === true;
   const key = bufferKey(session, path, root);
-  const file = useWorktreeFile(session, path, { root });
+  const file = useWorktreeFile(session, path, { root, live: opts?.live });
   const saveMutation = useSaveWorktreeFile(session, root);
 
   const [model, setModel] = useState<monaco.editor.ITextModel | null>(null);
@@ -101,6 +134,10 @@ export function useEditorBuffer(
     useCallback((cb: () => void) => subscribePeerState(key, cb), [key]),
     () => peerState(key),
   );
+  const conflict = useSyncExternalStore(
+    useCallback((cb: () => void) => subscribeConflict(key, cb), [key]),
+    () => conflictFor(key),
+  );
 
   // Create the shared model once the file content arrives, then lay any draft
   // on top of the disk baseline. A model that already exists (tab reactivated,
@@ -134,9 +171,11 @@ export function useEditorBuffer(
     });
   }, [file.data, key, session, path, root]);
 
-  // Persist edits to a browser draft (debounced) and tell peer windows.
+  // Persist edits to a browser draft (debounced) and tell peer windows. A
+  // passive holder skips it entirely: it cannot be typed into, and a second
+  // writer on one model would persist and announce every edit twice.
   useEffect(() => {
-    if (!model) return;
+    if (!model || passive) return;
     const writer = draftWriter(session, path, root);
     writerRef.current = writer;
     const sub = model.onDidChangeContent(() => {
@@ -149,7 +188,7 @@ export function useEditorBuffer(
       sub.dispose();
       writerRef.current = null;
     };
-  }, [model, key, session, path, root]);
+  }, [model, key, session, path, root, passive]);
 
   // A peer saved this file: if we are clean, silently adopt the new disk
   // content; if we are dirty, leave it and show a passive badge instead.
@@ -195,6 +234,7 @@ export function useEditorBuffer(
       void deleteDraft(session, path, root);
       announceSaved(session, path, mtimeMs, root);
       setRestoredNotice(false);
+      clearConflict(key); // the write landed: there is nothing left to reconcile
     },
     [key, session, path, root],
   );
@@ -206,6 +246,7 @@ export function useEditorBuffer(
       }
       void deleteDraft(session, path, root);
       setRestoredNotice(false);
+      clearConflict(key);
     });
   }, [key, session, path, reloadModel]);
 
@@ -226,13 +267,28 @@ export function useEditorBuffer(
     if (!model || !isDirty(key)) return;
     const content = model.getValue();
     const versionId = model.getAlternativeVersionId();
+    // A save made while a conflict stands expects the DISK version's mtime, not
+    // the one this buffer loaded: the disk content has been laid beside the
+    // buffer and reconciled against, so that version is what the write is based
+    // on. Expecting the stale load mtime instead would 409 forever, leaving no
+    // way to save a merge at all.
+    const expected = conflictFor(key)?.mtimeMs ?? savedMtime(key);
     saveMutation.mutate(
-      { path, content, expected_mtime_ms: savedMtime(key) },
+      { path, content, expected_mtime_ms: expected },
       {
         onSuccess: (res) => commitSaved(versionId, res.mtime_ms),
         onError: (err) => {
           if (err instanceof ApiError && err.status === 409 && err.code === 'stale_file') {
+            // Nothing was written. Fetch what is on disk and hold it as the
+            // buffer's conflict, so the editor can show both versions side by
+            // side and a merged save has an mtime to expect (`ConflictView`).
+            void file.refetch().then((res) => {
+              if (res.data && res.data.content !== null) {
+                setConflict(key, { content: res.data.content, mtimeMs: res.data.mtime_ms });
+              }
+            });
             toast.error('File changed on disk (probably the agent)', {
+              description: 'Nothing was written — your unsaved version is intact.',
               duration: Infinity,
               action: { label: 'Reload', onClick: () => reload() },
               cancel: { label: 'Overwrite', onClick: () => overwrite(content, versionId) },
@@ -247,6 +303,14 @@ export function useEditorBuffer(
 
   const saveRef = useRef(save);
   saveRef.current = save;
+
+  // Publish this buffer's save for ⌘S pressed OUTSIDE Monaco — a focused
+  // preview, or a pane focused by its tab chip (`save-registry.ts`). Registered
+  // through the ref so re-renders don't churn the registry.
+  useEffect(
+    () => registerSaver(saverKey(session, path, root), () => saveRef.current()),
+    [session, path, root],
+  );
 
   const applyReveal = useCallback(() => {
     const ed = editorRef.current;
@@ -276,6 +340,14 @@ export function useEditorBuffer(
   const discardRestore = useCallback(() => {
     reload();
   }, [reload]);
+
+  // The two decisive answers to a conflict. `takeDisk` is the ordinary reload —
+  // the buffer's edits go, the file on disk wins. `keepMine` writes the buffer
+  // with no expectation at all, so it lands whatever the disk now says.
+  const keepMine = useCallback(() => {
+    if (!model) return;
+    overwrite(model.getValue(), model.getAlternativeVersionId());
+  }, [model, overwrite]);
 
   // Derive the view status. A 413 from the daemon is "file_too_large".
   let status: BufferStatus;
@@ -310,6 +382,9 @@ export function useEditorBuffer(
     restoredNotice,
     discardRestore,
     peerBadge,
+    conflict,
+    takeDisk: reload,
+    keepMine,
     save,
     onMount,
   };

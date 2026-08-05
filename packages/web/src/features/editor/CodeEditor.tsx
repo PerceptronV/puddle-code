@@ -4,6 +4,7 @@ import { Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { useClientSettings } from '../../lib/client-settings';
 import { downloadPath } from '../../lib/worktree-queries';
+import { ConflictView } from './ConflictView';
 import { THEME_NAME } from './monaco-setup';
 import { useEditorBuffer } from './use-editor-buffer';
 import type { RevealTarget } from '../workspace/editor-context';
@@ -101,6 +102,23 @@ export function CodeEditor({
         session={session}
         path={path}
         root={root}
+      />
+    );
+  }
+
+  // A refused save is a question, not an error (SPEC §8): show the disk version
+  // beside the buffer until it is answered, in place of the plain editor —
+  // reconciling IS editing the same model, so nothing is lost by swapping views.
+  if (buffer.conflict && buffer.model) {
+    return (
+      <ConflictView
+        session={session}
+        path={path}
+        conflict={buffer.conflict}
+        model={buffer.model}
+        onTakeDisk={buffer.takeDisk}
+        onKeepMine={buffer.keepMine}
+        onSave={buffer.save}
       />
     );
   }
