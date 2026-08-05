@@ -232,16 +232,27 @@ function WorkspaceInner() {
     },
     [orderedProjects, patchProfileSettings],
   );
-  // The archived disclosure follows the same scoping as the live groups
-  // (SPEC §12): only this project's archived sessions when the sidebar is
-  // scoped to the project, every project's (in sidebar project order) otherwise.
+  // The archived disclosure, NEWEST CONVERSATION FIRST — by the very timestamp
+  // its rows show (last activity, falling back to when it was created), so the
+  // order you read is the order the list is in. Unlike the live groups it takes
+  // no saved drag order: nothing is dragged in here, and "what was I last doing"
+  // is the only question the list answers.
+  //
+  // A PROJECT-BASED layout never reaches past its own project (SPEC §12): the
+  // whole point of that mode is that the window is about one project, and a
+  // stranger's archived session offers nothing to do here. Profile-based layouts
+  // keep the cross-project list, grouped in the sidebar's project order, when the
+  // "all projects' sessions" client setting asks for it.
   const archivedSessions = useMemo(() => {
-    if (!showAllSessions) return sessions.filter((s) => s.status === 'archived');
+    const recency = (s: Session) => Date.parse(s.last_activity_at ?? s.created_at) || 0;
+    const newestFirst = (rows: Session[]) => rows.sort((a, b) => recency(b) - recency(a));
+    const archived = (s: Session) => s.status === 'archived';
+    if (projectScoped || !showAllSessions) return newestFirst(sessions.filter(archived));
     const all = allSessions.data ?? sessions;
     return orderedProjects.flatMap((p) =>
-      all.filter((s) => s.project_id === p.id && s.status === 'archived'),
+      newestFirst(all.filter((s) => s.project_id === p.id && archived(s))),
     );
-  }, [showAllSessions, sessions, allSessions.data, orderedProjects]);
+  }, [showAllSessions, projectScoped, sessions, allSessions.data, orderedProjects]);
 
   // One-shot layout-mode transitions (SPEC §11): when the client's
   // project-based layout setting disagrees with the mode the snapshot was last
@@ -954,6 +965,18 @@ function WorkspaceInner() {
   // Global hotkey handlers (SPEC §11): register stable wrappers once; each reads
   // the latest closures from a ref so re-renders don't churn the registry.
   const hkRef = useRef<Record<string, () => void>>({});
+  // Step through the FOCUSED pane's strip, wrapping at both ends — the tab
+  // cycling hotkeys (SPEC §11). It goes through `onActivateTab`, so cycling onto
+  // a terminal claims the URL exactly as clicking its chip would.
+  const cycleTab = (step: 1 | -1) => {
+    const leaf = layout.focusedLeaf;
+    if (leaf.tabs.length < 2) return;
+    const at = leaf.tabs.findIndex((t) => tabRefKey(t) === leaf.activeKey);
+    // No active tab (an empty-ish pane): step in from the near end.
+    const next = at === -1 ? (step === 1 ? 0 : leaf.tabs.length - 1) : at + step;
+    const ref = leaf.tabs[(next + leaf.tabs.length) % leaf.tabs.length];
+    if (ref) onActivateTab(leaf.id, ref);
+  };
   const openNavigator = (mode: SidebarMode) => {
     if (isNarrow) {
       uiState.update({ sidebar_mode: mode });
@@ -969,6 +992,8 @@ function WorkspaceInner() {
       if (ref) onCloseTab(leaf.id, ref);
     },
     'tab.reopen': reopenClosedTab,
+    'tab.next': () => cycleTab(1),
+    'tab.prev': () => cycleTab(-1),
     'sidebar.left': () =>
       isNarrow
         ? setNarrowNav((v) => !v)

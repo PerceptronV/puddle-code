@@ -30,6 +30,20 @@ export function dirOf(path: string): string {
   return i === -1 ? '' : path.slice(0, i);
 }
 
+/**
+ * Every directory between the root and `path`, outermost first —
+ * `ancestorDirs('a/b/c.ts') === ['a', 'a/b']`. What a reveal has to expand to
+ * bring a row into the tree (the root itself is always expanded, so it is not
+ * in the list).
+ */
+export function ancestorDirs(path: string): string[] {
+  const parts = path.split('/').filter((p) => p !== '');
+  parts.pop(); // the leaf names the file (or the directory being revealed) itself
+  const out: string[] = [];
+  for (const part of parts) out.push(joinPath(out[out.length - 1] ?? '', part));
+  return out;
+}
+
 /** Join a directory and a name into a worktree-relative path. */
 /** Parent of an ABSOLUTE directory path; '/' is its own parent. */
 export function parentDir(dir: string): string {

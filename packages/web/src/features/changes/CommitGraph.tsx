@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { HoverMarquee } from '../../components/hover-marquee';
+import { requestReveal } from '../../lib/reveal-in-tree';
 import { useCommitShow, useWorktreeLog } from '../../lib/worktree-queries';
 import { cn } from '../../lib/utils';
 import { diffStatusStyle } from '../diff/diff-status';
@@ -134,9 +135,12 @@ function CommitFiles({
             title={label}
             // Peek on a single click, pin on a double — a files-tree click's
             // semantics, so a result behaves like a file (SPEC §8).
-            onClick={() => onOpen(entry.path, sha)}
+            onClick={() => {
+              onOpen(entry.path, sha);
+              requestReveal({ path: entry.path, root });
+            }}
             onDoubleClick={() => onOpen(entry.path, sha, { preview: false })}
-            className="flex w-full items-center text-left transition-colors hover:bg-elevated"
+            className="group flex w-full items-center text-left transition-colors hover:bg-elevated"
             style={{ height: FILE_ROW_H }}
           >
             <ContinuationCell lanes={lanes} width={gutterW} />
@@ -145,7 +149,11 @@ function CommitFiles({
             >
               {style.letter}
             </span>
-            <span className="truncate pr-3 font-mono text-2xs text-fg">{label}</span>
+            <HoverMarquee
+              text={label}
+              className="pr-3 font-mono text-2xs text-fg"
+              hoverClass={ROW_MARQUEE}
+            />
           </button>
         );
       })}

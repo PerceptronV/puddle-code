@@ -19,8 +19,12 @@ import { useDropIndicator } from './TilingDnd';
 // may show, and never grows to accommodate them either, since they overlay the
 // right edge rather than sitting in the flow (see TabControls). `relative`
 // anchors them; `max-w-52` still caps a long title, which truncates as before.
+// `select-none`: a chip's double-click PROMOTES the tab (below), and the
+// browser's own double-click default would also select the title's word — the
+// tab would be left with a highlighted filename nobody asked to select and no
+// way to copy it from anyway.
 const TAB_CLASS =
-  'group relative flex min-w-16 max-w-52 cursor-pointer items-center gap-1.5 rounded-t-md px-2.5 text-xs transition-colors';
+  'group relative flex min-w-16 max-w-52 cursor-pointer select-none items-center gap-1.5 rounded-t-md px-2.5 text-xs transition-colors';
 
 /**
  * A tiling pane's tab strip (SPEC §8) — one unified strip over BOTH terminal and

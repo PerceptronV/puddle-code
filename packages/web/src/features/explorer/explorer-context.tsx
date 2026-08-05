@@ -12,11 +12,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { GitStatus, Session, TreeResponse } from '@puddle/shared';
 import { useDaemonVersion } from '../../lib/queries';
+import { clearPendingReveal, onReveal } from '../../lib/reveal-in-tree';
 import { isSecondClick, type ClickStamp } from '../../lib/second-click';
 import { downloadPath, uploadFiles, useWorktreeGitStatus } from '../../lib/worktree-queries';
 import { collectDroppedFiles } from './drop-files';
 import { buildStatusMap } from './git-decoration';
 import {
+  ancestorDirs,
   basename,
   buildVisibleRows,
   joinPath,
@@ -266,6 +268,43 @@ export function ExplorerProvider({
     setExpanded((prev) => (prev.has(path) ? prev : new Set(prev).add(path)));
   }, []);
   const collapseAll = useCallback(() => setExpanded(new Set()), []);
+
+  // "Reveal in Files": a path clicked in ANOTHER navigator (a search hit, a
+  // changed file) expands its ancestors, selects its row, and scrolls it into
+  // view. The request is a latch (`lib/reveal-in-tree`), so one made while this
+  // tree was unmounted — the left sidebar shows one navigator at a time — is
+  // honoured the moment the tree appears. A request for a different `root` is
+  // another tree's business: the same relative path means a different file there.
+  const [revealing, setRevealing] = useState<string | null>(null);
+  useEffect(
+    () =>
+      onReveal((request) => {
+        if (request.root !== root) return;
+        clearPendingReveal();
+        for (const dir of ancestorDirs(request.path)) expand(dir);
+        setSelection(new Set([request.path]));
+        setFocusedPath(request.path);
+        setRevealing(request.path);
+      }),
+    [root, expand],
+  );
+  // The row cannot be scrolled to until it EXISTS: each newly expanded directory
+  // fetches its children, so the run of `visibleRows` changes is what this waits
+  // on. It gives up a few seconds after the tree stops changing rather than
+  // watching forever for a path that has since been deleted or renamed.
+  useEffect(() => {
+    if (revealing === null) return;
+    const row = document.querySelector(
+      `[data-explorer-root] [data-path="${CSS.escape(revealing)}"]`,
+    );
+    if (row) {
+      row.scrollIntoView({ block: 'nearest' });
+      setRevealing(null);
+      return;
+    }
+    const id = window.setTimeout(() => setRevealing(null), 4000);
+    return () => window.clearTimeout(id);
+  }, [revealing, visibleRows]);
 
   // Click-to-rename, FILES ONLY (SPEC §8). A plain click on the sole-selected
   // file row, when the previous click on it was recent (`isSecondClick`), starts

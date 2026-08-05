@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { Account, Session } from '@puddle/shared';
 import { AgentIcon } from '../../components/agent-icon';
+import { HoverMarquee } from '../../components/hover-marquee';
 import { InlineLabelEdit, editOnDoubleClick } from '../../components/inline-label-edit';
 import { HeightHandle, useResizableHeight } from '../../components/resizable-height';
 import {
@@ -74,6 +75,9 @@ export interface ProjectHeaderActions {
  * payload itself is never dropped anywhere).
  */
 const PROJECT_MIME = 'application/x-puddle-project';
+
+/** Which hover drives a session row's marquees: the row itself (`group`). */
+const ROW_MARQUEE = 'group-hover:[transform:translateX(var(--tail))]';
 
 /**
  * The project header's right-click menu: start a new agent or terminal IN that
@@ -569,17 +573,22 @@ function SessionRow({
             agentType={session.agent_type}
             stale={session.stale_running}
           />
+          {/* All three lines ease leftwards on the row's hover, at the app's one
+              marquee speed — an agent names its own sessions, so the title is
+              the label most likely to be clipped, and it is exactly the one you
+              hover the row to read. */}
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-sans text-xs text-fg">{renderTitle(session)}</span>
-            <span className="flex items-center gap-1 truncate font-mono text-2xs text-fg-muted">
+            <HoverMarquee
+              text={renderTitle(session)}
+              className="font-sans text-xs text-fg"
+              hoverClass={ROW_MARQUEE}
+            />
+            <span className="flex items-center gap-1 font-mono text-2xs text-fg-muted">
               <GitBranch className="size-3 shrink-0 text-fg-gold" />
-              <span className="truncate">{session.branch}</span>
+              <HoverMarquee text={session.branch} hoverClass={ROW_MARQUEE} />
             </span>
-            <span className="flex items-center gap-1 truncate font-mono text-2xs text-fg-muted">
-              <span className="truncate">
-                {kindLabel}
-                {suffix}
-              </span>
+            <span className="flex items-center gap-1 font-mono text-2xs text-fg-muted">
+              <HoverMarquee text={`${kindLabel}${suffix}`} hoverClass={ROW_MARQUEE} />
             </span>
           </span>
           {session.skip_permissions && (

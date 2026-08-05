@@ -59,6 +59,28 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
     defaultBinding: 'ctrl+alt+KeyT',
     desktopBinding: 'shift+meta+KeyT',
   },
+  // Cycling the focused pane's strip, in strip order, wrapping at both ends.
+  // ⌃⇥ / ⌃⇧⇥ is the desktop default because that gesture means exactly this in
+  // every tabbed app; a browser tab can never see it (the chrome switches its
+  // OWN tabs), so the web default falls back to the ⌃⌥ family the other
+  // tab actions already use — ⌃⌥] / ⌃⌥[ read as forwards/backwards and are
+  // untaken by browser chrome (⌘⇧[ / ⌘⌥→ are not: both switch browser tabs).
+  // Deliberately NOT `deferInTerminal`: switching away from a terminal you are
+  // typing in is the main reason to reach for this.
+  {
+    id: 'tab.next',
+    label: 'Next tab in pane',
+    group: 'Layout & tabs',
+    defaultBinding: 'ctrl+alt+BracketRight',
+    desktopBinding: 'ctrl+Tab',
+  },
+  {
+    id: 'tab.prev',
+    label: 'Previous tab in pane',
+    group: 'Layout & tabs',
+    defaultBinding: 'ctrl+alt+BracketLeft',
+    desktopBinding: 'ctrl+shift+Tab',
+  },
   {
     id: 'window.close',
     label: 'Close window',
@@ -190,6 +212,9 @@ const CODE_LABEL: Record<string, string> = {
   Space: '␣',
   Enter: '↵',
   Escape: 'Esc',
+  Tab: '⇥',
+  BracketLeft: '[',
+  BracketRight: ']',
 };
 function codeLabel(code: string): string {
   if (code.startsWith('Key')) return code.slice(3);

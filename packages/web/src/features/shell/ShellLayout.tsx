@@ -176,32 +176,40 @@ function CommandField() {
 
 function TopBar() {
   // macOS hides the inlaid traffic lights in full-screen, so the inset kept for
-  // them would indent the host name against nothing (jarring on every
-  // enter/leave). Full-screen therefore drops back to the ordinary bar: name at
-  // the left edge, standard height. The drag region goes too — there is no
-  // window to move.
-  const fullScreen = useDesktopFullScreen();
+  // them would indent the host name against nothing. Full-screen therefore drops
+  // the inset — the name slides to the left edge — but NOT the height: the bar is
+  // 36px in every shell and every window state, so entering full-screen moves
+  // the name without resizing the chrome under it. The drag region goes too —
+  // there is no window to move.
+  //
+  // 36px is also what keeps the traffic lights centred on the host name: the
+  // shell insets them at y = (36 - 12) / 2 = 12 (`main.ts`), and the name is
+  // centred in the same box, so the two agree by construction. Changing this
+  // height means changing `trafficLightPosition` in the same commit.
+  const { fullScreen, animate } = useDesktopFullScreen();
   const inlaidLights = shellTitleBar && !fullScreen;
   return (
     // pl-3 ≈ the right side's visual inset (pr-3 + the ghost buttons' own padding).
     <header
       className={cn(
         'relative flex h-9 shrink-0 items-center gap-3 bg-surface pl-3 pr-3',
-        // Slightly taller as a title bar (40px) so the content breathes
-        // without pushing the workspace chrome away from the traffic lights.
-        inlaidLights && 'h-10 pl-[88px] [-webkit-app-region:drag]',
+        inlaidLights && 'pl-[88px] [-webkit-app-region:drag]',
+        // Only a real enter/leave animates: the padding IS the name's position,
+        // so easing it slides the name between the two edges instead of
+        // teleporting it. A window restored already full-screen lands with no
+        // motion (see `useDesktopFullScreen`).
+        animate && 'transition-[padding] duration-200 ease-out',
       )}
     >
       <HomeButton />
       <CommandField />
-      {/* Compact density closes this cluster up (SPEC §12): the gap goes, and
-          each control's own box narrows — most of the air between these icons is
-          their padding, not the gap between them. */}
+      {/* These four sit as one cluster: no gap at all, because each control
+          already carries 9px of its own padding around a 14px glyph — a gap on
+          top of that read as four separate things adrift in the corner.
+          Compact density (SPEC §12) narrows the boxes themselves, which is what
+          closes the cluster up further. */}
       <div
-        className={cn(
-          'ml-auto flex items-center gap-1 compact:gap-0',
-          shellTitleBar && '[-webkit-app-region:no-drag]',
-        )}
+        className={cn('ml-auto flex items-center', shellTitleBar && '[-webkit-app-region:no-drag]')}
       >
         <Tooltip>
           <TooltipTrigger asChild>

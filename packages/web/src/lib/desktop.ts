@@ -48,21 +48,28 @@ export function desktopBridge(): PuddleDesktopBridge | undefined {
  * Whether the desktop window is full-screen (always false in a browser, and on
  * a shell too old to report it — which keeps the pre-feature behaviour). Asks
  * once on mount, since a reload while full-screen fires no transition event.
+ *
+ * `animate` distinguishes the two ways the answer arrives: the mount-time query
+ * is simply the truth about a window that was ALREADY full-screen and must land
+ * with no motion, while an enter/leave event is a transition the user just made
+ * and the top bar slides for (`TopBar`). Both are one state object so the pair
+ * can never be committed apart — a separate flag flipping in the same commit as
+ * the initial value would animate the very case it exists to suppress.
  */
-export function useDesktopFullScreen(): boolean {
-  const [full, setFull] = useState(false);
+export function useDesktopFullScreen(): { fullScreen: boolean; animate: boolean } {
+  const [state, setState] = useState({ fullScreen: false, animate: false });
   useEffect(() => {
     const bridge = desktopBridge();
     if (!bridge) return;
     let live = true;
     void bridge.isFullScreen?.()?.then((v) => {
-      if (live) setFull(v);
+      if (live) setState({ fullScreen: v, animate: false });
     });
-    const off = bridge.onFullScreenChange?.((v) => setFull(v));
+    const off = bridge.onFullScreenChange?.((v) => setState({ fullScreen: v, animate: true }));
     return () => {
       live = false;
       off?.();
     };
   }, []);
-  return full;
+  return state;
 }

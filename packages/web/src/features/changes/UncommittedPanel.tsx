@@ -1,10 +1,15 @@
 import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, FolderTree, List } from 'lucide-react';
+import { HoverMarquee } from '../../components/hover-marquee';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
+import { requestReveal } from '../../lib/reveal-in-tree';
 import { useWorktreeDiff } from '../../lib/worktree-queries';
 import { cn } from '../../lib/utils';
 import { diffStatusStyle, summariseCounts } from '../diff/diff-status';
 import { buildFileTree, flatFileList, type TreeNode } from './file-tree';
+
+/** Which hover drives a row's marquee: the row itself (`group`). */
+const ROW_MARQUEE = 'group-hover:[transform:translateX(var(--tail))]';
 
 /** A single changed-file row (shared by tree and flat views). */
 function FileRow({
@@ -32,7 +37,7 @@ function FileRow({
       onClick={() => onOpen(fullPath)}
       onDoubleClick={() => onOpen(fullPath, { preview: false })}
       className={cn(
-        'flex w-full items-center gap-1.5 py-1 pr-3 text-left transition-colors hover:bg-elevated',
+        'group flex w-full items-center gap-1.5 py-1 pr-3 text-left transition-colors hover:bg-elevated',
         active && 'bg-selection',
       )}
       style={{ paddingLeft: 8 + depth * 12 }}
@@ -40,7 +45,7 @@ function FileRow({
       <span className={cn('w-3 shrink-0 text-center font-mono text-xs', style.colourClass)}>
         {style.letter}
       </span>
-      <span className="truncate font-mono text-xs text-fg">{name}</span>
+      <HoverMarquee text={name} className="font-mono text-xs text-fg" hoverClass={ROW_MARQUEE} />
     </button>
   );
 }
@@ -88,15 +93,24 @@ function TreeRows({
                   return next;
                 })
               }
-              className="flex w-full items-center gap-1 py-1 pr-3 text-left transition-colors hover:bg-elevated"
+              className="group flex w-full items-center gap-1 py-1 pr-3 text-left transition-colors hover:bg-elevated"
               style={{ paddingLeft: 8 + depth * 12 }}
+              title={node.path}
             >
               {isCollapsed ? (
                 <ChevronRight className="size-3.5 shrink-0 text-fg-gold" />
               ) : (
                 <ChevronDown className="size-3.5 shrink-0 text-fg-gold" />
               )}
-              <span className="truncate font-mono text-xs text-fg-secondary">{node.name}</span>
+              {/* A compacted directory row carries the whole `a/b/c` run, so it
+                  is the row most likely to be clipped — it eases leftwards on
+                  hover. Its click stays the collapse toggle: a folder's clicks
+                  belong to expanding it (as in the files tree). */}
+              <HoverMarquee
+                text={node.name}
+                className="font-mono text-xs text-fg-secondary"
+                hoverClass={ROW_MARQUEE}
+              />
             </button>
             {!isCollapsed && (
               <TreeRows
@@ -135,6 +149,14 @@ export function UncommittedPanel({
   const [flat, setFlat] = useState(false);
   const diff = useWorktreeDiff(session, { against: 'head', root });
   const entries = diff.data?.entries ?? [];
+  // Opening a change also LOCATES the file in the Files tree (SPEC §8) — the
+  // diff answers "what changed", the tree answers "where does this live", and a
+  // changed path should not make you go and find it by hand. Latched, so the
+  // sidebar stays on the changes you are reading (`lib/reveal-in-tree`).
+  const openFile = (path: string, opts?: { preview?: boolean }) => {
+    onOpen(path, opts);
+    requestReveal({ path, root });
+  };
   const tree = useMemo(() => (flat ? null : buildFileTree(entries)), [flat, entries]);
   const flatList = useMemo(() => (flat ? flatFileList(entries) : null), [flat, entries]);
 
@@ -182,11 +204,11 @@ export function UncommittedPanel({
               status={node.entry.status}
               depth={0}
               active={activePath === node.path}
-              onOpen={onOpen}
+              onOpen={openFile}
             />
           ))
         ) : (
-          <TreeRows nodes={tree!} depth={0} activePath={activePath} onOpen={onOpen} />
+          <TreeRows nodes={tree!} depth={0} activePath={activePath} onOpen={openFile} />
         )}
       </div>
     </div>

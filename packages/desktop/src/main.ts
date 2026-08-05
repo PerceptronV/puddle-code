@@ -128,10 +128,16 @@ function createWindow(target: string, cockpit: RunningCockpit): BrowserWindow {
     // On macOS the native title bar goes away entirely: the web app's own
     // top bar (host, ⌘K field, settings/scratchpad/profile) doubles as the
     // drag region, with the traffic lights inlaid — ShellLayout detects the
-    // shell, insets for them, and grows the bar to 40px so nothing squashes.
-    // y centres the 12px buttons in that 40px bar.
+    // shell and insets 88px for them.
+    //
+    // y centres the 12px buttons in that bar, which is 36px tall in every
+    // window state (`ShellLayout.TopBar`): (36 - 12) / 2 = 12. The host name is
+    // centred in the same box, so the lights line up with it by construction —
+    // measured against a screenshot of the 40px bar this replaces, where y:14
+    // put the light centres within a pixel of the name's. The two numbers are
+    // one decision: change the bar height and this moves with it.
     ...(process.platform === 'darwin'
-      ? { titleBarStyle: 'hidden' as const, trafficLightPosition: { x: 12, y: 14 } }
+      ? { titleBarStyle: 'hidden' as const, trafficLightPosition: { x: 12, y: 12 } }
       : {}),
     webPreferences: {
       preload: join(here, 'preload.cjs'),

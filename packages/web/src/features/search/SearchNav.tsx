@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CaseSensitive, File as FileIcon, Regex, WholeWord } from 'lucide-react';
+import { HoverMarquee } from '../../components/hover-marquee';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
+import { requestReveal } from '../../lib/reveal-in-tree';
 import { useWorktreeSearch } from '../../lib/worktree-queries';
 import { cn } from '../../lib/utils';
 import { buildMatcher, splitHighlight, trimPreview } from './search-highlight';
 
 const DEBOUNCE_MS = 250;
+
+/** Which hover drives a result row's marquee: the row itself (`group`). */
+const ROW_MARQUEE = 'group-hover:[transform:translateX(var(--tail))]';
 
 /** A borderless toggle (HUMANS.md): accent-blue fill-shift when on. */
 function Toggle({
@@ -76,6 +81,16 @@ export function SearchNav({
   const data = search.data;
   const hasResults = !!data && (data.files.length > 0 || data.content.length > 0);
 
+  // Opening a hit also LOCATES it: the Files tree expands to the file and selects
+  // it (SPEC §8), so a result you act on stops being an orphan path. The sidebar
+  // deliberately stays on the results — the reveal is latched and waits for the
+  // tree (`lib/reveal-in-tree`), rather than throwing away the search you are
+  // reading to prove it happened.
+  const open = (path: string, line?: number, preview = true) => {
+    onOpen(path, line, preview ? undefined : { preview: false });
+    requestReveal({ path, root });
+  };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 flex-col gap-1 px-2 py-1.5">
@@ -131,12 +146,16 @@ export function SearchNav({
                     key={path}
                     type="button"
                     title={path}
-                    onClick={() => onOpen(path)}
-                    onDoubleClick={() => onOpen(path, undefined, { preview: false })}
-                    className="flex w-full items-center gap-1.5 px-3 py-1 text-left transition-colors hover:bg-elevated"
+                    onClick={() => open(path)}
+                    onDoubleClick={() => open(path, undefined, false)}
+                    className="group flex w-full items-center gap-1.5 px-3 py-1 text-left transition-colors hover:bg-elevated"
                   >
                     <FileIcon className="size-3.5 shrink-0 text-fg-gold" />
-                    <span className="truncate font-mono text-xs text-fg">{path}</span>
+                    <HoverMarquee
+                      text={path}
+                      className="font-mono text-xs text-fg"
+                      hoverClass={ROW_MARQUEE}
+                    />
                   </button>
                 ))}
               </section>
@@ -149,18 +168,29 @@ export function SearchNav({
                 </div>
                 {data!.content.map((file) => (
                   <div key={file.path}>
-                    <div
-                      className="truncate px-3 py-1 font-mono text-2xs text-fg-secondary"
+                    {/* The path heads its matches AND opens the file: it was the
+                        one path in the list that named a file you could not
+                        click. Truncated, it eases leftwards on hover like every
+                        other clipped path in the sidebar. */}
+                    <button
+                      type="button"
                       title={file.path}
+                      onClick={() => open(file.path)}
+                      onDoubleClick={() => open(file.path, undefined, false)}
+                      className="group flex w-full px-3 py-1 text-left transition-colors hover:bg-elevated"
                     >
-                      {file.path}
-                    </div>
+                      <HoverMarquee
+                        text={file.path}
+                        className="font-mono text-2xs text-fg-secondary"
+                        hoverClass={ROW_MARQUEE}
+                      />
+                    </button>
                     {file.matches.map((match, i) => (
                       <button
                         key={`${match.line}:${i}`}
                         type="button"
-                        onClick={() => onOpen(file.path, match.line)}
-                        onDoubleClick={() => onOpen(file.path, match.line, { preview: false })}
+                        onClick={() => open(file.path, match.line)}
+                        onDoubleClick={() => open(file.path, match.line, false)}
                         className="flex w-full items-baseline gap-2 py-0.5 pl-6 pr-3 text-left transition-colors hover:bg-elevated"
                       >
                         <span className="shrink-0 font-mono text-2xs tabular-nums text-fg-muted">
