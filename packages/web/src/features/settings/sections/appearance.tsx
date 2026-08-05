@@ -86,7 +86,7 @@ export function AppearanceSection() {
       </SettingRow>
       <SettingRow
         label="Project-based layout"
-        description="Whether each project keeps its own editor layout."
+        description="Editor layouts are separated across projects."
         htmlFor="project-based-layout"
       >
         <Switch
@@ -97,7 +97,7 @@ export function AppearanceSection() {
       </SettingRow>
       <SettingRow
         label="All projects in the session list"
-        description="Whether right sidebar displays sessions from all projects."
+        description="Right sidebar displays sessions from all projects."
         htmlFor="show-all-project-sessions"
       >
         <Switch
