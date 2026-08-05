@@ -77,6 +77,24 @@ const EMPTY_USAGE: AgentUsage = {
  *   WORKTREE cwd the project dir is escaped from the MAIN repository root,
  *   not the worktree path — so conversation lookup scans every project dir
  *   rather than computing the escaped name.
+ *
+ * COPY-ON-SELECT, and why puddle cannot suppress it (investigated 2026-08-05,
+ * against 2.1.222). Dragging a selection in the TUI copies it, and its
+ * `setClipboard` writes the clipboard TWICE: `OSC 52 ; c ; …` for the terminal,
+ * AND — whenever it does not believe it is remote — the host clipboard directly
+ * (`pbcopy` on macOS, `wl-copy`/`xclip`/`xsel` on Linux). The web terminal holds
+ * the OSC 52 payload back until the copy chord (`Terminal.tsx`, SPEC §7), but a
+ * spawned process writing the host pasteboard is out of the browser's reach
+ * entirely — so with a LOCAL daemon, highlighting still lands on the user's
+ * clipboard, from the daemon's side of the wire. (With a remote daemon it writes
+ * that host's clipboard, where nobody sees it.)
+ *
+ * Its own switches are the fix: `copyOnSelect` (default ON) under /config →
+ * Input & controls, which the TUI itself hints at ("disable auto-copy in
+ * /config"). The native half is gated on `SSH_CONNECTION` (or an attacher
+ * capability), so exporting that into the PTY would also route it through OSC 52
+ * — deliberately NOT done: it fabricates environment state every tool in the
+ * session reads, to fix one agent's setting.
  */
 export const claudeCode: AgentAdapter = {
   id: 'claude-code',

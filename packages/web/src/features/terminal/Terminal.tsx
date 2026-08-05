@@ -211,6 +211,14 @@ export function Terminal({
     // committing directly meant highlighting auto-copied. The copy shortcut
     // commits the stash instead. Read requests (`?`) are ignored on purpose:
     // the PTY must never be able to exfiltrate the clipboard.
+    //
+    // This covers the escape-sequence half only. An agent that ALSO writes the
+    // host clipboard itself (Claude Code shells out to pbcopy/xclip unless it
+    // believes it is remote) reaches the pasteboard from the daemon's side of
+    // the wire, where no browser can intervene — with a local daemon that is the
+    // same pasteboard as the user's, so highlighting appears to copy despite
+    // this. That is the agent's own setting to turn off (`copyOnSelect` in
+    // Claude Code's /config); see the finding in agents/claude-code.ts.
     const oscClipboard = xterm.parser.registerOscHandler(52, (data) => {
       if (replayingRef.current) return true; // a historical copy — never resurface it
       const semi = data.indexOf(';');
