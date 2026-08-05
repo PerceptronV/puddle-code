@@ -17,7 +17,7 @@ import {
 import type { Account, Session } from '@puddle/shared';
 import { AgentIcon } from '../../components/agent-icon';
 import { HoverMarquee } from '../../components/hover-marquee';
-import { InlineLabelEdit, editOnDoubleClick } from '../../components/inline-label-edit';
+import { InlineLabelEdit } from '../../components/inline-label-edit';
 import { HeightHandle, useResizableHeight } from '../../components/resizable-height';
 import {
   ContextMenu,
@@ -25,6 +25,7 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuTrigger,
+  menuOnDoubleClick,
 } from '../../components/ui/context-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { toastError } from '../../lib/errors';
@@ -215,14 +216,17 @@ function IconButton({
   label,
   onClick,
   active = false,
-  tooltipSide,
+  // Downwards by default: these buttons head a sidebar, so this is the topmost
+  // row under the title bar and an upward tooltip covered the macOS traffic
+  // lights (the left navigator's icon row does the same).
+  tooltipSide = 'bottom',
 }: {
   icon: LucideIcon;
   label: string;
   onClick: () => void;
   active?: boolean;
   /** The collapsed rail opens its tooltips inward (left), like the left rail. */
-  tooltipSide?: 'left';
+  tooltipSide?: 'left' | 'bottom';
 }) {
   return (
     <Tooltip>
@@ -420,9 +424,11 @@ export function CollapsedSessionsRail({
             {/* Both triggers stack over the single <Link> (as the dots do): the
                 tooltip shows the FULL project name the abbreviation stands for;
                 right-click opens the new-agent/terminal menu; the label drags
-                to reorder projects. A single click navigates (any project);
-                a DOUBLE-click edits the abbreviation in place — the first
-                click's navigation has already made it the active project. */}
+                to reorder projects. A single click navigates (any project); a
+                DOUBLE-click opens that same menu (decision 2026-08-05 — it used
+                to go straight into the abbreviation editor, which picks one of
+                the menu's actions on the user's behalf; Change project
+                abbreviation is still one click away inside it). */}
             {editingAbbrev === group.projectId ? (
               <InlineLabelEdit
                 initial={group.abbrev}
@@ -438,7 +444,7 @@ export function CollapsedSessionsRail({
                     <TooltipTrigger asChild>
                       <Link
                         to={`/project/${group.projectId}`}
-                        {...editOnDoubleClick(() => setEditingAbbrev(group.projectId))}
+                        {...menuOnDoubleClick()}
                         draggable
                         onDragStart={(e) => {
                           e.dataTransfer.setData(PROJECT_MIME, group.projectId);
@@ -785,8 +791,9 @@ function SessionListBody({
                 drags to reorder projects (the same projectOrder the homescreen
                 cards persist); while any header drags, the session lists
                 collapse so only the names reposition. A single click navigates
-                (any project); a DOUBLE-click edits the name in place — the
-                first click's navigation has already made it active. */}
+                (any project); a DOUBLE-click opens the same menu, where Change
+                project name sits among the other actions (decision
+                2026-08-05 — see the collapsed rail's abbreviation). */}
             {editingName === group.projectId ? (
               <InlineLabelEdit
                 initial={group.name}
@@ -800,7 +807,7 @@ function SessionListBody({
                 <ContextMenuTrigger asChild>
                   <Link
                     to={`/project/${group.projectId}`}
-                    {...editOnDoubleClick(() => setEditingName(group.projectId))}
+                    {...menuOnDoubleClick()}
                     draggable
                     onDragStart={(e) => {
                       e.dataTransfer.setData(PROJECT_MIME, group.projectId);

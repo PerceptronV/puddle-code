@@ -87,3 +87,40 @@ export function ContextMenuSeparator({
     />
   );
 }
+
+/**
+ * Props for an element whose DOUBLE-click opens its own context menu (SPEC §12) —
+ * the counterpart to `editOnDoubleClick`, for labels where the menu (not an
+ * inline edit) is the right second gesture: the sidebar's project name and
+ * abbreviation, whose menus carry Rename among several other actions, so
+ * double-clicking straight into a rename was picking one of them at random.
+ *
+ * As with `editOnDoubleClick`, the FIRST click still does whatever the element
+ * does (the project links navigate); the second is suppressed via
+ * `defaultPrevented`, which react-router's `Link` honours, so it does not fire
+ * twice. The menu is opened by dispatching a real `contextmenu` event at the
+ * cursor — Radix's trigger listens for exactly that, and this way the menu
+ * anchors where a right-click would have put it.
+ */
+export function menuOnDoubleClick(): {
+  onClick: (e: React.MouseEvent) => void;
+  onDoubleClick: (e: React.MouseEvent) => void;
+} {
+  return {
+    onClick: (e) => {
+      if (e.detail === 2) e.preventDefault();
+    },
+    onDoubleClick: (e) => {
+      e.preventDefault();
+      e.currentTarget.dispatchEvent(
+        new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          clientX: e.clientX,
+          clientY: e.clientY,
+          button: 2,
+        }),
+      );
+    },
+  };
+}

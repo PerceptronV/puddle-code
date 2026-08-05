@@ -2,6 +2,7 @@ import { Fragment, type ReactNode } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Eye, FileCode, X } from 'lucide-react';
 import type { LayoutLeaf, Session, TabRef } from '@puddle/shared';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utils';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
 import { SessionGlyph } from '../status/SessionGlyph';
@@ -10,6 +11,7 @@ import { tabKind, type EditorTab } from '../editor/editor-tabs';
 import { LazyEditorDirtyDot, LazyEditorTabClose } from '../editor/lazy-editor-parts';
 import { previewKind } from '../editor/preview-kind';
 import { SessionContextMenu } from './SessionActions';
+import { TabTooltipBody } from './TabTooltip';
 import { tabRefKey } from './layout-tree';
 import { useDropIndicator } from './TilingDnd';
 
@@ -95,6 +97,15 @@ export function PaneTabStrip({
             preview={tabRefKey(ref) === leaf.previewKey}
             session={
               ref.type === 'terminal' ? sessions.find((s) => s.id === ref.session) : undefined
+            }
+            // The worktree a FILE tab belongs to, for its hover tooltip. A tab
+            // carrying a `root` is rooted outside the worktree (a browse-tree
+            // `external` file) and an untitled draft's session is the nil uuid,
+            // so neither resolves — and neither describes a worktree.
+            fileSession={
+              ref.type === 'editor' && ref.tab.root === undefined
+                ? sessions.find((s) => s.id === ref.tab.session)
+                : undefined
             }
             label={ref.type === 'editor' ? labelFor(ref.tab) : ''}
             onActivate={() => onActivate(ref)}
@@ -184,6 +195,7 @@ function PaneTab({
   active,
   preview,
   session,
+  fileSession,
   label,
   onActivate,
   onClose,
@@ -197,6 +209,8 @@ function PaneTab({
   active: boolean;
   preview: boolean;
   session: Session | undefined;
+  /** An editor tab's own worktree session, when it has one (see the tooltip). */
+  fileSession: Session | undefined;
   label: string;
   onActivate: () => void;
   onClose: () => void;
@@ -296,12 +310,35 @@ function PaneTab({
     </div>
   );
 
+  // The hover tooltip opens BELOW the chip, into the pane's own body: a strip
+  // sits at the top of its pane, so upwards it would cover the strip above it —
+  // or, in the first pane, the window's traffic lights.
+  const tooltip = (
+    <TooltipContent side="bottom">
+      <TabTooltipBody
+        name={tab.type === 'terminal' ? (session ? renderTitle(session) : tab.session) : label}
+        session={tab.type === 'terminal' ? session : fileSession}
+      />
+    </TooltipContent>
+  );
+
+  // Both triggers stack on the chip itself (as the collapsed rail's dots do):
+  // `asChild` needs a DOM element, so the tooltip trigger goes INSIDE the
+  // context-menu trigger rather than wrapping it.
   if (tab.type === 'terminal' && session) {
     return (
-      <SessionContextMenu session={session} onArchived={() => onArchived(tab.session)}>
-        {body}
-      </SessionContextMenu>
+      <Tooltip>
+        <SessionContextMenu session={session} onArchived={() => onArchived(tab.session)}>
+          <TooltipTrigger asChild>{body}</TooltipTrigger>
+        </SessionContextMenu>
+        {tooltip}
+      </Tooltip>
     );
   }
-  return body;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{body}</TooltipTrigger>
+      {tooltip}
+    </Tooltip>
+  );
 }

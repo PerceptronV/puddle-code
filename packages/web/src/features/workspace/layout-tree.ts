@@ -1,6 +1,7 @@
 import { UNTITLED_SESSION } from '@puddle/shared';
 import type { LayoutLeaf, LayoutNode, LayoutSplit, TabRef, UiStateSnapshot } from '@puddle/shared';
 import { tabKey, type EditorTab } from '../editor/editor-tabs';
+import { previewKind } from '../editor/preview-kind';
 
 /**
  * Pure, React/Monaco-free reducer for the tiling layout tree (SPEC §8) — the
@@ -364,15 +365,36 @@ export function addTabToLeaf(tree: LayoutNode, leafId: string, ref: TabRef): Lay
  * file, and avoids the dead-end where re-clicking that session (same URL) would
  * not re-open a tab the effect never re-runs for.
  */
+/**
+ * A preview slot showing a RENDERED view stays rendered (decision 2026-08-05):
+ * the tab replacing it inherits `view: 'preview'` when it too can be rendered.
+ * Skimming a directory of markdown by single-clicking each file is the gesture
+ * this exists for — without it every file arrived as source and had to be
+ * toggled, one tab at a time, which is not skimming.
+ *
+ * A view the caller ASKED for wins (a ⌘-clicked link from inside a preview names
+ * its own), and a file with no rendered view inherits nothing.
+ */
+function inheritView(outgoing: TabRef, incoming: TabRef): TabRef {
+  if (outgoing.type !== 'editor' || incoming.type !== 'editor') return incoming;
+  if (outgoing.tab.view !== 'preview' || incoming.tab.view !== undefined) return incoming;
+  if (previewKind(incoming.tab.path) === null) return incoming;
+  return { ...incoming, tab: { ...incoming.tab, view: 'preview' } };
+}
+
 export function openPreview(tree: LayoutNode, leafId: string, ref: TabRef): LayoutNode {
   const key = tabRefKey(ref);
   const next = transformLeaf(tree, leafId, (leaf) => {
     if (leaf.tabs.some((t) => sameRef(t, ref))) return { ...leaf, activeKey: key };
     const idx = leaf.previewKey ? leaf.tabs.findIndex((t) => tabRefKey(t) === leaf.previewKey) : -1;
-    const replaceInPlace = idx >= 0 && !isTerminal(leaf.tabs[idx]!);
+    const outgoing = idx >= 0 ? leaf.tabs[idx]! : undefined;
+    const replaceInPlace = outgoing !== undefined && !isTerminal(outgoing);
+    // `view` is not part of tab identity, so the key is the incoming ref's
+    // either way — only the tab object it names changes.
+    const opened = replaceInPlace ? inheritView(outgoing, ref) : ref;
     const tabs = replaceInPlace
-      ? leaf.tabs.map((t, i) => (i === idx ? ref : t))
-      : [...leaf.tabs, ref];
+      ? leaf.tabs.map((t, i) => (i === idx ? opened : t))
+      : [...leaf.tabs, opened];
     return { ...leaf, tabs, activeKey: key, previewKey: key };
   });
   return normalise(next);

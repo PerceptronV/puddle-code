@@ -176,6 +176,10 @@ export function TreeNode({
     <div
       role="treeitem"
       data-path={path}
+      // Folder names are the ones that run long (a dated or slugged directory),
+      // and a narrow tree elides them with nothing else in the row to read them
+      // from — a file at least names itself on the tab it opens.
+      title={isDir ? entry.name : undefined}
       aria-expanded={isDir ? isOpen : undefined}
       aria-selected={isSelected}
       tabIndex={-1}

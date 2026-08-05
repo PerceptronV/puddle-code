@@ -242,7 +242,10 @@ export function NavigatorSidebar({
                 <span className="sr-only">{label}</span>
               </button>
             </TooltipTrigger>
-            <TooltipContent>{label}</TooltipContent>
+            {/* Downwards, into the navigator: this row is the topmost thing in
+                the window under the title bar, and upwards a tooltip covered the
+                macOS traffic lights right beside it. */}
+            <TooltipContent side="bottom">{label}</TooltipContent>
           </Tooltip>
         ))}
         <Tooltip>
@@ -256,7 +259,7 @@ export function NavigatorSidebar({
               <span className="sr-only">Hide sidebar</span>
             </button>
           </TooltipTrigger>
-          <TooltipContent>Hide sidebar</TooltipContent>
+          <TooltipContent side="bottom">Hide sidebar</TooltipContent>
         </Tooltip>
       </div>
 

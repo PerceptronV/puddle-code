@@ -14,8 +14,16 @@ Past releases: see docs/changelogs/.
 - **Next / previous tab in the focused pane**: ⌃⇥ and ⌃⇧⇥ in the desktop shell (⌃⌥] / ⌃⌥[ in a browser, which can never see ⌃⇥), cycling the strip in order and wrapping at both ends. Rebindable in Settings → Hotkeys like every other global shortcut, and deliberately not deferred to a focused terminal — switching away from the terminal you are typing in is the point.
 - **Clicking a path locates the file in the Files tree**: a search hit (including the file-path heading over a run of content matches, which was the one path in the list you could not click), an uncommitted change, and a file inside a commit all expand the tree to the file, select it, and scroll it into view. The reveal is latched, so the sidebar stays on the results you are reading and the tree honours it the moment you open Files.
 
+### Added
+
+- **Tab chips have a hover tooltip**, in the shape of the collapsed session rail's: the tab's full name (chips truncate), then project · branch from the session it was opened from — the project only under a profile-based layout, where one surface mixes projects — then agent · account for an agent session. A file rooted outside its worktree, or an untitled draft, shows just the name.
+- **Folder rows in the file tree carry their full name as a tooltip**, so an elided directory name is still readable.
+
 ### Changed
 
+- **A rendered preview slot stays rendered.** Single-clicking down a directory of markdown now shows each file rendered, instead of arriving as source and needing the toggle every time.
+- **Double-clicking a project name or its collapsed abbreviation opens that label's menu** rather than jumping into the rename editor — renaming is one of several things the menu offers, and the abbreviation editor in particular opened over a 5-character label that gave no hint it was a text field. Rename is one click further in, under "Change project name" / "Change project abbreviation".
+- **The sidebars' icon-row tooltips open downwards**, so they no longer cover the macOS traffic lights beside them.
 - **A save the file's disk copy has moved under is now reconciled in place**: the editor shows the version on disk beside your buffer — read-only on the left, your still-editable text on the right — so you can take the hunks you want and save the result, instead of choosing blind between Reload (lose your edits) and Overwrite (lose the agent's). Both blunt answers remain as buttons, nothing is written by the refused save, and a save made after seeing the two expects the disk version, so a merge lands instead of colliding again.
 - **A rendered preview keeps up with the file on disk**, not just with the buffer beside it: it polls while it is the visible tab and adopts anything newer while the buffer is clean, so a document an agent is writing renders as it goes. Previously the rendered view was built once from the first read and never moved again.
 - **Every hover marquee now travels at one speed** rather than one duration. A fixed 900ms made a long path race past while a barely-clipped one crawled; the duration is now derived from the distance, so the same gesture reads the same everywhere.
