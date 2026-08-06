@@ -37,7 +37,8 @@ export function CommitTabBody({
   if (!entry) {
     return (
       <div className="flex h-full items-center justify-center px-4 text-center text-xs text-fg-muted">
-        <span className="font-mono">{path}</span> is not part of {sha.slice(0, 7)}.
+        <span className="text-fg-secondary">{path}</span> is not part of{' '}
+        <span className="font-mono">{sha.slice(0, 7)}</span>.
       </div>
     );
   }

@@ -48,17 +48,12 @@ export function ProfilePicker() {
               >
                 <ProfileGlyph icon={profile.icon} colour={profile.icon_colour} className="size-5" />
                 <span
-                  className={cn(
-                    'font-mono text-base',
-                    profileColourClass(profile.icon_colour) || 'text-fg',
-                  )}
+                  className={cn('text-base', profileColourClass(profile.icon_colour) || 'text-fg')}
                 >
                   {profile.name}
                 </span>
                 {profile.branch_prefix && (
-                  <span className="ml-auto font-mono text-2xs text-fg-muted">
-                    {profile.branch_prefix}…
-                  </span>
+                  <span className="ml-auto text-2xs text-fg-muted">{profile.branch_prefix}…</span>
                 )}
               </button>
             ))}
@@ -95,7 +90,7 @@ export function ProfilePicker() {
               placeholder="no prefix"
               value={branchPrefix}
               onChange={(e) => setBranchPrefix(e.target.value)}
-              className="h-10 font-mono"
+              className="h-10"
             />
           </div>
           {create.error && <p className="text-xs text-danger">{create.error.message}</p>}

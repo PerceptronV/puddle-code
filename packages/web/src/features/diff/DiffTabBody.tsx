@@ -36,7 +36,7 @@ export function DiffTabBody({
   if (!entry) {
     return (
       <div className="flex h-full items-center justify-center px-4 text-center text-xs text-fg-muted">
-        No changes to <span className="mx-1 font-mono">{path}</span> against the base.
+        No changes to <span className="mx-1 text-fg-secondary">{path}</span> against the base.
       </div>
     );
   }

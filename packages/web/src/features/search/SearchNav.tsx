@@ -100,7 +100,7 @@ export function SearchNav({
           placeholder="Search files and contents"
           spellCheck={false}
           autoComplete="off"
-          className="rounded-md bg-elevated px-2 py-1 font-mono text-xs text-fg outline-none placeholder:text-fg-muted"
+          className="rounded-md bg-elevated px-2 py-1 text-xs text-fg outline-none placeholder:text-fg-muted"
         />
         <div className="flex items-center gap-1">
           <Toggle
@@ -153,7 +153,7 @@ export function SearchNav({
                     <FileIcon className="size-3.5 shrink-0 text-fg-gold" />
                     <HoverMarquee
                       text={path}
-                      className="font-mono text-xs text-fg"
+                      className="text-xs text-fg"
                       hoverClass={ROW_MARQUEE}
                     />
                   </button>
@@ -181,7 +181,7 @@ export function SearchNav({
                     >
                       <HoverMarquee
                         text={file.path}
-                        className="font-mono text-2xs text-fg-secondary"
+                        className="text-2xs text-fg-secondary"
                         hoverClass={ROW_MARQUEE}
                       />
                     </button>

@@ -103,7 +103,7 @@ export function HintInput({
                   choose(hint);
                 }}
                 onMouseEnter={() => setActive(index)}
-                className={cn(menuRow, menuHighlightCmdk, 'w-full font-mono text-xs')}
+                className={cn(menuRow, menuHighlightCmdk, 'w-full text-xs')}
                 data-selected={index === active}
               >
                 <span className="truncate">{hint.label ?? hint.value}</span>

@@ -49,9 +49,9 @@ export function TabTooltipBody({
   return (
     <span className="flex flex-col">
       <span>{name}</span>
-      {context !== '' && <span className="font-mono text-2xs text-fg-muted">{context}</span>}
+      {context !== '' && <span className="text-2xs text-fg-muted">{context}</span>}
       {isAgent && (
-        <span className="mt-0.5 flex items-center gap-1 font-mono text-2xs text-fg-muted">
+        <span className="mt-0.5 flex items-center gap-1 text-2xs text-fg-muted">
           <AgentIcon type={session.agent_type ?? ''} className="size-3 shrink-0" />
           <span>{session.agent_type}</span>
           {account !== undefined && <span> · {account}</span>}

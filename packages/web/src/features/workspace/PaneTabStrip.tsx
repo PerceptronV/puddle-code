@@ -264,7 +264,7 @@ function PaneTab({
               stale={session.stale_running}
             />
           )}
-          <span className="truncate font-mono">
+          <span className="truncate">
             {session ? renderTitle(session) : tab.session.slice(0, 8)}
           </span>
           <TabControls active={active}>
@@ -282,7 +282,7 @@ function PaneTab({
         </>
       ) : (
         <>
-          <span className="min-w-0 truncate font-mono">{label}</span>
+          <span className="min-w-0 truncate">{label}</span>
           {/* In flow AFTER the filename — the chip widens for it (to its cap;
               past that the name truncates), and it never occludes the name.
               Hidden on hover, where the overlay × appears. */}

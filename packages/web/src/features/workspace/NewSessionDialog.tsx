@@ -279,7 +279,7 @@ export function NewSessionDialog({
                   <SelectContent>
                     {accounts.data?.map((a) => (
                       <SelectItem key={a.id} value={String(a.id)}>
-                        <span className="font-mono">
+                        <span>
                           {a.agent_type}/{a.label}
                         </span>
                         {!a.logged_in && (
@@ -315,7 +315,6 @@ export function NewSessionDialog({
                           ? `session: ${b.session_title ?? 'untitled'}`
                           : undefined,
                   }))}
-                className="font-mono"
                 hintsClassName="w-max min-w-full max-w-[36rem]"
               />
             </div>
@@ -330,7 +329,6 @@ export function NewSessionDialog({
                   placeholder={branchPreview}
                   value={branch}
                   onChange={(e) => setBranch(e.target.value)}
-                  className="font-mono"
                 />
               </div>
             )}
@@ -370,8 +368,9 @@ export function NewSessionDialog({
               <Label htmlFor="join-dir">Directory to join</Label>
               {joinable.length === 0 ? (
                 <p className="text-xs text-fg-muted">
-                  No existing directory on <span className="font-mono">{baseName || '…'}</span> — a
-                  shared one will be created for later sessions to join.
+                  No existing directory on{' '}
+                  <span className="text-fg-secondary">{baseName || '…'}</span> — a shared one will
+                  be created for later sessions to join.
                 </p>
               ) : (
                 <Select value={effectiveJoin} onValueChange={setJoinWorktree}>
@@ -388,7 +387,7 @@ export function NewSessionDialog({
                         value={j.path}
                         title={j.path}
                         detail={
-                          <span className="ml-auto min-w-0 truncate font-mono text-2xs text-fg-muted">
+                          <span className="ml-auto min-w-0 truncate text-2xs text-fg-muted">
                             {tildify(j.path, host.data?.home)}
                           </span>
                         }
@@ -405,7 +404,7 @@ export function NewSessionDialog({
           {!separateBranch && !isTerminal && (
             <p className="text-xs text-warning">
               The {isTerminal ? 'shell' : 'agent'} commits straight to{' '}
-              <span className="font-mono">{baseName || '…'}</span>
+              <span>{baseName || '…'}</span>
               {sharingDirectory
                 ? ' and shares its working directory with concurrent sessions — they can trample each other’s edits.'
                 : '.'}

@@ -1216,7 +1216,7 @@ function WorkspaceInner() {
                 : ref.session.slice(0, 8)
               : (ref.tab.path.split('/').pop() ?? ref.tab.path);
           return (
-            <div className="rounded-md bg-elevated px-2.5 py-1 text-xs font-mono text-fg shadow-lg">
+            <div className="rounded-md bg-elevated px-2.5 py-1 text-xs text-fg shadow-lg">
               {label}
             </div>
           );

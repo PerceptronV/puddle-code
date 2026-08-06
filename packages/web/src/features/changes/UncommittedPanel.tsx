@@ -45,7 +45,7 @@ function FileRow({
       <span className={cn('w-3 shrink-0 text-center font-mono text-xs', style.colourClass)}>
         {style.letter}
       </span>
-      <HoverMarquee text={name} className="font-mono text-xs text-fg" hoverClass={ROW_MARQUEE} />
+      <HoverMarquee text={name} className="text-xs text-fg" hoverClass={ROW_MARQUEE} />
     </button>
   );
 }
@@ -108,7 +108,7 @@ function TreeRows({
                   belong to expanding it (as in the files tree). */}
               <HoverMarquee
                 text={node.name}
-                className="font-mono text-xs text-fg-secondary"
+                className="text-xs text-fg-secondary"
                 hoverClass={ROW_MARQUEE}
               />
             </button>
@@ -167,9 +167,7 @@ export function UncommittedPanel({
           Uncommitted
         </span>
         {entries.length > 0 && (
-          <span className="truncate font-mono text-2xs text-fg-muted">
-            {summariseCounts(entries)}
-          </span>
+          <span className="truncate text-2xs text-fg-muted">{summariseCounts(entries)}</span>
         )}
         <Tooltip>
           <TooltipTrigger asChild>

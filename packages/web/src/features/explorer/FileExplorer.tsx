@@ -146,7 +146,8 @@ function DeleteDialog() {
               is not the worktree, and saying "the worktree" would be a lie. */}
           <DialogDescription>
             This permanently removes {paths && paths.length > 1 ? 'them' : 'it'} from{' '}
-            <span className="font-mono">{tildify(ex.rootPath, home)}</span>. There is no undo.
+            <span className="text-fg-secondary">{tildify(ex.rootPath, home)}</span>. There is no
+            undo.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

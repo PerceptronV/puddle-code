@@ -166,7 +166,7 @@ export function ProjectCard({
               <h2 className="truncate pr-16 text-base font-semibold text-fg group-hover:text-accent">
                 {project.name}
               </h2>
-              <p className="mt-1 truncate font-mono text-2xs text-fg-muted">{repoPath ?? '…'}</p>
+              <p className="mt-1 truncate text-2xs text-fg-muted">{repoPath ?? '…'}</p>
               <div className="mt-3">
                 <SessionCounts projectId={project.id} />
               </div>
@@ -239,7 +239,7 @@ export function ProjectCard({
                 maxLength={ABBREV_MAX}
                 value={abbrev}
                 onChange={(e) => setAbbrev(normaliseAbbrev(e.target.value))}
-                className="w-24 font-mono uppercase"
+                className="w-24 uppercase"
               />
               <p className="text-2xs text-fg-muted">
                 Up to {ABBREV_MAX} characters — the label on the collapsed sidebar rail.
@@ -247,7 +247,7 @@ export function ProjectCard({
             </div>
             <div className="flex flex-col gap-1">
               <Label className="text-fg-muted">Path</Label>
-              <p className="truncate font-mono text-2xs text-fg-muted">{repoPath ?? '…'}</p>
+              <p className="truncate text-2xs text-fg-muted">{repoPath ?? '…'}</p>
             </div>
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={() => setRenaming(false)}>

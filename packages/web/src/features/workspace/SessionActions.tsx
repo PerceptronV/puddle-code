@@ -381,7 +381,7 @@ export function useSessionMenu(
             <DialogTitle>Hand off to {handoffTo?.agent_type}?</DialogTitle>
             <DialogDescription>
               A new session starts in this worktree and branch on{' '}
-              <span className="font-mono">{handoffTo?.label}</span>, opening with a summary of the
+              <span className="text-fg">{handoffTo?.label}</span>, opening with a summary of the
               conversation so far plus the branch&rsquo;s commits and status. The conversation
               itself is summarised, not moved — the new agent will not have the old one&rsquo;s
               reasoning. This session is left as it is.
@@ -474,7 +474,7 @@ function SessionMenuItems({ kit, menu }: { kit: MenuKit; menu: SessionMenu }) {
               <Item key={a.id} onSelect={() => menu.setHandoffTo(a)}>
                 <AgentIcon type={a.agent_type} className="size-4" />
                 {a.agent_type}
-                <span className="ml-auto font-mono text-fg-muted">{a.label}</span>
+                <span className="ml-auto text-fg-muted">{a.label}</span>
               </Item>
             ))}
           </SubContent>

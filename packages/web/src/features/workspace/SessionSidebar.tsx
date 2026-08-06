@@ -255,8 +255,8 @@ function SessionLabel({ session, accountLabel }: { session: Session; accountLabe
   return (
     <span className="flex flex-col">
       <span>{renderTitle(session)}</span>
-      <span className="font-mono text-2xs text-fg-muted">{session.branch}</span>
-      <span className="mt-0.5 flex items-center gap-1 font-mono text-2xs text-fg-muted">
+      <span className="text-2xs text-fg-muted">{session.branch}</span>
+      <span className="mt-0.5 flex items-center gap-1 text-2xs text-fg-muted">
         {session.kind === 'terminal' ? (
           <>
             <SquareTerminal className="size-3 shrink-0" />
@@ -433,7 +433,7 @@ export function CollapsedSessionsRail({
               <InlineLabelEdit
                 initial={group.abbrev}
                 maxLength={ABBREV_MAX}
-                className="w-7 text-center font-mono text-[8px] uppercase leading-3 text-fg"
+                className="w-7 text-center text-[8px] uppercase leading-3 text-fg"
                 onCommit={(v) => commitAbbrev(group, v)}
                 onCancel={() => setEditingAbbrev(null)}
               />
@@ -452,7 +452,7 @@ export function CollapsedSessionsRail({
                         }}
                         onDragEnd={() => setDragProject(null)}
                         className={cn(
-                          'w-7 truncate text-center font-mono text-[8px] uppercase leading-3 text-fg-muted transition-colors hover:text-fg',
+                          'w-7 truncate text-center text-[8px] uppercase leading-3 text-fg-muted transition-colors hover:text-fg',
                           dragProject === group.projectId && 'opacity-50',
                         )}
                       >
@@ -589,11 +589,11 @@ function SessionRow({
               className="font-sans text-xs text-fg"
               hoverClass={ROW_MARQUEE}
             />
-            <span className="flex items-center gap-1 font-mono text-2xs text-fg-muted">
+            <span className="flex items-center gap-1 text-2xs text-fg-muted">
               <GitBranch className="size-3 shrink-0 text-fg-gold" />
               <HoverMarquee text={session.branch} hoverClass={ROW_MARQUEE} />
             </span>
-            <span className="flex items-center gap-1 font-mono text-2xs text-fg-muted">
+            <span className="flex items-center gap-1 text-2xs text-fg-muted">
               <HoverMarquee text={`${kindLabel}${suffix}`} hoverClass={ROW_MARQUEE} />
             </span>
           </span>

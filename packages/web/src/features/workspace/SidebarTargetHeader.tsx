@@ -80,7 +80,7 @@ export function SidebarTargetHeader({
 
   return (
     <div className="group relative flex h-8 shrink-0 items-center px-2">
-      <PathScroller text={title} className="font-mono text-xs text-fg-secondary" />
+      <PathScroller text={title} className="text-xs text-fg-secondary" />
       {/* Controls overlay the right edge, revealed on hover/focus, so at rest
           the title uses the full width — no hidden icon reserves space (the pin
           stays shown while pinned to keep that state visible). The `bg-surface`
@@ -130,7 +130,7 @@ export function SidebarTargetHeader({
             ) : (
               pickable.map((s) => (
                 <DropdownMenuItem key={s.id} onSelect={() => pin(s.id)}>
-                  <span className="truncate font-mono">
+                  <span className="truncate">
                     {s.branch} — {sessionDisplayName(s)}
                   </span>
                 </DropdownMenuItem>

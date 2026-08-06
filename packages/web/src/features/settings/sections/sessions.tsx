@@ -57,7 +57,7 @@ function AgentPathRow() {
       <Input
         id="agent-path"
         type="text"
-        className="w-64 font-mono text-2xs"
+        className="w-64 text-2xs"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onBlur={() => {
@@ -107,7 +107,7 @@ function SessionSeedRows({
           id={`${kind}-default-base`}
           type="text"
           placeholder="repository default"
-          className="w-48 font-mono"
+          className="w-48"
           value={branch}
           onChange={(e) => setBranch(e.target.value)}
           onBlur={() => {
@@ -494,13 +494,12 @@ export function SessionsSection() {
           </DialogHeader>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="confirm-name">
-              Type <span className="font-mono text-fg">{profile?.name}</span> to confirm
+              Type <span className="text-fg">{profile?.name}</span> to confirm
             </Label>
             <Input
               id="confirm-name"
               value={typed}
               onChange={(e) => setTyped(e.target.value)}
-              className="font-mono"
               autoFocus
             />
           </div>

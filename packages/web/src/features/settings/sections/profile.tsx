@@ -69,7 +69,7 @@ export function ProfileSection() {
           id="profile-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-44 font-mono"
+          className="w-44"
         />
         <Button
           size="sm"
@@ -94,7 +94,7 @@ export function ProfileSection() {
           value={prefix}
           onChange={(e) => setPrefix(e.target.value)}
           placeholder="no prefix"
-          className="w-44 font-mono"
+          className="w-44"
         />
         <Button
           size="sm"
@@ -128,7 +128,7 @@ export function ProfileSection() {
             <SelectItem value={NONE}>First available</SelectItem>
             {accounts.data?.map((account) => (
               <SelectItem key={account.id} value={String(account.id)}>
-                <span className="font-mono">
+                <span>
                   {account.agent_type}/{account.label}
                 </span>
               </SelectItem>
@@ -158,7 +158,7 @@ export function ProfileSection() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Delete profile <span className="font-mono">{profile.name}</span>?
+              Delete profile <span className="text-fg">{profile.name}</span>?
             </DialogTitle>
             <DialogDescription>
               Everything this profile owns goes with it: projects, workspace layouts, accounts and
@@ -168,13 +168,12 @@ export function ProfileSection() {
           </DialogHeader>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="delete-confirm-name">
-              Type <span className="font-mono text-fg">{profile.name}</span> to confirm
+              Type <span className="text-fg">{profile.name}</span> to confirm
             </Label>
             <Input
               id="delete-confirm-name"
               value={typedName}
               onChange={(e) => setTypedName(e.target.value)}
-              className="font-mono"
               autoFocus
             />
           </div>

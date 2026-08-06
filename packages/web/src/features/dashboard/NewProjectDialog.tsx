@@ -98,7 +98,7 @@ function DirBrowser({
               ) : (
                 <Folder className="size-3.5 shrink-0 text-fg-gold" />
               )}
-              <span className="truncate font-mono text-xs text-fg">{entry.name}</span>
+              <span className="truncate text-xs text-fg">{entry.name}</span>
             </button>
             {entry.is_git && (
               <button
@@ -269,7 +269,6 @@ export function NewProjectDialog({
                 }
               }}
               hints={hints}
-              className="font-mono"
             />
             {browseDir !== null && (
               <DirBrowser dir={browseDir} onNavigate={navigateBrowser} onChoose={chooseDir} />
@@ -298,7 +297,7 @@ export function NewProjectDialog({
                 setAbbrev(normaliseAbbrev(e.target.value));
                 setAbbrevTouched(true);
               }}
-              className="w-24 font-mono uppercase"
+              className="w-24 uppercase"
             />
             <p className="text-2xs text-fg-muted">
               Up to {ABBREV_MAX} characters — the project's label on the collapsed sidebar rail.

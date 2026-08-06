@@ -149,11 +149,7 @@ function CommitFiles({
             >
               {style.letter}
             </span>
-            <HoverMarquee
-              text={label}
-              className="pr-3 font-mono text-2xs text-fg"
-              hoverClass={ROW_MARQUEE}
-            />
+            <HoverMarquee text={label} className="pr-3 text-2xs text-fg" hoverClass={ROW_MARQUEE} />
           </button>
         );
       })}
@@ -251,7 +247,7 @@ export function CommitGraph({
           type="button"
           onClick={() => void log.fetchNextPage()}
           disabled={log.isFetchingNextPage}
-          className="px-3 py-2 text-left font-mono text-xs text-fg-muted transition-colors hover:bg-elevated"
+          className="px-3 py-2 text-left text-xs text-fg-muted transition-colors hover:bg-elevated"
         >
           {log.isFetchingNextPage ? 'Loading…' : 'Show more'}
         </button>

@@ -97,7 +97,7 @@ function BrowseHeader({
             className="flex min-w-0 flex-1 items-center gap-1.5 rounded-sm px-1 py-1 text-left text-fg-gold transition-colors hover:bg-elevated hover:text-fg disabled:pointer-events-none disabled:opacity-40"
           >
             <CornerLeftUp className="size-3.5 shrink-0" />
-            <span className="min-w-0 truncate font-mono text-xs text-fg-secondary">
+            <span className="min-w-0 truncate text-xs text-fg-secondary">
               {tildify(root, home)}
             </span>
           </button>

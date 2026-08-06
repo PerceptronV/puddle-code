@@ -170,7 +170,7 @@ export function WorktreesNav({
         <div key={`wt:${branch}`}>
           <div className="group flex items-center gap-1.5 px-3 pb-0.5 pt-2 text-2xs text-fg-muted">
             <GitBranch className="size-3 shrink-0 text-fg-gold" />
-            <HoverMarquee text={branch} className="font-mono" hoverClass={ROW_MARQUEE} />
+            <HoverMarquee text={branch} hoverClass={ROW_MARQUEE} />
           </div>
           {wts.map((wt) => {
             const live = liveByPath.get(wt.path) ?? 0;
@@ -189,7 +189,7 @@ export function WorktreesNav({
                 <HoverMarquee
                   text={basename(wt.path)}
                   title={wt.path}
-                  className="font-mono text-xs text-fg"
+                  className="text-xs text-fg"
                   hoverClass={ROW_MARQUEE}
                 />
                 {wt.is_primary && <Tag className="text-fg-muted">clone</Tag>}
@@ -234,11 +234,7 @@ export function WorktreesNav({
               className="group flex items-center gap-2 px-3 py-1 transition-colors hover:bg-elevated"
             >
               <GitBranch className="size-3 shrink-0 text-fg-gold" />
-              <HoverMarquee
-                text={b.name}
-                className="font-mono text-xs text-fg"
-                hoverClass={ROW_MARQUEE}
-              />
+              <HoverMarquee text={b.name} className="text-xs text-fg" hoverClass={ROW_MARQUEE} />
               {b.local_only && <Tag className="text-warning">local only</Tag>}
               <PruneButton
                 label="Delete branch"
@@ -265,14 +261,14 @@ export function WorktreesNav({
               <DialogHeader>
                 <DialogTitle>Delete branch</DialogTitle>
                 <DialogDescription>
-                  Delete branch <span className="font-mono">{target.name}</span>? This removes the
+                  Delete branch <span className="text-fg">{target.name}</span>? This removes the
                   branch from the repository.
                 </DialogDescription>
               </DialogHeader>
               {target.localOnly && (
                 <p className="text-xs text-warning">
-                  <span className="font-mono">{target.name}</span> has commits on no remote —
-                  deleting it discards that work permanently.
+                  <span>{target.name}</span> has commits on no remote — deleting it discards that
+                  work permanently.
                 </p>
               )}
             </>
@@ -280,9 +276,9 @@ export function WorktreesNav({
             <DialogHeader>
               <DialogTitle>Prune worktree</DialogTitle>
               <DialogDescription>
-                Remove <span className="font-mono">{target ? basename(target.path) : ''}</span>? The
+                Remove <span className="text-fg">{target ? basename(target.path) : ''}</span>? The
                 working directory is deleted; the branch{' '}
-                <span className="font-mono">{target?.branch ?? ''}</span> is kept.
+                <span className="text-fg">{target?.branch ?? ''}</span> is kept.
               </DialogDescription>
             </DialogHeader>
           )}

@@ -34,8 +34,7 @@ const INDENT_PX = 14;
 function setCountDragImage(e: React.DragEvent, count: number) {
   const chip = document.createElement('div');
   chip.textContent = `${count} items`;
-  chip.className =
-    'fixed -top-12 left-0 rounded-md bg-elevated px-2 py-1 font-mono text-xs text-fg';
+  chip.className = 'fixed -top-12 left-0 rounded-md bg-elevated px-2 py-1 text-xs text-fg';
   document.body.appendChild(chip);
   e.dataTransfer.setDragImage(chip, 12, 12);
   requestAnimationFrame(() => chip.remove());
@@ -106,7 +105,7 @@ function EditRow({
           }
         }}
         onBlur={commit}
-        className="min-w-0 flex-1 bg-surface font-mono text-sm text-fg outline-none"
+        className="min-w-0 flex-1 bg-surface text-sm text-fg outline-none"
       />
     </div>
   );
@@ -276,7 +275,7 @@ export function TreeNode({
       ) : (
         <FileTypeIcon name={entry.name} dimmed={status === 'ignored'} />
       )}
-      <span className={cn('min-w-0 flex-1 truncate font-mono', nameColour)}>{entry.name}</span>
+      <span className={cn('min-w-0 flex-1 truncate', nameColour)}>{entry.name}</span>
       {status && decoration && decoration.letter && (
         <span className={cn('shrink-0 font-mono text-2xs', decoration.colourClass)}>
           {decoration.letter}

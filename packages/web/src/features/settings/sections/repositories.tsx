@@ -20,7 +20,7 @@ function RepoCard({ repo }: { repo: RepoWithOrphans }) {
   return (
     <div className="mb-4 rounded-lg bg-surface p-3">
       <div className="flex items-center gap-2">
-        <span className="min-w-0 flex-1 truncate font-mono text-sm text-fg">{repo.path}</span>
+        <span className="min-w-0 flex-1 truncate text-sm text-fg">{repo.path}</span>
         <span className="shrink-0 text-2xs text-fg-muted tabular-nums">
           {repo.last_fetched_at
             ? `fetched ${new Date(repo.last_fetched_at).toLocaleString()}`
@@ -47,7 +47,7 @@ function RepoCard({ repo }: { repo: RepoWithOrphans }) {
           id={`base-${repo.id}`}
           value={base}
           onChange={(e) => setBase(e.target.value)}
-          className="w-40 font-mono"
+          className="w-40"
         />
         <Button
           size="sm"
@@ -86,7 +86,6 @@ function RepoCard({ repo }: { repo: RepoWithOrphans }) {
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={4}
-          className="font-mono"
         />
         <div>
           <Button
@@ -108,7 +107,7 @@ function RepoCard({ repo }: { repo: RepoWithOrphans }) {
           </p>
           <ul className="mt-1 flex flex-col gap-0.5">
             {repo.orphan_worktrees.map((path) => (
-              <li key={path} className="truncate font-mono text-2xs text-fg-muted">
+              <li key={path} className="truncate text-2xs text-fg-muted">
                 {path}
               </li>
             ))}

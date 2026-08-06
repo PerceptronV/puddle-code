@@ -75,7 +75,7 @@ function AccountRow({
           aria-hidden
         />
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-mono text-sm text-fg">{account.label}</span>
+          <span className="block truncate text-sm text-fg">{account.label}</span>
           <span className="block text-2xs text-fg-muted">
             {account.logged_in ? 'logged in' : 'logged out'}
             {usage.data && (

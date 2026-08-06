@@ -108,8 +108,8 @@ export function UntitledSaveDialog({
           <DialogDescription>
             {targetSession ? (
               <>
-                Saves into <span className="font-mono">{targetLabel}</span> — what the sidebar is
-                bound to.
+                Saves into <span className="text-fg-secondary">{targetLabel}</span> — what the
+                sidebar is bound to.
               </>
             ) : (
               'No worktree is bound — open or focus a session first.'
@@ -130,7 +130,6 @@ export function UntitledSaveDialog({
               placeholder="docs/notes.md"
               value={path}
               onChange={(e) => setPath(e.target.value)}
-              className="font-mono"
               autoFocus
             />
           </div>

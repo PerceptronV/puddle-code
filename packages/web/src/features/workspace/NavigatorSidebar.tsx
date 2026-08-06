@@ -353,7 +353,7 @@ export function NavigatorSidebar({
                 className="flex shrink-0 items-center gap-1.5 px-3 py-1 text-left transition-colors hover:bg-elevated"
               >
                 <CornerLeftUp className="size-3 shrink-0 text-fg-gold" />
-                <span className="font-mono text-xs text-fg-muted">..</span>
+                <span className="text-xs text-fg-muted">..</span>
               </button>
             )}
             <div className="flex min-h-0 flex-1 flex-col">
