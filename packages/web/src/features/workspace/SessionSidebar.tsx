@@ -308,21 +308,24 @@ function CollapsedSessionDot({
               onDoubleClick={() => onPromote(session.id)}
               to={`/project/${session.project_id}/session/${session.id}`}
               className={cn(
-                'flex items-center rounded-md p-1.5 transition-colors hover:bg-elevated compact:p-1',
+                'flex items-center rounded-md p-1 transition-colors hover:bg-elevated',
                 session.id === activeSessionId && 'bg-elevated',
               )}
             >
               {/* Active session marked with the same bg-elevated fill-shift the
                   expanded list and the navigator's mode icons use — a theme
                   colour, no border, no default-blue ring (HUMANS.md). The glyph
-                  fills more of its container than the expanded rows' (SPEC §12:
-                  the dot IS the row here). */}
+                  NEARLY FILLS its chip (decision 2026-08-06): the dot IS the
+                  row here, and at the utility-icon size it swam in the hover
+                  container. Larger than the rail's top controls on purpose —
+                  content over chrome. */}
               <SessionGlyph
                 status={session.status}
                 kind={session.kind}
                 agentType={session.agent_type}
                 stale={session.stale_running}
-                className="size-4"
+                className="size-6 compact:size-5"
+                iconClassName="size-full"
               />
               <span className="sr-only">{renderTitle(session)}</span>
             </Link>

@@ -19,6 +19,7 @@ export function SessionGlyph({
   agentType,
   stale = false,
   className,
+  iconClassName = 'size-3',
 }: {
   status: SessionStatus;
   kind?: SessionKind;
@@ -27,6 +28,12 @@ export function SessionGlyph({
   /** `stale_running` (SPEC §4): running, but the agent has been quiet for over an hour. */
   stale?: boolean;
   className?: string;
+  /**
+   * The mark itself, inside the `className`-sized box. The 12px default suits
+   * inline rows; the collapsed rail passes `size-full` so the mark fills its
+   * chip (the glyph IS the row there — decision 2026-08-06).
+   */
+  iconClassName?: string;
 }) {
   const what = kind === 'terminal' ? 'terminal' : (agentType ?? 'agent');
   const label = `${what} — status: ${status.replace('_', ' ')}${
@@ -43,9 +50,9 @@ export function SessionGlyph({
       aria-label={label}
     >
       {kind === 'terminal' ? (
-        <SquareTerminal className="size-3" />
+        <SquareTerminal className={iconClassName} />
       ) : (
-        <AgentIcon type={agentType ?? ''} className="size-3" />
+        <AgentIcon type={agentType ?? ''} className={iconClassName} />
       )}
     </span>
   );

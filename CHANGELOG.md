@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- The collapsed right sidebar's session glyphs nearly fill their chips (24px marks in comfortable density, 20px in compact — they were 12px marks swimming in a 28px hover container): the glyph is the row there, so it reads at rail size instead of utility-icon size.
+
 - Dragging a file from the sidebar into the tiling area now OPENS it at the drop position instead of moving an existing tab of it: a file already open elsewhere gains a second tab sharing the same buffer, and edge-dropping a pane's only file onto its own edge splits the pane with the file on both sides (impossible under move semantics, which first removed the tab and collapsed the split to a no-op). Within one pane a file stays unique — dropping it into a pane that already shows it just focuses that tab. Dragging a tab chip still moves it, and session tabs (one live PTY each) always move.
 
 ### Fixed
