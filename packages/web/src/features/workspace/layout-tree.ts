@@ -256,7 +256,7 @@ export function splitLeaf(
 
 export interface DropSpec {
   ref: TabRef;
-  /** The leaf the tab was dragged from (carried for context; the move removes the key tree-wide). */
+  /** The leaf the tab was dragged from (carried for context; a move removes the key tree-wide). */
   fromLeafId: string;
   toLeafId: string;
   edge: DropEdge;
@@ -266,13 +266,25 @@ export interface DropSpec {
    * in that leaf (dropTab compensates). Appended when absent.
    */
   index?: number;
+  /**
+   * An OPEN rather than a move (sidebar drags — decision 2026-08-06): the tab
+   * lands in the target without leaving any pane it already occupies, so the
+   * same file can sit in two panes at once (both tabs share one refcounted
+   * buffer). Within ONE pane a tab stays unique — a copy-drop into a pane
+   * already holding it repositions/focuses instead of duplicating. Editor tabs
+   * only: a terminal is one live PTY whose DOM exists once (keep-alive), so it
+   * always moves and the flag is ignored.
+   */
+  copy?: boolean;
 }
 
 /**
- * The single drag-drop entry point. A drop always MOVES the tab — out of its
- * source pane, into the target — so a drag leaves nothing behind; editors
- * behave exactly like terminals here (this replaces the earlier
- * duplicate-into-another-pane behaviour, which surprised more than it helped).
+ * The single drag-drop entry point. A STRIP drop moves the tab — out of its
+ * source pane, into the target — so dragging a chip leaves nothing behind. A
+ * SIDEBAR drop (`copy`) opens instead: the file tree names content, not a
+ * pane, so dropping an already-open file grows a second tab of it rather than
+ * yanking the first out of the pane it lives in — which also makes the
+ * same-file split possible (edge-drop a pane's only file onto its own edge).
  * `center` inserts into the target leaf at `index`; an edge splits it. A drop
  * also PINS the tab: deliberately placing a preview tab promotes it, as in
  * VSCode.
@@ -280,6 +292,7 @@ export interface DropSpec {
 export function dropTab(tree: LayoutNode, spec: DropSpec): LayoutNode {
   const { ref, toLeafId, edge } = spec;
   const key = tabRefKey(ref);
+  const copy = spec.copy === true && !isTerminal(ref);
   // `index` counts the target strip as the user sees it — the dragged tab is
   // still in place while dragging. Removing it first shifts every later
   // position left by one, so compensate before the move.
@@ -288,7 +301,7 @@ export function dropTab(tree: LayoutNode, spec: DropSpec): LayoutNode {
     const current = findLeaf(tree, toLeafId)?.tabs.findIndex((t) => tabRefKey(t) === key) ?? -1;
     if (current !== -1 && current < index) index -= 1;
   }
-  const withoutSource = removeKeyEverywhere(tree, key);
+  const withoutSource = copy ? tree : removeKeyEverywhere(tree, key);
 
   // The target leaf may have been pruned if it emptied during the move (dragging
   // a lone tab onto its own leaf's edge) — normalise at the end restores sanity.

@@ -799,8 +799,11 @@ function WorkspaceInner() {
   }, [layout, scopeKey, activeSessionId, tabSessions, navigate]);
   // A sidebar drag (file row / session row or dot) dropped onto a pane: open a
   // PERMANENT tab there through the same dropTab path strip drags use — centre
-  // inserts, an edge splits — so a drag opens and positions in one gesture. A
-  // dropped session also claims the URL, like activating its tab would.
+  // inserts, an edge splits — so a drag opens and positions in one gesture.
+  // As an OPEN (`copy`), not a move: a file already open elsewhere gains a
+  // second tab sharing its buffer rather than being yanked from its pane
+  // (dropTab keeps terminals unique — those still move). A dropped session
+  // also claims the URL, like activating its tab would.
   const onDropTab = useCallback(
     (leafId: string, ref: TabRef, edge: DropEdge) => {
       const owner =
@@ -818,7 +821,7 @@ function WorkspaceInner() {
         void navigate(`/project/${owner}/session/${ref.session}`);
         return;
       }
-      layout.drop({ ref, fromLeafId: leafId, toLeafId: leafId, edge });
+      layout.drop({ ref, fromLeafId: leafId, toLeafId: leafId, edge, copy: true });
       if (ref.type === 'terminal' && ref.session !== activeSessionId && owner !== undefined) {
         void navigate(`/project/${owner}/session/${ref.session}`);
       }

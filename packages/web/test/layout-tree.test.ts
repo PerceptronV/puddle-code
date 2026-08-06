@@ -237,6 +237,70 @@ describe('dropTab', () => {
     const reordered = moveTab(withPreview, ed('a.ts'), src.id, src.id, 0);
     expect(leafWith(reordered, ed('a.ts')).previewKey).toBeNull();
   });
+
+  it('a copy-drop opens a second tab of an already-open file (sidebar drag)', () => {
+    const a = makeLeaf([ed('a.ts'), ed('x.ts')]);
+    const tree = splitLeaf(a, a.id, 'right', ed('b.ts'));
+    const leafA = leafWith(tree, ed('a.ts'));
+    const leafB = leafWith(tree, ed('b.ts'));
+    const next = dropTab(tree, {
+      ref: ed('a.ts'),
+      fromLeafId: leafB.id,
+      toLeafId: leafB.id,
+      edge: 'center',
+      copy: true,
+    });
+    // a.ts now lives in BOTH panes; the source lost nothing.
+    expect(flattenTabs(next).filter((t) => sameRef(t, ed('a.ts')))).toHaveLength(2);
+    expect(findLeaf(next, leafA.id)!.tabs.map(tabRefKey)).toContain('editor:file:s1:::a.ts');
+    const target = findLeaf(next, leafB.id)!;
+    expect(target.tabs.map(tabRefKey)).toContain('editor:file:s1:::a.ts');
+    expect(target.activeKey).toBe(tabRefKey(ed('a.ts')));
+  });
+
+  it('a copy-drop into a pane already holding the file focuses it — one copy per pane', () => {
+    const a = makeLeaf([ed('a.ts'), ed('b.ts')], tabRefKey(ed('b.ts')));
+    const next = dropTab(a, {
+      ref: ed('a.ts'),
+      fromLeafId: a.id,
+      toLeafId: a.id,
+      edge: 'center',
+      copy: true,
+    });
+    const leaf = allLeaves(next)[0]!;
+    expect(leaf.tabs.filter((t) => sameRef(t, ed('a.ts')))).toHaveLength(1);
+    expect(leaf.activeKey).toBe(tabRefKey(ed('a.ts')));
+  });
+
+  it('an edge copy-drop splits a pane on its own only file (same file, two panes)', () => {
+    // The gesture move semantics made impossible: split the pane so the same
+    // file shows twice (e.g. markdown source beside its preview).
+    const leaf = makeLeaf([ed('a.ts')]);
+    const next = dropTab(leaf, {
+      ref: ed('a.ts'),
+      fromLeafId: leaf.id,
+      toLeafId: leaf.id,
+      edge: 'right',
+      copy: true,
+    });
+    expect(allLeaves(next)).toHaveLength(2);
+    expect(flattenTabs(next).filter((t) => sameRef(t, ed('a.ts')))).toHaveLength(2);
+  });
+
+  it('copy is ignored for terminals — one PTY, one tab, still a move', () => {
+    const a = makeLeaf([term('t1')]);
+    const tree = splitLeaf(a, a.id, 'right', ed('b.ts'));
+    const leafB = leafWith(tree, ed('b.ts'));
+    const next = dropTab(tree, {
+      ref: term('t1'),
+      fromLeafId: leafWith(tree, term('t1')).id,
+      toLeafId: leafB.id,
+      edge: 'center',
+      copy: true,
+    });
+    expect(flattenTabs(next).filter((t) => sameRef(t, term('t1')))).toHaveLength(1);
+    expect(leafContainingKey(next, 'term:t1')!.id).toBe(leafB.id);
+  });
 });
 
 describe('closeTab', () => {
