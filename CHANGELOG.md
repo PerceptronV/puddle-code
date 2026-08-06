@@ -15,4 +15,5 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Terminals no longer sometimes come back in the wrong typeface after a reload: xterm measures its glyphs once at creation, so a terminal mounted before the `Ubuntu Sans Mono` webfont finished loading measured — and kept — the fallback mono. Terminal creation now waits for the face (instant once cached; the attach replay repaints, so nothing is lost).
 - A clipped name in the files tree can be read again: hovering its row now eases the full name into view (the marquee treatment every other sidebar list gives clipped text, at the app's one speed, files and folders alike). The v0.0.28 attempt — a native `title` tooltip on folder rows — never appeared, because Chromium suppresses title tooltips on draggable elements and every tree row is a drag source.

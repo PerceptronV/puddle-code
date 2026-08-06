@@ -20,6 +20,45 @@ import { registerFileLinks } from './file-links';
 
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
 
+/**
+ * The terminal typeface, and a gate on its webfont being LOADED: xterm
+ * measures its cell metrics once, when the terminal opens, so a terminal
+ * created while 'Ubuntu Sans Mono' was still downloading measured — and kept —
+ * the fallback mono: wrong face, wrong cell geometry, until some later
+ * renderer swap happened to rebuild the glyph atlas (the "reload sometimes
+ * paints terminals in another font" bug, fixed 2026-08-06). The face loads
+ * once per page, so the gate costs at most a frame or two on the first
+ * terminal after a cold reload and nothing after; the attach replay repaints
+ * the buffer, so nothing is lost by waiting.
+ */
+const TERMINAL_FONT = "'Ubuntu Sans Mono', ui-monospace, monospace";
+const FONT_PROBE = "12px 'Ubuntu Sans Mono'"; // loads the FACE — size is irrelevant
+let terminalFontReady =
+  typeof document === 'undefined' || !('fonts' in document) || document.fonts.check(FONT_PROBE);
+const terminalFontLoad: Promise<void> | null = terminalFontReady
+  ? null
+  : document.fonts
+      .load(FONT_PROBE)
+      .catch(() => undefined) // a face that cannot load must not block terminals
+      .then(() => {
+        terminalFontReady = true;
+      });
+
+function useTerminalFontReady(): boolean {
+  const [ready, setReady] = useState(terminalFontReady);
+  useEffect(() => {
+    if (ready || terminalFontLoad === null) return;
+    let live = true;
+    void terminalFontLoad.then(() => {
+      if (live) setReady(true);
+    });
+    return () => {
+      live = false;
+    };
+  }, [ready]);
+  return ready;
+}
+
 /** Statuses in which a process is attached to the PTY (see the restart refit). */
 const LIVE_STATUSES: SessionStatus[] = ['starting', 'running', 'waiting_input'];
 
@@ -104,6 +143,9 @@ export function Terminal({
   // otherwise keeps receiving and parsing every byte of PTY output.
   const visible = useDocumentVisible();
   const attached = useLingeringTrue(!paused && visible, DETACH_LINGER_MS);
+  // Both the mount and attach effects key on this: xterm must not exist —
+  // let alone measure glyphs — before the webfont it measures is loaded.
+  const fontReady = useTerminalFontReady();
 
   /**
    * Re-measure the grid against the container, repaint it, and tell the PTY: the
@@ -132,7 +174,7 @@ export function Terminal({
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container || !fontReady) return;
 
     // URL links are safe everywhere (login terminals included): plain click or
     // cmd/ctrl+click both open the URL in a new tab (SPEC §7). In SSH mode a
@@ -148,7 +190,7 @@ export function Terminal({
 
     const xterm = new XTerm({
       theme: xtermThemeFromCss(),
-      fontFamily: "'Ubuntu Sans Mono', ui-monospace, monospace",
+      fontFamily: TERMINAL_FONT,
       fontSize: settings.terminalFontSize,
       scrollback: settings.terminalScrollback,
       cursorBlink: true,
@@ -293,11 +335,11 @@ export function Terminal({
       xtermRef.current = null;
       fitRef.current = null;
     };
-    // Deliberately keyed on the PTY identity only: recreating the terminal on
-    // settings change would drop scrollback; the effect below patches the
-    // live instance instead. (`refit` is keyed on the same two, so listing it
-    // adds no churn.)
-  }, [stream, term, refit]);
+    // Deliberately keyed on the PTY identity only — plus the one-way font
+    // gate: recreating the terminal on settings change would drop scrollback;
+    // the effect below patches the live instance instead. (`refit` is keyed
+    // on the same two, so listing it adds no churn.)
+  }, [stream, term, refit, fontReady]);
 
   // The PTY attachment, gated on `attached`: paused/hidden terminals detach
   // (the daemon stops sending, nothing is parsed) and re-attach on return,
@@ -367,7 +409,10 @@ export function Terminal({
       webgl = null;
       detach();
     };
-  }, [stream, term, attached]);
+    // `fontReady` because the attach reads xtermRef, a REF: when the font gate
+    // flips and the mount effect above finally creates the terminal, nothing
+    // else would re-run this to attach it.
+  }, [stream, term, attached, fontReady]);
 
   // Font size and scrollback patch the LIVE instance (recreating it would drop
   // scrollback). A font change resizes the CELL, not the container, so the
