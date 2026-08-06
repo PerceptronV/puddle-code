@@ -134,6 +134,18 @@ export function Terminal({
     const container = containerRef.current;
     if (!container) return;
 
+    // URL links are safe everywhere (login terminals included): plain click or
+    // cmd/ctrl+click both open the URL in a new tab (SPEC §7). In SSH mode a
+    // host-localhost URL is rewritten to the tier-2 proxy path so it works
+    // from the client; login and home terminals have no session to proxy through.
+    const sessionless = stream.startsWith('login-') || stream === HOME_STREAM;
+    const openUri = (uri: string) => {
+      const target = sessionless
+        ? uri
+        : rewriteTerminalUri(uri, stream, sshMode() !== null, tokenStore.get());
+      window.open(target, '_blank', 'noopener,noreferrer');
+    };
+
     const xterm = new XTerm({
       theme: xtermThemeFromCss(),
       fontFamily: "'Ubuntu Sans Mono', ui-monospace, monospace",
@@ -146,23 +158,19 @@ export function Terminal({
       // fine. Shift+drag always forces a local selection; this makes ⌥+drag
       // do the same on Mac, matching Terminal.app/iTerm convention.
       macOptionClickForcesSelection: IS_MAC,
+      // OSC 8 hyperlinks (how Claude Code prints its URLs, e.g. the login
+      // OAuth link). Without a handler xterm falls back to a native confirm()
+      // ("This link could potentially be dangerous") and then opens a BLANK
+      // window before assigning its location — which the desktop shell's
+      // window-open handler denies (about:blank is not https?:), so accepting
+      // the dialogue opened nothing (fixed 2026-08-05). Route them through the
+      // same open path as the web-links addon below: no dialogue, real URL.
+      linkHandler: { activate: (_event, uri) => openUri(uri) },
     });
     xtermRef.current = xterm;
     const fit = new FitAddon();
     xterm.loadAddon(fit);
-    // URL links are safe everywhere (login terminals included): plain click or
-    // cmd/ctrl+click both open the URL in a new tab (SPEC §7). In SSH mode a
-    // host-localhost URL is rewritten to the tier-2 proxy path so it works
-    // from the client; login and home terminals have no session to proxy through.
-    const sessionless = stream.startsWith('login-') || stream === HOME_STREAM;
-    xterm.loadAddon(
-      new WebLinksAddon((_event, uri) => {
-        const target = sessionless
-          ? uri
-          : rewriteTerminalUri(uri, stream, sshMode() !== null, tokenStore.get());
-        window.open(target, '_blank', 'noopener,noreferrer');
-      }),
-    );
+    xterm.loadAddon(new WebLinksAddon((_event, uri) => openUri(uri)));
     xterm.open(container);
     fit.fit();
     fitRef.current = fit;
