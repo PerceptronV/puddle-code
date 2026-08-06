@@ -8,6 +8,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '../../components/ui/context-menu';
+import { HoverMarquee } from '../../components/hover-marquee';
 import { cn } from '../../lib/utils';
 import { useWorktreeTree } from '../../lib/worktree-queries';
 import { encodeTabTransfer, TAB_MIME } from '../workspace/tab-transfer';
@@ -25,6 +26,14 @@ import { FileTypeIcon } from './file-icons';
 import { folderStatus, gitDecoration } from './git-decoration';
 
 const INDENT_PX = 14;
+
+// A clipped name eases into view on ITS OWN row's hover, at the app's one
+// marquee speed — the treatment every other sidebar list already gives clipped
+// text. It replaced a native `title` on directory rows (v0.0.28), which
+// Chromium never shows on a draggable element, so the tooltip simply did not
+// appear (fixed 2026-08-06). Named group: the row must not govern any future
+// group-hover styling inside it. Literal so Tailwind generates it.
+const ROW_MARQUEE = 'group-hover/treerow:[transform:translateX(var(--tail))]';
 
 /**
  * VSCode-style drag image for a multi-item drag: a small "N items" chip (the
@@ -175,10 +184,6 @@ export function TreeNode({
     <div
       role="treeitem"
       data-path={path}
-      // Folder names are the ones that run long (a dated or slugged directory),
-      // and a narrow tree elides them with nothing else in the row to read them
-      // from — a file at least names itself on the tab it opens.
-      title={isDir ? entry.name : undefined}
       aria-expanded={isDir ? isOpen : undefined}
       aria-selected={isSelected}
       tabIndex={-1}
@@ -239,7 +244,7 @@ export function TreeNode({
       }}
       style={{ paddingLeft: depth * INDENT_PX + 8 }}
       className={cn(
-        'flex h-6 cursor-pointer items-center gap-1 pr-2 text-sm transition-colors hover:bg-elevated compact:h-5',
+        'group/treerow flex h-6 cursor-pointer items-center gap-1 pr-2 text-sm transition-colors hover:bg-elevated compact:h-5',
         isSelected ? 'bg-selection' : isActive && 'bg-elevated',
         isDropTarget && 'bg-selection',
         isCut && 'opacity-50',
@@ -275,7 +280,7 @@ export function TreeNode({
       ) : (
         <FileTypeIcon name={entry.name} dimmed={status === 'ignored'} />
       )}
-      <span className={cn('min-w-0 flex-1 truncate', nameColour)}>{entry.name}</span>
+      <HoverMarquee text={entry.name} className={nameColour} hoverClass={ROW_MARQUEE} />
       {status && decoration && decoration.letter && (
         <span className={cn('shrink-0 font-mono text-2xs', decoration.colourClass)}>
           {decoration.letter}
