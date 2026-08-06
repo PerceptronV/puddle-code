@@ -215,6 +215,33 @@ export async function stageDesktopUpdate(
   }
 }
 
+/**
+ * Remove staged-update directories that can no longer be applied: everything
+ * under the cache except the versions in `keep` (pass the just-staged version
+ * after a stage; nothing at app boot — a stage always re-downloads into a
+ * clean dir, so a leftover is dead weight even when its version is current).
+ * Successive releases otherwise accumulate one full download per version,
+ * forever. Fails soft: a cache that cannot be pruned is a nuisance, not an
+ * error worth surfacing.
+ */
+export async function pruneDesktopUpdateCache(
+  keep: string[] = [],
+  opts: { cacheDir?: string } = {},
+): Promise<void> {
+  const dir = opts.cacheDir ?? join(clientHome(), 'cache', 'desktop');
+  let entries: string[];
+  try {
+    entries = await readdir(dir);
+  } catch {
+    return; // no cache yet
+  }
+  await Promise.all(
+    entries
+      .filter((name) => !keep.includes(name))
+      .map((name) => rm(join(dir, name), { recursive: true, force: true }).catch(() => {})),
+  );
+}
+
 export interface ApplyOptions {
   /** What to replace: the installed .app bundle (mac) or AppImage path (linux). */
   targetPath: string;

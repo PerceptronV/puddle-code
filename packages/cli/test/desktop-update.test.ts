@@ -13,6 +13,7 @@ import {
   isNewerVersion,
   parseSums,
   pickDesktopAsset,
+  pruneDesktopUpdateCache,
   stageDesktopUpdate,
   type DesktopUpdate,
 } from '../src/lib/desktop-update.js';
@@ -225,6 +226,33 @@ describe('stageDesktopUpdate + applyDesktopUpdate (AppImage path)', () => {
       }),
     ).rejects.toThrow(/checksum mismatch/);
     await expect(stat(join(cacheDir, update.version))).rejects.toThrow();
+  });
+});
+
+describe('pruneDesktopUpdateCache', () => {
+  it('removes every staged version except the kept one, and tolerates no cache', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'puddle-prune-'));
+    try {
+      const cacheDir = join(dir, 'cache', 'desktop');
+      for (const version of ['0.0.12', '0.0.13', '0.0.14']) {
+        await mkdir(join(cacheDir, version), { recursive: true });
+        await writeFile(join(cacheDir, version, 'asset'), 'x');
+      }
+      await pruneDesktopUpdateCache(['0.0.14'], { cacheDir });
+      await expect(stat(join(cacheDir, '0.0.12'))).rejects.toThrow();
+      await expect(stat(join(cacheDir, '0.0.13'))).rejects.toThrow();
+      expect((await stat(join(cacheDir, '0.0.14'))).isDirectory()).toBe(true);
+
+      await pruneDesktopUpdateCache([], { cacheDir }); // the boot sweep keeps nothing
+      await expect(stat(join(cacheDir, '0.0.14'))).rejects.toThrow();
+
+      // A machine that has never staged an update has no cache dir at all.
+      await expect(
+        pruneDesktopUpdateCache([], { cacheDir: join(dir, 'absent') }),
+      ).resolves.toBeUndefined();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
 

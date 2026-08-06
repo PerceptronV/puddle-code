@@ -21,7 +21,7 @@ import { ConnectionBanner } from './ConnectionBanner';
 import { ProfilePanel } from '../profile/ProfilePanel';
 import { useCurrentProfileId } from '../profile/profile-store';
 import { NewSessionProvider, useNewSession } from './new-session-context';
-import { UpdateBanner } from './UpdateBanner';
+import { UpdateToast } from './UpdateToast';
 import { useLocalSyncEngine } from './use-local-sync-engine';
 import { useWaitingNotifications } from './use-waiting-notifications';
 import { ScratchpadPopover } from '../scratchpad/ScratchpadPopover';
@@ -113,7 +113,7 @@ function HomeButton() {
     'flex shrink-0 items-center gap-2',
     shellTitleBar && '[-webkit-app-region:no-drag]',
   );
-  const type = 'truncate font-mono text-sm font-semibold text-fg-secondary';
+  const type = 'truncate text-sm font-semibold text-fg-secondary';
 
   if (editing && label !== undefined) {
     return (
@@ -261,7 +261,7 @@ function ShellBody() {
       </main>
       {/* Bottom-anchored, like the workspace's resume banner. */}
       <ConnectionBanner />
-      <UpdateBanner />
+      <UpdateToast />
       <CommandPalette
         onNewSession={handler ?? undefined}
         onNewProject={() => setCreatingProject(true)}

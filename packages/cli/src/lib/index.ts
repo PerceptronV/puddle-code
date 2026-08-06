@@ -20,6 +20,7 @@ export {
   checkForDesktopUpdate,
   findInstalledDesktopApp,
   isDesktopAppRunning,
+  pruneDesktopUpdateCache,
   stageDesktopUpdate,
   type DesktopUpdate,
   type StagedDesktopUpdate,

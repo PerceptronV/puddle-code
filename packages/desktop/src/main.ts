@@ -15,6 +15,7 @@ import {
   clientHome,
   CliError,
   connectRemote,
+  pruneDesktopUpdateCache,
   stageDesktopUpdate,
   startLocal,
   type Logger,
@@ -379,11 +380,16 @@ function installTarget(): string | null {
 async function pollForUpdate(): Promise<void> {
   if (installTarget() === null) return;
   try {
+    // `releases/latest` means an app several versions behind stages ONLY the
+    // newest release — intermediate versions are never downloaded or applied.
     const update = await checkForDesktopUpdate(app.getVersion());
     if (update === null || stagedUpdate?.version === update.version) return;
     const staged = await stageDesktopUpdate(update, { logger });
     stagedUpdate = staged;
-    logger.info(`update ${staged.version} staged — offering the restart banner`);
+    // A release that was staged but never applied before a newer one arrived
+    // is now unreachable — only the latest stage is ever offered or installed.
+    await pruneDesktopUpdateCache([staged.version]);
+    logger.info(`update ${staged.version} staged — offering the restart toast`);
     for (const shell of shells.values()) {
       shell.win.webContents.send('puddle:update-ready', staged.version);
     }
@@ -506,6 +512,11 @@ if (!app.requestSingleInstanceLock()) {
   void app.whenReady().then(() => {
     migrateRecentHosts(legacyRecentsFile(), recentsFile());
     buildMenu();
+    // Leftover staged downloads are dead weight at boot — an applied update's
+    // helper removed its own dir, and any survivor (a stage the user never
+    // restarted into, an older version) is re-downloaded fresh by the next
+    // poll anyway, which stages into a clean dir.
+    void pruneDesktopUpdateCache([]);
     void pollForUpdate();
     setInterval(() => void pollForUpdate(), UPDATE_POLL_MS);
     // No default target: every new window starts at the host picker — the
