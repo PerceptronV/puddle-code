@@ -102,14 +102,12 @@ function AddAccountDialog({
             placeholder="label, e.g. personal"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            className="font-mono"
           />
           <HintInput
             value={dir}
             onValueChange={setDir}
             placeholder={`(optional) existing config dir, e.g. ~/.claude`}
             hints={(suggestions.data?.entries ?? []).map((e) => ({ value: e.path, label: e.name }))}
-            className="font-mono"
           />
         </form>
         <DialogFooter>
@@ -139,7 +137,7 @@ function AccountRow({
   const login = useLoginAccount();
   const patch = usePatchAccount();
   const remove = useDeleteAccount();
-  const [loginStream, setLoginStream] = useState<string | null>(null);
+  const [loginStream, setLoginStream] = useState<{ stream: string; hint?: string } | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   // Editable label: local while typing, saved on blur/Enter, reverted on Escape.
   const [label, setLabel] = useState(account.label);
@@ -178,7 +176,7 @@ function AccountRow({
             }
           }}
           aria-label="Account name"
-          className="-mx-1 block w-full truncate rounded-sm bg-transparent px-1 py-0.5 font-mono text-sm text-fg transition-colors hover:bg-elevated focus:bg-elevated focus:outline-none"
+          className="-mx-1 block w-full truncate rounded-sm bg-transparent px-1 py-0.5 text-sm text-fg transition-colors hover:bg-elevated focus:bg-elevated focus:outline-none"
         />
         <span className={`text-2xs ${account.logged_in ? 'text-success' : 'text-warning'}`}>
           {account.logged_in ? 'logged in' : 'not logged in'}
@@ -204,7 +202,7 @@ function AccountRow({
         disabled={login.isPending || !installed}
         onClick={() =>
           login.mutate(account.id, {
-            onSuccess: (res) => setLoginStream(res.stream),
+            onSuccess: (res) => setLoginStream({ stream: res.stream, hint: res.hint }),
             onError: (e) => toastError(e),
           })
         }
@@ -223,7 +221,8 @@ function AccountRow({
       </Button>
       {loginStream && (
         <LoginDialog
-          stream={loginStream}
+          stream={loginStream.stream}
+          hint={loginStream.hint}
           label={`${account.agent_type}/${account.label}`}
           onClose={() => setLoginStream(null)}
         />
@@ -232,7 +231,7 @@ function AccountRow({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Delete <span className="font-mono">{account.label}</span>?
+              Delete <span className="text-fg">{account.label}</span>?
             </DialogTitle>
             <DialogDescription>
               Removes the account, its archived session history, and its credential directory — this
@@ -271,7 +270,11 @@ export function AccountsSection() {
   const accounts = useAccounts(profileId ?? undefined);
   const settings = useProfileSettings(profileId ?? undefined);
   const login = useLoginAccount();
-  const [loginStream, setLoginStream] = useState<{ stream: string; label: string } | null>(null);
+  const [loginStream, setLoginStream] = useState<{
+    stream: string;
+    label: string;
+    hint?: string;
+  } | null>(null);
   const [addingTo, setAddingTo] = useState<AgentType | null>(null);
 
   const gateOpen = settings.data?.allowSkipPermissions === true;
@@ -291,6 +294,7 @@ export function AccountsSection() {
         setLoginStream({
           stream: res.stream,
           label: `${account.agent_type}/${account.label}`,
+          hint: res.hint,
         }),
       onError: (e) => toastError(e),
     });
@@ -314,7 +318,7 @@ export function AccountsSection() {
               }
               className="py-1"
             >
-              <span className="font-mono text-2xs text-fg-muted">{agent.id}</span>
+              <span className="text-2xs text-fg-muted">{agent.id}</span>
             </SettingRow>
             <div className="flex flex-col gap-1.5">
               {agentAccounts.map((account) => (
@@ -345,6 +349,7 @@ export function AccountsSection() {
         <LoginDialog
           stream={loginStream.stream}
           label={loginStream.label}
+          hint={loginStream.hint}
           onClose={() => setLoginStream(null)}
         />
       )}

@@ -33,10 +33,28 @@ export interface AccountRouteDeps {
 }
 
 export function accountRoutes(deps: AccountRouteDeps): Hono {
-  // Login PTYs exiting cleanly mark the account logged in (SPEC §6).
+  // A login PTY exiting cleanly marks the account logged in (SPEC §6) — but
+  // verified against the adapter's own auth check where one exists: a
+  // full-TUI login (Claude Code) also exits cleanly when the user quits
+  // WITHOUT signing in, so the exit code alone would lie (2026-08-05).
   deps.ptys.on('exit', (e: PtyExitEvent) => {
     const match = /^login-([0-9]+)$/.exec(e.stream);
-    if (match && e.exitCode === 0) deps.accounts.setLoggedIn(Number(match[1]), true);
+    if (!match || e.exitCode !== 0) return;
+    let account;
+    try {
+      account = deps.accounts.get(Number(match[1]));
+    } catch {
+      return; // the account was deleted while its login PTY was open
+    }
+    const adapter = deps.adapters.get(account.agent_type);
+    if (adapter.checkLoggedIn) {
+      void adapter.checkLoggedIn(account).then(
+        (ok) => deps.accounts.setLoggedIn(account.id, ok),
+        () => {}, // an unanswerable check leaves the stored flag alone
+      );
+    } else {
+      deps.accounts.setLoggedIn(account.id, true);
+    }
   });
 
   return new Hono()
@@ -150,7 +168,11 @@ export function accountRoutes(deps: AccountRouteDeps): Hono {
           record: false,
         });
       }
-      return c.json<LoginResponse>({ stream, term: 'agent' });
+      return c.json<LoginResponse>({
+        stream,
+        term: 'agent',
+        ...(adapter.loginHint !== undefined ? { hint: adapter.loginHint } : {}),
+      });
     })
     .get('/:id/usage', async (c) => {
       const account = deps.accounts.get(idParam(c));

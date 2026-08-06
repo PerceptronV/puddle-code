@@ -282,6 +282,12 @@ export interface AgentAdapter {
   launchArgs(opts: LaunchOpts): string[]; // fresh session
   resumeArgs(ref: string, opts: LaunchOpts): string[]; // restore session
   loginArgs(): string[]; // interactive login flow
+  // Guidance the login dialogue shows verbatim (13.1) — for a flow that is not
+  // self-evidently finishable (claude-code runs its full TUI so the user can
+  // pick subscription vs Console/API billing on its own login screen, then
+  // must exit the REPL by hand; a clean exit is VERIFIED via checkLoggedIn,
+  // never assumed, since quitting without signing in also exits 0).
+  loginHint?: string;
   // Returns the agent-native session ref. Either echoes the preset id, or
   // discovers it post-launch (e.g. newest session file in the config dir).
   resolveSessionRef(opts: LaunchOpts, account: AccountRow): Promise<string>;
@@ -367,7 +373,7 @@ Agents     GET  /api/agents                  # registered adapters: id, display 
 Accounts   GET  /api/accounts?profile=…      POST /api/accounts {profile_id, agent_type, label, skip_permissions_default?, import_dir?}   # import_dir: copy a pre-existing config dir (§2)
            PATCH /api/accounts/:id {label?, skip_permissions_default?}   # rename (label only; config dir stays put) + §11 gate opt-in
            DELETE /api/accounts/:id                  # 409 while any of its sessions is non-archived; removes the config dir (logs the account out)
-           POST /api/accounts/:id/login      # spawns interactive login PTY; UI attaches like a session
+           POST /api/accounts/:id/login      # spawns interactive login PTY; UI attaches like a session; response may carry an adapter `hint` (13.1) the dialogue shows
            GET  /api/accounts/:id/usage      # session counts + last activity (puddle); best-effort agent token totals; live_usage (context fill %, cost) via the status line; subscription rate-limit windows via the agent's own CLI (logged-in accounts, daemon-cached) — all nullable
 Repos      GET  /api/fs/dirs?prefix=…        # directory autocomplete for repo registration (dirs only, dotdirs included, is_git flag)
            GET  /api/repos                   POST /api/repos {path, default_base_branch?, onboarding_notes?, fetch_enabled?}

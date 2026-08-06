@@ -55,13 +55,18 @@ const EMPTY_USAGE: AgentUsage = {
  *   The disclaimer is otherwise an interactive dialog; puddle writes the flag
  *   only when the user opens the profile skip gate — see acceptSkipPermissions
  *   (verified against Claude Code 2.1.210).
- * - `claude auth login` / `auth status` drive the login flow. auth login
- *   writes `oauthAccount` into `<config_dir>/.claude.json` but does NOT set
- *   `hasCompletedOnboarding` — only the TUI's first-run wizard does. An
- *   unset flag makes the first session run that wizard (theme → sign-in
- *   AGAIN → trust), and the wizard DISCARDS a preset `--session-id`, which
- *   also breaks resume. Hence prepareConfigDir seeds the flag at account
- *   creation, before anything else runs.
+ * - Login runs the bare TUI (see loginArgs); `auth status` verifies it.
+ *   `claude auth login` was used through v0.0.28 but has no method picker
+ *   (verified 2.1.223): it goes straight to subscription OAuth, with Console
+ *   (API billing) and SSO only reachable via --console/--sso flags — the
+ *   TUI's "Select login method" screen is the one place the user can choose.
+ *   Signing in (either route) writes `oauthAccount` into
+ *   `<config_dir>/.claude.json` but does NOT set `hasCompletedOnboarding` —
+ *   only the TUI's first-run wizard does. An unset flag makes the first
+ *   session run that wizard (theme → sign-in AGAIN → trust), and the wizard
+ *   DISCARDS a preset `--session-id`, which also breaks resume. Hence
+ *   prepareConfigDir seeds the flag at account creation, before anything
+ *   else runs.
  * - macOS keychain OAuth entries are bound to the config-dir PATH: renaming
  *   or copying the dir silently logs the account out while .claude.json still
  *   carries oauthAccount (verified 2.1.208 — migration 004's dir rename did
@@ -297,8 +302,20 @@ export const claudeCode: AgentAdapter = {
   },
 
   loginArgs() {
-    return ['auth', 'login'];
+    // The bare TUI, not `auth login` (decision 2026-08-05, verified 2.1.223):
+    // `auth login` has NO method picker — it goes straight to the Claude
+    // subscription OAuth flow, and Console (API billing) / SSO are reachable
+    // only via its --console/--sso flags. The TUI's own login screen ("Select
+    // login method") offers the choice, so the login PTY runs the full TUI —
+    // hasCompletedOnboarding is already seeded, so an unauthenticated launch
+    // lands on that screen directly. The cost: after sign-in it sits in the
+    // REPL rather than exiting, so loginHint tells the user how to leave, and
+    // the accounts route verifies `auth status` on exit rather than trusting
+    // exit code 0 (quitting WITHOUT signing in also exits cleanly).
+    return [];
   },
+  loginHint:
+    'Already signed in and switching accounts? Type /login. When you are done, type /exit (or press Ctrl+C twice) to finish.',
 
   async resolveSessionRef(opts) {
     return opts.sessionId; // preset via --session-id

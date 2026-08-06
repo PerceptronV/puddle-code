@@ -191,4 +191,8 @@
 // Rather than lean on the client's feature gate to hide the binding forever,
 // this bump retires early 12.x as a dependency so every deployment serves it.
 // Ships the 12.1/12.2/12.3/12.4 additions above.
-export const PROTOCOL_VERSION = { major: 13, minor: 0 } as const;
+// 13.1 (2026-08-05): optional `hint` on the login response — adapter guidance
+// the login dialogue shows verbatim. Added for Claude Code's full-TUI login
+// (the TUI sits in a REPL after sign-in, so the user must be told how to
+// leave it). Additive; older daemons simply omit it.
+export const PROTOCOL_VERSION = { major: 13, minor: 1 } as const;

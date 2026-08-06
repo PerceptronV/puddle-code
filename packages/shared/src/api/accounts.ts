@@ -36,7 +36,13 @@ export const patchAccountRequestSchema = z.object({
 });
 
 /** Returned by POST /api/accounts/:id/login — attach to this PTY over the WS. */
-export const loginResponseSchema = z.object({ stream: z.string(), term: z.string() });
+export const loginResponseSchema = z.object({
+  stream: z.string(),
+  term: z.string(),
+  /** Adapter guidance the login dialogue shows verbatim — e.g. how to leave a
+      TUI that keeps running after sign-in (13.1, additive). */
+  hint: z.string().optional(),
+});
 export type LoginResponse = z.infer<typeof loginResponseSchema>;
 
 /**

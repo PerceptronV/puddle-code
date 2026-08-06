@@ -169,6 +169,12 @@ export interface AgentAdapter {
   launchArgs(opts: LaunchOpts): string[];
   resumeArgs(ref: string, opts: LaunchOpts): string[];
   loginArgs(): string[];
+  /**
+   * Guidance the login dialogue shows verbatim (protocol 13.1) — for a login
+   * flow that is not self-evidently finishable, e.g. a full TUI that sits in
+   * a REPL after sign-in and must be exited by hand.
+   */
+  loginHint?: string;
   /** Agent-native session ref: echoes a preset id or discovers it post-launch. */
   resolveSessionRef(opts: LaunchOpts, account: Account): Promise<string>;
   /** Matched against ANSI-stripped output (SPEC §5). */

@@ -12,10 +12,14 @@ import { LazyTerminal } from '../terminal/LazyTerminal';
 export function LoginDialog({
   stream,
   label,
+  hint,
   onClose,
 }: {
   stream: string;
   label: string;
+  /** Adapter guidance shown after the standing copy (protocol 13.1) — e.g.
+      how to leave a TUI that keeps running after sign-in. */
+  hint?: string;
   onClose: () => void;
 }) {
   // A clean exit means the login finished, so the dialog closes itself. A
@@ -27,10 +31,10 @@ export function LoginDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent wide className="h-[28rem]">
         <DialogHeader>
-          <DialogTitle className="font-mono">{label} — login</DialogTitle>
+          <DialogTitle>{label} — login</DialogTitle>
           <DialogDescription>
             {failedCode === null
-              ? 'Complete the agent’s login flow below. The account shows as logged in once it finishes cleanly.'
+              ? `Complete the agent’s login flow below.${hint !== undefined ? ` ${hint}` : ' The account shows as logged in once it finishes cleanly.'}`
               : `The login exited with code ${failedCode} without completing. The output above may say why; close this and try again.`}
           </DialogDescription>
         </DialogHeader>
