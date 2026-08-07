@@ -206,19 +206,19 @@ function transformLeaf(
 }
 
 /**
- * Remove the tab `key` from every leaf that holds it (a drop's first half).
- * Tree-wide on purpose: drags can no longer create duplicates, but trees
- * persisted under the old editor-duplicates-on-drop behaviour may still hold
- * one tab in two panes — a drag self-heals that back to a single copy.
+ * Remove the tab `key` from ONE leaf (a move's first half). Scoped to the
+ * source leaf on purpose: the same file may legitimately sit in several panes
+ * (sidebar copy-drops, 2026-08-06), and those are independent tabs — moving
+ * one must not vacuum up its siblings. Terminals are unique tree-wide anyway,
+ * so for them the source leaf IS every leaf that holds the key.
  */
-function removeKeyEverywhere(node: LayoutNode, key: string): LayoutNode {
-  if (node.kind === 'leaf') {
-    if (!node.tabs.some((t) => tabRefKey(t) === key)) return node;
-    const tabs = node.tabs.filter((t) => tabRefKey(t) !== key);
-    const activeKey = node.activeKey === key ? neighbourKey(node, key) : node.activeKey;
-    return { ...node, tabs, activeKey };
-  }
-  return { ...node, children: node.children.map((c) => removeKeyEverywhere(c, key)) };
+function removeKeyFromLeaf(node: LayoutNode, leafId: string, key: string): LayoutNode {
+  return transformLeaf(node, leafId, (leaf) => {
+    if (!leaf.tabs.some((t) => tabRefKey(t) === key)) return leaf;
+    const tabs = leaf.tabs.filter((t) => tabRefKey(t) !== key);
+    const activeKey = leaf.activeKey === key ? neighbourKey(leaf, key) : leaf.activeKey;
+    return { ...leaf, tabs, activeKey };
+  });
 }
 
 /** The tab to activate after `key` leaves a leaf: right neighbour, else left, else null. */
@@ -256,7 +256,7 @@ export function splitLeaf(
 
 export interface DropSpec {
   ref: TabRef;
-  /** The leaf the tab was dragged from (carried for context; a move removes the key tree-wide). */
+  /** The leaf the tab was dragged from — a move removes the key from THIS leaf only. */
   fromLeafId: string;
   toLeafId: string;
   edge: DropEdge;
@@ -279,8 +279,9 @@ export interface DropSpec {
 }
 
 /**
- * The single drag-drop entry point. A STRIP drop moves the tab — out of its
- * source pane, into the target — so dragging a chip leaves nothing behind. A
+ * The single drag-drop entry point. A STRIP drop moves THAT tab — out of its
+ * source pane, into the target — leaving nothing behind in the source; a copy
+ * of the same file in some other pane is an independent tab and stays put. A
  * SIDEBAR drop (`copy`) opens instead: the file tree names content, not a
  * pane, so dropping an already-open file grows a second tab of it rather than
  * yanking the first out of the pane it lives in — which also makes the
@@ -301,7 +302,7 @@ export function dropTab(tree: LayoutNode, spec: DropSpec): LayoutNode {
     const current = findLeaf(tree, toLeafId)?.tabs.findIndex((t) => tabRefKey(t) === key) ?? -1;
     if (current !== -1 && current < index) index -= 1;
   }
-  const withoutSource = copy ? tree : removeKeyEverywhere(tree, key);
+  const withoutSource = copy ? tree : removeKeyFromLeaf(tree, spec.fromLeafId, key);
 
   // The target leaf may have been pruned if it emptied during the move (dragging
   // a lone tab onto its own leaf's edge) — normalise at the end restores sanity.

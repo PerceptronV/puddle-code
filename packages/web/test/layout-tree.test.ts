@@ -190,29 +190,59 @@ describe('dropTab', () => {
     expect(leafWith(next, ed('a.ts')).id).not.toBe(leafB.id);
   });
 
-  it('self-heals a legacy duplicated tab: a drag removes every copy tree-wide', () => {
-    // Old builds duplicated editors across panes; such trees still exist in
-    // storage. Dragging any copy must leave exactly ONE copy, at the drop site.
-    const a = makeLeaf([ed('a.ts'), ed('x.ts')]);
-    let tree = splitLeaf(a, a.id, 'right', ed('b.ts'));
+  it('moving one copy of a duplicated file leaves the other pane’s copy in place', () => {
+    // Two panes each hold a.ts (a sidebar copy-drop); a third pane is the
+    // target. Dragging ONE chip moves only that tab — the copies are
+    // independent (the tree-wide removal that vacuumed up the sibling shipped
+    // in v0.0.30's copy-drop and was fixed the same day).
+    const seed = makeLeaf([ed('a.ts')]);
+    let tree = splitLeaf(seed, seed.id, 'right', ed('b.ts'));
     const leafB = leafWith(tree, ed('b.ts'));
-    // Hand-plant the duplicate (as a legacy snapshot would): a.ts also in leafB.
-    tree = {
-      ...tree,
-      children: (tree as LayoutSplit).children.map((c) =>
-        c.id === leafB.id && c.kind === 'leaf' ? { ...c, tabs: [...c.tabs, ed('a.ts')] } : c,
-      ),
-    } as LayoutNode;
-    expect(flattenTabs(tree).filter((t) => sameRef(t, ed('a.ts')))).toHaveLength(2);
-    const next = dropTab(tree, {
+    // The second copy of a.ts, beside b.ts.
+    tree = dropTab(tree, {
       ref: ed('a.ts'),
-      fromLeafId: leafWith(tree, ed('x.ts')).id,
+      fromLeafId: leafB.id,
       toLeafId: leafB.id,
       edge: 'center',
-      index: 0,
+      copy: true,
+    });
+    // A third pane to move B's copy into.
+    tree = splitLeaf(tree, leafB.id, 'bottom', ed('c.ts'));
+    const leafC = leafWith(tree, ed('c.ts'));
+    const next = dropTab(tree, {
+      ref: ed('a.ts'),
+      fromLeafId: leafB.id,
+      toLeafId: leafC.id,
+      edge: 'center',
+    });
+    // Still two copies: the untouched pane's stayed put; B's moved to C.
+    expect(flattenTabs(next).filter((t) => sameRef(t, ed('a.ts')))).toHaveLength(2);
+    expect(findLeaf(next, leafB.id)!.tabs.map(tabRefKey)).not.toContain('editor:file:s1:::a.ts');
+    expect(findLeaf(next, leafC.id)!.tabs.map(tabRefKey)).toContain('editor:file:s1:::a.ts');
+  });
+
+  it('moving a copy into a pane that already holds the file merges to one tab there', () => {
+    // A[a] and B[a, b]: dragging A's chip into B cannot double up within B —
+    // the pane keeps one tab per file; A empties and collapses.
+    const seed = makeLeaf([ed('a.ts')]);
+    let tree = splitLeaf(seed, seed.id, 'right', ed('b.ts'));
+    const leafA = leafWith(tree, ed('a.ts'));
+    const leafB = leafWith(tree, ed('b.ts'));
+    tree = dropTab(tree, {
+      ref: ed('a.ts'),
+      fromLeafId: leafB.id,
+      toLeafId: leafB.id,
+      edge: 'center',
+      copy: true,
+    });
+    const next = dropTab(tree, {
+      ref: ed('a.ts'),
+      fromLeafId: leafA.id,
+      toLeafId: leafB.id,
+      edge: 'center',
     });
     expect(flattenTabs(next).filter((t) => sameRef(t, ed('a.ts')))).toHaveLength(1);
-    expect(findLeaf(next, leafB.id)!.tabs.map(tabRefKey)[0]).toBe('editor:file:s1:::a.ts');
+    expect(allLeaves(next)).toHaveLength(1); // A emptied and collapsed away
   });
 
   it('pins a preview tab on any drop (drag = deliberate placement)', () => {
