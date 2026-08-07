@@ -68,7 +68,7 @@ puddle remove daemon                      # uninstall; your data stays unless yo
 
 The same cockpit also ships as a standalone desktop app — identical UI and engine, plus a File → "Connect to SSH Host…" menu for remote hosts. Grab the dmg (macOS arm64) or AppImage (Linux x64) from the Releases page.
 
-On macOS, an installed Puddle CLI manages the desktop app directly: quit Puddle, then `puddle install desktop`, `puddle upgrade desktop`, or `puddle remove desktop`. A fresh install goes to `/Applications` when writable, otherwise `~/Applications`.
+An installed Puddle CLI manages the desktop app directly: quit Puddle, then `puddle install desktop`, `puddle upgrade desktop`, or `puddle remove desktop`. On macOS a fresh install goes to `/Applications` when writable, otherwise `~/Applications`; on Linux `install desktop` asks where to put the AppImage (default `~/puddle`) and opens the folder — later updates happen from inside the app.
 
 The macOS downloads are **not code-signed** (an open-source project without Apple Developer Program fees), so Gatekeeper will refuse the first launch. Either allow it once — open the app, let macOS block it, then System Settings → Privacy & Security → **Open Anyway** — or clear the download quarantine in a terminal:
 

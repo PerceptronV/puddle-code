@@ -1,5 +1,8 @@
 import { spawn } from 'node:child_process';
-import { rm } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { chmod, copyFile, mkdir, rename, rm } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import type { Session } from '@puddle/shared';
 import { installedVersion } from '../lib/bootstrap.js';
 import { DaemonClient, readDaemonPort, readToken } from '../lib/daemon-client.js';
@@ -27,7 +30,7 @@ import { upgradeDaemon } from '../lib/upgrade.js';
 import { cliVersion, pinnedDaemonVersion } from '../lib/version.js';
 import type { Command, Component } from './args.js';
 import { terminateCockpit } from './detach.js';
-import { confirm } from './prompt.js';
+import { ask, confirm } from './prompt.js';
 
 /**
  * `puddle install / upgrade / remove` — component management (SPEC §10).
@@ -240,16 +243,23 @@ async function setDesktop(
   opts: { version?: string; verb: 'install' | 'upgrade' },
   logger: Logger,
 ): Promise<number> {
+  // Linux: no conventional AppImage location exists, so install ASKS for one
+  // (upgrades stay in-app — the running app knows its own $APPIMAGE path).
+  if (process.platform === 'linux') {
+    if (opts.verb !== 'install') {
+      throw new CliError(
+        'not_installed',
+        'AppImages upgrade from inside the app (its toast knows $APPIMAGE)',
+        'to place a fresh copy: puddle install desktop',
+      );
+    }
+    return installDesktopAppImage(opts.version, logger);
+  }
   const installed = await findInstalledDesktopApp();
   const targetPath = installed?.appPath ?? (await desktopAppInstallPath());
   if (targetPath === null) {
-    throw new CliError(
-      'not_installed',
-      'no Puddle.app in /Applications or ~/Applications',
-      process.platform === 'linux'
-        ? 'AppImages carry no fixed path — update from the app itself (its toast knows $APPIMAGE)'
-        : undefined,
-    );
+    // Linux branched off above; this is the no-such-platform case (win32).
+    throw new CliError('not_installed', 'the desktop app ships for macOS and Linux only');
   }
   if (installed !== null && (await isDesktopAppRunning(installed.appPath))) {
     throw new CliError(
@@ -299,6 +309,58 @@ async function setDesktop(
   await applyDesktopUpdate(staged, { targetPath, detach: false, relaunch: false, logger });
   logger.info(`Puddle ${update.version} installed at ${targetPath}`);
   return 0;
+}
+
+/**
+ * Linux `install desktop`: download + verify the AppImage and place it where
+ * the user says (there is no /Applications convention to assume). The file
+ * keeps the stable name Puddle.AppImage so launchers point at a path the
+ * app's own in-app updater can keep swapping. Afterwards the directory opens
+ * in the file manager (best-effort) so the app is right there to run or drag
+ * into a launcher.
+ */
+async function installDesktopAppImage(
+  version: string | undefined,
+  logger: Logger,
+): Promise<number> {
+  const update =
+    version !== undefined ? await desktopUpdateAt(version) : await checkForDesktopUpdate('0.0.0');
+  if (update === null) {
+    throw new CliError(
+      'not_installed',
+      version !== undefined
+        ? `release v${version} has no AppImage for this architecture`
+        : 'no Puddle desktop release is available for this Linux architecture',
+    );
+  }
+  const dir = expandHome(await ask('Where should the AppImage be stored?', '~/puddle'));
+  const target = join(dir, 'Puddle.AppImage');
+  if (existsSync(target) && version === undefined) {
+    logger.info(`${target} already exists — the app updates itself in-app (its update toast)`);
+    return 0;
+  }
+  logger.info(`installing Puddle ${update.version} to ${target}`);
+  const staged = await stageDesktopUpdate(update, { logger });
+  await mkdir(dir, { recursive: true });
+  await rm(target, { force: true });
+  try {
+    await rename(staged.stagedPath, target); // same filesystem
+  } catch {
+    await copyFile(staged.stagedPath, target); // cache and target on different mounts
+    await chmod(target, 0o755);
+  }
+  await rm(staged.dir, { recursive: true, force: true });
+  logger.info(`installed — run it directly (${target}) or add it to your launcher`);
+  // Show the file where it landed; a headless box just skips this.
+  const opener = spawn('xdg-open', [dir], { stdio: 'ignore', detached: true });
+  opener.on('error', () => undefined);
+  opener.unref();
+  return 0;
+}
+
+function expandHome(path: string): string {
+  if (path === '~') return homedir();
+  return path.startsWith('~/') ? join(homedir(), path.slice(2)) : path;
 }
 
 // ---------------------------------------------------------------------------
@@ -363,7 +425,7 @@ async function removeDesktop(yes: boolean, logger: Logger): Promise<number> {
     throw new CliError(
       'not_installed',
       'desktop removal is macOS-only',
-      'an AppImage carries no fixed path — delete the file you downloaded',
+      'an AppImage carries no fixed path — delete the file where you put it (puddle install desktop defaults to ~/puddle/Puddle.AppImage)',
     );
   }
   const installed = await findInstalledDesktopApp();

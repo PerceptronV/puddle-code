@@ -121,8 +121,9 @@ list shows running cockpits; kill stops one — sessions keep running on the
 host either way.
 
 install puts a component in place: 'daemon' under ~/.puddle on this machine
-or a user@host, 'desktop' as the macOS app bundle (Linux AppImages carry no
-fixed path — decline). Already installed and no @version → nothing changes.
+or a user@host, 'desktop' as the macOS app bundle — or, on Linux, an
+AppImage placed where you say (default ~/puddle), then opened in the file
+manager. Already installed and no @version → nothing changes.
 upgrade moves components to the newest release (or the named @version),
 installing any that are missing; with no component it covers everything
 installed on the target — the CLI last, via npm. cli and desktop are
