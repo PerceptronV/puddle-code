@@ -210,4 +210,7 @@
 // (which fire at spawn, before any viewer attaches — a viewer-side answer
 // misses them and auto-theming agents fell back to dark). Additive: a 14.1
 // client feature-detects and keeps viewer-side answering on a 14.0 daemon.
-export const PROTOCOL_VERSION = { major: 14, minor: 1 } as const;
+// 14.2 (2026-08-06): `terminalAppShortcuts` in profileSettings (default true)
+// — whether app shortcuts win over a focused terminal. Additive; the loose
+// settings object means older daemons store and echo it untouched.
+export const PROTOCOL_VERSION = { major: 14, minor: 2 } as const;

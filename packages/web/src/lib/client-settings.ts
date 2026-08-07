@@ -30,14 +30,6 @@ export interface ClientSettings {
    * focused session list, and vice versa (see the load() migration).
    */
   showAllProjectSessions: boolean;
-  /**
-   * App shortcuts win over a focused terminal (default ON): chords bound to
-   * registered actions — ⌃⇥ tab cycling, ⌘K — reach the app instead of being
-   * eaten by xterm and sent to the PTY. Off, the terminal receives every key
-   * it handles, and only chords xterm ignores still reach the app. Actions
-   * the registry marks terminal-owned (⌃A, ⌃`) go to the terminal either way.
-   */
-  terminalAppShortcuts: boolean;
 }
 
 export const DEFAULT_CLIENT_SETTINGS: ClientSettings = {
@@ -52,7 +44,6 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettings = {
   editorLinkSshHost: '',
   projectBasedLayout: true,
   showAllProjectSessions: true,
-  terminalAppShortcuts: true,
 };
 
 const KEY = 'puddle.client-settings';

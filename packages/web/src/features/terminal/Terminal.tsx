@@ -14,7 +14,8 @@ import {
   getHotkeyHandler,
 } from '../../lib/hotkeys';
 import { daemonAnswersColourQueries } from '../../lib/protocol-support';
-import { useDaemonVersion } from '../../lib/queries';
+import { useDaemonVersion, useProfileSettings } from '../../lib/queries';
+import { useCurrentProfileId } from '../profile/profile-store';
 import { useDocumentVisible } from '../../lib/use-document-visible';
 import { sshMode } from '../../lib/ssh-mode';
 import { cssTokenReader, onThemeChange, xtermThemeFromCss } from '../../lib/theme';
@@ -159,10 +160,15 @@ export function Terminal({
   // viewer must then stay silent or the agent gets two replies. Optimistic
   // while the version query is in flight, like every gate.
   const daemonAnswersColours = daemonAnswersColourQueries(useDaemonVersion().data?.protocol);
-  // Whether app shortcuts win over the terminal (client setting, default on):
-  // a ref so the live xterm's key handler reads the current choice.
-  const appShortcutsRef = useRef(settings.terminalAppShortcuts);
-  appShortcutsRef.current = settings.terminalAppShortcuts;
+  // Whether app shortcuts win over the terminal — a PROFILE setting living
+  // with the hotkeys it governs (Settings → Hotkeys), default on. A ref so the
+  // live xterm's key handler reads the current choice; absent/loading reads
+  // as the default.
+  const profileId = useCurrentProfileId();
+  const appShortcuts =
+    useProfileSettings(profileId ?? undefined).data?.terminalAppShortcuts !== false;
+  const appShortcutsRef = useRef(appShortcuts);
+  appShortcutsRef.current = appShortcuts;
 
   /**
    * Re-measure the grid against the container, repaint it, and tell the PTY: the

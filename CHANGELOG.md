@@ -11,7 +11,7 @@ Past releases: see docs/changelogs/.
 
 ### Added
 
-- "App shortcuts in terminals" (Settings → Sessions, per-browser, default on): chords bound to puddle actions — ⌃⇥/⌃⇧⇥ tab cycling, ⌘K, sidebar toggles — now work while a terminal is focused, instead of being eaten by xterm and sent to the agent. Turn it off to hand those keys back to terminal apps; terminal-owned keys (⌃A, ⌃`) go to the terminal either way.
+- "App shortcuts in terminals" (a switch atop Settings → Hotkeys, per profile like the bindings it governs; protocol 14.2, default on): chords bound to puddle actions — ⌃⇥/⌃⇧⇥ tab cycling, ⌘K, sidebar toggles — now work while a terminal is focused, instead of being eaten by xterm and sent to the agent. Turn it off to hand those keys back to terminal apps; terminal-owned keys (⌃A, ⌃`) go to the terminal either way.
 
 ### Fixed
 

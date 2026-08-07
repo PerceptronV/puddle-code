@@ -140,6 +140,14 @@ export const profileSettingsSchema = z.looseObject({
    */
   captureSessionEnv: z.boolean().default(true),
   /**
+   * App shortcuts win over a focused terminal (SPEC §11, 14.2): chords bound
+   * to registered actions — ⌃⇥ tab cycling, ⌘K — reach the app instead of
+   * being eaten by xterm and sent to the PTY. Off, the terminal receives
+   * every key it handles. Per profile: which keys your muscle memory owns is
+   * a fact about you, not about the browser you happen to be in.
+   */
+  terminalAppShortcuts: z.boolean().default(true),
+  /**
    * Launch-text templates (SPEC §4). A key that is ABSENT falls back to the
    * daemon's built-in default; an EMPTY string is an intentional empty preamble.
    * `onboardingTemplate` (freshly created worktree) supports a `{{rules}}` token

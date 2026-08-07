@@ -10,6 +10,7 @@ import {
 } from '../../../lib/hotkeys';
 import { usePatchProfileSettings, useProfileSettings } from '../../../lib/queries';
 import { cn } from '../../../lib/utils';
+import { Switch } from '../../../components/ui/switch';
 import { useCurrentProfileId } from '../../profile/profile-store';
 import { SectionTitle, SettingRow } from '../parts';
 
@@ -100,6 +101,29 @@ export function HotkeysSection() {
       <p className="mb-4 text-xs text-fg-muted">
         Per-profile keyboard shortcuts. Filetree navigation and terminal line-edits are fixed.
       </p>
+      {/* Where the shortcuts apply, beside what they are: with this on, the
+          bindings below win over a focused terminal; off, the terminal
+          receives every key it handles. Terminal-owned keys (⌃A, ⌃`) go to
+          the terminal either way. */}
+      <SettingRow
+        label="App shortcuts in terminals"
+        description={
+          settings.data?.terminalAppShortcuts !== false
+            ? 'The shortcuts below work while a terminal is focused.'
+            : 'A focused terminal receives these keys instead.'
+        }
+        htmlFor="terminal-app-shortcuts"
+        className="mb-4"
+      >
+        <Switch
+          id="terminal-app-shortcuts"
+          checked={settings.data?.terminalAppShortcuts !== false}
+          disabled={patch.isPending}
+          onCheckedChange={(v) =>
+            patch.mutate({ terminalAppShortcuts: v }, { onError: (e) => toastError(e) })
+          }
+        />
+      </SettingRow>
       {HOTKEY_GROUPS.map((group) => {
         const actions = HOTKEY_ACTIONS.filter((a) => a.group === group);
         if (actions.length === 0) return null;
