@@ -46,6 +46,12 @@ export interface OpenFileOpts {
   preview?: boolean;
   /** Open a markdown/HTML file straight into its rendered view (SPEC §8). */
   view?: 'source' | 'preview';
+  /**
+   * Absolute browse root: `path` is relative to IT, not the worktree, and the
+   * file opens as an `external` tab (SPEC §8) — how a link inside a rooted
+   * preview opens its target against the same root.
+   */
+  root?: string;
 }
 
 export type OpenFile = (

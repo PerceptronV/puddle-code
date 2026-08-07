@@ -11,6 +11,7 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Files opened from outside the worktree (browse-tree `external` tabs) now get the rendered markdown/HTML preview: the source ⇄ preview toggle appears on their tabs, the preview reads the same rooted buffer the source editor edits (live, unsaved edits included), asset references resolve against the browse root, and a ⌘-clicked link inside such a preview opens its target against that root rather than the worktree.
 - Moving one tab of a file open in two panes no longer takes the other pane's tab with it (collapsing both into the drop target): a move now removes the tab from its source pane only — duplicated tabs are independent, and the tree-wide removal was a self-heal for the pre-v0.0.30 era when duplicates were illegal.
 
 ### Changed

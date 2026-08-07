@@ -52,6 +52,21 @@ export function PaneEditorBody({ tab, reveal }: { tab: EditorTab; reveal: Reveal
         />
       );
     }
+    // Rendered views work above the worktree too (decision 2026-08-06): the
+    // preview pipeline keys its buffer and routes its asset fetches by the
+    // same (session, path, root) the source editor uses.
+    const externalPreview = tab.view === 'preview' ? previewKind(tab.path) : null;
+    if (externalPreview) {
+      return (
+        <FilePreview
+          key={tabKey(tab)}
+          session={tab.session}
+          path={tab.path}
+          kind={externalPreview}
+          root={tab.root}
+        />
+      );
+    }
     return (
       <CodeEditor
         key={tabKey(tab)}

@@ -418,10 +418,18 @@ function WorkspaceInner() {
       sessionId: string,
       path: string,
       position?: EditorPosition,
-      opts?: { preview?: boolean; view?: 'source' | 'preview' },
+      opts?: { preview?: boolean; view?: 'source' | 'preview'; root?: string },
     ) =>
       openEditorTab(
-        { kind: 'file', session: sessionId, path, ...(opts?.view ? { view: opts.view } : {}) },
+        {
+          // A rooted open is an `external` tab: the path is relative to the
+          // browse root, and a `file` tab would resolve it against the
+          // WORKTREE (see OpenFileOpts.root).
+          ...(opts?.root !== undefined
+            ? { kind: 'external' as const, session: sessionId, path, root: opts.root }
+            : { kind: 'file' as const, session: sessionId, path }),
+          ...(opts?.view ? { view: opts.view } : {}),
+        },
         position,
         opts,
       ),

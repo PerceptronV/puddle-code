@@ -293,9 +293,12 @@ function PaneTab({
             root={tab.tab.root}
           />
           <TabControls active={active}>
-            {tabKind(tab.tab) === 'file' && previewKind(tab.tab.path) !== null && (
-              <ViewToggle view={tab.tab.view ?? 'source'} onSetView={onSetView} />
-            )}
+            {/* `external` tabs render the same views (SPEC §8) — only diffs,
+                commits, and untitled drafts have no rendered counterpart. */}
+            {(tabKind(tab.tab) === 'file' || tabKind(tab.tab) === 'external') &&
+              previewKind(tab.tab.path) !== null && (
+                <ViewToggle view={tab.tab.view ?? 'source'} onSetView={onSetView} />
+              )}
             <LazyEditorTabClose
               session={tab.tab.session}
               path={tab.tab.path}

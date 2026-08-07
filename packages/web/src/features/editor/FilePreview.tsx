@@ -3,6 +3,7 @@ import DOMPurify from 'dompurify';
 import 'katex/dist/katex.min.css';
 import { apiFetchRaw } from '../../lib/api';
 import { useClientSettings } from '../../lib/client-settings';
+import { rootParam } from '../../lib/worktree-queries';
 import { useEditor } from '../workspace/editor-context';
 import { bufferKey, subscribe } from './buffer-store';
 import { useEditorBuffer } from './use-editor-buffer';
@@ -32,17 +33,22 @@ export function FilePreview({
   session,
   path,
   kind,
+  root,
 }: {
   session: string;
   path: string;
   kind: PreviewKind;
+  /** Absolute browse root of an `external` tab (SPEC §8): the preview reads
+      the same rooted buffer the source editor edits, and its asset/link
+      resolution stays inside that root. */
+  root?: string;
 }) {
-  const text = useLiveText(session, path);
+  const text = useLiveText(session, path, root);
   if (text === null) return null; // loading, or a binary masquerading by extension
   return kind === 'markdown' ? (
-    <MarkdownPreview session={session} path={path} text={text} />
+    <MarkdownPreview session={session} path={path} text={text} root={root} />
   ) : (
-    <HtmlPreview session={session} path={path} text={text} />
+    <HtmlPreview session={session} path={path} text={text} root={root} />
   );
 }
 
@@ -63,11 +69,11 @@ export function FilePreview({
  * the tree-wide ModelRefcount for every open editor tab, so no retain/release
  * is needed here.
  */
-function useLiveText(session: string, path: string): string | null {
-  const buffer = useEditorBuffer(session, path, null, undefined, { passive: true, live: true });
+function useLiveText(session: string, path: string, root?: string): string | null {
+  const buffer = useEditorBuffer(session, path, null, root, { passive: true, live: true });
   const model = buffer.model;
   return useSyncExternalStore(
-    (onChange) => subscribe(bufferKey(session, path), onChange),
+    (onChange) => subscribe(bufferKey(session, path, root), onChange),
     () => model?.getValue() ?? null,
   );
 }
@@ -80,7 +86,17 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   }
 });
 
-function MarkdownPreview({ session, path, text }: { session: string; path: string; text: string }) {
+function MarkdownPreview({
+  session,
+  path,
+  text,
+  root,
+}: {
+  session: string;
+  path: string;
+  text: string;
+  root?: string;
+}) {
   const html = useMemo(() => DOMPurify.sanitize(markdownToHtml(text)), [text]);
   const bodyRef = useRef<HTMLDivElement | null>(null);
 
@@ -96,7 +112,10 @@ function MarkdownPreview({ session, path, text }: { session: string; path: strin
       const resolved = resolvePreviewAsset(path, img.getAttribute('src') ?? '');
       if (!resolved) continue;
       img.removeAttribute('src'); // never let the browser chase the raw relative URL
-      apiFetchRaw('GET', `/api/worktrees/${session}/media?path=${encodeURIComponent(resolved)}`)
+      apiFetchRaw(
+        'GET',
+        `/api/worktrees/${session}/media?path=${encodeURIComponent(resolved)}${rootParam(root)}`,
+      )
         .then((res) => res.blob())
         .then((blob) => {
           if (cancelled) return;
@@ -110,7 +129,7 @@ function MarkdownPreview({ session, path, text }: { session: string; path: strin
       cancelled = true;
       for (const url of urls) URL.revokeObjectURL(url);
     };
-  }, [html, session, path]);
+  }, [html, session, path, root]);
 
   // Worktree links navigate on ctrl/⌘-click (the terminal file-link gesture):
   // the target opens as an editor tab, previewable files straight in their
@@ -127,7 +146,13 @@ function MarkdownPreview({ session, path, text }: { session: string; path: strin
     if (!e.metaKey && !e.ctrlKey) return;
     const resolved = resolvePreviewAsset(path, href);
     if (!resolved) return;
-    openFile(session, resolved, undefined, previewKind(resolved) ? { view: 'preview' } : undefined);
+    // Inside an external (rooted) preview the link resolves against the SAME
+    // root — a `file` tab would resolve it against the worktree and open a
+    // different file, or none.
+    openFile(session, resolved, undefined, {
+      ...(previewKind(resolved) ? { view: 'preview' as const } : {}),
+      ...(root !== undefined ? { root } : {}),
+    });
   };
 
   // The preview is the editor's rendered view, so it follows the editor font
@@ -163,7 +188,17 @@ const HTML_ASSET_ATTRS: ReadonlyArray<readonly [string, string]> = [
 /** Assets above this stay unresolved — data URIs live in memory as the document. */
 const MAX_INLINE_ASSET_BYTES = 20 * 1024 * 1024;
 
-function HtmlPreview({ session, path, text }: { session: string; path: string; text: string }) {
+function HtmlPreview({
+  session,
+  path,
+  text,
+  root,
+}: {
+  session: string;
+  path: string;
+  text: string;
+  root?: string;
+}) {
   const [doc, setDoc] = useState<string | null>(null);
   // Resolved path → data-URI promise, per mount: an edit re-inlines the
   // document without re-fetching every asset.
@@ -172,13 +207,13 @@ function HtmlPreview({ session, path, text }: { session: string; path: string; t
 
   useEffect(() => {
     let cancelled = false;
-    void inlineWorktreeAssets(session, path, text, assets.current, fontSize).then((html) => {
+    void inlineWorktreeAssets(session, path, text, assets.current, fontSize, root).then((html) => {
       if (!cancelled) setDoc(html);
     });
     return () => {
       cancelled = true;
     };
-  }, [session, path, text, fontSize]);
+  }, [session, path, text, fontSize, root]);
 
   if (doc === null) return null; // first inline pass; later passes keep the old doc up
   return (
@@ -208,6 +243,7 @@ async function inlineWorktreeAssets(
   text: string,
   cache: Map<string, Promise<string | null>>,
   baseFontSize?: number,
+  root?: string,
 ): Promise<string> {
   const parsed = new DOMParser().parseFromString(text, 'text/html');
   // The preview follows the editor font size, as a ZERO-specificity default
@@ -226,7 +262,7 @@ async function inlineWorktreeAssets(
       if (!resolved) continue;
       el.removeAttribute(attr); // never let the iframe chase the raw reference
       jobs.push(
-        fetchDataUri(session, resolved, cache).then((uri) => {
+        fetchDataUri(session, resolved, cache, root).then((uri) => {
           if (uri) el.setAttribute(attr, uri);
         }),
       );
@@ -253,10 +289,14 @@ function fetchDataUri(
   session: string,
   path: string,
   cache: Map<string, Promise<string | null>>,
+  root?: string,
 ): Promise<string | null> {
   const hit = cache.get(path);
   if (hit) return hit;
-  const job = apiFetchRaw('GET', `/api/worktrees/${session}/media?path=${encodeURIComponent(path)}`)
+  const job = apiFetchRaw(
+    'GET',
+    `/api/worktrees/${session}/media?path=${encodeURIComponent(path)}${rootParam(root)}`,
+  )
     .then((res) => res.blob())
     .then(async (blob) => {
       if (blob.size > MAX_INLINE_ASSET_BYTES) return null;
