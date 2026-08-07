@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Added
+
+- The desktop app's "Restart to update" reopens the windows it closed: the shell records every open window's target (local and SSH — targets only, never credentials) as the swap begins, and the relaunch brings each back, falling back to the host picker when none can be reopened. One-shot with a 15-minute TTL, so a failed swap's leftover cannot resurrect windows on a later launch.

@@ -23,6 +23,7 @@ import {
   type StagedDesktopUpdate,
 } from '@puddle-code/cli/lib';
 import { addRecentHost, loadRecentHosts, migrateRecentHosts } from './recent-hosts.js';
+import { consumeReopenTargets, saveReopenTargets } from './reopen.js';
 
 /**
  * The desktop shell (SPEC §10): an Electron main process that drives the SAME
@@ -71,6 +72,7 @@ let stopped = false;
 // updates and reinstalls; older installs kept them in userData — migrate once.
 const recentsFile = () => join(clientHome(), 'recent-hosts.json');
 const legacyRecentsFile = () => join(app.getPath('userData'), 'recent-hosts.json');
+const reopenFile = () => join(clientHome(), 'reopen-windows.json');
 
 function openCockpit(target: string, preferPort?: number): Promise<RunningCockpit> {
   const common = {
@@ -402,6 +404,9 @@ ipcMain.handle('puddle:update-ready', () => stagedUpdate?.version ?? null);
 ipcMain.on('puddle:install-update', () => {
   const target = installTarget();
   if (stagedUpdate === null || target === null) return;
+  // The relaunch should land where the user was, not on the host picker:
+  // remember every open window's target for the next launch to reopen.
+  saveReopenTargets(reopenFile(), [...shells.keys()]);
   void applyDesktopUpdate(stagedUpdate, {
     targetPath: target,
     waitPid: process.pid,
@@ -519,9 +524,26 @@ if (!app.requestSingleInstanceLock()) {
     void pruneDesktopUpdateCache([]);
     void pollForUpdate();
     setInterval(() => void pollForUpdate(), UPDATE_POLL_MS);
-    // No default target: every new window starts at the host picker — the
-    // user says where the work is (local on top, then recents).
-    openHostPicker();
+    // An update relaunch reopens the windows the restart closed (one-shot,
+    // recorded as the swap began); anything unreachable — an ssh host whose
+    // auth needs a prompt this app has no TTY for — is skipped, and if
+    // nothing comes back the picker takes over as usual. Every other launch
+    // has no default target: the host picker asks where the work is.
+    const reopen = consumeReopenTargets(reopenFile());
+    if (reopen.length === 0) {
+      openHostPicker();
+      return;
+    }
+    void Promise.allSettled(
+      reopen.map((target) =>
+        openShell(target).catch((e) => {
+          logger.warn(`could not reopen ${target} after the update: ${errorText(e)}`);
+          throw e;
+        }),
+      ),
+    ).then(() => {
+      if (shells.size === 0) openHostPicker();
+    });
   });
 
   // macOS dock re-activation with every window closed: back to the picker.
