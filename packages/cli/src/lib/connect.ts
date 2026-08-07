@@ -5,11 +5,22 @@ import { runHandshake } from './handshake.js';
 import { waitForHttp } from './net.js';
 import { clientHome } from './paths.js';
 import { startUiServer } from './serve/ui-server.js';
-import { openTunnel } from './tunnel.js';
+import { openCallbackForward, openTunnel } from './tunnel.js';
 import { LocalTransport } from './transport/local.js';
 import { SshTransport } from './transport/ssh.js';
 import type { CliEvent, Logger } from './types.js';
 import { silentLogger } from './types.js';
+
+/**
+ * Codex's OAuth login server: a FIXED port baked into its registered
+ * `http://localhost:1455/...` redirect URI, so the IdP sends the CLIENT
+ * browser there — only a client-side forward can complete it remotely. The
+ * other agents need nothing here: claude-code's callback is hosted
+ * (platform.claude.com), gemini-cli binds a random loopback port that cannot
+ * be forwarded ahead of time (its picker offers API-key auth instead), and
+ * opencode takes pasted keys.
+ */
+const CODEX_OAUTH_PORT = 1455;
 
 export interface ConnectOptions {
   host: string;
@@ -70,6 +81,15 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
   const client = new DaemonClient(tunnel.localPort, endpoint.token);
   tunnel.onPortChange((port) => client.setPort(port));
 
+  // Carry the client's localhost:1455 to the host for the cockpit's lifetime,
+  // so the login URL a remote codex prints works AS PRINTED — clicked or
+  // pasted — and the IdP's callback to the client lands on codex's login
+  // server. Best-effort by design; the cockpit works fully without it.
+  const oauthForward = await openCallbackForward(ssh, CODEX_OAUTH_PORT, {
+    sshBinary: opts.sshBinary,
+    logger,
+  });
+
   const daemon = await runHandshake({
     client,
     noUpgrade: opts.noUpgrade,
@@ -118,6 +138,7 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
     },
     async stop() {
       await ui.close();
+      await oauthForward?.();
       await tunnel.close();
       ssh.dispose();
     },

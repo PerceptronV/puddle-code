@@ -22,6 +22,49 @@ const STABLE_MS = 30_000;
 const HEALTH_INTERVAL_MS = 1000;
 
 /**
+ * Best-effort FIXED-port forward (`-L <port>:127.0.0.1:<port>`) for an agent's
+ * OAuth callback. Codex's ChatGPT login redirects the CLIENT browser to a
+ * registered `http://localhost:1455/...` redirect URI — an address on the
+ * client machine that no proxy rewrite can change — so completing it against
+ * a remote daemon needs the client's own port 1455 carried to the host
+ * (codex's documented headless-SSH recipe). Unlike openTunnel this is not
+ * load-bearing: no health loop, no reconnect, and a busy local port (another
+ * cockpit, or a genuinely local login server) skips it with a warning rather
+ * than failing the connect. Returns a closer, or null when skipped.
+ */
+export async function openCallbackForward(
+  ssh: SshTransport,
+  port: number,
+  opts: { sshBinary?: string; logger?: Logger } = {},
+): Promise<(() => Promise<void>) | null> {
+  const logger = opts.logger ?? silentLogger;
+  const skip = (why: string) => {
+    logger.warn(
+      `agent OAuth callback port ${port} not forwarded (${why}) — ` +
+        `a remote ChatGPT-style login that calls back to localhost:${port} will not complete`,
+    );
+    return null;
+  };
+  if (await tcpListening(port)) return skip('local port busy');
+  const child = spawn(
+    opts.sshBinary ?? 'ssh',
+    ssh.args('-N', '-L', `${port}:127.0.0.1:${port}`, ssh.host),
+    { stdio: ['ignore', 'ignore', 'inherit'] },
+  );
+  if (!(await waitForTcp(port, 5000))) {
+    child.kill('SIGTERM');
+    void ssh.cancelForward(port, port);
+    return skip('forward did not come up');
+  }
+  return () => {
+    child.kill('SIGTERM');
+    // A mux server leaves the -L on the master after the client dies (see
+    // openTunnel's header): cancel it or the port leaks until the master ends.
+    return ssh.cancelForward(port, port);
+  };
+}
+
+/**
  * `ssh -N -L <localPort>:127.0.0.1:<remotePort>` over the master connection,
  * with auto-reconnect.
  *

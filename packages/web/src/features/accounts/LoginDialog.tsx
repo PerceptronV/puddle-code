@@ -29,7 +29,10 @@ export function LoginDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent wide className="h-[28rem]">
+      {/* Near-fullscreen: the login IS the agent's first-run TUI (decision
+          2026-08-06), so it gets a real terminal's canvas — the 28rem box it
+          outgrew was sized for the old subcommand flows' few lines. */}
+      <DialogContent className="h-[85vh] max-w-[calc(100vw-4rem)]">
         <DialogHeader>
           <DialogTitle>{label} — login</DialogTitle>
           <DialogDescription>

@@ -9,6 +9,14 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Added
+
+- Remote cockpits now carry the client's `localhost:1455` to the host over the SSH master connection (best-effort, skipped with a warning when the local port is busy), so codex's ChatGPT sign-in completes from a remote cockpit: its OAuth flow redirects the client browser to a registered `http://localhost:1455/…` callback that no proxy rewrite can reach — the fixed forward is codex's own documented headless-SSH recipe, now automatic.
+
+### Changed
+
+- The account login dialogue is near-fullscreen: the login is the agent's first-run TUI now, so it gets a real terminal's canvas rather than the 28rem box sized for the old subcommand flows.
+
 ### Fixed
 
 - Codex login no longer shows an empty panel on remote hosts: `codex login` opens a browser and a localhost OAuth callback on the DAEMON host while rendering nothing in the PTY. The login dialogue now runs the bare `codex` TUI — its own first-run sign-in screen (ChatGPT or API key) renders in the terminal, matching the Claude Code login flow — with the dialogue hint explaining how to exit once signed in. Gemini CLI's (already TUI-based) login gains the same hint; OpenCode keeps `auth login`, which renders in the PTY and exits cleanly by itself.
