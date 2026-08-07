@@ -205,4 +205,9 @@
 // panel from any remote cockpit), trusts exit-code 0 instead of verifying
 // via the agent's own auth status, and sends no login `hint`. Retiring 13.x
 // makes the first-run-TUI login the flow every deployment serves.
-export const PROTOCOL_VERSION = { major: 14, minor: 0 } as const;
+// 14.1 (2026-08-06): `theme` client WS message — the client's resolved
+// terminal fg/bg, so the DAEMON answers agents' OSC 10/11 colour queries
+// (which fire at spawn, before any viewer attaches — a viewer-side answer
+// misses them and auto-theming agents fell back to dark). Additive: a 14.1
+// client feature-detects and keeps viewer-side answering on a 14.0 daemon.
+export const PROTOCOL_VERSION = { major: 14, minor: 1 } as const;

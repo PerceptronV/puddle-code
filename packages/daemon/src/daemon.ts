@@ -28,6 +28,7 @@ import { PortScanner } from './ports/scanner.js';
 import { attachProxyUpgrade } from './proxy/upgrade.js';
 import { ProxySocketTracker } from './proxy/sockets.js';
 import { PtyManager } from './pty/pty-manager.js';
+import { TerminalTheme } from './pty/terminal-theme.js';
 import { installShellHooks } from './pty/shell-hooks.js';
 import { clearRuntime, writeRuntime } from './runtime-file.js';
 import { ensureToken } from './security/token.js';
@@ -81,7 +82,10 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   const events = new EventStore(db);
 
   const logs = new LogStore(paths.logsDir, config.replayBytes, config.logMaxBytes);
-  const ptys = new PtyManager(logs);
+  // Clients report their resolved terminal colours over the WS (14.1); the
+  // PTY layer answers agents' OSC 10/11 colour queries from the last report.
+  const terminalTheme = new TerminalTheme();
+  const ptys = new PtyManager(logs, terminalTheme);
   const shellHooks = installShellHooks(paths);
   const scanner = new PortScanner({ ptys });
   const worktrees = new WorktreeManager({ paths, mutex: new KeyedMutex(), repos, sessions });
@@ -160,7 +164,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   fetchTimer.unref();
 
   const tracker = new ProxySocketTracker();
-  const gateway = new WsGateway({ token, ptys, logs, service });
+  const gateway = new WsGateway({ token, ptys, logs, service, theme: terminalTheme });
   const app = buildApp({
     version: opts.version ?? '0.0.0',
     token,

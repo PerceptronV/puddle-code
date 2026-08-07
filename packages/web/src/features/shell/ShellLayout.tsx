@@ -11,7 +11,15 @@ import { openCommandPalette } from '../../lib/command-palette';
 import { toastError } from '../../lib/errors';
 import { openSettings } from '../../lib/hash-route';
 import { useHotkeyLabel } from '../../lib/hotkeys';
-import { hostLabel, useHostInfo, usePatchConfig, useProjectDetail } from '../../lib/queries';
+import {
+  hostLabel,
+  useDaemonVersion,
+  useHostInfo,
+  usePatchConfig,
+  useProjectDetail,
+} from '../../lib/queries';
+import { daemonAnswersColourQueries } from '../../lib/protocol-support';
+import { cssTokenReader, onThemeChange } from '../../lib/theme';
 import { wsManager } from '../../lib/ws';
 import { Suspense, lazy, useState } from 'react';
 import { NewProjectDialog } from '../dashboard/NewProjectDialog';
@@ -243,6 +251,24 @@ function ShellBody() {
   const profileId = useCurrentProfileId();
   const { pathname } = useLocation();
   const [creatingProject, setCreatingProject] = useState(false);
+  // Report the resolved terminal colours to the daemon (protocol 14.1), which
+  // answers agents' OSC 10/11 colour queries from them — the queries fire at
+  // agent SPAWN, before any viewer attaches, so only the daemon reliably sees
+  // them (an auto-theming agent defaulted to dark whatever the app theme).
+  // Gated on a CONFIRMED >=14.1 answer, not the optimistic unknown the other
+  // feature gates use: a 14.0 daemon rejects the message with an error toast.
+  const version = useDaemonVersion();
+  const themeToDaemon =
+    version.data !== undefined && daemonAnswersColourQueries(version.data.protocol);
+  useEffect(() => {
+    if (!themeToDaemon) return;
+    const report = () => {
+      const read = cssTokenReader();
+      wsManager.reportTheme(read('--text-primary'), read('--bg-base'));
+    };
+    report();
+    return onThemeChange(report);
+  }, [themeToDaemon]);
   return (
     <div className="flex h-screen flex-col bg-ground">
       <TopBar />

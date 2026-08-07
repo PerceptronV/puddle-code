@@ -7,6 +7,14 @@ import '@xterm/xterm/css/xterm.css';
 import { HOME_STREAM, type SessionStatus } from '@puddle/shared';
 import { tokenStore } from '../../lib/auth';
 import { useClientSettings } from '../../lib/client-settings';
+import {
+  actionForBinding,
+  eventBinding,
+  getHotkeyAction,
+  getHotkeyHandler,
+} from '../../lib/hotkeys';
+import { daemonAnswersColourQueries } from '../../lib/protocol-support';
+import { useDaemonVersion } from '../../lib/queries';
 import { useDocumentVisible } from '../../lib/use-document-visible';
 import { sshMode } from '../../lib/ssh-mode';
 import { cssTokenReader, onThemeChange, xtermThemeFromCss } from '../../lib/theme';
@@ -146,6 +154,15 @@ export function Terminal({
   // Both the mount and attach effects key on this: xterm must not exist —
   // let alone measure glyphs — before the webfont it measures is loaded.
   const fontReady = useTerminalFontReady();
+  // ≥14.1 the DAEMON answers OSC 10/11 colour queries (it sees the query at
+  // agent spawn, before any viewer attaches — see protocol-support); this
+  // viewer must then stay silent or the agent gets two replies. Optimistic
+  // while the version query is in flight, like every gate.
+  const daemonAnswersColours = daemonAnswersColourQueries(useDaemonVersion().data?.protocol);
+  // Whether app shortcuts win over the terminal (client setting, default on):
+  // a ref so the live xterm's key handler reads the current choice.
+  const appShortcutsRef = useRef(settings.terminalAppShortcuts);
+  appShortcutsRef.current = settings.terminalAppShortcuts;
 
   /**
    * Re-measure the grid against the container, repaint it, and tell the PTY: the
@@ -245,6 +262,12 @@ export function Terminal({
     // theme detection (e.g. Claude Code) queries the background luminance to
     // choose light vs dark; without a reply it cannot match the puddle theme.
     // Tokens are read live so the answer reflects the theme at query time.
+    //
+    // COMPATIBILITY PATH ONLY (pre-14.1 daemons): a ≥14.1 daemon answers these
+    // itself, from the colours the shell reports over the WS — it sees the
+    // query at agent SPAWN, before any viewer attaches, which is why the
+    // viewer-side answer alone left auto-theming agents dark. Registering here
+    // too would double-reply.
     const answerColour = (code: DynamicColourCode, token: string) => (data: string) => {
       if (data !== '?') return false; // a set request, not a query — leave it to xterm
       if (replayingRef.current) return true; // a historical query — never re-answer it
@@ -252,8 +275,12 @@ export function Terminal({
       if (report) wsManager.write(stream, term, report);
       return true;
     };
-    const oscForeground = xterm.parser.registerOscHandler(10, answerColour(10, '--text-primary'));
-    const oscBackground = xterm.parser.registerOscHandler(11, answerColour(11, '--bg-base'));
+    const oscForeground = daemonAnswersColours
+      ? null
+      : xterm.parser.registerOscHandler(10, answerColour(10, '--text-primary'));
+    const oscBackground = daemonAnswersColours
+      ? null
+      : xterm.parser.registerOscHandler(11, answerColour(11, '--bg-base'));
 
     // OSC 52 clipboard *writes* land in the stash, not the clipboard: xterm.js
     // takes no action on OSC 52 on its own, and a mouse-reporting agent
@@ -296,6 +323,28 @@ export function Terminal({
         e.preventDefault();
         return false;
       }
+      // App shortcuts win over the terminal (client setting, default ON): a
+      // chord bound to a registered app action — ⌃⇥ tab cycling, ⌘K — must
+      // not be eaten by xterm and sent to the PTY as bytes. Returning false
+      // WITHOUT preventDefault makes xterm skip the key entirely, so the
+      // event bubbles to the window dispatcher (HotkeysHost) that runs the
+      // action. Actions the registry marks terminal-owned (`deferInTerminal`,
+      // e.g. ⌃A/⌃`) or editor-bound stay with the terminal, exactly as the
+      // dispatcher itself would yield them.
+      if (e.type === 'keydown' && appShortcutsRef.current) {
+        const binding = eventBinding(e);
+        const id = binding !== null ? actionForBinding(binding) : undefined;
+        const action = id !== undefined ? getHotkeyAction(id) : undefined;
+        if (
+          id !== undefined &&
+          action !== undefined &&
+          !action.editor &&
+          !action.deferInTerminal &&
+          getHotkeyHandler(id) !== undefined
+        ) {
+          return false;
+        }
+      }
       if (!IS_MAC) return true;
       if (e.type !== 'keydown' || !e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return true;
       const seq = MAC_LINE_EDITS[e.key];
@@ -326,8 +375,8 @@ export function Terminal({
       container.removeEventListener('paste', onPaste, true);
       observer.disconnect();
       unsubscribeTheme();
-      oscForeground.dispose();
-      oscBackground.dispose();
+      oscForeground?.dispose();
+      oscBackground?.dispose();
       oscClipboard.dispose();
       fileLinks?.dispose();
       stdin.dispose();
@@ -338,8 +387,10 @@ export function Terminal({
     // Deliberately keyed on the PTY identity only — plus the one-way font
     // gate: recreating the terminal on settings change would drop scrollback;
     // the effect below patches the live instance instead. (`refit` is keyed
-    // on the same two, so listing it adds no churn.)
-  }, [stream, term, refit, fontReady]);
+    // on the same two, so listing it adds no churn.) `daemonAnswersColours`
+    // settles before terminals normally mount and at worst recreates once,
+    // early, against a pre-14.1 daemon.
+  }, [stream, term, refit, fontReady, daemonAnswersColours]);
 
   // The PTY attachment, gated on `attached`: paused/hidden terminals detach
   // (the daemon stops sending, nothing is parsed) and re-attach on return,

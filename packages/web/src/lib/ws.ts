@@ -52,6 +52,14 @@ export class WsManager {
   private open = false;
   private backoff = INITIAL_BACKOFF_MS;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * The resolved terminal colours to report (protocol 14.1) — the daemon
+   * answers agents' OSC 10/11 colour queries from the last report, so
+   * auto-theming agents match the app theme even though they query at spawn,
+   * before any viewer attaches. Null until the shell learns the daemon speaks
+   * 14.1 (ShellLayout wires it): a 14.0 daemon would reject the message.
+   */
+  private theme: { fg: string; bg: string } | null = null;
   private readonly terminals = new Map<string, Registration>();
   private readonly statusListeners = new Set<(e: StatusEvent) => void>();
   private readonly renameListeners = new Set<(e: RenameEvent) => void>();
@@ -130,6 +138,13 @@ export class WsManager {
     return this.open;
   }
 
+  /** Report the terminal colours (14.1) — now, and again on every reconnect. */
+  reportTheme(fg: string, bg: string): void {
+    if (this.theme && this.theme.fg === fg && this.theme.bg === bg) return;
+    this.theme = { fg, bg };
+    if (this.open) this.send({ t: 'theme', fg, bg });
+  }
+
   /** Drops the socket (e.g. token change); registrations survive a reconnect. */
   reset(): void {
     this.ws?.close();
@@ -152,6 +167,9 @@ export class WsManager {
       this.backoff = INITIAL_BACKOFF_MS;
       this.send({ t: 'auth', token });
       this.send({ t: 'subscribe-status' });
+      // Before the attaches: an agent spawned right after this connect should
+      // find the theme already reported.
+      if (this.theme) this.send({ t: 'theme', fg: this.theme.fg, bg: this.theme.bg });
       for (const { session, term, cols, rows } of this.terminals.values()) {
         this.send({ t: 'attach', session, term, cols, rows });
       }

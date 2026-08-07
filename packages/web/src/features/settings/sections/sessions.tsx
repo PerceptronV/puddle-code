@@ -165,6 +165,24 @@ function ScrollbackRow() {
   );
 }
 
+/** App-shortcuts-in-terminals (client scope) — see clientSettings.terminalAppShortcuts. */
+function TerminalShortcutsRow() {
+  const settings = useClientSettings();
+  return (
+    <SettingRow
+      label="App shortcuts in terminals"
+      description="On: puddle's shortcuts (tab cycling, the palette…) work while a terminal is focused. Off: the terminal receives those keys instead."
+      htmlFor="terminal-app-shortcuts"
+    >
+      <Switch
+        id="terminal-app-shortcuts"
+        checked={settings.terminalAppShortcuts}
+        onCheckedChange={(terminalAppShortcuts) => updateClientSettings({ terminalAppShortcuts })}
+      />
+    </SettingRow>
+  );
+}
+
 /** One launch-text editor: save any text (empty is allowed) or reset to default. */
 function TemplateEditor({
   id,
@@ -371,6 +389,7 @@ export function SessionsSection() {
       </SettingRow>
       <AgentPathRow />
       <ScrollbackRow />
+      <TerminalShortcutsRow />
 
       <div className="mt-5">
         <SectionTitle>New session defaults</SectionTitle>

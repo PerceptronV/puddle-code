@@ -4,6 +4,7 @@ import type { WSContext } from 'hono/ws';
 import { HOME_STREAM, wsClientMessageSchema, type WsServerMessage } from '@puddle/shared';
 import type { LogStore } from '../logs/log-store.js';
 import type { PtyDataEvent, PtyExitEvent, PtyManager } from '../pty/pty-manager.js';
+import type { TerminalTheme } from '../pty/terminal-theme.js';
 import type { NoticeEvent, RenameEvent, SessionService, StatusEvent } from '../sessions/service.js';
 import { ApiError } from '../http/errors.js';
 
@@ -12,6 +13,8 @@ export interface WsGatewayDeps {
   ptys: PtyManager;
   logs: LogStore;
   service: SessionService;
+  /** The last client-reported terminal colours (14.1) — see terminal-theme.ts. */
+  theme: TerminalTheme;
 }
 
 interface WsEventHandlers {
@@ -154,6 +157,10 @@ export class WsGateway {
           }
           case 'subscribe-status':
             this.statusSubs.add(ws);
+            break;
+          case 'theme':
+            // Last report wins, like stdin — one person's cockpit in practice.
+            this.deps.theme.set(msg.fg, msg.bg);
             break;
         }
       } catch (e) {

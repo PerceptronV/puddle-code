@@ -39,3 +39,11 @@ export const browseMutationsSupported = (p: Protocol): boolean => atLeast(p, 12,
  * answer git questions about the wrong repository.
  */
 export const directoryTargetSupported = (p: Protocol): boolean => atLeast(p, 12, 4);
+
+/**
+ * The daemon answers agents' OSC 10/11 colour queries from client-reported
+ * theme colours (14.1). At or above it the web terminal must NOT answer them
+ * itself — the agent would get two replies; below, viewer-side answering is
+ * all there is (and misses queries fired before the viewer attached).
+ */
+export const daemonAnswersColourQueries = (p: Protocol): boolean => atLeast(p, 14, 1);

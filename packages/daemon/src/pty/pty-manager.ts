@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import pty from 'node-pty';
 import type { LogStore } from '../logs/log-store.js';
 import { EnvOscFilter, type EnvDelta } from './env-osc.js';
+import { findColourQueries, QUERY_CARRY, type TerminalTheme } from './terminal-theme.js';
 
 export interface PtyDataEvent {
   stream: string;
@@ -26,6 +27,8 @@ interface Live {
   proc: pty.IPty;
   record: boolean;
   filter: EnvOscFilter;
+  /** Chunk-boundary carry for the OSC colour-query scanner (terminal-theme.ts). */
+  queryTail: string;
 }
 
 /**
@@ -55,7 +58,16 @@ export class PtyManager extends EventEmitter {
    */
   private readonly sizes = new Map<string, { cols: number; rows: number }>();
 
-  constructor(private readonly logs: LogStore) {
+  constructor(
+    private readonly logs: LogStore,
+    /**
+     * Answers OSC 10/11 colour queries from PTY output (protocol 14.1) —
+     * agents query at spawn, before any viewer attaches, so the daemon is
+     * the one party that always sees the query. Optional so tests that
+     * exercise PTYs alone need not care.
+     */
+    private readonly theme?: TerminalTheme,
+  ) {
     super();
   }
 
@@ -78,13 +90,23 @@ export class PtyManager extends EventEmitter {
       env: { ...process.env, ...opts.env } as Record<string, string>,
     });
     const filter = new EnvOscFilter();
-    this.live.set(key, { proc, record, filter });
+    const live: Live = { proc, record, filter, queryTail: '' };
+    this.live.set(key, live);
     proc.onData((raw) => {
       const { data, deltas } = filter.push(raw);
       for (const delta of deltas) {
         this.emit('env-delta', { stream, term, delta } satisfies PtyEnvDeltaEvent);
       }
       if (data === '') return; // chunk fully swallowed by the side-channel
+      // Answer dynamic-colour queries the moment they appear in the output —
+      // passive detection, the bytes still flow to logs and viewers untouched.
+      if (this.theme) {
+        for (const code of findColourQueries(live.queryTail, data)) {
+          const report = this.theme.report(code);
+          if (report !== null) proc.write(report);
+        }
+        live.queryTail = data.slice(-QUERY_CARRY);
+      }
       if (record) this.logs.append(stream, term, data);
       this.emit('data', { stream, term, data } satisfies PtyDataEvent);
     });

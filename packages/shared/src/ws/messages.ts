@@ -32,6 +32,19 @@ export const wsClientMessageSchema = z.discriminatedUnion('t', [
   /** Terminate a shell PTY (never the agent term); viewers learn via `exit`. */
   z.object({ t: z.literal('kill-shell'), session: z.string(), term: termId }),
   z.object({ t: z.literal('subscribe-status') }),
+  /**
+   * The client's resolved terminal colours (14.1): the DAEMON answers agents'
+   * OSC 10/11 dynamic-colour queries from the last pair any client reported —
+   * an auto-theming agent (e.g. Claude Code) queries at spawn, usually before
+   * a viewer has attached, so a viewer-side answer misses it and the agent
+   * falls back to dark whatever the app's theme. Sent after auth on every
+   * connect and again on theme switches.
+   */
+  z.object({
+    t: z.literal('theme'),
+    fg: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+    bg: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  }),
 ]);
 export type WsClientMessage = z.infer<typeof wsClientMessageSchema>;
 
