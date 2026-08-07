@@ -11,4 +11,4 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
-- The collapsed rail's session glyphs step back to 20px marks (16px in compact density) — v0.0.30's 24px filled the chip but read too heavy at rail width — and their lines thin to 0.75× stroke weight, since strokes scale with the box and marks drawn for 12px rows rasterise visibly heavier at rail size (the filled Gemini mark has no stroke to thin).
+- The collapsed rail's session glyphs settle at 16px marks (12px in compact density) at 0.75× stroke weight — v0.0.30's 24px filled the chip but read too heavy at rail width, and strokes scale with the box, so marks drawn for 12px rows rasterise visibly heavier when enlarged (the filled Gemini mark has no stroke to thin). Unlike the pre-v0.0.30 rail, the mark full-bleeds its box instead of floating a 12px icon in a 16px one.

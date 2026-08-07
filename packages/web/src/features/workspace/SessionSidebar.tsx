@@ -314,18 +314,18 @@ function CollapsedSessionDot({
             >
               {/* Active session marked with the same bg-elevated fill-shift the
                   expanded list and the navigator's mode icons use — a theme
-                  colour, no border, no default-blue ring (HUMANS.md). The glyph
-                  dominates its chip (decision 2026-08-06, sized down 0.8× the
-                  same day — full-bleed read too heavy): the dot IS the row
-                  here, and at the 12px utility-icon size it swam in the hover
-                  container. Larger than the rail's top controls on purpose —
-                  content over chrome. */}
+                  colour, no border, no default-blue ring (HUMANS.md). Sizing
+                  settled by eye against the live rail (2026-08-06, three
+                  rounds): 16px marks comfortable / 12px compact at 0.75×
+                  stroke — the mark full-bleeds its box rather than floating a
+                  12px icon in a 16px one, which is what made the dots swim in
+                  their chips. */}
               <SessionGlyph
                 status={session.status}
                 kind={session.kind}
                 agentType={session.agent_type}
                 stale={session.stale_running}
-                className="size-5 compact:size-4"
+                className="size-4 compact:size-3"
                 iconClassName="size-full"
                 iconStrokeScale={0.75}
               />
