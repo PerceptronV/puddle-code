@@ -581,7 +581,7 @@ puddle status  [user@host]
 puddle attach  [user@host] <session>   # raw-terminal attach over the WS
 puddle install <daemon|desktop>[@version] [user@host] [--tarball <path>]
 puddle upgrade [cli|daemon|desktop][@version] [user@host] [--tarball <path>]   # no component: everything installed, CLI last
-puddle remove  <cli|daemon|desktop> [user@host] [--yes] [--purge]              # uninstall alias; confirmations default to no
+puddle remove  <cli|daemon|desktop> [user@host] [--yes] [--purge]              # confirmations default to no
 puddle logs    [user@host] [session]
 ```
 

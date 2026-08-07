@@ -189,7 +189,7 @@ describe('argument parsing', () => {
     expect(() => parseArgs(['install', '@0.0.32'])).toThrow(CliError);
   });
 
-  it('remove: needs a component; --purge is daemon-only; uninstall aliases it', () => {
+  it('remove: needs a component; --purge is daemon-only', () => {
     expect(parseArgs(['remove', 'daemon'])).toEqual({
       cmd: 'remove',
       what: 'daemon',
@@ -203,12 +203,8 @@ describe('argument parsing', () => {
       yes: true,
       purge: true,
     });
-    expect(parseArgs(['uninstall', 'cli'])).toEqual({
-      cmd: 'remove',
-      what: 'cli',
-      yes: false,
-      purge: false,
-    });
+    // No `uninstall` alias: one spelling (decision 2026-08-07).
+    expect(() => parseArgs(['uninstall', 'cli'])).toThrow(CliError);
     expect(() => parseArgs(['remove'])).toThrow(CliError);
     expect(() => parseArgs(['remove', 'daemon@v0.0.32'])).toThrow(CliError);
     expect(() => parseArgs(['remove', 'desktop', '--purge'])).toThrow(CliError);

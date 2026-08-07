@@ -360,18 +360,17 @@ export function parseArgs(argv: string[]): Command {
         ...(tarball !== undefined ? { tarball } : {}),
       };
     }
-    case 'remove':
-    case 'uninstall': {
+    case 'remove': {
       const [what, host, extra] = positionals;
       if (extra !== undefined)
-        throw new CliError('bad_arguments', `${cmd} takes at most a component + host`);
+        throw new CliError('bad_arguments', 'remove takes at most a component + host');
       expect('--yes', '--purge');
       if (what === undefined || !['cli', 'daemon', 'desktop'].includes(what)) {
         throw new CliError(
           'bad_arguments',
-          `${cmd} needs a component: cli | daemon | desktop`,
+          'remove needs a component: cli | daemon | desktop',
           what !== undefined && /^(cli|daemon|desktop)@/.test(what)
-            ? `${cmd} takes no @version — a removal has no version to pick`
+            ? 'remove takes no @version — a removal has no version to pick'
             : 'e.g. puddle remove daemon user@host',
         );
       }
