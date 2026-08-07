@@ -54,11 +54,21 @@ Daemon-only installs (no CLI) use the `install.sh` attached to each release — 
 curl -fsSL https://github.com/PerceptronV/puddle-code/releases/latest/download/install.sh | sh
 ```
 
+**Managing components:**
+
+The CLI installs, upgrades, and removes all three components — daemon, desktop app, and itself — with optional versions and SSH targets:
+
+```sh
+puddle upgrade                            # everything installed → the newest release
+puddle install daemon@v0.0.32 user@host   # pin a host's daemon to a version
+puddle remove daemon                      # uninstall; your data stays unless you --purge
+```
+
 **Desktop app (optional):**
 
 The same cockpit also ships as a standalone desktop app — identical UI and engine, plus a File → "Connect to SSH Host…" menu for remote hosts. Grab the dmg (macOS arm64) or AppImage (Linux x64) from the Releases page.
 
-On macOS, an installed Puddle CLI can install or update the desktop app directly: quit Puddle, then run `puddle install desktop` (or `puddle upgrade desktop` — it installs when missing). A fresh install goes to `/Applications` when writable, otherwise `~/Applications`; `puddle remove desktop` deletes it again. The same verbs manage the other components too — `puddle install daemon@v0.0.32 user@host` pins a host's daemon, bare `puddle upgrade` moves everything installed to the newest release, and `puddle remove daemon` uninstalls one while keeping its data unless you tell it otherwise.
+On macOS, an installed Puddle CLI manages the desktop app directly: quit Puddle, then `puddle install desktop`, `puddle upgrade desktop`, or `puddle remove desktop`. A fresh install goes to `/Applications` when writable, otherwise `~/Applications`.
 
 The macOS downloads are **not code-signed** (an open-source project without Apple Developer Program fees), so Gatekeeper will refuse the first launch. Either allow it once — open the app, let macOS block it, then System Settings → Privacy & Security → **Open Anyway** — or clear the download quarantine in a terminal:
 
@@ -92,7 +102,7 @@ Building from source avoids the dance entirely (locally built apps are never qua
 
 The CLI serves the UI at a stable local origin and reverse-proxies the API to the daemon, directly in local mode, through the tunnel in SSH mode. The daemon is headless and host-agnostic on `127.0.0.1:7434`. UI updates ship with the CLI (`npm update -g @puddle-code/cli` refreshes the cockpit for every host); the daemon only has to update when the versioned protocol breaks, and the CLI does that automatically. A mandatory bearer token plus Host/Origin validation guard the localhost API against malicious web pages.
 
-Everything lives under `~/.puddle` on the host, installed without sudo. Uninstalling is stopping the service and deleting that directory.
+Everything lives under `~/.puddle` on the host, installed without sudo — and `puddle remove daemon` takes it apart again.
 
 ## Development & teardown
 
@@ -115,18 +125,16 @@ systemctl --user disable --now puddled              # Linux (systemd user unit)
 kill "$(cat ~/.puddle/puddled.pid)"                 # nohup fallback (no supervisor)
 ```
 
-**Restore the production daemon.** When you're done testing, put the release build back over your dev one: stop the daemon (above), clear the installed binaries with `rm -rf ~/.puddle/bin` (your `~/.puddle` state — profiles, sessions, worktrees — is untouched), then run the production `puddle launch`, which refetches the daemon from GitHub Releases. (Clearing `bin` is what forces the refetch: the installer skips a version whose files are already present, so a dev build sharing the release's version number would otherwise stay put.)
+**Restore the production daemon.** When you're done testing, `puddle remove daemon` (answer no to the purge question — your profiles, sessions, and worktrees stay), then run the production `puddle launch`, which refetches the daemon from GitHub Releases. (Removal is what forces the refetch: the installer skips a version whose files are already present, so a dev build sharing the release's version number would otherwise stay put.)
 
-**Uninstall.** Removing the CLI alone leaves the daemon installed and running — a full teardown stops the daemon, then removes its state, its service file, and the production CLI:
-
-> ⚠️ `~/.puddle` **is** your local state — the SQLite database with every profile, account, and session (plus conversation history), the daemon's worktree tracking, and the auth token. Deleting it is irreversible and wipes all of it. Uninstall only when you mean to start clean.
+**Uninstall.** Removing the CLI alone leaves the daemon installed and running — a full teardown is:
 
 ```sh
-rm -rf ~/.puddle
-rm ~/Library/LaunchAgents/dev.puddle.puddled.plist                            # macOS
-rm ~/.config/systemd/user/puddled.service && systemctl --user daemon-reload   # Linux
-npm uninstall -g @puddle-code/cli
+puddle remove daemon --purge   # stops the daemon, unregisters its service, deletes ~/.puddle
+puddle remove cli              # npm uninstall -g, once the daemons you care about are gone
 ```
+
+> ⚠️ `~/.puddle` **is** your local state — the SQLite database with every profile, account, and session (plus conversation history), the daemon's worktree tracking, and the auth token. `--purge` deletes it irreversibly (the command lists dirty or unpushed worktrees and asks first); without it, `puddle remove daemon` keeps the data for a later reinstall.
 
 ## Licence
 
