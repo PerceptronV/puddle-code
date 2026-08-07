@@ -104,11 +104,11 @@ function MarkdownPreview({
   // endpoint: an <img src> carries no bearer header, so the bytes travel as a
   // fetch → object URL (the MediaViewer pattern). Re-runs on HTML changes.
   useEffect(() => {
-    const root = bodyRef.current;
-    if (!root) return;
+    const container = bodyRef.current;
+    if (!container) return;
     let cancelled = false;
     const urls: string[] = [];
-    for (const img of root.querySelectorAll('img')) {
+    for (const img of container.querySelectorAll('img')) {
       const resolved = resolvePreviewAsset(path, img.getAttribute('src') ?? '');
       if (!resolved) continue;
       img.removeAttribute('src'); // never let the browser chase the raw relative URL
