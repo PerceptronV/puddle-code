@@ -327,6 +327,7 @@ function CollapsedSessionDot({
                 stale={session.stale_running}
                 className="size-5 compact:size-4"
                 iconClassName="size-full"
+                iconStrokeScale={0.75}
               />
               <span className="sr-only">{renderTitle(session)}</span>
             </Link>

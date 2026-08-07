@@ -8,15 +8,27 @@ import { UserRound } from 'lucide-react';
  * packages/daemon/src/agents/.
  */
 
+/**
+ * SVG strokes scale with the rendered box, so a mark drawn for a 12px inline
+ * row rasterises visibly heavier at the collapsed rail's 20px. `strokeScale`
+ * multiplies each mark's own tuned width (preserving their relative weights)
+ * so large renditions can thin the lines back; the filled Gemini mark has no
+ * stroke to thin and ignores it.
+ */
+interface MarkProps {
+  className?: string;
+  strokeScale?: number;
+}
+
 /** The Claude spark: a radial burst of blades from a single centre. */
-function ClaudeMark({ className }: { className?: string }) {
+function ClaudeMark({ className, strokeScale = 1 }: MarkProps) {
   return (
     <svg
       viewBox="0 0 24 24"
       className={className}
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.8}
+      strokeWidth={1.8 * strokeScale}
       strokeLinecap="round"
       aria-hidden
     >
@@ -39,14 +51,14 @@ function ClaudeMark({ className }: { className?: string }) {
 }
 
 /** The Codex blossom: three interlocking petals about a shared centre. */
-function CodexMark({ className }: { className?: string }) {
+function CodexMark({ className, strokeScale = 1 }: MarkProps) {
   return (
     <svg
       viewBox="0 0 24 24"
       className={className}
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.6}
+      strokeWidth={1.6 * strokeScale}
       aria-hidden
     >
       <ellipse cx="12" cy="12" rx="4" ry="9" />
@@ -57,14 +69,14 @@ function CodexMark({ className }: { className?: string }) {
 }
 
 /** The OpenCode block: a square bracket pair around a solid core. */
-function OpenCodeMark({ className }: { className?: string }) {
+function OpenCodeMark({ className, strokeScale = 1 }: MarkProps) {
   return (
     <svg
       viewBox="0 0 24 24"
       className={className}
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.8}
+      strokeWidth={1.8 * strokeScale}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden
@@ -86,17 +98,26 @@ function GeminiMark({ className }: { className?: string }) {
 }
 
 /** Picks the brand mark for an agent type, or the neutral person fallback. */
-export function AgentIcon({ type, className }: { type: string; className?: string }) {
+export function AgentIcon({
+  type,
+  className,
+  strokeScale = 1,
+}: {
+  type: string;
+  className?: string;
+  /** Thins (or thickens) the mark's lines — see `MarkProps`. */
+  strokeScale?: number;
+}) {
   switch (type) {
     case 'claude-code':
-      return <ClaudeMark className={className} />;
+      return <ClaudeMark className={className} strokeScale={strokeScale} />;
     case 'codex':
-      return <CodexMark className={className} />;
+      return <CodexMark className={className} strokeScale={strokeScale} />;
     case 'opencode':
-      return <OpenCodeMark className={className} />;
+      return <OpenCodeMark className={className} strokeScale={strokeScale} />;
     case 'gemini-cli':
       return <GeminiMark className={className} />;
     default:
-      return <UserRound className={className} />;
+      return <UserRound className={className} strokeWidth={2 * strokeScale} />;
   }
 }

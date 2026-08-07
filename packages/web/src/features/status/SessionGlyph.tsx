@@ -20,6 +20,7 @@ export function SessionGlyph({
   stale = false,
   className,
   iconClassName = 'size-3',
+  iconStrokeScale = 1,
 }: {
   status: SessionStatus;
   kind?: SessionKind;
@@ -34,6 +35,12 @@ export function SessionGlyph({
    * chip (the glyph IS the row there — decision 2026-08-06).
    */
   iconClassName?: string;
+  /**
+   * Thins the mark's lines: strokes scale with the box, so a mark drawn for
+   * 12px rows rasterises heavier at the rail's 20px — the rail passes <1 to
+   * bring the line weight back down (filled marks are unaffected).
+   */
+  iconStrokeScale?: number;
 }) {
   const what = kind === 'terminal' ? 'terminal' : (agentType ?? 'agent');
   const label = `${what} — status: ${status.replace('_', ' ')}${
@@ -50,9 +57,9 @@ export function SessionGlyph({
       aria-label={label}
     >
       {kind === 'terminal' ? (
-        <SquareTerminal className={iconClassName} />
+        <SquareTerminal className={iconClassName} strokeWidth={2 * iconStrokeScale} />
       ) : (
-        <AgentIcon type={agentType ?? ''} className={iconClassName} />
+        <AgentIcon type={agentType ?? ''} className={iconClassName} strokeScale={iconStrokeScale} />
       )}
     </span>
   );
