@@ -1,16 +1,7 @@
-import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { attachSession } from '../lib/attach.js';
-import {
-  applyDesktopUpdate,
-  checkForDesktopUpdate,
-  desktopAppInstallPath,
-  findInstalledDesktopApp,
-  isDesktopAppRunning,
-  stageDesktopUpdate,
-} from '../lib/desktop-update.js';
 import { openBrowser } from '../lib/browser.js';
 import { connectRemote } from '../lib/connect.js';
 import { type RunningCockpit } from '../lib/cockpit.js';
@@ -33,9 +24,9 @@ import { LocalTransport } from '../lib/transport/local.js';
 import { SshTransport } from '../lib/transport/ssh.js';
 import type { Transport } from '../lib/transport/transport.js';
 import { CliError, type Logger } from '../lib/types.js';
-import { upgradeDaemon } from '../lib/upgrade.js';
 import { cliVersion } from '../lib/version.js';
 import { argvFor, USAGE, type Command } from './args.js';
+import { runInstall, runRemove, runUpgrade } from './manage.js';
 import {
   isCockpitChild,
   killHint,
@@ -359,114 +350,13 @@ export async function run(command: Command): Promise<number> {
       }
     }
 
-    case 'upgrade': {
-      const local = command.host === undefined || command.host === 'local';
-      if (command.what === 'daemon') {
-        const transport: Transport = local ? new LocalTransport() : new SshTransport(command.host!);
-        if (transport instanceof SshTransport) await transport.open();
-        try {
-          const result = await upgradeDaemon(transport, { logger });
-          logger.info(
-            `puddled ${result.from ?? '(unmanaged)'} → ${result.to} on ${transport.label}`,
-          );
-          return 0;
-        } finally {
-          transport.dispose();
-        }
-      }
-      // cli and desktop are client-machine artefacts: a remote target would
-      // mean npm/app-bundle surgery over non-interactive ssh — refuse rather
-      // than half-support it. Only the daemon lives on remote hosts.
-      if (!local) {
-        throw new CliError(
-          'bad_arguments',
-          `puddle upgrade ${command.what} runs on the machine it upgrades`,
-          `ssh into ${command.host} and run it there — user@host targets the daemon only`,
-        );
-      }
-      return command.what === 'cli' ? upgradeCli(logger) : upgradeDesktop(logger);
-    }
+    case 'install':
+      return runInstall(command, logger);
+    case 'upgrade':
+      return runUpgrade(command, logger);
+    case 'remove':
+      return runRemove(command, logger);
   }
-}
-
-/**
- * `puddle upgrade` (no subject) — the CLI is distributed through npm, so its upgrade
- * IS an npm install; anything cleverer would fight the package manager. The
- * npm output streams through so failures explain themselves.
- */
-function upgradeCli(logger: Logger): Promise<number> {
-  logger.info(`puddle CLI ${cliVersion()} — asking npm for the latest release`);
-  return new Promise((resolve, reject) => {
-    const child = spawn('npm', ['install', '-g', '@puddle-code/cli@latest'], {
-      stdio: 'inherit',
-    });
-    child.on('error', () =>
-      reject(
-        new CliError(
-          'not_installed',
-          'npm is not on PATH',
-          'the CLI is installed and upgraded via npm: npm install -g @puddle-code/cli@latest',
-        ),
-      ),
-    );
-    child.on('exit', (code) => {
-      if (code === 0) {
-        logger.info('done — `puddle --version` shows the installed version');
-        resolve(0);
-      } else {
-        reject(new CliError('not_installed', `npm install exited with ${code ?? 'a signal'}`));
-      }
-    });
-  });
-}
-
-/**
- * `puddle upgrade desktop` — install a fresh macOS app, or run the same check
- * → stage → swap pipeline the app's own update banner uses
- * (lib/desktop-update.ts), inline while the app is closed. A running app must
- * update from its banner instead: its swap has to wait for the process to
- * exit, which from here would just hang.
- */
-async function upgradeDesktop(logger: Logger): Promise<number> {
-  const installed = await findInstalledDesktopApp();
-  const targetPath = installed?.appPath ?? (await desktopAppInstallPath());
-  if (targetPath === null) {
-    throw new CliError(
-      'not_installed',
-      'no Puddle.app in /Applications or ~/Applications',
-      process.platform === 'linux'
-        ? 'AppImages carry no fixed path — update from the app itself (its banner knows $APPIMAGE)'
-        : undefined,
-    );
-  }
-  if (installed !== null && (await isDesktopAppRunning(installed.appPath))) {
-    throw new CliError(
-      'already_running',
-      'Puddle is running — use its update banner, or quit it and rerun',
-    );
-  }
-  const update = await checkForDesktopUpdate(installed?.version ?? '0.0.0');
-  if (update === null) {
-    if (installed === null) {
-      throw new CliError(
-        'not_installed',
-        'no Puddle desktop release is available for this macOS architecture',
-      );
-    }
-    logger.info(`Puddle ${installed.version} is already the latest release`);
-    return 0;
-  }
-  if (installed === null) logger.info(`installing Puddle ${update.version}`);
-  else logger.info(`Puddle ${installed.version} → ${update.version}`);
-  const staged = await stageDesktopUpdate(update, { logger });
-  await applyDesktopUpdate(staged, {
-    targetPath,
-    detach: false,
-    relaunch: false,
-    logger,
-  });
-  logger.info(`Puddle ${update.version} installed at ${targetPath}`);
-  return 0;
 }
 
 /**

@@ -9,6 +9,7 @@ import {
   applyDesktopUpdate,
   checkForDesktopUpdate,
   desktopAppInstallPath,
+  desktopUpdateAt,
   findInstalledDesktopApp,
   isNewerVersion,
   parseSums,
@@ -17,6 +18,7 @@ import {
   stageDesktopUpdate,
   type DesktopUpdate,
 } from '../src/lib/desktop-update.js';
+import { latestReleaseVersion } from '../src/lib/releases.js';
 
 const sha256 = (data: string): string => createHash('sha256').update(data).digest('hex');
 
@@ -173,6 +175,45 @@ describe('checkForDesktopUpdate', () => {
   it('throws on API failure so pollers can retry', async () => {
     await expect(
       checkForDesktopUpdate('0.0.13', {
+        fetchFn: () => Promise.resolve(new Response('rate limited', { status: 403 })),
+      }),
+    ).rejects.toThrow(/HTTP 403/);
+  });
+
+  it('desktopUpdateAt pins a tag — downgrades included — and names a missing one', async () => {
+    const pinned = await desktopUpdateAt('0.0.12', {
+      platform: 'darwin',
+      arch: 'arm64',
+      fetchFn: () => Promise.resolve(release('v0.0.12')), // no newer-than check
+    });
+    expect(pinned?.version).toBe('0.0.12');
+    await expect(
+      desktopUpdateAt('9.9.9', {
+        fetchFn: () => Promise.resolve(new Response('nope', { status: 404 })),
+      }),
+    ).rejects.toThrow(/no release v9\.9\.9/);
+  });
+});
+
+describe('latestReleaseVersion', () => {
+  beforeAll(() => {
+    process.env.PUDDLE_REPO = 'example/puddle';
+  });
+  afterAll(() => {
+    delete process.env.PUDDLE_REPO;
+  });
+
+  it('resolves the latest tag, stripping the v', async () => {
+    await expect(
+      latestReleaseVersion({
+        fetchFn: () => Promise.resolve(new Response(JSON.stringify({ tag_name: 'v0.0.33' }))),
+      }),
+    ).resolves.toBe('0.0.33');
+  });
+
+  it('fails legibly when the API is unreachable', async () => {
+    await expect(
+      latestReleaseVersion({
         fetchFn: () => Promise.resolve(new Response('rate limited', { status: 403 })),
       }),
     ).rejects.toThrow(/HTTP 403/);

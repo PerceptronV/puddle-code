@@ -60,10 +60,15 @@ developing so the cockpit stays attached to your terminal (`puddle list` / `pudd
 kill` manage backgrounded ones; `puddle refresh` is kill-then-launch in one step, also
 reachable from the UI's connection banner).
 
-`puddle upgrade desktop` updates a closed desktop app in place; on macOS it
-also installs the latest app when none exists, preferring writable
-`/Applications` and otherwise creating `~/Applications`. Linux remains
-update-only because an AppImage has no fixed install path.
+`puddle install/upgrade/remove <cli|daemon|desktop>[@version] [user@host]`
+manage the three components (SPEC §10): install ensures presence, upgrade
+moves to newest (or the named version; bare `upgrade` covers everything
+installed, CLI last), remove uninstalls behind y/N confirmations — daemon
+removal keeps ~/.puddle's data unless purged, and sweeps worktrees for
+uncommitted/unpushed work first. cli/desktop are client-machine only;
+`upgrade desktop` still installs the macOS app when none exists (writable
+`/Applications`, else `~/Applications`); Linux desktop stays in-app-update
+only (an AppImage has no fixed install path).
 
 > **Never launch `puddled` from inside a coding-agent session** (e.g. a Claude Code terminal, including these dev sessions). The daemon inherits that agent's orchestration env vars — `CLAUDECODE=1`, `CLAUDE_CODE_*` — and passes them to the agents it spawns (PtyManager uses `{...process.env}` by design). A `claude` that sees `CLAUDECODE`/`CLAUDE_CODE_CHILD_SESSION` treats itself as a nested child and **does not write a resumable conversation transcript**, so `--resume` silently fails with "no conversation found" (verified against Claude Code 2.1.209: the identical session persists a transcript with these unset and writes nothing with them set). Start the daemon from a plain shell (systemd/launchd does this in production, so real deployments are unaffected). If a session won't resume during development, check the daemon's env first (`ps eww <pid> | tr ' ' '\n' | grep CLAUDE`).
 

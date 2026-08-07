@@ -123,8 +123,47 @@ export async function checkForDesktopUpdate(
   const release = (await response.json()) as { tag_name?: string; assets?: ReleaseAsset[] };
   const version = (release.tag_name ?? '').replace(/^v/, '');
   if (!isNewerVersion(version, currentVersion)) return null;
+  return updateFromRelease(version, release.assets ?? [], opts);
+}
 
-  const assets = release.assets ?? [];
+/**
+ * The desktop update for a SPECIFIC release (`puddle install/upgrade
+ * desktop@version`, SPEC §10) — downgrades included: naming a version is the
+ * point. Throws when the tag does not exist; null when the release carries
+ * nothing for this platform.
+ */
+export async function desktopUpdateAt(
+  version: string,
+  opts: CheckOptions = {},
+): Promise<DesktopUpdate | null> {
+  const slug = repoSlug();
+  if (slug === undefined) {
+    throw new CliError(
+      'not_installed',
+      'no release source is configured for this build',
+      'set PUDDLE_REPO=owner/repo',
+    );
+  }
+  const fetchFn = opts.fetchFn ?? fetch;
+  const response = await fetchFn(`https://api.github.com/repos/${slug}/releases/tags/v${version}`, {
+    headers: { accept: 'application/vnd.github+json', 'user-agent': 'puddle-desktop' },
+  });
+  if (response.status === 404) {
+    throw new CliError('not_installed', `no release v${version} exists in ${slug}`);
+  }
+  if (!response.ok) {
+    throw new CliError('not_installed', `release lookup failed (HTTP ${response.status})`);
+  }
+  const release = (await response.json()) as { assets?: ReleaseAsset[] };
+  return updateFromRelease(version, release.assets ?? [], opts);
+}
+
+/** The platform asset + checksums of one release, as a stageable update. */
+function updateFromRelease(
+  version: string,
+  assets: ReleaseAsset[],
+  opts: CheckOptions,
+): DesktopUpdate | null {
   const asset = pickDesktopAsset(
     assets,
     opts.platform ?? process.platform,

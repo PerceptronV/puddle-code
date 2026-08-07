@@ -35,9 +35,63 @@ export type Command =
   | { cmd: 'status'; host?: string }
   | { cmd: 'attach'; host?: string; session: string; term?: string }
   | { cmd: 'logs'; host?: string; session?: string; term?: string; follow: boolean }
-  | { cmd: 'upgrade'; what: 'cli' | 'daemon' | 'desktop'; host?: string }
+  | {
+      cmd: 'install';
+      what: 'daemon' | 'desktop';
+      /** Release to install (bare X.Y.Z); absent = newest. */
+      version?: string;
+      host?: string;
+      tarball?: string;
+    }
+  | {
+      cmd: 'upgrade';
+      /** Absent = every component installed on the target (cli upgraded last). */
+      what?: 'cli' | 'daemon' | 'desktop';
+      version?: string;
+      host?: string;
+      tarball?: string;
+    }
+  | {
+      cmd: 'remove';
+      what: 'cli' | 'daemon' | 'desktop';
+      host?: string;
+      yes: boolean;
+      purge: boolean;
+    }
   | { cmd: 'help' }
   | { cmd: 'version' };
+
+const COMPONENTS = ['cli', 'daemon', 'desktop'] as const;
+export type Component = (typeof COMPONENTS)[number];
+
+/**
+ * `daemon`, `daemon@v0.0.32`, or a bare `@v0.0.31` (a version for every
+ * component — upgrade only). The `v` is optional; the stored version never
+ * carries it. Returns null when the positional is not component-shaped at all
+ * (e.g. a `user@host` target).
+ */
+export function parseComponentSpec(raw: string): { what?: Component; version?: string } | null {
+  const at = raw.indexOf('@');
+  const name = at === -1 ? raw : raw.slice(0, at);
+  const versionRaw = at === -1 ? undefined : raw.slice(at + 1);
+  if (name !== '' && !(COMPONENTS as readonly string[]).includes(name)) return null;
+  if (name === '' && versionRaw === undefined) return null;
+  let version: string | undefined;
+  if (versionRaw !== undefined) {
+    version = versionRaw.replace(/^v/, '');
+    if (!/^\d+\.\d+\.\d+$/.test(version)) {
+      throw new CliError(
+        'bad_arguments',
+        `'${versionRaw}' is not a release version`,
+        'versions look like @v0.0.32 (or @0.0.32)',
+      );
+    }
+  }
+  return {
+    ...(name !== '' ? { what: name as Component } : {}),
+    ...(version !== undefined ? { version } : {}),
+  };
+}
 
 export const USAGE = `Puddle — self-hosted orchestrator for CLI coding agents
 
@@ -51,7 +105,9 @@ usage:
   puddle status  [user@host]
   puddle attach  [user@host] <session> [--term <id>]
   puddle logs    [user@host] [session] [--term <id>] [-f|--follow]
-  puddle upgrade [daemon [user@host] | desktop]
+  puddle install <daemon|desktop>[@version] [user@host] [--tarball <path>]
+  puddle upgrade [cli|daemon|desktop][@version] [user@host] [--tarball <path>]
+  puddle remove  <cli|daemon|desktop> [user@host] [--yes] [--purge]
   puddle --version | --help
 
 launch serves the cockpit at http://localhost:7433 against the daemon on this
@@ -62,9 +118,18 @@ to stay attached; Ctrl-C then stops the cockpit). refresh stops a target's
 cockpit (even a wedged one) and runs the full launch flow again — tunnel,
 daemon restart if needed — keeping the old UI port so open tabs survive.
 list shows running cockpits; kill stops one — sessions keep running on the
-host either way. upgrade with no subject updates the CLI itself through npm;
-'daemon' updates puddled (on this machine, or on a user@host) and 'desktop'
-installs or updates the macOS app bundle (Linux AppImages update in-app).`;
+host either way.
+
+install puts a component in place: 'daemon' under ~/.puddle on this machine
+or a user@host, 'desktop' as the macOS app bundle (Linux AppImages carry no
+fixed path — decline). Already installed and no @version → nothing changes.
+upgrade moves components to the newest release (or the named @version),
+installing any that are missing; with no component it covers everything
+installed on the target — the CLI last, via npm. cli and desktop are
+client-machine artefacts: user@host targets the daemon only. remove
+uninstalls a component after confirmation; 'daemon' stops it (interrupting
+its sessions), unregisters the supervisor, and keeps ~/.puddle's data —
+profiles, session history, worktrees — unless you also confirm --purge.`;
 
 /** Hand-rolled argv parser — the surface is small enough to own outright. */
 export function parseArgs(argv: string[]): Command {
@@ -246,36 +311,84 @@ export function parseArgs(argv: string[]): Command {
         ? { cmd: 'logs', host: first, follow, ...(term !== undefined ? { term } : {}) }
         : { cmd: 'logs', session: first, follow, ...(term !== undefined ? { term } : {}) };
     }
-    case 'upgrade': {
-      const [what, host, extra] = positionals;
-      // Bare `puddle upgrade` upgrades the CLI — the overwhelmingly common
-      // case, and the one you reach for when `puddle` itself is out of date.
-      // The `cli` subject it replaces is gone rather than kept as a silent
-      // alias, so there is exactly one spelling; typing it lands on the hint.
-      if (what === undefined) {
-        expect();
-        return { cmd: 'upgrade', what: 'cli' };
-      }
-      if (what === 'cli') {
-        throw new CliError(
-          'bad_arguments',
-          '`puddle upgrade cli` is now just `puddle upgrade`',
-          'run: puddle upgrade',
-        );
-      }
-      if (what !== 'daemon' && what !== 'desktop') {
-        throw new CliError(
-          'bad_arguments',
-          'upgrade takes no subject (the CLI) or one of: daemon | desktop',
-          what.includes('@')
-            ? `to upgrade the daemon on ${what}: puddle upgrade daemon ${what}`
-            : 'see: puddle --help',
-        );
-      }
+    case 'install': {
+      const [specRaw, host, extra] = positionals;
       if (extra !== undefined)
-        throw new CliError('bad_arguments', 'upgrade takes at most a subject + host');
-      expect();
-      return { cmd: 'upgrade', what, ...(host !== undefined ? { host } : {}) };
+        throw new CliError('bad_arguments', 'install takes at most a component + host');
+      const tarball = strFlag('--tarball');
+      expect('--tarball');
+      const spec = specRaw !== undefined ? parseComponentSpec(specRaw) : null;
+      if (spec?.what === undefined || spec.what === 'cli') {
+        throw new CliError(
+          'bad_arguments',
+          'install takes one of: daemon | desktop (with an optional @version)',
+          spec?.what === 'cli'
+            ? 'the CLI installs itself via npm: npm install -g @puddle-code/cli'
+            : 'e.g. puddle install daemon@v0.0.32 user@host',
+        );
+      }
+      return {
+        cmd: 'install',
+        what: spec.what,
+        ...(spec.version !== undefined ? { version: spec.version } : {}),
+        ...(host !== undefined ? { host } : {}),
+        ...(tarball !== undefined ? { tarball } : {}),
+      };
+    }
+    case 'upgrade': {
+      const tarball = strFlag('--tarball');
+      expect('--tarball');
+      if (positionals.length > 2)
+        throw new CliError('bad_arguments', 'upgrade takes at most a component + host');
+      // The first positional may be a component spec (`daemon`, `desktop@v…`),
+      // a bare `@version` (that version for everything installed), or already
+      // the host; version specs start with `@`, hosts have text before theirs.
+      const [first, second] = positionals;
+      const spec = first !== undefined ? parseComponentSpec(first) : null;
+      const host = spec === null ? first : second;
+      if (spec === null && second !== undefined)
+        throw new CliError(
+          'bad_arguments',
+          `'${first}' is not a component`,
+          'upgrade takes [cli|daemon|desktop][@version], then an optional user@host',
+        );
+      return {
+        cmd: 'upgrade',
+        ...(spec?.what !== undefined ? { what: spec.what } : {}),
+        ...(spec?.version !== undefined ? { version: spec.version } : {}),
+        ...(host !== undefined ? { host } : {}),
+        ...(tarball !== undefined ? { tarball } : {}),
+      };
+    }
+    case 'remove':
+    case 'uninstall': {
+      const [what, host, extra] = positionals;
+      if (extra !== undefined)
+        throw new CliError('bad_arguments', `${cmd} takes at most a component + host`);
+      expect('--yes', '--purge');
+      if (what === undefined || !['cli', 'daemon', 'desktop'].includes(what)) {
+        throw new CliError(
+          'bad_arguments',
+          `${cmd} needs a component: cli | daemon | desktop`,
+          what !== undefined && /^(cli|daemon|desktop)@/.test(what)
+            ? `${cmd} takes no @version — a removal has no version to pick`
+            : 'e.g. puddle remove daemon user@host',
+        );
+      }
+      const purge = flags.has('--purge');
+      if (purge && what !== 'daemon') {
+        throw new CliError(
+          'bad_arguments',
+          '--purge only applies to the daemon (it deletes ~/.puddle)',
+        );
+      }
+      return {
+        cmd: 'remove',
+        what: what as Component,
+        ...(host !== undefined ? { host } : {}),
+        yes: flags.has('--yes'),
+        purge,
+      };
     }
     default:
       throw new CliError('bad_arguments', `unknown command '${cmd}'`, 'see: puddle --help');

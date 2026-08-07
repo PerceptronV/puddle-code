@@ -142,36 +142,76 @@ describe('argument parsing', () => {
     expect(parseArgs(['logs'])).toEqual({ cmd: 'logs', follow: false });
   });
 
-  it('upgrade: bare means the CLI, with an optional subject and host', () => {
-    // The common case, and the one you reach for when `puddle` is out of date.
-    expect(parseArgs(['upgrade'])).toEqual({ cmd: 'upgrade', what: 'cli' });
+  it('upgrade: bare covers everything installed; component and @version are optional', () => {
+    expect(parseArgs(['upgrade'])).toEqual({ cmd: 'upgrade' });
+    expect(parseArgs(['upgrade', 'cli'])).toEqual({ cmd: 'upgrade', what: 'cli' });
     expect(parseArgs(['upgrade', 'daemon'])).toEqual({ cmd: 'upgrade', what: 'daemon' });
     expect(parseArgs(['upgrade', 'daemon', 'user@host'])).toEqual({
       cmd: 'upgrade',
       what: 'daemon',
       host: 'user@host',
     });
-    expect(parseArgs(['upgrade', 'desktop'])).toEqual({ cmd: 'upgrade', what: 'desktop' });
+    expect(parseArgs(['upgrade', 'desktop@v0.0.32'])).toEqual({
+      cmd: 'upgrade',
+      what: 'desktop',
+      version: '0.0.32',
+    });
+    // Bare @version: that version for every installed component.
+    expect(parseArgs(['upgrade', '@0.0.31'])).toEqual({ cmd: 'upgrade', version: '0.0.31' });
+    // A lone user@host is the target, not a component.
+    expect(parseArgs(['upgrade', 'user@host'])).toEqual({ cmd: 'upgrade', host: 'user@host' });
+    expect(parseArgs(['upgrade', 'daemon', '--tarball', 'x.tar.gz'])).toEqual({
+      cmd: 'upgrade',
+      what: 'daemon',
+      tarball: 'x.tar.gz',
+    });
   });
 
-  it('upgrade: the retired `cli` subject points at the bare form', () => {
-    try {
-      parseArgs(['upgrade', 'cli']);
-      expect.unreachable('`upgrade cli` is retired');
-    } catch (e) {
-      expect(e).toBeInstanceOf(CliError);
-      expect((e as CliError).hint).toContain('puddle upgrade');
-    }
+  it('upgrade: a malformed version or a stray word is rejected', () => {
+    expect(() => parseArgs(['upgrade', 'daemon@not-a-version'])).toThrow(CliError);
+    // Two positionals where the first is not a component: nonsense, not a host.
+    expect(() => parseArgs(['upgrade', 'nonsense', 'user@host'])).toThrow(CliError);
   });
 
-  it('upgrade: a bare host still points at the daemon form', () => {
-    // `puddle upgrade user@host` cannot mean "upgrade the CLI over there".
-    try {
-      parseArgs(['upgrade', 'user@host']);
-      expect.unreachable('a bare host must not parse');
-    } catch (e) {
-      expect((e as CliError).hint).toContain('upgrade daemon user@host');
-    }
+  it('install: needs daemon or desktop, takes @version, host, --tarball', () => {
+    expect(parseArgs(['install', 'daemon'])).toEqual({ cmd: 'install', what: 'daemon' });
+    expect(parseArgs(['install', 'daemon@v0.0.32', 'user@host'])).toEqual({
+      cmd: 'install',
+      what: 'daemon',
+      version: '0.0.32',
+      host: 'user@host',
+    });
+    expect(parseArgs(['install', 'desktop'])).toEqual({ cmd: 'install', what: 'desktop' });
+    expect(() => parseArgs(['install'])).toThrow(CliError);
+    // The CLI installs itself via npm — the hint says so.
+    expect(() => parseArgs(['install', 'cli'])).toThrow(CliError);
+    // A bare @version has no component to install.
+    expect(() => parseArgs(['install', '@0.0.32'])).toThrow(CliError);
+  });
+
+  it('remove: needs a component; --purge is daemon-only; uninstall aliases it', () => {
+    expect(parseArgs(['remove', 'daemon'])).toEqual({
+      cmd: 'remove',
+      what: 'daemon',
+      yes: false,
+      purge: false,
+    });
+    expect(parseArgs(['remove', 'daemon', 'user@host', '--yes', '--purge'])).toEqual({
+      cmd: 'remove',
+      what: 'daemon',
+      host: 'user@host',
+      yes: true,
+      purge: true,
+    });
+    expect(parseArgs(['uninstall', 'cli'])).toEqual({
+      cmd: 'remove',
+      what: 'cli',
+      yes: false,
+      purge: false,
+    });
+    expect(() => parseArgs(['remove'])).toThrow(CliError);
+    expect(() => parseArgs(['remove', 'daemon@v0.0.32'])).toThrow(CliError);
+    expect(() => parseArgs(['remove', 'desktop', '--purge'])).toThrow(CliError);
   });
 
   it('help and version', () => {

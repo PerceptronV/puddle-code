@@ -58,7 +58,7 @@ curl -fsSL https://github.com/PerceptronV/puddle-code/releases/latest/download/i
 
 The same cockpit also ships as a standalone desktop app — identical UI and engine, plus a File → "Connect to SSH Host…" menu for remote hosts. Grab the dmg (macOS arm64) or AppImage (Linux x64) from the Releases page.
 
-On macOS, an installed Puddle CLI can install or update the desktop app directly: quit Puddle, then run `puddle upgrade desktop`. A fresh install goes to `/Applications` when writable, otherwise `~/Applications`.
+On macOS, an installed Puddle CLI can install or update the desktop app directly: quit Puddle, then run `puddle install desktop` (or `puddle upgrade desktop` — it installs when missing). A fresh install goes to `/Applications` when writable, otherwise `~/Applications`; `puddle remove desktop` deletes it again. The same verbs manage the other components too — `puddle install daemon@v0.0.32 user@host` pins a host's daemon, bare `puddle upgrade` moves everything installed to the newest release, and `puddle remove daemon` uninstalls one while keeping its data unless you tell it otherwise.
 
 The macOS downloads are **not code-signed** (an open-source project without Apple Developer Program fees), so Gatekeeper will refuse the first launch. Either allow it once — open the app, let macOS block it, then System Settings → Privacy & Security → **Open Anyway** — or clear the download quarantine in a terminal:
 

@@ -1,8 +1,10 @@
 import {
   hostInfoSchema,
+  profileSchema,
   sessionSchema,
   versionResponseSchema,
   type HostInfo,
+  type Profile,
   type Session,
   type VersionResponse,
 } from '@puddle/shared';
@@ -61,6 +63,15 @@ export class DaemonClient {
 
   sessions(): Promise<Session[]> {
     return this.get('/api/sessions').then((body) => sessionSchema.array().parse(body));
+  }
+
+  profiles(): Promise<Profile[]> {
+    return this.get('/api/profiles').then((body) => profileSchema.array().parse(body));
+  }
+
+  /** The live subset of sessions() — what an upgrade/removal interrupts. */
+  async liveSessions(): Promise<Session[]> {
+    return (await this.sessions()).filter((s) => LIVE.has(s.status));
   }
 
   async liveSessionCount(): Promise<number> {
