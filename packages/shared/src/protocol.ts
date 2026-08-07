@@ -195,4 +195,14 @@
 // the login dialogue shows verbatim. Added for Claude Code's full-TUI login
 // (the TUI sits in a REPL after sign-in, so the user must be told how to
 // leave it). Additive; older daemons simply omit it.
-export const PROTOCOL_VERSION = { major: 13, minor: 1 } as const;
+// 14.0 (2026-08-06): major bump with NO schema change beyond 13.1's additive
+// `hint`, on purpose — forces every connected daemon to auto-upgrade at the
+// next handshake (PROTOCOL.md "The rule"; mirrors 6.0/8.0/10.0/11.0/12.0/
+// 13.0). The login flows this release fixes are DAEMON-SIDE behaviour a
+// client cannot feature-detect or work around: a 13.x daemon still spawns
+// `claude auth login` (no method picker — subscription only) and `codex
+// login` (a browser + localhost callback on the daemon host, i.e. an empty
+// panel from any remote cockpit), trusts exit-code 0 instead of verifying
+// via the agent's own auth status, and sends no login `hint`. Retiring 13.x
+// makes the first-run-TUI login the flow every deployment serves.
+export const PROTOCOL_VERSION = { major: 14, minor: 0 } as const;

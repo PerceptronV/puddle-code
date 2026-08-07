@@ -9,6 +9,10 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Changed
+
+- Protocol 14.0: a forced-upgrade major with no schema change beyond 13.1's additive login `hint` (the 6.0/8.0/…/13.0 pattern). The fixed login flows are daemon-side behaviour a client cannot detect or route around — a 13.x daemon still runs the subcommand logins (codex's empty panel included) and never verifies a login's clean exit — so every connected daemon auto-upgrades at its next handshake.
+
 ### Added
 
 - Remote cockpits now carry the client's `localhost:1455` to the host over the SSH master connection (best-effort, skipped with a warning when the local port is busy), so codex's ChatGPT sign-in completes from a remote cockpit: its OAuth flow redirects the client browser to a registered `http://localhost:1455/…` callback that no proxy rewrite can reach — the fixed forward is codex's own documented headless-SSH recipe, now automatic.
