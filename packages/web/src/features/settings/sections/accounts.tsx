@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { KeyRound, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { KeyRound, Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { toastError } from '../../../lib/errors';
 import type { Account, AgentType } from '@puddle/shared';
@@ -141,6 +141,7 @@ function AccountRow({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   // Editable label: local while typing, saved on blur/Enter, reverted on Escape.
   const [label, setLabel] = useState(account.label);
+  const labelRef = useRef<HTMLInputElement>(null);
   useEffect(() => setLabel(account.label), [account.label]);
 
   const commitLabel = () => {
@@ -164,20 +165,37 @@ function AccountRow({
   return (
     <div className="flex items-center gap-3 rounded-md bg-surface px-3 py-2">
       <span className="min-w-0 flex-1">
-        <input
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          onBlur={commitLabel}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') e.currentTarget.blur();
-            else if (e.key === 'Escape') {
-              setLabel(account.label);
-              e.currentTarget.blur();
-            }
-          }}
-          aria-label="Account name"
-          className="-mx-1 block w-full truncate rounded-sm bg-transparent px-1 py-0.5 text-sm text-fg transition-colors hover:bg-elevated focus:bg-elevated focus:outline-none"
-        />
+        <span className="flex items-center gap-1">
+          <input
+            ref={labelRef}
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            onBlur={commitLabel}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur();
+              else if (e.key === 'Escape') {
+                setLabel(account.label);
+                e.currentTarget.blur();
+              }
+            }}
+            aria-label="Account name"
+            className="-mx-1 block w-full min-w-0 truncate rounded-sm bg-transparent px-1 py-0.5 text-sm text-fg transition-colors hover:bg-elevated focus:bg-elevated focus:outline-none"
+          />
+          {/* The name IS the editor, but nothing said so until it was hovered —
+              the pencil is the standing hint, and clicking it starts the edit. */}
+          <button
+            type="button"
+            title="Rename account"
+            onClick={() => {
+              labelRef.current?.focus();
+              labelRef.current?.select();
+            }}
+            className="shrink-0 rounded-sm p-0.5 text-fg-muted transition-colors hover:bg-elevated hover:text-fg"
+          >
+            <Pencil className="size-3" />
+            <span className="sr-only">Rename account</span>
+          </button>
+        </span>
         <span className={`text-2xs ${account.logged_in ? 'text-success' : 'text-warning'}`}>
           {account.logged_in ? 'logged in' : 'not logged in'}
         </span>

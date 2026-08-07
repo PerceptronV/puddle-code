@@ -15,6 +15,7 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Account renaming is discoverable: a pencil beside the account name in Settings → Accounts starts the edit (the name was already an inline-editable field, but nothing said so until it was hovered).
 - The account login dialogue is near-fullscreen: the login is the agent's first-run TUI now, so it gets a real terminal's canvas rather than the 28rem box sized for the old subcommand flows.
 
 ### Fixed
