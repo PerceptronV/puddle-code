@@ -283,10 +283,15 @@ export interface AgentAdapter {
   resumeArgs(ref: string, opts: LaunchOpts): string[]; // restore session
   loginArgs(): string[]; // interactive login flow
   // Guidance the login dialogue shows verbatim (13.1) — for a flow that is not
-  // self-evidently finishable (claude-code runs its full TUI so the user can
-  // pick subscription vs Console/API billing on its own login screen, then
-  // must exit the REPL by hand; a clean exit is VERIFIED via checkLoggedIn,
-  // never assumed, since quitting without signing in also exits 0).
+  // self-evidently finishable. claude-code, codex, and gemini-cli all run
+  // their FULL TUI so the agent's own first-run sign-in screen renders in the
+  // PTY (claude's method picker; codex's — its `login` subcommand only opens
+  // a browser + localhost callback on the daemon host, an empty panel from a
+  // remote cockpit; gemini has no auth subcommand at all), then must be
+  // exited by hand — which the hint says. opencode keeps `auth login`, an
+  // interactive picker that exits cleanly on its own. A clean exit is
+  // VERIFIED via checkLoggedIn where one exists, never assumed, since
+  // quitting a TUI without signing in also exits 0.
   loginHint?: string;
   // Returns the agent-native session ref. Either echoes the preset id, or
   // discovers it post-launch (e.g. newest session file in the config dir).

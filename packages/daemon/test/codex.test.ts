@@ -72,7 +72,9 @@ describe('codex adapter — args', () => {
   });
 
   it('logs in with `codex login`', () => {
-    expect(codex.loginArgs()).toEqual(['login']);
+    // Bare TUI: `codex login` renders nothing in a PTY (browser + localhost
+    // callback on the daemon host), so login runs the first-run sign-in screen.
+    expect(codex.loginArgs()).toEqual([]);
   });
 
   it('cannot preset its session id', () => {

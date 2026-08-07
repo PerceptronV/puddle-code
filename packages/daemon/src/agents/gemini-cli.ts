@@ -80,6 +80,8 @@ export const geminiCli: AgentAdapter = {
     // No auth subcommand: a bare launch shows the first-run auth picker.
     return [];
   },
+  loginHint:
+    'Complete the auth picker on Gemini’s own screen. When you are done, press Ctrl+C twice to close the agent and finish.',
 
   async checkLoggedIn(account) {
     // Asking the CLI is not an option (no status command), so the credential

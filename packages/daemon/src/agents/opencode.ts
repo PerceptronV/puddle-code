@@ -87,6 +87,11 @@ export const opencode: AgentAdapter = {
   },
 
   loginArgs() {
+    // Deliberately NOT the bare TUI (unlike claude-code/codex/gemini-cli,
+    // decision 2026-08-06): `auth login` is opencode's own interactive
+    // provider picker, renders entirely in the PTY, and exits cleanly on its
+    // own once the credential is saved — exactly what the login dialogue
+    // wants, with no REPL to escape from.
     return ['auth', 'login'];
   },
 

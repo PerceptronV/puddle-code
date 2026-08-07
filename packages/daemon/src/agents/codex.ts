@@ -22,9 +22,12 @@ const execFileAsync = promisify(execFile);
  *   HONOURED on resume, which is a runtime check (see docs/acceptance).
  * - `codex resume [SESSION_ID] [PROMPT]` — both positional; also `--last`,
  *   `--all`. Flags are emitted before the positionals.
- * - `codex login` opens the interactive flow; `codex login status` **exits 1
+ * - Login runs the bare TUI (see loginArgs); `codex login status` **exits 1
  *   when logged out** (verified) and 0 when logged in, so the exit code alone
- *   drives checkLoggedIn — no output parsing.
+ *   drives checkLoggedIn — no output parsing. `codex login` was used through
+ *   v0.0.31 but starts the browser OAuth flow and its localhost callback
+ *   server ON THE DAEMON HOST while rendering nothing in the PTY — from a
+ *   remote cockpit the login dialogue was an empty terminal.
  * - Session ids are NOT presettable: codex mints its own rollout id, so
  *   `presetSessionId: false` and `agent_session_ref !== sessions.id` — the
  *   first adapter where those diverge. resolveSessionRef polls briefly for the
@@ -79,8 +82,18 @@ export const codex: AgentAdapter = {
   },
 
   loginArgs() {
-    return ['login'];
+    // The bare TUI, not `codex login` (decision 2026-08-06, matching the
+    // claude-code login): an unauthenticated bare `codex` renders its own
+    // sign-in screen IN the PTY (ChatGPT sign-in or API key), where `codex
+    // login` only opened a browser + callback server on the daemon host and
+    // showed nothing — an empty login dialogue from any remote cockpit. The
+    // clean exit is verified via `login status` (accounts route), never
+    // assumed. Confirm the first-run screen against a live codex in the
+    // Phase 7 acceptance run.
+    return [];
   },
+  loginHint:
+    'Pick a sign-in method on Codex’s own screen. When you are done, press Ctrl+C twice to close the agent and finish.',
 
   async checkLoggedIn(account) {
     try {
