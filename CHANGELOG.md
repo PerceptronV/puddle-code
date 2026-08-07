@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Changed
+
+- The collapsed rail's session glyphs step back to 20px marks (16px in compact density) — v0.0.30's 24px filled the chip but read too heavy at rail width.

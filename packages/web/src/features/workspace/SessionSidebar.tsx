@@ -315,8 +315,9 @@ function CollapsedSessionDot({
               {/* Active session marked with the same bg-elevated fill-shift the
                   expanded list and the navigator's mode icons use — a theme
                   colour, no border, no default-blue ring (HUMANS.md). The glyph
-                  NEARLY FILLS its chip (decision 2026-08-06): the dot IS the
-                  row here, and at the utility-icon size it swam in the hover
+                  dominates its chip (decision 2026-08-06, sized down 0.8× the
+                  same day — full-bleed read too heavy): the dot IS the row
+                  here, and at the 12px utility-icon size it swam in the hover
                   container. Larger than the rail's top controls on purpose —
                   content over chrome. */}
               <SessionGlyph
@@ -324,7 +325,7 @@ function CollapsedSessionDot({
                 kind={session.kind}
                 agentType={session.agent_type}
                 stale={session.stale_running}
-                className="size-6 compact:size-5"
+                className="size-5 compact:size-4"
                 iconClassName="size-full"
               />
               <span className="sr-only">{renderTitle(session)}</span>
