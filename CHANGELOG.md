@@ -17,3 +17,4 @@ Past releases: see docs/changelogs/.
 
 - Untitled drafts now follow the editor word-wrap setting (and the ⌥Z toggle) like every other editor, instead of never wrapping.
 - Terminals no longer type cryptic `^[[37;143R`-style sequences into the shell after a tab switch or reload: those were xterm's auto-replies to cursor-position/device queries replayed from scrollback, now suppressed while a replay parses (the asker of a historical query is long gone).
+- A session viewed from several windows at once no longer answers a program's device queries once per viewer: the daemon elects the most recent attacher as the one answering viewer and strips duplicate reply sequences from the others' input — this also covers `puddle attach`, where the user's own terminal answers alongside the web's.

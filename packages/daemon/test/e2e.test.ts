@@ -317,6 +317,47 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
     viewer.close();
   });
 
+  it('lets one viewer answer device queries: other viewers’ replies are stripped', async () => {
+    const c = client(daemon);
+    const s = await c.json<Session>('POST', '/api/sessions', {
+      project_id: project.id,
+      account_id: alice1.id,
+      title: 'device replies',
+      prompt: 'noop',
+    });
+    const a = wsClient(daemon);
+    const b = wsClient(daemon);
+    await a.open;
+    await b.open;
+    a.send({ t: 'attach', session: s.id, term: 'agent', cols: 100, rows: 30 });
+    await waitFor(() => a.outputFor(s.id).includes('READY'));
+    b.send({ t: 'attach', session: s.id, term: 'agent', cols: 100, rows: 30 });
+    await waitFor(() => b.outputFor(s.id).includes('READY')); // replay seen ⇒ attach processed
+
+    // B attached last, so B is the answering viewer: a reply-shaped sequence
+    // in A's stdin is stripped (the duplicate a second emulator would add),
+    // while the typing around it goes through untouched.
+    a.send({ t: 'stdin', session: s.id, term: 'agent', data: 'first\x1b[12;34Rsecond\n' });
+    await waitFor(() => a.outputFor(s.id).includes('firstsecond'));
+    expect(a.outputFor(s.id)).not.toContain('12;34R');
+
+    // The answering viewer's reply reaches the PTY.
+    b.send({ t: 'stdin', session: s.id, term: 'agent', data: '\x1b[56;78R\n' });
+    await waitFor(() => b.outputFor(s.id).includes('56;78R'));
+
+    // B detaches — the role falls back to A, whose replies then pass. The
+    // detach has no ack, so poll by re-sending until one lands.
+    b.send({ t: 'detach', session: s.id, term: 'agent' });
+    await waitFor(() => {
+      a.send({ t: 'stdin', session: s.id, term: 'agent', data: '\x1b[99;9R\n' });
+      return a.outputFor(s.id).includes('99;9R');
+    });
+
+    a.close();
+    b.close();
+    await c.req('POST', `/api/sessions/${s.id}/kill`);
+  });
+
   it('serves the home-stream shell: reused while live, ended by kill-shell', async () => {
     const viewer = wsClient(daemon);
     await viewer.open;

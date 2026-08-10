@@ -12,6 +12,7 @@ import type { PtyDataEvent, PtyExitEvent, PtyManager } from '../pty/pty-manager.
 import type { TerminalTheme } from '../pty/terminal-theme.js';
 import type { NoticeEvent, RenameEvent, SessionService, StatusEvent } from '../sessions/service.js';
 import { ApiError } from '../http/errors.js';
+import { stripDeviceReplies } from './device-replies.js';
 
 export interface WsGatewayDeps {
   token: string;
@@ -36,6 +37,14 @@ interface WsEventHandlers {
 export class WsGateway {
   private readonly viewers = new Map<string, Set<WSContext>>();
   private readonly statusSubs = new Set<WSContext>();
+  /**
+   * The one viewer per (stream, term) whose device-query answers reach the
+   * PTY (see device-replies.ts): the most recent attacher/resizer — the same
+   * viewer whose grid won the PTY size, so its cursor reports are the
+   * authoritative ones. Other viewers' reply-shaped stdin is stripped; with
+   * a single viewer nothing ever is.
+   */
+  private readonly responders = new Map<string, WSContext>();
 
   constructor(private readonly deps: WsGatewayDeps) {
     deps.ptys.on('data', (e: PtyDataEvent) => {
@@ -144,17 +153,27 @@ export class WsGateway {
             if (!set) this.viewers.set(key, (set = new Set()));
             set.add(ws);
             attached.add(key);
+            this.responders.set(key, ws);
             const tail = this.deps.logs.readTail(msg.session, msg.term);
             this.send(ws, { t: 'replay', session: msg.session, term: msg.term, data: tail });
             this.deps.ptys.resize(msg.session, msg.term, msg.cols, msg.rows);
             break;
           }
-          case 'stdin':
-            this.deps.ptys.write(msg.session, msg.term, msg.data);
+          case 'stdin': {
+            const responder = this.responders.get(this.key(msg.session, msg.term));
+            const data =
+              responder === undefined || responder === ws ? msg.data : stripDeviceReplies(msg.data);
+            if (data !== '') this.deps.ptys.write(msg.session, msg.term, data);
             break;
-          case 'resize':
+          }
+          case 'resize': {
+            // The resize that wins the PTY size also wins the responder role:
+            // this viewer's grid is now the one the PTY believes in.
+            const key = this.key(msg.session, msg.term);
+            if (this.viewers.get(key)?.has(ws)) this.responders.set(key, ws);
             this.deps.ptys.resize(msg.session, msg.term, msg.cols, msg.rows);
             break;
+          }
           case 'detach': {
             const key = this.key(msg.session, msg.term);
             this.dropViewer(key, ws);
@@ -252,7 +271,19 @@ export class WsGateway {
     const set = this.viewers.get(key);
     if (!set) return;
     set.delete(ws);
-    if (set.size === 0) this.viewers.delete(key);
+    if (set.size === 0) {
+      this.viewers.delete(key);
+      this.responders.delete(key);
+      return;
+    }
+    // The answering viewer left: pass the role to the most recently attached
+    // of the rest (Sets iterate in insertion order), so queries keep getting
+    // exactly one answer.
+    if (this.responders.get(key) === ws) {
+      let last: WSContext | undefined;
+      for (const viewer of set) last = viewer;
+      if (last) this.responders.set(key, last);
+    }
   }
 
   private broadcast(key: string, msg: WsServerMessage): void {
