@@ -229,4 +229,14 @@
 // release (config-file semantics, not wire): `autoResume` now defaults to
 // TRUE, with config version 3 migrating a pre-3 `false` — the old
 // written-back default — exactly once.
-export const PROTOCOL_VERSION = { major: 15, minor: 1 } as const;
+// 15.2 (2026-08-09): additive — GET /api/worktrees/:sid/resolve answers for
+// the whole daemon host, not just the worktree: a file outside it returns
+// external-tab coordinates (`root` + `path` relative to it), a directory
+// returns `kind: 'dir'` with its absolute path (the UI binds the file tree
+// there as a pinned browse), and `~` expands against the daemon host's home.
+// Both response fields are optional; a 15.2 client on an older daemon simply
+// never sees outside paths or directories underlined (the old 404s stand).
+// The reverse skew (an old UI on a 15.2 daemon) would mis-open a directory
+// link as a file tab — accepted: the CLI serves the UI and upgrades the
+// daemon in lockstep, so only a stale browser tab can skew.
+export const PROTOCOL_VERSION = { major: 15, minor: 2 } as const;

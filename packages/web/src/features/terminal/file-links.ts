@@ -12,14 +12,31 @@ import { api } from '../../lib/api';
  * Validated file-path links for session terminals (SPEC §7). xterm's built-in
  * links only handle URLs (that is the web-links addon's job); this provider
  * underlines paths an agent prints — `src/foo.ts:12:3`, `./a/b.py`,
- * `/wt/main.c` — but ONLY after the daemon confirms the file exists, so prose
- * that merely looks path-shaped never lights up. Cmd/Ctrl+click opens it in the
- * Monaco editor at the given position; a plain click keeps terminal selection.
+ * `/wt/main.c`, `~/notes/todo.md` — but ONLY after the daemon confirms the
+ * target exists, so prose that merely looks path-shaped never lights up.
+ * Cmd/Ctrl+click opens a file in the Monaco editor at the given position — as
+ * an `external` tab when it lies outside the worktree (15.2) — and a
+ * DIRECTORY in the file tree, as a pinned browse rooted there (SPEC §8). A
+ * plain click keeps terminal selection.
  *
  * Kept out of `Terminal.tsx` for the same reason as `paste-image.ts`: terminal
  * integrations are separate modules, not inline mount-effect noise. Never
  * registered for `login-*` streams — those have no worktree to resolve against.
  */
+
+/** What a validated link opens: an editor tab, or (for a dir) the browse tree. */
+export interface FileLinkTarget {
+  kind: 'file' | 'dir';
+  /**
+   * Worktree-relative for a worktree file; relative to `root` for an outside
+   * file; for a `dir`, the ABSOLUTE directory to root the file tree at.
+   */
+  path: string;
+  /** Absolute browse root of a file outside the worktree (an `external` tab). */
+  root?: string;
+  line?: number;
+  column?: number;
+}
 
 /** One path-shaped token found in a line, with offsets into the logical text. */
 export interface PathCandidate {
@@ -277,13 +294,13 @@ async function resolvePath(
 
 /**
  * Registers the validated file-path link provider on `xterm`. `onOpen` receives
- * the daemon's normalised worktree-relative path (never the raw match) plus the
- * requested line/column. Returns an `IDisposable` to unregister on unmount.
+ * the daemon's normalised target (never the raw match) plus the requested
+ * line/column. Returns an `IDisposable` to unregister on unmount.
  */
 export function registerFileLinks(
   xterm: XTerm,
   sessionId: string,
-  onOpen: (path: string, line?: number, column?: number) => void,
+  onOpen: (target: FileLinkTarget) => void,
 ): IDisposable {
   const cache = new ResolveCache({ fetcher: resolvePath });
 
@@ -323,11 +340,19 @@ export function registerFileLinks(
               // SPEC §14 activation gesture is cmd/ctrl+click; a plain click
               // must keep the terminal's own text selection.
               if (!event.metaKey && !event.ctrlKey) return;
-              onOpen(
-                resolved.path,
-                candidate.line !== undefined ? Math.max(1, candidate.line) : undefined,
-                candidate.column,
-              );
+              const kind = resolved.kind ?? 'file'; // pre-15.2 daemons only answer files
+              onOpen({
+                kind,
+                path: resolved.path,
+                ...(resolved.root !== undefined ? { root: resolved.root } : {}),
+                // A dir opens the file tree — a `:line` suffix has nothing to scroll to.
+                ...(kind === 'file' && candidate.line !== undefined
+                  ? { line: Math.max(1, candidate.line) }
+                  : {}),
+                ...(kind === 'file' && candidate.column !== undefined
+                  ? { column: candidate.column }
+                  : {}),
+              });
             },
           };
         }),

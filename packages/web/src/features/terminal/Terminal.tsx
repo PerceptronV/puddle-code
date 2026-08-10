@@ -25,7 +25,7 @@ import { dynamicColourReport, type DynamicColourCode } from './osc-colour';
 import { isCopyShortcut } from './copy-shortcut';
 import { interceptImagePaste } from './paste-image';
 import { rewriteTerminalUri } from './proxy-links';
-import { registerFileLinks } from './file-links';
+import { registerFileLinks, type FileLinkTarget } from './file-links';
 
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -90,8 +90,8 @@ export interface TerminalProps {
   term?: string;
   className?: string;
   onExit?: (code: number) => void;
-  /** Cmd/Ctrl+click on a validated file path opens it in the editor (SPEC §7). */
-  onOpenFile?: (path: string, line?: number, column?: number) => void;
+  /** Cmd/Ctrl+click on a validated path opens it — a file in the editor, a directory in the file tree (SPEC §7). */
+  onOpenFile?: (target: FileLinkTarget) => void;
   /**
    * True while this terminal's DOM is parked out of sight (a background tab in
    * the tiling layout). A paused terminal detaches its PTY viewer — no output
@@ -244,9 +244,7 @@ export function Terminal({
     // no worktree to resolve against) and only when a handler is wired.
     const fileLinks =
       onOpenFileRef.current && !sessionless
-        ? registerFileLinks(xterm, stream, (path, line, column) =>
-            onOpenFileRef.current?.(path, line, column),
-          )
+        ? registerFileLinks(xterm, stream, (target) => onOpenFileRef.current?.(target))
         : null;
 
     // The last OSC 52 payload an agent asked to copy, NOT yet on the clipboard.

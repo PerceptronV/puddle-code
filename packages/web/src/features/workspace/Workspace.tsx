@@ -63,6 +63,7 @@ import { wsManager } from '../../lib/ws';
 import { registerHotkey, useHotkeyLabel } from '../../lib/hotkeys';
 import { setScratchpadInsertHandler } from '../scratchpad/scratchpad-store';
 import { setLayoutBridge } from '../layouts/layouts-store';
+import type { FileLinkTarget } from '../terminal/file-links';
 import { KeepAliveHost } from './keep-alive';
 import { rememberClosedTab, takeClosedTab } from './closed-tabs';
 import {
@@ -436,6 +437,35 @@ function WorkspaceInner() {
     [openEditorTab],
   );
   useEditorHandler(openFile);
+  // A validated terminal link (SPEC §7): a file opens an editor tab — an
+  // `external` one when it lies outside the worktree (15.2) — and a DIRECTORY
+  // binds the file tree to it as a pinned browse (SPEC §8), surfacing the
+  // Files navigator first so the result is actually visible.
+  const [browseRequest, setBrowseRequest] = useState<{
+    session: string;
+    root: string;
+    nonce: number;
+  } | null>(null);
+  const openFromTerminal = useCallback(
+    (session: string, target: FileLinkTarget) => {
+      if (target.kind === 'dir') {
+        if (isNarrowRef.current) setNarrowNav(true);
+        uiState.update({
+          sidebar_mode: 'files',
+          ...(isNarrowRef.current ? {} : { sidebar_collapsed: false }),
+        });
+        setBrowseRequest({ session, root: target.path, nonce: Date.now() });
+        return;
+      }
+      openFile(
+        session,
+        target.path,
+        target.line !== undefined ? { line: target.line, column: target.column } : undefined,
+        target.root !== undefined ? { root: target.root } : undefined,
+      );
+    },
+    [openFile, uiState],
+  );
   // Explorer clicks: a single click opens an ephemeral preview tab; a double
   // click opens (or promotes to) a permanent one.
   const openTreeFile = useCallback(
@@ -1140,6 +1170,7 @@ function WorkspaceInner() {
       repoId={project.repo_id}
       sessions={sessions}
       target={sidebarTarget}
+      browseRequest={browseRequest}
       onOpenFile={openTreeFile}
       onOpenExternalFile={openExternalFile}
       onOpenTerminalIn={openTerminalIn}
@@ -1207,13 +1238,7 @@ function WorkspaceInner() {
   // project-based layout it also holds the OTHER projects' terminals (parked,
   // detached) so switching project parks them instead of rebuilding them.
   return (
-    <KeepAliveHost
-      tree={layout.tree}
-      parked={parkedSessions}
-      onOpenFile={(session, path, line, column) =>
-        openFile(session, path, line !== undefined ? { line, column } : undefined)
-      }
-    >
+    <KeepAliveHost tree={layout.tree} parked={parkedSessions} onOpenFile={openFromTerminal}>
       <TilingDnd
         onDrop={layout.drop}
         onArchive={archiveFromDrag}

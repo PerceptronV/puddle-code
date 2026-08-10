@@ -9,6 +9,8 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import type { LayoutNode } from '@puddle/shared';
+// Type-only: keep-alive is eager chrome and must not pull the xterm chunk in.
+import type { FileLinkTarget } from '../terminal/file-links';
 import { LazyTerminal } from '../terminal/LazyTerminal';
 import { allLeaves } from './layout-tree';
 
@@ -55,7 +57,8 @@ export function KeepAliveHost({
    * them spares a rebuild-and-replay on every project switch.
    */
   parked?: string[];
-  onOpenFile: (session: string, path: string, line?: number, column?: number) => void;
+  /** A validated terminal link opened in `session`'s terminal (SPEC §7). */
+  onOpenFile: (session: string, target: FileLinkTarget) => void;
   children: React.ReactNode;
 }) {
   const parkingRef = useRef<HTMLDivElement>(null);
@@ -133,7 +136,7 @@ export function KeepAliveHost({
           <LazyTerminal
             stream={session}
             paused={!adopted.has(`term:${session}`)}
-            onOpenFile={(path, line, column) => onOpenFile(session, path, line, column)}
+            onOpenFile={(target) => onOpenFile(session, target)}
           />,
           containerFor(session),
           session,

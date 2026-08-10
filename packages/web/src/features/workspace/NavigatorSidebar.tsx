@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   CornerLeftUp,
   GitBranch,
@@ -118,6 +118,7 @@ export function NavigatorSidebar({
   repoId,
   sessions,
   target,
+  browseRequest,
   onOpenFile,
   onOpenExternalFile,
   onOpenTerminalIn,
@@ -136,6 +137,11 @@ export function NavigatorSidebar({
   sessions: Session[];
   /** The worktree the whole sidebar is bound to, plus its pin controls. */
   target: ExplorerTarget;
+  /**
+   * A terminal link to a DIRECTORY (SPEC §7): bind the tree to `root` as a
+   * pinned browse for `session`. `nonce` re-fires the same directory twice.
+   */
+  browseRequest?: { session: string; root: string; nonce: number } | null;
   onOpenFile: (sessionId: string, path: string, opts?: { preview?: boolean }) => void;
   /** Spawn a terminal whose shell starts in this worktree-relative directory. */
   onOpenTerminalIn: (sessionId: string, dir: string) => void;
@@ -196,6 +202,21 @@ export function NavigatorSidebar({
     if (!target.pinned) target.pin(session.id);
     setBrowse({ forSession: session.id, root });
   };
+
+  // A terminal link to a DIRECTORY (SPEC §7) enters the same pinned-browse
+  // state the `..` walk does — so the return button and the unpin-leaves-
+  // the-browse rule come for free — pinned to the session the link came
+  // from (re-binding the sidebar if it was pinned elsewhere: the click IS
+  // the user pointing at that session's directory). Consumed by nonce, so
+  // a re-render cannot re-enter a browse the user has already backed out of.
+  const consumedBrowse = useRef(0);
+  useEffect(() => {
+    if (!browseRequest || !browseSupported) return;
+    if (consumedBrowse.current === browseRequest.nonce) return;
+    consumedBrowse.current = browseRequest.nonce;
+    target.pin(browseRequest.session);
+    setBrowse({ forSession: browseRequest.session, root: browseRequest.root });
+  }, [browseRequest, browseSupported, target]);
 
   // Unpinning leaves the browse too. The pin was applied BY entering the browse,
   // so releasing it has to hand the tree back — and keying the browse to a

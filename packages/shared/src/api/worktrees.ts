@@ -24,11 +24,26 @@ export const pasteImageResponseSchema = z.object({
 });
 export type PasteImageResponse = z.infer<typeof pasteImageResponseSchema>;
 
-/** GET /api/worktrees/:sid/resolve?path=…&line=… — terminal file-link validation (SPEC §7). */
+/**
+ * GET /api/worktrees/:sid/resolve?path=…&line=… — terminal file-link
+ * validation (SPEC §7). Since 15.2 the answer covers the whole daemon host,
+ * not just the worktree, and directories resolve too.
+ */
 export const resolvePathResponseSchema = z.object({
-  /** Normalised worktree-relative path of the resolved file. */
+  /**
+   * The resolved identity: worktree-relative for a file inside the worktree;
+   * relative to `root` for a file outside it; the ABSOLUTE directory for
+   * `kind: 'dir'` (the UI binds the file tree there, it never opens an editor).
+   */
   path: z.string(),
   /** Requested line echoed back, clamped to >= 1; null when absent. */
   line: z.number().int().nullable(),
+  /** What resolved (15.2). Absent means `file` — pre-15.2 daemons only answered files. */
+  kind: z.enum(['file', 'dir']).optional(),
+  /**
+   * Absolute browse root when the file lies OUTSIDE the worktree (15.2):
+   * `path` is then relative to it — the `external` tab convention (SPEC §8).
+   */
+  root: z.string().optional(),
 });
 export type ResolvePathResponse = z.infer<typeof resolvePathResponseSchema>;

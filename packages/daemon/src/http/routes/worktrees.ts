@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
-import { join, relative, resolve, sep } from 'node:path';
+import { existsSync, mkdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { Hono } from 'hono';
 import {
   pasteImageRequestSchema,
@@ -9,6 +9,7 @@ import {
   type ResolvePathResponse,
 } from '@puddle/shared';
 import { ApiError } from '../errors.js';
+import { expandTilde } from '../tilde.js';
 import { parseBody } from '../validate.js';
 import { worktreeFileRoutes } from './worktree-files.js';
 import { worktreeFsOpsRoutes } from './worktree-fs-ops.js';
@@ -24,6 +25,15 @@ const EXTENSION: Record<PasteImageMime, string> = {
   'image/gif': 'gif',
   'image/webp': 'webp',
 };
+
+/** The canonical spelling of a directory, or the raw one when it has none. */
+function safeRealpath(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
+}
 
 /**
  * Worktree-scoped routes (SPEC §6, Files): thin aggregator over the
@@ -63,10 +73,12 @@ export function worktreeRoutes(deps: WorktreeDeps): Hono {
 
   // GET /:sid/resolve — validates a terminal file-path link before the UI
   // underlines it (SPEC §7, "Terminal links"): the xterm.js link provider
-  // asks here on hover, so this must be cheap and must never leak worktree
-  // layout. Escape attempts and missing files therefore both collapse to the
-  // same plain 404 `not_found` — the client only ever learns "don't
-  // underline", never *why* it can't.
+  // asks here on hover, so this must be cheap. Since 15.2 the answer covers
+  // the WHOLE daemon host, not just the worktree — the browse machinery
+  // (12.3/12.4) already serves any absolute `?root=`, so confirming that a
+  // host path exists is not a capability this endpoint adds — and a
+  // directory resolves too, which the UI binds the file tree to as a pinned
+  // browse (SPEC §8). Only a path that names nothing 404s.
   app.get('/:sid/resolve', (c) => {
     const { root } = resolveWorktree(deps, c);
     const rawPath = c.req.query('path');
@@ -74,44 +86,51 @@ export function worktreeRoutes(deps: WorktreeDeps): Hono {
       throw ApiError.badRequest('invalid_request', `'path' query parameter is required`);
     }
 
-    // Containment is checked against the RAW worktree root, not its
-    // realpath: on macOS the worktree commonly sits behind a symlinked
-    // tmpdir (/tmp -> /private/tmp), and the only absolute paths a client
-    // ever sends are ones it saw as the terminal's cwd — i.e. this same raw
-    // root — so comparing raw-to-raw is what makes a legitimate absolute
-    // link resolve. `resolve()` ignores `root` entirely when `rawPath` is
-    // already absolute, which is exactly the "absolute paths accepted only
-    // when inside the worktree" rule.
-    const abs = resolve(root, rawPath);
-    if (abs !== root && !abs.startsWith(root + sep)) {
-      throw ApiError.notFound('path', rawPath);
-    }
+    // Relative paths resolve against the worktree (the terminal's cwd at
+    // spawn); `~` against the daemon host's home, exactly as the shell the
+    // agent printed it from would expand it.
+    const abs = resolve(root, expandTilde(rawPath));
     if (!existsSync(abs)) {
       throw ApiError.notFound('path', rawPath);
     }
-
     // Symlinks are followed, even out of the worktree — consistent with the
-    // file explorer / `containedPath`: only lexical `..`/absolute escapes are
-    // rejected (above), never a real symlink the user placed in the worktree.
-    // `statSync` follows the link; directories aren't openable in Monaco (v1
-    // scope), so a link to one has nothing to point at.
-    if (!statSync(abs).isFile()) {
-      throw ApiError.notFound('path', rawPath);
-    }
-
-    // Relative to the raw root (already validated above) so the response
-    // matches the worktree-relative identity every other endpoint uses and
-    // the client can feed it straight to the editor tab.
-    const relPath = relative(root, abs);
-    if (relPath.startsWith('..')) {
-      throw ApiError.notFound('path', rawPath); // belt and braces
-    }
+    // file explorer / `containedPath`. The raw (unresolved) `abs` keeps a
+    // symlinked-out file reading as INSIDE the worktree below, exactly as
+    // the explorer treats it.
+    const stat = statSync(abs);
 
     const lineParam = c.req.query('line');
     const parsedLine = lineParam === undefined ? NaN : Number.parseInt(lineParam, 10);
     const line = Number.isNaN(parsedLine) ? null : Math.max(1, parsedLine);
 
-    return c.json<ResolvePathResponse>({ path: relPath, line });
+    // A directory has no editor to open into: the UI binds the file tree to
+    // it instead, which wants the absolute path as its browse root.
+    if (stat.isDirectory()) {
+      return c.json<ResolvePathResponse>({ path: abs, line: null, kind: 'dir' });
+    }
+    if (!stat.isFile()) {
+      throw ApiError.notFound('path', rawPath); // fifos, sockets, devices
+    }
+
+    // Worktree containment decides the SHAPE of the answer, not whether there
+    // is one: inside → the worktree-relative identity every other endpoint
+    // uses; outside → external-tab coordinates (an absolute root plus the
+    // name relative to it — the browse convention, SPEC §8). Checked against
+    // the raw root and its realpath: on macOS the worktree commonly sits
+    // behind a symlinked tmpdir (/tmp -> /private/tmp) and an agent may print
+    // either spelling, both of which must read as "inside".
+    for (const base of [root, safeRealpath(root)]) {
+      const rel = relative(base, abs);
+      if (rel !== '' && !rel.startsWith('..') && !isAbsolute(rel)) {
+        return c.json<ResolvePathResponse>({ path: rel, line, kind: 'file' });
+      }
+    }
+    return c.json<ResolvePathResponse>({
+      path: basename(abs),
+      root: dirname(abs),
+      line,
+      kind: 'file',
+    });
   });
 
   app.route('/', worktreeFileRoutes(deps));

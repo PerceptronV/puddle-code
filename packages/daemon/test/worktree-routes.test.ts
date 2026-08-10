@@ -7,7 +7,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Hono } from 'hono';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -146,7 +146,7 @@ describe('GET /api/worktrees/:sid/resolve', () => {
     const res = await resolvePath(resolveSessionId, '?path=src/foo.ts&line=5');
     expect(res.status).toBe(200);
     const body = resolvePathResponseSchema.parse(await res.json());
-    expect(body).toEqual({ path: 'src/foo.ts', line: 5 });
+    expect(body).toEqual({ path: 'src/foo.ts', line: 5, kind: 'file' });
   });
 
   it('resolves a ./-prefixed relative path', async () => {
@@ -164,21 +164,47 @@ describe('GET /api/worktrees/:sid/resolve', () => {
     expect(body.path).toBe('src/foo.ts');
   });
 
-  it('404s an absolute path outside the worktree', async () => {
+  it('resolves an absolute file outside the worktree to external-tab coordinates (15.2)', async () => {
     const outside = mkdtempSync(join(tmpdir(), 'puddle-resolve-outside-'));
-    writeFileSync(join(outside, 'evil.ts'), 'x');
+    writeFileSync(join(outside, 'notes.ts'), 'x');
     const res = await resolvePath(
       resolveSessionId,
-      `?path=${encodeURIComponent(join(outside, 'evil.ts'))}`,
+      `?path=${encodeURIComponent(join(outside, 'notes.ts'))}&line=3`,
     );
-    expect(res.status).toBe(404);
-    expect(errorCode(await res.json())).toBe('not_found');
+    expect(res.status).toBe(200);
+    const body = resolvePathResponseSchema.parse(await res.json());
+    expect(body).toEqual({ path: 'notes.ts', root: outside, line: 3, kind: 'file' });
   });
 
-  it('404s a ../.. traversal attempt', async () => {
+  it('resolves a directory to its absolute path as kind dir (15.2)', async () => {
+    const res = await resolvePath(resolveSessionId, '?path=src&line=4');
+    expect(res.status).toBe(200);
+    const body = resolvePathResponseSchema.parse(await res.json());
+    // No line: a directory opens the file tree, there is nothing to scroll to.
+    expect(body).toEqual({ path: join(worktree, 'src'), line: null, kind: 'dir' });
+  });
+
+  it('resolves a directory outside the worktree too', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'puddle-resolve-outdir-'));
+    const res = await resolvePath(resolveSessionId, `?path=${encodeURIComponent(outside)}`);
+    expect(res.status).toBe(200);
+    const body = resolvePathResponseSchema.parse(await res.json());
+    expect(body).toEqual({ path: outside, line: null, kind: 'dir' });
+  });
+
+  it('expands ~ against the daemon host home (15.2)', async () => {
+    const res = await resolvePath(resolveSessionId, `?path=${encodeURIComponent('~')}`);
+    expect(res.status).toBe(200);
+    const body = resolvePathResponseSchema.parse(await res.json());
+    expect(body).toEqual({ path: homedir(), line: null, kind: 'dir' });
+  });
+
+  it('404s a traversal that resolves to nothing', async () => {
+    // `..` is no longer rejected on principle (15.2) — but this resolves to a
+    // path that does not exist, and a missing path is still a plain 404.
     const res = await resolvePath(
       resolveSessionId,
-      `?path=${encodeURIComponent('../../etc/passwd')}`,
+      `?path=${encodeURIComponent('../../no-such-dir/passwd')}`,
     );
     expect(res.status).toBe(404);
   });
@@ -193,11 +219,6 @@ describe('GET /api/worktrees/:sid/resolve', () => {
     // `..`/absolute escapes 404 (covered above).
     const res = await resolvePath(resolveSessionId, '?path=escape-link.ts');
     expect(res.status).toBe(200);
-  });
-
-  it('404s a directory', async () => {
-    const res = await resolvePath(resolveSessionId, '?path=src');
-    expect(res.status).toBe(404);
   });
 
   it('404s a missing file', async () => {
