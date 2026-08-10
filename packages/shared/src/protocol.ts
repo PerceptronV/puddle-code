@@ -220,4 +220,13 @@
 // REJECTS any PUT /api/profiles/:id/state whose layout tree carries a linked
 // tab, and every workspace save from a newer client would then fail. The
 // major forces those daemons to auto-upgrade at the next handshake instead.
-export const PROTOCOL_VERSION = { major: 15, minor: 0 } as const;
+// 15.1 (2026-08-09): additive — the `account` WS server message (an account's
+// `logged_in` flag changed), broadcast to status subscribers. The daemon only
+// records the flag after the adapter's own auth check answers — asynchronously,
+// after the login PTY has exited and the dialog has closed — so without a push
+// the accounts UI showed a stale badge until an unrelated refetch. Older
+// clients drop the unknown `t` per PROTOCOL.md wire rule 1. Also in this
+// release (config-file semantics, not wire): `autoResume` now defaults to
+// TRUE, with config version 3 migrating a pre-3 `false` — the old
+// written-back default — exactly once.
+export const PROTOCOL_VERSION = { major: 15, minor: 1 } as const;

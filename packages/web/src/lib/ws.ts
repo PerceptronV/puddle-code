@@ -24,6 +24,13 @@ export interface RenameEvent {
   osc_title?: string | null;
 }
 
+/** An account's login state changed (protocol 15.1) — see the shared message. */
+export interface AccountEvent {
+  account_id: number;
+  profile_id: string;
+  logged_in: boolean;
+}
+
 export interface TerminalHandlers {
   /** Called for both the initial replay chunk and live output. */
   onData(data: string, kind: 'replay' | 'output'): void;
@@ -63,6 +70,7 @@ export class WsManager {
   private readonly terminals = new Map<string, Registration>();
   private readonly statusListeners = new Set<(e: StatusEvent) => void>();
   private readonly renameListeners = new Set<(e: RenameEvent) => void>();
+  private readonly accountListeners = new Set<(e: AccountEvent) => void>();
   private readonly connectionListeners = new Set<ConnectionListener>();
   private readonly shellWaiters = new Map<string, Array<(term: string) => void>>();
 
@@ -127,6 +135,13 @@ export class WsManager {
     this.renameListeners.add(listener);
     this.ensureConnected();
     return () => this.renameListeners.delete(listener);
+  }
+
+  /** Account login-state broadcasts (15.1) — how the accounts UI goes green live. */
+  onAccount(listener: (e: AccountEvent) => void): () => void {
+    this.accountListeners.add(listener);
+    this.ensureConnected();
+    return () => this.accountListeners.delete(listener);
   }
 
   onConnectionChange(listener: ConnectionListener): () => void {
@@ -195,7 +210,8 @@ export class WsManager {
     if (
       this.terminals.size === 0 &&
       this.statusListeners.size === 0 &&
-      this.renameListeners.size === 0
+      this.renameListeners.size === 0 &&
+      this.accountListeners.size === 0
     )
       return;
     this.reconnectTimer = setTimeout(() => {
@@ -234,6 +250,15 @@ export class WsManager {
             title: msg.title,
             agent_title: msg.agent_title,
             osc_title: msg.osc_title,
+          });
+        }
+        break;
+      case 'account':
+        for (const listener of this.accountListeners) {
+          listener({
+            account_id: msg.account_id,
+            profile_id: msg.profile_id,
+            logged_in: msg.logged_in,
           });
         }
         break;

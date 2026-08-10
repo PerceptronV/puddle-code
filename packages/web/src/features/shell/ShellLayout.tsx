@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Link, Outlet, useLocation, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Settings } from 'lucide-react';
-import type { ProjectDetail, Session } from '@puddle/shared';
+import type { Account, ProjectDetail, Session } from '@puddle/shared';
 import { ErrorBoundary } from '../../components/error-boundary';
 import { InlineLabelEdit, editOnDoubleClick } from '../../components/inline-label-edit';
 import { Button } from '../../components/ui/button';
@@ -81,9 +81,28 @@ function useStatusCacheSync() {
           : session,
       ),
     );
+    // An account's login verification lands AFTER its login PTY exits — the
+    // daemon asks the agent's own auth check first, so the flag flips once the
+    // dialog is already closed. The push (15.1) is what turns the settings
+    // badge green without a reload.
+    const offAccount = wsManager.onAccount((event) => {
+      for (const [key, data] of qc.getQueriesData<Account[]>({ queryKey: ['accounts'] })) {
+        if (data) {
+          qc.setQueryData(
+            key,
+            data.map((account) =>
+              account.id === event.account_id
+                ? { ...account, logged_in: event.logged_in }
+                : account,
+            ),
+          );
+        }
+      }
+    });
     return () => {
       offStatus();
       offRenamed();
+      offAccount();
     };
   }, [qc]);
 }

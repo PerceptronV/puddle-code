@@ -165,6 +165,9 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
 
   const tracker = new ProxySocketTracker();
   const gateway = new WsGateway({ token, ptys, logs, service, theme: terminalTheme });
+  // Login verification lands after the login PTY exits, when no request is in
+  // flight to carry it — the push is what turns the accounts UI green (15.1).
+  accounts.onLoggedInChanged = (account) => gateway.accountChanged(account);
   const app = buildApp({
     version: opts.version ?? '0.0.0',
     token,

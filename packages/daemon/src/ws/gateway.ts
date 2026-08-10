@@ -1,7 +1,12 @@
 import { timingSafeEqual } from 'node:crypto';
 import { homedir } from 'node:os';
 import type { WSContext } from 'hono/ws';
-import { HOME_STREAM, wsClientMessageSchema, type WsServerMessage } from '@puddle/shared';
+import {
+  HOME_STREAM,
+  wsClientMessageSchema,
+  type Account,
+  type WsServerMessage,
+} from '@puddle/shared';
 import type { LogStore } from '../logs/log-store.js';
 import type { PtyDataEvent, PtyExitEvent, PtyManager } from '../pty/pty-manager.js';
 import type { TerminalTheme } from '../pty/terminal-theme.js';
@@ -84,6 +89,24 @@ export class WsGateway {
         });
       }
     });
+  }
+
+  /**
+   * An account's login state changed (protocol 15.1) — to every status
+   * subscriber, like notices: the settings dialog showing the badge is a
+   * status subscriber wherever it is open, and login verification lands
+   * asynchronously after the login PTY exits, when no request is in flight
+   * to carry the answer back.
+   */
+  accountChanged(account: Account): void {
+    for (const ws of this.statusSubs) {
+      this.send(ws, {
+        t: 'account',
+        account_id: account.id,
+        profile_id: account.profile_id,
+        logged_in: account.logged_in,
+      });
+    }
   }
 
   /** Per-connection handler factory for upgradeWebSocket. */

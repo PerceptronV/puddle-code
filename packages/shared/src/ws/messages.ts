@@ -78,4 +78,12 @@ export type WsServerMessage =
       session?: string;
       term?: string;
     }
+  /**
+   * An account's `logged_in` flag changed (protocol 15.1). Broadcast to every
+   * status subscriber: the daemon only records the flag after the adapter's
+   * own auth check answers — after the login dialog has already closed — so
+   * this push is what turns the accounts UI green without a reload. Older
+   * clients drop the unknown `t` per PROTOCOL.md wire rule 1.
+   */
+  | { t: 'account'; account_id: number; profile_id: string; logged_in: boolean }
   | { t: 'error'; message: string };

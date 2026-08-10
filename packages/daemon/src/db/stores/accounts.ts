@@ -27,6 +27,16 @@ function toAccount(r: Row): Account {
 }
 
 export class AccountStore {
+  /**
+   * Notified when `setLoggedIn` actually changes the stored flag. The WS
+   * gateway broadcasts it (protocol 15.1) so the accounts UI goes green the
+   * moment a login verifies — the daemon only writes the flag AFTER the
+   * adapter's own auth check answers, well after the login dialog has closed,
+   * so without the push the badge sat stale until an unrelated refetch. One
+   * consumer, wired once at boot; an EventEmitter would be ceremony for it.
+   */
+  onLoggedInChanged: ((account: Account) => void) | null = null;
+
   constructor(private readonly db: Db) {}
 
   create(input: {
@@ -78,7 +88,13 @@ export class AccountStore {
   }
 
   setLoggedIn(id: number, loggedIn: boolean): void {
-    this.db.prepare(`UPDATE accounts SET logged_in = ? WHERE id = ?`).run(loggedIn ? 1 : 0, id);
+    // The WHERE clause makes change detection atomic: a no-op write (same
+    // flag, or an account deleted meanwhile) notifies nobody.
+    const flag = loggedIn ? 1 : 0;
+    const info = this.db
+      .prepare(`UPDATE accounts SET logged_in = ? WHERE id = ? AND logged_in != ?`)
+      .run(flag, id, flag);
+    if (info.changes > 0) this.onLoggedInChanged?.(this.get(id));
   }
 
   setSkipPermissionsDefault(id: number, skip: boolean): Account {

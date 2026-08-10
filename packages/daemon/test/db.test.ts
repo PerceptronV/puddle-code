@@ -180,6 +180,18 @@ describe('stores', () => {
     expect(s.accounts.get(account.id).logged_in).toBe(true);
   });
 
+  it('notifies on a real logged-in change only (protocol 15.1)', () => {
+    const s = stores();
+    const { account } = seedSession(s);
+    const seen: boolean[] = [];
+    s.accounts.onLoggedInChanged = (a) => seen.push(a.logged_in);
+    s.accounts.setLoggedIn(account.id, false); // already false — no event
+    s.accounts.setLoggedIn(account.id, true);
+    s.accounts.setLoggedIn(account.id, true); // no change — no event
+    s.accounts.setLoggedIn(999, true); // no such account — no event, no throw
+    expect(seen).toEqual([true]);
+  });
+
   it('creates and transitions sessions', () => {
     const s = stores();
     const { session, repo } = seedSession(s);
