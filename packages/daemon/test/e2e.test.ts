@@ -86,6 +86,10 @@ async function pollUntil(cond: () => Promise<boolean>, ms = 30000): Promise<void
 
 describe('daemon end-to-end (Phase 1 acceptance)', () => {
   const home = mkdtempSync(join(tmpdir(), 'puddle-e2e-home-'));
+  // Auto-resume defaults ON (config version 3); this suite exercises the
+  // MANUAL interrupted → resume path, so pin it off (marker present, so the
+  // migration respects the explicit false).
+  writeFileSync(join(home, 'config.json'), JSON.stringify({ autoResume: false, configVersion: 3 }));
   const repoPath = initRepo();
   let daemon: RunningDaemon;
   const stops: Array<() => Promise<void>> = [];

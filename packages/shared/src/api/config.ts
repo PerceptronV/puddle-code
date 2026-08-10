@@ -35,7 +35,7 @@ const fields = {
 /** Daemon-scope settings persisted in ~/.puddle/config.json. */
 export const daemonConfigSchema = z.object({
   port: fields.port.default(7434),
-  autoResume: fields.autoResume.default(false),
+  autoResume: fields.autoResume.default(true),
   fetchIntervalMinutes: fields.fetchIntervalMinutes.default(15),
   logMaxBytes: fields.logMaxBytes.default(10 * 1024 * 1024),
   replayBytes: fields.replayBytes.default(256 * 1024),

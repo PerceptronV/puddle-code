@@ -204,9 +204,10 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   // Agent spawns from here on carry the /agent-signal env pair (SPEC §4).
   service.setSignalPort(port);
 
-  // Auto-resume is OFF by default (SPEC §4); interrupted sessions surface in
-  // the UI. Runs AFTER the bind on purpose, so auto-resumed agents get the
-  // signal env too.
+  // Auto-resume is ON by default (SPEC §4; flipped 2026-08-09) — a daemon
+  // restart brings interrupted sessions straight back; any that fail surface
+  // in the UI for one-click resume. Runs AFTER the bind on purpose, so
+  // auto-resumed agents get the signal env too.
   if (config.autoResume) {
     for (const id of reconciled.interrupted) {
       await service.resume(id).catch((e) => console.warn(`auto-resume ${id} failed: ${e.message}`));

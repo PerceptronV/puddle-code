@@ -43,7 +43,7 @@ describe('daemon config', () => {
     const cfg = loadConfig(paths);
     expect(cfg).toEqual({
       port: 7434,
-      autoResume: false,
+      autoResume: true,
       fetchIntervalMinutes: 15,
       logMaxBytes: 10 * 1024 * 1024,
       replayBytes: 256 * 1024,
@@ -53,14 +53,28 @@ describe('daemon config', () => {
     });
     const onDisk = JSON.parse(readFileSync(paths.configFile, 'utf8'));
     expect(onDisk.port).toBe(7434);
-    expect(onDisk.configVersion).toBe(2);
+    expect(onDisk.configVersion).toBe(3);
   });
 
   it('migrates a pre-Phase-6 default port (7433, no marker) to 7434 exactly once', () => {
     const paths = freshPaths();
     writeFileSync(paths.configFile, JSON.stringify({ port: 7433 }) + '\n');
     expect(loadConfig(paths).port).toBe(7434);
-    expect(JSON.parse(readFileSync(paths.configFile, 'utf8')).configVersion).toBe(2);
+    expect(JSON.parse(readFileSync(paths.configFile, 'utf8')).configVersion).toBe(3);
+  });
+
+  it('migrates a pre-version-3 "autoResume": false (the old written-back default) to true', () => {
+    const paths = freshPaths();
+    writeFileSync(paths.configFile, JSON.stringify({ autoResume: false, configVersion: 2 }) + '\n');
+    expect(loadConfig(paths).autoResume).toBe(true);
+    expect(JSON.parse(readFileSync(paths.configFile, 'utf8')).configVersion).toBe(3);
+  });
+
+  it('respects a deliberate post-migration autoResume: false (marker present)', () => {
+    const paths = freshPaths();
+    writeFileSync(paths.configFile, JSON.stringify({ autoResume: false, configVersion: 3 }) + '\n');
+    expect(loadConfig(paths).autoResume).toBe(false);
+    expect(saveConfig(paths, { displayName: 'box' }).autoResume).toBe(false);
   });
 
   it('respects a deliberate post-migration 7433 (marker present)', () => {
@@ -85,9 +99,9 @@ describe('daemon config', () => {
   it('merges patches and persists them', () => {
     const paths = freshPaths();
     loadConfig(paths);
-    const updated = saveConfig(paths, { autoResume: true });
-    expect(updated.autoResume).toBe(true);
-    expect(loadConfig(paths).autoResume).toBe(true);
+    const updated = saveConfig(paths, { autoResume: false });
+    expect(updated.autoResume).toBe(false);
+    expect(loadConfig(paths).autoResume).toBe(false);
   });
 
   it('rejects an invalid patch', () => {

@@ -12,11 +12,13 @@ import type { PuddlePaths } from './paths.js';
  * The file-only format marker. loadConfig has always written defaults back, so
  * every pre-Phase-6 config.json literally says "port": 7433 — indistinguishable
  * from a user choice. Version 2 (the daemon moved to 7434 when the CLI took
- * over UI serving) migrates that one value once; the marker's presence stops
- * the migration re-firing, so a deliberate post-migration 7433 is respected.
- * zod strips the marker on parse — it never reaches the API.
+ * over UI serving) migrates that one value once; version 3 (auto-resume
+ * flipped ON by default, 2026-08-09) does the same for a pre-3 config's
+ * "autoResume": false. In both cases the marker's presence stops the
+ * migration re-firing, so a deliberate post-migration 7433 or false is
+ * respected. zod strips the marker on parse — it never reaches the API.
  */
-const CONFIG_VERSION = 2;
+const CONFIG_VERSION = 3;
 
 function read(paths: PuddlePaths): DaemonConfig {
   let raw: Record<string, unknown> = {};
@@ -27,6 +29,10 @@ function read(paths: PuddlePaths): DaemonConfig {
   }
   if (raw.configVersion === undefined && raw.port === 7433) {
     delete raw.port; // falls through to the version-2 default (7434)
+  }
+  const version = typeof raw.configVersion === 'number' ? raw.configVersion : 0;
+  if (version < 3 && raw.autoResume === false) {
+    delete raw.autoResume; // falls through to the version-3 default (true)
   }
   return daemonConfigSchema.parse(raw);
 }
