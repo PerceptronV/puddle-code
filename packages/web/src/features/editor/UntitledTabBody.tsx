@@ -98,6 +98,7 @@ export function UntitledTabBody({ name }: { name: string }) {
             minimap: { enabled: false },
             fixedOverflowWidgets: true,
             scrollBeyondLastLine: false,
+            wordWrap: settings.editorWordWrap ? 'on' : 'off',
           }}
         />
       </div>

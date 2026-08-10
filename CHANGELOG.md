@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Untitled drafts now follow the editor word-wrap setting (and the ⌥Z toggle) like every other editor, instead of never wrapping.
