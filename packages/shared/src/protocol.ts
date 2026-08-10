@@ -213,4 +213,11 @@
 // 14.2 (2026-08-06): `terminalAppShortcuts` in profileSettings (default true)
 // — whether app shortcuts win over a focused terminal. Additive; the loose
 // settings object means older daemons store and echo it untouched.
-export const PROTOCOL_VERSION = { major: 14, minor: 2 } as const;
+// 15.0 (2026-08-09): editor tab refs' `view` gains the `linked` value — a
+// rendered preview that retargets to the most recently active renderable tab
+// (SPEC §8). Major, not minor: `view` is a CLOSED enum inside the validated
+// ui_state snapshot, so a 14.x daemon does not ignore the new value — it
+// REJECTS any PUT /api/profiles/:id/state whose layout tree carries a linked
+// tab, and every workspace save from a newer client would then fail. The
+// major forces those daemons to auto-upgrade at the next handshake instead.
+export const PROTOCOL_VERSION = { major: 15, minor: 0 } as const;

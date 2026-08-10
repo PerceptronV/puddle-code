@@ -1,13 +1,13 @@
 import { Fragment, type ReactNode } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { Eye, FileCode, X } from 'lucide-react';
+import { Eye, FileCode, Link, X } from 'lucide-react';
 import type { LayoutLeaf, Session, TabRef } from '@puddle/shared';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utils';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
 import { SessionGlyph } from '../status/SessionGlyph';
 import { editorTabLabel } from '../editor/buffer-logic';
-import { tabKind, type EditorTab } from '../editor/editor-tabs';
+import { tabKind, type EditorTab, type EditorView } from '../editor/editor-tabs';
 import { LazyEditorDirtyDot, LazyEditorTabClose } from '../editor/lazy-editor-parts';
 import { previewKind } from '../editor/preview-kind';
 import { SessionContextMenu } from './SessionActions';
@@ -53,8 +53,8 @@ export function PaneTabStrip({
   onClose: (ref: TabRef) => void;
   onPromote: (ref: TabRef) => void;
   onArchived: (session: string) => void;
-  /** Flip a previewable editor tab between Monaco source and rendered preview (SPEC §8). */
-  onSetView: (ref: TabRef, view: 'source' | 'preview') => void;
+  /** Set a previewable editor tab's view: source, preview, or linked (SPEC §8). */
+  onSetView: (ref: TabRef, view: EditorView) => void;
   /** Double-click on the strip's blank tail: open a fresh untitled file (SPEC §8). */
   onNewFile: () => void;
 }) {
@@ -162,28 +162,49 @@ function TabControls({ active, children }: { active: boolean; children: ReactNod
 }
 
 /**
- * The markdown/HTML tab's source ⇄ preview toggle (SPEC §8) — appears on
- * hover like the close button, styled identically (no borders, HUMANS.md).
+ * The markdown/HTML tab's view toggle (SPEC §8) — appears on hover like the
+ * close button, styled identically (no borders, HUMANS.md). Three modes,
+ * cycled in place: Monaco source, rendered preview, and the linked preview
+ * (the follow-along slot that retargets to the last active renderable tab).
+ * The icon names the CURRENT mode — the two-state toggle could show its
+ * destination, but with three an icon naming the next mode is a riddle — and
+ * the title says where a click goes.
  */
+const VIEW_CYCLE: Record<EditorView, EditorView> = {
+  source: 'preview',
+  preview: 'linked',
+  linked: 'source',
+};
+const VIEW_ICON: Record<EditorView, typeof FileCode> = {
+  source: FileCode,
+  preview: Eye,
+  linked: Link,
+};
+const VIEW_TITLE: Record<EditorView, string> = {
+  source: 'Source — switch to preview',
+  preview: 'Preview — switch to linked preview',
+  linked: 'Linked preview — switch to source',
+};
+
 function ViewToggle({
   view,
   onSetView,
 }: {
-  view: 'source' | 'preview';
-  onSetView: (view: 'source' | 'preview') => void;
+  view: EditorView;
+  onSetView: (view: EditorView) => void;
 }) {
-  const showingPreview = view === 'preview';
+  const Icon = VIEW_ICON[view];
   return (
     <button
       onClick={(e) => {
         e.stopPropagation();
-        onSetView(showingPreview ? 'source' : 'preview');
+        onSetView(VIEW_CYCLE[view]);
       }}
       className="hidden rounded-sm p-0.5 text-fg-muted transition-colors hover:text-fg group-hover:inline-flex pointer-coarse:inline-flex"
-      aria-label={showingPreview ? 'Show source' : 'Show preview'}
-      title={showingPreview ? 'Show source' : 'Show preview'}
+      aria-label={VIEW_TITLE[view]}
+      title={VIEW_TITLE[view]}
     >
-      {showingPreview ? <FileCode className="size-3" /> : <Eye className="size-3" />}
+      <Icon className="size-3" />
     </button>
   );
 }
@@ -216,7 +237,7 @@ function PaneTab({
   onClose: () => void;
   onPromote: () => void;
   onArchived: (session: string) => void;
-  onSetView: (view: 'source' | 'preview') => void;
+  onSetView: (view: EditorView) => void;
 }) {
   const renderTitle = useSessionTitleRenderer();
   const key = tabRefKey(tab);
@@ -282,6 +303,10 @@ function PaneTab({
         </>
       ) : (
         <>
+          {/* A linked slot names whatever it currently follows, so the chain
+              glyph is what says this chip is the follow-along preview and not
+              a second tab of that file (SPEC §8). */}
+          {tab.tab.view === 'linked' && <Link className="size-3 shrink-0 text-fg-muted" />}
           <span className="min-w-0 truncate">{label}</span>
           {/* In flow AFTER the filename — the chip widens for it (to its cap;
               past that the name truncates), and it never occludes the name.

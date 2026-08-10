@@ -1,6 +1,6 @@
 import { UNTITLED_SESSION } from '@puddle/shared';
 import type { LayoutLeaf, LayoutNode, LayoutSplit, TabRef, UiStateSnapshot } from '@puddle/shared';
-import { tabKey, type EditorTab } from '../editor/editor-tabs';
+import { tabKey, tabKind, type EditorTab, type EditorView } from '../editor/editor-tabs';
 import { previewKind } from '../editor/preview-kind';
 
 /**
@@ -31,6 +31,11 @@ export function sameRef(a: TabRef, b: TabRef): boolean {
 
 function isTerminal(ref: TabRef): boolean {
   return ref.type === 'terminal';
+}
+
+/** A linked preview slot (SPEC §8) — the follow-along rendered view. */
+function isLinked(ref: TabRef): boolean {
+  return ref.type === 'editor' && ref.tab.view === 'linked';
 }
 
 // ---- Constructors ---------------------------------------------------------
@@ -378,6 +383,10 @@ export function addTabToLeaf(tree: LayoutNode, leafId: string, ref: TabRef): Lay
  * keeps an agent terminal you were watching from vanishing when you peek at a
  * file, and avoids the dead-end where re-clicking that session (same URL) would
  * not re-open a tab the effect never re-runs for.
+ *
+ * A LINKED slot in the preview position gets the same protection: it is a
+ * deliberately-kept viewing surface (SPEC §8), and single-clicking a file
+ * must retarget it — which the open's caller does — not destroy it.
  */
 /**
  * A preview slot showing a RENDERED view stays rendered (decision 2026-08-05):
@@ -402,7 +411,7 @@ export function openPreview(tree: LayoutNode, leafId: string, ref: TabRef): Layo
     if (leaf.tabs.some((t) => sameRef(t, ref))) return { ...leaf, activeKey: key };
     const idx = leaf.previewKey ? leaf.tabs.findIndex((t) => tabRefKey(t) === leaf.previewKey) : -1;
     const outgoing = idx >= 0 ? leaf.tabs[idx]! : undefined;
-    const replaceInPlace = outgoing !== undefined && !isTerminal(outgoing);
+    const replaceInPlace = outgoing !== undefined && !isTerminal(outgoing) && !isLinked(outgoing);
     // `view` is not part of tab identity, so the key is the incoming ref's
     // either way — only the tab object it names changes.
     const opened = replaceInPlace ? inheritView(outgoing, ref) : ref;
@@ -426,9 +435,10 @@ export function promoteTab(tree: LayoutNode, key: string): LayoutNode {
 }
 
 /**
- * Rewrite the editor tab `key` IN ONE LEAF with `view` (source ⇄ preview toggle,
- * SPEC §8). `view` is not part of tab identity, so the key is unchanged and
- * active/preview state is untouched.
+ * Rewrite the editor tab `key` IN ONE LEAF with `view` (the source / preview /
+ * linked toggle, SPEC §8). Between `source` and `preview` the view is not part
+ * of tab identity, so the key is unchanged and active/preview state is
+ * untouched.
  *
  * Deliberately scoped to `leafId` (fixed 2026-08-04): the same file open in two
  * panes shares one key, so rewriting every match flipped both tabs at once and
@@ -436,19 +446,108 @@ export function promoteTab(tree: LayoutNode, key: string): LayoutNode {
  * — was impossible. A leaf holds at most one tab per key, so per-leaf IS
  * per-tab. The shared editor BUFFER is untouched by this: both tabs still show
  * the same text and the same unsaved edits, they just render it differently.
+ *
+ * Entering or leaving LINKED mode is the exception: a linked slot keys as the
+ * constant `linked` (see `tabKey`), so this toggle changes the tab's key — the
+ * leaf's `activeKey`/`previewKey` remap with it, and when another tab in the
+ * leaf already owns the new key (leaving linked onto a file that is open here,
+ * or making a second linked slot), the toggled tab DISSOLVES into that owner
+ * rather than duplicating a key mid-render.
  */
 export function setTabView(
   tree: LayoutNode,
   leafId: string,
   key: string,
-  view: 'source' | 'preview' | undefined,
+  view: EditorView | undefined,
 ): LayoutNode {
-  return transformLeaf(tree, leafId, (leaf) => ({
-    ...leaf,
-    tabs: leaf.tabs.map((t) =>
-      t.type === 'editor' && tabRefKey(t) === key ? { ...t, tab: { ...t.tab, view } } : t,
-    ),
-  })) as LayoutNode;
+  return transformLeaf(tree, leafId, (leaf) => {
+    const idx = leaf.tabs.findIndex((t) => t.type === 'editor' && tabRefKey(t) === key);
+    const cur = idx >= 0 ? leaf.tabs[idx]! : undefined;
+    if (cur === undefined || cur.type !== 'editor') return leaf;
+    const rewritten: TabRef = { ...cur, tab: { ...cur.tab, view } };
+    const newKey = tabRefKey(rewritten);
+    if (newKey === key) {
+      return { ...leaf, tabs: leaf.tabs.map((t, i) => (i === idx ? rewritten : t)) };
+    }
+    const collided = leaf.tabs.some((t, i) => i !== idx && tabRefKey(t) === newKey);
+    const tabs = collided
+      ? leaf.tabs.filter((_, i) => i !== idx)
+      : leaf.tabs.map((t, i) => (i === idx ? rewritten : t));
+    return {
+      ...leaf,
+      tabs,
+      activeKey: leaf.activeKey === key ? newKey : leaf.activeKey,
+      // A dissolved slot's ephemerality dies with it — the surviving owner
+      // keeps its own permanent/preview state.
+      previewKey: leaf.previewKey === key ? (collided ? null : newKey) : (leaf.previewKey ?? null),
+    };
+  }) as LayoutNode;
+}
+
+/**
+ * The tab an activation makes every linked slot follow (SPEC §8): a plain or
+ * external FILE tab with a rendered view available, and not itself a linked
+ * slot — the follow-along surface must never chase itself. Terminals, diffs,
+ * commits, untitled drafts, and non-renderable files retarget nothing.
+ */
+function linkableTarget(ref: TabRef): EditorTab | null {
+  if (ref.type !== 'editor') return null;
+  const tab = ref.tab as EditorTab;
+  const kind = tabKind(tab);
+  if (kind !== 'file' && kind !== 'external') return null;
+  if (tab.view === 'linked') return null;
+  if (previewKind(tab.path) === null) return null;
+  return tab;
+}
+
+/**
+ * Rewrite EVERY linked slot in the tree to mirror the tab `ref` just made
+ * active (SPEC §8) — all of them in one pass, so every linked pane follows
+ * together. A slot's key is the constant `linked` (see `tabKey`), so a
+ * retarget is a pure field rewrite: no `activeKey`/`previewKey` moves, no
+ * structural change, and the layout signature — deliberately — reads the
+ * same. When `ref` is not a linkable target, or every slot already shows it,
+ * the SAME tree object comes back so callers can skip a persist.
+ *
+ * Which activations reach here decides the scope: the controller calls this
+ * on the LIVE tree only, so under a project-based layout each project's
+ * slots follow that project's own activity, and under the profile-wide
+ * layout the one shared tree follows everything (SPEC §11).
+ */
+export function retargetLinkedTabs(tree: LayoutNode, ref: TabRef): LayoutNode {
+  const target = linkableTarget(ref);
+  if (!target) return tree;
+  const wanted: EditorTab = {
+    session: target.session,
+    path: target.path,
+    ...(target.kind !== undefined ? { kind: target.kind } : {}),
+    ...(target.root !== undefined ? { root: target.root } : {}),
+    view: 'linked',
+  };
+  let changed = false;
+  const walk = (node: LayoutNode): LayoutNode => {
+    if (node.kind === 'split') return { ...node, children: node.children.map(walk) };
+    let touched = false;
+    const tabs = node.tabs.map((t): TabRef => {
+      if (t.type !== 'editor' || t.tab.view !== 'linked') return t;
+      const cur = t.tab as EditorTab;
+      if (
+        cur.session === wanted.session &&
+        cur.path === wanted.path &&
+        (cur.root ?? '') === (wanted.root ?? '') &&
+        tabKind(cur) === tabKind(wanted)
+      ) {
+        return t;
+      }
+      touched = true;
+      return { type: 'editor', tab: { ...wanted } };
+    });
+    if (!touched) return node;
+    changed = true;
+    return { ...node, tabs };
+  };
+  const next = walk(tree);
+  return changed ? next : tree;
 }
 
 /** Set the active tab of a leaf. */

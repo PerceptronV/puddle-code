@@ -22,6 +22,13 @@ import { tabKey, tabKind, type EditorTab } from './editor-tabs';
  */
 export function PaneEditorBody({ tab, reveal }: { tab: EditorTab; reveal: RevealTarget | null }) {
   const kind = tabKind(tab);
+  // A linked tab renders like a preview of whatever it currently targets. Its
+  // `tabKey` is the constant slot key (retargets rewrite the fields under it),
+  // so the RENDER key carries the target identity instead — a retarget must
+  // remount the view on the new file, exactly as switching preview tabs does.
+  const rendered = tab.view === 'preview' || tab.view === 'linked';
+  const paneKey =
+    tab.view === 'linked' ? `linked:${tab.session}:${tab.root ?? ''}:${tab.path}` : tabKey(tab);
   if (kind === 'diff') {
     return <DiffTabBody key={tabKey(tab)} session={tab.session} path={tab.path} root={tab.root} />;
   }
@@ -55,11 +62,11 @@ export function PaneEditorBody({ tab, reveal }: { tab: EditorTab; reveal: Reveal
     // Rendered views work above the worktree too (decision 2026-08-06): the
     // preview pipeline keys its buffer and routes its asset fetches by the
     // same (session, path, root) the source editor uses.
-    const externalPreview = tab.view === 'preview' ? previewKind(tab.path) : null;
+    const externalPreview = rendered ? previewKind(tab.path) : null;
     if (externalPreview) {
       return (
         <FilePreview
-          key={tabKey(tab)}
+          key={paneKey}
           session={tab.session}
           path={tab.path}
           kind={externalPreview}
@@ -88,9 +95,9 @@ export function PaneEditorBody({ tab, reveal }: { tab: EditorTab; reveal: Reveal
   }
   // The tab-strip toggle flips `view`; a stale `preview` on a path that is no
   // longer previewable (rename) falls back to the source editor.
-  const preview = tab.view === 'preview' ? previewKind(tab.path) : null;
+  const preview = rendered ? previewKind(tab.path) : null;
   if (preview) {
-    return <FilePreview key={tabKey(tab)} session={tab.session} path={tab.path} kind={preview} />;
+    return <FilePreview key={paneKey} session={tab.session} path={tab.path} kind={preview} />;
   }
   return <CodeEditor key={tabKey(tab)} session={tab.session} path={tab.path} reveal={reveal} />;
 }

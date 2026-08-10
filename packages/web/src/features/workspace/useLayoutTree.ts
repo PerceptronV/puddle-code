@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LayoutLeaf, LayoutNode, TabRef } from '@puddle/shared';
-import type { EditorTab } from '../editor/editor-tabs';
+import type { EditorTab, EditorView } from '../editor/editor-tabs';
 import type { UiStateHandle } from './use-ui-state';
 import {
   addTabToLeaf,
@@ -19,6 +19,7 @@ import {
   promoteTab,
   pruneTabs,
   resizeSplit,
+  retargetLinkedTabs,
   setTabView,
   tabRefKey,
   type DropSpec,
@@ -46,11 +47,11 @@ export interface LayoutController {
   /** Promote a preview tab to permanent (double-click), wherever it lives. */
   promote(ref: TabRef): void;
   /**
-   * Toggle ONE pane's editor tab between Monaco source and rendered preview
-   * (SPEC §8) — per tab, so the same file can be source in one pane and preview
-   * in another.
+   * Set ONE pane's editor tab to Monaco source, rendered preview, or the
+   * linked (follow-along) preview (SPEC §8) — per tab, so the same file can
+   * be source in one pane and preview in another.
    */
-  setView(leafId: string, ref: TabRef, view: 'source' | 'preview'): void;
+  setView(leafId: string, ref: TabRef, view: EditorView): void;
   removeTerminal(session: string): void;
   pruneSessions(alive: ReadonlySet<string>): void;
   resize(splitId: string, sizes: number[]): void;
@@ -137,19 +138,38 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
       focusedLeaf,
       activeEditorTab,
       focusLeaf: (leafId) => setFocusedLeafId(leafId),
+      // Activations feed the linked slots (SPEC §8): whatever renderable tab
+      // an op just made active is what every linked preview in this tree
+      // retargets to, in the SAME persist, so all of them move together.
       activate: (leafId, ref) => {
         setFocusedLeafId(leafId);
         const key = tabRefKey(ref);
         const leaf = findLeaf(tree, leafId);
-        if (leaf && leaf.activeKey === key) return; // already active — no tree change
-        persist(focusTab(tree, leafId, key));
+        const alreadyActive = leaf?.activeKey === key;
+        const focused = alreadyActive ? tree : focusTab(tree, leafId, key);
+        const next = retargetLinkedTabs(focused, ref);
+        // Already active and nothing to retarget (a pane-body click on the
+        // shown tab, mostly) — no tree change, no persist.
+        if (alreadyActive && next === tree) return;
+        persist(next);
       },
-      close: (leafId, ref) => persist(closeTab(tree, leafId, tabRefKey(ref))),
+      close: (leafId, ref) => {
+        // Closing hands the leaf to a neighbour tab, and "most recently
+        // active" means it: a markdown tab surfacing under a closed one
+        // retargets the linked slots too.
+        const next = closeTab(tree, leafId, tabRefKey(ref));
+        const leaf = findLeaf(next, leafId);
+        const surfaced = leaf?.tabs.find((t) => tabRefKey(t) === leaf.activeKey);
+        persist(surfaced ? retargetLinkedTabs(next, surfaced) : next);
+      },
       openEditor: (tab, opts) => {
         const target = focusedLeaf.id;
         setFocusedLeafId(target);
         const ref: TabRef = { type: 'editor', tab };
-        persist(opts?.preview ? openPreview(tree, target, ref) : addTabToLeaf(tree, target, ref));
+        const opened = opts?.preview
+          ? openPreview(tree, target, ref)
+          : addTabToLeaf(tree, target, ref);
+        persist(retargetLinkedTabs(opened, ref));
       },
       ensureTerminal: (session, opts) => {
         const key = `term:${session}`;
@@ -185,7 +205,7 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
       resize: (splitId, sizes) => persist(resizeSplit(tree, splitId, sizes)),
       drop: (spec) => {
         setFocusedLeafId(spec.toLeafId);
-        persist(dropTab(tree, spec));
+        persist(retargetLinkedTabs(dropTab(tree, spec), spec.ref));
       },
     }),
     [tree, focusedLeaf, activeEditorTab, persist],

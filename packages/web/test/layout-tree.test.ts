@@ -6,6 +6,7 @@ import {
   buildInitialTree,
   boundToLiveSession,
   closeTab,
+  retargetLinkedTabs,
   dedupeIds,
   dropTab,
   findLeaf,
@@ -621,6 +622,111 @@ describe('setTabView', () => {
     };
     expect(viewIn(second)).toBe('preview');
     expect(viewIn(first)).toBeUndefined();
+  });
+});
+
+describe('linked preview slots (SPEC §8)', () => {
+  const linked = (path: string, session = 's1'): TabRef => ({
+    type: 'editor',
+    tab: { session, path, view: 'linked' },
+  });
+  const linkedTabsOf = (tree: LayoutNode) =>
+    flattenTabs(tree).flatMap((t) =>
+      t.type === 'editor' && t.tab.view === 'linked' ? [t.tab] : [],
+    );
+
+  it('keys a linked tab as the constant slot, never by its target', () => {
+    expect(tabRefKey(linked('README.md'))).toBe('editor:linked');
+    expect(tabRefKey(linked('docs/other.md', 's2'))).toBe('editor:linked');
+    // ...so a slot never collides with an ordinary tab of the file it shows.
+    expect(tabRefKey(ed('README.md'))).not.toBe(tabRefKey(linked('README.md')));
+  });
+
+  it('entering linked mode remaps the leaf pointers onto the slot key', () => {
+    const a = ed('README.md');
+    const base = makeLeaf([a, ed('b.ts')], tabRefKey(a));
+    const tree = { ...base, previewKey: tabRefKey(a) };
+    const next = setTabView(tree, tree.id, tabRefKey(a), 'linked');
+    const leaf = allLeaves(next)[0]!;
+    expect(leaf.activeKey).toBe('editor:linked');
+    expect(leaf.previewKey).toBe('editor:linked');
+    const t = leaf.tabs[0]!;
+    expect(t.type === 'editor' && t.tab.view).toBe('linked');
+  });
+
+  it('leaving linked mode onto a file already open in the leaf dissolves the slot into it', () => {
+    const a = ed('README.md');
+    const tree = makeLeaf([a, linked('README.md')], 'editor:linked');
+    const next = setTabView(tree, tree.id, 'editor:linked', 'source');
+    const leaf = allLeaves(next)[0]!;
+    expect(leaf.tabs.map((t) => tabRefKey(t))).toEqual([tabRefKey(a)]);
+    expect(leaf.activeKey).toBe(tabRefKey(a));
+  });
+
+  it('retargets every slot, across panes, in one pass — keys unmoved', () => {
+    const base = makeLeaf([ed('a.md'), linked('a.md')]);
+    const split = dropTab(base, {
+      ref: linked('a.md'),
+      fromLeafId: base.id,
+      toLeafId: base.id,
+      edge: 'right',
+    });
+    const withTwo = addTabToLeaf(split, allLeaves(split)[0]!.id, linked('a.md'));
+    const next = retargetLinkedTabs(withTwo, ed('b.md', 's2'));
+    const slots = linkedTabsOf(next);
+    expect(slots).toHaveLength(2);
+    for (const slot of slots) {
+      expect(slot.path).toBe('b.md');
+      expect(slot.session).toBe('s2');
+    }
+    // The slot key is constant, so active/preview state never had to move.
+    expect(allLeaves(next).map((l) => l.activeKey)).toEqual(
+      allLeaves(withTwo).map((l) => l.activeKey),
+    );
+  });
+
+  it('retargets nothing for terminals, non-renderable tabs, other slots, or the current target', () => {
+    const tree = makeLeaf([ed('a.md'), linked('a.md')]);
+    expect(retargetLinkedTabs(tree, term('t1'))).toBe(tree);
+    expect(retargetLinkedTabs(tree, ed('code.ts'))).toBe(tree);
+    expect(retargetLinkedTabs(tree, linked('b.md'))).toBe(tree);
+    // Already showing the target: the SAME object, so callers skip the persist.
+    expect(retargetLinkedTabs(tree, ed('a.md'))).toBe(tree);
+  });
+
+  it("carries an external target's kind and root into the slot", () => {
+    const external: TabRef = {
+      type: 'editor',
+      tab: { session: 's1', path: 'notes.md', kind: 'external', root: '/abs' },
+    };
+    const tree = makeLeaf([linked('a.md')]);
+    const next = retargetLinkedTabs(tree, external);
+    const t = allLeaves(next)[0]!.tabs[0]!;
+    expect(t.type === 'editor' && t.tab).toEqual({
+      session: 's1',
+      path: 'notes.md',
+      kind: 'external',
+      root: '/abs',
+      view: 'linked',
+    });
+  });
+
+  it('openPreview never replaces a linked slot in the preview position', () => {
+    const base = makeLeaf([linked('a.md')]);
+    const tree = { ...base, previewKey: 'editor:linked' };
+    const next = openPreview(tree, base.id, ed('b.ts'));
+    const leaf = allLeaves(next)[0]!;
+    expect(leaf.tabs.map((t) => tabRefKey(t))).toEqual(['editor:linked', tabRefKey(ed('b.ts'))]);
+    expect(leaf.previewKey).toBe(tabRefKey(ed('b.ts')));
+  });
+
+  it('a linked tab ref survives the snapshot schema round-trip', () => {
+    const s = crypto.randomUUID();
+    const tree = normalise(
+      makeLeaf([{ type: 'editor', tab: { session: s, path: 'a.md', view: 'linked' } }]),
+    );
+    const parsed = uiStateSnapshotSchema.parse({ layout_tree: tree });
+    expect(parsed.layout_tree).toEqual(tree);
   });
 });
 

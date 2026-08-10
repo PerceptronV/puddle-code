@@ -32,12 +32,14 @@ export const editorTabRefSchema = z.object({
    */
   root: z.string().optional(),
   /**
-   * How a `file` tab renders: Monaco (`source`, the default when absent) or a
-   * rendered `preview` — meaningful only for previewable types (markdown,
-   * HTML; SPEC §8). Not part of the tab's identity: toggling rewrites the tab
-   * ref in place.
+   * How a `file` tab renders: Monaco (`source`, the default when absent), a
+   * rendered `preview`, or a `linked` preview — a rendered view whose
+   * (session, path[, root]) is REWRITTEN to follow the most recently active
+   * renderable tab in its layout tree (SPEC §8). Meaningful only for
+   * previewable types (markdown, HTML). Not part of the tab's identity:
+   * toggling rewrites the tab ref in place.
    */
-  view: z.enum(['source', 'preview']).optional(),
+  view: z.enum(['source', 'preview', 'linked']).optional(),
 });
 export type EditorTabRef = z.infer<typeof editorTabRefSchema>;
 

@@ -6,6 +6,7 @@ import { openCommandPalette } from '../../lib/command-palette';
 import { useHotkeyLabel } from '../../lib/hotkeys';
 import { cn } from '../../lib/utils';
 import { LazyPaneEditorBody } from '../editor/lazy-editor-parts';
+import type { EditorView } from '../editor/editor-tabs';
 import type { RevealTarget } from './editor-context';
 import { useKeepAliveSlot } from './keep-alive';
 import { EnvStrip } from '../env/EnvStrip';
@@ -46,8 +47,8 @@ export function PaneLeaf({
   onFocusLeaf: (leafId: string) => void;
   /** A sidebar drag (file row / session) dropped on this pane — open + position. */
   onDropTab: (leafId: string, ref: TabRef, edge: DropEdge) => void;
-  /** Flip THIS pane's previewable editor tab between source and preview (SPEC §8). */
-  onSetTabView: (leafId: string, ref: TabRef, view: 'source' | 'preview') => void;
+  /** Set THIS pane's previewable editor tab to source, preview, or linked (SPEC §8). */
+  onSetTabView: (leafId: string, ref: TabRef, view: EditorView) => void;
   /** Double-click on the strip's blank tail: open a fresh untitled file here. */
   onNewUntitled: (leaf: LayoutLeaf) => void;
 }) {

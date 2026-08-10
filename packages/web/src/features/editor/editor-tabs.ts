@@ -11,6 +11,14 @@
 
 export type EditorTabKind = 'file' | 'diff' | 'commit' | 'external' | 'untitled';
 
+/**
+ * How a previewable (markdown/HTML) tab renders (SPEC §8): Monaco source,
+ * a rendered preview of its own file, or a `linked` preview — a rendered
+ * view whose (session, path) is rewritten to follow the most recently
+ * active renderable tab in its layout tree, VSCode's follow-along preview.
+ */
+export type EditorView = 'source' | 'preview' | 'linked';
+
 export interface EditorTab {
   session: string;
   path: string;
@@ -25,11 +33,13 @@ export interface EditorTab {
    */
   root?: string;
   /**
-   * How a `file` tab renders: Monaco source (absent/`source`) or a rendered
-   * `preview` (markdown/HTML — SPEC §8). Deliberately NOT part of `tabKey`/
-   * `sameTab`: toggling the view rewrites the same tab, never opens a second.
+   * How a `file` tab renders: Monaco source (absent/`source`), a rendered
+   * `preview`, or a retargeting `linked` preview (markdown/HTML — SPEC §8).
+   * `source`/`preview` are deliberately NOT part of `tabKey`/`sameTab`:
+   * toggling the view rewrites the same tab, never opens a second. `linked`
+   * IS keyed — see `tabKey`.
    */
-  view?: 'source' | 'preview';
+  view?: EditorView;
 }
 
 /** The effective kind, treating an absent `kind` as `file`. */
@@ -37,8 +47,20 @@ export function tabKind(tab: EditorTab): EditorTabKind {
   return tab.kind ?? 'file';
 }
 
-/** Stable React key / map key for a tab, unique across every kind. */
+/**
+ * Stable React key / map key for a tab, unique across every kind.
+ *
+ * A LINKED tab keys as the constant `linked`, not by its (session, path): a
+ * linked tab is a stable SLOT whose identity fields are rewritten on every
+ * retarget (SPEC §8), and a key carrying them would change under React,
+ * `activeKey`, and the layout signature each time — while colliding with an
+ * ordinary tab of the same file in the same pane. The constant key keeps a
+ * retarget a pure field rewrite and caps a leaf at one linked slot (leaf
+ * inserts dedupe by key), exactly like the same file open in two panes
+ * legitimately sharing one key today.
+ */
 export function tabKey(tab: EditorTab): string {
+  if (tab.view === 'linked') return 'linked';
   return `${tabKind(tab)}:${tab.session}:${tab.sha ?? ''}:${tab.root ?? ''}:${tab.path}`;
 }
 
