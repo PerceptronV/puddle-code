@@ -1034,6 +1034,9 @@ function WorkspaceInner() {
       if (ref) onCloseTab(leaf.id, ref);
     },
     'tab.reopen': reopenClosedTab,
+    // The keyboard route to the strip's double-click gesture: a fresh untitled
+    // draft in the focused pane (SPEC §8).
+    'tab.newUntitled': () => onNewUntitled(layout.focusedLeaf),
     'tab.next': () => cycleTab(1),
     'tab.prev': () => cycleTab(-1),
     // ⌘S with the caret OUTSIDE Monaco (a rendered preview, or a pane focused by

@@ -59,6 +59,16 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
     defaultBinding: 'ctrl+alt+KeyT',
     desktopBinding: 'shift+meta+KeyT',
   },
+  {
+    id: 'tab.newUntitled',
+    label: 'New untitled file',
+    group: 'Layout & tabs',
+    // ⌘N never reaches a browser tab (the chrome opens its own window), so the
+    // web default joins the ⌃⌥ tab family; the desktop shell yields the native
+    // key to the renderer (its New Window menu item moved to ⇧⌘N for it).
+    defaultBinding: 'ctrl+alt+KeyN',
+    desktopBinding: 'meta+KeyN',
+  },
   // Cycling the focused pane's strip, in strip order, wrapping at both ends.
   // ⌃⇥ / ⌃⇧⇥ is the desktop default because that gesture means exactly this in
   // every tabbed app; a browser tab can never see it (the chrome switches its

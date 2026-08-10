@@ -38,6 +38,10 @@ describe('shellDefaultBinding', () => {
     expect(shellDefaultBinding(byId('window.close'), false)).toBe('meta+KeyW');
     expect(shellDefaultBinding(byId('tab.reopen'), true)).toBe('shift+meta+KeyT');
     expect(shellDefaultBinding(byId('tab.reopen'), false)).toBe('ctrl+alt+KeyT');
+    // ⌘N is native new-thing muscle memory; the shell's New Window moved to
+    // ⇧⌘N for it. A browser tab can never see ⌘N, hence the ⌃⌥ web default.
+    expect(shellDefaultBinding(byId('tab.newUntitled'), true)).toBe('meta+KeyN');
+    expect(shellDefaultBinding(byId('tab.newUntitled'), false)).toBe('ctrl+alt+KeyN');
     // an action without a desktop fork uses the one default everywhere
     expect(shellDefaultBinding(byId('palette.toggle'), true)).toBe('meta+KeyK');
     expect(shellDefaultBinding(byId('palette.toggle'), false)).toBe('meta+KeyK');

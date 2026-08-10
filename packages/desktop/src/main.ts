@@ -477,7 +477,10 @@ function buildMenu(): void {
       // custom submenu puts New Window (the host picker) at the top.
       role: 'windowMenu',
       submenu: [
-        { label: 'New Window', accelerator: 'CmdOrCtrl+N', click: openHostPicker },
+        // ⇧⌘N, not ⌘N: plain ⌘N must reach the renderer, where it is the
+        // desktop default for a new untitled file (`tab.newUntitled`) — a menu
+        // accelerator would swallow it before the hotkey dispatcher ever saw it.
+        { label: 'New Window', accelerator: 'CmdOrCtrl+Shift+N', click: openHostPicker },
         { type: 'separator' },
         { role: 'minimize' },
         { role: 'zoom' },
