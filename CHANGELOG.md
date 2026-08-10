@@ -16,3 +16,4 @@ Past releases: see docs/changelogs/.
 ### Fixed
 
 - Untitled drafts now follow the editor word-wrap setting (and the ⌥Z toggle) like every other editor, instead of never wrapping.
+- Terminals no longer type cryptic `^[[37;143R`-style sequences into the shell after a tab switch or reload: those were xterm's auto-replies to cursor-position/device queries replayed from scrollback, now suppressed while a replay parses (the asker of a historical query is long gone).

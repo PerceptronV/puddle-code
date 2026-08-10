@@ -254,6 +254,15 @@ export function Terminal({
     const osc52 = { stash: null as string | null };
 
     const stdin = xterm.onData((data) => {
+      // Not just typing: xterm CORE answers device queries (ESC[6n cursor
+      // position, ESC[c device attributes, …) through this same event. During
+      // a replay those are answers to HISTORICAL queries whose asker is long
+      // gone, so forwarding them typed `^[[37;143R` junk into the shell's
+      // input line on every re-attach (the OSC handlers below already guard
+      // replay; this is the CSI-level equivalent). Auto-replies fire
+      // synchronously inside the replay write, so the gate drops exactly
+      // them — at worst also a keystroke typed mid-repaint.
+      if (replayingRef.current) return;
       // Typing dismisses the TUI selection behind the stash — drop it so a
       // later copy chord cannot commit stale text. Mouse reports (wheel
       // scrolling, `ESC[<…`) are not typing and keep it.
