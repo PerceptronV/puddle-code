@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Changed
+
+- The desktop app checks for new releases every half hour (was every six hours), so the "Restart to update" toast lands the same morning a release ships.

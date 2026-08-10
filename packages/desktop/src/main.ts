@@ -366,7 +366,10 @@ ipcMain.handle(
 // the install, and relaunches. The renderer only ever sees "an update is
 // ready" and asks for the restart — everything else stays in this process.
 
-const UPDATE_POLL_MS = 6 * 60 * 60 * 1000;
+// Half-hourly (6h through v0.0.34): the check is one cheap GitHub API call,
+// and a staged release should reach a long-running app the same morning it
+// ships, not most of a working day later.
+const UPDATE_POLL_MS = 30 * 60 * 1000;
 let stagedUpdate: StagedDesktopUpdate | null = null;
 
 /** The path the swap replaces, or null when not running from a real install. */
