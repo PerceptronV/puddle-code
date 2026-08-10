@@ -377,6 +377,19 @@ export function Terminal({
     };
     container.addEventListener('paste', onPaste, true);
 
+    // Focus wins the PTY size (tmux's `window-size latest`, SPEC §6). The PTY
+    // has one size and every viewer's attach/resize claims it, so with the
+    // same session open in two windows the OTHER window's re-attach shrinks
+    // the PTY under this one — the TUI redraws for the small grid and this
+    // viewer shows it faithfully: content top-left, bottom and right blank,
+    // healed only by a reload re-sending these dims. Clicking into a terminal
+    // is the moment the user declares which window is in use, so re-assert
+    // this viewer's size then. When the sizes already agree this is a no-op
+    // end to end (fit() finds nothing to change and a same-size PTY resize
+    // raises no SIGWINCH).
+    const onFocusIn = () => refit();
+    container.addEventListener('focusin', onFocusIn);
+
     const observer = new ResizeObserver(() => refit());
     observer.observe(container);
 
@@ -386,6 +399,7 @@ export function Terminal({
 
     return () => {
       container.removeEventListener('paste', onPaste, true);
+      container.removeEventListener('focusin', onFocusIn);
       observer.disconnect();
       unsubscribeTheme();
       oscForeground?.dispose();
