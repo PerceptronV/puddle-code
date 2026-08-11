@@ -31,8 +31,9 @@ function monacoFocused(): boolean {
 /**
  * Installs the one global hotkey dispatcher and keeps the effective bindings in
  * sync with the profile's overrides (SPEC §11). Mounted once in the shell.
- * Editor actions (save, word wrap) are bound inside Monaco, so the dispatcher
- * skips them here.
+ * Editor actions (save, word wrap) are bound inside Monaco, so the bubbling
+ * dispatcher skips them there. Save is additionally captured first and routed
+ * through the workspace's logical active tab; see the capture handler below.
  */
 export function HotkeysHost() {
   const profileId = useCurrentProfileId();
@@ -63,6 +64,21 @@ export function HotkeysHost() {
   );
 
   useEffect(() => {
+    // Save is resolved by the workspace's LOGICAL focused pane, not whichever
+    // Monaco instance still owns document.activeElement. A draggable tab chip
+    // can activate another pane without taking DOM focus, leaving an untitled
+    // editor elsewhere able to consume ⌘S. Capture save before the event reaches
+    // Monaco so exactly the active tab is saved; if no workspace has registered
+    // a handler, leave the event alone and retain Monaco/browser fallback.
+    const onCaptureKey = (e: KeyboardEvent) => {
+      const binding = eventBinding(e);
+      if (!binding || actionForBinding(binding) !== 'editor.save') return;
+      const handler = getHotkeyHandler('editor.save');
+      if (!handler) return;
+      e.preventDefault();
+      e.stopPropagation();
+      handler();
+    };
     const onKey = (e: KeyboardEvent) => {
       const binding = eventBinding(e);
       if (!binding) return;
@@ -77,8 +93,12 @@ export function HotkeysHost() {
       e.preventDefault();
       handler();
     };
+    window.addEventListener('keydown', onCaptureKey, true);
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onCaptureKey, true);
+      window.removeEventListener('keydown', onKey);
+    };
   }, []);
 
   return null;

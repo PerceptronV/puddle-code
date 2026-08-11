@@ -12,7 +12,7 @@ import {
 } from '@puddle/shared';
 import { createUntitled, deleteUntitled } from '../../lib/untitled-queries';
 import { tabKind } from '../editor/editor-tabs';
-import { requestSave, saverKey } from '../editor/save-registry';
+import { requestActiveTabSave } from '../editor/active-tab-save';
 import {
   forgetUntitledContent,
   setUntitledSaveHandler,
@@ -1039,13 +1039,12 @@ function WorkspaceInner() {
     'tab.newUntitled': () => onNewUntitled(layout.focusedLeaf),
     'tab.next': () => cycleTab(1),
     'tab.prev': () => cycleTab(-1),
-    // ⌘S with the caret OUTSIDE Monaco (a rendered preview, or a pane focused by
-    // its tab chip): Monaco binds this itself whenever it holds the caret, so
-    // this is the fallback the shell dispatches — it saves the focused pane's
-    // active tab, whichever view of the buffer is mounted (SPEC §8).
+    // Save is captured by the shell before Monaco and routed through this
+    // LOGICAL active tab. A draggable chip can focus this pane while the DOM
+    // caret remains in another pane's Monaco; document.activeElement must not
+    // decide which file is written (SPEC §8).
     'editor.save': () => {
-      const tab = layout.activeEditorTab;
-      if (tab) requestSave(saverKey(tab.session, tab.path, tab.root));
+      requestActiveTabSave(layout.activeEditorTab);
     },
     'sidebar.left': () =>
       isNarrow

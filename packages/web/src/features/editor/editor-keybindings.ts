@@ -31,7 +31,8 @@ function toMonacoKeybinding(binding: string): number | null {
  * Register puddle's Monaco keybindings on an editor instance (SPEC §8/§11), from
  * the customisable hotkey registry:
  *
- * - `editor.save` (default `⌘S`) — delegated to the buffer's save.
+ * - `editor.save` (default `⌘S`) — local fallback delegated to the buffer's
+ *   save; the shell normally captures it first to honour logical pane focus.
  * - `editor.wordWrap` (default `⌥Z`) — flips the `editorWordWrap` client setting,
  *   which every open editor's `wordWrap` option is bound to, so the change
  *   applies live to all editors and persists (VSCode's view-toggle, made sticky).

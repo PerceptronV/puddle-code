@@ -195,6 +195,26 @@ export function Terminal({
     wsManager.resize(stream, term, xterm.cols, xterm.rows);
   }, [stream, term]);
 
+  // Repaint after the browser brings this document back to the foreground.
+  // The pause linger normally detaches a hidden viewer and the later replay
+  // rebuilds it, but background tabs throttle (and sleeping machines freeze)
+  // the linger timer. In that case `attached` can stay true throughout, while
+  // the browser discards part of WebGL's backing store without reporting a
+  // context loss. xterm's buffer is still intact — selecting the blank area
+  // makes its text reappear — so force the same full recovery on every visible
+  // edge. Waiting one animation frame lets the compositor restore the canvas
+  // before xterm marks every row dirty. This is deliberately refresh-only:
+  // resizing can clear the canvas and is already owned by ResizeObserver, so
+  // the recovery adds no blank intermediate frame.
+  useEffect(() => {
+    if (!visible) return;
+    const frame = requestAnimationFrame(() => {
+      const xterm = xtermRef.current;
+      if (xterm) xterm.refresh(0, xterm.rows - 1);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [visible]);
+
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !fontReady) return;
@@ -475,6 +495,11 @@ export function Terminal({
           xterm.reset();
           xterm.write(data, () => {
             replayingRef.current = false;
+            // A large replay after this terminal has been parked can update
+            // the buffer while WebGL keeps some rows marked clean. Selection
+            // dirties those cells and reveals the text, but the replay itself
+            // is the right boundary to repaint the whole restored viewport.
+            xterm.refresh(0, xterm.rows - 1);
           });
           return;
         }
