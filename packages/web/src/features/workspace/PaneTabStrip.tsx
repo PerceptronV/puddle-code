@@ -2,6 +2,7 @@ import { Fragment, type ReactNode } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Eye, FileCode, Link, X } from 'lucide-react';
 import type { LayoutLeaf, Session, TabRef } from '@puddle/shared';
+import { HoverMarquee } from '../../components/hover-marquee';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utils';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
@@ -27,6 +28,10 @@ import { useDropIndicator } from './TilingDnd';
 // way to copy it from anyway.
 const TAB_CLASS =
   'group relative flex min-w-16 max-w-52 cursor-pointer select-none items-center gap-1.5 rounded-t-md px-2.5 text-xs transition-colors';
+
+// The same constant-speed reveal as a too-long commit/file name in History,
+// driven by this tab chip's own hover. Literal so Tailwind generates it.
+const TAB_MARQUEE = 'group-hover:[transform:translateX(var(--tail))]';
 
 /**
  * A tiling pane's tab strip (SPEC §8) — one unified strip over BOTH terminal and
@@ -307,7 +312,22 @@ function PaneTab({
               glyph is what says this chip is the follow-along preview and not
               a second tab of that file (SPEC §8). */}
           {tab.tab.view === 'linked' && <Link className="size-3 shrink-0 text-fg-muted" />}
-          <span className="min-w-0 truncate">{label}</span>
+          <HoverMarquee
+            text={label}
+            hoverClass={TAB_MARQUEE}
+            // Sidebar rows fill their line (`flex-1`); an auto-width tab must
+            // still derive its resting width from the filename.
+            containerClassName="flex-auto"
+            // Keep the revealed tail to the left of the controls laid over
+            // this edge. The padding is inside the measured scroll width, so
+            // it reserves nothing in the tab's resting layout.
+            className={
+              (tabKind(tab.tab) === 'file' || tabKind(tab.tab) === 'external') &&
+              previewKind(tab.tab.path) !== null
+                ? 'pr-16'
+                : 'pr-11'
+            }
+          />
           {/* In flow AFTER the filename — the chip widens for it (to its cap;
               past that the name truncates), and it never occludes the name.
               Hidden on hover, where the overlay × appears. */}

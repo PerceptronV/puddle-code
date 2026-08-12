@@ -34,11 +34,14 @@ export function HoverMarquee({
   text,
   hoverClass,
   className,
+  containerClassName,
   title,
 }: {
   text: string;
   hoverClass: string;
   className?: string;
+  /** Layout override for the clipping span (for example, auto-sized tab chips). */
+  containerClassName?: string;
   /** Native tooltip (e.g. a row that shows a basename but knows the full path). */
   title?: string;
 }) {
@@ -59,7 +62,7 @@ export function HoverMarquee({
     // A span (blockified), not a div: these labels sit inside anchors and other
     // phrasing content — a session row's title line is a span inside a <Link> —
     // and as a flex item `block` behaves exactly as the div did.
-    <span className="block min-w-0 flex-1 overflow-hidden">
+    <span className={cn('block min-w-0 flex-1 overflow-hidden', containerClassName)}>
       <span
         ref={spanRef}
         title={title}

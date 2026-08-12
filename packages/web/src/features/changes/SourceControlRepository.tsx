@@ -2,10 +2,16 @@ import { useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { GitArea, GitChangeEntry, GitRepository } from '@puddle/shared';
 import { ChevronDown, ChevronRight, Download, Minus, Plus, Send, Upload } from 'lucide-react';
 import { toast } from 'sonner';
+import { HoverMarquee } from '../../components/hover-marquee';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { useGitMutation } from '../../lib/worktree-queries';
 import { cn } from '../../lib/utils';
 import { gitDecoration } from '../explorer/git-decoration';
+
+/** Which hover drives the branch/status marquee: its own action row. */
+const STATUS_MARQUEE = 'group-hover:[transform:translateX(var(--tail))]';
+/** Both clipped repository-heading fields follow their own heading row. */
+const HEADING_MARQUEE = 'group-hover/repository:[transform:translateX(var(--tail))]';
 
 export interface SourceControlOpenOptions {
   preview?: boolean;
@@ -138,6 +144,17 @@ function branchLabel(repository: GitRepository): string {
   return repository.branch ?? 'Unborn branch';
 }
 
+function statusLabel(repository: GitRepository): string {
+  return [
+    branchLabel(repository),
+    repository.upstream,
+    repository.ahead > 0 ? `${repository.ahead} ahead` : null,
+    repository.behind > 0 ? `${repository.behind} behind` : null,
+  ]
+    .filter((part): part is string => part !== null && part !== undefined)
+    .join(' · ');
+}
+
 /** One collapsible VS Code-style source-control repository group. */
 export function SourceControlRepository({
   session,
@@ -224,11 +241,23 @@ export function SourceControlRepository({
             onSelect();
             setCollapsed((value) => !value);
           }}
-          className="flex min-w-0 flex-1 items-center gap-1.5 text-left transition-colors hover:text-fg"
+          className="group/repository flex min-w-0 flex-1 items-center gap-1.5 text-left transition-colors hover:text-fg"
         >
           {collapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
-          <span className="truncate text-xs font-medium text-fg">{repository.name}</span>
-          <span className="truncate text-2xs text-fg-muted">{repository.relative_path}</span>
+          <HoverMarquee
+            text={repository.name}
+            title={repository.name}
+            className="text-xs font-medium text-fg"
+            containerClassName="flex-[0_1_auto]"
+            hoverClass={HEADING_MARQUEE}
+          />
+          <HoverMarquee
+            text={repository.relative_path}
+            title={repository.relative_path}
+            className="text-2xs text-fg-muted"
+            containerClassName="flex-[0_1_auto]"
+            hoverClass={HEADING_MARQUEE}
+          />
           {changes.length > 0 && (
             <span className="ml-auto text-2xs text-fg-muted">{changes.length}</span>
           )}
@@ -236,13 +265,12 @@ export function SourceControlRepository({
       </div>
       {!collapsed && (
         <div>
-          <div className="flex min-h-7 items-center gap-2 px-3 text-2xs text-fg-muted">
-            <span className="min-w-0 flex-1 truncate" title={branchLabel(repository)}>
-              {branchLabel(repository)}
-              {repository.upstream ? ` · ${repository.upstream}` : ''}
-              {repository.ahead > 0 ? ` · ${repository.ahead} ahead` : ''}
-              {repository.behind > 0 ? ` · ${repository.behind} behind` : ''}
-            </span>
+          <div className="group flex min-h-7 items-center gap-2 px-3 text-2xs text-fg-muted">
+            <HoverMarquee
+              text={statusLabel(repository)}
+              title={statusLabel(repository)}
+              hoverClass={STATUS_MARQUEE}
+            />
             {repository.initialised && repository.has_remote && (
               <>
                 <IconAction

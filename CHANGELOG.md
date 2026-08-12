@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Changed
+
+- Reveal clipped editor-tab filenames and source-control repository details with the constant-speed hover scroll used by History.
