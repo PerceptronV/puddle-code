@@ -138,6 +138,11 @@ the explorer, diff, and history views at.
 10. **Ordinary-editor gutter.** In both dark and light themes, edit an ordinary
     source tab and verify green bars for additions, blue for replacements, and
     red triangles for deletions between lines and at both file boundaries.
+    Click each kind of marker: one read-only inline unified diff opens at that
+    hunk with compact unchanged context; clicking another marker replaces it,
+    clicking the same marker or × closes it, and editing away the hunk removes
+    the open viewer. Text selection/copy inside it works, but it offers no
+    stage/revert actions.
     Stage the file: the marks remain because the baseline is HEAD. Type,
     undo/redo, save, commit, pull a baseline change, and switch branches: marks
     update without reopening the tab and clear when the live model equals the

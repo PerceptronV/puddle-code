@@ -228,6 +228,7 @@
   width: 3px !important;
   margin-left: 4px;
   border-left: 3px solid var(--success);
+  cursor: pointer;
 }
 
 .monaco-editor .puddle-dirty-modified {
@@ -238,6 +239,7 @@
 .monaco-editor .puddle-dirty-deleted-after {
   position: relative;
   width: 8px !important;
+  cursor: pointer;
 }
 
 .monaco-editor .puddle-dirty-deleted-before::before,
@@ -268,4 +270,52 @@
   overflow: hidden;
   pointer-events: none;
   opacity: 0;
+}
+
+/* Read-only HEAD hunk shown in an ordinary editor's public Monaco view zone. */
+.puddle-dirty-peek,
+.puddle-dirty-peek-margin {
+  overflow: hidden;
+  background: var(--bg-base);
+}
+
+.puddle-dirty-peek-header {
+  display: flex;
+  height: 28px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 10px;
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+
+.puddle-dirty-peek-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.puddle-dirty-peek-close {
+  flex: none;
+  margin-left: auto;
+  padding: 0 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  transition: color 120ms ease;
+}
+
+.puddle-dirty-peek-close:hover {
+  color: var(--text-primary);
+}
+
+.puddle-dirty-peek-editor {
+  height: calc(100% - 28px);
 }

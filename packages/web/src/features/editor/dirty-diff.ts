@@ -14,6 +14,39 @@ export interface DirtyDecoration {
   kind: DirtyDecorationKind;
 }
 
+/** The changed hunk whose visible gutter marker covers `lineNumber`. */
+export function dirtyChangeAtLine(
+  changes: readonly DirtyLineChange[],
+  lineNumber: number,
+  modifiedLineCount: number,
+  kind?: DirtyDecorationKind,
+): DirtyLineChange | null {
+  for (const change of changes) {
+    const hit = dirtyDecorations([change], modifiedLineCount).some(
+      (decoration) =>
+        (kind === undefined || decoration.kind === kind) &&
+        lineNumber >= decoration.startLineNumber &&
+        lineNumber <= decoration.endLineNumber,
+    );
+    if (hit) return change;
+  }
+  return null;
+}
+
+/** The source line after which Monaco should insert a peek for this hunk. */
+export function dirtyPeekAfterLine(change: DirtyLineChange, modifiedLineCount: number): number {
+  const modifiedCount = count(change.modifiedStartLineNumber, change.modifiedEndLineNumber);
+  if (modifiedCount > 0) return Math.min(modifiedLineCount, change.modifiedEndLineNumber);
+  return Math.max(0, Math.min(modifiedLineCount, change.modifiedStartLineNumber - 1));
+}
+
+/** A bounded inline-diff height: small hunks fit; large ones scroll internally. */
+export function dirtyPeekLineCount(change: DirtyLineChange): number {
+  const originalCount = count(change.originalStartLineNumber, change.originalEndLineNumber);
+  const modifiedCount = count(change.modifiedStartLineNumber, change.modifiedEndLineNumber);
+  return Math.max(5, Math.min(14, originalCount + modifiedCount + 4));
+}
+
 function count(start: number, end: number): number {
   return end === 0 ? 0 : Math.max(0, end - start + 1);
 }

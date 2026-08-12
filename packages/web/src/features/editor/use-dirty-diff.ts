@@ -3,6 +3,7 @@ import { useDaemonVersion } from '../../lib/queries';
 import { sourceControlSupported } from '../../lib/protocol-support';
 import { useGitOriginal } from '../../lib/worktree-queries';
 import { dirtyDecorations, type DirtyDecorationKind } from './dirty-diff';
+import { createDirtyDiffPeekController } from './dirty-diff-peek';
 import { monaco } from './monaco-setup';
 
 const CLASS_NAME: Record<DirtyDecorationKind, string> = {
@@ -53,10 +54,12 @@ export function useDirtyDiff(
     });
     const collection = editor.createDecorationsCollection();
     controller.setModel({ original, modified: model });
+    const peek = createDirtyDiffPeekController({ editor, original, modified: model, path });
 
     const update = () => {
       const changes = controller.getLineChanges();
       if (!changes) return;
+      peek.update(changes);
       collection.set(
         dirtyDecorations(changes, model.getLineCount()).map((decoration) => ({
           range: new monaco.Range(decoration.startLineNumber, 1, decoration.endLineNumber, 1),
@@ -71,6 +74,7 @@ export function useDirtyDiff(
     update();
     return () => {
       diffListener.dispose();
+      peek.dispose();
       collection.clear();
       controller.setModel(null);
       controller.dispose();
