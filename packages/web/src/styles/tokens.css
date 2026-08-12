@@ -223,8 +223,10 @@
 .monaco-editor .puddle-dirty-added,
 .monaco-editor .puddle-dirty-modified {
   box-sizing: border-box;
-  width: 5px !important;
-  margin-left: 2px;
+  /* Keep Monaco's 10px lane unchanged so source text does not move: shift the
+     3px rule right by consuming its former inner width. */
+  width: 3px !important;
+  margin-left: 4px;
   border-left: 3px solid var(--success);
 }
 
@@ -241,7 +243,7 @@
 .monaco-editor .puddle-dirty-deleted-before::before,
 .monaco-editor .puddle-dirty-deleted-after::after {
   position: absolute;
-  left: 1px;
+  left: 2px;
   width: 6px;
   height: 6px;
   content: '';

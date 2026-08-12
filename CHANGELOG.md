@@ -11,5 +11,6 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Double the breathing room between Monaco line numbers and dirty-diff markers without shifting source text.
 - Reveal clipped editor-tab filenames and source-control repository details with the constant-speed hover scroll used by History.
 - Allow directory rows in repository Changes trees to stage or unstage every contained entry.
