@@ -1,55 +1,68 @@
 /**
- * Pure flat-paths → nested-tree helper for the Changes navigator's uncommitted
- * panel (SPEC §8: "either as a worktree or flat"). Groups changed files by
- * directory, compacting chains of single-child directories into one row
- * (`a/b/c`) the way VS Code does, so a deep change isn't a staircase of
+ * Pure flat-paths → nested-tree helper for the Changes navigator's legacy and
+ * repository-aware panels (SPEC §8: "either as a tree or flat"). Groups changed
+ * files by directory, compacting chains of single-child directories into one
+ * row (`a/b/c`) the way VS Code does, so a deep change isn't a staircase of
  * one-item folders. DOM-free and side-effect-free — unit-testable.
  */
 import type { DiffEntry } from '@puddle/shared';
 
-export interface TreeFileNode {
+interface PathEntry {
+  path: string;
+}
+
+export interface TreeFileNode<Entry extends PathEntry = DiffEntry> {
   type: 'file';
   /** Display name (the basename). */
   name: string;
   /** Full worktree-relative path — the file's identity. */
   path: string;
-  entry: DiffEntry;
+  entry: Entry;
 }
 
-export interface TreeDirNode {
+export interface TreeDirNode<Entry extends PathEntry = DiffEntry> {
   type: 'dir';
   /** Display name, possibly compacted (`a/b`). */
   name: string;
   /** Full path of this directory (used as a stable expand key). */
   path: string;
-  children: TreeNode[];
+  children: TreeNode<Entry>[];
 }
 
-export type TreeNode = TreeFileNode | TreeDirNode;
+export type TreeNode<Entry extends PathEntry = DiffEntry> =
+  TreeFileNode<Entry> | TreeDirNode<Entry>;
 
-interface MutableDir {
-  dirs: Map<string, MutableDir>;
-  files: TreeFileNode[];
+interface MutableDir<Entry extends PathEntry> {
+  dirs: Map<string, MutableDir<Entry>>;
+  files: TreeFileNode<Entry>[];
 }
 
-function emptyDir(): MutableDir {
+function emptyDir<Entry extends PathEntry>(): MutableDir<Entry> {
   return { dirs: new Map(), files: [] };
 }
 
 /** The path a diff entry lives at: its new path (renames show at the destination). */
-function entryPath(entry: DiffEntry): string {
+function entryPath(entry: PathEntry): string {
   return entry.path;
 }
 
-function finalise(dir: MutableDir, prefix: string): TreeNode[] {
-  const dirNodes: TreeDirNode[] = [];
+function finalise<Entry extends PathEntry>(
+  dir: MutableDir<Entry>,
+  prefix: string,
+): TreeNode<Entry>[] {
+  const dirNodes: TreeDirNode<Entry>[] = [];
   for (const [name, child] of dir.dirs) {
     const path = prefix ? `${prefix}/${name}` : name;
-    let node: TreeDirNode = { type: 'dir', name, path, children: finalise(child, path) };
+    let node: TreeDirNode<Entry> = {
+      type: 'dir',
+      name,
+      path,
+      children: finalise(child, path),
+    };
     // Compact a directory that holds exactly one sub-directory and no files
     // into a single `a/b` row (VS Code behaviour).
     while (node.children.length === 1 && node.children[0]!.type === 'dir') {
-      const only = node.children[0] as TreeDirNode;
+      const only = node.children[0] as TreeDirNode<Entry>;
       node = {
         type: 'dir',
         name: `${node.name}/${only.name}`,
@@ -68,8 +81,10 @@ function finalise(dir: MutableDir, prefix: string): TreeNode[] {
 }
 
 /** Build a nested, compacted tree from a flat list of diff entries. */
-export function buildFileTree(entries: readonly DiffEntry[]): TreeNode[] {
-  const root = emptyDir();
+export function buildFileTree<Entry extends PathEntry>(
+  entries: readonly Entry[],
+): TreeNode<Entry>[] {
+  const root = emptyDir<Entry>();
   for (const entry of entries) {
     const path = entryPath(entry);
     const segments = path.split('/');
@@ -89,7 +104,9 @@ export function buildFileTree(entries: readonly DiffEntry[]): TreeNode[] {
 }
 
 /** Flat list sorted by path — the "flat" toggle state. */
-export function flatFileList(entries: readonly DiffEntry[]): TreeFileNode[] {
+export function flatFileList<Entry extends PathEntry>(
+  entries: readonly Entry[],
+): TreeFileNode<Entry>[] {
   return entries
     .map((entry) => ({
       type: 'file' as const,
@@ -98,4 +115,10 @@ export function flatFileList(entries: readonly DiffEntry[]): TreeFileNode[] {
       entry,
     }))
     .sort((a, b) => a.path.localeCompare(b.path, undefined, { sensitivity: 'base' }));
+}
+
+/** Every file entry represented below a file or directory node. */
+export function treeEntries<Entry extends PathEntry>(node: TreeNode<Entry>): Entry[] {
+  if (node.type === 'file') return [node.entry];
+  return node.children.flatMap(treeEntries);
 }

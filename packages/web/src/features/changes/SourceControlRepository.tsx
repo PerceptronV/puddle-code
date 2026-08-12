@@ -1,17 +1,31 @@
-import { useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { GitArea, GitChangeEntry, GitRepository } from '@puddle/shared';
-import { ChevronDown, ChevronRight, Download, Minus, Plus, Send, Upload } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  Download,
+  FolderTree,
+  List,
+  Minus,
+  Plus,
+  Send,
+  Upload,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { HoverMarquee } from '../../components/hover-marquee';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { useGitMutation } from '../../lib/worktree-queries';
 import { cn } from '../../lib/utils';
 import { gitDecoration } from '../explorer/git-decoration';
+import { buildFileTree, treeEntries, type TreeNode } from './file-tree';
+import { gitEntryPaths } from './source-control-paths';
 
 /** Which hover drives the branch/status marquee: its own action row. */
 const STATUS_MARQUEE = 'group-hover:[transform:translateX(var(--tail))]';
 /** Both clipped repository-heading fields follow their own heading row. */
 const HEADING_MARQUEE = 'group-hover/repository:[transform:translateX(var(--tail))]';
+/** Changed-file and directory labels follow their own row. */
+const CHANGE_MARQUEE = 'group-hover:[transform:translateX(var(--tail))]';
 
 export interface SourceControlOpenOptions {
   preview?: boolean;
@@ -58,6 +72,7 @@ function ChangeGroup({
   activePath,
   action,
   busy,
+  flat,
   onAction,
   onOpen,
 }: {
@@ -67,14 +82,14 @@ function ChangeGroup({
   activePath: string | null;
   action: 'stage' | 'unstage';
   busy: boolean;
+  flat: boolean;
   onAction(paths: string[]): void;
   onOpen(path: string, opts?: SourceControlOpenOptions): void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const tree = useMemo(() => (flat ? null : buildFileTree(entries)), [entries, flat]);
   if (entries.length === 0) return null;
   const stage = action === 'stage';
-  const pathsFor = (entry: GitChangeEntry) =>
-    entry.old_path === null ? [entry.path] : [entry.path, entry.old_path];
   return (
     <div>
       <div className="group flex h-7 items-center gap-1 px-2">
@@ -90,52 +105,192 @@ function ChangeGroup({
         <IconAction
           label={`${stage ? 'Stage' : 'Unstage'} all ${title.toLowerCase()}`}
           disabled={busy}
-          onClick={() => onAction(entries.flatMap(pathsFor))}
+          onClick={() => onAction(gitEntryPaths(entries))}
         >
           {stage ? <Plus className="size-3.5" /> : <Minus className="size-3.5" />}
         </IconAction>
       </div>
       {!collapsed &&
-        entries.map((entry) => {
-          const decoration = gitDecoration(entry.status);
-          return (
-            <div
+        (flat ? (
+          entries.map((entry) => (
+            <ChangeFileRow
               key={`${entry.path}:${entry.old_path ?? ''}`}
-              className={cn(
-                'group flex items-center gap-1 px-2 transition-colors hover:bg-elevated',
-                activePath === entry.path && 'bg-selection',
-              )}
+              entry={entry}
+              name={entry.path}
+              depth={0}
+              area={area}
+              active={activePath === entry.path}
+              action={action}
+              busy={busy}
+              onAction={onAction}
+              onOpen={onOpen}
+            />
+          ))
+        ) : (
+          <ChangeTreeRows
+            nodes={tree!}
+            depth={0}
+            area={area}
+            activePath={activePath}
+            action={action}
+            busy={busy}
+            onAction={onAction}
+            onOpen={onOpen}
+          />
+        ))}
+    </div>
+  );
+}
+
+function ChangeFileRow({
+  entry,
+  name,
+  depth,
+  area,
+  active,
+  action,
+  busy,
+  onAction,
+  onOpen,
+}: {
+  entry: GitChangeEntry;
+  name: string;
+  depth: number;
+  area: GitArea;
+  active: boolean;
+  action: 'stage' | 'unstage';
+  busy: boolean;
+  onAction(paths: string[]): void;
+  onOpen(path: string, opts?: SourceControlOpenOptions): void;
+}) {
+  const decoration = gitDecoration(entry.status);
+  const stage = action === 'stage';
+  return (
+    <div
+      className={cn(
+        'group flex items-center gap-1 pr-2 transition-colors hover:bg-elevated',
+        active && 'bg-selection',
+      )}
+      style={{ paddingLeft: 8 + depth * 12 }}
+    >
+      <button
+        type="button"
+        title={entry.path}
+        onClick={() => onOpen(entry.path, { root: undefined, gitArea: area })}
+        onDoubleClick={() => onOpen(entry.path, { preview: false, root: undefined, gitArea: area })}
+        className="flex min-w-0 flex-1 items-center gap-1.5 py-1 text-left"
+      >
+        <span className={cn('w-3 shrink-0 text-center font-mono text-xs', decoration.colourClass)}>
+          {decoration.letter}
+        </span>
+        <HoverMarquee text={name} className="text-xs text-fg" hoverClass={CHANGE_MARQUEE} />
+      </button>
+      <IconAction
+        label={`${stage ? 'Stage' : 'Unstage'} ${entry.path}`}
+        disabled={busy}
+        onClick={() => onAction(gitEntryPaths([entry]))}
+      >
+        {stage ? <Plus className="size-3.5" /> : <Minus className="size-3.5" />}
+      </IconAction>
+    </div>
+  );
+}
+
+function ChangeTreeRows({
+  nodes,
+  depth,
+  area,
+  activePath,
+  action,
+  busy,
+  onAction,
+  onOpen,
+}: {
+  nodes: TreeNode<GitChangeEntry>[];
+  depth: number;
+  area: GitArea;
+  activePath: string | null;
+  action: 'stage' | 'unstage';
+  busy: boolean;
+  onAction(paths: string[]): void;
+  onOpen(path: string, opts?: SourceControlOpenOptions): void;
+}) {
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const stage = action === 'stage';
+  return (
+    <>
+      {nodes.map((node) => {
+        if (node.type === 'file') {
+          return (
+            <ChangeFileRow
+              key={`${node.entry.path}:${node.entry.old_path ?? ''}`}
+              entry={node.entry}
+              name={node.name}
+              depth={depth}
+              area={area}
+              active={activePath === node.path}
+              action={action}
+              busy={busy}
+              onAction={onAction}
+              onOpen={onOpen}
+            />
+          );
+        }
+        const isCollapsed = collapsed.has(node.path);
+        return (
+          <div key={node.path}>
+            <div
+              className="group flex items-center gap-1 pr-2 transition-colors hover:bg-elevated"
+              style={{ paddingLeft: 8 + depth * 12 }}
             >
               <button
                 type="button"
-                title={entry.path}
-                onClick={() => onOpen(entry.path, { root: undefined, gitArea: area })}
-                onDoubleClick={() =>
-                  onOpen(entry.path, { preview: false, root: undefined, gitArea: area })
+                title={node.path}
+                onClick={() =>
+                  setCollapsed((previous) => {
+                    const next = new Set(previous);
+                    if (next.has(node.path)) next.delete(node.path);
+                    else next.add(node.path);
+                    return next;
+                  })
                 }
-                className="flex min-w-0 flex-1 items-center gap-1.5 py-1 text-left"
+                className="flex min-w-0 flex-1 items-center gap-1 py-1 text-left"
               >
-                <span
-                  className={cn(
-                    'w-3 shrink-0 text-center font-mono text-xs',
-                    decoration.colourClass,
-                  )}
-                >
-                  {decoration.letter}
-                </span>
-                <span className="truncate text-xs text-fg">{entry.path}</span>
+                {isCollapsed ? (
+                  <ChevronRight className="size-3.5 shrink-0 text-fg-gold" />
+                ) : (
+                  <ChevronDown className="size-3.5 shrink-0 text-fg-gold" />
+                )}
+                <HoverMarquee
+                  text={node.name}
+                  className="text-xs text-fg-secondary"
+                  hoverClass={CHANGE_MARQUEE}
+                />
               </button>
               <IconAction
-                label={`${stage ? 'Stage' : 'Unstage'} ${entry.path}`}
+                label={`${stage ? 'Stage' : 'Unstage'} ${node.path}`}
                 disabled={busy}
-                onClick={() => onAction(pathsFor(entry))}
+                onClick={() => onAction(gitEntryPaths(treeEntries(node)))}
               >
                 {stage ? <Plus className="size-3.5" /> : <Minus className="size-3.5" />}
               </IconAction>
             </div>
-          );
-        })}
-    </div>
+            {!isCollapsed && (
+              <ChangeTreeRows
+                nodes={node.children}
+                depth={depth + 1}
+                area={area}
+                activePath={activePath}
+                action={action}
+                busy={busy}
+                onAction={onAction}
+                onOpen={onOpen}
+              />
+            )}
+          </div>
+        );
+      })}
+    </>
   );
 }
 
@@ -174,6 +329,7 @@ export function SourceControlRepository({
   onOpen(path: string, opts?: SourceControlOpenOptions): void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [flat, setFlat] = useState(false);
   const [message, setMessage] = useState('');
   const mutation = useGitMutation(session, targetRoot);
   const changes = [...repository.conflicts, ...repository.staged, ...repository.unstaged];
@@ -262,6 +418,14 @@ export function SourceControlRepository({
             <span className="ml-auto text-2xs text-fg-muted">{changes.length}</span>
           )}
         </button>
+        {!collapsed && repository.initialised && changes.length > 0 && (
+          <IconAction
+            label={flat ? 'Show changes as tree' : 'Show changes as flat list'}
+            onClick={() => setFlat((value) => !value)}
+          >
+            {flat ? <List className="size-3.5" /> : <FolderTree className="size-3.5" />}
+          </IconAction>
+        )}
       </div>
       {!collapsed && (
         <div>
@@ -349,6 +513,7 @@ export function SourceControlRepository({
                 activePath={activePath}
                 action="stage"
                 busy={busy}
+                flat={flat}
                 onAction={(paths) => changePaths('stage', paths)}
                 onOpen={openInRepository}
               />
@@ -359,6 +524,7 @@ export function SourceControlRepository({
                 activePath={activePath}
                 action="unstage"
                 busy={busy}
+                flat={flat}
                 onAction={(paths) => changePaths('unstage', paths)}
                 onOpen={openInRepository}
               />
@@ -369,6 +535,7 @@ export function SourceControlRepository({
                 activePath={activePath}
                 action="stage"
                 busy={busy}
+                flat={flat}
                 onAction={(paths) => changePaths('stage', paths)}
                 onOpen={openInRepository}
               />

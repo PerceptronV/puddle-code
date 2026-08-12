@@ -3,7 +3,12 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { DiffEntry } from '@puddle/shared';
-import { buildFileTree, flatFileList, type TreeDirNode } from '../src/features/changes/file-tree';
+import {
+  buildFileTree,
+  flatFileList,
+  treeEntries,
+  type TreeDirNode,
+} from '../src/features/changes/file-tree';
 
 const file = (path: string, status: DiffEntry['status'] = 'modified'): DiffEntry => ({
   path,
@@ -48,6 +53,12 @@ describe('buildFileTree', () => {
       expect(leaf.path).toBe('src/a.ts');
       expect(leaf.entry.status).toBe('added');
     }
+  });
+
+  it('returns every descendant entry for a directory action', () => {
+    const tree = buildFileTree([file('src/a.ts'), file('src/nested/b.ts'), file('other.ts')]);
+    const src = tree[0] as TreeDirNode;
+    expect(treeEntries(src).map((entry) => entry.path)).toEqual(['src/nested/b.ts', 'src/a.ts']);
   });
 });
 

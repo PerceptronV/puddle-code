@@ -12,3 +12,4 @@ Past releases: see docs/changelogs/.
 ### Changed
 
 - Reveal clipped editor-tab filenames and source-control repository details with the constant-speed hover scroll used by History.
+- Allow directory rows in repository Changes trees to stage or unstage every contained entry.

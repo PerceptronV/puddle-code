@@ -123,7 +123,8 @@ the explorer, diff, and history views at.
    and an initialised submodule under the worktree, and leave another submodule
    uninitialised. Changes shows one collapsible panel per repository, owning
    repository first; the uninitialised submodule is disabled. Stage and
-   unstage one file and a whole group, partially stage a tracked file, and
+   unstage one file and a whole group. In tree mode, stage and unstage a
+   directory and confirm every displayed descendant moves together. Partially stage a tracked file, and
    confirm Staged Changes and Changes open HEAD→index and index→working-tree
    content respectively. Commit the staged half: the working half remains,
    the message clears, and the parent submodule gitlink remains available for
