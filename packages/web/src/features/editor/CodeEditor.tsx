@@ -4,7 +4,7 @@ import { Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { useClientSettings } from '../../lib/client-settings';
 import { downloadPath } from '../../lib/worktree-queries';
-import { ConflictView } from './ConflictView';
+import { ConflictSurface } from './ConflictSurface';
 import { THEME_NAME } from './monaco-setup';
 import { useEditorBuffer } from './use-editor-buffer';
 import { useDirtyDiff } from './use-dirty-diff';
@@ -57,6 +57,7 @@ export function CodeEditor({
   path,
   reveal,
   root,
+  focused = true,
 }: {
   session: string;
   path: string;
@@ -64,9 +65,11 @@ export function CodeEditor({
   /** Absolute browse root of an `external` tab (SPEC §8) — buffers, drafts,
    * sync, and saves all key and route through it. */
   root?: string;
+  /** Whether this is the workspace's logically focused tab. */
+  focused?: boolean;
 }) {
   const settings = useClientSettings();
-  const buffer = useEditorBuffer(session, path, reveal, root);
+  const buffer = useEditorBuffer(session, path, reveal, root, { focused });
   const mountDirtyDiff = useDirtyDiff(session, path, root, buffer.model);
   const fontMono = useMemo(
     () =>
@@ -74,6 +77,13 @@ export function CodeEditor({
       undefined,
     [],
   );
+
+  // Conflict state outranks the query's ordinary file status: the comparison
+  // read itself can discover a deletion or fail, in which case `file.error`
+  // must not hide the locked, retryable reconciliation state below.
+  if (buffer.conflict && buffer.conflict.phase !== 'unresolved') {
+    return <ConflictSurface session={session} path={path} buffer={buffer} focused={focused} />;
+  }
 
   if (buffer.status === 'binary') {
     return (
@@ -104,23 +114,6 @@ export function CodeEditor({
         session={session}
         path={path}
         root={root}
-      />
-    );
-  }
-
-  // A refused save is a question, not an error (SPEC §8): show the disk version
-  // beside the buffer until it is answered, in place of the plain editor —
-  // reconciling IS editing the same model, so nothing is lost by swapping views.
-  if (buffer.conflict && buffer.model) {
-    return (
-      <ConflictView
-        session={session}
-        path={path}
-        conflict={buffer.conflict}
-        model={buffer.model}
-        onTakeDisk={buffer.takeDisk}
-        onKeepMine={buffer.keepMine}
-        onSave={buffer.save}
       />
     );
   }

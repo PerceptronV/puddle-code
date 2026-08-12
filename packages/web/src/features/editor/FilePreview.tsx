@@ -6,6 +6,7 @@ import { useClientSettings } from '../../lib/client-settings';
 import { rootParam } from '../../lib/worktree-queries';
 import { useEditor } from '../workspace/editor-context';
 import { bufferKey, subscribe } from './buffer-store';
+import { ConflictSurface } from './ConflictSurface';
 import { useEditorBuffer } from './use-editor-buffer';
 import { markdownToHtml } from './markdown';
 import { MATH_LAYOUT_CSS } from './math';
@@ -34,6 +35,7 @@ export function FilePreview({
   path,
   kind,
   root,
+  focused = true,
 }: {
   session: string;
   path: string;
@@ -42,39 +44,29 @@ export function FilePreview({
       the same rooted buffer the source editor edits, and its asset/link
       resolution stays inside that root. */
   root?: string;
+  focused?: boolean;
 }) {
-  const text = useLiveText(session, path, root);
+  const buffer = useEditorBuffer(session, path, null, root, {
+    passive: true,
+    live: true,
+    focused,
+  });
+  const model = buffer.model;
+  const text = useSyncExternalStore(
+    (onChange) => subscribe(bufferKey(session, path, root), onChange),
+    () => model?.getValue() ?? null,
+  );
+  // A rendered preview cannot host Monaco's reconciliation surface itself.
+  // Keep it as-is while the question is merely offered; after Compare, hand the
+  // tab to CodeEditor so loading, retry, and the editable diff are guaranteed.
+  if (buffer.conflict && buffer.conflict.phase !== 'unresolved') {
+    return <ConflictSurface session={session} path={path} buffer={buffer} focused={focused} />;
+  }
   if (text === null) return null; // loading, or a binary masquerading by extension
   return kind === 'markdown' ? (
     <MarkdownPreview session={session} path={path} text={text} root={root} />
   ) : (
     <HtmlPreview session={session} path={path} text={text} root={root} />
-  );
-}
-
-/**
- * The tab's live text — live in BOTH directions (SPEC §8):
- *
- * - **the buffer**, when one is open: the very model the source editor edits, so
- *   a preview beside an editor re-renders on every keystroke and ⌘S in either
- *   view saves the one buffer (the preview registers its save, since it has no
- *   Monaco to own the chord — `save-registry.ts`);
- * - **the file**, otherwise: `live` polls it and the hook's clean-refocus rule
- *   adopts anything newer, so a preview of a document an AGENT is writing keeps
- *   up. Before this the model was created once from the first read and the
- *   rendered view then never moved again.
- *
- * `passive` is what makes it safe to hold the buffer beside a real editor: a
- * reading view writes no drafts and announces nothing. The model is retained by
- * the tree-wide ModelRefcount for every open editor tab, so no retain/release
- * is needed here.
- */
-function useLiveText(session: string, path: string, root?: string): string | null {
-  const buffer = useEditorBuffer(session, path, null, root, { passive: true, live: true });
-  const model = buffer.model;
-  return useSyncExternalStore(
-    (onChange) => subscribe(bufferKey(session, path, root), onChange),
-    () => model?.getValue() ?? null,
   );
 }
 

@@ -17,3 +17,4 @@ Past releases: see docs/changelogs/.
 ### Changed
 
 - Extend staged and unstaged diff tabs to compare HEAD, index, and working-tree content independently, and bump the protocol to 15.3.
+- Offer stale-save reconciliation through a dismissable Compare notification, re-offer it when the unresolved file is focused again, and lock every view of the shared buffer until its Monaco comparison has loaded.

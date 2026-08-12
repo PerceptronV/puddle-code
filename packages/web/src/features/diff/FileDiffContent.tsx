@@ -5,6 +5,7 @@ import { useClientSettings } from '../../lib/client-settings';
 import { useFileAt, useIndexFile } from '../../lib/worktree-queries';
 import { ApiError } from '../../lib/api';
 import { CodeEditor } from '../editor/CodeEditor';
+import { ConflictSurface } from '../editor/ConflictSurface';
 import { bufferKey, releaseModel, retainModel } from '../editor/buffer-store';
 import { monaco, THEME_NAME } from '../editor/monaco-setup';
 import { useEditorBuffer } from '../editor/use-editor-buffer';
@@ -155,6 +156,7 @@ function ModifiedContent({
   basePath,
   root,
   indexBase = false,
+  focused = true,
 }: {
   session: string;
   against: string;
@@ -162,13 +164,14 @@ function ModifiedContent({
   basePath: string;
   root?: string;
   indexBase?: boolean;
+  focused?: boolean;
 }) {
   const settings = useClientSettings();
   // NB: when the same file is also open as an editor tab, its useEditorBuffer
   // instance and this one BOTH persist a draft per keystroke. The writes are
   // idempotent (same key, same content, debounced) — merely duplicated — and
   // there is no clean focus-ownership seam today, so this is left as is.
-  const buffer = useEditorBuffer(session, path, null, root);
+  const buffer = useEditorBuffer(session, path, null, root, { focused });
   const committed = useFileAt(session, against, basePath, { root, enabled: !indexBase });
   const indexed = useIndexFile(session, basePath, { root, enabled: indexBase });
   const base = indexBase ? indexed : committed;
@@ -178,7 +181,7 @@ function ModifiedContent({
   // wrapper's later cleanup sees getModel() === null and no-ops, so the
   // original would otherwise leak.
   const diffEditorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
-  useRetainedModel(bufferKey(session, path), () => {
+  useRetainedModel(bufferKey(session, path, root), () => {
     const editor = diffEditorRef.current;
     if (!editor) return;
     const models = editor.getModel();
@@ -201,11 +204,18 @@ function ModifiedContent({
   // and render it as a plain editable buffer, not a diff (SPEC §8).
   const baseMissing = base.error instanceof ApiError && base.error.status === 404;
 
+  // Once Compare is chosen, every editable surface over the shared model must
+  // yield to the conflict controller. CodeEditor owns loading/error/comparison;
+  // leaving `unresolved` here keeps this ordinary diff editable until then.
+  if (buffer.conflict && buffer.conflict.phase !== 'unresolved') {
+    return <ConflictSurface session={session} path={path} buffer={buffer} focused={focused} />;
+  }
+
   if (buffer.status === 'binary' || base.data?.binary) return <Note>Binary file</Note>;
   if (buffer.status === 'too-large') return <Note>File too large to show</Note>;
   if (buffer.status === 'error') return <Note>{buffer.errorMessage ?? 'Failed to load file'}</Note>;
   if (baseMissing || (indexBase && indexed.data && !indexed.data.exists)) {
-    return <CodeEditor session={session} path={path} reveal={null} root={root} />;
+    return <CodeEditor session={session} path={path} reveal={null} root={root} focused={focused} />;
   }
   if (base.isPending || !buffer.model) return <Note>…</Note>;
   if (base.error) {
@@ -329,11 +339,21 @@ function StagedContent({
 }
 
 /** `added` (and a base that 404s as `not_at_ref`): a plain editable buffer. */
-function AddedContent({ session, path, root }: { session: string; path: string; root?: string }) {
+function AddedContent({
+  session,
+  path,
+  root,
+  focused,
+}: {
+  session: string;
+  path: string;
+  root?: string;
+  focused: boolean;
+}) {
   useRetainedModel(bufferKey(session, path, root));
   // CodeEditor owns the shared buffer, save flow, and binary/too-large
   // fallbacks (SPEC §8: a new file renders as a plain editor, not a diff).
-  return <CodeEditor session={session} path={path} reveal={null} root={root} />;
+  return <CodeEditor session={session} path={path} reveal={null} root={root} focused={focused} />;
 }
 
 /**
@@ -348,6 +368,7 @@ export function FileDiffContent({
   entry,
   root,
   area,
+  focused = true,
 }: {
   session: string;
   against: string;
@@ -355,13 +376,14 @@ export function FileDiffContent({
   /** `?root=` when the diff is against a directory target (12.4). */
   root?: string;
   area?: GitArea;
+  focused?: boolean;
 }) {
   if (area === 'staged') {
     return <StagedContent session={session} against={against} entry={entry} root={root} />;
   }
   switch (entry.status) {
     case 'added':
-      return <AddedContent session={session} path={entry.path} root={root} />;
+      return <AddedContent session={session} path={entry.path} root={root} focused={focused} />;
     case 'deleted':
       return (
         <DeletedContent
@@ -382,6 +404,7 @@ export function FileDiffContent({
           basePath={entry.old_path ?? entry.path}
           root={root}
           indexBase={area === 'unstaged'}
+          focused={focused}
         />
       );
     default:

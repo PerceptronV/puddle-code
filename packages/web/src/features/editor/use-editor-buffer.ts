@@ -22,9 +22,16 @@ import {
   subscribePeerState,
 } from './editor-sync';
 import {
+  beginComparison,
   clearConflict,
+  comparedMtime,
+  completeComparison,
+  comparisonLocksBuffer,
   conflictFor,
-  setConflict,
+  failComparison,
+  finishOpeningComparison,
+  registerConflict,
+  shouldOfferComparison,
   subscribeConflict,
   type DiskConflict,
 } from './conflict-store';
@@ -53,6 +60,10 @@ export interface EditorBuffer {
   takeDisk(): void;
   /** Resolve a conflict by writing the buffer over whatever is on disk. */
   keepMine(): void;
+  /** Lock the buffer, load the current disk version, and open reconciliation. */
+  compare(): void;
+  /** Unlock the modified side once Monaco has mounted the comparison. */
+  comparisonReady(revision: number): void;
   save(): void;
   /** Wire into `<Editor onMount>` — binds ⌘S and the reveal-on-open caret. */
   onMount(editor: monaco.editor.IStandaloneCodeEditor): void;
@@ -70,6 +81,13 @@ export interface BufferOptions {
   passive?: boolean;
   /** Poll the file so disk changes appear without a window refocus. */
   live?: boolean;
+  /** Whether this tab is the workspace's logically focused tab. */
+  focused?: boolean;
+}
+
+/** One stable Sonner identity per shared buffer, including external roots. */
+function conflictToastId(key: string): string {
+  return `file-conflict:${key}`;
 }
 
 /**
@@ -94,6 +112,7 @@ export function useEditorBuffer(
   opts?: BufferOptions,
 ): EditorBuffer {
   const passive = opts?.passive === true;
+  const focused = opts?.focused ?? true;
   const key = bufferKey(session, path, root);
   const file = useWorktreeFile(session, path, { root, live: opts?.live });
   const saveMutation = useSaveWorktreeFile(session, root);
@@ -239,6 +258,51 @@ export function useEditorBuffer(
     [key, session, path, root],
   );
 
+  const compare = useCallback(() => {
+    const revision = beginComparison(key);
+    if (revision === null) return;
+    toast.dismiss(conflictToastId(key));
+    void file
+      .refetch({ throwOnError: true })
+      .then((res) => {
+        const data = res.data;
+        if (!data) throw new Error('The disk version did not load.');
+        if (data.content === null) {
+          throw new Error('The file on disk is binary and cannot be compared as text.');
+        }
+        completeComparison(key, revision, data.content, data.mtime_ms);
+      })
+      .catch((error: unknown) => {
+        failComparison(
+          key,
+          revision,
+          error instanceof Error ? error.message : 'The disk version did not load.',
+        );
+      });
+  }, [file, key]);
+
+  const compareRef = useRef(compare);
+  compareRef.current = compare;
+
+  // A stale save remains an editable buffer until the user asks to compare.
+  // The notification is scoped to logical focus: dismissing it stands while the
+  // tab stays focused; leaving and returning offers the unresolved question
+  // again. Cleanup also prevents a warning for pane A lingering over pane B.
+  useEffect(() => {
+    if (!shouldOfferComparison(conflict, focused)) return;
+    const id = conflictToastId(key);
+    toast('File changed on disk', {
+      id,
+      description: 'Nothing was written — your unsaved version is intact.',
+      duration: Infinity,
+      closeButton: true,
+      action: { label: 'Compare', onClick: () => compareRef.current() },
+    });
+    return () => {
+      toast.dismiss(id);
+    };
+  }, [conflict, focused, key]);
+
   const reload = useCallback(() => {
     void file.refetch().then((res) => {
       if (res.data && res.data.content !== null) {
@@ -272,34 +336,27 @@ export function useEditorBuffer(
     // buffer and reconciled against, so that version is what the write is based
     // on. Expecting the stale load mtime instead would 409 forever, leaving no
     // way to save a merge at all.
-    const expected = conflictFor(key)?.mtimeMs ?? savedMtime(key);
+    // Loading/error removes every editable view, but the workspace-level save
+    // dispatcher can still address this buffer; never let that bypass the lock.
+    if (comparisonLocksBuffer(conflictFor(key))) return;
+    const expected = comparedMtime(conflictFor(key)) ?? savedMtime(key);
     saveMutation.mutate(
       { path, content, expected_mtime_ms: expected },
       {
         onSuccess: (res) => commitSaved(versionId, res.mtime_ms),
         onError: (err) => {
           if (err instanceof ApiError && err.status === 409 && err.code === 'stale_file') {
-            // Nothing was written. Fetch what is on disk and hold it as the
-            // buffer's conflict, so the editor can show both versions side by
-            // side and a merged save has an mtime to expect (`ConflictView`).
-            void file.refetch().then((res) => {
-              if (res.data && res.data.content !== null) {
-                setConflict(key, { content: res.data.content, mtimeMs: res.data.mtime_ms });
-              }
-            });
-            toast.error('File changed on disk (probably the agent)', {
-              description: 'Nothing was written — your unsaved version is intact.',
-              duration: Infinity,
-              action: { label: 'Reload', onClick: () => reload() },
-              cancel: { label: 'Overwrite', onClick: () => overwrite(content, versionId) },
-            });
+            // Nothing was written. Reconciliation is opt-in: keep the buffer
+            // editable and offer Compare while this tab is focused. The disk
+            // read begins only after that action synchronously locks the model.
+            registerConflict(key);
           } else {
             toast.error(err instanceof Error ? err.message : 'Save failed');
           }
         },
       },
     );
-  }, [model, key, saveMutation, path, commitSaved, reload, overwrite]);
+  }, [model, key, saveMutation, path, commitSaved]);
 
   const saveRef = useRef(save);
   saveRef.current = save;
@@ -345,9 +402,16 @@ export function useEditorBuffer(
   // the buffer's edits go, the file on disk wins. `keepMine` writes the buffer
   // with no expectation at all, so it lands whatever the disk now says.
   const keepMine = useCallback(() => {
-    if (!model) return;
+    if (!model || conflictFor(key)?.phase !== 'comparing') return;
     overwrite(model.getValue(), model.getAlternativeVersionId());
-  }, [model, overwrite]);
+  }, [model, key, overwrite]);
+
+  const comparisonReady = useCallback(
+    (revision: number) => {
+      finishOpeningComparison(key, revision);
+    },
+    [key],
+  );
 
   // Derive the view status. A 413 from the daemon is "file_too_large".
   let status: BufferStatus;
@@ -385,6 +449,8 @@ export function useEditorBuffer(
     conflict,
     takeDisk: reload,
     keepMine,
+    compare,
+    comparisonReady,
     save,
     onMount,
   };

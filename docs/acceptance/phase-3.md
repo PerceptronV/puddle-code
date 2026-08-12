@@ -42,9 +42,17 @@ the explorer, diff, and history views at.
    requests to `cdn.jsdelivr.net` or `unpkg.com` (Monaco is fully
    self-hosted), and Console shows no errors. **Conflict drill**: with the tab
    still open, have the agent edit the same file on disk, then ⌘S the stale
-   tab → a toast offers **Reload** (discards your edit, adopts disk) and
-   **Overwrite** (writes through unconditionally); both work and leave the tab
-   clean afterwards.
+   tab → a dismissable **File changed on disk** toast offers **Compare** and
+   leaves the buffer editable. Dismiss it, focus another tab, then return: the
+   toast is offered again. Choose Compare: the buffer becomes unavailable for
+   editing immediately, stays locked while the disk version loads, then the tab
+   shows disk read-only on the left and the same buffer on the right; only once
+   both sides are visible is the right side editable. Merge a line and ⌘S, then
+   repeat to verify **Take the disk version** and **Keep mine**; every outcome
+   clears the conflict. Force the comparison GET to fail in DevTools and verify
+   the buffer stays locked behind **Retry compare**, then restores the diff when
+   the request succeeds. Repeat from a rendered preview and an editable diff tab
+   to confirm neither leaves another writable view of the shared buffer.
 2. **Diff.** Have the agent modify one file and add a new one, then open the
    session's Diff tab: the list shows each file's name-status (added/
    modified/deleted/renamed) and the header's counts match. Hand-edit the
@@ -100,7 +108,7 @@ the explorer, diff, and history views at.
    just closed). Save a file in window 1 while it's clean in window 2: window
    2 refreshes silently, no badge. Make the same file dirty in both windows:
    both show a "being edited elsewhere" badge. ⌘S the stale one afterwards
-   follows the normal 409 Reload/Overwrite path from item 1.
+   follows the normal 409 Compare path from item 1.
 7. **Drafts.** Edit a file without saving, then kill the browser process
    entirely (not just the tab) and reopen the project: the editor shows
    "Restored unsaved changes" with the dirty buffer intact; **Discard** clears

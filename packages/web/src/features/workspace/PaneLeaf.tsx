@@ -36,6 +36,7 @@ export function PaneLeaf({
   onDropTab,
   onSetTabView,
   onNewUntitled,
+  focused,
 }: {
   leaf: LayoutLeaf;
   sessions: Session[];
@@ -51,6 +52,8 @@ export function PaneLeaf({
   onSetTabView: (leafId: string, ref: TabRef, view: EditorView) => void;
   /** Double-click on the strip's blank tail: open a fresh untitled file here. */
   onNewUntitled: (leaf: LayoutLeaf) => void;
+  /** The workspace's logical focus, independent of DOM focus inside Monaco. */
+  focused: boolean;
 }) {
   const activeRef = leaf.tabs.find((t) => tabRefKey(t) === leaf.activeKey) ?? null;
   const terminalKey = activeRef?.type === 'terminal' ? tabRefKey(activeRef) : null;
@@ -171,7 +174,7 @@ export function PaneLeaf({
       >
         {activeRef?.type === 'editor' && (
           <div className="absolute inset-0">
-            <LazyPaneEditorBody tab={activeRef.tab} reveal={reveal} />
+            <LazyPaneEditorBody tab={activeRef.tab} reveal={reveal} focused={focused} />
           </div>
         )}
         {/* The keep-alive slot is always mounted (stable ref) so a terminal

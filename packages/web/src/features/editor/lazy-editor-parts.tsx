@@ -16,7 +16,7 @@ import type { HeldBuffer } from './ModelRefcount';
  * reveal only reached the screen on the next render).
  */
 
-type BodyProps = { tab: EditorTab; reveal: RevealTarget | null };
+type BodyProps = { tab: EditorTab; reveal: RevealTarget | null; focused: boolean };
 type RefcountProps = { buffers: HeldBuffer[] };
 
 let ReadyBody: ComponentType<BodyProps> | null = null;

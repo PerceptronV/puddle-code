@@ -20,7 +20,15 @@ import { tabKey, tabKind, type EditorTab } from './editor-tabs';
  * only applies to file tabs. Behind the lazy editor chunk so Monaco stays
  * code-split (its own first import is `./monaco-setup`).
  */
-export function PaneEditorBody({ tab, reveal }: { tab: EditorTab; reveal: RevealTarget | null }) {
+export function PaneEditorBody({
+  tab,
+  reveal,
+  focused,
+}: {
+  tab: EditorTab;
+  reveal: RevealTarget | null;
+  focused: boolean;
+}) {
   const kind = tabKind(tab);
   // A linked tab renders like a preview of whatever it currently targets. Its
   // `tabKey` is the constant slot key (retargets rewrite the fields under it),
@@ -37,6 +45,7 @@ export function PaneEditorBody({ tab, reveal }: { tab: EditorTab; reveal: Reveal
         path={tab.path}
         root={tab.root}
         area={tab.git_area}
+        focused={focused}
       />
     );
   }
@@ -79,6 +88,7 @@ export function PaneEditorBody({ tab, reveal }: { tab: EditorTab; reveal: Reveal
           path={tab.path}
           kind={externalPreview}
           root={tab.root}
+          focused={focused}
         />
       );
     }
@@ -89,6 +99,7 @@ export function PaneEditorBody({ tab, reveal }: { tab: EditorTab; reveal: Reveal
         path={tab.path}
         reveal={reveal}
         root={tab.root}
+        focused={focused}
       />
     );
   }
@@ -105,7 +116,23 @@ export function PaneEditorBody({ tab, reveal }: { tab: EditorTab; reveal: Reveal
   // longer previewable (rename) falls back to the source editor.
   const preview = rendered ? previewKind(tab.path) : null;
   if (preview) {
-    return <FilePreview key={paneKey} session={tab.session} path={tab.path} kind={preview} />;
+    return (
+      <FilePreview
+        key={paneKey}
+        session={tab.session}
+        path={tab.path}
+        kind={preview}
+        focused={focused}
+      />
+    );
   }
-  return <CodeEditor key={tabKey(tab)} session={tab.session} path={tab.path} reveal={reveal} />;
+  return (
+    <CodeEditor
+      key={tabKey(tab)}
+      session={tab.session}
+      path={tab.path}
+      reveal={reveal}
+      focused={focused}
+    />
+  );
 }

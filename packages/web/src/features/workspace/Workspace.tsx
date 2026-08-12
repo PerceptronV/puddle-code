@@ -1246,6 +1246,7 @@ function WorkspaceInner() {
           onDropTab={onDropTab}
           onSetTabView={layout.setView}
           onNewUntitled={onNewUntitled}
+          focusedLeafId={layout.focusedLeaf.id}
         />
       </div>
     </div>

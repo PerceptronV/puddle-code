@@ -15,6 +15,7 @@ export function DiffTabBody({
   path,
   root,
   area,
+  focused = true,
 }: {
   session: string;
   path: string;
@@ -22,6 +23,7 @@ export function DiffTabBody({
   root?: string;
   /** Source-control comparison; absent preserves the session-vs-base diff. */
   area?: GitArea;
+  focused?: boolean;
 }) {
   const diff = useWorktreeDiff(session, {
     root,
@@ -57,6 +59,7 @@ export function DiffTabBody({
         entry={entry}
         root={root}
         area={area}
+        focused={focused}
       />
     </div>
   );

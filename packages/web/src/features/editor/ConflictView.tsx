@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useId, useMemo, useRef } from 'react';
 import { DiffEditor } from '@monaco-editor/react';
 import { useClientSettings } from '../../lib/client-settings';
 import { monaco, THEME_NAME } from './monaco-setup';
-import type { DiskConflict } from './conflict-store';
+import type { ComparedDiskConflict } from './conflict-store';
 
 /**
  * How a refused save is reconciled (SPEC §8). The daemon rejects a write whose
@@ -28,17 +28,20 @@ export function ConflictView({
   onTakeDisk,
   onKeepMine,
   onSave,
+  onReady,
 }: {
   session: string;
   path: string;
-  conflict: DiskConflict;
+  conflict: ComparedDiskConflict;
   /** The shared buffer — bound as the modified side, so edits are the real thing. */
   model: monaco.editor.ITextModel;
   onTakeDisk(): void;
   onKeepMine(): void;
   onSave(): void;
+  onReady?(revision: number): void;
 }) {
   const settings = useClientSettings();
+  const instanceId = useId();
   const fontMono = useMemo(
     () =>
       getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim() ||
@@ -82,6 +85,7 @@ export function ConflictView({
         <button
           type="button"
           onClick={onKeepMine}
+          disabled={conflict.phase !== 'comparing'}
           className="shrink-0 text-fg-muted transition-colors hover:text-fg"
         >
           Keep mine
@@ -95,7 +99,7 @@ export function ConflictView({
           // keyed by its mtime, so a second collision gets a fresh model rather
           // than the previous disk content.
           modifiedModelPath={model.uri.toString()}
-          originalModelPath={`puddle-disk://${encodeURIComponent(session)}/${conflict.mtimeMs}/${path
+          originalModelPath={`puddle-disk://${encodeURIComponent(session)}/${conflict.mtimeMs}/${encodeURIComponent(instanceId)}/${path
             .split('/')
             .map(encodeURIComponent)
             .join('/')}`}
@@ -112,9 +116,12 @@ export function ConflictView({
             diffEditor
               .getModifiedEditor()
               .addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => saveRef.current());
+            // `opening` removed every editable view before the disk request. Do
+            // not unlock until this widget has both sides mounted and visible.
+            onReady?.(conflict.revision);
           }}
           options={{
-            readOnly: false,
+            readOnly: conflict.phase !== 'comparing',
             originalEditable: false,
             renderSideBySide: true,
             automaticLayout: true,
