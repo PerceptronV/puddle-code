@@ -13,15 +13,30 @@ import { effectiveStatus } from './history-logic';
  * unexpectedly — see `effectiveStatus`): the file's content at `sha`, plain
  * and read-only, no original side.
  */
-function AddedAt({ session, sha, path }: { session: string; sha: string; path: string }) {
-  const file = useFileAt(session, sha, path);
+function AddedAt({
+  session,
+  sha,
+  path,
+  root,
+}: {
+  session: string;
+  sha: string;
+  path: string;
+  root?: string;
+}) {
+  const file = useFileAt(session, sha, path, { root });
   if (file.isPending) return <Note>…</Note>;
   if (file.error) {
     return <Note>{file.error instanceof Error ? file.error.message : 'Failed to load file'}</Note>;
   }
   if (file.data.binary) return <Note>Binary file</Note>;
   return (
-    <ReadOnlyView session={session} refName={sha} path={path} content={file.data.content ?? ''} />
+    <ReadOnlyView
+      session={session}
+      refName={`${sha}:${root ?? ''}`}
+      path={path}
+      content={file.data.content ?? ''}
+    />
   );
 }
 
@@ -44,6 +59,7 @@ function HistoryDiffEditor({
   modifiedRef,
   modifiedPath,
   modifiedContent,
+  root,
 }: {
   session: string;
   originalRef: string;
@@ -52,6 +68,7 @@ function HistoryDiffEditor({
   modifiedRef: string;
   modifiedPath: string;
   modifiedContent: string;
+  root?: string;
 }) {
   const settings = useClientSettings();
   const editorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
@@ -77,8 +94,18 @@ function HistoryDiffEditor({
 
   return (
     <DiffEditor
-      originalModelPath={viewerUri('puddle-hist-orig', session, originalRef, originalPath)}
-      modifiedModelPath={viewerUri('puddle-hist-mod', session, modifiedRef, modifiedPath)}
+      originalModelPath={viewerUri(
+        'puddle-hist-orig',
+        session,
+        `${originalRef}:${root ?? ''}`,
+        originalPath,
+      )}
+      modifiedModelPath={viewerUri(
+        'puddle-hist-mod',
+        session,
+        `${modifiedRef}:${root ?? ''}`,
+        modifiedPath,
+      )}
       original={originalContent}
       modified={modifiedContent}
       theme={THEME_NAME}
@@ -113,20 +140,22 @@ function ModifiedAt({
   sha,
   path,
   basePath,
+  root,
 }: {
   session: string;
   sha: string;
   path: string;
   basePath: string;
+  root?: string;
 }) {
-  const original = useFileAt(session, `${sha}^`, basePath);
-  const modified = useFileAt(session, sha, path);
+  const original = useFileAt(session, `${sha}^`, basePath, { root });
+  const modified = useFileAt(session, sha, path, { root });
 
   // Tolerated per the brief even though `effectiveStatus` already keeps a
   // root commit out of this branch: an unexpected 404 on the parent blob
   // degrades to an added-only view instead of an error.
   const originalMissing = original.error instanceof ApiError && original.error.status === 404;
-  if (originalMissing) return <AddedAt session={session} sha={sha} path={path} />;
+  if (originalMissing) return <AddedAt session={session} sha={sha} path={path} root={root} />;
 
   if (original.isPending || modified.isPending) return <Note>…</Note>;
   if (original.error) {
@@ -154,6 +183,7 @@ function ModifiedAt({
       modifiedRef={sha}
       modifiedPath={path}
       modifiedContent={modified.data.content ?? ''}
+      root={root}
     />
   );
 }
@@ -168,17 +198,19 @@ export function HistoryFileContent({
   sha,
   entry,
   isRootCommit,
+  root,
 }: {
   session: string;
   sha: string;
   entry: DiffEntry;
   isRootCommit: boolean;
+  root?: string;
 }) {
   switch (effectiveStatus(entry.status, isRootCommit)) {
     case 'added':
-      return <AddedAt session={session} sha={sha} path={entry.path} />;
+      return <AddedAt session={session} sha={sha} path={entry.path} root={root} />;
     case 'deleted':
-      return <DeletedContent session={session} against={`${sha}^`} path={entry.path} />;
+      return <DeletedContent session={session} against={`${sha}^`} path={entry.path} root={root} />;
     case 'modified':
     case 'renamed':
       return (
@@ -187,6 +219,7 @@ export function HistoryFileContent({
           sha={sha}
           path={entry.path}
           basePath={entry.old_path ?? entry.path}
+          root={root}
         />
       );
     default:

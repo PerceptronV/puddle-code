@@ -1,6 +1,11 @@
+import { useEffect, useState } from 'react';
 import { HeightHandle, useResizableHeight } from '../../components/resizable-height';
+import { useDaemonVersion } from '../../lib/queries';
+import { sourceControlSupported } from '../../lib/protocol-support';
+import { useGitRepositories } from '../../lib/worktree-queries';
 import { CommitGraph } from './CommitGraph';
 import { UncommittedPanel } from './UncommittedPanel';
+import { SourceControlRepository, type SourceControlOpenOptions } from './SourceControlRepository';
 
 /**
  * The unified Changes navigator (SPEC §8): the worktree's uncommitted changes
@@ -25,8 +30,8 @@ export function ChangesNav({
   root?: string;
   /** Path of the active editor tab when it is an uncommitted diff for `session`. */
   activeDiffPath: string | null;
-  onOpenDiff: (path: string, opts?: { preview?: boolean }) => void;
-  onOpenCommitFile: (path: string, sha: string, opts?: { preview?: boolean }) => void;
+  onOpenDiff: (path: string, opts?: SourceControlOpenOptions) => void;
+  onOpenCommitFile: (path: string, sha: string, opts?: SourceControlOpenOptions) => void;
 }) {
   // The border between the two panels drags (SPEC §8): the uncommitted list
   // above is sized, History below takes the rest. The percentage cap keeps a
@@ -35,22 +40,69 @@ export function ChangesNav({
     sized: 'above',
     min: 80,
   });
+  const version = useDaemonVersion();
+  const modern = version.data !== undefined && sourceControlSupported(version.data.protocol);
+  const repositories = useGitRepositories(session, { root, enabled: modern });
+  const [selectedRoot, setSelectedRoot] = useState<string | null>(null);
+  useEffect(() => {
+    if (!modern || !repositories.data) return;
+    const available = repositories.data.repositories;
+    if (!selectedRoot || !available.some((repository) => repository.root === selectedRoot)) {
+      setSelectedRoot(available[0]?.root ?? null);
+    }
+  }, [modern, repositories.data, selectedRoot]);
+  const historyRoot = modern ? (selectedRoot ?? root) : root;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <section className="flex shrink-0 flex-col" style={{ height, maxHeight: '70%' }}>
-        <UncommittedPanel
-          session={session}
-          root={root}
-          activePath={activeDiffPath}
-          onOpen={onOpenDiff}
-        />
+        {modern ? (
+          <div className="min-h-0 flex-1 overflow-y-auto pb-1">
+            {repositories.isPending ? (
+              <div className="px-3 py-2 text-xs text-fg-muted">Loading repositories…</div>
+            ) : repositories.error ? (
+              <div className="px-3 py-2 text-xs text-fg-muted">
+                {repositories.error instanceof Error
+                  ? repositories.error.message
+                  : 'Failed to load repositories'}
+              </div>
+            ) : repositories.data.repositories.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-fg-muted">No Git repositories.</div>
+            ) : (
+              repositories.data.repositories.map((repository) => (
+                <SourceControlRepository
+                  key={repository.root}
+                  session={session}
+                  targetRoot={root}
+                  repository={repository}
+                  selected={selectedRoot === repository.root}
+                  activePath={activeDiffPath}
+                  onSelect={() => setSelectedRoot(repository.root)}
+                  onOpen={onOpenDiff}
+                />
+              ))
+            )}
+          </div>
+        ) : (
+          <UncommittedPanel
+            session={session}
+            root={root}
+            activePath={activeDiffPath}
+            onOpen={onOpenDiff}
+          />
+        )}
       </section>
       <HeightHandle handle={handle} label="Resize the uncommitted changes" />
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex h-7 shrink-0 items-center px-3">
           <span className="text-2xs font-medium uppercase tracking-wide text-fg-gold">History</span>
         </div>
-        <CommitGraph session={session} root={root} onOpenCommitFile={onOpenCommitFile} />
+        <CommitGraph
+          session={session}
+          root={historyRoot}
+          onOpenCommitFile={(path, sha, opts) =>
+            onOpenCommitFile(path, sha, { ...opts, root: historyRoot })
+          }
+        />
       </div>
     </div>
   );

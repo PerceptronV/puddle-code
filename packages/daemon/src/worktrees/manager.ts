@@ -11,7 +11,7 @@ import type { Repo, WorktreeInfo } from '@puddle/shared';
 import type { RepoStore } from '../db/stores/repos.js';
 import type { SessionStore } from '../db/stores/sessions.js';
 import { git } from '../git/exec.js';
-import type { KeyedMutex } from '../git/mutex.js';
+import { gitMutexKey, type KeyedMutex } from '../git/mutex.js';
 import { ApiError } from '../http/errors.js';
 import type { PuddlePaths } from '../paths.js';
 import { memorableName } from './names.js';
@@ -36,6 +36,11 @@ export class WorktreeManager {
     },
   ) {}
 
+  /** Share the manager's canonical common-dir lock with source-control routes. */
+  async runGitMutation<T>(repoRoot: string, run: () => Promise<T>): Promise<T> {
+    return this.deps.mutex.run(await gitMutexKey(repoRoot), run);
+  }
+
   /**
    * All repo-mutating work runs under the repo mutex. The fetch inside create
    * calls the unmutexed core directly — KeyedMutex is not reentrant.
@@ -50,7 +55,7 @@ export class WorktreeManager {
     branchPrefix: string;
   }): Promise<CreateWorktreeResult> {
     const { repo } = opts;
-    return this.deps.mutex.run(`repo:${repo.id}`, async () => {
+    return this.runGitMutation(repo.path, async () => {
       const baseBranch = opts.baseBranch ?? repo.default_base_branch;
       await this.fetchCoreQuietly(repo);
       const baseRef = (await this.refExists(repo, `refs/remotes/origin/${baseBranch}`))
@@ -80,7 +85,7 @@ export class WorktreeManager {
    */
   attachShared(opts: { repo: Repo; baseBranch?: string }): Promise<CreateWorktreeResult> {
     const { repo } = opts;
-    return this.deps.mutex.run(`repo:${repo.id}`, async () => {
+    return this.runGitMutation(repo.path, async () => {
       const branch = opts.baseBranch ?? repo.default_base_branch;
       await this.fetchCoreQuietly(repo);
       const localExists = await this.refExists(repo, `refs/heads/${branch}`);
@@ -145,7 +150,7 @@ export class WorktreeManager {
     baseBranch?: string;
   }): Promise<CreateWorktreeResult> {
     const { repo } = opts;
-    return this.deps.mutex.run(`repo:${repo.id}`, async () => {
+    return this.runGitMutation(repo.path, async () => {
       const branch = opts.baseBranch ?? repo.default_base_branch;
       await this.fetchCoreQuietly(repo);
       if (!(await this.refExists(repo, `refs/heads/${branch}`))) {
@@ -281,7 +286,7 @@ export class WorktreeManager {
    */
   async joinWorktree(opts: { repo: Repo; worktreePath: string }): Promise<CreateWorktreeResult> {
     const { repo } = opts;
-    return this.deps.mutex.run(`repo:${repo.id}`, async () => {
+    return this.runGitMutation(repo.path, async () => {
       const wanted = this.realOf(opts.worktreePath);
       const match = (await this.listWorktrees(repo)).find((w) => this.realOf(w.path) === wanted);
       if (!match) {
@@ -302,14 +307,14 @@ export class WorktreeManager {
 
   /** `git branch -D` — only ever called for puddle-created session branches (SPEC §4). */
   deleteBranch(repo: Repo, branch: string): Promise<void> {
-    return this.deps.mutex.run(`repo:${repo.id}`, async () => {
+    return this.runGitMutation(repo.path, async () => {
       await git(['branch', '-D', branch], { cwd: repo.path });
     });
   }
 
   /** Removes the worktree; the branch stays in the repo (SPEC §4 archiving). */
   remove(opts: { repo: Repo; worktreePath: string; force?: boolean }): Promise<void> {
-    return this.deps.mutex.run(`repo:${opts.repo.id}`, async () => {
+    return this.runGitMutation(opts.repo.path, async () => {
       // Never remove the repo's own clone — a shared session may have landed in
       // it (SPEC §4), but it is the user's checkout, not a puddle worktree.
       if (this.realOf(opts.worktreePath) === this.realOf(opts.repo.path)) return;
@@ -334,7 +339,7 @@ export class WorktreeManager {
 
   /** Mutexed fetch for project-open, periodic and manual fetches. Throws on failure. */
   fetchRepo(repo: Repo): Promise<void> {
-    return this.deps.mutex.run(`repo:${repo.id}`, () => this.fetchCore(repo));
+    return this.runGitMutation(repo.path, () => this.fetchCore(repo));
   }
 
   /**

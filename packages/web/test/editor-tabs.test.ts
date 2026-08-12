@@ -14,6 +14,7 @@ import {
   hasTab,
   removeTab,
   reorderTabs,
+  tabKey,
   type EditorTab,
 } from '../src/features/editor/editor-tabs';
 import { applyDraft } from '../src/features/editor/buffer-logic';
@@ -34,6 +35,18 @@ describe('addOrFocusTab', () => {
   it('treats the same path under different sessions as distinct tabs', () => {
     const tabs = [t('s1', 'a.ts')];
     expect(addOrFocusTab(tabs, t('s2', 'a.ts'))).toEqual([t('s1', 'a.ts'), t('s2', 'a.ts')]);
+  });
+
+  it('keeps staged and unstaged source-control diffs distinct', () => {
+    const staged: EditorTab = {
+      kind: 'diff',
+      session: 's1',
+      path: 'a.ts',
+      git_area: 'staged',
+    };
+    const unstaged: EditorTab = { ...staged, git_area: 'unstaged' };
+    expect(tabKey(staged)).not.toBe(tabKey(unstaged));
+    expect(addOrFocusTab([staged], unstaged)).toEqual([staged, unstaged]);
   });
 });
 

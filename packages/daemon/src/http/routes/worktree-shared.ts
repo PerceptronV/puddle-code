@@ -4,6 +4,7 @@ import type { Context } from 'hono';
 import type { Session } from '@puddle/shared';
 import type { RepoStore } from '../../db/stores/repos.js';
 import type { SessionStore } from '../../db/stores/sessions.js';
+import type { WorktreeManager } from '../../worktrees/manager.js';
 import { ApiError } from '../errors.js';
 import { expandTilde } from '../tilde.js';
 
@@ -39,6 +40,8 @@ export interface WorktreeTarget {
 export interface WorktreeDeps {
   sessions: SessionStore;
   repos: RepoStore;
+  /** Present in the full daemon; narrow route tests may use the service fallback. */
+  worktrees?: Pick<WorktreeManager, 'runGitMutation'>;
 }
 
 /** Validate a client-supplied absolute directory (`?root=`), tilde expanded. */

@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/too
 import { useDaemonVersion } from '../../lib/queries';
 import { cn } from '../../lib/utils';
 import { ChangesNav } from '../changes/ChangesNav';
+import type { SourceControlOpenOptions } from '../changes/SourceControlRepository';
 import { BrowseTree } from '../explorer/BrowseTree';
 import { ExplorerProvider } from '../explorer/explorer-context';
 import { parentDir } from '../explorer/explorer-paths';
@@ -159,8 +160,8 @@ export function NavigatorSidebar({
   /** Path of the active editor tab when it is an uncommitted diff for the bound worktree. */
   activeDiffPath: string | null;
   /** Results open PREVIEW tabs like a tree click; `preview: false` pins (SPEC §8). */
-  onOpenDiff: (path: string, opts?: { preview?: boolean }) => void;
-  onOpenCommitFile: (path: string, sha: string, opts?: { preview?: boolean }) => void;
+  onOpenDiff: (path: string, opts?: SourceControlOpenOptions) => void;
+  onOpenCommitFile: (path: string, sha: string, opts?: SourceControlOpenOptions) => void;
   onOpenSearchFile: (path: string, line?: number, opts?: { preview?: boolean }) => void;
 }) {
   const { session } = target;

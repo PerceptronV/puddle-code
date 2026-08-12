@@ -26,6 +26,8 @@ export interface EditorTab {
   kind?: EditorTabKind;
   /** Set only for `commit` tabs: the commit whose file diff this shows. */
   sha?: string;
+  /** HEAD→index or index→working-tree comparison for source-control diffs. */
+  git_area?: import('@puddle/shared').GitArea;
   /**
    * Set only for `external` tabs: the absolute browse root the explorer's
    * parent navigation opened this file under — `path` is relative to it,
@@ -61,7 +63,11 @@ export function tabKind(tab: EditorTab): EditorTabKind {
  */
 export function tabKey(tab: EditorTab): string {
   if (tab.view === 'linked') return 'linked';
-  return `${tabKind(tab)}:${tab.session}:${tab.sha ?? ''}:${tab.root ?? ''}:${tab.path}`;
+  const base = `${tabKind(tab)}:${tab.session}:${tab.sha ?? ''}:${tab.root ?? ''}:${tab.path}`;
+  // Preserve every pre-15.3 key byte-for-byte: activeKey/previewKey persist in
+  // layout snapshots. Only the new source-control variants need a suffix to
+  // distinguish HEAD→index from index→working tree.
+  return tab.git_area === undefined ? base : `${base}:git-${tab.git_area}`;
 }
 
 export function sameTab(a: EditorTab, b: EditorTab): boolean {
@@ -70,6 +76,7 @@ export function sameTab(a: EditorTab, b: EditorTab): boolean {
     a.path === b.path &&
     tabKind(a) === tabKind(b) &&
     (a.sha ?? '') === (b.sha ?? '') &&
+    (a.git_area ?? '') === (b.git_area ?? '') &&
     (a.root ?? '') === (b.root ?? '')
   );
 }

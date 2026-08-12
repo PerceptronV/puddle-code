@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import Editor, { DiffEditor } from '@monaco-editor/react';
-import type { DiffEntry } from '@puddle/shared';
+import type { DiffEntry, GitArea } from '@puddle/shared';
 import { useClientSettings } from '../../lib/client-settings';
-import { useFileAt } from '../../lib/worktree-queries';
+import { useFileAt, useIndexFile } from '../../lib/worktree-queries';
 import { ApiError } from '../../lib/api';
 import { CodeEditor } from '../editor/CodeEditor';
 import { bufferKey, releaseModel, retainModel } from '../editor/buffer-store';
@@ -116,13 +116,17 @@ export function DeletedContent({
   against,
   path,
   root,
+  indexBase = false,
 }: {
   session: string;
   against: string;
   path: string;
   root?: string;
+  indexBase?: boolean;
 }) {
-  const base = useFileAt(session, against, path, { root });
+  const committed = useFileAt(session, against, path, { root, enabled: !indexBase });
+  const indexed = useIndexFile(session, path, { root, enabled: indexBase });
+  const base = indexBase ? indexed : committed;
   if (base.isPending) return <Note>…</Note>;
   if (base.error) {
     return <Note>{base.error instanceof Error ? base.error.message : 'Failed to load'}</Note>;
@@ -134,7 +138,7 @@ export function DeletedContent({
       <div className="min-h-0 flex-1">
         <ReadOnlyView
           session={session}
-          refName={against}
+          refName={`${against}:${root ?? ''}`}
           path={path}
           content={base.data.content ?? ''}
         />
@@ -150,12 +154,14 @@ function ModifiedContent({
   path,
   basePath,
   root,
+  indexBase = false,
 }: {
   session: string;
   against: string;
   path: string;
   basePath: string;
   root?: string;
+  indexBase?: boolean;
 }) {
   const settings = useClientSettings();
   // NB: when the same file is also open as an editor tab, its useEditorBuffer
@@ -163,7 +169,9 @@ function ModifiedContent({
   // idempotent (same key, same content, debounced) — merely duplicated — and
   // there is no clean focus-ownership seam today, so this is left as is.
   const buffer = useEditorBuffer(session, path, null, root);
-  const base = useFileAt(session, against, basePath, { root });
+  const committed = useFileAt(session, against, basePath, { root, enabled: !indexBase });
+  const indexed = useIndexFile(session, basePath, { root, enabled: indexBase });
+  const base = indexBase ? indexed : committed;
 
   // Detach-before-release (see useRetainedModel): pull both models out of the
   // diff editor, then dispose the private original-side model ourselves — the
@@ -196,7 +204,9 @@ function ModifiedContent({
   if (buffer.status === 'binary' || base.data?.binary) return <Note>Binary file</Note>;
   if (buffer.status === 'too-large') return <Note>File too large to show</Note>;
   if (buffer.status === 'error') return <Note>{buffer.errorMessage ?? 'Failed to load file'}</Note>;
-  if (baseMissing) return <CodeEditor session={session} path={path} reveal={null} />;
+  if (baseMissing || (indexBase && indexed.data && !indexed.data.exists)) {
+    return <CodeEditor session={session} path={path} reveal={null} root={root} />;
+  }
   if (base.isPending || !buffer.model) return <Note>…</Note>;
   if (base.error) {
     return <Note>{base.error instanceof Error ? base.error.message : 'Failed to load base'}</Note>;
@@ -211,7 +221,7 @@ function ModifiedContent({
       // wrapper disposing it on unmount; our refcount owns disposal instead
       // (with the detach in useRetainedModel running first — see above).
       modifiedModelPath={buffer.model.uri.toString()}
-      originalModelPath={viewerUri('puddle-base', session, against, basePath)}
+      originalModelPath={viewerUri('puddle-base', session, `${against}:${root ?? ''}`, basePath)}
       original={base.data.content ?? ''}
       language={buffer.model.getLanguageId()}
       theme={THEME_NAME}
@@ -245,6 +255,79 @@ function ModifiedContent({
   );
 }
 
+/** HEAD → index: both sides are snapshots, so staged content is read-only. */
+function StagedContent({
+  session,
+  against,
+  entry,
+  root,
+}: {
+  session: string;
+  against: string;
+  entry: DiffEntry;
+  root?: string;
+}) {
+  const settings = useClientSettings();
+  const basePath = entry.old_path ?? entry.path;
+  const base = useFileAt(session, against, basePath, {
+    root,
+    enabled: entry.status !== 'added',
+  });
+  const indexed = useIndexFile(session, entry.path, {
+    root,
+    enabled: entry.status !== 'deleted',
+  });
+  const fontMono = useMemo(
+    () =>
+      getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim() ||
+      undefined,
+    [],
+  );
+
+  if (entry.status === 'deleted') {
+    return <DeletedContent session={session} against={against} path={basePath} root={root} />;
+  }
+  if (indexed.isPending || (entry.status !== 'added' && base.isPending)) return <Note>…</Note>;
+  if (indexed.error || base.error) {
+    const error = indexed.error ?? base.error;
+    return <Note>{error instanceof Error ? error.message : 'Failed to load staged content'}</Note>;
+  }
+  if (indexed.data.binary || base.data?.binary) return <Note>Binary file</Note>;
+  if (entry.status === 'added') {
+    return (
+      <ReadOnlyView
+        session={session}
+        refName={`index:${root ?? ''}`}
+        path={entry.path}
+        content={indexed.data.content ?? ''}
+      />
+    );
+  }
+  if (!base.data) return <Note>Failed to load HEAD content</Note>;
+  return (
+    <DiffEditor
+      originalModelPath={viewerUri('puddle-head', session, `${against}:${root ?? ''}`, basePath)}
+      modifiedModelPath={viewerUri('puddle-index', session, `${against}:${root ?? ''}`, entry.path)}
+      original={base.data.content ?? ''}
+      modified={indexed.data.content ?? ''}
+      theme={THEME_NAME}
+      loading={<Note>…</Note>}
+      options={{
+        readOnly: true,
+        originalEditable: false,
+        renderSideBySide: true,
+        automaticLayout: true,
+        fontFamily: fontMono,
+        fontSize: settings.editorFontSize,
+        wordWrap: settings.editorWordWrap ? 'on' : 'off',
+        minimap: { enabled: false },
+        fixedOverflowWidgets: true,
+        scrollBeyondLastLine: false,
+      }}
+    />
+  );
+}
+
 /** `added` (and a base that 404s as `not_at_ref`): a plain editable buffer. */
 function AddedContent({ session, path, root }: { session: string; path: string; root?: string }) {
   useRetainedModel(bufferKey(session, path, root));
@@ -264,18 +347,31 @@ export function FileDiffContent({
   against,
   entry,
   root,
+  area,
 }: {
   session: string;
   against: string;
   entry: DiffEntry;
   /** `?root=` when the diff is against a directory target (12.4). */
   root?: string;
+  area?: GitArea;
 }) {
+  if (area === 'staged') {
+    return <StagedContent session={session} against={against} entry={entry} root={root} />;
+  }
   switch (entry.status) {
     case 'added':
       return <AddedContent session={session} path={entry.path} root={root} />;
     case 'deleted':
-      return <DeletedContent session={session} against={against} path={entry.path} root={root} />;
+      return (
+        <DeletedContent
+          session={session}
+          against={against}
+          path={entry.path}
+          root={root}
+          indexBase={area === 'unstaged'}
+        />
+      );
     case 'modified':
     case 'renamed':
       return (
@@ -285,6 +381,7 @@ export function FileDiffContent({
           path={entry.path}
           basePath={entry.old_path ?? entry.path}
           root={root}
+          indexBase={area === 'unstaged'}
         />
       );
     default:

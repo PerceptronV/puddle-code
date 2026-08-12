@@ -40,6 +40,9 @@ export const browseMutationsSupported = (p: Protocol): boolean => atLeast(p, 12,
  */
 export const directoryTargetSupported = (p: Protocol): boolean => atLeast(p, 12, 4);
 
+/** Multi-repository source control, Git mutations, and editor HEAD baselines (15.3). */
+export const sourceControlSupported = (p: Protocol): boolean => atLeast(p, 15, 3);
+
 /**
  * The daemon answers agents' OSC 10/11 colour queries from client-reported
  * theme colours (14.1). At or above it the web terminal must NOT answer them

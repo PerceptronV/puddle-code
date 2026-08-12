@@ -5,6 +5,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   diffResponseSchema,
   fileAtResponseSchema,
+  gitOriginalResponseSchema,
+  gitRepositoriesResponseSchema,
+  indexFileResponseSchema,
   logResponseSchema,
   searchResponseSchema,
   showCommitResponseSchema,
@@ -242,6 +245,84 @@ describe('GET /api/worktrees/:sid/diff?against=head (uncommitted only)', () => {
     expect(byPath['brand-new.txt']).toBe('added');
     // committed.txt is in HEAD, so it is not an uncommitted change.
     expect(byPath['committed.txt']).toBeUndefined();
+  });
+});
+
+describe('protocol 15.3 repository-aware source control routes', () => {
+  let sid: string;
+  let worktree: string;
+  let repository: string;
+
+  beforeAll(async () => {
+    ({ sid, worktree } = await newSession('source control target'));
+    const reposRes = await app.request(`/api/worktrees/${sid}/git-repositories`);
+    const repos = gitRepositoriesResponseSchema.parse(await reposRes.json());
+    repository = repos.repositories[0]!.root;
+  });
+
+  it('keeps HEAD→index staged content separate from index→working content', async () => {
+    writeFileSync(join(worktree, 'README.md'), 'staged version\n');
+    sh(worktree, 'add', 'README.md');
+    writeFileSync(join(worktree, 'README.md'), 'working version\n');
+
+    const stagedRes = await app.request(`/api/worktrees/${sid}/diff?against=head&area=staged`);
+    const staged = diffResponseSchema.parse(await stagedRes.json());
+    expect(staged.area).toBe('staged');
+    expect(staged.entries).toContainEqual(
+      expect.objectContaining({ path: 'README.md', status: 'modified' }),
+    );
+
+    const unstagedRes = await app.request(`/api/worktrees/${sid}/diff?against=head&area=unstaged`);
+    const unstaged = diffResponseSchema.parse(await unstagedRes.json());
+    expect(unstaged.area).toBe('unstaged');
+    expect(unstaged.entries).toContainEqual(
+      expect.objectContaining({ path: 'README.md', status: 'modified' }),
+    );
+
+    const indexRes = await app.request(
+      `/api/worktrees/${sid}/index-file?path=${encodeURIComponent('README.md')}`,
+    );
+    expect(indexFileResponseSchema.parse(await indexRes.json())).toMatchObject({
+      exists: true,
+      content: 'staged version\n',
+    });
+
+    const originalRes = await app.request(
+      `/api/worktrees/${sid}/git-original?path=${encodeURIComponent('README.md')}`,
+    );
+    expect(gitOriginalResponseSchema.parse(await originalRes.json())).toMatchObject({
+      exists: true,
+      content: '# fixture\n',
+    });
+  });
+
+  it('stages, unstages, and commits only the selected index content', async () => {
+    writeFileSync(join(worktree, 'route-new.txt'), 'new\n');
+    const stageRes = await app.request(`/api/worktrees/${sid}/git-stage`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ repository, paths: ['route-new.txt'] }),
+    });
+    expect(stageRes.status).toBe(200);
+
+    const unstageRes = await app.request(`/api/worktrees/${sid}/git-unstage`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ repository, paths: ['route-new.txt'] }),
+    });
+    expect(unstageRes.status).toBe(200);
+    expect(sh(worktree, 'diff', '--cached', '--name-only')).not.toContain('route-new.txt');
+
+    sh(worktree, 'add', 'route-new.txt');
+    const commitRes = await app.request(`/api/worktrees/${sid}/git-commit`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ repository, message: 'route commit' }),
+    });
+    expect(commitRes.status).toBe(200);
+    expect(sh(worktree, 'log', '-1', '--format=%s')).toBe('route commit');
+    // README still has an unstaged post-index edit: committing did not stage it.
+    expect(sh(worktree, 'diff', '--name-only')).toContain('README.md');
   });
 });
 

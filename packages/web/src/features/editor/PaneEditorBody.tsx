@@ -30,7 +30,15 @@ export function PaneEditorBody({ tab, reveal }: { tab: EditorTab; reveal: Reveal
   const paneKey =
     tab.view === 'linked' ? `linked:${tab.session}:${tab.root ?? ''}:${tab.path}` : tabKey(tab);
   if (kind === 'diff') {
-    return <DiffTabBody key={tabKey(tab)} session={tab.session} path={tab.path} root={tab.root} />;
+    return (
+      <DiffTabBody
+        key={tabKey(tab)}
+        session={tab.session}
+        path={tab.path}
+        root={tab.root}
+        area={tab.git_area}
+      />
+    );
   }
   if (kind === 'commit' && tab.sha) {
     return (

@@ -7,7 +7,7 @@ import { openDatabase } from '../src/db/db.js';
 import { RepoStore } from '../src/db/stores/repos.js';
 import { SessionStore } from '../src/db/stores/sessions.js';
 import { git, GitError } from '../src/git/exec.js';
-import { KeyedMutex } from '../src/git/mutex.js';
+import { gitMutexKey, KeyedMutex } from '../src/git/mutex.js';
 import { ensureHome, resolvePaths } from '../src/paths.js';
 import { WorktreeManager } from '../src/worktrees/manager.js';
 import { slugify } from '../src/worktrees/slug.js';
@@ -72,6 +72,14 @@ describe('KeyedMutex', () => {
       }),
     ).rejects.toThrow('boom');
     expect(await mutex.run('a', async () => 'still works')).toBe('still works');
+  });
+
+  it('gives linked worktrees the same canonical Git lock domain', async () => {
+    const repo = initRepo();
+    const linked = mkdtempSync(join(tmpdir(), 'puddle-linked-parent-'));
+    const worktree = join(linked, 'worktree');
+    sh(repo, 'worktree', 'add', '-b', 'linked-lock-test', worktree);
+    expect(await gitMutexKey(worktree)).toBe(await gitMutexKey(repo));
   });
 });
 

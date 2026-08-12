@@ -8,3 +8,12 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Added
+
+- Add repository-aware source control for owning repositories, ignored nested repositories, and recursive submodules, with staging, commits, and remote operations.
+- Add live Monaco editor gutter indicators for lines added, modified, or deleted since the owning repository's current HEAD.
+
+### Changed
+
+- Extend staged and unstaged diff tabs to compare HEAD, index, and working-tree content independently, and bump the protocol to 15.3.

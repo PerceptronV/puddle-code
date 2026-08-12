@@ -50,6 +50,7 @@ export function CommitTabBody({
         sha={sha}
         entry={entry}
         isRootCommit={show.data.parents.length === 0}
+        root={root}
       />
     </div>
   );

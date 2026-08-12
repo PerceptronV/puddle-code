@@ -11,13 +11,14 @@ packages/
 ├── shared/    # the protocol package: zod schemas for REST + WS messages (the single source of
 │              # truth for API shapes) + PROTOCOL_VERSION — read its PROTOCOL.md before schema changes
 ├── daemon/    # puddled: Hono HTTP/WS server, PTY manager, worktree manager, SQLite
-│   └── src/agents/   # one adapter file per coding agent (claude-code.ts, codex.ts, ...)
+│   ├── src/agents/       # one adapter file per coding agent (claude-code.ts, codex.ts, ...)
+│   └── src/worktrees/    # worktree lifecycle plus repository-aware Git inspection/mutations
 ├── web/       # React UI: Tailwind v4 + owned shadcn-style components (src/components/ui/)
 │   ├── src/styles/tokens.css   # THE colour source; scripts/check-tokens.mjs guards it in lint/CI
 │   ├── src/lib/       # token gate, TanStack Query hooks, singleton WS manager, theme registry
 │   └── src/features/  # dashboard, workspace (sidebar/tabs/xterm), editor/explorer/changes/search/worktrees
-│                      # (Monaco tabs + drafts, file tree + transfer, unified changes view = uncommitted
-│                      #  + commit-graph SVG, filename+content search), scratchpad + layouts (top-bar
+│                      # (Monaco tabs + drafts + dirty-diff gutter, file tree + transfer, repository-aware
+│                      #  source control + commit-graph SVG, filename+content search), scratchpad + layouts (top-bar
 │                      #  popovers), settings, ⌘K palette
 ├── cli/       # @puddle-code/cli (the command is `puddle`): serves the UI at localhost:7433 and
 │   │          # proxies /api + /ws + /proxy to the daemon on 127.0.0.1:7434 (through the ssh
@@ -80,6 +81,7 @@ only (an AppImage has no fixed install path).
 - Agent-specific behaviour (flags, env vars, session-file locations, status regexes) lives ONLY in that agent's adapter under `packages/daemon/src/agents/`. Core session logic must stay agent-agnostic. When you verify a CLI flag against an installed agent version, record the version you checked in a comment in the adapter.
 - **Resolved status finding (2026-08-03):** Codex 0.146.0's live idle composer is `› … <model> · <directory>` after ANSI stripping; the older `? for shortcuts` guess never appears. The adapter and Phase 7 acceptance table pin the observed regex. OpenCode and Gemini CLI status patterns remain awaiting live verification.
 - SQLite is the source of truth for sessions; PTYs are ephemeral attachments. Schema changes require a migration in `packages/daemon/src/db/migrations/`.
+- Every Git mutation shares the `WorktreeManager` mutex keyed by the canonical Git common directory (`gitMutexKey`), so linked worktrees, source-control actions, fetches, and worktree lifecycle commands cannot race Git's lock files.
 - This is a public MIT repo: no company-, team-, or person-specific names anywhere (code, tests, docs, examples). Do not copy code from AGPL-licensed projects.
 - **Terminology**: a "session" is always a _puddle_ session (agent + worktree + PTY, `sessions.id`). An agent's own conversation identifier is the "agent session ref" (`sessions.agent_session_ref`). Never conflate the two in code, comments, or UI copy.
 - Design tokens in `packages/web/src/styles/tokens.css` are the single source for colour, type, radius, and spacing; the Tailwind config, xterm theme, and Monaco theme derive from them. Never hard-code a hex value or font stack in a component. UI conventions live in `SPEC.md` §12.

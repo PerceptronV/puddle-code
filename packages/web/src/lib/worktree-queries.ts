@@ -11,6 +11,11 @@ import type {
   FileResponse,
   FsOpResponse,
   GitStatusResponse,
+  GitOriginalResponse,
+  GitRepositoriesResponse,
+  GitMutationResponse,
+  GitArea,
+  IndexFileResponse,
   LogResponse,
   PutFileRequest,
   PutFileResponse,
@@ -125,19 +130,107 @@ export function useSaveWorktreeFile(sid: string | undefined, root?: string) {
  */
 export function useWorktreeDiff(
   sid: string | undefined,
-  opts?: { enabled?: boolean; against?: 'base' | 'head'; root?: string },
+  opts?: { enabled?: boolean; against?: 'base' | 'head'; area?: GitArea; root?: string },
 ) {
   const against = opts?.against ?? 'base';
+  const area = opts?.area;
   const root = opts?.root;
   const enabled = sid !== undefined && (opts?.enabled ?? true);
   return useQuery({
-    queryKey: root === undefined ? ['wt-diff', sid, against] : ['wt-diff', sid, against, root],
-    queryFn: () =>
-      api<DiffResponse>('GET', `/api/worktrees/${sid}/diff?against=${against}${rootParam(root)}`),
+    queryKey:
+      root === undefined ? ['wt-diff', sid, against, area] : ['wt-diff', sid, against, area, root],
+    queryFn: () => {
+      const areaParam = area === undefined ? '' : `&area=${area}`;
+      return api<DiffResponse>(
+        'GET',
+        `/api/worktrees/${sid}/diff?against=${against}${areaParam}${rootParam(root)}`,
+      );
+    },
     enabled,
     refetchInterval: focusAwareInterval(10_000),
     refetchOnWindowFocus: true,
     ...keepPrevious<DiffResponse>(enabled),
+  });
+}
+
+/** Repository-aware status/source-control panels (protocol 15.3). */
+export function useGitRepositories(
+  sid: string | undefined,
+  opts?: { enabled?: boolean; root?: string },
+) {
+  const root = opts?.root;
+  const enabled = sid !== undefined && (opts?.enabled ?? true);
+  return useQuery({
+    queryKey: root === undefined ? ['git-repositories', sid] : ['git-repositories', sid, root],
+    queryFn: () =>
+      api<GitRepositoriesResponse>('GET', `/api/worktrees/${sid}/git-repositories${opQuery(root)}`),
+    enabled,
+    refetchInterval: focusAwareInterval(10_000),
+    refetchOnWindowFocus: true,
+    ...keepPrevious<GitRepositoriesResponse>(enabled),
+  });
+}
+
+/** The current HEAD baseline for an ordinary source editor (protocol 15.3). */
+export function useGitOriginal(
+  sid: string | undefined,
+  path: string,
+  opts?: { enabled?: boolean; root?: string },
+) {
+  const root = opts?.root;
+  const enabled = sid !== undefined && (opts?.enabled ?? true);
+  return useQuery({
+    queryKey: ['git-original', sid, path, root],
+    queryFn: () =>
+      api<GitOriginalResponse>(
+        'GET',
+        `/api/worktrees/${sid}/git-original?path=${encodeURIComponent(path)}${rootParam(root)}`,
+      ),
+    enabled,
+    refetchInterval: focusAwareInterval(10_000),
+    refetchOnWindowFocus: true,
+  });
+}
+
+/** A path exactly as represented in its owning repository's index. */
+export function useIndexFile(
+  sid: string | undefined,
+  path: string,
+  opts?: { enabled?: boolean; root?: string },
+) {
+  const root = opts?.root;
+  return useQuery({
+    queryKey: ['git-index-file', sid, path, root],
+    queryFn: () =>
+      api<IndexFileResponse>(
+        'GET',
+        `/api/worktrees/${sid}/index-file?path=${encodeURIComponent(path)}${rootParam(root)}`,
+      ),
+    enabled: sid !== undefined && (opts?.enabled ?? true),
+  });
+}
+
+export type GitMutationVariables =
+  | { action: 'stage' | 'unstage'; repository: string; paths: string[] }
+  | { action: 'commit'; repository: string; message: string; stage_all?: boolean }
+  | { action: 'fetch' | 'pull'; repository: string }
+  | { action: 'push'; repository: string; set_upstream?: boolean };
+
+/** Every source-control write shares invalidation and error behaviour. */
+export function useGitMutation(sid: string, root?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ action, ...body }: GitMutationVariables) =>
+      api<GitMutationResponse>('POST', `/api/worktrees/${sid}/git-${action}${opQuery(root)}`, body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['git-repositories', sid] });
+      void qc.invalidateQueries({ queryKey: ['wt-git-status', sid] });
+      void qc.invalidateQueries({ queryKey: ['wt-diff', sid] });
+      void qc.invalidateQueries({ queryKey: ['wt-log', sid] });
+      void qc.invalidateQueries({ queryKey: ['wt-show', sid] });
+      void qc.invalidateQueries({ queryKey: ['git-original', sid] });
+      void qc.invalidateQueries({ queryKey: ['git-index-file', sid] });
+    },
   });
 }
 

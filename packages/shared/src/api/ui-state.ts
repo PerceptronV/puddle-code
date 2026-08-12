@@ -21,6 +21,8 @@ export const editorTabRefSchema = z.object({
   path: z.string(),
   kind: z.enum(['file', 'diff', 'commit', 'external', 'untitled']).optional(),
   sha: z.string().optional(),
+  /** Index comparison shown by a source-control diff tab (protocol 15.3). */
+  git_area: z.enum(['staged', 'unstaged']).optional(),
   /**
    * The absolute root `path` is relative to, and part of the tab's identity.
    * Set for `external` tabs (protocol 10.2) — the browse root the explorer's

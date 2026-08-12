@@ -1,3 +1,4 @@
+import type { GitArea } from '@puddle/shared';
 import { useWorktreeDiff } from '../../lib/worktree-queries';
 import { FileDiffContent } from './FileDiffContent';
 
@@ -13,13 +14,20 @@ export function DiffTabBody({
   session,
   path,
   root,
+  area,
 }: {
   session: string;
   path: string;
   /** `?root=` when the tab was opened against a directory target (12.4). */
   root?: string;
+  /** Source-control comparison; absent preserves the session-vs-base diff. */
+  area?: GitArea;
 }) {
-  const diff = useWorktreeDiff(session, { root });
+  const diff = useWorktreeDiff(session, {
+    root,
+    against: area === undefined ? 'base' : 'head',
+    area,
+  });
 
   if (diff.isPending) {
     return <div className="px-4 py-3 text-xs text-fg-muted">Loading diff…</div>;
@@ -43,7 +51,13 @@ export function DiffTabBody({
 
   return (
     <div className="h-full">
-      <FileDiffContent session={session} against={diff.data.against} entry={entry} root={root} />
+      <FileDiffContent
+        session={session}
+        against={diff.data.against}
+        entry={entry}
+        root={root}
+        area={area}
+      />
     </div>
   );
 }

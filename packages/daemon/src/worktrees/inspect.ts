@@ -142,6 +142,30 @@ export async function diffNameStatus(worktree: string, sha: string): Promise<Dif
   return [...tracked, ...untracked];
 }
 
+/** HEAD → index: only content selected for the next commit. */
+export async function stagedDiffNameStatus(worktree: string): Promise<DiffEntry[]> {
+  const head = await resolveHeadSha(worktree);
+  const raw = await git(['diff', '--cached', '--name-status', '-z', '-M', head, '--'], {
+    cwd: worktree,
+  });
+  return parseStatusTokens(splitNulTokens(raw));
+}
+
+/** Index → working tree, plus untracked files as additions. */
+export async function unstagedDiffNameStatus(worktree: string): Promise<DiffEntry[]> {
+  const raw = await git(['diff', '--name-status', '-z', '-M', '--'], { cwd: worktree });
+  const tracked = parseStatusTokens(splitNulTokens(raw));
+  const untrackedRaw = await git(['ls-files', '--others', '--exclude-standard', '-z'], {
+    cwd: worktree,
+  });
+  const untracked: DiffEntry[] = splitNulTokens(untrackedRaw).map((path) => ({
+    path,
+    status: 'added',
+    old_path: null,
+  }));
+  return [...tracked, ...untracked];
+}
+
 /**
  * A file's content at `ref`. Returns `null` when the blob does not exist
  * there (missing path or unknown ref) — the route turns that into 404

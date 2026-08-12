@@ -239,4 +239,11 @@
 // The reverse skew (an old UI on a 15.2 daemon) would mis-open a directory
 // link as a file tab — accepted: the CLI serves the UI and upgrades the
 // daemon in lockstep, so only a stale browser tab can skew.
-export const PROTOCOL_VERSION = { major: 15, minor: 2 } as const;
+// 15.3 (2026-08-11): additive — repository-aware source control under every
+// worktree/directory target: discovery/status for the owning repository,
+// ignored nested repositories, and recursive submodules; literal confined
+// stage/unstage/commit/fetch/pull/push mutations; index and HEAD-baseline file
+// reads; staged/unstaged diff areas; and optional `git_area` on diff tabs.
+// New clients feature-detect this minor and keep the 15.2 read-only Changes
+// view when connected to an older daemon.
+export const PROTOCOL_VERSION = { major: 15, minor: 3 } as const;

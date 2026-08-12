@@ -7,6 +7,7 @@ import { downloadPath } from '../../lib/worktree-queries';
 import { ConflictView } from './ConflictView';
 import { THEME_NAME } from './monaco-setup';
 import { useEditorBuffer } from './use-editor-buffer';
+import { useDirtyDiff } from './use-dirty-diff';
 import type { RevealTarget } from '../workspace/editor-context';
 
 /** Muted centred panel for the states where there is nothing to edit. */
@@ -66,6 +67,7 @@ export function CodeEditor({
 }) {
   const settings = useClientSettings();
   const buffer = useEditorBuffer(session, path, reveal, root);
+  const mountDirtyDiff = useDirtyDiff(session, path, root, buffer.model);
   const fontMono = useMemo(
     () =>
       getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim() ||
@@ -152,7 +154,10 @@ export function CodeEditor({
             defaultValue={buffer.model.getValue()}
             theme={THEME_NAME}
             keepCurrentModel
-            onMount={(editor) => buffer.onMount(editor)}
+            onMount={(editor) => {
+              buffer.onMount(editor);
+              mountDirtyDiff(editor);
+            }}
             loading={<div className="p-3 text-xs text-fg-muted">…</div>}
             options={{
               automaticLayout: true,
@@ -161,6 +166,8 @@ export function CodeEditor({
               tabSize: settings.editorTabSize,
               wordWrap: settings.editorWordWrap ? 'on' : 'off',
               minimap: { enabled: false },
+              glyphMargin: false,
+              lineDecorationsWidth: 10,
               fixedOverflowWidgets: true,
               scrollBeyondLastLine: false,
             }}

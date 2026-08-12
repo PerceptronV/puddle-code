@@ -1101,24 +1101,41 @@ function WorkspaceInner() {
   // replaces in the same slot, and a double click — on the row or on its tab —
   // pins it. `opts.preview === false` is the pin.
   const targetRoot = sidebarTarget.root;
-  const rooted = targetRoot === undefined ? {} : { root: targetRoot };
-  type OpenOpts = { preview?: boolean } | undefined;
+  type OpenOpts =
+    | {
+        preview?: boolean;
+        root?: string;
+        gitArea?: import('@puddle/shared').GitArea;
+      }
+    | undefined;
   const previewing = (opts: OpenOpts) => ({ preview: opts?.preview ?? true });
   const openDiff = (path: string, opts?: OpenOpts) => {
-    if (targetSession)
+    if (targetSession) {
+      const diffRoot = opts?.root ?? targetRoot;
+      const diffRooted = diffRoot === undefined ? {} : { root: diffRoot };
       openEditorTab(
-        { kind: 'diff', session: targetSession.id, path, ...rooted },
+        {
+          kind: 'diff',
+          session: targetSession.id,
+          path,
+          ...diffRooted,
+          ...(opts?.gitArea === undefined ? {} : { git_area: opts.gitArea }),
+        },
         undefined,
         previewing(opts),
       );
+    }
   };
   const openCommitFile = (path: string, sha: string, opts?: OpenOpts) => {
-    if (targetSession)
+    if (targetSession) {
+      const commitRoot = opts?.root ?? targetRoot;
+      const commitRooted = commitRoot === undefined ? {} : { root: commitRoot };
       openEditorTab(
-        { kind: 'commit', session: targetSession.id, path, sha, ...rooted },
+        { kind: 'commit', session: targetSession.id, path, sha, ...commitRooted },
         undefined,
         previewing(opts),
       );
+    }
   };
   const openSearchFile = (path: string, line?: number, opts?: OpenOpts) => {
     if (!targetSession) return;

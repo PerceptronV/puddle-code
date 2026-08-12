@@ -15,6 +15,7 @@ import { useDaemonVersion } from '../../lib/queries';
 import { clearPendingReveal, onReveal } from '../../lib/reveal-in-tree';
 import { isSecondClick, type ClickStamp } from '../../lib/second-click';
 import { downloadPath, uploadFiles, useWorktreeGitStatus } from '../../lib/worktree-queries';
+import { sourceControlSupported } from '../../lib/protocol-support';
 import { collectDroppedFiles } from './drop-files';
 import { buildStatusMap } from './git-decoration';
 import {
@@ -222,10 +223,13 @@ export function ExplorerProvider({
     return () => window.removeEventListener('dragend', clear);
   }, []);
 
-  // Git decorations are worktree-scoped: the status endpoint takes no root, and
-  // its paths are worktree-relative, so under a browse root they would decorate
-  // rows by coincidence of relative path. Don't ask for them at all out there.
-  const statusQuery = useWorktreeGitStatus(sid, { enabled: root === undefined });
+  // Protocol 15.3 rebases every owning/nested repository to the visible root,
+  // so project and parent-directory targets get honest decorations too. Older
+  // daemons retain the worktree-only request to avoid coincidental path matches.
+  const statusQuery = useWorktreeGitStatus(sid, {
+    root,
+    enabled: root === undefined || (protocol !== undefined && sourceControlSupported(protocol)),
+  });
   const statusMap = useMemo(
     () => buildStatusMap(statusQuery.data?.entries ?? []),
     [statusQuery.data],

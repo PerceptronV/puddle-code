@@ -3,13 +3,22 @@ import { Hono } from 'hono';
 import type {
   DiffResponse,
   FileAtResponse,
+  GitMutationResponse,
+  GitOriginalResponse,
+  GitRepositoriesResponse,
   GitStatusResponse,
+  IndexFileResponse,
   LogResponse,
   SearchResponse,
   ShowCommitResponse,
 } from '@puddle/shared';
-import { git } from '../../git/exec.js';
-import { worktreeGitStatus } from '../../worktrees/git-status.js';
+import {
+  gitCommitRequestSchema,
+  gitPathsRequestSchema,
+  gitPushRequestSchema,
+  gitRepositoryRequestSchema,
+} from '@puddle/shared';
+import { git, GitError } from '../../git/exec.js';
 import {
   assertSafeRef,
   assertSha,
@@ -19,9 +28,24 @@ import {
   resolveBaseSha,
   resolveHeadSha,
   showCommit,
+  stagedDiffNameStatus,
+  unstagedDiffNameStatus,
 } from '../../worktrees/inspect.js';
+import {
+  commitRepository,
+  fetchRepository,
+  gitOriginal,
+  gitRepositories,
+  indexFile,
+  pullRepository,
+  pushRepository,
+  stagePaths,
+  unstagePaths,
+  type RepositoryLock,
+} from '../../worktrees/repositories.js';
 import { searchWorktree } from '../../worktrees/search.js';
 import { ApiError } from '../errors.js';
+import { parseBody } from '../validate.js';
 import { browseRoot, resolveWorktree, type WorktreeDeps } from './worktree-shared.js';
 
 /** Longest search query we accept — long enough for a phrase, short of abuse. */
@@ -59,6 +83,18 @@ function parseIntParam(raw: string | undefined, def: number, min: number, max: n
   return n;
 }
 
+/** Turn git's actionable stderr into a stable API error instead of an opaque 500. */
+async function gitMutation<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    if (error instanceof GitError) {
+      throw ApiError.conflict('git_failed', error.stderr.trim() || error.message);
+    }
+    throw error;
+  }
+}
+
 /**
  * Relative-path guard for `file-at`: the path keys a git blob, not a
  * filesystem entry, so `containedPath`'s realpath hardening (worktree-shared.ts)
@@ -86,11 +122,33 @@ function assertContainedRelPath(rel: string): string {
  * Mounted by `worktrees.ts`.
  */
 export function worktreeGitRoutes(deps: WorktreeDeps): Hono {
+  const lock: RepositoryLock | undefined = deps.worktrees
+    ? (repoRoot, run) => deps.worktrees!.runGitMutation(repoRoot, run)
+    : undefined;
   return new Hono()
     .get('/:sid/diff', async (c) => {
       const { baseBranch, root: target } = resolveWorktree(deps, c);
       const root = browseRoot(c, target);
       const against = c.req.query('against') ?? 'base';
+      const area = c.req.query('area');
+
+      if (area !== undefined && area !== 'staged' && area !== 'unstaged') {
+        throw ApiError.badRequest('invalid_area', `'area' must be 'staged' or 'unstaged'`);
+      }
+      if (area !== undefined) {
+        if (against !== 'head') {
+          throw ApiError.badRequest('invalid_area', `'area' is only valid with 'against=head'`);
+        }
+        const sha = await resolveHeadSha(root);
+        const entries =
+          area === 'staged' ? await stagedDiffNameStatus(root) : await unstagedDiffNameStatus(root);
+        return c.json<DiffResponse>({
+          against: sha,
+          base_ref: area === 'staged' ? 'HEAD' : null,
+          area,
+          entries,
+        });
+      }
 
       if (against === 'base') {
         const { sha, ref } = await resolveBaseSha(root, baseBranch);
@@ -121,8 +179,71 @@ export function worktreeGitRoutes(deps: WorktreeDeps): Hono {
 
     .get('/:sid/git-status', async (c) => {
       const root = browseRoot(c, resolveWorktree(deps, c).root);
-      const entries = await worktreeGitStatus(root);
+      const { entries } = await gitRepositories(root);
       return c.json<GitStatusResponse>({ entries });
+    })
+
+    .get('/:sid/git-repositories', async (c) => {
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
+      return c.json<GitRepositoriesResponse>(await gitRepositories(root));
+    })
+
+    .get('/:sid/index-file', async (c) => {
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
+      const rel = assertContainedRelPath(c.req.query('path') ?? '');
+      return c.json<IndexFileResponse>(await indexFile(root, rel));
+    })
+
+    .get('/:sid/git-original', async (c) => {
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
+      const rel = assertContainedRelPath(c.req.query('path') ?? '');
+      return c.json<GitOriginalResponse>(await gitOriginal(root, rel));
+    })
+
+    .post('/:sid/git-stage', async (c) => {
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
+      const body = await parseBody(c, gitPathsRequestSchema);
+      await gitMutation(() => stagePaths(root, body.repository, body.paths, lock));
+      return c.json<GitMutationResponse>({ ok: true });
+    })
+
+    .post('/:sid/git-unstage', async (c) => {
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
+      const body = await parseBody(c, gitPathsRequestSchema);
+      await gitMutation(() => unstagePaths(root, body.repository, body.paths, lock));
+      return c.json<GitMutationResponse>({ ok: true });
+    })
+
+    .post('/:sid/git-commit', async (c) => {
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
+      const body = await parseBody(c, gitCommitRequestSchema);
+      const sha = await gitMutation(() =>
+        commitRepository(root, body.repository, body.message, body.stage_all === true, lock),
+      );
+      return c.json<GitMutationResponse>({ ok: true, sha });
+    })
+
+    .post('/:sid/git-fetch', async (c) => {
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
+      const body = await parseBody(c, gitRepositoryRequestSchema);
+      await gitMutation(() => fetchRepository(root, body.repository, lock));
+      return c.json<GitMutationResponse>({ ok: true });
+    })
+
+    .post('/:sid/git-pull', async (c) => {
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
+      const body = await parseBody(c, gitRepositoryRequestSchema);
+      await gitMutation(() => pullRepository(root, body.repository, lock));
+      return c.json<GitMutationResponse>({ ok: true });
+    })
+
+    .post('/:sid/git-push', async (c) => {
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
+      const body = await parseBody(c, gitPushRequestSchema);
+      await gitMutation(() =>
+        pushRepository(root, body.repository, body.set_upstream === true, lock),
+      );
+      return c.json<GitMutationResponse>({ ok: true });
     })
 
     .get('/:sid/file-at', async (c) => {

@@ -216,3 +216,54 @@
   --ansi-bright-cyan: var(--cyan-500);
   --ansi-bright-white: var(--neutral-0);
 }
+
+/* Ordinary-editor HEAD dirty-diff gutter (protocol 15.3, SPEC §12). Monaco's
+   line-decoration lane is reserved without enabling its unrelated glyph
+   margin. Colours are semantic tokens from the theme blocks above. */
+.monaco-editor .puddle-dirty-added,
+.monaco-editor .puddle-dirty-modified {
+  box-sizing: border-box;
+  width: 5px !important;
+  margin-left: 2px;
+  border-left: 3px solid var(--success);
+}
+
+.monaco-editor .puddle-dirty-modified {
+  border-left-color: var(--accent);
+}
+
+.monaco-editor .puddle-dirty-deleted-before,
+.monaco-editor .puddle-dirty-deleted-after {
+  position: relative;
+  width: 8px !important;
+}
+
+.monaco-editor .puddle-dirty-deleted-before::before,
+.monaco-editor .puddle-dirty-deleted-after::after {
+  position: absolute;
+  left: 1px;
+  width: 6px;
+  height: 6px;
+  content: '';
+  background: var(--danger);
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+
+.monaco-editor .puddle-dirty-deleted-before::before {
+  top: -3px;
+}
+
+.monaco-editor .puddle-dirty-deleted-after::after {
+  bottom: -3px;
+}
+
+.puddle-hidden-diff-controller {
+  position: fixed;
+  top: -2px;
+  left: -2px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+}

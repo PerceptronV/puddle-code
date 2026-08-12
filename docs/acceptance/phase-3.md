@@ -78,13 +78,13 @@ the explorer, diff, and history views at.
    40-character sha, not the truncated 7-character display.
 4. **Transfer.** Drag a file from the desktop onto a folder in the explorer:
    it appears in the worktree and in the agent's `ls` (AT). Drag a *folder*
-   onto the explorer instead: a toast says folders can't be uploaded yet and
-   says to zip them first (any plain files in the same drop still upload).
-   Download that folder via the context menu: the zip's contents match the
-   folder and contain no `.git` directory (AT). Download a single file: the
-   bytes are byte-identical to the worktree copy, not zipped. Pasting copied
-   files (⌘V, not drag) into the explorer uploads them the same way a drop
-   does.
+   onto the explorer instead: its descendants arrive under the same relative
+   paths (empty directories are skipped), and an agent-side `find` matches the
+   source tree. Download that folder via the context menu: the zip's contents
+   match the folder and contain no `.git` directory (AT). Download a single
+   file: the bytes are byte-identical to the worktree copy, not zipped.
+   Pasting copied files (⌘V, not drag) into the explorer uploads them the same
+   way a drop does.
 5. **Pin & layout.** Pin the explorer to session A's worktree from Settings →
    pin control, switch the active tab to session B: the tree stays on A's
    files. Resize the sidebar and the editor/terminal split, reload the page:
@@ -111,6 +111,33 @@ the explorer, diff, and history views at.
    terminals, and every open Monaco instance (editor tabs and any open
    diff/history view) restyle together with no reload. `pnpm --filter
    @puddle/web check-tokens` passes.
+9. **Repository-aware source control.** Put an ignored nested Git repository
+   and an initialised submodule under the worktree, and leave another submodule
+   uninitialised. Changes shows one collapsible panel per repository, owning
+   repository first; the uninitialised submodule is disabled. Stage and
+   unstage one file and a whole group, partially stage a tracked file, and
+   confirm Staged Changes and Changes open HEAD→index and index→working-tree
+   content respectively. Commit the staged half: the working half remains,
+   the message clears, and the parent submodule gitlink remains available for
+   its own commit. Force a commit failure (for example unset the test repo's
+   identity): its message stays. With nothing staged, Commit asks before
+   staging everything. Against a local test remote, Fetch/Pull/Push and
+   Publish Branch update the branch/upstream/ahead/behind line. Selecting a
+   nested panel rebinds History to that repository. In a stale browser served
+   by a protocol 15.2 daemon, the former read-only Uncommitted panel remains
+   usable and no mutation controls appear.
+10. **Ordinary-editor gutter.** In both dark and light themes, edit an ordinary
+    source tab and verify green bars for additions, blue for replacements, and
+    red triangles for deletions between lines and at both file boundaries.
+    Stage the file: the marks remain because the baseline is HEAD. Type,
+    undo/redo, save, commit, pull a baseline change, and switch branches: marks
+    update without reopening the tab and clear when the live model equals the
+    new HEAD. An untracked or unborn-repository text file is wholly green;
+    ignored, outside-Git, binary, and over-limit files have no gutter marks.
+    Open the same file in several panes, switch files repeatedly, and inspect
+    Monaco's model list/listeners in DevTools: hidden original models and diff
+    controllers disappear with their source editor, with no console disposal
+    warnings or steadily growing model count.
 
 Record any UI/daemon mismatches found here as issues; adapter corrections
 still go to `packages/daemon/src/agents/claude-code.ts` per phase-1.
