@@ -171,7 +171,17 @@ function createWindow(target: string, cockpit: RunningCockpit): BrowserWindow {
     // put the light centres within a pixel of the name's. The two numbers are
     // one decision: change the bar height and this moves with it.
     ...(process.platform === 'darwin'
-      ? { titleBarStyle: 'hidden' as const, trafficLightPosition: { x: 12, y: 12 } }
+      ? {
+          titleBarStyle: 'hidden' as const,
+          trafficLightPosition: { x: 12, y: 12 },
+          // The 1440×900 launch size reaches the work-area bounds on common
+          // Mac displays. A native rounded mask plus shadow leaves a visible
+          // sliver of desktop down the right and bottom edges even though the
+          // window itself is correctly sized. The cockpit owns all its chrome,
+          // so keep those edges flush; small shell dialogues remain native.
+          roundedCorners: false,
+          hasShadow: false,
+        }
       : {}),
     webPreferences: {
       preload: join(here, 'preload.cjs'),
