@@ -36,6 +36,7 @@ scripts/install.sh          # THE daemon bootstrap (curl-pipeable; the CLI pipes
 docs/assets/          # README imagery: cockpit hero screenshots (dark chromeless, light in Mac chrome)
 docs/changelogs/      # archived per-version changelogs (see Changelog discipline)
 docs/acceptance/      # manual per-phase acceptance scripts (real-agent verification CI can't do)
+docs/roadmap/         # deferred feature designs with resolved decisions and implementation seams
 docs/reports/         # dated investigation write-ups (root cause + measurements), e.g. perf/battery
 ```
 
