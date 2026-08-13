@@ -260,7 +260,11 @@ export async function run(command: Command): Promise<number> {
       for (const victim of victims) {
         await terminateCockpit(victim);
         const where = victim.target === 'local' ? 'this machine' : victim.target;
-        logger.info(`stopped the cockpit for ${victim.target} — sessions keep running on ${where}`);
+        logger.info(
+          victim.daemonLifetime === 'cockpit'
+            ? `stopped the cockpit for ${victim.target} — daemon data remains on ${where}; interrupted sessions can resume on the next launch`
+            : `stopped the cockpit for ${victim.target} — sessions keep running on ${where}`,
+        );
       }
       return 0;
     }
@@ -438,6 +442,7 @@ async function runCockpit(
     origin: cockpit.origin,
     browserUrl: cockpit.browserUrl,
     nonce: cockpit.nonce,
+    daemonLifetime: cockpit.daemonLifetime,
   });
 
   const arrow = command.target === 'local' ? '' : ` → ${command.target}`;
@@ -448,10 +453,15 @@ async function runCockpit(
   }
 
   const where = command.target === 'local' ? 'this machine' : command.target;
-  await runUntilInterrupted(async () => {
-    await cockpit.stop();
-    removeCockpitRecord(target);
-  }, `cockpit closed — sessions keep running on ${where}`);
+  await runUntilInterrupted(
+    async () => {
+      await cockpit.stop();
+      removeCockpitRecord(target);
+    },
+    cockpit.daemonLifetime === 'cockpit'
+      ? `cockpit closed — daemon data remains on ${where}; interrupted sessions can resume on the next launch`
+      : `cockpit closed — sessions keep running on ${where}`,
+  );
   return 0;
 }
 

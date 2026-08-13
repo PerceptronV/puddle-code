@@ -53,3 +53,8 @@ bump in `CHANGELOG.md`.
   guard has always ignored them), and the `?host=`/`#token=` boot params are
   browser-side conventions that never reach the server. `PROTOCOL_VERSION`
   stayed 5.1.
+- **SSH-attached daemon fallback (2026-08-13)**: the CLI now owns the daemon's
+  process lifetime through an SSH exec channel when a host reaps detached
+  `nohup` children. This changes bootstrap and transport lifecycle only; REST
+  and WebSocket schemas, authentication, token flow, and the protocol
+  handshake are unchanged. No protocol bump.

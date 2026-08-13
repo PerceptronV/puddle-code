@@ -35,8 +35,10 @@ Prerequisites: `pnpm build`; an SSH host you can reach (key or password).
    it); pulling the network cable briefly may log one honest pair.
 
 7. **Kill.** `puddle kill user@host` → the pid is gone, `puddle list` says
-   `no cockpits are running`, and sessions on the host survive
-   (`puddle status user@host` still lists them).
+   `no cockpits are running`. With a persistent supervisor, sessions on the
+   host survive (`puddle status user@host` still lists them). With the
+   SSH-attached fallback, the command instead says data remains and sessions
+   can resume; relaunch and verify the same state returns.
 
 8. **Foreground escape hatch.** `puddle launch user@host --foreground` stays
    attached; Ctrl-C stops it and removes its registry record.

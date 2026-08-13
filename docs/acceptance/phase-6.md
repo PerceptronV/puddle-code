@@ -53,34 +53,43 @@ takes a CLIENT-side path and delivers it over scp.
    browser. On the host the agent keeps working (`puddle status user@host`
    from the client, or `systemctl --user status puddled` on the host).
    `puddle launch user@host` again: the cockpit returns, terminals replay.
-6. **Attach from a raw terminal.** `puddle attach user@host <session-prefix>`:
+   This step assumes a working persistent supervisor.
+6. **SSH-attached fallback.** Repeat SSH mode against a host with no usable
+    systemd/launchd whose login service reaps a detached nohup child. Expect a
+    warning that Puddle is keeping the daemon attached to this cockpit, then a
+    working UI. Create a session and note a durable file or database-backed
+    setting; Ctrl-C the foreground cockpit. Expect a clean interruption
+    message, `~/.puddle/puddle.db`, worktrees, logs, and agent configuration to
+    remain. Launch again: the daemon starts on entry, the same data appears,
+    and interrupted sessions auto-resume when the host setting is enabled.
+7. **Attach from a raw terminal.** `puddle attach user@host <session-prefix>`:
    the log tail replays, keystrokes reach the agent, window resize reflows,
    Ctrl-] detaches leaving the session running. `puddle logs user@host
    <session-prefix>` prints the same output; `-f` follows.
-7. **Older-major auto-update.** On the host, fake an older protocol:
+8. **Older-major auto-update.** On the host, fake an older protocol:
    `ln -sfn versions/<old> ~/.puddle/bin/current && systemctl --user restart
    puddled` with any earlier-major build (or temporarily edit
    `PROTOCOL_VERSION` and rebuild a tarball). `puddle launch user@host`
    prints the live-session interruption count, reinstalls, restarts, and
    lands in the cockpit; the interrupted sessions show resume buttons and
    resume with history. `--no-upgrade` instead aborts with the count.
-8. **Mode switching on one origin.** After the SSH session, run a local
+9. **Mode switching on one origin.** After the SSH session, run a local
    `puddle launch` on the same machine. The ports strip now offers **Open
    localhost** (the stale `user@host` from step 3 was cleared by the local
    boot); editor deep links open local paths.
-9. **install.sh by hand (daemon-only path).** On a scratch host:
+10. **install.sh by hand (daemon-only path).** On a scratch host:
    `PUDDLE_REPO=<owner>/<repo> sh scripts/install.sh` (or `--tarball <path>`).
    Expect platform detection, checksum verification, versioned install,
    supervisor start, and a status line. Re-running is a no-op; `--version
    <older>` flips the symlink back (rollback).
-10. **Fresh desktop install (macOS).** With Puddle absent from both
+11. **Fresh desktop install (macOS).** With Puddle absent from both
     `/Applications` and `~/Applications`, run `puddle upgrade desktop` from a
     released CLI. It downloads and verifies the latest mac zip, then installs
     `/Applications/Puddle.app` when that directory is writable, otherwise
     creates `~/Applications/Puddle.app`. No `.old` bundle is required or left
     behind. Run the command again with the app closed: it reports current (or
     performs the normal replacement if a newer release exists).
-11. **Desktop SSH authentication.** In the desktop app, choose File →
+12. **Desktop SSH authentication.** In the desktop app, choose File →
     **Connect to SSH Host…** and target a host that requires password plus
     keyboard-interactive/2FA authentication (with no warm ControlMaster).
     Expect a masked SSH Authentication dialogue for each response, then the

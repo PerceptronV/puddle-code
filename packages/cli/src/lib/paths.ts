@@ -25,4 +25,6 @@ export const hostPaths = {
   current: `${HOST_HOME}/bin/current`,
   cache: `${HOST_HOME}/cache`,
   logs: `${HOST_HOME}/logs`,
+  supervisor: `${HOST_HOME}/supervisor`,
+  pid: `${HOST_HOME}/puddled.pid`,
 } as const;

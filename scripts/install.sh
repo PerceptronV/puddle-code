@@ -129,13 +129,27 @@ fi
 
 # --- unpack + symlink flip ---------------------------------------------------
 DEST="$BIN_DIR/versions/$VERSION"
+SMOKE_LOG="$HOME_DIR/logs/install-smoke.log"
+NEED_INSTALL=1
 if [ -d "$DEST" ] && [ "$FORCE" -eq 0 ] && [ -x "$DEST/puddled" ]; then
-  say "version $VERSION already installed"
-else
+  if "$DEST/puddled" --version >/dev/null 2>"$SMOKE_LOG"; then
+    NEED_INSTALL=0
+    rm -f "$SMOKE_LOG"
+    say "version $VERSION already installed"
+  else
+    say "existing version $VERSION failed validation — reinstalling"
+    rm -rf "$DEST"
+  fi
+fi
+if [ "$NEED_INSTALL" -eq 1 ]; then
   rm -rf "$DEST"
   mkdir -p "$DEST"
   tar -xzf "$TARBALL" --strip-components=1 -C "$DEST" || die "extraction failed"
-  "$DEST/puddled" --version >/dev/null || die "installed tree fails its own --version smoke test"
+  if ! "$DEST/puddled" --version >/dev/null 2>"$SMOKE_LOG"; then
+    rm -rf "$DEST"
+    die "installed tree fails its own --version smoke test (details: $SMOKE_LOG)"
+  fi
+  rm -f "$SMOKE_LOG"
 fi
 ln -sfn "versions/$VERSION" "$BIN_DIR/current"
 
@@ -148,6 +162,7 @@ chmod 0755 "$BIN_DIR/puddled"
 ls -1t "$CACHE_DIR"/puddled-v*.tar.gz 2>/dev/null | tail -n +3 | while read -r old; do rm -f "$old"; done
 
 if [ "$SUPERVISOR" -eq 0 ]; then
+  printf '%s\n' none > "$HOME_DIR/supervisor"
   say "installed puddled $VERSION (no supervisor, per --no-supervisor)"
   exit 0
 fi
@@ -227,4 +242,5 @@ else
   say "warning: no systemd or launchd found — using nohup; puddled will NOT auto-start after a reboot"
 fi
 
+printf '%s\n' "$KIND" > "$HOME_DIR/supervisor"
 say "installed puddled $VERSION under $HOME_DIR (supervisor: $KIND)"

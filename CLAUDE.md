@@ -72,6 +72,16 @@ uncommitted/unpushed work first. cli/desktop are client-machine only;
 `/Applications`, else `~/Applications`); Linux desktop stays in-app-update
 only (an AppImage has no fixed install path).
 
+On an SSH host where the installer selected `nohup` but the host reaps that
+child as soon as its exec channel closes, `puddle launch` falls back to an
+SSH-attached daemon for the cockpit's lifetime. Closing that cockpit cleanly
+interrupts live PTYs; SQLite state, worktrees, logs, agent configuration and
+agent session refs stay under `~/.puddle`, and boot reconciliation/auto-resume
+restores them on the next launch by default (or leaves them resumable when
+host auto-resume is disabled). The fallback is allowed only after the
+recorded nohup PID is dead — never start a competing daemon beside a live or
+supervised one.
+
 > **Never launch `puddled` from inside a coding-agent session** (e.g. a Claude Code terminal, including these dev sessions). The daemon inherits that agent's orchestration env vars — `CLAUDECODE=1`, `CLAUDE_CODE_*` — and passes them to the agents it spawns (PtyManager uses `{...process.env}` by design). A `claude` that sees `CLAUDECODE`/`CLAUDE_CODE_CHILD_SESSION` treats itself as a nested child and **does not write a resumable conversation transcript**, so `--resume` silently fails with "no conversation found" (verified against Claude Code 2.1.209: the identical session persists a transcript with these unset and writes nothing with them set). Start the daemon from a plain shell (systemd/launchd does this in production, so real deployments are unaffected). If a session won't resume during development, check the daemon's env first (`ps eww <pid> | tr ' ' '\n' | grep CLAUDE`).
 
 ## Conventions

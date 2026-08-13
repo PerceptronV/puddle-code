@@ -184,14 +184,17 @@ export function spawnDetachedRefresh(target: string, argv: string[]): void {
   child.unref();
 }
 
-/** SIGTERM (the cockpit's clean-shutdown path), escalate to SIGKILL after 5s. */
+/** SIGTERM (the cockpit's clean-shutdown path), escalate to SIGKILL after 10s. */
 export async function terminateCockpit(record: CockpitRecord): Promise<void> {
   try {
     process.kill(record.pid, 'SIGTERM');
   } catch {
     // Already gone — the record removal below is all that's left to do.
   }
-  const deadline = Date.now() + 5000;
+  // An attached daemon may spend up to five seconds draining its PTYs before
+  // the cockpit closes its remaining resources, so leave headroom for that
+  // graceful path before forcing the client process down.
+  const deadline = Date.now() + 10_000;
   while (Date.now() < deadline && isPidAlive(record.pid)) await sleep(100);
   if (isPidAlive(record.pid)) {
     try {

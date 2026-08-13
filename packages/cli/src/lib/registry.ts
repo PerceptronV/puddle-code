@@ -24,6 +24,8 @@ export interface CockpitRecord {
   browserUrl?: string;
   /** Echoed by the UI server as X-Puddle-Cockpit; proves origin is this cockpit. */
   nonce?: string;
+  /** `cockpit` when the remote daemon is held by this process's SSH channel. */
+  daemonLifetime?: 'persistent' | 'cockpit';
   logFile?: string;
   /** Set on status 'error' so the launcher can relay the failure. */
   message?: string;

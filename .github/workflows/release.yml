@@ -8,31 +8,28 @@ permissions:
   id-token: write # npm --provenance
 
 jobs:
-  tarball:
+  tarball-linux:
     strategy:
       matrix:
         include:
-          # ubuntu-22.04 on purpose: node-pty is node-gyp-built on Linux, so
-          # the runner's glibc (2.35) is the floor — Ubuntu 22.04+/Debian 12+/
-          # RHEL 9+. Lowering it later means building in a node:22-bullseye
-          # container. darwin-x64 is not published for now: macos-13 (GitHub's
-          # last Intel runner) queues for so long it blocks every release —
-          # restore the entry (or build under Rosetta) if Intel Mac hosts turn
-          # out to matter.
           - { runner: ubuntu-22.04, target: linux-x64 }
           - { runner: ubuntu-22.04-arm, target: linux-arm64 }
-          - { runner: macos-14, target: darwin-arm64 }
     runs-on: ${{ matrix.runner }}
+    # node-pty is node-gyp-built, so the build container fixes the native ABI
+    # floor at glibc 2.28 (RHEL/Rocky 8) instead of inheriting the hosted
+    # runner's glibc 2.35. Node 22's official binary has the same floor.
+    container: rockylinux:8
     steps:
+      - name: install native build toolchain
+        run: dnf install -y git gcc-c++ make python3 tar gzip xz
+      - name: verify native ABI floor
+        run: test "$(getconf GNU_LIBC_VERSION)" = 'glibc 2.28'
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-      # pnpm install on the native runner produces platform-correct binaries
-      # (node-gyp for node-pty on Linux, prebuilds elsewhere) — the tarball
-      # build refuses to cross-compile by design.
       - run: pnpm install --frozen-lockfile
         env:
           # Workflows build the desktop shell with esbuild only and never
@@ -42,6 +39,29 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: tarball-${{ matrix.target }}
+          path: |
+            dist-release/*.tar.gz
+            dist-release/*.sha256
+          if-no-files-found: error
+
+  tarball-darwin:
+    # darwin-x64 is unpublished while GitHub's last Intel runner queues too
+    # slowly to block releases; restore it (or build under Rosetta) if needed.
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - run: node scripts/build-tarball.mjs --version "${GITHUB_REF_NAME#v}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tarball-darwin-arm64
           path: |
             dist-release/*.tar.gz
             dist-release/*.sha256
@@ -116,7 +136,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: [tarball, desktop]
+    needs: [tarball-linux, tarball-darwin, desktop]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

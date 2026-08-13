@@ -4,6 +4,14 @@ import { clientHome } from '../paths.js';
 import { CliError } from '../types.js';
 import type { ExecOptions, ExecResult, Transport } from './transport.js';
 
+/** A remote command whose SSH channel deliberately stays open with it. */
+export interface RunningSshCommand {
+  /** Resolves when the remote command (or its SSH channel) exits. */
+  readonly result: Promise<ExecResult>;
+  /** Close the SSH channel; the remote command receives the channel hangup. */
+  terminate(): void;
+}
+
 export interface SshOptions {
   /** The ssh binary to spawn — the test seam (a fake shim in tests). */
   sshBinary?: string;
@@ -188,6 +196,32 @@ export class SshTransport implements Transport {
       if (opts.stdin !== undefined) child.stdin.end(opts.stdin);
       else child.stdin.end();
     });
+  }
+
+  /**
+   * Run a command through a live SSH channel instead of waiting for a detached
+   * supervisor to adopt it. Used by the daemon lease on hosts that reap nohup
+   * children when an SSH exec channel closes.
+   */
+  runAttached(command: string): RunningSshCommand {
+    const child = spawn(this.ssh, this.args(this.host, '--', `sh -c ${shellQuote(command)}`), {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: this.spawnEnv(),
+    });
+    let stdout = '';
+    let stderr = '';
+    const result = new Promise<ExecResult>((resolve) => {
+      child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString()));
+      child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
+      child.on('error', (err) => resolve({ code: -1, stdout, stderr: stderr + String(err) }));
+      child.on('close', (code) => resolve({ code: code ?? -1, stdout, stderr }));
+    });
+    return {
+      result,
+      terminate() {
+        child.kill('SIGTERM');
+      },
+    };
   }
 
   async readFile(path: string): Promise<string | null> {

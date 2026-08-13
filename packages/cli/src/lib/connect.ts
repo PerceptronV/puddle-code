@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { AttachedDaemon } from './attached-daemon.js';
 import { DaemonClient, readDaemonPort } from './daemon-client.js';
 import { ensureDaemon, makeUpgrader, type RunningCockpit } from './cockpit.js';
 import { runHandshake } from './handshake.js';
@@ -50,8 +51,9 @@ export interface ConnectOptions {
 /**
  * SSH mode (SPEC §10): master connection → bootstrap/upgrade the daemon →
  * tunnel → handshake → serve the UI locally with /api + /ws proxied through
- * the tunnel. Ctrl-C (the caller's stop()) closes the tunnel and UI server
- * only — the daemon and its agents keep running.
+ * the tunnel. Ctrl-C (the caller's stop()) closes the tunnel and UI server;
+ * supervised daemons keep running, while an attached fallback shuts down
+ * cleanly and resumes its interrupted sessions on the next launch.
  */
 export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpit> {
   const logger = opts.logger ?? silentLogger;
@@ -70,80 +72,134 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
   }
   await ssh.open();
 
-  const bootstrap = { tarball: opts.tarball, logger };
-  const endpoint = await ensureDaemon(ssh, bootstrap);
-  const remotePort = opts.remotePort ?? endpoint.port;
+  let tunnelResource: Awaited<ReturnType<typeof openTunnel>> | undefined;
+  let oauthForwardResource: Awaited<ReturnType<typeof openCallbackForward>> | undefined;
+  let uiResource: Awaited<ReturnType<typeof startUiServer>> | undefined;
+  let endpointResource: Awaited<ReturnType<typeof ensureDaemon>> | undefined;
 
-  // Readiness is the daemon answering /api/version through the forward — any
-  // HTTP status proves the byte path (the authenticated handshake follows).
-  const tunnel = await openTunnel(ssh, remotePort, {
-    sshBinary: opts.sshBinary,
-    logger,
-    ready: (localPort) => waitForHttp(`http://127.0.0.1:${localPort}/api/version`, 8000),
-  });
-  const client = new DaemonClient(tunnel.localPort, endpoint.token);
-  tunnel.onPortChange((port) => client.setPort(port));
+  try {
+    const bootstrap = { tarball: opts.tarball, logger };
+    const attachedDaemon = new AttachedDaemon(ssh, logger);
+    const endpoint = await ensureDaemon(ssh, {
+      ...bootstrap,
+      attachedFallback: () => attachedDaemon.start(),
+    });
+    endpointResource = endpoint;
+    const remotePort = opts.remotePort ?? endpoint.port;
 
-  // Carry the client's localhost:1455 to the host for the cockpit's lifetime,
-  // so the login URL a remote codex prints works AS PRINTED — clicked or
-  // pasted — and the IdP's callback to the client lands on codex's login
-  // server. Best-effort by design; the cockpit works fully without it.
-  const oauthForward = await openCallbackForward(ssh, CODEX_OAUTH_PORT, {
-    sshBinary: opts.sshBinary,
-    logger,
-  });
+    // Readiness is the daemon answering /api/version through the forward — any
+    // HTTP status proves the byte path (the authenticated handshake follows).
+    const tunnel = await openTunnel(ssh, remotePort, {
+      sshBinary: opts.sshBinary,
+      logger,
+      ready: async (localPort) => {
+        await endpoint.lease?.ensureRunning();
+        return waitForHttp(`http://127.0.0.1:${localPort}/api/version`, 8000);
+      },
+    });
+    tunnelResource = tunnel;
+    const client = new DaemonClient(tunnel.localPort, endpoint.token);
+    tunnel.onPortChange((port) => client.setPort(port));
 
-  const daemon = await runHandshake({
-    client,
-    noUpgrade: opts.noUpgrade,
-    upgradeDaemon: makeUpgrader(ssh, client, bootstrap),
-    logger,
-  });
+    // Carry the client's localhost:1455 to the host for the cockpit's lifetime,
+    // so the login URL a remote codex prints works AS PRINTED — clicked or
+    // pasted — and the IdP's callback to the client lands on codex's login
+    // server. Best-effort by design; the cockpit works fully without it.
+    const oauthForward = await openCallbackForward(ssh, CODEX_OAUTH_PORT, {
+      sshBinary: opts.sshBinary,
+      logger,
+    });
+    oauthForwardResource = oauthForward;
 
-  // Never squat the port a local `puddle launch` will probe for its own daemon,
-  // or that probe would find this cockpit's proxy answering for a different
-  // (remote) daemon and abort with a port conflict. That target is the LOCAL
-  // daemon's configured port — read from this machine's config.json the same
-  // way `start` does — not `endpoint.port`, which is the remote daemon's and
-  // only coincides when the remote uses the default 7434.
-  const avoidPort = await readDaemonPort(new LocalTransport());
+    const daemon = await runHandshake({
+      client,
+      noUpgrade: opts.noUpgrade,
+      upgradeDaemon: makeUpgrader(ssh, client, bootstrap, endpoint.lease),
+      logger,
+    });
 
-  const ui = await startUiServer({
-    assetsDir: opts.assetsDir,
-    port: opts.port ?? opts.preferPort,
-    strictPort: opts.port !== undefined, // a preferred port stays non-strict
-    avoidPort,
-    target: { host: '127.0.0.1', port: tunnel.localPort },
-    ...(opts.onRefreshRequest !== undefined
-      ? { control: { token: endpoint.token, onRefresh: opts.onRefreshRequest } }
-      : {}),
-    // The store lives on the CLIENT machine — every cockpit here shares it,
-    // whichever remote daemon each one drives.
-    localSync: { token: endpoint.token, file: join(clientHome(), 'local-sync.json') },
-  });
-  tunnel.onPortChange((port) => ui.setTarget({ host: '127.0.0.1', port }));
+    // Never squat the port a local `puddle launch` will probe for its own daemon,
+    // or that probe would find this cockpit's proxy answering for a different
+    // (remote) daemon and abort with a port conflict. That target is the LOCAL
+    // daemon's configured port — read from this machine's config.json the same
+    // way `start` does — not `endpoint.port`, which is the remote daemon's and
+    // only coincides when the remote uses the default 7434.
+    const avoidPort = await readDaemonPort(new LocalTransport());
 
-  const eventCbs = new Set<(e: CliEvent) => void>();
-  tunnel.onEvent((e) => {
-    if (e.t === 'tunnel-down') logger.warn(`tunnel to ${opts.host} lost — reconnecting…`);
-    if (e.t === 'tunnel-up') logger.info('tunnel restored');
-    eventCbs.forEach((cb) => cb(e));
-  });
+    const ui = await startUiServer({
+      assetsDir: opts.assetsDir,
+      port: opts.port ?? opts.preferPort,
+      strictPort: opts.port !== undefined, // a preferred port stays non-strict
+      avoidPort,
+      target: { host: '127.0.0.1', port: tunnel.localPort },
+      ...(opts.onRefreshRequest !== undefined
+        ? { control: { token: endpoint.token, onRefresh: opts.onRefreshRequest } }
+        : {}),
+      // The store lives on the CLIENT machine — every cockpit here shares it,
+      // whichever remote daemon each one drives.
+      localSync: { token: endpoint.token, file: join(clientHome(), 'local-sync.json') },
+    });
+    uiResource = ui;
+    tunnel.onPortChange((port) => ui.setTarget({ host: '127.0.0.1', port }));
 
-  return {
-    origin: ui.origin,
-    browserUrl: `${ui.origin}/?host=${encodeURIComponent(opts.host)}#token=${endpoint.token}`,
-    nonce: ui.nonce,
-    daemon,
-    onEvent(cb) {
-      eventCbs.add(cb);
-      return () => eventCbs.delete(cb);
-    },
-    async stop() {
-      await ui.close();
-      await oauthForward?.();
-      await tunnel.close();
-      ssh.dispose();
-    },
-  };
+    const eventCbs = new Set<(e: CliEvent) => void>();
+    tunnel.onEvent((e) => {
+      if (e.t === 'tunnel-down') logger.warn(`tunnel to ${opts.host} lost — reconnecting…`);
+      if (e.t === 'tunnel-up') logger.info('tunnel restored');
+      eventCbs.forEach((cb) => cb(e));
+    });
+
+    return {
+      origin: ui.origin,
+      browserUrl: `${ui.origin}/?host=${encodeURIComponent(opts.host)}#token=${endpoint.token}`,
+      nonce: ui.nonce,
+      daemon,
+      daemonLifetime: endpoint.daemonLifetime,
+      onEvent(cb) {
+        eventCbs.add(cb);
+        return () => eventCbs.delete(cb);
+      },
+      async stop() {
+        await closeRemoteResources(ui, oauthForward, endpoint, tunnel, ssh);
+      },
+    };
+  } catch (err) {
+    try {
+      await closeRemoteResources(
+        uiResource,
+        oauthForwardResource,
+        endpointResource,
+        tunnelResource,
+        ssh,
+      );
+    } catch {
+      // Preserve the setup failure; cleanup errors are secondary here.
+    }
+    throw err;
+  }
+}
+
+async function closeRemoteResources(
+  ui: Awaited<ReturnType<typeof startUiServer>> | undefined,
+  oauthForward: Awaited<ReturnType<typeof openCallbackForward>> | undefined,
+  endpoint: Awaited<ReturnType<typeof ensureDaemon>> | undefined,
+  tunnel: Awaited<ReturnType<typeof openTunnel>> | undefined,
+  ssh: SshTransport,
+): Promise<void> {
+  const actions: Array<() => void | Promise<void>> = [
+    () => ui?.close(),
+    () => oauthForward?.(),
+    () => endpoint?.lease?.stop(),
+    () => tunnel?.close(),
+    () => ssh.dispose(),
+  ];
+  let firstError: unknown;
+  for (const action of actions) {
+    try {
+      await action();
+    } catch (err) {
+      if (firstError === undefined) firstError = err;
+    }
+  }
+  if (firstError !== undefined) throw firstError;
 }

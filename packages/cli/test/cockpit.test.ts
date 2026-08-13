@@ -7,6 +7,7 @@ import { ensureDaemon } from '../src/lib/cockpit.js';
 import { findFreePort } from '../src/lib/net.js';
 import { startUiServer } from '../src/lib/serve/ui-server.js';
 import { LocalTransport } from '../src/lib/transport/local.js';
+import type { ExecResult, Transport } from '../src/lib/transport/transport.js';
 
 describe('ensureDaemon identity probe', () => {
   let daemon: RunningDaemon;
@@ -63,5 +64,90 @@ describe('UI server avoids the daemon port', () => {
     expect(ui.port).not.toBe(start);
     expect(ui.port).toBeGreaterThan(start);
     await ui.close();
+  });
+});
+
+describe('SSH daemon lifetime fallback', () => {
+  it('uses an attached daemon only after a nohup child was reaped', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'puddle-fallback-tarball-'));
+    const tarball = join(dir, 'puddled-v0.0.0-linux-x64.tar.gz');
+    writeFileSync(tarball, 'test seam');
+    const warnings: string[] = [];
+    let fallbackStarts = 0;
+    const ok = (stdout = ''): ExecResult => ({ code: 0, stdout, stderr: '' });
+    const transport: Transport = {
+      kind: 'ssh',
+      label: 'alice@devbox',
+      async exec(command) {
+        if (command.startsWith('kill -0 ')) return { code: 1, stdout: '', stderr: '' };
+        return ok(); // install.sh is deliberately not executed by this test seam
+      },
+      async readFile(path) {
+        if (path.endsWith('/supervisor')) return 'nohup\n';
+        if (path.endsWith('/puddled.pid')) return '12345\n';
+        return null;
+      },
+      async copyTo() {},
+      dispose() {},
+    };
+
+    const endpoint = await ensureDaemon(transport, {
+      tarball,
+      startTimeoutMs: 0,
+      logger: { info() {}, warn: (message) => warnings.push(message) },
+      attachedFallback: async () => {
+        fallbackStarts += 1;
+        return {
+          port: 7434,
+          token: 'a'.repeat(64),
+          bootstrapped: true,
+          daemonLifetime: 'cockpit',
+          lease: { async ensureRunning() {}, async stop() {} },
+        };
+      },
+    });
+
+    expect(endpoint.daemonLifetime).toBe('cockpit');
+    expect(fallbackStarts).toBe(1);
+    expect(warnings).toEqual([expect.stringContaining('keeping it attached to this cockpit')]);
+  });
+
+  it.each([
+    { supervisor: 'systemd', pidAlive: false },
+    { supervisor: 'nohup', pidAlive: true },
+  ])('refuses the fallback for $supervisor with pidAlive=$pidAlive', async (scenario) => {
+    const dir = mkdtempSync(join(tmpdir(), 'puddle-no-fallback-tarball-'));
+    const tarball = join(dir, 'puddled-v0.0.0-linux-x64.tar.gz');
+    writeFileSync(tarball, 'test seam');
+    let fallbackStarts = 0;
+    const transport: Transport = {
+      kind: 'ssh',
+      label: 'alice@devbox',
+      async exec(command) {
+        if (command.startsWith('kill -0 ')) {
+          return { code: scenario.pidAlive ? 0 : 1, stdout: '', stderr: '' };
+        }
+        return { code: 0, stdout: '', stderr: '' };
+      },
+      async readFile(path) {
+        if (path.endsWith('/supervisor')) return `${scenario.supervisor}\n`;
+        if (path.endsWith('/puddled.pid')) return '12345\n';
+        return null;
+      },
+      async copyTo() {},
+      dispose() {},
+    };
+
+    await expect(
+      ensureDaemon(transport, {
+        tarball,
+        startTimeoutMs: 0,
+        attachedFallback: async () => {
+          fallbackStarts += 1;
+          throw new Error('must not start');
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'daemon_start_timeout' });
+    expect(fallbackStarts).toBe(0);
   });
 });

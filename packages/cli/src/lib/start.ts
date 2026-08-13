@@ -62,6 +62,7 @@ export async function startLocal(opts: StartOptions): Promise<RunningCockpit> {
     browserUrl: `${ui.origin}/#token=${endpoint.token}`,
     nonce: ui.nonce,
     daemon,
+    daemonLifetime: 'persistent',
     onEvent(cb) {
       eventCbs.add(cb);
       return () => eventCbs.delete(cb);

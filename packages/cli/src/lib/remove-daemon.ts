@@ -11,8 +11,9 @@ import { CliError, type Logger, silentLogger } from './types.js';
  * Data stance: without purge, ~/.puddle keeps its DATA — puddle.db (profiles,
  * sessions), agent config dirs, worktrees, PTY logs, the token — so a later
  * `puddle launch` resumes where the removal left off. What goes is what the
- * bootstrap can regenerate: bin/, cache/, runtime.json, and the supervisor
- * registration (systemd user unit / launchd agent / nohup pidfile).
+ * bootstrap can regenerate: bin/, cache/, runtime.json, the supervisor marker,
+ * and the supervisor registration (systemd user unit / launchd agent / nohup
+ * pidfile).
  */
 
 /** Worktrees carrying work a purge would destroy: dirty, or unpushed commits. */
@@ -82,7 +83,7 @@ if [ "\${PUDDLE_PURGE:-0}" = 1 ]; then
   rm -rf "$HOME_DIR"
   say "deleted $HOME_DIR"
 else
-  rm -rf "$HOME_DIR/bin" "$HOME_DIR/cache" "$HOME_DIR/runtime.json"
+  rm -rf "$HOME_DIR/bin" "$HOME_DIR/cache" "$HOME_DIR/runtime.json" "$HOME_DIR/supervisor"
   say "removed the install; data kept under $HOME_DIR"
 fi`;
   const result = await transport.exec(`PUDDLE_PURGE=${opts.purge ? 1 : 0} sh -s`, {

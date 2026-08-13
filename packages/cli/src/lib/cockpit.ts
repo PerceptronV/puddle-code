@@ -2,6 +2,7 @@ import type { VersionResponse } from '@puddle/shared';
 import { installDaemon, installedVersion, type BootstrapOptions } from './bootstrap.js';
 import { DaemonClient, readDaemonPort, readToken, waitForToken } from './daemon-client.js';
 import { sleep } from './net.js';
+import { hostPaths } from './paths.js';
 import type { Transport } from './transport/transport.js';
 import { CliError, type CliEvent, type Logger, silentLogger } from './types.js';
 
@@ -17,7 +18,16 @@ export interface RunningCockpit {
   /** The UI server's per-instance identity (see UiServer.nonce). */
   nonce: string;
   daemon: VersionResponse;
+  /** Whether puddled outlives this cockpit or is held by its SSH connection. */
+  daemonLifetime: 'persistent' | 'cockpit';
   onEvent(cb: (e: CliEvent) => void): () => void;
+  stop(): Promise<void>;
+}
+
+export interface DaemonLease {
+  /** Re-establish the attached daemon after the SSH connection itself recovers. */
+  ensureRunning(): Promise<void>;
+  /** Cleanly stop the daemon before closing the cockpit's SSH connection. */
   stop(): Promise<void>;
 }
 
@@ -27,6 +37,10 @@ export interface DaemonEndpoint {
   token: string;
   /** True when this call installed or restarted the daemon. */
   bootstrapped: boolean;
+  /** Persistent supervisor, or an SSH channel owned by this cockpit. */
+  daemonLifetime: 'persistent' | 'cockpit';
+  /** Present only when daemonLifetime is `cockpit`. */
+  lease?: DaemonLease;
 }
 
 /**
@@ -37,28 +51,32 @@ export interface DaemonEndpoint {
  */
 export async function ensureDaemon(
   transport: Transport,
-  opts: BootstrapOptions & { logger?: Logger },
+  opts: BootstrapOptions & {
+    logger?: Logger;
+    /** SSH-only recovery for hosts that reap a detached nohup child. */
+    attachedFallback?: () => Promise<DaemonEndpoint>;
+    /** Test seam; normal launches use five seconds with a fallback, twenty without. */
+    startTimeoutMs?: number;
+  },
 ): Promise<DaemonEndpoint> {
   const logger = opts.logger ?? silentLogger;
+  const startTimeoutMs =
+    opts.startTimeoutMs ?? (opts.attachedFallback === undefined ? 20_000 : 5_000);
   let bootstrapped = false;
 
-  let token = await readToken(transport);
+  const token = await readToken(transport);
   if (token === null) {
     // Never installed (or never started): first-time bootstrap. The daemon
     // writes runtime.json only once it has bound, so wait for it to answer
     // rather than probe a port it may not be listening on yet.
     await installDaemon(transport, opts);
     bootstrapped = true;
-    token = await waitForToken(transport, 20_000);
-    const up = await waitForHostProbe(transport, token, 20_000);
-    if (up.result === 'unauthorised') throw portConflict(transport, up.port);
-    if (up.result !== 'ok') throw startTimeout(transport);
-    return { port: up.port, token, bootstrapped };
+    return waitAfterInstall(transport, opts, logger, bootstrapped, startTimeoutMs);
   }
 
   // Installed and holding a token: probe the discoverable port once — the fast
   // path for an already-running daemon.
-  let port = await readDaemonPort(transport);
+  const port = await readDaemonPort(transport);
   const probe = await hostProbe(transport, port, token);
   if (probe === 'unauthorised') throw portConflict(transport, port);
   if (probe === 'down') {
@@ -76,14 +94,64 @@ export async function ensureDaemon(
     }
     await installDaemon(transport, opts); // idempotent: (re)installs + restarts
     bootstrapped = true;
-    token = (await readToken(transport)) ?? token;
-    const after = await waitForHostProbe(transport, token, 20_000);
-    if (after.result === 'unauthorised') throw portConflict(transport, after.port);
-    if (after.result !== 'ok') throw startTimeout(transport);
-    port = after.port;
+    return waitAfterInstall(transport, opts, logger, bootstrapped, startTimeoutMs);
   }
 
-  return { port, token, bootstrapped };
+  return { port, token, bootstrapped, daemonLifetime: 'persistent' };
+}
+
+async function waitAfterInstall(
+  transport: Transport,
+  opts: { attachedFallback?: () => Promise<DaemonEndpoint> },
+  logger: Logger,
+  bootstrapped: boolean,
+  timeoutMs: number,
+): Promise<DaemonEndpoint> {
+  try {
+    const started = await waitForStartedDaemon(transport, timeoutMs);
+    return { ...started, bootstrapped, daemonLifetime: 'persistent' };
+  } catch (err) {
+    if (
+      !(err instanceof CliError) ||
+      err.code !== 'daemon_start_timeout' ||
+      opts.attachedFallback === undefined ||
+      !(await detachedNohupWasReaped(transport))
+    ) {
+      throw err;
+    }
+    logger.warn(
+      `puddled could not stay detached on ${transport.label} — keeping it attached to this cockpit; ` +
+        'session state stays on disk and can resume on the next launch',
+    );
+    return opts.attachedFallback();
+  }
+}
+
+/**
+ * A fallback is safe only when install.sh explicitly selected nohup and its
+ * recorded child is no longer alive. A live-but-unhealthy process or a real
+ * supervisor must be diagnosed, never joined by a competing daemon.
+ */
+async function detachedNohupWasReaped(transport: Transport): Promise<boolean> {
+  if (transport.kind !== 'ssh') return false;
+  const supervisor = (await transport.readFile(hostPaths.supervisor))?.trim();
+  if (supervisor !== 'nohup') return false;
+  const rawPid = (await transport.readFile(hostPaths.pid))?.trim() ?? '';
+  if (!/^[1-9][0-9]*$/.test(rawPid)) return true;
+  const probe = await transport.exec(`kill -0 ${rawPid}`, { timeoutMs: 5000 });
+  return probe.code !== 0;
+}
+
+/** Wait for a freshly spawned daemon's token and authenticated host-local API. */
+export async function waitForStartedDaemon(
+  transport: Transport,
+  timeoutMs: number,
+): Promise<{ port: number; token: string }> {
+  const token = await waitForToken(transport, timeoutMs);
+  const up = await waitForHostProbe(transport, token, timeoutMs);
+  if (up.result === 'unauthorised') throw portConflict(transport, up.port);
+  if (up.result !== 'ok') throw startTimeout(transport);
+  return { port: up.port, token };
 }
 
 function startTimeout(transport: Transport): CliError {
@@ -155,9 +223,14 @@ export function makeUpgrader(
   transport: Transport,
   client: DaemonClient,
   opts: BootstrapOptions & { logger?: Logger },
+  lease?: DaemonLease,
 ): () => Promise<void> {
   return async () => {
     await installDaemon(transport, opts);
+    // install.sh restarts the selected supervisor. On an attached host that
+    // attempt is another reaped nohup child, so restore the cockpit-owned
+    // process before waiting for the upgraded API.
+    await lease?.ensureRunning();
     const deadline = Date.now() + 30_000;
     while (Date.now() < deadline) {
       if (await client.responds()) return;

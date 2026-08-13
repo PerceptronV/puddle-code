@@ -44,7 +44,10 @@ puddle launch
 
 This installs the Puddle daemon under `~/.puddle` and serves the GUI at `http://localhost:7433`.
 
-Note that Ctrl-C closes the GUI only, while agent sessions keep running.
+Ctrl-C normally closes only the GUI while agent sessions keep running. On an SSH host that reaps
+detached processes, Puddle instead keeps the daemon attached to the cockpit; closing it interrupts
+live processes. The next `puddle launch` restarts the daemon from the host's persistent state and,
+when auto-resume is enabled (the default), restores the interrupted sessions.
 
 **Daemon-only installs:**
 
@@ -78,7 +81,10 @@ xattr -dr com.apple.quarantine /Applications/Puddle.app
 
 Building from source avoids the dance entirely (locally built apps are never quarantined): `pnpm build && pnpm --filter @puddle/desktop dist`.
 
-**Host requirements**: Linux (glibc — Ubuntu 22.04+, Debian 12+, RHEL 9+; Alpine is not supported) or macOS, with `git` and `curl`, plus whichever agent CLIs you want on `PATH`. The client side works from any OS with a browser and `ssh` (Windows works, with repeated auth prompts unless you use a key).
+**Host requirements**: Linux with glibc 2.28+ (Ubuntu 20.04+, Debian 11+, RHEL/Rocky 8+;
+Alpine is not supported) or macOS, with `git` and `curl`, plus whichever agent CLIs you want on
+`PATH`. The client side works from any OS with a browser and `ssh` (Windows works, with repeated
+auth prompts unless you use a key).
 
 ## How it works
 
@@ -117,7 +123,13 @@ node packages/cli/dist/index.js start --tarball dist-release/puddled-v*.tar.gz -
 
 `--tarball` sets the install _source_ only, and is consulted **only when the CLI actually installs the daemon** — when none is running, the daemon is stopped, or a protocol-major upgrade fires. If a compatible daemon (same protocol major) is already up, `start` just serves the cockpit against it and **the tarball is ignored** (even a newer app version — nothing compares app versions). So to load a fresh dev build over a running daemon you must **stop it first** (see _Kill_ below), then re-run `start --tarball …`. `--foreground` keeps the cockpit attached (`connect <user>@<host> --tarball …` is the remote form). Both clients share one `~/.puddle` daemon and cockpit registry, so `puddle list` / `puddle kill` see either — don't point both at the same host at once. (Never launch the daemon from inside a coding-agent shell: it inherits the agent's env and breaks conversation resume — use a plain terminal.)
 
-**Kill.** `puddle kill --all` (or Ctrl-C in a `--foreground` run) stops the local cockpit UI only; the daemon and its agent sessions keep running. The daemon is auto-restarting (launchd `KeepAlive`, systemd `Restart=always`), so a plain `kill <pid>` bounces straight back — stop it through its supervisor:
+**Kill.** `puddle kill --all` (or Ctrl-C in a `--foreground` run) normally stops the local cockpit
+UI only; a supervised daemon and its sessions keep running. When launch reported that it is keeping
+the daemon attached over SSH, killing that cockpit cleanly interrupts its processes instead; the
+next launch reconciles them from `~/.puddle` and auto-resumes them when that host setting is enabled.
+A supervised daemon is auto-restarting
+(launchd `KeepAlive`, systemd `Restart=always`), so a plain `kill <pid>` bounces straight back — stop
+it through its supervisor:
 
 ```sh
 launchctl bootout gui/$(id -u)/dev.puddle.puddled   # macOS (launchd)
