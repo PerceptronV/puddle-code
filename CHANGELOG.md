@@ -9,6 +9,10 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Added
+
+- Add locked Markdown and HTML preview slots that follow the active renderable tab and its proportional vertical scroll position.
+
 ### Fixed
 
 - Keep short file tabs content-sized like agent and terminal tabs.

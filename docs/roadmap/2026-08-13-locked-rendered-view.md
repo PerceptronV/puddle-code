@@ -1,7 +1,7 @@
 # Locked rendered-view scroll following
 
-**Status:** Deferred — design only; no implementation or protocol bump has
-landed.
+**Status:** Implemented — protocol 16.0 and the browser-local scroll adapters
+landed on 2026-08-13.
 
 **Recorded:** 2026-08-13
 

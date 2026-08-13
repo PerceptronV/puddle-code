@@ -152,6 +152,22 @@ the explorer, diff, and history views at.
     Monaco's model list/listeners in DevTools: hidden original models and diff
     controllers disappear with their source editor, with no console disposal
     warnings or steadily growing model count.
+11. **Locked rendered views.** Split a long Markdown file's source beside one,
+    then several, locked previews. Scroll, type, undo/redo, and resize panes:
+    every locked surface follows the focused source's proportional vertical
+    progress after content reflow, while scrolling a locked surface moves
+    nothing else. Use an ordinary Markdown preview as the driver, switch among
+    source/preview/linked/locked, and confirm linked and locked slots retarget
+    together without either follower becoming a driver. Switch to another file
+    and confirm no position from the old target is applied before the new target
+    publishes. Repeat with a long HTML file, a page that sends its own
+    `postMessage`, and content that changes height after load; the locked iframe
+    follows, its sandbox still lacks `allow-same-origin`, and DevTools shows no
+    token in `srcdoc` or bridge messages. Repeat with a rooted external file
+    whose relative path matches a worktree file, under project- and profile-wide
+    layouts, in both themes and two browser windows. Reload, then repeatedly
+    open, close, and retarget panes; scroll state starts fresh and Monaco models,
+    DOM/message listeners, observers, and iframe channels do not accumulate.
 
 Record any UI/daemon mismatches found here as issues; adapter corrections
 still go to `packages/daemon/src/agents/claude-code.ts` per phase-1.
