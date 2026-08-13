@@ -324,13 +324,14 @@ function PaneTab({
             // until the chip reaches its cap.
             containerClassName="flex-[0_1_auto]"
             // Keep the revealed tail to the left of the controls laid over
-            // this edge. The padding is inside the measured scroll width, so
-            // it reserves nothing in the tab's resting layout.
+            // this edge. The matching negative margin removes the padding
+            // from the label's intrinsic width while leaving it inside the
+            // measured scroll width for the marquee.
             className={
               (tabKind(tab.tab) === 'file' || tabKind(tab.tab) === 'external') &&
               previewKind(tab.tab.path) !== null
-                ? 'pr-16'
-                : 'pr-11'
+                ? '-mr-16 pr-16'
+                : '-mr-11 pr-11'
             }
           />
           {/* In flow AFTER the filename — the chip widens for it (to its cap;

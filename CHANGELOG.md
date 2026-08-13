@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Make short file tabs shrink to their visible labels without counting hidden hover-control spacing.
