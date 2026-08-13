@@ -40,6 +40,7 @@ import {
   buildOnboardingPreamble,
 } from './onboarding.js';
 import type { MarkerFileSync } from './onboarding.js';
+import { SessionRefs } from './session-refs.js';
 
 export interface SessionServiceDeps {
   profiles: ProfileStore;
@@ -159,11 +160,13 @@ export class SessionService extends EventEmitter {
   private readonly expectedExits = new Set<string>();
   /** `${sessionId}:${name}` pairs already warned about, so cap notes fire once. */
   private readonly envDropNoted = new Set<string>();
+  private readonly sessionRefs: SessionRefs;
   private shuttingDown = false;
   private readonly titleTimer: ReturnType<typeof setInterval>;
 
   constructor(private readonly deps: SessionServiceDeps) {
     super();
+    this.sessionRefs = new SessionRefs(deps);
     deps.ptys.on('data', (e: PtyDataEvent) => this.onPtyData(e));
     deps.ptys.on('exit', (e: PtyExitEvent) => this.onPtyExit(e));
     deps.ptys.on('env-delta', (e: PtyEnvDeltaEvent) => this.onEnvDelta(e));
@@ -332,15 +335,16 @@ export class SessionService extends EventEmitter {
       prompt: preamble === '' ? undefined : preamble,
       skipPermissions: skip,
     };
-    this.spawnAgent(
-      sessionId,
-      worktree.worktreePath,
-      account,
-      adapter,
-      adapter.launchArgs(launchOpts),
-      'starting',
+    const ref = await this.sessionRefs.resolveOnLaunch(session, account, adapter, launchOpts, () =>
+      this.spawnAgent(
+        sessionId,
+        worktree.worktreePath,
+        account,
+        adapter,
+        adapter.launchArgs(launchOpts),
+        'starting',
+      ),
     );
-    const ref = await adapter.resolveSessionRef(launchOpts, account);
     this.deps.sessions.setAgentSessionRef(sessionId, ref);
     // Adopt-after-first-write: the conversation file rarely exists this early,
     // so this is a best-effort first attempt; the waiting_input flip retries.
@@ -575,22 +579,7 @@ export class SessionService extends EventEmitter {
     }
     assertBinaryAvailable(adapter); // before assertLoggedIn — see its doc comment
     await this.assertLoggedIn(account, adapter);
-    let ref = session.agent_session_ref;
-    if (!ref) throw ApiError.conflict('no_session_ref', 'no agent session ref recorded');
-    if (adapter.hasConversation && !adapter.hasConversation(ref, account)) {
-      // The recorded ref matches nothing — e.g. the agent's login screen
-      // restarted the session under a fresh id. Recover by worktree.
-      const recovered = adapter.discoverSessionRef?.(session.worktree_path, account) ?? null;
-      if (recovered === null) {
-        throw ApiError.conflict(
-          'conversation_missing',
-          `${adapter.displayName} has no conversation ${ref} for this account; the session cannot resume`,
-        );
-      }
-      ref = recovered;
-      this.deps.sessions.setAgentSessionRef(id, ref);
-      this.deps.events.record(id, 'session_ref_recovered', { ref });
-    }
+    const ref = this.sessionRefs.resolveForResume(session, account, adapter);
 
     const wasInterrupted = session.status === 'interrupted';
     const { skip } = this.resumeSpawn(session, account, adapter, project.profile_id, ref, {

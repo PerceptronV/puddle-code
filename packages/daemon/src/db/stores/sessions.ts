@@ -202,7 +202,7 @@ export class SessionStore {
     return this.get(id);
   }
 
-  setAgentSessionRef(id: string, ref: string): void {
+  setAgentSessionRef(id: string, ref: string | null): void {
     this.db.prepare(`UPDATE sessions SET agent_session_ref = ? WHERE id = ?`).run(ref, id);
   }
 

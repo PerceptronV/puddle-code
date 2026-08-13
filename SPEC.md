@@ -156,6 +156,10 @@ CREATE TABLE sessions (
   last_activity_at TEXT
 );
 
+CREATE UNIQUE INDEX idx_sessions_account_agent_ref
+ON sessions(account_id, agent_session_ref)
+WHERE account_id IS NOT NULL AND agent_session_ref IS NOT NULL;
+
 CREATE TABLE scratchpad (                -- per-profile Scratchpad: prompts + notes (see §11)
   id INTEGER PRIMARY KEY,
   profile_id TEXT NOT NULL REFERENCES profiles(id),
@@ -268,6 +272,13 @@ All fetches use the OS user's normal git credentials, are serialised through the
 The core is agent-agnostic. Each agent is one module in `packages/daemon/src/agents/<id>.ts` implementing:
 
 ```ts
+export interface SessionRefContext {
+  sessionId: string; // puddle session id
+  worktreePath: string;
+  createdAt: string; // immutable sessions.created_at anchor
+  excludeRefs?: ReadonlySet<string>; // refs proven to belong elsewhere
+}
+
 export interface AgentAdapter {
   id: string; // 'claude-code', 'codex', 'opencode', 'gemini-cli'
   displayName: string;
@@ -293,9 +304,23 @@ export interface AgentAdapter {
   // VERIFIED via checkLoggedIn where one exists, never assumed, since
   // quitting a TUI without signing in also exits 0.
   loginHint?: string;
+  // Minted-id adapters snapshot every ref already present in the cwd before
+  // launch; the core serialises snapshot → spawn → resolve per account/cwd.
+  existingSessionRefs?(worktree: string, account: AccountRow): ReadonlySet<string>;
   // Returns the agent-native session ref. Either echoes the preset id, or
-  // discovers it post-launch (e.g. newest session file in the config dir).
-  resolveSessionRef(opts: LaunchOpts, account: AccountRow): Promise<string>;
+  // discovers a post-launch ref that was absent from the snapshot.
+  resolveSessionRef(
+    opts: LaunchOpts,
+    account: AccountRow,
+    excludeRefs?: ReadonlySet<string>,
+  ): Promise<string>;
+  // Creation-time recovery for a missing, duplicated, or mismatched stored ref.
+  discoverSessionRef?(
+    worktree: string,
+    account: AccountRow,
+    context?: SessionRefContext,
+  ): string | null;
+  sessionRefMatches?(ref: string, context: SessionRefContext, account: AccountRow): boolean;
   // The agent's own human-readable session name (claude-code: the transcript's
   // agent-name/ai-title), or null before it names the session. Read-only; used
   // as the default display name (sessions.agent_title) before any user rename (§4).
@@ -315,8 +340,8 @@ export interface AgentAdapter {
 Capability notes per adapter (**verify every flag against the installed version during Phase 1/7 — agent CLIs change fast; encode findings in the adapter, never in core**):
 
 - **claude-code**: isolation via `CLAUDE_CONFIG_DIR`; supports `--session-id <uuid>` at launch (→ `presetSessionId: true`) and `claude --resume <uuid>`; skip mode `--dangerously-skip-permissions`; conversations stored as JSONL under `<config_dir>/projects/<escaped-cwd>/<uuid>.jsonl`.
-- **codex** (verified against codex-cli 0.146.0): isolation via `CODEX_HOME` alone, which relocates config, sessions and credentials together. Rollouts at `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-<ts>-<uuid>.jsonl`, whose first `session_meta` line carries the session `id` and the `cwd` conversation lookup matches on. Resume `codex resume <id> [prompt]` (or `--last`); bypass `--dangerously-bypass-approvals-and-sandbox` — **`--yolo` does not exist in 0.146.0** despite the published docs. `codex login status` exits non-zero when logged out, so the exit code alone drives `checkLoggedIn`. Session ids are not presettable, so `presetSessionId: false` and `agent_session_ref !== sessions.id` — the first adapter where those diverge. Its live idle composer renders as `› … <model> · <directory>` after ANSI stripping; that observed signature, not the absent `? for shortcuts` string found in the binary, drives `waiting_input`.
-- **opencode** (verified against opencode 1.18.10): isolation needs **all four XDG roots** — `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `XDG_STATE_HOME` — because `auth.json` and the session store live under the DATA root, not the config one. `OPENCODE_CONFIG_DIR` relocates _nothing_ (verified with `opencode debug paths`) and is useless for account isolation. Resume `--session <ses_id>`; skip mode is `--auto`, so `skipPermissions: true` — an earlier revision of this spec wrongly said opencode's permissions were configured rather than flagged. `opencode export <id>` yields the transcript. Caveat: redirecting `XDG_CONFIG_HOME` also hides an XDG-located global gitignore from git commands the agent runs; identity is unaffected (`~/.gitconfig` is HOME-based).
+- **codex** (flags/storage re-verified against codex-cli 0.147.0; live idle signature against 0.146.0): isolation via `CODEX_HOME` alone, which relocates config, sessions and credentials together. Conversation state is split: rollouts live at `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-<ts>-<uuid>.jsonl`, while `$CODEX_HOME/state_<n>.sqlite` indexes the same threads. The first rollout `session_meta` carries the session `id`, `cwd`, creation timestamp, and (for child agents) `parent_thread_id`; the SQLite row carries the id/cwd/time sooner, before a large rollout header is necessarily readable. Resume `codex resume <id> [prompt]` (or `--last`); bypass `--dangerously-bypass-approvals-and-sandbox` — **`--yolo` does not exist in 0.147.0** despite older published docs. `codex login status` exits non-zero when logged out, so the exit code alone drives `checkLoggedIn`. Session ids are not presettable, so `presetSessionId: false` and `agent_session_ref !== sessions.id` — the first adapter where those diverge. Before launch puddle snapshots the account/cwd's existing top-level refs, then reads the state index first (rollout scan fallback) for a new one while excluding that snapshot; child threads are never eligible. On resume, a ref must be the unique closest match to the puddle session's cwd and creation time (within the bounded startup window), preventing a real but unrelated rollout from hijacking the row. Its live idle composer renders as `› … <model> · <directory>` after ANSI stripping; that observed signature, not the absent `? for shortcuts` string found in the binary, drives `waiting_input`.
+- **opencode** (verified against opencode 1.18.10): isolation needs **all four XDG roots** — `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `XDG_STATE_HOME` — because `auth.json` and the session store live under the DATA root, not the config one. `OPENCODE_CONFIG_DIR` relocates _nothing_ (verified with `opencode debug paths`) and is useless for account isolation. Resume `--session <ses_id>`; skip mode is `--auto`, so `skipPermissions: true` — an earlier revision of this spec wrongly said opencode's permissions were configured rather than flagged. Like Codex, OpenCode mints ids, so launch captures a ref absent from the pre-launch account/cwd snapshot and resume validates/re-recovers it from the stored creation time. `opencode export <id>` yields the transcript. Caveat: redirecting `XDG_CONFIG_HOME` also hides an XDG-located global gitignore from git commands the agent runs; identity is unaffected (`~/.gitconfig` is HOME-based).
 - **gemini-cli** (verified against @google/gemini-cli 0.53.1): isolation via **`GEMINI_CLI_HOME`**, which the CLI checks before `os.homedir()`; state lands at `<config_dir>/.gemini/`. The widely cited `GEMINI_CONFIG_DIR` is ignored and would leave the CLI writing into the user's real `~/.gemini`, breaching §2. `--session-id <uuid>` presets the id (`presetSessionId: true`); resume `--resume <ref>`; skip mode `--approval-mode yolo`. `--prompt` is headless and exits, so an initial prompt must use `--prompt-interactive`. It has **no `auth` subcommand**, so login is a bare launch into the first-run picker and `checkLoggedIn` inspects the credentials file.
 
 None of the three newer adapters has a hook side-channel, so `statusPatterns` is its only status driver. Codex's pattern is verified against a live logged-in 0.146.0 PTY; OpenCode and Gemini CLI remain best-effort until their logged-in acceptance runs. `docs/acceptance/phase-7-agents.md` carries the evidence and remaining checks.
@@ -324,6 +349,8 @@ None of the three newer adapters has a hook side-channel, so `statusPatterns` is
 When a capability is `false`, degrade gracefully: e.g. no `resume` → offer "new session in the same worktree", pre-filling a prompt that summarises the branch state (`git log --oneline base..HEAD` + `git status`).
 
 Adding an agent = adding one file + registering it; PRs adding adapters must not touch core session logic.
+
+Every non-null `(account_id, agent_session_ref)` pair is unique. Migration 020 clears all legacy duplicate claims (the conversation files remain untouched); on the next resume, adapters recover each cleared or mismatched ref from the puddle row's immutable `created_at`, excluding conversations already proven to belong to another row. If no creation-time match exists, resume fails visibly with `conversation_missing` rather than opening an unrelated conversation.
 
 ### Errors are never silent
 
@@ -350,6 +377,8 @@ Two tiers, surfaced as one "Continue on…" action in the session menu (and offe
 - **Tier 1 — same agent, different account (migration).** The conversation does **not** move on migration — it already lives in the profile's **shared conversation store** and is reachable from every account. Migration then stops the session's process (it has usually already exited — credit exhaustion), updates `sessions.account_id`, and runs the normal resume path with account B's env; same worktree, same branch, same conversation, different credentials, recorded in an `events` row. Implemented as `POST /api/sessions/:id/migrate {account_id}` (§6) with a strict fall-through: (a) the target reads the conversation through the shared store's symlink → no files move; (b) otherwise, an agent that implements the `migrateSession` adapter hook copies its state across (rolled back on a later resume failure); (c) neither → `409 migration_unsupported`. Only (a) is used for claude-code — the shared store supersedes its (still-declared) `migrateSession` capability, kept for agents whose state can't be shared this way. **Ancillary caveat:** per-account state that is _not_ part of the conversation dir does not migrate — for claude-code the `todos/<uuid>*.json` list stays with the origin account (pinned in `claude-share.ts`); a migrated session resumes its full transcript but may lose its todo list, which the agent rebuilds.
 
   **Shared conversation store (Workstream S).** For agents whose conversations live in per-conversation directories (claude-code: `<config_dir>/projects/<escaped-cwd>/`), puddle adopts each such directory into a per-profile canonical store at `profiles/<id>/sessions/<agent_type>/<store-key>/` the first time it appears on disk (adopt-after-first-write, on the session's first `waiting_input`), leaving an absolute symlink at the original location and **mirroring** the same symlink into every other account of that (profile, agent). The store-key is the basename of the agent's own conversation dir — for claude-code that name is escaped from the MAIN repository root, so one canonical dir may span a repo's worktrees. All agent-specific mechanics (where the store dirs are, which files belong to a conversation, which are per-account ancillary state like `todos/`) live behind an adapter `conversationShare` hook group; the manager (`ConversationShare`) is agent-agnostic and serialises every filesystem mutation under a `share:<agent>:<profile>` mutex. Creating an account **backfills** it with symlinks to the profile's existing conversations (folding in a real dir an imported config brought along); boot **reconciles** links (repairing missing ones, dropping dangling ones); archiving a session keeps its conversation (archiving is a reversible hide — §4), so an unarchive can resume it; deleting an account removes its config dir — which unlinks its symlinks without following them, leaving the shared store and its siblings intact. Consequence: after adoption every account of a profile reads the same conversation history through its symlinks, so per-account agent-usage token totals reflect the profile's shared conversations rather than one account's slice. Verified against Claude Code 2.1.209 that `--resume` reads a conversation through a symlinked `projects/<dir>`; the full two-account tier-1 flow is a Task 18 acceptance item.
+
+  Codex, OpenCode, and Gemini CLI do **not** use that symlink store: their state is not a self-contained per-conversation directory (Codex, for example, combines date-bucketed rollouts with account-local indexes). Their account config dirs therefore remain isolated, and same-agent cross-account migration stays unsupported until an adapter can move or share the agent's complete state safely. Puddle's own restart resume uses the exact recorded agent session ref and does not depend on the agent's picker.
 
 - **Tier 2 — different agent (hand-off).** No shared conversation format exists, so the conversation is _summarised, not moved_: a new session is created in the **same worktree** on the target agent/account, seeded with a hand-off prompt built from the source adapter's `exportTranscript` (tail-truncated to 12 000 characters, so recent turns survive), plus `git log --oneline base..HEAD` and `git status` — appended after the truncation so the git context is never what gets cut. Adapters without `exportTranscript` fall back to the session's recorded PTY output, ANSI-stripped; that fallback is core, not per-adapter. Degraded by design — the new agent knows _what happened_, not the old agent's private reasoning (thinking blocks are dropped and tool runs collapse to a count) — but the working tree, branch, and task context carry over completely.
 

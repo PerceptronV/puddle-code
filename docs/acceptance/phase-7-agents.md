@@ -89,14 +89,22 @@ confirm every path points inside the puddle account dir.
   the UI. History must come back. Confirm `sessions.agent_session_ref` is the
   rollout UUID and **not** the puddle session id (this adapter is the first
   where the two differ). If the ref *is* the puddle id, `resolveSessionRef`'s
-  3 s poll expired: check that the rollout appeared and widen it if needed.
+  10 s poll expired: check that the rollout appeared and widen it if needed.
+  Also inspect `state_<n>.sqlite`: its top-level `threads` row should normally
+  let puddle capture the ref before the rollout's first JSONL line is readable.
+  Then create two Codex sessions concurrently in the same shared worktree and
+  account: their refs must be distinct, and neither may be a rollout whose
+  `session_meta.payload.parent_thread_id` is set. Restart the daemon and confirm
+  each session restores its own history. Codex's `/resume` picker is its own
+  cwd-filtered/index-backed UI; puddle restart resume is the explicit UUID path.
 - **codex bypass-on-resume (openai/codex#9144)** — create a session with skip
   permissions on, resume it, then ask it to run a shell command. If it prompts
   for approval, the flag is accepted but not honoured on resume: record that in
   the adapter header and surface it in the UI rather than silently misleading
   the user.
-- **opencode** — same interrupt/resume cycle. Confirm the ref is `ses_`-prefixed
-  and that `discoverSessionRef` finds it (the on-disk store layout under a
+- **opencode** — same interrupt/resume and concurrent shared-worktree cycle.
+  Confirm both refs are distinct and `ses_`-prefixed, and that creation-time
+  `discoverSessionRef` finds each one (the on-disk store layout under a
   redirected `XDG_DATA_HOME` is the part inferred rather than observed).
 - **gemini-cli — the known open risk.** `--resume` is documented as taking
   `latest` or an *index*, but the adapter presets a UUID via `--session-id` and

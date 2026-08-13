@@ -17,8 +17,8 @@ function freshDbFile() {
   return join(mkdtempSync(join(tmpdir(), 'puddle-db-')), 'puddle.db');
 }
 
-function stores() {
-  const db = openDatabase(freshDbFile());
+function stores(file = freshDbFile()) {
+  const db = openDatabase(file);
   return {
     db,
     profiles: new ProfileStore(db),
@@ -91,6 +91,35 @@ describe('openDatabase', () => {
     openDatabase(file).close();
     const db = openDatabase(file);
     expect(db.pragma('user_version', { simple: true })).toBe(MIGRATIONS.at(-1)!.version);
+  });
+
+  it('clears ambiguous legacy refs and enforces one conversation per account', () => {
+    const file = freshDbFile();
+    const seeded = stores(file);
+    const { account, project, session } = seedSession(seeded);
+    const second = seeded.sessions.create({
+      id: 'b2f0c9d4-1111-4222-8333-444455556666',
+      project_id: project.id,
+      account_id: account.id,
+      worktree_path: '/tmp/wt',
+      base_branch: 'main',
+      branch: 'alice/demo-2',
+      kind: 'agent',
+      agent_type: 'claude-code',
+      title: 'demo 2',
+      skip_permissions: false,
+    });
+    seeded.db.exec(`DROP INDEX idx_sessions_account_agent_ref`);
+    seeded.sessions.setAgentSessionRef(session.id, 'duplicate-ref');
+    seeded.sessions.setAgentSessionRef(second.id, 'duplicate-ref');
+    seeded.db.pragma('user_version = 19');
+    seeded.db.close();
+
+    const migrated = stores(file);
+    expect(migrated.sessions.get(session.id).agent_session_ref).toBeNull();
+    expect(migrated.sessions.get(second.id).agent_session_ref).toBeNull();
+    migrated.sessions.setAgentSessionRef(session.id, 'unique-ref');
+    expect(() => migrated.sessions.setAgentSessionRef(second.id, 'unique-ref')).toThrow(/UNIQUE/);
   });
 
   it('enforces foreign keys', () => {

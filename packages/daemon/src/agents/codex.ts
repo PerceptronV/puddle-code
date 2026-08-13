@@ -2,21 +2,22 @@ import { execFile } from 'node:child_process';
 import { statSync } from 'node:fs';
 import { promisify } from 'node:util';
 import type { AgentAdapter } from './adapter.js';
-import { newestRolloutFor, renderRollout, rolloutFiles } from './codex-rollout.js';
-import { threadTitle } from './codex-threads.js';
+import { readRolloutMeta, renderRollout, rolloutFiles, rolloutsFor } from './codex-rollout.js';
+import { codexThreads, threadTitle } from './codex-threads.js';
 
 const execFileAsync = promisify(execFile);
+const SESSION_START_WINDOW_MS = 5 * 60 * 1000;
 
 /**
  * Codex adapter.
  *
- * Flags verified against codex-cli 0.146.0 (2026-07-31), `--help` on a scratch
- * install:
+ * Flags and storage re-verified against codex-cli 0.147.0 (2026-08-12),
+ * `--help` plus live rollout metadata:
  * - `CODEX_HOME` relocates config, sessions and credentials together (verified:
  *   the CLI warns when the path is missing and creates its `tmp/` there). One
  *   variable is enough, unlike opencode.
  * - `--dangerously-bypass-approvals-and-sandbox` is the skip-permissions flag.
- *   **`--yolo` does NOT exist in 0.146.0** despite appearing in published docs;
+ *   **`--yolo` does NOT exist in 0.147.0** despite appearing in older docs;
  *   only the long form is accepted. `resume` accepts the flag too, so it is
  *   passed on both paths — but openai/codex#9144 reports it is not always
  *   HONOURED on resume, which is a runtime check (see docs/acceptance).
@@ -31,9 +32,11 @@ const execFileAsync = promisify(execFile);
  * - Session ids are NOT presettable: codex mints its own rollout id, so
  *   `presetSessionId: false` and `agent_session_ref !== sessions.id` — the
  *   first adapter where those diverge. resolveSessionRef polls briefly for the
- *   rollout file; if it has not appeared it returns the puddle session id as a
- *   placeholder, which `hasConversation` reports as missing so the normal
- *   resume recovery path re-discovers the real ref by cwd.
+ *   state index, excluding every top-level ref present before launch. The
+ *   index is the primary source because it appears before a large rollout's
+ *   first JSONL line is readable; rollout scanning is the compatibility
+ *   fallback. Codex also writes sub-agent rows/rollouts with the same cwd;
+ *   `thread_source` / `parent_thread_id` excludes those.
  * - Rollouts live at `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-<ts>-<uuid>.jsonl`
  *   (verified against real files). Line 1 is a `session_meta` record whose
  *   payload carries `id` and **`cwd`** — the field conversation lookup matches.
@@ -109,12 +112,19 @@ export const codex: AgentAdapter = {
     }
   },
 
-  async resolveSessionRef(opts, account) {
-    // The rollout is written at session start, but the TUI needs a moment. This
-    // blocks session creation, so the wait is short and failure is recoverable.
-    const deadline = Date.now() + 3_000;
+  existingSessionRefs(worktreePath, account) {
+    return new Set(codexSessionsFor(account.config_dir, worktreePath).map((meta) => meta.id));
+  },
+
+  async resolveSessionRef(opts, account, excludeRefs = new Set()) {
+    // The state row normally appears before session_meta is readable. Keep a
+    // bounded fallback wait for older schemas/index failures; a timeout leaves
+    // the puddle id placeholder for creation-time recovery on resume.
+    const deadline = Date.now() + 10_000;
     for (;;) {
-      const ref = newestRolloutFor(account.config_dir, opts.worktreePath)?.id;
+      const ref = codexSessionsFor(account.config_dir, opts.worktreePath).find(
+        (session) => !excludeRefs.has(session.id),
+      )?.id;
       if (ref !== undefined) return ref;
       if (Date.now() >= deadline) break;
       await new Promise((r) => setTimeout(r, 150));
@@ -124,8 +134,23 @@ export const codex: AgentAdapter = {
     return opts.sessionId;
   },
 
-  discoverSessionRef(worktreePath, account) {
-    return newestRolloutFor(account.config_dir, worktreePath)?.id ?? null;
+  discoverSessionRef(worktreePath, account, context) {
+    const candidates = codexSessionsFor(account.config_dir, worktreePath).filter(
+      (meta) => !context?.excludeRefs?.has(meta.id),
+    );
+    if (context === undefined) return candidates[0]?.id ?? null;
+    return rolloutBornFor(candidates, context.createdAt)?.id ?? null;
+  },
+
+  sessionRefMatches(ref, context, account) {
+    return (
+      rolloutBornFor(
+        codexSessionsFor(account.config_dir, context.worktreePath).filter(
+          (candidate) => !context.excludeRefs?.has(candidate.id),
+        ),
+        context.createdAt,
+      )?.id === ref
+    );
   },
 
   hasConversation(ref, account) {
@@ -167,9 +192,59 @@ export const codex: AgentAdapter = {
 
 /** Absolute path of the rollout whose id is `ref`, or null. */
 function rolloutPath(configDir: string, ref: string): string | null {
+  return rolloutForRef(configDir, ref)?.path ?? null;
+}
+
+/** Top-level rollout whose id is `ref`, with metadata validated. */
+function rolloutForRef(
+  configDir: string,
+  ref: string,
+): { path: string; meta: NonNullable<ReturnType<typeof readRolloutMeta>> } | null {
   for (const file of rolloutFiles(configDir)) {
     // The uuid is in the filename, so this needs no file reads in the common case.
-    if (file.endsWith(`-${ref}.jsonl`)) return file;
+    if (!file.endsWith(`-${ref}.jsonl`)) continue;
+    const meta = readRolloutMeta(file);
+    if (meta?.id === ref && meta.parentThreadId === null) return { path: file, meta };
   }
   return null;
+}
+
+/** Codex state-index rows first, with rollout metadata filling any index gaps. */
+function codexSessionsFor(
+  configDir: string,
+  worktreePath: string,
+): Array<{ id: string; cwd: string; createdAt: number | null }> {
+  const indexed = codexThreads(configDir, worktreePath);
+  const seen = new Set(indexed.map((thread) => thread.id));
+  return [
+    ...indexed,
+    ...rolloutsFor(configDir, worktreePath).filter((rollout) => !seen.has(rollout.id)),
+  ];
+}
+
+/** Closest rollout born just after the puddle session row. */
+function rolloutBornFor<T extends { createdAt: number | null }>(
+  candidates: T[],
+  sessionCreatedAt: string,
+): T | undefined {
+  const createdAt = Date.parse(sessionCreatedAt);
+  if (!Number.isFinite(createdAt)) return undefined;
+  const ranked = candidates
+    .filter(
+      (candidate) =>
+        candidate.createdAt !== null &&
+        candidate.createdAt >= createdAt - 5_000 &&
+        candidate.createdAt <= createdAt + SESSION_START_WINDOW_MS,
+    )
+    .sort((a, b) => Math.abs(a.createdAt! - createdAt) - Math.abs(b.createdAt! - createdAt));
+  const best = ranked[0];
+  const second = ranked[1];
+  if (
+    best !== undefined &&
+    second !== undefined &&
+    Math.abs(second.createdAt! - createdAt) - Math.abs(best.createdAt! - createdAt) < 15_000
+  ) {
+    return undefined; // too close to prove ownership safely
+  }
+  return best;
 }

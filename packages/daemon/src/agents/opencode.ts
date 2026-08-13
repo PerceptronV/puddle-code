@@ -11,6 +11,7 @@ const CONFIG_HOME = 'config';
 const DATA_HOME = 'data';
 const CACHE_HOME = 'cache';
 const STATE_HOME = 'state';
+const SESSION_START_WINDOW_MS = 5 * 60 * 1000;
 
 /**
  * OpenCode adapter.
@@ -109,10 +110,14 @@ export const opencode: AgentAdapter = {
     }
   },
 
-  async resolveSessionRef(opts, account) {
-    const deadline = Date.now() + 3_000;
+  existingSessionRefs(worktreePath, account) {
+    return new Set(sessionsFor(account.config_dir, worktreePath).map((session) => session.id));
+  },
+
+  async resolveSessionRef(opts, account, excludeRefs = new Set()) {
+    const deadline = Date.now() + 10_000;
     for (;;) {
-      const ref = newestSessionId(account.config_dir, opts.worktreePath);
+      const ref = newestSessionId(account.config_dir, opts.worktreePath, excludeRefs);
       if (ref !== null) return ref;
       if (Date.now() >= deadline) break;
       await new Promise((r) => setTimeout(r, 150));
@@ -121,8 +126,27 @@ export const opencode: AgentAdapter = {
     return opts.sessionId;
   },
 
-  discoverSessionRef(worktreePath, account) {
-    return newestSessionId(account.config_dir, worktreePath);
+  discoverSessionRef(worktreePath, account, context) {
+    const candidates = sessionsFor(account.config_dir, worktreePath).filter(
+      (session) => !context?.excludeRefs?.has(session.id),
+    );
+    if (context === undefined) return candidates[0]?.id ?? null;
+    return sessionBornFor(candidates, context.createdAt)?.id ?? null;
+  },
+
+  hasConversation(ref, account) {
+    return sessionsFor(account.config_dir).some((session) => session.id === ref);
+  },
+
+  sessionRefMatches(ref, context, account) {
+    return (
+      sessionBornFor(
+        sessionsFor(account.config_dir, context.worktreePath).filter(
+          (candidate) => !context.excludeRefs?.has(candidate.id),
+        ),
+        context.createdAt,
+      )?.id === ref
+    );
   },
 
   async exportTranscript(ref, account) {
@@ -192,10 +216,17 @@ function stripHeading(stdout: string): string {
  * matches — including when the layout is not what this expects, which the
  * acceptance script exists to catch.
  */
-function newestSessionId(configDir: string, worktreePath: string): string | null {
+interface StoredSession {
+  id: string;
+  directory: string;
+  createdAt: number | null;
+  updatedAt: number;
+}
+
+function sessionsFor(configDir: string, worktreePath?: string): StoredSession[] {
   const root = join(dataDir(configDir), 'storage', 'session');
-  if (!existsSync(root)) return null;
-  let best: { id: string; time: number } | null = null;
+  if (!existsSync(root)) return [];
+  const found: StoredSession[] = [];
   for (const file of walkJson(root, 3)) {
     const name = file.split('/').pop() ?? '';
     if (!name.startsWith('ses_') || !name.endsWith('.json')) continue;
@@ -207,15 +238,62 @@ function newestSessionId(configDir: string, worktreePath: string): string | null
         time?: { updated?: number; created?: number };
       };
       const dir = record.directory ?? record.cwd;
-      if (dir !== worktreePath) continue;
+      if (dir === undefined || (worktreePath !== undefined && dir !== worktreePath)) continue;
       const id = record.id ?? name.slice(0, -'.json'.length);
-      const time = record.time?.updated ?? record.time?.created ?? 0;
-      if (best === null || time > best.time) best = { id, time };
+      found.push({
+        id,
+        directory: dir,
+        createdAt: normaliseEpoch(record.time?.created),
+        updatedAt:
+          normaliseEpoch(record.time?.updated) ?? normaliseEpoch(record.time?.created) ?? 0,
+      });
     } catch {
       /* unreadable or unexpected shape — skip */
     }
   }
-  return best?.id ?? null;
+  return found.sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+function newestSessionId(
+  configDir: string,
+  worktreePath: string,
+  excludeRefs: ReadonlySet<string> = new Set(),
+): string | null {
+  return (
+    sessionsFor(configDir, worktreePath).find((session) => !excludeRefs.has(session.id))?.id ?? null
+  );
+}
+
+function sessionBornFor<T extends { createdAt: number | null }>(
+  candidates: T[],
+  sessionCreatedAt: string,
+): T | undefined {
+  const createdAt = Date.parse(sessionCreatedAt);
+  if (!Number.isFinite(createdAt)) return undefined;
+  const ranked = candidates
+    .filter(
+      (candidate) =>
+        candidate.createdAt !== null &&
+        candidate.createdAt >= createdAt - 5_000 &&
+        candidate.createdAt <= createdAt + SESSION_START_WINDOW_MS,
+    )
+    .sort((a, b) => Math.abs(a.createdAt! - createdAt) - Math.abs(b.createdAt! - createdAt));
+  const best = ranked[0];
+  const second = ranked[1];
+  if (
+    best !== undefined &&
+    second !== undefined &&
+    Math.abs(second.createdAt! - createdAt) - Math.abs(best.createdAt! - createdAt) < 15_000
+  ) {
+    return undefined; // too close to prove ownership safely
+  }
+  return best;
+}
+
+/** OpenCode currently stores epoch milliseconds; tolerate seconds from older builds. */
+function normaliseEpoch(value: number | undefined): number | null {
+  if (value === undefined || !Number.isFinite(value)) return null;
+  return value < 10_000_000_000 ? value * 1000 : value;
 }
 
 /** Absolute paths of every .json file under `dir`, to a bounded depth. */

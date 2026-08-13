@@ -15,9 +15,16 @@ import { join } from 'node:path';
  *   down, not a display string.
  *
  * Read-only and best-effort. The filename carries a schema version, so a codex
- * upgrade can rename or reshape it out from under us; everything here fails to
- * `null`, which just leaves the session on its previous name.
+ * upgrade can rename or reshape it out from under us; reads fail to a neutral
+ * `null`/empty result and rollout scanning remains available for ref discovery.
  */
+
+export interface CodexThread {
+  id: string;
+  cwd: string;
+  createdAt: number | null;
+  rolloutPath: string;
+}
 
 /** Newest `state_<n>.sqlite` under the config dir, or null. */
 function stateDbPath(configDir: string): string | null {
@@ -35,6 +42,61 @@ function stateDbPath(configDir: string): string | null {
     if (best === null || version > best.version) best = { path: join(configDir, name), version };
   }
   return best?.path ?? null;
+}
+
+/**
+ * Top-level thread rows, newest first. The state DB is written before a large
+ * rollout's first JSONL record is necessarily readable, so it is the primary
+ * source for launch-time id capture; rollout scanning remains the fallback.
+ */
+export function codexThreads(configDir: string, cwd?: string): CodexThread[] {
+  const path = stateDbPath(configDir);
+  if (path === null || !existsSync(path)) return [];
+  let db: Database.Database | undefined;
+  try {
+    db = new Database(path, { readonly: true, fileMustExist: true });
+    const columns = new Set(
+      (db.prepare('pragma table_info(threads)').all() as Array<{ name: string }>).map(
+        (column) => column.name,
+      ),
+    );
+    const createdMs = columns.has('created_at_ms')
+      ? 'coalesce(created_at_ms, created_at * 1000)'
+      : 'created_at * 1000';
+    const threadSource = columns.has('thread_source') ? 'thread_source' : 'NULL';
+    const rows = db
+      .prepare(
+        `select id, cwd, ${createdMs} as created_ms, rollout_path,
+                ${threadSource} as thread_source, source
+         from threads
+         ${cwd === undefined ? '' : 'where cwd = ?'}
+         order by created_ms desc, id desc`,
+      )
+      .all(...(cwd === undefined ? [] : [cwd])) as Array<{
+      id: string;
+      cwd: string;
+      created_ms: number | null;
+      rollout_path: string;
+      thread_source: string | null;
+      source: string;
+    }>;
+    return rows
+      .filter((row) => row.thread_source !== 'subagent' && !row.source.includes('"subagent"'))
+      .map((row) => ({
+        id: row.id,
+        cwd: row.cwd,
+        createdAt: row.created_ms,
+        rolloutPath: row.rollout_path,
+      }));
+  } catch {
+    return [];
+  } finally {
+    try {
+      db?.close();
+    } catch {
+      /* nothing useful to do */
+    }
+  }
 }
 
 /**

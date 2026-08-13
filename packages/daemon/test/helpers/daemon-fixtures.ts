@@ -229,6 +229,8 @@ export function fixture(
     agentBinary?: string;
     /** Hold back the fake agent's first output, for `starting` status tests. */
     agentStartDelayMs?: number;
+    /** Primary adapter override for adapter-contract/session-ref tests. */
+    adapter?: AgentAdapter;
     /**
      * Registers a second agent type ('fake2') with its own account, for
      * cross-agent hand-off. Its `exportTranscript` is provided, so the primary
@@ -266,11 +268,12 @@ export function fixture(
     sessions: stores.sessions,
   });
   const adapters = new AdapterRegistry([
-    fakeAdapter({
-      share: opts.share,
-      binary: opts.agentBinary,
-      startDelayMs: opts.agentStartDelayMs,
-    }),
+    opts.adapter ??
+      fakeAdapter({
+        share: opts.share,
+        binary: opts.agentBinary,
+        startDelayMs: opts.agentStartDelayMs,
+      }),
     ...(opts.secondAgent
       ? [
           fakeAdapter({
@@ -303,12 +306,13 @@ export function fixture(
 
   const repoPath = initRepo();
   const profile = stores.profiles.create({ name: 'alice', branch_prefix: 'alice/' });
-  const configDir = paths.accountConfigDir(profile.id, 'fake', 'personal');
+  const primaryAgentType = opts.adapter?.id ?? 'fake';
+  const configDir = paths.accountConfigDir(profile.id, primaryAgentType, 'personal');
   mkdirSync(configDir, { recursive: true });
   writeFileSync(join(configDir, 'creds.json'), '{}'); // fake adapter's logged-in marker
   const account = stores.accounts.create({
     profile_id: profile.id,
-    agent_type: 'fake',
+    agent_type: primaryAgentType,
     label: 'personal',
     config_dir: configDir,
     skip_permissions_default: false,

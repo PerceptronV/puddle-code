@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { fakeAdapter } from './helpers/daemon-fixtures.js';
 import { reconcilePass } from '../src/sessions/reconcile.js';
 import { fixture, waitFor } from './helpers/daemon-fixtures.js';
 import { sh } from './helpers/git-fixtures.js';
@@ -89,6 +90,43 @@ describe('SessionService.create', () => {
       f.service.create({ project_id: f.ids.project, account_id: bobAccount.id }),
     ).rejects.toMatchObject({ code: 'foreign_account' });
   });
+
+  it('serialises minted ref capture so concurrent launches cannot claim the same conversation', async () => {
+    const nativeRefs: string[] = [];
+    let nextRef = 0;
+    const adapter = {
+      ...fakeAdapter(),
+      capabilities: {
+        ...fakeAdapter().capabilities,
+        presetSessionId: false,
+      },
+      existingSessionRefs: () => new Set(nativeRefs),
+      resolveSessionRef: async (
+        _opts: Parameters<ReturnType<typeof fakeAdapter>['resolveSessionRef']>[0],
+        _account: Parameters<ReturnType<typeof fakeAdapter>['resolveSessionRef']>[1],
+        excluded = new Set<string>(),
+      ) => {
+        nativeRefs.push(`minted-${++nextRef}`);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        return [...nativeRefs].reverse().find((ref) => !excluded.has(ref))!;
+      },
+    };
+    const f = fixture({ adapter });
+    const create = (title: string) =>
+      f.service.create({
+        project_id: f.ids.project,
+        account_id: f.ids.account,
+        title,
+        separate_branch: false,
+        separate_worktree: false,
+      });
+    const [first, second] = await Promise.all([create('first'), create('second')]);
+
+    expect(new Set([first.agent_session_ref, second.agent_session_ref])).toEqual(
+      new Set(['minted-1', 'minted-2']),
+    );
+    await Promise.all([f.service.kill(first.id), f.service.kill(second.id)]);
+  });
 });
 
 describe('kill / resume / archive lifecycle', () => {
@@ -142,6 +180,90 @@ describe('kill / resume / archive lifecycle', () => {
       f.logs.readTail(session.id, 'agent').includes('This session was interrupted'),
     );
     await f.service.kill(session.id);
+  });
+
+  it('repairs a real but mismatched minted ref before resume', async () => {
+    const adapter = {
+      ...fakeAdapter(),
+      capabilities: {
+        ...fakeAdapter().capabilities,
+        presetSessionId: false,
+      },
+      hasConversation: (ref: string) => ref === 'wrong-ref' || ref === 'right-ref',
+      sessionRefMatches: (ref: string) => ref === 'right-ref',
+      discoverSessionRef: () => 'right-ref',
+    };
+    const f = fixture({ adapter });
+    const session = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      title: 'repair me',
+    });
+    await f.service.kill(session.id);
+    f.stores.sessions.setAgentSessionRef(session.id, 'wrong-ref');
+    f.stores.sessions.setStatus(session.id, 'interrupted');
+
+    await f.service.resume(session.id);
+    await waitFor(() => f.logs.readTail(session.id, 'agent').includes('RESUME ref=right-ref'));
+    expect(f.service.get(session.id).agent_session_ref).toBe('right-ref');
+    expect(
+      f.stores.events.list(session.id).find((event) => event.type === 'session_ref_recovered')
+        ?.payload,
+    ).toMatchObject({
+      previous_ref: 'wrong-ref',
+      ref: 'right-ref',
+      reason: 'mismatched',
+    });
+    await f.service.kill(session.id);
+  });
+
+  it('releases a legacy wrong owner before reclaiming the correct ref', async () => {
+    const ownership = new Map<string, string>();
+    const adapter = {
+      ...fakeAdapter(),
+      capabilities: {
+        ...fakeAdapter().capabilities,
+        presetSessionId: false,
+      },
+      hasConversation: () => true,
+      sessionRefMatches: (ref: string, context: { sessionId: string }) =>
+        ownership.get(context.sessionId) === ref,
+      discoverSessionRef: (
+        _worktree: string,
+        _account: unknown,
+        context?: { sessionId: string },
+      ) => (context === undefined ? null : (ownership.get(context.sessionId) ?? null)),
+    };
+    const f = fixture({ adapter });
+    const first = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      title: 'first owner',
+    });
+    const second = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      title: 'second owner',
+    });
+    ownership.set(first.id, first.agent_session_ref!);
+    ownership.set(second.id, second.agent_session_ref!);
+    await Promise.all([f.service.kill(first.id), f.service.kill(second.id)]);
+
+    // Legacy cross-wire: first occupies second's ref while second is blank.
+    f.stores.sessions.setAgentSessionRef(second.id, null);
+    f.stores.sessions.setAgentSessionRef(first.id, ownership.get(second.id)!);
+    await f.service.resume(second.id);
+    expect(f.service.get(second.id).agent_session_ref).toBe(ownership.get(second.id));
+    expect(f.service.get(first.id).agent_session_ref).toBeNull();
+    expect(
+      f.stores.events.list(first.id).some((event) => event.type === 'session_ref_invalidated'),
+    ).toBe(true);
+    await f.service.kill(second.id);
+
+    // The invalidated row can then recover its own untouched conversation.
+    await f.service.resume(first.id);
+    expect(f.service.get(first.id).agent_session_ref).toBe(ownership.get(first.id));
+    await f.service.kill(first.id);
   });
 
   it('downgrades skip on resume when the gate closed, with a terminal note', async () => {

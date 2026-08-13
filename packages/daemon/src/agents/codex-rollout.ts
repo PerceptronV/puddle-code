@@ -12,11 +12,21 @@ import { join } from 'node:path';
 export interface RolloutMeta {
   id: string;
   cwd: string;
+  createdAt: number | null;
+  parentThreadId: string | null;
 }
 
 interface RolloutLine {
   type?: string;
-  payload?: { type?: string; id?: string; cwd?: string; message?: string; text?: string };
+  payload?: {
+    type?: string;
+    id?: string;
+    cwd?: string;
+    timestamp?: string;
+    parent_thread_id?: string;
+    message?: string;
+    text?: string;
+  };
 }
 
 /** Every rollout file under the account's config dir, newest mtime first. */
@@ -56,19 +66,43 @@ export function readRolloutMeta(path: string): RolloutMeta | null {
     const record = JSON.parse(line) as RolloutLine;
     const id = record.payload?.id;
     const cwd = record.payload?.cwd;
-    return id !== undefined && cwd !== undefined ? { id, cwd } : null;
+    if (id === undefined || cwd === undefined) return null;
+    const timestamp = record.payload?.timestamp;
+    const parsedTimestamp = timestamp === undefined ? NaN : Date.parse(timestamp);
+    return {
+      id,
+      cwd,
+      createdAt: Number.isFinite(parsedTimestamp) ? parsedTimestamp : null,
+      parentThreadId: record.payload?.parent_thread_id ?? null,
+    };
   } catch {
     return null;
   }
 }
 
-/** Newest rollout recorded against `worktreePath`, or undefined. */
-export function newestRolloutFor(configDir: string, worktreePath: string): RolloutMeta | undefined {
+/**
+ * Top-level rollouts recorded against `worktreePath`, newest file first.
+ * Codex sub-agents write the same layout and cwd but carry `parent_thread_id`;
+ * those are not conversations the puddle session may resume.
+ */
+export function rolloutsFor(configDir: string, worktreePath: string): RolloutMeta[] {
+  const matches: RolloutMeta[] = [];
   for (const path of rolloutFiles(configDir)) {
     const meta = readRolloutMeta(path);
-    if (meta !== null && meta.cwd === worktreePath) return meta;
+    if (meta !== null && meta.cwd === worktreePath && meta.parentThreadId === null) {
+      matches.push(meta);
+    }
   }
-  return undefined;
+  return matches;
+}
+
+/** Newest unclaimed top-level rollout recorded against `worktreePath`. */
+export function newestRolloutFor(
+  configDir: string,
+  worktreePath: string,
+  excludeRefs: ReadonlySet<string> = new Set(),
+): RolloutMeta | undefined {
+  return rolloutsFor(configDir, worktreePath).find((meta) => !excludeRefs.has(meta.id));
 }
 
 /**

@@ -28,14 +28,24 @@ function writeRollout(
   cwd: string,
   records: unknown[] = [],
   day = '01',
+  opts: { timestamp?: string; parentThreadId?: string } = {},
 ): string {
   const dir = join(configDir, 'sessions', '2026', '07', day);
   mkdirSync(dir, { recursive: true });
   const path = join(dir, `rollout-2026-07-${day}T10-00-00-${id}.jsonl`);
+  const timestamp = opts.timestamp ?? `2026-07-${day}T10:00:00.000Z`;
   const meta = {
     timestamp: `2026-07-${day}T10:00:00.000Z`,
     type: 'session_meta',
-    payload: { id, timestamp: `2026-07-${day}T10:00:00.000Z`, cwd, cli_version: '0.146.0' },
+    payload: {
+      id,
+      timestamp,
+      cwd,
+      cli_version: '0.147.0',
+      ...(opts.parentThreadId === undefined
+        ? { thread_source: 'user' }
+        : { thread_source: 'subagent', parent_thread_id: opts.parentThreadId }),
+    },
   };
   writeFileSync(path, [meta, ...records].map((r) => JSON.stringify(r)).join('\n') + '\n');
   return path;
@@ -113,6 +123,99 @@ describe('codex adapter — rollout discovery', () => {
     expect(newestRolloutFor(cfg, '/nope')).toBeUndefined();
   });
 
+  it('ignores newer sub-agent rollouts in the same worktree', () => {
+    const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
+    writeRollout(cfg, UUID_A, '/wt', [], '01');
+    writeRollout(cfg, UUID_B, '/wt', [], '02', { parentThreadId: UUID_A });
+    expect(newestRolloutFor(cfg, '/wt')?.id).toBe(UUID_A);
+    expect(codex.hasConversation?.(UUID_B, account(cfg))).toBe(false);
+  });
+
+  it('captures only the rollout created after launch when the cwd has history', async () => {
+    const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
+    writeRollout(cfg, UUID_A, '/wt');
+    const excluded = codex.existingSessionRefs?.('/wt', account(cfg));
+    setTimeout(() => writeRollout(cfg, UUID_B, '/wt', [], '02'), 20);
+
+    await expect(
+      codex.resolveSessionRef(
+        { worktreePath: '/wt', sessionId: 'puddle-id', skipPermissions: false },
+        account(cfg),
+        excluded,
+      ),
+    ).resolves.toBe(UUID_B);
+  });
+
+  it('uses Codex’s state index before rollout metadata is readable', async () => {
+    const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
+    const db = new Database(join(cfg, 'state_5.sqlite'));
+    db.exec(`
+      create table threads (
+        id text primary key,
+        cwd text not null,
+        created_at integer not null,
+        created_at_ms integer,
+        rollout_path text not null,
+        thread_source text,
+        source text not null
+      )
+    `);
+    const insert = db.prepare(
+      `insert into threads
+       (id, cwd, created_at, created_at_ms, rollout_path, thread_source, source)
+       values (?, '/wt', ?, ?, ?, ?, ?)`,
+    );
+    const oldAt = Date.parse('2026-07-01T10:00:05.000Z');
+    insert.run(UUID_A, oldAt / 1000, oldAt, '/not-readable-yet-a', 'user', 'cli');
+    const excluded = codex.existingSessionRefs?.('/wt', account(cfg));
+    const newAt = Date.parse('2026-07-01T10:01:05.000Z');
+    insert.run(UUID_B, newAt / 1000, newAt, '/not-readable-yet-b', 'user', 'cli');
+    insert.run(
+      '019b5a74-f981-74a3-9606-132bdae0f80c',
+      newAt / 1000,
+      newAt,
+      '/child',
+      'subagent',
+      '{"subagent":{}}',
+    );
+    db.close();
+
+    await expect(
+      codex.resolveSessionRef(
+        { worktreePath: '/wt', sessionId: 'puddle-id', skipPermissions: false },
+        account(cfg),
+        excluded,
+      ),
+    ).resolves.toBe(UUID_B);
+  });
+
+  it('recovers the rollout born with the puddle session, not the newest cwd match', () => {
+    const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
+    writeRollout(cfg, UUID_A, '/wt', [], '01', { timestamp: '2026-07-01T10:00:05.000Z' });
+    writeRollout(cfg, UUID_B, '/wt', [], '02', { timestamp: '2026-07-02T10:00:05.000Z' });
+    const context = {
+      sessionId: 'puddle-id',
+      worktreePath: '/wt',
+      createdAt: '2026-07-01T10:00:00.000Z',
+    };
+    expect(codex.discoverSessionRef?.('/wt', account(cfg), context)).toBe(UUID_A);
+    expect(codex.sessionRefMatches?.(UUID_A, context, account(cfg))).toBe(true);
+    expect(codex.sessionRefMatches?.(UUID_B, context, account(cfg))).toBe(false);
+  });
+
+  it('refuses an ambiguous creation-time recovery', () => {
+    const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
+    writeRollout(cfg, UUID_A, '/wt', [], '01', { timestamp: '2026-07-01T10:00:05.000Z' });
+    writeRollout(cfg, UUID_B, '/wt', [], '02', { timestamp: '2026-07-01T10:00:10.000Z' });
+    expect(
+      codex.discoverSessionRef?.('/wt', account(cfg), {
+        sessionId: 'puddle-id',
+        worktreePath: '/wt',
+        createdAt: '2026-07-01T10:00:00.000Z',
+      }),
+    ).toBeNull();
+  });
+
   it('reports a conversation by id, and misses an unknown one', () => {
     const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
     writeRollout(cfg, UUID_A, '/wt');
@@ -121,14 +224,18 @@ describe('codex adapter — rollout discovery', () => {
   });
 
   it('falls back to the puddle session id when no rollout appears', async () => {
+    vi.useFakeTimers();
     const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
-    const ref = await codex.resolveSessionRef(
+    const pending = codex.resolveSessionRef(
       { worktreePath: '/wt', sessionId: 'puddle-id', skipPermissions: false },
       account(cfg),
     );
+    await vi.advanceTimersByTimeAsync(10_100);
+    const ref = await pending;
     // Deliberate: hasConversation reports it missing, so resume re-discovers.
     expect(ref).toBe('puddle-id');
     expect(codex.hasConversation?.('puddle-id', account(cfg))).toBe(false);
+    vi.useRealTimers();
   });
 
   it('survives a missing or malformed sessions tree', () => {

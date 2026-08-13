@@ -79,6 +79,97 @@ describe('opencode adapter', () => {
     expect(opencode.discoverSessionRef?.('/nope', account(cfg, 'opencode'))).toBeNull();
   });
 
+  it('captures only a newly minted session when the cwd already has history', async () => {
+    const cfg = mkdtempSync(join(tmpdir(), 'oc-cfg-'));
+    const store = join(cfg, 'data', 'opencode', 'storage', 'session', 'proj');
+    mkdirSync(store, { recursive: true });
+    writeFileSync(
+      join(store, 'ses_old.json'),
+      JSON.stringify({ id: 'ses_old', directory: '/wt', time: { created: 100, updated: 100 } }),
+    );
+    const excluded = opencode.existingSessionRefs?.('/wt', account(cfg, 'opencode'));
+    setTimeout(
+      () =>
+        writeFileSync(
+          join(store, 'ses_new.json'),
+          JSON.stringify({
+            id: 'ses_new',
+            directory: '/wt',
+            time: { created: 200, updated: 200 },
+          }),
+        ),
+      20,
+    );
+
+    await expect(
+      opencode.resolveSessionRef(OPTS, account(cfg, 'opencode'), excluded),
+    ).resolves.toBe('ses_new');
+  });
+
+  it('recovers by creation time and validates a stored ref', () => {
+    const cfg = mkdtempSync(join(tmpdir(), 'oc-cfg-'));
+    const store = join(cfg, 'data', 'opencode', 'storage', 'session', 'proj');
+    mkdirSync(store, { recursive: true });
+    const firstCreated = Date.parse('2026-07-01T10:00:05.000Z');
+    const secondCreated = Date.parse('2026-07-02T10:00:05.000Z');
+    writeFileSync(
+      join(store, 'ses_first.json'),
+      JSON.stringify({
+        id: 'ses_first',
+        directory: '/wt',
+        time: { created: firstCreated, updated: firstCreated },
+      }),
+    );
+    writeFileSync(
+      join(store, 'ses_second.json'),
+      JSON.stringify({
+        id: 'ses_second',
+        directory: '/wt',
+        time: { created: secondCreated, updated: secondCreated },
+      }),
+    );
+    const context = {
+      sessionId: 'puddle-id',
+      worktreePath: '/wt',
+      createdAt: '2026-07-01T10:00:00.000Z',
+    };
+    expect(opencode.discoverSessionRef?.('/wt', account(cfg, 'opencode'), context)).toBe(
+      'ses_first',
+    );
+    expect(opencode.sessionRefMatches?.('ses_first', context, account(cfg, 'opencode'))).toBe(true);
+    expect(opencode.sessionRefMatches?.('ses_second', context, account(cfg, 'opencode'))).toBe(
+      false,
+    );
+    expect(opencode.hasConversation?.('ses_first', account(cfg, 'opencode'))).toBe(true);
+  });
+
+  it('refuses an ambiguous creation-time recovery', () => {
+    const cfg = mkdtempSync(join(tmpdir(), 'oc-cfg-'));
+    const store = join(cfg, 'data', 'opencode', 'storage', 'session', 'proj');
+    mkdirSync(store, { recursive: true });
+    const createdAt = Date.parse('2026-07-01T10:00:00.000Z');
+    for (const [id, offset] of [
+      ['ses_first', 5_000],
+      ['ses_second', 10_000],
+    ] as const) {
+      writeFileSync(
+        join(store, `${id}.json`),
+        JSON.stringify({
+          id,
+          directory: '/wt',
+          time: { created: createdAt + offset, updated: createdAt + offset },
+        }),
+      );
+    }
+    expect(
+      opencode.discoverSessionRef?.('/wt', account(cfg, 'opencode'), {
+        sessionId: 'puddle-id',
+        worktreePath: '/wt',
+        createdAt: '2026-07-01T10:00:00.000Z',
+      }),
+    ).toBeNull();
+  });
+
   it('returns null rather than guessing when the store is absent', () => {
     const cfg = mkdtempSync(join(tmpdir(), 'oc-cfg-'));
     expect(opencode.discoverSessionRef?.('/wt', account(cfg, 'opencode'))).toBeNull();

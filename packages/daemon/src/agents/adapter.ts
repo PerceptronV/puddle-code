@@ -41,6 +41,16 @@ export interface StatusPatterns {
   limitReached?: RegExp[];
 }
 
+export interface SessionRefContext {
+  /** Puddle session identity; distinct from the agent-native ref. */
+  sessionId: string;
+  worktreePath: string;
+  /** When the puddle session row was created. */
+  createdAt: string;
+  /** Agent-native refs already owned by another session or present before launch. */
+  excludeRefs?: ReadonlySet<string>;
+}
+
 export interface ConversationShareHooks {
   /**
    * Directory under the account's config dir that CONTAINS the per-conversation
@@ -122,11 +132,28 @@ export interface AgentAdapter {
    */
   checkLoggedIn?(account: Account): Promise<boolean>;
   /**
-   * Recovers the conversation ref for a worktree when the recorded one
-   * matches nothing (the agent restarted its session under a fresh id).
-   * Returns the newest conversation whose recorded cwd is the worktree.
+   * Agent-native refs already present for this working directory. Adapters that
+   * mint their own ids expose this snapshot so a new launch cannot mistake an
+   * older conversation for the one it just created.
    */
-  discoverSessionRef?(worktreePath: string, account: Account): string | null;
+  existingSessionRefs?(worktreePath: string, account: Account): ReadonlySet<string>;
+  /**
+   * Recovers the conversation ref for a worktree when the recorded one
+   * matches nothing, is duplicated, or does not belong to this puddle session.
+   * `context.createdAt` lets minted-id adapters recover the conversation born
+   * for this session instead of guessing the newest conversation in the cwd.
+   */
+  discoverSessionRef?(
+    worktreePath: string,
+    account: Account,
+    context?: SessionRefContext,
+  ): string | null;
+  /**
+   * Whether `ref` belongs to this puddle session, not merely whether the agent
+   * can read it. Minted-id adapters validate cwd + creation time here so a
+   * stale but real conversation cannot silently replace another session.
+   */
+  sessionRefMatches?(ref: string, context: SessionRefContext, account: Account): boolean;
   /**
    * The agent's own human-readable session name for conversation `ref` — for
    * Claude Code, the transcript's agent-name / ai-title, i.e. what its resume
@@ -176,7 +203,11 @@ export interface AgentAdapter {
    */
   loginHint?: string;
   /** Agent-native session ref: echoes a preset id or discovers it post-launch. */
-  resolveSessionRef(opts: LaunchOpts, account: Account): Promise<string>;
+  resolveSessionRef(
+    opts: LaunchOpts,
+    account: Account,
+    excludeRefs?: ReadonlySet<string>,
+  ): Promise<string>;
   /** Matched against ANSI-stripped output (SPEC §5). */
   statusPatterns: StatusPatterns;
   /**
