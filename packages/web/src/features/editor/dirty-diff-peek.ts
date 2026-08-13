@@ -114,7 +114,19 @@ export function createDirtyDiffPeekController({
     closeButton.setAttribute('aria-label', 'Close inline change');
     closeButton.title = 'Close inline change';
     closeButton.textContent = '×';
-    closeButton.addEventListener('click', close);
+    // Monaco owns pointer handling for the whole view-zone layer. Closing on
+    // pointerdown keeps its outer editor from consuming the press before the
+    // browser can synthesise a click; click remains the keyboard fallback.
+    closeButton.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+    });
+    closeButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+    });
     const diffHost = document.createElement('div');
     diffHost.className = 'puddle-dirty-peek-editor';
     header.append(title, closeButton);

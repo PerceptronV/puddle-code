@@ -6,6 +6,7 @@ import {
   app,
   dialog,
   ipcMain,
+  screen,
   shell as osShell,
   type MenuItemConstructorOptions,
 } from 'electron';
@@ -156,9 +157,26 @@ function raise(win: BrowserWindow): void {
 }
 
 function createWindow(target: string, cockpit: RunningCockpit): BrowserWindow {
+  const preferred = { width: 1440, height: 900 };
+  const initialBounds =
+    process.platform === 'darwin'
+      ? (() => {
+          const { workArea } = screen.getPrimaryDisplay();
+          const width = Math.min(preferred.width, workArea.width);
+          const height = Math.min(preferred.height, workArea.height);
+          return {
+            width,
+            height,
+            // macOS otherwise applies its own slight inset when clamping a
+            // preferred size to the work area. Centre ordinary windows, but
+            // explicitly meet every edge on an axis that has been clamped.
+            x: workArea.x + Math.floor((workArea.width - width) / 2),
+            y: workArea.y + Math.floor((workArea.height - height) / 2),
+          };
+        })()
+      : preferred;
   const win = new BrowserWindow({
-    width: 1440,
-    height: 900,
+    ...initialBounds,
     // On macOS the native title bar goes away entirely: the web app's own
     // top bar (host, ⌘K field, settings/scratchpad/profile) doubles as the
     // drag region, with the traffic lights inlaid — ShellLayout detects the
@@ -174,13 +192,6 @@ function createWindow(target: string, cockpit: RunningCockpit): BrowserWindow {
       ? {
           titleBarStyle: 'hidden' as const,
           trafficLightPosition: { x: 12, y: 12 },
-          // The 1440×900 launch size reaches the work-area bounds on common
-          // Mac displays. A native rounded mask plus shadow leaves a visible
-          // sliver of desktop down the right and bottom edges even though the
-          // window itself is correctly sized. The cockpit owns all its chrome,
-          // so keep those edges flush; small shell dialogues remain native.
-          roundedCorners: false,
-          hasShadow: false,
         }
       : {}),
     webPreferences: {

@@ -18,4 +18,5 @@ Past releases: see docs/changelogs/.
 - Make short file tabs shrink to their visible labels without counting hidden hover-control spacing.
 - Compare symlinked editor files with their resolved target at `HEAD` instead of the link's target-path blob.
 - Prompt for passwords, key passphrases, host confirmation, and 2FA when the desktop app connects or reconnects to an SSH host.
-- Fill the macOS work area to its right and bottom edges when the desktop cockpit opens at screen size.
+- Fit the macOS desktop cockpit flush to the work area while retaining native rounded corners and shadow.
+- Make the close control in Monaco's inline dirty-diff viewer respond reliably to pointer input.
