@@ -122,10 +122,92 @@ describe('SessionService.create', () => {
       });
     const [first, second] = await Promise.all([create('first'), create('second')]);
 
-    expect(new Set([first.agent_session_ref, second.agent_session_ref])).toEqual(
-      new Set(['minted-1', 'minted-2']),
+    // Creation does not wait for either native id. The serialised background
+    // tasks still give each puddle session exactly one distinct conversation.
+    expect(first.agent_session_ref).toBeNull();
+    expect(second.agent_session_ref).toBeNull();
+    await waitFor(
+      () =>
+        f.service.get(first.id).agent_session_ref !== null &&
+        f.service.get(second.id).agent_session_ref !== null,
     );
+    expect(
+      new Set([
+        f.service.get(first.id).agent_session_ref,
+        f.service.get(second.id).agent_session_ref,
+      ]),
+    ).toEqual(new Set(['minted-1', 'minted-2']));
     await Promise.all([f.service.kill(first.id), f.service.kill(second.id)]);
+  });
+
+  it('returns before minted ref discovery finishes, then stores the ref and tracks its name', async () => {
+    let finishDiscovery: ((ref: string) => void) | undefined;
+    const names = new Map<string, string>();
+    const adapter = {
+      ...fakeAdapter(),
+      capabilities: { ...fakeAdapter().capabilities, presetSessionId: false },
+      existingSessionRefs: () => new Set<string>(),
+      resolveSessionRef: () =>
+        new Promise<string>((resolve) => {
+          finishDiscovery = resolve;
+        }),
+      sessionTitle: (ref: string) => names.get(ref) ?? null,
+    };
+    const f = fixture({ adapter, titleRefreshMs: 20 });
+    const session = await Promise.race([
+      f.service.create({
+        project_id: f.ids.project,
+        account_id: f.ids.account,
+        title: 'async ref',
+        separate_branch: false,
+        separate_worktree: false,
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('session creation waited for ref discovery')), 1_000),
+      ),
+    ]);
+
+    expect(session.agent_session_ref).toBeNull();
+    await waitFor(() => finishDiscovery !== undefined);
+    names.set('minted-ref', 'Codex opening name');
+    finishDiscovery?.('minted-ref');
+    await waitFor(() => f.service.get(session.id).agent_session_ref === 'minted-ref');
+    await waitFor(() => f.service.get(session.id).agent_title === 'Codex opening name');
+
+    // The UUID is stable; a Codex rename updates only its indexed name.
+    names.set('minted-ref', 'Codex renamed session');
+    await waitFor(() => f.service.get(session.id).agent_title === 'Codex renamed session');
+    expect(f.service.get(session.id).agent_session_ref).toBe('minted-ref');
+    await f.service.kill(session.id);
+  });
+
+  it('captures a minted ref later when launch-time discovery returned unresolved', async () => {
+    let visibleRef: string | null = null;
+    const adapter = {
+      ...fakeAdapter(),
+      capabilities: { ...fakeAdapter().capabilities, presetSessionId: false },
+      existingSessionRefs: () => new Set<string>(),
+      resolveSessionRef: async (opts: { sessionId: string }) => opts.sessionId,
+      discoverSessionRef: () => visibleRef,
+      sessionRefMatches: (ref: string) => ref === visibleRef,
+    };
+    const f = fixture({ adapter, titleRefreshMs: 20 });
+    const session = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      title: 'late ref',
+      separate_branch: false,
+      separate_worktree: false,
+    });
+    expect(session.agent_session_ref).toBeNull();
+
+    visibleRef = 'minted-later';
+    await waitFor(() => f.service.get(session.id).agent_session_ref === visibleRef);
+    expect(
+      f.stores.events.list(session.id).find((event) => event.type === 'session_ref_captured')
+        ?.payload,
+    ).toMatchObject({ ref: 'minted-later', source: 'late' });
+    await f.service.kill(session.id);
   });
 });
 

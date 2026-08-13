@@ -202,7 +202,11 @@ export interface AgentAdapter {
    * a REPL after sign-in and must be exited by hand.
    */
   loginHint?: string;
-  /** Agent-native session ref: echoes a preset id or discovers it post-launch. */
+  /**
+   * Agent-native session ref: echoes a preset id or discovers it post-launch.
+   * Minted-id discovery runs behind the session-create response; returning the
+   * puddle session id means "not visible yet" and is never stored as native.
+   */
   resolveSessionRef(
     opts: LaunchOpts,
     account: Account,

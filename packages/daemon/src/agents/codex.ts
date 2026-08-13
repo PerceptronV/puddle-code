@@ -31,8 +31,9 @@ const SESSION_START_WINDOW_MS = 5 * 60 * 1000;
  *   remote cockpit the login dialogue was an empty terminal.
  * - Session ids are NOT presettable: codex mints its own rollout id, so
  *   `presetSessionId: false` and `agent_session_ref !== sessions.id` — the
- *   first adapter where those diverge. resolveSessionRef polls briefly for the
- *   state index, excluding every top-level ref present before launch. The
+ *   first adapter where those diverge. resolveSessionRef polls in the
+ *   background for the state index, excluding every top-level ref present
+ *   before launch, so session creation never waits for the poll. The
  *   index is the primary source because it appears before a large rollout's
  *   first JSONL line is readable; rollout scanning is the compatibility
  *   fallback. Codex also writes sub-agent rows/rollouts with the same cwd;
@@ -118,8 +119,9 @@ export const codex: AgentAdapter = {
 
   async resolveSessionRef(opts, account, excludeRefs = new Set()) {
     // The state row normally appears before session_meta is readable. Keep a
-    // bounded fallback wait for older schemas/index failures; a timeout leaves
-    // the puddle id placeholder for creation-time recovery on resume.
+    // bounded fallback wait for older schemas/index failures; the coordinator
+    // does not persist the unresolved puddle-id placeholder and retries safely
+    // on status/title refreshes (with resume recovery as the final backstop).
     const deadline = Date.now() + 10_000;
     for (;;) {
       const ref = codexSessionsFor(account.config_dir, opts.worktreePath).find(

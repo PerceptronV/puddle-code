@@ -122,7 +122,8 @@ export const opencode: AgentAdapter = {
       if (Date.now() >= deadline) break;
       await new Promise((r) => setTimeout(r, 150));
     }
-    // Placeholder; the resume path re-discovers the real ref by worktree.
+    // Unresolved placeholder: the coordinator does not persist it and retries
+    // on status/title refreshes (with resume recovery as the final backstop).
     return opts.sessionId;
   },
 

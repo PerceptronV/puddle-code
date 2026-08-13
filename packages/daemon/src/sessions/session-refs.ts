@@ -21,23 +21,63 @@ export class SessionRefs {
 
   constructor(private readonly deps: SessionRefDeps) {}
 
-  resolveOnLaunch(
+  /**
+   * Starts an agent and captures its native conversation ref without holding
+   * the session-create response open. Preset-id agents resolve on the normal
+   * create path; minted-id agents keep the snapshot → spawn → discovery
+   * sequence serialised, but run that sequence in the background.
+   */
+  async launchAndCapture(
     session: Session,
     account: Account,
     adapter: AgentAdapter,
     launchOpts: LaunchOpts,
     spawn: () => void,
-  ): Promise<string> {
+    onCaptured: () => void,
+    onError: (error: unknown, phase: 'spawn' | 'capture') => void,
+  ): Promise<void> {
+    if (adapter.capabilities.presetSessionId) {
+      spawn();
+      const ref = await adapter.resolveSessionRef(launchOpts, account);
+      this.deps.sessions.setAgentSessionRef(session.id, ref);
+      return;
+    }
+
+    let spawned = false;
     const launch = async () => {
       const existing = adapter.existingSessionRefs?.(session.worktree_path, account);
       spawn();
-      return adapter.resolveSessionRef(launchOpts, account, existing);
+      spawned = true;
+      const ref = await adapter.resolveSessionRef(launchOpts, account, existing);
+      // Minted-id adapters return the puddle id as an explicit unresolved
+      // placeholder when their own state has not become visible yet. Keep the
+      // durable column null: refreshAvailable() will retry from status/title
+      // ticks without ever treating the placeholder as a real conversation.
+      if (ref === session.id) return;
+      if (this.capture(session, account, adapter, ref, 'launch')) onCaptured();
     };
-    if (!adapter.existingSessionRefs) return launch();
-    return this.launchMutex.run(
-      `session-ref:${adapter.id}:${account.id}:${session.worktree_path}`,
-      launch,
-    );
+    const pending = adapter.existingSessionRefs
+      ? this.launchMutex.run(
+          `session-ref:${adapter.id}:${account.id}:${session.worktree_path}`,
+          launch,
+        )
+      : launch();
+    void pending.catch((error) => onError(error, spawned ? 'capture' : 'spawn'));
+  }
+
+  /**
+   * Best-effort late capture after a minted conversation becomes visible.
+   * Used by status changes and the periodic title refresh, which matters for
+   * Codex: an empty composer may not commit its state row until the first turn.
+   */
+  refreshAvailable(session: Session, account: Account, adapter: AgentAdapter): boolean {
+    if (adapter.capabilities.presetSessionId || session.agent_session_ref !== null) return false;
+    const context: SessionRefContext = {
+      ...this.contextOf(session),
+      excludeRefs: this.claimedByOtherSessions(session, adapter, account),
+    };
+    const ref = adapter.discoverSessionRef?.(session.worktree_path, account, context) ?? null;
+    return ref === null ? false : this.capture(session, account, adapter, ref, 'late');
   }
 
   /**
@@ -139,6 +179,33 @@ export class SessionRefs {
         claimed_by: session.id,
       });
     }
+  }
+
+  /** Validate and durably claim a newly discovered minted ref exactly once. */
+  private capture(
+    session: Session,
+    account: Account,
+    adapter: AgentAdapter,
+    ref: string,
+    source: 'launch' | 'late',
+  ): boolean {
+    const current = this.deps.sessions.get(session.id);
+    if (current.agent_session_ref === ref) return false;
+    if (current.agent_session_ref !== null) return false;
+    const context: SessionRefContext = {
+      ...this.contextOf(current),
+      excludeRefs: this.claimedByOtherSessions(current, adapter, account),
+    };
+    // The serialised launch snapshot proves ownership already. Late recovery
+    // has no such single-launch proof, so it must pass the adapter's stricter
+    // cwd + creation-time match before claiming anything.
+    if (source === 'late' && adapter.sessionRefMatches?.(ref, context, account) === false) {
+      return false;
+    }
+    this.releaseInvalidOwners(current, adapter, account, ref);
+    this.deps.sessions.setAgentSessionRef(current.id, ref);
+    this.deps.events.record(current.id, 'session_ref_captured', { ref, source });
+    return true;
   }
 
   private contextOf(session: Session): SessionRefContext {

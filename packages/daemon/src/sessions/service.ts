@@ -173,7 +173,7 @@ export class SessionService extends EventEmitter {
     // Catch in-agent renames that emit no signal (see TITLE_REFRESH_MS). Unref'd
     // so it never keeps the process (or a test run) alive.
     this.titleTimer = setInterval(() => {
-      for (const id of this.liveAgents.keys()) this.refreshAgentTitle(id);
+      for (const id of this.liveAgents.keys()) this.refreshAgentIdentity(id);
     }, this.deps.titleRefreshMs ?? TITLE_REFRESH_MS);
     this.titleTimer.unref?.();
   }
@@ -217,6 +217,24 @@ export class SessionService extends EventEmitter {
       osc_title: session.osc_title ?? null,
     } satisfies RenameEvent);
     return session;
+  }
+
+  /**
+   * Captures a minted conversation ref once it becomes visible, then refreshes
+   * the independent human-readable agent name. Codex keeps its stable UUID in
+   * `agent_session_ref` while `/rename` only changes `agent_title`.
+   */
+  private refreshAgentIdentity(sessionId: string): void {
+    try {
+      const session = this.deps.sessions.get(sessionId);
+      if (session.kind !== 'agent' || session.account_id === null) return;
+      const account = this.deps.accounts.get(session.account_id);
+      const adapter = this.deps.adapters.get(session.agent_type ?? account.agent_type);
+      this.sessionRefs.refreshAvailable(session, account, adapter);
+    } catch {
+      return; // best-effort identity refresh; title refresh follows the same rule
+    }
+    this.refreshAgentTitle(sessionId);
   }
 
   /**
@@ -335,17 +353,37 @@ export class SessionService extends EventEmitter {
       prompt: preamble === '' ? undefined : preamble,
       skipPermissions: skip,
     };
-    const ref = await this.sessionRefs.resolveOnLaunch(session, account, adapter, launchOpts, () =>
-      this.spawnAgent(
-        sessionId,
-        worktree.worktreePath,
-        account,
-        adapter,
-        adapter.launchArgs(launchOpts),
-        'starting',
-      ),
+    await this.sessionRefs.launchAndCapture(
+      session,
+      account,
+      adapter,
+      launchOpts,
+      () =>
+        this.spawnAgent(
+          sessionId,
+          worktree.worktreePath,
+          account,
+          adapter,
+          adapter.launchArgs(launchOpts),
+          'starting',
+        ),
+      () => this.refreshAgentIdentity(sessionId),
+      (error, phase) => {
+        // Minted-id launches run after the HTTP response has returned, so no
+        // request remains to carry an unexpected spawn/capture failure.
+        const detail = (error as Error).message;
+        console.warn(`agent ${phase} ${sessionId} failed: ${detail}`);
+        if (phase === 'spawn') {
+          this.emit('notice', {
+            level: 'error',
+            title: `${adapter.displayName} failed to start`,
+            detail,
+            session: sessionId,
+            term: 'agent',
+          } satisfies NoticeEvent);
+        }
+      },
     );
-    this.deps.sessions.setAgentSessionRef(sessionId, ref);
     // Adopt-after-first-write: the conversation file rarely exists this early,
     // so this is a best-effort first attempt; the waiting_input flip retries.
     this.scheduleAdopt(sessionId);
@@ -1161,7 +1199,7 @@ export class SessionService extends EventEmitter {
       // title emission is the cue to re-read it; throttled, transcript wins.
       if (now - live.lastTitleCheck > 1000) {
         live.lastTitleCheck = now;
-        this.refreshAgentTitle(e.stream);
+        this.refreshAgentIdentity(e.stream);
       }
     }
   }
@@ -1240,7 +1278,7 @@ export class SessionService extends EventEmitter {
     if (detected === 'waiting_input') this.scheduleAdopt(sessionId);
     // The agent's own name lands in (and updates within) the transcript as the
     // conversation progresses; pick it up on each status change.
-    this.refreshAgentTitle(sessionId);
+    this.refreshAgentIdentity(sessionId);
   }
 
   /**
@@ -1281,7 +1319,7 @@ export class SessionService extends EventEmitter {
     this.liveAgents.delete(e.stream);
     if (this.shuttingDown) return; // reconcile turns these into `interrupted` next boot
     this.transition(e.stream, 'exited');
-    this.refreshAgentTitle(e.stream); // capture the final name for the exited/archived row
+    this.refreshAgentIdentity(e.stream); // capture the final ref/name for the durable row
     this.deps.events.record(e.stream, 'exited', { code: e.exitCode });
     this.noticeOnAbnormalExit(e, startupFailure);
   }
