@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Editor from '@monaco-editor/react';
 import { Download } from 'lucide-react';
 import { toast } from 'sonner';
@@ -6,6 +6,8 @@ import { useClientSettings } from '../../lib/client-settings';
 import { downloadPath } from '../../lib/worktree-queries';
 import { ConflictSurface } from './ConflictSurface';
 import { THEME_NAME } from './monaco-setup';
+import { monaco } from './monaco-setup';
+import { bindMonacoPreviewScroll } from './monaco-preview-scroll';
 import { useEditorBuffer } from './use-editor-buffer';
 import { useDirtyDiff } from './use-dirty-diff';
 import type { RevealTarget } from '../workspace/editor-context';
@@ -58,6 +60,9 @@ export function CodeEditor({
   reveal,
   root,
   focused = true,
+  scrollDriver = false,
+  lockedReceiver = false,
+  scrollChannel = 'profile',
 }: {
   session: string;
   path: string;
@@ -67,6 +72,9 @@ export function CodeEditor({
   root?: string;
   /** Whether this is the workspace's logically focused tab. */
   focused?: boolean;
+  scrollDriver?: boolean;
+  lockedReceiver?: boolean;
+  scrollChannel?: string;
 }) {
   const settings = useClientSettings();
   const buffer = useEditorBuffer(session, path, reveal, root, { focused });
@@ -77,6 +85,35 @@ export function CodeEditor({
       undefined,
     [],
   );
+  const [mountedEditor, setMountedEditor] = useState<monaco.editor.IStandaloneCodeEditor | null>(
+    null,
+  );
+  const scrollTarget = useMemo(() => ({ session, path, root }), [session, path, root]);
+  const comparisonOpen = buffer.conflict !== null && buffer.conflict.phase !== 'unresolved';
+
+  // Roles come from the layout's logical focus, never DOM focus. Rebinding on
+  // a focus/target change disposes every Monaco listener and pending frame.
+  useEffect(() => {
+    if (!mountedEditor || !buffer.model || comparisonOpen) return;
+    return bindMonacoPreviewScroll(
+      mountedEditor,
+      {
+        channel: scrollChannel,
+        target: scrollTarget,
+        driver: scrollDriver,
+        receiver: lockedReceiver,
+      },
+      monaco.editor.ScrollType.Immediate,
+    );
+  }, [
+    mountedEditor,
+    buffer.model,
+    comparisonOpen,
+    scrollChannel,
+    scrollTarget,
+    scrollDriver,
+    lockedReceiver,
+  ]);
 
   // Conflict state outranks the query's ordinary file status: the comparison
   // read itself can discover a deletion or fail, in which case `file.error`
@@ -150,6 +187,7 @@ export function CodeEditor({
             onMount={(editor) => {
               buffer.onMount(editor);
               mountDirtyDiff(editor);
+              setMountedEditor(editor);
             }}
             loading={<div className="p-3 text-xs text-fg-muted">…</div>}
             options={{

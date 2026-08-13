@@ -48,6 +48,18 @@ describe('addOrFocusTab', () => {
     expect(tabKey(staged)).not.toBe(tabKey(unstaged));
     expect(addOrFocusTab([staged], unstaged)).toEqual([staged, unstaged]);
   });
+
+  it('keeps one stable identity per following mode and apart from the target file', () => {
+    const linked: EditorTab = { ...t('s1', 'a.md'), view: 'linked' };
+    const retargetedLinked: EditorTab = { ...t('s2', 'b.md'), view: 'linked' };
+    const locked: EditorTab = { ...t('s1', 'a.md'), view: 'locked' };
+    expect(tabKey(linked)).toBe('linked');
+    expect(tabKey(retargetedLinked)).toBe('linked');
+    expect(tabKey(locked)).toBe('locked');
+    expect(addOrFocusTab([linked], retargetedLinked)).toEqual([linked]);
+    expect(addOrFocusTab([linked], locked)).toEqual([linked, locked]);
+    expect(addOrFocusTab([linked], t('s1', 'a.md'))).toEqual([linked, t('s1', 'a.md')]);
+  });
 });
 
 describe('hasTab / removeTab', () => {

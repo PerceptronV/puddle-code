@@ -7,6 +7,8 @@ import { useHotkeyLabel } from '../../lib/hotkeys';
 import { cn } from '../../lib/utils';
 import { LazyPaneEditorBody } from '../editor/lazy-editor-parts';
 import type { EditorView } from '../editor/editor-tabs';
+import { tabKind } from '../editor/editor-tabs';
+import { previewKind } from '../editor/preview-kind';
 import type { RevealTarget } from './editor-context';
 import { useKeepAliveSlot } from './keep-alive';
 import { EnvStrip } from '../env/EnvStrip';
@@ -37,6 +39,7 @@ export function PaneLeaf({
   onSetTabView,
   onNewUntitled,
   focused,
+  scrollChannel,
 }: {
   leaf: LayoutLeaf;
   sessions: Session[];
@@ -48,12 +51,14 @@ export function PaneLeaf({
   onFocusLeaf: (leafId: string) => void;
   /** A sidebar drag (file row / session) dropped on this pane — open + position. */
   onDropTab: (leafId: string, ref: TabRef, edge: DropEdge) => void;
-  /** Set THIS pane's previewable editor tab to source, preview, or linked (SPEC §8). */
+  /** Set THIS pane's previewable editor tab's rendered/following mode (SPEC §8). */
   onSetTabView: (leafId: string, ref: TabRef, view: EditorView) => void;
   /** Double-click on the strip's blank tail: open a fresh untitled file here. */
   onNewUntitled: (leaf: LayoutLeaf) => void;
   /** The workspace's logical focus, independent of DOM focus inside Monaco. */
   focused: boolean;
+  /** Browser-local scroll-following channel for this layout scope. */
+  scrollChannel: string;
 }) {
   const activeRef = leaf.tabs.find((t) => tabRefKey(t) === leaf.activeKey) ?? null;
   const terminalKey = activeRef?.type === 'terminal' ? tabRefKey(activeRef) : null;
@@ -65,6 +70,15 @@ export function PaneLeaf({
   const { setNodeRef } = useDroppable({ id: `leaf:${leaf.id}` });
   const indicator = useDropIndicator();
   const paletteKey = useHotkeyLabel('palette.toggle');
+  const activeEditor = activeRef?.type === 'editor' ? activeRef.tab : null;
+  const activeView = activeEditor?.view ?? 'source';
+  const scrollDriver =
+    focused &&
+    activeEditor !== null &&
+    (tabKind(activeEditor) === 'file' || tabKind(activeEditor) === 'external') &&
+    previewKind(activeEditor.path) !== null &&
+    (activeView === 'source' || activeView === 'preview');
+  const lockedReceiver = activeView === 'locked';
 
   // Clicking INTO the pane body activates the shown tab, via a NATIVE capture
   // listener — not React's onMouseDownCapture. An adopted terminal's DOM was
@@ -174,7 +188,14 @@ export function PaneLeaf({
       >
         {activeRef?.type === 'editor' && (
           <div className="absolute inset-0">
-            <LazyPaneEditorBody tab={activeRef.tab} reveal={reveal} focused={focused} />
+            <LazyPaneEditorBody
+              tab={activeRef.tab}
+              reveal={reveal}
+              focused={focused}
+              scrollDriver={scrollDriver}
+              lockedReceiver={lockedReceiver}
+              scrollChannel={scrollChannel}
+            />
           </div>
         )}
         {/* The keep-alive slot is always mounted (stable ref) so a terminal

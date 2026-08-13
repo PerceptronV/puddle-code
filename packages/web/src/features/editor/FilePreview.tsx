@@ -12,6 +12,17 @@ import { markdownToHtml } from './markdown';
 import { MATH_LAYOUT_CSS } from './math';
 import { renderMathInDocument } from './math-dom';
 import { previewKind, resolvePreviewAsset, type PreviewKind } from './preview-kind';
+import {
+  appendHtmlPreviewScrollBridge,
+  applyHtmlPreviewScroll,
+  createHtmlPreviewScrollChannel,
+  htmlPreviewScrollReport,
+} from './html-preview-scroll';
+import {
+  bindPreviewScrollElement,
+  previewScrollStore,
+  type PreviewScrollTarget,
+} from './preview-scroll-store';
 
 /**
  * The rendered view of a previewable file tab (SPEC §8): markdown as inline,
@@ -36,6 +47,9 @@ export function FilePreview({
   kind,
   root,
   focused = true,
+  scrollDriver = false,
+  lockedReceiver = false,
+  scrollChannel = 'profile',
 }: {
   session: string;
   path: string;
@@ -45,6 +59,9 @@ export function FilePreview({
       resolution stays inside that root. */
   root?: string;
   focused?: boolean;
+  scrollDriver?: boolean;
+  lockedReceiver?: boolean;
+  scrollChannel?: string;
 }) {
   const buffer = useEditorBuffer(session, path, null, root, {
     passive: true,
@@ -64,9 +81,25 @@ export function FilePreview({
   }
   if (text === null) return null; // loading, or a binary masquerading by extension
   return kind === 'markdown' ? (
-    <MarkdownPreview session={session} path={path} text={text} root={root} />
+    <MarkdownPreview
+      session={session}
+      path={path}
+      text={text}
+      root={root}
+      scrollDriver={scrollDriver}
+      lockedReceiver={lockedReceiver}
+      scrollChannel={scrollChannel}
+    />
   ) : (
-    <HtmlPreview session={session} path={path} text={text} root={root} />
+    <HtmlPreview
+      session={session}
+      path={path}
+      text={text}
+      root={root}
+      scrollDriver={scrollDriver}
+      lockedReceiver={lockedReceiver}
+      scrollChannel={scrollChannel}
+    />
   );
 }
 
@@ -83,14 +116,34 @@ function MarkdownPreview({
   path,
   text,
   root,
+  scrollDriver,
+  lockedReceiver,
+  scrollChannel,
 }: {
   session: string;
   path: string;
   text: string;
   root?: string;
+  scrollDriver: boolean;
+  lockedReceiver: boolean;
+  scrollChannel: string;
 }) {
   const html = useMemo(() => DOMPurify.sanitize(markdownToHtml(text)), [text]);
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    const body = bodyRef.current;
+    if (!scroller || !body) return;
+    return bindPreviewScrollElement(scroller, {
+      channel: scrollChannel,
+      target: { session, path, root },
+      driver: scrollDriver,
+      receiver: lockedReceiver,
+      resizeElements: [scroller, body],
+    });
+  }, [html, session, path, root, scrollChannel, scrollDriver, lockedReceiver]);
 
   // Resolve worktree images (relative or /-absolute) through the authed media
   // endpoint: an <img src> carries no bearer header, so the bytes travel as a
@@ -152,7 +205,7 @@ function MarkdownPreview({
   // headings, code, and spacing all track the base.
   const fontSize = useClientSettings().editorFontSize;
   return (
-    <div className="h-full overflow-y-auto bg-ground">
+    <div ref={scrollerRef} className="h-full overflow-y-auto bg-ground">
       <div
         ref={bodyRef}
         onClick={onClick}
@@ -185,31 +238,89 @@ function HtmlPreview({
   path,
   text,
   root,
+  scrollDriver,
+  lockedReceiver,
+  scrollChannel,
 }: {
   session: string;
   path: string;
   text: string;
   root?: string;
+  scrollDriver: boolean;
+  lockedReceiver: boolean;
+  scrollChannel: string;
 }) {
   const [doc, setDoc] = useState<string | null>(null);
   // Resolved path → data-URI promise, per mount: an edit re-inlines the
   // document without re-fetching every asset.
   const assets = useRef(new Map<string, Promise<string | null>>());
   const fontSize = useClientSettings().editorFontSize;
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const [bridgeChannel] = useState(createHtmlPreviewScrollChannel);
+  const target = useMemo<PreviewScrollTarget>(
+    () => ({ session, path, root }),
+    [session, path, root],
+  );
 
   useEffect(() => {
     let cancelled = false;
-    void inlineWorktreeAssets(session, path, text, assets.current, fontSize, root).then((html) => {
+    void inlineWorktreeAssets(
+      session,
+      path,
+      text,
+      assets.current,
+      fontSize,
+      root,
+      bridgeChannel,
+    ).then((html) => {
       if (!cancelled) setDoc(html);
     });
     return () => {
       cancelled = true;
     };
-  }, [session, path, text, fontSize, root]);
+  }, [session, path, text, fontSize, root, bridgeChannel]);
+
+  useEffect(() => {
+    if (!lockedReceiver) return;
+    return previewScrollStore.subscribe(scrollChannel, target, (position) => {
+      applyHtmlPreviewScroll(
+        iframeRef.current?.contentWindow ?? null,
+        bridgeChannel,
+        position.ratio,
+      );
+    });
+  }, [lockedReceiver, scrollChannel, target, bridgeChannel]);
+
+  useEffect(() => {
+    if (!scrollDriver && !lockedReceiver) return;
+    const onMessage = (event: MessageEvent<unknown>) => {
+      const report = htmlPreviewScrollReport(
+        event,
+        iframeRef.current?.contentWindow ?? null,
+        bridgeChannel,
+      );
+      if (!report) return;
+      if (scrollDriver) {
+        previewScrollStore.publish(scrollChannel, target, report.ratio);
+      } else if (report.layout) {
+        const current = previewScrollStore.get(scrollChannel, target);
+        if (current) {
+          applyHtmlPreviewScroll(
+            iframeRef.current?.contentWindow ?? null,
+            bridgeChannel,
+            current.ratio,
+          );
+        }
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [scrollDriver, lockedReceiver, scrollChannel, target, bridgeChannel]);
 
   if (doc === null) return null; // first inline pass; later passes keep the old doc up
   return (
     <iframe
+      ref={iframeRef}
       // allow-scripts WITHOUT allow-same-origin: the document runs on a null
       // origin — it cannot read the app's cookies, storage, or daemon token.
       // That null origin is also why assets are baked in as data URIs: it
@@ -219,6 +330,17 @@ function HtmlPreview({
       srcDoc={doc}
       title={path}
       className="size-full bg-paper"
+      onLoad={() => {
+        if (!lockedReceiver) return;
+        const current = previewScrollStore.get(scrollChannel, target);
+        if (current) {
+          applyHtmlPreviewScroll(
+            iframeRef.current?.contentWindow ?? null,
+            bridgeChannel,
+            current.ratio,
+          );
+        }
+      }}
     />
   );
 }
@@ -236,6 +358,7 @@ async function inlineWorktreeAssets(
   cache: Map<string, Promise<string | null>>,
   baseFontSize?: number,
   root?: string,
+  bridgeChannel?: string,
 ): Promise<string> {
   const parsed = new DOMParser().parseFromString(text, 'text/html');
   // The preview follows the editor font size, as a ZERO-specificity default
@@ -261,6 +384,7 @@ async function inlineWorktreeAssets(
     }
   }
   await Promise.all(jobs);
+  if (bridgeChannel) appendHtmlPreviewScrollBridge(parsed, bridgeChannel);
   return `<!doctype html>${parsed.documentElement.outerHTML}`;
 }
 

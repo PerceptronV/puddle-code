@@ -35,13 +35,14 @@ export const editorTabRefSchema = z.object({
   root: z.string().optional(),
   /**
    * How a `file` tab renders: Monaco (`source`, the default when absent), a
-   * rendered `preview`, or a `linked` preview — a rendered view whose
-   * (session, path[, root]) is REWRITTEN to follow the most recently active
-   * renderable tab in its layout tree (SPEC §8). Meaningful only for
-   * previewable types (markdown, HTML). Not part of the tab's identity:
-   * toggling rewrites the tab ref in place.
+   * rendered `preview`, or a following preview: `linked` retargets to the most
+   * recently active renderable tab in its layout tree, while `locked` also
+   * mirrors that driver's normalised vertical scroll position (SPEC §8).
+   * Meaningful only for previewable types (markdown, HTML). The ordinary
+   * source/preview choice is not part of tab identity; each following mode is
+   * a distinct stable slot whose identity does not change when it retargets.
    */
-  view: z.enum(['source', 'preview', 'linked']).optional(),
+  view: z.enum(['source', 'preview', 'linked', 'locked']).optional(),
 });
 export type EditorTabRef = z.infer<typeof editorTabRefSchema>;
 

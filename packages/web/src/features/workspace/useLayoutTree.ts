@@ -19,7 +19,7 @@ import {
   promoteTab,
   pruneTabs,
   resizeSplit,
-  retargetLinkedTabs,
+  retargetFollowingTabs,
   setTabView,
   tabRefKey,
   type DropSpec,
@@ -48,8 +48,8 @@ export interface LayoutController {
   promote(ref: TabRef): void;
   /**
    * Set ONE pane's editor tab to Monaco source, rendered preview, or the
-   * linked (follow-along) preview (SPEC §8) — per tab, so the same file can
-   * be source in one pane and preview in another.
+   * linked or scroll-locked follow-along preview (SPEC §8) — per tab, so the
+   * same file can be source in one pane and preview in another.
    */
   setView(leafId: string, ref: TabRef, view: EditorView): void;
   removeTerminal(session: string): void;
@@ -138,8 +138,8 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
       focusedLeaf,
       activeEditorTab,
       focusLeaf: (leafId) => setFocusedLeafId(leafId),
-      // Activations feed the linked slots (SPEC §8): whatever renderable tab
-      // an op just made active is what every linked preview in this tree
+      // Activations feed the following slots (SPEC §8): whatever renderable tab
+      // an op just made active is what every linked/locked preview in this tree
       // retargets to, in the SAME persist, so all of them move together.
       activate: (leafId, ref) => {
         setFocusedLeafId(leafId);
@@ -147,7 +147,7 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
         const leaf = findLeaf(tree, leafId);
         const alreadyActive = leaf?.activeKey === key;
         const focused = alreadyActive ? tree : focusTab(tree, leafId, key);
-        const next = retargetLinkedTabs(focused, ref);
+        const next = retargetFollowingTabs(focused, ref);
         // Already active and nothing to retarget (a pane-body click on the
         // shown tab, mostly) — no tree change, no persist.
         if (alreadyActive && next === tree) return;
@@ -156,11 +156,11 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
       close: (leafId, ref) => {
         // Closing hands the leaf to a neighbour tab, and "most recently
         // active" means it: a markdown tab surfacing under a closed one
-        // retargets the linked slots too.
+        // retargets the following slots too.
         const next = closeTab(tree, leafId, tabRefKey(ref));
         const leaf = findLeaf(next, leafId);
         const surfaced = leaf?.tabs.find((t) => tabRefKey(t) === leaf.activeKey);
-        persist(surfaced ? retargetLinkedTabs(next, surfaced) : next);
+        persist(surfaced ? retargetFollowingTabs(next, surfaced) : next);
       },
       openEditor: (tab, opts) => {
         const target = focusedLeaf.id;
@@ -169,7 +169,7 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
         const opened = opts?.preview
           ? openPreview(tree, target, ref)
           : addTabToLeaf(tree, target, ref);
-        persist(retargetLinkedTabs(opened, ref));
+        persist(retargetFollowingTabs(opened, ref));
       },
       ensureTerminal: (session, opts) => {
         const key = `term:${session}`;
@@ -194,7 +194,12 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
         }
       },
       promote: (ref) => persist(promoteTab(tree, tabRefKey(ref))),
-      setView: (leafId, ref, view) => persist(setTabView(tree, leafId, tabRefKey(ref), view)),
+      setView: (leafId, ref, view) => {
+        const viewed = setTabView(tree, leafId, tabRefKey(ref), view);
+        const leaf = findLeaf(viewed, leafId);
+        const active = leaf?.tabs.find((tab) => tabRefKey(tab) === leaf.activeKey);
+        persist(active ? retargetFollowingTabs(viewed, active) : viewed);
+      },
       removeTerminal: (session) => {
         const leaf = leafContainingKey(tree, `term:${session}`);
         if (leaf) persist(closeTab(tree, leaf.id, `term:${session}`));
@@ -205,7 +210,7 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
       resize: (splitId, sizes) => persist(resizeSplit(tree, splitId, sizes)),
       drop: (spec) => {
         setFocusedLeafId(spec.toLeafId);
-        persist(retargetLinkedTabs(dropTab(tree, spec), spec.ref));
+        persist(retargetFollowingTabs(dropTab(tree, spec), spec.ref));
       },
     }),
     [tree, focusedLeaf, activeEditorTab, persist],

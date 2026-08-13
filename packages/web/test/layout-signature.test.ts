@@ -47,6 +47,19 @@ describe('layoutSignature', () => {
     expect(layoutSignature(a)).toBe(layoutSignature(b));
   });
 
+  it('ignores following-slot retargets but distinguishes linked from locked', () => {
+    const following = (view: 'linked' | 'locked', session: string, path: string): TabRef => ({
+      type: 'editor',
+      tab: { view, session, path },
+    });
+    expect(layoutSignature(makeLeaf([following('locked', S1, 'a.md')]))).toBe(
+      layoutSignature(makeLeaf([following('locked', S2, 'docs/b.md')])),
+    );
+    expect(layoutSignature(makeLeaf([following('linked', S1, 'a.md')]))).not.toBe(
+      layoutSignature(makeLeaf([following('locked', S1, 'a.md')])),
+    );
+  });
+
   it('signs an empty leaf the same as a null tree', () => {
     expect(layoutSignature(makeLeaf([]))).toBe(layoutSignature(null));
     expect(layoutSignature(makeLeaf([term(S1)]))).not.toBe(layoutSignature(null));

@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { Eye, FileCode, Link, X } from 'lucide-react';
+import { Eye, FileCode, Link, Lock, X } from 'lucide-react';
 import type { LayoutLeaf, Session, TabRef } from '@puddle/shared';
 import { HoverMarquee } from '../../components/hover-marquee';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
@@ -58,7 +58,7 @@ export function PaneTabStrip({
   onClose: (ref: TabRef) => void;
   onPromote: (ref: TabRef) => void;
   onArchived: (session: string) => void;
-  /** Set a previewable editor tab's view: source, preview, or linked (SPEC §8). */
+  /** Set a previewable editor tab's source/preview/following view (SPEC §8). */
   onSetView: (ref: TabRef, view: EditorView) => void;
   /** Double-click on the strip's blank tail: open a fresh untitled file (SPEC §8). */
   onNewFile: () => void;
@@ -168,9 +168,9 @@ function TabControls({ active, children }: { active: boolean; children: ReactNod
 
 /**
  * The markdown/HTML tab's view toggle (SPEC §8) — appears on hover like the
- * close button, styled identically (no borders, HUMANS.md). Three modes,
- * cycled in place: Monaco source, rendered preview, and the linked preview
- * (the follow-along slot that retargets to the last active renderable tab).
+ * close button, styled identically (no borders, HUMANS.md). Four modes cycle
+ * in place: Monaco source, rendered preview, linked preview, then the locked
+ * preview that also receives proportional scroll progress.
  * The icon names the CURRENT mode — the two-state toggle could show its
  * destination, but with three an icon naming the next mode is a riddle — and
  * the title says where a click goes.
@@ -178,17 +178,20 @@ function TabControls({ active, children }: { active: boolean; children: ReactNod
 const VIEW_CYCLE: Record<EditorView, EditorView> = {
   source: 'preview',
   preview: 'linked',
-  linked: 'source',
+  linked: 'locked',
+  locked: 'source',
 };
 const VIEW_ICON: Record<EditorView, typeof FileCode> = {
   source: FileCode,
   preview: Eye,
   linked: Link,
+  locked: Lock,
 };
 const VIEW_TITLE: Record<EditorView, string> = {
   source: 'Source — switch to preview',
   preview: 'Preview — switch to linked preview',
-  linked: 'Linked preview — switch to source',
+  linked: 'Linked preview — switch to locked preview',
+  locked: 'Locked preview — switch to source',
 };
 
 function ViewToggle({
@@ -308,10 +311,11 @@ function PaneTab({
         </>
       ) : (
         <>
-          {/* A linked slot names whatever it currently follows, so the chain
-              glyph is what says this chip is the follow-along preview and not
-              a second tab of that file (SPEC §8). */}
+          {/* A following slot names whatever it currently follows, so its
+              glyph distinguishes the stable slot from an ordinary second tab
+              of that file (SPEC §8). */}
           {tab.tab.view === 'linked' && <Link className="size-3 shrink-0 text-fg-muted" />}
+          {tab.tab.view === 'locked' && <Lock className="size-3 shrink-0 text-fg-muted" />}
           <HoverMarquee
             text={label}
             hoverClass={TAB_MARQUEE}

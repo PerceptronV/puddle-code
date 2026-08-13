@@ -1247,6 +1247,7 @@ function WorkspaceInner() {
           onSetTabView={layout.setView}
           onNewUntitled={onNewUntitled}
           focusedLeafId={layout.focusedLeaf.id}
+          scrollChannel={scopeKey}
         />
       </div>
     </div>

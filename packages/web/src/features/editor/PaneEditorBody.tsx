@@ -24,19 +24,27 @@ export function PaneEditorBody({
   tab,
   reveal,
   focused,
+  scrollDriver,
+  lockedReceiver,
+  scrollChannel,
 }: {
   tab: EditorTab;
   reveal: RevealTarget | null;
   focused: boolean;
+  scrollDriver: boolean;
+  lockedReceiver: boolean;
+  scrollChannel: string;
 }) {
   const kind = tabKind(tab);
-  // A linked tab renders like a preview of whatever it currently targets. Its
-  // `tabKey` is the constant slot key (retargets rewrite the fields under it),
+  // A following tab renders like a preview of whatever it currently targets.
+  // Its `tabKey` is the constant mode key (retargets rewrite fields under it),
   // so the RENDER key carries the target identity instead — a retarget must
   // remount the view on the new file, exactly as switching preview tabs does.
-  const rendered = tab.view === 'preview' || tab.view === 'linked';
+  const rendered = tab.view === 'preview' || tab.view === 'linked' || tab.view === 'locked';
   const paneKey =
-    tab.view === 'linked' ? `linked:${tab.session}:${tab.root ?? ''}:${tab.path}` : tabKey(tab);
+    tab.view === 'linked' || tab.view === 'locked'
+      ? `${tab.view}:${tab.session}:${tab.root ?? ''}:${tab.path}`
+      : tabKey(tab);
   if (kind === 'diff') {
     return (
       <DiffTabBody
@@ -89,6 +97,9 @@ export function PaneEditorBody({
           kind={externalPreview}
           root={tab.root}
           focused={focused}
+          scrollDriver={scrollDriver}
+          lockedReceiver={lockedReceiver}
+          scrollChannel={scrollChannel}
         />
       );
     }
@@ -100,6 +111,9 @@ export function PaneEditorBody({
         reveal={reveal}
         root={tab.root}
         focused={focused}
+        scrollDriver={scrollDriver}
+        lockedReceiver={lockedReceiver}
+        scrollChannel={scrollChannel}
       />
     );
   }
@@ -123,6 +137,9 @@ export function PaneEditorBody({
         path={tab.path}
         kind={preview}
         focused={focused}
+        scrollDriver={scrollDriver}
+        lockedReceiver={lockedReceiver}
+        scrollChannel={scrollChannel}
       />
     );
   }
@@ -133,6 +150,9 @@ export function PaneEditorBody({
       path={tab.path}
       reveal={reveal}
       focused={focused}
+      scrollDriver={scrollDriver}
+      lockedReceiver={lockedReceiver}
+      scrollChannel={scrollChannel}
     />
   );
 }

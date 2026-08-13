@@ -20,6 +20,13 @@ describe('decideHandshake', () => {
       command: CLI_UPGRADE_COMMAND,
     });
   });
+
+  it('treats a 15.x daemon as incompatible with protocol 16 locked snapshots', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 16, minor: 0 });
+    expect(decideHandshake(PROTOCOL_VERSION, { major: 15 })).toEqual({
+      kind: 'upgrade-daemon',
+    });
+  });
 });
 
 function stubClient(versions: VersionResponse[], live = 0): DaemonClient {

@@ -3,10 +3,12 @@ import {
   createSessionRequestSchema,
   diffResponseSchema,
   diffStatusSchema,
+  editorTabRefSchema,
   errorResponseSchema,
   fileResponseSchema,
   logResponseSchema,
   profileSettingsSchema,
+  PROTOCOL_VERSION,
   sessionSchema,
   sessionStatusSchema,
   showCommitResponseSchema,
@@ -148,6 +150,16 @@ describe('shared API schemas', () => {
       explorer_open: false,
     });
     expect(withTab.explorer_open).toBe(false);
+  });
+
+  it('accepts and round-trips locked editor refs at protocol 16.0', () => {
+    const tab = {
+      session: '11111111-1111-4111-8111-111111111111',
+      path: 'README.md',
+      view: 'locked' as const,
+    };
+    expect(editorTabRefSchema.parse(tab)).toEqual(tab);
+    expect(PROTOCOL_VERSION).toEqual({ major: 16, minor: 0 });
   });
 
   it('ws client messages discriminate on t and validate term ids', () => {

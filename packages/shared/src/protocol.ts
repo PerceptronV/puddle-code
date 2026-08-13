@@ -246,4 +246,11 @@
 // reads; staged/unstaged diff areas; and optional `git_area` on diff tabs.
 // New clients feature-detect this minor and keep the 15.2 read-only Changes
 // view when connected to an older daemon.
-export const PROTOCOL_VERSION = { major: 15, minor: 3 } as const;
+// 16.0 (2026-08-13): editor tab refs' closed `view` enum gains `locked` — a
+// linked rendered preview that also follows the active renderable tab's
+// normalised vertical scroll position (SPEC §8). Major, not minor: a 15.x
+// daemon rejects a ui_state PUT containing the unknown enum value instead of
+// safely carrying it, so the handshake must upgrade the daemon before any
+// workspace can persist this mode. Scroll positions themselves remain
+// transient browser state and add no wire shape.
+export const PROTOCOL_VERSION = { major: 16, minor: 0 } as const;
