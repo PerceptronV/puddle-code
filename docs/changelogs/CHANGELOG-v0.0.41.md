@@ -7,4 +7,8 @@ Past releases: see docs/changelogs/.
 
 # Changelog
 
-## [Unreleased]
+## [0.0.41] — 2026-08-13
+
+### Fixed
+
+- Preserve Codex and OpenCode conversations across daemon restarts by capturing only newly minted top-level agent session refs, repairing legacy refs by creation time, and preventing duplicate `(account, ref)` mappings.
