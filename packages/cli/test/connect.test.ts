@@ -39,6 +39,20 @@ describe('SshTransport argv shapes', () => {
     expect(ssh.args('alice@devbox', 'true').join(' ')).not.toContain('Control');
     expect(ssh.hasControlMaster).toBe(false);
   });
+
+  it('forces an embedder-supplied askpass helper without changing the CLI default', () => {
+    const graphical = new SshTransport('alice@devbox', {
+      platform: 'darwin',
+      askpassProgram: '/tmp/puddle-askpass',
+    });
+    expect(graphical.spawnEnv()).toMatchObject({
+      SSH_ASKPASS: '/tmp/puddle-askpass',
+      SSH_ASKPASS_REQUIRE: 'force',
+    });
+    expect(graphical.spawnEnv()?.DISPLAY).toBeTruthy();
+
+    expect(new SshTransport('alice@devbox', { platform: 'darwin' }).spawnEnv()).toBeUndefined();
+  });
 });
 
 describe('puddle launch against a fake ssh + real daemon (SSH mode)', () => {

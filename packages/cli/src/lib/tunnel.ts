@@ -49,7 +49,7 @@ export async function openCallbackForward(
   const child = spawn(
     opts.sshBinary ?? 'ssh',
     ssh.args('-N', '-L', `${port}:127.0.0.1:${port}`, ssh.host),
-    { stdio: ['ignore', 'ignore', 'inherit'] },
+    { stdio: ['ignore', 'ignore', 'inherit'], env: ssh.spawnEnv() },
   );
   if (!(await waitForTcp(port, 5000))) {
     child.kill('SIGTERM');
@@ -131,7 +131,7 @@ export async function openTunnel(
     const child = spawn(
       sshBinary,
       ssh.args('-N', '-L', `${port}:127.0.0.1:${remotePort}`, ssh.host),
-      { stdio: ['ignore', 'ignore', 'inherit'] },
+      { stdio: ['ignore', 'ignore', 'inherit'], env: ssh.spawnEnv() },
     );
     state.child = child;
     // Readiness by the forward, not the client: the local end accepts and the
@@ -196,9 +196,9 @@ export async function openTunnel(
         if (stopping) break;
         if (!(await ssh.isAlive())) {
           try {
-            // May prompt on the TTY in --foreground mode; a detached cockpit
-            // has none, so password/2FA re-auth keeps failing here and the
-            // loop keeps retrying — visible in the cockpit log either way.
+            // May prompt on the TTY in --foreground mode or through an
+            // embedder-supplied askpass helper. A detached CLI cockpit has
+            // neither, so password/2FA re-auth keeps retrying in its log.
             await ssh.open();
           } catch {
             delay = Math.min(delay * 2, RECONNECT_MAX_MS);

@@ -43,6 +43,8 @@ export interface ConnectOptions {
   sshBinary?: string;
   scpBinary?: string;
   platform?: NodeJS.Platform;
+  /** OpenSSH askpass executable for a graphical embedder with no terminal. */
+  sshAskpassProgram?: string;
 }
 
 /**
@@ -58,6 +60,7 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
     sshBinary: opts.sshBinary,
     scpBinary: opts.scpBinary,
     platform,
+    askpassProgram: opts.sshAskpassProgram,
   });
   if (platform === 'win32') {
     logger.warn(

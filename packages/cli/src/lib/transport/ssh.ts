@@ -11,6 +11,11 @@ export interface SshOptions {
   scpBinary?: string;
   /** Injected platform; win32 disables ControlMaster (unsupported there). */
   platform?: NodeJS.Platform;
+  /**
+   * Optional OpenSSH askpass executable supplied by a graphical embedder.
+   * The CLI leaves this unset and keeps using its inherited terminal.
+   */
+  askpassProgram?: string;
 }
 
 /**
@@ -28,6 +33,7 @@ export class SshTransport implements Transport {
   private readonly scp: string;
   private readonly controlArgs: string[];
   private readonly keepaliveArgs: string[];
+  private readonly askpassProgram: string | undefined;
 
   constructor(
     readonly host: string,
@@ -36,6 +42,7 @@ export class SshTransport implements Transport {
     this.label = host;
     this.ssh = opts.sshBinary ?? 'ssh';
     this.scp = opts.scpBinary ?? 'scp';
+    this.askpassProgram = opts.askpassProgram;
     const platform = opts.platform ?? process.platform;
     if (platform === 'win32') {
       // Windows OpenSSH has no multiplexing: every spawn may prompt again.
@@ -71,12 +78,34 @@ export class SshTransport implements Transport {
   }
 
   /**
-   * Open the master interactively — ssh's own prompts go straight to the
-   * user's TTY. Exit 0 leaves a live control socket behind.
+   * Environment for every ssh/scp child. `force` is scoped to graphical
+   * embedders that supplied a helper; normal CLI launches still talk to the
+   * inherited TTY exactly as before. OpenSSH also requires DISPLAY to be set
+   * before it considers askpass, even when the helper is not an X11 program.
+   */
+  spawnEnv(): NodeJS.ProcessEnv | undefined {
+    if (this.askpassProgram === undefined) return undefined;
+    return {
+      ...process.env,
+      SSH_ASKPASS: this.askpassProgram,
+      SSH_ASKPASS_REQUIRE: 'force',
+      DISPLAY: process.env.DISPLAY ?? 'puddle',
+    };
+  }
+
+  /**
+   * Open the master through the caller's authentication surface: the CLI's
+   * inherited TTY or a graphical embedder's askpass helper. Exit 0 leaves a
+   * live control socket behind.
    */
   open(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const child = spawn(this.ssh, this.args(this.host, 'true'), { stdio: 'inherit' });
+      const child = spawn(this.ssh, this.args(this.host, 'true'), {
+        // A GUI has no useful inherited terminal; OpenSSH calls its askpass
+        // helper instead. The terminal CLI keeps byte-for-byte inheritance.
+        stdio: this.askpassProgram === undefined ? 'inherit' : 'ignore',
+        env: this.spawnEnv(),
+      });
       child.on('error', (err) =>
         reject(new CliError('ssh_unreachable', `could not run ${this.ssh}: ${err.message}`)),
       );
@@ -99,7 +128,10 @@ export class SshTransport implements Transport {
   isAlive(): Promise<boolean> {
     if (!this.hasControlMaster) return Promise.resolve(true);
     return new Promise((resolve) => {
-      const child = spawn(this.ssh, this.args('-O', 'check', this.host), { stdio: 'ignore' });
+      const child = spawn(this.ssh, this.args('-O', 'check', this.host), {
+        stdio: 'ignore',
+        env: this.spawnEnv(),
+      });
       child.on('error', () => resolve(false));
       child.on('close', (code) => resolve(code === 0));
     });
@@ -119,6 +151,7 @@ export class SshTransport implements Transport {
       const spec = `${localPort}:127.0.0.1:${remotePort}`;
       const child = spawn(this.ssh, this.args('-O', 'cancel', '-L', spec, this.host), {
         stdio: 'ignore',
+        env: this.spawnEnv(),
       });
       child.on('error', () => resolve());
       child.on('close', () => resolve());
@@ -129,6 +162,7 @@ export class SshTransport implements Transport {
     return new Promise((resolve) => {
       const child = spawn(this.ssh, this.args(this.host, '--', `sh -c ${shellQuote(command)}`), {
         stdio: ['pipe', 'pipe', 'pipe'],
+        env: this.spawnEnv(),
       });
       let stdout = '';
       let stderr = '';
@@ -166,6 +200,7 @@ export class SshTransport implements Transport {
     await new Promise<void>((resolve, reject) => {
       const child = spawn(this.scp, [...this.controlArgs, localPath, `${this.host}:${destPath}`], {
         stdio: ['ignore', 'ignore', 'inherit'],
+        env: this.spawnEnv(),
       });
       child.on('error', reject);
       child.on('close', (code) => {

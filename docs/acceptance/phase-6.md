@@ -80,5 +80,12 @@ takes a CLIENT-side path and delivers it over scp.
     creates `~/Applications/Puddle.app`. No `.old` bundle is required or left
     behind. Run the command again with the app closed: it reports current (or
     performs the normal replacement if a newer release exists).
+11. **Desktop SSH authentication.** In the desktop app, choose File →
+    **Connect to SSH Host…** and target a host that requires password plus
+    keyboard-interactive/2FA authentication (with no warm ControlMaster).
+    Expect a masked SSH Authentication dialogue for each response, then the
+    normal cockpit window. Cancel one prompt and confirm the connection fails
+    without saving the host as a recent. Repeat with a previously unknown test
+    host and confirm its authenticity is presented as explicit Yes/No buttons.
 
 Record any deviations as issues before ticking the phase off.

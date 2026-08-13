@@ -1,0 +1,147 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
+    />
+    <title>SSH Authentication</title>
+    <style>
+      /* Shell chrome, outside the web app's token system — kept in step with
+         the host dialogues and HUMANS.md's spare, fill-only interaction. */
+      :root {
+        color-scheme: light dark;
+        --bg: #f6f6f4;
+        --fill: #e9e9e6;
+        --fill-hover: #dfdfdb;
+        --text: #1c1c1a;
+        --muted: #77776f;
+        --action: #2f6feb;
+        --action-hover: #275fd0;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #171715;
+          --fill: #242421;
+          --fill-hover: #2d2d29;
+          --text: #e8e8e3;
+          --muted: #8f8f86;
+          --action: #4c82f0;
+          --action-hover: #6494f3;
+        }
+      }
+      * {
+        margin: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font:
+          13px/1.45 system-ui,
+          sans-serif;
+        padding: 20px 22px;
+        user-select: none;
+      }
+      #prompt {
+        display: block;
+        min-height: 1.45em;
+        max-height: 4.35em;
+        margin-bottom: 8px;
+        overflow-y: auto;
+        color: var(--muted);
+        white-space: pre-wrap;
+        user-select: text;
+      }
+      input {
+        width: 100%;
+        border: 0;
+        outline: 0;
+        border-radius: 6px;
+        background: var(--fill);
+        color: var(--text);
+        font:
+          13px/1 ui-monospace,
+          monospace;
+        padding: 9px 10px;
+      }
+      input:focus {
+        background: var(--fill-hover);
+      }
+      .note {
+        flex: 1;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 14px;
+      }
+      button {
+        border: 0;
+        border-radius: 6px;
+        padding: 7px 14px;
+        font: inherit;
+        cursor: pointer;
+        background: var(--fill);
+        color: var(--text);
+      }
+      button:hover {
+        background: var(--fill-hover);
+      }
+      button.primary {
+        background: var(--action);
+        color: #fff;
+      }
+      button.primary:hover {
+        background: var(--action-hover);
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <label id="prompt" for="answer">SSH authentication</label>
+    <input id="answer" type="password" autocomplete="off" spellcheck="false" />
+    <div class="row">
+      <span class="note">Sent to the system ssh process and never stored.</span>
+      <button id="cancel" type="button">Cancel</button>
+      <button id="submit" type="button" class="primary">Continue</button>
+    </div>
+    <script>
+      const prompt = document.getElementById('prompt');
+      const answer = document.getElementById('answer');
+      const submit = document.getElementById('submit');
+      const cancel = document.getElementById('cancel');
+      let kind = 'secret';
+
+      const accept = () => {
+        window.puddleSshAuth.submit(kind === 'confirm' ? 'yes' : answer.value);
+        answer.value = '';
+      };
+      submit.addEventListener('click', accept);
+      cancel.addEventListener('click', () => window.puddleSshAuth.cancel());
+      answer.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') accept();
+      });
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') window.puddleSshAuth.cancel();
+        if (event.key === 'Enter' && kind === 'confirm') accept();
+      });
+
+      window.puddleSshAuth.onRequest((request) => {
+        kind = request.kind;
+        prompt.textContent = request.prompt;
+        answer.hidden = kind === 'confirm';
+        cancel.textContent = kind === 'confirm' ? 'No' : 'Cancel';
+        submit.textContent = kind === 'confirm' ? 'Yes' : 'Continue';
+        if (kind === 'secret') answer.focus();
+        else submit.focus();
+      });
+    </script>
+  </body>
+</html>

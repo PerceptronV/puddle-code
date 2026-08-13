@@ -24,6 +24,8 @@ import {
 } from '@puddle-code/cli/lib';
 import { addRecentHost, loadRecentHosts, migrateRecentHosts } from './recent-hosts.js';
 import { consumeReopenTargets, saveReopenTargets } from './reopen.js';
+import { createSshAuthPrompter } from './ssh-auth-prompt.js';
+import { startSshAskpass, type RunningSshAskpass } from './ssh-askpass.js';
 
 /**
  * The desktop shell (SPEC §10): an Electron main process that drives the SAME
@@ -41,10 +43,10 @@ import { consumeReopenTargets, saveReopenTargets } from './reopen.js';
  * exactly as with the CLI: closing a window stops that cockpit's UI server
  * and tunnel only — never the daemon or its agents.
  *
- * Remote-host caveat, same as detached CLI cockpits (SPEC §10): there is no
- * TTY here, so ssh cannot prompt — key-authenticated hosts (or a warm
- * ControlMaster) connect fine; password/2FA hosts need `puddle launch` in a
- * terminal.
+ * Remote authentication stays with the system ssh binary. Because this shell
+ * has no TTY, its standard SSH_ASKPASS bridge presents password, key
+ * passphrase, host-confirmation, and keyboard-interactive/2FA requests in a
+ * dedicated modal; answers are relayed in memory and never stored.
  */
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -68,13 +70,40 @@ let promptWin: BrowserWindow | null = null;
 let pickerWin: BrowserWindow | null = null;
 let stopped = false;
 
+const sshAuthPrompter = createSshAuthPrompter({
+  htmlPath: join(here, 'ssh-auth-prompt.html'),
+  preloadPath: join(here, 'auth-preload.cjs'),
+  parent: () => promptWin ?? pickerWin ?? BrowserWindow.getFocusedWindow(),
+});
+let sshAskpassPromise: Promise<RunningSshAskpass> | null = null;
+
 // Recents live in ~/.puddle (durable client state) so they survive app
 // updates and reinstalls; older installs kept them in userData — migrate once.
 const recentsFile = () => join(clientHome(), 'recent-hosts.json');
 const legacyRecentsFile = () => join(app.getPath('userData'), 'recent-hosts.json');
 const reopenFile = () => join(clientHome(), 'reopen-windows.json');
 
-function openCockpit(target: string, preferPort?: number): Promise<RunningCockpit> {
+function sshAskpass(): Promise<RunningSshAskpass> {
+  if (sshAskpassPromise === null) {
+    const starting = startSshAskpass({
+      home: clientHome(),
+      electronPath: process.execPath,
+      // ELECTRON_RUN_AS_NODE cannot be trusted to resolve a script inside an
+      // asar archive, so the one executable helper is unpacked at packaging.
+      helperPath: app.isPackaged
+        ? join(process.resourcesPath, 'app.asar.unpacked', 'dist', 'askpass-helper.cjs')
+        : join(here, 'askpass-helper.cjs'),
+      prompt: sshAuthPrompter.prompt,
+    });
+    sshAskpassPromise = starting;
+    void starting.catch(() => {
+      if (sshAskpassPromise === starting) sshAskpassPromise = null;
+    });
+  }
+  return sshAskpassPromise;
+}
+
+async function openCockpit(target: string, preferPort?: number): Promise<RunningCockpit> {
   const common = {
     assetsDir: join(here, 'public'),
     preferPort,
@@ -88,7 +117,9 @@ function openCockpit(target: string, preferPort?: number): Promise<RunningCockpi
       if (shell) void refreshShell(shell);
     },
   };
-  return target === LOCAL ? startLocal(common) : connectRemote({ host: target, ...common });
+  if (target === LOCAL) return startLocal(common);
+  const askpass = await sshAskpass();
+  return connectRemote({ host: target, sshAskpassProgram: askpass.program, ...common });
 }
 
 async function refreshShell(shell: Shell): Promise<void> {
@@ -255,12 +286,7 @@ async function connectFromPrompt(rawHost: string): Promise<void> {
     buildMenu();
     promptWin?.close();
   } catch (e) {
-    const auth =
-      e instanceof CliError && e.code === 'ssh_unreachable'
-        ? ' The app has no terminal for ssh prompts, so the host must accept key authentication ' +
-          '(ssh-copy-id) — for password/2FA hosts, use `puddle launch user@host` in a terminal.'
-        : '';
-    promptStatus('error', `${errorText(e)}${auth}`);
+    promptStatus('error', errorText(e));
   }
 }
 
@@ -315,12 +341,7 @@ async function openFromPicker(target: string): Promise<void> {
     }
     pickerWin?.close();
   } catch (e) {
-    const auth =
-      e instanceof CliError && e.code === 'ssh_unreachable'
-        ? ' The app has no terminal for ssh prompts — for password/2FA hosts, use ' +
-          '`puddle launch user@host` in a terminal.'
-        : '';
-    pickerStatus('error', `${errorText(e)}${auth}`);
+    pickerStatus('error', errorText(e));
   }
 }
 
@@ -531,10 +552,10 @@ if (!app.requestSingleInstanceLock()) {
     void pollForUpdate();
     setInterval(() => void pollForUpdate(), UPDATE_POLL_MS);
     // An update relaunch reopens the windows the restart closed (one-shot,
-    // recorded as the swap began); anything unreachable — an ssh host whose
-    // auth needs a prompt this app has no TTY for — is skipped, and if
-    // nothing comes back the picker takes over as usual. Every other launch
-    // has no default target: the host picker asks where the work is.
+    // recorded as the swap began); remote authentication can surface through
+    // the same askpass modal as a manual connect. If nothing comes back the
+    // picker takes over as usual. Every other launch has no default target:
+    // the host picker asks where the work is.
     const reopen = consumeReopenTargets(reopenFile());
     if (reopen.length === 0) {
       openHostPicker();
@@ -565,6 +586,11 @@ if (!app.requestSingleInstanceLock()) {
   // Belt and braces: window 'closed' handlers stop their own cockpits; this
   // catches a quit racing those stops (tunnels also die with the process).
   app.on('will-quit', (event) => {
+    sshAuthPrompter.close();
+    void sshAskpassPromise?.then(
+      (askpass) => askpass.close(),
+      () => undefined,
+    );
     if (stopped || shells.size === 0) return;
     event.preventDefault();
     stopped = true;

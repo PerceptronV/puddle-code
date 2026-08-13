@@ -1,7 +1,8 @@
 # Packaging for the desktop shell (`pnpm --filter @puddle-code/desktop dist`).
 # The bundle is self-contained (dist/ carries main, preloads, install.sh and
-# the web UI); install.sh is READ from inside app.asar (Electron patches fs),
-# never executed from disk, so nothing needs asarUnpack.
+# the web UI); install.sh is READ from inside app.asar (Electron patches fs).
+# The SSH askpass helper is the sole unpacked file because Electron's
+# run-as-Node mode executes it as a real script from a child process.
 #
 # Signing is environment-driven so local/dev/CI-without-secrets builds stay
 # unsigned automatically: electron-builder signs when CSC_LINK +
@@ -22,6 +23,8 @@ files:
   - dist/**
   - package.json
 asar: true
+asarUnpack:
+  - dist/askpass-helper.cjs
 mac:
   category: public.app-category.developer-tools
   hardenedRuntime: true
