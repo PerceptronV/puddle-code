@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ResolvePathResponse } from '@puddle/shared';
-import { findPathCandidates, ResolveCache } from '../src/features/terminal/file-links';
+import {
+  fileLinkTarget,
+  findPathCandidates,
+  ResolveCache,
+} from '../src/features/terminal/file-links';
 
 describe('findPathCandidates', () => {
   it('captures a path with line and column, underlining the whole token', () => {
@@ -106,6 +110,21 @@ describe('findPathCandidates', () => {
     expect(findPathCandidates('e.g. this way')).toEqual([
       { path: 'e.g', line: undefined, column: undefined, start: 0, end: 3 },
     ]);
+  });
+});
+
+describe('fileLinkTarget', () => {
+  it('keeps external-file coordinates and the requested editor position', () => {
+    expect(
+      fileLinkTarget({ kind: 'file', path: 'notes.md', root: '/shared', line: 4 }, 4, 2),
+    ).toEqual({ kind: 'file', path: 'notes.md', root: '/shared', line: 4, column: 2 });
+  });
+
+  it('drops meaningless positions from a directory target', () => {
+    expect(fileLinkTarget({ kind: 'dir', path: '/shared', line: null }, 4, 2)).toEqual({
+      kind: 'dir',
+      path: '/shared',
+    });
   });
 });
 

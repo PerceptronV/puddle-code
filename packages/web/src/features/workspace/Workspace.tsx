@@ -63,8 +63,9 @@ import { wsManager } from '../../lib/ws';
 import { registerHotkey, useHotkeyLabel } from '../../lib/hotkeys';
 import { setScratchpadInsertHandler } from '../scratchpad/scratchpad-store';
 import { setLayoutBridge } from '../layouts/layouts-store';
-import type { FileLinkTarget } from '../terminal/file-links';
+import { resolveFileLinkTarget, type FileLinkTarget } from '../terminal/file-links';
 import { KeepAliveHost } from './keep-alive';
+import { registerOpenPathHandler } from '../../lib/path-open';
 import { rememberClosedTab, takeClosedTab } from './closed-tabs';
 import {
   allLeaves,
@@ -910,6 +911,24 @@ function WorkspaceInner() {
     projectDirectory,
   );
   const targetSession = sidebarTarget.session;
+  const targetRoot = sidebarTarget.root;
+  const pathSessionId = targetSession?.id ?? null;
+  const openTypedPath = useCallback(
+    async (path: string) => {
+      if (pathSessionId === null) throw new Error('No worktree is available for this project.');
+      const target = await resolveFileLinkTarget(pathSessionId, path, { root: targetRoot });
+      // A project-directory target uses the nil session id plus `root`. Files
+      // resolving inside that directory omit `root` in the response (they are
+      // inside the resolution base), so restore it for the external-tab API.
+      const rootedTarget: FileLinkTarget =
+        target.kind === 'file' && target.root === undefined && targetRoot !== undefined
+          ? { ...target, root: targetRoot }
+          : target;
+      openFromTerminal(pathSessionId, rootedTarget);
+    },
+    [pathSessionId, targetRoot, openFromTerminal],
+  );
+  useEffect(() => registerOpenPathHandler(openTypedPath), [openTypedPath]);
   const sidebarMode: SidebarMode = normalizeSidebarMode(uiState.snapshot.sidebar_mode);
   const sidebarCollapsed = uiState.snapshot.sidebar_collapsed;
   const sessionsCollapsed = uiState.snapshot.sessions_collapsed;
@@ -1100,7 +1119,6 @@ function WorkspaceInner() {
   // does (SPEC §8): a single click on a result is a peek that the next click
   // replaces in the same slot, and a double click — on the row or on its tab —
   // pins it. `opts.preview === false` is the pin.
-  const targetRoot = sidebarTarget.root;
   type OpenOpts =
     | {
         preview?: boolean;

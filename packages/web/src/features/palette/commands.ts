@@ -13,6 +13,8 @@ export interface PaletteCommand {
   /** Extra fuzzy-match terms beyond the label. */
   keywords?: string;
   shortcut?: string;
+  /** Keep the palette mounted when the command transitions to an inline input. */
+  closeOnRun?: boolean;
   run(): void;
 }
 

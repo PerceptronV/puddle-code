@@ -9,6 +9,10 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Added
+
+- Open any daemon-host file or directory from a typed path in the command palette.
+
 ### Fixed
 
 - Make short file tabs shrink to their visible labels without counting hidden hover-control spacing.

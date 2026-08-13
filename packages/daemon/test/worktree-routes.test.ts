@@ -11,7 +11,11 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Hono } from 'hono';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { pasteImageResponseSchema, resolvePathResponseSchema } from '@puddle/shared';
+import {
+  pasteImageResponseSchema,
+  resolvePathResponseSchema,
+  UNTITLED_SESSION,
+} from '@puddle/shared';
 import { worktreeRoutes } from '../src/http/routes/worktrees.js';
 import { ApiError } from '../src/http/errors.js';
 import { fixture, waitFor, type Fixture } from './helpers/daemon-fixtures.js';
@@ -197,6 +201,19 @@ describe('GET /api/worktrees/:sid/resolve', () => {
     expect(res.status).toBe(200);
     const body = resolvePathResponseSchema.parse(await res.json());
     expect(body).toEqual({ path: homedir(), line: null, kind: 'dir' });
+  });
+
+  it('resolves relative paths from a session-less directory target', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'puddle-resolve-directory-target-'));
+    writeFileSync(join(root, 'notes.md'), '# notes\n');
+    const query = new URLSearchParams({ root, path: 'notes.md' });
+    const res = await resolvePath(UNTITLED_SESSION, `?${query}`);
+    expect(res.status).toBe(200);
+    expect(resolvePathResponseSchema.parse(await res.json())).toEqual({
+      path: 'notes.md',
+      line: null,
+      kind: 'file',
+    });
   });
 
   it('404s a traversal that resolves to nothing', async () => {

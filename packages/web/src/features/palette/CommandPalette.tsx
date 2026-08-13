@@ -27,6 +27,7 @@ import { triggerConnectionRefresh } from '../../lib/cockpit-refresh';
 import { registerCommandPalette } from '../../lib/command-palette';
 import { registerHotkey } from '../../lib/hotkeys';
 import { openSettings } from '../../lib/hash-route';
+import { openPath } from '../../lib/path-open';
 import { useProjects, useSessions } from '../../lib/queries';
 import { collectCommands, type PaletteCommand } from './commands';
 import { useCurrentProfileId, profileStore } from '../profile/profile-store';
@@ -42,6 +43,10 @@ export function CommandPalette({
   onNewProject?: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<'commands' | 'path'>('commands');
+  const [input, setInput] = useState('');
+  const [pathError, setPathError] = useState<string | null>(null);
+  const [openingPath, setOpeningPath] = useState(false);
   const navigate = useNavigate();
   const params = useParams();
   const profileId = useCurrentProfileId();
@@ -55,6 +60,16 @@ export function CommandPalette({
 
   // Let any affordance (e.g. an empty pane's ⌘K button) open this one palette.
   useEffect(() => registerCommandPalette(() => setOpen(true)), []);
+
+  // Every close returns to the ordinary command list, whether it came from a
+  // successful open, Escape, the backdrop, or the palette hotkey.
+  useEffect(() => {
+    if (open) return;
+    setMode('commands');
+    setInput('');
+    setPathError(null);
+    setOpeningPath(false);
+  }, [open]);
 
   const commands = useMemo(() => {
     const items: PaletteCommand[] = [];
@@ -98,6 +113,21 @@ export function CommandPalette({
           run: () => onNewSession({ kind: 'terminal' }),
         },
       );
+    }
+    if (projectId !== undefined) {
+      items.push({
+        id: 'open-path',
+        group: 'Actions',
+        label: 'Open path',
+        icon: FolderOpen,
+        keywords: 'file directory folder editor tree browse absolute relative home',
+        closeOnRun: false,
+        run: () => {
+          setInput('');
+          setPathError(null);
+          setMode('path');
+        },
+      });
     }
     if (onNewProject) {
       items.push({
@@ -172,33 +202,83 @@ export function CommandPalette({
     return [...byGroup.entries()];
   }, [commands]);
 
+  const submitPath = async () => {
+    const path = input.trim();
+    if (path === '' || openingPath) return;
+    setOpeningPath(true);
+    setPathError(null);
+    try {
+      await openPath(path);
+      setOpen(false);
+    } catch (error) {
+      setPathError(error instanceof Error ? error.message : 'Could not open that path.');
+    } finally {
+      setOpeningPath(false);
+    }
+  };
+
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Type a command or search…" />
-      <CommandList>
-        <CommandEmpty>Nothing matches.</CommandEmpty>
-        {groups.map(([group, items]) => (
-          <CommandGroup key={group} heading={group}>
-            {items.map((command) => {
-              const Icon = command.icon;
-              return (
-                <CommandItem
-                  key={command.id}
-                  value={`${command.label} ${command.keywords ?? ''}`}
-                  onSelect={() => {
-                    setOpen(false);
-                    command.run();
-                  }}
-                >
-                  {Icon && <Icon />}
-                  {command.label}
-                  {command.shortcut && <CommandShortcut>{command.shortcut}</CommandShortcut>}
-                </CommandItem>
-              );
-            })}
-          </CommandGroup>
-        ))}
-      </CommandList>
+      <CommandInput
+        value={input}
+        onValueChange={(value) => {
+          setInput(value);
+          setPathError(null);
+        }}
+        placeholder={mode === 'path' ? 'Enter a path…' : 'Type a command or search…'}
+        onKeyDown={(event) => {
+          if (mode !== 'path') return;
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            event.stopPropagation();
+            void submitPath();
+          } else if (event.key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
+            setMode('commands');
+            setInput('');
+            setPathError(null);
+          }
+        }}
+      />
+      {mode === 'path' ? (
+        <CommandList>
+          <div className="px-3 py-3 text-xs text-fg-muted">
+            <p>
+              Relative paths start from the bound worktree or project. Absolute and ~ paths work
+              too.
+            </p>
+            <p className={pathError ? 'mt-2 text-danger' : 'mt-2'} aria-live="polite">
+              {pathError ?? (openingPath ? 'Opening…' : 'Press Enter to open.')}
+            </p>
+          </div>
+        </CommandList>
+      ) : (
+        <CommandList>
+          <CommandEmpty>Nothing matches.</CommandEmpty>
+          {groups.map(([group, items]) => (
+            <CommandGroup key={group} heading={group}>
+              {items.map((command) => {
+                const Icon = command.icon;
+                return (
+                  <CommandItem
+                    key={command.id}
+                    value={`${command.label} ${command.keywords ?? ''}`}
+                    onSelect={() => {
+                      if (command.closeOnRun !== false) setOpen(false);
+                      command.run();
+                    }}
+                  >
+                    {Icon && <Icon />}
+                    {command.label}
+                    {command.shortcut && <CommandShortcut>{command.shortcut}</CommandShortcut>}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          ))}
+        </CommandList>
+      )}
     </CommandDialog>
   );
 }

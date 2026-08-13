@@ -275,19 +275,57 @@ function offsetToCell(
   return { row: y, col: x };
 }
 
-/** The live `/resolve` fetcher: 200 → the normalised response, anything else → null. */
+/** Ask the daemon to resolve one host path against a worktree/directory target. */
+async function requestResolvedPath(
+  sessionId: string,
+  path: string,
+  line?: number,
+  root?: string,
+): Promise<ResolvePathResponse> {
+  const query = new URLSearchParams({ path });
+  if (line !== undefined) query.set('line', String(line));
+  if (root !== undefined) query.set('root', root);
+  return api<ResolvePathResponse>('GET', `/api/worktrees/${sessionId}/resolve?${query}`);
+}
+
+/** Convert the daemon's normalised identity into the workspace's open target. */
+export function fileLinkTarget(
+  resolved: ResolvePathResponse,
+  line?: number,
+  column?: number,
+): FileLinkTarget {
+  const kind = resolved.kind ?? 'file'; // pre-15.2 daemons only answer files
+  return {
+    kind,
+    path: resolved.path,
+    ...(resolved.root !== undefined ? { root: resolved.root } : {}),
+    // A directory opens the file tree — a position has nothing to scroll to.
+    ...(kind === 'file' && line !== undefined ? { line: Math.max(1, line) } : {}),
+    ...(kind === 'file' && column !== undefined ? { column } : {}),
+  };
+}
+
+/** Resolve a user-entered path through the same path used by terminal links. */
+export async function resolveFileLinkTarget(
+  sessionId: string,
+  path: string,
+  opts?: { root?: string; line?: number; column?: number },
+): Promise<FileLinkTarget> {
+  const resolved = await requestResolvedPath(sessionId, path, opts?.line, opts?.root);
+  return fileLinkTarget(resolved, opts?.line, opts?.column);
+}
+
+/** The terminal fetcher: errors mean the candidate should not become a link. */
 async function resolvePath(
   sessionId: string,
   path: string,
   line?: number,
 ): Promise<ResolvePathResponse | null> {
-  const query = new URLSearchParams({ path });
-  if (line !== undefined) query.set('line', String(line));
   try {
-    return await api<ResolvePathResponse>('GET', `/api/worktrees/${sessionId}/resolve?${query}`);
+    return await requestResolvedPath(sessionId, path, line);
   } catch {
-    // 404 (not found / escape attempt) and transient errors both mean "don't
-    // underline". Fail safe rather than surfacing anything to the user.
+    // Missing paths and transient errors both mean "don't underline". Fail
+    // safe rather than surfacing terminal-hover errors to the user.
     return null;
   }
 }
@@ -340,19 +378,7 @@ export function registerFileLinks(
               // SPEC §14 activation gesture is cmd/ctrl+click; a plain click
               // must keep the terminal's own text selection.
               if (!event.metaKey && !event.ctrlKey) return;
-              const kind = resolved.kind ?? 'file'; // pre-15.2 daemons only answer files
-              onOpen({
-                kind,
-                path: resolved.path,
-                ...(resolved.root !== undefined ? { root: resolved.root } : {}),
-                // A dir opens the file tree — a `:line` suffix has nothing to scroll to.
-                ...(kind === 'file' && candidate.line !== undefined
-                  ? { line: Math.max(1, candidate.line) }
-                  : {}),
-                ...(kind === 'file' && candidate.column !== undefined
-                  ? { column: candidate.column }
-                  : {}),
-              });
+              onOpen(fileLinkTarget(resolved, candidate.line, candidate.column));
             },
           };
         }),
