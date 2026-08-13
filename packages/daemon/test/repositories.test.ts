@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -201,6 +201,48 @@ describe('source-control mutations and baselines', () => {
       repository: realpathSync(nested),
       repository_path: 'inside.txt',
       content: 'nested head\n',
+    });
+  });
+
+  it('uses the resolved target for a symlinked editor baseline', async () => {
+    const repo = initRepo();
+    cleanup.push(repo);
+    writeFileSync(join(repo, 'CLAUDE.md'), 'target at head\n');
+    symlinkSync('CLAUDE.md', join(repo, 'AGENTS.md'));
+    sh(repo, 'add', 'CLAUDE.md', 'AGENTS.md');
+    sh(repo, 'commit', '-m', 'add linked instructions');
+    writeFileSync(join(repo, 'CLAUDE.md'), 'working target\n');
+
+    // Git stores the link itself as its target-path text, but the editor reads
+    // through it. The gutter baseline must therefore come from CLAUDE.md.
+    expect(sh(repo, 'show', 'HEAD:AGENTS.md')).toBe('CLAUDE.md');
+    expect(await gitOriginal(repo, 'AGENTS.md')).toMatchObject({
+      repository: realpathSync(repo),
+      repository_path: 'CLAUDE.md',
+      content: 'target at head\n',
+      exists: true,
+      tracked: true,
+      ignored: false,
+    });
+  });
+
+  it('omits the editor baseline when a symlink target is outside a discovered repository', async () => {
+    const repo = initRepo();
+    const outside = mkdtempSync(join(tmpdir(), 'puddle-linked-file-'));
+    cleanup.push(repo, outside);
+    const target = join(outside, 'shared.txt');
+    writeFileSync(target, 'outside\n');
+    symlinkSync(target, join(repo, 'shared.txt'));
+    sh(repo, 'add', 'shared.txt');
+    sh(repo, 'commit', '-m', 'add external link');
+
+    expect(await gitOriginal(repo, 'shared.txt')).toMatchObject({
+      repository: null,
+      repository_path: null,
+      content: null,
+      exists: false,
+      tracked: false,
+      ignored: false,
     });
   });
 

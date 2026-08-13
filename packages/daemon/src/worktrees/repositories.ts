@@ -689,7 +689,11 @@ export async function indexFile(visibleRoot: string, rel: string): Promise<Index
 /** Resolve HEAD content for gutter indicators, including a staged rename. */
 export async function gitOriginal(visibleRoot: string, rel: string): Promise<GitOriginalResponse> {
   const visible = await canonical(visibleRoot);
-  const absolute = requestedFile(visible, rel);
+  // The ordinary editor follows filesystem symlinks when it reads a file, so
+  // its HEAD model must describe that same resolved target. Looking up the
+  // lexical link path instead returns Git's mode-120000 blob (just the target
+  // path as text), which makes the resolved document appear wholly changed.
+  const absolute = await canonical(requestedFile(visible, rel));
   const owner = await ownerForPath(visible, absolute);
   const empty = {
     path: rel,

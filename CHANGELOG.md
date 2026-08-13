@@ -12,3 +12,4 @@ Past releases: see docs/changelogs/.
 ### Fixed
 
 - Make short file tabs shrink to their visible labels without counting hidden hover-control spacing.
+- Compare symlinked editor files with their resolved target at `HEAD` instead of the link's target-path blob.
