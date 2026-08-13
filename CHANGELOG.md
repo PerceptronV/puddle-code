@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Keep short file tabs content-sized like agent and terminal tabs.

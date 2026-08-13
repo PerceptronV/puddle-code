@@ -315,9 +315,10 @@ function PaneTab({
           <HoverMarquee
             text={label}
             hoverClass={TAB_MARQUEE}
-            // Sidebar rows fill their line (`flex-1`); an auto-width tab must
-            // still derive its resting width from the filename.
-            containerClassName="flex-auto"
+            // Sidebar rows fill their line (`flex-1`); a tab must neither grow
+            // nor refuse to shrink, so its resting width follows the filename
+            // until the chip reaches its cap.
+            containerClassName="flex-[0_1_auto]"
             // Keep the revealed tail to the left of the controls laid over
             // this edge. The padding is inside the measured scroll width, so
             // it reserves nothing in the tab's resting layout.
