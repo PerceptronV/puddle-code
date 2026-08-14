@@ -135,7 +135,7 @@ export function CommandPalette({
         group: 'Actions',
         label: 'New project',
         icon: Plus,
-        keywords: 'new project create repository repo workspace',
+        keywords: 'new project open create repository repo workspace',
         run: onNewProject,
       });
     }
