@@ -168,7 +168,7 @@ function ChangeFileRow({
   return (
     <div
       className={cn(
-        'group flex items-center gap-1 pr-2 transition-colors hover:bg-elevated',
+        'group flex items-center gap-1 pr-3 transition-colors hover:bg-elevated',
         active && 'bg-selection',
       )}
       style={{ paddingLeft: 12 + depth * 12 }}
@@ -240,7 +240,7 @@ function ChangeTreeRows({
         return (
           <div key={node.path}>
             <div
-              className="group flex items-center gap-1 pr-2 transition-colors hover:bg-elevated"
+              className="group flex items-center gap-1 pr-3 transition-colors hover:bg-elevated"
               style={{ paddingLeft: 12 + depth * 12 }}
             >
               <button

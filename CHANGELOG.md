@@ -16,3 +16,4 @@ Past releases: see docs/changelogs/.
 ### Fixed
 
 - Keep wheel and trackpad scrolling in a locked render from redirecting new tabs away from the logically focused pane.
+- Align per-file and directory stage controls with their source-control group action.
