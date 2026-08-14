@@ -25,14 +25,14 @@ export function PaneEditorBody({
   reveal,
   focused,
   scrollDriver,
-  lockedReceiver,
+  scrollReceiver,
   scrollChannel,
 }: {
   tab: EditorTab;
   reveal: RevealTarget | null;
   focused: boolean;
   scrollDriver: boolean;
-  lockedReceiver: boolean;
+  scrollReceiver: boolean;
   scrollChannel: string;
 }) {
   const kind = tabKind(tab);
@@ -98,7 +98,7 @@ export function PaneEditorBody({
           root={tab.root}
           focused={focused}
           scrollDriver={scrollDriver}
-          lockedReceiver={lockedReceiver}
+          scrollReceiver={scrollReceiver}
           scrollChannel={scrollChannel}
         />
       );
@@ -112,7 +112,7 @@ export function PaneEditorBody({
         root={tab.root}
         focused={focused}
         scrollDriver={scrollDriver}
-        lockedReceiver={lockedReceiver}
+        scrollReceiver={scrollReceiver}
         scrollChannel={scrollChannel}
       />
     );
@@ -138,7 +138,7 @@ export function PaneEditorBody({
         kind={preview}
         focused={focused}
         scrollDriver={scrollDriver}
-        lockedReceiver={lockedReceiver}
+        scrollReceiver={scrollReceiver}
         scrollChannel={scrollChannel}
       />
     );
@@ -151,7 +151,7 @@ export function PaneEditorBody({
       reveal={reveal}
       focused={focused}
       scrollDriver={scrollDriver}
-      lockedReceiver={lockedReceiver}
+      scrollReceiver={scrollReceiver}
       scrollChannel={scrollChannel}
     />
   );

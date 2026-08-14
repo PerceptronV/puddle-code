@@ -9,9 +9,9 @@ import {
 } from './preview-scroll-store';
 
 /**
- * Monaco counterpart of the DOM scroll binding. Although locked v1 surfaces
- * render Markdown/HTML, retaining the receive path here keeps the proportional
- * maths reusable when a stale/non-renderable locked ref falls back to source.
+ * Monaco counterpart of the DOM scroll binding. Source tabs receive positions
+ * published by a focused locked preview (and a stale/non-renderable locked ref
+ * can still fall back to a receiving source surface).
  */
 export function bindMonacoPreviewScroll(
   editor: Monaco.editor.IStandaloneCodeEditor,

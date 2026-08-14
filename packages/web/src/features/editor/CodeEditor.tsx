@@ -61,7 +61,7 @@ export function CodeEditor({
   root,
   focused = true,
   scrollDriver = false,
-  lockedReceiver = false,
+  scrollReceiver = false,
   scrollChannel = 'profile',
 }: {
   session: string;
@@ -73,7 +73,7 @@ export function CodeEditor({
   /** Whether this is the workspace's logically focused tab. */
   focused?: boolean;
   scrollDriver?: boolean;
-  lockedReceiver?: boolean;
+  scrollReceiver?: boolean;
   scrollChannel?: string;
 }) {
   const settings = useClientSettings();
@@ -101,7 +101,7 @@ export function CodeEditor({
         channel: scrollChannel,
         target: scrollTarget,
         driver: scrollDriver,
-        receiver: lockedReceiver,
+        receiver: scrollReceiver,
       },
       monaco.editor.ScrollType.Immediate,
     );
@@ -112,7 +112,7 @@ export function CodeEditor({
     scrollChannel,
     scrollTarget,
     scrollDriver,
-    lockedReceiver,
+    scrollReceiver,
   ]);
 
   // Conflict state outranks the query's ordinary file status: the comparison

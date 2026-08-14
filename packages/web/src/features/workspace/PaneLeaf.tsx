@@ -72,13 +72,17 @@ export function PaneLeaf({
   const paletteKey = useHotkeyLabel('palette.toggle');
   const activeEditor = activeRef?.type === 'editor' ? activeRef.tab : null;
   const activeView = activeEditor?.view ?? 'source';
-  const scrollDriver =
-    focused &&
+  const renderableEditor =
     activeEditor !== null &&
     (tabKind(activeEditor) === 'file' || tabKind(activeEditor) === 'external') &&
-    previewKind(activeEditor.path) !== null &&
-    (activeView === 'source' || activeView === 'preview');
-  const lockedReceiver = activeView === 'locked';
+    previewKind(activeEditor.path) !== null;
+  // Whichever ordinary/locked renderable surface owns logical focus drives
+  // the file's proportional position. Other locked previews AND source tabs
+  // receive it; an interaction focuses a receiver before its scroll begins,
+  // promoting that surface to the sole driver without a feedback loop.
+  const scrollDriver = focused && renderableEditor && activeView !== 'linked';
+  const scrollReceiver =
+    !scrollDriver && (activeView === 'locked' || (renderableEditor && activeView === 'source'));
 
   // Clicking INTO the pane body activates the shown tab, via a NATIVE capture
   // listener — not React's onMouseDownCapture. An adopted terminal's DOM was
@@ -165,7 +169,14 @@ export function PaneLeaf({
   }, [leaf.id]);
 
   return (
-    <div className="flex h-full flex-col bg-ground" onMouseDownCapture={() => onFocusLeaf(leaf.id)}>
+    <div
+      className="flex h-full flex-col bg-ground"
+      onMouseDownCapture={() => onFocusLeaf(leaf.id)}
+      // A wheel/trackpad gesture need not be preceded by a click. Claim logical
+      // focus during capture so scrolling a locked receiver promotes it to the
+      // driver and publishes the resulting position to its peers.
+      onWheelCapture={() => onFocusLeaf(leaf.id)}
+    >
       {/* No tabs → no strip: an empty pane reserves no blank bar (HUMANS.md). */}
       {leaf.tabs.length > 0 && (
         <PaneTabStrip
@@ -193,7 +204,7 @@ export function PaneLeaf({
               reveal={reveal}
               focused={focused}
               scrollDriver={scrollDriver}
-              lockedReceiver={lockedReceiver}
+              scrollReceiver={scrollReceiver}
               scrollChannel={scrollChannel}
             />
           </div>

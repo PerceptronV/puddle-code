@@ -21,7 +21,7 @@ type BodyProps = {
   reveal: RevealTarget | null;
   focused: boolean;
   scrollDriver: boolean;
-  lockedReceiver: boolean;
+  scrollReceiver: boolean;
   scrollChannel: string;
 };
 type RefcountProps = { buffers: HeldBuffer[] };

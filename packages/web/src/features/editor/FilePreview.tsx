@@ -60,7 +60,7 @@ export function FilePreview({
   root,
   focused = true,
   scrollDriver = false,
-  lockedReceiver = false,
+  scrollReceiver = false,
   scrollChannel = 'profile',
 }: {
   session: string;
@@ -72,7 +72,7 @@ export function FilePreview({
   root?: string;
   focused?: boolean;
   scrollDriver?: boolean;
-  lockedReceiver?: boolean;
+  scrollReceiver?: boolean;
   scrollChannel?: string;
 }) {
   const buffer = useEditorBuffer(session, path, null, root, {
@@ -99,7 +99,7 @@ export function FilePreview({
       text={text}
       root={root}
       scrollDriver={scrollDriver}
-      lockedReceiver={lockedReceiver}
+      scrollReceiver={scrollReceiver}
       scrollChannel={scrollChannel}
       focused={focused}
     />
@@ -110,7 +110,7 @@ export function FilePreview({
       text={text}
       root={root}
       scrollDriver={scrollDriver}
-      lockedReceiver={lockedReceiver}
+      scrollReceiver={scrollReceiver}
       scrollChannel={scrollChannel}
       focused={focused}
     />
@@ -148,7 +148,7 @@ function MarkdownPreview({
   text,
   root,
   scrollDriver,
-  lockedReceiver,
+  scrollReceiver,
   scrollChannel,
   focused,
 }: {
@@ -157,7 +157,7 @@ function MarkdownPreview({
   text: string;
   root?: string;
   scrollDriver: boolean;
-  lockedReceiver: boolean;
+  scrollReceiver: boolean;
   scrollChannel: string;
   focused: boolean;
 }) {
@@ -197,10 +197,10 @@ function MarkdownPreview({
       channel: scrollChannel,
       target: { session, path, root },
       driver: scrollDriver,
-      receiver: lockedReceiver,
+      receiver: scrollReceiver,
       resizeElements: [scroller, body],
     });
-  }, [html, session, path, root, scrollChannel, scrollDriver, lockedReceiver]);
+  }, [html, session, path, root, scrollChannel, scrollDriver, scrollReceiver]);
 
   // Resolve worktree images (relative or /-absolute) through the authed media
   // endpoint: an <img src> carries no bearer header, so the bytes travel as a
@@ -299,7 +299,7 @@ function HtmlPreview({
   text,
   root,
   scrollDriver,
-  lockedReceiver,
+  scrollReceiver,
   scrollChannel,
   focused,
 }: {
@@ -308,7 +308,7 @@ function HtmlPreview({
   text: string;
   root?: string;
   scrollDriver: boolean;
-  lockedReceiver: boolean;
+  scrollReceiver: boolean;
   scrollChannel: string;
   focused: boolean;
 }) {
@@ -372,7 +372,7 @@ function HtmlPreview({
   }, [find.openFind, find.setResult, findChannel]);
 
   useEffect(() => {
-    if (!lockedReceiver) return;
+    if (!scrollReceiver) return;
     return previewScrollStore.subscribe(scrollChannel, target, (position) => {
       applyHtmlPreviewScroll(
         iframeRef.current?.contentWindow ?? null,
@@ -380,10 +380,10 @@ function HtmlPreview({
         position.ratio,
       );
     });
-  }, [lockedReceiver, scrollChannel, target, bridgeChannel]);
+  }, [scrollReceiver, scrollChannel, target, bridgeChannel]);
 
   useEffect(() => {
-    if (!scrollDriver && !lockedReceiver) return;
+    if (!scrollDriver && !scrollReceiver) return;
     const onMessage = (event: MessageEvent<unknown>) => {
       const report = htmlPreviewScrollReport(
         event,
@@ -406,7 +406,7 @@ function HtmlPreview({
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [scrollDriver, lockedReceiver, scrollChannel, target, bridgeChannel]);
+  }, [scrollDriver, scrollReceiver, scrollChannel, target, bridgeChannel]);
 
   if (doc === null) return null; // first inline pass; later passes keep the old doc up
   return (
@@ -423,7 +423,7 @@ function HtmlPreview({
         title={path}
         className="size-full bg-paper"
         onLoad={() => {
-          if (lockedReceiver) {
+          if (scrollReceiver) {
             const current = previewScrollStore.get(scrollChannel, target);
             if (current) {
               applyHtmlPreviewScroll(

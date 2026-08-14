@@ -136,6 +136,8 @@ export interface PreviewScrollBinding {
 /**
  * Bind a Markdown-like DOM scroller. Drivers publish at most once per frame;
  * receivers never listen to their own scroll and therefore cannot feed back.
+ * Logical focus promotes a receiving source/locked surface to the driver
+ * before user scrolling, so the binding itself can remain strictly one-way.
  */
 export function bindPreviewScrollElement(
   element: ScrollElement,
