@@ -390,19 +390,19 @@ export function SourceControlRepository({
 
   return (
     <section className={cn('py-0.5', selected && 'bg-surface/40')} onFocus={onSelect}>
-      <div className="flex h-8 items-center gap-1 pl-3 pr-2">
+      <div className="flex h-8 items-center gap-1 pl-2 pr-2">
         <button
           type="button"
           onClick={() => {
             onSelect();
             setCollapsed((value) => !value);
           }}
-          className="group/repository relative flex min-w-0 flex-1 items-center gap-1.5 text-left transition-colors hover:text-fg"
+          className="group/repository flex min-w-0 flex-1 items-center gap-1.5 text-left transition-colors hover:text-fg"
         >
           {collapsed ? (
-            <ChevronRight className="absolute right-full top-1/2 size-3 -translate-y-1/2" />
+            <ChevronRight className="size-3 shrink-0" />
           ) : (
-            <ChevronDown className="absolute right-full top-1/2 size-3 -translate-y-1/2" />
+            <ChevronDown className="size-3 shrink-0" />
           )}
           <HoverMarquee
             text={repository.name}

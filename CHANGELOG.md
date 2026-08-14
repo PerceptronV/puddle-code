@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Changed
+
+- Give source-control repository disclosure controls more breathing room from the screen edge and repository name.
