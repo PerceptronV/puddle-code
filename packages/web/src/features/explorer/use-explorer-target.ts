@@ -22,6 +22,21 @@ export interface ExplorerTarget {
   unpin(): void;
 }
 
+/**
+ * Decorate a target so releasing its pin also leaves an ephemeral directory
+ * browse. Both the pin button and "Back to the worktree" use this path: a
+ * browse creates the pin, so either exit must release both pieces of state.
+ */
+export function withBrowseReset(target: ExplorerTarget, resetBrowse: () => void): ExplorerTarget {
+  return {
+    ...target,
+    unpin() {
+      resetBrowse();
+      target.unpin();
+    },
+  };
+}
+
 /** A project's own repository directory, as a binding for the sidebar. */
 export interface ProjectDirectory {
   /** Absolute path of the project's repository. */

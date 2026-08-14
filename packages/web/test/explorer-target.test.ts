@@ -3,6 +3,7 @@ import { UNTITLED_SESSION, uiStateSnapshotSchema, type Session } from '@puddle/s
 import {
   projectDirectorySession,
   useExplorerTarget,
+  withBrowseReset,
   type ProjectDirectory,
 } from '../src/features/explorer/use-explorer-target';
 import type { UiStateHandle } from '../src/features/workspace/use-ui-state';
@@ -98,6 +99,19 @@ describe('useExplorerTarget', () => {
     expect(t.session).toBeNull();
     expect(t.root).toBeUndefined();
     expect(t.isProjectDirectory).toBe(false);
+  });
+
+  it('releases the directory browse and its pin through the shared return path', () => {
+    const uiState = handle(S1);
+    const target = useExplorerTarget([session(S1)], S1, uiState, DIR);
+    let browseOpen = true;
+
+    withBrowseReset(target, () => {
+      browseOpen = false;
+    }).unpin();
+
+    expect(browseOpen).toBe(false);
+    expect(uiState.snapshot.explorer_pin).toBeNull();
   });
 });
 

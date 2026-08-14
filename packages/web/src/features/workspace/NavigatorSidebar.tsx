@@ -20,7 +20,7 @@ import { BrowseTree } from '../explorer/BrowseTree';
 import { ExplorerProvider } from '../explorer/explorer-context';
 import { parentDir } from '../explorer/explorer-paths';
 import { FileExplorer } from '../explorer/FileExplorer';
-import type { ExplorerTarget } from '../explorer/use-explorer-target';
+import { withBrowseReset, type ExplorerTarget } from '../explorer/use-explorer-target';
 import { SearchNav } from '../search/SearchNav';
 import { WorktreesNav } from '../worktrees/WorktreesNav';
 import { SidebarTargetHeader } from './SidebarTargetHeader';
@@ -238,13 +238,7 @@ export function NavigatorSidebar({
   // the tree stranded above the worktree while claiming to follow the active
   // tab. Every unpin path in this sidebar goes through the header, so wrapping
   // the target once here covers all of them.
-  const sidebarTarget: ExplorerTarget = {
-    ...target,
-    unpin() {
-      setBrowse(null);
-      target.unpin();
-    },
-  };
+  const sidebarTarget = withBrowseReset(target, () => setBrowse(null));
 
   // What Changes and Search are actually ABOUT: a directory, not a session.
   // Their remount key is therefore the worktree path (plus any request root),
@@ -337,7 +331,9 @@ export function NavigatorSidebar({
                 />
               }
               onNavigateUp={() => enterBrowse(parentDir(browseRoot))}
-              onReset={() => setBrowse(null)}
+              // Returning ends the directory browse AND the pin it created,
+              // restoring normal follow-the-active-tab sidebar behaviour.
+              onReset={sidebarTarget.unpin}
               onOpenFile={(path, opts) => onOpenExternalFile(session.id, path, browseRoot, opts)}
               activePath={activeExternalTab?.root === browseRoot ? activeExternalTab.path : null}
             />
