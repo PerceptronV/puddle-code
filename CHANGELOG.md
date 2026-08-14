@@ -13,6 +13,7 @@ Past releases: see docs/changelogs/.
 
 - Give source-control repository disclosure controls more breathing room from the screen edge and repository name.
 - Copy an environment-variable name to the clipboard when its pane-strip label is clicked.
+- Use the current file-tree location as the shared Files, Search, and Changes header, including external paths opened from the command palette.
 
 ### Fixed
 

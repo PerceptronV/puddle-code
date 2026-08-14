@@ -20,7 +20,11 @@ import { BrowseTree } from '../explorer/BrowseTree';
 import { ExplorerProvider } from '../explorer/explorer-context';
 import { parentDir } from '../explorer/explorer-paths';
 import { FileExplorer } from '../explorer/FileExplorer';
-import { withBrowseReset, type ExplorerTarget } from '../explorer/use-explorer-target';
+import {
+  explorerLocationPath,
+  withBrowseReset,
+  type ExplorerTarget,
+} from '../explorer/use-explorer-target';
 import { SearchNav } from '../search/SearchNav';
 import { WorktreesNav } from '../worktrees/WorktreesNav';
 import { SidebarTargetHeader } from './SidebarTargetHeader';
@@ -199,6 +203,7 @@ export function NavigatorSidebar({
   // What the file/git/search requests send: an explicit browse root wins, then
   // the target's own (a directory target), else nothing (a real worktree).
   const requestRoot = browseRoot ?? targetRoot;
+  const locationPath = explorerLocationPath(target, browseRoot);
   const enterBrowse = (root: string) => {
     if (!session) return;
     if (!target.pinned) target.pin(session.id);
@@ -296,12 +301,7 @@ export function NavigatorSidebar({
           its own header INSIDE the ExplorerProvider (below) so the header's
           utility actions can drive the tree. */}
       {mode !== 'worktrees' && mode !== 'files' && (
-        // Search names the absolute worktree path (like Files); Changes keeps the branch.
-        <SidebarTargetHeader
-          sessions={sessions}
-          target={sidebarTarget}
-          showPath={mode === 'search'}
-        />
+        <SidebarTargetHeader sessions={sessions} target={sidebarTarget} location={locationPath} />
       )}
 
       {mode === 'worktrees' && (
@@ -327,7 +327,7 @@ export function NavigatorSidebar({
                   sessions={sessions}
                   target={sidebarTarget}
                   showFileActions
-                  showPath
+                  location={locationPath}
                 />
               }
               onNavigateUp={() => enterBrowse(parentDir(browseRoot))}
@@ -370,7 +370,7 @@ export function NavigatorSidebar({
               sessions={sessions}
               target={sidebarTarget}
               showFileActions
-              showPath
+              location={locationPath}
             />
             {/* The way OUT of the worktree: '..' enters the browse tree at
                 the parent, pinning the sidebar so the bound session cannot
@@ -392,7 +392,11 @@ export function NavigatorSidebar({
           </ExplorerProvider>
         ) : (
           <>
-            <SidebarTargetHeader sessions={sessions} target={sidebarTarget} />
+            <SidebarTargetHeader
+              sessions={sessions}
+              target={sidebarTarget}
+              location={locationPath}
+            />
             <div className="px-3 py-2 text-xs text-fg-muted">No worktree to show.</div>
           </>
         ))}

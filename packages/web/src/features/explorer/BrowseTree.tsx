@@ -2,8 +2,6 @@ import type { ReactNode } from 'react';
 import { CornerLeftUp, Undo2 } from 'lucide-react';
 import type { Session } from '@puddle/shared';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
-import { tildify } from '../../lib/tildify';
-import { useHostInfo } from '../../lib/queries';
 import { ExplorerProvider } from './explorer-context';
 import { FileExplorer } from './FileExplorer';
 
@@ -13,16 +11,16 @@ import { FileExplorer } from './FileExplorer';
  * browse `root` instead of the session's worktree — so everything a right-click
  * offers inside the worktree works out here too: create, rename, delete,
  * cut/copy/paste, drag-move, upload, download. Files open as fully editable
- * `external` tabs (10.4). Only two things are genuinely worktree-shaped and so
- * absent: git decorations (the status endpoint is worktree-scoped) and "Open
- * Terminal in Directory" (the daemon confines a terminal's `cwd` to the
- * worktree, 11.1).
+ * `external` tabs (10.4). Git decorations follow the root-qualified status
+ * query; only "Open Terminal in Directory" stays absent because the daemon
+ * confines a terminal's `cwd` to the worktree (11.1).
  *
  * `readOnly` covers the one case where the mutations must NOT be offered: a
  * daemon older than protocol 12.3 ignores `?root=` on the fs routes and would
  * resolve those paths against the worktree, silently touching the wrong files.
  *
- * The header walks further up and returns to the worktree.
+ * The utility row walks further up and returns to the worktree; the shared
+ * sidebar header above it is the sole display of the current absolute location.
  */
 export function BrowseTree({
   session,
@@ -71,10 +69,8 @@ export function BrowseTree({
 }
 
 /**
- * Where you are, and the two ways out. The path itself is part of the
- * walk-up control rather than inert text beside it: the whole line up to the
- * return button takes you up a level, so the gesture that got you here keeps
- * working without aiming at a 14px icon.
+ * The two ways out of an external browse. Its absolute path is deliberately not
+ * repeated here: the shared navigator header is the one location display.
  */
 function BrowseHeader({
   root,
@@ -85,7 +81,6 @@ function BrowseHeader({
   onNavigateUp: () => void;
   onReset: () => void;
 }) {
-  const home = useHostInfo().data?.home;
   return (
     <div className="flex h-8 shrink-0 items-center px-2">
       <Tooltip>
@@ -97,9 +92,7 @@ function BrowseHeader({
             className="flex min-w-0 flex-1 items-center gap-1.5 rounded-sm px-1 py-1 text-left text-fg-gold transition-colors hover:bg-elevated hover:text-fg disabled:pointer-events-none disabled:opacity-40"
           >
             <CornerLeftUp className="size-3.5 shrink-0" />
-            <span className="min-w-0 truncate text-xs text-fg-secondary">
-              {tildify(root, home)}
-            </span>
+            <span className="text-xs text-fg-muted">..</span>
           </button>
         </TooltipTrigger>
         <TooltipContent>{root === '/' ? root : 'Browse the parent directory'}</TooltipContent>

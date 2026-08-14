@@ -40,6 +40,16 @@ export interface FileLinkTarget {
   column?: number;
 }
 
+/**
+ * An outside file makes its containing browse root the sidebar's location.
+ * A file already rooted at the current directory needs no redundant browse.
+ */
+export function externalBrowseRoot(target: FileLinkTarget, currentRoot?: string): string | null {
+  return target.kind === 'file' && target.root !== undefined && target.root !== currentRoot
+    ? target.root
+    : null;
+}
+
 /** One path-shaped token found in a line, with offsets into the logical text. */
 export interface PathCandidate {
   path: string;

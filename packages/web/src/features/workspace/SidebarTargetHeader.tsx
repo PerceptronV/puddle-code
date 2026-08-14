@@ -9,7 +9,6 @@ import {
 } from '../../components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { useHostInfo } from '../../lib/queries';
-import { sessionDisplayName } from '../../lib/session-display';
 import { tildify } from '../../lib/tildify';
 import { cn } from '../../lib/utils';
 import { useExplorerOptional } from '../explorer/explorer-context';
@@ -45,41 +44,34 @@ function PathScroller({ text, className }: { text: string; className?: string })
 
 /**
  * The left sidebar's bound-worktree header (SPEC §8), shown under the icon row
- * for every navigator (Files, Changes, Search): it names the bound worktree —
- * its absolute path in Files & Search (what they operate over), its branch in
- * Changes — carries the pin toggle, and offers a dropdown to pin any other
- * project worktree by hand. In files mode (`showFileActions`) it also hosts the
- * explorer utility cluster — Refresh · Collapse Folders (creation lives in the
- * tree's context menus, not here — the header stays uncluttered).
+ * for every navigator (Files, Changes, Search): it names the one current
+ * file-tree location all three operate over, carries the pin toggle, and offers
+ * a dropdown to pin any other project worktree by hand. In files mode
+ * (`showFileActions`) it also hosts the explorer utility cluster — Refresh ·
+ * Collapse Folders (creation lives in the tree's context menus, not here — the
+ * header stays uncluttered).
  */
 export function SidebarTargetHeader({
   sessions,
   target,
   showFileActions = false,
-  showPath = false,
+  location,
 }: {
   sessions: Session[];
   target: ExplorerTarget;
   showFileActions?: boolean;
-  /** Files & Search name the worktree's absolute path (what they operate over);
-   *  Changes keeps the branch name (more intuitive per surface). */
-  showPath?: boolean;
+  /** Absolute root currently shown by Files and queried by Changes/Search. */
+  location?: string | null;
 }) {
   const { session, pinned, pin, unpin, isProjectDirectory } = target;
   const renderTitle = useSessionTitleRenderer();
   const home = useHostInfo().data?.home;
   const pickable = sessions.filter((s) => s.status !== 'archived');
-  // A directory target is the project's own repository, not a session's
-  // worktree: it has no session name to fall back on and no branch of its own
-  // worth claiming, so Changes names the directory too (SPEC §8).
-  const branchLabel = !session
-    ? 'No worktree'
-    : isProjectDirectory
-      ? tildify(session.worktree_path, home)
-      : session.branch || sessionDisplayName(session);
   // ~-compress the daemon home so the identifying tail gets the width (SPEC §8).
-  const pathLabel = session ? tildify(session.worktree_path, home) : 'No worktree';
-  const title = showPath ? pathLabel : branchLabel;
+  // `location` overrides the bound worktree while Files is browsing elsewhere;
+  // every navigator receives the same value from NavigatorSidebar.
+  const resolvedLocation = location ?? target.root ?? session?.worktree_path ?? null;
+  const title = resolvedLocation ? tildify(resolvedLocation, home) : 'No worktree';
 
   return (
     <div className="group relative flex h-8 shrink-0 items-center px-2">

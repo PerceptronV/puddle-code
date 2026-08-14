@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ResolvePathResponse } from '@puddle/shared';
 import {
+  externalBrowseRoot,
   fileLinkTarget,
   findPathCandidates,
   ResolveCache,
+  type FileLinkTarget,
 } from '../src/features/terminal/file-links';
 
 describe('findPathCandidates', () => {
@@ -128,6 +130,15 @@ describe('fileLinkTarget', () => {
         2,
       ),
     ).toEqual({ kind: 'dir', path: '/worktree/src', relativePath: 'src' });
+  });
+});
+
+describe('externalBrowseRoot', () => {
+  it('promotes an outside file directory, but not an already-current root', () => {
+    const target: FileLinkTarget = { kind: 'file', path: 'notes.md', root: '/shared' };
+    expect(externalBrowseRoot(target)).toBe('/shared');
+    expect(externalBrowseRoot(target, '/shared')).toBeNull();
+    expect(externalBrowseRoot({ kind: 'file', path: 'README.md' })).toBeNull();
   });
 });
 

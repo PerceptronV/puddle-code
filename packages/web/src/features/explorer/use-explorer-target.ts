@@ -22,6 +22,14 @@ export interface ExplorerTarget {
   unpin(): void;
 }
 
+/** The one absolute location named by every worktree-scoped navigator header. */
+export function explorerLocationPath(
+  target: Pick<ExplorerTarget, 'session' | 'root'>,
+  browseRoot?: string | null,
+): string | null {
+  return browseRoot ?? target.root ?? target.session?.worktree_path ?? null;
+}
+
 /**
  * Decorate a target so releasing its pin also leaves an ephemeral directory
  * browse. Both the pin button and "Back to the worktree" use this path: a

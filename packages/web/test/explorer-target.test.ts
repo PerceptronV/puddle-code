@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { UNTITLED_SESSION, uiStateSnapshotSchema, type Session } from '@puddle/shared';
 import {
+  explorerLocationPath,
   projectDirectorySession,
   useExplorerTarget,
   withBrowseReset,
@@ -112,6 +113,18 @@ describe('useExplorerTarget', () => {
 
     expect(browseOpen).toBe(false);
     expect(uiState.snapshot.explorer_pin).toBeNull();
+  });
+});
+
+describe('explorerLocationPath', () => {
+  it('uses the worktree, then a directory target, then the active external browse', () => {
+    const worktree = useExplorerTarget([session(S1)], S1, handle(), DIR);
+    expect(explorerLocationPath(worktree)).toBe(`/wt/${S1}`);
+
+    const directory = useExplorerTarget([], null, handle(), DIR);
+    expect(explorerLocationPath(directory)).toBe(DIR.path);
+
+    expect(explorerLocationPath(worktree, '/outside/repository')).toBe('/outside/repository');
   });
 });
 

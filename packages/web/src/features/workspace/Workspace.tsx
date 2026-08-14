@@ -63,7 +63,11 @@ import { wsManager } from '../../lib/ws';
 import { registerHotkey, useHotkeyLabel } from '../../lib/hotkeys';
 import { setScratchpadInsertHandler } from '../scratchpad/scratchpad-store';
 import { setLayoutBridge } from '../layouts/layouts-store';
-import { resolveFileLinkTarget, type FileLinkTarget } from '../terminal/file-links';
+import {
+  externalBrowseRoot,
+  resolveFileLinkTarget,
+  type FileLinkTarget,
+} from '../terminal/file-links';
 import { KeepAliveHost } from './keep-alive';
 import { registerOpenPathHandler } from '../../lib/path-open';
 import { requestReveal } from '../../lib/reveal-in-tree';
@@ -479,26 +483,6 @@ function WorkspaceInner() {
     root: string;
     nonce: number;
   } | null>(null);
-  const openFromTerminal = useCallback(
-    (session: string, target: FileLinkTarget) => {
-      if (target.kind === 'dir') {
-        if (isNarrowRef.current) setNarrowNav(true);
-        uiState.update({
-          sidebar_mode: 'files',
-          ...(isNarrowRef.current ? {} : { sidebar_collapsed: false }),
-        });
-        setBrowseRequest({ session, root: target.path, nonce: Date.now() });
-        return;
-      }
-      openFile(
-        session,
-        target.path,
-        target.line !== undefined ? { line: target.line, column: target.column } : undefined,
-        target.root !== undefined ? { root: target.root } : undefined,
-      );
-    },
-    [openFile, uiState],
-  );
   // Explorer clicks: a single click opens an ephemeral preview tab; a double
   // click opens (or promotes to) a permanent one.
   const openTreeFile = useCallback(
@@ -945,6 +929,32 @@ function WorkspaceInner() {
   );
   const targetSession = sidebarTarget.session;
   const targetRoot = sidebarTarget.root;
+  const openFromTerminal = useCallback(
+    (session: string, target: FileLinkTarget) => {
+      if (target.kind === 'dir') {
+        if (isNarrowRef.current) setNarrowNav(true);
+        uiState.update({
+          sidebar_mode: 'files',
+          ...(isNarrowRef.current ? {} : { sidebar_collapsed: false }),
+        });
+        setBrowseRequest({ session, root: target.path, nonce: Date.now() });
+        return;
+      }
+      const browseRoot = externalBrowseRoot(target, targetRoot);
+      if (browseRoot !== null) {
+        // An external file's containing directory becomes the shared Files /
+        // Changes / Search location even when the current navigator stays put.
+        setBrowseRequest({ session, root: browseRoot, nonce: Date.now() });
+      }
+      openFile(
+        session,
+        target.path,
+        target.line !== undefined ? { line: target.line, column: target.column } : undefined,
+        target.root !== undefined ? { root: target.root } : undefined,
+      );
+    },
+    [openFile, uiState, targetRoot],
+  );
   const pathSessionId = targetSession?.id ?? null;
   const openTypedPath = useCallback(
     async (path: string) => {
