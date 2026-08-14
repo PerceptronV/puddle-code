@@ -234,6 +234,7 @@ export function ExplorerProvider({
     () => buildStatusMap(statusQuery.data?.entries ?? []),
     [statusQuery.data],
   );
+  const refetchStatus = statusQuery.refetch;
 
   // Recompute the flat visible-row list whenever the expansion set changes or a
   // directory's tree query lands (subscribe to the cache for the latter).
@@ -490,8 +491,12 @@ export function ExplorerProvider({
   );
   const refresh = useCallback(() => {
     void qc.invalidateQueries({ queryKey: ['wt-tree', sid] });
-    void qc.invalidateQueries({ queryKey: ['wt-git-status', sid] });
-  }, [qc, sid]);
+    // This mounted query is the decoration map the visible tree is actually
+    // rendering, including a root-qualified parent-directory browse. Refetch
+    // it directly so the Refresh button does not rely on invalidation's
+    // active-query scheduling to update Git state.
+    void refetchStatus();
+  }, [qc, sid, refetchStatus]);
 
   const onInternalDrop = useCallback(
     (targetDir: string, draggedPaths: string[]) => {

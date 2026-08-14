@@ -17,3 +17,4 @@ Past releases: see docs/changelogs/.
 
 - Keep wheel and trackpad scrolling in a locked render from redirecting new tabs away from the logically focused pane.
 - Align per-file and directory stage controls with their source-control group action.
+- Refresh file-tree Git decorations whenever the file tree is refreshed manually.
