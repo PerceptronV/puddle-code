@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Preserve untitled draft text when switching tabs while its daemon persistence write is pending.

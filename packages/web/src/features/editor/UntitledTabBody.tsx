@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef } from 'react';
 import Editor from '@monaco-editor/react';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useClientSettings } from '../../lib/client-settings';
 import { debounce, type Debounced } from '../../lib/debounce';
 import { useHotkeyLabel } from '../../lib/hotkeys';
-import { putUntitled, useUntitledFile } from '../../lib/untitled-queries';
+import { putUntitled, updateCachedUntitled, useUntitledFile } from '../../lib/untitled-queries';
 import { useCurrentProfileId } from '../profile/profile-store';
 import { registerEditorKeybindings } from './editor-keybindings';
 import { THEME_NAME, monaco } from './monaco-setup';
@@ -26,6 +27,7 @@ export function UntitledTabBody({ name }: { name: string }) {
   const settings = useClientSettings();
   const profileId = useCurrentProfileId();
   const file = useUntitledFile(profileId, name);
+  const queryClient = useQueryClient();
   const saveKey = useHotkeyLabel('editor.save');
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const writerRef = useRef<Debounced<[content: string]> | null>(null);
@@ -89,6 +91,7 @@ export function UntitledTabBody({ name }: { name: string }) {
           onChange={(value) => {
             const content = value ?? '';
             publishUntitledContent(name, content);
+            updateCachedUntitled(queryClient, profileId, name, content);
             writerRef.current?.(content);
           }}
           options={{
