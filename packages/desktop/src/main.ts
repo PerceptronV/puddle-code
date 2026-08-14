@@ -1,5 +1,6 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PROTOCOL_VERSION } from '@puddle/shared';
 import {
   BrowserWindow,
   Menu,
@@ -17,6 +18,7 @@ import {
   CliError,
   connectRemote,
   pruneDesktopUpdateCache,
+  recordDesktopInstallation,
   stageDesktopUpdate,
   startLocal,
   type Logger,
@@ -91,6 +93,11 @@ let sshAskpassPromise: Promise<RunningSshAskpass> | null = null;
 const recentsFile = () => join(clientHome(), 'recent-hosts.json');
 const legacyRecentsFile = () => join(app.getPath('userData'), 'recent-hosts.json');
 const reopenFile = () => join(clientHome(), 'reopen-windows.json');
+
+function packagedDesktopPath(): string {
+  if (process.platform === 'darwin') return join(dirname(process.execPath), '..', '..');
+  return process.env.APPIMAGE ?? process.execPath;
+}
 
 function sshAskpass(): Promise<RunningSshAskpass> {
   if (sshAskpassPromise === null) {
@@ -598,6 +605,20 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   void app.whenReady().then(() => {
+    // package.json's scoped npm name is an implementation detail; native menu
+    // roles should say “About Puddle”, not “About @puddle-code/desktop”.
+    app.setName('Puddle');
+    app.setAboutPanelOptions({
+      applicationVersion: app.getVersion(),
+      version: `Protocol ${PROTOCOL_VERSION.major}.${PROTOCOL_VERSION.minor}`,
+    });
+    if (app.isPackaged) {
+      recordDesktopInstallation({
+        path: packagedDesktopPath(),
+        version: app.getVersion(),
+        protocol: PROTOCOL_VERSION,
+      });
+    }
     migrateRecentHosts(legacyRecentsFile(), recentsFile());
     buildMenu();
     // Leftover staged downloads are dead weight at boot — an applied update's

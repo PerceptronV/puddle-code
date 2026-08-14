@@ -12,6 +12,7 @@
  *   puddled-v<v>/
  *   ├── puddled            # sh launcher: exec bin/node daemon/puddled.mjs "$@"
  *   ├── VERSION
+ *   ├── PROTOCOL           # exact major.minor, readable without executing puddled
  *   ├── LICENSE
  *   ├── bin/node           # pinned runtime, nothing else from the Node dist
  *   └── daemon/
@@ -52,6 +53,13 @@ const flag = (name) => {
 const version =
   flag('--version') ??
   JSON.parse(readFileSync(join(repoRoot, 'packages/daemon/package.json'), 'utf8')).version;
+const protocolSource = readFileSync(join(repoRoot, 'packages/shared/src/protocol.ts'), 'utf8');
+const protocolMatch = /PROTOCOL_VERSION\s*=\s*{\s*major:\s*(\d+),\s*minor:\s*(\d+)\s*}/.exec(
+  protocolSource,
+);
+if (protocolMatch === null)
+  fail('cannot read PROTOCOL_VERSION from packages/shared/src/protocol.ts');
+const protocolVersion = `${protocolMatch[1]}.${protocolMatch[2]}`;
 const outDir = resolve(repoRoot, flag('--out-dir') ?? 'dist-release');
 const stageOnly = args.includes('--stage-only');
 
@@ -205,7 +213,7 @@ async function fetchNodeRuntime() {
   log(`staged node v${NODE_RUNTIME_VERSION} (${(statSync(cachedNode).size / 1e6).toFixed(0)} MB)`);
 }
 
-/* 4 — launcher, VERSION, LICENSE. */
+/* 4 — launcher, VERSION, PROTOCOL, LICENSE. */
 function writeMetadata() {
   // dirname of ~/.puddle/bin/current/puddled resolves THROUGH the `current`
   // symlink, so bin/node is found without readlink -f. install.sh writes
@@ -216,6 +224,9 @@ function writeMetadata() {
   );
   chmodSync(join(stage, 'puddled'), 0o755);
   writeFileSync(join(stage, 'VERSION'), `${version}\n`);
+  // Read directly by `puddle --version`; an offline inventory must never
+  // execute an unknown historical daemon just to discover compatibility.
+  writeFileSync(join(stage, 'PROTOCOL'), `${protocolVersion}\n`);
   cpSync(join(repoRoot, 'LICENSE'), join(stage, 'LICENSE'));
 }
 

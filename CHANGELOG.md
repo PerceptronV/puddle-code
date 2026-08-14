@@ -12,6 +12,7 @@ Past releases: see docs/changelogs/.
 ### Added
 
 - Add Monaco-style in-view find to rendered file previews and terminal sessions with case, whole-word, and regular-expression matching.
+- Report every installed component's app and speaking-protocol version from `puddle --version`, and show the desktop protocol in macOS's correctly named About Puddle panel.
 
 ### Changed
 

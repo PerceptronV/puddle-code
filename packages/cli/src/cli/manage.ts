@@ -5,6 +5,10 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Session } from '@puddle/shared';
 import { installedVersion } from '../lib/bootstrap.js';
+import {
+  componentProtocolForVersion,
+  recordDesktopInstallation,
+} from '../lib/component-versions.js';
 import { DaemonClient, readDaemonPort, readToken } from '../lib/daemon-client.js';
 import {
   applyDesktopUpdate,
@@ -307,6 +311,12 @@ async function setDesktop(
   logger.info(move);
   const staged = await stageDesktopUpdate(update, { logger });
   await applyDesktopUpdate(staged, { targetPath, detach: false, relaunch: false, logger });
+  const protocol = componentProtocolForVersion(update.version);
+  recordDesktopInstallation({
+    path: targetPath,
+    version: update.version,
+    ...(protocol ? { protocol } : {}),
+  });
   logger.info(`Puddle ${update.version} installed at ${targetPath}`);
   return 0;
 }
@@ -350,6 +360,12 @@ async function installDesktopAppImage(
     await chmod(target, 0o755);
   }
   await rm(staged.dir, { recursive: true, force: true });
+  const protocol = componentProtocolForVersion(update.version);
+  recordDesktopInstallation({
+    path: target,
+    version: update.version,
+    ...(protocol ? { protocol } : {}),
+  });
   logger.info(`installed — run it directly (${target}) or add it to your launcher`);
   // Show the file where it landed; a headless box just skips this.
   const opener = spawn('xdg-open', [dir], { stdio: 'ignore', detached: true });

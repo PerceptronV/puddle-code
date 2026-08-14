@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { attachSession } from '../lib/attach.js';
 import { openBrowser } from '../lib/browser.js';
+import { formatComponentVersions, installedComponentVersions } from '../lib/component-versions.js';
 import { connectRemote } from '../lib/connect.js';
 import { type RunningCockpit } from '../lib/cockpit.js';
 import { DaemonClient, readDaemonPort, readToken } from '../lib/daemon-client.js';
@@ -109,7 +110,7 @@ export async function run(command: Command): Promise<number> {
       process.stdout.write(USAGE + '\n');
       return 0;
     case 'version':
-      process.stdout.write(`Puddle ${cliVersion()}\n`);
+      process.stdout.write(`${formatComponentVersions(await installedComponentVersions())}\n`);
       return 0;
 
     case 'launch': {

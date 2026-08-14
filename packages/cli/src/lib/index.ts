@@ -16,6 +16,15 @@ export { CliError, silentLogger, type CliErrorCode, type CliEvent, type Logger }
 export { cliVersion, pinnedDaemonVersion } from './version.js';
 export { clientHome } from './paths.js';
 export {
+  componentProtocolForVersion,
+  formatComponentVersions,
+  installedComponentVersions,
+  recordDesktopInstallation,
+  type DesktopInstallation,
+  type InstalledComponentVersion,
+  type SpeakingProtocol,
+} from './component-versions.js';
+export {
   applyDesktopUpdate,
   checkForDesktopUpdate,
   findInstalledDesktopApp,
