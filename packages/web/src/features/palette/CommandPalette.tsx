@@ -101,7 +101,7 @@ export function CommandPalette({
           group: 'Actions',
           label: 'New agent',
           icon: Bot,
-          keywords: 'create start agent session',
+          keywords: 'new agent create start session',
           run: () => onNewSession(),
         },
         {
@@ -109,7 +109,7 @@ export function CommandPalette({
           group: 'Actions',
           label: 'New terminal',
           icon: TerminalSquare,
-          keywords: 'create start shell session',
+          keywords: 'new terminal create start shell session',
           run: () => onNewSession({ kind: 'terminal' }),
         },
       );
@@ -120,7 +120,7 @@ export function CommandPalette({
         group: 'Actions',
         label: 'Open path',
         icon: FolderOpen,
-        keywords: 'file directory folder editor tree browse absolute relative home',
+        keywords: 'open path file directory folder editor tree browse absolute relative home',
         closeOnRun: false,
         run: () => {
           setInput('');
@@ -135,7 +135,7 @@ export function CommandPalette({
         group: 'Actions',
         label: 'New project',
         icon: Plus,
-        keywords: 'create repository repo workspace',
+        keywords: 'new project create repository repo workspace',
         run: onNewProject,
       });
     }
@@ -145,7 +145,7 @@ export function CommandPalette({
         group: 'Theme',
         label: 'Switch theme: dark',
         icon: Moon,
-        keywords: 'theme dark appearance',
+        keywords: 'switch theme dark appearance',
         run: () => void applyTheme('dark'),
       },
       {
@@ -153,7 +153,7 @@ export function CommandPalette({
         group: 'Theme',
         label: 'Switch theme: light',
         icon: Sun,
-        keywords: 'theme light appearance',
+        keywords: 'switch theme light appearance',
         run: () => void applyTheme('light'),
       },
       {
@@ -161,7 +161,7 @@ export function CommandPalette({
         group: 'Theme',
         label: 'Switch theme: system',
         icon: MonitorCog,
-        keywords: 'theme system appearance',
+        keywords: 'switch theme system appearance',
         run: () => void applyTheme('system'),
       },
       {
@@ -169,7 +169,7 @@ export function CommandPalette({
         group: 'Actions',
         label: 'Settings',
         icon: Settings,
-        keywords: 'preferences options configure',
+        keywords: 'open settings preferences options configure',
         run: () => openSettings(),
       },
       {
@@ -177,7 +177,7 @@ export function CommandPalette({
         group: 'Actions',
         label: 'Switch profile',
         icon: UserRound,
-        keywords: 'identity user change',
+        keywords: 'switch profile identity user change',
         run: () => profileStore.set(null),
       },
       {
@@ -185,7 +185,7 @@ export function CommandPalette({
         group: 'Actions',
         label: 'Refresh connection',
         icon: RefreshCw,
-        keywords: 'reconnect restart cockpit tunnel ssh daemon',
+        keywords: 'refresh connection reconnect restart cockpit tunnel ssh daemon',
         run: () => triggerConnectionRefresh(),
       },
     );
