@@ -20,7 +20,7 @@ export function EnvStrip({ sessionId, status }: { sessionId: string; status: Ses
   if (!live || vars.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1 font-mono text-xs">
+    <div className="flex items-center gap-2 px-3 font-mono text-xs">
       <span className="text-fg-muted">env</span>
       <div className="flex flex-wrap items-center gap-1">
         {vars.map((v) => (

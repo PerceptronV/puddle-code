@@ -40,7 +40,7 @@ export function PortsStrip({
   if (!live || ports.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1 text-xs">
+    <div className="flex items-center gap-2 px-3 text-xs">
       <span className="text-fg-muted">ports</span>
       <div className="flex items-center gap-1">
         {ports.map((port) => (

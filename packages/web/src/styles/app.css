@@ -128,15 +128,6 @@
   kbd {
     font-variant-numeric: tabular-nums;
   }
-
-  /* Adjacent session metadata rows share a boundary: their individual
-     vertical padding should not create a conspicuous blank band. */
-  .pane-session-strips > div:has(+ div) {
-    padding-bottom: 0;
-  }
-  .pane-session-strips > div + div {
-    padding-top: 0;
-  }
 }
 
 @layer components {

@@ -239,8 +239,10 @@ export function PaneLeaf({
       {/* The shown session's captured env and ports, IN FLOW below the body —
           never overlays, so nothing sits over the terminal; the body shrinks
           to make room and each strip vanishes (with its row's height) when
-          it has nothing to show. */}
-      <div className="pane-session-strips">
+          it has nothing to show. The terminal slot supplies the top spacing;
+          this wrapper matches it below and uses that same single gap between
+          rows. An empty wrapper must reserve no space. */}
+      <div className="flex flex-col gap-1 pb-1 empty:hidden">
         {shownSession && <EnvStrip sessionId={shownSession.id} status={shownSession.status} />}
         {shownSession && <PortsStrip sessionId={shownSession.id} status={shownSession.status} />}
       </div>
