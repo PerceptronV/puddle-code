@@ -27,6 +27,7 @@ import { addRecentHost, loadRecentHosts, migrateRecentHosts } from './recent-hos
 import { loadWindowTargets, saveWindowTargets } from './reopen.js';
 import { createSshAuthPrompter } from './ssh-auth-prompt.js';
 import { startSshAskpass, type RunningSshAskpass } from './ssh-askpass.js';
+import { initialCockpitBounds } from './window-bounds.js';
 
 /**
  * The desktop shell (SPEC §10): an Electron main process that drives the SAME
@@ -158,24 +159,10 @@ function raise(win: BrowserWindow): void {
 }
 
 function createWindow(target: string, cockpit: RunningCockpit): BrowserWindow {
-  const preferred = { width: 1440, height: 900 };
   const initialBounds =
     process.platform === 'darwin'
-      ? (() => {
-          const { workArea } = screen.getPrimaryDisplay();
-          const width = Math.min(preferred.width, workArea.width);
-          const height = Math.min(preferred.height, workArea.height);
-          return {
-            width,
-            height,
-            // macOS otherwise applies its own slight inset when clamping a
-            // preferred size to the work area. Centre ordinary windows, but
-            // explicitly meet every edge on an axis that has been clamped.
-            x: workArea.x + Math.floor((workArea.width - width) / 2),
-            y: workArea.y + Math.floor((workArea.height - height) / 2),
-          };
-        })()
-      : preferred;
+      ? initialCockpitBounds(process.platform, screen.getPrimaryDisplay().workArea)
+      : initialCockpitBounds(process.platform);
   const win = new BrowserWindow({
     ...initialBounds,
     // On macOS the native title bar goes away entirely: the web app's own

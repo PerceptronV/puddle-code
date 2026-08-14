@@ -13,3 +13,7 @@ Past releases: see docs/changelogs/.
 
 - Restore the desktop's open cockpit windows after ordinary quits and restarts, not only upgrades.
 - Reveal and expand worktree directories opened through the command palette in Files without pinning the sidebar.
+
+### Fixed
+
+- Bottom-align the macOS desktop window so its lower border launches flush with the work-area edge.
