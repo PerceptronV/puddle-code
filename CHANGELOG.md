@@ -15,7 +15,7 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
-- Restore the desktop's open cockpit windows after ordinary quits and restarts, not only upgrades.
+- Restore the desktop's open cockpit windows after ordinary quits and restarts, retaining their monitor-relative bounds on macOS and X11 and their virtual desktop on X11 when available.
 - Reveal and expand worktree directories opened through the command palette in Files without pinning the sidebar.
 
 ### Fixed

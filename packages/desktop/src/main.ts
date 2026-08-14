@@ -24,10 +24,16 @@ import {
   type StagedDesktopUpdate,
 } from '@puddle-code/cli/lib';
 import { addRecentHost, loadRecentHosts, migrateRecentHosts } from './recent-hosts.js';
-import { loadWindowTargets, saveWindowTargets } from './reopen.js';
+import {
+  loadReopenWindows,
+  saveReopenWindows,
+  type ReopenWindow,
+  type WindowPlacement,
+} from './reopen.js';
 import { createSshAuthPrompter } from './ssh-auth-prompt.js';
 import { startSshAskpass, type RunningSshAskpass } from './ssh-askpass.js';
-import { initialCockpitBounds } from './window-bounds.js';
+import { restoredCockpitBounds, type DisplayGeometry } from './window-bounds.js';
+import { readX11Workspace, restoreX11Workspace } from './x11-workspace.js';
 
 /**
  * The desktop shell (SPEC §10): an Electron main process that drives the SAME
@@ -158,13 +164,28 @@ function raise(win: BrowserWindow): void {
   app.focus({ steal: true });
 }
 
-function createWindow(target: string, cockpit: RunningCockpit): BrowserWindow {
-  const initialBounds =
-    process.platform === 'darwin'
-      ? initialCockpitBounds(process.platform, screen.getPrimaryDisplay().workArea)
-      : initialCockpitBounds(process.platform);
+/** Primary-first display geometry: the first entry is the safe fallback. */
+function displayGeometries(): DisplayGeometry[] {
+  const primary = screen.getPrimaryDisplay();
+  return [primary, ...screen.getAllDisplays().filter((display) => display.id !== primary.id)].map(
+    (display) => ({ id: display.id, label: display.label, workArea: display.workArea }),
+  );
+}
+
+function createWindow(
+  target: string,
+  cockpit: RunningCockpit,
+  placement?: WindowPlacement,
+): BrowserWindow {
+  const initialBounds = restoredCockpitBounds(process.platform, displayGeometries(), placement);
+  // An EWMH hint must exist before the X11 window is mapped. Create restored
+  // workspace windows hidden for those few synchronous instructions, then map
+  // them normally; every other path keeps Electron's ordinary immediate show.
+  const workspace = process.platform === 'linux' ? placement?.workspace : undefined;
+  const restoreWorkspace = workspace !== undefined;
   const win = new BrowserWindow({
     ...initialBounds,
+    ...(restoreWorkspace ? { show: false } : {}),
     // On macOS the native title bar goes away entirely: the web app's own
     // top bar (host, ⌘K field, settings/scratchpad/profile) doubles as the
     // drag region, with the traffic lights inlaid — ShellLayout detects the
@@ -189,6 +210,11 @@ function createWindow(target: string, cockpit: RunningCockpit): BrowserWindow {
       plugins: true,
     },
   });
+
+  if (restoreWorkspace) {
+    restoreX11Workspace(win.getMediaSourceId(), workspace);
+    win.show();
+  }
 
   // Full-screen state is a WINDOW fact only the main process knows, and the top
   // bar needs it: with the native title bar hidden the bar insets 88px for the
@@ -234,7 +260,7 @@ function createWindow(target: string, cockpit: RunningCockpit): BrowserWindow {
 }
 
 /** Open (or raise) the window for a target; errors surface with the caller. */
-async function openShell(target: string): Promise<void> {
+async function openShell(target: string, placement?: WindowPlacement): Promise<void> {
   const existing = shells.get(target);
   if (existing) {
     raise(existing.win);
@@ -244,10 +270,34 @@ async function openShell(target: string): Promise<void> {
   connecting.add(target);
   try {
     const cockpit = await openCockpit(target);
-    const win = createWindow(target, cockpit);
+    const win = createWindow(target, cockpit, placement);
     shells.set(target, { target, cockpit, win, refreshing: false });
   } finally {
     connecting.delete(target);
+  }
+}
+
+/** Capture shell chrome while every quitting window still exists. */
+function reopenWindow(shell: Shell): ReopenWindow {
+  if (shell.win.isDestroyed()) return { target: shell.target };
+  try {
+    const bounds = shell.win.getNormalBounds();
+    const display = screen.getDisplayMatching(bounds);
+    const workspace =
+      process.platform === 'linux' ? readX11Workspace(shell.win.getMediaSourceId()) : null;
+    return {
+      target: shell.target,
+      placement: {
+        bounds,
+        displayId: display.id,
+        displayLabel: display.label,
+        displayWorkArea: display.workArea,
+        ...(workspace !== null ? { workspace } : {}),
+      },
+    };
+  } catch {
+    // A window racing destruction still deserves target-only restoration.
+    return { target: shell.target };
   }
 }
 
@@ -560,15 +610,15 @@ if (!app.requestSingleInstanceLock()) {
     // Every launch reopens the cockpit windows present at the last clean quit;
     // remote authentication can surface through the same askpass modal as a
     // manual connect. If nothing comes back the picker takes over as usual.
-    const reopen = loadWindowTargets(reopenFile());
+    const reopen = loadReopenWindows(reopenFile());
     if (reopen.length === 0) {
       openHostPicker();
       return;
     }
     void Promise.allSettled(
-      reopen.map((target) =>
-        openShell(target).catch((e) => {
-          logger.warn(`could not reopen ${target}: ${errorText(e)}`);
+      reopen.map((window) =>
+        openShell(window.target, window.placement).catch((e) => {
+          logger.warn(`could not reopen ${window.target}: ${errorText(e)}`);
           throw e;
         }),
       ),
@@ -597,7 +647,7 @@ if (!app.requestSingleInstanceLock()) {
     // windows closed by the FIRST quit cannot overwrite its pre-close snapshot.
     if (windowStateSaved) return;
     windowStateSaved = true;
-    saveWindowTargets(reopenFile(), [...shells.keys()]);
+    saveReopenWindows(reopenFile(), [...shells.values()].map(reopenWindow));
   });
 
   // Belt and braces: window 'closed' handlers stop their own cockpits; this
