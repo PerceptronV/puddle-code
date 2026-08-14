@@ -12,6 +12,7 @@ Past releases: see docs/changelogs/.
 ### Changed
 
 - Give source-control repository disclosure controls more breathing room from the screen edge and repository name.
+- Copy an environment-variable name to the clipboard when its pane-strip label is clicked.
 
 ### Fixed
 

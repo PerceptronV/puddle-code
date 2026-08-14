@@ -1,4 +1,5 @@
 import type { Session } from '@puddle/shared';
+import { toast } from 'sonner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { useSessionEnv } from '../../lib/queries';
 
@@ -19,6 +20,15 @@ export function EnvStrip({ sessionId, status }: { sessionId: string; status: Ses
 
   if (!live || vars.length === 0) return null;
 
+  const copyName = async (name: string) => {
+    try {
+      await navigator.clipboard.writeText(name);
+      toast.success(`${name} copied`);
+    } catch {
+      toast.error(`Couldn't copy ${name}`);
+    }
+  };
+
   return (
     <div className="flex items-center gap-2 px-3 font-mono text-xs">
       <span className="text-fg-muted">env</span>
@@ -26,13 +36,18 @@ export function EnvStrip({ sessionId, status }: { sessionId: string; status: Ses
         {vars.map((v) => (
           <Tooltip key={v.name}>
             <TooltipTrigger asChild>
-              <span className="cursor-default rounded px-1.5 py-0.5 text-fg-secondary transition-colors hover:bg-elevated hover:text-fg">
+              <button
+                type="button"
+                aria-label={`Copy ${v.name} environment variable name`}
+                onClick={() => void copyName(v.name)}
+                className="cursor-pointer rounded px-1.5 py-0.5 text-fg-secondary transition-colors hover:bg-elevated hover:text-fg"
+              >
                 {v.name}
-              </span>
+              </button>
             </TooltipTrigger>
             <TooltipContent>
-              {v.bytes} B · captured from this session&apos;s shell — re-injected into new shells
-              and agent restarts
+              {v.bytes} B · click to copy name · captured from this session&apos;s shell —
+              re-injected into new shells and agent restarts
             </TooltipContent>
           </Tooltip>
         ))}
