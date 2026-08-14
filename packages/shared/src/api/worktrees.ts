@@ -41,6 +41,12 @@ export const resolvePathResponseSchema = z.object({
   /** What resolved (15.2). Absent means `file` — pre-15.2 daemons only answered files. */
   kind: z.enum(['file', 'dir']).optional(),
   /**
+   * For a directory contained by the resolution root, its root-relative path
+   * (16.1). This lets Files reveal it in the existing tree instead of entering
+   * an external pinned browse. Absent for directories outside that root.
+   */
+  relative_path: z.string().optional(),
+  /**
    * Absolute browse root when the file lies OUTSIDE the worktree (15.2):
    * `path` is then relative to it — the `external` tab convention (SPEC §8).
    */

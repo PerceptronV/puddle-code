@@ -121,10 +121,13 @@ describe('fileLinkTarget', () => {
   });
 
   it('drops meaningless positions from a directory target', () => {
-    expect(fileLinkTarget({ kind: 'dir', path: '/shared', line: null }, 4, 2)).toEqual({
-      kind: 'dir',
-      path: '/shared',
-    });
+    expect(
+      fileLinkTarget(
+        { kind: 'dir', path: '/worktree/src', line: null, relative_path: 'src' },
+        4,
+        2,
+      ),
+    ).toEqual({ kind: 'dir', path: '/worktree/src', relativePath: 'src' });
   });
 });
 

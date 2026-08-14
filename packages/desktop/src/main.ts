@@ -24,7 +24,7 @@ import {
   type StagedDesktopUpdate,
 } from '@puddle-code/cli/lib';
 import { addRecentHost, loadRecentHosts, migrateRecentHosts } from './recent-hosts.js';
-import { consumeReopenTargets, saveReopenTargets } from './reopen.js';
+import { loadWindowTargets, saveWindowTargets } from './reopen.js';
 import { createSshAuthPrompter } from './ssh-auth-prompt.js';
 import { startSshAskpass, type RunningSshAskpass } from './ssh-askpass.js';
 
@@ -70,6 +70,7 @@ const connecting = new Set<string>();
 let promptWin: BrowserWindow | null = null;
 let pickerWin: BrowserWindow | null = null;
 let stopped = false;
+let windowStateSaved = false;
 
 const sshAuthPrompter = createSshAuthPrompter({
   htmlPath: join(here, 'ssh-auth-prompt.html'),
@@ -449,9 +450,6 @@ ipcMain.handle('puddle:update-ready', () => stagedUpdate?.version ?? null);
 ipcMain.on('puddle:install-update', () => {
   const target = installTarget();
   if (stagedUpdate === null || target === null) return;
-  // The relaunch should land where the user was, not on the host picker:
-  // remember every open window's target for the next launch to reopen.
-  saveReopenTargets(reopenFile(), [...shells.keys()]);
   void applyDesktopUpdate(stagedUpdate, {
     targetPath: target,
     waitPid: process.pid,
@@ -572,12 +570,10 @@ if (!app.requestSingleInstanceLock()) {
     void pruneDesktopUpdateCache([]);
     void pollForUpdate();
     setInterval(() => void pollForUpdate(), UPDATE_POLL_MS);
-    // An update relaunch reopens the windows the restart closed (one-shot,
-    // recorded as the swap began); remote authentication can surface through
-    // the same askpass modal as a manual connect. If nothing comes back the
-    // picker takes over as usual. Every other launch has no default target:
-    // the host picker asks where the work is.
-    const reopen = consumeReopenTargets(reopenFile());
+    // Every launch reopens the cockpit windows present at the last clean quit;
+    // remote authentication can surface through the same askpass modal as a
+    // manual connect. If nothing comes back the picker takes over as usual.
+    const reopen = loadWindowTargets(reopenFile());
     if (reopen.length === 0) {
       openHostPicker();
       return;
@@ -585,7 +581,7 @@ if (!app.requestSingleInstanceLock()) {
     void Promise.allSettled(
       reopen.map((target) =>
         openShell(target).catch((e) => {
-          logger.warn(`could not reopen ${target} after the update: ${errorText(e)}`);
+          logger.warn(`could not reopen ${target}: ${errorText(e)}`);
           throw e;
         }),
       ),
@@ -603,6 +599,19 @@ if (!app.requestSingleInstanceLock()) {
   // hidden resident process — daemons and their agents run on regardless,
   // exactly as when CLI cockpits are killed).
   app.on('window-all-closed', () => app.quit());
+
+  // Snapshot BEFORE Electron closes windows for a quit. An explicitly closed
+  // window has already left `shells`, so it stays closed next time; windows
+  // that are only disappearing because the app is quitting are restored.
+  // The update path also reaches this event, replacing its former one-shot
+  // special case with the same durable rule as every other restart.
+  app.on('before-quit', () => {
+    // `window-all-closed` calls app.quit() too; guard a second before-quit so
+    // windows closed by the FIRST quit cannot overwrite its pre-close snapshot.
+    if (windowStateSaved) return;
+    windowStateSaved = true;
+    saveWindowTargets(reopenFile(), [...shells.keys()]);
+  });
 
   // Belt and braces: window 'closed' handlers stop their own cockpits; this
   // catches a quit racing those stops (tunnels also die with the process).

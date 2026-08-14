@@ -286,6 +286,7 @@ export function ExplorerProvider({
         if (request.root !== root) return;
         clearPendingReveal();
         for (const dir of ancestorDirs(request.path)) expand(dir);
+        if (request.expandTarget && request.path !== '') expand(request.path);
         setSelection(new Set([request.path]));
         setFocusedPath(request.path);
         setRevealing(request.path);

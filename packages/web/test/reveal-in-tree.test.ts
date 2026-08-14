@@ -35,9 +35,17 @@ describe('reveal latch', () => {
     // The left sidebar shows one navigator at a time: a path clicked in Search
     // is asking a Files tree that does not exist yet.
     requestReveal({ path: 'a/b.ts', root: '/tmp/x' });
-    const seen: { path: string; root?: string | undefined }[] = [];
+    const seen: { path: string; root?: string | undefined; expandTarget?: boolean }[] = [];
     const off = onReveal((r) => seen.push(r));
     expect(seen).toEqual([{ path: 'a/b.ts', root: '/tmp/x' }]);
+    off();
+  });
+
+  it('carries a directory-expansion request to Files', () => {
+    const seen: { path: string; expandTarget?: boolean }[] = [];
+    const off = onReveal((r) => seen.push(r));
+    requestReveal({ path: 'packages/web', expandTarget: true });
+    expect(seen).toEqual([{ path: 'packages/web', expandTarget: true }]);
     off();
   });
 

@@ -21,6 +21,8 @@ export interface RevealRequest {
   path: string;
   /** The `?root=` this path belongs to; undefined for the session's worktree. */
   root?: string | undefined;
+  /** Expand the target itself as well as its ancestors (for a directory). */
+  expandTarget?: boolean;
 }
 
 let pending: RevealRequest | null = null;

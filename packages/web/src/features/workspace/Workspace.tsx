@@ -66,6 +66,7 @@ import { setLayoutBridge } from '../layouts/layouts-store';
 import { resolveFileLinkTarget, type FileLinkTarget } from '../terminal/file-links';
 import { KeepAliveHost } from './keep-alive';
 import { registerOpenPathHandler } from '../../lib/path-open';
+import { requestReveal } from '../../lib/reveal-in-tree';
 import { rememberClosedTab, takeClosedTab } from './closed-tabs';
 import {
   allLeaves,
@@ -924,6 +925,19 @@ function WorkspaceInner() {
         target.kind === 'file' && target.root === undefined && targetRoot !== undefined
           ? { ...target, root: targetRoot }
           : target;
+      if (rootedTarget.kind === 'dir' && rootedTarget.relativePath !== undefined) {
+        if (isNarrowRef.current) setNarrowNav(true);
+        uiState.update({
+          sidebar_mode: 'files',
+          ...(isNarrowRef.current ? {} : { sidebar_collapsed: false }),
+        });
+        requestReveal({
+          path: rootedTarget.relativePath,
+          root: targetRoot,
+          expandTarget: true,
+        });
+        return;
+      }
       openFromTerminal(pathSessionId, rootedTarget);
     },
     [pathSessionId, targetRoot, openFromTerminal],

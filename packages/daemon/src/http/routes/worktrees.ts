@@ -103,9 +103,21 @@ export function worktreeRoutes(deps: WorktreeDeps): Hono {
     const parsedLine = lineParam === undefined ? NaN : Number.parseInt(lineParam, 10);
     const line = Number.isNaN(parsedLine) ? null : Math.max(1, parsedLine);
 
-    // A directory has no editor to open into: the UI binds the file tree to
-    // it instead, which wants the absolute path as its browse root.
+    // A directory has no editor to open into. Keep its absolute identity for
+    // the external pinned-browse path, and additionally identify one contained
+    // by the current resolution root so Files can reveal it in place (16.1).
     if (stat.isDirectory()) {
+      for (const base of [root, safeRealpath(root)]) {
+        const rel = relative(base, abs);
+        if (!rel.startsWith('..') && !isAbsolute(rel)) {
+          return c.json<ResolvePathResponse>({
+            path: abs,
+            line: null,
+            kind: 'dir',
+            relative_path: rel,
+          });
+        }
+      }
       return c.json<ResolvePathResponse>({ path: abs, line: null, kind: 'dir' });
     }
     if (!stat.isFile()) {

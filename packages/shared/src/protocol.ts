@@ -253,4 +253,8 @@
 // safely carrying it, so the handshake must upgrade the daemon before any
 // workspace can persist this mode. Scroll positions themselves remain
 // transient browser state and add no wire shape.
-export const PROTOCOL_VERSION = { major: 16, minor: 0 } as const;
+// 16.1 (2026-08-13): additive — a resolved directory inside the current
+// worktree/directory target carries optional `relative_path`, allowing the
+// command palette's Open path action to reveal and expand it in the existing
+// Files tree instead of replacing that tree with a pinned external browse.
+export const PROTOCOL_VERSION = { major: 16, minor: 1 } as const;

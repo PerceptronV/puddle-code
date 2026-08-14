@@ -1,52 +1,47 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 /**
- * The windows an update restart should bring back: written (targets only —
- * 'local' or user@host, never credentials) as the "Restart to update" swap
- * begins, consumed one-shot by the next launch. In `~/.puddle` beside
- * recent-hosts.json — durable client state that survives the very app swap
- * it exists for. A short TTL keeps a leftover from a FAILED swap from
- * resurrecting windows days later: the helper relaunches within seconds, so
- * anything old is stale by definition.
+ * The windows the desktop should bring back on its next launch: targets only
+ * ('local' or user@host, never credentials). This lives in `~/.puddle` beside
+ * recent-hosts.json, so ordinary quits, machine restarts, app updates, and
+ * reinstalls all preserve the same set of cockpit windows.
  */
 
-const TTL_MS = 15 * 60 * 1000;
-
-interface ReopenState {
-  writtenAt: string;
+interface WindowState {
+  /** Present only in the former one-shot update state. */
+  writtenAt?: string;
   targets: string[];
 }
 
-export function saveReopenTargets(file: string, targets: string[]): void {
-  if (targets.length === 0) return;
+const LEGACY_TTL_MS = 15 * 60 * 1000;
+
+export function saveWindowTargets(file: string, targets: string[]): void {
   try {
     mkdirSync(dirname(file), { recursive: true });
-    const state: ReopenState = { writtenAt: new Date().toISOString(), targets };
+    const state: WindowState = { targets };
     writeFileSync(file, `${JSON.stringify(state, null, 2)}\n`);
   } catch {
-    // Best-effort: the update matters more than the window restore.
+    // Best-effort: inability to remember shell chrome must never block quit.
   }
 }
 
-/** Read AND delete — reopening is a one-launch affair, never a standing rule. */
-export function consumeReopenTargets(file: string, now = Date.now()): string[] {
+/** Read the standing window set. Corrupt or absent state means a fresh launch. */
+export function loadWindowTargets(file: string, now = Date.now()): string[] {
   if (!existsSync(file)) return [];
-  let targets: string[] = [];
   try {
-    const parsed = JSON.parse(readFileSync(file, 'utf8')) as Partial<ReopenState>;
-    const writtenAt = Date.parse(parsed.writtenAt ?? '');
-    const fresh = Number.isFinite(writtenAt) && now - writtenAt < TTL_MS;
-    if (fresh && Array.isArray(parsed.targets)) {
-      targets = parsed.targets.filter((t): t is string => typeof t === 'string');
+    const parsed = JSON.parse(readFileSync(file, 'utf8')) as Partial<WindowState>;
+    if (!Array.isArray(parsed.targets)) return [];
+    // Before durable restore this file was a one-shot update hand-off. Keep
+    // its original TTL during migration: a failed update from months ago must
+    // not suddenly become a standing window set after installing this build.
+    if (parsed.writtenAt !== undefined) {
+      const writtenAt = Date.parse(parsed.writtenAt);
+      if (!Number.isFinite(writtenAt) || now - writtenAt >= LEGACY_TTL_MS) return [];
     }
+    return [...new Set(parsed.targets.filter((t): t is string => typeof t === 'string'))];
   } catch {
     // Corrupt — treat as absent.
+    return [];
   }
-  try {
-    rmSync(file, { force: true });
-  } catch {
-    // An undeletable file must not block the launch.
-  }
-  return targets;
 }

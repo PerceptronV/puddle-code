@@ -185,7 +185,12 @@ describe('GET /api/worktrees/:sid/resolve', () => {
     expect(res.status).toBe(200);
     const body = resolvePathResponseSchema.parse(await res.json());
     // No line: a directory opens the file tree, there is nothing to scroll to.
-    expect(body).toEqual({ path: join(worktree, 'src'), line: null, kind: 'dir' });
+    expect(body).toEqual({
+      path: join(worktree, 'src'),
+      line: null,
+      kind: 'dir',
+      relative_path: 'src',
+    });
   });
 
   it('resolves a directory outside the worktree too', async () => {

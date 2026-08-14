@@ -32,6 +32,8 @@ export interface FileLinkTarget {
    * file; for a `dir`, the ABSOLUTE directory to root the file tree at.
    */
   path: string;
+  /** Resolution-root-relative identity when this directory is already in Files. */
+  relativePath?: string;
   /** Absolute browse root of a file outside the worktree (an `external` tab). */
   root?: string;
   line?: number;
@@ -299,6 +301,7 @@ export function fileLinkTarget(
     kind,
     path: resolved.path,
     ...(resolved.root !== undefined ? { root: resolved.root } : {}),
+    ...(resolved.relative_path !== undefined ? { relativePath: resolved.relative_path } : {}),
     // A directory opens the file tree — a position has nothing to scroll to.
     ...(kind === 'file' && line !== undefined ? { line: Math.max(1, line) } : {}),
     ...(kind === 'file' && column !== undefined ? { column } : {}),

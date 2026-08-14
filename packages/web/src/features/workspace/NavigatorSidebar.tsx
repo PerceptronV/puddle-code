@@ -12,6 +12,7 @@ import {
 import type { Session } from '@puddle/shared';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { useDaemonVersion } from '../../lib/queries';
+import { onReveal } from '../../lib/reveal-in-tree';
 import { cn } from '../../lib/utils';
 import { ChangesNav } from '../changes/ChangesNav';
 import type { SourceControlOpenOptions } from '../changes/SourceControlRepository';
@@ -203,6 +204,17 @@ export function NavigatorSidebar({
     if (!target.pinned) target.pin(session.id);
     setBrowse({ forSession: session.id, root });
   };
+
+  // A reveal aimed at the ordinary bound tree (not the external browse that
+  // may currently cover it) leaves that browse first. The reveal latch remains
+  // pending until the newly mounted ExplorerProvider claims it.
+  useEffect(
+    () =>
+      onReveal((request) => {
+        if (browse !== null && request.root === targetRoot) setBrowse(null);
+      }),
+    [browse, targetRoot],
+  );
 
   // A terminal link to a DIRECTORY (SPEC §7) enters the same pinned-browse
   // state the `..` walk does — so the return button and the unpin-leaves-
