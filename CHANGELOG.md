@@ -8,3 +8,8 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Build and preflight Linux release tarballs with a C++20 toolchain while preserving the glibc 2.28 host floor, and exercise both release architectures before tagging.
+- Open the command palette and dispatch other app shortcuts when Monaco has focus instead of letting the editor consume their key chords.

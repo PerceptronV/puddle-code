@@ -29,3 +29,40 @@ jobs:
       # modules), so the release packaging cannot rot between tags.
       - name: build the daemon tarball
         run: pnpm build:tarball
+
+  # The ordinary build above proves packaging on the current hosted image.
+  # This second job exercises the actual release container before a tag: native
+  # compiler, old ABI floor, both architectures, staged-daemon smoke test.
+  release-tarball-linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: ubuntu-22.04, target: linux-x64 }
+          - { runner: ubuntu-22.04-arm, target: linux-arm64 }
+    runs-on: ${{ matrix.runner }}
+    container: rockylinux:8
+    steps:
+      - name: install native build toolchain
+        run: dnf install -y binutils git gcc-toolset-14-gcc-c++ make python3.11 tar gzip xz
+      - name: verify native ABI floor
+        run: |
+          test "$(getconf GNU_LIBC_VERSION)" = 'glibc 2.28'
+          /opt/rh/gcc-toolset-14/root/usr/bin/g++ -std=c++20 -x c++ -fsyntax-only /dev/null
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        env:
+          CC: /opt/rh/gcc-toolset-14/root/usr/bin/gcc
+          CXX: /opt/rh/gcc-toolset-14/root/usr/bin/g++
+          LDFLAGS: -static-libgcc -static-libstdc++
+          npm_config_build_from_source: 'true'
+          npm_config_python: /usr/bin/python3.11
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - run: pnpm build:tarball
+      - name: verify packaged native ABI
+        run: node scripts/check-linux-native-abi.mjs dist-release/stage

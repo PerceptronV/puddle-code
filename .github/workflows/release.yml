@@ -10,6 +10,9 @@ permissions:
 jobs:
   tarball-linux:
     strategy:
+      # Let both native architectures finish so one failure cannot hide the
+      # other architecture's result (as happened in v0.0.44 and v0.0.45).
+      fail-fast: false
       matrix:
         include:
           - { runner: ubuntu-22.04, target: linux-x64 }
@@ -21,12 +24,14 @@ jobs:
     container: rockylinux:8
     steps:
       - name: install native build toolchain
-        # Rocky 8's unversioned python3 is 3.6, but node-gyp 12 uses Python
-        # assignment expressions and therefore needs 3.8+. Keep the old glibc
-        # floor while selecting Rocky's supported modern interpreter explicitly.
-        run: dnf install -y git gcc-c++ make python3.11 tar gzip xz
+        # Rocky 8's system GCC 8 rejects better-sqlite3's -std=c++20 and its
+        # unversioned Python 3.6 cannot parse node-gyp 12. Use supported modern
+        # toolsets without raising the container's glibc 2.28 floor.
+        run: dnf install -y binutils git gcc-toolset-14-gcc-c++ make python3.11 tar gzip xz
       - name: verify native ABI floor
-        run: test "$(getconf GNU_LIBC_VERSION)" = 'glibc 2.28'
+        run: |
+          test "$(getconf GNU_LIBC_VERSION)" = 'glibc 2.28'
+          /opt/rh/gcc-toolset-14/root/usr/bin/g++ -std=c++20 -x c++ -fsyntax-only /dev/null
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -35,11 +40,19 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
         env:
+          CC: /opt/rh/gcc-toolset-14/root/usr/bin/gcc
+          CXX: /opt/rh/gcc-toolset-14/root/usr/bin/g++
+          # The toolset's newer runtime is a build dependency, not a host
+          # requirement. Keep the shipped addons free of GLIBCXX/CXXABI deps.
+          LDFLAGS: -static-libgcc -static-libstdc++
+          npm_config_build_from_source: 'true'
           npm_config_python: /usr/bin/python3.11
           # Workflows build the desktop shell with esbuild only and never
           # launch Electron - skip its ~100 MB binary download.
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - run: node scripts/build-tarball.mjs --version "${GITHUB_REF_NAME#v}"
+      - name: verify packaged native ABI
+        run: node scripts/check-linux-native-abi.mjs dist-release/stage
       - uses: actions/upload-artifact@v4
         with:
           name: tarball-${{ matrix.target }}

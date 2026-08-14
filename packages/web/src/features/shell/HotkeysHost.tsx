@@ -5,6 +5,7 @@ import {
   eventBinding,
   getHotkeyAction,
   getHotkeyHandler,
+  hotkeyNeedsCapture,
   registerHotkey,
   setHotkeyOverrides,
 } from '../../lib/hotkeys';
@@ -65,15 +66,18 @@ export function HotkeysHost() {
 
   useEffect(() => {
     // Save is resolved by the workspace's LOGICAL focused pane, not whichever
-    // Monaco instance still owns document.activeElement. A draggable tab chip
-    // can activate another pane without taking DOM focus, leaving an untitled
-    // editor elsewhere able to consume ⌘S. Capture save before the event reaches
-    // Monaco so exactly the active tab is saved; if no workspace has registered
-    // a handler, leave the event alone and retain Monaco/browser fallback.
+    // Monaco instance still owns document.activeElement. App-global actions are
+    // also captured while Monaco has focus: Monaco consumes some chords (⌘K is
+    // its chord prefix) before a bubbling DOM listener can see them. Editor
+    // actions other than save still belong to the Monaco instance itself.
     const onCaptureKey = (e: KeyboardEvent) => {
       const binding = eventBinding(e);
-      if (!binding || actionForBinding(binding) !== 'editor.save') return;
-      const handler = getHotkeyHandler('editor.save');
+      if (!binding) return;
+      const id = actionForBinding(binding);
+      if (!id) return;
+      const action = getHotkeyAction(id);
+      if (!action || !hotkeyNeedsCapture(action, monacoFocused())) return;
+      const handler = getHotkeyHandler(id);
       if (!handler) return;
       e.preventDefault();
       e.stopPropagation();

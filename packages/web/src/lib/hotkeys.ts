@@ -252,6 +252,17 @@ export function registerHotkey(id: string, handler: () => void): () => void {
 export const getHotkeyHandler = (id: string): (() => void) | undefined => handlers.get(id);
 export const getHotkeyAction = (id: string): HotkeyAction | undefined => ACTION_BY_ID.get(id);
 
+/**
+ * Whether the shell must intercept an action in the capture phase, before a
+ * focused Monaco instance can consume it. Save is always captured because it
+ * follows the logically focused pane; every other app-global action is
+ * captured only inside Monaco. Monaco-owned editor actions keep reaching the
+ * editor instance itself.
+ */
+export function hotkeyNeedsCapture(action: HotkeyAction, monacoFocused: boolean): boolean {
+  return action.id === 'editor.save' || (monacoFocused && action.editor !== true);
+}
+
 // --- merged bindings store (defaults overridden by the profile's settings) ---
 let overrides: Record<string, string> = {};
 const listeners = new Set<() => void>();

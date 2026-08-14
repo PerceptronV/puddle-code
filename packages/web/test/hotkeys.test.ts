@@ -3,6 +3,7 @@ import {
   actionForBinding,
   eventBinding,
   formatBinding,
+  hotkeyNeedsCapture,
   HOTKEY_ACTIONS,
   setHotkeyOverrides,
   shellDefaultBinding,
@@ -106,5 +107,19 @@ describe('canonical bindings', () => {
       'window.close',
     );
     setHotkeyOverrides(undefined);
+  });
+});
+
+describe('capture-phase ownership', () => {
+  it('takes app-global shortcuts before Monaco can consume them', () => {
+    expect(hotkeyNeedsCapture(byId('palette.toggle'), true)).toBe(true);
+    expect(hotkeyNeedsCapture(byId('tab.close'), true)).toBe(true);
+    expect(hotkeyNeedsCapture(byId('palette.toggle'), false)).toBe(false);
+  });
+
+  it('leaves Monaco-owned editor actions in Monaco while always capturing save', () => {
+    expect(hotkeyNeedsCapture(byId('editor.wordWrap'), true)).toBe(false);
+    expect(hotkeyNeedsCapture(byId('editor.save'), true)).toBe(true);
+    expect(hotkeyNeedsCapture(byId('editor.save'), false)).toBe(true);
   });
 });
