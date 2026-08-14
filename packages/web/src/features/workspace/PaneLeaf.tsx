@@ -19,6 +19,7 @@ import { PaneTabStrip } from './PaneTabStrip';
 import { tabRefKey, type DropEdge } from './layout-tree';
 import { decodeTabTransfer, hasTabTransfer, TAB_MIME } from './tab-transfer';
 import { useDropIndicator } from './TilingDnd';
+import { paneInteractionIntent } from './pane-interaction';
 
 /**
  * One leaf pane (SPEC §8): its tab strip over a body that shows the active tab —
@@ -35,10 +36,12 @@ export function PaneLeaf({
   onPromoteTab,
   onArchived,
   onFocusLeaf,
+  onScrollDrive,
   onDropTab,
   onSetTabView,
   onNewUntitled,
   focused,
+  scrollDriver,
   scrollChannel,
 }: {
   leaf: LayoutLeaf;
@@ -49,6 +52,8 @@ export function PaneLeaf({
   onPromoteTab: (ref: TabRef) => void;
   onArchived: (session: string) => void;
   onFocusLeaf: (leafId: string) => void;
+  /** Make this pane the scroll-following driver without changing pane focus. */
+  onScrollDrive: (leafId: string) => void;
   /** A sidebar drag (file row / session) dropped on this pane — open + position. */
   onDropTab: (leafId: string, ref: TabRef, edge: DropEdge) => void;
   /** Set THIS pane's previewable editor tab's rendered/following mode (SPEC §8). */
@@ -57,6 +62,8 @@ export function PaneLeaf({
   onNewUntitled: (leaf: LayoutLeaf) => void;
   /** The workspace's logical focus, independent of DOM focus inside Monaco. */
   focused: boolean;
+  /** Whether this pane currently owns the independent scroll-following focus. */
+  scrollDriver: boolean;
   /** Browser-local scroll-following channel for this layout scope. */
   scrollChannel: string;
 }) {
@@ -76,13 +83,19 @@ export function PaneLeaf({
     activeEditor !== null &&
     (tabKind(activeEditor) === 'file' || tabKind(activeEditor) === 'external') &&
     previewKind(activeEditor.path) !== null;
-  // Whichever ordinary/locked renderable surface owns logical focus drives
-  // the file's proportional position. Other locked previews AND source tabs
-  // receive it; an interaction focuses a receiver before its scroll begins,
-  // promoting that surface to the sole driver without a feedback loop.
-  const scrollDriver = focused && renderableEditor && activeView !== 'linked';
+  // Scroll ownership is deliberately independent of logical pane focus: a
+  // wheel gesture over a locked render may drive its source editor without
+  // changing where the next tab opens. Other locked previews AND source tabs
+  // receive the driver's proportional position without a feedback loop.
+  const drivesScroll = scrollDriver && renderableEditor && activeView !== 'linked';
   const scrollReceiver =
-    !scrollDriver && (activeView === 'locked' || (renderableEditor && activeView === 'source'));
+    !drivesScroll && (activeView === 'locked' || (renderableEditor && activeView === 'source'));
+
+  const interact = (kind: 'press' | 'scroll') => {
+    const intent = paneInteractionIntent(kind, renderableEditor, activeView);
+    if (intent.focus) onFocusLeaf(leaf.id);
+    if (intent.driveScroll) onScrollDrive(leaf.id);
+  };
 
   // Clicking INTO the pane body activates the shown tab, via a NATIVE capture
   // listener — not React's onMouseDownCapture. An adopted terminal's DOM was
@@ -171,11 +184,10 @@ export function PaneLeaf({
   return (
     <div
       className="flex h-full flex-col bg-ground"
-      onMouseDownCapture={() => onFocusLeaf(leaf.id)}
-      // A wheel/trackpad gesture need not be preceded by a click. Claim logical
-      // focus during capture so scrolling a locked receiver promotes it to the
-      // driver and publishes the resulting position to its peers.
-      onWheelCapture={() => onFocusLeaf(leaf.id)}
+      onMouseDownCapture={() => interact('press')}
+      // A wheel/trackpad gesture need not be preceded by a click. Promote an
+      // eligible receiver to scroll driver, but leave logical pane focus alone.
+      onWheelCapture={() => interact('scroll')}
     >
       {/* No tabs → no strip: an empty pane reserves no blank bar (HUMANS.md). */}
       {leaf.tabs.length > 0 && (
@@ -203,7 +215,7 @@ export function PaneLeaf({
               tab={activeRef.tab}
               reveal={reveal}
               focused={focused}
-              scrollDriver={scrollDriver}
+              scrollDriver={drivesScroll}
               scrollReceiver={scrollReceiver}
               scrollChannel={scrollChannel}
             />

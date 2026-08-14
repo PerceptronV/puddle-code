@@ -12,3 +12,7 @@ Past releases: see docs/changelogs/.
 ### Changed
 
 - Give source-control repository disclosure controls more breathing room from the screen edge and repository name.
+
+### Fixed
+
+- Keep wheel and trackpad scrolling in a locked render from redirecting new tabs away from the logically focused pane.

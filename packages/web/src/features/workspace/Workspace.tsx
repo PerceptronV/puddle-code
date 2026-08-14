@@ -306,6 +306,36 @@ function WorkspaceInner() {
   // — a reopen must land in the tree the tab was closed from.
   const scopeKey = projectScoped ? `project:${projectId}` : 'profile';
   const layout = useLayoutTree(uiState, scopeKey);
+  // Locked-preview scrolling owns a separate transient focus from the pane
+  // focus that routes opens, tab hotkeys, sidebar binding, and saves. A wheel
+  // gesture may move this owner without making the scrolled pane the next-open
+  // destination (decision 2026-08-13).
+  const [scrollDriverOwner, setScrollDriverOwner] = useState<{
+    scopeKey: string;
+    leafId: string;
+  } | null>(null);
+  const claimScrollDriver = useCallback(
+    (leafId: string) => setScrollDriverOwner({ scopeKey, leafId }),
+    [scopeKey],
+  );
+  const ownedScrollLeaf =
+    scrollDriverOwner?.scopeKey === scopeKey
+      ? findLeaf(layout.tree, scrollDriverOwner.leafId)
+      : null;
+  const scrollDriverLeafId = ownedScrollLeaf?.id ?? layout.focusedLeaf.id;
+  // A real logical activation starts a fresh scroll-driving context. The deps
+  // stay unchanged when only `scrollDriverOwner` moves, so wheel input does not
+  // immediately snap ownership back to the logically focused pane.
+  useEffect(() => {
+    claimScrollDriver(layout.focusedLeaf.id);
+  }, [claimScrollDriver, layout.focusedLeaf.id, layout.focusedLeaf.activeKey]);
+  const focusLeaf = useCallback(
+    (leafId: string) => {
+      layout.focusLeaf(leafId);
+      claimScrollDriver(leafId);
+    },
+    [layout, claimScrollDriver],
+  );
   // The terminals the OTHER projects' layouts hold open. Only under
   // project-based layout: the profile-wide tree already contains every tab, so
   // there is nothing outside it to keep alive (and a preserved slice's tabs are
@@ -397,6 +427,7 @@ function WorkspaceInner() {
   const [reveal, setReveal] = useState<RevealTarget | null>(null);
   const openEditorTab = useCallback(
     (tab: EditorTab, position?: EditorPosition, opts?: { preview?: boolean }) => {
+      claimScrollDriver(layout.focusedLeaf.id);
       layout.openEditor(tab, { preview: opts?.preview });
       // On a phone the navigator overlay covers the pane it just opened into.
       if (isNarrowRef.current) setNarrowNav(false);
@@ -410,7 +441,7 @@ function WorkspaceInner() {
         });
       }
     },
-    [layout],
+    [layout, claimScrollDriver],
   );
   // Stable file-open handler for terminal links, the explorer, and the editor
   // context (keeps the original `(session, path, position?)` shape). Opens are
@@ -770,6 +801,7 @@ function WorkspaceInner() {
   // to a session it doesn't own, shows empty. Closing a pane tab mirrors `closeTab`.
   const onActivateTab = useCallback(
     (leafId: string, ref: TabRef) => {
+      claimScrollDriver(leafId);
       layout.activate(leafId, ref);
       if (ref.type === 'terminal' && ref.session !== activeSessionId) {
         // Navigate only when the owner is KNOWN: guessing the current project
@@ -782,7 +814,7 @@ function WorkspaceInner() {
         if (owner) void navigate(`/project/${owner}/session/${ref.session}`);
       }
     },
-    [layout, navigate, tabSessions, activeSessionId],
+    [layout, navigate, tabSessions, activeSessionId, claimScrollDriver],
   );
   const onCloseTab = useCallback(
     (leafId: string, ref: TabRef) => {
@@ -1273,12 +1305,14 @@ function WorkspaceInner() {
           onCloseTab={onCloseTab}
           onPromoteTab={promoteTab}
           onArchived={closeTab}
-          onFocusLeaf={layout.focusLeaf}
+          onFocusLeaf={focusLeaf}
+          onScrollDrive={claimScrollDriver}
           onResize={layout.resize}
           onDropTab={onDropTab}
           onSetTabView={layout.setView}
           onNewUntitled={onNewUntitled}
           focusedLeafId={layout.focusedLeaf.id}
+          scrollDriverLeafId={scrollDriverLeafId}
           scrollChannel={scopeKey}
         />
       </div>
