@@ -4,6 +4,10 @@ import 'katex/dist/katex.min.css';
 import { apiFetchRaw } from '../../lib/api';
 import { useClientSettings } from '../../lib/client-settings';
 import { rootParam } from '../../lib/worktree-queries';
+import { DomFindController } from '../find/dom-find';
+import { FindWidget } from '../find/FindWidget';
+import { EMPTY_FIND_RESULT } from '../find/find-types';
+import { useFindControls, type FindControls } from '../find/use-find-controls';
 import { useEditor } from '../workspace/editor-context';
 import { bufferKey, subscribe } from './buffer-store';
 import { ConflictSurface } from './ConflictSurface';
@@ -18,6 +22,14 @@ import {
   createHtmlPreviewScrollChannel,
   htmlPreviewScrollReport,
 } from './html-preview-scroll';
+import {
+  appendHtmlPreviewFindBridge,
+  applyHtmlPreviewFind,
+  clearHtmlPreviewFind,
+  htmlPreviewFindMessage,
+  HTML_PREVIEW_FIND_OPEN,
+  HTML_PREVIEW_FIND_RESULT,
+} from './html-preview-find';
 import {
   bindPreviewScrollElement,
   previewScrollStore,
@@ -89,6 +101,7 @@ export function FilePreview({
       scrollDriver={scrollDriver}
       lockedReceiver={lockedReceiver}
       scrollChannel={scrollChannel}
+      focused={focused}
     />
   ) : (
     <HtmlPreview
@@ -99,6 +112,24 @@ export function FilePreview({
       scrollDriver={scrollDriver}
       lockedReceiver={lockedReceiver}
       scrollChannel={scrollChannel}
+      focused={focused}
+    />
+  );
+}
+
+function FindOverlay({ controls }: { controls: FindControls }) {
+  if (!controls.open) return null;
+  return (
+    <FindWidget
+      query={controls.query}
+      focusKey={controls.focusKey}
+      options={controls.options}
+      result={controls.result}
+      onQueryChange={controls.setQuery}
+      onOptionsChange={controls.setOptions}
+      onNext={controls.next}
+      onPrevious={controls.previous}
+      onClose={controls.close}
     />
   );
 }
@@ -119,6 +150,7 @@ function MarkdownPreview({
   scrollDriver,
   lockedReceiver,
   scrollChannel,
+  focused,
 }: {
   session: string;
   path: string;
@@ -127,10 +159,35 @@ function MarkdownPreview({
   scrollDriver: boolean;
   lockedReceiver: boolean;
   scrollChannel: string;
+  focused: boolean;
 }) {
   const html = useMemo(() => DOMPurify.sanitize(markdownToHtml(text)), [text]);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
+  const findControllerRef = useRef<DomFindController | null>(null);
+
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+    const controller = new DomFindController(body);
+    findControllerRef.current = controller;
+    return () => {
+      controller.dispose();
+      findControllerRef.current = null;
+    };
+  }, []);
+
+  const find = useFindControls({
+    shortcutEnabled: focused,
+    onFind: (query, options, direction) =>
+      findControllerRef.current?.find(query, options, direction) ?? EMPTY_FIND_RESULT,
+    onClear: () => findControllerRef.current?.clear(),
+    onCloseFocus: () => scrollerRef.current?.focus({ preventScroll: true }),
+  });
+
+  // React replaces the rendered prose when the shared buffer changes. Rebuild
+  // the ranges against the new text instead of retaining detached Range nodes.
+  useEffect(() => find.refresh(), [html, find.refresh]);
 
   useEffect(() => {
     const scroller = scrollerRef.current;
@@ -205,15 +262,18 @@ function MarkdownPreview({
   // headings, code, and spacing all track the base.
   const fontSize = useClientSettings().editorFontSize;
   return (
-    <div ref={scrollerRef} className="h-full overflow-y-auto bg-ground">
-      <div
-        ref={bodyRef}
-        onClick={onClick}
-        style={{ fontSize }}
-        className="md-preview mx-auto max-w-3xl px-6 py-5 text-fg-secondary"
-        // Sanitised above — DOMPurify with the default profile, no raw input.
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
+    <div className="relative size-full bg-ground">
+      <div ref={scrollerRef} tabIndex={-1} className="h-full overflow-y-auto outline-none">
+        <div
+          ref={bodyRef}
+          onClick={onClick}
+          style={{ fontSize }}
+          className="md-preview mx-auto max-w-3xl px-6 py-5 text-fg-secondary"
+          // Sanitised above — DOMPurify with the default profile, no raw input.
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      </div>
+      <FindOverlay controls={find} />
     </div>
   );
 }
@@ -241,6 +301,7 @@ function HtmlPreview({
   scrollDriver,
   lockedReceiver,
   scrollChannel,
+  focused,
 }: {
   session: string;
   path: string;
@@ -249,6 +310,7 @@ function HtmlPreview({
   scrollDriver: boolean;
   lockedReceiver: boolean;
   scrollChannel: string;
+  focused: boolean;
 }) {
   const [doc, setDoc] = useState<string | null>(null);
   // Resolved path → data-URI promise, per mount: an edit re-inlines the
@@ -257,6 +319,20 @@ function HtmlPreview({
   const fontSize = useClientSettings().editorFontSize;
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [bridgeChannel] = useState(createHtmlPreviewScrollChannel);
+  const [findChannel] = useState(createHtmlPreviewScrollChannel);
+  const find = useFindControls({
+    shortcutEnabled: focused,
+    onFind: (query, options, direction) =>
+      applyHtmlPreviewFind(
+        iframeRef.current?.contentWindow ?? null,
+        findChannel,
+        query,
+        options,
+        direction,
+      ),
+    onClear: () => clearHtmlPreviewFind(iframeRef.current?.contentWindow ?? null, findChannel),
+    onCloseFocus: () => iframeRef.current?.focus(),
+  });
   const target = useMemo<PreviewScrollTarget>(
     () => ({ session, path, root }),
     [session, path, root],
@@ -272,13 +348,28 @@ function HtmlPreview({
       fontSize,
       root,
       bridgeChannel,
+      findChannel,
     ).then((html) => {
       if (!cancelled) setDoc(html);
     });
     return () => {
       cancelled = true;
     };
-  }, [session, path, text, fontSize, root, bridgeChannel]);
+  }, [session, path, text, fontSize, root, bridgeChannel, findChannel]);
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent<unknown>) => {
+      const message = htmlPreviewFindMessage(
+        event,
+        iframeRef.current?.contentWindow ?? null,
+        findChannel,
+      );
+      if (message?.kind === HTML_PREVIEW_FIND_OPEN) find.openFind();
+      else if (message?.kind === HTML_PREVIEW_FIND_RESULT) find.setResult(message);
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [find.openFind, find.setResult, findChannel]);
 
   useEffect(() => {
     if (!lockedReceiver) return;
@@ -319,29 +410,34 @@ function HtmlPreview({
 
   if (doc === null) return null; // first inline pass; later passes keep the old doc up
   return (
-    <iframe
-      ref={iframeRef}
-      // allow-scripts WITHOUT allow-same-origin: the document runs on a null
-      // origin — it cannot read the app's cookies, storage, or daemon token.
-      // That null origin is also why assets are baked in as data URIs: it
-      // cannot load this origin's blob URLs, and giving it a tokened URL
-      // would hand the daemon token to arbitrary document scripts.
-      sandbox="allow-scripts"
-      srcDoc={doc}
-      title={path}
-      className="size-full bg-paper"
-      onLoad={() => {
-        if (!lockedReceiver) return;
-        const current = previewScrollStore.get(scrollChannel, target);
-        if (current) {
-          applyHtmlPreviewScroll(
-            iframeRef.current?.contentWindow ?? null,
-            bridgeChannel,
-            current.ratio,
-          );
-        }
-      }}
-    />
+    <div className="relative size-full bg-paper">
+      <iframe
+        ref={iframeRef}
+        // allow-scripts WITHOUT allow-same-origin: the document runs on a null
+        // origin — it cannot read the app's cookies, storage, or daemon token.
+        // That null origin is also why assets are baked in as data URIs: it
+        // cannot load this origin's blob URLs, and giving it a tokened URL
+        // would hand the daemon token to arbitrary document scripts.
+        sandbox="allow-scripts"
+        srcDoc={doc}
+        title={path}
+        className="size-full bg-paper"
+        onLoad={() => {
+          if (lockedReceiver) {
+            const current = previewScrollStore.get(scrollChannel, target);
+            if (current) {
+              applyHtmlPreviewScroll(
+                iframeRef.current?.contentWindow ?? null,
+                bridgeChannel,
+                current.ratio,
+              );
+            }
+          }
+          find.refresh();
+        }}
+      />
+      <FindOverlay controls={find} />
+    </div>
   );
 }
 
@@ -359,6 +455,7 @@ async function inlineWorktreeAssets(
   baseFontSize?: number,
   root?: string,
   bridgeChannel?: string,
+  findChannel?: string,
 ): Promise<string> {
   const parsed = new DOMParser().parseFromString(text, 'text/html');
   // The preview follows the editor font size, as a ZERO-specificity default
@@ -385,6 +482,7 @@ async function inlineWorktreeAssets(
   }
   await Promise.all(jobs);
   if (bridgeChannel) appendHtmlPreviewScrollBridge(parsed, bridgeChannel);
+  if (findChannel) appendHtmlPreviewFindBridge(parsed, findChannel);
   return `<!doctype html>${parsed.documentElement.outerHTML}`;
 }
 

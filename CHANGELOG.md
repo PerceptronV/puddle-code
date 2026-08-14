@@ -9,6 +9,10 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Added
+
+- Add Monaco-style in-view find to rendered file previews and terminal sessions with case, whole-word, and regular-expression matching.
+
 ### Changed
 
 - Restore the desktop's open cockpit windows after ordinary quits and restarts, not only upgrades.

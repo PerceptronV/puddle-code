@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { SearchAddon, type ISearchOptions } from '@xterm/addon-search';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
@@ -16,6 +17,11 @@ import {
 import { daemonAnswersColourQueries } from '../../lib/protocol-support';
 import { useDaemonVersion, useProfileSettings } from '../../lib/queries';
 import { useCurrentProfileId } from '../profile/profile-store';
+import { FindWidget } from '../find/FindWidget';
+import { isValidFindPattern } from '../find/find-matches';
+import { isFindShortcut } from '../find/find-shortcut';
+import { EMPTY_FIND_RESULT, type FindOptions } from '../find/find-types';
+import { useFindControls } from '../find/use-find-controls';
 import { useDocumentVisible } from '../../lib/use-document-visible';
 import { sshMode } from '../../lib/ssh-mode';
 import { cssTokenReader, onThemeChange, xtermThemeFromCss } from '../../lib/theme';
@@ -84,6 +90,22 @@ const MAC_LINE_EDITS: Record<string, string> = {
   Delete: '\x0b', // ⌘⌦ → Ctrl-K: delete to end of line
 };
 
+/** Search decorations derive from the live theme, like xterm itself. */
+function terminalFindOptions(options: FindOptions): ISearchOptions {
+  const read = cssTokenReader();
+  return {
+    ...options,
+    decorations: {
+      matchBackground: read('--bg-surface'),
+      matchBorder: read('--text-muted'),
+      matchOverviewRuler: read('--text-muted'),
+      activeMatchBackground: read('--bg-elevated'),
+      activeMatchBorder: read('--accent'),
+      activeMatchColorOverviewRuler: read('--accent'),
+    },
+  };
+}
+
 export interface TerminalProps {
   /** PTY stream: a session uuid, `login-<accountId>`, or `home` (HOME_STREAM). */
   stream: string;
@@ -138,6 +160,7 @@ export function Terminal({
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const searchRef = useRef<SearchAddon | null>(null);
   // True while the buffer is replaying history: OSC side effects (clipboard
   // writes, colour-query replies) must not re-fire for bytes the agent emitted
   // in the past — a stale clipboard overwrite, or a stale reply written into a
@@ -169,6 +192,34 @@ export function Terminal({
     useProfileSettings(profileId ?? undefined).data?.terminalAppShortcuts !== false;
   const appShortcutsRef = useRef(appShortcuts);
   appShortcutsRef.current = appShortcuts;
+  const find = useFindControls({
+    // A terminal owns its key event before it bubbles to the window; the
+    // custom xterm handler below opens this same control.
+    shortcutEnabled: false,
+    onFind: (query, options, direction) => {
+      const search = searchRef.current;
+      const xterm = xtermRef.current;
+      if (!search || !xterm) return EMPTY_FIND_RESULT;
+      if (query.length === 0) {
+        search.clearDecorations();
+        xterm.clearSelection();
+        return EMPTY_FIND_RESULT;
+      }
+      if (!isValidFindPattern(query, options)) {
+        search.clearDecorations();
+        xterm.clearSelection();
+        return { index: -1, count: 0, invalid: true };
+      }
+      const searchOptions = terminalFindOptions(options);
+      if (direction === 'previous') search.findPrevious(query, searchOptions);
+      else search.findNext(query, { ...searchOptions, incremental: direction === 'reset' });
+    },
+    onClear: () => {
+      searchRef.current?.clearDecorations();
+      xtermRef.current?.clearSelection();
+    },
+    onCloseFocus: () => xtermRef.current?.focus(),
+  });
 
   /**
    * Re-measure the grid against the container, repaint it, and tell the PTY: the
@@ -254,11 +305,17 @@ export function Terminal({
     });
     xtermRef.current = xterm;
     const fit = new FitAddon();
+    const search = new SearchAddon();
     xterm.loadAddon(fit);
+    xterm.loadAddon(search);
     xterm.loadAddon(new WebLinksAddon((_event, uri) => openUri(uri)));
     xterm.open(container);
     fit.fit();
     fitRef.current = fit;
+    searchRef.current = search;
+    const searchResults = search.onDidChangeResults((result) => {
+      find.setResult({ index: result.resultIndex, count: result.resultCount });
+    });
 
     // Validated file-path links: only for real sessions (login/home PTYs have
     // no worktree to resolve against) and only when a handler is wired.
@@ -344,6 +401,13 @@ export function Terminal({
     });
 
     xterm.attachCustomKeyEventHandler((e) => {
+      // Monaco-style in-view find. On macOS Ctrl+F remains the shell's
+      // forward-character command; Command+F is the search gesture requested.
+      if (e.type === 'keydown' && isFindShortcut(e, IS_MAC)) {
+        e.preventDefault();
+        find.openFind();
+        return false;
+      }
       // The copy chord (⌘C on Mac, Ctrl+Shift+C elsewhere — plain Ctrl-C stays
       // the interrupt) copies the local selection, else the stashed OSC 52
       // payload; with neither it falls through and does nothing. ⌘V needs no
@@ -415,6 +479,7 @@ export function Terminal({
 
     const unsubscribeTheme = onThemeChange(() => {
       xterm.options.theme = xtermThemeFromCss();
+      find.refresh();
     });
 
     return () => {
@@ -422,6 +487,7 @@ export function Terminal({
       container.removeEventListener('focusin', onFocusIn);
       observer.disconnect();
       unsubscribeTheme();
+      searchResults.dispose();
       oscForeground?.dispose();
       oscBackground?.dispose();
       oscClipboard.dispose();
@@ -430,6 +496,7 @@ export function Terminal({
       xterm.dispose();
       xtermRef.current = null;
       fitRef.current = null;
+      searchRef.current = null;
     };
     // Deliberately keyed on the PTY identity only — plus the one-way font
     // gate: recreating the terminal on settings change would drop scrollback;
@@ -554,5 +621,22 @@ export function Terminal({
     });
   }, [stream, refit]);
 
-  return <div ref={containerRef} className={cn('size-full', className)} />;
+  return (
+    <div className={cn('relative size-full', className)}>
+      <div ref={containerRef} className="size-full" />
+      {find.open && (
+        <FindWidget
+          query={find.query}
+          focusKey={find.focusKey}
+          options={find.options}
+          result={find.result}
+          onQueryChange={find.setQuery}
+          onOptionsChange={find.setOptions}
+          onNext={find.next}
+          onPrevious={find.previous}
+          onClose={find.close}
+        />
+      )}
+    </div>
+  );
 }
