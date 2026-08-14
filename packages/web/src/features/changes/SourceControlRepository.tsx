@@ -92,7 +92,7 @@ function ChangeGroup({
   const stage = action === 'stage';
   return (
     <div>
-      <div className="group flex h-7 items-center gap-1 px-2">
+      <div className="group flex h-7 items-center gap-1 px-3">
         <button
           type="button"
           onClick={() => setCollapsed((value) => !value)}
@@ -171,7 +171,7 @@ function ChangeFileRow({
         'group flex items-center gap-1 pr-2 transition-colors hover:bg-elevated',
         active && 'bg-selection',
       )}
-      style={{ paddingLeft: 8 + depth * 12 }}
+      style={{ paddingLeft: 12 + depth * 12 }}
     >
       <button
         type="button"
@@ -241,7 +241,7 @@ function ChangeTreeRows({
           <div key={node.path}>
             <div
               className="group flex items-center gap-1 pr-2 transition-colors hover:bg-elevated"
-              style={{ paddingLeft: 8 + depth * 12 }}
+              style={{ paddingLeft: 12 + depth * 12 }}
             >
               <button
                 type="button"
@@ -390,16 +390,20 @@ export function SourceControlRepository({
 
   return (
     <section className={cn('py-0.5', selected && 'bg-surface/40')} onFocus={onSelect}>
-      <div className="flex h-8 items-center gap-1 px-2">
+      <div className="flex h-8 items-center gap-1 pl-3 pr-2">
         <button
           type="button"
           onClick={() => {
             onSelect();
             setCollapsed((value) => !value);
           }}
-          className="group/repository flex min-w-0 flex-1 items-center gap-1.5 text-left transition-colors hover:text-fg"
+          className="group/repository relative flex min-w-0 flex-1 items-center gap-1.5 text-left transition-colors hover:text-fg"
         >
-          {collapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
+          {collapsed ? (
+            <ChevronRight className="absolute right-full top-1/2 size-3 -translate-y-1/2" />
+          ) : (
+            <ChevronDown className="absolute right-full top-1/2 size-3 -translate-y-1/2" />
+          )}
           <HoverMarquee
             text={repository.name}
             title={repository.name}
