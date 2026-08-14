@@ -14,6 +14,8 @@ import { tildify } from '../../lib/tildify';
 import { cn } from '../../lib/utils';
 import { useExplorerOptional } from '../explorer/explorer-context';
 import type { ExplorerTarget } from '../explorer/use-explorer-target';
+import { useSessionTitleRenderer } from '../profile/use-session-title';
+import { TabTooltipBody } from './TabTooltip';
 
 /**
  * The bound-worktree title: a horizontally scrollable strip (no scrollbar) that
@@ -64,6 +66,7 @@ export function SidebarTargetHeader({
   showPath?: boolean;
 }) {
   const { session, pinned, pin, unpin, isProjectDirectory } = target;
+  const renderTitle = useSessionTitleRenderer();
   const home = useHostInfo().data?.home;
   const pickable = sessions.filter((s) => s.status !== 'archived');
   // A directory target is the project's own repository, not a session's
@@ -129,10 +132,12 @@ export function SidebarTargetHeader({
               <div className="px-2 py-1.5 text-xs text-fg-muted">No sessions yet</div>
             ) : (
               pickable.map((s) => (
-                <DropdownMenuItem key={s.id} onSelect={() => pin(s.id)}>
-                  <span className="truncate">
-                    {s.branch} — {sessionDisplayName(s)}
-                  </span>
+                <DropdownMenuItem
+                  key={s.id}
+                  onSelect={() => pin(s.id)}
+                  className="min-w-64 items-start"
+                >
+                  <TabTooltipBody name={renderTitle(s)} session={s} />
                 </DropdownMenuItem>
               ))
             )}

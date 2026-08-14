@@ -18,6 +18,7 @@ Past releases: see docs/changelogs/.
 
 - Restore the desktop's open cockpit windows after ordinary quits and restarts, retaining their monitor-relative bounds on macOS and X11 and their virtual desktop on X11 when available.
 - Reveal and expand worktree directories opened through the command palette in Files without pinning the sidebar.
+- Present worktree choices with the same session metadata hierarchy as tab tooltips, including terminal type labels.
 
 ### Fixed
 

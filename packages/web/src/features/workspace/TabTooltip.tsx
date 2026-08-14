@@ -1,4 +1,5 @@
 import type { Session } from '@puddle/shared';
+import { SquareTerminal } from 'lucide-react';
 import { AgentIcon } from '../../components/agent-icon';
 import { useClientSettings } from '../../lib/client-settings';
 import { useAccounts, useProjects } from '../../lib/queries';
@@ -15,8 +16,8 @@ import { useCurrentProfileId } from '../profile/profile-store';
  *   is named only under a PROFILE-based layout, since only there does one tiling
  *   surface mix projects — under a project-based layout every tab in the window
  *   belongs to the project the window is already about.
- * - **agent · account**, for an agent session only. A terminal has no account to
- *   name, and a file is not an agent.
+ * - **agent · account**, for an agent session; **terminal** with its terminal
+ *   glyph for a shell session. A file has neither line.
  *
  * A tab rooted outside its worktree (a browse-tree `external` file) or bound to
  * no worktree at all (an untitled draft) describes neither: the caller passes no
@@ -55,6 +56,12 @@ export function TabTooltipBody({
           <AgentIcon type={session.agent_type ?? ''} className="size-3 shrink-0" />
           <span>{session.agent_type}</span>
           {account !== undefined && <span> · {account}</span>}
+        </span>
+      )}
+      {session?.kind === 'terminal' && (
+        <span className="mt-0.5 flex items-center gap-1 text-2xs text-fg-muted">
+          <SquareTerminal className="size-3 shrink-0" />
+          <span>terminal</span>
         </span>
       )}
     </span>
