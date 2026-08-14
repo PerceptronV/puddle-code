@@ -8,15 +8,3 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
-
-### Changed
-
-- Give source-control repository disclosure controls more breathing room from the screen edge and repository name.
-- Copy an environment-variable name to the clipboard when its pane-strip label is clicked.
-- Use the current file-tree location as the shared Files, Search, and Changes header, including external paths opened from the command palette.
-
-### Fixed
-
-- Keep wheel and trackpad scrolling in a locked render from redirecting new tabs away from the logically focused pane.
-- Align per-file and directory stage controls with their source-control group action.
-- Refresh file-tree Git decorations whenever the file tree is refreshed manually.
