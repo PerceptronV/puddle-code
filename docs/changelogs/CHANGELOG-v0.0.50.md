@@ -7,4 +7,8 @@ Past releases: see docs/changelogs/.
 
 # Changelog
 
-## [Unreleased]
+## [0.0.50] — 2026-08-14
+
+### Fixed
+
+- Restore every coding-agent and shell terminal from a daemon-persisted screen and scrollback snapshot so leaving and returning cannot replay a partial redraw as a blank screen.
