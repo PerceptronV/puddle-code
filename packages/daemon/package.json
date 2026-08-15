@@ -14,8 +14,8 @@
   "dependencies": {
     "@hono/node-server": "^2.0.0",
     "@puddle/shared": "workspace:*",
-    "@xterm/addon-serialize": "^0.14.0",
-    "@xterm/headless": "^6.0.0",
+    "@xterm/addon-serialize": "0.14.0",
+    "@xterm/headless": "6.0.0",
     "better-sqlite3": "^12.0.0",
     "hono": "^4.12.0",
     "node-pty": "^1.1.0",

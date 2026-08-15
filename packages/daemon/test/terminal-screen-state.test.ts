@@ -1,4 +1,5 @@
-import { existsSync, mkdtempSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import headless from '@xterm/headless';
@@ -6,6 +7,18 @@ import { describe, expect, it } from 'vitest';
 import { TerminalScreenStateStore } from '../src/pty/terminal-screen-state.js';
 
 const { Terminal } = headless;
+const require = createRequire(import.meta.url);
+
+interface XtermPackageMetadata {
+  version: string;
+  commit: string;
+}
+
+function xtermPackage(name: string): XtermPackageMetadata {
+  return JSON.parse(
+    readFileSync(require.resolve(`${name}/package.json`), 'utf8'),
+  ) as XtermPackageMetadata;
+}
 
 async function visibleLines(snapshot: string, cols: number, rows: number): Promise<string[]> {
   const terminal = new Terminal({ allowProposedApi: true, cols, rows, scrollback: 20_000 });
@@ -19,6 +32,14 @@ async function visibleLines(snapshot: string, cols: number, rows: number): Promi
 }
 
 describe('TerminalScreenStateStore', () => {
+  it('keeps the experimental headless/serialiser boundary on one upstream commit', () => {
+    const headlessPackage = xtermPackage('@xterm/headless');
+    const serialiserPackage = xtermPackage('@xterm/addon-serialize');
+    expect(headlessPackage.version).toBe('6.0.0');
+    expect(serialiserPackage.version).toBe('0.14.0');
+    expect(headlessPackage.commit).toBe(serialiserPackage.commit);
+  });
+
   it('serialises a cursor-addressed screen and restores it after a daemon restart', async () => {
     const stateDir = mkdtempSync(join(tmpdir(), 'puddle-terminal-state-'));
     const first = new TerminalScreenStateStore(stateDir);

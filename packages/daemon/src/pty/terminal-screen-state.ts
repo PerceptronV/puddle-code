@@ -8,6 +8,10 @@ import { SerializeAddon } from '@xterm/addon-serialize';
 
 const { Terminal } = headless;
 
+// These packages are exact-pinned as a pair: 0.14.0 and 6.0.0 were built
+// from the same xterm commit. SerializeAddon uses the headless buffer API (and
+// some xterm internals), so allowing independent semver drift would make this
+// restoration boundary less stable than the public-looking package names imply.
 const DEFAULT_COLS = 120;
 const DEFAULT_ROWS = 32;
 const SCROLLBACK_LINES = 20_000;
@@ -142,6 +146,8 @@ export class TerminalScreenStateStore {
     }
 
     const terminal = new Terminal({
+      // Narrow opt-in for the official serialiser's buffer access. Puddle does
+      // not expose or consume proposed xterm APIs anywhere else.
       allowProposedApi: true,
       cols: DEFAULT_COLS,
       rows: DEFAULT_ROWS,
