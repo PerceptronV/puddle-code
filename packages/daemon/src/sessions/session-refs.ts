@@ -18,6 +18,8 @@ export interface SessionRefDeps {
 export class SessionRefs {
   /** Minted refs must be captured one launch at a time per account/cwd. */
   private readonly launchMutex = new KeyedMutex();
+  /** Status/title ticks may ask for the same unresolved ref concurrently. */
+  private readonly refreshes = new Map<string, Promise<boolean>>();
 
   constructor(private readonly deps: SessionRefDeps) {}
 
@@ -45,7 +47,7 @@ export class SessionRefs {
 
     let spawned = false;
     const launch = async () => {
-      const existing = adapter.existingSessionRefs?.(session.worktree_path, account);
+      const existing = await adapter.existingSessionRefs?.(session.worktree_path, account);
       spawn();
       spawned = true;
       const ref = await adapter.resolveSessionRef(launchOpts, account, existing);
@@ -54,7 +56,7 @@ export class SessionRefs {
       // durable column null: refreshAvailable() will retry from status/title
       // ticks without ever treating the placeholder as a real conversation.
       if (ref === session.id) return;
-      if (this.capture(session, account, adapter, ref, 'launch')) onCaptured();
+      if (await this.capture(session, account, adapter, ref, 'launch')) onCaptured();
     };
     const pending = adapter.existingSessionRefs
       ? this.launchMutex.run(
@@ -70,13 +72,30 @@ export class SessionRefs {
    * Used by status changes and the periodic title refresh, which matters for
    * Codex: an empty composer may not commit its state row until the first turn.
    */
-  refreshAvailable(session: Session, account: Account, adapter: AgentAdapter): boolean {
-    if (adapter.capabilities.presetSessionId || session.agent_session_ref !== null) return false;
+  refreshAvailable(session: Session, account: Account, adapter: AgentAdapter): Promise<boolean> {
+    if (adapter.capabilities.presetSessionId || session.agent_session_ref !== null) {
+      return Promise.resolve(false);
+    }
+    const active = this.refreshes.get(session.id);
+    if (active) return active;
+    const pending = this.refresh(session, account, adapter).finally(() => {
+      if (this.refreshes.get(session.id) === pending) this.refreshes.delete(session.id);
+    });
+    this.refreshes.set(session.id, pending);
+    return pending;
+  }
+
+  private async refresh(
+    session: Session,
+    account: Account,
+    adapter: AgentAdapter,
+  ): Promise<boolean> {
     const context: SessionRefContext = {
       ...this.contextOf(session),
-      excludeRefs: this.claimedByOtherSessions(session, adapter, account),
+      excludeRefs: await this.claimedByOtherSessions(session, adapter, account),
     };
-    const ref = adapter.discoverSessionRef?.(session.worktree_path, account, context) ?? null;
+    const ref =
+      (await adapter.discoverSessionRef?.(session.worktree_path, account, context)) ?? null;
     return ref === null ? false : this.capture(session, account, adapter, ref, 'late');
   }
 
@@ -85,11 +104,15 @@ export class SessionRefs {
    * or mismatched legacy mappings first. Failure is explicit: opening the
    * wrong conversation is more damaging than refusing an ambiguous resume.
    */
-  resolveForResume(session: Session, account: Account, adapter: AgentAdapter): string {
+  async resolveForResume(
+    session: Session,
+    account: Account,
+    adapter: AgentAdapter,
+  ): Promise<string> {
     let ref = session.agent_session_ref;
     const context: SessionRefContext = {
       ...this.contextOf(session),
-      excludeRefs: this.claimedByOtherSessions(session, adapter, account),
+      excludeRefs: await this.claimedByOtherSessions(session, adapter, account),
     };
     const duplicated =
       ref !== null &&
@@ -101,11 +124,12 @@ export class SessionRefs {
             candidate.account_id === account.id &&
             candidate.agent_session_ref === ref,
         );
-    const missing = ref === null || adapter.hasConversation?.(ref, account) === false;
-    const mismatched = ref !== null && adapter.sessionRefMatches?.(ref, context, account) === false;
+    const missing = ref === null || (await adapter.hasConversation?.(ref, account)) === false;
+    const mismatched =
+      ref !== null && (await adapter.sessionRefMatches?.(ref, context, account)) === false;
     if (missing || duplicated || mismatched) {
       const recovered =
-        adapter.discoverSessionRef?.(session.worktree_path, account, context) ?? null;
+        (await adapter.discoverSessionRef?.(session.worktree_path, account, context)) ?? null;
       if (recovered === null) {
         throw ApiError.conflict(
           'conversation_missing',
@@ -114,7 +138,7 @@ export class SessionRefs {
       }
       const previousRef = ref;
       ref = recovered;
-      this.releaseInvalidOwners(session, adapter, account, ref);
+      await this.releaseInvalidOwners(session, adapter, account, ref);
       this.deps.sessions.setAgentSessionRef(session.id, ref);
       this.deps.events.record(session.id, 'session_ref_recovered', {
         ref,
@@ -128,11 +152,11 @@ export class SessionRefs {
     return ref;
   }
 
-  private claimedByOtherSessions(
+  private async claimedByOtherSessions(
     session: Session,
     adapter: AgentAdapter,
     account: Account,
-  ): ReadonlySet<string> {
+  ): Promise<ReadonlySet<string>> {
     const claimed = new Set<string>();
     for (const candidate of this.deps.sessions.list()) {
       const candidateRef = candidate.agent_session_ref;
@@ -143,8 +167,11 @@ export class SessionRefs {
       ) {
         continue;
       }
-      if (adapter.hasConversation?.(candidateRef, account) === false) continue;
-      if (adapter.sessionRefMatches?.(candidateRef, this.contextOf(candidate), account) === false) {
+      if ((await adapter.hasConversation?.(candidateRef, account)) === false) continue;
+      if (
+        (await adapter.sessionRefMatches?.(candidateRef, this.contextOf(candidate), account)) ===
+        false
+      ) {
         continue;
       }
       claimed.add(candidateRef);
@@ -153,12 +180,12 @@ export class SessionRefs {
   }
 
   /** Clear a legacy wrong owner before the rightful session claims its ref. */
-  private releaseInvalidOwners(
+  private async releaseInvalidOwners(
     session: Session,
     adapter: AgentAdapter,
     account: Account,
     recoveredRef: string,
-  ): void {
+  ): Promise<void> {
     for (const candidate of this.deps.sessions.list()) {
       if (
         candidate.id === session.id ||
@@ -167,7 +194,10 @@ export class SessionRefs {
       ) {
         continue;
       }
-      if (adapter.sessionRefMatches?.(recoveredRef, this.contextOf(candidate), account) !== false) {
+      if (
+        (await adapter.sessionRefMatches?.(recoveredRef, this.contextOf(candidate), account)) !==
+        false
+      ) {
         throw ApiError.conflict(
           'conversation_claimed',
           `${adapter.displayName} conversation ${recoveredRef} belongs to another puddle session`,
@@ -182,27 +212,27 @@ export class SessionRefs {
   }
 
   /** Validate and durably claim a newly discovered minted ref exactly once. */
-  private capture(
+  private async capture(
     session: Session,
     account: Account,
     adapter: AgentAdapter,
     ref: string,
     source: 'launch' | 'late',
-  ): boolean {
+  ): Promise<boolean> {
     const current = this.deps.sessions.get(session.id);
     if (current.agent_session_ref === ref) return false;
     if (current.agent_session_ref !== null) return false;
     const context: SessionRefContext = {
       ...this.contextOf(current),
-      excludeRefs: this.claimedByOtherSessions(current, adapter, account),
+      excludeRefs: await this.claimedByOtherSessions(current, adapter, account),
     };
     // The serialised launch snapshot proves ownership already. Late recovery
     // has no such single-launch proof, so it must pass the adapter's stricter
     // cwd + creation-time match before claiming anything.
-    if (source === 'late' && adapter.sessionRefMatches?.(ref, context, account) === false) {
+    if (source === 'late' && (await adapter.sessionRefMatches?.(ref, context, account)) === false) {
       return false;
     }
-    this.releaseInvalidOwners(current, adapter, account, ref);
+    await this.releaseInvalidOwners(current, adapter, account, ref);
     this.deps.sessions.setAgentSessionRef(current.id, ref);
     this.deps.events.record(current.id, 'session_ref_captured', { ref, source });
     return true;

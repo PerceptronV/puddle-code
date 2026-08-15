@@ -163,7 +163,7 @@ describe('SessionService.create', () => {
         separate_worktree: false,
       }),
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('session creation waited for ref discovery')), 1_000),
+        setTimeout(() => reject(new Error('session creation waited for ref discovery')), 5_000),
       ),
     ]);
 
@@ -178,6 +178,40 @@ describe('SessionService.create', () => {
     names.set('minted-ref', 'Codex renamed session');
     await waitFor(() => f.service.get(session.id).agent_title === 'Codex renamed session');
     expect(f.service.get(session.id).agent_session_ref).toBe('minted-ref');
+    await f.service.kill(session.id);
+  });
+
+  it('returns before a minted-id account snapshot finishes, then spawns from that snapshot', async () => {
+    let finishSnapshot: ((refs: ReadonlySet<string>) => void) | undefined;
+    const adapter = {
+      ...fakeAdapter(),
+      capabilities: { ...fakeAdapter().capabilities, presetSessionId: false },
+      existingSessionRefs: () =>
+        new Promise<ReadonlySet<string>>((resolve) => {
+          finishSnapshot = resolve;
+        }),
+      resolveSessionRef: async () => 'minted-after-snapshot',
+    };
+    const f = fixture({ adapter });
+    const session = await Promise.race([
+      f.service.create({
+        project_id: f.ids.project,
+        account_id: f.ids.account,
+        title: 'async snapshot',
+        separate_branch: false,
+        separate_worktree: false,
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('session creation waited for account snapshot')), 5_000),
+      ),
+    ]);
+
+    expect(session.agent_session_ref).toBeNull();
+    expect(f.ptys.has(session.id, 'agent')).toBe(false);
+    await waitFor(() => finishSnapshot !== undefined);
+    finishSnapshot?.(new Set());
+    await waitFor(() => f.service.get(session.id).agent_session_ref === 'minted-after-snapshot');
+    expect(f.ptys.has(session.id, 'agent')).toBe(true);
     await f.service.kill(session.id);
   });
 
@@ -327,8 +361,13 @@ describe('kill / resume / archive lifecycle', () => {
       account_id: f.ids.account,
       title: 'second owner',
     });
-    ownership.set(first.id, first.agent_session_ref!);
-    ownership.set(second.id, second.agent_session_ref!);
+    await waitFor(
+      () =>
+        f.service.get(first.id).agent_session_ref !== null &&
+        f.service.get(second.id).agent_session_ref !== null,
+    );
+    ownership.set(first.id, f.service.get(first.id).agent_session_ref!);
+    ownership.set(second.id, f.service.get(second.id).agent_session_ref!);
     await Promise.all([f.service.kill(first.id), f.service.kill(second.id)]);
 
     // Legacy cross-wire: first occupies second's ref while second is blank.

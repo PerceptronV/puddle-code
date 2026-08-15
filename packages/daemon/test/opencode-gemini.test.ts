@@ -59,7 +59,7 @@ describe('opencode adapter', () => {
     expect(opencode.loginArgs()).toEqual(['auth', 'login']);
   });
 
-  it('discovers the newest session recorded against the worktree', () => {
+  it('discovers the newest session recorded against the worktree', async () => {
     const cfg = mkdtempSync(join(tmpdir(), 'oc-cfg-'));
     const store = join(cfg, 'data', 'opencode', 'storage', 'session', 'proj');
     mkdirSync(store, { recursive: true });
@@ -75,8 +75,8 @@ describe('opencode adapter', () => {
       join(store, 'ses_other.json'),
       JSON.stringify({ id: 'ses_other', directory: '/elsewhere', time: { updated: 300 } }),
     );
-    expect(opencode.discoverSessionRef?.('/wt', account(cfg, 'opencode'))).toBe('ses_new');
-    expect(opencode.discoverSessionRef?.('/nope', account(cfg, 'opencode'))).toBeNull();
+    expect(await opencode.discoverSessionRef?.('/wt', account(cfg, 'opencode'))).toBe('ses_new');
+    expect(await opencode.discoverSessionRef?.('/nope', account(cfg, 'opencode'))).toBeNull();
   });
 
   it('captures only a newly minted session when the cwd already has history', async () => {
@@ -87,7 +87,7 @@ describe('opencode adapter', () => {
       join(store, 'ses_old.json'),
       JSON.stringify({ id: 'ses_old', directory: '/wt', time: { created: 100, updated: 100 } }),
     );
-    const excluded = opencode.existingSessionRefs?.('/wt', account(cfg, 'opencode'));
+    const excluded = await opencode.existingSessionRefs?.('/wt', account(cfg, 'opencode'));
     setTimeout(
       () =>
         writeFileSync(
@@ -106,7 +106,7 @@ describe('opencode adapter', () => {
     ).resolves.toBe('ses_new');
   });
 
-  it('recovers by creation time and validates a stored ref', () => {
+  it('recovers by creation time and validates a stored ref', async () => {
     const cfg = mkdtempSync(join(tmpdir(), 'oc-cfg-'));
     const store = join(cfg, 'data', 'opencode', 'storage', 'session', 'proj');
     mkdirSync(store, { recursive: true });
@@ -133,17 +133,19 @@ describe('opencode adapter', () => {
       worktreePath: '/wt',
       createdAt: '2026-07-01T10:00:00.000Z',
     };
-    expect(opencode.discoverSessionRef?.('/wt', account(cfg, 'opencode'), context)).toBe(
+    expect(await opencode.discoverSessionRef?.('/wt', account(cfg, 'opencode'), context)).toBe(
       'ses_first',
     );
-    expect(opencode.sessionRefMatches?.('ses_first', context, account(cfg, 'opencode'))).toBe(true);
-    expect(opencode.sessionRefMatches?.('ses_second', context, account(cfg, 'opencode'))).toBe(
-      false,
+    expect(await opencode.sessionRefMatches?.('ses_first', context, account(cfg, 'opencode'))).toBe(
+      true,
     );
-    expect(opencode.hasConversation?.('ses_first', account(cfg, 'opencode'))).toBe(true);
+    expect(
+      await opencode.sessionRefMatches?.('ses_second', context, account(cfg, 'opencode')),
+    ).toBe(false);
+    expect(await opencode.hasConversation?.('ses_first', account(cfg, 'opencode'))).toBe(true);
   });
 
-  it('refuses an ambiguous creation-time recovery', () => {
+  it('refuses an ambiguous creation-time recovery', async () => {
     const cfg = mkdtempSync(join(tmpdir(), 'oc-cfg-'));
     const store = join(cfg, 'data', 'opencode', 'storage', 'session', 'proj');
     mkdirSync(store, { recursive: true });
@@ -162,7 +164,7 @@ describe('opencode adapter', () => {
       );
     }
     expect(
-      opencode.discoverSessionRef?.('/wt', account(cfg, 'opencode'), {
+      await opencode.discoverSessionRef?.('/wt', account(cfg, 'opencode'), {
         sessionId: 'puddle-id',
         worktreePath: '/wt',
         createdAt: '2026-07-01T10:00:00.000Z',
@@ -170,9 +172,37 @@ describe('opencode adapter', () => {
     ).toBeNull();
   });
 
-  it('returns null rather than guessing when the store is absent', () => {
+  it('returns null rather than guessing when the store is absent', async () => {
     const cfg = mkdtempSync(join(tmpdir(), 'oc-cfg-'));
-    expect(opencode.discoverSessionRef?.('/wt', account(cfg, 'opencode'))).toBeNull();
+    expect(await opencode.discoverSessionRef?.('/wt', account(cfg, 'opencode'))).toBeNull();
+  });
+
+  it('yields the daemon event loop while indexing a large imported history', async () => {
+    const cfg = mkdtempSync(join(tmpdir(), 'oc-cfg-'));
+    const store = join(cfg, 'data', 'opencode', 'storage', 'session', 'proj');
+    mkdirSync(store, { recursive: true });
+    for (let i = 0; i < 200; i++) {
+      writeFileSync(
+        join(store, `ses_${i}.json`),
+        JSON.stringify({
+          id: `ses_${i}`,
+          directory: i === 199 ? '/wt' : '/other',
+          time: { created: i, updated: i },
+        }),
+      );
+    }
+    let eventLoopTurn = false;
+    const turn = new Promise<void>((resolve) =>
+      setImmediate(() => {
+        eventLoopTurn = true;
+        resolve();
+      }),
+    );
+    const pending = opencode.existingSessionRefs?.('/wt', account(cfg, 'opencode'));
+    expect(pending).toBeInstanceOf(Promise);
+    await turn;
+    expect(eventLoopTurn).toBe(true);
+    expect(await pending).toEqual(new Set(['ses_199']));
   });
 });
 

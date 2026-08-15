@@ -225,16 +225,21 @@ export class SessionService extends EventEmitter {
    * `agent_session_ref` while `/rename` only changes `agent_title`.
    */
   private refreshAgentIdentity(sessionId: string): void {
+    let session: Session;
+    let account: Account;
+    let adapter: AgentAdapter;
     try {
-      const session = this.deps.sessions.get(sessionId);
+      session = this.deps.sessions.get(sessionId);
       if (session.kind !== 'agent' || session.account_id === null) return;
-      const account = this.deps.accounts.get(session.account_id);
-      const adapter = this.deps.adapters.get(session.agent_type ?? account.agent_type);
-      this.sessionRefs.refreshAvailable(session, account, adapter);
+      account = this.deps.accounts.get(session.account_id);
+      adapter = this.deps.adapters.get(session.agent_type ?? account.agent_type);
     } catch {
       return; // best-effort identity refresh; title refresh follows the same rule
     }
-    this.refreshAgentTitle(sessionId);
+    void this.sessionRefs
+      .refreshAvailable(session, account, adapter)
+      .catch(() => false)
+      .then(() => this.refreshAgentTitle(sessionId));
   }
 
   /**
@@ -617,7 +622,7 @@ export class SessionService extends EventEmitter {
     }
     assertBinaryAvailable(adapter); // before assertLoggedIn — see its doc comment
     await this.assertLoggedIn(account, adapter);
-    const ref = this.sessionRefs.resolveForResume(session, account, adapter);
+    const ref = await this.sessionRefs.resolveForResume(session, account, adapter);
 
     const wasInterrupted = session.status === 'interrupted';
     const { skip } = this.resumeSpawn(session, account, adapter, project.profile_id, ref, {
@@ -752,7 +757,7 @@ export class SessionService extends EventEmitter {
     //     back on a later failure per the adapter contract);
     // (c) neither — the conversation cannot follow the account.
     let rollback: (() => Promise<void>) | null = null;
-    if (adapter.conversationShare && adapter.hasConversation?.(ref, target)) {
+    if (adapter.conversationShare && (await adapter.hasConversation?.(ref, target))) {
       // (a) — nothing to do; the target already reads the conversation.
     } else if (adapter.migrateSession) {
       const from = this.deps.accounts.get(session.account_id);

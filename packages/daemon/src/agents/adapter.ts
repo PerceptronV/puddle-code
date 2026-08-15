@@ -51,6 +51,9 @@ export interface SessionRefContext {
   excludeRefs?: ReadonlySet<string>;
 }
 
+/** Storage inspection may yield so large agent histories never block puddled. */
+export type StorageLookup<T> = T | Promise<T>;
+
 export interface ConversationShareHooks {
   /**
    * Directory under the account's config dir that CONTAINS the per-conversation
@@ -116,7 +119,7 @@ export interface AgentAdapter {
    * before spawning a resume so a missing conversation is a clean 409, not
    * an agent process dying on launch.
    */
-  hasConversation?(ref: string, account: Account): boolean;
+  hasConversation?(ref: string, account: Account): StorageLookup<boolean>;
   /**
    * Imports a pre-existing config dir by COPYING it into the puddle-owned
    * `configDir` (already created, empty) — the source is read once and never
@@ -136,7 +139,7 @@ export interface AgentAdapter {
    * mint their own ids expose this snapshot so a new launch cannot mistake an
    * older conversation for the one it just created.
    */
-  existingSessionRefs?(worktreePath: string, account: Account): ReadonlySet<string>;
+  existingSessionRefs?(worktreePath: string, account: Account): StorageLookup<ReadonlySet<string>>;
   /**
    * Recovers the conversation ref for a worktree when the recorded one
    * matches nothing, is duplicated, or does not belong to this puddle session.
@@ -147,13 +150,17 @@ export interface AgentAdapter {
     worktreePath: string,
     account: Account,
     context?: SessionRefContext,
-  ): string | null;
+  ): StorageLookup<string | null>;
   /**
    * Whether `ref` belongs to this puddle session, not merely whether the agent
    * can read it. Minted-id adapters validate cwd + creation time here so a
    * stale but real conversation cannot silently replace another session.
    */
-  sessionRefMatches?(ref: string, context: SessionRefContext, account: Account): boolean;
+  sessionRefMatches?(
+    ref: string,
+    context: SessionRefContext,
+    account: Account,
+  ): StorageLookup<boolean>;
   /**
    * The agent's own human-readable session name for conversation `ref` — for
    * Claude Code, the transcript's agent-name / ai-title, i.e. what its resume

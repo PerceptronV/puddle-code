@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, type Dirent } from 'node:fs';
+import { mkdirSync, readFileSync, type Dirent } from 'node:fs';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { AgentAdapter } from './adapter.js';
@@ -12,6 +13,7 @@ const DATA_HOME = 'data';
 const CACHE_HOME = 'cache';
 const STATE_HOME = 'state';
 const SESSION_START_WINDOW_MS = 5 * 60 * 1000;
+const METADATA_CONCURRENCY = 32;
 
 /**
  * OpenCode adapter.
@@ -110,14 +112,16 @@ export const opencode: AgentAdapter = {
     }
   },
 
-  existingSessionRefs(worktreePath, account) {
-    return new Set(sessionsFor(account.config_dir, worktreePath).map((session) => session.id));
+  async existingSessionRefs(worktreePath, account) {
+    return new Set(
+      (await sessionsFor(account.config_dir, worktreePath)).map((session) => session.id),
+    );
   },
 
   async resolveSessionRef(opts, account, excludeRefs = new Set()) {
     const deadline = Date.now() + 10_000;
     for (;;) {
-      const ref = newestSessionId(account.config_dir, opts.worktreePath, excludeRefs);
+      const ref = await newestSessionId(account.config_dir, opts.worktreePath, excludeRefs);
       if (ref !== null) return ref;
       if (Date.now() >= deadline) break;
       await new Promise((r) => setTimeout(r, 150));
@@ -127,22 +131,22 @@ export const opencode: AgentAdapter = {
     return opts.sessionId;
   },
 
-  discoverSessionRef(worktreePath, account, context) {
-    const candidates = sessionsFor(account.config_dir, worktreePath).filter(
+  async discoverSessionRef(worktreePath, account, context) {
+    const candidates = (await sessionsFor(account.config_dir, worktreePath)).filter(
       (session) => !context?.excludeRefs?.has(session.id),
     );
     if (context === undefined) return candidates[0]?.id ?? null;
     return sessionBornFor(candidates, context.createdAt)?.id ?? null;
   },
 
-  hasConversation(ref, account) {
-    return sessionsFor(account.config_dir).some((session) => session.id === ref);
+  async hasConversation(ref, account) {
+    return (await sessionsFor(account.config_dir)).some((session) => session.id === ref);
   },
 
-  sessionRefMatches(ref, context, account) {
+  async sessionRefMatches(ref, context, account) {
     return (
       sessionBornFor(
-        sessionsFor(account.config_dir, context.worktreePath).filter(
+        (await sessionsFor(account.config_dir, context.worktreePath)).filter(
           (candidate) => !context.excludeRefs?.has(candidate.id),
         ),
         context.createdAt,
@@ -224,44 +228,106 @@ interface StoredSession {
   updatedAt: number;
 }
 
-function sessionsFor(configDir: string, worktreePath?: string): StoredSession[] {
+interface CachedSession {
+  size: number;
+  mtimeMs: number;
+  session: StoredSession;
+}
+
+const sessionCache = new Map<string, Map<string, CachedSession>>();
+const activeSessionScans = new Map<string, Promise<StoredSession[]>>();
+
+/**
+ * Asynchronous, incremental view of OpenCode's metadata store. A large imported
+ * account used to synchronously walk and parse every JSON file on each 150 ms
+ * ref poll, freezing all daemon traffic. Directory enumeration and stats now
+ * yield, unchanged files stay parsed in the cache, and concurrent ticks share
+ * one scan.
+ */
+async function sessionsFor(configDir: string, worktreePath?: string): Promise<StoredSession[]> {
+  const all = await allSessions(configDir);
+  return worktreePath === undefined
+    ? all
+    : all.filter((session) => session.directory === worktreePath);
+}
+
+async function allSessions(configDir: string): Promise<StoredSession[]> {
+  const active = activeSessionScans.get(configDir);
+  if (active) return active;
+  const scan = scanSessions(configDir).finally(() => {
+    if (activeSessionScans.get(configDir) === scan) activeSessionScans.delete(configDir);
+  });
+  activeSessionScans.set(configDir, scan);
+  return scan;
+}
+
+async function scanSessions(configDir: string): Promise<StoredSession[]> {
+  // Keep the snapshot genuinely behind the create response, not merely behind
+  // a promise microtask that would still run before socket I/O gets a turn.
+  await new Promise<void>((resolve) => setImmediate(resolve));
   const root = join(dataDir(configDir), 'storage', 'session');
-  if (!existsSync(root)) return [];
+  const cached = sessionCache.get(configDir) ?? new Map<string, CachedSession>();
+  sessionCache.set(configDir, cached);
   const found: StoredSession[] = [];
-  for (const file of walkJson(root, 3)) {
-    const name = file.split('/').pop() ?? '';
-    if (!name.startsWith('ses_') || !name.endsWith('.json')) continue;
-    try {
-      const record = JSON.parse(readFileSync(file, 'utf8')) as {
-        id?: string;
-        directory?: string;
-        cwd?: string;
-        time?: { updated?: number; created?: number };
-      };
-      const dir = record.directory ?? record.cwd;
-      if (dir === undefined || (worktreePath !== undefined && dir !== worktreePath)) continue;
-      const id = record.id ?? name.slice(0, -'.json'.length);
-      found.push({
-        id,
-        directory: dir,
-        createdAt: normaliseEpoch(record.time?.created),
-        updatedAt:
-          normaliseEpoch(record.time?.updated) ?? normaliseEpoch(record.time?.created) ?? 0,
-      });
-    } catch {
-      /* unreadable or unexpected shape — skip */
+  const files = await walkJson(root, 3);
+  const live = new Set(files);
+  for (const file of cached.keys()) if (!live.has(file)) cached.delete(file);
+  for (let offset = 0; offset < files.length; offset += METADATA_CONCURRENCY) {
+    const batch = files.slice(offset, offset + METADATA_CONCURRENCY);
+    const entries = await Promise.all(batch.map((file) => readStoredSession(file, cached)));
+    for (const entry of entries) {
+      if (entry !== null) found.push(entry.session);
     }
   }
   return found.sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
-function newestSessionId(
+async function readStoredSession(
+  file: string,
+  cached: Map<string, CachedSession>,
+): Promise<CachedSession | null> {
+  const name = file.split('/').pop() ?? '';
+  if (!name.startsWith('ses_') || !name.endsWith('.json')) return null;
+  try {
+    const stats = await stat(file);
+    let entry = cached.get(file);
+    if (entry !== undefined && entry.size === stats.size && entry.mtimeMs === stats.mtimeMs) {
+      return entry;
+    }
+    const record = JSON.parse(await readFile(file, 'utf8')) as {
+      id?: string;
+      directory?: string;
+      cwd?: string;
+      time?: { updated?: number; created?: number };
+    };
+    const dir = record.directory ?? record.cwd;
+    if (dir === undefined) return null;
+    const createdAt = normaliseEpoch(record.time?.created);
+    entry = {
+      size: stats.size,
+      mtimeMs: stats.mtimeMs,
+      session: {
+        id: record.id ?? name.slice(0, -'.json'.length),
+        directory: dir,
+        createdAt,
+        updatedAt: normaliseEpoch(record.time?.updated) ?? createdAt ?? 0,
+      },
+    };
+    cached.set(file, entry);
+    return entry;
+  } catch {
+    return null; // unreadable or unexpected shape — skip
+  }
+}
+
+async function newestSessionId(
   configDir: string,
   worktreePath: string,
   excludeRefs: ReadonlySet<string> = new Set(),
-): string | null {
+): Promise<string | null> {
   return (
-    sessionsFor(configDir, worktreePath).find((session) => !excludeRefs.has(session.id))?.id ?? null
+    (await sessionsFor(configDir, worktreePath)).find((session) => !excludeRefs.has(session.id))
+      ?.id ?? null
   );
 }
 
@@ -298,18 +364,18 @@ function normaliseEpoch(value: number | undefined): number | null {
 }
 
 /** Absolute paths of every .json file under `dir`, to a bounded depth. */
-function walkJson(dir: string, depth: number): string[] {
+async function walkJson(dir: string, depth: number): Promise<string[]> {
   if (depth < 0) return [];
   const out: string[] = [];
   let entries: Dirent[];
   try {
-    entries = readdirSync(dir, { withFileTypes: true });
+    entries = await readdir(dir, { withFileTypes: true });
   } catch {
     return out;
   }
   for (const entry of entries) {
     const path = join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...walkJson(path, depth - 1));
+    if (entry.isDirectory()) out.push(...(await walkJson(path, depth - 1)));
     else if (entry.name.endsWith('.json')) out.push(path);
   }
   return out;

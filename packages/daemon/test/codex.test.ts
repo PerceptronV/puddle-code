@@ -114,27 +114,27 @@ describe('codex adapter — status', () => {
 });
 
 describe('codex adapter — rollout discovery', () => {
-  it('finds the newest rollout recorded against the worktree', () => {
+  it('finds the newest rollout recorded against the worktree', async () => {
     const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
     writeRollout(cfg, UUID_A, '/wt', [], '01');
     writeRollout(cfg, UUID_B, '/other', [], '02');
-    expect(newestRolloutFor(cfg, '/wt')?.id).toBe(UUID_A);
-    expect(newestRolloutFor(cfg, '/other')?.id).toBe(UUID_B);
-    expect(newestRolloutFor(cfg, '/nope')).toBeUndefined();
+    expect((await newestRolloutFor(cfg, '/wt'))?.id).toBe(UUID_A);
+    expect((await newestRolloutFor(cfg, '/other'))?.id).toBe(UUID_B);
+    expect(await newestRolloutFor(cfg, '/nope')).toBeUndefined();
   });
 
-  it('ignores newer sub-agent rollouts in the same worktree', () => {
+  it('ignores newer sub-agent rollouts in the same worktree', async () => {
     const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
     writeRollout(cfg, UUID_A, '/wt', [], '01');
     writeRollout(cfg, UUID_B, '/wt', [], '02', { parentThreadId: UUID_A });
-    expect(newestRolloutFor(cfg, '/wt')?.id).toBe(UUID_A);
-    expect(codex.hasConversation?.(UUID_B, account(cfg))).toBe(false);
+    expect((await newestRolloutFor(cfg, '/wt'))?.id).toBe(UUID_A);
+    expect(await codex.hasConversation?.(UUID_B, account(cfg))).toBe(false);
   });
 
   it('captures only the rollout created after launch when the cwd has history', async () => {
     const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
     writeRollout(cfg, UUID_A, '/wt');
-    const excluded = codex.existingSessionRefs?.('/wt', account(cfg));
+    const excluded = await codex.existingSessionRefs?.('/wt', account(cfg));
     setTimeout(() => writeRollout(cfg, UUID_B, '/wt', [], '02'), 20);
 
     await expect(
@@ -167,7 +167,7 @@ describe('codex adapter — rollout discovery', () => {
     );
     const oldAt = Date.parse('2026-07-01T10:00:05.000Z');
     insert.run(UUID_A, oldAt / 1000, oldAt, '/not-readable-yet-a', 'user', 'cli');
-    const excluded = codex.existingSessionRefs?.('/wt', account(cfg));
+    const excluded = await codex.existingSessionRefs?.('/wt', account(cfg));
     const newAt = Date.parse('2026-07-01T10:01:05.000Z');
     insert.run(UUID_B, newAt / 1000, newAt, '/not-readable-yet-b', 'user', 'cli');
     insert.run(
@@ -189,7 +189,7 @@ describe('codex adapter — rollout discovery', () => {
     ).resolves.toBe(UUID_B);
   });
 
-  it('recovers the rollout born with the puddle session, not the newest cwd match', () => {
+  it('recovers the rollout born with the puddle session, not the newest cwd match', async () => {
     const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
     writeRollout(cfg, UUID_A, '/wt', [], '01', { timestamp: '2026-07-01T10:00:05.000Z' });
     writeRollout(cfg, UUID_B, '/wt', [], '02', { timestamp: '2026-07-02T10:00:05.000Z' });
@@ -198,17 +198,17 @@ describe('codex adapter — rollout discovery', () => {
       worktreePath: '/wt',
       createdAt: '2026-07-01T10:00:00.000Z',
     };
-    expect(codex.discoverSessionRef?.('/wt', account(cfg), context)).toBe(UUID_A);
-    expect(codex.sessionRefMatches?.(UUID_A, context, account(cfg))).toBe(true);
-    expect(codex.sessionRefMatches?.(UUID_B, context, account(cfg))).toBe(false);
+    expect(await codex.discoverSessionRef?.('/wt', account(cfg), context)).toBe(UUID_A);
+    expect(await codex.sessionRefMatches?.(UUID_A, context, account(cfg))).toBe(true);
+    expect(await codex.sessionRefMatches?.(UUID_B, context, account(cfg))).toBe(false);
   });
 
-  it('refuses an ambiguous creation-time recovery', () => {
+  it('refuses an ambiguous creation-time recovery', async () => {
     const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
     writeRollout(cfg, UUID_A, '/wt', [], '01', { timestamp: '2026-07-01T10:00:05.000Z' });
     writeRollout(cfg, UUID_B, '/wt', [], '02', { timestamp: '2026-07-01T10:00:10.000Z' });
     expect(
-      codex.discoverSessionRef?.('/wt', account(cfg), {
+      await codex.discoverSessionRef?.('/wt', account(cfg), {
         sessionId: 'puddle-id',
         worktreePath: '/wt',
         createdAt: '2026-07-01T10:00:00.000Z',
@@ -216,40 +216,71 @@ describe('codex adapter — rollout discovery', () => {
     ).toBeNull();
   });
 
-  it('reports a conversation by id, and misses an unknown one', () => {
+  it('reports a conversation by id, and misses an unknown one', async () => {
     const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
     writeRollout(cfg, UUID_A, '/wt');
-    expect(codex.hasConversation?.(UUID_A, account(cfg))).toBe(true);
-    expect(codex.hasConversation?.(UUID_B, account(cfg))).toBe(false);
+    expect(await codex.hasConversation?.(UUID_A, account(cfg))).toBe(true);
+    expect(await codex.hasConversation?.(UUID_B, account(cfg))).toBe(false);
   });
 
   it('falls back to the puddle session id when no rollout appears', async () => {
-    vi.useFakeTimers();
-    const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
-    const pending = codex.resolveSessionRef(
-      { worktreePath: '/wt', sessionId: 'puddle-id', skipPermissions: false },
-      account(cfg),
-    );
-    await vi.advanceTimersByTimeAsync(10_100);
-    const ref = await pending;
-    // Deliberate: hasConversation reports it missing, so resume re-discovers.
-    expect(ref).toBe('puddle-id');
-    expect(codex.hasConversation?.('puddle-id', account(cfg))).toBe(false);
-    vi.useRealTimers();
+    // Keep fs/setImmediate real: only accelerate the adapter's polling delay.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'Date'] });
+    try {
+      const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
+      const pending = codex.resolveSessionRef(
+        { worktreePath: '/wt', sessionId: 'puddle-id', skipPermissions: false },
+        account(cfg),
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      await vi.advanceTimersByTimeAsync(10_100);
+      const ref = await pending;
+      // Deliberate: hasConversation reports it missing, so resume re-discovers.
+      expect(ref).toBe('puddle-id');
+      expect(await codex.hasConversation?.('puddle-id', account(cfg))).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  it('survives a missing or malformed sessions tree', () => {
+  it('survives a missing or malformed sessions tree', async () => {
     const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
-    expect(newestRolloutFor(cfg, '/wt')).toBeUndefined();
+    expect(await newestRolloutFor(cfg, '/wt')).toBeUndefined();
     const dir = join(cfg, 'sessions', '2026', '07', '01');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, `rollout-x-${UUID_A}.jsonl`), 'not json\n');
-    expect(newestRolloutFor(cfg, '/wt')).toBeUndefined();
+    expect(await newestRolloutFor(cfg, '/wt')).toBeUndefined();
+  });
+
+  it('yields the daemon event loop while indexing a large imported history', async () => {
+    const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
+    for (let day = 1; day <= 24; day++) {
+      writeRollout(
+        cfg,
+        `019b746c-0713-7b11-a6b7-a812f20d${String(day).padStart(4, '0')}`,
+        day === 24 ? '/wt' : '/other',
+        [{ type: 'event_msg', payload: { type: 'agent_message', message: 'x'.repeat(256_000) } }],
+        String(day).padStart(2, '0'),
+      );
+    }
+    let eventLoopTurn = false;
+    const turn = new Promise<void>((resolve) =>
+      setImmediate(() => {
+        eventLoopTurn = true;
+        resolve();
+      }),
+    );
+    const pending = codex.existingSessionRefs?.('/wt', account(cfg));
+    expect(pending).toBeInstanceOf(Promise);
+    await turn;
+    expect(eventLoopTurn).toBe(true);
+    expect((await pending)?.size).toBe(1);
   });
 });
 
 describe('codex adapter — transcript export', () => {
-  it('renders the user/agent pair and collapses tool calls', () => {
+  it('renders the user/agent pair and collapses tool calls', async () => {
     const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
     const path = writeRollout(cfg, UUID_A, '/wt', [
       { type: 'event_msg', payload: { type: 'user_message', message: 'add a test' } },
@@ -259,7 +290,7 @@ describe('codex adapter — transcript export', () => {
       { type: 'response_item', payload: { type: 'reasoning' } },
       { type: 'event_msg', payload: { type: 'agent_message', message: 'done' } },
     ]);
-    const text = renderRollout(path);
+    const text = await renderRollout(path);
     expect(text).toContain('## User\n\nadd a test');
     expect(text).toContain('## Assistant\n\ndone');
     expect(text).toContain('_(ran 2 tool calls)_');

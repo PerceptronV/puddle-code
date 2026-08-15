@@ -26,6 +26,12 @@ export interface CodexThread {
   rolloutPath: string;
 }
 
+export interface CodexThreadIndex {
+  /** False means the rollout compatibility path must be used. */
+  available: boolean;
+  threads: CodexThread[];
+}
+
 /** Newest `state_<n>.sqlite` under the config dir, or null. */
 function stateDbPath(configDir: string): string | null {
   let best: { path: string; version: number } | null = null;
@@ -49,9 +55,9 @@ function stateDbPath(configDir: string): string | null {
  * rollout's first JSONL record is necessarily readable, so it is the primary
  * source for launch-time id capture; rollout scanning remains the fallback.
  */
-export function codexThreads(configDir: string, cwd?: string): CodexThread[] {
+export function codexThreadIndex(configDir: string, cwd?: string): CodexThreadIndex {
   const path = stateDbPath(configDir);
-  if (path === null || !existsSync(path)) return [];
+  if (path === null || !existsSync(path)) return { available: false, threads: [] };
   let db: Database.Database | undefined;
   try {
     db = new Database(path, { readonly: true, fileMustExist: true });
@@ -80,16 +86,80 @@ export function codexThreads(configDir: string, cwd?: string): CodexThread[] {
       thread_source: string | null;
       source: string;
     }>;
-    return rows
-      .filter((row) => row.thread_source !== 'subagent' && !row.source.includes('"subagent"'))
-      .map((row) => ({
-        id: row.id,
-        cwd: row.cwd,
-        createdAt: row.created_ms,
-        rolloutPath: row.rollout_path,
-      }));
+    return {
+      available: true,
+      threads: rows
+        .filter((row) => row.thread_source !== 'subagent' && !row.source.includes('"subagent"'))
+        .map((row) => ({
+          id: row.id,
+          cwd: row.cwd,
+          createdAt: row.created_ms,
+          rolloutPath: row.rollout_path,
+        })),
+    };
   } catch {
-    return [];
+    return { available: false, threads: [] };
+  } finally {
+    try {
+      db?.close();
+    } catch {
+      /* nothing useful to do */
+    }
+  }
+}
+
+/** Compatibility wrapper for callers that only need the rows. */
+export function codexThreads(configDir: string, cwd?: string): CodexThread[] {
+  return codexThreadIndex(configDir, cwd).threads;
+}
+
+/** Indexed ref lookup used by the activity badge; never scans rollout history. */
+export function codexThread(configDir: string, ref: string): CodexThread | null {
+  const path = stateDbPath(configDir);
+  if (path === null || !existsSync(path)) return null;
+  let db: Database.Database | undefined;
+  try {
+    db = new Database(path, { readonly: true, fileMustExist: true });
+    const columns = new Set(
+      (db.prepare('pragma table_info(threads)').all() as Array<{ name: string }>).map(
+        (column) => column.name,
+      ),
+    );
+    const createdMs = columns.has('created_at_ms')
+      ? 'coalesce(created_at_ms, created_at * 1000)'
+      : 'created_at * 1000';
+    const threadSource = columns.has('thread_source') ? 'thread_source' : 'NULL';
+    const row = db
+      .prepare(
+        `select id, cwd, ${createdMs} as created_ms, rollout_path,
+                ${threadSource} as thread_source, source
+         from threads where id = ?`,
+      )
+      .get(ref) as
+      | {
+          id: string;
+          cwd: string;
+          created_ms: number | null;
+          rollout_path: string;
+          thread_source: string | null;
+          source: string;
+        }
+      | undefined;
+    if (
+      row === undefined ||
+      row.thread_source === 'subagent' ||
+      row.source.includes('"subagent"')
+    ) {
+      return null;
+    }
+    return {
+      id: row.id,
+      cwd: row.cwd,
+      createdAt: row.created_ms,
+      rolloutPath: row.rollout_path,
+    };
+  } catch {
+    return null;
   } finally {
     try {
       db?.close();

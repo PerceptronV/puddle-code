@@ -1,9 +1,10 @@
 import { execFile } from 'node:child_process';
 import { statSync } from 'node:fs';
+import { stat } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import type { AgentAdapter } from './adapter.js';
-import { readRolloutMeta, renderRollout, rolloutFiles, rolloutsFor } from './codex-rollout.js';
-import { codexThreads, threadTitle } from './codex-threads.js';
+import { cachedRolloutPath, renderRollout, rolloutForRef, rolloutsFor } from './codex-rollout.js';
+import { codexThread, codexThreadIndex, threadTitle } from './codex-threads.js';
 
 const execFileAsync = promisify(execFile);
 const SESSION_START_WINDOW_MS = 5 * 60 * 1000;
@@ -113,8 +114,10 @@ export const codex: AgentAdapter = {
     }
   },
 
-  existingSessionRefs(worktreePath, account) {
-    return new Set(codexSessionsFor(account.config_dir, worktreePath).map((meta) => meta.id));
+  async existingSessionRefs(worktreePath, account) {
+    return new Set(
+      (await codexSessionsFor(account.config_dir, worktreePath)).map((meta) => meta.id),
+    );
   },
 
   async resolveSessionRef(opts, account, excludeRefs = new Set()) {
@@ -122,32 +125,53 @@ export const codex: AgentAdapter = {
     // bounded fallback wait for older schemas/index failures; the coordinator
     // does not persist the unresolved puddle-id placeholder and retries safely
     // on status/title refreshes (with resume recovery as the final backstop).
+    const launchedAt = new Date().toISOString();
     const deadline = Date.now() + 10_000;
     for (;;) {
-      const ref = codexSessionsFor(account.config_dir, opts.worktreePath).find(
+      const ref = (await codexSessionsFor(account.config_dir, opts.worktreePath)).find(
         (session) => !excludeRefs.has(session.id),
       )?.id;
       if (ref !== undefined) return ref;
       if (Date.now() >= deadline) break;
       await new Promise((r) => setTimeout(r, 150));
     }
+    // A readable but stale/partial state index is unusual; make one asynchronous
+    // rollout fallback attempt at the deadline before leaving capture late.
+    const fallback = rolloutBornFor(
+      (await codexSessionsFor(account.config_dir, opts.worktreePath, true)).filter(
+        (session) => !excludeRefs.has(session.id),
+      ),
+      launchedAt,
+    );
+    if (fallback !== undefined) return fallback.id;
     // Placeholder: hasConversation() reports it missing, so resume recovers the
     // real ref through discoverSessionRef rather than failing outright.
     return opts.sessionId;
   },
 
-  discoverSessionRef(worktreePath, account, context) {
-    const candidates = codexSessionsFor(account.config_dir, worktreePath).filter(
+  async discoverSessionRef(worktreePath, account, context) {
+    let candidates = (await codexSessionsFor(account.config_dir, worktreePath)).filter(
       (meta) => !context?.excludeRefs?.has(meta.id),
     );
-    if (context === undefined) return candidates[0]?.id ?? null;
-    return rolloutBornFor(candidates, context.createdAt)?.id ?? null;
+    let match =
+      context === undefined ? candidates[0] : rolloutBornFor(candidates, context.createdAt);
+    if (match !== undefined) return match.id;
+    candidates = (await codexSessionsFor(account.config_dir, worktreePath, true)).filter(
+      (meta) => !context?.excludeRefs?.has(meta.id),
+    );
+    match = context === undefined ? candidates[0] : rolloutBornFor(candidates, context.createdAt);
+    return match?.id ?? null;
   },
 
-  sessionRefMatches(ref, context, account) {
+  async sessionRefMatches(ref, context, account) {
+    const indexed = (await codexSessionsFor(account.config_dir, context.worktreePath)).filter(
+      (candidate) => !context.excludeRefs?.has(candidate.id),
+    );
+    const indexedMatch = rolloutBornFor(indexed, context.createdAt);
+    if (indexedMatch !== undefined) return indexedMatch.id === ref;
     return (
       rolloutBornFor(
-        codexSessionsFor(account.config_dir, context.worktreePath).filter(
+        (await codexSessionsFor(account.config_dir, context.worktreePath, true)).filter(
           (candidate) => !context.excludeRefs?.has(candidate.id),
         ),
         context.createdAt,
@@ -155,8 +179,18 @@ export const codex: AgentAdapter = {
     );
   },
 
-  hasConversation(ref, account) {
-    return rolloutPath(account.config_dir, ref) !== null;
+  async hasConversation(ref, account) {
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    const indexed = codexThread(account.config_dir, ref);
+    if (indexed !== null) {
+      try {
+        await stat(indexed.rolloutPath);
+        return true;
+      } catch {
+        // A stale path falls through to the compatibility index.
+      }
+    }
+    return (await rolloutForRef(account.config_dir, ref)) !== null;
   },
 
   sessionTitle(ref, account) {
@@ -164,7 +198,11 @@ export const codex: AgentAdapter = {
   },
 
   sessionActivityAt(ref, account) {
-    const path = rolloutPath(account.config_dir, ref);
+    // The three-second computed-status path must never enumerate the account's
+    // rollout tree. Codex's id index supplies the exact path in one keyed row.
+    const path =
+      codexThread(account.config_dir, ref)?.rolloutPath ??
+      cachedRolloutPath(account.config_dir, ref);
     if (path === null) return null;
     try {
       return statSync(path).mtime;
@@ -174,9 +212,12 @@ export const codex: AgentAdapter = {
   },
 
   async exportTranscript(ref, account) {
-    const path = rolloutPath(account.config_dir, ref);
-    if (path === null) return '';
-    return renderRollout(path);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    const indexed = codexThread(account.config_dir, ref);
+    if (indexed !== null) return renderRollout(indexed.rolloutPath);
+    const rollout = await rolloutForRef(account.config_dir, ref);
+    if (rollout === null) return '';
+    return renderRollout(rollout.path);
   },
 
   /**
@@ -192,35 +233,21 @@ export const codex: AgentAdapter = {
   },
 };
 
-/** Absolute path of the rollout whose id is `ref`, or null. */
-function rolloutPath(configDir: string, ref: string): string | null {
-  return rolloutForRef(configDir, ref)?.path ?? null;
-}
-
-/** Top-level rollout whose id is `ref`, with metadata validated. */
-function rolloutForRef(
-  configDir: string,
-  ref: string,
-): { path: string; meta: NonNullable<ReturnType<typeof readRolloutMeta>> } | null {
-  for (const file of rolloutFiles(configDir)) {
-    // The uuid is in the filename, so this needs no file reads in the common case.
-    if (!file.endsWith(`-${ref}.jsonl`)) continue;
-    const meta = readRolloutMeta(file);
-    if (meta?.id === ref && meta.parentThreadId === null) return { path: file, meta };
-  }
-  return null;
-}
-
-/** Codex state-index rows first, with rollout metadata filling any index gaps. */
-function codexSessionsFor(
+/** Codex state-index rows first, with one explicit rollout fallback when needed. */
+async function codexSessionsFor(
   configDir: string,
   worktreePath: string,
-): Array<{ id: string; cwd: string; createdAt: number | null }> {
-  const indexed = codexThreads(configDir, worktreePath);
-  const seen = new Set(indexed.map((thread) => thread.id));
+  includeFallback = false,
+): Promise<Array<{ id: string; cwd: string; createdAt: number | null }>> {
+  // `launchAndCapture` starts in a promise microtask; yielding a real event-loop
+  // turn here lets the HTTP create response flush before even the SQLite probe.
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  const indexed = codexThreadIndex(configDir, worktreePath);
+  if (indexed.available && !includeFallback) return indexed.threads;
+  const seen = new Set(indexed.threads.map((thread) => thread.id));
   return [
-    ...indexed,
-    ...rolloutsFor(configDir, worktreePath).filter((rollout) => !seen.has(rollout.id)),
+    ...indexed.threads,
+    ...(await rolloutsFor(configDir, worktreePath)).filter((rollout) => !seen.has(rollout.id)),
   ];
 }
 
