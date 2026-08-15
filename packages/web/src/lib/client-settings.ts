@@ -38,7 +38,7 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettings = {
   terminalFontSize: 13,
   editorFontSize: 14,
   density: 'compact',
-  terminalScrollback: 5000,
+  terminalScrollback: 20000,
   editorTabSize: 2,
   editorWordWrap: false,
   editorLinkSshHost: '',
@@ -76,6 +76,21 @@ export function reconcileProjectScopeSettings(
   return out;
 }
 
+/**
+ * The original 5,000-line default is small enough for a wrapped `tqdm` run to
+ * evict everything that preceded the progress bar. Settings snapshots store
+ * every field, so changing only the default would strand existing clients on
+ * that value; migrate the exact old default while preserving every deliberate
+ * larger or smaller choice.
+ */
+export function reconcileTerminalScrollback(
+  stored: Partial<ClientSettings>,
+): Partial<ClientSettings> {
+  return stored.terminalScrollback === 5000
+    ? { ...stored, terminalScrollback: DEFAULT_CLIENT_SETTINGS.terminalScrollback }
+    : stored;
+}
+
 function load(): ClientSettings {
   if (cache) return cache;
   let stored: Partial<ClientSettings> = {};
@@ -84,7 +99,10 @@ function load(): ClientSettings {
   } catch {
     // Corrupt JSON → fall back to defaults.
   }
-  cache = { ...DEFAULT_CLIENT_SETTINGS, ...reconcileProjectScopeSettings(stored) };
+  cache = {
+    ...DEFAULT_CLIENT_SETTINGS,
+    ...reconcileTerminalScrollback(reconcileProjectScopeSettings(stored)),
+  };
   return cache;
 }
 

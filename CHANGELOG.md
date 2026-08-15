@@ -8,3 +8,8 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Keep high-output agent terminals responsive and visible by batching PTY redraws to browser frames and using xterm's stable built-in renderer.
+- Preserve terminal history through `tqdm`-style progress output by raising the scrollback default from 5,000 to 20,000 lines and migrating the old default.

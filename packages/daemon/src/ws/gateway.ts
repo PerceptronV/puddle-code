@@ -29,6 +29,24 @@ interface WsEventHandlers {
 }
 
 /**
+ * A TUI may redraw far faster than a browser can paint (Codex has been
+ * observed emitting more than 100 synchronised redraws per second). Coalesce
+ * the tiny node-pty chunks into approximately one browser-frame message while
+ * bounding how much output can wait in memory. The bytes and their order stay
+ * exact; only the WebSocket envelope cadence changes.
+ */
+const OUTPUT_BATCH_MS = 16;
+const OUTPUT_BATCH_MAX_CHARS = 64 * 1024;
+
+interface PendingOutput {
+  stream: string;
+  term: string;
+  chunks: string[];
+  chars: number;
+  timer: NodeJS.Timeout;
+}
+
+/**
  * WebSocket hub (SPEC §6). Any number of viewers may attach to the same
  * (stream, term); output/status/exit broadcast to all of them and stdin is
  * accepted from any (last-writer-wins, like tmux). Auth is the mandatory
@@ -37,6 +55,7 @@ interface WsEventHandlers {
 export class WsGateway {
   private readonly viewers = new Map<string, Set<WSContext>>();
   private readonly statusSubs = new Set<WSContext>();
+  private readonly pendingOutput = new Map<string, PendingOutput>();
   /**
    * The one viewer per (stream, term) whose device-query answers reach the
    * PTY (see device-replies.ts): the most recent attacher/resizer — the same
@@ -48,14 +67,10 @@ export class WsGateway {
 
   constructor(private readonly deps: WsGatewayDeps) {
     deps.ptys.on('data', (e: PtyDataEvent) => {
-      this.broadcast(this.key(e.stream, e.term), {
-        t: 'output',
-        session: e.stream,
-        term: e.term,
-        data: e.data,
-      });
+      this.queueOutput(e.stream, e.term, e.data);
     });
     deps.ptys.on('exit', (e: PtyExitEvent) => {
+      this.flushOutput(this.key(e.stream, e.term));
       this.broadcast(this.key(e.stream, e.term), {
         t: 'exit',
         session: e.stream,
@@ -149,6 +164,11 @@ export class WsGateway {
           case 'attach': {
             this.assertStream(msg.session);
             const key = this.key(msg.session, msg.term);
+            // The tail read below includes every LogStore append, including
+            // output still waiting in our WS batch. Deliver that pending batch
+            // only to the OLD viewers first, or this new viewer would receive
+            // the same bytes once in replay and once as live output.
+            this.flushOutput(key);
             let set = this.viewers.get(key);
             if (!set) this.viewers.set(key, (set = new Set()));
             set.add(ws);
@@ -176,6 +196,7 @@ export class WsGateway {
           }
           case 'detach': {
             const key = this.key(msg.session, msg.term);
+            this.flushOutput(key);
             this.dropViewer(key, ws);
             attached.delete(key);
             break;
@@ -293,6 +314,36 @@ export class WsGateway {
     for (const ws of set) {
       if (ws.readyState === 1) ws.send(encoded);
     }
+  }
+
+  private queueOutput(stream: string, term: string, data: string): void {
+    const key = this.key(stream, term);
+    // Do no batching or timer work for a PTY nobody is viewing.
+    if (!this.viewers.has(key)) return;
+    const pending = this.pendingOutput.get(key);
+    if (pending) {
+      pending.chunks.push(data);
+      pending.chars += data.length;
+      if (pending.chars >= OUTPUT_BATCH_MAX_CHARS) this.flushOutput(key);
+      return;
+    }
+    const timer = setTimeout(() => this.flushOutput(key), OUTPUT_BATCH_MS);
+    timer.unref?.();
+    this.pendingOutput.set(key, { stream, term, chunks: [data], chars: data.length, timer });
+    if (data.length >= OUTPUT_BATCH_MAX_CHARS) this.flushOutput(key);
+  }
+
+  private flushOutput(key: string): void {
+    const pending = this.pendingOutput.get(key);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    this.pendingOutput.delete(key);
+    this.broadcast(key, {
+      t: 'output',
+      session: pending.stream,
+      term: pending.term,
+      data: pending.chunks.join(''),
+    });
   }
 
   private key(stream: string, term: string): string {

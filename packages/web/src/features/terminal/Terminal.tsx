@@ -3,7 +3,6 @@ import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon, type ISearchOptions } from '@xterm/addon-search';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
 import { HOME_STREAM, type SessionStatus } from '@puddle/shared';
 import { tokenStore } from '../../lib/auth';
@@ -238,8 +237,8 @@ export function Terminal({
     // is what re-syncs the viewport's scroll range (see the attach effect) and
     // what makes the repaint below cover a canvas the renderer thinks is clean.
     xterm.resize(xterm.cols, xterm.rows);
-    // Repaint every row after a geometry change: the WebGL renderer's canvas
-    // clears on resize but only rows it considers dirty repaint, which could
+    // Repaint every row after a geometry change: the renderer surface clears
+    // on resize but only rows it considers dirty repaint, which could
     // blank the static part of a TUI (typically the bottom half) until a
     // selection forced a full pass (fixed 2026-07-31).
     xterm.refresh(0, xterm.rows - 1);
@@ -250,8 +249,8 @@ export function Terminal({
   // The pause linger normally detaches a hidden viewer and the later replay
   // rebuilds it, but background tabs throttle (and sleeping machines freeze)
   // the linger timer. In that case `attached` can stay true throughout, while
-  // the browser discards part of WebGL's backing store without reporting a
-  // context loss. xterm's buffer is still intact — selecting the blank area
+  // the browser discards part of the renderer's backing store. xterm's buffer
+  // is still intact — selecting the blank area
   // makes its text reappear — so force the same full recovery on every visible
   // edge. Waiting one animation frame lets the compositor restore the canvas
   // before xterm marks every row dirty. This is deliberately refresh-only:
@@ -522,7 +521,7 @@ export function Terminal({
       // Un-wedge wheel scrolling (xterm 6): the viewport syncs its scroll
       // range from the renderer's cached dimensions, and a sync that fired
       // while this DOM was parked (display:none — output during the detach
-      // linger, the WebGL renderer swap) latched it at height 0, where the
+      // linger or an earlier renderer swap) latched it at height 0, where the
       // scrollable element silently drops wheel input though typing still
       // works. fit() skips resize() when cols/rows are unchanged — the
       // normal case for a tab returning to the same pane — so nothing
@@ -532,30 +531,47 @@ export function Terminal({
       // PTY — SIGWINCH only comes from the ResizeObserver's real resizes).
       xterm.resize(xterm.cols, xterm.rows);
     }
-    // GPU rendering only while attached: browsers cap live WebGL contexts
-    // (~16 per page), so contexts must track the handful of visible panes,
-    // never the full set of mounted terminals. Unavailable/lost context
-    // falls back to xterm's DOM renderer.
-    let webgl: WebglAddon | null = null;
-    try {
-      webgl = new WebglAddon();
-      webgl.onContextLoss(() => {
-        webgl?.dispose();
-        webgl = null;
-        // Back on the DOM renderer: repaint in full — the lost context may
-        // have left any part of the canvas blank.
-        xterm.refresh(0, xterm.rows - 1);
-      });
-      xterm.loadAddon(webgl);
-    } catch {
-      webgl = null;
-    }
-    // A renderer swap starts from a cleared canvas — repaint everything (the
-    // same reasoning as the post-fit refresh in the ResizeObserver above).
+    // Keep xterm's built-in renderer. WebGL context loss (and backing-store
+    // eviction without a context-loss event) repeatedly left working Codex
+    // terminals blank; recreating the same renderer on reload reproduced the
+    // failure. The built-in path is stable and avoids one GPU context per
+    // visible pane.
     xterm.refresh(0, xterm.rows - 1);
+
+    // Even a current daemon batches chatty PTY output, but this client-side
+    // frame batch protects new clients connected to older daemons too. It also
+    // turns any burst split across several WS messages into one xterm write,
+    // preventing the write queue from growing faster than the browser paints.
+    let outputFrame = 0;
+    let outputChars = 0;
+    let outputChunks: string[] = [];
+    const flushOutput = () => {
+      if (outputFrame !== 0) cancelAnimationFrame(outputFrame);
+      outputFrame = 0;
+      if (outputChars === 0) return;
+      const data = outputChunks.join('');
+      outputChunks = [];
+      outputChars = 0;
+      xterm.write(data);
+    };
+    const queueOutput = (data: string) => {
+      outputChunks.push(data);
+      outputChars += data.length;
+      if (outputChars >= 64 * 1024) {
+        flushOutput();
+      } else if (outputFrame === 0) {
+        outputFrame = requestAnimationFrame(flushOutput);
+      }
+    };
     const detach = wsManager.attach(stream, term, xterm.cols, xterm.rows, {
       onData: (data, kind) => {
         if (kind === 'replay') {
+          // A replay includes everything recorded before this attach; discard
+          // an old attachment's unpainted frame rather than duplicate it.
+          if (outputFrame !== 0) cancelAnimationFrame(outputFrame);
+          outputFrame = 0;
+          outputChars = 0;
+          outputChunks = [];
           // Start from a clean screen: the replayed tail must repaint the
           // buffer, not append to what it already shows.
           replayingRef.current = true;
@@ -563,20 +579,19 @@ export function Terminal({
           xterm.write(data, () => {
             replayingRef.current = false;
             // A large replay after this terminal has been parked can update
-            // the buffer while WebGL keeps some rows marked clean. Selection
+            // the buffer while the renderer keeps some rows marked clean. Selection
             // dirties those cells and reveals the text, but the replay itself
             // is the right boundary to repaint the whole restored viewport.
             xterm.refresh(0, xterm.rows - 1);
           });
           return;
         }
-        xterm.write(data);
+        queueOutput(data);
       },
       onExit: (code) => onExitRef.current?.(code),
     });
     return () => {
-      webgl?.dispose();
-      webgl = null;
+      if (outputFrame !== 0) cancelAnimationFrame(outputFrame);
       detach();
     };
     // `fontReady` because the attach reads xtermRef, a REF: when the font gate

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { reconcileProjectScopeSettings } from '../src/lib/client-settings';
+import {
+  reconcileProjectScopeSettings,
+  reconcileTerminalScrollback,
+} from '../src/lib/client-settings';
 
 /**
  * Project-based layout and the session list's scope were ONE setting through
@@ -43,5 +46,20 @@ describe('reconcileProjectScopeSettings', () => {
     expect(reconcileProjectScopeSettings({})).toEqual({});
     // and it never touches unrelated keys
     expect(reconcileProjectScopeSettings({ uiFontSize: 18 })).toEqual({ uiFontSize: 18 });
+  });
+});
+
+describe('reconcileTerminalScrollback', () => {
+  it('moves the old default to the larger progress-safe default', () => {
+    expect(reconcileTerminalScrollback({ terminalScrollback: 5000 })).toEqual({
+      terminalScrollback: 20000,
+    });
+  });
+
+  it('preserves deliberate non-default values and absent values', () => {
+    expect(reconcileTerminalScrollback({ terminalScrollback: 2500 })).toEqual({
+      terminalScrollback: 2500,
+    });
+    expect(reconcileTerminalScrollback({})).toEqual({});
   });
 });
