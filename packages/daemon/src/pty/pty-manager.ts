@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import pty from 'node-pty';
 import type { LogStore } from '../logs/log-store.js';
 import { EnvOscFilter, type EnvDelta } from './env-osc.js';
+import { TerminalScreenStateStore } from './terminal-screen-state.js';
 import { findColourQueries, QUERY_CARRY, type TerminalTheme } from './terminal-theme.js';
 
 export interface PtyDataEvent {
@@ -48,6 +49,7 @@ const DEFAULT_SIZE = { cols: 120, rows: 32 } as const;
  */
 export class PtyManager extends EventEmitter {
   private readonly live = new Map<string, Live>();
+  private readonly screens: TerminalScreenStateStore;
   /**
    * The last size a viewer asked for, per (stream, term) — kept whether or not a
    * PTY is live so the NEXT one starts at it. A resume or an account migration
@@ -67,8 +69,10 @@ export class PtyManager extends EventEmitter {
      * exercise PTYs alone need not care.
      */
     private readonly theme?: TerminalTheme,
+    stateDir?: string,
   ) {
     super();
+    this.screens = new TerminalScreenStateStore(stateDir);
   }
 
   spawn(
@@ -82,6 +86,7 @@ export class PtyManager extends EventEmitter {
     if (this.live.has(key)) throw new Error(`pty ${key} already live`);
     const record = opts.record ?? true;
     const size = this.sizes.get(key) ?? DEFAULT_SIZE;
+    this.screens.resize(stream, term, size.cols, size.rows);
     const proc = pty.spawn(file, args, {
       name: 'xterm-256color',
       cols: size.cols,
@@ -108,12 +113,14 @@ export class PtyManager extends EventEmitter {
         live.queryTail = data.slice(-QUERY_CARRY);
       }
       if (record) this.logs.append(stream, term, data);
+      this.screens.write(stream, term, data);
       this.emit('data', { stream, term, data } satisfies PtyDataEvent);
     });
     proc.onExit(({ exitCode }) => {
       if (record) this.logs.close(stream, term);
       this.live.delete(key);
       this.emit('exit', { stream, term, exitCode } satisfies PtyExitEvent);
+      void this.screens.release(stream, term);
     });
   }
 
@@ -128,6 +135,7 @@ export class PtyManager extends EventEmitter {
    */
   resize(stream: string, term: string, cols: number, rows: number): void {
     if (cols > 0 && rows > 0) this.sizes.set(this.key(stream, term), { cols, rows });
+    this.screens.resize(stream, term, cols, rows);
     try {
       this.live.get(this.key(stream, term))?.proc.resize(cols, rows);
     } catch {
@@ -142,6 +150,34 @@ export class PtyManager extends EventEmitter {
   forget(stream: string): void {
     const prefix = `${stream} `;
     for (const key of [...this.sizes.keys()]) if (key.startsWith(prefix)) this.sizes.delete(key);
+    void this.screens.forget(stream);
+  }
+
+  /**
+   * A self-contained terminal snapshot for viewer attachment. Older terminals
+   * have only a raw log, so import that once as a compatibility seed; all new
+   * output is parsed continuously and persisted by TerminalScreenStateStore.
+   */
+  async snapshot(stream: string, term: string, cols: number, rows: number): Promise<string> {
+    // Reflow the saved screen to the attaching viewer before serialising it.
+    // The real PTY is resized only after replay, so its resulting redraw is
+    // unambiguously live output after the snapshot boundary.
+    this.screens.resize(stream, term, cols, rows);
+    try {
+      let snapshot = await this.screens.snapshot(stream, term);
+      if (snapshot !== null) return snapshot;
+      const legacyTail = this.logs.readTail(stream, term);
+      if (legacyTail === '') return '';
+      this.screens.write(stream, term, legacyTail);
+      snapshot = await this.screens.snapshot(stream, term);
+      return snapshot ?? '';
+    } finally {
+      if (!this.has(stream, term)) void this.screens.release(stream, term);
+    }
+  }
+
+  async closeTerminalStates(): Promise<void> {
+    await this.screens.closeAll();
   }
 
   kill(stream: string, term: string, signal?: string): boolean {
@@ -187,6 +223,7 @@ export class PtyManager extends EventEmitter {
   note(stream: string, term: string, text: string): void {
     const data = `\r\n[puddle] ${text}\r\n`;
     this.logs.append(stream, term, data);
+    this.screens.write(stream, term, data);
     this.emit('data', { stream, term, data } satisfies PtyDataEvent);
   }
 

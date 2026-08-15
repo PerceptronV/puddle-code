@@ -46,6 +46,10 @@ interface PendingOutput {
   timer: NodeJS.Timeout;
 }
 
+interface PendingAttach {
+  messages: WsServerMessage[];
+}
+
 /**
  * WebSocket hub (SPEC §6). Any number of viewers may attach to the same
  * (stream, term); output/status/exit broadcast to all of them and stdin is
@@ -56,6 +60,8 @@ export class WsGateway {
   private readonly viewers = new Map<string, Set<WSContext>>();
   private readonly statusSubs = new Set<WSContext>();
   private readonly pendingOutput = new Map<string, PendingOutput>();
+  /** Live messages held until a new viewer has received its snapshot. */
+  private readonly pendingAttaches = new Map<string, Map<WSContext, PendingAttach>>();
   /**
    * The one viewer per (stream, term) whose device-query answers reach the
    * PTY (see device-replies.ts): the most recent attacher/resizer — the same
@@ -174,9 +180,24 @@ export class WsGateway {
             set.add(ws);
             attached.add(key);
             this.responders.set(key, ws);
-            const tail = this.deps.logs.readTail(msg.session, msg.term);
-            this.send(ws, { t: 'replay', session: msg.session, term: msg.term, data: tail });
-            this.deps.ptys.resize(msg.session, msg.term, msg.cols, msg.rows);
+            let pendingForKey = this.pendingAttaches.get(key);
+            if (!pendingForKey) this.pendingAttaches.set(key, (pendingForKey = new Map()));
+            // A duplicate attach supersedes the earlier snapshot attempt but
+            // inherits any live messages already held behind its boundary.
+            const pending: PendingAttach = {
+              messages: pendingForKey.get(ws)?.messages ?? [],
+            };
+            pendingForKey.set(ws, pending);
+            void this.finishAttach(
+              key,
+              msg.session,
+              msg.term,
+              msg.cols,
+              msg.rows,
+              ws,
+              pending,
+              attached,
+            );
             break;
           }
           case 'stdin': {
@@ -289,6 +310,9 @@ export class WsGateway {
    * every output chunk of a stream nobody watches, forever.
    */
   private dropViewer(key: string, ws: WSContext): void {
+    const pendingForKey = this.pendingAttaches.get(key);
+    pendingForKey?.delete(ws);
+    if (pendingForKey?.size === 0) this.pendingAttaches.delete(key);
     const set = this.viewers.get(key);
     if (!set) return;
     set.delete(ws);
@@ -312,7 +336,44 @@ export class WsGateway {
     if (!set) return;
     const encoded = JSON.stringify(msg);
     for (const ws of set) {
-      if (ws.readyState === 1) ws.send(encoded);
+      const pending = this.pendingAttaches.get(key)?.get(ws);
+      if (pending) pending.messages.push(msg);
+      else if (ws.readyState === 1) ws.send(encoded);
+    }
+  }
+
+  /**
+   * Establish an exact snapshot boundary for a new viewer. Output arriving
+   * while the headless terminal serialises is held for this viewer only, then
+   * delivered after replay so no bytes are missed or applied twice.
+   */
+  private async finishAttach(
+    key: string,
+    stream: string,
+    term: string,
+    cols: number,
+    rows: number,
+    ws: WSContext,
+    pending: PendingAttach,
+    attached: Set<string>,
+  ): Promise<void> {
+    try {
+      const snapshot = await this.deps.ptys.snapshot(stream, term, cols, rows);
+      if (this.pendingAttaches.get(key)?.get(ws) !== pending) return;
+      if (!this.viewers.get(key)?.has(ws)) return;
+      this.send(ws, { t: 'replay', session: stream, term, data: snapshot });
+      this.pendingAttaches.get(key)?.delete(ws);
+      if (this.pendingAttaches.get(key)?.size === 0) this.pendingAttaches.delete(key);
+      for (const message of pending.messages) this.send(ws, message);
+      // A genuine PTY resize now asks a full-screen TUI for a fresh frame. It
+      // occurs after the snapshot boundary and is therefore ordinary output.
+      this.deps.ptys.resize(stream, term, cols, rows);
+    } catch (error) {
+      if (this.pendingAttaches.get(key)?.get(ws) !== pending) return;
+      this.dropViewer(key, ws);
+      attached.delete(key);
+      console.error(`Could not attach terminal ${stream}/${term}:`, error);
+      this.send(ws, { t: 'error', message: 'could not restore terminal' });
     }
   }
 

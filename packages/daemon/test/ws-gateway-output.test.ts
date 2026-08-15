@@ -7,10 +7,11 @@ import type { TerminalTheme } from '../src/pty/terminal-theme.js';
 import type { SessionService } from '../src/sessions/service.js';
 import { WsGateway } from '../src/ws/gateway.js';
 
-function fixture() {
+function fixture(snapshot: Promise<string> = Promise.resolve('restored screen')) {
   const ptys = Object.assign(new EventEmitter(), {
     resize: vi.fn(),
     write: vi.fn(),
+    snapshot: vi.fn(() => snapshot),
   });
   const service = Object.assign(new EventEmitter(), {
     get: vi.fn(() => ({})),
@@ -32,8 +33,9 @@ function fixture() {
   const receive = (message: object) => connection.onMessage({ data: JSON.stringify(message) }, ws);
   receive({ t: 'auth', token: 'secret' });
   receive({ t: 'attach', session: 'session-1', term: 'agent', cols: 120, rows: 40 });
-  send.mockClear(); // ignore the initial replay
-  return { ptys, send };
+  // finishAttach's await continuation was registered by receive() first.
+  const attached = snapshot.then(() => Promise.resolve());
+  return { ptys, send, attached };
 }
 
 function messages(send: ReturnType<typeof vi.fn>) {
@@ -47,9 +49,11 @@ afterEach(() => {
 });
 
 describe('WebSocket terminal output batching', () => {
-  it('coalesces PTY chunks into one ordered frame message', () => {
+  it('coalesces PTY chunks into one ordered frame message', async () => {
     vi.useFakeTimers();
-    const { ptys, send } = fixture();
+    const { ptys, send, attached } = fixture();
+    await attached;
+    send.mockClear(); // ignore the initial replay
 
     ptys.emit('data', { stream: 'session-1', term: 'agent', data: 'one' });
     ptys.emit('data', { stream: 'session-1', term: 'agent', data: '-two' });
@@ -67,9 +71,11 @@ describe('WebSocket terminal output batching', () => {
     ]);
   });
 
-  it('flushes pending bytes before the exit message', () => {
+  it('flushes pending bytes before the exit message', async () => {
     vi.useFakeTimers();
-    const { ptys, send } = fixture();
+    const { ptys, send, attached } = fixture();
+    await attached;
+    send.mockClear(); // ignore the initial replay
 
     ptys.emit('data', { stream: 'session-1', term: 'agent', data: 'last output' });
     ptys.emit('exit', { stream: 'session-1', term: 'agent', exitCode: 7 });
@@ -82,6 +88,34 @@ describe('WebSocket terminal output batching', () => {
         data: 'last output',
       },
       { t: 'exit', session: 'session-1', term: 'agent', code: 7 },
+    ]);
+  });
+
+  it('holds live output behind an in-progress screen restore', async () => {
+    vi.useFakeTimers();
+    let resolveSnapshot!: (snapshot: string) => void;
+    const snapshot = new Promise<string>((resolve) => {
+      resolveSnapshot = resolve;
+    });
+    const { ptys, send, attached } = fixture(snapshot);
+    ptys.emit('data', { stream: 'session-1', term: 'agent', data: 'after snapshot' });
+    vi.advanceTimersByTime(16);
+    expect(send).not.toHaveBeenCalled();
+    resolveSnapshot('complete screen');
+    await attached;
+    expect(messages(send)).toEqual([
+      {
+        t: 'replay',
+        session: 'session-1',
+        term: 'agent',
+        data: 'complete screen',
+      },
+      {
+        t: 'output',
+        session: 'session-1',
+        term: 'agent',
+        data: 'after snapshot',
+      },
     ]);
   });
 });

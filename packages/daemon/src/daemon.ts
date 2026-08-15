@@ -85,7 +85,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   // Clients report their resolved terminal colours over the WS (14.1); the
   // PTY layer answers agents' OSC 10/11 colour queries from the last report.
   const terminalTheme = new TerminalTheme();
-  const ptys = new PtyManager(logs, terminalTheme);
+  const ptys = new PtyManager(logs, terminalTheme, paths.logsDir);
   const shellHooks = installShellHooks(paths);
   const scanner = new PortScanner({ ptys });
   const worktrees = new WorktreeManager({ paths, mutex: new KeyedMutex(), repos, sessions });
@@ -248,6 +248,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
         }
         await new Promise((r) => setTimeout(r, 25));
       }
+      await ptys.closeTerminalStates();
       logs.closeAll();
       // Proxied WebSocket sockets (client + outbound upstream) are not covered
       // by closeAllConnections and would hold the process open — detach the
