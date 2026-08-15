@@ -170,10 +170,10 @@ export class WsGateway {
           case 'attach': {
             this.assertStream(msg.session);
             const key = this.key(msg.session, msg.term);
-            // The tail read below includes every LogStore append, including
-            // output still waiting in our WS batch. Deliver that pending batch
-            // only to the OLD viewers first, or this new viewer would receive
-            // the same bytes once in replay and once as live output.
+            // The canonical terminal has already parsed output waiting in our
+            // WS batch. Deliver that batch only to the OLD viewers first, or
+            // this new viewer would receive it once in the snapshot and once
+            // as live output.
             this.flushOutput(key);
             let set = this.viewers.get(key);
             if (!set) this.viewers.set(key, (set = new Set()));

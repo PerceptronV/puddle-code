@@ -6,7 +6,7 @@ import { tokenStore } from './auth';
  * Singleton WebSocket manager. One socket carries every terminal and the
  * status feed; the first message after connect MUST be auth. On reconnect it
  * re-authenticates, re-attaches every registered terminal (the daemon replies
- * with a log-tail replay, so terminals repaint), and re-subscribes to status.
+ * with a canonical screen/scrollback snapshot), and re-subscribes to status.
  */
 
 export interface StatusEvent {

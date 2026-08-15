@@ -518,18 +518,9 @@ export function Terminal({
     const container = containerRef.current;
     if (container && container.clientWidth > 0) {
       fitRef.current?.fit();
-      // Un-wedge wheel scrolling (xterm 6): the viewport syncs its scroll
-      // range from the renderer's cached dimensions, and a sync that fired
-      // while this DOM was parked (display:none — output during the detach
-      // linger or an earlier renderer swap) latched it at height 0, where the
-      // scrollable element silently drops wheel input though typing still
-      // works. fit() skips resize() when cols/rows are unchanged — the
-      // normal case for a tab returning to the same pane — so nothing
-      // re-syncs it. BufferService.resize fires onResize UNCONDITIONALLY,
-      // so a same-size resize queues the viewport sync that re-reads the
-      // now-visible dimensions (fixed 2026-07-31; this never reaches the
-      // PTY — SIGWINCH only comes from the ResizeObserver's real resizes).
-      xterm.resize(xterm.cols, xterm.rows);
+      // fit() propagates genuine geometry changes. xterm 6 explicitly ignores
+      // same-size resize() calls, so the viewport refresh below—not a pretend
+      // resize—is the local rendering recovery when this DOM returns.
     }
     // Keep xterm's built-in renderer. WebGL context loss (and backing-store
     // eviction without a context-loss event) repeatedly left working Codex
@@ -566,14 +557,14 @@ export function Terminal({
     const detach = wsManager.attach(stream, term, xterm.cols, xterm.rows, {
       onData: (data, kind) => {
         if (kind === 'replay') {
-          // A replay includes everything recorded before this attach; discard
-          // an old attachment's unpainted frame rather than duplicate it.
+          // A replay is the complete daemon snapshot at the attach boundary;
+          // discard an old attachment's unpainted frame rather than duplicate it.
           if (outputFrame !== 0) cancelAnimationFrame(outputFrame);
           outputFrame = 0;
           outputChars = 0;
           outputChunks = [];
-          // Start from a clean screen: the replayed tail must repaint the
-          // buffer, not append to what it already shows.
+          // Start from a clean screen: the self-contained snapshot restores
+          // the buffer rather than appending to what it already shows.
           replayingRef.current = true;
           xterm.reset();
           xterm.write(data, () => {
