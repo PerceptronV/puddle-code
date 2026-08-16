@@ -261,4 +261,8 @@
 // optional captured `value`, allowing the authenticated cockpit to copy it by
 // clicking the variable name. Older daemons omit it and the UI leaves those
 // names non-interactive; older clients ignore the unknown response field.
-export const PROTOCOL_VERSION = { major: 16, minor: 2 } as const;
+// 16.3 (2026-08-16): additive — POST /api/worktrees/:sid/transfer copies or
+// moves one entry from an explicitly identified source filetree into the
+// URL-addressed destination filetree. New clients keep same-tree paste on the
+// old copy/rename routes and hide only cross-tree paste on older daemons.
+export const PROTOCOL_VERSION = { major: 16, minor: 3 } as const;

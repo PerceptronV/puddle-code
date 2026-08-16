@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { sessionId } from './common.js';
 
 /**
  * Worktree file-*mutation* shapes (SPEC §8): create, rename/move, copy, and
@@ -29,6 +30,24 @@ export const copyEntryRequestSchema = z.object({
   to: z.string().min(1),
 });
 export type CopyEntryRequest = z.infer<typeof copyEntryRequestSchema>;
+
+/**
+ * `POST /api/worktrees/:sid/transfer` — copy or move one entry from another
+ * filetree into the URL-addressed destination tree. `source.root` has the same
+ * meaning as the routes' `?root=` override; absent means the source session's
+ * worktree. One entry per request keeps partial multi-selection failures
+ * explicit at the client.
+ */
+export const transferEntryRequestSchema = z.object({
+  operation: z.enum(['copy', 'move']),
+  source: z.object({
+    session_id: sessionId,
+    root: z.string().optional(),
+  }),
+  from: z.string().min(1),
+  to: z.string().min(1),
+});
+export type TransferEntryRequest = z.infer<typeof transferEntryRequestSchema>;
 
 /** `POST /api/worktrees/:sid/delete` — recursive remove (no host trash). */
 export const deleteEntryRequestSchema = z.object({

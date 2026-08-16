@@ -157,6 +157,97 @@ describe('POST /:sid/copy', () => {
   });
 });
 
+describe('POST /:sid/transfer (protocol 16.3)', () => {
+  let sourceRoot: string;
+  let destinationRoot: string;
+
+  beforeAll(() => {
+    sourceRoot = mkdtempSync(join(tmpdir(), 'puddle-transfer-source-'));
+    destinationRoot = mkdtempSync(join(tmpdir(), 'puddle-transfer-destination-'));
+  });
+
+  afterAll(() => {
+    rmSync(sourceRoot, { recursive: true, force: true });
+    rmSync(destinationRoot, { recursive: true, force: true });
+  });
+
+  function transfer(
+    body: {
+      operation: 'copy' | 'move';
+      source: { session_id: string; root?: string };
+      from: string;
+      to: string;
+    },
+    root = destinationRoot,
+  ) {
+    return app.request(`/api/worktrees/${sessionId}/transfer?root=${encodeURIComponent(root)}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+
+  function request(operation: 'copy' | 'move', from = 'notes.txt', to = 'inbox/notes.txt') {
+    return {
+      operation,
+      source: { session_id: sessionId, root: sourceRoot },
+      from,
+      to,
+    } as const;
+  }
+
+  it('copies between independent roots and suffixes a collision', async () => {
+    writeFileSync(join(sourceRoot, 'notes.txt'), 'portable\n');
+
+    const copied = await transfer(request('copy'));
+    expect(copied.status).toBe(201);
+    expect(fsOpResponseSchema.parse(await copied.json()).path).toBe('inbox/notes.txt');
+    expect(readFileSync(join(destinationRoot, 'inbox/notes.txt'), 'utf8')).toBe('portable\n');
+    expect(readFileSync(join(sourceRoot, 'notes.txt'), 'utf8')).toBe('portable\n');
+
+    const collision = await transfer(request('copy'));
+    expect(collision.status).toBe(201);
+    expect(fsOpResponseSchema.parse(await collision.json()).path).toBe('inbox/notes copy.txt');
+  });
+
+  it('moves between roots without deleting a source when the destination collides', async () => {
+    writeFileSync(join(sourceRoot, 'move.txt'), 'move me\n');
+    const moved = await transfer(request('move', 'move.txt', 'moved.txt'));
+    expect(moved.status).toBe(200);
+    expect(existsSync(join(sourceRoot, 'move.txt'))).toBe(false);
+    expect(readFileSync(join(destinationRoot, 'moved.txt'), 'utf8')).toBe('move me\n');
+
+    writeFileSync(join(sourceRoot, 'kept.txt'), 'keep me\n');
+    writeFileSync(join(destinationRoot, 'taken.txt'), 'taken\n');
+    const conflict = await transfer(request('move', 'kept.txt', 'taken.txt'));
+    expect(conflict.status).toBe(409);
+    expect(errorCode(await conflict.json())).toBe('already_exists');
+    expect(readFileSync(join(sourceRoot, 'kept.txt'), 'utf8')).toBe('keep me\n');
+  });
+
+  it('confines source and destination paths independently', async () => {
+    writeFileSync(join(sourceRoot, 'safe.txt'), 'safe\n');
+
+    const sourceEscape = await transfer(request('copy', '../outside.txt', 'inside.txt'));
+    expect(sourceEscape.status).toBe(400);
+    expect(errorCode(await sourceEscape.json())).toBe('path_outside_worktree');
+
+    const destinationEscape = await transfer(request('copy', 'safe.txt', '../outside.txt'));
+    expect(destinationEscape.status).toBe(400);
+    expect(errorCode(await destinationEscape.json())).toBe('path_outside_worktree');
+  });
+
+  it('rejects a directory copied into itself without creating destination parents', async () => {
+    mkdirSync(join(sourceRoot, 'folder'), { recursive: true });
+    writeFileSync(join(sourceRoot, 'folder/leaf.txt'), 'leaf\n');
+
+    const res = await transfer(request('copy', 'folder', 'folder/nested/folder'), sourceRoot);
+    expect(res.status).toBe(400);
+    expect(errorCode(await res.json())).toBe('invalid_destination');
+    expect(existsSync(join(sourceRoot, 'folder/nested'))).toBe(false);
+  });
+});
+
 describe('POST /:sid/delete', () => {
   it('removes a file', async () => {
     writeFileSync(join(worktree, 'trash.txt'), 'bye');

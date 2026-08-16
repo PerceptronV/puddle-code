@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Added
+
+- Allow filetree copy and cut operations to paste across projects and filetrees on the same daemon host.

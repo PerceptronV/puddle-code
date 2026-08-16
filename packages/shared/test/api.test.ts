@@ -14,6 +14,7 @@ import {
   sessionStatusSchema,
   showCommitResponseSchema,
   treeResponseSchema,
+  transferEntryRequestSchema,
   uiStateSnapshotSchema,
   uploadResponseSchema,
   wsClientMessageSchema,
@@ -162,7 +163,7 @@ describe('shared API schemas', () => {
     expect(editorTabRefSchema.parse(tab)).toEqual(tab);
   });
 
-  it('accepts optional captured env values at protocol 16.2', () => {
+  it('accepts optional captured env values introduced at protocol 16.2', () => {
     expect(
       sessionEnvResponseSchema.parse({
         vars: [
@@ -176,7 +177,29 @@ describe('shared API schemas', () => {
         { name: 'OLD_DAEMON', bytes: 5 },
       ],
     });
-    expect(PROTOCOL_VERSION).toEqual({ major: 16, minor: 2 });
+  });
+
+  it('validates cross-filetree transfers at protocol 16.3', () => {
+    expect(
+      transferEntryRequestSchema.parse({
+        operation: 'copy',
+        source: {
+          session_id: '11111111-1111-4111-8111-111111111111',
+          root: '/source',
+        },
+        from: 'docs/readme.md',
+        to: 'imported/readme.md',
+      }),
+    ).toEqual({
+      operation: 'copy',
+      source: {
+        session_id: '11111111-1111-4111-8111-111111111111',
+        root: '/source',
+      },
+      from: 'docs/readme.md',
+      to: 'imported/readme.md',
+    });
+    expect(PROTOCOL_VERSION).toEqual({ major: 16, minor: 3 });
   });
 
   it('ws client messages discriminate on t and validate term ids', () => {

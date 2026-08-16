@@ -59,6 +59,30 @@ function absoluteDir(raw: string): string {
 }
 
 /**
+ * Resolve the filesystem root named by a session/root pair outside a request
+ * context. Cross-filetree transfer needs this for its independently identified
+ * source; ordinary routes continue resolving their destination from the URL.
+ */
+export function resolveFsRoot(deps: WorktreeDeps, sid: string, rootOverride?: string): string {
+  if (sid === NO_SESSION) {
+    if (rootOverride === undefined || rootOverride === '') {
+      throw ApiError.badRequest(
+        'root_required',
+        `a directory target (the nil session id) requires 'root'`,
+      );
+    }
+    return absoluteDir(rootOverride);
+  }
+  const session = deps.sessions.get(sid);
+  if (!existsSync(session.worktree_path)) {
+    throw ApiError.conflict('worktree_missing', `session ${session.id} has no worktree on disk`);
+  }
+  return rootOverride === undefined || rootOverride === ''
+    ? session.worktree_path
+    : absoluteDir(rootOverride);
+}
+
+/**
  * Shared guard for every worktree-scoped route. For a session target the
  * session must exist (`SessionStore.get` throws 404) and its worktree must
  * still be on disk (409 `worktree_missing` otherwise — e.g. archived-and-
