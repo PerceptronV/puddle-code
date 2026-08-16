@@ -282,6 +282,11 @@ export function Terminal({
     };
 
     const xterm = new XTerm({
+      // SearchAddon renders all-match decorations through xterm's proposed
+      // decoration API (xterm 6.0.0 / addon-search 0.16.0). Without this
+      // constructor opt-in, the first non-empty search throws and takes down
+      // the routed workspace through the render error boundary.
+      allowProposedApi: true,
       theme: xtermThemeFromCss(),
       fontFamily: TERMINAL_FONT,
       fontSize: settings.terminalFontSize,

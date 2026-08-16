@@ -162,6 +162,12 @@ function MarkdownPreview({
   focused: boolean;
 }) {
   const html = useMemo(() => DOMPurify.sanitize(markdownToHtml(text)), [text]);
+  // React compares dangerouslySetInnerHTML by object identity before writing
+  // innerHTML. Keep that object stable across find-result state updates: a
+  // redundant rewrite replaces every text node, detaching the CSS Highlight
+  // ranges immediately after they are painted and leaving navigation with
+  // detached elements that cannot scroll into view.
+  const renderedHtml = useMemo(() => ({ __html: html }), [html]);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const findControllerRef = useRef<DomFindController | null>(null);
@@ -270,7 +276,7 @@ function MarkdownPreview({
           style={{ fontSize }}
           className="md-preview mx-auto max-w-3xl px-6 py-5 text-fg-secondary"
           // Sanitised above — DOMPurify with the default profile, no raw input.
-          dangerouslySetInnerHTML={{ __html: html }}
+          dangerouslySetInnerHTML={renderedHtml}
         />
       </div>
       <FindOverlay controls={find} />

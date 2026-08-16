@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Keep terminal and rendered-file searches visible and navigable without crashing the workspace or detaching their highlights.
