@@ -7,4 +7,8 @@ Past releases: see docs/changelogs/.
 
 # Changelog
 
-## [Unreleased]
+## [0.0.52] — 2026-08-16
+
+### Added
+
+- Share cut/copy state across project and filetree switches, and allow pasting across filetrees on the same daemon host.
