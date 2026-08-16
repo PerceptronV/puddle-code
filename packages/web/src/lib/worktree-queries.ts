@@ -22,6 +22,7 @@ import type {
   SearchResponse,
   ShowCommitResponse,
   TreeResponse,
+  TransferEntryRequest,
   UploadResponse,
 } from '@puddle/shared';
 import { api, apiFetchRaw } from './api';
@@ -281,6 +282,11 @@ export function renameEntry(sid: string, from: string, to: string, root?: string
 /** Copy an entry recursively; the server auto-suffixes ` copy` on collision (SPEC §8). */
 export function copyEntry(sid: string, from: string, to: string, root?: string) {
   return api<FsOpResponse>('POST', `/api/worktrees/${sid}/copy${opQuery(root)}`, { from, to });
+}
+
+/** Copy or move one entry from an independently identified filetree (protocol 16.3). */
+export function transferEntry(sid: string, body: TransferEntryRequest, root?: string) {
+  return api<FsOpResponse>('POST', `/api/worktrees/${sid}/transfer${opQuery(root)}`, body);
 }
 
 /** Delete an entry recursively — irreversible, no host trash (SPEC §8). */

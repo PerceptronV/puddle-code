@@ -1,9 +1,19 @@
 import { useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { copyEntry, createEntry, deleteEntry, renameEntry } from '../../lib/worktree-queries';
+import {
+  copyEntry,
+  createEntry,
+  deleteEntry,
+  renameEntry,
+  transferEntry,
+} from '../../lib/worktree-queries';
 import { basename, joinPath, type VisibleRow } from './explorer-paths';
-import type { ClipboardState } from './explorer-context';
+import {
+  sameFiletree,
+  type ExplorerClipboardState,
+  type ExplorerClipboardTarget,
+} from './clipboard-store';
 
 /**
  * The explorer's on-disk mutations wired to their query invalidation and error
@@ -22,18 +32,27 @@ export interface ExplorerFs {
   /** Move entries into another directory, keeping their names (drag-move). */
   move(paths: string[], targetDir: string): Promise<void>;
   remove(paths: string[]): Promise<void>;
-  paste(clipboard: ClipboardState, targetDir: string): Promise<void>;
+  /** Paste and return exactly the source paths that failed. */
+  paste(clipboard: ExplorerClipboardState, targetDir: string): Promise<string[]>;
 }
 
 const message = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
 
-export function useExplorerFs(sid: string, root?: string): ExplorerFs {
+export function useExplorerFs(sid: string, root?: string, directory = root ?? ''): ExplorerFs {
   const qc = useQueryClient();
 
   const invalidate = useCallback(() => {
     void qc.invalidateQueries({ queryKey: ['wt-tree', sid] });
     void qc.invalidateQueries({ queryKey: ['wt-git-status', sid] });
   }, [qc, sid]);
+
+  const invalidateTarget = useCallback(
+    (target: ExplorerClipboardTarget) => {
+      void qc.invalidateQueries({ queryKey: ['wt-tree', target.sid] });
+      void qc.invalidateQueries({ queryKey: ['wt-git-status', target.sid] });
+    },
+    [qc],
+  );
 
   return useMemo<ExplorerFs>(
     () => ({
@@ -86,16 +105,44 @@ export function useExplorerFs(sid: string, root?: string): ExplorerFs {
           );
       },
       async paste(clipboard, targetDir) {
-        const op = clipboard.mode === 'cut' ? renameEntry : copyEntry;
+        const destination = { sid, root, directory };
+        const local = sameFiletree(clipboard.source, destination);
         const results = await Promise.allSettled(
-          clipboard.paths.map((p) => op(sid, p, joinPath(targetDir, basename(p)), root)),
+          clipboard.paths.map((path) => {
+            const to = joinPath(targetDir, basename(path));
+            if (local) {
+              const op = clipboard.mode === 'cut' ? renameEntry : copyEntry;
+              return op(sid, path, to, root);
+            }
+            return transferEntry(
+              sid,
+              {
+                operation: clipboard.mode === 'cut' ? 'move' : 'copy',
+                source: {
+                  session_id: clipboard.source.sid,
+                  root: clipboard.source.root,
+                },
+                from: path,
+                to,
+              },
+              root,
+            );
+          }),
         );
         invalidate();
-        const failed = results.filter((r) => r.status === 'rejected').length;
-        if (failed > 0) toast.error(`Couldn't paste ${failed} item${failed > 1 ? 's' : ''}`);
+        if (!local && clipboard.mode === 'cut') invalidateTarget(clipboard.source);
+        const failedPaths = clipboard.paths.filter(
+          (_, index) => results[index]?.status === 'rejected',
+        );
+        if (failedPaths.length > 0) {
+          toast.error(
+            `Couldn't paste ${failedPaths.length} item${failedPaths.length > 1 ? 's' : ''}`,
+          );
+        }
+        return failedPaths;
       },
     }),
-    [sid, root, invalidate],
+    [sid, root, directory, invalidate, invalidateTarget],
   );
 }
 

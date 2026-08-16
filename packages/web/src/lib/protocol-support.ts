@@ -44,6 +44,15 @@ export const directoryTargetSupported = (p: Protocol): boolean => atLeast(p, 12,
 export const sourceControlSupported = (p: Protocol): boolean => atLeast(p, 15, 3);
 
 /**
+ * Server-local copy/move between independently addressed filetrees (16.3).
+ * Unlike read-only or idempotent gates, unknown is deliberately false: an
+ * unsupported cross-tree move must never be sent optimistically to an old
+ * daemon. Same-tree paste continues using the pre-existing endpoints.
+ */
+export const crossFiletreeTransferSupported = (p: Protocol): boolean =>
+  p !== undefined && atLeast(p, 16, 3);
+
+/**
  * The daemon answers agents' OSC 10/11 colour queries from client-reported
  * theme colours (14.1). At or above it the web terminal must NOT answer them
  * itself — the agent would get two replies; below, viewer-side answering is

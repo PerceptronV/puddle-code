@@ -136,7 +136,7 @@ export function TreeNode({
   const isDropTarget = isDir && ex.dropTarget === path;
   const isActive = !isDir && path === ex.activePath;
   const isSelected = ex.selection.has(path);
-  const isCut = ex.clipboard?.mode === 'cut' && ex.clipboard.paths.includes(path);
+  const isCut = ex.isCut(path);
   const row: VisibleRow = {
     path,
     name: entry.name,
@@ -158,8 +158,6 @@ export function TreeNode({
   // multi-selection that includes this row; otherwise just this row).
   const targets = isSelected && ex.selection.size > 1 ? [...ex.selection] : [path];
   const pasteDir = isDir ? path : dirOf(path);
-  const canPaste = ex.clipboard !== null;
-
   const editingHere = ex.editing?.mode === 'rename' && ex.editing.path === path;
 
   if (editingHere) {
@@ -325,7 +323,7 @@ export function TreeNode({
               <ContextMenuItem onSelect={() => ex.copy(targets)}>
                 Copy <Shortcut>⌘C</Shortcut>
               </ContextMenuItem>
-              <ContextMenuItem disabled={!canPaste} onSelect={() => ex.paste(pasteDir)}>
+              <ContextMenuItem disabled={!ex.canPaste} onSelect={() => ex.paste(pasteDir)}>
                 Paste <Shortcut>⌘V</Shortcut>
               </ContextMenuItem>
               <ContextMenuSeparator />

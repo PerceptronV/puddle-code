@@ -13,7 +13,7 @@
  *     task report.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { filenameFromDisposition } from '../src/lib/worktree-queries';
+import { filenameFromDisposition, transferEntry } from '../src/lib/worktree-queries';
 
 describe('filenameFromDisposition', () => {
   it("decodes the RFC 5987 filename*=UTF-8'' form (what the daemon sends)", () => {
@@ -84,6 +84,40 @@ describe('apiFetchRaw', () => {
       expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({ authorization: 'Bearer test-token' }),
+      }),
+    );
+  });
+
+  it('addresses transfer source and destination filetrees independently', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, path: 'inbox/notes.txt' }), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await transferEntry(
+      'destination-session',
+      {
+        operation: 'copy',
+        source: { session_id: 'source-session', root: '/source/repo' },
+        from: 'notes.txt',
+        to: 'inbox/notes.txt',
+      },
+      '/destination/repo',
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/worktrees/destination-session/transfer?root=%2Fdestination%2Frepo',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          operation: 'copy',
+          source: { session_id: 'source-session', root: '/source/repo' },
+          from: 'notes.txt',
+          to: 'inbox/notes.txt',
+        }),
       }),
     );
   });

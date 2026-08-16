@@ -11,11 +11,22 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { GitStatus, Session, TreeResponse } from '@puddle/shared';
-import { useDaemonVersion } from '../../lib/queries';
+import { useDaemonVersion, useHostInfo } from '../../lib/queries';
 import { clearPendingReveal, onReveal } from '../../lib/reveal-in-tree';
 import { isSecondClick, type ClickStamp } from '../../lib/second-click';
 import { downloadPath, uploadFiles, useWorktreeGitStatus } from '../../lib/worktree-queries';
-import { sourceControlSupported } from '../../lib/protocol-support';
+import { crossFiletreeTransferSupported, sourceControlSupported } from '../../lib/protocol-support';
+import {
+  confirmedSameDaemonHost,
+  finishExplorerCut,
+  hostIdentity,
+  sameDaemonHost,
+  sameFiletree,
+  setExplorerClipboard,
+  useExplorerClipboard,
+  type ExplorerClipboardState,
+  type ExplorerClipboardTarget,
+} from './clipboard-store';
 import { collectDroppedFiles } from './drop-files';
 import { buildStatusMap } from './git-decoration';
 import {
@@ -28,11 +39,6 @@ import {
   type VisibleRow,
 } from './explorer-paths';
 import { canMoveInto, useExplorerFs } from './use-explorer-fs';
-
-export interface ClipboardState {
-  paths: string[];
-  mode: 'cut' | 'copy';
-}
 
 /** An in-flight inline edit: renaming an existing row, or naming a new entry under a folder. */
 export type EditingState =
@@ -83,7 +89,9 @@ export interface ExplorerCtx {
   /** Select a single row without activating it (right-click, before a context menu). */
   selectOnly(path: string): void;
 
-  clipboard: ClipboardState | null;
+  clipboard: ExplorerClipboardState | null;
+  canPaste: boolean;
+  isCut(path: string): boolean;
   cut(paths: string[]): void;
   copy(paths: string[]): void;
   paste(targetDir: string): void;
@@ -158,8 +166,8 @@ export function ExplorerProvider({
 }) {
   const sid = session.id;
   const qc = useQueryClient();
-  const fs = useExplorerFs(sid, root);
   const rootPath = root ?? session.worktree_path;
+  const fs = useExplorerFs(sid, root, rootPath);
 
   // Every tree query is keyed by root when one is set, matching
   // `useWorktreeTree` — so a browse of `/Users/me` and the worktree tree can be
@@ -190,6 +198,11 @@ export function ExplorerProvider({
   // (still fetching) reads as supported — version skew within a major is rare.
   const version = useDaemonVersion();
   const protocol = version.data?.protocol;
+  const host = useHostInfo();
+  const target = useMemo<ExplorerClipboardTarget>(
+    () => ({ sid, root, directory: rootPath, host: hostIdentity(host.data) }),
+    [sid, root, rootPath, host.data],
+  );
   const foldersSupported =
     !protocol || protocol.major > 9 || (protocol.major === 9 && protocol.minor >= 2);
 
@@ -207,7 +220,7 @@ export function ExplorerProvider({
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [selection, setSelection] = useState<ReadonlySet<string>>(new Set());
   const [focusedPath, setFocusedPath] = useState<string | null>(null);
-  const [clipboard, setClipboard] = useState<ClipboardState | null>(null);
+  const clipboard = useExplorerClipboard();
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string[] | null>(null);
@@ -400,12 +413,28 @@ export function ExplorerProvider({
   // Prune nested paths so a selection of a folder plus its children acts on
   // the folder once (pasting/moving/deleting the parent already covers them).
   const cut = useCallback(
-    (paths: string[]) => setClipboard({ paths: pruneNested(paths), mode: 'cut' }),
-    [],
+    (paths: string[]) => setExplorerClipboard(pruneNested(paths), 'cut', target),
+    [target],
   );
   const copy = useCallback(
-    (paths: string[]) => setClipboard({ paths: pruneNested(paths), mode: 'copy' }),
-    [],
+    (paths: string[]) => setExplorerClipboard(pruneNested(paths), 'copy', target),
+    [target],
+  );
+  const clipboardFromThisHost = clipboard !== null && sameDaemonHost(clipboard.source, target);
+  const clipboardFromThisTree = clipboard !== null && sameFiletree(clipboard.source, target);
+  const canPaste =
+    !readOnly &&
+    ((clipboardFromThisHost && clipboardFromThisTree) ||
+      (clipboard !== null &&
+        confirmedSameDaemonHost(clipboard.source, target) &&
+        crossFiletreeTransferSupported(protocol)));
+  const isCut = useCallback(
+    (path: string) =>
+      clipboard?.mode === 'cut' &&
+      sameDaemonHost(clipboard.source, target) &&
+      sameFiletree(clipboard.source, target) &&
+      clipboard.paths.includes(path),
+    [clipboard, target],
   );
   // The mutating entry points all short-circuit under `readOnly`, so a keyboard
   // shortcut or a stale menu can never reach `fs` — the menus merely stop
@@ -413,11 +442,24 @@ export function ExplorerProvider({
   const paste = useCallback(
     (targetDir: string) => {
       if (!clipboard || readOnly) return;
-      void fs.paste(clipboard, targetDir).then(() => {
-        if (clipboard.mode === 'cut') setClipboard(null);
+      const sameTree = sameFiletree(clipboard.source, target);
+      if (!sameDaemonHost(clipboard.source, target)) {
+        toast.error('That filetree clipboard belongs to another daemon host.');
+        return;
+      }
+      if (!sameTree && !confirmedSameDaemonHost(clipboard.source, target)) {
+        toast.error('Copy again after daemon host information finishes loading.');
+        return;
+      }
+      if (!sameTree && !crossFiletreeTransferSupported(protocol)) {
+        toast.error('Cross-filetree paste requires a daemon with protocol 16.3.');
+        return;
+      }
+      void fs.paste(clipboard, targetDir).then((failedPaths) => {
+        if (clipboard.mode === 'cut') finishExplorerCut(clipboard.id, failedPaths);
       });
     },
-    [clipboard, fs, readOnly],
+    [clipboard, fs, protocol, readOnly, target],
   );
 
   const beginRename = useCallback(
@@ -660,6 +702,8 @@ export function ExplorerProvider({
     onRowDoubleClick,
     selectOnly,
     clipboard,
+    canPaste,
+    isCut,
     cut,
     copy,
     paste,

@@ -11,4 +11,4 @@ Past releases: see docs/changelogs/.
 
 ### Added
 
-- Allow filetree copy and cut operations to paste across projects and filetrees on the same daemon host.
+- Share cut/copy state across project and filetree switches, and allow pasting across filetrees on the same daemon host.

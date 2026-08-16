@@ -54,8 +54,6 @@ function ExplorerBody() {
     el?.scrollIntoView({ block: 'nearest' });
   }, [ex.focusedPath]);
 
-  const canPaste = ex.clipboard !== null;
-
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -110,7 +108,7 @@ function ExplorerBody() {
               </ContextMenuItem>
             )}
             <ContextMenuSeparator />
-            <ContextMenuItem disabled={!canPaste} onSelect={() => ex.paste('')}>
+            <ContextMenuItem disabled={!ex.canPaste} onSelect={() => ex.paste('')}>
               Paste
             </ContextMenuItem>
             <ContextMenuSeparator />
