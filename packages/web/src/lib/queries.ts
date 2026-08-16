@@ -615,9 +615,9 @@ export function useSessionPorts(sessionId: string | undefined, live: boolean) {
 }
 
 /**
- * Captured env strip (SPEC §4): the session's captured var names and byte
- * sizes — never values. Mirrors useSessionPorts: polls only while live, the
- * 5s interval is the refresh.
+ * Captured env strip (SPEC §4): the session's captured vars for display and
+ * value-copying. Mirrors useSessionPorts: polls only while live, the 5s
+ * interval is the refresh.
  */
 export function useSessionEnv(sessionId: string | undefined, live: boolean) {
   return useQuery({

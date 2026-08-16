@@ -6,12 +6,12 @@ import { useSessionEnv } from '../../lib/queries';
 const LIVE_STATUSES: Session['status'][] = ['running', 'waiting_input'];
 
 /**
- * Slim mono row of the session's captured env var NAMES (SPEC §4) — values are
- * secrets and never leave the daemon — rendered IN FLOW below the pane body
- * beside the ports strip (PaneLeaf), never an overlay. Hidden entirely when
- * the session isn't live or nothing is captured; no refresh control, the
- * hook's 5s poll is the refresh (HUMANS.md minimalism). Clearing lives in the
- * session menu, not here.
+ * Slim mono row of the session's captured env var names (SPEC §4), rendered
+ * IN FLOW below the pane body beside the ports strip (PaneLeaf), never an
+ * overlay. A name copies its value when the daemon supplies protocol 16.2's
+ * optional field. Hidden entirely when the session isn't live or nothing is
+ * captured; no refresh control, the hook's 5s poll is the refresh (HUMANS.md
+ * minimalism). Clearing lives in the session menu, not here.
  */
 export function EnvStrip({ sessionId, status }: { sessionId: string; status: Session['status'] }) {
   const live = LIVE_STATUSES.includes(status);
@@ -20,12 +20,12 @@ export function EnvStrip({ sessionId, status }: { sessionId: string; status: Ses
 
   if (!live || vars.length === 0) return null;
 
-  const copyName = async (name: string) => {
+  const copyValue = async (name: string, value: string) => {
     try {
-      await navigator.clipboard.writeText(name);
-      toast.success(`${name} copied`);
+      await navigator.clipboard.writeText(value);
+      toast.success(`${name} value copied`);
     } catch {
-      toast.error(`Couldn't copy ${name}`);
+      toast.error(`Couldn't copy ${name} value`);
     }
   };
 
@@ -33,24 +33,33 @@ export function EnvStrip({ sessionId, status }: { sessionId: string; status: Ses
     <div className="flex items-center gap-2 px-3 font-mono text-xs">
       <span className="text-fg-muted">env</span>
       <div className="flex flex-wrap items-center gap-1">
-        {vars.map((v) => (
-          <Tooltip key={v.name}>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                aria-label={`Copy ${v.name} environment variable name`}
-                onClick={() => void copyName(v.name)}
-                className="cursor-pointer rounded px-1.5 py-0.5 text-fg-secondary transition-colors hover:bg-elevated hover:text-fg"
-              >
-                {v.name}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>
-              {v.bytes} B · click to copy name · captured from this session&apos;s shell —
-              re-injected into new shells and agent restarts
-            </TooltipContent>
-          </Tooltip>
-        ))}
+        {vars.map((v) => {
+          const value = v.value;
+          return (
+            <Tooltip key={v.name}>
+              <TooltipTrigger asChild>
+                {value === undefined ? (
+                  <span className="rounded px-1.5 py-0.5 text-fg-secondary">{v.name}</span>
+                ) : (
+                  <button
+                    type="button"
+                    aria-label={`Copy ${v.name} environment variable value`}
+                    onClick={() => void copyValue(v.name, value)}
+                    className="cursor-pointer rounded px-1.5 py-0.5 text-fg-secondary transition-colors hover:bg-elevated hover:text-fg"
+                  >
+                    {v.name}
+                  </button>
+                )}
+              </TooltipTrigger>
+              <TooltipContent>
+                {v.bytes} B ·{' '}
+                {value === undefined ? 'value unavailable from this daemon' : 'click to copy value'}{' '}
+                · captured from this session&apos;s shell — re-injected into new shells and agent
+                restarts
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
       </div>
     </div>
   );

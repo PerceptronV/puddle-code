@@ -1081,11 +1081,11 @@ export class SessionService extends EventEmitter {
     );
   }
 
-  /** Captured var names + byte sizes for GET /api/sessions/:id/env — never values (SPEC §4). */
+  /** Captured vars for the authenticated cockpit's env strip (SPEC §4). */
   capturedEnv(id: string): SessionEnvResponse {
     const env = this.deps.sessions.getEnv(id); // 404s for an unknown session
     const vars = Object.entries(env)
-      .map(([name, value]) => ({ name, bytes: Buffer.byteLength(value) }))
+      .map(([name, value]) => ({ name, value, bytes: Buffer.byteLength(value) }))
       .sort((a, b) => a.name.localeCompare(b.name));
     return { vars };
   }

@@ -1158,7 +1158,7 @@ describe('tier-1 migration end-to-end (Workstream S / SPEC §5)', () => {
     await c.json<Session>('POST', `/api/sessions/${s.id}/kill`);
   });
 
-  it('captured env: REST lists names+sizes only; resume injects; clear stops it', async () => {
+  it('captured env: REST returns values; resume injects; clear stops it', async () => {
     const home4 = mkdtempSync(join(tmpdir(), 'puddle-e2e-env-'));
     const d4 = await startDaemon({
       home: home4,
@@ -1214,9 +1214,9 @@ describe('tier-1 migration end-to-end (Workstream S / SPEC §5)', () => {
       const env = await c.json<SessionEnvResponse>('GET', `/api/sessions/${s.id}/env`);
       return env.vars.length === 1;
     });
-    // Names and byte sizes only — the value (hunter2, 7 bytes) never rides the API.
+    // The authenticated cockpit receives the value so a name click can copy it.
     expect((await c.json<SessionEnvResponse>('GET', `/api/sessions/${s.id}/env`)).vars).toEqual([
-      { name: 'CAPTURED_PROBE', bytes: 7 },
+      { name: 'CAPTURED_PROBE', value: 'hunter2', bytes: 7 },
     ]);
     // The decoded value never appears in the WS stream (the b64 does, once, as
     // the PTY's echo of what was typed — real hooks print, they don't type).

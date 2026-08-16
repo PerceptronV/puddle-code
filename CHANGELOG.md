@@ -12,3 +12,4 @@ Past releases: see docs/changelogs/.
 ### Fixed
 
 - Keep terminal and rendered-file searches visible and navigable without crashing the workspace or detaching their highlights.
+- Copy a captured environment variable's value, rather than its literal name, when its name is clicked.

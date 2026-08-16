@@ -179,12 +179,12 @@ export type HandoffSessionRequest = z.infer<typeof handoffSessionRequestSchema>;
 /**
  * `GET /api/sessions/:id/env` — the session's captured environment (SPEC §4):
  * vars exported in its terminals, persisted for re-injection at PTY spawn.
- * Names and byte sizes only — values are potential secrets and never leave
- * the daemon.
+ * `value` is optional for compatibility with daemons before protocol 16.2.
  */
 export const sessionEnvVarSchema = z.object({
   name: z.string(),
   bytes: z.number().int().nonnegative(),
+  value: z.string().optional(),
 });
 export const sessionEnvResponseSchema = z.object({
   vars: z.array(sessionEnvVarSchema),

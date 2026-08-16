@@ -741,6 +741,19 @@ describe('captured env', () => {
     await f.service.kill(session.id);
   });
 
+  it('returns captured values and byte sizes in name order for the cockpit', async () => {
+    const f = fixture();
+    const session = await liveSession(f);
+    f.stores.sessions.mergeEnv(session.id, { ZED: 'plain', ALPHA: 'a\n✓' }, []);
+    expect(f.service.capturedEnv(session.id)).toEqual({
+      vars: [
+        { name: 'ALPHA', value: 'a\n✓', bytes: 5 },
+        { name: 'ZED', value: 'plain', bytes: 5 },
+      ],
+    });
+    await f.service.kill(session.id);
+  });
+
   it('ignores denylisted names, unknown streams, and hook-control vars', async () => {
     const f = fixture();
     const session = await liveSession(f);

@@ -257,4 +257,8 @@
 // worktree/directory target carries optional `relative_path`, allowing the
 // command palette's Open path action to reveal and expand it in the existing
 // Files tree instead of replacing that tree with a pinned external browse.
-export const PROTOCOL_VERSION = { major: 16, minor: 1 } as const;
+// 16.2 (2026-08-15): additive — GET /api/sessions/:id/env entries carry the
+// optional captured `value`, allowing the authenticated cockpit to copy it by
+// clicking the variable name. Older daemons omit it and the UI leaves those
+// names non-interactive; older clients ignore the unknown response field.
+export const PROTOCOL_VERSION = { major: 16, minor: 2 } as const;

@@ -9,6 +9,7 @@ import {
   logResponseSchema,
   profileSettingsSchema,
   PROTOCOL_VERSION,
+  sessionEnvResponseSchema,
   sessionSchema,
   sessionStatusSchema,
   showCommitResponseSchema,
@@ -152,14 +153,30 @@ describe('shared API schemas', () => {
     expect(withTab.explorer_open).toBe(false);
   });
 
-  it('accepts and round-trips locked editor refs at protocol 16.1', () => {
+  it('accepts and round-trips locked editor refs', () => {
     const tab = {
       session: '11111111-1111-4111-8111-111111111111',
       path: 'README.md',
       view: 'locked' as const,
     };
     expect(editorTabRefSchema.parse(tab)).toEqual(tab);
-    expect(PROTOCOL_VERSION).toEqual({ major: 16, minor: 1 });
+  });
+
+  it('accepts optional captured env values at protocol 16.2', () => {
+    expect(
+      sessionEnvResponseSchema.parse({
+        vars: [
+          { name: 'NEW_DAEMON', bytes: 5, value: 'hello' },
+          { name: 'OLD_DAEMON', bytes: 5 },
+        ],
+      }),
+    ).toEqual({
+      vars: [
+        { name: 'NEW_DAEMON', bytes: 5, value: 'hello' },
+        { name: 'OLD_DAEMON', bytes: 5 },
+      ],
+    });
+    expect(PROTOCOL_VERSION).toEqual({ major: 16, minor: 2 });
   });
 
   it('ws client messages discriminate on t and validate term ids', () => {
