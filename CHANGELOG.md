@@ -9,6 +9,10 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep the host label in a workspace window title while agents are waiting.
+
 ### Changed
 
 - Sort the new-agent account picker alphabetically by its displayed agent and account label.

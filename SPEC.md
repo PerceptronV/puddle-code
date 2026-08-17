@@ -867,6 +867,8 @@ Puddle's UI must read as a polished, intentional developer cockpit — dense, ca
 
 - **Quality floor**: visible keyboard focus everywhere (`--focus-ring`); session tabs, palette, and explorer fully keyboard-navigable; empty states direct action ("No sessions yet — press ⌘K to start one"); error copy states cause and fix, never apologises vaguely.
 
+- **Window title**: a project workspace normally reads `<project> — <host>`; while agents wait it reads `● <n> waiting — <project> (<host>)`. Waiting status never replaces the host label, because similarly named projects can be open against different machines.
+
 ## 13. Repository conventions
 
 - Monorepo (pnpm workspaces): `packages/daemon`, `packages/web`, `packages/cli`, `packages/shared` (zod schemas + WS message types shared by all three).

@@ -106,6 +106,7 @@ import { TileTree } from './TileTree';
 import { TilingDnd } from './TilingDnd';
 import { useLayoutTree } from './useLayoutTree';
 import { useUiState } from './use-ui-state';
+import { workspaceTitle } from './workspace-title';
 
 /**
  * Project workspace (SPEC §8): the left navigator, the centre free-form tiling
@@ -744,7 +745,7 @@ function WorkspaceInner() {
     const base = hostLabel(host.data) ?? 'Puddle';
     const waiting = sessions.filter((s) => s.status === 'waiting_input').length;
     const name = project?.name ?? 'Puddle';
-    document.title = waiting > 0 ? `● ${waiting} waiting — ${name}` : `${name} — ${base}`;
+    document.title = workspaceTitle(name, base, waiting);
     return () => {
       document.title = base;
     };
