@@ -216,9 +216,14 @@ export function NavigatorSidebar({
   useEffect(
     () =>
       onReveal((request) => {
-        if (browse !== null && request.root === targetRoot) setBrowse(null);
+        const targetDirectory = targetRoot ?? session?.worktree_path;
+        const aimedAtTarget =
+          request.directory !== undefined
+            ? request.directory === targetDirectory
+            : request.root === targetRoot;
+        if (browse !== null && aimedAtTarget) setBrowse(null);
       }),
-    [browse, targetRoot],
+    [browse, session?.worktree_path, targetRoot],
   );
 
   // A terminal link to a DIRECTORY (SPEC §7) enters the same pinned-browse

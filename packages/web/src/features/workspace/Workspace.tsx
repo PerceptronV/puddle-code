@@ -29,6 +29,7 @@ import {
 } from '../../components/ui/dialog';
 import { Button } from '../../components/ui/button';
 import { useExplorerTarget } from '../explorer/use-explorer-target';
+import { fileTabRevealTarget } from '../explorer/file-tab-reveal';
 import { directoryTargetSupported, untitledSupported } from '../../lib/protocol-support';
 import { clientSettings, updateClientSettings, useClientSettings } from '../../lib/client-settings';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
@@ -929,6 +930,37 @@ function WorkspaceInner() {
   );
   const targetSession = sidebarTarget.session;
   const targetRoot = sidebarTarget.root;
+  const revealFileTab = useCallback(
+    (tab: EditorTab, rename = false) => {
+      const owner = tabSessions.find((session) => session.id === tab.session);
+      if (tab.root === undefined && !owner) return;
+      const target = fileTabRevealTarget(tab, owner?.worktree_path ?? tab.root ?? '');
+
+      if (isNarrowRef.current) setNarrowNav(true);
+      uiState.update({
+        sidebar_mode: 'files',
+        ...(isNarrowRef.current ? {} : { sidebar_collapsed: false }),
+      });
+
+      if (target.browseRoot !== undefined) {
+        // The standard ephemeral browse route used by command-palette paths and
+        // terminal directory links: pin a live owner (a project-directory tab
+        // carries the nil session id, which is not itself pinnable) and rebase
+        // Files.
+        const browseSession = owner?.id ?? targetSession?.id ?? tab.session;
+        setBrowseRequest({ session: browseSession, root: target.browseRoot, nonce: Date.now() });
+      } else {
+        const currentDirectory = targetRoot ?? targetSession?.worktree_path;
+        if (currentDirectory !== target.directory) sidebarTarget.pin(tab.session);
+      }
+      requestReveal({
+        path: target.path,
+        directory: target.directory,
+        ...(rename ? { renameTarget: true } : {}),
+      });
+    },
+    [sidebarTarget, tabSessions, targetRoot, targetSession?.worktree_path, uiState],
+  );
   const openFromTerminal = useCallback(
     (session: string, target: FileLinkTarget) => {
       if (target.kind === 'dir') {
@@ -1321,6 +1353,7 @@ function WorkspaceInner() {
           onDropTab={onDropTab}
           onSetTabView={layout.setView}
           onNewUntitled={onNewUntitled}
+          onRevealFile={revealFileTab}
           focusedLeafId={layout.focusedLeaf.id}
           scrollDriverLeafId={scrollDriverLeafId}
           scrollChannel={scopeKey}

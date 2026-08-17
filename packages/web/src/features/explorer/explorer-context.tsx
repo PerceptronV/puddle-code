@@ -297,15 +297,19 @@ export function ExplorerProvider({
   useEffect(
     () =>
       onReveal((request) => {
-        if (request.root !== root) return;
+        if (
+          request.directory !== undefined ? request.directory !== rootPath : request.root !== root
+        )
+          return;
         clearPendingReveal();
         for (const dir of ancestorDirs(request.path)) expand(dir);
         if (request.expandTarget && request.path !== '') expand(request.path);
         setSelection(new Set([request.path]));
         setFocusedPath(request.path);
+        if (request.renameTarget && !readOnly) setEditing({ mode: 'rename', path: request.path });
         setRevealing(request.path);
       }),
-    [root, expand],
+    [root, rootPath, expand, readOnly],
   );
   // The row cannot be scrolled to until it EXISTS: each newly expanded directory
   // fetches its children, so the run of `visibleRows` changes is what this waits

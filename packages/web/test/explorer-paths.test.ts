@@ -8,6 +8,7 @@ import {
   encodeDragPaths,
   isInside,
   joinPath,
+  joinAbsolutePath,
   pruneNested,
   rangeBetween,
 } from '../src/features/explorer/explorer-paths';
@@ -20,6 +21,12 @@ describe('path helpers', () => {
     expect(dirOf('top')).toBe('');
     expect(joinPath('', 'x')).toBe('x');
     expect(joinPath('a/b', 'x')).toBe('a/b/x');
+  });
+
+  it('joins absolute roots without duplicating their trailing slash', () => {
+    expect(joinAbsolutePath('/tmp/root/', 'nested/file.ts')).toBe('/tmp/root/nested/file.ts');
+    expect(joinAbsolutePath('/', 'README.md')).toBe('/README.md');
+    expect(joinAbsolutePath('/tmp/root', '')).toBe('/tmp/root');
   });
 
   it('isInside guards a folder against moving into its own subtree', () => {

@@ -56,6 +56,12 @@ export function joinPath(dir: string, name: string): string {
   return dir === '' ? name : `${dir}/${name}`;
 }
 
+/** Join an absolute directory to one of the explorer's root-relative paths. */
+export function joinAbsolutePath(root: string, path: string): string {
+  if (path === '') return root;
+  return `${root.replace(/\/+$/, '')}/${path}`;
+}
+
 /** True when `path` is `ancestor` itself or lies inside it — used to forbid moving a folder into its own subtree. */
 export function isInside(path: string, ancestor: string): boolean {
   return path === ancestor || path.startsWith(`${ancestor}/`);

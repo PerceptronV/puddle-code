@@ -21,8 +21,16 @@ export interface RevealRequest {
   path: string;
   /** The `?root=` this path belongs to; undefined for the session's worktree. */
   root?: string | undefined;
+  /**
+   * Effective absolute directory the receiving tree represents. New callers
+   * should set this when the same relative/root identity could name another
+   * worktree; legacy navigator callers remain scoped by `root`.
+   */
+  directory?: string;
   /** Expand the target itself as well as its ancestors (for a directory). */
   expandTarget?: boolean;
+  /** Begin the explorer's inline rename once the row is mounted. */
+  renameTarget?: boolean;
 }
 
 let pending: RevealRequest | null = null;

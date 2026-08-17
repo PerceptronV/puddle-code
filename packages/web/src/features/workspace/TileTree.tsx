@@ -3,7 +3,7 @@ import { Group, Panel, Separator, type Layout } from 'react-resizable-panels';
 import type { LayoutLeaf, LayoutNode, Session, TabRef } from '@puddle/shared';
 import { LazyModelRefcount } from '../editor/lazy-editor-parts';
 import type { HeldBuffer } from '../editor/ModelRefcount';
-import { tabKind, type EditorView } from '../editor/editor-tabs';
+import { tabKind, type EditorTab, type EditorView } from '../editor/editor-tabs';
 import type { RevealTarget } from './editor-context';
 import { flattenTabs, type DropEdge } from './layout-tree';
 import { PaneLeaf } from './PaneLeaf';
@@ -29,6 +29,8 @@ export interface TileHandlers {
   onSetTabView: (leafId: string, ref: TabRef, view: EditorView) => void;
   /** Double-click on a strip's blank tail: open a fresh untitled file there. */
   onNewUntitled: (leaf: LayoutLeaf) => void;
+  /** Reveal a path-backed editor tab in Files. */
+  onRevealFile: (tab: EditorTab, rename?: boolean) => void;
   focusedLeafId: string;
   scrollDriverLeafId: string;
   /** Browser-local scroll-following channel for this layout scope. */
@@ -85,6 +87,7 @@ function TileNode({ node, ...handlers }: { node: LayoutNode } & TileHandlers) {
         onDropTab={handlers.onDropTab}
         onSetTabView={handlers.onSetTabView}
         onNewUntitled={handlers.onNewUntitled}
+        onRevealFile={handlers.onRevealFile}
         focused={node.id === handlers.focusedLeafId}
         scrollDriver={node.id === handlers.scrollDriverLeafId}
         scrollChannel={handlers.scrollChannel}

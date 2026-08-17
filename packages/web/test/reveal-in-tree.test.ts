@@ -49,6 +49,22 @@ describe('reveal latch', () => {
     off();
   });
 
+  it('carries the effective directory so another worktree cannot consume it', () => {
+    const seen: { path: string; directory?: string }[] = [];
+    const off = onReveal((r) => seen.push(r));
+    requestReveal({ path: 'README.md', directory: '/worktrees/feature' });
+    expect(seen).toEqual([{ path: 'README.md', directory: '/worktrees/feature' }]);
+    off();
+  });
+
+  it("can request the receiving tree's inline rename", () => {
+    const seen: { path: string; renameTarget?: boolean }[] = [];
+    const off = onReveal((r) => seen.push(r));
+    requestReveal({ path: 'src/app.ts', renameTarget: true });
+    expect(seen).toEqual([{ path: 'src/app.ts', renameTarget: true }]);
+    off();
+  });
+
   it('fires once: a tree that consumed the latch does not see it again', () => {
     requestReveal({ path: 'a/b.ts' });
     const first: string[] = [];

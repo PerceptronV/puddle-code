@@ -6,7 +6,7 @@ import { openCommandPalette } from '../../lib/command-palette';
 import { useHotkeyLabel } from '../../lib/hotkeys';
 import { cn } from '../../lib/utils';
 import { LazyPaneEditorBody } from '../editor/lazy-editor-parts';
-import type { EditorView } from '../editor/editor-tabs';
+import type { EditorTab, EditorView } from '../editor/editor-tabs';
 import { tabKind } from '../editor/editor-tabs';
 import { previewKind } from '../editor/preview-kind';
 import type { RevealTarget } from './editor-context';
@@ -40,6 +40,7 @@ export function PaneLeaf({
   onDropTab,
   onSetTabView,
   onNewUntitled,
+  onRevealFile,
   focused,
   scrollDriver,
   scrollChannel,
@@ -60,6 +61,8 @@ export function PaneLeaf({
   onSetTabView: (leafId: string, ref: TabRef, view: EditorView) => void;
   /** Double-click on the strip's blank tail: open a fresh untitled file here. */
   onNewUntitled: (leaf: LayoutLeaf) => void;
+  /** Reveal a path-backed editor tab in Files. */
+  onRevealFile: (tab: EditorTab, rename?: boolean) => void;
   /** The workspace's logical focus, independent of DOM focus inside Monaco. */
   focused: boolean;
   /** Whether this pane currently owns the independent scroll-following focus. */
@@ -200,6 +203,7 @@ export function PaneLeaf({
           onArchived={onArchived}
           onSetView={(ref, view) => onSetTabView(leaf.id, ref, view)}
           onNewFile={() => onNewUntitled(leaf)}
+          onRevealFile={onRevealFile}
         />
       )}
       <div

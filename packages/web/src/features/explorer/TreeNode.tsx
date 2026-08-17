@@ -23,6 +23,7 @@ import {
   type VisibleRow,
 } from './explorer-paths';
 import { FileTypeIcon } from './file-icons';
+import { FileMenuItems } from './FileMenuItems';
 import { folderStatus, gitDecoration } from './git-decoration';
 
 const INDENT_PX = 14;
@@ -47,11 +48,6 @@ function setCountDragImage(e: React.DragEvent, count: number) {
   document.body.appendChild(chip);
   e.dataTransfer.setDragImage(chip, 12, 12);
   requestAnimationFrame(() => chip.remove());
-}
-
-/** A short right-aligned keyboard-shortcut hint inside a menu row. */
-function Shortcut({ children }: { children: React.ReactNode }) {
-  return <span className="ml-auto pl-6 text-2xs text-fg-muted tabular-nums">{children}</span>;
 }
 
 /** The inline text input used for both rename and new-entry creation (VSCode-style, no dialog). */
@@ -315,39 +311,18 @@ export function TreeNode({
               <ContextMenuSeparator />
             </>
           )}
-          {!ex.readOnly && (
-            <>
-              <ContextMenuItem onSelect={() => ex.cut(targets)}>
-                Cut <Shortcut>⌘X</Shortcut>
-              </ContextMenuItem>
-              <ContextMenuItem onSelect={() => ex.copy(targets)}>
-                Copy <Shortcut>⌘C</Shortcut>
-              </ContextMenuItem>
-              <ContextMenuItem disabled={!ex.canPaste} onSelect={() => ex.paste(pasteDir)}>
-                Paste <Shortcut>⌘V</Shortcut>
-              </ContextMenuItem>
-              <ContextMenuSeparator />
-            </>
-          )}
-          <ContextMenuItem onSelect={() => ex.copyPathToClipboard(targets, false)}>
-            Copy Path <Shortcut>⌥⌘C</Shortcut>
-          </ContextMenuItem>
-          <ContextMenuItem onSelect={() => ex.copyPathToClipboard(targets, true)}>
-            Copy Relative Path <Shortcut>⌥⇧⌘C</Shortcut>
-          </ContextMenuItem>
-          <ContextMenuSeparator />
-          {!ex.readOnly && (
-            <>
-              <ContextMenuItem onSelect={() => ex.beginRename(path)}>
-                Rename… <Shortcut>F2</Shortcut>
-              </ContextMenuItem>
-              <ContextMenuItem onSelect={() => ex.requestDelete(targets)}>
-                Delete <Shortcut>⌘⌫</Shortcut>
-              </ContextMenuItem>
-              <ContextMenuSeparator />
-            </>
-          )}
-          <ContextMenuItem onSelect={() => ex.download(targets)}>Download</ContextMenuItem>
+          <FileMenuItems
+            readOnly={ex.readOnly}
+            canPaste={ex.canPaste}
+            onCut={() => ex.cut(targets)}
+            onCopy={() => ex.copy(targets)}
+            onPaste={() => ex.paste(pasteDir)}
+            onCopyPath={() => ex.copyPathToClipboard(targets, false)}
+            onCopyRelativePath={() => ex.copyPathToClipboard(targets, true)}
+            onRename={() => ex.beginRename(path)}
+            onDelete={() => ex.requestDelete(targets)}
+            onDownload={() => ex.download(targets)}
+          />
         </ContextMenuContent>
       </ContextMenu>
       {isDir && isOpen && <DirEntries sid={ex.sid} path={path} depth={depth + 1} />}

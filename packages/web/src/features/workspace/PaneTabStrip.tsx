@@ -11,6 +11,7 @@ import { editorTabLabel } from '../editor/buffer-logic';
 import { tabKind, type EditorTab, type EditorView } from '../editor/editor-tabs';
 import { LazyEditorDirtyDot, LazyEditorTabClose } from '../editor/lazy-editor-parts';
 import { previewKind } from '../editor/preview-kind';
+import { FileTabContextMenu } from '../explorer/FileTabContextMenu';
 import { SessionContextMenu } from './SessionActions';
 import { TabTooltipBody } from './TabTooltip';
 import { tabRefKey } from './layout-tree';
@@ -51,6 +52,7 @@ export function PaneTabStrip({
   onArchived,
   onSetView,
   onNewFile,
+  onRevealFile,
 }: {
   leaf: LayoutLeaf;
   sessions: Session[];
@@ -62,8 +64,11 @@ export function PaneTabStrip({
   onSetView: (ref: TabRef, view: EditorView) => void;
   /** Double-click on the strip's blank tail: open a fresh untitled file (SPEC §8). */
   onNewFile: () => void;
+  /** Reveal a path-backed editor tab in Files, rebasing for external files. */
+  onRevealFile: (tab: EditorTab, rename?: boolean) => void;
 }) {
   const branches = new Map(sessions.map((s) => [s.id, s.branch]));
+  const directories = new Map(sessions.map((s) => [s.id, s.worktree_path]));
   const editorTabs = leaf.tabs.flatMap((t) => (t.type === 'editor' ? [t.tab] : []));
   const indicator = useDropIndicator();
   const caretAt =
@@ -75,7 +80,7 @@ export function PaneTabStrip({
   });
 
   const labelFor = (tab: EditorTab): string => {
-    const base = editorTabLabel(tab.path, tab.session, editorTabs, branches);
+    const base = editorTabLabel(tab.path, tab.session, editorTabs, branches, tab.root, directories);
     if (tabKind(tab) === 'diff') return `${base} (diff)`;
     if (tabKind(tab) === 'commit') return `${base} @${(tab.sha ?? '').slice(0, 7)}`;
     return base;
@@ -112,12 +117,20 @@ export function PaneTabStrip({
                 ? sessions.find((s) => s.id === ref.tab.session)
                 : undefined
             }
+            fileDirectory={
+              ref.type === 'editor' &&
+              (tabKind(ref.tab) === 'file' || tabKind(ref.tab) === 'external')
+                ? (ref.tab.root ?? sessions.find((s) => s.id === ref.tab.session)?.worktree_path)
+                : undefined
+            }
             label={ref.type === 'editor' ? labelFor(ref.tab) : ''}
             onActivate={() => onActivate(ref)}
             onClose={() => onClose(ref)}
             onPromote={() => onPromote(ref)}
             onArchived={onArchived}
             onSetView={(view) => onSetView(ref, view)}
+            onRevealFile={() => ref.type === 'editor' && onRevealFile(ref.tab)}
+            onRenameFile={() => ref.type === 'editor' && onRevealFile(ref.tab, true)}
           />
         </Fragment>
       ))}
@@ -225,12 +238,15 @@ function PaneTab({
   preview,
   session,
   fileSession,
+  fileDirectory,
   label,
   onActivate,
   onClose,
   onPromote,
   onArchived,
   onSetView,
+  onRevealFile,
+  onRenameFile,
 }: {
   tab: TabRef;
   leafId: string;
@@ -240,12 +256,16 @@ function PaneTab({
   session: Session | undefined;
   /** An editor tab's own worktree session, when it has one (see the tooltip). */
   fileSession: Session | undefined;
+  /** Absolute root the path-backed editor tab's `path` is relative to. */
+  fileDirectory: string | undefined;
   label: string;
   onActivate: () => void;
   onClose: () => void;
   onPromote: () => void;
   onArchived: (session: string) => void;
   onSetView: (view: EditorView) => void;
+  onRevealFile: () => void;
+  onRenameFile: () => void;
 }) {
   const renderTitle = useSessionTitleRenderer();
   const key = tabRefKey(tab);
@@ -385,6 +405,25 @@ function PaneTab({
         <SessionContextMenu session={session} onArchived={() => onArchived(tab.session)}>
           <TooltipTrigger asChild>{body}</TooltipTrigger>
         </SessionContextMenu>
+        {tooltip}
+      </Tooltip>
+    );
+  }
+  if (
+    tab.type === 'editor' &&
+    fileDirectory !== undefined &&
+    (tabKind(tab.tab) === 'file' || tabKind(tab.tab) === 'external')
+  ) {
+    return (
+      <Tooltip>
+        <FileTabContextMenu
+          tab={tab.tab}
+          directory={fileDirectory}
+          onReveal={onRevealFile}
+          onRename={onRenameFile}
+        >
+          <TooltipTrigger asChild>{body}</TooltipTrigger>
+        </FileTabContextMenu>
         {tooltip}
       </Tooltip>
     );

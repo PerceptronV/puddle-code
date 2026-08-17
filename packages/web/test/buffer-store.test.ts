@@ -99,6 +99,41 @@ describe('editorTabLabel', () => {
     const branches = new Map([['s1', 'main']]);
     expect(editorTabLabel('src/api.ts', 's1', tabs, branches)).toBe('api.ts');
   });
+
+  it('shows absolute paths when external roots share the same relative filename', () => {
+    const tabs: OpenTab[] = [
+      { session: 's1', path: 'README.md', root: '/repos/one' },
+      { session: 's1', path: 'README.md', root: '/repos/two' },
+    ];
+    const branches = new Map([['s1', 'main']]);
+    expect(editorTabLabel('README.md', 's1', tabs, branches, '/repos/one')).toBe(
+      '/repos/one/README.md',
+    );
+    expect(editorTabLabel('README.md', 's1', tabs, branches, '/repos/two')).toBe(
+      '/repos/two/README.md',
+    );
+  });
+
+  it('shows worktree paths when colliding sessions share a branch', () => {
+    const tabs: OpenTab[] = [
+      { session: 's1', path: 'README.md' },
+      { session: 's2', path: 'README.md' },
+    ];
+    const branches = new Map([
+      ['s1', 'main'],
+      ['s2', 'main'],
+    ]);
+    const directories = new Map([
+      ['s1', '/worktrees/one'],
+      ['s2', '/worktrees/two'],
+    ]);
+    expect(editorTabLabel('README.md', 's1', tabs, branches, undefined, directories)).toBe(
+      '/worktrees/one/README.md — main',
+    );
+    expect(editorTabLabel('README.md', 's2', tabs, branches, undefined, directories)).toBe(
+      '/worktrees/two/README.md — main',
+    );
+  });
 });
 
 describe('SavedStateMap', () => {

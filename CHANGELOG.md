@@ -8,3 +8,11 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Added
+
+- Add the file-tree context menu to path-backed editor tabs, including Reveal in Filetree with worktree binding and temporary external-directory rebasing.
+
+### Fixed
+
+- Disambiguate same-named tabs with absolute paths when external roots or worktree branch labels collide.

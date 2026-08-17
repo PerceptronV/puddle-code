@@ -8,10 +8,12 @@
  * imported eagerly if ever useful, though today only `buffer-store.ts` does.
  */
 
-/** One open editor tab, identified by (session, path) per SPEC §8. */
+/** One open editor tab's path identity; external files additionally carry `root`. */
 export interface OpenTab {
   session: string;
   path: string;
+  /** Absolute identity root for an external file; absent for a worktree file. */
+  root?: string;
 }
 
 function basename(path: string): string {
@@ -19,7 +21,7 @@ function basename(path: string): string {
 }
 
 /**
- * Tab label for `path` open under `session`, given every other currently
+ * Tab label for `path` open under `(session, root)`, given every other currently
  * open tab and a session → branch lookup (SPEC §8: `api.ts — alice/fix-auth`
  * when the same basename is open from more than one worktree).
  *
@@ -43,18 +45,43 @@ export function editorTabLabel(
   session: string,
   allTabs: readonly OpenTab[],
   sessionBranches: ReadonlyMap<string, string>,
+  root?: string,
+  sessionDirectories?: ReadonlyMap<string, string>,
 ): string {
   const base = basename(path);
   const collisions = allTabs.filter(
-    (tab) => !(tab.session === session && tab.path === path) && basename(tab.path) === base,
+    (tab) =>
+      !(tab.session === session && tab.path === path && tab.root === root) &&
+      basename(tab.path) === base,
   );
   if (collisions.length === 0) return base;
 
   const sameSession = collisions.some((tab) => tab.session === session);
   const crossSession = collisions.some((tab) => tab.session !== session);
 
-  const body = sameSession ? path : base;
+  // Two external files can have the same session AND the same root-relative
+  // path while living under different browse roots. The old `(session,path)`
+  // self-filter treated them as one tab, producing identical basename labels.
+  // Include the absolute root only for that shape; ordinary same-basename
+  // siblings retain the shorter `src/api.ts` / `lib/api.ts` treatment.
+  const sameRelativePathUnderAnotherRoot = collisions.some(
+    (tab) => tab.session === session && tab.path === path && tab.root !== root,
+  );
   const branch = crossSession ? sessionBranches.get(session) : undefined;
+  const sameBranchInAnotherSession = collisions.some(
+    (tab) => tab.session !== session && sessionBranches.get(tab.session) === branch,
+  );
+  const directory = root ?? sessionDirectories?.get(session);
+  const rootedPath = directory === undefined ? path : `${directory.replace(/\/+$/, '')}/${path}`;
+  // A branch normally distinguishes cross-worktree collisions. It cannot when
+  // two worktrees are on the same branch (or both branches are unknown), so the
+  // effective absolute directory is the final, honest discriminator.
+  const body =
+    sameRelativePathUnderAnotherRoot || (sameBranchInAnotherSession && directory !== undefined)
+      ? rootedPath
+      : sameSession
+        ? path
+        : base;
   return branch ? `${body} — ${branch}` : body;
 }
 
