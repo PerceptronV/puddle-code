@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Changed
+
+- Sort the new-agent account picker alphabetically by its displayed agent and account label.

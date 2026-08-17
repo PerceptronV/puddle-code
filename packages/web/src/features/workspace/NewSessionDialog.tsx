@@ -41,6 +41,7 @@ import {
 } from '../../lib/queries';
 import { tildify } from '../../lib/tildify';
 import { useCurrentProfileId } from '../profile/profile-store';
+import { orderAccountPickerItems } from './account-picker-order';
 import { resolveSessionSeed } from './session-seed';
 
 /**
@@ -160,6 +161,10 @@ export function NewSessionDialog({
     );
   }, [accounts.data, settings.data, seedAccountId]);
   const effectiveAccountId = accountId || (defaultAccount ? String(defaultAccount.id) : '');
+  const orderedAccounts = useMemo(
+    () => orderAccountPickerItems(accounts.data ?? []),
+    [accounts.data],
+  );
 
   useEffect(() => {
     if (open && seedAccountId !== undefined) setAccountId(String(seedAccountId));
@@ -277,7 +282,7 @@ export function NewSessionDialog({
                     <SelectValue placeholder="pick an account" />
                   </SelectTrigger>
                   <SelectContent>
-                    {accounts.data?.map((a) => (
+                    {orderedAccounts.map((a) => (
                       <SelectItem key={a.id} value={String(a.id)}>
                         <span>
                           {a.agent_type}/{a.label}

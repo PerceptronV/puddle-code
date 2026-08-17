@@ -712,6 +712,8 @@ The right session sidebar keeps every non-archived project visible as a navigati
 
 Profiles are identity, not auth. First load shows a profile picker (create-or-select), remembered in localStorage.
 
+The new-session account picker sorts alphabetically by its displayed `agent-type/account-label`, without changing the profile's configured default account.
+
 ### Settings
 
 A settings panel, reachable from a gear icon and ⌘K → "Settings". Three scopes, each stored where it belongs:
