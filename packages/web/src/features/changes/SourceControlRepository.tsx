@@ -22,7 +22,7 @@ import { gitEntryPaths } from './source-control-paths';
 
 /** Which hover drives the branch/status marquee: its own action row. */
 const STATUS_MARQUEE = 'group-hover:[transform:translateX(var(--tail))]';
-/** Both clipped repository-heading fields follow their own heading row. */
+/** The mixed-style repository heading follows its own heading row. */
 const HEADING_MARQUEE = 'group-hover/repository:[transform:translateX(var(--tail))]';
 /** Changed-file and directory labels follow their own row. */
 const CHANGE_MARQUEE = 'group-hover:[transform:translateX(var(--tail))]';
@@ -37,11 +37,13 @@ function IconAction({
   label,
   onClick,
   disabled,
+  className,
   children,
 }: {
   label: string;
   onClick(): void;
   disabled?: boolean;
+  className?: string;
   children: ReactNode;
 }) {
   return (
@@ -55,7 +57,10 @@ function IconAction({
             event.stopPropagation();
             onClick();
           }}
-          className="rounded-sm p-1 text-fg-muted transition-colors hover:bg-elevated hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
+          className={cn(
+            'rounded-sm p-1 text-fg-muted transition-colors hover:bg-elevated hover:text-fg disabled:cursor-not-allowed disabled:opacity-40',
+            className,
+          )}
         >
           {children}
         </button>
@@ -96,7 +101,7 @@ function ChangeGroup({
         <button
           type="button"
           onClick={() => setCollapsed((value) => !value)}
-          className="flex min-w-0 flex-1 items-center gap-1 text-left text-2xs font-medium uppercase tracking-wide text-fg-secondary transition-colors hover:text-fg"
+          className="flex min-w-0 flex-1 items-center gap-1 text-left text-2xs font-medium uppercase tracking-wide text-fg-gold transition-colors hover:text-fg"
         >
           {collapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
           <span className="truncate">{title}</span>
@@ -405,19 +410,14 @@ export function SourceControlRepository({
             <ChevronDown className="size-3 shrink-0" />
           )}
           <HoverMarquee
-            text={repository.name}
-            title={repository.name}
-            className="text-xs font-medium text-fg"
-            containerClassName="flex-[0_1_auto]"
+            text={`${repository.name} ${repository.relative_path}`}
+            title={`${repository.name} ${repository.relative_path}`}
+            className="text-xs"
             hoverClass={HEADING_MARQUEE}
-          />
-          <HoverMarquee
-            text={repository.relative_path}
-            title={repository.relative_path}
-            className="text-2xs text-fg-muted"
-            containerClassName="flex-[0_1_auto]"
-            hoverClass={HEADING_MARQUEE}
-          />
+          >
+            <span className="font-medium text-fg">{repository.name}</span>{' '}
+            <span className="text-2xs text-fg-muted">{repository.relative_path}</span>
+          </HoverMarquee>
           {changes.length > 0 && (
             <span className="ml-auto text-2xs text-fg-muted">{changes.length}</span>
           )}
@@ -433,58 +433,12 @@ export function SourceControlRepository({
       </div>
       {!collapsed && (
         <div>
-          <div className="group flex min-h-7 items-center gap-2 px-3 text-2xs text-fg-muted">
+          <div className="group flex min-h-7 items-center px-3 text-2xs text-fg-muted">
             <HoverMarquee
               text={statusLabel(repository)}
               title={statusLabel(repository)}
               hoverClass={STATUS_MARQUEE}
             />
-            {repository.initialised && repository.has_remote && (
-              <>
-                <IconAction
-                  label="Fetch"
-                  disabled={busy}
-                  onClick={() =>
-                    void run({ action: 'fetch', repository: repository.root }, 'Fetched')
-                  }
-                >
-                  <Download className="size-3.5" />
-                </IconAction>
-                {repository.upstream && (
-                  <IconAction
-                    label="Pull"
-                    disabled={busy}
-                    onClick={() =>
-                      void run({ action: 'pull', repository: repository.root }, 'Pulled')
-                    }
-                  >
-                    <Upload className="size-3.5 rotate-180" />
-                  </IconAction>
-                )}
-                {repository.branch && (
-                  <IconAction
-                    label={repository.upstream ? 'Push' : 'Publish branch'}
-                    disabled={busy}
-                    onClick={() =>
-                      void run(
-                        {
-                          action: 'push',
-                          repository: repository.root,
-                          set_upstream: !repository.upstream,
-                        },
-                        repository.upstream ? 'Pushed' : 'Branch published',
-                      )
-                    }
-                  >
-                    {repository.upstream ? (
-                      <Send className="size-3.5" />
-                    ) : (
-                      <Upload className="size-3.5" />
-                    )}
-                  </IconAction>
-                )}
-              </>
-            )}
           </div>
 
           {!repository.initialised ? (
@@ -501,14 +455,65 @@ export function SourceControlRepository({
                   aria-label={`Commit message for ${repository.name}`}
                   className="w-full resize-none rounded-sm bg-elevated px-2 py-1.5 text-xs text-fg outline-none placeholder:text-fg-muted focus:ring-1 focus:ring-focus"
                 />
-                <button
-                  type="button"
-                  disabled={busy || message.trim().length === 0}
-                  onClick={() => void commit()}
-                  className="mt-1 w-full rounded-sm bg-action py-1 text-xs text-action-ink transition-colors hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Commit
-                </button>
+                <div className="mt-1 flex items-center gap-0.5">
+                  {repository.has_remote && (
+                    <>
+                      <IconAction
+                        label="Fetch"
+                        disabled={busy}
+                        className="flex size-7 shrink-0 items-center justify-center p-0"
+                        onClick={() =>
+                          void run({ action: 'fetch', repository: repository.root }, 'Fetched')
+                        }
+                      >
+                        <Download className="size-3.5" />
+                      </IconAction>
+                      {repository.upstream && (
+                        <IconAction
+                          label="Pull"
+                          disabled={busy}
+                          className="flex size-7 shrink-0 items-center justify-center p-0"
+                          onClick={() =>
+                            void run({ action: 'pull', repository: repository.root }, 'Pulled')
+                          }
+                        >
+                          <Upload className="size-3.5 rotate-180" />
+                        </IconAction>
+                      )}
+                      {repository.branch && (
+                        <IconAction
+                          label={repository.upstream ? 'Push' : 'Publish branch'}
+                          disabled={busy}
+                          className="flex size-7 shrink-0 items-center justify-center p-0"
+                          onClick={() =>
+                            void run(
+                              {
+                                action: 'push',
+                                repository: repository.root,
+                                set_upstream: !repository.upstream,
+                              },
+                              repository.upstream ? 'Pushed' : 'Branch published',
+                            )
+                          }
+                        >
+                          {repository.upstream ? (
+                            <Send className="size-3.5" />
+                          ) : (
+                            <Upload className="size-3.5" />
+                          )}
+                        </IconAction>
+                      )}
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    disabled={busy || message.trim().length === 0}
+                    onClick={() => void commit()}
+                    className="flex h-7 min-w-0 flex-1 items-center justify-center rounded-sm bg-action px-2 text-xs text-action-ink transition-colors hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Commit
+                  </button>
+                </div>
               </div>
               <ChangeGroup
                 title="Merge Changes"

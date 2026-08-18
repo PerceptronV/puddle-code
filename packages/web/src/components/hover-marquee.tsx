@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { cn } from '../lib/utils';
 
 /**
@@ -36,7 +36,9 @@ export function HoverMarquee({
   className,
   containerClassName,
   title,
+  children,
 }: {
+  /** Plain-text identity used for measurement updates and as the default content. */
   text: string;
   hoverClass: string;
   className?: string;
@@ -44,6 +46,8 @@ export function HoverMarquee({
   containerClassName?: string;
   /** Native tooltip (e.g. a row that shows a basename but knows the full path). */
   title?: string;
+  /** Optional mixed-style content that still moves as one continuous line. */
+  children?: ReactNode;
 }) {
   const spanRef = useRef<HTMLSpanElement>(null);
   const [overflow, setOverflow] = useState(0);
@@ -80,7 +84,7 @@ export function HoverMarquee({
             : undefined
         }
       >
-        {text}
+        {children ?? text}
       </span>
     </span>
   );

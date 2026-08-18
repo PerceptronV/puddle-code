@@ -15,4 +15,5 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Clarify the Changes navigator with unified repository headings, gold change groups, repository dividers, and compact Git actions beside Commit.
 - Sort the new-agent account picker alphabetically by its displayed agent and account label.

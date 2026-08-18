@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { HeightHandle, useResizableHeight } from '../../components/resizable-height';
 import { useDaemonVersion } from '../../lib/queries';
 import { sourceControlSupported } from '../../lib/protocol-support';
@@ -68,17 +68,19 @@ export function ChangesNav({
             ) : repositories.data.repositories.length === 0 ? (
               <div className="px-3 py-2 text-xs text-fg-muted">No Git repositories.</div>
             ) : (
-              repositories.data.repositories.map((repository) => (
-                <SourceControlRepository
-                  key={repository.root}
-                  session={session}
-                  targetRoot={root}
-                  repository={repository}
-                  selected={selectedRoot === repository.root}
-                  activePath={activeDiffPath}
-                  onSelect={() => setSelectedRoot(repository.root)}
-                  onOpen={onOpenDiff}
-                />
+              repositories.data.repositories.map((repository, index) => (
+                <Fragment key={repository.root}>
+                  {index > 0 && <div className="mx-3 my-2 h-px bg-border" />}
+                  <SourceControlRepository
+                    session={session}
+                    targetRoot={root}
+                    repository={repository}
+                    selected={selectedRoot === repository.root}
+                    activePath={activeDiffPath}
+                    onSelect={() => setSelectedRoot(repository.root)}
+                    onOpen={onOpenDiff}
+                  />
+                </Fragment>
               ))
             )}
           </div>
