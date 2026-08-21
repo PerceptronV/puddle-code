@@ -22,6 +22,16 @@ export interface RepoRouteDeps {
   worktrees: WorktreeManager;
 }
 
+async function checkedOutBranch(path: string): Promise<string | undefined> {
+  try {
+    return (await git(['symbolic-ref', '--quiet', '--short', 'HEAD'], { cwd: path })) || undefined;
+  } catch {
+    // A detached HEAD has no branch to inherit. Keep the historical fallback
+    // so registration remains possible for clones checked out at a commit.
+    return undefined;
+  }
+}
+
 export function repoRoutes(deps: RepoRouteDeps): Hono {
   return new Hono()
     .get('/', (c) =>
@@ -48,7 +58,7 @@ export function repoRoutes(deps: RepoRouteDeps): Hono {
       if (existing) return c.json(existing);
       const repo = deps.repos.create({
         path,
-        default_base_branch: body.default_base_branch ?? 'main',
+        default_base_branch: body.default_base_branch ?? (await checkedOutBranch(path)) ?? 'main',
         onboarding_notes: body.onboarding_notes ?? null,
         fetch_enabled: body.fetch_enabled ?? true,
       });

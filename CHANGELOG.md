@@ -13,3 +13,4 @@ Past releases: see docs/changelogs/.
 
 - Make terminal file paths clickable across every visual row when they wrap onto multiple lines.
 - Preserve each terminal's scroll position when leaving and returning to its session.
+- Use each newly registered repository's checked-out clone branch as its default base instead of assuming `main`.
