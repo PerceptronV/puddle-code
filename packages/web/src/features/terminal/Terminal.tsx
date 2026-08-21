@@ -30,6 +30,12 @@ import { dynamicColourReport, type DynamicColourCode } from './osc-colour';
 import { isCopyShortcut } from './copy-shortcut';
 import { interceptImagePaste } from './paste-image';
 import { rewriteTerminalUri } from './proxy-links';
+import {
+  terminalScrollLine,
+  terminalScrollPosition,
+  terminalScrollStore,
+  type TerminalScrollPosition,
+} from './scroll-position';
 import { registerFileLinks, type FileLinkTarget } from './file-links';
 
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
@@ -231,6 +237,8 @@ export function Terminal({
     const xterm = xtermRef.current;
     const container = containerRef.current;
     if (!xterm || !container || container.clientWidth === 0) return;
+    const bufferBefore = xterm.buffer.active;
+    const scrollBefore = terminalScrollPosition(bufferBefore.viewportY, bufferBefore.baseY);
     fitRef.current?.fit();
     // fit() short-circuits when cols/rows come out unchanged, so force the
     // buffer resize: BufferService.resize fires onResize unconditionally, which
@@ -242,6 +250,8 @@ export function Terminal({
     // blank the static part of a TUI (typically the bottom half) until a
     // selection forced a full pass (fixed 2026-07-31).
     xterm.refresh(0, xterm.rows - 1);
+    const bufferAfter = xterm.buffer.active;
+    xterm.scrollToLine(terminalScrollLine(scrollBefore, bufferAfter.baseY));
     wsManager.resize(stream, term, xterm.cols, xterm.rows);
   }, [stream, term]);
 
@@ -319,6 +329,10 @@ export function Terminal({
     searchRef.current = search;
     const searchResults = search.onDidChangeResults((result) => {
       find.setResult({ index: result.resultIndex, count: result.resultCount });
+    });
+    const viewportScroll = xterm.onScroll((viewportY) => {
+      if (replayingRef.current) return;
+      terminalScrollStore.set(stream, term, viewportY, xterm.buffer.active.baseY);
     });
 
     // Validated file-path links: only for real sessions (login/home PTYs have
@@ -492,6 +506,7 @@ export function Terminal({
       observer.disconnect();
       unsubscribeTheme();
       searchResults.dispose();
+      viewportScroll.dispose();
       oscForeground?.dispose();
       oscBackground?.dispose();
       oscClipboard.dispose();
@@ -568,6 +583,13 @@ export function Terminal({
           outputFrame = 0;
           outputChars = 0;
           outputChunks = [];
+          // `reset()` and replay both land xterm at the bottom. Preserve the
+          // last viewport this browser window saw; an absent entry means the
+          // terminal has always followed the bottom and needs no override.
+          const savedScroll: TerminalScrollPosition | undefined = terminalScrollStore.get(
+            stream,
+            term,
+          );
           // Start from a clean screen: the self-contained snapshot restores
           // the buffer rather than appending to what it already shows.
           replayingRef.current = true;
@@ -579,6 +601,9 @@ export function Terminal({
             // dirties those cells and reveals the text, but the replay itself
             // is the right boundary to repaint the whole restored viewport.
             xterm.refresh(0, xterm.rows - 1);
+            if (savedScroll) {
+              xterm.scrollToLine(terminalScrollLine(savedScroll, xterm.buffer.active.baseY));
+            }
           });
           return;
         }

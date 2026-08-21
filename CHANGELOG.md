@@ -12,3 +12,4 @@ Past releases: see docs/changelogs/.
 ### Fixed
 
 - Make terminal file paths clickable across every visual row when they wrap onto multiple lines.
+- Preserve each terminal's scroll position when leaving and returning to its session.

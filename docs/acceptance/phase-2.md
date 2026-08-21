@@ -69,5 +69,12 @@ when the OAuth flow completes).
    still produces and copies a string in one click; pasting that string into
    the following Import field restores only the selected groups.
 
+9. **Terminal scroll restore.** In a terminal with enough scrollback, scroll
+   well above the bottom, switch to another session for longer than 1.5 s so
+   the hidden viewer detaches, then return: the same retained buffer line is
+   still at the top instead of the terminal jumping to the bottom. Repeat with
+   new output arriving while away. Finally leave a terminal AT the bottom and
+   return after new output: that terminal follows the new bottom.
+
 Record any UI/daemon mismatches found here as issues; adapter corrections
 still go to `packages/daemon/src/agents/claude-code.ts` per phase-1.
