@@ -1,5 +1,6 @@
 import type {
   IBuffer,
+  IBufferLine,
   IBufferCellPosition,
   IDisposable,
   ILink,
@@ -230,17 +231,44 @@ export class ResolveCache {
  * offsets can be mapped back to cells. Bounded so a pathological line cannot
  * scan the entire scrollback.
  */
-function assembleLogicalLine(buffer: IBuffer, row0: number): { text: string; startRow: number } {
+function lineEndsAtRightEdge(line: IBufferLine | undefined, cols: number): boolean {
+  if (!line || cols < 1) return false;
+  const lastColumn = Math.min(line.length, cols) - 1;
+  if (lastColumn < 0) return false;
+  const cell = line.getCell(lastColumn);
+  return cell !== undefined && cell.getWidth() > 0 && cell.getChars().length > 0;
+}
+
+function assembleLogicalLine(
+  buffer: IBuffer,
+  row0: number,
+  cols: number,
+  includeHardWraps: boolean,
+): { text: string; startRow: number } {
   const MAX_LEN = 2048;
   let startRow = row0;
-  while (startRow > 0 && buffer.getLine(startRow)?.isWrapped) startRow--;
+  while (
+    startRow > 0 &&
+    (buffer.getLine(startRow)?.isWrapped ||
+      (includeHardWraps && lineEndsAtRightEdge(buffer.getLine(startRow - 1), cols)))
+  ) {
+    startRow--;
+  }
 
   let text = '';
   for (let y = startRow; ; y++) {
     const line = buffer.getLine(y);
     if (!line) break;
-    if (y !== startRow && !line.isWrapped) break; // next logical line begins
-    text += line.translateToString(true);
+    if (
+      y !== startRow &&
+      !line.isWrapped &&
+      !(includeHardWraps && lineEndsAtRightEdge(buffer.getLine(y - 1), cols))
+    ) {
+      break; // next logical line begins
+    }
+    // Buffer lines can retain their old length after a resize; only the first
+    // `cols` cells are part of the current visual row.
+    text += line.translateToString(true, 0, cols);
     if (text.length > MAX_LEN) break;
   }
   return { text, startRow };
@@ -258,6 +286,7 @@ function offsetToCell(
   row: number,
   col: number,
   offset: number,
+  cols: number,
 ): { row: number; col: number } | null {
   const cell = buffer.getNullCell();
   let y = row;
@@ -266,11 +295,15 @@ function offsetToCell(
   while (remaining >= 0) {
     const line = buffer.getLine(y);
     if (!line) return null;
-    for (; x < line.length; x++) {
+    // `IBufferLine.length` can exceed the terminal width after a resize. The
+    // next visible cell is then on the next buffer row, not in those stale
+    // off-screen columns.
+    const visibleLength = Math.min(line.length, cols);
+    for (; x < visibleLength; x++) {
       line.getCell(x, cell);
       if (cell.getWidth()) {
         remaining -= cell.getChars().length || 1;
-        if (x === line.length - 1 && cell.getChars() === '') {
+        if (x === visibleLength - 1 && cell.getChars() === '') {
           // A wide glyph that did not fit was carried to the next wrapped row.
           const next = buffer.getLine(y + 1);
           if (next?.isWrapped) {
@@ -285,6 +318,68 @@ function offsetToCell(
     x = 0;
   }
   return { row: y, col: x };
+}
+
+interface BufferPathCandidate {
+  candidate: PathCandidate;
+  start: { row: number; col: number };
+  /** Inclusive cell containing the token's final character. */
+  end: { row: number; col: number };
+  text: string;
+}
+
+/**
+ * Find path candidates touching one visual buffer row and map them to cells.
+ * Besides xterm's soft-wrap marker, a full row followed by another row is
+ * tried as a hard wrap: terminal UIs often render wrapping themselves with a
+ * newline, even though it looks exactly like xterm wrapping. Resolve
+ * validation decides whether the joined token is a real path. The ordinary
+ * soft-wrapped window remains as a fallback so a path ending at the margin is
+ * not swallowed by unrelated text on the next line.
+ */
+export function findBufferPathCandidates(
+  buffer: IBuffer,
+  row0: number,
+  cols: number,
+): BufferPathCandidate[] {
+  const windows = [
+    assembleLogicalLine(buffer, row0, cols, true),
+    assembleLogicalLine(buffer, row0, cols, false),
+  ];
+  const seen = new Set<string>();
+  const out: BufferPathCandidate[] = [];
+
+  for (const window of windows) {
+    for (const candidate of findPathCandidates(window.text)) {
+      const start = offsetToCell(buffer, window.startRow, 0, candidate.start, cols);
+      const end = offsetToCell(
+        buffer,
+        start?.row ?? window.startRow,
+        start?.col ?? 0,
+        candidate.end - candidate.start - 1,
+        cols,
+      );
+      if (!start || !end || start.row > row0 || end.row < row0) continue;
+
+      const key = `${candidate.path}\0${candidate.line ?? ''}\0${candidate.column ?? ''}\0${start.row}:${start.col}-${end.row}:${end.col}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        candidate,
+        start,
+        end,
+        text: window.text.slice(candidate.start, candidate.end),
+      });
+    }
+  }
+
+  // When both a validated full path and a valid prefix overlap, xterm keeps
+  // the first provider result. Prefer the complete, multi-row candidate.
+  return out.sort((a, b) => {
+    const aSpan = (a.end.row - a.start.row) * cols + a.end.col - a.start.col;
+    const bSpan = (b.end.row - b.start.row) * cols + b.end.col - b.start.col;
+    return bSpan - aSpan;
+  });
 }
 
 /** Ask the daemon to resolve one host path against a worktree/directory target. */
@@ -358,34 +453,24 @@ export function registerFileLinks(
   return xterm.registerLinkProvider({
     provideLinks(bufferLineNumber, callback) {
       const buffer = xterm.buffer.active;
-      // xterm hands provideLinks a 1-based buffer line; assemble from 0-based.
-      const { text, startRow } = assembleLogicalLine(buffer, bufferLineNumber - 1);
-      const candidates = findPathCandidates(text);
+      // xterm hands provideLinks a 1-based buffer line; map from 0-based.
+      const candidates = findBufferPathCandidates(buffer, bufferLineNumber - 1, xterm.cols);
       if (candidates.length === 0) {
         callback(undefined);
         return;
       }
 
       void Promise.all(
-        candidates.map(async (candidate): Promise<ILink | null> => {
+        candidates.map(async ({ candidate, start, end, text }): Promise<ILink | null> => {
           const resolved = await cache.resolve(sessionId, candidate.path, candidate.line);
           if (!resolved) return null;
-          const start = offsetToCell(buffer, startRow, 0, candidate.start);
-          const end = offsetToCell(
-            buffer,
-            start?.row ?? startRow,
-            start?.col ?? 0,
-            candidate.end - candidate.start,
-          );
-          if (!start || !end) return null;
           return {
-            // Positions are 1-based; `end.col` already sits one past the last
-            // cell of the token, so it is used verbatim (not +1).
+            // Buffer positions are 1-based and both ends are inclusive.
             range: {
               start: { x: start.col + 1, y: start.row + 1 },
-              end: { x: end.col, y: end.row + 1 },
+              end: { x: end.col + 1, y: end.row + 1 },
             } satisfies { start: IBufferCellPosition; end: IBufferCellPosition },
-            text: text.slice(candidate.start, candidate.end),
+            text,
             decorations: { underline: true, pointerCursor: true },
             activate: (event) => {
               // SPEC §14 activation gesture is cmd/ctrl+click; a plain click

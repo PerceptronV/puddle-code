@@ -51,9 +51,11 @@ install on macOS) so the open-in-editor links have somewhere to land.
    the same path does not open the editor — terminal text selection still
    works normally.
 5. **Wrapped long path.** Narrow the terminal (resize the window or the
-   sidebar) until a long real path soft-wraps across two rows: hovering
-   still underlines the whole logical path spanning both rows, and cmd/ctrl+
-   click still opens it at the right line.
+   sidebar) until a long real path soft-wraps across two rows: hovering EITHER
+   row underlines the whole logical path spanning both rows, and cmd/ctrl+
+   click from either row still opens it at the right line. Repeat with output
+   that inserts a newline exactly at the right edge (a terminal-rendered hard
+   wrap): it behaves the same way.
 6. **Login terminal.** Open a login terminal for an account (Settings →
    Accounts → an account's login flow). A URL printed there still underlines
    and opens on click; a file path printed there does NOT underline on hover

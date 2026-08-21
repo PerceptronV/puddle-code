@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Make terminal file paths clickable across every visual row when they wrap onto multiple lines.

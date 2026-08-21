@@ -1,12 +1,46 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ResolvePathResponse } from '@puddle/shared';
+import type { IBuffer, IBufferCell, IBufferLine } from '@xterm/xterm';
 import {
   externalBrowseRoot,
   fileLinkTarget,
+  findBufferPathCandidates,
   findPathCandidates,
   ResolveCache,
   type FileLinkTarget,
 } from '../src/features/terminal/file-links';
+
+function bufferWithLines(
+  rows: Array<{ text: string; isWrapped?: boolean; storedLength?: number }>,
+  cols: number,
+): IBuffer {
+  const lines = rows.map(({ text, isWrapped = false, storedLength = cols }): IBufferLine => {
+    const padded = text.padEnd(storedLength, ' ');
+    return {
+      isWrapped,
+      length: storedLength,
+      getCell(x, target) {
+        if (x < 0 || x >= storedLength) return undefined;
+        const value = padded[x] ?? ' ';
+        const cell = (target ?? {}) as IBufferCell & { value?: string };
+        cell.value = value;
+        cell.getChars = function () {
+          return this.value === ' ' ? '' : (this.value ?? '');
+        };
+        cell.getWidth = () => 1;
+        return cell;
+      },
+      translateToString(trimRight = false, start = 0, end = storedLength) {
+        const value = padded.slice(start, end);
+        return trimRight ? value.trimEnd() : value;
+      },
+    } as IBufferLine;
+  });
+  return {
+    getLine: (y: number) => lines[y],
+    getNullCell: () => ({}) as IBufferCell,
+  } as IBuffer;
+}
 
 describe('findPathCandidates', () => {
   it('captures a path with line and column, underlining the whole token', () => {
@@ -112,6 +146,69 @@ describe('findPathCandidates', () => {
     expect(findPathCandidates('e.g. this way')).toEqual([
       { path: 'e.g', line: undefined, column: undefined, start: 0, end: 3 },
     ]);
+  });
+});
+
+describe('findBufferPathCandidates', () => {
+  it('returns the same complete link from either row of a soft-wrapped path', () => {
+    const buffer = bufferWithLines(
+      [{ text: 'see src/long' }, { text: 'er/file.ts:3', isWrapped: true }],
+      12,
+    );
+
+    const expected = {
+      candidate: { path: 'src/longer/file.ts', line: 3, column: undefined, start: 4, end: 24 },
+      start: { row: 0, col: 4 },
+      end: { row: 1, col: 11 },
+      text: 'src/longer/file.ts:3',
+    };
+    expect(findBufferPathCandidates(buffer, 0, 12)).toContainEqual(expected);
+    expect(findBufferPathCandidates(buffer, 1, 12)).toContainEqual(expected);
+  });
+
+  it('joins a path hard-wrapped by a terminal UI at the right edge', () => {
+    const buffer = bufferWithLines([{ text: 'see src/long' }, { text: 'er/file.ts:3' }], 12);
+
+    const links = findBufferPathCandidates(buffer, 1, 12);
+    expect(links[0]).toMatchObject({
+      candidate: { path: 'src/longer/file.ts', line: 3 },
+      start: { row: 0, col: 4 },
+      end: { row: 1, col: 11 },
+      text: 'src/longer/file.ts:3',
+    });
+  });
+
+  it('uses the current terminal width when stored rows retain wider cells', () => {
+    const buffer = bufferWithLines(
+      [
+        { text: 'src/long-paOLD-DATA', storedLength: 20 },
+        { text: 'th/file.ts', isWrapped: true, storedLength: 20 },
+      ],
+      11,
+    );
+
+    expect(findBufferPathCandidates(buffer, 1, 11)[0]).toMatchObject({
+      candidate: { path: 'src/long-path/file.ts' },
+      start: { row: 0, col: 0 },
+      end: { row: 1, col: 9 },
+    });
+  });
+
+  it('keeps the final cell on the previous row when a path ends at the margin', () => {
+    const buffer = bufferWithLines([{ text: 'src/file.ts' }, { text: 'next line' }], 11);
+
+    expect(findBufferPathCandidates(buffer, 0, 11)).toContainEqual({
+      candidate: {
+        path: 'src/file.ts',
+        line: undefined,
+        column: undefined,
+        start: 0,
+        end: 11,
+      },
+      start: { row: 0, col: 0 },
+      end: { row: 0, col: 10 },
+      text: 'src/file.ts',
+    });
   });
 });
 
