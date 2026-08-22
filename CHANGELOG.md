@@ -11,6 +11,7 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Honour the configured editor tab size instead of letting Monaco override it from file contents.
+- Use each newly registered repository's checked-out clone branch as its default base instead of assuming `main`.
 - Make terminal file paths clickable across every visual row when they wrap onto multiple lines.
 - Preserve each terminal's scroll position when leaving and returning to its session.
-- Use each newly registered repository's checked-out clone branch as its default base instead of assuming `main`.

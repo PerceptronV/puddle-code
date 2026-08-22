@@ -7,6 +7,7 @@ import { downloadPath } from '../../lib/worktree-queries';
 import { ConflictSurface } from './ConflictSurface';
 import { THEME_NAME } from './monaco-setup';
 import { monaco } from './monaco-setup';
+import { editorIndentationOptions } from './monaco-options';
 import { bindMonacoPreviewScroll } from './monaco-preview-scroll';
 import { useEditorBuffer } from './use-editor-buffer';
 import { useDirtyDiff } from './use-dirty-diff';
@@ -194,7 +195,7 @@ export function CodeEditor({
               automaticLayout: true,
               fontFamily: fontMono,
               fontSize: settings.editorFontSize,
-              tabSize: settings.editorTabSize,
+              ...editorIndentationOptions(settings.editorTabSize),
               wordWrap: settings.editorWordWrap ? 'on' : 'off',
               minimap: { enabled: false },
               glyphMargin: false,

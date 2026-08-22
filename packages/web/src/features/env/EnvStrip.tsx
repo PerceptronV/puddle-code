@@ -53,9 +53,7 @@ export function EnvStrip({ sessionId, status }: { sessionId: string; status: Ses
               </TooltipTrigger>
               <TooltipContent>
                 {v.bytes} B ·{' '}
-                {value === undefined ? 'value unavailable from this daemon' : 'click to copy value'}{' '}
-                · captured from this session&apos;s shell — re-injected into new shells and agent
-                restarts
+                {value === undefined ? 'value unavailable from this daemon' : 'click to copy value'}
               </TooltipContent>
             </Tooltip>
           );

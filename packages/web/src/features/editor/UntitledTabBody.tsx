@@ -9,6 +9,7 @@ import { putUntitled, updateCachedUntitled, useUntitledFile } from '../../lib/un
 import { useCurrentProfileId } from '../profile/profile-store';
 import { registerEditorKeybindings } from './editor-keybindings';
 import { THEME_NAME, monaco } from './monaco-setup';
+import { editorIndentationOptions } from './monaco-options';
 import { publishUntitledContent, requestUntitledSave } from './untitled-save-store';
 
 /** How long after the last keystroke the draft persists to the profile store. */
@@ -98,6 +99,7 @@ export function UntitledTabBody({ name }: { name: string }) {
             automaticLayout: true,
             fontFamily: fontMono,
             fontSize: settings.editorFontSize,
+            ...editorIndentationOptions(settings.editorTabSize),
             minimap: { enabled: false },
             fixedOverflowWidgets: true,
             scrollBeyondLastLine: false,

@@ -6,6 +6,7 @@ import { useFileAt } from '../../lib/worktree-queries';
 import { ApiError } from '../../lib/api';
 import { DeletedContent, Note, ReadOnlyView, viewerUri } from '../diff/FileDiffContent';
 import { monaco, THEME_NAME } from '../editor/monaco-setup';
+import { editorIndentationOptions } from '../editor/monaco-options';
 import { effectiveStatus } from './history-logic';
 
 /**
@@ -126,6 +127,7 @@ function HistoryDiffEditor({
         automaticLayout: true,
         fontFamily: fontMono,
         fontSize: settings.editorFontSize,
+        ...editorIndentationOptions(settings.editorTabSize),
         minimap: { enabled: false },
         fixedOverflowWidgets: true,
         scrollBeyondLastLine: false,

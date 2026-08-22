@@ -8,6 +8,7 @@ import { CodeEditor } from '../editor/CodeEditor';
 import { ConflictSurface } from '../editor/ConflictSurface';
 import { bufferKey, releaseModel, retainModel } from '../editor/buffer-store';
 import { monaco, THEME_NAME } from '../editor/monaco-setup';
+import { editorIndentationOptions } from '../editor/monaco-options';
 import { useEditorBuffer } from '../editor/use-editor-buffer';
 
 /**
@@ -98,6 +99,7 @@ export function ReadOnlyView({
         automaticLayout: true,
         fontFamily: fontMono,
         fontSize: settings.editorFontSize,
+        ...editorIndentationOptions(settings.editorTabSize),
         minimap: { enabled: false },
         fixedOverflowWidgets: true,
         scrollBeyondLastLine: false,
@@ -256,6 +258,7 @@ function ModifiedContent({
         automaticLayout: true,
         fontFamily: fontMono,
         fontSize: settings.editorFontSize,
+        ...editorIndentationOptions(settings.editorTabSize),
         wordWrap: settings.editorWordWrap ? 'on' : 'off',
         minimap: { enabled: false },
         fixedOverflowWidgets: true,
@@ -329,6 +332,7 @@ function StagedContent({
         automaticLayout: true,
         fontFamily: fontMono,
         fontSize: settings.editorFontSize,
+        ...editorIndentationOptions(settings.editorTabSize),
         wordWrap: settings.editorWordWrap ? 'on' : 'off',
         minimap: { enabled: false },
         fixedOverflowWidgets: true,

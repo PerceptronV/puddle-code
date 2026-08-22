@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef } from 'react';
 import { DiffEditor } from '@monaco-editor/react';
 import { useClientSettings } from '../../lib/client-settings';
 import { monaco, THEME_NAME } from './monaco-setup';
+import { editorIndentationOptions } from './monaco-options';
 import type { ComparedDiskConflict } from './conflict-store';
 
 /**
@@ -127,6 +128,7 @@ export function ConflictView({
             automaticLayout: true,
             fontFamily: fontMono,
             fontSize: settings.editorFontSize,
+            ...editorIndentationOptions(settings.editorTabSize),
             wordWrap: settings.editorWordWrap ? 'on' : 'off',
             minimap: { enabled: false },
             fixedOverflowWidgets: true,

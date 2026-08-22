@@ -570,7 +570,7 @@ function LayoutRow({
                 />
                 <RowAction
                   icon={Copy}
-                  label="Duplicate the saved layout…"
+                  label="Duplicate"
                   onClick={() => startEditing('duplicate')}
                 />
               </>
