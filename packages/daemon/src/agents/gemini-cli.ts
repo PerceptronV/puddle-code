@@ -1,6 +1,9 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AgentAdapter } from './adapter.js';
+import { installGeminiLifecycleHooks } from './gemini-hooks.js';
+import { lifecycleVersionAtLeast } from './lifecycle-version.js';
 
 /** gemini-cli hardcodes this directory name under its (overridable) home. */
 const GEMINI_DIR = '.gemini';
@@ -38,6 +41,9 @@ const GEMINI_DIR = '.gemini';
  *   <home>/.gemini/settings.json …".
  * - Projects are keyed in `<home>/.gemini/projects.json` (absolute cwd → short
  *   name) with per-project `history/<name>/` and `tmp/<name>/` dirs.
+ * - Additive SessionStart/SessionEnd hooks carry native identity without
+ *   replacing user hooks. Fixtures pin their configuration shape; repeat the
+ *   logged-in lifecycle acceptance when upgrading beyond 0.53.1.
  *
  * No `conversationShare` and `migratableSessions: false`: chats are per-project
  * files, not per-conversation directories.
@@ -55,6 +61,14 @@ export const geminiCli: AgentAdapter = {
 
   env(account) {
     return { GEMINI_CLI_HOME: account.config_dir };
+  },
+
+  prepareConfigDir(configDir) {
+    installGeminiLifecycleHooks(configDir);
+  },
+
+  reconcileConfigDir(account) {
+    if (existsSync(account.config_dir)) installGeminiLifecycleHooks(account.config_dir);
   },
 
   launchArgs(opts) {
@@ -97,6 +111,13 @@ export const geminiCli: AgentAdapter = {
   async resolveSessionRef(opts) {
     return opts.sessionId; // preset via --session-id
   },
+
+  conversationDiscovery: {
+    watchRoots: (account) => [geminiDir(account.config_dir)],
+    discover: (account) => discoverGeminiConversations(account.config_dir),
+  },
+  lifecycleSignals: true,
+  checkLifecycleSupport: () => lifecycleVersionAtLeast('gemini', ['--version'], [0, 53, 1]),
 
   discoverSessionRef(worktreePath, account) {
     const dir = chatsDir(account.config_dir, worktreePath);
@@ -173,4 +194,58 @@ function safeReaddir(dir: string): string[] {
   } catch {
     return [];
   }
+}
+
+/** Async metadata-only Gemini catalogue; unchanged chat files are never read. */
+async function discoverGeminiConversations(
+  configDir: string,
+): Promise<import('./adapter.js').NativeConversation[]> {
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  const root = geminiDir(configDir);
+  let projects: Record<string, string>;
+  try {
+    const raw = JSON.parse(await readFile(join(root, 'projects.json'), 'utf8')) as {
+      projects?: Record<string, string>;
+    };
+    projects = raw.projects ?? {};
+  } catch {
+    return [];
+  }
+  const result: import('./adapter.js').NativeConversation[] = [];
+  const seen = new Set<string>();
+  for (const [cwd, name] of Object.entries(projects)) {
+    for (const dir of [
+      join(root, 'tmp', name, 'chats'),
+      join(root, 'history', name, 'chats'),
+      join(root, 'tmp', name),
+    ]) {
+      let names: string[];
+      try {
+        names = await readdir(dir);
+      } catch {
+        continue;
+      }
+      for (const filename of names) {
+        if (!filename.endsWith('.json')) continue;
+        const ref = filename.slice(0, -'.json'.length);
+        if (seen.has(ref)) continue;
+        try {
+          const stats = await stat(join(dir, filename));
+          if (!stats.isFile()) continue;
+          seen.add(ref);
+          result.push({
+            ref,
+            cwd,
+            title: null,
+            parentRef: null,
+            createdAt: stats.birthtime.toISOString(),
+            updatedAt: stats.mtime.toISOString(),
+          });
+        } catch {
+          /* vanished during the scan */
+        }
+      }
+    }
+  }
+  return result.sort((a, b) => Date.parse(b.updatedAt ?? '') - Date.parse(a.updatedAt ?? ''));
 }

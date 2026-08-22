@@ -54,6 +54,41 @@ export interface SessionRefContext {
 /** Storage inspection may yield so large agent histories never block puddled. */
 export type StorageLookup<T> = T | Promise<T>;
 
+/** Normalised, credential-free metadata returned by a native store scan. */
+export interface NativeConversation {
+  ref: string;
+  cwd: string;
+  title: string | null;
+  parentRef: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface ConversationDiscoveryHooks {
+  /** Store roots whose metadata changes should schedule a debounced scan. */
+  watchRoots(account: Account): string[];
+  /** Full top-level catalogue; never reads transcript bodies. */
+  discover(account: Account): Promise<NativeConversation[]>;
+}
+
+export interface LifecycleLaunchResource {
+  /** Replacement CLI arguments (for example Codex's `--remote` transport). */
+  args: string[];
+  /** Sidecar process roots included in runtime port/process ownership. */
+  sidecarPids?: number[];
+  /** Internal bridge ports excluded from the user-facing port catalogue. */
+  hiddenPorts?: number[];
+  dispose(): void | Promise<void>;
+}
+
+export interface LifecycleLaunchContext {
+  account: Account;
+  opts: LaunchOpts;
+  args: string[];
+  signalUrl: string;
+  signalNonce: string;
+}
+
 export interface ConversationShareHooks {
   /**
    * Directory under the account's config dir that CONTAINS the per-conversation
@@ -229,6 +264,14 @@ export interface AgentAdapter {
    * non-shareable and does nothing. All paths returned are absolute.
    */
   conversationShare?: ConversationShareHooks;
+  /** Native conversation catalogue metadata and watch roots (SPEC §5). */
+  conversationDiscovery?: ConversationDiscoveryHooks;
+  /** The adapter has an exact lifecycle channel over the nonce-gated signal route. */
+  lifecycleSignals?: boolean;
+  /** Per-launch installed-version capability probe for hook/plugin channels. */
+  checkLifecycleSupport?(account: Account): Promise<boolean>;
+  /** Per-runtime exact lifecycle transport (Codex app-server bridge). */
+  prepareLifecycleLaunch?(context: LifecycleLaunchContext): Promise<LifecycleLaunchResource>;
   /** Phase 7: move conversation state between accounts (same agent). */
   migrateSession?(ref: string, from: Account, to: Account, worktree: string): Promise<void>;
   /** Phase 7: render the conversation as text for cross-agent hand-off. */

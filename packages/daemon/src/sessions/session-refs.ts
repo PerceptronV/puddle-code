@@ -34,12 +34,12 @@ export class SessionRefs {
     account: Account,
     adapter: AgentAdapter,
     launchOpts: LaunchOpts,
-    spawn: () => void,
+    spawn: () => void | Promise<void>,
     onCaptured: () => void,
     onError: (error: unknown, phase: 'spawn' | 'capture') => void,
   ): Promise<void> {
     if (adapter.capabilities.presetSessionId) {
-      spawn();
+      await spawn();
       const ref = await adapter.resolveSessionRef(launchOpts, account);
       this.deps.sessions.setAgentSessionRef(session.id, ref);
       return;
@@ -48,7 +48,7 @@ export class SessionRefs {
     let spawned = false;
     const launch = async () => {
       const existing = await adapter.existingSessionRefs?.(session.worktree_path, account);
-      spawn();
+      await spawn();
       spawned = true;
       const ref = await adapter.resolveSessionRef(launchOpts, account, existing);
       // Minted-id adapters return the puddle id as an explicit unresolved
@@ -114,20 +114,10 @@ export class SessionRefs {
       ...this.contextOf(session),
       excludeRefs: await this.claimedByOtherSessions(session, adapter, account),
     };
-    const duplicated =
-      ref !== null &&
-      this.deps.sessions
-        .list()
-        .some(
-          (candidate) =>
-            candidate.id !== session.id &&
-            candidate.account_id === account.id &&
-            candidate.agent_session_ref === ref,
-        );
     const missing = ref === null || (await adapter.hasConversation?.(ref, account)) === false;
     const mismatched =
       ref !== null && (await adapter.sessionRefMatches?.(ref, context, account)) === false;
-    if (missing || duplicated || mismatched) {
+    if (missing || mismatched) {
       const recovered =
         (await adapter.discoverSessionRef?.(session.worktree_path, account, context)) ?? null;
       if (recovered === null) {
@@ -143,7 +133,7 @@ export class SessionRefs {
       this.deps.events.record(session.id, 'session_ref_recovered', {
         ref,
         previous_ref: previousRef,
-        reason: missing ? 'missing' : duplicated ? 'duplicated' : 'mismatched',
+        reason: missing ? 'missing' : 'mismatched',
       });
     }
     if (ref === null) {
@@ -162,6 +152,8 @@ export class SessionRefs {
       const candidateRef = candidate.agent_session_ref;
       if (
         candidate.id === session.id ||
+        (session.conversation_id != null &&
+          candidate.conversation_id === session.conversation_id) ||
         candidate.account_id !== account.id ||
         candidateRef === null
       ) {
@@ -189,6 +181,8 @@ export class SessionRefs {
     for (const candidate of this.deps.sessions.list()) {
       if (
         candidate.id === session.id ||
+        (session.conversation_id != null &&
+          candidate.conversation_id === session.conversation_id) ||
         candidate.account_id !== account.id ||
         candidate.agent_session_ref !== recoveredRef
       ) {

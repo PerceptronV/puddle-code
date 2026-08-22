@@ -265,4 +265,8 @@
 // moves one entry from an explicitly identified source filetree into the
 // URL-addressed destination filetree. New clients keep same-tree paste on the
 // old copy/rename routes and hide only cross-tree paste on older daemons.
-export const PROTOCOL_VERSION = { major: 16, minor: 3 } as const;
+// 16.4 (2026-08-22): additive — native conversation catalogue metadata on
+// Session, POST /api/projects/:id/conversations/refresh, lifecycle agent
+// signals, session-switched / sessions-changed WS messages, and optional
+// structured error details for already-live conversation conflicts.
+export const PROTOCOL_VERSION = { major: 16, minor: 4 } as const;

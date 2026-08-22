@@ -15,7 +15,7 @@ import {
   UserRoundCog,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { toastError } from '../../lib/errors';
+import { liveConversationTarget, toastError } from '../../lib/errors';
 import type { Account, Session } from '@puddle/shared';
 import { AgentIcon } from '../../components/agent-icon';
 import { Button } from '../../components/ui/button';
@@ -183,7 +183,7 @@ export function useSessionMenu(
 
   const menu: SessionMenu = {
     session,
-    resumable: RESUMABLE.includes(session.status),
+    resumable: RESUMABLE.includes(session.status) && !session.conversation_missing,
     live: LIVE.includes(session.status),
     archived: session.status === 'archived',
     canMigrate,
@@ -191,7 +191,17 @@ export function useSessionMenu(
     handoffTargets:
       !session.worktree_missing && session.status !== 'archived' ? handoffTargets : [],
     setHandoffTo,
-    resume: () => resume.mutate(session.id, { onError: (e) => toastError(e) }),
+    resume: () =>
+      resume.mutate(session.id, {
+        onError: (error) => {
+          const target = liveConversationTarget(error);
+          if (target) {
+            void navigate(`/project/${target.projectId}/session/${target.sessionId}`);
+          } else {
+            toastError(error);
+          }
+        },
+      }),
     // Killing only stops the process — the conversation stays resumable — so
     // it fires straight away, like archive.
     kill: () => kill.mutate(session.id, { onError: (e) => toastError(e) }),

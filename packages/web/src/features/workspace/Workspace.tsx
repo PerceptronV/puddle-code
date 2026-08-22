@@ -30,7 +30,11 @@ import {
 import { Button } from '../../components/ui/button';
 import { useExplorerTarget } from '../explorer/use-explorer-target';
 import { fileTabRevealTarget } from '../explorer/file-tab-reveal';
-import { directoryTargetSupported, untitledSupported } from '../../lib/protocol-support';
+import {
+  directoryTargetSupported,
+  nativeConversationSyncSupported,
+  untitledSupported,
+} from '../../lib/protocol-support';
 import { clientSettings, updateClientSettings, useClientSettings } from '../../lib/client-settings';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
 import {
@@ -46,6 +50,7 @@ import {
   useProjectDetail,
   useProjects,
   useRepos,
+  refreshProjectConversations,
 } from '../../lib/queries';
 import { mergeOrder, orderByDrag, reorderIds } from './session-order';
 import { useNewSession } from '../shell/new-session-context';
@@ -146,6 +151,7 @@ function WorkspaceInner() {
   const accounts = useAccounts(detail.data?.project.profile_id).data ?? [];
   const renderTitle = useSessionTitleRenderer();
   const saveKey = useHotkeyLabel('editor.save');
+  const daemonProtocol = useDaemonVersion().data?.protocol;
 
   // Profile-keyed (SPEC §11): the layout tree is shared across projects, so the
   // tiling area needs every session it may hold a tab for — whatever the
@@ -425,6 +431,31 @@ function WorkspaceInner() {
   const pendingOpen = useRef<{ session: string; pin: boolean } | null>(null);
   const { setHandler } = useNewSession();
 
+  // A cockpit transition schedules one coalesced native-store refresh. The
+  // project renders from its normal cache while discovery runs in the daemon;
+  // `sessions-changed` invalidates the catalogue only when rows actually move.
+  useEffect(() => {
+    if (!validProject || !nativeConversationSyncSupported(daemonProtocol)) return;
+    void refreshProjectConversations(projectId).catch(() => undefined);
+  }, [daemonProtocol, projectId, validProject]);
+
+  // Follow an exact native switch only in the viewer that was focused on the
+  // source session. The source tab stays in the tree as frozen history; the
+  // target opens as a preview in the focused pane (or the destination
+  // project's focused pane after navigation).
+  useEffect(
+    () =>
+      wsManager.onSessionSwitched((event) => {
+        if (event.source_session !== activeSessionId) return;
+        pendingOpen.current = { session: event.target_session, pin: false };
+        if (event.target_project === projectId) {
+          layoutRef.current.ensureTerminal(event.target_session, { preview: true });
+        }
+        void navigate(`/project/${event.target_project}/session/${event.target_session}`);
+      }),
+    [activeSessionId, navigate, projectId],
+  );
+
   // Opening any tab from a navigator (files tree, diff list, history list) or a
   // Phase 4 terminal link adds/focuses its editor tab and makes it active —
   // pure ui-state, so it works before the lazy editor chunk loads. A `position`
@@ -538,7 +569,6 @@ function WorkspaceInner() {
   // daemon the POST would 404, which reads as a bug rather than a version
   // gap — say what is actually missing. Unknown (still fetching) reads as
   // supported, like every other gate.
-  const daemonProtocol = useDaemonVersion().data?.protocol;
   const draftsSupported = untitledSupported(daemonProtocol);
   const onNewUntitled = useCallback(
     (_leaf: LayoutLeaf) => {

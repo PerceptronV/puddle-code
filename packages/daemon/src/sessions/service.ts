@@ -4,21 +4,24 @@ import { existsSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import type {
   Account,
+  AgentSignalRequest,
   ClearSessionEnvResponse,
   CreateSessionRequest,
   Session,
   SessionEnvResponse,
   SessionStatus,
 } from '@puddle/shared';
-import type { AgentAdapter } from '../agents/adapter.js';
+import type { AgentAdapter, LifecycleLaunchResource } from '../agents/adapter.js';
 import { assertBinaryAvailable } from '../agents/binary.js';
 import type { AdapterRegistry } from '../agents/registry.js';
 import type { AccountStore } from '../db/stores/accounts.js';
+import type { ConversationStore } from '../db/stores/conversations.js';
 import type { EventStore } from '../db/stores/events.js';
 import type { ProfileStore } from '../db/stores/profiles.js';
 import type { ProjectStore } from '../db/stores/projects.js';
 import type { RepoStore } from '../db/stores/repos.js';
 import type { SessionStore } from '../db/stores/sessions.js';
+import { KeyedMutex } from '../git/mutex.js';
 import { ApiError } from '../http/errors.js';
 import { containedPath } from '../http/routes/worktree-shared.js';
 import type { LogStore } from '../logs/log-store.js';
@@ -48,6 +51,7 @@ export interface SessionServiceDeps {
   repos: RepoStore;
   projects: ProjectStore;
   sessions: SessionStore;
+  conversations: ConversationStore;
   events: EventStore;
   worktrees: WorktreeManager;
   ptys: PtyManager;
@@ -89,7 +93,25 @@ export interface RenameEvent {
   osc_title?: string | null;
 }
 
+export type LifecycleSignal = Extract<
+  AgentSignalRequest,
+  { event: 'session_start' | 'session_end' }
+>;
+
+export interface SessionSwitchEvent {
+  sourceSession: string;
+  targetSession: string;
+  targetProject: string;
+  cause: 'clear' | 'resume' | 'fork';
+  outcome: 'rebound' | 'focused-existing';
+}
+
 interface LiveAgent {
+  /** Stable identity for the process tree, independent of its active placement. */
+  runtimeId: string;
+  activeSessionId: string;
+  conversationId: number | null;
+  lifecycleResource: LifecycleLaunchResource | null;
   /** Null for terminal sessions — a plain shell has no status detector. */
   detector: StatusDetector | null;
   /** When this PTY was spawned, to tell a failed launch from a later crash. */
@@ -148,7 +170,11 @@ const MAX_ENV_VARS = 128;
 export class SessionService extends EventEmitter {
   private readonly liveAgents = new Map<string, LiveAgent>();
   /** nonce → session id for /agent-signal lookups; entries die with the PTY. */
-  private readonly signalNonces = new Map<string, string>();
+  private readonly signalNonces = new Map<string, LiveAgent>();
+  /** Stable runtime registry and the one-live-runtime-per-conversation index. */
+  private readonly runtimes = new Map<string, LiveAgent>();
+  private readonly conversationRuntimes = new Map<number, LiveAgent>();
+  private readonly lifecycleMutex = new KeyedMutex();
   /** The daemon's bound port, once known — enables the signal env injection. */
   private signalPort: number | null = null;
   /** Sessions whose conversation is already adopted — stops the retry loop. */
@@ -222,7 +248,8 @@ export class SessionService extends EventEmitter {
   /**
    * Captures a minted conversation ref once it becomes visible, then refreshes
    * the independent human-readable agent name. Codex keeps its stable UUID in
-   * `agent_session_ref` while `/rename` only changes `agent_title`.
+   * `agent_session_ref` while `/rename` only changes the conversation's native
+   * title; every placement reads that title through the store join.
    */
   private refreshAgentIdentity(sessionId: string): void {
     let session: Session;
@@ -239,13 +266,17 @@ export class SessionService extends EventEmitter {
     void this.sessionRefs
       .refreshAvailable(session, account, adapter)
       .catch(() => false)
-      .then(() => this.refreshAgentTitle(sessionId));
+      .then(() => {
+        this.bindRuntimeConversation(sessionId);
+        this.refreshAgentTitle(sessionId);
+      });
   }
 
   /**
    * Re-reads the agent's own session name (adapter.sessionTitle) and, when it
-   * changed, stores it in `agent_title` and broadcasts — so an attached client's
-   * default display name tracks the agent live (a user override still wins).
+   * changed, stores it on the native conversation and broadcasts — so an
+   * attached client's joined `agent_title` tracks the agent live (a placement
+   * user override still wins).
    * Best-effort: hooked off status changes and exit, and never throws upward.
    */
   private refreshAgentTitle(sessionId: string): void {
@@ -331,6 +362,7 @@ export class SessionService extends EventEmitter {
       base_branch: worktree.baseBranch,
       branch: worktree.branch,
       separate_branch: separateBranch,
+      branch_owned: worktree.created,
       kind: 'agent',
       agent_type: account.agent_type,
       title: input.title ?? null,
@@ -389,6 +421,7 @@ export class SessionService extends EventEmitter {
         }
       },
     );
+    this.bindRuntimeConversation(sessionId);
     // Adopt-after-first-write: the conversation file rarely exists this early,
     // so this is a best-effort first attempt; the waiting_input flip retries.
     this.scheduleAdopt(sessionId);
@@ -398,6 +431,7 @@ export class SessionService extends EventEmitter {
       account_id: account.id,
       skip_permissions: skip,
       separate_branch: separateBranch,
+      branch_owned: worktree.created,
       worktree_created: worktree.created,
     });
     // Only the worktree's creator watches its .puddle/ markers: in a shared
@@ -572,7 +606,11 @@ export class SessionService extends EventEmitter {
       this.deps.events.record(sessionId, 'spawn_failed', { message: (e as Error).message });
       throw new ApiError(500, 'spawn_failed', `could not start ${shell}: ${(e as Error).message}`);
     }
-    this.liveAgents.set(sessionId, {
+    const live: LiveAgent = {
+      runtimeId: randomUUID(),
+      activeSessionId: sessionId,
+      conversationId: null,
+      lifecycleResource: null,
       detector: null,
       startedAt: Date.now(),
       status: 'starting',
@@ -581,11 +619,34 @@ export class SessionService extends EventEmitter {
       lastOscTitle: null,
       signalNonce: null,
       signalled: false,
-    });
+    };
+    this.liveAgents.set(sessionId, live);
+    this.runtimes.set(live.runtimeId, live);
   }
 
   async resume(id: string): Promise<Session> {
+    return this.lifecycleMutex.run('native-conversation-switch', () => this.resumeCore(id));
+  }
+
+  private async resumeCore(id: string): Promise<Session> {
     const session = this.deps.sessions.get(id);
+    if (session.conversation_missing) {
+      throw ApiError.conflict(
+        'conversation_missing',
+        'the native conversation no longer exists; this placement cannot resume',
+      );
+    }
+    if (session.conversation_id !== null && session.conversation_id !== undefined) {
+      const owner = this.conversationRuntimes.get(session.conversation_id);
+      if (owner && owner.activeSessionId !== id) {
+        const existing = this.deps.sessions.get(owner.activeSessionId);
+        throw ApiError.conflict(
+          'conversation_live',
+          'this native conversation is already running in another placement',
+          { existing_session_id: existing.id, existing_project_id: existing.project_id },
+        );
+      }
+    }
     if (session.status !== 'exited' && session.status !== 'interrupted') {
       throw ApiError.conflict(
         'not_resumable',
@@ -625,7 +686,7 @@ export class SessionService extends EventEmitter {
     const ref = await this.sessionRefs.resolveForResume(session, account, adapter);
 
     const wasInterrupted = session.status === 'interrupted';
-    const { skip } = this.resumeSpawn(session, account, adapter, project.profile_id, ref, {
+    const { skip } = await this.resumeSpawn(session, account, adapter, project.profile_id, ref, {
       interruptedNote: wasInterrupted,
     });
     this.deps.events.record(id, 'resumed', {
@@ -646,14 +707,14 @@ export class SessionService extends EventEmitter {
    * worktree, transitions to `running`, and returns the effective flags. The
    * caller records the lifecycle event (`resumed` / `migrated`).
    */
-  private resumeSpawn(
+  private async resumeSpawn(
     session: Session,
     account: Account,
     adapter: AgentAdapter,
     profileId: string,
     ref: string,
     opts: { interruptedNote: boolean },
-  ): { skip: boolean; downgraded: boolean } {
+  ): Promise<{ skip: boolean; downgraded: boolean }> {
     const skip = this.evaluateSkip(profileId, account, adapter, session.skip_permissions);
     const downgraded = session.skip_permissions && !skip;
     if (downgraded) this.deps.sessions.setSkipPermissions(session.id, false);
@@ -673,7 +734,8 @@ export class SessionService extends EventEmitter {
       prompt: restartNote,
       skipPermissions: skip,
     });
-    this.spawnAgent(session.id, session.worktree_path, account, adapter, args, 'running');
+    await this.spawnAgent(session.id, session.worktree_path, account, adapter, args, 'running');
+    this.bindRuntimeConversation(session.id);
     this.transition(session.id, 'running');
     if (downgraded) {
       this.deps.ptys.note(
@@ -779,7 +841,7 @@ export class SessionService extends EventEmitter {
     const fromAccountId = session.account_id;
     this.deps.sessions.setAccountId(id, target.id);
     try {
-      this.resumeSpawn(session, target, adapter, project.profile_id, ref, {
+      await this.resumeSpawn(session, target, adapter, project.profile_id, ref, {
         interruptedNote: false,
       });
     } catch (e) {
@@ -1111,14 +1173,14 @@ export class SessionService extends EventEmitter {
     return { shell, args: hook?.args ?? [], env: { ...captured, ...(hook?.env ?? {}) } };
   }
 
-  private spawnAgent(
+  private async spawnAgent(
     sessionId: string,
     worktreePath: string,
     account: Account,
     adapter: AgentAdapter,
     args: string[],
     initial: LiveAgent['status'],
-  ): void {
+  ): Promise<void> {
     // The status-signal side-channel (SPEC §4): a per-spawn nonce plus the
     // daemon's own /agent-signal URL, injected so agent hook processes (which
     // inherit this env) can report running ⇄ waiting_input authoritatively.
@@ -1126,8 +1188,43 @@ export class SessionService extends EventEmitter {
     // A fresh agent is never an expected exit — clear any flag a previous
     // kill left behind so this run's crash is reported.
     this.expectedExits.delete(sessionId);
+    let lifecycleResource: LifecycleLaunchResource | null = null;
+    let spawnArgs = args;
+    let nativeSync: NonNullable<Session['native_sync']> = 'fallback';
+    if (signalNonce !== null && this.signalPort !== null) {
+      if (adapter.prepareLifecycleLaunch) {
+        try {
+          lifecycleResource = await adapter.prepareLifecycleLaunch({
+            account,
+            opts: {
+              worktreePath,
+              sessionId,
+              skipPermissions: this.deps.sessions.get(sessionId).skip_permissions,
+            },
+            args,
+            signalUrl: `http://127.0.0.1:${this.signalPort}/agent-signal`,
+            signalNonce,
+          });
+          spawnArgs = lifecycleResource.args;
+          nativeSync = 'full';
+        } catch (error) {
+          console.warn(
+            `${adapter.displayName} lifecycle bridge unavailable: ${(error as Error).message}`,
+          );
+        }
+      } else if (adapter.lifecycleSignals) {
+        try {
+          nativeSync =
+            (await adapter.checkLifecycleSupport?.(account)) === false ? 'fallback' : 'full';
+        } catch (error) {
+          console.warn(
+            `${adapter.displayName} lifecycle capability check failed: ${(error as Error).message}`,
+          );
+        }
+      }
+    }
     try {
-      this.deps.ptys.spawn(sessionId, 'agent', adapter.binary, args, {
+      this.deps.ptys.spawn(sessionId, 'agent', adapter.binary, spawnArgs, {
         cwd: worktreePath,
         // Adapter env is sacrosanct (e.g. CLAUDE_CONFIG_DIR) — it wins over
         // captured vars; process.env is merged underneath by PtyManager.
@@ -1143,6 +1240,7 @@ export class SessionService extends EventEmitter {
         },
       });
     } catch (e) {
+      await lifecycleResource?.dispose();
       this.transition(sessionId, 'exited');
       this.deps.events.record(sessionId, 'spawn_failed', { message: (e as Error).message });
       throw new ApiError(
@@ -1151,15 +1249,25 @@ export class SessionService extends EventEmitter {
         `could not start ${adapter.binary}: ${(e as Error).message}`,
       );
     }
+    // Detector callbacks follow the stable runtime's current placement. A
+    // closure over the spawn-time session id would silently stop status
+    // updates after a native switch for regex-driven agents.
+    let live: LiveAgent | null = null;
     const detector = new StatusDetector(
       adapter.statusPatterns,
       {
-        onStatus: (s) => this.onDetected(sessionId, s),
-        onLimitReached: () => this.deps.events.record(sessionId, 'limit_reached'),
+        onStatus: (s) => this.onDetected(live?.activeSessionId ?? sessionId, s),
+        onLimitReached: () =>
+          this.deps.events.record(live?.activeSessionId ?? sessionId, 'limit_reached'),
       },
       this.deps.statusQuietMs ?? 2000,
     );
-    this.liveAgents.set(sessionId, {
+    const current = this.deps.sessions.get(sessionId);
+    live = {
+      runtimeId: randomUUID(),
+      activeSessionId: sessionId,
+      conversationId: current.conversation_id ?? null,
+      lifecycleResource,
       detector,
       startedAt: Date.now(),
       status: initial,
@@ -1168,8 +1276,27 @@ export class SessionService extends EventEmitter {
       lastOscTitle: null,
       signalNonce,
       signalled: false,
-    });
-    if (signalNonce !== null) this.signalNonces.set(signalNonce, sessionId);
+    };
+    this.liveAgents.set(sessionId, live);
+    this.runtimes.set(live.runtimeId, live);
+    if (live.conversationId !== null) this.conversationRuntimes.set(live.conversationId, live);
+    if (signalNonce !== null) this.signalNonces.set(signalNonce, live);
+    if (lifecycleResource?.sidecarPids?.length || lifecycleResource?.hiddenPorts?.length) {
+      this.deps.ptys.registerSidecars(
+        sessionId,
+        lifecycleResource.sidecarPids ?? [],
+        lifecycleResource.hiddenPorts ?? [],
+      );
+    }
+    this.deps.sessions.setNativeSync(sessionId, nativeSync);
+    if (nativeSync === 'fallback' && signalNonce !== null) {
+      this.emit('notice', {
+        level: 'warning',
+        title: 'Conversation switching is not synchronised',
+        detail: `${adapter.displayName} will keep running, but in-agent conversation switches will stay in this terminal tab.`,
+        session: sessionId,
+      } satisfies NoticeEvent);
+    }
   }
 
   private onPtyData(e: PtyDataEvent): void {
@@ -1252,13 +1379,203 @@ export class SessionService extends EventEmitter {
    * flips the session to hooks-are-authoritative (see LiveAgent.signalled).
    */
   signalAgentStatus(nonce: string, state: 'working' | 'waiting_input'): boolean {
-    const sessionId = this.signalNonces.get(nonce);
-    if (sessionId === undefined) return false;
-    const live = this.liveAgents.get(sessionId);
-    if (!live) return false;
+    const live = this.signalNonces.get(nonce);
+    if (!live || !this.runtimes.has(live.runtimeId)) return false;
+    const sessionId = live.activeSessionId;
     live.signalled = true;
     this.onDetected(sessionId, state === 'working' ? 'running' : 'waiting_input', 'signal');
     return true;
+  }
+
+  /**
+   * Consume an exact top-level native lifecycle event. Compact and initial
+   * startup only refresh identity; clear/resume/fork may atomically move the
+   * stable runtime to another immutable Puddle placement.
+   */
+  async signalAgentLifecycle(signal: LifecycleSignal): Promise<boolean> {
+    const runtime = this.signalNonces.get(signal.nonce);
+    if (!runtime || !this.runtimes.has(runtime.runtimeId)) return false;
+    return this.lifecycleMutex.run('native-conversation-switch', async () => {
+      if (!this.runtimes.has(runtime.runtimeId)) return false;
+      const sourceId = runtime.activeSessionId;
+      const source = this.deps.sessions.get(sourceId);
+      if (signal.event === 'session_end') {
+        this.deps.events.record(sourceId, 'native_session_end', {
+          source: signal.source,
+          ref: signal.agent_session_ref ?? source.agent_session_ref,
+        });
+        return true;
+      }
+      if (!signal.agent_session_ref || source.account_id === null || source.agent_type === null) {
+        return true;
+      }
+      const account = this.deps.accounts.get(source.account_id);
+      const project = this.deps.projects.get(source.project_id);
+      const parentRef =
+        signal.parent_agent_session_ref ??
+        (signal.source === 'fork' ? (source.agent_session_ref ?? undefined) : undefined);
+      const conversation = this.deps.conversations.upsert(
+        project.profile_id,
+        source.agent_type,
+        account.id,
+        {
+          ref: signal.agent_session_ref,
+          cwd: signal.cwd,
+          ...(signal.native_title !== undefined ? { title: signal.native_title } : {}),
+          ...(parentRef !== undefined ? { parentRef } : {}),
+          ...(signal.native_created_at !== undefined
+            ? { createdAt: signal.native_created_at }
+            : {}),
+          ...(signal.native_updated_at !== undefined
+            ? { updatedAt: signal.native_updated_at }
+            : {}),
+        },
+      );
+      // An exact event proves which account currently owns the native
+      // conversation, unlike catalogue polling of a profile-shared store.
+      this.deps.conversations.setPreferredAccount(conversation.id, account.id);
+
+      const sameConversation = source.conversation_id === conversation.id;
+      if (signal.source === 'compact' || sameConversation) {
+        if (!sameConversation && source.conversation_id == null) {
+          this.deps.sessions.setConversation(sourceId, conversation.id);
+        }
+        this.bindRuntimeConversation(sourceId);
+        this.deps.sessions.setNativeSync(sourceId, 'full');
+        return true;
+      }
+      if (!['clear', 'resume', 'fork'].includes(signal.source)) {
+        if (source.conversation_id == null) {
+          this.deps.sessions.setConversation(sourceId, conversation.id);
+          this.bindRuntimeConversation(sourceId);
+        }
+        this.deps.sessions.setNativeSync(sourceId, 'full');
+        return true;
+      }
+
+      const cause = signal.source as SessionSwitchEvent['cause'];
+      const existingRuntime = this.conversationRuntimes.get(conversation.id);
+      if (existingRuntime && existingRuntime !== runtime) {
+        const target = this.deps.sessions.get(existingRuntime.activeSessionId);
+        this.expectExit(sourceId);
+        this.deps.ptys.killAll(sourceId);
+        if (LIVE_STATUSES.includes(source.status)) this.transition(sourceId, 'exited');
+        this.deps.events.record(sourceId, 'native_switch_conflict', {
+          cause,
+          target_session: target.id,
+          target_project: target.project_id,
+        });
+        this.emit('session-switched', {
+          sourceSession: sourceId,
+          targetSession: target.id,
+          targetProject: target.project_id,
+          cause,
+          outcome: 'focused-existing',
+        } satisfies SessionSwitchEvent);
+        return true;
+      }
+
+      const canonicalPath = this.deps.sessions.canonicalWorktreePath(sourceId);
+      let targetId = this.deps.conversations.placement(
+        conversation.id,
+        source.project_id,
+        canonicalPath,
+      );
+      if (targetId === null) {
+        targetId = randomUUID();
+        this.deps.sessions.create({
+          id: targetId,
+          project_id: source.project_id,
+          account_id: source.account_id,
+          conversation_id: conversation.id,
+          worktree_path: source.worktree_path,
+          base_branch: source.base_branch,
+          branch: source.branch,
+          separate_branch: source.separate_branch,
+          branch_owned: false,
+          kind: 'agent',
+          agent_type: source.agent_type,
+          title: null,
+          status: 'exited',
+          native_sync: 'full',
+          skip_permissions: source.skip_permissions,
+        });
+      }
+      if (targetId === sourceId) {
+        this.bindRuntimeConversation(sourceId);
+        return true;
+      }
+
+      this.deps.sessions.adoptRuntimeState(sourceId, targetId);
+      this.deps.sessions.transferBranchOwnership(sourceId, targetId);
+      this.liveAgents.delete(sourceId);
+      this.liveAgents.set(targetId, runtime);
+      runtime.activeSessionId = targetId;
+      if (runtime.conversationId !== null) {
+        const indexed = this.conversationRuntimes.get(runtime.conversationId);
+        if (indexed === runtime) this.conversationRuntimes.delete(runtime.conversationId);
+      }
+      runtime.conversationId = conversation.id;
+      this.conversationRuntimes.set(conversation.id, runtime);
+      try {
+        await this.deps.ptys.rebindStream(sourceId, targetId);
+      } catch (error) {
+        this.liveAgents.delete(targetId);
+        this.liveAgents.set(sourceId, runtime);
+        runtime.activeSessionId = sourceId;
+        throw error;
+      }
+      this.deps.onboarding.unwatch(sourceId);
+      this.adopted.delete(sourceId);
+      this.transition(sourceId, 'exited');
+      const runtimeStillLive = this.runtimes.has(runtime.runtimeId);
+      if (runtimeStillLive) this.transition(targetId, runtime.status);
+      this.deps.onboarding.watch(targetId, project.repo_id, source.worktree_path);
+      if (runtimeStillLive) this.deps.ptys.redraw(targetId, 'agent');
+      this.deps.events.record(sourceId, 'native_switched_away', {
+        cause,
+        target_session: targetId,
+        conversation_id: conversation.id,
+      });
+      this.deps.events.record(targetId, 'native_switched_to', {
+        cause,
+        source_session: sourceId,
+        conversation_id: conversation.id,
+      });
+      this.emit('session-switched', {
+        sourceSession: sourceId,
+        targetSession: targetId,
+        targetProject: source.project_id,
+        cause,
+        outcome: 'rebound',
+      } satisfies SessionSwitchEvent);
+      return true;
+    });
+  }
+
+  private bindRuntimeConversation(sessionId: string): void {
+    const runtime = this.liveAgents.get(sessionId);
+    if (!runtime) return;
+    const conversationId = this.deps.sessions.get(sessionId).conversation_id ?? null;
+    if (runtime.conversationId !== null && runtime.conversationId !== conversationId) {
+      const indexed = this.conversationRuntimes.get(runtime.conversationId);
+      if (indexed === runtime) this.conversationRuntimes.delete(runtime.conversationId);
+    }
+    runtime.conversationId = conversationId;
+    if (conversationId === null) return;
+    const existing = this.conversationRuntimes.get(conversationId);
+    if (existing && existing !== runtime) {
+      this.emit('notice', {
+        level: 'warning',
+        title: 'Conversation already running',
+        detail: 'A duplicate runtime was stopped to keep native conversation ownership unique.',
+        session: sessionId,
+      } satisfies NoticeEvent);
+      this.expectExit(sessionId);
+      this.deps.ptys.killAll(sessionId);
+      return;
+    }
+    this.conversationRuntimes.set(conversationId, runtime);
   }
 
   private onDetected(
@@ -1321,6 +1638,15 @@ export class SessionService extends EventEmitter {
     const startupFailure = Date.now() - live.startedAt < STARTUP_FAILURE_MS;
     live.detector?.dispose();
     if (live.signalNonce !== null) this.signalNonces.delete(live.signalNonce);
+    this.deps.ptys.unregisterSidecars(e.stream);
+    void live.lifecycleResource?.dispose();
+    this.runtimes.delete(live.runtimeId);
+    if (
+      live.conversationId !== null &&
+      this.conversationRuntimes.get(live.conversationId) === live
+    ) {
+      this.conversationRuntimes.delete(live.conversationId);
+    }
     this.liveAgents.delete(e.stream);
     if (this.shuttingDown) return; // reconcile turns these into `interrupted` next boot
     this.transition(e.stream, 'exited');

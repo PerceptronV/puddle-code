@@ -99,10 +99,24 @@ function useStatusCacheSync() {
         }
       }
     });
+    const invalidateSessions = (projectIds: string[]) => {
+      void qc.invalidateQueries({ queryKey: ['sessions'] });
+      for (const projectId of projectIds) {
+        void qc.invalidateQueries({ queryKey: ['project', projectId] });
+      }
+    };
+    const offSessionsChanged = wsManager.onSessionsChanged((event) =>
+      invalidateSessions(event.project_ids),
+    );
+    const offSwitched = wsManager.onSessionSwitched((event) =>
+      invalidateSessions([event.target_project]),
+    );
     return () => {
       offStatus();
       offRenamed();
       offAccount();
+      offSessionsChanged();
+      offSwitched();
     };
   }, [qc]);
 }

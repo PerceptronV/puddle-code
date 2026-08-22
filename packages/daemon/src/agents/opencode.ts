@@ -4,6 +4,8 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { AgentAdapter } from './adapter.js';
+import { installOpenCodePlugin } from './opencode-plugin.js';
+import { lifecycleVersionAtLeast } from './lifecycle-version.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -46,6 +48,10 @@ const METADATA_CONCURRENCY = 32;
  * - `opencode export <sessionID>` emits the session as JSON — a first-class
  *   transcript source, so exportTranscript shells out rather than parsing the
  *   on-disk store.
+ * - Puddle's managed plugin consumes top-level session lifecycle/status
+ *   events. A session carrying parentID is a child and never changes the live
+ *   Puddle placement; keep the real-agent cases in docs/acceptance pinned when
+ *   upgrading beyond 1.18.10.
  *
  * No `conversationShare`: sessions are per-project JSON files under the data
  * dir rather than per-conversation directories, so the Workstream S store model
@@ -71,6 +77,11 @@ export const opencode: AgentAdapter = {
     for (const sub of [CONFIG_HOME, DATA_HOME, CACHE_HOME, STATE_HOME]) {
       mkdirSync(join(configDir, sub), { recursive: true });
     }
+    installOpenCodePlugin(configDir);
+  },
+
+  reconcileConfigDir(account) {
+    installOpenCodePlugin(account.config_dir);
   },
 
   launchArgs(opts) {
@@ -167,6 +178,23 @@ export const opencode: AgentAdapter = {
     }
   },
 
+  conversationDiscovery: {
+    watchRoots: (account) => [join(dataDir(account.config_dir), 'storage', 'session')],
+    discover: async (account) =>
+      (await allSessions(account.config_dir))
+        .filter((session) => session.parentID === null)
+        .map((session) => ({
+          ref: session.id,
+          cwd: session.directory,
+          title: session.title,
+          parentRef: null,
+          createdAt: session.createdAt === null ? null : new Date(session.createdAt).toISOString(),
+          updatedAt: new Date(session.updatedAt).toISOString(),
+        })),
+  },
+  lifecycleSignals: true,
+  checkLifecycleSupport: () => lifecycleVersionAtLeast('opencode', ['--version'], [1, 18, 10]),
+
   /**
    * UNVERIFIED against a live session (opencode needs a configured provider to
    * reach its composer). Confirm via docs/acceptance/phase-7-agents.md and
@@ -224,6 +252,8 @@ function stripHeading(stdout: string): string {
 interface StoredSession {
   id: string;
   directory: string;
+  title: string | null;
+  parentID: string | null;
   createdAt: number | null;
   updatedAt: number;
 }
@@ -245,7 +275,9 @@ const activeSessionScans = new Map<string, Promise<StoredSession[]>>();
  * one scan.
  */
 async function sessionsFor(configDir: string, worktreePath?: string): Promise<StoredSession[]> {
-  const all = await allSessions(configDir);
+  // `parentID` identifies child/subagent sessions. They are native side
+  // threads, never the top-level conversation a Puddle runtime owns.
+  const all = (await allSessions(configDir)).filter((session) => session.parentID === null);
   return worktreePath === undefined
     ? all
     : all.filter((session) => session.directory === worktreePath);
@@ -298,6 +330,8 @@ async function readStoredSession(
       id?: string;
       directory?: string;
       cwd?: string;
+      title?: string;
+      parentID?: string;
       time?: { updated?: number; created?: number };
     };
     const dir = record.directory ?? record.cwd;
@@ -309,6 +343,8 @@ async function readStoredSession(
       session: {
         id: record.id ?? name.slice(0, -'.json'.length),
         directory: dir,
+        title: typeof record.title === 'string' ? record.title.trim().slice(0, 80) || null : null,
+        parentID: typeof record.parentID === 'string' ? record.parentID : null,
         createdAt,
         updatedAt: normaliseEpoch(record.time?.updated) ?? createdAt ?? 0,
       },

@@ -28,6 +28,11 @@ interface Live {
   proc: pty.IPty;
   record: boolean;
   filter: EnvOscFilter;
+  /** Mutable runtime placement; lifecycle switches rebind without respawning. */
+  stream: string;
+  term: string;
+  /** Raw chunks held while the old log/screen segment is being frozen. */
+  quiesced: string[] | null;
   /** Chunk-boundary carry for the OSC colour-query scanner (terminal-theme.ts). */
   queryTail: string;
 }
@@ -49,6 +54,7 @@ const DEFAULT_SIZE = { cols: 120, rows: 32 } as const;
  */
 export class PtyManager extends EventEmitter {
   private readonly live = new Map<string, Live>();
+  private readonly sidecars = new Map<string, { pids: Set<number>; hiddenPorts: Set<number> }>();
   private readonly screens: TerminalScreenStateStore;
   /**
    * The last size a viewer asked for, per (stream, term) — kept whether or not a
@@ -95,33 +101,116 @@ export class PtyManager extends EventEmitter {
       env: { ...process.env, ...opts.env } as Record<string, string>,
     });
     const filter = new EnvOscFilter();
-    const live: Live = { proc, record, filter, queryTail: '' };
+    const live: Live = {
+      proc,
+      record,
+      filter,
+      stream,
+      term,
+      quiesced: null,
+      queryTail: '',
+    };
     this.live.set(key, live);
     proc.onData((raw) => {
-      const { data, deltas } = filter.push(raw);
-      for (const delta of deltas) {
-        this.emit('env-delta', { stream, term, delta } satisfies PtyEnvDeltaEvent);
+      if (live.quiesced !== null) {
+        live.quiesced.push(raw);
+        return;
       }
-      if (data === '') return; // chunk fully swallowed by the side-channel
-      // Answer dynamic-colour queries the moment they appear in the output —
-      // passive detection, the bytes still flow to logs and viewers untouched.
-      if (this.theme) {
-        for (const code of findColourQueries(live.queryTail, data)) {
-          const report = this.theme.report(code);
-          if (report !== null) proc.write(report);
-        }
-        live.queryTail = data.slice(-QUERY_CARRY);
-      }
-      if (record) this.logs.append(stream, term, data);
-      this.screens.write(stream, term, data);
-      this.emit('data', { stream, term, data } satisfies PtyDataEvent);
+      this.handleData(live, raw);
     });
     proc.onExit(({ exitCode }) => {
-      if (record) this.logs.close(stream, term);
-      this.live.delete(key);
-      this.emit('exit', { stream, term, exitCode } satisfies PtyExitEvent);
-      void this.screens.release(stream, term);
+      // A lifecycle rebind may be freezing the old segment when the process
+      // exits. Flush every held byte against whichever placement currently
+      // owns the runtime before closing its log/screen.
+      const held = live.quiesced;
+      live.quiesced = null;
+      for (const raw of held ?? []) this.handleData(live, raw);
+      const currentStream = live.stream;
+      const currentTerm = live.term;
+      if (record) this.logs.close(currentStream, currentTerm);
+      this.live.delete(this.key(currentStream, currentTerm));
+      this.emit('exit', {
+        stream: currentStream,
+        term: currentTerm,
+        exitCode,
+      } satisfies PtyExitEvent);
+      void this.screens.release(currentStream, currentTerm);
     });
+  }
+
+  private handleData(live: Live, raw: string): void {
+    const { stream, term, record, filter, proc } = live;
+    const { data, deltas } = filter.push(raw);
+    for (const delta of deltas) {
+      this.emit('env-delta', { stream, term, delta } satisfies PtyEnvDeltaEvent);
+    }
+    if (data === '') return; // chunk fully swallowed by the side-channel
+    // Answer dynamic-colour queries the moment they appear in the output —
+    // passive detection, the bytes still flow to logs and viewers untouched.
+    if (this.theme) {
+      for (const code of findColourQueries(live.queryTail, data)) {
+        const report = this.theme.report(code);
+        if (report !== null) proc.write(report);
+      }
+      live.queryTail = data.slice(-QUERY_CARRY);
+    }
+    if (record) this.logs.append(stream, term, data);
+    this.screens.write(stream, term, data);
+    this.emit('data', { stream, term, data } satisfies PtyDataEvent);
+  }
+
+  /**
+   * Freeze every terminal segment under `source`, then make the same runtime
+   * continue under `target`. Processes, descriptors, environment, and PTY
+   * sizes are retained; only the durable placement address changes.
+   */
+  async rebindStream(source: string, target: string): Promise<string[]> {
+    if (source === target) return this.liveTerms(source);
+    const entries = [...this.live.values()].filter((live) => live.stream === source);
+    for (const live of entries) {
+      if (this.has(target, live.term)) throw new Error(`pty ${target} ${live.term} already live`);
+      live.quiesced = [];
+    }
+    const sidecars = this.sidecars.get(source);
+    if (sidecars) {
+      this.sidecars.delete(source);
+      this.sidecars.set(target, sidecars);
+    }
+    for (const live of entries) {
+      const sourceKey = this.key(source, live.term);
+      const targetKey = this.key(target, live.term);
+      if (live.record) this.logs.close(source, live.term);
+      this.live.delete(sourceKey);
+      const size = this.sizes.get(sourceKey) ?? DEFAULT_SIZE;
+      this.sizes.set(targetKey, size);
+      this.screens.resize(target, live.term, size.cols, size.rows);
+      live.stream = target;
+      this.live.set(targetKey, live);
+      // State cleanup is best-effort and must not leave a moved process under
+      // two session identities if its persisted screen cannot be released.
+      await this.screens.release(source, live.term).catch(() => undefined);
+      // The process may have exited during the await; its exit callback has
+      // already flushed held output and removed the target key in that case.
+      if (this.live.get(targetKey) !== live) continue;
+      const held = live.quiesced;
+      live.quiesced = null;
+      for (const raw of held ?? []) this.handleData(live, raw);
+    }
+    return entries.map((live) => live.term);
+  }
+
+  /** Make a full-screen TUI repaint after a lifecycle stream switch. */
+  redraw(stream: string, term: string): void {
+    const key = this.key(stream, term);
+    const live = this.live.get(key);
+    if (!live) return;
+    const size = this.sizes.get(key) ?? DEFAULT_SIZE;
+    try {
+      live.proc.resize(size.cols + 1, size.rows);
+      live.proc.resize(size.cols, size.rows);
+    } catch {
+      // The process may exit between the two resize calls.
+    }
   }
 
   write(stream: string, term: string, data: string): void {
@@ -151,6 +240,7 @@ export class PtyManager extends EventEmitter {
     const prefix = `${stream} `;
     for (const key of [...this.sizes.keys()]) if (key.startsWith(prefix)) this.sizes.delete(key);
     void this.screens.forget(stream);
+    this.sidecars.delete(stream);
   }
 
   /**
@@ -211,9 +301,27 @@ export class PtyManager extends EventEmitter {
   /** OS pids of every live PTY on a stream (agent + shell-N terms). */
   pidsFor(stream: string): number[] {
     const prefix = `${stream} `;
-    return [...this.live.entries()]
-      .filter(([k]) => k.startsWith(prefix))
-      .map(([, rec]) => rec.proc.pid);
+    return [
+      ...[...this.live.entries()]
+        .filter(([k]) => k.startsWith(prefix))
+        .map(([, rec]) => rec.proc.pid),
+      ...(this.sidecars.get(stream)?.pids ?? []),
+    ];
+  }
+
+  registerSidecars(stream: string, pids: number[], hiddenPorts: number[]): void {
+    this.sidecars.set(stream, {
+      pids: new Set(pids),
+      hiddenPorts: new Set(hiddenPorts),
+    });
+  }
+
+  unregisterSidecars(stream: string): void {
+    this.sidecars.delete(stream);
+  }
+
+  hiddenPortsFor(stream: string): ReadonlySet<number> {
+    return this.sidecars.get(stream)?.hiddenPorts ?? new Set();
   }
 
   /**

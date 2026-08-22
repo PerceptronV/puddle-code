@@ -11,6 +11,8 @@ import {
   PanelRightOpen,
   Pencil,
   ShieldOff,
+  MessageCircleX,
+  TriangleAlert,
   SquareTerminal,
   type LucideIcon,
 } from 'lucide-react';
@@ -616,6 +618,22 @@ function SessionRow({
                 <FolderX className="size-3.5 shrink-0 text-interrupted" />
               </TooltipTrigger>
               <TooltipContent>Worktree directory is gone — archive only</TooltipContent>
+            </Tooltip>
+          )}
+          {session.conversation_missing && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <MessageCircleX className="size-3.5 shrink-0 text-interrupted" />
+              </TooltipTrigger>
+              <TooltipContent>Native conversation is missing — resume unavailable</TooltipContent>
+            </Tooltip>
+          )}
+          {session.native_sync === 'fallback' && session.status !== 'archived' && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <TriangleAlert className="size-3.5 shrink-0 text-fg-muted" />
+              </TooltipTrigger>
+              <TooltipContent>In-agent conversation switches are not synchronised</TooltipContent>
             </Tooltip>
           )}
           {/* Reserves no width until hover, so the title/branch/badges fill the

@@ -86,4 +86,13 @@ export type WsServerMessage =
    * clients drop the unknown `t` per PROTOCOL.md wire rule 1.
    */
   | { t: 'account'; account_id: number; profile_id: string; logged_in: boolean }
+  | {
+      t: 'session-switched';
+      source_session: string;
+      target_session: string;
+      target_project: string;
+      cause: 'clear' | 'resume' | 'fork';
+      outcome: 'rebound' | 'focused-existing';
+    }
+  | { t: 'sessions-changed'; project_ids: string[] }
   | { t: 'error'; message: string };

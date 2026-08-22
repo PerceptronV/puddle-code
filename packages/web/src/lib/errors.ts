@@ -1,4 +1,5 @@
 import { toast } from 'sonner';
+import { ApiError } from './api';
 
 /**
  * The single place a failed action becomes visible.
@@ -14,6 +15,18 @@ import { toast } from 'sonner';
  */
 export function toastError(error: unknown): void {
   toast.error(message(error), { id: `err:${message(error)}` });
+}
+
+/** Structured 409 from a duplicate native-conversation resume. */
+export function liveConversationTarget(
+  error: unknown,
+): { sessionId: string; projectId: string } | null {
+  if (!(error instanceof ApiError) || error.code !== 'conversation_live') return null;
+  const sessionId = error.details?.['existing_session_id'];
+  const projectId = error.details?.['existing_project_id'];
+  return typeof sessionId === 'string' && typeof projectId === 'string'
+    ? { sessionId, projectId }
+    : null;
 }
 
 function message(error: unknown): string {

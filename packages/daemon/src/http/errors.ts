@@ -8,6 +8,7 @@ export class ApiError extends Error {
     public readonly status: number,
     public readonly code: string,
     message: string,
+    public readonly details?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -17,8 +18,8 @@ export class ApiError extends Error {
     return new ApiError(404, 'not_found', `${what} ${id} does not exist`);
   }
 
-  static conflict(code: string, message: string): ApiError {
-    return new ApiError(409, code, message);
+  static conflict(code: string, message: string, details?: Record<string, unknown>): ApiError {
+    return new ApiError(409, code, message, details);
   }
 
   static badRequest(code: string, message: string): ApiError {

@@ -9,6 +9,7 @@ import type { ProfileStore } from '../../db/stores/profiles.js';
 import type { ProjectStore } from '../../db/stores/projects.js';
 import type { RepoStore } from '../../db/stores/repos.js';
 import type { SessionService } from '../../sessions/service.js';
+import type { ConversationCatalogue } from '../../sessions/conversation-catalogue.js';
 import type { WorktreeManager } from '../../worktrees/manager.js';
 import { hexIdParam, parseBody } from '../validate.js';
 
@@ -17,6 +18,7 @@ export interface ProjectRouteDeps {
   profiles: ProfileStore;
   repos: RepoStore;
   service: SessionService;
+  catalogue: ConversationCatalogue;
   worktrees: WorktreeManager;
 }
 
@@ -30,7 +32,10 @@ export function projectRoutes(deps: ProjectRouteDeps): Hono {
       const body = await parseBody(c, createProjectRequestSchema);
       deps.profiles.get(body.profile_id);
       deps.repos.get(body.repo_id);
-      return c.json(deps.projects.create(body), 201);
+      const project = deps.projects.create(body);
+      deps.catalogue.reconcileWatchers();
+      deps.catalogue.refreshProject(project.id);
+      return c.json(project, 201);
     })
     .get('/:id', (c) => {
       const project = deps.projects.get(hexIdParam(c));
@@ -44,6 +49,11 @@ export function projectRoutes(deps: ProjectRouteDeps): Hono {
         sessions: deps.service.list({ project_id: project.id }),
       });
     })
+    .post('/:id/conversations/refresh', (c) => {
+      const project = deps.projects.get(hexIdParam(c));
+      if (!project.archived) deps.catalogue.refreshProject(project.id);
+      return c.body(null, 204);
+    })
     .patch('/:id', async (c) => {
       const id = hexIdParam(c);
       deps.projects.get(id); // 404 guard
@@ -54,7 +64,11 @@ export function projectRoutes(deps: ProjectRouteDeps): Hono {
           : undefined;
       // Archive is a pure hide flag — reversible, retains every session and
       // worktree (distinct from POST /:id/archive, which archives the sessions).
-      if (body.archived !== undefined) project = deps.projects.setArchived(id, body.archived);
+      if (body.archived !== undefined) {
+        project = deps.projects.setArchived(id, body.archived);
+        deps.catalogue.reconcileWatchers();
+        if (!body.archived) deps.catalogue.refreshProject(id);
+      }
       return c.json(project ?? deps.projects.get(id));
     })
     .post('/:id/archive', async (c) => {

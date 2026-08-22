@@ -1,5 +1,6 @@
 import { Play } from 'lucide-react';
-import { toastError } from '../../lib/errors';
+import { useNavigate } from 'react-router';
+import { liveConversationTarget, toastError } from '../../lib/errors';
 import type { Session } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { useSessionAction } from '../../lib/queries';
@@ -20,7 +21,11 @@ const RESUMABLE: Session['status'][] = ['interrupted', 'exited'];
  */
 export function PaneSessionOverlay({ session }: { session: Session }) {
   const resume = useSessionAction('resume');
-  const resumable = RESUMABLE.includes(session.status) && !session.worktree_missing;
+  const navigate = useNavigate();
+  const resumable =
+    RESUMABLE.includes(session.status) &&
+    !session.worktree_missing &&
+    !session.conversation_missing;
   if (!resumable) return null;
   return (
     <div className="pointer-events-none absolute bottom-2 right-3 z-10">
@@ -28,7 +33,18 @@ export function PaneSessionOverlay({ session }: { session: Session }) {
         size="sm"
         className="pointer-events-auto"
         disabled={resume.isPending}
-        onClick={() => resume.mutate(session.id, { onError: (e) => toastError(e) })}
+        onClick={() =>
+          resume.mutate(session.id, {
+            onError: (error) => {
+              const target = liveConversationTarget(error);
+              if (target) {
+                void navigate(`/project/${target.projectId}/session/${target.sessionId}`);
+              } else {
+                toastError(error);
+              }
+            },
+          })
+        }
       >
         <Play />
         Resume

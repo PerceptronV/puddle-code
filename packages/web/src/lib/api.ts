@@ -7,6 +7,7 @@ export class ApiError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    readonly details?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -35,7 +36,12 @@ export async function api<T>(method: string, path: string, body?: unknown): Prom
   if (!res.ok) {
     const parsed = errorResponseSchema.safeParse(await res.json().catch(() => null));
     if (parsed.success) {
-      throw new ApiError(res.status, parsed.data.error.code, parsed.data.error.message);
+      throw new ApiError(
+        res.status,
+        parsed.data.error.code,
+        parsed.data.error.message,
+        parsed.data.error.details,
+      );
     }
     throw new ApiError(res.status, 'unknown', `${method} ${path} failed with ${res.status}`);
   }
@@ -71,7 +77,12 @@ export async function apiFetchRaw(
   if (!res.ok) {
     const parsed = errorResponseSchema.safeParse(await res.json().catch(() => null));
     if (parsed.success) {
-      throw new ApiError(res.status, parsed.data.error.code, parsed.data.error.message);
+      throw new ApiError(
+        res.status,
+        parsed.data.error.code,
+        parsed.data.error.message,
+        parsed.data.error.details,
+      );
     }
     throw new ApiError(res.status, 'unknown', `${method} ${path} failed with ${res.status}`);
   }

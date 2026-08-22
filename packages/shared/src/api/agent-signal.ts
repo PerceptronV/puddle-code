@@ -9,8 +9,29 @@ import { z } from 'zod';
  * unguessable, dead once the session's PTY exits. `state` maps to the session
  * status: `working` → running, `waiting_input` → waiting_input.
  */
-export const agentSignalRequestSchema = z.object({
+const statusSignalSchema = z.object({
   nonce: z.string().min(16),
   state: z.enum(['working', 'waiting_input']),
 });
+
+/** Exact top-level native lifecycle transition reported by an adapter hook. */
+export const agentLifecycleSignalSchema = z.object({
+  nonce: z.string().min(16),
+  event: z.enum(['session_start', 'session_end']),
+  /** Agent-native conversation id. Required for a start; optional on a best-effort end hook. */
+  agent_session_ref: z.string().min(1).optional(),
+  cwd: z.string().min(1),
+  source: z.enum(['startup', 'resume', 'clear', 'fork', 'compact', 'exit', 'other']),
+  parent_agent_session_ref: z.string().min(1).optional(),
+  native_title: z.string().optional(),
+  native_created_at: z.iso.datetime({ offset: true }).optional(),
+  native_updated_at: z.iso.datetime({ offset: true }).optional(),
+});
+
+/**
+ * Backwards-compatible union: existing hook helpers keep sending the original
+ * `{nonce,state}` status payload, while lifecycle-aware helpers add the exact
+ * native transition variant.
+ */
+export const agentSignalRequestSchema = z.union([statusSignalSchema, agentLifecycleSignalSchema]);
 export type AgentSignalRequest = z.infer<typeof agentSignalRequestSchema>;

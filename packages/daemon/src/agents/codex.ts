@@ -3,8 +3,15 @@ import { statSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import type { AgentAdapter } from './adapter.js';
-import { cachedRolloutPath, renderRollout, rolloutForRef, rolloutsFor } from './codex-rollout.js';
+import {
+  allRollouts,
+  cachedRolloutPath,
+  renderRollout,
+  rolloutForRef,
+  rolloutsFor,
+} from './codex-rollout.js';
 import { codexThread, codexThreadIndex, threadTitle } from './codex-threads.js';
+import { prepareCodexLifecycle } from './codex-lifecycle.js';
 
 const execFileAsync = promisify(execFile);
 const SESSION_START_WINDOW_MS = 5 * 60 * 1000;
@@ -219,6 +226,43 @@ export const codex: AgentAdapter = {
     if (rollout === null) return '';
     return renderRollout(rollout.path);
   },
+
+  conversationDiscovery: {
+    watchRoots: (account) => [account.config_dir],
+    discover: async (account) => {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      const indexed = codexThreadIndex(account.config_dir);
+      const rollouts = await allRollouts(account.config_dir);
+      const parentById = new Map(rollouts.map((meta) => [meta.id, meta.parentThreadId]));
+      const rows = indexed.available
+        ? indexed.threads
+        : rollouts
+            .filter((meta) => meta.parentThreadId === null)
+            .map((meta) => ({
+              id: meta.id,
+              cwd: meta.cwd,
+              createdAt: meta.createdAt,
+              rolloutPath: cachedRolloutPath(account.config_dir, meta.id) ?? '',
+              title: null,
+            }));
+      return rows.map((thread) => ({
+        ref: thread.id,
+        cwd: thread.cwd,
+        title: thread.title,
+        parentRef: parentById.get(thread.id) ?? null,
+        createdAt: thread.createdAt === null ? null : new Date(thread.createdAt).toISOString(),
+        updatedAt: (() => {
+          try {
+            return statSync(thread.rolloutPath).mtime.toISOString();
+          } catch {
+            return null;
+          }
+        })(),
+      }));
+    },
+  },
+
+  prepareLifecycleLaunch: prepareCodexLifecycle,
 
   /**
    * Verified against a live 0.146.0 PTY (2026-08-03): a screen redraw places

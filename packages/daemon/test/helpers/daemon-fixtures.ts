@@ -22,6 +22,7 @@ import { RepoStore } from '../../src/db/stores/repos.js';
 import { LayoutStore } from '../../src/db/stores/layouts.js';
 import { ScratchpadStore } from '../../src/db/stores/scratchpad.js';
 import { SessionStore } from '../../src/db/stores/sessions.js';
+import { ConversationStore } from '../../src/db/stores/conversations.js';
 import { KeyedMutex } from '../../src/git/mutex.js';
 import { LogStore } from '../../src/logs/log-store.js';
 import { ensureHome, resolvePaths } from '../../src/paths.js';
@@ -201,6 +202,7 @@ export interface Fixture {
     repos: RepoStore;
     projects: ProjectStore;
     sessions: SessionStore;
+    conversations: ConversationStore;
     events: EventStore;
     removals: RemovalStore;
     scratchpad: ScratchpadStore;
@@ -248,6 +250,7 @@ export function fixture(
     repos: new RepoStore(db),
     projects: new ProjectStore(db),
     sessions: new SessionStore(db),
+    conversations: new ConversationStore(db),
     events: new EventStore(db),
     removals: new RemovalStore(db),
     scratchpad: new ScratchpadStore(db),

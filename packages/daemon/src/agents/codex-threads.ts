@@ -24,6 +24,7 @@ export interface CodexThread {
   cwd: string;
   createdAt: number | null;
   rolloutPath: string;
+  title: string | null;
 }
 
 export interface CodexThreadIndex {
@@ -70,9 +71,12 @@ export function codexThreadIndex(configDir: string, cwd?: string): CodexThreadIn
       ? 'coalesce(created_at_ms, created_at * 1000)'
       : 'created_at * 1000';
     const threadSource = columns.has('thread_source') ? 'thread_source' : 'NULL';
+    const name = columns.has('name') ? 'name' : 'NULL';
+    const title = columns.has('title') ? 'title' : 'NULL';
     const rows = db
       .prepare(
         `select id, cwd, ${createdMs} as created_ms, rollout_path,
+                ${name} as name, ${title} as title,
                 ${threadSource} as thread_source, source
          from threads
          ${cwd === undefined ? '' : 'where cwd = ?'}
@@ -83,6 +87,8 @@ export function codexThreadIndex(configDir: string, cwd?: string): CodexThreadIn
       cwd: string;
       created_ms: number | null;
       rollout_path: string;
+      name: string | null;
+      title: string | null;
       thread_source: string | null;
       source: string;
     }>;
@@ -95,6 +101,7 @@ export function codexThreadIndex(configDir: string, cwd?: string): CodexThreadIn
           cwd: row.cwd,
           createdAt: row.created_ms,
           rolloutPath: row.rollout_path,
+          title: oneLine(row.name) ?? oneLine(row.title),
         })),
     };
   } catch {
@@ -129,9 +136,12 @@ export function codexThread(configDir: string, ref: string): CodexThread | null 
       ? 'coalesce(created_at_ms, created_at * 1000)'
       : 'created_at * 1000';
     const threadSource = columns.has('thread_source') ? 'thread_source' : 'NULL';
+    const name = columns.has('name') ? 'name' : 'NULL';
+    const title = columns.has('title') ? 'title' : 'NULL';
     const row = db
       .prepare(
         `select id, cwd, ${createdMs} as created_ms, rollout_path,
+                ${name} as name, ${title} as title,
                 ${threadSource} as thread_source, source
          from threads where id = ?`,
       )
@@ -141,6 +151,8 @@ export function codexThread(configDir: string, ref: string): CodexThread | null 
           cwd: string;
           created_ms: number | null;
           rollout_path: string;
+          name: string | null;
+          title: string | null;
           thread_source: string | null;
           source: string;
         }
@@ -157,6 +169,7 @@ export function codexThread(configDir: string, ref: string): CodexThread | null 
       cwd: row.cwd,
       createdAt: row.created_ms,
       rolloutPath: row.rollout_path,
+      title: oneLine(row.name) ?? oneLine(row.title),
     };
   } catch {
     return null;

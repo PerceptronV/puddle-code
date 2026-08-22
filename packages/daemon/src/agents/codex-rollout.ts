@@ -152,6 +152,11 @@ async function rolloutEntries(configDir: string): Promise<RolloutEntry[]> {
   return scan;
 }
 
+/** Every cached rollout, including parent metadata for top-level forks. */
+export async function allRollouts(configDir: string): Promise<RolloutMeta[]> {
+  return (await rolloutEntries(configDir)).map((entry) => entry.meta);
+}
+
 /** Exact path already learnt by discovery, without touching the filesystem. */
 export function cachedRolloutPath(configDir: string, ref: string): string | null {
   return rolloutPathCache.get(configDir)?.get(ref) ?? null;

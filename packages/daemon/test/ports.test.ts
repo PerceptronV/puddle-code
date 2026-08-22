@@ -192,6 +192,23 @@ describe('PortScanner cache', () => {
     expect(ports).toEqual([]);
     expect(calls()).toBe(0);
   });
+
+  it('includes sidecar process roots but hides the bridge’s own ports', async () => {
+    const ptys = {
+      pidsFor: () => [process.pid],
+      hiddenPortsFor: () => new Set([7439]),
+    } as unknown as PtyManager;
+    const scanner = new PortScanner({
+      ptys,
+      lister: async () => [
+        { pid: process.pid, command: 'codex-app-server', port: 7439, address: '127.0.0.1' },
+        { pid: process.pid, command: 'preview', port: 4173, address: '127.0.0.1' },
+      ],
+    });
+    expect(await scanner.scan('codex-runtime')).toEqual([
+      { pid: process.pid, command: 'preview', port: 4173, address: '127.0.0.1' },
+    ]);
+  });
 });
 
 describe('PortScanner integration (real child process, real platform lister)', () => {

@@ -18,6 +18,7 @@ import { migration017 } from './017-session-cwd.js';
 import { migration018 } from './018-project-abbrev.js';
 import { migration019 } from './019-layouts.js';
 import { migration020 } from './020-unique-agent-session-refs.js';
+import { migration021 } from './021-agent-conversations.js';
 
 export interface Migration {
   version: number;
@@ -47,4 +48,5 @@ export const MIGRATIONS: Migration[] = [
   migration018,
   migration019,
   migration020,
+  migration021,
 ];

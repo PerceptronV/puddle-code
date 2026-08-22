@@ -11,6 +11,7 @@ import { ProfileStore } from '../src/db/stores/profiles.js';
 import { ProjectStore } from '../src/db/stores/projects.js';
 import { RepoStore } from '../src/db/stores/repos.js';
 import { SessionStore } from '../src/db/stores/sessions.js';
+import { ConversationStore } from '../src/db/stores/conversations.js';
 import { ApiError } from '../src/http/errors.js';
 
 function freshDbFile() {
@@ -26,6 +27,7 @@ function stores(file = freshDbFile()) {
     repos: new RepoStore(db),
     projects: new ProjectStore(db),
     sessions: new SessionStore(db),
+    conversations: new ConversationStore(db),
     events: new EventStore(db),
   };
 }
@@ -77,6 +79,7 @@ describe('openDatabase', () => {
       'projects',
       'profile_states',
       'sessions',
+      'agent_conversations',
       'scratchpad',
       'events',
     ]) {
@@ -93,33 +96,66 @@ describe('openDatabase', () => {
     expect(db.pragma('user_version', { simple: true })).toBe(MIGRATIONS.at(-1)!.version);
   });
 
-  it('clears ambiguous legacy refs and enforces one conversation per account', () => {
+  it('migrates native conversations while preserving placements and aliases', () => {
     const file = freshDbFile();
-    const seeded = stores(file);
-    const { account, project, session } = seedSession(seeded);
-    const second = seeded.sessions.create({
-      id: 'b2f0c9d4-1111-4222-8333-444455556666',
-      project_id: project.id,
-      account_id: account.id,
-      worktree_path: '/tmp/wt',
-      base_branch: 'main',
-      branch: 'alice/demo-2',
-      kind: 'agent',
-      agent_type: 'claude-code',
-      title: 'demo 2',
-      skip_permissions: false,
-    });
-    seeded.db.exec(`DROP INDEX idx_sessions_account_agent_ref`);
-    seeded.sessions.setAgentSessionRef(session.id, 'duplicate-ref');
-    seeded.sessions.setAgentSessionRef(second.id, 'duplicate-ref');
-    seeded.db.pragma('user_version = 19');
-    seeded.db.close();
+    const v20 = new Database(file);
+    for (const migration of MIGRATIONS.filter((entry) => entry.version <= 20)) {
+      v20.pragma('foreign_keys = OFF');
+      v20.transaction(() => v20.exec(migration.sql))();
+      v20.pragma(`user_version = ${migration.version}`);
+    }
+    v20.pragma('foreign_keys = ON');
+    v20.exec(`
+      INSERT INTO profiles (id, name, branch_prefix, created_at)
+        VALUES ('aaaaaaaaaa', 'alice', 'alice/', '2026-01-01T00:00:00.000Z');
+      INSERT INTO repos (id, path) VALUES (1, '/tmp/repo');
+      INSERT INTO projects (id, profile_id, repo_id, name, created_at, updated_at) VALUES
+        ('1111111111', 'aaaaaaaaaa', 1, 'one', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+        ('2222222222', 'aaaaaaaaaa', 1, 'two', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
+      INSERT INTO accounts
+        (id, profile_id, agent_type, label, config_dir, created_at) VALUES
+        (1, 'aaaaaaaaaa', 'claude-code', 'one', '/tmp/cfg-1', '2026-01-01T00:00:00.000Z'),
+        (2, 'aaaaaaaaaa', 'claude-code', 'two', '/tmp/cfg-2', '2026-01-01T00:00:00.000Z'),
+        (3, 'aaaaaaaaaa', 'claude-code', 'three', '/tmp/cfg-3', '2026-01-01T00:00:00.000Z');
+      INSERT INTO sessions
+        (id, project_id, account_id, worktree_path, base_branch, branch,
+         separate_branch, kind, agent_type, agent_session_ref, title, agent_title,
+         status, skip_permissions, session_env, created_at, updated_at) VALUES
+        ('a2f0c9d4-1111-4222-8333-444455556666', '1111111111', 1, '/tmp/wt', 'main', 'alice/one',
+         1, 'agent', 'claude-code', 'native-ref', 'user title', 'native title',
+         'archived', 1, '{"KEPT":"yes"}', '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z'),
+        ('b2f0c9d4-1111-4222-8333-444455556666', '2222222222', 2, '/tmp/wt', 'main', 'alice/two',
+         1, 'agent', 'claude-code', 'native-ref', NULL, 'native title',
+         'exited', 0, '{}', '2026-01-03T00:00:00.000Z', '2026-01-04T00:00:00.000Z'),
+        ('c2f0c9d4-1111-4222-8333-444455556666', '1111111111', 3, '/tmp/wt', 'main', 'alice/one',
+         1, 'agent', 'claude-code', 'native-ref', 'duplicate placement', 'native title',
+         'exited', 0, '{}', '2026-01-06T00:00:00.000Z', '2026-01-06T00:00:00.000Z');
+      INSERT INTO events (session_id, type, created_at)
+        VALUES ('a2f0c9d4-1111-4222-8333-444455556666', 'kept', '2026-01-05T00:00:00.000Z');
+    `);
+    v20.close();
 
     const migrated = stores(file);
-    expect(migrated.sessions.get(session.id).agent_session_ref).toBeNull();
-    expect(migrated.sessions.get(second.id).agent_session_ref).toBeNull();
-    migrated.sessions.setAgentSessionRef(session.id, 'unique-ref');
-    expect(() => migrated.sessions.setAgentSessionRef(second.id, 'unique-ref')).toThrow(/UNIQUE/);
+    const first = migrated.sessions.get('a2f0c9d4-1111-4222-8333-444455556666');
+    const second = migrated.sessions.get('b2f0c9d4-1111-4222-8333-444455556666');
+    const duplicate = migrated.sessions.get('c2f0c9d4-1111-4222-8333-444455556666');
+    expect(first).toMatchObject({
+      title: 'user title',
+      agent_title: 'native title',
+      agent_session_ref: 'native-ref',
+      status: 'archived',
+      skip_permissions: true,
+    });
+    expect(second.agent_session_ref).toBe('native-ref');
+    expect(first.conversation_id).toBe(second.conversation_id);
+    expect(duplicate.conversation_id).toBe(first.conversation_id);
+    expect(migrated.sessions.aliasTarget(duplicate.id)).toBe(first.id);
+    expect(first.branch_owner).toBe(true);
+    expect(duplicate.branch_owner).toBe(false);
+    expect(migrated.conversations.list()).toHaveLength(1);
+    expect(migrated.sessions.getEnv(first.id)).toEqual({ KEPT: 'yes' });
+    expect(migrated.events.list(first.id)).toHaveLength(1);
+    expect(migrated.db.pragma('foreign_key_check')).toEqual([]);
   });
 
   it('enforces foreign keys', () => {

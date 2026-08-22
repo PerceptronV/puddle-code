@@ -19,6 +19,7 @@ import { proxyAuth } from '../proxy/auth.js';
 import { proxyRoutes } from '../proxy/http.js';
 import type { ProxySocketTracker } from '../proxy/sockets.js';
 import type { ConversationShare } from '../sessions/conversation-share.js';
+import type { ConversationCatalogue } from '../sessions/conversation-catalogue.js';
 import type { SessionService } from '../sessions/service.js';
 import type { WorktreeManager } from '../worktrees/manager.js';
 import type { WsGateway } from '../ws/gateway.js';
@@ -58,6 +59,7 @@ export interface AppDeps {
     worktrees: WorktreeManager;
     service: SessionService;
     share: ConversationShare;
+    catalogue: ConversationCatalogue;
     scanner: PortScanner;
     tracker: ProxySocketTracker;
   };
@@ -72,7 +74,16 @@ export function buildApp(deps: AppDeps): Hono {
   app.onError((err, c) => {
     if (err instanceof ApiError) {
       // Cast: Hono types statuses as literals; ours is a runtime value.
-      return c.json({ error: { code: err.code, message: err.message } }, err.status as 400);
+      return c.json(
+        {
+          error: {
+            code: err.code,
+            message: err.message,
+            ...(err.details !== undefined ? { details: err.details } : {}),
+          },
+        },
+        err.status as 400,
+      );
     }
     console.error('unhandled error:', err);
     return c.json({ error: { code: 'internal', message: 'internal error' } }, 500);
@@ -104,7 +115,11 @@ export function buildApp(deps: AppDeps): Hono {
     app.use('/agent-signal', hostOriginGuard());
     app.post('/agent-signal', async (c) => {
       const body = await parseBody(c, agentSignalRequestSchema);
-      if (!api.service.signalAgentStatus(body.nonce, body.state)) {
+      const accepted =
+        'state' in body
+          ? api.service.signalAgentStatus(body.nonce, body.state)
+          : await api.service.signalAgentLifecycle(body);
+      if (!accepted) {
         throw ApiError.notFound('signal', 'nonce');
       }
       return c.body(null, 204);

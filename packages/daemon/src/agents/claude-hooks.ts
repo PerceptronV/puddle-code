@@ -15,6 +15,9 @@ import { join } from 'node:path';
  *   PreToolUse                        → working       (tool call — also the
  *                                       resume-after-approval moment, which
  *                                       fires no UserPromptSubmit)
+ *   SessionStart                     → native start  (startup/resume/clear/
+ *                                       compact/fork, exact source + ref)
+ *   SessionEnd                       → native end
  *
  * The helper POSTs `{nonce, state}` to the daemon's /agent-signal endpoint;
  * both values arrive via env vars the daemon injects into the agent PTY at
@@ -26,20 +29,40 @@ import { join } from 'node:path';
  */
 const HELPER_FILE = 'puddle-signal.mjs';
 
-const HELPER_SOURCE = `// puddle status signal (managed by puddled — safe to delete, reinstalled at boot)
-const state = process.argv[2];
+const HELPER_SOURCE = `// puddle agent signal (managed by puddled — safe to delete, reinstalled at boot)
+const mode = process.argv[2];
+const value = process.argv[3];
 const url = process.env.PUDDLE_AGENT_SIGNAL_URL;
 const nonce = process.env.PUDDLE_AGENT_SIGNAL_NONCE;
-// Drain stdin so the parent never blocks writing the hook payload.
-process.stdin.resume();
-process.stdin.on('data', () => {});
-process.stdin.on('end', () => {});
-if (!url || !nonce || (state !== 'working' && state !== 'waiting_input')) process.exit(0);
+let raw = '';
+for await (const chunk of process.stdin) raw += chunk;
+if (!url || !nonce) process.exit(0);
+let body;
+if (mode === 'status' && (value === 'working' || value === 'waiting_input')) {
+  body = { nonce, state: value };
+} else if (mode === 'lifecycle') {
+  let input;
+  try { input = JSON.parse(raw || '{}'); } catch { process.exit(0); }
+  const start = value === 'session_start';
+  const allowed = new Set(['startup', 'resume', 'clear', 'fork', 'compact']);
+  const source = start && allowed.has(input.source) ? input.source : 'exit';
+  const parent = input.parent_session_id ?? input.parentSessionId ?? input.parent_agent_session_ref;
+  body = {
+    nonce,
+    event: start ? 'session_start' : 'session_end',
+    ...(typeof input.session_id === 'string' ? { agent_session_ref: input.session_id } : {}),
+    cwd: typeof input.cwd === 'string' ? input.cwd : process.cwd(),
+    source,
+    ...(typeof parent === 'string' ? { parent_agent_session_ref: parent } : {}),
+  };
+} else {
+  process.exit(0);
+}
 try {
   await fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ nonce, state }),
+    body: JSON.stringify(body),
     signal: AbortSignal.timeout(1500),
   });
 } catch {
@@ -49,14 +72,19 @@ process.exit(0);
 `;
 
 /** Hook registrations, one per (event, matcher) — see the module doc. */
-const HOOK_EVENTS: Array<{ event: string; matcher?: string; state: 'working' | 'waiting_input' }> =
-  [
-    { event: 'Stop', state: 'waiting_input' },
-    { event: 'Notification', matcher: 'permission_prompt', state: 'waiting_input' },
-    { event: 'Notification', matcher: 'idle_prompt', state: 'waiting_input' },
-    { event: 'UserPromptSubmit', state: 'working' },
-    { event: 'PreToolUse', state: 'working' },
-  ];
+type HookEvent =
+  | { event: string; matcher?: string; mode: 'status'; value: 'working' | 'waiting_input' }
+  | { event: string; mode: 'lifecycle'; value: 'session_start' | 'session_end' };
+
+const HOOK_EVENTS: HookEvent[] = [
+  { event: 'Stop', mode: 'status', value: 'waiting_input' },
+  { event: 'Notification', matcher: 'permission_prompt', mode: 'status', value: 'waiting_input' },
+  { event: 'Notification', matcher: 'idle_prompt', mode: 'status', value: 'waiting_input' },
+  { event: 'UserPromptSubmit', mode: 'status', value: 'working' },
+  { event: 'PreToolUse', mode: 'status', value: 'working' },
+  { event: 'SessionStart', mode: 'lifecycle', value: 'session_start' },
+  { event: 'SessionEnd', mode: 'lifecycle', value: 'session_end' },
+];
 
 interface HookGroup {
   matcher?: string;
@@ -89,16 +117,17 @@ export function installStatusHooks(configDir: string): void {
 
   // The daemon's pinned node runs claude on this same host, so its path is
   // valid for the hook subprocess too (mirrors claude-statusline.ts).
-  const command = (state: string) =>
-    `${JSON.stringify(execPath)} ${JSON.stringify(helperPath)} ${state}`;
+  const command = (mode: string, value: string) =>
+    `${JSON.stringify(execPath)} ${JSON.stringify(helperPath)} ${mode} ${value}`;
 
   // Collate our groups per event FIRST — an event can carry several matchers
   // (Notification), and filtering per entry would strip the sibling just added.
   const byEvent = new Map<string, HookGroup[]>();
-  for (const { event, matcher, state } of HOOK_EVENTS) {
+  for (const hook of HOOK_EVENTS) {
+    const { event, mode, value } = hook;
     const ours: HookGroup = {
-      ...(matcher !== undefined ? { matcher } : {}),
-      hooks: [{ type: 'command', command: command(state) }],
+      ...('matcher' in hook && hook.matcher !== undefined ? { matcher: hook.matcher } : {}),
+      hooks: [{ type: 'command', command: command(mode, value) }],
     };
     byEvent.set(event, [...(byEvent.get(event) ?? []), ours]);
   }

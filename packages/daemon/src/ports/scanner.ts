@@ -116,7 +116,7 @@ interface CacheEntry {
 }
 
 export interface PortScannerOptions {
-  ptys: Pick<PtyManager, 'pidsFor'>;
+  ptys: Pick<PtyManager, 'pidsFor'> & Partial<Pick<PtyManager, 'hiddenPortsFor'>>;
   /** Injectable for tests; defaults to `process.platform`. */
   platform?: NodeJS.Platform;
   /** Cache TTL in ms; injectable for tests, default 2000 (SPEC §9). */
@@ -132,7 +132,7 @@ export interface PortScannerOptions {
  * concurrent viewers of the same session share one scan.
  */
 export class PortScanner {
-  private readonly ptys: Pick<PtyManager, 'pidsFor'>;
+  private readonly ptys: Pick<PtyManager, 'pidsFor'> & Partial<Pick<PtyManager, 'hiddenPortsFor'>>;
   private readonly ttlMs: number;
   private readonly lister: () => Promise<Listener[]>;
   private readonly cache = new Map<string, CacheEntry>();
@@ -181,10 +181,12 @@ export class PortScanner {
     const pids = this.ptys.pidsFor(sessionId);
     if (pids.length === 0) return []; // exited/interrupted session: zero execs
     const [tree, listeners] = await Promise.all([descendantsOf(pids), this.lister()]);
+    const hidden = this.ptys.hiddenPortsFor?.(sessionId) ?? new Set<number>();
     const seen = new Set<string>();
     const ports: SessionPort[] = [];
     for (const listener of listeners) {
       if (!tree.has(listener.pid)) continue;
+      if (hidden.has(listener.port)) continue;
       const key = `${listener.port}:${listener.pid}`;
       if (seen.has(key)) continue;
       seen.add(key);

@@ -189,6 +189,30 @@ describe('codex adapter — rollout discovery', () => {
     ).resolves.toBe(UUID_B);
   });
 
+  it('catalogues top-level state rows with native titles and fork parentage', async () => {
+    const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
+    const firstPath = writeRollout(cfg, UUID_A, '/wt');
+    const secondPath = writeRollout(cfg, UUID_B, '/wt', [], '02', { parentThreadId: UUID_A });
+    const db = new Database(join(cfg, 'state_5.sqlite'));
+    db.exec(`create table threads (
+      id text primary key, cwd text, created_at integer, created_at_ms integer,
+      rollout_path text, name text, title text, thread_source text, source text
+    )`);
+    const insert = db.prepare(
+      `insert into threads values (?, '/wt', 1, ?, ?, ?, ?, 'user', 'cli')`,
+    );
+    insert.run(UUID_A, 1_000, firstPath, 'first', null);
+    insert.run(UUID_B, 2_000, secondPath, null, 'fork title');
+    db.close();
+    const rows = await codex.conversationDiscovery?.discover(account(cfg));
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ ref: UUID_A, title: 'first', parentRef: null }),
+        expect.objectContaining({ ref: UUID_B, title: 'fork title', parentRef: UUID_A }),
+      ]),
+    );
+  });
+
   it('recovers the rollout born with the puddle session, not the newest cwd match', async () => {
     const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
     writeRollout(cfg, UUID_A, '/wt', [], '01', { timestamp: '2026-07-01T10:00:05.000Z' });

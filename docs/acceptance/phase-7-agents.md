@@ -13,19 +13,18 @@ node packages/cli/dist/index.js launch --foreground --tarball dist-release/puddl
 
 ## 0. What is already verified (do not redo)
 
-Pinned in each adapter's header comment from a scratch install on 2026-07-31:
-codex-cli **0.146.0**, opencode **1.18.10**, @google/gemini-cli **0.53.1**.
-Flags, subcommands, config-dir isolation variables, and codex's rollout format
-were all checked against those versions. The items below are the ones that
-`--help` and an unauthenticated run genuinely cannot answer. Codex's live idle
-status was subsequently verified against 0.146.0 on 2026-08-03 and is retained
-below as a pinned regression; its other live-only checks remain open.
+Pinned in each adapter's header comment: Claude Code lifecycle payloads
+**2.1.238**, codex-cli flags/storage/app-server **0.147.0**, opencode
+**1.18.10**, and @google/gemini-cli **0.53.1**. Codex's live idle status was
+verified against 0.146.0 and remains a pinned regression. The items below need
+real logged-in agents and remain manual even though their storage and lifecycle
+parsers have fixtures.
 
 ## 1. Status regexes — OpenCode and Gemini CLI remain
 
-None of these adapters has a hook side-channel, so `statusPatterns` is the
-**only** thing driving session status. Wrong regexes leave sessions stuck on
-`starting` or permanently `running`.
+Codex, OpenCode, and Gemini still use `statusPatterns` for working/waiting
+status even though they now have native lifecycle channels. Wrong regexes leave
+sessions stuck on `starting` or permanently `running`.
 
 For OpenCode and Gemini CLI:
 
@@ -86,9 +85,9 @@ confirm every path points inside the puddle account dir.
 ## 3. Resume, per adapter
 
 - **codex** — start a session, let it write a rollout, interrupt it, resume from
-  the UI. History must come back. Confirm `sessions.agent_session_ref` is the
-  rollout UUID and **not** the puddle session id (this adapter is the first
-  where the two differ). If the ref *is* the puddle id, `resolveSessionRef`'s
+  the UI. History must come back. Confirm the API's `agent_session_ref` (joined
+  from `agent_conversations`) is the rollout UUID and **not** the Puddle session
+  id. If the ref *is* the Puddle id, `resolveSessionRef`'s
   10 s poll expired: check that the rollout appeared and widen it if needed.
   Also inspect `state_<n>.sqlite`: its top-level `threads` row should normally
   let puddle capture the ref before the rollout's first JSONL line is readable.
@@ -155,3 +154,48 @@ not installed):
 5. Hand off **from** an opencode or gemini-cli session — neither implements
    `exportTranscript` for gemini, so this exercises the PTY-log-tail fallback.
    The prompt must still be non-empty and readable.
+
+## 6. Native conversation switching and catalogue sync
+
+Run each case in a project that shares a registered repository/worktree with a
+second project. Keep two browser windows open for the multi-viewer checks.
+
+1. Start one top-level conversation for each agent and verify its placement
+   reports `native_sync: full`. For an unsupported CLI version or deliberately
+   failed lifecycle bridge, verify the agent still starts directly, reports
+   `fallback`, and shows one restrained warning; catalogue discovery must still
+   work, but in-agent switches must not move the tab.
+2. Exercise `/clear`, `/resume`, and `/fork` inside the agent. The old placement
+   must freeze as `exited`; the target must become live and unarchived in the
+   same project/worktree; `/fork` must expose the source conversation as parent.
+   Shell tabs, exported environment, and detected app ports must follow. The
+   target keeps its own Puddle title overlay and receives branch ownership.
+3. Exercise `/compact`. It must not create or focus another placement. Repeat
+   with Codex review/side threads, an OpenCode child session, and an agent
+   subagent: none may switch the top-level placement.
+4. Archive the currently live placement. Its runtime must stop and only that
+   placement becomes archived. Resume it natively from another live placement:
+   explicit native intent must unarchive and focus it. A background catalogue
+   scan alone must never unarchive it.
+5. Open conversation B while it already has a live Puddle runtime, then make
+   runtime A resume B. A must stop as an expected exit and remain visible;
+   viewers focused on A must focus B. Put B in the other project and confirm the
+   viewer navigates there, using that project's saved layout and opening B as a
+   preview only when absent. A second window not focused on A updates its lists
+   without following.
+6. Create two simultaneous native switches and two REST resumes of the same
+   conversation. Exactly one runtime may remain. A REST loser must receive
+   `409 conversation_live` with the existing session/project details, and the
+   cockpit must use those details to focus the owner.
+7. Rename an inactive native conversation. Project activation or a watched
+   store event must update its native title without changing its Puddle title.
+   Delete its native data: only two successful scans may show “conversation
+   missing”, and resume must be disabled. Recreate it and verify the badge
+   disappears. A permission/read failure must never mark it missing.
+8. Archive the second project and create another native conversation. No
+   placement may appear there or in another profile. Unarchive the project and
+   enter it: activation refresh should materialise the exited placement without
+   waiting for a browser polling interval.
+9. Restart the daemon from a plain shell with auto-resume on. Reconciliation
+   must preserve one runtime owner per conversation and restore the correct
+   placement, terminal segment, environment, and sidecar process roots.

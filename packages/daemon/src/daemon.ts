@@ -20,6 +20,7 @@ import { LayoutStore } from './db/stores/layouts.js';
 import { ScratchpadStore } from './db/stores/scratchpad.js';
 import { reconcileProfileDirs } from './db/profile-dirs.js';
 import { SessionStore } from './db/stores/sessions.js';
+import { ConversationStore } from './db/stores/conversations.js';
 import { KeyedMutex } from './git/mutex.js';
 import { buildApp } from './http/app.js';
 import { LogStore } from './logs/log-store.js';
@@ -33,6 +34,7 @@ import { installShellHooks } from './pty/shell-hooks.js';
 import { clearRuntime, writeRuntime } from './runtime-file.js';
 import { ensureToken } from './security/token.js';
 import { ConversationShare } from './sessions/conversation-share.js';
+import { ConversationCatalogue } from './sessions/conversation-catalogue.js';
 import { MarkerFileSync } from './sessions/onboarding.js';
 import { reconcilePass } from './sessions/reconcile.js';
 import { SessionService } from './sessions/service.js';
@@ -79,6 +81,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   const scratchpad = new ScratchpadStore(db);
   const layouts = new LayoutStore(db);
   const sessions = new SessionStore(db);
+  const conversations = new ConversationStore(db);
   const events = new EventStore(db);
 
   const logs = new LogStore(paths.logsDir, config.replayBytes, config.logMaxBytes);
@@ -91,6 +94,9 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   const worktrees = new WorktreeManager({ paths, mutex: new KeyedMutex(), repos, sessions });
   const onboarding = new MarkerFileSync({ repos, events, sessions });
   const adapters = new AdapterRegistry(opts.adapters ?? [claudeCode, codex, opencode, geminiCli]);
+  // Migration 004 rewrote config-dir paths to id-keyed; rename the dirs before
+  // adapters install watches or inspect any native conversation store.
+  reconcileProfileDirs(profiles.list(), paths);
   const share = new ConversationShare({
     accounts,
     adapters,
@@ -104,6 +110,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     repos,
     projects,
     sessions,
+    conversations,
     events,
     worktrees,
     ptys,
@@ -114,9 +121,15 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     shellHooks,
     statusQuietMs: opts.statusQuietMs,
   });
-
-  // Migration 004 rewrote config-dir paths to id-keyed; rename the dirs.
-  reconcileProfileDirs(profiles.list(), paths);
+  const catalogue = new ConversationCatalogue({
+    accounts,
+    conversations,
+    projects,
+    repos,
+    sessions,
+    adapters,
+    worktrees,
+  });
 
   // Stored logged-in flags can lie (keychain-bound creds die with a path
   // change) — re-verify each account in the background so badges are honest.
@@ -164,7 +177,14 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   fetchTimer.unref();
 
   const tracker = new ProxySocketTracker();
-  const gateway = new WsGateway({ token, ptys, logs, service, theme: terminalTheme });
+  const gateway = new WsGateway({
+    token,
+    ptys,
+    logs,
+    service,
+    catalogue,
+    theme: terminalTheme,
+  });
   // Login verification lands after the login PTY exits, when no request is in
   // flight to carry it — the push is what turns the accounts UI green (15.1).
   accounts.onLoggedInChanged = (account) => gateway.accountChanged(account);
@@ -182,6 +202,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       scratchpad,
       layouts,
       sessions,
+      catalogue,
       adapters,
       ptys,
       worktrees,
@@ -234,6 +255,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     service,
     async stop() {
       clearInterval(fetchTimer);
+      catalogue.dispose();
       onboarding.dispose();
       // Freeze session rows at their live statuses (reconcile → interrupted),
       // then wait for PTY exits so nothing touches the db after close.

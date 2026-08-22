@@ -31,6 +31,18 @@ export interface AccountEvent {
   logged_in: boolean;
 }
 
+export interface SessionSwitchEvent {
+  source_session: string;
+  target_session: string;
+  target_project: string;
+  cause: 'clear' | 'resume' | 'fork';
+  outcome: 'rebound' | 'focused-existing';
+}
+
+export interface SessionsChangedEvent {
+  project_ids: string[];
+}
+
 export interface TerminalHandlers {
   /** Called for both the initial replay chunk and live output. */
   onData(data: string, kind: 'replay' | 'output'): void;
@@ -71,6 +83,8 @@ export class WsManager {
   private readonly statusListeners = new Set<(e: StatusEvent) => void>();
   private readonly renameListeners = new Set<(e: RenameEvent) => void>();
   private readonly accountListeners = new Set<(e: AccountEvent) => void>();
+  private readonly switchListeners = new Set<(e: SessionSwitchEvent) => void>();
+  private readonly sessionsChangedListeners = new Set<(e: SessionsChangedEvent) => void>();
   private readonly connectionListeners = new Set<ConnectionListener>();
   private readonly shellWaiters = new Map<string, Array<(term: string) => void>>();
 
@@ -144,6 +158,18 @@ export class WsManager {
     return () => this.accountListeners.delete(listener);
   }
 
+  onSessionSwitched(listener: (e: SessionSwitchEvent) => void): () => void {
+    this.switchListeners.add(listener);
+    this.ensureConnected();
+    return () => this.switchListeners.delete(listener);
+  }
+
+  onSessionsChanged(listener: (e: SessionsChangedEvent) => void): () => void {
+    this.sessionsChangedListeners.add(listener);
+    this.ensureConnected();
+    return () => this.sessionsChangedListeners.delete(listener);
+  }
+
   onConnectionChange(listener: ConnectionListener): () => void {
     this.connectionListeners.add(listener);
     return () => this.connectionListeners.delete(listener);
@@ -211,7 +237,9 @@ export class WsManager {
       this.terminals.size === 0 &&
       this.statusListeners.size === 0 &&
       this.renameListeners.size === 0 &&
-      this.accountListeners.size === 0
+      this.accountListeners.size === 0 &&
+      this.switchListeners.size === 0 &&
+      this.sessionsChangedListeners.size === 0
     )
       return;
     this.reconnectTimer = setTimeout(() => {
@@ -261,6 +289,12 @@ export class WsManager {
             logged_in: msg.logged_in,
           });
         }
+        break;
+      case 'session-switched':
+        for (const listener of this.switchListeners) listener(msg);
+        break;
+      case 'sessions-changed':
+        for (const listener of this.sessionsChangedListeners) listener(msg);
         break;
       case 'shell-spawned': {
         const waiters = this.shellWaiters.get(msg.session);

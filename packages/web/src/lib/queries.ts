@@ -105,6 +105,11 @@ export function useProjectDetail(projectId: string | undefined) {
   });
 }
 
+/** Activation-driven native catalogue refresh; discovery continues asynchronously. */
+export function refreshProjectConversations(projectId: string): Promise<void> {
+  return api<void>('POST', `/api/projects/${projectId}/conversations/refresh`);
+}
+
 export function useSessions(projectId: string | undefined) {
   return useQuery({
     queryKey: ['sessions', projectId],

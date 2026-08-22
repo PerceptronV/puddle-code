@@ -10,7 +10,17 @@ import {
 import type { LogStore } from '../logs/log-store.js';
 import type { PtyDataEvent, PtyExitEvent, PtyManager } from '../pty/pty-manager.js';
 import type { TerminalTheme } from '../pty/terminal-theme.js';
-import type { NoticeEvent, RenameEvent, SessionService, StatusEvent } from '../sessions/service.js';
+import type {
+  NoticeEvent,
+  RenameEvent,
+  SessionService,
+  SessionSwitchEvent,
+  StatusEvent,
+} from '../sessions/service.js';
+import type {
+  ConversationCatalogue,
+  SessionsChangedEvent,
+} from '../sessions/conversation-catalogue.js';
 import { ApiError } from '../http/errors.js';
 import { stripDeviceReplies } from './device-replies.js';
 
@@ -19,6 +29,7 @@ export interface WsGatewayDeps {
   ptys: PtyManager;
   logs: LogStore;
   service: SessionService;
+  catalogue?: ConversationCatalogue;
   /** The last client-reported terminal colours (14.1) — see terminal-theme.ts. */
   theme: TerminalTheme;
 }
@@ -116,6 +127,23 @@ export class WsGateway {
           title: e.title,
           agent_title: e.agent_title,
           osc_title: e.osc_title,
+        });
+      }
+    });
+    deps.catalogue?.on('sessions-changed', (e: SessionsChangedEvent) => {
+      for (const ws of this.statusSubs) {
+        this.send(ws, { t: 'sessions-changed', project_ids: e.projectIds });
+      }
+    });
+    deps.service.on('session-switched', (e: SessionSwitchEvent) => {
+      for (const ws of this.statusSubs) {
+        this.send(ws, {
+          t: 'session-switched',
+          source_session: e.sourceSession,
+          target_session: e.targetSession,
+          target_project: e.targetProject,
+          cause: e.cause,
+          outcome: e.outcome,
         });
       }
     });

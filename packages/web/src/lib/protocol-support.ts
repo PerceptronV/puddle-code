@@ -52,6 +52,9 @@ export const sourceControlSupported = (p: Protocol): boolean => atLeast(p, 15, 3
 export const crossFiletreeTransferSupported = (p: Protocol): boolean =>
   p !== undefined && atLeast(p, 16, 3);
 
+/** Native catalogue refresh and exact lifecycle switch messages (16.4). */
+export const nativeConversationSyncSupported = (p: Protocol): boolean => atLeast(p, 16, 4);
+
 /**
  * The daemon answers agents' OSC 10/11 colour queries from client-reported
  * theme colours (14.1). At or above it the web terminal must NOT answer them

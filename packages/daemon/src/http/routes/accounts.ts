@@ -10,9 +10,11 @@ import {
 import { assertBinaryAvailable } from '../../agents/binary.js';
 import type { AdapterRegistry } from '../../agents/registry.js';
 import type { ConversationShare } from '../../sessions/conversation-share.js';
+import type { ConversationCatalogue } from '../../sessions/conversation-catalogue.js';
 import type { AccountStore } from '../../db/stores/accounts.js';
 import type { ProfileStore } from '../../db/stores/profiles.js';
 import type { SessionStore } from '../../db/stores/sessions.js';
+import type { ProjectStore } from '../../db/stores/projects.js';
 import type { RemovalStore } from '../../db/stores/removals.js';
 import { ApiError } from '../errors.js';
 import { removeDirWithin } from '../fs-cleanup.js';
@@ -28,6 +30,8 @@ export interface AccountRouteDeps {
   removals: RemovalStore;
   adapters: AdapterRegistry;
   share: ConversationShare;
+  catalogue: ConversationCatalogue;
+  projects: ProjectStore;
   ptys: PtyManager;
   paths: PuddlePaths;
 }
@@ -120,6 +124,10 @@ export function accountRoutes(deps: AccountRouteDeps): Hono {
       } catch (e) {
         console.warn(`account ${account.id} conversation backfill failed: ${(e as Error).message}`);
       }
+      deps.catalogue.reconcileWatchers();
+      for (const project of deps.projects.list(account.profile_id)) {
+        if (!project.archived) deps.catalogue.refreshProject(project.id);
+      }
       return c.json(account, 201);
     })
     .patch('/:id', async (c) => {
@@ -151,6 +159,7 @@ export function accountRoutes(deps: AccountRouteDeps): Hono {
       deps.ptys.killAll(`login-${id}`); // an in-flight login PTY dies with the account
       deps.ptys.forget(`login-${id}`); // …and the stream is retired: no size to keep
       removeDirWithin(deps.paths.profilesDir, removed.config_dir);
+      deps.catalogue.reconcileWatchers();
       return c.body(null, 204);
     })
     .post('/:id/login', (c) => {

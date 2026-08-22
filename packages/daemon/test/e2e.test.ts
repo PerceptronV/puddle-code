@@ -167,6 +167,9 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
       repo_id: repo.id,
       name: 'demo',
     });
+    expect((await c.req('POST', `/api/projects/${project.id}/conversations/refresh`)).status).toBe(
+      204,
+    );
   });
 
   it('lists agent adapters and patches profile prefix and account opt-in', async () => {

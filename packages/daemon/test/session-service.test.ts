@@ -548,6 +548,287 @@ describe('shells', () => {
   });
 });
 
+describe('native conversation lifecycle', () => {
+  it('falls back to the direct launch when an adapter lifecycle channel cannot start', async () => {
+    const adapter = {
+      ...fakeAdapter(),
+      prepareLifecycleLaunch: async () => {
+        throw new Error('unsupported agent version');
+      },
+    };
+    const f = fixture({ adapter });
+    f.service.setSignalPort(65432);
+    const notices: Array<{ title: string }> = [];
+    f.service.on('notice', (event) => notices.push(event));
+    const session = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+    });
+    await waitFor(() => f.logs.readTail(session.id, 'agent').includes('LAUNCH'));
+    expect(f.service.get(session.id).native_sync).toBe('fallback');
+    expect(notices).toContainEqual(
+      expect.objectContaining({ title: 'Conversation switching is not synchronised' }),
+    );
+    await f.service.kill(session.id);
+  });
+
+  it('marks a hook launch fallback when the installed agent version is unsupported', async () => {
+    const adapter = {
+      ...fakeAdapter(),
+      lifecycleSignals: true,
+      checkLifecycleSupport: async () => false,
+    };
+    const f = fixture({ adapter });
+    f.service.setSignalPort(65432);
+    const notices: Array<{ title: string }> = [];
+    f.service.on('notice', (event) => notices.push(event));
+    const session = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+    });
+    await waitFor(() => f.logs.readTail(session.id, 'agent').includes('LAUNCH'));
+    expect(f.service.get(session.id).native_sync).toBe('fallback');
+    expect(notices).toContainEqual(
+      expect.objectContaining({ title: 'Conversation switching is not synchronised' }),
+    );
+    await f.service.kill(session.id);
+  });
+
+  it('rebinds one stable runtime, its shells, history segments, and branch ownership', async () => {
+    const f = fixture({ adapter: { ...fakeAdapter(), lifecycleSignals: true } });
+    f.service.setSignalPort(65432);
+    const source = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      title: 'source overlay',
+    });
+    await waitFor(() => f.service.get(source.id).status === 'waiting_input');
+    const shell = f.service.spawnShell(source.id);
+    const originalPids = f.ptys.pidsFor(source.id).sort((a, b) => a - b);
+    const nonce = f.service.signalNonceFor(source.id)!;
+    const switched: Array<{ targetSession: string; outcome: string }> = [];
+    f.service.on('session-switched', (event) => switched.push(event));
+
+    expect(
+      await f.service.signalAgentLifecycle({
+        nonce,
+        event: 'session_start',
+        agent_session_ref: 'native-clear-ref',
+        cwd: '/native/recorded/cwd',
+        source: 'clear',
+      }),
+    ).toBe(true);
+
+    const target = f.service
+      .list()
+      .find((session) => session.agent_session_ref === 'native-clear-ref');
+    expect(target).toBeDefined();
+    expect(target!.id).not.toBe(source.id);
+    expect(target!.worktree_path).toBe(source.worktree_path);
+    expect(target!.native_sync).toBe('full');
+    expect(f.service.get(source.id)).toMatchObject({ status: 'exited', branch_owner: false });
+    expect(f.service.get(target!.id).branch_owner).toBe(true);
+    expect(f.ptys.pidsFor(target!.id).sort((a, b) => a - b)).toEqual(originalPids);
+    expect(f.ptys.liveTerms(target!.id)).toContain(shell);
+    expect(f.ptys.liveTerms(source.id)).toEqual([]);
+    expect(switched).toContainEqual(
+      expect.objectContaining({ targetSession: target!.id, outcome: 'rebound' }),
+    );
+    expect(f.stores.conversations.get(target!.conversation_id!)?.native_cwd).toBe(
+      '/native/recorded/cwd',
+    );
+
+    // Regex-only status adapters must follow the runtime rather than keeping a
+    // spawn-time closure over the frozen source placement.
+    f.ptys.write(target!.id, 'agent', 'BUSY-MARKER\n');
+    await waitFor(() => f.service.get(target!.id).status === 'running');
+    f.ptys.write(target!.id, 'agent', 'READY\n');
+    await waitFor(() => f.service.get(target!.id).status === 'waiting_input');
+
+    f.ptys.write(target!.id, 'agent', 'after-switch\n');
+    await waitFor(() => f.logs.readTail(target!.id, 'agent').includes('after-switch'));
+    expect(f.logs.readTail(source.id, 'agent')).not.toContain('after-switch');
+
+    // Compact keeps this same placement and runtime identity.
+    await f.service.signalAgentLifecycle({
+      nonce,
+      event: 'session_start',
+      agent_session_ref: 'native-clear-ref',
+      cwd: target!.worktree_path,
+      source: 'compact',
+    });
+    expect(f.service.signalNonceFor(target!.id)).toBe(nonce);
+
+    // Fork creates another placement and records the native parent.
+    await f.service.signalAgentLifecycle({
+      nonce,
+      event: 'session_start',
+      agent_session_ref: 'native-fork-ref',
+      cwd: target!.worktree_path,
+      source: 'fork',
+    });
+    const forked = f.service
+      .list()
+      .find((session) => session.agent_session_ref === 'native-fork-ref');
+    expect(forked?.parent_conversation_id).toBe(target!.conversation_id);
+    await f.service.kill(forked!.id);
+  });
+
+  it('unarchives an existing placement only on an exact native resume', async () => {
+    const f = fixture({ adapter: { ...fakeAdapter(), lifecycleSignals: true } });
+    f.service.setSignalPort(65432);
+    const source = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      title: 'live source',
+    });
+    await waitFor(() => f.service.get(source.id).status === 'waiting_input');
+    const conversation = f.stores.conversations.upsert(
+      f.ids.profile,
+      source.agent_type!,
+      f.ids.account,
+      {
+        ref: 'archived-native-ref',
+        cwd: '/native/old/worktree',
+        title: 'Native label',
+      },
+    );
+    const target = f.stores.sessions.create({
+      id: 'a2f0c9d4-1111-4222-8333-444455556666',
+      project_id: source.project_id,
+      account_id: source.account_id,
+      conversation_id: conversation.id,
+      worktree_path: source.worktree_path,
+      base_branch: source.base_branch,
+      branch: source.branch,
+      separate_branch: source.separate_branch,
+      kind: 'agent',
+      agent_type: source.agent_type,
+      title: 'keep this placement title',
+      status: 'archived',
+      skip_permissions: false,
+    });
+
+    await f.service.signalAgentLifecycle({
+      nonce: f.service.signalNonceFor(source.id)!,
+      event: 'session_start',
+      agent_session_ref: conversation.agent_session_ref,
+      cwd: source.worktree_path,
+      source: 'resume',
+    });
+
+    expect(f.service.get(source.id).status).toBe('exited');
+    expect(f.service.get(target.id)).toMatchObject({
+      status: 'waiting_input',
+      title: 'keep this placement title',
+      native_sync: 'full',
+      branch_owner: true,
+    });
+    await f.service.kill(target.id);
+  });
+
+  it('serialises simultaneous switches and leaves one live placement', async () => {
+    const f = fixture({ adapter: { ...fakeAdapter(), lifecycleSignals: true } });
+    f.service.setSignalPort(65432);
+    const source = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+    });
+    await waitFor(() => f.service.get(source.id).status === 'waiting_input');
+    const nonce = f.service.signalNonceFor(source.id)!;
+
+    await Promise.all([
+      f.service.signalAgentLifecycle({
+        nonce,
+        event: 'session_start',
+        agent_session_ref: 'simultaneous-a',
+        cwd: source.worktree_path,
+        source: 'clear',
+      }),
+      f.service.signalAgentLifecycle({
+        nonce,
+        event: 'session_start',
+        agent_session_ref: 'simultaneous-b',
+        cwd: source.worktree_path,
+        source: 'clear',
+      }),
+    ]);
+
+    const live = f.service
+      .list()
+      .filter((session) => ['starting', 'running', 'waiting_input'].includes(session.status));
+    expect(live).toHaveLength(1);
+    expect(live[0]?.agent_session_ref).toBe('simultaneous-b');
+    expect(f.ptys.liveCount()).toBe(1);
+    await f.service.kill(live[0]!.id);
+  });
+
+  it('stops a competing switch and identifies the already-live placement to REST callers', async () => {
+    const f = fixture({ adapter: { ...fakeAdapter(), lifecycleSignals: true } });
+    f.service.setSignalPort(65432);
+    const first = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      title: 'first',
+    });
+    const second = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      title: 'second',
+    });
+    await waitFor(() => f.service.get(first.id).status === 'waiting_input');
+    await waitFor(() => f.service.get(second.id).status === 'waiting_input');
+    const events: Array<{ sourceSession: string; targetSession: string; outcome: string }> = [];
+    f.service.on('session-switched', (event) => events.push(event));
+
+    await f.service.signalAgentLifecycle({
+      nonce: f.service.signalNonceFor(first.id)!,
+      event: 'session_start',
+      agent_session_ref: second.agent_session_ref!,
+      cwd: first.worktree_path,
+      source: 'resume',
+    });
+    await waitFor(() => !f.ptys.has(first.id, 'agent'));
+    expect(events).toContainEqual({
+      sourceSession: first.id,
+      targetSession: second.id,
+      targetProject: second.project_id,
+      cause: 'resume',
+      outcome: 'focused-existing',
+    });
+    expect(f.service.get(second.id).status).toBe('waiting_input');
+
+    const otherProject = f.stores.projects.create({
+      profile_id: f.ids.profile,
+      repo_id: f.ids.repo,
+      name: 'other placement',
+    });
+    const duplicate = f.stores.sessions.create({
+      id: 'd2f0c9d4-1111-4222-8333-444455556666',
+      project_id: otherProject.id,
+      account_id: f.ids.account,
+      conversation_id: second.conversation_id,
+      worktree_path: second.worktree_path,
+      base_branch: second.base_branch,
+      branch: second.branch,
+      separate_branch: second.separate_branch,
+      kind: 'agent',
+      agent_type: second.agent_type,
+      title: 'duplicate',
+      status: 'exited',
+      skip_permissions: false,
+    });
+    await expect(f.service.resume(duplicate.id)).rejects.toMatchObject({
+      code: 'conversation_live',
+      details: {
+        existing_session_id: second.id,
+        existing_project_id: second.project_id,
+      },
+    });
+    await f.service.kill(second.id);
+  });
+});
+
 describe('reconcile', () => {
   it('marks live-status sessions interrupted on boot', async () => {
     const f = fixture();

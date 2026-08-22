@@ -118,4 +118,21 @@ describe('claude-code adapter', () => {
     expect(claudeCode.hasConversation!(ref, account(dir))).toBe(true);
     expect(claudeCode.hasConversation!('someone-else', account(dir))).toBe(false);
   });
+
+  it('catalogues cached normalised metadata without reading full transcripts', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'puddle-cc-'));
+    const ref = '77194578-8ea8-484a-bb7d-6698b3049cc4';
+    const project = join(dir, 'projects', '-Users-alice-src-my-repo');
+    mkdirSync(project, { recursive: true });
+    writeFileSync(
+      join(project, `${ref}.jsonl`),
+      `${JSON.stringify({ type: 'user', cwd: '/worktree' })}\n` +
+        `${JSON.stringify({ type: 'ai-title', aiTitle: 'Native title' })}\n`,
+    );
+    const first = await claudeCode.conversationDiscovery?.discover(account(dir));
+    expect(first).toEqual([
+      expect.objectContaining({ ref, cwd: '/worktree', title: 'Native title' }),
+    ]);
+    expect(await claudeCode.conversationDiscovery?.discover(account(dir))).toEqual(first);
+  });
 });

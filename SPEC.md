@@ -136,32 +136,55 @@ CREATE TABLE profile_states (            -- per-profile persisted workspace layo
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE agent_conversations (
+  id INTEGER PRIMARY KEY,
+  profile_id TEXT NOT NULL REFERENCES profiles(id),
+  agent_type TEXT NOT NULL,
+  agent_session_ref TEXT NOT NULL,       -- immutable native conversation id
+  native_cwd TEXT NOT NULL,              -- native store truth, not placement
+  native_title TEXT,                     -- native name; puddle title stays on sessions
+  parent_conversation_id INTEGER REFERENCES agent_conversations(id),
+  preferred_account_id INTEGER REFERENCES accounts(id),
+  native_created_at TEXT,
+  native_updated_at TEXT,
+  last_seen_at TEXT NOT NULL,
+  missing_scan_count INTEGER NOT NULL DEFAULT 0,
+  missing INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(profile_id, agent_type, agent_session_ref)
+);
+
 CREATE TABLE sessions (
-  id TEXT PRIMARY KEY,                  -- puddle uuid; also worktree dir name
-  project_id TEXT NOT NULL REFERENCES projects(id),  -- profile and repo derive from the project
-  account_id INTEGER REFERENCES accounts(id),  -- NULL for a terminal session (no account; §4)
+  id TEXT PRIMARY KEY,                  -- immutable puddle placement uuid
+  project_id TEXT NOT NULL REFERENCES projects(id),
+  account_id INTEGER REFERENCES accounts(id),  -- current/preferred launch account; NULL for terminals
+  conversation_id INTEGER REFERENCES agent_conversations(id), -- NULL for terminals and retained migration aliases
+  placement_alias_of TEXT REFERENCES sessions(id), -- preserves a legacy duplicate's UUID/logs/layout refs
   worktree_path TEXT NOT NULL,
+  canonical_worktree_path TEXT NOT NULL,
   base_branch TEXT NOT NULL,
   branch TEXT NOT NULL,
-  separate_branch INTEGER NOT NULL DEFAULT 1,  -- 0: works directly on base_branch in a shared worktree (§4)
-  kind TEXT NOT NULL DEFAULT 'agent',   -- 'agent' | 'terminal' (§4): a terminal is a plain shell, no agent
-  agent_type TEXT,                      -- NULL for a terminal session (no agent; §4)
-  agent_session_ref TEXT,               -- agent-native id used for resume (see adapters)
-  title TEXT,                           -- user rename override; null → use agent_title (§4)
-  agent_title TEXT,                     -- the agent's own session name; the default display name (§4)
-  status TEXT NOT NULL,                 -- see state machine
+  separate_branch INTEGER NOT NULL DEFAULT 1,
+  branch_owned INTEGER NOT NULL DEFAULT 0, -- one placement owns worktree/branch-dependent actions
+  kind TEXT NOT NULL DEFAULT 'agent',
+  agent_type TEXT,                      -- NULL for terminal sessions
+  title TEXT,                           -- puddle user override; native title lives above
+  status TEXT NOT NULL,
+  native_sync TEXT,                     -- pending | full | fallback; NULL for terminals
   skip_permissions INTEGER NOT NULL DEFAULT 0,
-  session_env TEXT NOT NULL DEFAULT '{}',  -- captured exports, JSON name→value (§4 Captured session
-                                        -- environment); may hold secrets — stripped in the store layer,
-                                        -- NEVER sent to clients (the env endpoint returns names+sizes only)
+  session_env TEXT NOT NULL DEFAULT '{}',
+  cwd TEXT,                             -- terminal-only, worktree-relative start dir
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   last_activity_at TEXT
 );
 
-CREATE UNIQUE INDEX idx_sessions_account_agent_ref
-ON sessions(account_id, agent_session_ref)
-WHERE account_id IS NOT NULL AND agent_session_ref IS NOT NULL;
+CREATE UNIQUE INDEX idx_sessions_conversation_placement
+ON sessions(conversation_id, project_id, canonical_worktree_path)
+WHERE conversation_id IS NOT NULL;
+
+CREATE UNIQUE INDEX idx_sessions_branch_owner
+ON sessions(canonical_worktree_path)
+WHERE branch_owned = 1;
 
 CREATE TABLE scratchpad (                -- per-profile Scratchpad: prompts + notes (see §11)
   id INTEGER PRIMARY KEY,
@@ -198,7 +221,9 @@ CREATE TABLE events (                    -- lifecycle audit trail
 );
 ```
 
-SQLite is the source of truth; a live PTY is an ephemeral attachment to a durable session row. All timestamps are ISO 8601 UTC. Git operations against a given repository (worktree add/remove, fetch, branch creation, source-control mutations) are **serialised through a mutex keyed by its canonical Git common directory** in the daemon — linked worktrees share the same ref/index lock domain, and concurrent Git writes otherwise race on Git's own lock files and fail spuriously.
+SQLite is the source of truth; a live PTY is an ephemeral attachment to an internal stable runtime, and a session row is an immutable Puddle placement. Native identity, parentage, cwd, title, timestamps, and existence come from `agent_conversations`; the public `Session.agent_session_ref`, `agent_title`, parent id, and missing flag are produced by joining its placement to that row. The same conversation may have placements in several projects, but only once per project and canonical worktree. Catalogue-created duplicates never acquire branch ownership; an exact live switch transfers it. Migration 021 deduplicates native refs within the owning profile while preserving every Puddle UUID, placement title/status/environment, log/event reference, and saved-layout reference; exact legacy placement duplicates remain aliases of the canonical row.
+
+All timestamps are ISO 8601 UTC. Git operations against a given repository (worktree add/remove, fetch, branch creation, source-control mutations) are **serialised through a mutex keyed by its canonical Git common directory** in the daemon — linked worktrees share the same ref/index lock domain, and concurrent Git writes otherwise race on Git's own lock files and fail spuriously.
 
 ## 4. Session state machine
 
@@ -217,13 +242,23 @@ SQLite is the source of truth; a live PTY is an ephemeral attachment to a durabl
 - `starting` covers worktree creation: the daemon fetches per the fetch policy below and creates the worktree (base resolves to `origin/<base>` when it exists, so sessions never branch off a stale local base). Environment setup then happens **inside the agent session** via onboarding (below), guided by the repo's `onboarding_notes`.
 - `starting → running` when the agent's PTY produces first output.
 - `running ⇄ waiting_input` has two drivers, hook signals first, regexes as the fallback:
-  - **Hook signals (authoritative).** At every agent spawn the daemon injects `PUDDLE_AGENT_SIGNAL_URL` + `PUDDLE_AGENT_SIGNAL_NONCE` (a per-spawn secret) into the PTY env; agent hook processes inherit that env and report `POST /agent-signal {nonce, state}` — a nonce-gated endpoint deliberately outside `/api` (the hook has no bearer token; the nonce dies with the PTY). The adapter installs the hooks: for claude-code, `Stop` / `Notification(permission_prompt)` / `Notification(idle_prompt`) → `waiting_input`, and `UserPromptSubmit` / `PreToolUse` → `working` (PreToolUse covers resume-after-approval, which fires no UserPromptSubmit) — written additively into the account config dir's `settings.json` beside a tiny helper, inert outside puddle (verified against Claude Code 2.1.219). A hook signal is accepted even while the row is still `starting`: the first `Stop` can beat Claude's first visible TUI draw. After a session's FIRST signal, hooks own its status and the regex detector is muted — idle TUI redraws (e.g. a resize on tab open) would otherwise misread as activity with no hook event to restore `waiting_input`.
+  - **Hook signals (authoritative).** At every agent spawn the daemon injects `PUDDLE_AGENT_SIGNAL_URL` + `PUDDLE_AGENT_SIGNAL_NONCE` (a per-runtime secret) into the PTY env; agent hook processes inherit that env and report `POST /agent-signal {nonce, state}` — a nonce-gated endpoint deliberately outside `/api` (the hook has no bearer token; the nonce dies with the runtime). The adapter installs the hooks: for claude-code, `Stop` / `Notification(permission_prompt)` / `Notification(idle_prompt`) → `waiting_input`, and `UserPromptSubmit` / `PreToolUse` → `working` (PreToolUse covers resume-after-approval, which fires no UserPromptSubmit) — written additively into the account config dir's `settings.json` beside a tiny helper, inert outside puddle (status behaviour verified against Claude Code 2.1.219; lifecycle payloads against 2.1.238). A hook signal is accepted even while the row is still `starting`: the first `Stop` can beat Claude's first visible TUI draw. After a session's FIRST status signal, hooks own its status and the regex detector is muted — idle TUI redraws (e.g. a resize on tab open) would otherwise misread as activity with no hook event to restore `waiting_input`.
   - **Regex fallback.** Until a signal arrives (agents without hooks, older CLIs), the adapter's `statusPatterns` are matched against the output stream as before (debounced; `waiting_input` only after ~2 s of quiet following a match).
 - Any of `{starting, running, waiting_input}` found without a live PTY during the daemon's boot **reconcile pass** → `interrupted`. Reconcile also sweeps the filesystem: a worktree directory with no session row is flagged in the UI (never auto-deleted); a session whose worktree is missing is badged "worktree missing" and can only be archived.
 - **Stale-running (advisory, computed on read like `worktree_missing`).** A `running` agent session whose adapter-reported activity (`adapter.sessionActivityAt` — for claude-code, the transcript's mtime via a cached stat) is over an hour old is flagged `stale_running` on the session shape: the TUI may be redrawing, but the agent has recorded no work — probably a wedged process. The UI fades the session's status indicator (dot or glyph) with a "possibly stalled" hint. Advisory only: a very long tool call looks identical, so the daemon **never** kills, downgrades, or otherwise interrupts a session because of it (decision 2026-07-28).
 - `exited` / `interrupted` → `running` via resume (adapter `resumeArgs`, same worktree, same config dir). On resume after `interrupted`, the daemon injects a first message — the profile's **restart launch text** (`profileSettings.restartTemplate`; absent → the built-in default _"This session was interrupted (daemon or machine restart). Processes you started are gone; re-verify your environment before continuing."_, empty string → no note), editable in Settings → Sessions (§4 Launch text).
-- `archived` ⇄ `exited`: any non-archived session can be archived in one gesture — a live one (`starting`/`running`/`waiting_input`) is killed by the daemon as part of it — and **archiving is a reversible hide, not a teardown**. It changes nothing on disk — the worktree, its branch, and the agent conversation all stay put — and simply drops the session out of the active list into a collapsed **Archived** disclosure at the bottom of the sessions sidebar, where it keeps the same ⋯ lifecycle menu. Because nothing is destroyed there is no confirmation and no `force`/`delete_branch` — one click hides it, a dirty worktree is safe, and reclaiming a worktree's disk or deleting its branch is a separate, explicit action in the Worktrees manager. **Unarchive** (`POST /api/sessions/:id/unarchive`, → `exited`) brings it back: if the worktree is still on disk the session resumes with its history intact; if it was pruned, or its branch was moved or deleted, the session returns visible for its terminal/conversation history only, with resume disabled through the read-time `worktree_missing` flag (puddle never recreates a worktree). Archiving a **project** archives all its sessions and refuses while any is `running`/`waiting_input` unless forced.
+- `archived` ⇄ `exited`: any non-archived session can be archived in one gesture — a live one (`starting`/`running`/`waiting_input`) is killed by the daemon as part of it — and **archiving is a reversible placement hide, not a teardown**. It changes nothing on disk and archives only that placement; duplicate placements of the native conversation remain exited. Catalogue polling never unarchives it. An exact native `/resume` into that placement does: native intent clears `archived`, adopts the live runtime state, and focuses it. **Unarchive** (`POST /api/sessions/:id/unarchive`, → `exited`) brings it back manually: if the worktree is still on disk the session resumes with its history intact; if it was pruned, or its branch was moved or deleted, the session returns visible for its terminal/conversation history only, with resume disabled through the read-time `worktree_missing` flag. Because nothing is destroyed there is no confirmation and no `force`/`delete_branch`; disk and branch cleanup remain explicit Worktrees actions. Archiving a **project** archives all its sessions and refuses while any is `running`/`waiting_input` unless forced.
 - Auto-resume on boot is ON by default (`config.json: autoResume: true`; flipped 2026-08-09 — it shipped OFF): a daemon restart resumes interrupted sessions itself, and any that fail to resume surface in the UI for one-click resume. Settings → Host toggles it.
+
+### Native conversation lifecycle
+
+A live agent is owned by an internal stable runtime identity, not by the placement currently shown in its URL. That runtime owns the agent PTY, shell PTYs, sidecars, captured environment, port roots, signal nonce, and an `activeSessionId`. A keyed mutex serialises native switches and REST resumes, and the daemon indexes runtimes by conversation so at most one Puddle runtime can own a native conversation.
+
+Adapters report exact top-level `SessionStart`/`SessionEnd` transitions through the nonce route. `/clear`, `/resume`, and `/fork` may switch placement; startup binds initial identity and `/compact` remains the same conversation. Reviews, ephemeral Codex threads, OpenCode children with `parentID`, and other child/subagent sessions are excluded. On a switch the daemon resolves or creates the target conversation placement in the **current project and current canonical worktree**, even when native metadata records another cwd. It preserves the target placement's Puddle title, clears `archived`, adopts the runtime's account, environment, permission and sync state, and transfers branch ownership. It then quiesces output, closes the old log/screen segment, freezes the old placement as `exited`, rebinds agent and shell PTYs to the target, starts the target segment, and forces a full TUI redraw. Durable events and `session-switched` tell every viewer what happened; only a viewer focused on the source follows automatically, retaining the old terminal as frozen history in the pane.
+
+If runtime A switches to conversation B while B already has a live runtime, A is stopped as an expected exit and B is focused instead. A remains visible and exited. When B's placement is in another project, the focused viewer navigates there and uses that project's layout, opening B as a preview only if absent. A REST resume of an already-live conversation returns `409 conversation_live` with structured `existing_session_id` and `existing_project_id`, allowing the same focus behaviour.
+
+Launch is capability-checked. Claude Code and Gemini use additive native hooks; OpenCode installs a Puddle-managed top-level lifecycle plugin; Codex uses a daemon-owned loopback WebSocket proxy between `codex --remote` and `codex app-server`, with the app-server process tree included in port ownership and its bridge ports hidden. If an adapter's exact channel cannot start, the daemon uses its normal direct launch, records `native_sync: 'fallback'`, and adds one restrained terminal warning that in-agent switches will not synchronise. Catalogue discovery continues but never guesses that a runtime changed identity.
 
 ### Relaxed isolation: shared branches and directories
 
@@ -243,7 +278,7 @@ Environment setup is not deterministic per repo — whether _this particular wor
 1. **Standing rules — `repos.onboarding_notes`.** A user-authored, freeform text block per repo (editable in the Projects settings tab, which holds per-repository settings), holding whatever the user has decided is always true: "always `pnpm install`", "shared `.venv` lives at `<repo>/.venv`; symlink it unless I say otherwise", "never install playwright browsers", "ask me before touching Docker". Empty is fine — everything is then discretionary.
 2. **Every freshly created worktree onboards — and only those.** The daemon prepends an _onboarding preamble_ (the profile's **launch text**, see below) to the agent's first prompt (or delivers it alone when the session was started without a task prompt): read the notes; inspect the codebase for setup requirements (README/CONTRIBUTING, lockfiles, `.tool-versions`, `pyproject.toml`, …); **apply what the notes settle without asking; ask the user about anything the notes leave open** — stating trade-offs where relevant (a symlinked `.venv` saves gigabytes per worktree, but parallel sessions then share mutable dependency state). Execute only what the notes prescribe or the user approves, then proceed to the user's actual task. Sessions that _reuse_ an existing worktree — resumes, and tier-2 hand-offs (§5) — never receive the preamble; their environment already exists, and the resume note or hand-off prompt takes its place. The launch text is **editable per profile** (Settings → Sessions), with three templates: one for a freshly created worktree — where a `{{rules}}` token is replaced with `repos.onboarding_notes` — one for joining an existing/shared worktree, and one sent when a session is **resumed after a daemon restart or machine reboot**; any may be cleared to send no preamble, defaulting to the built-in text (`profileSettings.onboardingTemplate` / `concurrentTemplate` / `restartTemplate`; absent → default, empty string → intentionally empty).
 3. **Rules can be taught through the agent.** If during onboarding the user states a standing rule ("always do X from now on"), the preamble instructs the agent to write the updated notes to `.puddle/onboarding-notes.md` in the worktree; the daemon syncs that file into `repos.onboarding_notes` and confirms with a toast. Syncs are last-writer-wins (several sessions can onboard concurrently), so the daemon logs the previous notes to `events` and the toast links the change — an unwanted overwrite is one click to inspect and revert. The notes remain user-owned prose — the agent records decisions, it doesn't invent policy. (`.puddle/` is git-excluded, never committed.)
-4. **Sessions are named after the agent.** A session's display name is `title ?? agent_title ?? <id-prefix>`. `agent_title` is the agent's _own_ session name — for claude-code, the transcript's `agent-name`/`ai-title`, i.e. what its resume picker shows — read through the adapter's `sessionTitle` hook and refreshed by the daemon on each status change, at exit, whenever the agent emits a terminal-title escape sequence (OSC 0/1/2, throttled), and on a low-frequency periodic re-read (a cheap tail read that early-returns when unchanged). A mid-session rename that changes no status (e.g. claude-code's `/rename`, handled client-side — it rewrites its transcript title but, while idle, emits no OSC escape) is still picked up: the periodic re-read is the reliable path, surfacing it within a few seconds. An unnamed session labels itself once the agent has titled the conversation. `title` is the user's rename override (`PATCH /api/sessions/:id`): a non-empty value wins over the agent's name; an **empty** value clears the override so the name reverts to `agent_title` (then the id prefix). Both the agent-title refresh and a UI rename broadcast a `renamed` message (carrying `title` and `agent_title`), so every attached client updates live. This replaces the earlier `.puddle/session-title` marker file, which could not disambiguate sessions once several agents shared one worktree. The git branch is fixed at creation and never renamed by this.
+4. **Placements keep Puddle names; conversations keep native names.** A session's display name is `title ?? agent_title ?? <id-prefix>`. `title` is the placement's user override (`PATCH /api/sessions/:id`), so the same native conversation may be labelled differently in different projects. `agent_title` is the joined `agent_conversations.native_title` — for Claude Code, the transcript's `agent-name`/`ai-title`; for Codex, `threads.name`. Adapter point refreshes still run on status/exit/OSC cues and periodically, while catalogue scans catch changes in inactive conversations without reading transcript bodies. An empty UI title clears only the Puddle override. Native-title refreshes broadcast `renamed` for the live placement and catalogue scans broadcast `sessions-changed` for every affected project; user overrides continue to win. The git branch is fixed at placement creation and never renamed by either title path.
 
 Notes are **repo-global, shared by all profiles** — like the repo itself on a trusted box. Genuinely personal preferences are expressed in the moment (per-worktree answers); if that proves noisy in practice, a per-profile notes addendum is a natural later extension, deliberately not in v1.
 
@@ -283,6 +318,15 @@ export interface SessionRefContext {
 }
 
 type StorageLookup<T> = T | Promise<T>; // account-wide reads may yield
+
+interface NativeConversation {
+  ref: string;
+  cwd: string;
+  title: string | null;
+  parentRef: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
 
 export interface AgentAdapter {
   id: string; // 'claude-code', 'codex', 'opencode', 'gemini-cli'
@@ -330,10 +374,16 @@ export interface AgentAdapter {
     context: SessionRefContext,
     account: AccountRow,
   ): StorageLookup<boolean>;
-  // The agent's own human-readable session name (claude-code: the transcript's
-  // agent-name/ai-title), or null before it names the session. Read-only; used
-  // as the default display name (sessions.agent_title) before any user rename (§4).
+  // Legacy point lookup used by live title/activity refresh paths. Public
+  // agent_title is stored once on agent_conversations and joined to placements.
   sessionTitle?(ref: string, account: AccountRow): string | null;
+  conversationDiscovery?: {
+    watchRoots(account: AccountRow): string[];
+    discover(account: AccountRow): Promise<NativeConversation[]>;
+  };
+  lifecycleSignals?: boolean;
+  checkLifecycleSupport?(account: AccountRow): Promise<boolean>;
+  prepareLifecycleLaunch?(context: LifecycleLaunchContext): Promise<LifecycleLaunchResource>;
   // Move a conversation's on-disk state from one account's config dir to another's
   // (same agent type). Only called when capabilities.migratableSessions.
   migrateSession?(ref: string, from: AccountRow, to: AccountRow, worktree: string): Promise<void>;
@@ -348,18 +398,26 @@ export interface AgentAdapter {
 
 Capability notes per adapter (**verify every flag against the installed version during Phase 1/7 — agent CLIs change fast; encode findings in the adapter, never in core**):
 
-- **claude-code**: isolation via `CLAUDE_CONFIG_DIR`; supports `--session-id <uuid>` at launch (→ `presetSessionId: true`) and `claude --resume <uuid>`; skip mode `--dangerously-skip-permissions`; conversations stored as JSONL under `<config_dir>/projects/<escaped-cwd>/<uuid>.jsonl`.
-- **codex** (flags/storage re-verified against codex-cli 0.147.0; live idle signature against 0.146.0): isolation via `CODEX_HOME` alone, which relocates config, sessions and credentials together. Conversation state is split: rollouts live at `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-<ts>-<uuid>.jsonl`, while `$CODEX_HOME/state_<n>.sqlite` indexes the same threads. The first rollout `session_meta` carries the session `id`, `cwd`, creation timestamp, and (for child agents) `parent_thread_id`; the SQLite row carries the id/cwd/time sooner, before a large rollout header is necessarily readable. Resume `codex resume <id> [prompt]` (or `--last`); bypass `--dangerously-bypass-approvals-and-sandbox` — **`--yolo` does not exist in 0.147.0** despite older published docs. `codex login status` exits non-zero when logged out, so the exit code alone drives `checkLoggedIn`. Session ids are not presettable, so `presetSessionId: false` and `agent_session_ref !== sessions.id` — the first adapter where those diverge. Before launch puddle snapshots the account/cwd's existing top-level refs, then reads the state index first for a new one while excluding that snapshot; child threads are never eligible. A missing, incompatible, or stale index falls back to an asynchronous rollout index that reads only each file's bounded `session_meta` header and caches unchanged metadata — it never synchronously loads whole transcripts. This snapshot → spawn → capture sequence stays serialised per account/cwd, but yields a full event-loop turn and runs behind the session-create response: the browser can attach immediately without native-ref discovery blocking any API or PTY. Concurrent late-capture ticks share one lookup. An unresolved placeholder is never stored; status changes and the periodic title refresh retry the same creation-time-safe discovery. On resume, a ref must be the unique closest match to the puddle session's cwd and creation time (within the bounded startup window), preventing a real but unrelated rollout from hijacking the row. The UUID remains stable when Codex renames a thread: puddle periodically re-reads `threads.name` into the separate `agent_title`, so the displayed name changes without rewriting `agent_session_ref`. Its live idle composer renders as `› … <model> · <directory>` after ANSI stripping; that observed signature, not the absent `? for shortcuts` string found in the binary, drives `waiting_input`.
-- **opencode** (verified against opencode 1.18.10): isolation needs **all four XDG roots** — `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `XDG_STATE_HOME` — because `auth.json` and the session store live under the DATA root, not the config one. `OPENCODE_CONFIG_DIR` relocates _nothing_ (verified with `opencode debug paths`) and is useless for account isolation. Resume `--session <ses_id>`; skip mode is `--auto`, so `skipPermissions: true` — an earlier revision of this spec wrongly said opencode's permissions were configured rather than flagged. Like Codex, OpenCode mints ids, so launch captures a ref absent from the pre-launch account/cwd snapshot and resume validates/re-recovers it from the stored creation time. Its account-wide metadata walk is asynchronous, yields behind the create response, caches files by size and modification time, and coalesces concurrent polls, so a large imported store cannot stop unrelated daemon work. `opencode export <id>` yields the transcript. Caveat: redirecting `XDG_CONFIG_HOME` also hides an XDG-located global gitignore from git commands the agent runs; identity is unaffected (`~/.gitconfig` is HOME-based).
-- **gemini-cli** (verified against @google/gemini-cli 0.53.1): isolation via **`GEMINI_CLI_HOME`**, which the CLI checks before `os.homedir()`; state lands at `<config_dir>/.gemini/`. The widely cited `GEMINI_CONFIG_DIR` is ignored and would leave the CLI writing into the user's real `~/.gemini`, breaching §2. `--session-id <uuid>` presets the id (`presetSessionId: true`); resume `--resume <ref>`; skip mode `--approval-mode yolo`. `--prompt` is headless and exits, so an initial prompt must use `--prompt-interactive`. It has **no `auth` subcommand**, so login is a bare launch into the first-run picker and `checkLoggedIn` inspects the credentials file.
+- **claude-code**: isolation via `CLAUDE_CONFIG_DIR`; supports `--session-id <uuid>` at launch (→ `presetSessionId: true`) and `claude --resume <uuid>`; skip mode `--dangerously-skip-permissions`; conversations stored as JSONL under `<config_dir>/projects/<escaped-cwd>/<uuid>.jsonl`. Additive `SessionStart`/`SessionEnd` hooks report startup/resume/clear/fork/compact identity (lifecycle payloads verified against 2.1.238) alongside the existing status hooks.
+- **codex** (flags, storage, and app-server lifecycle re-verified against codex-cli 0.147.0; live idle signature against 0.146.0): isolation via `CODEX_HOME` alone, which relocates config, sessions and credentials together. Conversation state is split: rollouts live at `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-<ts>-<uuid>.jsonl`, while `$CODEX_HOME/state_<n>.sqlite` indexes the same threads. The first rollout `session_meta` carries the session `id`, `cwd`, creation timestamp, and (for child agents) `parent_thread_id`; the SQLite row carries the id/cwd/time sooner, before a large rollout header is necessarily readable. Resume `codex resume <id> [prompt]` (or `--last`); bypass `--dangerously-bypass-approvals-and-sandbox` — **`--yolo` does not exist in 0.147.0** despite older published docs. `codex login status` exits non-zero when logged out, so the exit code alone drives `checkLoggedIn`. Session ids are not presettable, so `presetSessionId: false` and `agent_session_ref !== sessions.id` — the first adapter where those diverge. Before launch puddle snapshots the account/cwd's existing top-level refs, then reads the state index first for a new one while excluding that snapshot; child threads are never eligible. A missing, incompatible, or stale index falls back to an asynchronous rollout index that reads only each file's bounded `session_meta` header and caches unchanged metadata — it never synchronously loads whole transcripts. This snapshot → spawn → capture sequence stays serialised per account/cwd, but yields a full event-loop turn and runs behind the session-create response: the browser can attach immediately without native-ref discovery blocking any API or PTY. Concurrent late-capture ticks share one lookup. An unresolved placeholder is never stored; status changes and the periodic title refresh retry the same creation-time-safe discovery. On resume, a ref must be the unique closest match to the Puddle session's cwd and creation time, preventing a real but unrelated rollout from hijacking the row. The UUID remains stable when Codex renames a thread: catalogue discovery re-reads `threads.name` as the native title without rewriting the ref. Exact switching comes from successful top-level `thread/start`, `thread/resume`, and non-ephemeral `thread/fork` JSON-RPC responses through the app-server bridge. Its live idle composer renders as `› … <model> · <directory>` after ANSI stripping; that observed signature, not the absent `? for shortcuts` string found in the binary, drives `waiting_input`.
+- **opencode** (verified against opencode 1.18.10): isolation needs **all four XDG roots** — `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `XDG_STATE_HOME` — because `auth.json` and the session store live under the DATA root, not the config one. `OPENCODE_CONFIG_DIR` relocates _nothing_ (verified with `opencode debug paths`) and is useless for account isolation. Resume `--session <ses_id>`; skip mode is `--auto`, so `skipPermissions: true`. Like Codex, OpenCode mints ids, so launch captures a ref absent from the pre-launch account/cwd snapshot and resume validates/re-recovers it from the stored creation time. Its account-wide metadata walk is asynchronous, caches files by size and modification time, and coalesces concurrent polls. A Puddle-managed plugin reports only top-level session lifecycle/status events and ignores events whose session has `parentID`. `opencode export <id>` yields the transcript. Caveat: redirecting `XDG_CONFIG_HOME` also hides an XDG-located global gitignore from git commands the agent runs; identity is unaffected (`~/.gitconfig` is HOME-based).
+- **gemini-cli** (verified against @google/gemini-cli 0.53.1): isolation via **`GEMINI_CLI_HOME`**, which the CLI checks before `os.homedir()`; state lands at `<config_dir>/.gemini/`. The widely cited `GEMINI_CONFIG_DIR` is ignored and would leave the CLI writing into the user's real `~/.gemini`, breaching §2. `--session-id <uuid>` presets the id (`presetSessionId: true`); resume `--resume <ref>`; skip mode `--approval-mode yolo`. `--prompt` is headless and exits, so an initial prompt must use `--prompt-interactive`. It has **no `auth` subcommand**, so login is a bare launch into the first-run picker and `checkLoggedIn` inspects the credentials file. Additive `SessionStart`/`SessionEnd` hooks report native identity without replacing user hooks.
 
-None of the three newer adapters has a hook side-channel, so `statusPatterns` is its only status driver. Codex's pattern is verified against a live logged-in 0.146.0 PTY; OpenCode and Gemini CLI remain best-effort until their logged-in acceptance runs. `docs/acceptance/phase-7-agents.md` carries the evidence and remaining checks.
+All four adapters declare exact native lifecycle integration, while status integration remains independent: Claude Code's status hooks are authoritative and Codex, OpenCode, and Gemini still use `statusPatterns`. Codex's pattern is verified against a live logged-in 0.146.0 PTY; OpenCode and Gemini CLI remain best-effort until their logged-in acceptance runs. `docs/acceptance/phase-7-agents.md` carries the evidence and remaining checks.
 
 When a capability is `false`, degrade gracefully: e.g. no `resume` → offer "new session in the same worktree", pre-filling a prompt that summarises the branch state (`git log --oneline base..HEAD` + `git status`).
 
 Adding an agent = adding one file + registering it; PRs adding adapters must not touch core session logic.
 
-Every non-null `(account_id, agent_session_ref)` pair is unique. Migration 020 clears all legacy duplicate claims (the conversation files remain untouched); on the next resume, adapters recover each cleared or mismatched ref from the puddle row's immutable `created_at`, excluding conversations already proven to belong to another row. If no creation-time match exists, resume fails visibly with `conversation_missing` rather than opening an unrelated conversation.
+Conversation identity is unique by `(profile_id, agent_type, agent_session_ref)`, not account: accounts in one profile may expose the same native store. A conversation has at most one placement per `(project, canonical worktree)`, but may appear in several projects that register the same repository. Legacy ref recovery still uses the Puddle row's immutable `created_at`, cwd, and the pre-launch ref snapshot; it never guesses “newest in this directory”. If no creation-time match exists, resume fails visibly rather than opening an unrelated conversation.
+
+### Native catalogue discovery and battery budget
+
+Each adapter's `conversationDiscovery` returns only normalised metadata — ref, cwd, title, parent ref, and native timestamps — using asynchronous, cached, bounded reads. Discovery never reads transcript bodies. The coordinator maps native cwd to its containing canonical Git worktree, then creates an exited, unarchived placement in every eligible project: same profile as the conversation account, same registered repository, non-archived project, and a worktree exposed by that repository. It never crosses profiles or imports into archived projects; unarchiving a project immediately makes it eligible and schedules discovery. Polling updates native titles and existence but never unarchives a placement or grants branch ownership.
+
+Opening or transitioning to a project calls `POST /api/projects/:id/conversations/refresh`. The call returns `204` immediately; concurrent requests coalesce by account while the daemon scans and broadcasts `sessions-changed` for created, recovered, missing, renamed, or re-parented placements. This is activation-driven rather than another browser interval.
+
+Eligible accounts install adapter-declared `fs.watch` roots with per-store debounce. Healthy watchers get one unref'd five-minute safety sweep. A failed/unavailable watch falls back to an asynchronous fingerprint poll beginning at 15 seconds and doubling while unchanged, capped at five minutes. In-flight scans coalesce, metadata fingerprints/cache entries are reused, and accounts with no non-archived eligible project install no watchers. Native deletion is confirmed only after two successful scans (a watch deletion schedules a short verification); a failed scan never advances missing state. Missing placements remain visible with a badge and cannot resume, and reappear immediately after a successful scan sees the conversation again.
 
 ### Errors are never silent
 
@@ -401,8 +459,9 @@ All REST endpoints are JSON under `/api`. Request/response shapes live as zod sc
 
 ```
 Version    GET  /api/version                 # {version, protocol: {major, minor}} — the handshake endpoint (see Protocol versioning below)
-Signal     POST /agent-signal {nonce, state} # agent-hook status side-channel (§4) — OUTSIDE /api on purpose: no bearer (the caller is a
-                # hook process on this host); the per-spawn nonce is the auth, 404 on unknown/stale; never proxied by cockpits
+Signal     POST /agent-signal {nonce, state} | {nonce,event,agent_session_ref?,cwd,source,parent_agent_session_ref?,native_title?,native_created_at?,native_updated_at?}
+                # backwards-compatible status or exact lifecycle side-channel (§4), OUTSIDE /api: no bearer;
+                # per-runtime nonce is auth, 404 on unknown/stale; never proxied by cockpits
 Profiles   GET  /api/profiles                POST /api/profiles {name, branch_prefix?}   # ids are 10-hex handles, like projects
            PATCH /api/profiles/:id {name?, branch_prefix?}   # rename (display label, UNIQUE → 409) and/or set branch prefix; dirs are id-keyed so a rename touches nothing on disk
            DELETE /api/profiles/:id                  # 409 while any of its sessions is non-archived; cascades rows + removes its dir
@@ -431,6 +490,7 @@ Projects   GET  /api/projects?profile=…      POST /api/projects {profile_id, r
            PATCH /api/projects/:id {name?, archived?}   # rename (UNIQUE(profile,name) → 409) and/or archive (reversible hide, §11)
            GET  /api/projects/:id            # detail incl. sessions with status
            POST /api/projects/:id/archive
+           POST /api/projects/:id/conversations/refresh # 204 immediately; coalesced activation-driven native scan
 Sessions   GET  /api/sessions?project=…&status=…
            POST /api/sessions {project_id, account_id?, kind?, base_branch?, branch?, separate_branch?, cwd?, title?, prompt?, skip_permissions?}
                 # kind defaults 'agent' (needs account_id); kind:'terminal' spawns a plain shell with
@@ -446,7 +506,9 @@ Sessions   GET  /api/sessions?project=…&status=…
                 # prompt → prefix + a memorable adjective-noun-element triple (quiet-tarn-fire) — never a uuid fragment
                 # skip_permissions is honoured only if the profile gate AND the account opt-in allow it;
                 # otherwise the request is rejected (400) — enforced server-side, no CLI/API bypass
-           GET  /api/sessions/:id            # detail incl. git summary (ahead/behind, dirty files)
+           GET  /api/sessions/:id            # detail incl. git summary and optional conversation_id,
+                # parent_conversation_id, conversation_missing, branch_owner, native_sync;
+                # agent_session_ref/agent_title remain public join fields, not placement columns
            PATCH /api/sessions/:id {title?}   # rename (does not rename the git branch)
            POST /api/sessions/:id/resume | /kill                # lifecycle
            POST /api/sessions/:id/archive | /unarchive          # reversible hide, no body (§4): archive kills a live
@@ -549,6 +611,9 @@ server → client:
   {t:'output',  session, term, data}
   {t:'status',  session, status, last_activity_at}
   {t:'renamed', session, title}                # title changed (UI rename or agent self-naming)
+  {t:'session-switched', source_session, target_session, target_project, cause, outcome}
+                                               # exact native clear/resume/fork rebound, or focus an existing runtime
+  {t:'sessions-changed', project_ids}          # catalogue-created/recovered/missing/renamed placements; invalidate lists
   {t:'exit',    session, term, code}
   {t:'error',   message}
 ```

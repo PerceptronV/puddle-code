@@ -10,8 +10,9 @@ import {
   realpathSync,
   statSync,
   writeFileSync,
+  type Dirent,
 } from 'node:fs';
-import { cp } from 'node:fs/promises';
+import { cp, open, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { AgentAdapter, AgentUsage } from './adapter.js';
@@ -19,6 +20,7 @@ import { claudeConversationShare } from './claude-share.js';
 import { installStatusHooks } from './claude-hooks.js';
 import { installStatusLine, readLiveUsage } from './claude-statusline.js';
 import { fetchSubscriptionUsage } from './claude-usage-cli.js';
+import { lifecycleVersionAtLeast } from './lifecycle-version.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -77,6 +79,9 @@ const EMPTY_USAGE: AgentUsage = {
  * - `claude -p /usage` prints the subscription rate-limit windows as plain
  *   text (verified 2.1.209) — see claude-usage-cli.ts, including the
  *   API-key-suppresses-the-windows gotcha.
+ * - Additive SessionStart/SessionEnd hooks carry session_id, cwd, source, and
+ *   fork parent where present (payload names verified against 2.1.238). They
+ *   coexist with Puddle's status hooks and any user hooks.
  * - `CLAUDE_CONFIG_DIR` relocates all state: conversation JSONL lands at
  *   `<config_dir>/projects/<escaped-realpath-cwd>/<uuid>.jsonl`. For a git
  *   WORKTREE cwd the project dir is escaped from the MAIN repository root,
@@ -269,6 +274,13 @@ export const claudeCode: AgentAdapter = {
   // profile reads the SAME conversation JSONLs through its symlink, so
   // usageStats/hasConversation report identical conversations for them all.
   conversationShare: claudeConversationShare,
+
+  conversationDiscovery: {
+    watchRoots: (account) => [join(account.config_dir, 'projects')],
+    discover: (account) => discoverClaudeConversations(account.config_dir),
+  },
+  lifecycleSignals: true,
+  checkLifecycleSupport: () => lifecycleVersionAtLeast('claude', ['--version'], [2, 1, 238]),
 
   subscriptionUsage(account) {
     return fetchSubscriptionUsage(account);
@@ -474,6 +486,106 @@ function conversationCwdMatches(path: string, targets: Set<string>): boolean {
     }
   }
   return false;
+}
+
+interface ClaudeCatalogueCacheEntry {
+  size: number;
+  mtimeMs: number;
+  conversation: import('./adapter.js').NativeConversation;
+}
+
+const claudeCatalogueCache = new Map<string, ClaudeCatalogueCacheEntry>();
+
+/**
+ * Account-wide Claude catalogue. Directory/stat work is asynchronous and an
+ * unchanged transcript costs no reads; changed files use bounded head/tail
+ * windows for cwd/title metadata only.
+ */
+async function discoverClaudeConversations(
+  configDir: string,
+): Promise<import('./adapter.js').NativeConversation[]> {
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  const root = join(configDir, 'projects');
+  const files: string[] = [];
+  let projects: Dirent[];
+  try {
+    projects = await readdir(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  for (const project of projects) {
+    if (!project.isDirectory() && !project.isSymbolicLink()) continue;
+    let entries: Dirent[];
+    try {
+      entries = await readdir(join(root, project.name), { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if ((entry.isFile() || entry.isSymbolicLink()) && entry.name.endsWith('.jsonl')) {
+        files.push(join(root, project.name, entry.name));
+      }
+    }
+  }
+  const live = new Set(files);
+  for (const path of claudeCatalogueCache.keys()) {
+    if (!live.has(path)) claudeCatalogueCache.delete(path);
+  }
+  const out: import('./adapter.js').NativeConversation[] = [];
+  for (let offset = 0; offset < files.length; offset += 32) {
+    const batch = await Promise.all(files.slice(offset, offset + 32).map(readClaudeMetadata));
+    for (const metadata of batch) if (metadata) out.push(metadata);
+  }
+  return out.sort((a, b) => Date.parse(b.updatedAt ?? '') - Date.parse(a.updatedAt ?? ''));
+}
+
+async function readClaudeMetadata(
+  path: string,
+): Promise<import('./adapter.js').NativeConversation | null> {
+  try {
+    const stats = await stat(path);
+    const cached = claudeCatalogueCache.get(path);
+    if (cached && cached.size === stats.size && cached.mtimeMs === stats.mtimeMs) {
+      return cached.conversation;
+    }
+    const handle = await open(path, 'r');
+    try {
+      const headBuffer = Buffer.allocUnsafe(Math.min(16_384, Math.max(1, stats.size)));
+      const { bytesRead } = await handle.read(headBuffer, 0, headBuffer.length, 0);
+      const head = headBuffer.toString('utf8', 0, bytesRead);
+      let cwd: string | null = null;
+      for (const line of head.split('\n').slice(0, 20)) {
+        try {
+          const record = JSON.parse(line) as { cwd?: unknown };
+          if (typeof record.cwd === 'string') {
+            cwd = record.cwd;
+            break;
+          }
+        } catch {
+          /* partial boundary line */
+        }
+      }
+      if (cwd === null) return null;
+      const tailStart = Math.max(0, stats.size - TITLE_WINDOW);
+      const tailBuffer = Buffer.allocUnsafe(Math.min(TITLE_WINDOW, Math.max(1, stats.size)));
+      const tailRead = await handle.read(tailBuffer, 0, tailBuffer.length, tailStart);
+      const tail = tailBuffer.toString('utf8', 0, tailRead.bytesRead);
+      const conversation = {
+        ref: path.split('/').pop()!.slice(0, -'.jsonl'.length),
+        cwd,
+        title: pickTitle(tail) ?? pickTitle(head),
+        parentRef: null,
+        createdAt: stats.birthtime.toISOString(),
+        updatedAt: stats.mtime.toISOString(),
+      } satisfies import('./adapter.js').NativeConversation;
+      claudeCatalogueCache.set(path, { size: stats.size, mtimeMs: stats.mtimeMs, conversation });
+      return conversation;
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    return null;
+  }
 }
 
 function addUsage(into: AgentUsage, more: AgentUsage): void {

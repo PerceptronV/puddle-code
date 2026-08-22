@@ -151,6 +151,35 @@ describe('WsManager', () => {
     expect(statuses).toEqual(['session-1:waiting_input']);
   });
 
+  it('fans native switches and catalogue invalidations out to listeners', async () => {
+    const ws = await manager();
+    const switches: string[] = [];
+    const changed: string[][] = [];
+    ws.onSessionSwitched((event) =>
+      switches.push(`${event.source_session}:${event.target_session}`),
+    );
+    ws.onSessionsChanged((event) => changed.push(event.project_ids));
+    const socket = FakeWebSocket.instances[0]!;
+    socket.emit('open', {});
+
+    socket.emit('message', {
+      data: JSON.stringify({
+        t: 'session-switched',
+        source_session: 'source',
+        target_session: 'target',
+        target_project: 'a1b2c3d4e5',
+        cause: 'resume',
+        outcome: 'rebound',
+      }),
+    });
+    socket.emit('message', {
+      data: JSON.stringify({ t: 'sessions-changed', project_ids: ['a1b2c3d4e5'] }),
+    });
+
+    expect(switches).toEqual(['source:target']);
+    expect(changed).toEqual([['a1b2c3d4e5']]);
+  });
+
   it('does not write to a closed socket', async () => {
     const ws = await manager();
     ws.write('session-1', 'agent', 'ignored'); // no socket yet — must not throw

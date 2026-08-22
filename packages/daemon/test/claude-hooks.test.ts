@@ -18,13 +18,15 @@ function readSettings(configDir: string): Settings {
 }
 
 describe('installStatusHooks', () => {
-  it('registers the five signal hooks and writes the helper', () => {
+  it('registers status and lifecycle signal hooks and writes the helper', () => {
     const configDir = dir();
     installStatusHooks(configDir);
     const s = readSettings(configDir);
     expect(Object.keys(s.hooks ?? {}).sort()).toEqual([
       'Notification',
       'PreToolUse',
+      'SessionEnd',
+      'SessionStart',
       'Stop',
       'UserPromptSubmit',
     ]);
@@ -34,8 +36,9 @@ describe('installStatusHooks', () => {
       'permission_prompt',
     ]);
     expect(s.hooks!['Stop']![0]!.hooks[0]!.command).toContain('puddle-signal.mjs');
-    expect(s.hooks!['Stop']![0]!.hooks[0]!.command).toMatch(/waiting_input$/);
-    expect(s.hooks!['PreToolUse']![0]!.hooks[0]!.command).toMatch(/working$/);
+    expect(s.hooks!['Stop']![0]!.hooks[0]!.command).toMatch(/status waiting_input$/);
+    expect(s.hooks!['PreToolUse']![0]!.hooks[0]!.command).toMatch(/status working$/);
+    expect(s.hooks!['SessionStart']![0]!.hooks[0]!.command).toMatch(/lifecycle session_start$/);
     expect(readFileSync(join(configDir, 'puddle-signal.mjs'), 'utf8')).toContain(
       'PUDDLE_AGENT_SIGNAL_URL',
     );

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  agentSignalRequestSchema,
   createSessionRequestSchema,
   diffResponseSchema,
   diffStatusSchema,
@@ -179,7 +180,7 @@ describe('shared API schemas', () => {
     });
   });
 
-  it('validates cross-filetree transfers at protocol 16.3', () => {
+  it('validates cross-filetree transfers and carries protocol 16.4', () => {
     expect(
       transferEntryRequestSchema.parse({
         operation: 'copy',
@@ -199,7 +200,48 @@ describe('shared API schemas', () => {
       from: 'docs/readme.md',
       to: 'imported/readme.md',
     });
-    expect(PROTOCOL_VERSION).toEqual({ major: 16, minor: 3 });
+    expect(PROTOCOL_VERSION).toEqual({ major: 16, minor: 4 });
+  });
+
+  it('accepts additive native conversation fields and lifecycle signals', () => {
+    const base = {
+      id: '11111111-1111-4111-8111-111111111111',
+      project_id: 'a1b2c3d4e5',
+      account_id: 2,
+      worktree_path: '/repo',
+      base_branch: 'main',
+      branch: 'topic',
+      separate_branch: true,
+      kind: 'agent',
+      agent_type: 'codex',
+      agent_session_ref: 'thread-1',
+      title: null,
+      status: 'running',
+      skip_permissions: false,
+      created_at: '2026-08-22T00:00:00.000Z',
+      updated_at: '2026-08-22T00:00:00.000Z',
+      last_activity_at: null,
+    };
+    expect(
+      sessionSchema.parse({
+        ...base,
+        conversation_id: 3,
+        parent_conversation_id: 2,
+        conversation_missing: true,
+        branch_owner: false,
+        native_sync: 'fallback',
+      }),
+    ).toMatchObject({ conversation_id: 3, parent_conversation_id: 2, native_sync: 'fallback' });
+    expect(
+      agentSignalRequestSchema.parse({
+        nonce: '1234567890abcdef',
+        event: 'session_start',
+        agent_session_ref: 'thread-2',
+        cwd: '/repo',
+        source: 'fork',
+        parent_agent_session_ref: 'thread-1',
+      }),
+    ).toMatchObject({ event: 'session_start', source: 'fork' });
   });
 
   it('ws client messages discriminate on t and validate term ids', () => {

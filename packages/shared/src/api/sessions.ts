@@ -34,6 +34,10 @@ export const sessionSchema = z.object({
   /** Null for terminal sessions, which run a plain shell rather than an agent. */
   agent_type: z.string().nullable(),
   agent_session_ref: z.string().nullable(),
+  /** Durable native-conversation catalogue row; null for terminal sessions. */
+  conversation_id: rowId.nullable().optional(),
+  /** Native parent conversation, when the agent records a fork relationship. */
+  parent_conversation_id: rowId.nullable().optional(),
   /** User-set display override; null means "use the agent's own name" (agent_title) then the id. */
   title: z.string().nullable(),
   /**
@@ -43,6 +47,12 @@ export const sessionSchema = z.object({
    * older daemons omit it; null when the agent has not named the session yet.
    */
   agent_title: z.string().nullable().optional(),
+  /** Two successful native scans could no longer find this conversation. */
+  conversation_missing: z.boolean().optional(),
+  /** This placement owns worktree/branch-dependent destructive actions. */
+  branch_owner: z.boolean().optional(),
+  /** Strength of exact in-agent lifecycle synchronisation for this runtime. */
+  native_sync: z.enum(['pending', 'full', 'fallback']).optional(),
   /**
    * The terminal-title "sequence" name: the last title the process set on its
    * PTY via an OSC 0/1/2 escape, normalised (leading spinner/status glyphs
