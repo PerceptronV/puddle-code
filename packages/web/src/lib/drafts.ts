@@ -2,10 +2,10 @@
  * Browser-cached editor drafts (SPEC §11 "Reload semantics") — IndexedDB
  * persistence for unsaved editor content, independent of the daemon and of
  * any particular window. A draft records the dirty content plus the disk
- * mtime it was captured against (`base_mtime_ms`); restore policy is the
- * CALLER's (Task 7 wires the actual restore-on-open/tab-restore pass) —
- * this module only stores and retrieves:
- *   - `base_mtime_ms === <current disk mtime>` → the file has not moved
+ * mtime it was captured against (`base_mtime_ms`). `draftDisposition` encodes
+ * the restore-on-open classification while the caller owns the UI/action:
+ *   - draft content already equals disk → retire the no-op draft.
+ *   - otherwise, `base_mtime_ms === <current disk mtime>` → the file has not moved
  *     under the draft since it was written; the caller may restore it
  *     silently as a dirty buffer.
  *   - disk mtime has moved (the daemon, another window, or the agent wrote
@@ -38,6 +38,24 @@ export interface Draft {
   content: string;
   base_mtime_ms: number;
   updated_at: number;
+}
+
+export type DraftDisposition = 'discard' | 'restore' | 'offer';
+
+/**
+ * Decide what opening a file should do with its cached draft. Content wins
+ * over timestamps: editors, formatters, and Git may rewrite a file without
+ * changing its text, and an identical draft has no unsaved work to recover.
+ * Keeping it would turn the harmless mtime movement into a warning on every
+ * later open.
+ */
+export function draftDisposition(
+  draft: Pick<Draft, 'content' | 'base_mtime_ms'>,
+  diskContent: string,
+  diskMtimeMs: number,
+): DraftDisposition {
+  if (draft.content === diskContent) return 'discard';
+  return draft.base_mtime_ms === diskMtimeMs ? 'restore' : 'offer';
 }
 
 /**

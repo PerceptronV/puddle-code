@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { toast } from 'sonner';
 import { ApiError } from '../../lib/api';
 import type { Debounced } from '../../lib/debounce';
-import { deleteDraft, draftWriter, loadDraft } from '../../lib/drafts';
+import { deleteDraft, draftDisposition, draftWriter, loadDraft } from '../../lib/drafts';
 import { useSaveWorktreeFile, useWorktreeFile } from '../../lib/worktree-queries';
 import {
   applyDraft,
@@ -167,11 +167,20 @@ export function useEditorBuffer(
     createdRef.current = true;
     const existedBefore = savedMtime(key) !== undefined;
     const created = getOrCreateModel(session, path, data.content, data.mtime_ms, root);
+    // Capture Monaco's normalised disk baseline before the async IndexedDB
+    // read. Reading the live model inside that callback could instead compare
+    // the draft with keystrokes entered while the draft was loading.
+    const baselineContent = created.getValue();
     setModel(created);
     if (existedBefore) return;
     void loadDraft(session, path, root).then((draft) => {
       if (!draft) return;
-      if (draft.base_mtime_ms === data.mtime_ms) {
+      const disposition = draftDisposition(draft, baselineContent, data.mtime_ms);
+      if (disposition === 'discard') {
+        // No recoverable edits remain. In particular, do not let an mtime-only
+        // rewrite turn this no-op draft into the same stale warning forever.
+        void deleteDraft(session, path, root);
+      } else if (disposition === 'restore') {
         // The file has not moved under the draft — restore it as dirty edits.
         if (applyDraft(created, draft.content)) setRestoredNotice(true);
       } else {

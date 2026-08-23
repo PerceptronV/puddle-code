@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Retire no-op editor drafts whose text already matches the file instead of repeatedly warning after an mtime-only rewrite.

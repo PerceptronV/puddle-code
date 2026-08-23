@@ -23,12 +23,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   deleteDraft,
   deleteSessionDrafts,
+  draftDisposition,
   draftKey,
   draftWriter,
   listDrafts,
   loadDraft,
   saveDraft,
 } from '../src/lib/drafts';
+
+describe('draftDisposition', () => {
+  it('discards identical content even when only the disk mtime moved', () => {
+    expect(draftDisposition({ content: 'same text', base_mtime_ms: 100 }, 'same text', 200)).toBe(
+      'discard',
+    );
+  });
+
+  it('restores changed content when the disk baseline is unchanged', () => {
+    expect(draftDisposition({ content: 'draft', base_mtime_ms: 100 }, 'disk', 100)).toBe('restore');
+  });
+
+  it('offers changed content when the disk baseline moved', () => {
+    expect(draftDisposition({ content: 'draft', base_mtime_ms: 100 }, 'disk', 200)).toBe('offer');
+  });
+});
 
 describe('draftKey', () => {
   it('joins session and path with a delimiter', () => {
