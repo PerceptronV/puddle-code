@@ -18,13 +18,13 @@ const LIVE_STATUSES: Session['status'][] = ['running', 'waiting_input'];
  * Slim mono row of detected listening ports for one session (SPEC §9),
  * rendered IN FLOW at the bottom of that session's pane (PaneLeaf) — never an
  * overlay, so it cannot sit over the terminal, and the pane only ever polls
- * for the session it is showing. Hidden entirely when
- * the session isn't live or has no ports; no refresh control, the hook's 5s
- * poll is the refresh (HUMANS.md minimalism). Each chip opens a menu with
- * the access paths that make sense for this window's mode (the CLI's
- * `?host=` boot param — Phase 6): local mode gets the direct localhost link,
- * SSH mode the tier-2 proxy link; `ssh -L` is always on offer as the manual
- * fallback (SPEC §9).
+ * for the session it is showing. Ports stay on one horizontally scrollable
+ * line with its scrollbar hidden. Hidden entirely when the session isn't
+ * live or has no ports; no refresh control, the hook's 5s poll is the refresh
+ * (HUMANS.md minimalism). Each chip opens a menu with the access paths that
+ * make sense for this window's mode (the CLI's `?host=` boot param — Phase
+ * 6): local mode gets the direct localhost link, SSH mode the tier-2 proxy
+ * link; `ssh -L` is always on offer as the manual fallback (SPEC §9).
  */
 export function PortsStrip({
   sessionId,
@@ -40,12 +40,14 @@ export function PortsStrip({
   if (!live || ports.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-2 px-3 text-xs">
-      <span className="text-fg-muted">ports</span>
-      <div className="flex items-center gap-1">
-        {ports.map((port) => (
-          <PortChip key={port.port} sessionId={sessionId} port={port} />
-        ))}
+    <div className="flex min-w-0 items-center gap-2 px-3 text-xs">
+      <span className="shrink-0 text-fg-muted">ports</span>
+      <div className="no-scrollbar min-w-0 flex-1 overflow-x-auto">
+        <div className="flex w-max items-center gap-1 whitespace-nowrap">
+          {ports.map((port) => (
+            <PortChip key={port.port} sessionId={sessionId} port={port} />
+          ))}
+        </div>
       </div>
     </div>
   );
