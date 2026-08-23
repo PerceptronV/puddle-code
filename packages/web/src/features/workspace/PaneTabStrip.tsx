@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Eye, FileCode, Link, Lock, X } from 'lucide-react';
 import type { LayoutLeaf, Session, TabRef } from '@puddle/shared';
@@ -53,6 +53,7 @@ export function PaneTabStrip({
   onSetView,
   onNewFile,
   onRevealFile,
+  onRenameFile,
 }: {
   leaf: LayoutLeaf;
   sessions: Session[];
@@ -65,7 +66,9 @@ export function PaneTabStrip({
   /** Double-click on the strip's blank tail: open a fresh untitled file (SPEC §8). */
   onNewFile: () => void;
   /** Reveal a path-backed editor tab in Files, rebasing for external files. */
-  onRevealFile: (tab: EditorTab, rename?: boolean) => void;
+  onRevealFile: (tab: EditorTab) => void;
+  /** Rename a path-backed editor tab on disk; true when the edit may close. */
+  onRenameFile: (tab: EditorTab, newName: string) => Promise<boolean>;
 }) {
   const branches = new Map(sessions.map((s) => [s.id, s.branch]));
   const directories = new Map(sessions.map((s) => [s.id, s.worktree_path]));
@@ -130,7 +133,9 @@ export function PaneTabStrip({
             onArchived={onArchived}
             onSetView={(view) => onSetView(ref, view)}
             onRevealFile={() => ref.type === 'editor' && onRevealFile(ref.tab)}
-            onRenameFile={() => ref.type === 'editor' && onRevealFile(ref.tab, true)}
+            onRenameFile={(newName) =>
+              ref.type === 'editor' ? onRenameFile(ref.tab, newName) : Promise.resolve(false)
+            }
           />
         </Fragment>
       ))}
@@ -265,8 +270,9 @@ function PaneTab({
   onArchived: (session: string) => void;
   onSetView: (view: EditorView) => void;
   onRevealFile: () => void;
-  onRenameFile: () => void;
+  onRenameFile: (newName: string) => Promise<boolean>;
 }) {
+  const [renaming, setRenaming] = useState(false);
   const renderTitle = useSessionTitleRenderer();
   const key = tabRefKey(tab);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -296,11 +302,11 @@ function PaneTab({
   const body = (
     <div
       ref={setRefs}
-      {...attributes}
-      {...listeners}
+      {...(renaming ? {} : attributes)}
+      {...(renaming ? {} : listeners)}
       onClick={onActivate}
       onDoubleClick={onPromote}
-      className={cls}
+      className={cn(cls, renaming && 'cursor-text select-text')}
     >
       {tab.type === 'terminal' ? (
         <>
@@ -336,49 +342,60 @@ function PaneTab({
               of that file (SPEC §8). */}
           {tab.tab.view === 'linked' && <Link className="size-3 shrink-0 text-fg-muted" />}
           {tab.tab.view === 'locked' && <Lock className="size-3 shrink-0 text-fg-muted" />}
-          <HoverMarquee
-            text={label}
-            hoverClass={TAB_MARQUEE}
-            // Sidebar rows fill their line (`flex-1`); a tab must neither grow
-            // nor refuse to shrink, so its resting width follows the filename
-            // until the chip reaches its cap.
-            containerClassName="flex-[0_1_auto]"
-            // Keep the revealed tail to the left of the controls laid over
-            // this edge. The matching negative margin removes the padding
-            // from the label's intrinsic width while leaving it inside the
-            // measured scroll width for the marquee.
-            className={
-              (tabKind(tab.tab) === 'file' || tabKind(tab.tab) === 'external') &&
-              previewKind(tab.tab.path) !== null
-                ? '-mr-16 pr-16'
-                : '-mr-11 pr-11'
-            }
-          />
-          {/* In flow AFTER the filename — the chip widens for it (to its cap;
-              past that the name truncates), and it never occludes the name.
-              Hidden on hover, where the overlay × appears. */}
-          <LazyEditorDirtyDot
-            session={tab.tab.session}
-            path={tab.tab.path}
-            kind={tabKind(tab.tab)}
-            root={tab.tab.root}
-          />
-          <TabControls active={active}>
-            {/* `external` tabs render the same views (SPEC §8) — only diffs,
-                commits, and untitled drafts have no rendered counterpart. */}
-            {(tabKind(tab.tab) === 'file' || tabKind(tab.tab) === 'external') &&
-              previewKind(tab.tab.path) !== null && (
-                <ViewToggle view={tab.tab.view ?? 'source'} onSetView={onSetView} />
-              )}
-            <LazyEditorTabClose
-              session={tab.tab.session}
-              path={tab.tab.path}
-              kind={tabKind(tab.tab)}
-              root={tab.tab.root}
-              label={label}
-              onClose={onClose}
+          {renaming ? (
+            <TabRenameInput
+              initial={tab.tab.path.split('/').pop() ?? tab.tab.path}
+              onCommit={onRenameFile}
+              onCancel={() => setRenaming(false)}
+              onCommitted={() => setRenaming(false)}
             />
-          </TabControls>
+          ) : (
+            <>
+              <HoverMarquee
+                text={label}
+                hoverClass={TAB_MARQUEE}
+                // Sidebar rows fill their line (`flex-1`); a tab must neither grow
+                // nor refuse to shrink, so its resting width follows the filename
+                // until the chip reaches its cap.
+                containerClassName="flex-[0_1_auto]"
+                // Keep the revealed tail to the left of the controls laid over
+                // this edge. The matching negative margin removes the padding
+                // from the label's intrinsic width while leaving it inside the
+                // measured scroll width for the marquee.
+                className={
+                  (tabKind(tab.tab) === 'file' || tabKind(tab.tab) === 'external') &&
+                  previewKind(tab.tab.path) !== null
+                    ? '-mr-16 pr-16'
+                    : '-mr-11 pr-11'
+                }
+              />
+              {/* In flow AFTER the filename — the chip widens for it (to its cap;
+                  past that the name truncates), and it never occludes the name.
+                  Hidden on hover, where the overlay × appears. */}
+              <LazyEditorDirtyDot
+                session={tab.tab.session}
+                path={tab.tab.path}
+                kind={tabKind(tab.tab)}
+                root={tab.tab.root}
+              />
+              <TabControls active={active}>
+                {/* `external` tabs render the same views (SPEC §8) — only diffs,
+                    commits, and untitled drafts have no rendered counterpart. */}
+                {(tabKind(tab.tab) === 'file' || tabKind(tab.tab) === 'external') &&
+                  previewKind(tab.tab.path) !== null && (
+                    <ViewToggle view={tab.tab.view ?? 'source'} onSetView={onSetView} />
+                  )}
+                <LazyEditorTabClose
+                  session={tab.tab.session}
+                  path={tab.tab.path}
+                  kind={tabKind(tab.tab)}
+                  root={tab.tab.root}
+                  label={label}
+                  onClose={onClose}
+                />
+              </TabControls>
+            </>
+          )}
         </>
       )}
     </div>
@@ -415,12 +432,13 @@ function PaneTab({
     (tabKind(tab.tab) === 'file' || tabKind(tab.tab) === 'external')
   ) {
     return (
-      <Tooltip>
+      <Tooltip open={renaming ? false : undefined}>
         <FileTabContextMenu
           tab={tab.tab}
           directory={fileDirectory}
           onReveal={onRevealFile}
-          onRename={onRenameFile}
+          onRename={() => setRenaming(true)}
+          editing={renaming}
         >
           <TooltipTrigger asChild>{body}</TooltipTrigger>
         </FileTabContextMenu>
@@ -433,5 +451,71 @@ function PaneTab({
       <TooltipTrigger asChild>{body}</TooltipTrigger>
       {tooltip}
     </Tooltip>
+  );
+}
+
+/** The tab-chip rename field: basename selected, Enter/blur commits, Escape cancels. */
+function TabRenameInput({
+  initial,
+  onCommit,
+  onCommitted,
+  onCancel,
+}: {
+  initial: string;
+  onCommit: (name: string) => Promise<boolean>;
+  onCommitted: () => void;
+  onCancel: () => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const done = useRef(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const claim = () => {
+      el.focus();
+      const dot = initial.lastIndexOf('.');
+      el.setSelectionRange(0, dot > 0 ? dot : initial.length);
+    };
+    claim();
+    const raf = requestAnimationFrame(() => {
+      if (document.activeElement !== el) claim();
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [initial]);
+
+  const commit = () => {
+    if (done.current) return;
+    done.current = true;
+    void onCommit(ref.current?.value ?? '').then((ok) => {
+      if (ok) {
+        onCommitted();
+        return;
+      }
+      done.current = false;
+      requestAnimationFrame(() => ref.current?.focus());
+    });
+  };
+
+  return (
+    <input
+      ref={ref}
+      defaultValue={initial}
+      spellCheck={false}
+      aria-label={`Rename ${initial}`}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+      onDoubleClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        event.stopPropagation();
+        if (event.key === 'Enter') commit();
+        else if (event.key === 'Escape') {
+          done.current = true;
+          onCancel();
+        }
+      }}
+      onBlur={commit}
+      className="min-w-0 flex-1 bg-transparent text-xs text-fg outline-none"
+      style={{ width: `${Math.max(8, Math.min(initial.length, 24))}ch` }}
+    />
   );
 }

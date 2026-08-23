@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LayoutNode, LayoutSplit, TabRef, UiStateSnapshot } from '@puddle/shared';
 import { UNTITLED_SESSION, uiStateSnapshotSchema } from '@puddle/shared';
+import type { EditorTab } from '../src/features/editor/editor-tabs';
 import {
   allLeaves,
   buildInitialTree,
@@ -20,6 +21,7 @@ import {
   normalise,
   openPreview,
   promoteTab,
+  renameBufferTabs,
   resizeSplit,
   sameRef,
   setTabView,
@@ -622,6 +624,59 @@ describe('setTabView', () => {
     };
     expect(viewIn(second)).toBe('preview');
     expect(viewIn(first)).toBeUndefined();
+  });
+});
+
+describe('renameBufferTabs', () => {
+  it('retargets file and diff views of the same buffer and remaps leaf pointers', () => {
+    const source: EditorTab = { session: 's1', path: 'docs/old.md' };
+    const file: TabRef = { type: 'editor', tab: source };
+    const diff: TabRef = {
+      type: 'editor',
+      tab: { kind: 'diff', session: 's1', path: 'docs/old.md' },
+    };
+    const otherSession = ed('docs/old.md', 's2');
+    const leaf = makeLeaf([file, diff, otherSession], tabRefKey(diff));
+    const tree = { ...leaf, previewKey: tabRefKey(file) };
+
+    const next = renameBufferTabs(tree, source, 'docs/new.md');
+    const renamed = allLeaves(next)[0]!;
+    expect(
+      renamed.tabs.map((ref) =>
+        ref.type === 'editor' ? `${ref.tab.kind ?? 'file'}:${ref.tab.path}` : '',
+      ),
+    ).toEqual(['file:docs/new.md', 'diff:docs/new.md', 'file:docs/old.md']);
+    expect(renamed.activeKey).toBe(
+      tabRefKey({
+        type: 'editor',
+        tab: { kind: 'diff', session: 's1', path: 'docs/new.md' },
+      }),
+    );
+    expect(renamed.previewKey).toBe(tabRefKey(ed('docs/new.md')));
+  });
+
+  it('retargets matching following slots but leaves historical commit paths alone', () => {
+    const sourceTab: EditorTab = { session: 's1', path: 'README.md' };
+    const source: TabRef = { type: 'editor', tab: sourceTab };
+    const linked: TabRef = {
+      type: 'editor',
+      tab: { session: 's1', path: 'README.md', view: 'linked' },
+    };
+    const commit: TabRef = {
+      type: 'editor',
+      tab: { kind: 'commit', session: 's1', path: 'README.md', sha: 'abc1234' },
+    };
+    const tree = makeLeaf([source, linked, commit]);
+
+    const paths = flattenTabs(renameBufferTabs(tree, sourceTab, 'GUIDE.md')).map((ref) =>
+      ref.type === 'editor' ? ref.tab.path : '',
+    );
+    expect(paths).toEqual(['GUIDE.md', 'GUIDE.md', 'README.md']);
+  });
+
+  it('is a referential no-op when no live tab shares the source buffer', () => {
+    const tree = makeLeaf([ed('a.ts')]);
+    expect(renameBufferTabs(tree, { session: 's1', path: 'missing.ts' }, 'next.ts')).toBe(tree);
   });
 });
 

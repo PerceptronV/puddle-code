@@ -135,6 +135,60 @@ export function isDirty(key: string): boolean {
   return savedState.isDirty(key, entry.model.getAlternativeVersionId());
 }
 
+export interface RekeyedBufferSnapshot {
+  /** Live text to persist under the new draft key when the buffer is dirty. */
+  content: string;
+  /** Disk mtime the unsaved text was based on. */
+  baseMtimeMs: number;
+  dirty: boolean;
+}
+
+/**
+ * Move an open buffer to a new path identity without rebuilding its Monaco
+ * model. Keeping the model preserves unsaved text, selections, and undo/redo;
+ * its URI is intentionally stable because Monaco model URIs are immutable.
+ * The filesystem mutation and layout rewrite are owned by Workspace.
+ */
+export function rekeyBuffer(
+  session: string,
+  fromPath: string,
+  toPath: string,
+  root?: string,
+): RekeyedBufferSnapshot | null {
+  const from = bufferKey(session, fromPath, root);
+  const to = bufferKey(session, toPath, root);
+  if (from === to) return null;
+  const entry = entries.get(from);
+  if (!entry) return null;
+
+  const snapshot = {
+    content: entry.model.getValue(),
+    baseMtimeMs: savedState.mtime(from) ?? 0,
+    dirty: savedState.isDirty(from, entry.model.getAlternativeVersionId()),
+  };
+  const destination = entries.get(to);
+  if (destination && destination !== entry) {
+    destination.disposable.dispose();
+    destination.model.dispose();
+  }
+  entries.delete(from);
+  entries.set(to, entry);
+  savedState.delete(to);
+  savedState.rekey(from, to);
+  monaco.editor.setModelLanguage(entry.model, languageForPath(toPath));
+
+  const fromListeners = keyListeners.get(from);
+  if (fromListeners) {
+    const toListeners = keyListeners.get(to) ?? new Set<() => void>();
+    for (const listener of fromListeners) toListeners.add(listener);
+    keyListeners.set(to, toListeners);
+    keyListeners.delete(from);
+  }
+  notify(from);
+  notify(to);
+  return snapshot;
+}
+
 /**
  * Reload-from-disk: replaces the model's full content and resets saved
  * state to the new (versionId, mtimeMs). Uses `pushEditOperations` (a single

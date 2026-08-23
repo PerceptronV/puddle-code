@@ -184,6 +184,15 @@ describe('SavedStateMap', () => {
     expect(saved.mtime('k')).toBeUndefined();
     expect(saved.isDirty('k', 99)).toBe(false);
   });
+
+  it('moves the saved version and mtime when a buffer identity changes', () => {
+    const saved = new SavedStateMap();
+    saved.mark('old', 1, 1_000);
+    saved.rekey('old', 'new');
+    expect(saved.mtime('old')).toBeUndefined();
+    expect(saved.mtime('new')).toBe(1_000);
+    expect(saved.isDirty('new', 2)).toBe(true);
+  });
 });
 
 describe('RefCounter', () => {

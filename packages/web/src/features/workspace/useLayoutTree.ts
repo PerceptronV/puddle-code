@@ -18,6 +18,7 @@ import {
   openPreview,
   promoteTab,
   pruneTabs,
+  renameBufferTabs,
   resizeSplit,
   retargetFollowingTabs,
   setTabView,
@@ -52,6 +53,8 @@ export interface LayoutController {
    * same file can be source in one pane and preview in another.
    */
   setView(leafId: string, ref: TabRef, view: EditorView): void;
+  /** Retarget every live view of a file after its on-disk path changes. */
+  renameFile(source: EditorTab, nextPath: string): void;
   removeTerminal(session: string): void;
   pruneSessions(alive: ReadonlySet<string>): void;
   resize(splitId: string, sizes: number[]): void;
@@ -199,6 +202,10 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
         const leaf = findLeaf(viewed, leafId);
         const active = leaf?.tabs.find((tab) => tabRefKey(tab) === leaf.activeKey);
         persist(active ? retargetFollowingTabs(viewed, active) : viewed);
+      },
+      renameFile: (source, nextPath) => {
+        const next = renameBufferTabs(tree, source, nextPath);
+        if (next !== tree) persist(next);
       },
       removeTerminal: (session) => {
         const leaf = leafContainingKey(tree, `term:${session}`);

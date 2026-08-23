@@ -30,7 +30,9 @@ export interface TileHandlers {
   /** Double-click on a strip's blank tail: open a fresh untitled file there. */
   onNewUntitled: (leaf: LayoutLeaf) => void;
   /** Reveal a path-backed editor tab in Files. */
-  onRevealFile: (tab: EditorTab, rename?: boolean) => void;
+  onRevealFile: (tab: EditorTab) => void;
+  /** Rename a path-backed editor tab through its inline chip editor. */
+  onRenameFile: (tab: EditorTab, newName: string) => Promise<boolean>;
   focusedLeafId: string;
   scrollDriverLeafId: string;
   /** Browser-local scroll-following channel for this layout scope. */
@@ -88,6 +90,7 @@ function TileNode({ node, ...handlers }: { node: LayoutNode } & TileHandlers) {
         onSetTabView={handlers.onSetTabView}
         onNewUntitled={handlers.onNewUntitled}
         onRevealFile={handlers.onRevealFile}
+        onRenameFile={handlers.onRenameFile}
         focused={node.id === handlers.focusedLeafId}
         scrollDriver={node.id === handlers.scrollDriverLeafId}
         scrollChannel={handlers.scrollChannel}

@@ -484,6 +484,68 @@ export function setTabView(
   }) as LayoutNode;
 }
 
+/** Whether an editor tab points at the live buffer a filesystem rename moves. */
+function sharesBuffer(tab: EditorTab, source: EditorTab): boolean {
+  const kind = tabKind(tab);
+  return (
+    kind !== 'commit' &&
+    kind !== 'untitled' &&
+    tab.session === source.session &&
+    tab.path === source.path &&
+    tab.root === source.root
+  );
+}
+
+/**
+ * Retarget every open view of one live file after it is renamed on disk.
+ *
+ * File, diff, and following-preview tabs all share the same path-keyed buffer,
+ * so changing only the chip that initiated the rename would leave the other
+ * views pointing at a path that no longer exists. Commit tabs are historical
+ * snapshots and deliberately stay on their committed path. Leaf pointers are
+ * remapped because ordinary editor keys include the path; linked/locked keys
+ * are constant and naturally remain unchanged.
+ */
+export function renameBufferTabs(
+  tree: LayoutNode,
+  source: EditorTab,
+  nextPath: string,
+): LayoutNode {
+  if (nextPath === source.path) return tree;
+  let changed = false;
+  const walk = (node: LayoutNode): LayoutNode => {
+    if (node.kind === 'split') {
+      const children = node.children.map(walk);
+      return children.some((child, index) => child !== node.children[index])
+        ? { ...node, children }
+        : node;
+    }
+
+    const keyMap = new Map<string, string>();
+    let touched = false;
+    const tabs = node.tabs.map((ref): TabRef => {
+      if (ref.type !== 'editor' || !sharesBuffer(ref.tab as EditorTab, source)) return ref;
+      const rewritten: TabRef = { ...ref, tab: { ...ref.tab, path: nextPath } };
+      keyMap.set(tabRefKey(ref), tabRefKey(rewritten));
+      touched = true;
+      return rewritten;
+    });
+    if (!touched) return node;
+    changed = true;
+    const activeKey = node.activeKey;
+    const previewKey = node.previewKey ?? null;
+    return {
+      ...node,
+      tabs,
+      activeKey: activeKey === null ? null : (keyMap.get(activeKey) ?? activeKey),
+      previewKey: previewKey === null ? null : (keyMap.get(previewKey) ?? previewKey),
+    };
+  };
+
+  const next = walk(tree);
+  return changed ? next : tree;
+}
+
 /**
  * The tab an activation makes every following slot follow (SPEC §8): a plain
  * or external FILE tab with a rendered view available, and not itself a

@@ -191,6 +191,14 @@ export class SavedStateMap {
     this.saved.delete(key);
   }
 
+  /** Move a saved baseline with a buffer whose path-based identity changed. */
+  rekey(from: string, to: string): void {
+    if (from === to) return;
+    const state = this.saved.get(from);
+    this.saved.delete(from);
+    if (state !== undefined) this.saved.set(to, state);
+  }
+
   /** Keys whose current version (per the supplied map) diverges from saved. */
   dirtyKeys(currentVersionIds: ReadonlyMap<string, number>): string[] {
     return [...this.saved.keys()].filter((key) => {

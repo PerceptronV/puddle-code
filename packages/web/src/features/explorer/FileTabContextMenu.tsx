@@ -38,13 +38,14 @@ import { useExplorerFs } from './use-explorer-fs';
 /**
  * A path-backed editor tab's file-tree menu. It deliberately uses the same menu
  * rows, clipboard, fs operations, protocol gates, and confirmations as a tree
- * row. Rename first reveals the row, then uses the explorer's inline editor.
+ * row. Rename opens the tab chip's own inline editor.
  */
 export function FileTabContextMenu({
   tab,
   directory,
   onReveal,
   onRename,
+  editing,
   children,
 }: {
   tab: EditorTab;
@@ -52,6 +53,8 @@ export function FileTabContextMenu({
   directory: string;
   onReveal: () => void;
   onRename: () => void;
+  /** Prevent Radix returning focus to the chip while its rename input mounts. */
+  editing?: boolean;
   children: ReactNode;
 }) {
   const host = useHostInfo();
@@ -94,7 +97,11 @@ export function FileTabContextMenu({
     <>
       <ContextMenu>
         <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-        <ContextMenuContent>
+        <ContextMenuContent
+          onCloseAutoFocus={(event) => {
+            if (editing) event.preventDefault();
+          }}
+        >
           <FileMenuItems
             readOnly={readOnly}
             canPaste={canPaste}

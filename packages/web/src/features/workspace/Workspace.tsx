@@ -11,6 +11,9 @@ import {
   type TabRef,
 } from '@puddle/shared';
 import { createUntitled, deleteUntitled } from '../../lib/untitled-queries';
+import { deleteDraft, saveDraft } from '../../lib/drafts';
+import { renameEntry } from '../../lib/worktree-queries';
+import { basename, dirOf, joinPath } from '../explorer/explorer-paths';
 import { tabKind } from '../editor/editor-tabs';
 import { requestActiveTabSave } from '../editor/active-tab-save';
 import {
@@ -962,7 +965,7 @@ function WorkspaceInner() {
   const targetSession = sidebarTarget.session;
   const targetRoot = sidebarTarget.root;
   const revealFileTab = useCallback(
-    (tab: EditorTab, rename = false) => {
+    (tab: EditorTab) => {
       const owner = tabSessions.find((session) => session.id === tab.session);
       if (tab.root === undefined && !owner) return;
       const target = fileTabRevealTarget(tab, owner?.worktree_path ?? tab.root ?? '');
@@ -987,10 +990,42 @@ function WorkspaceInner() {
       requestReveal({
         path: target.path,
         directory: target.directory,
-        ...(rename ? { renameTarget: true } : {}),
       });
     },
     [sidebarTarget, tabSessions, targetRoot, targetSession?.worktree_path, uiState],
+  );
+  const renameFileTab = useCallback(
+    async (tab: EditorTab, newName: string): Promise<boolean> => {
+      const trimmed = newName.trim();
+      if (trimmed === '' || trimmed === basename(tab.path)) return true;
+      const nextPath = joinPath(dirOf(tab.path), trimmed);
+      try {
+        // Load the lazy buffer module BEFORE touching disk. If the editor chunk
+        // could not load, the file stays where it is and no dirty model is left
+        // stranded under the old path.
+        const { rekeyBuffer } = await import('../editor/buffer-store');
+        const result = await renameEntry(tab.session, tab.path, nextPath, tab.root);
+        const snapshot = rekeyBuffer(tab.session, tab.path, result.path, tab.root);
+        layoutRef.current.renameFile(tab, result.path);
+        void qc.invalidateQueries({ queryKey: ['wt-tree', tab.session] });
+        void qc.invalidateQueries({ queryKey: ['wt-git-status', tab.session] });
+
+        // The old editor body's cleanup flushes its debounced draft during the
+        // layout render. Run one task later so that old-key write finishes first,
+        // then preserve dirty text under the new identity and retire the orphan.
+        setTimeout(() => {
+          const moved = snapshot?.dirty
+            ? saveDraft(tab.session, result.path, snapshot.content, snapshot.baseMtimeMs, tab.root)
+            : Promise.resolve();
+          void moved.then(() => deleteDraft(tab.session, tab.path, tab.root));
+        }, 0);
+        return true;
+      } catch (error) {
+        toastError(error);
+        return false;
+      }
+    },
+    [qc],
   );
   const openFromTerminal = useCallback(
     (session: string, target: FileLinkTarget) => {
@@ -1385,6 +1420,7 @@ function WorkspaceInner() {
           onSetTabView={layout.setView}
           onNewUntitled={onNewUntitled}
           onRevealFile={revealFileTab}
+          onRenameFile={renameFileTab}
           focusedLeafId={layout.focusedLeaf.id}
           scrollDriverLeafId={scrollDriverLeafId}
           scrollChannel={scopeKey}

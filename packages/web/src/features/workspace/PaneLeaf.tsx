@@ -41,6 +41,7 @@ export function PaneLeaf({
   onSetTabView,
   onNewUntitled,
   onRevealFile,
+  onRenameFile,
   focused,
   scrollDriver,
   scrollChannel,
@@ -62,7 +63,9 @@ export function PaneLeaf({
   /** Double-click on the strip's blank tail: open a fresh untitled file here. */
   onNewUntitled: (leaf: LayoutLeaf) => void;
   /** Reveal a path-backed editor tab in Files. */
-  onRevealFile: (tab: EditorTab, rename?: boolean) => void;
+  onRevealFile: (tab: EditorTab) => void;
+  /** Rename a path-backed editor tab through its inline chip editor. */
+  onRenameFile: (tab: EditorTab, newName: string) => Promise<boolean>;
   /** The workspace's logical focus, independent of DOM focus inside Monaco. */
   focused: boolean;
   /** Whether this pane currently owns the independent scroll-following focus. */
@@ -204,6 +207,7 @@ export function PaneLeaf({
           onSetView={(ref, view) => onSetTabView(leaf.id, ref, view)}
           onNewFile={() => onNewUntitled(leaf)}
           onRevealFile={onRevealFile}
+          onRenameFile={onRenameFile}
         />
       )}
       <div
