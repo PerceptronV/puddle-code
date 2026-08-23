@@ -176,11 +176,28 @@ export const codex: AgentAdapter = {
     );
     const indexedMatch = rolloutBornFor(indexed, context.createdAt);
     if (indexedMatch !== undefined) return indexedMatch.id === ref;
-    return (
+    const rolloutMatch =
       rolloutBornFor(
         (await codexSessionsFor(account.config_dir, context.worktreePath, true)).filter(
           (candidate) => !context.excludeRefs?.has(candidate.id),
         ),
+        context.createdAt,
+      )?.id ?? null;
+    if (rolloutMatch !== null) return rolloutMatch === ref;
+
+    // Compatibility for the v0.0.56 lifecycle-bridge regression: app-server
+    // inherited the daemon cwd, so an exact lifecycle UUID could be recorded
+    // under `~` rather than this Puddle worktree. Keep the same ambiguity guard
+    // as ordinary recovery, but search the account-wide top-level index when
+    // the cwd-scoped lookup has no candidate. This cannot guess between two
+    // concurrent launches inside the 15 s uniqueness window.
+    const accountIndex = codexThreadIndex(account.config_dir);
+    const accountCandidates = accountIndex.available
+      ? accountIndex.threads
+      : (await allRollouts(account.config_dir)).filter((meta) => meta.parentThreadId === null);
+    return (
+      rolloutBornFor(
+        accountCandidates.filter((candidate) => !context.excludeRefs?.has(candidate.id)),
         context.createdAt,
       )?.id === ref
     );

@@ -249,6 +249,24 @@ describe('codex adapter — rollout discovery', () => {
     expect(await codex.sessionRefMatches?.(UUID_B, context, account(cfg))).toBe(false);
   });
 
+  it('accepts a unique exact ref recorded under the daemon cwd by the old remote bridge', async () => {
+    const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
+    writeRollout(cfg, UUID_A, '/daemon/home', [], '01', {
+      timestamp: '2026-07-01T10:00:05.000Z',
+    });
+    expect(
+      await codex.sessionRefMatches?.(
+        UUID_A,
+        {
+          sessionId: 'puddle-id',
+          worktreePath: '/wt',
+          createdAt: '2026-07-01T10:00:00.000Z',
+        },
+        account(cfg),
+      ),
+    ).toBe(true);
+  });
+
   it('refuses an ambiguous creation-time recovery', async () => {
     const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
     writeRollout(cfg, UUID_A, '/wt', [], '01', { timestamp: '2026-07-01T10:00:05.000Z' });
@@ -260,6 +278,17 @@ describe('codex adapter — rollout discovery', () => {
         createdAt: '2026-07-01T10:00:00.000Z',
       }),
     ).toBeNull();
+    expect(
+      await codex.sessionRefMatches?.(
+        UUID_A,
+        {
+          sessionId: 'puddle-id',
+          worktreePath: '/another-worktree',
+          createdAt: '2026-07-01T10:00:00.000Z',
+        },
+        account(cfg),
+      ),
+    ).toBe(false);
   });
 
   it('reports a conversation by id, and misses an unknown one', async () => {
