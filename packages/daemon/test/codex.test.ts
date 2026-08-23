@@ -235,6 +235,21 @@ describe('codex adapter — rollout discovery', () => {
     );
   });
 
+  it('catalogues a top-level rollout omitted from an available state index', async () => {
+    const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
+    writeRollout(cfg, UUID_A, '/daemon/home', [], '01');
+    writeRollout(cfg, UUID_B, '/daemon/home', [], '02', { parentThreadId: UUID_A });
+    const db = new Database(join(cfg, 'state_5.sqlite'));
+    db.exec(`create table threads (
+      id text primary key, cwd text, created_at integer, created_at_ms integer,
+      rollout_path text, name text, title text, thread_source text, source text
+    )`);
+    db.close();
+
+    const rows = await codex.conversationDiscovery?.discover(account(cfg));
+    expect(rows?.map((row) => row.ref)).toEqual([UUID_A]);
+  });
+
   it('recovers the rollout born with the puddle session, not the newest cwd match', async () => {
     const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
     writeRollout(cfg, UUID_A, '/wt', [], '01', { timestamp: '2026-07-01T10:00:05.000Z' });
@@ -249,22 +264,52 @@ describe('codex adapter — rollout discovery', () => {
     expect(await codex.sessionRefMatches?.(UUID_B, context, account(cfg))).toBe(false);
   });
 
-  it('accepts a unique exact ref recorded under the daemon cwd by the old remote bridge', async () => {
+  it('recovers a unique top-level ref recorded under the daemon cwd by the old bridge', async () => {
     const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
     writeRollout(cfg, UUID_A, '/daemon/home', [], '01', {
       timestamp: '2026-07-01T10:00:05.000Z',
     });
-    expect(
-      await codex.sessionRefMatches?.(
-        UUID_A,
-        {
-          sessionId: 'puddle-id',
-          worktreePath: '/wt',
-          createdAt: '2026-07-01T10:00:00.000Z',
-        },
-        account(cfg),
-      ),
-    ).toBe(true);
+    writeRollout(cfg, UUID_B, '/daemon/home', [], '02', {
+      timestamp: '2026-07-01T10:00:05.500Z',
+      parentThreadId: UUID_A,
+    });
+    const context = {
+      sessionId: 'puddle-id',
+      worktreePath: '/wt',
+      createdAt: '2026-07-01T10:00:00.000Z',
+    };
+    expect(await codex.discoverSessionRef?.('/wt', account(cfg), context)).toBe(UUID_A);
+    expect(await codex.sessionRefMatches?.(UUID_A, context, account(cfg))).toBe(true);
+  });
+
+  it('recovers a wrong-cwd rollout omitted from Codex’s current state index', async () => {
+    const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
+    writeRollout(cfg, UUID_A, '/daemon/home', [], '01', {
+      timestamp: '2026-07-01T10:00:05.000Z',
+    });
+    const db = new Database(join(cfg, 'state_5.sqlite'));
+    db.exec(`create table threads (
+      id text primary key, cwd text, created_at integer, created_at_ms integer,
+      rollout_path text, thread_source text, source text
+    )`);
+    db.prepare('insert into threads values (?, ?, ?, ?, ?, ?, ?)').run(
+      UUID_B,
+      '/other',
+      Date.parse('2026-07-02T10:00:00.000Z') / 1000,
+      Date.parse('2026-07-02T10:00:00.000Z'),
+      '/other-rollout',
+      'user',
+      'cli',
+    );
+    db.close();
+
+    const context = {
+      sessionId: 'puddle-id',
+      worktreePath: '/wt',
+      createdAt: '2026-07-01T10:00:00.000Z',
+    };
+    expect(await codex.discoverSessionRef?.('/wt', account(cfg), context)).toBe(UUID_A);
+    expect(await codex.sessionRefMatches?.(UUID_A, context, account(cfg))).toBe(true);
   });
 
   it('refuses an ambiguous creation-time recovery', async () => {

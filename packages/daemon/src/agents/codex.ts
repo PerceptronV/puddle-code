@@ -167,7 +167,18 @@ export const codex: AgentAdapter = {
       (meta) => !context?.excludeRefs?.has(meta.id),
     );
     match = context === undefined ? candidates[0] : rolloutBornFor(candidates, context.createdAt);
-    return match?.id ?? null;
+    if (match !== undefined) return match.id;
+    if (context === undefined) return null;
+
+    // Compatibility for sessions born during the v0.0.56 remote-bridge cwd
+    // regression. Their thread is real but recorded under the daemon cwd, so
+    // a worktree-scoped recovery can never find it. Creation-time uniqueness
+    // plus other-session exclusions make the account-wide fallback as safe as
+    // the normal recovery path; ambiguity still refuses rather than guessing.
+    const accountCandidates = (await accountWideCodexSessions(account.config_dir)).filter(
+      (candidate) => !context.excludeRefs?.has(candidate.id),
+    );
+    return rolloutBornFor(accountCandidates, context.createdAt)?.id ?? null;
   },
 
   async sessionRefMatches(ref, context, account) {
@@ -191,10 +202,7 @@ export const codex: AgentAdapter = {
     // as ordinary recovery, but search the account-wide top-level index when
     // the cwd-scoped lookup has no candidate. This cannot guess between two
     // concurrent launches inside the 15 s uniqueness window.
-    const accountIndex = codexThreadIndex(account.config_dir);
-    const accountCandidates = accountIndex.available
-      ? accountIndex.threads
-      : (await allRollouts(account.config_dir)).filter((meta) => meta.parentThreadId === null);
+    const accountCandidates = await accountWideCodexSessions(account.config_dir);
     return (
       rolloutBornFor(
         accountCandidates.filter((candidate) => !context.excludeRefs?.has(candidate.id)),
@@ -251,17 +259,23 @@ export const codex: AgentAdapter = {
       const indexed = codexThreadIndex(account.config_dir);
       const rollouts = await allRollouts(account.config_dir);
       const parentById = new Map(rollouts.map((meta) => [meta.id, meta.parentThreadId]));
-      const rows = indexed.available
-        ? indexed.threads
-        : rollouts
-            .filter((meta) => meta.parentThreadId === null)
-            .map((meta) => ({
-              id: meta.id,
-              cwd: meta.cwd,
-              createdAt: meta.createdAt,
-              rolloutPath: cachedRolloutPath(account.config_dir, meta.id) ?? '',
-              title: null,
-            }));
+      // The current state DB can omit an older rollout until Codex opens it
+      // through /resume. Always merge top-level rollout metadata instead of
+      // treating an available DB as exhaustive, or the catalogue marks a real
+      // Puddle conversation missing and hides its Resume action.
+      const indexedIds = new Set(indexed.threads.map((thread) => thread.id));
+      const rows = [
+        ...indexed.threads,
+        ...rollouts
+          .filter((meta) => meta.parentThreadId === null && !indexedIds.has(meta.id))
+          .map((meta) => ({
+            id: meta.id,
+            cwd: meta.cwd,
+            createdAt: meta.createdAt,
+            rolloutPath: cachedRolloutPath(account.config_dir, meta.id) ?? '',
+            title: null,
+          })),
+      ];
       return rows.map((thread) => ({
         ref: thread.id,
         cwd: thread.cwd,
@@ -310,6 +324,33 @@ async function codexSessionsFor(
     ...indexed.threads,
     ...(await rolloutsFor(configDir, worktreePath)).filter((rollout) => !seen.has(rollout.id)),
   ];
+}
+
+/**
+ * Every top-level thread known anywhere in the account. Merge rather than pick
+ * the state DB OR rollouts: Codex can leave an older rollout out of its current
+ * state index until the user opens it through the native /resume picker.
+ */
+async function accountWideCodexSessions(
+  configDir: string,
+): Promise<Array<{ id: string; cwd: string; createdAt: number | null }>> {
+  const indexed = codexThreadIndex(configDir).threads;
+  const rollouts = (await allRollouts(configDir)).filter((meta) => meta.parentThreadId === null);
+  const byId = new Map(
+    rollouts.map((rollout) => [
+      rollout.id,
+      { id: rollout.id, cwd: rollout.cwd, createdAt: rollout.createdAt },
+    ]),
+  );
+  for (const thread of indexed) {
+    const rollout = byId.get(thread.id);
+    byId.set(thread.id, {
+      id: thread.id,
+      cwd: thread.cwd,
+      createdAt: thread.createdAt ?? rollout?.createdAt ?? null,
+    });
+  }
+  return [...byId.values()];
 }
 
 /** Closest rollout born just after the puddle session row. */
