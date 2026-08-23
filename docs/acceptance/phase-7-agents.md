@@ -87,7 +87,9 @@ confirm every path points inside the puddle account dir.
 - **codex** — start a session, let it write a rollout, interrupt it, resume from
   the UI. History must come back. Confirm the API's `agent_session_ref` (joined
   from `agent_conversations`) is the rollout UUID and **not** the Puddle session
-  id. If the ref *is* the Puddle id, `resolveSessionRef`'s
+  id. On both the fresh launch and resume, the footer must name the session's
+  worktree and current Git branch rather than `~`; run `pwd` inside Codex and
+  confirm the absolute result equals `worktree_path`. If the ref *is* the Puddle id, `resolveSessionRef`'s
   10 s poll expired: check that the rollout appeared and widen it if needed.
   Also inspect `state_<n>.sqlite`: its top-level `threads` row should normally
   let puddle capture the ref before the rollout's first JSONL line is readable.

@@ -12,3 +12,4 @@ Past releases: see docs/changelogs/.
 ### Fixed
 
 - Retire no-op editor drafts whose text already matches the file instead of repeatedly warning after an mtime-only rewrite.
+- Keep remote Codex sessions rooted in their Puddle worktree so the footer and tools retain the correct directory and Git branch.

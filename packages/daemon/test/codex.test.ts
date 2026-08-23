@@ -5,6 +5,7 @@ import Database from 'better-sqlite3';
 import { describe, expect, it, vi } from 'vitest';
 import type { Account } from '@puddle/shared';
 import { codex } from '../src/agents/codex.js';
+import { codexAppServerSpawnOptions, codexRemoteArgs } from '../src/agents/codex-lifecycle.js';
 import { newestRolloutFor, renderRollout } from '../src/agents/codex-rollout.js';
 import { StatusDetector } from '../src/pty/status-detector.js';
 
@@ -89,6 +90,27 @@ describe('codex adapter — args', () => {
 
   it('cannot preset its session id', () => {
     expect(codex.capabilities.presetSessionId).toBe(false);
+  });
+
+  it('starts the lifecycle app-server in the agent worktree', () => {
+    const spawn = codexAppServerSpawnOptions({ account: account('/cfg'), opts });
+    expect(spawn.cwd).toBe('/wt');
+    expect(spawn.env?.['CODEX_HOME']).toBe('/cfg');
+  });
+
+  it('pins the remote TUI to the agent worktree before launch or resume args', () => {
+    expect(codexRemoteArgs('ws://bridge', { opts, args: [] })).toEqual([
+      '--remote',
+      'ws://bridge',
+      '-C',
+      '/wt',
+    ]);
+    expect(
+      codexRemoteArgs('ws://bridge', {
+        opts,
+        args: ['resume', UUID_A],
+      }),
+    ).toEqual(['--remote', 'ws://bridge', '-C', '/wt', 'resume', UUID_A]);
   });
 });
 

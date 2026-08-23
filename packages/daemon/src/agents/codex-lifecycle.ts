@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
 import { createServer } from 'node:net';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import type { LifecycleLaunchContext, LifecycleLaunchResource } from './adapter.js';
@@ -30,10 +30,11 @@ export async function prepareCodexLifecycle(
 ): Promise<LifecycleLaunchResource> {
   const appPort = await freePort();
   const appUrl = `ws://127.0.0.1:${appPort}`;
-  const appServer = spawn('codex', ['app-server', '--listen', appUrl], {
-    env: { ...process.env, CODEX_HOME: context.account.config_dir },
-    stdio: ['ignore', 'ignore', 'pipe'],
-  });
+  const appServer = spawn(
+    'codex',
+    ['app-server', '--listen', appUrl],
+    codexAppServerSpawnOptions(context),
+  );
   let errorTail = '';
   appServer.once('error', (error) => {
     errorTail = `${errorTail}${error.message}`.slice(-2_000);
@@ -102,7 +103,11 @@ export async function prepareCodexLifecycle(
   });
 
   return {
-    args: ['--remote', `ws://127.0.0.1:${proxyPort}`, ...context.args],
+    // Remote mode delegates workspace creation to app-server. Keep `-C`
+    // explicit as well as setting the sidecar cwd below: either endpoint may
+    // otherwise fall back to the daemon's directory when a protocol request
+    // omits cwd, which makes Codex show `~` and loses the Git branch footer.
+    args: codexRemoteArgs(`ws://127.0.0.1:${proxyPort}`, context),
     ...(appServer.pid !== undefined ? { sidecarPids: [appServer.pid] } : {}),
     hiddenPorts: [appPort, proxyPort],
     dispose: () => {
@@ -110,6 +115,24 @@ export async function prepareCodexLifecycle(
       proxy.close();
       stopProcess(appServer);
     },
+  };
+}
+
+export function codexRemoteArgs(
+  remoteUrl: string,
+  context: Pick<LifecycleLaunchContext, 'args' | 'opts'>,
+): string[] {
+  return ['--remote', remoteUrl, '-C', context.opts.worktreePath, ...context.args];
+}
+
+/** Load-bearing spawn context for the remote Codex workspace. */
+export function codexAppServerSpawnOptions(
+  context: Pick<LifecycleLaunchContext, 'account' | 'opts'>,
+): SpawnOptions {
+  return {
+    cwd: context.opts.worktreePath,
+    env: { ...process.env, CODEX_HOME: context.account.config_dir },
+    stdio: ['ignore', 'ignore', 'pipe'],
   };
 }
 
