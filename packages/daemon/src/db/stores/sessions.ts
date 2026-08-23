@@ -414,6 +414,13 @@ export class SessionStore {
       .run(title, new Date().toISOString(), id);
   }
 
+  /** Last prompt-reported directory, worktree-relative; null means worktree root. */
+  setCwd(id: string, cwd: string | null): void {
+    this.db
+      .prepare(`UPDATE sessions SET cwd = ?, updated_at = ? WHERE id = ?`)
+      .run(cwd, new Date().toISOString(), id);
+  }
+
   setSkipPermissions(id: string, on: boolean): void {
     this.db.prepare(`UPDATE sessions SET skip_permissions = ? WHERE id = ?`).run(on ? 1 : 0, id);
   }

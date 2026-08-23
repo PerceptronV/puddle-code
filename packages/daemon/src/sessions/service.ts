@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { existsSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type {
   Account,
   AgentSignalRequest,
@@ -28,6 +28,7 @@ import type { LogStore } from '../logs/log-store.js';
 import { extractOscTitle, stripAnsi } from '../pty/ansi.js';
 import type {
   PtyDataEvent,
+  PtyCwdEvent,
   PtyEnvDeltaEvent,
   PtyExitEvent,
   PtyManager,
@@ -60,7 +61,7 @@ export interface SessionServiceDeps {
   onboarding: MarkerFileSync;
   /** Shared conversation store (Workstream S); absent → no adoption. */
   share?: ConversationShare;
-  /** Captured-env shell hooks (SPEC §4); absent → plain shells, no capture. */
+  /** Session shell hooks (SPEC §4); absent → no cwd hook, history still isolated via env. */
   shellHooks?: ShellHooks;
   /** waiting_input quiet window; overridable for tests. */
   statusQuietMs?: number;
@@ -196,6 +197,7 @@ export class SessionService extends EventEmitter {
     deps.ptys.on('data', (e: PtyDataEvent) => this.onPtyData(e));
     deps.ptys.on('exit', (e: PtyExitEvent) => this.onPtyExit(e));
     deps.ptys.on('env-delta', (e: PtyEnvDeltaEvent) => this.onEnvDelta(e));
+    deps.ptys.on('cwd', (e: PtyCwdEvent) => this.onCwd(e));
     // Catch in-agent renames that emit no signal (see TITLE_REFRESH_MS). Unref'd
     // so it never keeps the process (or a test run) alive.
     this.titleTimer = setInterval(() => {
@@ -1079,7 +1081,7 @@ export class SessionService extends EventEmitter {
     return settings.allowSkipPermissions === true && account.skip_permissions_default;
   }
 
-  /** The profile gate for captured env (SPEC §4): hook injection, consumption, and re-injection. */
+  /** The profile gate for captured env (SPEC §4): reporting, consumption, and re-injection. */
   private captureEnvEnabled(projectId: string): boolean {
     const project = this.deps.projects.get(projectId);
     return this.deps.profiles.getSettings(project.profile_id).captureSessionEnv;
@@ -1124,6 +1126,35 @@ export class SessionService extends EventEmitter {
     this.deps.sessions.mergeEnv(session.id, { [delta.name]: value }, []);
   }
 
+  /**
+   * Persist a terminal shell's last prompt directory for its next spawn. The
+   * public cwd contract is deliberately worktree-relative, so an outside cwd
+   * resets the restart location to the worktree root instead of storing an
+   * arbitrary absolute path. Agent sessions ignore shell-tab reports.
+   */
+  private onCwd(e: PtyCwdEvent): void {
+    if (this.shuttingDown) return;
+    let session: Session;
+    try {
+      session = this.deps.sessions.get(e.stream);
+    } catch {
+      return;
+    }
+    if (session.kind !== 'terminal') return;
+
+    const absolute = resolve(e.cwd);
+    try {
+      if (!existsSync(absolute) || !statSync(absolute).isDirectory()) return;
+    } catch {
+      // The directory may disappear between exists/stat; ignore a stale prompt.
+      return;
+    }
+    const rel = relative(resolve(session.worktree_path), absolute);
+    const outside = rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel);
+    const cwd = outside || rel === '' ? null : rel;
+    if ((session.cwd ?? null) !== cwd) this.deps.sessions.setCwd(session.id, cwd);
+  }
+
   private noteEnvDropOnce(sessionId: string, term: string, name: string, reason: string): void {
     const key = `${sessionId}:${name}`;
     if (this.envDropNoted.has(key)) return;
@@ -1165,12 +1196,16 @@ export class SessionService extends EventEmitter {
   } {
     const shell = process.env.SHELL ?? 'bash';
     const session = this.deps.sessions.get(sessionId);
+    const captureEnv = this.captureEnvEnabled(session.project_id);
     const captured = this.capturedSpawnEnv(session);
-    const hook = this.captureEnvEnabled(session.project_id)
-      ? this.deps.shellHooks?.spawnConfig(shell)
-      : undefined;
+    const historyFile = this.deps.logs.historyFile(sessionId);
+    const hook = this.deps.shellHooks?.spawnConfig(shell, { captureEnv, historyFile });
     // Hook control vars win over anything captured (ZDOTDIR is denylisted anyway).
-    return { shell, args: hook?.args ?? [], env: { ...captured, ...(hook?.env ?? {}) } };
+    return {
+      shell,
+      args: hook?.args ?? [],
+      env: { ...captured, HISTFILE: historyFile, ...(hook?.env ?? {}) },
+    };
   }
 
   private async spawnAgent(

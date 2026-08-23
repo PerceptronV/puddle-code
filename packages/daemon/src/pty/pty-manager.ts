@@ -24,6 +24,13 @@ export interface PtyEnvDeltaEvent {
   delta: EnvDelta;
 }
 
+/** A shell prompt's current directory, parsed and stripped from OSC 7733. */
+export interface PtyCwdEvent {
+  stream: string;
+  term: string;
+  cwd: string;
+}
+
 interface Live {
   proc: pty.IPty;
   record: boolean;
@@ -46,8 +53,8 @@ const DEFAULT_SIZE = { cols: 120, rows: 32 } as const;
 /**
  * Owns every live PTY, keyed by (stream, term) where stream is a session id
  * or `login-<accountId>`. Tees recorded output to the LogStore. Emits
- * 'data' (PtyDataEvent), 'exit' (PtyExitEvent), and 'env-delta'
- * (PtyEnvDeltaEvent). A PTY has exactly one size — the most recent
+ * 'data' (PtyDataEvent), 'exit' (PtyExitEvent), 'env-delta'
+ * (PtyEnvDeltaEvent), and 'cwd' (PtyCwdEvent). A PTY has exactly one size — the most recent
  * attach/resize wins (SPEC §6). Every PTY's output passes through an
  * EnvOscFilter, so OSC 7733 payloads (captured env, potential secrets) are
  * stripped before any log write or 'data' emit.
@@ -142,7 +149,11 @@ export class PtyManager extends EventEmitter {
     const { stream, term, record, filter, proc } = live;
     const { data, deltas } = filter.push(raw);
     for (const delta of deltas) {
-      this.emit('env-delta', { stream, term, delta } satisfies PtyEnvDeltaEvent);
+      if (delta.op === 'cwd') {
+        this.emit('cwd', { stream, term, cwd: delta.path } satisfies PtyCwdEvent);
+      } else {
+        this.emit('env-delta', { stream, term, delta } satisfies PtyEnvDeltaEvent);
+      }
     }
     if (data === '') return; // chunk fully swallowed by the side-channel
     // Answer dynamic-colour queries the moment they appear in the output —

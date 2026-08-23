@@ -2,10 +2,11 @@
  * OSC 7733 — puddle's captured-env side-channel (SPEC §4).
  *
  * Session shells carry an injected prompt hook that reports exported-variable
- * changes as OSC sequences, one per variable:
+ * changes and their current directory as OSC sequences:
  *
  *   ESC ] 7733 ; set ; b64(name) ; b64(value) BEL|ST     (ST = ESC \)
  *   ESC ] 7733 ; unset ; b64(name) BEL|ST
+ *   ESC ] 7733 ; cwd ; b64(absolute-path) BEL|ST
  *
  * The filter strips these from the PTY byte stream BEFORE the stream is
  * recorded or broadcast, so values (potential secrets) never reach terminal
@@ -20,6 +21,13 @@ export interface EnvDelta {
   /** Present for 'set'; may be the empty string (`export FOO=""` is legal). */
   value?: string;
 }
+
+export interface CwdReport {
+  op: 'cwd';
+  path: string;
+}
+
+export type ShellReport = EnvDelta | CwdReport;
 
 const ESC = '\u001b';
 const BEL = '\u0007';
@@ -40,12 +48,12 @@ export class EnvOscFilter {
   private carry = '';
   private discarded = 0;
 
-  /** Filter a chunk: returns the cleaned text plus any complete deltas parsed from it. */
-  push(chunk: string): { data: string; deltas: EnvDelta[] } {
+  /** Filter a chunk: returns cleaned text plus any complete shell reports parsed from it. */
+  push(chunk: string): { data: string; deltas: ShellReport[] } {
     let s = this.carry + chunk;
     this.carry = '';
     let out = '';
-    const deltas: EnvDelta[] = [];
+    const deltas: ShellReport[] = [];
 
     while (s.length > 0) {
       if (this.state === 'pass') {
@@ -121,8 +129,8 @@ function lastCharIfEsc(s: string): string {
   return s.endsWith(ESC) ? ESC : '';
 }
 
-/** Parse `set;b64;b64` / `unset;b64`; anything malformed is dropped (null). */
-function parsePayload(payload: string): EnvDelta | null {
+/** Parse a private shell report; anything malformed is dropped (null). */
+function parsePayload(payload: string): ShellReport | null {
   const parts = payload.split(';');
   const op = parts[0];
   if (op === 'set' && parts.length === 3) {
@@ -135,6 +143,12 @@ function parsePayload(payload: string): EnvDelta | null {
     const name = decodeB64(parts[1]!);
     if (name === null || !validName(name)) return null;
     return { op: 'unset', name };
+  }
+  if (op === 'cwd' && parts.length === 2) {
+    const path = decodeB64(parts[1]!);
+    if (path === null || !path.startsWith('/') || path.includes('\0')) return null;
+    if (Buffer.byteLength(path) > MAX_SEQ_BYTES / 2) return null;
+    return { op: 'cwd', path };
   }
   return null;
 }

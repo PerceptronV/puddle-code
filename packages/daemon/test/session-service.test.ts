@@ -1085,10 +1085,13 @@ describe('captured env', () => {
   });
 
   it('spawnShell passes captured env and the hook spawn config', async () => {
-    const spawnConfigCalls: string[] = [];
+    const spawnConfigCalls: Array<{
+      shell: string;
+      session?: { captureEnv: boolean; historyFile: string };
+    }> = [];
     const stubHooks = {
-      spawnConfig: (shell: string) => {
-        spawnConfigCalls.push(shell);
+      spawnConfig: (shell: string, session?: { captureEnv: boolean; historyFile: string }) => {
+        spawnConfigCalls.push({ shell, session });
         return { args: [], env: { PUDDLE_HOOK_MARKER: '1' } };
       },
     } as unknown as import('../src/pty/shell-hooks.js').ShellHooks;
@@ -1097,16 +1100,20 @@ describe('captured env', () => {
     f.stores.sessions.mergeEnv(session.id, { CAPTURED_PROBE: 'shell-sees-me' }, []);
     const term = f.service.spawnShell(session.id);
     expect(spawnConfigCalls).toHaveLength(1);
+    expect(spawnConfigCalls[0]?.session).toMatchObject({ captureEnv: true });
+    expect(spawnConfigCalls[0]?.session?.historyFile).toMatch(
+      new RegExp(`/${session.id}/shell-history$`),
+    );
     f.ptys.write(session.id, term, 'echo probe-$CAPTURED_PROBE-hook-$PUDDLE_HOOK_MARKER\n');
     await waitFor(() => f.logs.readTail(session.id, term).includes('probe-shell-sees-me-hook-1'));
     await f.service.kill(session.id);
   });
 
-  it('profile toggle off: deltas ignored, no hook config, no injection; map kept', async () => {
-    const spawnConfigCalls: string[] = [];
+  it('profile toggle off: env capture sleeps while cwd/history hooks remain armed', async () => {
+    const spawnConfigCalls: Array<{ captureEnv: boolean; historyFile: string } | undefined> = [];
     const stubHooks = {
-      spawnConfig: (shell: string) => {
-        spawnConfigCalls.push(shell);
+      spawnConfig: (_shell: string, session?: { captureEnv: boolean; historyFile: string }) => {
+        spawnConfigCalls.push(session);
         return { args: [], env: {} };
       },
     } as unknown as import('../src/pty/shell-hooks.js').ShellHooks;
@@ -1119,7 +1126,8 @@ describe('captured env', () => {
 
     f.stores.sessions.mergeEnv(session.id, { CAPTURED_PROBE: 'dormant' }, []);
     f.service.spawnShell(session.id);
-    expect(spawnConfigCalls).toHaveLength(0);
+    expect(spawnConfigCalls).toHaveLength(1);
+    expect(spawnConfigCalls[0]).toMatchObject({ captureEnv: false });
 
     await f.service.kill(session.id);
     await f.service.resume(session.id);

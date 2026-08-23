@@ -1,10 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { LogStore } from '../src/logs/log-store.js';
-import { PtyManager, type PtyEnvDeltaEvent } from '../src/pty/pty-manager.js';
+import { PtyManager, type PtyCwdEvent, type PtyEnvDeltaEvent } from '../src/pty/pty-manager.js';
 import {
   ENV_CAPTURE_DENYLIST,
   installShellHooks,
@@ -45,13 +45,16 @@ function harness(rcFiles: Record<string, string>) {
   const logsDir = mkdtempSync(join(tmpdir(), 'puddle-hook-logs-'));
   const logs = new LogStore(logsDir, 64 * 1024);
   const ptys = new PtyManager(logs);
+  const historyFile = logs.historyFile('s1');
   const chunks: string[] = [];
   const deltas: PtyEnvDeltaEvent[] = [];
+  const cwds: PtyCwdEvent[] = [];
   ptys.on('data', (e: { data: string }) => chunks.push(e.data));
   ptys.on('env-delta', (e: PtyEnvDeltaEvent) => deltas.push(e));
+  ptys.on('cwd', (e: PtyCwdEvent) => cwds.push(e));
 
   function spawn(shellPath: string, extraEnv: Record<string, string> = {}) {
-    const cfg = hooks.spawnConfig(shellPath);
+    const cfg = hooks.spawnConfig(shellPath, { captureEnv: true, historyFile });
     ptys.spawn('s1', 'shell-1', shellPath, cfg.args, {
       cwd: home,
       env: {
@@ -66,9 +69,25 @@ function harness(rcFiles: Record<string, string>) {
   }
   const write = (s: string) => ptys.write('s1', 'shell-1', s);
   const output = () => chunks.join('');
+  const resetOutput = () => chunks.splice(0);
   const log = () => readFileSync(join(logsDir, 's1', 'shell-1.log'), 'utf8');
   const kill = () => ptys.killAll();
-  return { home, paths, hooks, spawn, write, output, log, deltas, kill };
+  const stopped = () => !ptys.has('s1', 'shell-1');
+  return {
+    home,
+    paths,
+    hooks,
+    historyFile,
+    spawn,
+    write,
+    output,
+    resetOutput,
+    log,
+    deltas,
+    cwds,
+    kill,
+    stopped,
+  };
 }
 
 describe('installShellHooks', () => {
@@ -95,12 +114,25 @@ describe('installShellHooks', () => {
     expect(bash.args).toEqual(['--rcfile', join(paths.shellHooksDir, 'bash', 'bashrc.bash')]);
     expect(bash.env).toEqual({});
     expect(hooks.spawnConfig('/usr/bin/fish')).toEqual({ args: [], env: {} });
+
+    const historyFile = join(paths.logsDir, 'session', 'shell-history');
+    const sessionZsh = hooks.spawnConfig('/bin/zsh', { captureEnv: false, historyFile });
+    expect(sessionZsh.env).toMatchObject({
+      HISTFILE: historyFile,
+      PUDDLE_HISTFILE: historyFile,
+      PUDDLE_CAPTURE_ENV: '0',
+    });
+    expect(hooks.spawnConfig('/usr/bin/fish', { captureEnv: true, historyFile })).toEqual({
+      args: [],
+      env: { HISTFILE: historyFile },
+    });
   });
 
   it('denies hook-control and terminal-state names', () => {
     expect(isDeniedEnvName('PUDDLE_ANYTHING')).toBe(true);
     expect(isDeniedEnvName('PWD')).toBe(true);
     expect(isDeniedEnvName('ZDOTDIR')).toBe(true);
+    expect(isDeniedEnvName('HISTFILE')).toBe(true);
     expect(isDeniedEnvName('MY_TOKEN')).toBe(false);
     expect(ENV_CAPTURE_DENYLIST.has('PATH')).toBe(false); // deliberately capturable
   });
@@ -167,6 +199,32 @@ describe.skipIf(!zshPath)('zsh capture hook', () => {
     expect(h.deltas.find((d) => d.delta.name === 'FROM_SOURCE')!.delta.value).toBe('sourced-value');
     h.kill();
   });
+
+  it('reports cd and keeps restart history out of the user history', async () => {
+    const h = harness({ '.zshrc': 'fc -R "$HOME/.zsh_history" 2>/dev/null || true\n' });
+    writeFileSync(join(h.home, '.zsh_history'), 'global-history-contamination\n');
+    h.spawn(zshPath!);
+    await waitFor(() => h.cwds.some((e) => e.cwd === h.home));
+    h.write('mkdir nested && cd nested\n');
+    await waitFor(() => h.cwds.some((e) => e.cwd === join(h.home, 'nested')));
+
+    h.write('echo session-history-probe\n');
+    await waitFor(
+      () =>
+        existsSync(h.historyFile) &&
+        readFileSync(h.historyFile, 'utf8').includes('session-history-probe'),
+    );
+    expect(readFileSync(h.historyFile, 'utf8')).not.toContain('global-history-contamination');
+
+    h.kill();
+    await waitFor(h.stopped);
+    h.resetOutput();
+    h.spawn(zshPath!);
+    h.write('fc -l 1\n');
+    await waitFor(() => h.output().includes('session-history-probe'));
+    expect(h.output()).not.toContain('global-history-contamination');
+    h.kill();
+  });
 });
 
 describe.skipIf(!bashPath || bashMajor < 4)('bash capture hook (bash ≥ 4)', () => {
@@ -184,6 +242,26 @@ describe.skipIf(!bashPath || bashMajor < 4)('bash capture hook (bash ≥ 4)', ()
     h.write('unset CAP_B1\n');
     await waitFor(() => h.deltas.some((d) => d.delta.op === 'unset' && d.delta.name === 'CAP_B1'));
     expect(h.output()).not.toContain('7733');
+    h.kill();
+  });
+});
+
+describe.skipIf(!bashPath)('bash session state hook', () => {
+  it('reports cd and isolates persistent history on every supported bash', async () => {
+    const h = harness({ '.bashrc': 'history -r "$HOME/.bash_history" 2>/dev/null || true\n' });
+    writeFileSync(join(h.home, '.bash_history'), 'global-bash-contamination\n');
+    h.spawn(bashPath!);
+    await waitFor(() => h.cwds.some((e) => e.cwd === h.home));
+    h.write('mkdir bash-nested && cd bash-nested\n');
+    await waitFor(() => h.cwds.some((e) => e.cwd === join(h.home, 'bash-nested')));
+
+    h.write('echo bash-session-history-probe\n');
+    await waitFor(
+      () =>
+        existsSync(h.historyFile) &&
+        readFileSync(h.historyFile, 'utf8').includes('bash-session-history-probe'),
+    );
+    expect(readFileSync(h.historyFile, 'utf8')).not.toContain('global-bash-contamination');
     h.kill();
   });
 });

@@ -97,6 +97,16 @@ export class LogStore {
       .map((f) => f.slice(0, -'.log'.length));
   }
 
+  /**
+   * Durable command history shared by this Puddle session's shell tabs. It
+   * deliberately has no .log suffix, so it never appears as a terminal term.
+   */
+  historyFile(sessionId: string): string {
+    const dir = join(this.logsDir, sessionId);
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    return join(dir, 'shell-history');
+  }
+
   /** Forces every buffered append to disk — for shutdown paths and tests
       that read the log files directly rather than via readTail. */
   flushAll(): void {

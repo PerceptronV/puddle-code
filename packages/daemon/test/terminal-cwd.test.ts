@@ -1,4 +1,5 @@
 import { mkdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { fixture, waitFor } from './helpers/daemon-fixtures.js';
@@ -63,6 +64,39 @@ describe('terminal session cwd', () => {
 
     await f.service.kill(term.id).catch(() => undefined);
     await f.service.kill(owner.id).catch(() => undefined);
+  });
+
+  it('tracks a later cd and resumes in the prompt-reported directory', async () => {
+    const f = fixture();
+    const term = await f.service.create({
+      project_id: f.ids.project,
+      kind: 'terminal',
+      separate_branch: false,
+    });
+    const nested = join(term.worktree_path, 'changed', 'later');
+    mkdirSync(nested, { recursive: true });
+
+    // The real shell hook emits this at the next prompt after `cd`.
+    f.ptys.emit('cwd', { stream: term.id, term: 'agent', cwd: nested });
+    expect(f.service.get(term.id).cwd).toBe('changed/later');
+
+    await f.service.kill(term.id);
+    await f.service.resume(term.id);
+    f.ptys.write(term.id, 'agent', 'pwd\n');
+    await waitFor(() => f.logs.readTail(term.id, 'agent').includes('changed/later'), 10_000);
+    await f.service.kill(term.id).catch(() => undefined);
+  });
+
+  it('does not persist a prompt directory outside the worktree', async () => {
+    const f = fixture();
+    const term = await f.service.create({
+      project_id: f.ids.project,
+      kind: 'terminal',
+      separate_branch: false,
+    });
+    f.ptys.emit('cwd', { stream: term.id, term: 'agent', cwd: tmpdir() });
+    expect(f.service.get(term.id).cwd ?? null).toBeNull();
+    await f.service.kill(term.id).catch(() => undefined);
   });
 
   it('falls back to the worktree root when the directory has since gone', async () => {

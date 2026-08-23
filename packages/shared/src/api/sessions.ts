@@ -64,10 +64,10 @@ export const sessionSchema = z.object({
   osc_title: z.string().nullable().optional(),
   status: sessionStatusSchema,
   /**
-   * Where a TERMINAL session's shell starts, relative to `worktree_path`; null
-   * (or absent, on an older daemon) means the worktree root. Set by the file
-   * tree's "Open Terminal in Directory" and persisted, so a resume after a
-   * daemon restart comes back to the same directory. Always null for agents.
+   * A TERMINAL session's last prompt directory, relative to `worktree_path`;
+   * null (or absent, on an older daemon) means the worktree root. Initially set
+   * by "Open Terminal in Directory", then updated after `cd`, so a resume
+   * returns to the same directory. Always null for agents.
    */
   cwd: z.string().nullable().optional(),
   skip_permissions: z.boolean(),

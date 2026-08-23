@@ -6,7 +6,7 @@ import { claudeCode } from '../src/agents/claude-code.js';
 import { AdapterRegistry } from '../src/agents/registry.js';
 import { LogStore } from '../src/logs/log-store.js';
 import { extractOscTitle, stripAnsi } from '../src/pty/ansi.js';
-import { EnvOscFilter, MAX_SEQ_BYTES, type EnvDelta } from '../src/pty/env-osc.js';
+import { EnvOscFilter, MAX_SEQ_BYTES, type ShellReport } from '../src/pty/env-osc.js';
 import { PtyManager, type PtyEnvDeltaEvent } from '../src/pty/pty-manager.js';
 import { StatusDetector } from '../src/pty/status-detector.js';
 
@@ -256,7 +256,7 @@ describe('EnvOscFilter', () => {
 
   function pushAll(f: EnvOscFilter, chunks: string[]) {
     let data = '';
-    const deltas: EnvDelta[] = [];
+    const deltas: ShellReport[] = [];
     for (const c of chunks) {
       const r = f.push(c);
       data += r.data;
@@ -301,6 +301,15 @@ describe('EnvOscFilter', () => {
     expect(deltas).toEqual([{ op: 'set', name: 'EMPTY', value: '' }]);
   });
 
+  it('parses an absolute cwd report and rejects unsafe paths', () => {
+    const f = new EnvOscFilter();
+    const { data, deltas } = pushAll(f, [
+      `a${seq('cwd', '/worktree/nested')}b${seq('cwd', 'relative/path')}c`,
+    ]);
+    expect(data).toBe('abc');
+    expect(deltas).toEqual([{ op: 'cwd', path: '/worktree/nested' }]);
+  });
+
   it('drops malformed payloads without corrupting surrounding text', () => {
     const f = new EnvOscFilter();
     const bad = [
@@ -326,7 +335,7 @@ describe('EnvOscFilter', () => {
   });
 });
 
-describe('PtyManager env-delta', () => {
+describe('PtyManager shell reports', () => {
   function manager() {
     const logsDir = mkdtempSync(join(tmpdir(), 'puddle-logs-'));
     const logs = new LogStore(logsDir, 64 * 1024);
@@ -365,6 +374,25 @@ describe('PtyManager env-delta', () => {
       expect(text).not.toContain('YmFy');
     }
   });
+
+  it('routes cwd reports separately from environment deltas', async () => {
+    const { ptys } = manager();
+    const cwds: Array<{ stream: string; term: string; cwd: string }> = [];
+    const deltas: PtyEnvDeltaEvent[] = [];
+    ptys.on('cwd', (e) => cwds.push(e));
+    ptys.on('env-delta', (e: PtyEnvDeltaEvent) => deltas.push(e));
+    ptys.spawn(
+      's10',
+      'shell-1',
+      'bash',
+      ['-c', String.raw`printf '\033]7733;cwd;L3RtcC9uZXN0ZWQ=\007'; cat`],
+      { cwd: tmpdir() },
+    );
+    await waitFor(() => cwds.length === 1);
+    expect(cwds).toEqual([{ stream: 's10', term: 'shell-1', cwd: '/tmp/nested' }]);
+    expect(deltas).toEqual([]);
+    ptys.kill('s10', 'shell-1');
+  });
 });
 
 describe('LogStore', () => {
@@ -375,6 +403,8 @@ describe('LogStore', () => {
     logs.closeAll();
     expect(logs.readTail('sid', 'agent')).toBe('aaaaaaaaaaaaaaaa'); // capped at 16 bytes
     expect(logs.readTail('sid', 'missing')).toBe('');
+    expect(logs.listTerms('sid').sort()).toEqual(['agent', 'shell-1']);
+    expect(logs.historyFile('sid')).toMatch(/\/sid\/shell-history$/);
     expect(logs.listTerms('sid').sort()).toEqual(['agent', 'shell-1']);
   });
 
