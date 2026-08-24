@@ -37,9 +37,7 @@ export function AppearanceSection() {
           </SelectContent>
         </Select>
       </SettingRow>
-      <SettingRow
-        label="Cursor style"
-      >
+      <SettingRow label="Cursor style">
         <Select
           value={settings.cursorPackage}
           onValueChange={(value) =>
