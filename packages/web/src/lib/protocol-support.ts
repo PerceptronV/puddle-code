@@ -52,7 +52,7 @@ export const sourceControlSupported = (p: Protocol): boolean => atLeast(p, 15, 3
 export const crossFiletreeTransferSupported = (p: Protocol): boolean =>
   p !== undefined && atLeast(p, 16, 3);
 
-/** Native catalogue refresh and exact lifecycle switch messages (16.4). */
+/** Native catalogue refresh and exact lifecycle switch messages (17.0). */
 export const nativeConversationSyncSupported = (p: Protocol): boolean => atLeast(p, 16, 4);
 
 /**

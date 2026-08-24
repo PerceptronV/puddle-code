@@ -269,4 +269,6 @@
 // Session, POST /api/projects/:id/conversations/refresh, lifecycle agent
 // signals, session-switched / sessions-changed WS messages, and optional
 // structured error details for already-live conversation conflicts.
-export const PROTOCOL_VERSION = { major: 16, minor: 4 } as const;
+// 17.0 (2026-08-23): major release bump — force every connected daemon to
+// upgrade before using the 0.1.0 native conversation runtime.
+export const PROTOCOL_VERSION = { major: 17, minor: 0 } as const;
