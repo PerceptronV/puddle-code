@@ -147,7 +147,7 @@ export const opencode: AgentAdapter = {
       (session) => !context?.excludeRefs?.has(session.id),
     );
     if (context === undefined) return candidates[0]?.id ?? null;
-    return sessionBornFor(candidates, context.createdAt)?.id ?? null;
+    return sessionBornFor(candidates, context.nativeCreatedAt ?? context.createdAt)?.id ?? null;
   },
 
   async hasConversation(ref, account) {
@@ -160,7 +160,7 @@ export const opencode: AgentAdapter = {
         (await sessionsFor(account.config_dir, context.worktreePath)).filter(
           (candidate) => !context.excludeRefs?.has(candidate.id),
         ),
-        context.createdAt,
+        context.nativeCreatedAt ?? context.createdAt,
       )?.id === ref
     );
   },

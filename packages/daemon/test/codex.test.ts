@@ -264,6 +264,19 @@ describe('codex adapter — rollout discovery', () => {
     expect(await codex.sessionRefMatches?.(UUID_B, context, account(cfg))).toBe(false);
   });
 
+  it('matches a catalogue placement against the native creation time', async () => {
+    const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
+    writeRollout(cfg, UUID_A, '/wt', [], '01', { timestamp: '2026-07-01T10:00:05.000Z' });
+    const context = {
+      sessionId: 'catalogue-placement',
+      worktreePath: '/wt',
+      createdAt: '2026-07-03T10:00:00.000Z',
+      nativeCreatedAt: '2026-07-01T10:00:05.000Z',
+    };
+    expect(await codex.sessionRefMatches?.(UUID_A, context, account(cfg))).toBe(true);
+    expect(await codex.discoverSessionRef?.('/wt', account(cfg), context)).toBe(UUID_A);
+  });
+
   it('recovers a unique top-level ref recorded under the daemon cwd by the old bridge', async () => {
     const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
     writeRollout(cfg, UUID_A, '/daemon/home', [], '01', {

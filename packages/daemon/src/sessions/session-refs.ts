@@ -1,5 +1,6 @@
 import type { Account, Session } from '@puddle/shared';
 import type { AgentAdapter, LaunchOpts, SessionRefContext } from '../agents/adapter.js';
+import type { ConversationStore } from '../db/stores/conversations.js';
 import type { EventStore } from '../db/stores/events.js';
 import type { SessionStore } from '../db/stores/sessions.js';
 import { KeyedMutex } from '../git/mutex.js';
@@ -7,6 +8,7 @@ import { ApiError } from '../http/errors.js';
 
 export interface SessionRefDeps {
   sessions: SessionStore;
+  conversations: ConversationStore;
   events: EventStore;
 }
 
@@ -233,10 +235,15 @@ export class SessionRefs {
   }
 
   private contextOf(session: Session): SessionRefContext {
+    const nativeCreatedAt =
+      session.conversation_id == null
+        ? null
+        : (this.deps.conversations.get(session.conversation_id)?.native_created_at ?? null);
     return {
       sessionId: session.id,
       worktreePath: session.worktree_path,
       createdAt: session.created_at,
+      ...(nativeCreatedAt === null ? {} : { nativeCreatedAt }),
     };
   }
 }

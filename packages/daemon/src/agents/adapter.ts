@@ -47,6 +47,11 @@ export interface SessionRefContext {
   worktreePath: string;
   /** When the puddle session row was created. */
   createdAt: string;
+  /**
+   * When the linked native conversation was created, when its catalogue
+   * metadata records that independently from the later placement row.
+   */
+  nativeCreatedAt?: string;
   /** Agent-native refs already owned by another session or present before launch. */
   excludeRefs?: ReadonlySet<string>;
 }

@@ -333,6 +333,35 @@ describe('kill / resume / archive lifecycle', () => {
     await f.service.kill(session.id);
   });
 
+  it('validates a catalogue-linked ref against its native creation time', async () => {
+    const nativeCreatedAt = '2026-07-01T10:00:05.000Z';
+    const adapter = {
+      ...fakeAdapter(),
+      sessionRefMatches: (_ref: string, context: { nativeCreatedAt?: string }) =>
+        context.nativeCreatedAt === nativeCreatedAt,
+    };
+    const f = fixture({ adapter });
+    const session = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      title: 'catalogue timestamp',
+    });
+    await waitFor(() => f.service.get(session.id).agent_session_ref !== null);
+    await f.service.kill(session.id);
+    const captured = f.service.get(session.id);
+    f.stores.conversations.upsert(f.ids.profile, adapter.id, f.ids.account, {
+      ref: captured.agent_session_ref!,
+      cwd: captured.worktree_path,
+      createdAt: nativeCreatedAt,
+    });
+
+    await f.service.resume(session.id);
+    await waitFor(() =>
+      f.logs.readTail(session.id, 'agent').includes(`RESUME ref=${captured.agent_session_ref}`),
+    );
+    await f.service.kill(session.id);
+  });
+
   it('releases a legacy wrong owner before reclaiming the correct ref', async () => {
     const ownership = new Map<string, string>();
     const adapter = {

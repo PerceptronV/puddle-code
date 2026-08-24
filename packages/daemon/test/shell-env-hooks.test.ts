@@ -200,8 +200,35 @@ describe.skipIf(!zshPath)('zsh capture hook', () => {
     h.kill();
   });
 
+  it('keeps Up history navigation after generic environment activation', async () => {
+    const h = harness({
+      '.zshrc': `activate_env() {
+  export VIRTUAL_ENV="$HOME/.envs/test"
+  export PATH="$VIRTUAL_ENV/bin:$PATH"
+  PS1='(test) $ '
+}
+activate_env
+`,
+    });
+    h.spawn(zshPath!);
+    h.write('echo history-navigation-probe\n');
+    await waitFor(() => h.output().includes('history-navigation-probe'));
+    h.resetOutput();
+    h.write('\x1b[A\n');
+    await waitFor(() => h.output().includes('history-navigation-probe'));
+    h.kill();
+  });
+
+  it('does not replace history state initialised by the user rc', async () => {
+    const h = harness({ '.zshrc': "print -s 'echo zsh-rc-history-probe'\n" });
+    h.spawn(zshPath!);
+    h.write('\x1b[A\n');
+    await waitFor(() => h.output().includes('zsh-rc-history-probe'));
+    h.kill();
+  });
+
   it('reports cd and keeps restart history out of the user history', async () => {
-    const h = harness({ '.zshrc': 'fc -R "$HOME/.zsh_history" 2>/dev/null || true\n' });
+    const h = harness({ '.zshrc': 'fc -R "$HISTFILE" 2>/dev/null || true\n' });
     writeFileSync(join(h.home, '.zsh_history'), 'global-history-contamination\n');
     h.spawn(zshPath!);
     await waitFor(() => h.cwds.some((e) => e.cwd === h.home));
@@ -220,7 +247,7 @@ describe.skipIf(!zshPath)('zsh capture hook', () => {
     await waitFor(h.stopped);
     h.resetOutput();
     h.spawn(zshPath!);
-    h.write('fc -l 1\n');
+    h.write('\x1b[A\n');
     await waitFor(() => h.output().includes('session-history-probe'));
     expect(h.output()).not.toContain('global-history-contamination');
     h.kill();
@@ -248,7 +275,7 @@ describe.skipIf(!bashPath || bashMajor < 4)('bash capture hook (bash ≥ 4)', ()
 
 describe.skipIf(!bashPath)('bash session state hook', () => {
   it('reports cd and isolates persistent history on every supported bash', async () => {
-    const h = harness({ '.bashrc': 'history -r "$HOME/.bash_history" 2>/dev/null || true\n' });
+    const h = harness({ '.bashrc': 'history -r "$HISTFILE" 2>/dev/null || true\n' });
     writeFileSync(join(h.home, '.bash_history'), 'global-bash-contamination\n');
     h.spawn(bashPath!);
     await waitFor(() => h.cwds.some((e) => e.cwd === h.home));
@@ -262,6 +289,50 @@ describe.skipIf(!bashPath)('bash session state hook', () => {
         readFileSync(h.historyFile, 'utf8').includes('bash-session-history-probe'),
     );
     expect(readFileSync(h.historyFile, 'utf8')).not.toContain('global-bash-contamination');
+    h.kill();
+    await waitFor(h.stopped);
+    h.resetOutput();
+    h.spawn(bashPath!);
+    h.write('\x1b[A\n');
+    await waitFor(() => h.output().includes('bash-session-history-probe'));
+    h.kill();
+  });
+
+  it('keeps Up history navigation after generic environment activation', async () => {
+    const h = harness({
+      '.bashrc': `activate_env() {
+  export VIRTUAL_ENV="$HOME/.envs/test"
+  export PATH="$VIRTUAL_ENV/bin:$PATH"
+  PS1='(test) $ '
+}
+activate_env
+`,
+    });
+    h.spawn(bashPath!);
+    h.write('echo bash-history-navigation-probe\n');
+    await waitFor(() => h.output().includes('bash-history-navigation-probe'));
+    h.resetOutput();
+    h.write('\x1b[A\n');
+    await waitFor(() => h.output().includes('bash-history-navigation-probe'));
+    h.kill();
+  });
+
+  it('does not replace history state initialised by the user rc', async () => {
+    const h = harness({ '.bashrc': "history -s 'echo bash-rc-history-probe'\n" });
+    h.spawn(bashPath!);
+    h.write('\x1b[A\n');
+    await waitFor(() => h.output().includes('bash-rc-history-probe'));
+    h.kill();
+  });
+
+  it('preserves every command in a prompt framework array', async () => {
+    const h = harness({
+      '.bashrc': "PROMPT_COMMAND=('echo prompt-array-first' 'echo prompt-array-second')\n",
+    });
+    h.spawn(bashPath!);
+    await waitFor(
+      () => h.output().includes('prompt-array-first') && h.output().includes('prompt-array-second'),
+    );
     h.kill();
   });
 });

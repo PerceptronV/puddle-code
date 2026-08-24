@@ -157,18 +157,19 @@ export const codex: AgentAdapter = {
   },
 
   async discoverSessionRef(worktreePath, account, context) {
+    const createdAt = context?.nativeCreatedAt ?? context?.createdAt;
     let candidates = (await codexSessionsFor(account.config_dir, worktreePath)).filter(
       (meta) => !context?.excludeRefs?.has(meta.id),
     );
-    let match =
-      context === undefined ? candidates[0] : rolloutBornFor(candidates, context.createdAt);
+    let match = createdAt === undefined ? candidates[0] : rolloutBornFor(candidates, createdAt);
     if (match !== undefined) return match.id;
     candidates = (await codexSessionsFor(account.config_dir, worktreePath, true)).filter(
       (meta) => !context?.excludeRefs?.has(meta.id),
     );
-    match = context === undefined ? candidates[0] : rolloutBornFor(candidates, context.createdAt);
+    match = createdAt === undefined ? candidates[0] : rolloutBornFor(candidates, createdAt);
     if (match !== undefined) return match.id;
     if (context === undefined) return null;
+    const recoveryCreatedAt = context.nativeCreatedAt ?? context.createdAt;
 
     // Compatibility for sessions born during the v0.0.56 remote-bridge cwd
     // regression. Their thread is real but recorded under the daemon cwd, so
@@ -178,21 +179,22 @@ export const codex: AgentAdapter = {
     const accountCandidates = (await accountWideCodexSessions(account.config_dir)).filter(
       (candidate) => !context.excludeRefs?.has(candidate.id),
     );
-    return rolloutBornFor(accountCandidates, context.createdAt)?.id ?? null;
+    return rolloutBornFor(accountCandidates, recoveryCreatedAt)?.id ?? null;
   },
 
   async sessionRefMatches(ref, context, account) {
+    const createdAt = context.nativeCreatedAt ?? context.createdAt;
     const indexed = (await codexSessionsFor(account.config_dir, context.worktreePath)).filter(
       (candidate) => !context.excludeRefs?.has(candidate.id),
     );
-    const indexedMatch = rolloutBornFor(indexed, context.createdAt);
+    const indexedMatch = rolloutBornFor(indexed, createdAt);
     if (indexedMatch !== undefined) return indexedMatch.id === ref;
     const rolloutMatch =
       rolloutBornFor(
         (await codexSessionsFor(account.config_dir, context.worktreePath, true)).filter(
           (candidate) => !context.excludeRefs?.has(candidate.id),
         ),
-        context.createdAt,
+        createdAt,
       )?.id ?? null;
     if (rolloutMatch !== null) return rolloutMatch === ref;
 
@@ -206,7 +208,7 @@ export const codex: AgentAdapter = {
     return (
       rolloutBornFor(
         accountCandidates.filter((candidate) => !context.excludeRefs?.has(candidate.id)),
-        context.createdAt,
+        createdAt,
       )?.id === ref
     );
   },

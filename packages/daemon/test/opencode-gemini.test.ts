@@ -163,6 +163,36 @@ describe('opencode adapter', () => {
     expect(await opencode.hasConversation?.('ses_first', account(cfg, 'opencode'))).toBe(true);
   });
 
+  it('matches a catalogue placement against the native creation time', async () => {
+    const cfg = mkdtempSync(join(tmpdir(), 'oc-cfg-'));
+    const store = join(cfg, 'data', 'opencode', 'storage', 'session', 'proj');
+    mkdirSync(store, { recursive: true });
+    const nativeCreatedAt = '2026-07-01T10:00:05.000Z';
+    writeFileSync(
+      join(store, 'ses_catalogued.json'),
+      JSON.stringify({
+        id: 'ses_catalogued',
+        directory: '/wt',
+        time: {
+          created: Date.parse(nativeCreatedAt),
+          updated: Date.parse(nativeCreatedAt),
+        },
+      }),
+    );
+    const context = {
+      sessionId: 'catalogue-placement',
+      worktreePath: '/wt',
+      createdAt: '2026-07-03T10:00:00.000Z',
+      nativeCreatedAt,
+    };
+    expect(
+      await opencode.sessionRefMatches?.('ses_catalogued', context, account(cfg, 'opencode')),
+    ).toBe(true);
+    expect(await opencode.discoverSessionRef?.('/wt', account(cfg, 'opencode'), context)).toBe(
+      'ses_catalogued',
+    );
+  });
+
   it('refuses an ambiguous creation-time recovery', async () => {
     const cfg = mkdtempSync(join(tmpdir(), 'oc-cfg-'));
     const store = join(cfg, 'data', 'opencode', 'storage', 'session', 'proj');
