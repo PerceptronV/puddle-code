@@ -75,9 +75,7 @@ export function ConnectionBanner() {
   return (
     <div className="flex shrink-0 items-center gap-3 bg-elevated px-3 py-2">
       <span className="text-xs text-fg-secondary">
-        {phase === 'refreshing'
-          ? 'Restarting the cockpit.'
-          : 'Connection to the daemon lost.'}
+        {phase === 'refreshing' ? 'Restarting the cockpit.' : 'Connection to the daemon lost.'}
       </span>
       {phase === 'lost' && (
         <Button size="sm" className="ml-auto" onClick={() => void refresh()}>
