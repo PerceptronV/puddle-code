@@ -46,6 +46,7 @@ export const SYNC_GROUPS: SyncGroup[] = [
     label: 'Appearance',
     fields: [
       { key: 'theme', store: 'theme' },
+      { key: 'cursorPackage', store: 'client' },
       { key: 'uiFontSize', store: 'client' },
       { key: 'terminalFontSize', store: 'client' },
       { key: 'editorFontSize', store: 'client' },

@@ -19,7 +19,7 @@ const entry = (over: Partial<SyncSources['scratchpad'][number]> = {}) => ({
 
 function sources(over: Partial<SyncSources> = {}): SyncSources {
   return {
-    client: { uiFontSize: 16, editorTabSize: 2 },
+    client: { cursorPackage: 'rangefinder', uiFontSize: 16, editorTabSize: 2 },
     theme: 'dark',
     profileSettings: {
       captureSessionEnv: false,
@@ -49,6 +49,11 @@ function sinks(): SyncSinks & {
 }
 
 describe('collectExport', () => {
+  it('carries the cursor package with the other appearance preferences', () => {
+    const doc = collectExport(['appearance'], sources());
+    expect(doc.appearance).toMatchObject({ cursorPackage: 'rangefinder', uiFontSize: 16 });
+  });
+
   it('carries captureSessionEnv and strips muted_projects from notifications', () => {
     const doc = collectExport(['sessions', 'notifications'], sources());
     expect(doc.sessions).toMatchObject({ captureSessionEnv: false });

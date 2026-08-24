@@ -8,6 +8,7 @@ import {
 } from '../../../components/ui/select';
 import { Switch } from '../../../components/ui/switch';
 import { updateClientSettings, useClientSettings } from '../../../lib/client-settings';
+import { CURSOR_PACKAGES, type CursorPackageId } from '../../../lib/cursor-packages';
 import { applyTheme, storedPreference, type ThemePreference } from '../../../lib/theme';
 import { NumberField, SectionTitle, SettingRow } from '../parts';
 
@@ -33,6 +34,28 @@ export function AppearanceSection() {
             <SelectItem value="dark">Dark</SelectItem>
             <SelectItem value="light">Light</SelectItem>
             <SelectItem value="system">System</SelectItem>
+          </SelectContent>
+        </Select>
+      </SettingRow>
+      <SettingRow
+        label="Cursor style"
+        description="Changes the pointer, interactive hover, and text caret as one set."
+      >
+        <Select
+          value={settings.cursorPackage}
+          onValueChange={(value) =>
+            updateClientSettings({ cursorPackage: value as CursorPackageId })
+          }
+        >
+          <SelectTrigger className="w-36">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {CURSOR_PACKAGES.map((cursorPackage) => (
+              <SelectItem key={cursorPackage.id} value={cursorPackage.id}>
+                {cursorPackage.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </SettingRow>

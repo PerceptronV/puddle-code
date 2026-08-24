@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_CLIENT_SETTINGS,
   reconcileProjectScopeSettings,
   reconcileTerminalScrollback,
 } from '../src/lib/client-settings';
+import { normaliseCursorPackage } from '../src/lib/cursor-packages';
 
 /**
  * Project-based layout and the session list's scope were ONE setting through
@@ -61,5 +63,15 @@ describe('reconcileTerminalScrollback', () => {
       terminalScrollback: 2500,
     });
     expect(reconcileTerminalScrollback({})).toEqual({});
+  });
+});
+
+describe('normaliseCursorPackage', () => {
+  it('accepts registered packages and falls back safely for stale or imported ids', () => {
+    expect(normaliseCursorPackage('rangefinder')).toBe('rangefinder');
+    expect(normaliseCursorPackage('drafting')).toBe('drafting');
+    expect(normaliseCursorPackage('invert')).toBe('invert');
+    expect(normaliseCursorPackage('missing-package')).toBe(DEFAULT_CLIENT_SETTINGS.cursorPackage);
+    expect(normaliseCursorPackage(null)).toBe(DEFAULT_CLIENT_SETTINGS.cursorPackage);
   });
 });

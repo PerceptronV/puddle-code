@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Added
+
+- Let users switch among the native System, Rangefinder, Drafting, and Invert cursor packages in Appearance settings.

@@ -1,4 +1,9 @@
 import { useSyncExternalStore } from 'react';
+import {
+  DEFAULT_CURSOR_PACKAGE,
+  normaliseCursorPackage,
+  type CursorPackageId,
+} from './cursor-packages';
 
 /**
  * Client-scope settings (SPEC §11): per-browser, in localStorage. Profile and
@@ -6,6 +11,8 @@ import { useSyncExternalStore } from 'react';
  */
 export interface ClientSettings {
   uiFontSize: number;
+  /** Pointer, interactive-hover, and text-caret treatment across the UI. */
+  cursorPackage: CursorPackageId;
   terminalFontSize: number;
   /** Monaco text size; intentionally independent from the terminal size. */
   editorFontSize: number;
@@ -35,6 +42,7 @@ export interface ClientSettings {
 export const DEFAULT_CLIENT_SETTINGS: ClientSettings = {
   // 1.1× the browser default (16px) — the whole rem-based scale follows.
   uiFontSize: 16,
+  cursorPackage: DEFAULT_CURSOR_PACKAGE,
   terminalFontSize: 13,
   editorFontSize: 14,
   density: 'compact',
@@ -99,10 +107,11 @@ function load(): ClientSettings {
   } catch {
     // Corrupt JSON → fall back to defaults.
   }
-  cache = {
+  const merged = {
     ...DEFAULT_CLIENT_SETTINGS,
     ...reconcileTerminalScrollback(reconcileProjectScopeSettings(stored)),
   };
+  cache = { ...merged, cursorPackage: normaliseCursorPackage(merged.cursorPackage) };
   return cache;
 }
 
@@ -111,6 +120,7 @@ function applyToDocument(settings: ClientSettings): void {
   document.documentElement.style.setProperty('--ui-font-size', `${settings.uiFontSize}px`);
   // Drives the `compact:` utilities (app.css @custom-variant).
   document.documentElement.dataset['density'] = settings.density;
+  document.documentElement.dataset['cursorPackage'] = settings.cursorPackage;
 }
 
 export function clientSettings(): ClientSettings {
@@ -118,7 +128,8 @@ export function clientSettings(): ClientSettings {
 }
 
 export function updateClientSettings(patch: Partial<ClientSettings>): void {
-  cache = { ...load(), ...patch };
+  const merged = { ...load(), ...patch };
+  cache = { ...merged, cursorPackage: normaliseCursorPackage(merged.cursorPackage) };
   localStorage.setItem(KEY, JSON.stringify(cache));
   applyToDocument(cache);
   for (const listener of listeners) listener();

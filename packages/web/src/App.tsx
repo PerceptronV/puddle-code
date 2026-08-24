@@ -5,6 +5,7 @@ import { ErrorBoundary } from './components/error-boundary';
 import { Toaster } from './components/ui/sonner';
 import { TooltipProvider } from './components/ui/tooltip';
 import { TokenGate } from './features/auth/TokenGate';
+import { CursorHost } from './features/cursor/CursorHost';
 import { ProfilePicker } from './features/profile/ProfilePicker';
 import { useCurrentProfileId } from './features/profile/profile-store';
 import { ShellLayout } from './features/shell/ShellLayout';
@@ -72,6 +73,7 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider delayDuration={300}>
+        <CursorHost />
         {/* The outer net: whatever the routed view's own boundary does not catch
             — the shell, the providers, the token gate — still says something
             rather than emptying the window (components/error-boundary). */}

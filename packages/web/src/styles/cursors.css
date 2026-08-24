@@ -1,0 +1,205 @@
+/* Cursor packages are selected by client-settings and rendered by CursorHost. */
+@media (pointer: fine) {
+  :root[data-cursor-package='rangefinder'] * {
+    cursor: none !important;
+  }
+  :root[data-cursor-package='drafting'] * {
+    cursor: none !important;
+  }
+  :root[data-cursor-package='invert'] * {
+    cursor: none !important;
+  }
+}
+
+.custom-cursor {
+  position: fixed;
+  z-index: 2147483647;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  opacity: 0;
+  will-change: transform;
+}
+
+.rangefinder-cursor {
+  width: 27px;
+  height: 27px;
+  overflow: hidden;
+  border-radius: 50%;
+  backdrop-filter: blur(1px) brightness(1.05) saturate(1.15);
+  transition:
+    opacity 150ms ease,
+    width 150ms ease,
+    height 150ms ease;
+}
+
+.rangefinder-cursor-facets {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 40.5px;
+  height: 40.5px;
+  max-width: none;
+  transform: translate(-50%, -50%);
+  transition:
+    width 150ms ease,
+    height 150ms ease;
+}
+
+.rangefinder-cursor-facet-light {
+  fill: var(--paper);
+  fill-opacity: 0.32;
+}
+
+.rangefinder-cursor-facet-dark {
+  fill: var(--text-primary);
+  fill-opacity: 0.07;
+}
+
+/* Dark grounds need dimmer light facets; the dark facets use the darkest
+   ground rather than the theme's light primary ink. */
+:where(:root[data-theme='dark']) .rangefinder-cursor-facet-light {
+  fill-opacity: 0.07;
+}
+
+:where(:root[data-theme='dark']) .rangefinder-cursor-facet-dark {
+  fill: var(--bg-base);
+}
+
+/* Interactive targets replace the native hand with the smaller focus spot. */
+.rangefinder-cursor.is-interactive {
+  width: 11.7px;
+  height: 11.7px;
+}
+
+.rangefinder-cursor.is-interactive .rangefinder-cursor-facets {
+  width: 17.55px;
+  height: 17.55px;
+}
+
+/* Selectable text replaces the native I-beam with a token-coloured caret. */
+.rangefinder-cursor.is-text {
+  width: 2px;
+  height: var(--custom-cursor-caret-height, 22px);
+  border-radius: 1px;
+  background: var(--text-primary);
+  backdrop-filter: none;
+}
+
+.rangefinder-cursor.is-text .rangefinder-cursor-facets {
+  display: none;
+}
+
+/* Drafting: a four-tick crosshair whose open centre keeps the target visible. */
+.drafting-cursor {
+  width: 24px;
+  height: 24px;
+  color: var(--text-primary);
+  filter: drop-shadow(0 0 1px var(--bg-base));
+  transition:
+    opacity 120ms ease,
+    width 120ms ease,
+    height 120ms ease,
+    color 120ms ease;
+}
+
+.drafting-cursor-tick {
+  position: absolute;
+  display: block;
+  background: currentColor;
+  transition:
+    width 120ms ease,
+    height 120ms ease,
+    opacity 120ms ease;
+}
+
+.drafting-cursor-tick[data-side='top'],
+.drafting-cursor-tick[data-side='bottom'] {
+  left: calc(50% - 0.5px);
+  width: 1px;
+  height: 6px;
+}
+
+.drafting-cursor-tick[data-side='top'] {
+  top: 0;
+}
+
+.drafting-cursor-tick[data-side='bottom'] {
+  bottom: 0;
+}
+
+.drafting-cursor-tick[data-side='left'],
+.drafting-cursor-tick[data-side='right'] {
+  top: calc(50% - 0.5px);
+  width: 6px;
+  height: 1px;
+}
+
+.drafting-cursor-tick[data-side='left'] {
+  left: 0;
+}
+
+.drafting-cursor-tick[data-side='right'] {
+  right: 0;
+}
+
+.drafting-cursor.is-interactive {
+  width: 14px;
+  height: 14px;
+  color: var(--accent);
+}
+
+.drafting-cursor.is-interactive .drafting-cursor-tick[data-side='top'],
+.drafting-cursor.is-interactive .drafting-cursor-tick[data-side='bottom'] {
+  height: 4px;
+}
+
+.drafting-cursor.is-interactive .drafting-cursor-tick[data-side='left'],
+.drafting-cursor.is-interactive .drafting-cursor-tick[data-side='right'] {
+  width: 4px;
+}
+
+.drafting-cursor.is-text {
+  width: 2px;
+  height: var(--custom-cursor-caret-height, 22px);
+  border-radius: 1px;
+  color: var(--text-primary);
+  background: currentColor;
+}
+
+.drafting-cursor.is-text .drafting-cursor-tick {
+  opacity: 0;
+}
+
+/* Invert: white under difference blending becomes a self-contrasting ring,
+   dot, or caret regardless of the content beneath it. */
+.invert-cursor {
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--paper);
+  border-radius: 50%;
+  mix-blend-mode: difference;
+  transition:
+    opacity 100ms ease,
+    width 100ms ease,
+    height 100ms ease,
+    border-width 100ms ease,
+    border-radius 100ms ease,
+    background-color 100ms ease;
+}
+
+.invert-cursor.is-interactive {
+  width: 8px;
+  height: 8px;
+  border-width: 0;
+  background: var(--paper);
+}
+
+.invert-cursor.is-text {
+  width: 2px;
+  height: var(--custom-cursor-caret-height, 22px);
+  border-width: 0;
+  border-radius: 1px;
+  background: var(--paper);
+}
