@@ -78,7 +78,7 @@ export function proxyRequest(req: IncomingMessage, res: ServerResponse, target: 
     res.writeHead(502, { 'content-type': 'application/json' });
     res.end(
       JSON.stringify({
-        error: { code: 'daemon_unreachable', message: 'the puddle daemon is not reachable' },
+        error: { code: 'daemon_unreachable', message: 'The puddle daemon is not reachable.' },
       }),
     );
   });

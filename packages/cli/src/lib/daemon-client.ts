@@ -38,7 +38,7 @@ export class DaemonClient {
         signal: AbortSignal.timeout(10_000),
       });
     } catch {
-      throw new CliError('daemon_unreachable', 'the Puddle daemon is not reachable');
+      throw new CliError('daemon_unreachable', 'The Puddle daemon is not reachable.');
     }
     if (res.status === 401) {
       throw new CliError(
