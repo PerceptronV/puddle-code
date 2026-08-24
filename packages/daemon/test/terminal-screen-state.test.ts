@@ -64,6 +64,35 @@ describe('TerminalScreenStateStore', () => {
     await restored.closeAll();
   });
 
+  it('preserves lines scrolled out of a top-anchored TUI region', async () => {
+    const store = new TerminalScreenStateStore();
+    store.resize('session-1', 'agent', 20, 10);
+    // CSI 1;4 r gives the TUI a top-anchored four-row output region; CSI 2 S
+    // scrolls two rows out of it. xterm 6.0.0 used to delete those rows.
+    store.write(
+      'session-1',
+      'agent',
+      '0\r\n1\r\n2\r\n3\r\n4\r\n5\r\n6\r\n7\r\n8\r\n9\u001b[1;4r\u001b[2Sm',
+    );
+
+    const snapshot = await store.snapshot('session-1', 'agent');
+    expect(await visibleLines(snapshot ?? '', 20, 10)).toEqual([
+      '0',
+      '1',
+      'm',
+      '3',
+      '',
+      '',
+      '4',
+      '5',
+      '6',
+      '7',
+      '8',
+      '9',
+    ]);
+    await store.closeAll();
+  });
+
   it('removes persisted state when a stream is permanently forgotten', async () => {
     const stateDir = mkdtempSync(join(tmpdir(), 'puddle-terminal-state-'));
     const store = new TerminalScreenStateStore(stateDir);

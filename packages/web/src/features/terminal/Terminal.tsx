@@ -38,6 +38,7 @@ import {
   type TerminalScrollPosition,
 } from './scroll-position';
 import { registerFileLinks, type FileLinkTarget } from './file-links';
+import { preserveXtermScrollUp } from './xterm-scrollback';
 
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -347,6 +348,7 @@ export function Terminal({
       // same open path as the web-links addon below: no dialogue, real URL.
       linkHandler: { activate: (_event, uri) => openUri(uri) },
     });
+    preserveXtermScrollUp(xterm);
     xtermRef.current = xterm;
     const fit = new FitAddon();
     const search = new SearchAddon();

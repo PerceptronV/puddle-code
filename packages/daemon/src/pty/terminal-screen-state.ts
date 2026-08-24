@@ -5,6 +5,7 @@ import headless, {
   type Terminal as HeadlessTerminal,
 } from '@xterm/headless';
 import { SerializeAddon } from '@xterm/addon-serialize';
+import { preserveXtermScrollUp } from './xterm-scrollback.js';
 
 const { Terminal } = headless;
 
@@ -153,6 +154,7 @@ export class TerminalScreenStateStore {
       rows: DEFAULT_ROWS,
       scrollback: SCROLLBACK_LINES,
     });
+    preserveXtermScrollUp(terminal);
     const serialiser = new SerializeAddon();
     // The serialiser is runtime-compatible with @xterm/headless, as documented
     // by xterm, but its published type names the browser Terminal class.

@@ -7,7 +7,7 @@ Past releases: see docs/changelogs/.
 
 # Changelog
 
-## [Unreleased]
+## [0.1.3] — 2026-08-24
 
 ### Fixed
 

@@ -79,6 +79,9 @@ when the OAuth flow completes).
    logical transcript line remains at the top throughout. Repeat in two
    different agent backends and a shell terminal. Finally leave a terminal AT
    the bottom and return after new output: that terminal follows the new bottom.
+   During a long streaming response, repeatedly scroll up and down while new
+   lines arrive: completed transcript lines remain present and in order both
+   live and after switching away long enough to force a snapshot replay.
 
 Record any UI/daemon mismatches found here as issues; adapter corrections
 still go to `packages/daemon/src/agents/claude-code.ts` per phase-1.
