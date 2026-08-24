@@ -57,3 +57,54 @@ export function resolvePreviewAsset(docPath: string, ref: string): string | null
   }
   return out.length > 0 ? out.join('/') : null;
 }
+
+export type PreviewSrcsetCandidate = {
+  ref: string;
+  descriptor: string;
+};
+
+/**
+ * Parse the URL + optional descriptor candidates in an HTML `srcset`. This
+ * follows the browser's whitespace-delimited URL shape rather than splitting
+ * blindly on commas, because data URLs contain a comma of their own.
+ */
+export function parsePreviewSrcset(srcset: string): PreviewSrcsetCandidate[] {
+  const candidates: PreviewSrcsetCandidate[] = [];
+  let cursor = 0;
+  const whitespace = (char: string) => /[\t\n\f\r ]/.test(char);
+
+  while (cursor < srcset.length) {
+    while (cursor < srcset.length && (whitespace(srcset[cursor]!) || srcset[cursor] === ',')) {
+      cursor += 1;
+    }
+    if (cursor >= srcset.length) break;
+
+    const refStart = cursor;
+    while (cursor < srcset.length && !whitespace(srcset[cursor]!)) cursor += 1;
+    let ref = srcset.slice(refStart, cursor);
+
+    // A candidate without a descriptor carries its separator on the URL token
+    // (`one.png, two.png 2x`). Commas inside a data URL are not trailing.
+    if (ref.endsWith(',')) {
+      ref = ref.replace(/,+$/, '');
+      if (ref !== '') candidates.push({ ref, descriptor: '' });
+      continue;
+    }
+
+    while (cursor < srcset.length && whitespace(srcset[cursor]!)) cursor += 1;
+    const descriptorStart = cursor;
+    while (cursor < srcset.length && srcset[cursor] !== ',') cursor += 1;
+    const descriptor = srcset.slice(descriptorStart, cursor).trim();
+    if (cursor < srcset.length) cursor += 1;
+    if (ref !== '') candidates.push({ ref, descriptor });
+  }
+
+  return candidates;
+}
+
+/** Serialise candidates after their repository references have been rewritten. */
+export function serialisePreviewSrcset(candidates: PreviewSrcsetCandidate[]): string {
+  return candidates
+    .map(({ ref, descriptor }) => `${ref}${descriptor === '' ? '' : ` ${descriptor}`}`)
+    .join(', ');
+}

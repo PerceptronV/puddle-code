@@ -15,7 +15,13 @@ import { useEditorBuffer } from './use-editor-buffer';
 import { markdownToHtml } from './markdown';
 import { MATH_LAYOUT_CSS } from './math';
 import { renderMathInDocument } from './math-dom';
-import { previewKind, resolvePreviewAsset, type PreviewKind } from './preview-kind';
+import {
+  parsePreviewSrcset,
+  previewKind,
+  resolvePreviewAsset,
+  serialisePreviewSrcset,
+  type PreviewKind,
+} from './preview-kind';
 import {
   appendHtmlPreviewScrollBridge,
   applyHtmlPreviewScroll,
@@ -209,29 +215,60 @@ function MarkdownPreview({
   }, [html, session, path, root, scrollChannel, scrollDriver, scrollReceiver]);
 
   // Resolve worktree images (relative or /-absolute) through the authed media
-  // endpoint: an <img src> carries no bearer header, so the bytes travel as a
-  // fetch → object URL (the MediaViewer pattern). Re-runs on HTML changes.
+  // endpoint: image elements carry no bearer header, so the bytes travel as a
+  // fetch → object URL (the MediaViewer pattern). Both `src` and `srcset` are
+  // covered: a README's theme-aware <picture><source srcset=…> must not bypass
+  // the rewrite and ask the browser for a raw cockpit-relative URL.
   useEffect(() => {
     const container = bodyRef.current;
     if (!container) return;
     let cancelled = false;
     const urls: string[] = [];
-    for (const img of container.querySelectorAll('img')) {
-      const resolved = resolvePreviewAsset(path, img.getAttribute('src') ?? '');
+
+    const objectUrlFor = async (resolved: string): Promise<string | null> => {
+      try {
+        const res = await apiFetchRaw(
+          'GET',
+          `/api/worktrees/${session}/media?path=${encodeURIComponent(resolved)}${rootParam(root)}`,
+        );
+        const blob = await res.blob();
+        if (cancelled) return null;
+        const url = URL.createObjectURL(blob);
+        urls.push(url);
+        return url;
+      } catch {
+        return null; // a missing asset just stays blank, like a browser
+      }
+    };
+
+    for (const element of container.querySelectorAll('img[src], source[src]')) {
+      const resolved = resolvePreviewAsset(path, element.getAttribute('src') ?? '');
       if (!resolved) continue;
-      img.removeAttribute('src'); // never let the browser chase the raw relative URL
-      apiFetchRaw(
-        'GET',
-        `/api/worktrees/${session}/media?path=${encodeURIComponent(resolved)}${rootParam(root)}`,
-      )
-        .then((res) => res.blob())
-        .then((blob) => {
-          if (cancelled) return;
-          const url = URL.createObjectURL(blob);
-          urls.push(url);
-          img.src = url;
-        })
-        .catch(() => undefined); // a missing asset just stays blank, like a browser
+      element.removeAttribute('src'); // never let the browser chase the raw relative URL
+      void objectUrlFor(resolved).then((url) => {
+        if (!cancelled && url) element.setAttribute('src', url);
+      });
+    }
+
+    for (const element of container.querySelectorAll('img[srcset], source[srcset]')) {
+      const candidates = parsePreviewSrcset(element.getAttribute('srcset') ?? '');
+      const paths = candidates.map(({ ref }) => resolvePreviewAsset(path, ref));
+      if (!paths.some((resolved) => resolved !== null)) continue;
+      element.removeAttribute('srcset'); // stop eager raw-URL requests while assets load
+      void Promise.all(
+        candidates.map(async (candidate, index) => {
+          const resolved = paths[index];
+          if (!resolved) return candidate; // browser-owned external/data URL
+          const ref = await objectUrlFor(resolved);
+          return ref ? { ...candidate, ref } : null;
+        }),
+      ).then((rewritten) => {
+        if (cancelled) return;
+        const available = rewritten.filter((candidate) => candidate !== null);
+        if (available.length > 0) {
+          element.setAttribute('srcset', serialisePreviewSrcset(available));
+        }
+      });
     }
     return () => {
       cancelled = true;
@@ -295,6 +332,9 @@ const HTML_ASSET_ATTRS: ReadonlyArray<readonly [string, string]> = [
   ['video', 'poster'],
   ['audio', 'src'],
 ];
+
+/** Responsive image candidates need every worktree URL rewritten separately. */
+const HTML_SRCSET_SELECTORS = ['img[srcset]', 'source[srcset]'] as const;
 
 /** Assets above this stay unresolved — data URIs live in memory as the document. */
 const MAX_INLINE_ASSET_BYTES = 20 * 1024 * 1024;
@@ -482,6 +522,29 @@ async function inlineWorktreeAssets(
       jobs.push(
         fetchDataUri(session, resolved, cache, root).then((uri) => {
           if (uri) el.setAttribute(attr, uri);
+        }),
+      );
+    }
+  }
+  for (const selector of HTML_SRCSET_SELECTORS) {
+    for (const el of parsed.querySelectorAll(selector)) {
+      const candidates = parsePreviewSrcset(el.getAttribute('srcset') ?? '');
+      const paths = candidates.map(({ ref }) => resolvePreviewAsset(docPath, ref));
+      if (!paths.some((resolved) => resolved !== null)) continue;
+      el.removeAttribute('srcset');
+      jobs.push(
+        Promise.all(
+          candidates.map(async (candidate, index) => {
+            const resolved = paths[index];
+            if (!resolved) return candidate;
+            const ref = await fetchDataUri(session, resolved, cache, root);
+            return ref ? { ...candidate, ref } : null;
+          }),
+        ).then((rewritten) => {
+          const available = rewritten.filter((candidate) => candidate !== null);
+          if (available.length > 0) {
+            el.setAttribute('srcset', serialisePreviewSrcset(available));
+          }
         }),
       );
     }

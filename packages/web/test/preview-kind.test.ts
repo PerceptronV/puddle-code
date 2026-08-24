@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { previewKind, resolvePreviewAsset } from '../src/features/editor/preview-kind';
+import {
+  parsePreviewSrcset,
+  previewKind,
+  resolvePreviewAsset,
+  serialisePreviewSrcset,
+} from '../src/features/editor/preview-kind';
 
 describe('previewKind', () => {
   it('classifies markdown and html, case-insensitively', () => {
@@ -53,5 +58,33 @@ describe('resolvePreviewAsset', () => {
     expect(resolvePreviewAsset('README.md', '../outside.png')).toBeNull();
     expect(resolvePreviewAsset('docs/g.md', '../../outside.png')).toBeNull();
     expect(resolvePreviewAsset('docs/g.md', '/../outside.png')).toBeNull();
+  });
+});
+
+describe('preview srcset', () => {
+  it('parses and resolves the theme-aware source used by the Puddle README', () => {
+    const [candidate] = parsePreviewSrcset('docs/assets/cockpit-dark.png');
+    expect(candidate).toEqual({ ref: 'docs/assets/cockpit-dark.png', descriptor: '' });
+    expect(resolvePreviewAsset('README.md', candidate!.ref)).toBe('docs/assets/cockpit-dark.png');
+  });
+
+  it('preserves density descriptors and commas inside data URLs', () => {
+    const candidates = parsePreviewSrcset(
+      'data:image/png;base64,AAAA 1x, docs/assets/cockpit-dark.png 2x',
+    );
+    expect(candidates).toEqual([
+      { ref: 'data:image/png;base64,AAAA', descriptor: '1x' },
+      { ref: 'docs/assets/cockpit-dark.png', descriptor: '2x' },
+    ]);
+    expect(serialisePreviewSrcset(candidates)).toBe(
+      'data:image/png;base64,AAAA 1x, docs/assets/cockpit-dark.png 2x',
+    );
+  });
+
+  it('parses comma-separated candidates without descriptors', () => {
+    expect(parsePreviewSrcset('small.png, large.png')).toEqual([
+      { ref: 'small.png', descriptor: '' },
+      { ref: 'large.png', descriptor: '' },
+    ]);
   });
 });

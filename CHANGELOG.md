@@ -12,3 +12,7 @@ Past releases: see docs/changelogs/.
 ### Added
 
 - Let users switch among the native System, Rangefinder, Drafting, and Invert cursor packages in Appearance settings.
+
+### Fixed
+
+- Render repository-relative `srcset` images, including theme-aware README pictures, in Markdown and HTML previews.
