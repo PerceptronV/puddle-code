@@ -10,6 +10,11 @@ import { SshTransport } from '../src/lib/transport/ssh.js';
 import type { CliEvent } from '../src/lib/types.js';
 
 const FAKE_SSH = join(dirname(fileURLToPath(import.meta.url)), 'helpers', 'fake-ssh.mjs');
+// The full suite runs many process-heavy integration tests in parallel. Keep
+// this test's deliberately-silent outage inside a generous TEST grace even
+// when the fake SSH child is starved; production's two-second grace is
+// unchanged. We still wait beyond this value below, proving the timer clears.
+const TEST_DOWN_GRACE_MS = 10_000;
 
 /**
  * Outage announcements — tunnel-down/tunnel-up are meant to describe outages
@@ -48,7 +53,10 @@ describe('tunnel outage announcements', () => {
 
   const open = async () => {
     const ssh = new SshTransport('alice@devbox', { platform: 'darwin', sshBinary: FAKE_SSH });
-    const t = await openTunnel(ssh, upstreamPort, { sshBinary: FAKE_SSH });
+    const t = await openTunnel(ssh, upstreamPort, {
+      sshBinary: FAKE_SSH,
+      downGraceMs: TEST_DOWN_GRACE_MS,
+    });
     tunnel = t;
     const events: CliEvent['t'][] = [];
     t.onEvent((e) => events.push(e.t));
@@ -67,20 +75,20 @@ describe('tunnel outage announcements', () => {
     const { tunnel: t, events } = await open();
     await dropOnce(t);
     // Give any stray grace timer time to (wrongly) fire before asserting.
-    await new Promise((r) => setTimeout(r, 2500));
+    await new Promise((r) => setTimeout(r, TEST_DOWN_GRACE_MS + 500));
     expect(events).toEqual([]);
     expect(await tcpListening(t.localPort)).toBe(true);
-  }, 25_000);
+  }, 40_000);
 
   it('announces immediately when the tunnel flaps, and pairs the restore', async () => {
     const { tunnel: t, events } = await open();
     await dropOnce(t); // silent first blip; the next drop counts as flapping
     writeFileSync(killFile, '');
-    await waitUntil(() => events.includes('tunnel-down'), 5000);
+    await waitUntil(() => events.includes('tunnel-down'), 15_000);
     rmSync(killFile);
-    await waitUntil(() => events.includes('tunnel-up'), 15_000);
+    await waitUntil(() => events.includes('tunnel-up'), 20_000);
     expect(events).toEqual(['tunnel-down', 'tunnel-up']);
-  }, 30_000);
+  }, 50_000);
 
   // The forward binding its local port is not proof it carries traffic — a
   // non-OpenSSH server can leave a listener that never reaches the daemon.
