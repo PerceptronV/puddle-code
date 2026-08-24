@@ -8,9 +8,3 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
-
-### Fixed
-
-- Resume catalogue-discovered Codex and OpenCode conversations against their native creation time instead of the later Puddle placement time.
-- Preserve shell Up/Down history navigation across environment activation by initialising private history before user shell integrations.
-- Let the README cockpit shadows fade into their backdrops before the lower image edge, with pure white behind the light screenshot.
