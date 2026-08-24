@@ -39,7 +39,6 @@ export function AppearanceSection() {
       </SettingRow>
       <SettingRow
         label="Cursor style"
-        description="Changes the pointer, interactive hover, and text caret as one set."
       >
         <Select
           value={settings.cursorPackage}
