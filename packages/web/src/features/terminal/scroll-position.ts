@@ -5,12 +5,23 @@ export interface TerminalScrollPosition {
   atBottom: boolean;
 }
 
+export interface TerminalScrollAnchor extends TerminalScrollPosition {
+  /** First buffer row of the logical (possibly wrapped) viewport line. */
+  logicalLineY: number;
+  /** Cell offset of the old viewport row within that logical line. */
+  cellOffset: number;
+}
+
 function keyFor(stream: string, term: string): string {
   return JSON.stringify([stream, term]);
 }
 
 function bufferLine(value: number): number {
   return Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
+}
+
+function terminalColumns(value: number): number {
+  return Number.isFinite(value) ? Math.max(1, Math.trunc(value)) : 1;
 }
 
 /** Capture a terminal viewport without trusting out-of-range buffer values. */
@@ -24,6 +35,48 @@ export function terminalScrollPosition(viewportY: number, baseY: number): Termin
 export function terminalScrollLine(position: TerminalScrollPosition, baseY: number): number {
   const safeBase = bufferLine(baseY);
   return position.atBottom ? safeBase : Math.min(position.viewportY, safeBase);
+}
+
+/**
+ * Capture the logical line at the top of a viewport before xterm reflows it.
+ * Raw buffer indexes are not stable across a column change: every wrapped line
+ * above the viewport can gain or lose rows.
+ */
+export function terminalScrollAnchor(
+  viewportY: number,
+  baseY: number,
+  cols: number,
+  isWrapped: (line: number) => boolean,
+): TerminalScrollAnchor {
+  const position = terminalScrollPosition(viewportY, baseY);
+  let logicalLineY = position.viewportY;
+  // Bottom-following terminals need no marker and may end inside an extremely
+  // long wrapped output line, so avoid a pointless backwards scan for them.
+  if (!position.atBottom) {
+    while (logicalLineY > 0 && isWrapped(logicalLineY)) logicalLineY--;
+  }
+  return {
+    ...position,
+    logicalLineY,
+    cellOffset: (position.viewportY - logicalLineY) * terminalColumns(cols),
+  };
+}
+
+/** Resolve a tracked logical-line marker after xterm has reflowed the buffer. */
+export function terminalReflowScrollLine(
+  anchor: TerminalScrollAnchor,
+  trackedLogicalLine: number | undefined,
+  cols: number,
+  baseY: number,
+): number {
+  const safeBase = bufferLine(baseY);
+  if (anchor.atBottom) return safeBase;
+  if (trackedLogicalLine === undefined || trackedLogicalLine < 0) {
+    return terminalScrollLine(anchor, safeBase);
+  }
+  const reflowedLine =
+    bufferLine(trackedLogicalLine) + Math.floor(anchor.cellOffset / terminalColumns(cols));
+  return Math.min(reflowedLine, safeBase);
 }
 
 /**

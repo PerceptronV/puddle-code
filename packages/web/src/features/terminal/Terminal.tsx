@@ -31,8 +31,9 @@ import { isCopyShortcut } from './copy-shortcut';
 import { interceptImagePaste } from './paste-image';
 import { rewriteTerminalUri } from './proxy-links';
 import {
+  terminalReflowScrollLine,
+  terminalScrollAnchor,
   terminalScrollLine,
-  terminalScrollPosition,
   terminalScrollStore,
   type TerminalScrollPosition,
 } from './scroll-position';
@@ -227,18 +228,32 @@ export function Terminal({
   });
 
   /**
-   * Re-measure the grid against the container, repaint it, and tell the PTY: the
-   * whole recovery for "the geometry — or the process drawing into it — changed
-   * under us". Idempotent and cheap, so anything that suspects a stale grid can
-   * just call it. A container with no size yet is left alone (a parked pane keeps
-   * its last size rather than collapsing to 1×1).
+   * Re-measure the grid against the container and repaint it without moving a
+   * deliberately scrolled viewport. This is the shared local half of every fit
+   * path, including reattachment before a PTY viewer exists. A container with
+   * no size yet is left alone (a parked pane keeps its last size rather than
+   * collapsing to 1×1).
    */
-  const refit = useCallback(() => {
+  const fitPreservingScroll = useCallback(() => {
     const xterm = xtermRef.current;
     const container = containerRef.current;
-    if (!xterm || !container || container.clientWidth === 0) return;
+    if (!xterm || !container || container.clientWidth === 0 || container.clientHeight === 0)
+      return null;
     const bufferBefore = xterm.buffer.active;
-    const scrollBefore = terminalScrollPosition(bufferBefore.viewportY, bufferBefore.baseY);
+    const scrollBefore = terminalScrollAnchor(
+      bufferBefore.viewportY,
+      bufferBefore.baseY,
+      xterm.cols,
+      (line) => bufferBefore.getLine(line)?.isWrapped === true,
+    );
+    // Mark the logical line rather than remembering its raw index. xterm moves
+    // markers as wrapped rows are inserted/removed during a column reflow, so
+    // the same transcript content remains anchored through pane, window, font,
+    // focus, and keep-alive adoption resizes.
+    const cursorLine = bufferBefore.baseY + bufferBefore.cursorY;
+    const marker = scrollBefore.atBottom
+      ? null
+      : xterm.registerMarker(scrollBefore.logicalLineY - cursorLine);
     fitRef.current?.fit();
     // fit() short-circuits when cols/rows come out unchanged, so force the
     // buffer resize: BufferService.resize fires onResize unconditionally, which
@@ -251,9 +266,24 @@ export function Terminal({
     // selection forced a full pass (fixed 2026-07-31).
     xterm.refresh(0, xterm.rows - 1);
     const bufferAfter = xterm.buffer.active;
-    xterm.scrollToLine(terminalScrollLine(scrollBefore, bufferAfter.baseY));
-    wsManager.resize(stream, term, xterm.cols, xterm.rows);
+    const trackedLogicalLine = marker && marker.line >= 0 ? marker.line : undefined;
+    xterm.scrollToLine(
+      terminalReflowScrollLine(scrollBefore, trackedLogicalLine, xterm.cols, bufferAfter.baseY),
+    );
+    marker?.dispose();
+    // Do not rely solely on onScroll: when xterm's native post-reflow viewport
+    // already equals the restored line it emits no final event, leaving a stale
+    // pre-resize index in the cross-remount store.
+    terminalScrollStore.set(stream, term, bufferAfter.viewportY, bufferAfter.baseY);
+    return xterm;
   }, [stream, term]);
+
+  /** Complete a local fit by telling the shared PTY which grid now owns it. */
+  const refit = useCallback(() => {
+    const xterm = fitPreservingScroll();
+    if (!xterm) return;
+    wsManager.resize(stream, term, xterm.cols, xterm.rows);
+  }, [fitPreservingScroll, stream, term]);
 
   // Repaint after the browser brings this document back to the foreground.
   // The pause linger normally detaches a hidden viewer and the later replay
@@ -536,11 +566,8 @@ export function Terminal({
     // Adoption may have just given the container real dimensions — size the
     // buffer first so the attach carries the dims the PTY should have.
     const container = containerRef.current;
-    if (container && container.clientWidth > 0) {
-      fitRef.current?.fit();
-      // fit() propagates genuine geometry changes. xterm 6 explicitly ignores
-      // same-size resize() calls, so the viewport refresh below—not a pretend
-      // resize—is the local rendering recovery when this DOM returns.
+    if (container && container.clientWidth > 0 && container.clientHeight > 0) {
+      fitPreservingScroll();
     }
     // Keep xterm's built-in renderer. WebGL context loss (and backing-store
     // eviction without a context-loss event) repeatedly left working Codex
@@ -618,7 +645,7 @@ export function Terminal({
     // `fontReady` because the attach reads xtermRef, a REF: when the font gate
     // flips and the mount effect above finally creates the terminal, nothing
     // else would re-run this to attach it.
-  }, [stream, term, attached, fontReady]);
+  }, [stream, term, attached, fontReady, fitPreservingScroll]);
 
   // Font size and scrollback patch the LIVE instance (recreating it would drop
   // scrollback). A font change resizes the CELL, not the container, so the

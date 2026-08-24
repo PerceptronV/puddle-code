@@ -73,8 +73,12 @@ when the OAuth flow completes).
    well above the bottom, switch to another session for longer than 1.5 s so
    the hidden viewer detaches, then return: the same retained buffer line is
    still at the top instead of the terminal jumping to the bottom. Repeat with
-   new output arriving while away. Finally leave a terminal AT the bottom and
-   return after new output: that terminal follows the new bottom.
+   new output arriving while away. While still scrolled up, drag the pane both
+   narrower and wider so long transcript lines rewrap, resize the window, focus
+   another terminal and return, and change the terminal font size: the same
+   logical transcript line remains at the top throughout. Repeat in two
+   different agent backends and a shell terminal. Finally leave a terminal AT
+   the bottom and return after new output: that terminal follows the new bottom.
 
 Record any UI/daemon mismatches found here as issues; adapter corrections
 still go to `packages/daemon/src/agents/claude-code.ts` per phase-1.
