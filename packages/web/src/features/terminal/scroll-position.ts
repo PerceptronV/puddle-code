@@ -10,7 +10,37 @@ export interface TerminalScrollAnchor extends TerminalScrollPosition {
   logicalLineY: number;
   /** Cell offset of the old viewport row within that logical line. */
   cellOffset: number;
+  /** Fallback location when an application replaces the entire scrollback. */
+  scrollProgress: number;
 }
+
+interface TerminalScrollMarker {
+  readonly line: number;
+  readonly isDisposed: boolean;
+  dispose(): void;
+}
+
+interface TerminalScrollBuffer {
+  readonly type: 'normal' | 'alternate';
+  readonly viewportY: number;
+  readonly baseY: number;
+  readonly cursorY: number;
+  getLine(line: number): { readonly isWrapped: boolean } | undefined;
+}
+
+interface TerminalScrollTarget {
+  readonly cols: number;
+  readonly buffer: { readonly active: TerminalScrollBuffer };
+  registerMarker(cursorYOffset: number): TerminalScrollMarker;
+  scrollToLine(line: number): void;
+}
+
+export type TerminalScrollRestore = 'tracked' | 'replaced';
+
+/** Await a delayed application redraw after sending SIGWINCH. */
+const RESIZE_REDRAW_WAIT_MS = 1_000;
+/** Release a replaced-buffer guard once replayed output has gone quiet. */
+const RESIZE_REDRAW_QUIET_MS = 250;
 
 function keyFor(stream: string, term: string): string {
   return JSON.stringify([stream, term]);
@@ -22,6 +52,11 @@ function bufferLine(value: number): number {
 
 function terminalColumns(value: number): number {
   return Number.isFinite(value) ? Math.max(1, Math.trunc(value)) : 1;
+}
+
+function scrollProgress(viewportY: number, baseY: number): number {
+  if (baseY === 0) return 1;
+  return Math.max(0, Math.min(1, viewportY / baseY));
 }
 
 /** Capture a terminal viewport without trusting out-of-range buffer values. */
@@ -59,6 +94,7 @@ export function terminalScrollAnchor(
     ...position,
     logicalLineY,
     cellOffset: (position.viewportY - logicalLineY) * terminalColumns(cols),
+    scrollProgress: scrollProgress(position.viewportY, bufferLine(baseY)),
   };
 }
 
@@ -72,11 +108,99 @@ export function terminalReflowScrollLine(
   const safeBase = bufferLine(baseY);
   if (anchor.atBottom) return safeBase;
   if (trackedLogicalLine === undefined || trackedLogicalLine < 0) {
-    return terminalScrollLine(anchor, safeBase);
+    // A full-screen application may deliberately purge scrollback and replay
+    // its transcript after SIGWINCH. The marker is then gone and old absolute
+    // row indexes have no meaning; proportional progress keeps the same part
+    // of the rebuilt transcript in view regardless of its new wrapping.
+    return Math.round(anchor.scrollProgress * safeBase);
   }
   const reflowedLine =
     bufferLine(trackedLogicalLine) + Math.floor(anchor.cellOffset / terminalColumns(cols));
   return Math.min(reflowedLine, safeBase);
+}
+
+/**
+ * One resize transaction for a deliberately scrolled normal buffer.
+ *
+ * The marker follows ordinary xterm reflow exactly. It deliberately outlives
+ * the local fit because terminal applications can redraw asynchronously after
+ * SIGWINCH. If an application purges and rebuilds scrollback, xterm disposes
+ * the marker and the guard falls back to the captured transcript progress.
+ */
+export class TerminalResizeScrollGuard {
+  private timer: ReturnType<typeof setTimeout> | undefined;
+  private managedScrolls = 0;
+  private state:
+    | {
+        anchor: TerminalScrollAnchor;
+        marker: TerminalScrollMarker;
+        buffer: TerminalScrollBuffer['type'];
+      }
+    | undefined;
+
+  capture(terminal: TerminalScrollTarget): boolean {
+    if (this.state) {
+      this.arm(RESIZE_REDRAW_WAIT_MS);
+      return true;
+    }
+    const buffer = terminal.buffer.active;
+    if (buffer.type !== 'normal') return false;
+    const anchor = terminalScrollAnchor(
+      buffer.viewportY,
+      buffer.baseY,
+      terminal.cols,
+      (line) => buffer.getLine(line)?.isWrapped === true,
+    );
+    if (anchor.atBottom) return false;
+    const cursorLine = buffer.baseY + buffer.cursorY;
+    this.state = {
+      anchor,
+      marker: terminal.registerMarker(anchor.logicalLineY - cursorLine),
+      buffer: buffer.type,
+    };
+    this.arm(RESIZE_REDRAW_WAIT_MS);
+    return true;
+  }
+
+  restore(terminal: TerminalScrollTarget): TerminalScrollRestore | null {
+    const state = this.state;
+    const buffer = terminal.buffer.active;
+    if (!state || buffer.type !== state.buffer) return null;
+    const trackedLine = state.marker.isDisposed ? undefined : state.marker.line;
+    terminal.scrollToLine(
+      terminalReflowScrollLine(state.anchor, trackedLine, terminal.cols, buffer.baseY),
+    );
+    if (trackedLine === undefined) {
+      this.arm(RESIZE_REDRAW_QUIET_MS);
+      return 'replaced';
+    }
+    return 'tracked';
+  }
+
+  beginManagedScroll(): void {
+    this.managedScrolls++;
+  }
+
+  endManagedScroll(): void {
+    this.managedScrolls = Math.max(0, this.managedScrolls - 1);
+  }
+
+  get managingScroll(): boolean {
+    return this.managedScrolls > 0;
+  }
+
+  release(): void {
+    if (this.timer !== undefined) clearTimeout(this.timer);
+    this.timer = undefined;
+    this.managedScrolls = 0;
+    this.state?.marker.dispose();
+    this.state = undefined;
+  }
+
+  private arm(delayMs: number): void {
+    if (this.timer !== undefined) clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.release(), delayMs);
+  }
 }
 
 /**

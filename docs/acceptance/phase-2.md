@@ -76,9 +76,12 @@ when the OAuth flow completes).
    new output arriving while away. While still scrolled up, drag the pane both
    narrower and wider so long transcript lines rewrap, resize the window, focus
    another terminal and return, and change the terminal font size: the same
-   logical transcript line remains at the top throughout. Repeat in two
-   different agent backends and a shell terminal. Finally leave a terminal AT
-   the bottom and return after new output: that terminal follows the new bottom.
+   logical transcript line remains at the top throughout. In an inline agent
+   TUI that rebuilds its scrollback on resize, stop at a visible middle point,
+   resize, and confirm the rebuilt transcript remains at that point rather than
+   jumping to its first row. Repeat in two different agent backends and a shell
+   terminal. Finally leave a terminal AT the bottom and return after new output:
+   that terminal follows the new bottom.
    During a long streaming response, repeatedly scroll up and down while new
    lines arrive: completed transcript lines remain present and in order both
    live and after switching away long enough to force a snapshot replay.

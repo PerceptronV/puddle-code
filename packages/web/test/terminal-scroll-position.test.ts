@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  TerminalResizeScrollGuard,
   terminalReflowScrollLine,
   terminalScrollAnchor,
   terminalScrollLine,
@@ -38,6 +39,7 @@ describe('terminal scroll position', () => {
       atBottom: false,
       logicalLineY: 24,
       cellOffset: 35,
+      scrollProgress: 25 / 71,
     });
     // xterm's marker follows logical line 24 to line 36 during reflow. The
     // original top row then starts one 20-column row into that logical line.
@@ -55,14 +57,89 @@ describe('terminal scroll position', () => {
     expect(terminalReflowScrollLine(anchor, 26, 35, 71)).toBe(27);
   });
 
-  it('continues following the bottom and safely falls back if an anchor was trimmed', () => {
+  it('continues following the bottom and preserves progress through a replaced buffer', () => {
     const bottom = terminalScrollAnchor(80, 80, 120, () => {
       throw new Error('bottom-following terminals do not need a wrapped-line scan');
     });
     expect(terminalReflowScrollLine(bottom, undefined, 80, 120)).toBe(120);
 
     const pinned = terminalScrollAnchor(32, 80, 120, () => false);
-    expect(terminalReflowScrollLine(pinned, undefined, 80, 120)).toBe(32);
+    expect(terminalReflowScrollLine(pinned, undefined, 80, 120)).toBe(48);
+  });
+});
+
+describe('TerminalResizeScrollGuard', () => {
+  function target({ viewportY = 25, baseY = 80, cols = 40 } = {}) {
+    const marker = {
+      line: 24,
+      isDisposed: false,
+      dispose() {
+        this.isDisposed = true;
+        this.line = -1;
+      },
+    };
+    const scrolled: number[] = [];
+    const active: {
+      type: 'normal' | 'alternate';
+      viewportY: number;
+      baseY: number;
+      cursorY: number;
+      getLine(line: number): { isWrapped: boolean };
+    } = {
+      type: 'normal',
+      viewportY,
+      baseY,
+      cursorY: 4,
+      getLine: (line: number) => ({ isWrapped: line === 25 }),
+    };
+    return {
+      terminal: {
+        cols,
+        buffer: { active },
+        registerMarker: () => marker,
+        scrollToLine: (line: number) => scrolled.push(line),
+      },
+      active,
+      marker,
+      scrolled,
+    };
+  }
+
+  it('keeps one marker alive across repeated local resize reflows', () => {
+    const view = target();
+    const guard = new TerminalResizeScrollGuard();
+
+    expect(guard.capture(view.terminal)).toBe(true);
+    view.marker.line = 36;
+    view.terminal.cols = 20;
+    view.active.baseY = 111;
+
+    expect(guard.restore(view.terminal)).toBe('tracked');
+    expect(view.scrolled).toEqual([38]);
+    expect(guard.capture(view.terminal)).toBe(true);
+    guard.release();
+  });
+
+  it('restores transcript progress when an application purges and rebuilds scrollback', () => {
+    const view = target({ viewportY: 20, baseY: 80 });
+    const guard = new TerminalResizeScrollGuard();
+
+    guard.capture(view.terminal);
+    view.marker.dispose();
+    view.active.baseY = 160;
+
+    expect(guard.restore(view.terminal)).toBe('replaced');
+    expect(view.scrolled).toEqual([40]);
+    guard.release();
+  });
+
+  it('ignores bottom-following and alternate-screen buffers', () => {
+    const bottom = target({ viewportY: 80, baseY: 80 });
+    expect(new TerminalResizeScrollGuard().capture(bottom.terminal)).toBe(false);
+
+    const alternate = target();
+    alternate.active.type = 'alternate';
+    expect(new TerminalResizeScrollGuard().capture(alternate.terminal)).toBe(false);
   });
 });
 

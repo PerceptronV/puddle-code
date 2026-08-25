@@ -11,6 +11,7 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Keep deliberately scrolled agent transcripts in place when a resize makes the application purge and rebuild its terminal scrollback.
 - Preserve agent transcript lines when a streaming TUI scrolls a top-anchored output region.
 
 ### Changed
