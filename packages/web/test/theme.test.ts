@@ -3,6 +3,7 @@ import {
   expandShortHex,
   monacoThemeFrom,
   xtermThemeFrom,
+  xtermVisualOptionsFrom,
   type TokenReader,
 } from '../src/lib/theme';
 
@@ -42,6 +43,12 @@ describe('xtermThemeFrom', () => {
     const slots = Object.values(theme);
     expect(slots).toHaveLength(21); // 16 ANSI + bg/fg/cursor/cursorAccent/selection
     expect(new Set(slots).size).toBe(20); // cursorAccent deliberately reuses --bg-base
+  });
+
+  it('enforces readable text when a TUI caches the opposite background luminance', () => {
+    const options = xtermVisualOptionsFrom(echo);
+    expect(options.theme).toEqual(theme);
+    expect(options.minimumContrastRatio).toBe(4.5); // xterm's documented WCAG AA floor
   });
 });
 

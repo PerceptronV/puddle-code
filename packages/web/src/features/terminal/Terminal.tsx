@@ -23,7 +23,12 @@ import { EMPTY_FIND_RESULT, type FindOptions } from '../find/find-types';
 import { useFindControls } from '../find/use-find-controls';
 import { useDocumentVisible } from '../../lib/use-document-visible';
 import { sshMode } from '../../lib/ssh-mode';
-import { cssTokenReader, onThemeChange, xtermThemeFromCss } from '../../lib/theme';
+import {
+  cssTokenReader,
+  onThemeChange,
+  xtermThemeFromCss,
+  xtermVisualOptionsFromCss,
+} from '../../lib/theme';
 import { cn } from '../../lib/utils';
 import { wsManager } from '../../lib/ws';
 import { dynamicColourReport, type DynamicColourCode } from './osc-colour';
@@ -318,7 +323,12 @@ export function Terminal({
       // constructor opt-in, the first non-empty search throws and takes down
       // the routed workspace through the render error boundary.
       allowProposedApi: true,
-      theme: xtermThemeFromCss(),
+      // Includes the token-derived theme and xterm's WCAG-AA foreground
+      // correction. Some TUIs choose their own background from a one-shot
+      // terminal-colour probe; after a Puddle theme change that cached choice
+      // can be the opposite luminance, so the renderer must keep its text
+      // readable without rewriting the agent's terminal stream.
+      ...xtermVisualOptionsFromCss(),
       fontFamily: TERMINAL_FONT,
       fontSize: settings.terminalFontSize,
       scrollback: settings.terminalScrollback,

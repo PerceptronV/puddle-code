@@ -113,6 +113,20 @@ export interface TerminalTheme {
   brightWhite: string;
 }
 
+/**
+ * xterm's foreground correction floor. Agent TUIs may cache the OSC 10/11
+ * colours they sampled at startup, then keep emitting a dark-theme background
+ * after Puddle has switched to light (or vice versa). Their bytes must remain
+ * untouched, but text over that stale background still has to be readable.
+ */
+export const TERMINAL_MINIMUM_CONTRAST_RATIO = 4.5;
+
+/** The colour-bearing xterm options kept together as one visual contract. */
+export interface TerminalVisualOptions {
+  theme: TerminalTheme;
+  minimumContrastRatio: number;
+}
+
 export function xtermThemeFrom(read: TokenReader): TerminalTheme {
   return {
     background: read('--bg-base'),
@@ -141,6 +155,17 @@ export function xtermThemeFrom(read: TokenReader): TerminalTheme {
 
 export function xtermThemeFromCss(): TerminalTheme {
   return xtermThemeFrom(cssTokenReader());
+}
+
+export function xtermVisualOptionsFrom(read: TokenReader): TerminalVisualOptions {
+  return {
+    theme: xtermThemeFrom(read),
+    minimumContrastRatio: TERMINAL_MINIMUM_CONTRAST_RATIO,
+  };
+}
+
+export function xtermVisualOptionsFromCss(): TerminalVisualOptions {
+  return xtermVisualOptionsFrom(cssTokenReader());
 }
 
 /**
