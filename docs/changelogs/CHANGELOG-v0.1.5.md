@@ -7,4 +7,8 @@ Past releases: see docs/changelogs/.
 
 # Changelog
 
-## [Unreleased]
+## [0.1.5] — 2026-08-27
+
+### Fixed
+
+- Keep terminal text legible when an agent retains an input background from the opposite Puddle theme.
