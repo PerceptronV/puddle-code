@@ -8,5 +8,8 @@ export default defineConfig({
       '@puddle/shared': fileURLToPath(new URL('../shared/src/index.ts', import.meta.url)),
     },
   },
-  test: { name: 'cli', testTimeout: 20000 },
+  // Tunnel/daemon suites spawn and probe real child processes. Unbounded file
+  // parallelism starves those children on CI and turns readiness deadlines
+  // into cascading false failures, even though each file passes in isolation.
+  test: { name: 'cli', testTimeout: 20000, hookTimeout: 60000 },
 });
