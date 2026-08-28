@@ -174,8 +174,8 @@ export function isLatexGeneratedPdf(path: string, root?: string, generatedBy?: s
   const address = `${normalisedRoot}/${path.replaceAll('\\', '/')}`;
   return (
     address.includes('/.puddle/latex/') ||
-    // Managed directories use a 24-hex source hash. Retain recognition when
-    // the daemon has a custom PUDDLE_HOME rather than ~/.puddle.
+    // Managed directories use a 24-hex source hash. Retain recognition for a
+    // rooted path supplied with platform-native separators.
     /(?:^|\/)latex\/[a-f\d]{24}\/current\/?$/i.test(normalisedRoot)
   );
 }

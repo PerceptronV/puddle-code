@@ -4,6 +4,7 @@ dist/
 *.tsbuildinfo
 .DS_Store
 coverage/
+.puddle/
 .superpowers/
 /dist-release/
 tsc-out/

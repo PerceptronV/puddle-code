@@ -12,7 +12,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, normalize, relative, resolve } from 'node:path';
 import {
   compilationFileTargetSchema,
   type CompilationDiagnostic,
@@ -26,7 +26,6 @@ import type { CompilationProvider, CompilationProviderResult } from '../compilat
 import { KeyedMutex } from '../git/mutex.js';
 import { ApiError } from '../http/errors.js';
 import { containedPath, NO_SESSION, resolveFsRoot } from '../http/routes/worktree-shared.js';
-import type { PuddlePaths } from '../paths.js';
 import { compileLatex } from './compiler.js';
 import { LatexBuildFailure, type LatexSourceDiagnostic } from './diagnostics.js';
 import { discoverLatexToolchain } from './discovery.js';
@@ -51,7 +50,6 @@ interface LatexManifest {
 }
 
 export interface LatexProviderDeps {
-  paths: PuddlePaths;
   sessions: SessionStore;
   repos: RepoStore;
   discover?: () => LatexToolchain;
@@ -90,7 +88,7 @@ export class LatexProvider implements CompilationProvider {
     const source = resolveLatexSource(root, request.path);
     const identity = safeRealpath(source.absolute);
     const buildKey = createHash('sha256').update(identity).digest('hex').slice(0, 24);
-    const buildRoot = join(this.deps.paths.latexDir, buildKey);
+    const buildRoot = join(root, '.puddle', 'latex', buildKey);
     const runsDir = join(buildRoot, 'runs');
     const runDir = join(runsDir, `${Date.now()}-${randomUUID()}`);
     const currentDir = join(buildRoot, 'current');
@@ -157,7 +155,7 @@ export class LatexProvider implements CompilationProvider {
   }
 
   async inverseSearch(request: LatexSynctexRequest): Promise<LatexSynctexResponse> {
-    const buildDir = this.validBuildRoot(request.root);
+    const { buildDir, sourceRoot } = this.validBuildRoot(request.root);
     const pdfPath = containedPath(buildDir, request.path);
     if (!existsSync(pdfPath) || !statSync(pdfPath).isFile()) {
       throw ApiError.notFound('PDF', request.path);
@@ -166,7 +164,9 @@ export class LatexProvider implements CompilationProvider {
     if (
       manifest.pdf.session !== request.session ||
       manifest.pdf.path !== request.path ||
-      normalize(manifest.pdf.root) !== buildDir
+      normalize(manifest.pdf.root) !== buildDir ||
+      normalize(manifest.sourceRoot) !== sourceRoot ||
+      !validManifestSource(manifest, sourceRoot, basename(dirname(buildDir)))
     ) {
       throw ApiError.badRequest('invalid_latex_output', 'PDF does not match its LaTeX manifest');
     }
@@ -227,18 +227,52 @@ export class LatexProvider implements CompilationProvider {
     return (this.deps.discover ?? discoverLatexToolchain)();
   }
 
-  private validBuildRoot(rawRoot: string): string {
+  private validBuildRoot(rawRoot: string): { buildDir: string; sourceRoot: string } {
     const root = normalize(rawRoot);
     if (!isAbsolute(root)) {
       throw ApiError.badRequest('invalid_latex_output', 'LaTeX output root must be absolute');
     }
-    const rel = relative(this.deps.paths.latexDir, root);
-    const parts = rel.split(sep);
-    if (parts.length !== 2 || !/^[0-9a-f]{24}$/.test(parts[0] ?? '') || parts[1] !== 'current') {
+    const buildRoot = dirname(root);
+    const latexRoot = dirname(buildRoot);
+    const puddleRoot = dirname(latexRoot);
+    const sourceRoot = dirname(puddleRoot);
+    const buildKey = basename(buildRoot);
+    if (
+      basename(root) !== 'current' ||
+      !/^[0-9a-f]{24}$/.test(buildKey) ||
+      basename(latexRoot) !== 'latex' ||
+      basename(puddleRoot) !== '.puddle'
+    ) {
       throw ApiError.badRequest('invalid_latex_output', 'PDF is not a Puddle LaTeX output');
     }
-    return containedPath(this.deps.paths.latexDir, rel);
+    return {
+      buildDir: containedPath(join(sourceRoot, '.puddle', 'latex'), join(buildKey, 'current')),
+      sourceRoot,
+    };
   }
+}
+
+function validManifestSource(
+  manifest: LatexManifest,
+  sourceRoot: string,
+  buildKey: string,
+): boolean {
+  if (!existsSync(manifest.sourceAbsolute) || !statSync(manifest.sourceAbsolute).isFile()) {
+    return false;
+  }
+  let sourceFromTarget: string;
+  try {
+    sourceFromTarget = containedPath(sourceRoot, manifest.source.path);
+  } catch {
+    return false;
+  }
+  const expectedKey = createHash('sha256')
+    .update(safeRealpath(manifest.sourceAbsolute))
+    .digest('hex')
+    .slice(0, 24);
+  return (
+    normalize(sourceFromTarget) === normalize(manifest.sourceAbsolute) && expectedKey === buildKey
+  );
 }
 
 function promoteBuild(
@@ -381,10 +415,21 @@ function unquote(value: string): string {
 
 function sourceDependencies(root: string, source: string, reported: readonly string[]): string[] {
   const dependencies = new Set<string>([source]);
+  const managedRoot = join(root, '.puddle', 'latex');
   for (const input of reported) {
     const path = normalize(isAbsolute(input) ? input : resolve(dirname(source), input));
     const rel = relative(root, path);
-    if (rel === '' || rel.startsWith('..') || isAbsolute(rel) || !existsSync(path)) continue;
+    const managedRel = relative(managedRoot, path);
+    const inManagedOutput =
+      managedRel === '' || (!managedRel.startsWith('..') && !isAbsolute(managedRel));
+    if (
+      rel === '' ||
+      rel.startsWith('..') ||
+      isAbsolute(rel) ||
+      inManagedOutput ||
+      !existsSync(path)
+    )
+      continue;
     dependencies.add(path);
   }
   return [...dependencies];

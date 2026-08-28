@@ -113,7 +113,7 @@ describe('LaTeX diagnostics', () => {
 });
 
 describe('LatexProvider', () => {
-  it('compiles a magic-root document under Puddle home and inverse-searches it', async () => {
+  it('compiles a magic-root document under its local .puddle and inverse-searches it', async () => {
     const sourceRoot = mkdtempSync(join(tmpdir(), 'puddle-tex-project-'));
     mkdirSync(join(sourceRoot, 'sections'));
     writeFileSync(
@@ -153,14 +153,14 @@ describe('LatexProvider', () => {
       const outDir = outArg.slice('-outdir='.length);
       writeFileSync(join(outDir, 'main.pdf'), '%PDF-fake');
       writeFileSync(join(outDir, 'main.synctex.gz'), 'fake');
+      writeFileSync(join(outDir, 'generated.sty'), 'managed build input');
       writeFileSync(
         join(outDir, 'main.fls'),
-        `INPUT ${join(sourceRoot, 'main.tex')}\nINPUT ${join(sourceRoot, 'sections', 'intro.tex')}\nINPUT /usr/share/texmf/article.cls\n`,
+        `INPUT ${join(sourceRoot, 'main.tex')}\nINPUT ${join(sourceRoot, 'sections', 'intro.tex')}\nINPUT ${join(outDir, 'generated.sty')}\nINPUT /usr/share/texmf/article.cls\n`,
       );
       return { exitCode: 0, stdout: 'built\n', stderr: '' };
     };
     const provider = new LatexProvider({
-      paths,
       ...emptyStores,
       discover: () => tools,
       runner,
@@ -178,7 +178,7 @@ describe('LatexProvider', () => {
       navigation: { kind: 'synctex' },
     });
     const pdf = built.artifacts[0]?.file;
-    expect(pdf?.root?.startsWith(paths.latexDir)).toBe(true);
+    expect(pdf?.root?.startsWith(join(sourceRoot, '.puddle', 'latex'))).toBe(true);
     expect(basename(pdf?.root ?? '')).toBe('current');
     expect(built.dependencies.sort()).toEqual(
       [join(sourceRoot, 'main.tex'), join(sourceRoot, 'sections', 'intro.tex')].sort(),
@@ -186,6 +186,7 @@ describe('LatexProvider', () => {
     if (!pdf?.root) throw new Error('compiled PDF has no root');
     expect(existsSync(join(pdf.root, 'build.log'))).toBe(true);
     expect(existsSync(join(pdf.root, 'manifest.json'))).toBe(true);
+    expect(existsSync(join(paths.home, 'latex'))).toBe(false);
     expect(existsSync(join(sourceRoot, 'main.pdf'))).toBe(false);
     expect(commands[0]).toContain('-no-shell-escape');
     expect(commands[0]).toContain('-recorder');
@@ -207,6 +208,16 @@ describe('LatexProvider', () => {
       column: 3,
     });
     expect(commands.at(-1)?.slice(0, 3)).toEqual(['/fake/synctex', 'edit', '-o']);
+
+    const manifestPath = join(pdf.root, 'manifest.json');
+    const manifestText = readFileSync(manifestPath, 'utf8');
+    const forgedManifest = JSON.parse(manifestText) as Record<string, unknown>;
+    forgedManifest['sourceRoot'] = dirname(sourceRoot);
+    writeFileSync(manifestPath, `${JSON.stringify(forgedManifest)}\n`);
+    await expect(
+      provider.inverseSearch({ ...pdf, root: pdf.root, page: 1, x: 1, y: 1 }),
+    ).rejects.toMatchObject({ code: 'invalid_latex_output' });
+    writeFileSync(manifestPath, manifestText);
 
     const outside = join(mkdtempSync(join(tmpdir(), 'puddle-synctex-outside-')), 'outside.tex');
     writeFileSync(outside, 'outside\n');
@@ -248,7 +259,6 @@ describe('LatexProvider', () => {
   it('prefers Tectonic when latexmk is absent', async () => {
     const sourceRoot = mkdtempSync(join(tmpdir(), 'puddle-tectonic-project-'));
     writeFileSync(join(sourceRoot, 'paper.tex'), '\\documentclass{article}\n');
-    const paths = resolvePaths(mkdtempSync(join(tmpdir(), 'puddle-tectonic-state-')));
     const runner: LatexCommandRunner = async (command) => {
       const out = command.args[command.args.indexOf('--outdir') + 1];
       if (!out) throw new Error('missing outdir');
@@ -257,7 +267,6 @@ describe('LatexProvider', () => {
       return { exitCode: 0, stdout: '', stderr: '' };
     };
     const provider = new LatexProvider({
-      paths,
       ...emptyStores,
       discover: () => ({ paths: { tectonic: '/fake/tectonic' }, searchPath: '/fake' }),
       runner,
@@ -275,7 +284,6 @@ describe('LatexProvider', () => {
       join(sourceRoot, 'paper.tex'),
       '% !TEX program = lualatex\n\\documentclass{article}\n',
     );
-    const paths = resolvePaths(mkdtempSync(join(tmpdir(), 'puddle-engine-state-')));
     const commands: string[] = [];
     const runner: LatexCommandRunner = async (command) => {
       commands.push(basename(command.file));
@@ -293,7 +301,6 @@ describe('LatexProvider', () => {
       return { exitCode: 0, stdout: '', stderr: '' };
     };
     const provider = new LatexProvider({
-      paths,
       ...emptyStores,
       discover: () => ({
         paths: {
