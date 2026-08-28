@@ -4,6 +4,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Group, Panel, Separator, type Layout } from 'react-resizable-panels';
 import {
   UNTITLED_SESSION,
+  type CompilationFileTarget,
+  type CompilationMode,
+  type CompilationRunResponse,
+  type LatexSynctexResponse,
   type LayoutLeaf,
   type SavedLayout,
   type Session,
@@ -15,6 +19,10 @@ import { deleteDraft, saveDraft } from '../../lib/drafts';
 import { renameEntry } from '../../lib/worktree-queries';
 import { basename, dirOf, joinPath } from '../explorer/explorer-paths';
 import { tabKind } from '../editor/editor-tabs';
+import { compilationSourceKey, sourceExtension } from '../editor/compilation-kind';
+import { CompilationWatcher } from '../editor/CompilationWatcher';
+import { bumpMediaRefresh } from '../editor/media-refresh-store';
+import { saveCompilationInputs } from '../editor/save-registry';
 import { requestActiveTabSave } from '../editor/active-tab-save';
 import {
   forgetUntitledContent,
@@ -34,10 +42,16 @@ import { Button } from '../../components/ui/button';
 import { useExplorerTarget } from '../explorer/use-explorer-target';
 import { fileTabRevealTarget } from '../explorer/file-tab-reveal';
 import {
+  compilationSupported,
   directoryTargetSupported,
   nativeConversationSyncSupported,
   untitledSupported,
 } from '../../lib/protocol-support';
+import {
+  setCompilationMode as setHostCompilationMode,
+  useCompilationCapabilities,
+  useRunCompilation,
+} from '../../lib/compilation-queries';
 import { clientSettings, updateClientSettings, useClientSettings } from '../../lib/client-settings';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
 import {
@@ -155,6 +169,32 @@ function WorkspaceInner() {
   const renderTitle = useSessionTitleRenderer();
   const saveKey = useHotkeyLabel('editor.save');
   const daemonProtocol = useDaemonVersion().data?.protocol;
+  const compilationCapabilities = useCompilationCapabilities(compilationSupported(daemonProtocol));
+  const runCompilation = useRunCompilation();
+  const [manualCompilationRunningKey, setManualCompilationRunningKey] = useState<string | null>(
+    null,
+  );
+  const [eagerCompilationRunningKeys, setEagerCompilationRunningKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const compilationRunningKeys = useMemo(() => {
+    const keys = new Set(eagerCompilationRunningKeys);
+    if (manualCompilationRunningKey) keys.add(manualCompilationRunningKey);
+    return keys;
+  }, [eagerCompilationRunningKeys, manualCompilationRunningKey]);
+  const availableCompilationProviders = useMemo(
+    () => compilationCapabilities.data?.providers.filter((provider) => provider.available) ?? [],
+    [compilationCapabilities.data],
+  );
+  const compilableExtensions = useMemo(
+    () =>
+      new Set(
+        availableCompilationProviders.flatMap((provider) =>
+          provider.extensions.map((extension) => extension.toLowerCase()),
+        ),
+      ),
+    [availableCompilationProviders],
+  );
 
   // Profile-keyed (SPEC §11): the layout tree is shared across projects, so the
   // tiling area needs every session it may hold a tab for — whatever the
@@ -366,6 +406,156 @@ function WorkspaceInner() {
   // focus/ensure op would re-trigger the effect that made it, looping.
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
+
+  const compilationProviderForTab = useCallback(
+    (tab: EditorTab) => {
+      const extension = sourceExtension(tab.path);
+      return extension === null
+        ? undefined
+        : availableCompilationProviders.find((provider) => provider.extensions.includes(extension));
+    },
+    [availableCompilationProviders],
+  );
+  const providerForTab = useCallback(
+    (tab: EditorTab) => compilationProviderForTab(tab)?.id,
+    [compilationProviderForTab],
+  );
+  const compilationTarget = useCallback(
+    (tab: EditorTab) => {
+      const provider = providerForTab(tab);
+      return {
+        source: {
+          session: tab.session,
+          path: tab.path,
+          ...(tab.root !== undefined ? { root: tab.root } : {}),
+        } satisfies CompilationFileTarget,
+        ...(provider !== undefined ? { provider } : {}),
+      };
+    },
+    [providerForTab],
+  );
+
+  const presentCompilationResult = useCallback(
+    (leafId: string, result: CompilationRunResponse, activate: boolean) => {
+      const preview = result.artifacts.find((artifact) => artifact.role === 'preview');
+      if (!preview) return;
+      bumpMediaRefresh(preview.file.session, preview.file.path, preview.file.root);
+      layoutRef.current.openEditorInLeaf(
+        leafId,
+        {
+          session: preview.file.session,
+          path: preview.file.path,
+          ...(preview.file.root !== undefined
+            ? { kind: 'external' as const, root: preview.file.root }
+            : { kind: 'file' as const }),
+          generated_by: result.provider,
+        },
+        { dedupeAcrossTree: true, activate },
+      );
+    },
+    [],
+  );
+
+  const onRunCompilation = useCallback(
+    async (leafId: string, tab: EditorTab) => {
+      if (manualCompilationRunningKey !== null) return;
+      const target = compilationTarget(tab);
+      const provider = compilationProviderForTab(tab);
+      if (!provider) return;
+      setManualCompilationRunningKey(compilationSourceKey(tab.session, tab.path, tab.root));
+      try {
+        const saved = await saveCompilationInputs(
+          target.source,
+          new Set(provider.input_extensions),
+        );
+        if (!saved) {
+          toast.error('Compilation cancelled because an input could not be saved');
+          return;
+        }
+        if ((tab.compile_mode ?? 'on_demand') === 'eager') {
+          layoutRef.current.setCompileMode(tab, 'on_demand');
+          await setHostCompilationMode({ ...target, mode: 'on_demand' });
+        }
+        const result = await runCompilation.mutateAsync(target);
+        presentCompilationResult(leafId, result, true);
+        toast.success(`Compiled ${basename(result.source.path)}`);
+      } catch (error) {
+        toastError(error);
+      } finally {
+        setManualCompilationRunningKey(null);
+      }
+    },
+    [
+      manualCompilationRunningKey,
+      compilationProviderForTab,
+      compilationTarget,
+      presentCompilationResult,
+      runCompilation,
+    ],
+  );
+
+  const onSetCompilationMode = useCallback(
+    async (tab: EditorTab, mode: CompilationMode) => {
+      const previous = tab.compile_mode ?? 'on_demand';
+      if (previous === mode) return;
+      const provider = compilationProviderForTab(tab);
+      if (!provider) return;
+      const target = compilationTarget(tab);
+      if (
+        mode === 'eager' &&
+        !(await saveCompilationInputs(target.source, new Set(provider.input_extensions)))
+      ) {
+        toast.error('Eager compilation was not enabled because an input could not be saved');
+        return;
+      }
+      layoutRef.current.setCompileMode(tab, mode);
+      // Mounting CompilationWatcher registers eager mode and delivers its
+      // initial build. On-demand has no watcher, so retire it explicitly.
+      if (mode === 'on_demand') {
+        void setHostCompilationMode({ ...target, mode }).catch((error: unknown) => {
+          layoutRef.current.setCompileMode(tab, previous);
+          toastError(error);
+        });
+      }
+    },
+    [compilationProviderForTab, compilationTarget],
+  );
+
+  const eagerCompilationTargets = useMemo(() => {
+    const targets = new Map<
+      string,
+      { leafId: string; target: ReturnType<typeof compilationTarget> }
+    >();
+    for (const leaf of allLeaves(layout.tree)) {
+      for (const ref of leaf.tabs) {
+        if (ref.type !== 'editor' || ref.tab.compile_mode !== 'eager') continue;
+        const provider = providerForTab(ref.tab);
+        if (!provider) continue;
+        const key = compilationSourceKey(ref.tab.session, ref.tab.path, ref.tab.root);
+        if (!targets.has(key)) {
+          targets.set(key, { leafId: leaf.id, target: compilationTarget(ref.tab) });
+        }
+      }
+    }
+    return [...targets.entries()].map(([key, value]) => ({ key, ...value }));
+  }, [layout.tree, compilationTarget, providerForTab]);
+
+  const onEagerCompilationResult = useCallback(
+    (leafId: string, result: CompilationRunResponse) =>
+      presentCompilationResult(leafId, result, false),
+    [presentCompilationResult],
+  );
+  const onEagerCompilationError = useCallback((message: string) => toast.error(message), []);
+  const setEagerCompilationRunning = useCallback((key: string, running: boolean) => {
+    setEagerCompilationRunningKeys((current) => {
+      const has = current.has(key);
+      if (has === running) return current;
+      const next = new Set(current);
+      if (running) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
   // `useUiState` returns a fresh handle object every render, so effects must
   // reach it through a ref — listing `uiState` in a dependency array would fire
   // the effect on EVERY render, not only when its real inputs change.
@@ -465,6 +655,31 @@ function WorkspaceInner() {
   // arrives with a fresh nonce so the editor zone reveals the caret even when
   // the same file tab was already open (only meaningful for file tabs).
   const [reveal, setReveal] = useState<RevealTarget | null>(null);
+  const revealCompiledSource = useCallback(
+    (leafId: string, target: LatexSynctexResponse) => {
+      const sourceLeafId = layoutRef.current.openEditorInLeaf(
+        leafId,
+        {
+          session: target.session,
+          path: target.path,
+          ...(target.root !== undefined
+            ? { kind: 'external' as const, root: target.root }
+            : { kind: 'file' as const }),
+        },
+        { dedupeAcrossTree: true },
+      );
+      claimScrollDriver(sourceLeafId);
+      setReveal({
+        session: target.session,
+        path: target.path,
+        ...(target.root !== undefined ? { root: target.root } : {}),
+        line: target.line,
+        column: target.column,
+        nonce: Date.now(),
+      });
+    },
+    [claimScrollDriver],
+  );
   const openEditorTab = useCallback(
     (tab: EditorTab, position?: EditorPosition, opts?: { preview?: boolean }) => {
       claimScrollDriver(layout.focusedLeaf.id);
@@ -1420,6 +1635,17 @@ function WorkspaceInner() {
   // sidebar's archive targets.
   const mainArea = (
     <div className="flex h-full flex-col bg-ground">
+      {eagerCompilationTargets.map(({ key, leafId, target }) => (
+        <CompilationWatcher
+          key={key}
+          sourceKey={key}
+          leafId={leafId}
+          target={target}
+          onResult={onEagerCompilationResult}
+          onError={onEagerCompilationError}
+          onRunningChange={setEagerCompilationRunning}
+        />
+      ))}
       <div className="min-h-0 flex-1">
         <TileTree
           tree={layout.tree}
@@ -1434,7 +1660,12 @@ function WorkspaceInner() {
           onResize={layout.resize}
           onDropTab={onDropTab}
           onSetTabView={layout.setView}
+          compilableExtensions={compilableExtensions}
+          compilationRunningKeys={compilationRunningKeys}
+          onRunCompilation={(leafId, tab) => void onRunCompilation(leafId, tab)}
+          onSetCompilationMode={onSetCompilationMode}
           onRevealPreviewSource={revealPreviewSource}
+          onRevealCompiledSource={revealCompiledSource}
           onNewUntitled={onNewUntitled}
           onRevealFile={revealFileTab}
           onRenameFile={renameFileTab}

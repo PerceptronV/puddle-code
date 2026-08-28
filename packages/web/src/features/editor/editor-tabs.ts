@@ -1,3 +1,5 @@
+import type { CompilationMode } from '@puddle/shared';
+
 /**
  * Pure tab-order logic for the editor zone (SPEC §8). A tab is keyed by
  * `(kind, session, path, sha)`: a plain `file` editor, a worktree `diff`, or a
@@ -31,7 +33,7 @@ export interface EditorTab {
   /**
    * Set only for `external` tabs: the absolute browse root the explorer's
    * parent navigation opened this file under — `path` is relative to it,
-   * and the tab is read-only (SPEC §8).
+   * and the tab uses that root for reads and writes (SPEC §8).
    */
   root?: string;
   /**
@@ -43,6 +45,10 @@ export interface EditorTab {
    * following mode IS keyed as its own stable slot — see `tabKey`.
    */
   view?: EditorView;
+  /** Provider-backed execution mode; absent is the on-demand default. */
+  compile_mode?: CompilationMode;
+  /** Provider that generated this otherwise ordinary file tab. */
+  generated_by?: string;
 }
 
 /** The effective kind, treating an absent `kind` as `file`. */

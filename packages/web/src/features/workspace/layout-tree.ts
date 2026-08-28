@@ -1,5 +1,12 @@
 import { UNTITLED_SESSION } from '@puddle/shared';
-import type { LayoutLeaf, LayoutNode, LayoutSplit, TabRef, UiStateSnapshot } from '@puddle/shared';
+import type {
+  CompilationMode,
+  LayoutLeaf,
+  LayoutNode,
+  LayoutSplit,
+  TabRef,
+  UiStateSnapshot,
+} from '@puddle/shared';
 import { tabKey, tabKind, type EditorTab, type EditorView } from '../editor/editor-tabs';
 import { previewKind } from '../editor/preview-kind';
 
@@ -370,6 +377,52 @@ export function addTabToLeaf(tree: LayoutNode, leafId: string, ref: TabRef): Lay
     return { ...leaf, tabs: [...leaf.tabs, ref], activeKey: key, previewKey };
   });
   return normalise(next);
+}
+
+/** Append a permanent tab without changing which tab or pane the user is working in. */
+export function addBackgroundTabToLeaf(tree: LayoutNode, leafId: string, ref: TabRef): LayoutNode {
+  const key = tabRefKey(ref);
+  const next = transformLeaf(tree, leafId, (leaf) => {
+    if (leaf.tabs.some((candidate) => tabRefKey(candidate) === key)) {
+      return {
+        ...leaf,
+        tabs: leaf.tabs.map((candidate) => (tabRefKey(candidate) === key ? ref : candidate)),
+        previewKey: leaf.previewKey === key ? null : leaf.previewKey,
+      };
+    }
+    return { ...leaf, tabs: [...leaf.tabs, ref] };
+  });
+  return normalise(next);
+}
+
+/** Replace one existing tab's metadata without changing its stable identity or position. */
+export function updateTabInLeaf(tree: LayoutNode, leafId: string, ref: TabRef): LayoutNode {
+  const key = tabRefKey(ref);
+  return transformLeaf(tree, leafId, (leaf) => ({
+    ...leaf,
+    tabs: leaf.tabs.map((candidate) => (tabRefKey(candidate) === key ? ref : candidate)),
+  })) as LayoutNode;
+}
+
+/** Keep a source's compile mode consistent across duplicate views in every pane. */
+export function setCompileMode(
+  tree: LayoutNode,
+  target: EditorTab,
+  mode: CompilationMode,
+): LayoutNode {
+  const key = tabKey(target);
+  const walk = (node: LayoutNode): LayoutNode => {
+    if (node.kind === 'split') return { ...node, children: node.children.map(walk) };
+    return {
+      ...node,
+      tabs: node.tabs.map((ref) =>
+        ref.type === 'editor' && tabKey(ref.tab as EditorTab) === key
+          ? { ...ref, tab: { ...ref.tab, compile_mode: mode } }
+          : ref,
+      ),
+    };
+  };
+  return walk(tree);
 }
 
 /**

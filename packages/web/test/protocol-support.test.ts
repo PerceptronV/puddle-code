@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  compilationSupported,
   crossFiletreeTransferSupported,
   nativeConversationSyncSupported,
 } from '../src/lib/protocol-support';
@@ -10,6 +11,14 @@ describe('cross-filetree transfer compatibility gate', () => {
     expect(crossFiletreeTransferSupported({ major: 16, minor: 2 })).toBe(false);
     expect(crossFiletreeTransferSupported({ major: 16, minor: 3 })).toBe(true);
     expect(crossFiletreeTransferSupported({ major: 17, minor: 0 })).toBe(true);
+  });
+});
+
+describe('compilation compatibility gate', () => {
+  it('enables host-side providers from protocol 17.1', () => {
+    expect(compilationSupported({ major: 17, minor: 0 })).toBe(false);
+    expect(compilationSupported({ major: 17, minor: 1 })).toBe(true);
+    expect(compilationSupported({ major: 18, minor: 0 })).toBe(true);
   });
 });
 

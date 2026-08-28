@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { Eye, FileCode, Link, Lock, X } from 'lucide-react';
-import type { LayoutLeaf, Session, TabRef } from '@puddle/shared';
+import { Eye, FileCode, Link, LoaderCircle, Lock, Play, Zap, X } from 'lucide-react';
+import type { CompilationMode, LayoutLeaf, Session, TabRef } from '@puddle/shared';
 import { HoverMarquee } from '../../components/hover-marquee';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utils';
@@ -11,6 +11,7 @@ import { editorTabLabel } from '../editor/buffer-logic';
 import { tabKind, type EditorTab, type EditorView } from '../editor/editor-tabs';
 import { LazyEditorDirtyDot, LazyEditorTabClose } from '../editor/lazy-editor-parts';
 import { previewKind } from '../editor/preview-kind';
+import { compilationSourceKey, isCompilableSource } from '../editor/compilation-kind';
 import { FileTabContextMenu } from '../explorer/FileTabContextMenu';
 import { SessionContextMenu } from './SessionActions';
 import { TabTooltipBody } from './TabTooltip';
@@ -51,6 +52,10 @@ export function PaneTabStrip({
   onPromote,
   onArchived,
   onSetView,
+  compilableExtensions,
+  compilationRunningKeys,
+  onRunCompilation,
+  onSetCompilationMode,
   onNewFile,
   onRevealFile,
   onRenameFile,
@@ -63,6 +68,11 @@ export function PaneTabStrip({
   onArchived: (session: string) => void;
   /** Set a previewable editor tab's source/preview/following view (SPEC §8). */
   onSetView: (ref: TabRef, view: EditorView) => void;
+  /** Host provider capabilities and execution controls for compilable tabs. */
+  compilableExtensions: ReadonlySet<string>;
+  compilationRunningKeys: ReadonlySet<string>;
+  onRunCompilation: (tab: EditorTab) => void;
+  onSetCompilationMode: (tab: EditorTab, mode: CompilationMode) => void;
   /** Double-click on the strip's blank tail: open a fresh untitled file (SPEC §8). */
   onNewFile: () => void;
   /** Reveal a path-backed editor tab in Files, rebasing for external files. */
@@ -132,6 +142,26 @@ export function PaneTabStrip({
             onPromote={() => onPromote(ref)}
             onArchived={onArchived}
             onSetView={(view) => onSetView(ref, view)}
+            compilable={isCompilableSource(
+              ref.type === 'editor' ? ref.tab.path : '',
+              compilableExtensions,
+            )}
+            compilationRunning={
+              ref.type === 'editor' &&
+              compilationRunningKeys.has(
+                compilationSourceKey(ref.tab.session, ref.tab.path, ref.tab.root),
+              )
+            }
+            onRunCompilation={() => {
+              if (ref.type !== 'editor') return;
+              onActivate(ref);
+              requestAnimationFrame(() => onRunCompilation(ref.tab));
+            }}
+            onSetCompilationMode={(mode) => {
+              if (ref.type !== 'editor') return;
+              onActivate(ref);
+              requestAnimationFrame(() => onSetCompilationMode(ref.tab, mode));
+            }}
             onRevealFile={() => ref.type === 'editor' && onRevealFile(ref.tab)}
             onRenameFile={(newName) =>
               ref.type === 'editor' ? onRenameFile(ref.tab, newName) : Promise.resolve(false)
@@ -235,6 +265,67 @@ function ViewToggle({
   );
 }
 
+/** Explicit one-shot and daemon-observed eager modes for any compilation provider. */
+function CompilationControls({
+  mode,
+  running,
+  onRun,
+  onSetMode,
+}: {
+  mode: CompilationMode;
+  running: boolean;
+  onRun: () => void;
+  onSetMode: (mode: CompilationMode) => void;
+}) {
+  const eager = mode === 'eager';
+  return (
+    <>
+      <button
+        type="button"
+        disabled={running}
+        onClick={(event) => {
+          event.stopPropagation();
+          onRun();
+        }}
+        className={cn(
+          'hidden rounded-sm p-0.5 transition-colors hover:text-fg disabled:cursor-wait group-hover:inline-flex pointer-coarse:inline-flex',
+          eager ? 'text-fg-muted' : 'text-accent',
+        )}
+        aria-label="Compile on demand"
+        title="Compile on demand"
+      >
+        {running && !eager ? (
+          <LoaderCircle className="size-3 animate-spin" />
+        ) : (
+          <Play className="size-3" />
+        )}
+      </button>
+      <button
+        type="button"
+        disabled={running}
+        onClick={(event) => {
+          event.stopPropagation();
+          onSetMode(eager ? 'on_demand' : 'eager');
+        }}
+        className={cn(
+          'hidden rounded-sm p-0.5 transition-colors hover:text-fg disabled:cursor-wait group-hover:inline-flex pointer-coarse:inline-flex',
+          eager ? 'text-accent' : 'text-fg-muted',
+        )}
+        aria-label={eager ? 'Disable eager compilation' : 'Enable eager compilation'}
+        title={
+          eager ? 'Eager compilation — switch to on demand' : 'Compile eagerly on disk changes'
+        }
+      >
+        {running && eager ? (
+          <LoaderCircle className="size-3 animate-spin" />
+        ) : (
+          <Zap className="size-3" />
+        )}
+      </button>
+    </>
+  );
+}
+
 function PaneTab({
   tab,
   leafId,
@@ -250,6 +341,10 @@ function PaneTab({
   onPromote,
   onArchived,
   onSetView,
+  compilable,
+  compilationRunning,
+  onRunCompilation,
+  onSetCompilationMode,
   onRevealFile,
   onRenameFile,
 }: {
@@ -269,6 +364,10 @@ function PaneTab({
   onPromote: () => void;
   onArchived: (session: string) => void;
   onSetView: (view: EditorView) => void;
+  compilable: boolean;
+  compilationRunning: boolean;
+  onRunCompilation: () => void;
+  onSetCompilationMode: (mode: CompilationMode) => void;
   onRevealFile: () => void;
   onRenameFile: (newName: string) => Promise<boolean>;
 }) {
@@ -364,8 +463,8 @@ function PaneTab({
                 // measured scroll width for the marquee.
                 className={
                   (tabKind(tab.tab) === 'file' || tabKind(tab.tab) === 'external') &&
-                  previewKind(tab.tab.path) !== null
-                    ? '-mr-16 pr-16'
+                  (previewKind(tab.tab.path) !== null || compilable)
+                    ? '-mr-20 pr-20'
                     : '-mr-11 pr-11'
                 }
               />
@@ -385,6 +484,14 @@ function PaneTab({
                   previewKind(tab.tab.path) !== null && (
                     <ViewToggle view={tab.tab.view ?? 'source'} onSetView={onSetView} />
                   )}
+                {(tabKind(tab.tab) === 'file' || tabKind(tab.tab) === 'external') && compilable && (
+                  <CompilationControls
+                    mode={tab.tab.compile_mode ?? 'on_demand'}
+                    running={compilationRunning}
+                    onRun={onRunCompilation}
+                    onSetMode={onSetCompilationMode}
+                  />
+                )}
                 <LazyEditorTabClose
                   session={tab.tab.session}
                   path={tab.tab.path}

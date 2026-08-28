@@ -1,6 +1,13 @@
 import { Fragment, useMemo } from 'react';
 import { Group, Panel, Separator, type Layout } from 'react-resizable-panels';
-import type { LayoutLeaf, LayoutNode, Session, TabRef } from '@puddle/shared';
+import type {
+  CompilationMode,
+  LatexSynctexResponse,
+  LayoutLeaf,
+  LayoutNode,
+  Session,
+  TabRef,
+} from '@puddle/shared';
 import { LazyModelRefcount } from '../editor/lazy-editor-parts';
 import type { HeldBuffer } from '../editor/ModelRefcount';
 import { tabKind, type EditorTab, type EditorView } from '../editor/editor-tabs';
@@ -27,7 +34,14 @@ export interface TileHandlers {
    * THAT pane only, so one file can be open as source and preview at once.
    */
   onSetTabView: (leafId: string, ref: TabRef, view: EditorView) => void;
+  /** Extensions claimed by available daemon compilation providers. */
+  compilableExtensions: ReadonlySet<string>;
+  /** Browser-local identity of the source currently running, when any. */
+  compilationRunningKeys: ReadonlySet<string>;
+  onRunCompilation: (leafId: string, tab: EditorTab) => void;
+  onSetCompilationMode: (tab: EditorTab, mode: CompilationMode) => void;
   onRevealPreviewSource: (leafId: string, tab: EditorTab, position: EditorPosition) => void;
+  onRevealCompiledSource: (leafId: string, target: LatexSynctexResponse) => void;
   /** Double-click on a strip's blank tail: open a fresh untitled file there. */
   onNewUntitled: (leaf: LayoutLeaf) => void;
   /** Reveal a path-backed editor tab in Files. */
@@ -89,7 +103,12 @@ function TileNode({ node, ...handlers }: { node: LayoutNode } & TileHandlers) {
         onScrollDrive={handlers.onScrollDrive}
         onDropTab={handlers.onDropTab}
         onSetTabView={handlers.onSetTabView}
+        compilableExtensions={handlers.compilableExtensions}
+        compilationRunningKeys={handlers.compilationRunningKeys}
+        onRunCompilation={handlers.onRunCompilation}
+        onSetCompilationMode={handlers.onSetCompilationMode}
         onRevealPreviewSource={handlers.onRevealPreviewSource}
+        onRevealCompiledSource={handlers.onRevealCompiledSource}
         onNewUntitled={handlers.onNewUntitled}
         onRevealFile={handlers.onRevealFile}
         onRenameFile={handlers.onRenameFile}

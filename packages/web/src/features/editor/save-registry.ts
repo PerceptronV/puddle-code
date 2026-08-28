@@ -25,7 +25,14 @@ export function saverKey(session: string, path: string, root?: string): string {
   return root === undefined ? base : `${base}:${encodeURIComponent(root)}`;
 }
 
-const savers = new Map<string, () => void>();
+export interface SaverTarget {
+  session: string;
+  path: string;
+  root?: string;
+}
+
+type Saver = () => boolean | void | Promise<boolean | void>;
+const savers = new Map<string, { target?: SaverTarget; save: Saver }>();
 
 /**
  * Publish the save action for one buffer while its body is mounted. Two bodies
@@ -33,18 +40,46 @@ const savers = new Map<string, () => void>();
  * cleanup only removes its OWN entry — a stale unmount must not disarm the
  * body that is still showing the file.
  */
-export function registerSaver(key: string, save: () => void): () => void {
-  savers.set(key, save);
+export function registerSaver(key: string, save: Saver, target?: SaverTarget): () => void {
+  const entry = { save, ...(target ? { target } : {}) };
+  savers.set(key, entry);
   return () => {
-    if (savers.get(key) === save) savers.delete(key);
+    if (savers.get(key) === entry) savers.delete(key);
   };
 }
 
 /** Run the save for `key`. False when nothing is mounted for it (nothing happened). */
 export function requestSave(key: string | null): boolean {
   if (key === null) return false;
-  const save = savers.get(key);
-  if (!save) return false;
-  save();
+  const entry = savers.get(key);
+  if (!entry) return false;
+  void entry.save();
   return true;
+}
+
+/**
+ * Flush mounted, dirty provider inputs before a host-side compile. The entry
+ * source is included even when a provider does not repeat its extension in
+ * `inputExtensions`; unrelated buffers in the same worktree stay untouched.
+ */
+export async function saveCompilationInputs(
+  source: SaverTarget,
+  inputExtensions: ReadonlySet<string>,
+): Promise<boolean> {
+  const sourceKey = saverKey(source.session, source.path, source.root);
+  const pending = [...savers.entries()].flatMap(([key, entry]) => {
+    const target = entry.target;
+    if (!target || target.session !== source.session || target.root !== source.root) return [];
+    const extension = fileExtension(target.path);
+    if (key !== sourceKey && !inputExtensions.has(extension)) return [];
+    return [Promise.resolve(entry.save())];
+  });
+  const results = await Promise.all(pending);
+  return results.every((result) => result !== false);
+}
+
+function fileExtension(path: string): string {
+  const name = path.slice(path.lastIndexOf('/') + 1);
+  const dot = name.lastIndexOf('.');
+  return dot < 0 ? '' : name.slice(dot + 1).toLowerCase();
 }

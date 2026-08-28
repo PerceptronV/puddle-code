@@ -336,8 +336,8 @@ export function useEditorBuffer(
     [saveMutation, path, commitSaved],
   );
 
-  const save = useCallback(() => {
-    if (!model || !isDirty(key)) return;
+  const save = useCallback(async (): Promise<boolean> => {
+    if (!model || !isDirty(key)) return true;
     const content = model.getValue();
     const versionId = model.getAlternativeVersionId();
     // A save made while a conflict stands expects the DISK version's mtime, not
@@ -347,24 +347,27 @@ export function useEditorBuffer(
     // way to save a merge at all.
     // Loading/error removes every editable view, but the workspace-level save
     // dispatcher can still address this buffer; never let that bypass the lock.
-    if (comparisonLocksBuffer(conflictFor(key))) return;
+    if (comparisonLocksBuffer(conflictFor(key))) return false;
     const expected = comparedMtime(conflictFor(key)) ?? savedMtime(key);
-    saveMutation.mutate(
-      { path, content, expected_mtime_ms: expected },
-      {
-        onSuccess: (res) => commitSaved(versionId, res.mtime_ms),
-        onError: (err) => {
-          if (err instanceof ApiError && err.status === 409 && err.code === 'stale_file') {
-            // Nothing was written. Reconciliation is opt-in: keep the buffer
-            // editable and offer Compare while this tab is focused. The disk
-            // read begins only after that action synchronously locks the model.
-            registerConflict(key);
-          } else {
-            toast.error(err instanceof Error ? err.message : 'Save failed');
-          }
-        },
-      },
-    );
+    try {
+      const res = await saveMutation.mutateAsync({
+        path,
+        content,
+        expected_mtime_ms: expected,
+      });
+      commitSaved(versionId, res.mtime_ms);
+      return true;
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409 && err.code === 'stale_file') {
+        // Nothing was written. Reconciliation is opt-in: keep the buffer
+        // editable and offer Compare while this tab is focused. The disk
+        // read begins only after that action synchronously locks the model.
+        registerConflict(key);
+      } else {
+        toast.error(err instanceof Error ? err.message : 'Save failed');
+      }
+      return false;
+    }
   }, [model, key, saveMutation, path, commitSaved]);
 
   const saveRef = useRef(save);
@@ -374,7 +377,12 @@ export function useEditorBuffer(
   // preview, or a pane focused by its tab chip (`save-registry.ts`). Registered
   // through the ref so re-renders don't churn the registry.
   useEffect(
-    () => registerSaver(saverKey(session, path, root), () => saveRef.current()),
+    () =>
+      registerSaver(saverKey(session, path, root), () => saveRef.current(), {
+        session,
+        path,
+        ...(root !== undefined ? { root } : {}),
+      }),
     [session, path, root],
   );
 

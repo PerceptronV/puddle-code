@@ -27,8 +27,10 @@ import {
   setTabView,
   sourceTabLocation,
   splitLeaf,
+  setCompileMode,
   tabRefKey,
   addTabToLeaf,
+  addBackgroundTabToLeaf,
   pruneTabs,
 } from '../src/features/workspace/layout-tree';
 
@@ -60,6 +62,44 @@ describe('makeLeaf', () => {
     expect(makeLeaf([]).activeKey).toBeNull();
     // an activeKey not present falls back to the first tab
     expect(makeLeaf([ed('a.ts')], 'nope').activeKey).toBe(tabRefKey(ed('a.ts')));
+  });
+});
+
+describe('compilation tabs', () => {
+  it('adds an eager artefact permanently without changing the active tab', () => {
+    const source = ed('paper.tex');
+    const pdf: TabRef = {
+      type: 'editor',
+      tab: {
+        kind: 'external',
+        session: 's1',
+        path: 'paper.pdf',
+        root: '/tmp/puddle/latex/build',
+        generated_by: 'latex',
+      },
+    };
+    const leaf = makeLeaf([source]);
+    const next = addBackgroundTabToLeaf(leaf, leaf.id, pdf);
+    const result = allLeaves(next)[0]!;
+    expect(result.tabs).toEqual([source, pdf]);
+    expect(result.activeKey).toBe(tabRefKey(source));
+    expect(result.previewKey).toBeNull();
+  });
+
+  it('keeps a source mode consistent across pane copies', () => {
+    const source = ed('paper.tex');
+    const left = makeLeaf([source]);
+    const tree = splitLeaf(left, left.id, 'right', source);
+    const eager = setCompileMode(
+      tree,
+      (source as Extract<TabRef, { type: 'editor' }>).tab,
+      'eager',
+    );
+    expect(
+      allLeaves(eager).map(
+        (leaf) => (leaf.tabs[0] as Extract<TabRef, { type: 'editor' }>).tab.compile_mode,
+      ),
+    ).toEqual(['eager', 'eager']);
   });
 });
 

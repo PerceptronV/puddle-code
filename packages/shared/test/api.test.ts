@@ -2,12 +2,17 @@ import { describe, expect, it } from 'vitest';
 import {
   agentSignalRequestSchema,
   createSessionRequestSchema,
+  compilationCapabilitiesResponseSchema,
+  compilationModeRequestSchema,
+  compilationRunResponseSchema,
   diffResponseSchema,
   diffStatusSchema,
   editorTabRefSchema,
   errorResponseSchema,
   fileResponseSchema,
   logResponseSchema,
+  latexSynctexRequestSchema,
+  latexSynctexResponseSchema,
   profileSettingsSchema,
   PROTOCOL_VERSION,
   sessionEnvResponseSchema,
@@ -180,7 +185,7 @@ describe('shared API schemas', () => {
     });
   });
 
-  it('validates cross-filetree transfers and carries protocol 17.0', () => {
+  it('validates cross-filetree transfers and carries protocol 17.1', () => {
     expect(
       transferEntryRequestSchema.parse({
         operation: 'copy',
@@ -200,7 +205,7 @@ describe('shared API schemas', () => {
       from: 'docs/readme.md',
       to: 'imported/readme.md',
     });
-    expect(PROTOCOL_VERSION).toEqual({ major: 17, minor: 0 });
+    expect(PROTOCOL_VERSION).toEqual({ major: 17, minor: 1 });
   });
 
   it('accepts additive native conversation fields and lifecycle signals', () => {
@@ -242,6 +247,55 @@ describe('shared API schemas', () => {
         parent_agent_session_ref: 'thread-1',
       }),
     ).toMatchObject({ event: 'session_start', source: 'fork' });
+  });
+
+  it('validates generic compilation and LaTeX navigation contracts', () => {
+    const source = {
+      session: '11111111-1111-4111-8111-111111111111',
+      path: 'docs/paper.tex',
+    };
+    expect(
+      compilationCapabilitiesResponseSchema.parse({
+        providers: [
+          {
+            id: 'latex',
+            display_name: 'LaTeX',
+            extensions: ['tex'],
+            input_extensions: ['tex', 'bib', 'sty', 'cls', 'bst'],
+            available: true,
+            executor: 'latexmk',
+            eager: true,
+          },
+        ],
+      }).providers[0]?.input_extensions,
+    ).toContain('bib');
+    expect(compilationModeRequestSchema.parse({ source, mode: 'eager' }).mode).toBe('eager');
+    expect(
+      compilationRunResponseSchema.parse({
+        provider: 'latex',
+        executor: 'latexmk',
+        revision: 2,
+        source,
+        artifacts: [
+          {
+            role: 'preview',
+            media_type: 'application/pdf',
+            file: { ...source, path: 'paper.pdf', root: '/state/latex/current' },
+          },
+        ],
+        navigation: { kind: 'synctex' },
+      }).artifacts[0]?.role,
+    ).toBe('preview');
+    const inverse = latexSynctexRequestSchema.parse({
+      ...source,
+      path: 'paper.pdf',
+      root: '/state/latex/current',
+      page: 1,
+      x: 72,
+      y: 144,
+    });
+    expect(inverse.page).toBe(1);
+    expect(latexSynctexResponseSchema.parse({ ...source, line: 12, column: 3 }).line).toBe(12);
   });
 
   it('ws client messages discriminate on t and validate term ids', () => {

@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
-import type { LayoutLeaf, Session, TabRef } from '@puddle/shared';
+import type {
+  CompilationMode,
+  LatexSynctexResponse,
+  LayoutLeaf,
+  Session,
+  TabRef,
+} from '@puddle/shared';
 import { PuddleGlyph } from '../../components/puddle-glyph';
 import { openCommandPalette } from '../../lib/command-palette';
 import { useHotkeyLabel } from '../../lib/hotkeys';
@@ -39,7 +45,12 @@ export function PaneLeaf({
   onScrollDrive,
   onDropTab,
   onSetTabView,
+  compilableExtensions,
+  compilationRunningKeys,
+  onRunCompilation,
+  onSetCompilationMode,
   onRevealPreviewSource,
+  onRevealCompiledSource,
   onNewUntitled,
   onRevealFile,
   onRenameFile,
@@ -61,8 +72,14 @@ export function PaneLeaf({
   onDropTab: (leafId: string, ref: TabRef, edge: DropEdge) => void;
   /** Set THIS pane's previewable editor tab's rendered/following mode (SPEC §8). */
   onSetTabView: (leafId: string, ref: TabRef, view: EditorView) => void;
+  compilableExtensions: ReadonlySet<string>;
+  compilationRunningKeys: ReadonlySet<string>;
+  onRunCompilation: (leafId: string, tab: EditorTab) => void;
+  onSetCompilationMode: (tab: EditorTab, mode: CompilationMode) => void;
   /** Reveal a following preview click in its associated ordinary source tab. */
   onRevealPreviewSource: (leafId: string, tab: EditorTab, position: EditorPosition) => void;
+  /** Reveal an inverse SyncTeX result in an ordinary source tab. */
+  onRevealCompiledSource: (leafId: string, target: LatexSynctexResponse) => void;
   /** Double-click on the strip's blank tail: open a fresh untitled file here. */
   onNewUntitled: (leaf: LayoutLeaf) => void;
   /** Reveal a path-backed editor tab in Files. */
@@ -208,6 +225,10 @@ export function PaneLeaf({
           onPromote={onPromoteTab}
           onArchived={onArchived}
           onSetView={(ref, view) => onSetTabView(leaf.id, ref, view)}
+          compilableExtensions={compilableExtensions}
+          compilationRunningKeys={compilationRunningKeys}
+          onRunCompilation={(tab) => onRunCompilation(leaf.id, tab)}
+          onSetCompilationMode={onSetCompilationMode}
           onNewFile={() => onNewUntitled(leaf)}
           onRevealFile={onRevealFile}
           onRenameFile={onRenameFile}
@@ -234,6 +255,7 @@ export function PaneLeaf({
                   ? (position) => onRevealPreviewSource(leaf.id, activeEditor, position)
                   : undefined
               }
+              onRevealCompiledSource={(target) => onRevealCompiledSource(leaf.id, target)}
             />
           </div>
         )}

@@ -2,6 +2,7 @@
 // <Editor> (see EditorZone.tsx / monaco-setup.ts). Keep this first.
 import './monaco-setup';
 
+import type { LatexSynctexResponse } from '@puddle/shared';
 import type { EditorPosition, RevealTarget } from '../workspace/editor-context';
 import { CodeEditor } from './CodeEditor';
 import { CommitTabBody } from '../history/CommitTabBody';
@@ -28,6 +29,7 @@ export function PaneEditorBody({
   scrollReceiver,
   scrollChannel,
   onRevealSource,
+  onRevealCompiledSource,
 }: {
   tab: EditorTab;
   reveal: RevealTarget | null;
@@ -36,6 +38,7 @@ export function PaneEditorBody({
   scrollReceiver: boolean;
   scrollChannel: string;
   onRevealSource?: (position: EditorPosition) => void;
+  onRevealCompiledSource?: (target: LatexSynctexResponse) => void;
 }) {
   const kind = tabKind(tab);
   // A following tab renders like a preview of whatever it currently targets.
@@ -83,6 +86,8 @@ export function PaneEditorBody({
           path={tab.path}
           kind={externalMedia}
           root={tab.root}
+          generatedBy={tab.generated_by}
+          onRevealSource={onRevealCompiledSource}
         />
       );
     }
@@ -127,7 +132,16 @@ export function PaneEditorBody({
   }
   const media = mediaKind(tab.path);
   if (media) {
-    return <MediaViewer key={tabKey(tab)} session={tab.session} path={tab.path} kind={media} />;
+    return (
+      <MediaViewer
+        key={tabKey(tab)}
+        session={tab.session}
+        path={tab.path}
+        kind={media}
+        generatedBy={tab.generated_by}
+        onRevealSource={onRevealCompiledSource}
+      />
+    );
   }
   // The tab-strip toggle flips `view`; a stale `preview` on a path that is no
   // longer previewable (rename) falls back to the source editor.

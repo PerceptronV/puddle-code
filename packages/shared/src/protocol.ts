@@ -271,4 +271,8 @@
 // structured error details for already-live conversation conflicts.
 // 17.0 (2026-08-23): major release bump — force every connected daemon to
 // upgrade before using the 0.1.0 native conversation runtime.
-export const PROTOCOL_VERSION = { major: 17, minor: 0 } as const;
+// 17.1 (2026-08-28): additive — daemon-host compilation provider discovery,
+// on-demand/eager compilation, generated artefact descriptors and LaTeX
+// inverse SyncTeX navigation. Editor tabs may also retain their compilation
+// mode and producing provider so restored tabs preserve their behaviour.
+export const PROTOCOL_VERSION = { major: 17, minor: 1 } as const;

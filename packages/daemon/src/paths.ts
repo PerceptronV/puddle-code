@@ -13,6 +13,8 @@ export interface PuddlePaths {
   profilesDir: string;
   worktreesDir: string;
   logsDir: string;
+  /** LaTeX PDFs, SyncTeX indexes, auxiliary files and build logs. */
+  latexDir: string;
   /** Generated shell hook scripts for captured-env reporting (SPEC §4). */
   shellHooksDir: string;
   accountConfigDir(profileId: string, agentType: string, label: string): string;
@@ -41,6 +43,7 @@ export function resolvePaths(
     profilesDir: join(home, 'profiles'),
     worktreesDir: join(home, 'worktrees'),
     logsDir: join(home, 'logs'),
+    latexDir: join(home, 'latex'),
     shellHooksDir: join(home, 'shell-hooks'),
     accountConfigDir: (profileId, agentType, label) =>
       join(home, 'profiles', profileId, 'accounts', agentType, label),

@@ -1,5 +1,6 @@
 import { Suspense, lazy, type ComponentType } from 'react';
 import type { EditorPosition, RevealTarget } from '../workspace/editor-context';
+import type { LatexSynctexResponse } from '@puddle/shared';
 import type { EditorTab, EditorTabKind } from './editor-tabs';
 import type { HeldBuffer } from './ModelRefcount';
 
@@ -24,6 +25,7 @@ type BodyProps = {
   scrollReceiver: boolean;
   scrollChannel: string;
   onRevealSource?: (position: EditorPosition) => void;
+  onRevealCompiledSource?: (target: LatexSynctexResponse) => void;
 };
 type RefcountProps = { buffers: HeldBuffer[] };
 

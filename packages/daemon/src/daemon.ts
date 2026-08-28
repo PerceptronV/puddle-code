@@ -8,6 +8,7 @@ import { geminiCli } from './agents/gemini-cli.js';
 import { opencode } from './agents/opencode.js';
 import { AdapterRegistry } from './agents/registry.js';
 import { loadConfig } from './config.js';
+import { CompilationService } from './compilation/service.js';
 import { openDatabase } from './db/db.js';
 import { AccountStore } from './db/stores/accounts.js';
 import { EventStore } from './db/stores/events.js';
@@ -24,6 +25,7 @@ import { ConversationStore } from './db/stores/conversations.js';
 import { KeyedMutex } from './git/mutex.js';
 import { buildApp } from './http/app.js';
 import { LogStore } from './logs/log-store.js';
+import { LatexProvider } from './latex/provider.js';
 import { ensureHome, resolvePaths } from './paths.js';
 import { PortScanner } from './ports/scanner.js';
 import { attachProxyUpgrade } from './proxy/upgrade.js';
@@ -92,6 +94,8 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   const shellHooks = installShellHooks(paths);
   const scanner = new PortScanner({ ptys });
   const worktrees = new WorktreeManager({ paths, mutex: new KeyedMutex(), repos, sessions });
+  const latex = new LatexProvider({ paths, sessions, repos });
+  const compilation = new CompilationService([latex]);
   const onboarding = new MarkerFileSync({ repos, events, sessions });
   const adapters = new AdapterRegistry(opts.adapters ?? [claudeCode, codex, opencode, geminiCli]);
   // Migration 004 rewrote config-dir paths to id-keyed; rename the dirs before
@@ -210,6 +214,8 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       share,
       scanner,
       tracker,
+      compilation,
+      latex,
     },
     ws: { gateway, upgradeWebSocket },
   });
@@ -256,6 +262,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     async stop() {
       clearInterval(fetchTimer);
       catalogue.dispose();
+      compilation.dispose();
       onboarding.dispose();
       // Freeze session rows at their live statuses (reconcile → interrupted),
       // then wait for PTY exits so nothing touches the db after close.

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isoTimestamp, rowId, sessionId } from './common.js';
+import { compilationModeSchema, compilationProviderIdSchema } from './compilation.js';
 
 /**
  * An open tab in the centre editor zone. `kind` distinguishes a plain file
@@ -43,6 +44,10 @@ export const editorTabRefSchema = z.object({
    * a distinct stable slot whose identity does not change when it retargets.
    */
   view: z.enum(['source', 'preview', 'linked', 'locked']).optional(),
+  /** Compile mode for a provider-backed source; absent means on-demand. */
+  compile_mode: compilationModeSchema.optional(),
+  /** Provider that generated an otherwise ordinary file tab (for owned viewers/navigation). */
+  generated_by: compilationProviderIdSchema.optional(),
 });
 export type EditorTabRef = z.infer<typeof editorTabRefSchema>;
 

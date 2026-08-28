@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { LayoutLeaf, LayoutNode, TabRef } from '@puddle/shared';
+import type { CompilationMode, LayoutLeaf, LayoutNode, TabRef } from '@puddle/shared';
 import { tabKind, type EditorTab, type EditorView } from '../editor/editor-tabs';
 import type { UiStateHandle } from './use-ui-state';
 import {
   addTabToLeaf,
+  addBackgroundTabToLeaf,
   allLeaves,
   boundToLiveSession,
   buildInitialTree,
@@ -21,10 +22,12 @@ import {
   pruneTabs,
   renameBufferTabs,
   resizeSplit,
+  setCompileMode,
   retargetFollowingTabs,
   sourceTabLocation,
   setTabView,
   tabRefKey,
+  updateTabInLeaf,
   type DropSpec,
 } from './layout-tree';
 
@@ -46,6 +49,14 @@ export interface LayoutController {
   close(leafId: string, ref: TabRef): void;
   /** `preview` opens an ephemeral tab (single-click); otherwise a permanent one. */
   openEditor(tab: EditorTab, opts?: { preview?: boolean }): void;
+  /** Open permanently in a named pane, optionally focusing an existing tree-wide copy. */
+  openEditorInLeaf(
+    leafId: string,
+    tab: EditorTab,
+    opts?: { dedupeAcrossTree?: boolean; activate?: boolean },
+  ): string;
+  /** Persist one provider-backed source's mode across every duplicate tab. */
+  setCompileMode(tab: EditorTab, mode: CompilationMode): void;
   ensureTerminal(session: string, opts?: { preview?: boolean }): void;
   /** Promote a preview tab to permanent (double-click), wherever it lives. */
   promote(ref: TabRef): void;
@@ -195,6 +206,36 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
           ? openPreview(tree, target, ref)
           : addTabToLeaf(tree, target, ref);
         persist(retargetFollowingTabs(opened, ref));
+      },
+      openEditorInLeaf: (leafId, tab, opts) => {
+        const ref: TabRef = { type: 'editor', tab };
+        const key = tabRefKey(ref);
+        const activate = opts?.activate ?? true;
+        const existing = opts?.dedupeAcrossTree ? leafContainingKey(tree, key) : null;
+        if (existing) {
+          let next = updateTabInLeaf(tree, existing.id, ref);
+          if (activate) {
+            setFocusedLeafId(existing.id);
+            next = focusTab(next, existing.id, key);
+          }
+          if (existing.previewKey === key) next = promoteTab(next, key);
+          if (next !== tree) persist(next);
+          return existing.id;
+        }
+
+        const target = findLeaf(tree, leafId)?.id ?? focusedLeaf.id;
+        if (activate) {
+          setFocusedLeafId(target);
+          rememberLinkable(target, ref);
+          persist(retargetFollowingTabs(addTabToLeaf(tree, target, ref), ref));
+        } else {
+          persist(addBackgroundTabToLeaf(tree, target, ref));
+        }
+        return target;
+      },
+      setCompileMode: (tab, mode) => {
+        const next = setCompileMode(tree, tab, mode);
+        if (next !== tree) persist(next);
       },
       ensureTerminal: (session, opts) => {
         const key = `term:${session}`;

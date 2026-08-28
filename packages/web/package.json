@@ -37,6 +37,7 @@
     "markdown-it": "^15.0.0",
     "monaco-editor": "^0.55.1",
     "parse5": "^8.0.1",
+    "pdfjs-dist": "^6.2.108",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-resizable-panels": "^4.12.2",

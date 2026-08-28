@@ -1,8 +1,14 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import type { LatexSynctexResponse } from '@puddle/shared';
 import { toast } from 'sonner';
 import { apiFetchRaw } from '../../lib/api';
 import { downloadPath, rootParam } from '../../lib/worktree-queries';
 import type { MediaKind } from './media-kind';
+import { useMediaRefresh } from './media-refresh-store';
+
+const GeneratedPdfViewer = lazy(() =>
+  import('./PdfViewer').then((module) => ({ default: module.PdfViewer })),
+);
 
 /**
  * Inline preview for media editor tabs (SPEC §8): image / video / audio / PDF.
@@ -16,20 +22,29 @@ export function MediaViewer({
   path,
   kind,
   root,
+  generatedBy,
+  refreshKey,
+  onRevealSource,
 }: {
   session: string;
   path: string;
   kind: MediaKind;
   /** Read-only browse root for `external` tabs (protocol 10.2). */
   root?: string;
+  /** Compilation provider that produced this ordinary file tab, when known. */
+  generatedBy?: string;
+  /** Optional caller-owned invalidation in addition to the shared refresh store. */
+  refreshKey?: string | number;
+  onRevealSource?: (target: LatexSynctexResponse) => void;
 }) {
-  const { url, error } = useMediaObjectUrl(session, path, root);
+  const refreshRevision = useMediaRefresh(session, path, root);
+  const { url, error } = useMediaObjectUrl(session, path, root, refreshRevision, refreshKey);
 
   if (error) {
     return (
       <Centre>
         <p className="text-sm text-fg-secondary">Couldn’t load this file.</p>
-        <DownloadButton session={session} path={path} />
+        <DownloadButton session={session} path={path} root={root} />
       </Centre>
     );
   }
@@ -63,6 +78,26 @@ export function MediaViewer({
     );
   }
   // pdf
+  if (root && isLatexGeneratedPdf(path, root, generatedBy)) {
+    return (
+      <Suspense
+        fallback={
+          <Centre>
+            <span className="text-xs text-fg-muted">Loading PDF…</span>
+          </Centre>
+        }
+      >
+        <GeneratedPdfViewer
+          url={url}
+          session={session}
+          path={path}
+          root={root}
+          onRevealSource={onRevealSource}
+          onDownload={() => void startDownload(session, path, root)}
+        />
+      </Suspense>
+    );
+  }
   return <iframe src={url} title={path} className="h-full w-full border-0 bg-ground" />;
 }
 
@@ -75,15 +110,11 @@ function Centre({ children }: { children: React.ReactNode }) {
   );
 }
 
-function DownloadButton({ session, path }: { session: string; path: string }) {
+function DownloadButton({ session, path, root }: { session: string; path: string; root?: string }) {
   return (
     <button
       type="button"
-      onClick={() =>
-        void downloadPath(session, path).catch((e: unknown) =>
-          toast.error(e instanceof Error ? e.message : 'Download failed'),
-        )
-      }
+      onClick={() => void startDownload(session, path, root)}
       className="rounded-md bg-elevated px-3 py-1.5 text-sm text-fg transition-colors hover:bg-border/70"
     >
       Download
@@ -96,6 +127,8 @@ function useMediaObjectUrl(
   session: string,
   path: string,
   root?: string,
+  refreshRevision = 0,
+  refreshKey?: string | number,
 ): { url: string | null; error: boolean } {
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
@@ -122,7 +155,27 @@ function useMediaObjectUrl(
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [session, path, root]);
+  }, [session, path, root, refreshRevision, refreshKey]);
 
   return { url, error };
+}
+
+function startDownload(session: string, path: string, root?: string): Promise<void> {
+  return downloadPath(session, path, root).catch((cause: unknown) => {
+    toast.error(cause instanceof Error ? cause.message : 'Download failed');
+  });
+}
+
+/** Only daemon-owned LaTeX artefacts get the interceptable PDF.js viewer. */
+export function isLatexGeneratedPdf(path: string, root?: string, generatedBy?: string): boolean {
+  if (!root || !path.toLowerCase().endsWith('.pdf')) return false;
+  if (generatedBy === 'latex') return true;
+  const normalisedRoot = root.replaceAll('\\', '/').replaceAll(/\/{2,}/g, '/');
+  const address = `${normalisedRoot}/${path.replaceAll('\\', '/')}`;
+  return (
+    address.includes('/.puddle/latex/') ||
+    // Managed directories use a 24-hex source hash. Retain recognition when
+    // the daemon has a custom PUDDLE_HOME rather than ~/.puddle.
+    /(?:^|\/)latex\/[a-f\d]{24}\/current\/?$/i.test(normalisedRoot)
+  );
 }

@@ -1,0 +1,91 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { CompilationRunResponse, CompilationTargetRequest } from '@puddle/shared';
+import { setCompilationMode, useCompilationStatus } from '../../lib/compilation-queries';
+
+/**
+ * Browser bridge for one persisted eager source. The daemon owns filesystem
+ * observation and build coalescing; this lightweight poll only delivers the
+ * newest completed revision to the already-authenticated cockpit.
+ */
+export function CompilationWatcher({
+  target,
+  sourceKey,
+  leafId,
+  onResult,
+  onError,
+  onRunningChange,
+}: {
+  target: CompilationTargetRequest;
+  sourceKey: string;
+  leafId: string;
+  onResult: (leafId: string, result: CompilationRunResponse) => void;
+  onError: (message: string) => void;
+  onRunningChange: (sourceKey: string, running: boolean) => void;
+}) {
+  const [registered, setRegistered] = useState(false);
+  const deliveredRevision = useRef(-1);
+  const deliveredErrorRevision = useRef(-1);
+  const stableTarget = useMemo(
+    () => ({
+      source: {
+        session: target.source.session,
+        path: target.source.path,
+        ...(target.source.root !== undefined ? { root: target.source.root } : {}),
+      },
+      ...(target.provider !== undefined ? { provider: target.provider } : {}),
+    }),
+    [target.provider, target.source.session, target.source.path, target.source.root],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    setRegistered(false);
+    onRunningChange(sourceKey, true);
+    void setCompilationMode({ ...stableTarget, mode: 'eager' })
+      .then((snapshot) => {
+        if (cancelled) return;
+        onRunningChange(sourceKey, snapshot.state === 'running');
+        setRegistered(true);
+        if (snapshot.result && snapshot.revision > deliveredRevision.current) {
+          deliveredRevision.current = snapshot.revision;
+          onResult(leafId, snapshot.result);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          onRunningChange(sourceKey, false);
+          // A provider may have installed its source watcher before the first
+          // build failed. Keep polling so fixing the file on disk can deliver
+          // the later successful eager revision without toggling the mode.
+          setRegistered(true);
+          onError(error instanceof Error ? error.message : 'Couldn’t enable eager compilation');
+        }
+      });
+    return () => {
+      cancelled = true;
+      onRunningChange(sourceKey, false);
+      void setCompilationMode({ ...stableTarget, mode: 'on_demand' }).catch(() => undefined);
+    };
+  }, [stableTarget, sourceKey, leafId, onResult, onError, onRunningChange]);
+
+  const status = useCompilationStatus(stableTarget, registered);
+  const snapshot = status.data;
+  useEffect(() => {
+    if (!snapshot) return;
+    onRunningChange(sourceKey, snapshot.state === 'running');
+    if (snapshot.result && snapshot.revision > deliveredRevision.current) {
+      deliveredRevision.current = snapshot.revision;
+      onResult(leafId, snapshot.result);
+    }
+    if (
+      snapshot.state === 'failed' &&
+      snapshot.error &&
+      snapshot.revision > deliveredErrorRevision.current
+    ) {
+      deliveredErrorRevision.current = snapshot.revision;
+      onError(snapshot.error.message);
+    }
+  }, [snapshot, sourceKey, leafId, onResult, onError, onRunningChange]);
+
+  return null;
+}

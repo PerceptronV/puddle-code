@@ -12,6 +12,8 @@ packages/
 │              # truth for API shapes) + PROTOCOL_VERSION — read its PROTOCOL.md before schema changes
 ├── daemon/    # puddled: Hono HTTP/WS server, PTY manager, worktree manager, SQLite
 │   ├── src/agents/       # adapters own flags, cached native catalogue discovery, and exact lifecycle integration
+│   ├── src/compilation/  # provider-neutral compile modes, scheduling, dependency observation, and artefacts
+│   ├── src/latex/        # local TeX discovery/recipes, managed outputs, and inverse SyncTeX
 │   ├── src/sessions/     # immutable placement service + stable live runtimes + watched conversation catalogue
 │   └── src/worktrees/    # worktree lifecycle plus repository-aware Git inspection/mutations
 ├── web/       # React UI: Tailwind v4 + owned shadcn-style components (src/components/ui/)
@@ -91,6 +93,7 @@ supervised one.
 - TypeScript strict; no `any` without a comment justifying it.
 - Every REST/WS shape is a zod schema in `packages/shared`; daemon validates input, web imports the inferred types. Never define an API shape locally. The schemas are a versioned protocol: any wire-shape change bumps `PROTOCOL_VERSION` per `packages/shared/PROTOCOL.md` in the same commit (additive → minor, breaking → major).
 - Agent-specific behaviour (flags, env vars, session-file locations, status regexes) lives ONLY in that agent's adapter under `packages/daemon/src/agents/`. Core session logic must stay agent-agnostic. When you verify a CLI flag against an installed agent version, record the version you checked in a comment in the adapter.
+- Compilable file support uses providers under `packages/daemon/src/`: generic mode/watch/run orchestration stays in `compilation/`, while tool discovery, command arguments, dependency parsing, artefact promotion, and source navigation stay in the provider (LaTeX in `latex/`). The web consumes advertised extensions and artefacts; never hard-code a generic compile path to TeX.
 - Agent storage lookup hooks may be asynchronous. Any account-wide discovery must yield to the daemon event loop, bound file reads to the metadata actually needed, and reuse unchanged results across polls; putting synchronous filesystem work inside a background promise still freezes every API and PTY.
 - Native conversation discovery returns normalised metadata only and never transcript bodies. The core owns eligibility, canonical-worktree mapping, watch debounce, adaptive fallback polling, missing confirmation, and placement materialisation; adapters own store roots and parsing. Exact live rebinding comes only from an adapter lifecycle channel — catalogue recency must never be used to guess the active conversation.
 - Hook/plugin lifecycle channels declare an adapter-owned installed-version check; a failed or unsupported check must launch normally with `native_sync: fallback`, never claim full synchronisation optimistically.
