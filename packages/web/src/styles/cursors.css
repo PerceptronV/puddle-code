@@ -11,6 +11,14 @@
   }
 }
 
+/* Monaco is one continuous editing surface. Its gutters and blank trailing
+   space should retain the caret just like a line's glyphs do; custom cursor
+   packages mirror this through `useCustomCursor`. */
+:root[data-cursor-package='system'] .monaco-editor,
+:root[data-cursor-package='system'] .monaco-editor * {
+  cursor: text !important;
+}
+
 .custom-cursor {
   position: fixed;
   z-index: 2147483647;

@@ -3,6 +3,7 @@ import {
   agentSignalRequestSchema,
   createSessionRequestSchema,
   compilationCapabilitiesResponseSchema,
+  compilationFailureSchema,
   compilationModeRequestSchema,
   compilationRunResponseSchema,
   diffResponseSchema,
@@ -185,7 +186,7 @@ describe('shared API schemas', () => {
     });
   });
 
-  it('validates cross-filetree transfers and carries protocol 17.1', () => {
+  it('validates cross-filetree transfers and carries protocol 17.2', () => {
     expect(
       transferEntryRequestSchema.parse({
         operation: 'copy',
@@ -205,7 +206,7 @@ describe('shared API schemas', () => {
       from: 'docs/readme.md',
       to: 'imported/readme.md',
     });
-    expect(PROTOCOL_VERSION).toEqual({ major: 17, minor: 1 });
+    expect(PROTOCOL_VERSION).toEqual({ major: 17, minor: 2 });
   });
 
   it('accepts additive native conversation fields and lifecycle signals', () => {
@@ -270,6 +271,20 @@ describe('shared API schemas', () => {
       }).providers[0]?.input_extensions,
     ).toContain('bib');
     expect(compilationModeRequestSchema.parse({ source, mode: 'eager' }).mode).toBe('eager');
+    expect(
+      compilationFailureSchema.parse({
+        message: 'build failed',
+        output: 'paper.tex:9: Undefined control sequence.',
+        diagnostics: [
+          {
+            source,
+            severity: 'error',
+            message: 'Undefined control sequence.',
+            line: 9,
+          },
+        ],
+      }).diagnostics?.[0]?.line,
+    ).toBe(9);
     expect(
       compilationRunResponseSchema.parse({
         provider: 'latex',

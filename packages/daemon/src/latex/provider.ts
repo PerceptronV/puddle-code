@@ -15,6 +15,7 @@ import {
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from 'node:path';
 import {
   compilationFileTargetSchema,
+  type CompilationDiagnostic,
   type CompilationFileTarget,
   type LatexSynctexRequest,
   type LatexSynctexResponse,
@@ -27,6 +28,7 @@ import { ApiError } from '../http/errors.js';
 import { containedPath, NO_SESSION, resolveFsRoot } from '../http/routes/worktree-shared.js';
 import type { PuddlePaths } from '../paths.js';
 import { compileLatex } from './compiler.js';
+import { LatexBuildFailure, type LatexSourceDiagnostic } from './diagnostics.js';
 import { discoverLatexToolchain } from './discovery.js';
 import {
   disposeLatexCommands,
@@ -104,18 +106,26 @@ export class LatexProvider implements CompilationProvider {
       }
       mkdirSync(runDir, { recursive: true, mode: 0o700 });
       try {
-        const built = await compileLatex({
-          source,
-          buildDir: runDir,
-          toolchain,
-          ...(this.deps.runner ? { runner: this.deps.runner } : {}),
-          ...(this.deps.timeoutMs !== undefined ? { timeoutMs: this.deps.timeoutMs } : {}),
-        });
-        const sourceTarget = {
-          session: request.session,
-          path: source.relative,
-          ...(request.root !== undefined || request.session === NO_SESSION ? { root } : {}),
-        };
+        let built: Awaited<ReturnType<typeof compileLatex>>;
+        try {
+          built = await compileLatex({
+            source,
+            buildDir: runDir,
+            toolchain,
+            ...(this.deps.runner ? { runner: this.deps.runner } : {}),
+            ...(this.deps.timeoutMs !== undefined ? { timeoutMs: this.deps.timeoutMs } : {}),
+          });
+        } catch (error) {
+          if (!(error instanceof LatexBuildFailure)) throw error;
+          throw new ApiError(422, 'latex_compile_failed', error.message, {
+            source: sourceTargetFor(root, request, source.relative),
+            log_root: runDir,
+            log_path: 'build.log',
+            output: error.output,
+            diagnostics: normaliseDiagnostics(root, request, error.diagnostics),
+          });
+        }
+        const sourceTarget = sourceTargetFor(root, request, source.relative);
         mkdirSync(currentDir, { recursive: true, mode: 0o700 });
         const promoted = promoteBuild(currentDir, built.pdfPath, built.synctexPath, runDir);
         const pdf = {
@@ -378,4 +388,36 @@ function sourceDependencies(root: string, source: string, reported: readonly str
     dependencies.add(path);
   }
   return [...dependencies];
+}
+
+function sourceTargetFor(
+  root: string,
+  request: CompilationFileTarget,
+  path: string,
+): CompilationFileTarget {
+  return {
+    session: request.session,
+    path,
+    ...(request.root !== undefined || request.session === NO_SESSION ? { root } : {}),
+  };
+}
+
+function normaliseDiagnostics(
+  root: string,
+  request: CompilationFileTarget,
+  diagnostics: readonly LatexSourceDiagnostic[],
+): CompilationDiagnostic[] {
+  return diagnostics.flatMap((diagnostic) => {
+    const rel = relative(root, diagnostic.absolutePath);
+    if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return [];
+    return [
+      {
+        source: sourceTargetFor(root, request, rel.split('\\').join('/')),
+        severity: diagnostic.severity,
+        message: diagnostic.message,
+        line: diagnostic.line,
+        ...(diagnostic.column !== undefined ? { column: diagnostic.column } : {}),
+      },
+    ];
+  });
 }

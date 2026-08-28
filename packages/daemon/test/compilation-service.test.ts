@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { CompilationService, type CompilationEvent } from '../src/compilation/service.js';
 import type { CompilationProvider } from '../src/compilation/provider.js';
+import { ApiError } from '../src/http/errors.js';
 
 async function waitFor(predicate: () => boolean, timeoutMs = 2_000): Promise<void> {
   const end = Date.now() + timeoutMs;
@@ -159,7 +160,19 @@ describe('CompilationService', () => {
       watchInputs: () => [sourcePath],
       run: async (source) => {
         runs += 1;
-        if (!fixed) throw new Error('source is broken');
+        if (!fixed) {
+          throw new ApiError(422, 'compile_failed', 'source is broken', {
+            output: 'input.demo:1: broken expression',
+            diagnostics: [
+              {
+                source,
+                severity: 'error',
+                message: 'broken expression',
+                line: 1,
+              },
+            ],
+          });
+        }
         return { executor: 'examplec', source, artifacts: [], dependencies: [sourcePath] };
       },
     };
@@ -169,7 +182,15 @@ describe('CompilationService', () => {
       path: 'input.demo',
     };
     await expect(service.setMode({ source, mode: 'eager' })).rejects.toThrow('source is broken');
-    expect(service.status({ source })).toMatchObject({ mode: 'eager', state: 'failed' });
+    expect(service.status({ source })).toMatchObject({
+      mode: 'eager',
+      state: 'failed',
+      error: {
+        message: 'source is broken',
+        output: 'input.demo:1: broken expression',
+        diagnostics: [{ source, line: 1, message: 'broken expression' }],
+      },
+    });
     fixed = true;
     writeFileSync(sourcePath, 'fixed and valid\n');
     await waitFor(() => runs === 2);

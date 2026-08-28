@@ -275,4 +275,7 @@
 // on-demand/eager compilation, generated artefact descriptors and LaTeX
 // inverse SyncTeX navigation. Editor tabs may also retain their compilation
 // mode and producing provider so restored tabs preserve their behaviour.
-export const PROTOCOL_VERSION = { major: 17, minor: 1 } as const;
+// 17.2 (2026-08-28): additive — compilation failures may include bounded
+// compiler output and normalised source diagnostics for expandable notices
+// and editor markers.
+export const PROTOCOL_VERSION = { major: 17, minor: 2 } as const;

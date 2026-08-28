@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { CompilationRunResponse, CompilationTargetRequest } from '@puddle/shared';
+import type {
+  CompilationFailure,
+  CompilationRunResponse,
+  CompilationTargetRequest,
+} from '@puddle/shared';
 import { setCompilationMode, useCompilationStatus } from '../../lib/compilation-queries';
+import { failureFrom } from './compilation-errors';
 
 /**
  * Browser bridge for one persisted eager source. The daemon owns filesystem
@@ -18,8 +23,8 @@ export function CompilationWatcher({
   target: CompilationTargetRequest;
   sourceKey: string;
   leafId: string;
-  onResult: (leafId: string, result: CompilationRunResponse) => void;
-  onError: (message: string) => void;
+  onResult: (sourceKey: string, leafId: string, result: CompilationRunResponse) => void;
+  onError: (sourceKey: string, failure: CompilationFailure) => void;
   onRunningChange: (sourceKey: string, running: boolean) => void;
 }) {
   const [registered, setRegistered] = useState(false);
@@ -48,7 +53,7 @@ export function CompilationWatcher({
         setRegistered(true);
         if (snapshot.result && snapshot.revision > deliveredRevision.current) {
           deliveredRevision.current = snapshot.revision;
-          onResult(leafId, snapshot.result);
+          onResult(sourceKey, leafId, snapshot.result);
         }
       })
       .catch((error: unknown) => {
@@ -58,7 +63,7 @@ export function CompilationWatcher({
           // build failed. Keep polling so fixing the file on disk can deliver
           // the later successful eager revision without toggling the mode.
           setRegistered(true);
-          onError(error instanceof Error ? error.message : 'Couldn’t enable eager compilation');
+          onError(sourceKey, failureFrom(error));
         }
       });
     return () => {
@@ -75,7 +80,7 @@ export function CompilationWatcher({
     onRunningChange(sourceKey, snapshot.state === 'running');
     if (snapshot.result && snapshot.revision > deliveredRevision.current) {
       deliveredRevision.current = snapshot.revision;
-      onResult(leafId, snapshot.result);
+      onResult(sourceKey, leafId, snapshot.result);
     }
     if (
       snapshot.state === 'failed' &&
@@ -83,7 +88,7 @@ export function CompilationWatcher({
       snapshot.revision > deliveredErrorRevision.current
     ) {
       deliveredErrorRevision.current = snapshot.revision;
-      onError(snapshot.error.message);
+      onError(sourceKey, snapshot.error);
     }
   }, [snapshot, sourceKey, leafId, onResult, onError, onRunningChange]);
 

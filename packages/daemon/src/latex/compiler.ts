@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { delimiter, basename, dirname, extname, join } from 'node:path';
 import { ApiError } from '../http/errors.js';
+import { boundedLatexOutput, LatexBuildFailure, parseLatexDiagnostics } from './diagnostics.js';
 import {
   LatexCommandError,
   runLatexCommand,
@@ -74,10 +75,21 @@ export async function compileLatex(options: CompileOptions): Promise<LatexBuildR
       if (error instanceof LatexCommandError && error.result) appendResult(logPath, error.result);
       const detail = error instanceof Error ? error.message : String(error);
       appendLog(logPath, `\n${detail}\n`);
-      throw new ApiError(422, 'latex_compile_failed', detail, {
-        log_root: options.buildDir,
-        log_path: 'build.log',
-      });
+      const captured =
+        error instanceof LatexCommandError && error.result
+          ? `${error.result.stdout}\n${error.result.stderr}\n${detail}`
+          : detail;
+      const output = boundedLatexOutput(captured);
+      const diagnostics = parseLatexDiagnostics(
+        output,
+        options.source.absolute,
+        dirname(options.source.absolute),
+      );
+      const first = diagnostics[0];
+      const message = first
+        ? `${basename(first.absolutePath)}:${first.line}: ${first.message}`
+        : detail;
+      throw new LatexBuildFailure(message, output, diagnostics);
     }
   };
 

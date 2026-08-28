@@ -55,6 +55,33 @@ export const compilationArtifactSchema = z.object({
 });
 export type CompilationArtifact = z.infer<typeof compilationArtifactSchema>;
 
+/** One provider-normalised source diagnostic, using Monaco-compatible one-based positions. */
+export const compilationDiagnosticSchema = z.object({
+  source: compilationFileTargetSchema,
+  severity: z.enum(['error', 'warning', 'info']),
+  message: z.string().min(1),
+  line: z.number().int().positive(),
+  column: z.number().int().positive().optional(),
+  end_line: z.number().int().positive().optional(),
+  end_column: z.number().int().positive().optional(),
+});
+export type CompilationDiagnostic = z.infer<typeof compilationDiagnosticSchema>;
+
+/** Structured detail shared by direct-run errors and pollable eager failures. */
+export const compilationFailureDetailsSchema = z.object({
+  /** Provider-resolved entry point, used to replace markers across equivalent source tabs. */
+  source: compilationFileTargetSchema.optional(),
+  /** Bounded compiler output suitable for an expandable UI disclosure. */
+  output: z.string().optional(),
+  diagnostics: z.array(compilationDiagnosticSchema).optional(),
+});
+export type CompilationFailureDetails = z.infer<typeof compilationFailureDetailsSchema>;
+
+export const compilationFailureSchema = compilationFailureDetailsSchema.extend({
+  message: z.string().min(1),
+});
+export type CompilationFailure = z.infer<typeof compilationFailureSchema>;
+
 export const compilationRunResponseSchema = z.object({
   provider: compilationProviderIdSchema,
   executor: z.string().min(1),
@@ -80,10 +107,6 @@ export const compilationStatusResponseSchema = z.object({
   state: z.enum(['idle', 'running', 'succeeded', 'failed']),
   revision: z.number().int().nonnegative(),
   result: compilationRunResponseSchema.nullable(),
-  error: z
-    .object({
-      message: z.string(),
-    })
-    .nullable(),
+  error: compilationFailureSchema.nullable(),
 });
 export type CompilationStatusResponse = z.infer<typeof compilationStatusResponseSchema>;

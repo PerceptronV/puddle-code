@@ -1,11 +1,13 @@
-import type {
-  CompilationCapabilitiesResponse,
-  CompilationFileTarget,
-  CompilationModeRequest,
-  CompilationRunRequest,
-  CompilationRunResponse,
-  CompilationStatusResponse,
-  CompilationTargetRequest,
+import {
+  compilationFailureDetailsSchema,
+  type CompilationFailure,
+  type CompilationCapabilitiesResponse,
+  type CompilationFileTarget,
+  type CompilationModeRequest,
+  type CompilationRunRequest,
+  type CompilationRunResponse,
+  type CompilationStatusResponse,
+  type CompilationTargetRequest,
 } from '@puddle/shared';
 import { ApiError } from '../http/errors.js';
 import {
@@ -198,11 +200,12 @@ export class CompilationService {
         return result;
       })
       .catch((error: unknown) => {
+        const failure = failureOf(error);
         state.status = {
           ...state.status,
           state: 'failed',
           revision,
-          error: { message: error instanceof Error ? error.message : String(error) },
+          error: failure,
         };
         this.emit({ type: 'failed', key: state.key, status: state.status });
         throw error;
@@ -229,6 +232,13 @@ export class CompilationService {
   private emit(event: CompilationEvent): void {
     for (const listener of this.listeners) listener(event);
   }
+}
+
+function failureOf(error: unknown): CompilationFailure {
+  const message = error instanceof Error ? error.message : String(error);
+  if (!(error instanceof ApiError)) return { message };
+  const details = compilationFailureDetailsSchema.safeParse(error.details);
+  return details.success ? { message, ...details.data } : { message };
 }
 
 function responseOf(

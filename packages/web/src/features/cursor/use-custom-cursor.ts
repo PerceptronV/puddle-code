@@ -5,6 +5,19 @@ import { useEffect, type RefObject } from 'react';
 // structure instead.
 const INTERACTIVE_TARGETS =
   'a, button, [role="button"], [role="slider"], input, select, textarea, summary, label, [onclick], .cursor-pointer';
+const EDITOR_TARGET = '.monaco-editor';
+
+export type StructuralCursorRole = 'default' | 'interactive' | 'text';
+
+/** Monaco outranks its internal clickable/gutter nodes: the editor is one text surface. */
+export function structuralCursorRole(
+  target: Pick<Element, 'closest'> | null,
+  noCaretTargets: string,
+): StructuralCursorRole {
+  if (target?.closest(EDITOR_TARGET) && !target.closest(noCaretTargets)) return 'text';
+  if (target?.closest(INTERACTIVE_TARGETS)) return 'interactive';
+  return 'default';
+}
 
 export function useCustomCursor(
   ref: RefObject<HTMLDivElement | null>,
@@ -36,9 +49,18 @@ export function useCustomCursor(
       }
 
       cursor.style.opacity = '1';
-      const interactive = Boolean(target?.closest(INTERACTIVE_TARGETS));
-      let text = false;
-      if (!interactive && target && !target.closest(noCaretTargets)) {
+      const editor = target?.closest(EDITOR_TARGET);
+      const structuralRole = structuralCursorRole(target, noCaretTargets);
+      const forcedEditorCaret = structuralRole === 'text';
+      const interactive = structuralRole === 'interactive';
+      let text = forcedEditorCaret;
+      if (forcedEditorCaret && editor) {
+        const style = getComputedStyle(editor);
+        cursor.style.setProperty(
+          '--custom-cursor-caret-height',
+          `${Math.round(Number.parseFloat(style.fontSize) * 1.3)}px`,
+        );
+      } else if (!interactive && target && !target.closest(noCaretTargets)) {
         const hasText = Array.from(target.childNodes).some(
           (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim(),
         );

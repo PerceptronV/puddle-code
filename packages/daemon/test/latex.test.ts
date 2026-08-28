@@ -13,7 +13,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { RepoStore } from '../src/db/stores/repos.js';
 import type { SessionStore } from '../src/db/stores/sessions.js';
 import { clearLatexDiscoveryCache, discoverLatexToolchain } from '../src/latex/discovery.js';
-import type { LatexCommandRunner } from '../src/latex/process.js';
+import { parseLatexDiagnostics } from '../src/latex/diagnostics.js';
+import { LatexCommandError, type LatexCommandRunner } from '../src/latex/process.js';
 import { LatexProvider } from '../src/latex/provider.js';
 import { resolveLatexSource, selectDirectEngine, texDirectives } from '../src/latex/source.js';
 import type { LatexToolchain } from '../src/latex/toolchain.js';
@@ -80,6 +81,37 @@ describe('TeX source resolution', () => {
   });
 });
 
+describe('LaTeX diagnostics', () => {
+  it('normalises file-line errors and the classic TeX line form', () => {
+    const root = join(tmpdir(), 'project with spaces');
+    const source = join(root, 'main.tex');
+    expect(
+      parseLatexDiagnostics(
+        [
+          `${join(root, 'chapters', 'one.tex')}:17: Undefined control sequence.`,
+          '! Missing $ inserted.',
+          'l.23 text_underscore',
+        ].join('\n'),
+        source,
+        root,
+      ),
+    ).toEqual([
+      {
+        absolutePath: join(root, 'chapters', 'one.tex'),
+        severity: 'error',
+        message: 'Undefined control sequence.',
+        line: 17,
+      },
+      {
+        absolutePath: source,
+        severity: 'error',
+        message: 'Missing $ inserted. — text_underscore',
+        line: 23,
+      },
+    ]);
+  });
+});
+
 describe('LatexProvider', () => {
   it('compiles a magic-root document under Puddle home and inverse-searches it', async () => {
     const sourceRoot = mkdtempSync(join(tmpdir(), 'puddle-tex-project-'));
@@ -109,7 +141,13 @@ describe('LatexProvider', () => {
           stderr: '',
         };
       }
-      if (failBuild) throw new Error('deliberate broken build');
+      if (failBuild) {
+        throw new LatexCommandError('deliberate broken build', command, {
+          exitCode: 1,
+          stdout: `${join(sourceRoot, 'sections', 'intro.tex')}:2: Undefined control sequence.\n`,
+          stderr: '',
+        });
+      }
       const outArg = command.args.find((arg) => arg.startsWith('-outdir='));
       if (!outArg) throw new Error('latexmk test command has no output directory');
       const outDir = outArg.slice('-outdir='.length);
@@ -181,7 +219,24 @@ describe('LatexProvider', () => {
     failBuild = true;
     await expect(
       provider.run({ session: NO_SESSION, root: sourceRoot, path: 'main.tex' }),
-    ).rejects.toMatchObject({ code: 'latex_compile_failed' });
+    ).rejects.toMatchObject({
+      code: 'latex_compile_failed',
+      details: {
+        output: expect.stringContaining('Undefined control sequence'),
+        diagnostics: [
+          {
+            source: {
+              session: NO_SESSION,
+              root: sourceRoot,
+              path: 'sections/intro.tex',
+            },
+            severity: 'error',
+            message: 'Undefined control sequence.',
+            line: 2,
+          },
+        ],
+      },
+    });
     expect(readFileSync(join(pdf.root, pdf.path))).toEqual(lastGoodPdf);
     failBuild = false;
     for (let index = 0; index < 5; index += 1) {

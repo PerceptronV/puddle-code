@@ -5,6 +5,7 @@ import { Group, Panel, Separator, type Layout } from 'react-resizable-panels';
 import {
   UNTITLED_SESSION,
   type CompilationFileTarget,
+  type CompilationFailure,
   type CompilationMode,
   type CompilationRunResponse,
   type LatexSynctexResponse,
@@ -21,6 +22,8 @@ import { basename, dirOf, joinPath } from '../explorer/explorer-paths';
 import { tabKind } from '../editor/editor-tabs';
 import { compilationSourceKey, sourceExtension } from '../editor/compilation-kind';
 import { CompilationWatcher } from '../editor/CompilationWatcher';
+import { clearCompilationDiagnostics } from '../editor/compilation-diagnostics-store';
+import { reportCompilationFailure } from '../editor/compilation-errors';
 import { bumpMediaRefresh } from '../editor/media-refresh-store';
 import { saveCompilationInputs } from '../editor/save-registry';
 import { requestActiveTabSave } from '../editor/active-tab-save';
@@ -462,7 +465,8 @@ function WorkspaceInner() {
       const target = compilationTarget(tab);
       const provider = compilationProviderForTab(tab);
       if (!provider) return;
-      setManualCompilationRunningKey(compilationSourceKey(tab.session, tab.path, tab.root));
+      const sourceKey = compilationSourceKey(tab.session, tab.path, tab.root);
+      setManualCompilationRunningKey(sourceKey);
       try {
         const saved = await saveCompilationInputs(
           target.source,
@@ -477,10 +481,13 @@ function WorkspaceInner() {
           await setHostCompilationMode({ ...target, mode: 'on_demand' });
         }
         const result = await runCompilation.mutateAsync(target);
+        clearCompilationDiagnostics(
+          compilationSourceKey(result.source.session, result.source.path, result.source.root),
+        );
         presentCompilationResult(leafId, result, true);
         toast.success(`Compiled ${basename(result.source.path)}`);
       } catch (error) {
-        toastError(error);
+        reportCompilationFailure(sourceKey, error);
       } finally {
         setManualCompilationRunningKey(null);
       }
@@ -541,11 +548,19 @@ function WorkspaceInner() {
   }, [layout.tree, compilationTarget, providerForTab]);
 
   const onEagerCompilationResult = useCallback(
-    (leafId: string, result: CompilationRunResponse) =>
-      presentCompilationResult(leafId, result, false),
+    (_sourceKey: string, leafId: string, result: CompilationRunResponse) => {
+      clearCompilationDiagnostics(
+        compilationSourceKey(result.source.session, result.source.path, result.source.root),
+      );
+      presentCompilationResult(leafId, result, false);
+    },
     [presentCompilationResult],
   );
-  const onEagerCompilationError = useCallback((message: string) => toast.error(message), []);
+  const onEagerCompilationError = useCallback(
+    (sourceKey: string, failure: CompilationFailure) =>
+      reportCompilationFailure(sourceKey, failure),
+    [],
+  );
   const setEagerCompilationRunning = useCallback((key: string, running: boolean) => {
     setEagerCompilationRunningKeys((current) => {
       const has = current.has(key);

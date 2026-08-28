@@ -9,6 +9,7 @@ import { THEME_NAME } from './monaco-setup';
 import { monaco } from './monaco-setup';
 import { editorIndentationOptions } from './monaco-options';
 import { bindMonacoPreviewScroll } from './monaco-preview-scroll';
+import { useCompilationDiagnostics } from './compilation-diagnostics-store';
 import { useEditorBuffer } from './use-editor-buffer';
 import { useDirtyDiff } from './use-dirty-diff';
 import type { RevealTarget } from '../workspace/editor-context';
@@ -79,6 +80,7 @@ export function CodeEditor({
 }) {
   const settings = useClientSettings();
   const buffer = useEditorBuffer(session, path, reveal, root, { focused });
+  const compilationDiagnostics = useCompilationDiagnostics(session, path, root);
   const mountDirtyDiff = useDirtyDiff(session, path, root, buffer.model);
   const fontMono = useMemo(
     () =>
@@ -115,6 +117,41 @@ export function CodeEditor({
     scrollDriver,
     scrollReceiver,
   ]);
+
+  useEffect(() => {
+    const model = buffer.model;
+    if (!model) return;
+    monaco.editor.setModelMarkers(
+      model,
+      'puddle-compilation',
+      compilationDiagnostics.map((diagnostic) => {
+        const line = Math.min(diagnostic.line, model.getLineCount());
+        const maximumColumn = model.getLineMaxColumn(line);
+        const startColumn = Math.min(diagnostic.column ?? 1, maximumColumn);
+        const requestedEndLine = diagnostic.end_line ?? line;
+        const endLine = Math.max(line, Math.min(requestedEndLine, model.getLineCount()));
+        const endMaximumColumn = model.getLineMaxColumn(endLine);
+        const endColumn = Math.min(
+          diagnostic.end_column ?? (diagnostic.column ? startColumn + 1 : endMaximumColumn),
+          endMaximumColumn,
+        );
+        return {
+          severity:
+            diagnostic.severity === 'error'
+              ? monaco.MarkerSeverity.Error
+              : diagnostic.severity === 'warning'
+                ? monaco.MarkerSeverity.Warning
+                : monaco.MarkerSeverity.Info,
+          message: diagnostic.message,
+          source: 'Puddle compilation',
+          startLineNumber: line,
+          startColumn,
+          endLineNumber: endLine,
+          endColumn: Math.max(startColumn, endColumn),
+        };
+      }),
+    );
+  }, [buffer.model, compilationDiagnostics]);
 
   // Conflict state outranks the query's ordinary file status: the comparison
   // read itself can discover a deletion or fail, in which case `file.error`
