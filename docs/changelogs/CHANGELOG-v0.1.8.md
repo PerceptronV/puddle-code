@@ -7,4 +7,12 @@ Past releases: see docs/changelogs/.
 
 # Changelog
 
-## [Unreleased]
+## [0.1.8] — 2026-08-28
+
+### Added
+
+- Allow generated LaTeX PDF previews to zoom between 50–300% of fit width and reset from the percentage control.
+
+### Fixed
+
+- Keep Reveal in Filetree rooted when a tab's absolute path is already inside the visible Files tree, including generated LaTeX PDFs.
