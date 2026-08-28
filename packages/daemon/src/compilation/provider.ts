@@ -1,6 +1,7 @@
 import type {
   CompilationArtifact,
   CompilationFileTarget,
+  CompilationMode,
   CompilationProvider as CompilationProviderDescriptor,
 } from '@puddle/shared';
 
@@ -19,6 +20,20 @@ export interface CompilationProviderResult {
   dependencies: string[];
 }
 
+export interface CompilationCommandConfiguration {
+  /** Canonical absolute identity of the file whose menu opened the dialog. */
+  filePath: string;
+  fileType: string;
+  variables: Array<{ placeholder: string; description: string }>;
+  defaults: Partial<Record<CompilationMode, string | null>>;
+}
+
+export interface CompilationRunOptions {
+  mode: CompilationMode;
+  /** Null means retain the provider's built-in command selection/orchestration. */
+  command: string | null;
+}
+
 /** One language/toolchain implementation behind the generic compile service. */
 export interface CompilationProvider {
   readonly id: string;
@@ -27,9 +42,14 @@ export interface CompilationProvider {
   readonly inputExtensions: readonly string[];
   readonly eager: boolean;
   capability(): CompilationProviderCapability;
+  commandConfiguration(source: CompilationFileTarget): CompilationCommandConfiguration;
+  validateCommand(source: CompilationFileTarget, command: string): void;
   /** Inputs available before a successful build discovers richer dependencies. */
   watchInputs(source: CompilationFileTarget): string[];
-  run(source: CompilationFileTarget): Promise<CompilationProviderResult>;
+  run(
+    source: CompilationFileTarget,
+    options: CompilationRunOptions,
+  ): Promise<CompilationProviderResult>;
   dispose?(): void;
 }
 

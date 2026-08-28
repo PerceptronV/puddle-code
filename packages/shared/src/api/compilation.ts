@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { sessionId } from './common.js';
+import { profileId, projectId, sessionId } from './common.js';
 
 /** How a compilable source is driven while its tab is open. */
 export const compilationModeSchema = z.enum(['on_demand', 'eager']);
@@ -40,6 +40,9 @@ export const compilationTargetRequestSchema = z.object({
   source: compilationFileTargetSchema,
   /** Usually inferred from the extension; explicit for future ambiguous providers. */
   provider: compilationProviderIdSchema.optional(),
+  /** Optional project context selects a per-file command override on newer daemons. */
+  profile_id: profileId.optional(),
+  project_id: projectId.optional(),
 });
 export type CompilationTargetRequest = z.infer<typeof compilationTargetRequestSchema>;
 
@@ -110,3 +113,46 @@ export const compilationStatusResponseSchema = z.object({
   error: compilationFailureSchema.nullable(),
 });
 export type CompilationStatusResponse = z.infer<typeof compilationStatusResponseSchema>;
+
+export const compilationCommandVariableSchema = z.object({
+  placeholder: z.string().regex(/^\{\{[a-z][a-z0-9_]*\}\}$/),
+  description: z.string().min(1),
+});
+export type CompilationCommandVariable = z.infer<typeof compilationCommandVariableSchema>;
+
+export const compilationCommandSlotSchema = z.object({
+  mode: compilationModeSchema,
+  /** Stable trigger copy lets a generic dialog explain exactly when this slot runs. */
+  run_when: z.enum(['when_clicked', 'upon_file_change']),
+  default_command: z.string().min(1).nullable(),
+  override_command: z.string().min(1).nullable(),
+});
+export type CompilationCommandSlot = z.infer<typeof compilationCommandSlotSchema>;
+
+/** A project-scoped command-settings lookup for one canonical provider source. */
+export const compilationSettingsRequestSchema = compilationTargetRequestSchema.extend({
+  profile_id: profileId,
+  project_id: projectId,
+});
+export type CompilationSettingsRequest = z.infer<typeof compilationSettingsRequestSchema>;
+
+export const compilationSettingsResponseSchema = z.object({
+  provider: compilationProviderIdSchema,
+  display_name: z.string().min(1),
+  /** Provider-owned file type used as part of the durable settings identity. */
+  file_type: z.string().regex(/^[a-z0-9][a-z0-9_-]*$/),
+  /** Canonical absolute source identity; settings never key on a transient session. */
+  file_path: z.string().min(1),
+  variables: z.array(compilationCommandVariableSchema),
+  commands: z.array(compilationCommandSlotSchema).min(1),
+});
+export type CompilationSettingsResponse = z.infer<typeof compilationSettingsResponseSchema>;
+
+/** PUT /api/compilation/settings — set one override, or clear it with null. */
+export const updateCompilationSettingsRequestSchema = compilationSettingsRequestSchema.extend({
+  mode: compilationModeSchema,
+  command: z.string().trim().min(1).max(16_384).nullable(),
+});
+export type UpdateCompilationSettingsRequest = z.infer<
+  typeof updateCompilationSettingsRequestSchema
+>;

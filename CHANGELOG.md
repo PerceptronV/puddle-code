@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Added
+
+- Persist independent per-file compilation commands for clicked and file-change runs by profile, project, provider and canonical rooted path (protocol 17.3).

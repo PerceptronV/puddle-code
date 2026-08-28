@@ -22,6 +22,7 @@ import { ScratchpadStore } from './db/stores/scratchpad.js';
 import { reconcileProfileDirs } from './db/profile-dirs.js';
 import { SessionStore } from './db/stores/sessions.js';
 import { ConversationStore } from './db/stores/conversations.js';
+import { CompilationSettingsStore } from './db/stores/compilation-settings.js';
 import { KeyedMutex } from './git/mutex.js';
 import { buildApp } from './http/app.js';
 import { LogStore } from './logs/log-store.js';
@@ -85,6 +86,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   const sessions = new SessionStore(db);
   const conversations = new ConversationStore(db);
   const events = new EventStore(db);
+  const compilationSettings = new CompilationSettingsStore(db);
 
   const logs = new LogStore(paths.logsDir, config.replayBytes, config.logMaxBytes);
   // Clients report their resolved terminal colours over the WS (14.1); the
@@ -95,7 +97,10 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   const scanner = new PortScanner({ ptys });
   const worktrees = new WorktreeManager({ paths, mutex: new KeyedMutex(), repos, sessions });
   const latex = new LatexProvider({ sessions, repos });
-  const compilation = new CompilationService([latex]);
+  const compilation = new CompilationService([latex], {
+    settings: compilationSettings,
+    projects,
+  });
   const onboarding = new MarkerFileSync({ repos, events, sessions });
   const adapters = new AdapterRegistry(opts.adapters ?? [claudeCode, codex, opencode, geminiCli]);
   // Migration 004 rewrote config-dir paths to id-keyed; rename the dirs before

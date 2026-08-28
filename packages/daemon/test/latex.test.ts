@@ -4,6 +4,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   readdirSync,
   writeFileSync,
 } from 'node:fs';
@@ -113,6 +114,41 @@ describe('LaTeX diagnostics', () => {
 });
 
 describe('LatexProvider', () => {
+  it('describes and executes a managed custom command for a rooted source', async () => {
+    const sourceRoot = mkdtempSync(join(tmpdir(), 'puddle-tex-custom-'));
+    writeFileSync(join(sourceRoot, 'paper.tex'), '\\documentclass{article}\n');
+    const seen: string[][] = [];
+    const provider = new LatexProvider({
+      ...emptyStores,
+      discover: () => ({ paths: { latexmk: '/fake/latexmk' }, searchPath: '/fake' }),
+      runner: async (command) => {
+        seen.push([command.file, ...command.args]);
+        const output = command.args.find((arg) => arg.startsWith('--output='))?.slice(9);
+        if (!output) throw new Error('custom command did not receive its managed output');
+        writeFileSync(join(output, 'paper.pdf'), '%PDF-custom');
+        return { exitCode: 0, stdout: 'custom build\n', stderr: '' };
+      },
+    });
+    const source = { session: NO_SESSION, root: sourceRoot, path: 'paper.tex' };
+    expect(provider.commandConfiguration(source)).toMatchObject({
+      filePath: realpathSync(join(sourceRoot, 'paper.tex')),
+      fileType: 'tex',
+      defaults: {
+        on_demand: expect.stringContaining('/fake/latexmk'),
+        eager: expect.stringContaining('/fake/latexmk'),
+      },
+    });
+    expect(() => provider.validateCommand(source, 'custom-tex {{source}}')).toThrow(/output_dir/);
+    provider.validateCommand(source, 'custom-tex --output={{output_dir}} {{source}}');
+    const result = await provider.run(source, {
+      command: 'custom-tex --output={{output_dir}} {{source}}',
+    });
+    expect(result.executor).toBe('custom-tex');
+    expect(seen[0]?.[0]).toBe('custom-tex');
+    expect(seen[0]?.at(-1)).toBe(join(sourceRoot, 'paper.tex'));
+    expect(seen[0]?.[1]).toContain(join(sourceRoot, '.puddle', 'latex'));
+  });
+
   it('compiles a magic-root document under its local .puddle and inverse-searches it', async () => {
     const sourceRoot = mkdtempSync(join(tmpdir(), 'puddle-tex-project-'));
     mkdirSync(join(sourceRoot, 'sections'));

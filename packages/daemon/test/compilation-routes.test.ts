@@ -3,8 +3,14 @@ import { describe, expect, it } from 'vitest';
 import {
   compilationCapabilitiesResponseSchema,
   compilationRunResponseSchema,
+  compilationSettingsResponseSchema,
   compilationStatusResponseSchema,
 } from '@puddle/shared';
+import { openDatabase } from '../src/db/db.js';
+import { CompilationSettingsStore } from '../src/db/stores/compilation-settings.js';
+import { ProfileStore } from '../src/db/stores/profiles.js';
+import { ProjectStore } from '../src/db/stores/projects.js';
+import { RepoStore } from '../src/db/stores/repos.js';
 import type { CompilationProvider } from '../src/compilation/provider.js';
 import { CompilationService } from '../src/compilation/service.js';
 import { ApiError } from '../src/http/errors.js';
@@ -17,6 +23,19 @@ const source = {
 };
 
 function fixture() {
+  const db = openDatabase(':memory:');
+  const profiles = new ProfileStore(db);
+  const projects = new ProjectStore(db);
+  const repos = new RepoStore(db);
+  const profile = profiles.create({ name: 'compile', branch_prefix: 'compile/' });
+  const repo = repos.create({
+    path: '/source',
+    default_base_branch: 'main',
+    onboarding_notes: null,
+    fetch_enabled: false,
+  });
+  const project = projects.create({ profile_id: profile.id, repo_id: repo.id, name: 'paper' });
+  const commands: Array<{ mode: string; command: string | null }> = [];
   const provider: CompilationProvider = {
     id: 'latex',
     displayName: 'LaTeX',
@@ -24,22 +43,41 @@ function fixture() {
     inputExtensions: ['tex', 'bib', 'sty', 'cls', 'bst'],
     eager: true,
     capability: () => ({ available: true, executor: 'latexmk' }),
-    watchInputs: () => [],
-    run: async (target) => ({
-      executor: 'latexmk',
-      source: target,
-      artifacts: [
-        {
-          role: 'preview',
-          media_type: 'application/pdf',
-          file: { session: target.session, path: 'paper.pdf', root: '/state/latex/build' },
-        },
+    commandConfiguration: (target) => ({
+      filePath: `${target.root}/${target.path}`,
+      fileType: 'tex',
+      variables: [
+        { placeholder: '{{source}}', description: 'Source' },
+        { placeholder: '{{output_dir}}', description: 'Output' },
       ],
-      navigation: { kind: 'synctex' },
-      dependencies: [],
+      defaults: {
+        on_demand: 'latexmk -outdir={{output_dir}} {{source}}',
+        eager: 'latexmk -outdir={{output_dir}} {{source}}',
+      },
     }),
+    validateCommand: () => undefined,
+    watchInputs: () => [],
+    run: async (target, options) => {
+      commands.push(options);
+      return {
+        executor: 'latexmk',
+        source: target,
+        artifacts: [
+          {
+            role: 'preview',
+            media_type: 'application/pdf',
+            file: { session: target.session, path: 'paper.pdf', root: '/state/latex/build' },
+          },
+        ],
+        navigation: { kind: 'synctex' },
+        dependencies: [],
+      };
+    },
   };
-  const compilation = new CompilationService([provider]);
+  const compilation = new CompilationService([provider], {
+    settings: new CompilationSettingsStore(db),
+    projects,
+  });
   const app = new Hono();
   app.onError((error, c) =>
     error instanceof ApiError
@@ -47,7 +85,7 @@ function fixture() {
       : c.json({ error: { code: 'internal', message: String(error) } }, 500),
   );
   app.route('/api/compilation', compilationRoutes({ compilation }));
-  return { app, compilation };
+  return { app, compilation, commands, profile, project };
 }
 
 function jsonRequest(method: string, body: unknown): RequestInit {
@@ -117,6 +155,56 @@ describe('compilation routes', () => {
       jsonRequest('POST', { source: { session: 'not-a-session', path: '' } }),
     );
     expect(response.status).toBe(400);
+    compilation.dispose();
+  });
+
+  it('persists separate rooted-file commands for clicked and file-change runs', async () => {
+    const { app, compilation, commands, profile, project } = fixture();
+    const scope = { profile_id: profile.id, project_id: project.id };
+    const initial = await app.request(
+      '/api/compilation/settings',
+      jsonRequest('POST', { source, ...scope }),
+    );
+    expect(compilationSettingsResponseSchema.parse(await initial.json())).toMatchObject({
+      file_path: '/source/paper.tex',
+      commands: [
+        { mode: 'on_demand', run_when: 'when_clicked', override_command: null },
+        { mode: 'eager', run_when: 'upon_file_change', override_command: null },
+      ],
+    });
+
+    await app.request(
+      '/api/compilation/settings',
+      jsonRequest('PUT', {
+        source,
+        ...scope,
+        mode: 'on_demand',
+        command: 'manual {{source}} --out {{output_dir}}',
+      }),
+    );
+    await app.request('/api/compilation/run', jsonRequest('POST', { source, ...scope }));
+    expect(commands.at(-1)).toEqual({
+      mode: 'on_demand',
+      command: 'manual {{source}} --out {{output_dir}}',
+    });
+
+    await app.request(
+      '/api/compilation/settings',
+      jsonRequest('PUT', {
+        source,
+        ...scope,
+        mode: 'eager',
+        command: 'eager {{source}} --out {{output_dir}}',
+      }),
+    );
+    await app.request(
+      '/api/compilation/mode',
+      jsonRequest('PUT', { source, ...scope, mode: 'eager' }),
+    );
+    expect(commands.at(-1)).toEqual({
+      mode: 'eager',
+      command: 'eager {{source}} --out {{output_dir}}',
+    });
     compilation.dispose();
   });
 });

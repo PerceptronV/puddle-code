@@ -12,6 +12,7 @@ import { ProjectStore } from '../src/db/stores/projects.js';
 import { RepoStore } from '../src/db/stores/repos.js';
 import { SessionStore } from '../src/db/stores/sessions.js';
 import { ConversationStore } from '../src/db/stores/conversations.js';
+import { CompilationSettingsStore } from '../src/db/stores/compilation-settings.js';
 import { ApiError } from '../src/http/errors.js';
 
 function freshDbFile() {
@@ -29,6 +30,7 @@ function stores(file = freshDbFile()) {
     sessions: new SessionStore(db),
     conversations: new ConversationStore(db),
     events: new EventStore(db),
+    compilationSettings: new CompilationSettingsStore(db),
   };
 }
 
@@ -82,11 +84,37 @@ describe('openDatabase', () => {
       'agent_conversations',
       'scratchpad',
       'events',
+      'compilation_settings',
     ]) {
       expect(tables).toContain(t);
     }
     // The dormant prompts table was replaced by scratchpad in migration 014.
     expect(tables).not.toContain('prompts');
+  });
+
+  it('keys compilation commands by profile, project, provider, file and mode', () => {
+    const s = stores();
+    const { profile, project } = seedSession(s);
+    const base = {
+      profileId: profile.id,
+      projectId: project.id,
+      provider: 'latex',
+      fileType: 'tex',
+      filePath: '/outside folder/paper.tex',
+    };
+    s.compilationSettings.set(
+      { ...base, mode: 'on_demand' },
+      'latexmk -outdir={{output_dir}} {{source}}',
+    );
+    s.compilationSettings.set(
+      { ...base, mode: 'eager' },
+      'tectonic --outdir {{output_dir}} {{source}}',
+    );
+    expect(s.compilationSettings.get({ ...base, mode: 'on_demand' })).toContain('latexmk');
+    expect(s.compilationSettings.get({ ...base, mode: 'eager' })).toContain('tectonic');
+    s.compilationSettings.set({ ...base, mode: 'on_demand' }, null);
+    expect(s.compilationSettings.get({ ...base, mode: 'on_demand' })).toBeNull();
+    expect(s.compilationSettings.get({ ...base, mode: 'eager' })).toContain('tectonic');
   });
 
   it('is idempotent across reopen', () => {

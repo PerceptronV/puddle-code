@@ -23,10 +23,11 @@ import {
 import type { RepoStore } from '../db/stores/repos.js';
 import type { SessionStore } from '../db/stores/sessions.js';
 import type { CompilationProvider, CompilationProviderResult } from '../compilation/provider.js';
+import { expandCommandTemplate, parseCommandTemplate } from '../compilation/command-template.js';
 import { KeyedMutex } from '../git/mutex.js';
 import { ApiError } from '../http/errors.js';
 import { containedPath, NO_SESSION, resolveFsRoot } from '../http/routes/worktree-shared.js';
-import { compileLatex } from './compiler.js';
+import { compileLatex, defaultLatexCommand } from './compiler.js';
 import { LatexBuildFailure, type LatexSourceDiagnostic } from './diagnostics.js';
 import { discoverLatexToolchain } from './discovery.js';
 import {
@@ -77,13 +78,57 @@ export class LatexProvider implements CompilationProvider {
     return { available: capabilities.available, executor: capabilities.preferred };
   }
 
+  commandConfiguration(request: CompilationFileTarget) {
+    const root = resolveFsRoot(this.deps, request.session, request.root);
+    const requested = containedPath(root, request.path);
+    if (!existsSync(requested) || !statSync(requested).isFile()) {
+      throw ApiError.notFound('compilation source', request.path);
+    }
+    const source = resolveLatexSource(root, request.path);
+    const command = defaultLatexCommand(source, this.toolchain());
+    return {
+      filePath: safeRealpath(requested),
+      fileType: 'tex',
+      variables: [
+        {
+          placeholder: '{{source}}',
+          description: 'Absolute path of the resolved root TeX document',
+        },
+        {
+          placeholder: '{{output_dir}}',
+          description: 'Managed directory for this run below the source root’s local .puddle',
+        },
+        { placeholder: '{{job_name}}', description: 'Output basename without the .tex suffix' },
+      ],
+      defaults: { on_demand: command, eager: command },
+    };
+  }
+
+  validateCommand(_request: CompilationFileTarget, command: string): void {
+    parseCommandTemplate(command);
+    expandCommandTemplate(command, {
+      source: '/source/main.tex',
+      output_dir: '/source/.puddle/latex/build/runs/run',
+      job_name: 'main',
+    });
+    if (!command.includes('{{output_dir}}')) {
+      throw ApiError.badRequest(
+        'invalid_compilation_command',
+        'A LaTeX command must use {{output_dir}} so generated files stay inside local .puddle',
+      );
+    }
+  }
+
   watchInputs(request: CompilationFileTarget): string[] {
     const root = resolveFsRoot(this.deps, request.session, request.root);
     const source = resolveLatexSource(root, request.path);
     return [...new Set([source.requestedAbsolute, source.absolute])];
   }
 
-  async run(request: CompilationFileTarget): Promise<CompilationProviderResult> {
+  async run(
+    request: CompilationFileTarget,
+    options: { command: string | null } = { command: null },
+  ): Promise<CompilationProviderResult> {
     const root = resolveFsRoot(this.deps, request.session, request.root);
     const source = resolveLatexSource(root, request.path);
     const identity = safeRealpath(source.absolute);
@@ -112,6 +157,7 @@ export class LatexProvider implements CompilationProvider {
             toolchain,
             ...(this.deps.runner ? { runner: this.deps.runner } : {}),
             ...(this.deps.timeoutMs !== undefined ? { timeoutMs: this.deps.timeoutMs } : {}),
+            ...(options.command !== null ? { command: options.command } : {}),
           });
         } catch (error) {
           if (!(error instanceof LatexBuildFailure)) throw error;

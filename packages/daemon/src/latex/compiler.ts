@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { delimiter, basename, dirname, extname, join } from 'node:path';
 import { ApiError } from '../http/errors.js';
+import { commandTemplate, expandCommandTemplate } from '../compilation/command-template.js';
 import { boundedLatexOutput, LatexBuildFailure, parseLatexDiagnostics } from './diagnostics.js';
 import {
   LatexCommandError,
@@ -11,17 +12,12 @@ import {
   type LatexCommandRunner,
 } from './process.js';
 import { selectDirectEngine, type ResolvedLatexSource } from './source.js';
-import {
-  LATEX_ENGINES,
-  type LatexCompiler,
-  type LatexEngine,
-  type LatexToolchain,
-} from './toolchain.js';
+import { LATEX_ENGINES, type LatexEngine, type LatexToolchain } from './toolchain.js';
 
 const MAX_ENGINE_PASSES = 5;
 
 export interface LatexBuildResult {
-  compiler: LatexCompiler;
+  compiler: string;
   pdfPath: string;
   synctexPath: string | null;
   dependencies: string[];
@@ -33,6 +29,57 @@ interface CompileOptions {
   toolchain: LatexToolchain;
   runner?: LatexCommandRunner;
   timeoutMs?: number;
+  command?: string;
+}
+
+/** The currently selected primary command, expressed with managed run placeholders. */
+export function defaultLatexCommand(
+  source: ResolvedLatexSource,
+  toolchain: LatexToolchain,
+): string | null {
+  if (toolchain.paths.latexmk) {
+    return commandTemplate(toolchain.paths.latexmk, [
+      latexmkMode(source.engine),
+      '-norc',
+      '-interaction=nonstopmode',
+      '-halt-on-error',
+      '-file-line-error',
+      '-synctex=1',
+      '-recorder',
+      '-no-shell-escape',
+      '-outdir={{output_dir}}',
+      '{{source}}',
+    ]);
+  }
+  if (toolchain.paths.tectonic && source.engine === undefined) {
+    return commandTemplate(toolchain.paths.tectonic, [
+      '--outdir',
+      '{{output_dir}}',
+      '--synctex',
+      '--keep-logs',
+      '--keep-intermediates',
+      '--untrusted',
+      '--makefile-rules',
+      '{{output_dir}}/{{job_name}}.d',
+      '{{source}}',
+    ]);
+  }
+  const installed = LATEX_ENGINES.filter(
+    (engine): engine is LatexEngine => toolchain.paths[engine] !== undefined,
+  );
+  const engine = selectDirectEngine(source, installed);
+  const executable = engine ? toolchain.paths[engine] : undefined;
+  if (!executable) return null;
+  return commandTemplate(executable, [
+    '-interaction=nonstopmode',
+    '-halt-on-error',
+    '-file-line-error',
+    '-no-shell-escape',
+    '-synctex=1',
+    '-recorder',
+    '-output-directory={{output_dir}}',
+    '{{source}}',
+  ]);
 }
 
 /** Compile one already-resolved main document entirely inside `buildDir`. */
@@ -99,8 +146,16 @@ export async function compileLatex(options: CompileOptions): Promise<LatexBuildR
     }
   };
 
-  let compiler: LatexCompiler;
-  if (options.toolchain.paths.latexmk) {
+  let compiler: string;
+  if (options.command) {
+    const custom = expandCommandTemplate(options.command, {
+      source: options.source.absolute,
+      output_dir: options.buildDir,
+      job_name: jobName,
+    });
+    compiler = basename(custom.file);
+    await run(custom.file, custom.args, dirname(options.source.absolute));
+  } else if (options.toolchain.paths.latexmk) {
     compiler = 'latexmk';
     const mode = latexmkMode(options.source.engine);
     await run(

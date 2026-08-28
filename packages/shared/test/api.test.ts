@@ -6,6 +6,8 @@ import {
   compilationFailureSchema,
   compilationModeRequestSchema,
   compilationRunResponseSchema,
+  compilationSettingsResponseSchema,
+  updateCompilationSettingsRequestSchema,
   diffResponseSchema,
   diffStatusSchema,
   editorTabRefSchema,
@@ -186,7 +188,7 @@ describe('shared API schemas', () => {
     });
   });
 
-  it('validates cross-filetree transfers and carries protocol 17.2', () => {
+  it('validates cross-filetree transfers and carries protocol 17.3', () => {
     expect(
       transferEntryRequestSchema.parse({
         operation: 'copy',
@@ -206,7 +208,7 @@ describe('shared API schemas', () => {
       from: 'docs/readme.md',
       to: 'imported/readme.md',
     });
-    expect(PROTOCOL_VERSION).toEqual({ major: 17, minor: 2 });
+    expect(PROTOCOL_VERSION).toEqual({ major: 17, minor: 3 });
   });
 
   it('accepts additive native conversation fields and lifecycle signals', () => {
@@ -271,6 +273,32 @@ describe('shared API schemas', () => {
       }).providers[0]?.input_extensions,
     ).toContain('bib');
     expect(compilationModeRequestSchema.parse({ source, mode: 'eager' }).mode).toBe('eager');
+    expect(
+      updateCompilationSettingsRequestSchema.parse({
+        source,
+        profile_id: 'aaaaaaaaaa',
+        project_id: '1111111111',
+        mode: 'eager',
+        command: 'latexmk -outdir={{output_dir}} {{source}}',
+      }).command,
+    ).toContain('latexmk');
+    expect(
+      compilationSettingsResponseSchema.parse({
+        provider: 'latex',
+        display_name: 'LaTeX',
+        file_type: 'tex',
+        file_path: '/repo/docs/paper.tex',
+        variables: [{ placeholder: '{{source}}', description: 'Source document' }],
+        commands: [
+          {
+            mode: 'on_demand',
+            run_when: 'when_clicked',
+            default_command: 'latexmk {{source}}',
+            override_command: null,
+          },
+        ],
+      }).commands[0]?.run_when,
+    ).toBe('when_clicked');
     expect(
       compilationFailureSchema.parse({
         message: 'build failed',

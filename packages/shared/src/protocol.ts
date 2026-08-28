@@ -278,4 +278,7 @@
 // 17.2 (2026-08-28): additive — compilation failures may include bounded
 // compiler output and normalised source diagnostics for expandable notices
 // and editor markers.
-export const PROTOCOL_VERSION = { major: 17, minor: 2 } as const;
+// 17.3 (2026-08-28): additive — project-scoped, canonical-file compilation
+// command settings, with independent manual/eager overrides and provider-owned
+// command templates/placeholders.
+export const PROTOCOL_VERSION = { major: 17, minor: 3 } as const;

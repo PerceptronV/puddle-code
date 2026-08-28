@@ -6,6 +6,16 @@ import { CompilationService, type CompilationEvent } from '../src/compilation/se
 import type { CompilationProvider } from '../src/compilation/provider.js';
 import { ApiError } from '../src/http/errors.js';
 
+const commandSupport = {
+  commandConfiguration: (source: { path: string }) => ({
+    filePath: `/source/${source.path}`,
+    fileType: 'demo',
+    variables: [],
+    defaults: { on_demand: 'examplec input.demo', eager: 'examplec input.demo' },
+  }),
+  validateCommand: () => undefined,
+};
+
 async function waitFor(predicate: () => boolean, timeoutMs = 2_000): Promise<void> {
   const end = Date.now() + timeoutMs;
   while (!predicate()) {
@@ -23,6 +33,7 @@ describe('CompilationService', () => {
       inputExtensions: ['demo'],
       eager: true,
       capability: () => ({ available: true, executor: 'examplec' }),
+      ...commandSupport,
       watchInputs: () => [],
       run: async (source) => ({
         executor: 'examplec',
@@ -65,6 +76,7 @@ describe('CompilationService', () => {
       inputExtensions: ['demo'],
       eager: true,
       capability: () => ({ available: true, executor: 'examplec' }),
+      ...commandSupport,
       watchInputs: () => [sourcePath],
       run: async (source) => {
         runs += 1;
@@ -118,6 +130,7 @@ describe('CompilationService', () => {
       inputExtensions: ['demo'],
       eager: true,
       capability: () => ({ available: true, executor: 'examplec' }),
+      ...commandSupport,
       watchInputs: () => [sourcePath],
       run: async (source) => {
         runs += 1;
@@ -157,6 +170,7 @@ describe('CompilationService', () => {
       inputExtensions: ['demo'],
       eager: true,
       capability: () => ({ available: true, executor: 'examplec' }),
+      ...commandSupport,
       watchInputs: () => [sourcePath],
       run: async (source) => {
         runs += 1;
