@@ -84,7 +84,8 @@ the setups available to the release host matrix:
    `% !TEX root` to `main.tex`.
 2. A successful build opens `main.pdf` as an ordinary persistent file tab in
    the same pane. Its label is not italicised. It can be moved, split, restored
-   and closed like any other file tab.
+   and closed like any other file tab. Move it by dropping over every pane,
+   including one currently showing an HTML or ordinary native-PDF iframe.
 3. Press play again. The existing rooted PDF tab is selected and refreshed;
    no duplicate opens. Put that PDF in another pane and repeat: Puddle finds it
    across the whole live layout rather than opening another copy.

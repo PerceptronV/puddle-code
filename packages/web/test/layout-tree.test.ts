@@ -172,6 +172,33 @@ describe('dropTab', () => {
     expect(findLeaf(next, leafA.id)!.tabs.map(tabRefKey)).toEqual(['editor:file:s1:::x.ts']);
   });
 
+  it('moves a generated LaTeX PDF as an ordinary persistent external tab', () => {
+    const pdf: TabRef = {
+      type: 'editor',
+      tab: {
+        kind: 'external',
+        session: 's1',
+        path: 'paper.pdf',
+        root: '/repo/.puddle/latex/0123456789abcdef01234567/current',
+        generated_by: 'latex',
+      },
+    };
+    const source = makeLeaf([ed('paper.tex'), pdf]);
+    const tree = splitLeaf(source, source.id, 'bottom', ed('notes.md'));
+    const sourceLeaf = leafWith(tree, pdf);
+    const destinationLeaf = leafWith(tree, ed('notes.md'));
+    const next = dropTab(tree, {
+      ref: pdf,
+      fromLeafId: sourceLeaf.id,
+      toLeafId: destinationLeaf.id,
+      edge: 'center',
+    });
+
+    expect(findLeaf(next, sourceLeaf.id)!.tabs.map(tabRefKey)).not.toContain(tabRefKey(pdf));
+    expect(findLeaf(next, destinationLeaf.id)!.tabs).toContainEqual(pdf);
+    expect(leafWith(next, pdf).previewKey).toBeNull();
+  });
+
   it('reorders within the same leaf (move, not duplicate)', () => {
     const leaf = makeLeaf([ed('a.ts'), ed('b.ts'), ed('c.ts')]);
     const next = moveTab(leaf, ed('c.ts'), leaf.id, leaf.id, 0);

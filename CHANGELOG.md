@@ -11,5 +11,6 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Keep tab drags live over embedded previews so generated LaTeX PDF tabs can move or split into any pane.
 - Keep LaTeX build intermediates and generated previews in each source root's local `.puddle/latex` directory rather than the daemon's global state directory.
 - Serve bundled `.mjs` assets as JavaScript so generated LaTeX PDFs load their lazy PDF.js worker.

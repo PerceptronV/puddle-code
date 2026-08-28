@@ -24,7 +24,7 @@ import { PaneSessionOverlay } from './PaneSessionOverlay';
 import { PaneTabStrip } from './PaneTabStrip';
 import { tabRefKey, type DropEdge } from './layout-tree';
 import { decodeTabTransfer, hasTabTransfer, TAB_MIME } from './tab-transfer';
-import { useDropIndicator } from './TilingDnd';
+import { useActiveDragRef, useDropIndicator } from './TilingDnd';
 import { paneInteractionIntent } from './pane-interaction';
 
 /**
@@ -102,6 +102,7 @@ export function PaneLeaf({
   const slotRef = useKeepAliveSlot(terminalKey);
   const { setNodeRef } = useDroppable({ id: `leaf:${leaf.id}` });
   const indicator = useDropIndicator();
+  const activeDragRef = useActiveDragRef();
   const paletteKey = useHotkeyLabel('palette.toggle');
   const activeEditor = activeRef?.type === 'editor' ? activeRef.tab : null;
   const activeView = activeEditor?.view ?? 'source';
@@ -265,6 +266,14 @@ export function PaneLeaf({
           ref={slotRef}
           className={cn('absolute inset-0 py-1 pl-4 pr-2', !terminalKey && 'hidden')}
         />
+        {/* Embedded browsing contexts consume pointer events before dnd-kit's
+            document-level sensor can see them. Cover every pane body for the
+            duration of a strip drag so HTML and native-PDF iframes remain
+            ordinary move/split destinations. The registered leaf beneath this
+            transparent shield still supplies collision geometry. */}
+        {activeDragRef && (
+          <div className="absolute inset-0 z-10 cursor-grabbing" aria-hidden="true" />
+        )}
         {/* A strip insertion (index set) is marked by the strip's caret instead
             of the pane-body highlight. */}
         {indicator?.leafId === leaf.id && indicator.index === undefined && (
