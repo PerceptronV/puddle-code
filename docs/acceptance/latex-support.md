@@ -89,10 +89,14 @@ the setups available to the release host matrix:
 3. Press play again. The existing rooted PDF tab is selected and refreshed;
    no duplicate opens. Put that PDF in another pane and repeat: Puddle finds it
    across the whole live layout rather than opening another copy.
-4. Inspect the authored fixture paths with `find`. They have no
+4. Right-click the PDF tab and choose **Reveal in Filetree**. When Files already
+   shows the fixture root, it stays rooted there and expands `.puddle/latex/…`
+   to select the PDF; it does not rebase to the generated file's `current/`
+   directory.
+5. Inspect the authored fixture paths with `find`. They have no
    `.aux`, `.bbl`, `.bcf`, `.blg`, `.fls`, `.log`, `.out`, `.synctex.gz` or PDF
    generated beside them.
-5. Inspect `<fixture>/.puddle/latex/<document-hash>/`. Intermediate files are
+6. Inspect `<fixture>/.puddle/latex/<document-hash>/`. Intermediate files are
    below a fresh `runs/<id>/`; the stable PDF, SyncTeX index, build log and
    manifest are below `current/`. At most five run directories remain. The
    daemon's global `PUDDLE_HOME` contains none of these compilation artefacts.

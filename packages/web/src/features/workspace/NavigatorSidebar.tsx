@@ -125,6 +125,7 @@ export function NavigatorSidebar({
   sessions,
   target,
   browseRequest,
+  onFiletreeRootChange,
   onOpenFile,
   onOpenExternalFile,
   onOpenTerminalIn,
@@ -148,6 +149,8 @@ export function NavigatorSidebar({
    * pinned browse for `session`. `nonce` re-fires the same directory twice.
    */
   browseRequest?: { session: string; root: string; nonce: number } | null;
+  /** Report the absolute root currently represented by the Files tree. */
+  onFiletreeRootChange?: (root: string | null) => void;
   onOpenFile: (sessionId: string, path: string, opts?: { preview?: boolean }) => void;
   /** Spawn a terminal whose shell starts in this worktree-relative directory. */
   onOpenTerminalIn: (sessionId: string, dir: string) => void;
@@ -204,6 +207,10 @@ export function NavigatorSidebar({
   // the target's own (a directory target), else nothing (a real worktree).
   const requestRoot = browseRoot ?? targetRoot;
   const locationPath = explorerLocationPath(target, browseRoot);
+  useEffect(() => {
+    onFiletreeRootChange?.(locationPath);
+    return () => onFiletreeRootChange?.(null);
+  }, [locationPath, onFiletreeRootChange]);
   const enterBrowse = (root: string) => {
     if (!session) return;
     if (!target.pinned) target.pin(session.id);

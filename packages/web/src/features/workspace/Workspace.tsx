@@ -765,6 +765,10 @@ function WorkspaceInner() {
     root: string;
     nonce: number;
   } | null>(null);
+  const filetreeRootRef = useRef<string | null>(null);
+  const rememberFiletreeRoot = useCallback((root: string | null) => {
+    filetreeRootRef.current = root;
+  }, []);
   // Explorer clicks: a single click opens an ephemeral preview tab; a double
   // click opens (or promotes to) a permanent one.
   const openTreeFile = useCallback(
@@ -1214,7 +1218,13 @@ function WorkspaceInner() {
     (tab: EditorTab) => {
       const owner = tabSessions.find((session) => session.id === tab.session);
       if (tab.root === undefined && !owner) return;
-      const target = fileTabRevealTarget(tab, owner?.worktree_path ?? tab.root ?? '');
+      const currentFiletreeRoot =
+        filetreeRootRef.current ?? targetRoot ?? targetSession?.worktree_path ?? null;
+      const target = fileTabRevealTarget(
+        tab,
+        owner?.worktree_path ?? tab.root ?? '',
+        currentFiletreeRoot,
+      );
 
       if (isNarrowRef.current) setNarrowNav(true);
       uiState.update({
@@ -1230,8 +1240,7 @@ function WorkspaceInner() {
         const browseSession = owner?.id ?? targetSession?.id ?? tab.session;
         setBrowseRequest({ session: browseSession, root: target.browseRoot, nonce: Date.now() });
       } else {
-        const currentDirectory = targetRoot ?? targetSession?.worktree_path;
-        if (currentDirectory !== target.directory) sidebarTarget.pin(tab.session);
+        if (currentFiletreeRoot !== target.directory) sidebarTarget.pin(tab.session);
       }
       requestReveal({
         path: target.path,
@@ -1608,6 +1617,7 @@ function WorkspaceInner() {
       sessions={sessions}
       target={sidebarTarget}
       browseRequest={browseRequest}
+      onFiletreeRootChange={rememberFiletreeRoot}
       onOpenFile={openTreeFile}
       onOpenExternalFile={openExternalFile}
       onOpenTerminalIn={openTerminalIn}

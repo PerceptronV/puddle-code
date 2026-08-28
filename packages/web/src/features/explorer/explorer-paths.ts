@@ -62,6 +62,30 @@ export function joinAbsolutePath(root: string, path: string): string {
   return `${root.replace(/\/+$/, '')}/${path}`;
 }
 
+/**
+ * Return `path` relative to an absolute `root` when it is already represented
+ * by that tree. Segment boundaries matter: `/repo-copy` is not inside `/repo`.
+ * Daemon paths use `/`, but accepting `\` here keeps reveals sound for a
+ * browser connected to a Windows host as well.
+ */
+export function relativePathWithinAbsoluteRoot(root: string, path: string): string | null {
+  const normalise = (value: string) => {
+    const slashed = value.replaceAll('\\', '/');
+    const trimmed = slashed.replace(/\/+$/, '');
+    return trimmed === '' ? '/' : trimmed;
+  };
+  const normalisedRoot = normalise(root);
+  const normalisedPath = normalise(path);
+  const windowsPath = /^[A-Za-z]:($|\/)/.test(normalisedRoot);
+  const comparableRoot = windowsPath ? normalisedRoot.toLocaleLowerCase('en-US') : normalisedRoot;
+  const comparablePath = windowsPath ? normalisedPath.toLocaleLowerCase('en-US') : normalisedPath;
+  if (comparablePath === comparableRoot) return '';
+
+  const prefix = comparableRoot === '/' ? '/' : `${comparableRoot}/`;
+  if (!comparablePath.startsWith(prefix)) return null;
+  return normalisedPath.slice(prefix.length);
+}
+
 /** True when `path` is `ancestor` itself or lies inside it — used to forbid moving a folder into its own subtree. */
 export function isInside(path: string, ancestor: string): boolean {
   return path === ancestor || path.startsWith(`${ancestor}/`);
