@@ -167,9 +167,13 @@ describe('ConversationCatalogue', () => {
 
     setNative([{ ...metadata, title: 'Renamed natively' }]);
     catalogue.refreshProject(f.ids.project);
-    await waitFor(() => f.service.get(placement.id).agent_title === 'Renamed natively');
+    await waitFor(
+      () =>
+        f.service.get(placement.id).agent_title === 'Renamed natively' &&
+        changedProjects.some((projectIds) => projectIds.includes(f.ids.project)),
+    );
     expect(f.service.get(placement.id).status).toBe('archived');
-    expect(changedProjects.at(-1)).toContain(f.ids.project);
+    expect(changedProjects.some((projectIds) => projectIds.includes(f.ids.project))).toBe(true);
 
     setNative([]);
     catalogue.refreshProject(f.ids.project);

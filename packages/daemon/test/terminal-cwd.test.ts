@@ -31,7 +31,7 @@ describe('terminal session cwd', () => {
 
     // Ask the shell where it is; the fake terminal is a real $SHELL.
     f.ptys.write(term.id, 'agent', 'pwd\n');
-    await waitFor(() => f.logs.readTail(term.id, 'agent').includes('nested/deep'), 10_000);
+    await waitFor(() => f.logs.readTail(term.id, 'agent').includes('nested/deep'));
     expect(f.logs.readTail(term.id, 'agent')).toContain('nested/deep');
 
     await f.service.kill(term.id).catch(() => undefined);
@@ -60,7 +60,7 @@ describe('terminal session cwd', () => {
     await f.service.kill(term.id);
     await f.service.resume(term.id);
     f.ptys.write(term.id, 'agent', 'pwd\n');
-    await waitFor(() => f.logs.readTail(term.id, 'agent').includes('nested/deep'), 10_000);
+    await waitFor(() => f.logs.readTail(term.id, 'agent').includes('nested/deep'));
 
     await f.service.kill(term.id).catch(() => undefined);
     await f.service.kill(owner.id).catch(() => undefined);
@@ -83,7 +83,7 @@ describe('terminal session cwd', () => {
     await f.service.kill(term.id);
     await f.service.resume(term.id);
     f.ptys.write(term.id, 'agent', 'pwd\n');
-    await waitFor(() => f.logs.readTail(term.id, 'agent').includes('changed/later'), 10_000);
+    await waitFor(() => f.logs.readTail(term.id, 'agent').includes('changed/later'));
     await f.service.kill(term.id).catch(() => undefined);
   });
 

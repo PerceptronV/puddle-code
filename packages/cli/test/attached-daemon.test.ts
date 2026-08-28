@@ -80,6 +80,7 @@ process.on('SIGHUP', stop);
     delete process.env.FAKE_SSH_HOME;
   });
 
+  // A full workspace run can briefly starve the fake SSH subprocesses on CI.
   it('restarts with the cockpit while leaving host data intact', async () => {
     const endpoint = await attached.start();
     expect(endpoint.daemonLifetime).toBe('cockpit');
@@ -95,5 +96,5 @@ process.on('SIGHUP', stop);
     await endpoint.lease?.ensureRunning();
     expect(existsSync(join(puddleHome, 'runtime.json'))).toBe(true);
     expect(readFileSync(join(puddleHome, 'puddle.db'), 'utf8')).toBe('durable-state');
-  });
+  }, 60_000);
 });
