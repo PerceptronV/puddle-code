@@ -140,7 +140,9 @@ Repeat with source/root paths containing spaces and non-ASCII characters.
 
 1. A generated LaTeX PDF uses the owned PDF.js viewer. An unrelated PDF opened
    from the worktree still uses the browser's native viewer and does not load
-   LaTeX navigation behaviour.
+   LaTeX navigation behaviour. In a packaged CLI/desktop cockpit, confirm the
+   emitted `pdf.worker*.mjs` request succeeds with a JavaScript content type;
+   module workers must never be served as `application/octet-stream`.
 2. Resize the pane and use a multi-page document. Pages remain fitted and crisp
    on a HiDPI display; later pages paint as they approach the viewport.
 3. Command-click on macOS or Ctrl-click elsewhere on visible text in the PDF.

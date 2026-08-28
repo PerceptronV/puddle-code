@@ -13,6 +13,7 @@ function withAssets(): string {
   writeFileSync(join(dir, 'index.html'), '<!doctype html><title>puddle</title>');
   mkdirSync(join(dir, 'assets'));
   writeFileSync(join(dir, 'assets', 'app.js'), 'console.log("hi")');
+  writeFileSync(join(dir, 'assets', 'worker.mjs'), 'export default true');
   return dir;
 }
 
@@ -69,6 +70,7 @@ describe('UI server in front of a real daemon', () => {
   it('serves the UI tokenlessly with SPA fallback and confinement', async () => {
     expect(await (await get('/')).text()).toContain('puddle');
     expect((await get('/assets/app.js')).headers.get('content-type')).toContain('javascript');
+    expect((await get('/assets/worker.mjs')).headers.get('content-type')).toContain('javascript');
     expect(await (await get('/project/42')).text()).toContain('puddle');
     const escape = await get('/assets/..%2f..%2f..%2f..%2fetc%2fpasswd');
     expect(await escape.text()).not.toContain('root:');

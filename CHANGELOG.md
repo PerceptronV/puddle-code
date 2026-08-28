@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Serve bundled `.mjs` assets as JavaScript so generated LaTeX PDFs load their lazy PDF.js worker.
