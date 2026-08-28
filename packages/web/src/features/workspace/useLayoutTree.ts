@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LayoutLeaf, LayoutNode, TabRef } from '@puddle/shared';
-import type { EditorTab, EditorView } from '../editor/editor-tabs';
+import { tabKind, type EditorTab, type EditorView } from '../editor/editor-tabs';
 import type { UiStateHandle } from './use-ui-state';
 import {
   addTabToLeaf,
@@ -14,6 +14,7 @@ import {
   flattenTabs,
   focusTab,
   leafContainingKey,
+  linkableTarget,
   makeLeaf,
   openPreview,
   promoteTab,
@@ -21,6 +22,7 @@ import {
   renameBufferTabs,
   resizeSplit,
   retargetFollowingTabs,
+  sourceTabLocation,
   setTabView,
   tabRefKey,
   type DropSpec,
@@ -53,12 +55,23 @@ export interface LayoutController {
    * same file can be source in one pane and preview in another.
    */
   setView(leafId: string, ref: TabRef, view: EditorView): void;
+  /** Focus/create the ordinary source tab associated with a following preview. */
+  revealSource(followerLeafId: string, target: EditorTab): string;
   /** Retarget every live view of a file after its on-disk path changes. */
   renameFile(source: EditorTab, nextPath: string): void;
   removeTerminal(session: string): void;
   pruneSessions(alive: ReadonlySet<string>): void;
   resize(splitId: string, sizes: number[]): void;
   drop(spec: DropSpec): void;
+}
+
+function sameFollowingTarget(left: EditorTab, right: EditorTab): boolean {
+  return (
+    left.session === right.session &&
+    left.path === right.path &&
+    (left.root ?? '') === (right.root ?? '') &&
+    tabKind(left) === tabKind(right)
+  );
 }
 
 /**
@@ -72,11 +85,13 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
 
   // Compute the migration tree at most once (stable ids) until it is persisted.
   const initialRef = useRef<LayoutNode | null>(null);
+  const followingSourceRef = useRef<{ leafId: string; target: EditorTab } | null>(null);
   const scopeRef = useRef(scopeKey);
   const migrated = useRef(false);
   if (scopeRef.current !== scopeKey) {
     scopeRef.current = scopeKey;
     initialRef.current = null;
+    followingSourceRef.current = null;
     migrated.current = false;
   }
   if (!snapshot.layout_tree && !initialRef.current) {
@@ -134,6 +149,10 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
 
   const activeRef = focusedLeaf.tabs.find((t) => tabRefKey(t) === focusedLeaf.activeKey) ?? null;
   const activeEditorTab = activeRef?.type === 'editor' ? activeRef.tab : null;
+  const rememberLinkable = (leafId: string, ref: TabRef) => {
+    const target = linkableTarget(ref);
+    if (target) followingSourceRef.current = { leafId, target };
+  };
 
   return useMemo<LayoutController>(
     () => ({
@@ -146,6 +165,7 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
       // retargets to, in the SAME persist, so all of them move together.
       activate: (leafId, ref) => {
         setFocusedLeafId(leafId);
+        rememberLinkable(leafId, ref);
         const key = tabRefKey(ref);
         const leaf = findLeaf(tree, leafId);
         const alreadyActive = leaf?.activeKey === key;
@@ -163,12 +183,14 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
         const next = closeTab(tree, leafId, tabRefKey(ref));
         const leaf = findLeaf(next, leafId);
         const surfaced = leaf?.tabs.find((t) => tabRefKey(t) === leaf.activeKey);
+        if (surfaced) rememberLinkable(leafId, surfaced);
         persist(surfaced ? retargetFollowingTabs(next, surfaced) : next);
       },
       openEditor: (tab, opts) => {
         const target = focusedLeaf.id;
         setFocusedLeafId(target);
         const ref: TabRef = { type: 'editor', tab };
+        rememberLinkable(target, ref);
         const opened = opts?.preview
           ? openPreview(tree, target, ref)
           : addTabToLeaf(tree, target, ref);
@@ -198,10 +220,50 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
       },
       promote: (ref) => persist(promoteTab(tree, tabRefKey(ref))),
       setView: (leafId, ref, view) => {
+        // Remember the ordinary tab before entering a constant-key follower.
+        rememberLinkable(leafId, ref);
         const viewed = setTabView(tree, leafId, tabRefKey(ref), view);
         const leaf = findLeaf(viewed, leafId);
         const active = leaf?.tabs.find((tab) => tabRefKey(tab) === leaf.activeKey);
         persist(active ? retargetFollowingTabs(viewed, active) : viewed);
+      },
+      revealSource: (followerLeafId, target) => {
+        const remembered = followingSourceRef.current;
+        const rememberedForTarget =
+          remembered && sameFollowingTarget(remembered.target, target) ? remembered : null;
+        const preferredLeafId =
+          rememberedForTarget && sourceTabLocation(tree, target, rememberedForTarget.leafId)
+            ? rememberedForTarget.leafId
+            : undefined;
+        const location = sourceTabLocation(tree, target, preferredLeafId);
+        if (location) {
+          setFocusedLeafId(location.leafId);
+          let next = setTabView(tree, location.leafId, tabRefKey(location.ref), 'source');
+          next = focusTab(next, location.leafId, tabRefKey(location.ref));
+          followingSourceRef.current = { leafId: location.leafId, target };
+          if (next !== tree) persist(next);
+          return location.leafId;
+        }
+
+        const rememberedLeaf = rememberedForTarget
+          ? findLeaf(tree, rememberedForTarget.leafId)
+          : null;
+        const targetLeafId =
+          rememberedLeaf?.id ?? findLeaf(tree, followerLeafId)?.id ?? focusedLeaf.id;
+        const sourceRef: TabRef = {
+          type: 'editor',
+          tab: {
+            session: target.session,
+            path: target.path,
+            ...(target.kind !== undefined ? { kind: target.kind } : {}),
+            ...(target.root !== undefined ? { root: target.root } : {}),
+            view: 'source',
+          },
+        };
+        setFocusedLeafId(targetLeafId);
+        followingSourceRef.current = { leafId: targetLeafId, target };
+        persist(addTabToLeaf(tree, targetLeafId, sourceRef));
+        return targetLeafId;
       },
       renameFile: (source, nextPath) => {
         const next = renameBufferTabs(tree, source, nextPath);
@@ -217,6 +279,7 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
       resize: (splitId, sizes) => persist(resizeSplit(tree, splitId, sizes)),
       drop: (spec) => {
         setFocusedLeafId(spec.toLeafId);
+        rememberLinkable(spec.toLeafId, spec.ref);
         persist(retargetFollowingTabs(dropTab(tree, spec), spec.ref));
       },
     }),

@@ -471,10 +471,11 @@ function WorkspaceInner() {
       layout.openEditor(tab, { preview: opts?.preview });
       // On a phone the navigator overlay covers the pane it just opened into.
       if (isNarrowRef.current) setNarrowNav(false);
-      if (position && (tab.kind ?? 'file') === 'file') {
+      if (position && ['file', 'external'].includes(tab.kind ?? 'file')) {
         setReveal({
           session: tab.session,
           path: tab.path,
+          ...(tab.root !== undefined ? { root: tab.root } : {}),
           line: position.line,
           column: position.column,
           nonce: Date.now(),
@@ -510,6 +511,21 @@ function WorkspaceInner() {
     [openEditorTab],
   );
   useEditorHandler(openFile);
+  const revealPreviewSource = useCallback(
+    (leafId: string, tab: EditorTab, position: EditorPosition) => {
+      const sourceLeafId = layout.revealSource(leafId, tab);
+      claimScrollDriver(sourceLeafId);
+      setReveal({
+        session: tab.session,
+        path: tab.path,
+        ...(tab.root !== undefined ? { root: tab.root } : {}),
+        line: position.line,
+        column: position.column,
+        nonce: Date.now(),
+      });
+    },
+    [layout, claimScrollDriver],
+  );
   // A validated terminal link (SPEC §7): a file opens an editor tab — an
   // `external` one when it lies outside the worktree (15.2) — and a DIRECTORY
   // binds the file tree to it as a pinned browse (SPEC §8), surfacing the
@@ -1418,6 +1434,7 @@ function WorkspaceInner() {
           onResize={layout.resize}
           onDropTab={onDropTab}
           onSetTabView={layout.setView}
+          onRevealPreviewSource={revealPreviewSource}
           onNewUntitled={onNewUntitled}
           onRevealFile={revealFileTab}
           onRenameFile={renameFileTab}

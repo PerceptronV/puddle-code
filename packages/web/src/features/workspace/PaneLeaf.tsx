@@ -9,7 +9,7 @@ import { LazyPaneEditorBody } from '../editor/lazy-editor-parts';
 import type { EditorTab, EditorView } from '../editor/editor-tabs';
 import { tabKind } from '../editor/editor-tabs';
 import { previewKind } from '../editor/preview-kind';
-import type { RevealTarget } from './editor-context';
+import type { EditorPosition, RevealTarget } from './editor-context';
 import { useKeepAliveSlot } from './keep-alive';
 import { EnvStrip } from '../env/EnvStrip';
 import { PortsStrip } from '../ports/PortsStrip';
@@ -39,6 +39,7 @@ export function PaneLeaf({
   onScrollDrive,
   onDropTab,
   onSetTabView,
+  onRevealPreviewSource,
   onNewUntitled,
   onRevealFile,
   onRenameFile,
@@ -60,6 +61,8 @@ export function PaneLeaf({
   onDropTab: (leafId: string, ref: TabRef, edge: DropEdge) => void;
   /** Set THIS pane's previewable editor tab's rendered/following mode (SPEC §8). */
   onSetTabView: (leafId: string, ref: TabRef, view: EditorView) => void;
+  /** Reveal a following preview click in its associated ordinary source tab. */
+  onRevealPreviewSource: (leafId: string, tab: EditorTab, position: EditorPosition) => void;
   /** Double-click on the strip's blank tail: open a fresh untitled file here. */
   onNewUntitled: (leaf: LayoutLeaf) => void;
   /** Reveal a path-backed editor tab in Files. */
@@ -226,6 +229,11 @@ export function PaneLeaf({
               scrollDriver={drivesScroll}
               scrollReceiver={scrollReceiver}
               scrollChannel={scrollChannel}
+              onRevealSource={
+                activeEditor?.view === 'linked' || activeEditor?.view === 'locked'
+                  ? (position) => onRevealPreviewSource(leaf.id, activeEditor, position)
+                  : undefined
+              }
             />
           </div>
         )}

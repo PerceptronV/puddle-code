@@ -4,7 +4,7 @@ import type { LayoutLeaf, LayoutNode, Session, TabRef } from '@puddle/shared';
 import { LazyModelRefcount } from '../editor/lazy-editor-parts';
 import type { HeldBuffer } from '../editor/ModelRefcount';
 import { tabKind, type EditorTab, type EditorView } from '../editor/editor-tabs';
-import type { RevealTarget } from './editor-context';
+import type { EditorPosition, RevealTarget } from './editor-context';
 import { flattenTabs, type DropEdge } from './layout-tree';
 import { PaneLeaf } from './PaneLeaf';
 
@@ -27,6 +27,7 @@ export interface TileHandlers {
    * THAT pane only, so one file can be open as source and preview at once.
    */
   onSetTabView: (leafId: string, ref: TabRef, view: EditorView) => void;
+  onRevealPreviewSource: (leafId: string, tab: EditorTab, position: EditorPosition) => void;
   /** Double-click on a strip's blank tail: open a fresh untitled file there. */
   onNewUntitled: (leaf: LayoutLeaf) => void;
   /** Reveal a path-backed editor tab in Files. */
@@ -88,6 +89,7 @@ function TileNode({ node, ...handlers }: { node: LayoutNode } & TileHandlers) {
         onScrollDrive={handlers.onScrollDrive}
         onDropTab={handlers.onDropTab}
         onSetTabView={handlers.onSetTabView}
+        onRevealPreviewSource={handlers.onRevealPreviewSource}
         onNewUntitled={handlers.onNewUntitled}
         onRevealFile={handlers.onRevealFile}
         onRenameFile={handlers.onRenameFile}

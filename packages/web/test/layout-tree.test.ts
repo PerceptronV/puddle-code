@@ -25,6 +25,7 @@ import {
   resizeSplit,
   sameRef,
   setTabView,
+  sourceTabLocation,
   splitLeaf,
   tabRefKey,
   addTabToLeaf,
@@ -802,6 +803,31 @@ describe('following preview slots (SPEC §8)', () => {
       root: '/abs',
       view: 'linked',
     });
+  });
+
+  it('resolves the associated ordinary source tab by leaf and rooted identity', () => {
+    const rooted: TabRef = {
+      type: 'editor',
+      tab: { kind: 'external', session: 's1', path: 'notes.md', root: '/one' },
+    };
+    const otherRoot: TabRef = {
+      type: 'editor',
+      tab: { kind: 'external', session: 's1', path: 'notes.md', root: '/two' },
+    };
+    const first = makeLeaf([rooted]);
+    let tree = splitLeaf(first, first.id, 'right', otherRoot);
+    const second = leafWith(tree, otherRoot);
+    tree = addTabToLeaf(tree, second.id, rooted);
+
+    const target: EditorTab = {
+      kind: 'external',
+      session: 's1',
+      path: 'notes.md',
+      root: '/one',
+      view: 'linked',
+    };
+    expect(sourceTabLocation(tree, target, second.id)?.leafId).toBe(second.id);
+    expect(sourceTabLocation(tree, { ...target, root: '/missing' })).toBeNull();
   });
 
   it('openPreview never replaces a linked slot in the preview position', () => {

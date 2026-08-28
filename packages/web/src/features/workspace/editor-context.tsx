@@ -38,6 +38,8 @@ export interface EditorPosition {
 export interface RevealTarget extends EditorPosition {
   session: string;
   path: string;
+  /** Absolute root for an external file; absent for a worktree file. */
+  root?: string;
   nonce: number;
 }
 

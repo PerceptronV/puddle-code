@@ -381,10 +381,15 @@ export function useEditorBuffer(
   const applyReveal = useCallback(() => {
     const ed = editorRef.current;
     const r = revealRef.current;
-    // Reveals are worktree-scoped (terminal links, search hits): a rooted tab
-    // sharing the same (session, relative path) must never intercept them.
-    if (root !== undefined) return;
-    if (!ed || !r || r.session !== session || r.path !== path) return;
+    if (
+      !ed ||
+      !r ||
+      r.session !== session ||
+      r.path !== path ||
+      (r.root ?? undefined) !== (root ?? undefined)
+    ) {
+      return;
+    }
     ed.revealLineInCenter(r.line);
     ed.setPosition({ lineNumber: r.line, column: r.column ?? 1 });
     ed.focus();

@@ -614,6 +614,47 @@ export function retargetFollowingTabs(tree: LayoutNode, ref: TabRef): LayoutNode
   return changed ? next : tree;
 }
 
+export interface SourceTabLocation {
+  leafId: string;
+  ref: TabRef & { type: 'editor' };
+}
+
+function sameFollowingTarget(tab: EditorTab, target: EditorTab): boolean {
+  return (
+    tab.session === target.session &&
+    tab.path === target.path &&
+    (tab.root ?? '') === (target.root ?? '') &&
+    tabKind(tab) === tabKind(target)
+  );
+}
+
+/** Find the ordinary tab a following preview should reveal back into. */
+export function sourceTabLocation(
+  tree: LayoutNode,
+  target: EditorTab,
+  preferredLeafId?: string,
+): SourceTabLocation | null {
+  const candidates = allLeaves(tree).flatMap((leaf) =>
+    leaf.tabs.flatMap((ref): SourceTabLocation[] => {
+      if (
+        ref.type !== 'editor' ||
+        ref.tab.view === 'linked' ||
+        ref.tab.view === 'locked' ||
+        !sameFollowingTarget(ref.tab as EditorTab, target)
+      ) {
+        return [];
+      }
+      return [{ leafId: leaf.id, ref: ref as TabRef & { type: 'editor' } }];
+    }),
+  );
+  return (
+    candidates.find(({ leafId }) => leafId === preferredLeafId) ??
+    candidates.find(({ ref }) => (ref.tab.view ?? 'source') === 'source') ??
+    candidates[0] ??
+    null
+  );
+}
+
 /** Set the active tab of a leaf. */
 export function focusTab(tree: LayoutNode, leafId: string, key: string): LayoutNode {
   return transformLeaf(tree, leafId, (leaf) =>

@@ -8,7 +8,7 @@ import { DomFindController } from '../find/dom-find';
 import { FindWidget } from '../find/FindWidget';
 import { EMPTY_FIND_RESULT } from '../find/find-types';
 import { useFindControls, type FindControls } from '../find/use-find-controls';
-import { useEditor } from '../workspace/editor-context';
+import { useEditor, type EditorPosition } from '../workspace/editor-context';
 import { bufferKey, subscribe } from './buffer-store';
 import { ConflictSurface } from './ConflictSurface';
 import { useEditorBuffer } from './use-editor-buffer';
@@ -27,6 +27,7 @@ import {
   applyHtmlPreviewScroll,
   createHtmlPreviewScrollChannel,
   htmlPreviewScrollReport,
+  htmlPreviewSourceReveal,
 } from './html-preview-scroll';
 import {
   appendHtmlPreviewFindBridge,
@@ -41,6 +42,8 @@ import {
   previewScrollStore,
   type PreviewScrollTarget,
 } from './preview-scroll-store';
+import { annotateHtmlSourceLocations } from './html-source-locations';
+import { countSourceLines, measureSourceAnchors, sourceLineAtOffset } from './source-anchor-map';
 
 /**
  * The rendered view of a previewable file tab (SPEC §8): markdown as inline,
@@ -57,7 +60,8 @@ import {
  * typeset by KaTeX in BOTH views — for the iframe, before the document is
  * serialised, since that document is on its own once it is. Ctrl/⌘-click on a
  * worktree link in a markdown preview opens that file as an editor tab,
- * previewable files landing straight in their rendered view.
+ * previewable files landing straight in their rendered view; the same gesture
+ * on non-link content in a following preview reveals its associated source.
  */
 export function FilePreview({
   session,
@@ -68,6 +72,7 @@ export function FilePreview({
   scrollDriver = false,
   scrollReceiver = false,
   scrollChannel = 'profile',
+  onRevealSource,
 }: {
   session: string;
   path: string;
@@ -80,6 +85,8 @@ export function FilePreview({
   scrollDriver?: boolean;
   scrollReceiver?: boolean;
   scrollChannel?: string;
+  /** Following previews reveal the associated Monaco source on ctrl/⌘-click. */
+  onRevealSource?: (position: EditorPosition) => void;
 }) {
   const buffer = useEditorBuffer(session, path, null, root, {
     passive: true,
@@ -108,6 +115,7 @@ export function FilePreview({
       scrollReceiver={scrollReceiver}
       scrollChannel={scrollChannel}
       focused={focused}
+      onRevealSource={onRevealSource}
     />
   ) : (
     <HtmlPreview
@@ -119,6 +127,7 @@ export function FilePreview({
       scrollReceiver={scrollReceiver}
       scrollChannel={scrollChannel}
       focused={focused}
+      onRevealSource={onRevealSource}
     />
   );
 }
@@ -157,6 +166,7 @@ function MarkdownPreview({
   scrollReceiver,
   scrollChannel,
   focused,
+  onRevealSource,
 }: {
   session: string;
   path: string;
@@ -166,8 +176,10 @@ function MarkdownPreview({
   scrollReceiver: boolean;
   scrollChannel: string;
   focused: boolean;
+  onRevealSource?: (position: EditorPosition) => void;
 }) {
   const html = useMemo(() => DOMPurify.sanitize(markdownToHtml(text)), [text]);
+  const lineCount = useMemo(() => countSourceLines(text), [text]);
   // React compares dangerouslySetInnerHTML by object identity before writing
   // innerHTML. Keep that object stable across find-result state updates: a
   // redundant rewrite replaces every text node, detaching the CSS Highlight
@@ -211,8 +223,9 @@ function MarkdownPreview({
       driver: scrollDriver,
       receiver: scrollReceiver,
       resizeElements: [scroller, body],
+      sourceAnchors: () => measureSourceAnchors(scroller, body, lineCount),
     });
-  }, [html, session, path, root, scrollChannel, scrollDriver, scrollReceiver]);
+  }, [html, lineCount, session, path, root, scrollChannel, scrollDriver, scrollReceiver]);
 
   // Resolve worktree images (relative or /-absolute) through the authed media
   // endpoint: image elements carry no bearer header, so the bytes travel as a
@@ -284,20 +297,31 @@ function MarkdownPreview({
   const { openFile } = useEditor();
   const onClick = (e: MouseEvent<HTMLDivElement>) => {
     const anchor = (e.target as HTMLElement).closest('a');
-    if (!anchor) return;
-    const href = anchor.getAttribute('href') ?? '';
-    if (/^https?:/i.test(href)) return;
+    if (anchor) {
+      const href = anchor.getAttribute('href') ?? '';
+      if (/^https?:/i.test(href)) return;
+      e.preventDefault();
+      if (!e.metaKey && !e.ctrlKey) return;
+      const resolved = resolvePreviewAsset(path, href);
+      if (!resolved) return;
+      // Inside an external (rooted) preview the link resolves against the SAME
+      // root — a `file` tab would resolve it against the worktree and open a
+      // different file, or none.
+      openFile(session, resolved, undefined, {
+        ...(previewKind(resolved) ? { view: 'preview' as const } : {}),
+        ...(root !== undefined ? { root } : {}),
+      });
+      return;
+    }
+    if ((!e.metaKey && !e.ctrlKey) || !onRevealSource) return;
+    const scroller = scrollerRef.current;
+    const body = bodyRef.current;
+    if (!scroller || !body) return;
+    const offset = e.clientY - scroller.getBoundingClientRect().top + scroller.scrollTop;
+    const sourceLine = sourceLineAtOffset(measureSourceAnchors(scroller, body, lineCount), offset);
+    if (sourceLine === null) return;
     e.preventDefault();
-    if (!e.metaKey && !e.ctrlKey) return;
-    const resolved = resolvePreviewAsset(path, href);
-    if (!resolved) return;
-    // Inside an external (rooted) preview the link resolves against the SAME
-    // root — a `file` tab would resolve it against the worktree and open a
-    // different file, or none.
-    openFile(session, resolved, undefined, {
-      ...(previewKind(resolved) ? { view: 'preview' as const } : {}),
-      ...(root !== undefined ? { root } : {}),
-    });
+    onRevealSource({ line: editorLine(sourceLine, lineCount) });
   };
 
   // The preview is the editor's rendered view, so it follows the editor font
@@ -348,6 +372,7 @@ function HtmlPreview({
   scrollReceiver,
   scrollChannel,
   focused,
+  onRevealSource,
 }: {
   session: string;
   path: string;
@@ -357,6 +382,7 @@ function HtmlPreview({
   scrollReceiver: boolean;
   scrollChannel: string;
   focused: boolean;
+  onRevealSource?: (position: EditorPosition) => void;
 }) {
   const [doc, setDoc] = useState<string | null>(null);
   // Resolved path → data-URI promise, per mount: an edit re-inlines the
@@ -383,6 +409,7 @@ function HtmlPreview({
     () => ({ session, path, root }),
     [session, path, root],
   );
+  const lineCount = useMemo(() => countSourceLines(text), [text]);
 
   useEffect(() => {
     let cancelled = false;
@@ -420,39 +447,48 @@ function HtmlPreview({
   useEffect(() => {
     if (!scrollReceiver) return;
     return previewScrollStore.subscribe(scrollChannel, target, (position) => {
-      applyHtmlPreviewScroll(
-        iframeRef.current?.contentWindow ?? null,
-        bridgeChannel,
-        position.ratio,
-      );
+      applyHtmlPreviewScroll(iframeRef.current?.contentWindow ?? null, bridgeChannel, position);
     });
   }, [scrollReceiver, scrollChannel, target, bridgeChannel]);
 
   useEffect(() => {
-    if (!scrollDriver && !scrollReceiver) return;
+    if (!scrollDriver && !scrollReceiver && !onRevealSource) return;
     const onMessage = (event: MessageEvent<unknown>) => {
       const report = htmlPreviewScrollReport(
         event,
         iframeRef.current?.contentWindow ?? null,
         bridgeChannel,
       );
-      if (!report) return;
-      if (scrollDriver) {
-        previewScrollStore.publish(scrollChannel, target, report.ratio);
-      } else if (report.layout) {
-        const current = previewScrollStore.get(scrollChannel, target);
-        if (current) {
-          applyHtmlPreviewScroll(
-            iframeRef.current?.contentWindow ?? null,
-            bridgeChannel,
-            current.ratio,
-          );
+      if (report) {
+        if (scrollDriver) {
+          previewScrollStore.publish(scrollChannel, target, report.ratio, report.sourceLine);
+        } else if (report.layout) {
+          const current = previewScrollStore.get(scrollChannel, target);
+          if (current) {
+            applyHtmlPreviewScroll(
+              iframeRef.current?.contentWindow ?? null,
+              bridgeChannel,
+              current,
+            );
+          }
         }
       }
+      const reveal = onRevealSource
+        ? htmlPreviewSourceReveal(event, iframeRef.current?.contentWindow ?? null, bridgeChannel)
+        : null;
+      if (reveal) onRevealSource?.({ line: editorLine(reveal.line, lineCount) });
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [scrollDriver, scrollReceiver, scrollChannel, target, bridgeChannel]);
+  }, [
+    scrollDriver,
+    scrollReceiver,
+    scrollChannel,
+    target,
+    bridgeChannel,
+    onRevealSource,
+    lineCount,
+  ]);
 
   if (doc === null) return null; // first inline pass; later passes keep the old doc up
   return (
@@ -475,7 +511,7 @@ function HtmlPreview({
               applyHtmlPreviewScroll(
                 iframeRef.current?.contentWindow ?? null,
                 bridgeChannel,
-                current.ratio,
+                current,
               );
             }
           }
@@ -503,7 +539,7 @@ async function inlineWorktreeAssets(
   bridgeChannel?: string,
   findChannel?: string,
 ): Promise<string> {
-  const parsed = new DOMParser().parseFromString(text, 'text/html');
+  const parsed = new DOMParser().parseFromString(annotateHtmlSourceLocations(text), 'text/html');
   // The preview follows the editor font size, as a ZERO-specificity default
   // (`:where`), prepended so any stylesheet the document carries wins.
   if (baseFontSize !== undefined) {
@@ -553,6 +589,10 @@ async function inlineWorktreeAssets(
   if (bridgeChannel) appendHtmlPreviewScrollBridge(parsed, bridgeChannel);
   if (findChannel) appendHtmlPreviewFindBridge(parsed, findChannel);
   return `<!doctype html>${parsed.documentElement.outerHTML}`;
+}
+
+function editorLine(sourceLine: number, lineCount: number): number {
+  return Math.min(lineCount, Math.max(1, Math.floor(sourceLine)));
 }
 
 /**

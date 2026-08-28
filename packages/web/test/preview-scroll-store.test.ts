@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { bindMonacoPreviewScroll } from '../src/features/editor/monaco-preview-scroll';
+import {
+  bindMonacoPreviewScroll,
+  monacoScrollTopForSourceLine,
+  sourceLineAtMonacoScrollTop,
+} from '../src/features/editor/monaco-preview-scroll';
 import {
   bindPreviewScrollElement,
   createAnimationFramePublisher,
@@ -92,6 +96,15 @@ describe('PreviewScrollStore', () => {
     expect(seen).toEqual([0.25, 0.75]);
     expect(store.get('profile', { ...target, root: '/outside' })?.ratio).toBe(0.7);
     expect(store.get('profile', target)?.ratio).toBe(1);
+    expect(store.get('profile', target)?.sourceLine).toBeNull();
+  });
+
+  it('retains a finite semantic line beside the ratio', () => {
+    const store = new PreviewScrollStore();
+    store.publish('profile', target, 0.4, 18.5);
+    expect(store.get('profile', target)).toMatchObject({ ratio: 0.4, sourceLine: 18.5 });
+    store.publish('profile', target, 0.4, Number.NaN);
+    expect(store.get('profile', target)?.sourceLine).toBeNull();
   });
 });
 
@@ -151,15 +164,65 @@ describe('Markdown scroll binding', () => {
     expect(receiver.scrollTop).toBe(450);
     unbindReceiver();
   });
+
+  it('uses source anchors instead of equal-height progress after reflow', () => {
+    const store = new PreviewScrollStore();
+    const driver = new FakeScroller();
+    driver.scrollTop = 250;
+    const unbindDriver = bindPreviewScrollElement(driver, {
+      channel: 'profile',
+      target,
+      driver: true,
+      receiver: false,
+      sourceAnchors: () => [
+        { line: 1, offset: 0 },
+        { line: 50, offset: 250 },
+        { line: 100, offset: 600 },
+      ],
+      store,
+    });
+    flushFrames();
+    expect(store.get('profile', target)?.sourceLine).toBe(50);
+    unbindDriver();
+
+    const receiver = new FakeScroller();
+    receiver.scrollHeight = 1_000;
+    const unbindReceiver = bindPreviewScrollElement(receiver, {
+      channel: 'profile',
+      target,
+      driver: false,
+      receiver: true,
+      sourceAnchors: () => [
+        { line: 1, offset: 0 },
+        { line: 50, offset: 600 },
+        { line: 100, offset: 1_000 },
+      ],
+      store,
+    });
+    expect(receiver.scrollTop).toBe(600); // ratio-only would be 450
+    unbindReceiver();
+  });
 });
 
 describe('Monaco scroll binding', () => {
+  it('keeps fractional progress through a wrapped final source line', () => {
+    const editor = {
+      getModel: () => ({ getLineCount: () => 1 }),
+      getTopForLineNumber: () => 0,
+      getScrollHeight: () => 400,
+    };
+    expect(sourceLineAtMonacoScrollTop(editor as never, 200)).toBe(1.5);
+    expect(monacoScrollTopForSourceLine(editor as never, 1.5)).toBe(200);
+  });
+
   it('publishes driver changes and applies receiver changes immediately', () => {
     const store = new PreviewScrollStore();
     const listeners = {
       scroll: new Set<() => void>(),
       model: new Set<() => void>(),
+      modelContent: new Set<() => void>(),
       layout: new Set<() => void>(),
+      contentSize: new Set<() => void>(),
     };
     let scrollTop = 250;
     let scrollHeight = 600;
@@ -174,11 +237,15 @@ describe('Monaco scroll binding', () => {
     const editor = {
       getScrollTop: () => scrollTop,
       getScrollHeight: () => scrollHeight,
+      getModel: () => ({ getLineCount: () => 101 }),
+      getTopForLineNumber: (line: number) => (line - 1) * 5,
       getLayoutInfo: () => ({ height: viewportHeight }),
       setScrollTop,
       onDidScrollChange: (callback: () => void) => register(listeners.scroll, callback),
       onDidChangeModel: (callback: () => void) => register(listeners.model, callback),
+      onDidChangeModelContent: (callback: () => void) => register(listeners.modelContent, callback),
       onDidLayoutChange: (callback: () => void) => register(listeners.layout, callback),
+      onDidContentSizeChange: (callback: () => void) => register(listeners.contentSize, callback),
     };
 
     const unbindDriver = bindMonacoPreviewScroll(
@@ -188,13 +255,14 @@ describe('Monaco scroll binding', () => {
     );
     flushFrames();
     expect(store.get('profile', target)?.ratio).toBe(0.5);
+    expect(store.get('profile', target)?.sourceLine).toBe(51);
     scrollTop = 500;
     for (const listener of listeners.scroll) listener();
     flushFrames();
     expect(store.get('profile', target)?.ratio).toBe(1);
     unbindDriver();
 
-    store.publish('profile', target, 0.5);
+    store.publish('profile', target, 0.5, null);
     scrollHeight = 1_000;
     viewportHeight = 200;
     const unbindReceiver = bindMonacoPreviewScroll(

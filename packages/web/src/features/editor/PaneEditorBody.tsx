@@ -2,7 +2,7 @@
 // <Editor> (see EditorZone.tsx / monaco-setup.ts). Keep this first.
 import './monaco-setup';
 
-import type { RevealTarget } from '../workspace/editor-context';
+import type { EditorPosition, RevealTarget } from '../workspace/editor-context';
 import { CodeEditor } from './CodeEditor';
 import { CommitTabBody } from '../history/CommitTabBody';
 import { DiffTabBody } from '../diff/DiffTabBody';
@@ -27,6 +27,7 @@ export function PaneEditorBody({
   scrollDriver,
   scrollReceiver,
   scrollChannel,
+  onRevealSource,
 }: {
   tab: EditorTab;
   reveal: RevealTarget | null;
@@ -34,6 +35,7 @@ export function PaneEditorBody({
   scrollDriver: boolean;
   scrollReceiver: boolean;
   scrollChannel: string;
+  onRevealSource?: (position: EditorPosition) => void;
 }) {
   const kind = tabKind(tab);
   // A following tab renders like a preview of whatever it currently targets.
@@ -100,6 +102,7 @@ export function PaneEditorBody({
           scrollDriver={scrollDriver}
           scrollReceiver={scrollReceiver}
           scrollChannel={scrollChannel}
+          onRevealSource={onRevealSource}
         />
       );
     }
@@ -140,6 +143,7 @@ export function PaneEditorBody({
         scrollDriver={scrollDriver}
         scrollReceiver={scrollReceiver}
         scrollChannel={scrollChannel}
+        onRevealSource={onRevealSource}
       />
     );
   }

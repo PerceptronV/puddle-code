@@ -8,3 +8,11 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Added
+
+- Reveal the associated rooted source-editor line when a linked or locked Markdown/HTML preview is Ctrl/Command-clicked.
+
+### Changed
+
+- Align locked Markdown and HTML previews by parser-derived source lines across wrapping, media, and reflow, with proportional progress as a safe fallback.

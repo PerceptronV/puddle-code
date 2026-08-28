@@ -1,3 +1,5 @@
+import { offsetAtSourceLine, sourceLineAtOffset, type SourceAnchor } from './source-anchor-map';
+
 export interface PreviewScrollTarget {
   session: string;
   path: string;
@@ -6,6 +8,8 @@ export interface PreviewScrollTarget {
 
 export interface PreviewScrollPosition {
   ratio: number;
+  /** One-based semantic source line; null when a surface has no usable map. */
+  sourceLine: number | null;
   revision: number;
 }
 
@@ -42,18 +46,29 @@ function storeKey(channel: string, target: PreviewScrollTarget): string {
 }
 
 /**
- * Browser-local proportional-scroll state (SPEC §8). One module instance is
- * one browser window; `channel` further isolates the profile-wide tree from
- * every project-local tree in that window. Nothing here persists or crosses
- * the daemon protocol.
+ * Browser-local semantic scroll state (SPEC §8): source line for accurate
+ * alignment, ratio for exact endpoints and unmapped fallbacks. One module
+ * instance is one browser window; `channel` further isolates the profile-wide
+ * tree from every project-local tree. Nothing persists or crosses the daemon
+ * protocol.
  */
 export class PreviewScrollStore {
   private readonly positions = new Map<string, PreviewScrollPosition>();
   private readonly listeners = new Map<string, Set<PreviewScrollListener>>();
   private revision = 0;
 
-  publish(channel: string, target: PreviewScrollTarget, ratio: number): PreviewScrollPosition {
-    const position = { ratio: clampScrollRatio(ratio), revision: ++this.revision };
+  publish(
+    channel: string,
+    target: PreviewScrollTarget,
+    ratio: number,
+    sourceLine: number | null = null,
+  ): PreviewScrollPosition {
+    const position = {
+      ratio: clampScrollRatio(ratio),
+      sourceLine:
+        sourceLine !== null && Number.isFinite(sourceLine) ? Math.max(1, sourceLine) : null,
+      revision: ++this.revision,
+    };
     const key = storeKey(channel, target);
     this.positions.set(key, position);
     for (const listener of this.listeners.get(key) ?? []) listener(position);
@@ -130,12 +145,34 @@ export interface PreviewScrollBinding {
   receiver: boolean;
   /** Observe the outer viewport and inner content so delayed reflow reapplies. */
   resizeElements?: Element[];
+  /** Current parser-annotated source/rendered map, measured after layout. */
+  sourceAnchors?: () => readonly SourceAnchor[];
   store?: PreviewScrollStore;
 }
 
+/** Resolve semantic line position first, retaining ratio as the safe fallback. */
+export function scrollTopForPosition(
+  position: Pick<PreviewScrollPosition, 'ratio' | 'sourceLine'>,
+  scrollHeight: number,
+  viewportHeight: number,
+  sourceAnchors?: readonly SourceAnchor[],
+): number {
+  const maximum = Math.max(0, scrollHeight - viewportHeight);
+  // Exact endpoints matter more than sparse parser maps: both surfaces should
+  // reach the beginning/end together even when the final block is very tall.
+  if (position.ratio <= 0) return 0;
+  if (position.ratio >= 1) return maximum;
+  if (position.sourceLine !== null && sourceAnchors) {
+    const offset = offsetAtSourceLine(sourceAnchors, position.sourceLine);
+    if (offset !== null) return Math.min(maximum, Math.max(0, offset));
+  }
+  return scrollTopForRatio(position.ratio, scrollHeight, viewportHeight);
+}
+
 /**
- * Bind a Markdown-like DOM scroller. Drivers publish at most once per frame;
- * receivers never listen to their own scroll and therefore cannot feed back.
+ * Bind a Markdown-like DOM scroller. Parser anchors are measured on reflow,
+ * then reused while scrolling; drivers publish at most once per frame and
+ * receivers never listen to their own scroll, so they cannot feed back.
  * Logical focus promotes a receiving source/locked surface to the driver
  * before user scrolling, so the binding itself can remain strictly one-way.
  */
@@ -148,15 +185,17 @@ export function bindPreviewScrollElement(
   }
   const store = binding.store ?? previewScrollStore;
   let current: PreviewScrollPosition | undefined;
+  let sourceAnchors = binding.sourceAnchors?.();
   let unsubscribe: () => void = () => undefined;
   let frames: AnimationFramePublisher | undefined;
 
   const apply = (position: PreviewScrollPosition) => {
     current = position;
-    element.scrollTop = scrollTopForRatio(
-      position.ratio,
+    element.scrollTop = scrollTopForPosition(
+      position,
       element.scrollHeight,
       element.clientHeight,
+      sourceAnchors,
     );
   };
 
@@ -166,17 +205,22 @@ export function bindPreviewScrollElement(
     unsubscribe = store.subscribe(binding.channel, binding.target, apply);
   } else if (binding.driver) {
     frames = createAnimationFramePublisher(() => {
-      store.publish(
-        binding.channel,
-        binding.target,
-        normalisedScrollRatio(element.scrollTop, element.scrollHeight, element.clientHeight),
+      const ratio = normalisedScrollRatio(
+        element.scrollTop,
+        element.scrollHeight,
+        element.clientHeight,
       );
+      const sourceLine = sourceAnchors
+        ? sourceLineAtOffset(sourceAnchors, element.scrollTop)
+        : null;
+      store.publish(binding.channel, binding.target, ratio, sourceLine);
     });
     element.addEventListener('scroll', frames.schedule, { passive: true });
     frames.schedule();
   }
 
   const observer = new ResizeObserver(() => {
+    sourceAnchors = binding.sourceAnchors?.();
     if (binding.receiver && current) apply(current);
     else if (binding.driver) frames?.schedule();
   });

@@ -4,16 +4,31 @@ import { markdownToHtml } from '../src/features/editor/markdown';
 describe('markdownToHtml', () => {
   it('renders headings, emphasis, and links', () => {
     const html = markdownToHtml('# Title\n\nSome *very* [linked](https://example.com) text.');
-    expect(html).toContain('<h1>Title</h1>');
+    expect(html).toContain('>Title</h1>');
     expect(html).toContain('<em>very</em>');
     expect(html).toContain('<a href="https://example.com">linked</a>');
   });
 
   it('renders GFM tables and fenced code', () => {
     const html = markdownToHtml('| a | b |\n| - | - |\n| 1 | 2 |\n\n```js\nconst x = 1;\n```');
-    expect(html).toContain('<table>');
+    expect(html).toContain('<table ');
     expect(html).toContain('<td>1</td>');
-    expect(html).toContain('<code class="language-js">');
+    expect(html).toContain('class="language-js"');
+  });
+
+  it('annotates rendered blocks with one-based source ranges', () => {
+    const html = markdownToHtml('# First\n\nParagraph\ncontinued');
+    expect(html).toContain('data-puddle-source-line="1"');
+    expect(html).toContain('data-puddle-source-end-line="2"');
+    expect(html).toContain('data-puddle-source-line="3"');
+    expect(html).toContain('data-puddle-source-end-line="5"');
+  });
+
+  it('keeps GFM autolinks and task-list checkboxes', () => {
+    expect(markdownToHtml('https://example.com')).toContain('<a href="https://example.com">');
+    const task = markdownToHtml('- [x] shipped\n- [ ] pending');
+    expect(task).toContain('<input type="checkbox" disabled checked>');
+    expect(task).toContain('<input type="checkbox" disabled>');
   });
 
   it('does not treat single newlines as hard breaks (breaks: false)', () => {

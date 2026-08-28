@@ -1,5 +1,5 @@
 import { Suspense, lazy, type ComponentType } from 'react';
-import type { RevealTarget } from '../workspace/editor-context';
+import type { EditorPosition, RevealTarget } from '../workspace/editor-context';
 import type { EditorTab, EditorTabKind } from './editor-tabs';
 import type { HeldBuffer } from './ModelRefcount';
 
@@ -23,6 +23,7 @@ type BodyProps = {
   scrollDriver: boolean;
   scrollReceiver: boolean;
   scrollChannel: string;
+  onRevealSource?: (position: EditorPosition) => void;
 };
 type RefcountProps = { buffers: HeldBuffer[] };
 
