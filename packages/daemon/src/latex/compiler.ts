@@ -41,8 +41,14 @@ export async function compileLatex(options: CompileOptions): Promise<LatexBuildR
   const jobName = basename(options.source.absolute, extname(options.source.absolute));
   const pdfPath = join(options.buildDir, `${jobName}.pdf`);
   const synctexPath = join(options.buildDir, `${jobName}.synctex.gz`);
+  const makefileRulesPath = join(options.buildDir, `${jobName}.d`);
   const logPath = join(options.buildDir, 'build.log');
-  for (const stale of [pdfPath, synctexPath, join(options.buildDir, `${jobName}.fls`)]) {
+  for (const stale of [
+    pdfPath,
+    synctexPath,
+    join(options.buildDir, `${jobName}.fls`),
+    makefileRulesPath,
+  ]) {
     if (existsSync(stale)) unlinkSync(stale);
   }
   const sourceDirectory = dirname(options.source.absolute);
@@ -124,6 +130,8 @@ export async function compileLatex(options: CompileOptions): Promise<LatexBuildR
         '--keep-logs',
         '--keep-intermediates',
         '--untrusted',
+        '--makefile-rules',
+        makefileRulesPath,
         options.source.absolute,
       ],
       dirname(options.source.absolute),
@@ -170,7 +178,12 @@ export async function compileLatex(options: CompileOptions): Promise<LatexBuildR
     compiler,
     pdfPath,
     synctexPath: existsSync(synctexPath) ? synctexPath : null,
-    dependencies: flsDependencies(join(options.buildDir, `${jobName}.fls`)),
+    dependencies: [
+      ...new Set([
+        ...flsDependencies(join(options.buildDir, `${jobName}.fls`)),
+        ...makefileDependencies(makefileRulesPath),
+      ]),
+    ],
   };
 }
 
@@ -272,4 +285,68 @@ function flsDependencies(path: string): string[] {
     if (input) dependencies.add(input);
   }
   return [...dependencies];
+}
+
+/** Parse Tectonic's `--makefile-rules` dependency file without losing escaped paths. */
+function makefileDependencies(path: string): string[] {
+  if (!existsSync(path)) return [];
+  const dependencies = new Set<string>();
+  const logicalLines = readFileSync(path, 'utf8')
+    .replace(/\\\r?\n/g, ' ')
+    .split(/\r?\n/);
+  for (const line of logicalLines) {
+    const colon = ruleColon(line);
+    if (colon < 0) continue;
+    for (const dependency of makefileWords(line.slice(colon + 1))) {
+      if (dependency) dependencies.add(dependency);
+    }
+  }
+  return [...dependencies];
+}
+
+/** The rule separator is an unescaped colon followed by whitespace/end, not a drive colon. */
+function ruleColon(line: string): number {
+  for (let index = 0; index < line.length; index += 1) {
+    if (line[index] !== ':' || isEscaped(line, index)) continue;
+    const next = line[index + 1];
+    if (next === undefined || /\s/.test(next)) return index;
+  }
+  return -1;
+}
+
+function isEscaped(value: string, index: number): boolean {
+  let slashes = 0;
+  for (let cursor = index - 1; cursor >= 0 && value[cursor] === '\\'; cursor -= 1) slashes += 1;
+  return slashes % 2 === 1;
+}
+
+function makefileWords(value: string): string[] {
+  const words: string[] = [];
+  let word = '';
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index]!;
+    if (char === '#' && !isEscaped(value, index)) break;
+    if (char === '\\') {
+      const next = value[index + 1];
+      if (
+        next !== undefined &&
+        (/\s/.test(next) || next === '\\' || next === '#' || next === ':')
+      ) {
+        word += next;
+        index += 1;
+      } else {
+        // Preserve a platform-native separator such as `C:\\project`.
+        word += char;
+      }
+      continue;
+    }
+    if (/\s/.test(char)) {
+      if (word) words.push(word);
+      word = '';
+      continue;
+    }
+    word += char;
+  }
+  if (word) words.push(word);
+  return words;
 }

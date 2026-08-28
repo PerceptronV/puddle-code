@@ -258,12 +258,23 @@ describe('LatexProvider', () => {
 
   it('prefers Tectonic when latexmk is absent', async () => {
     const sourceRoot = mkdtempSync(join(tmpdir(), 'puddle-tectonic-project-'));
+    mkdirSync(join(sourceRoot, 'sections with spaces'));
     writeFileSync(join(sourceRoot, 'paper.tex'), '\\documentclass{article}\n');
+    writeFileSync(join(sourceRoot, 'sections with spaces', 'result.tex'), 'result\n');
+    writeFileSync(join(sourceRoot, 'references.bib'), '@misc{puddle, title={Puddle}}\n');
     const runner: LatexCommandRunner = async (command) => {
       const out = command.args[command.args.indexOf('--outdir') + 1];
       if (!out) throw new Error('missing outdir');
+      const rules = command.args[command.args.indexOf('--makefile-rules') + 1];
+      if (!rules) throw new Error('missing makefile rules path');
       mkdirSync(out, { recursive: true });
       writeFileSync(join(out, 'paper.pdf'), '%PDF-fake');
+      writeFileSync(join(out, 'generated.sty'), 'managed input\n');
+      const escaped = (path: string) => path.replaceAll('\\', '\\\\').replaceAll(' ', '\\ ');
+      writeFileSync(
+        rules,
+        `${escaped(join(out, 'paper.pdf'))}: ${escaped(join(sourceRoot, 'paper.tex'))} ${escaped(join(sourceRoot, 'sections with spaces', 'result.tex'))} \\\n ${escaped(join(sourceRoot, 'references.bib'))} ${escaped(join(out, 'generated.sty'))} /usr/share/texmf/article.cls\n`,
+      );
       return { exitCode: 0, stdout: '', stderr: '' };
     };
     const provider = new LatexProvider({
@@ -273,6 +284,13 @@ describe('LatexProvider', () => {
     });
     const built = await provider.run({ session: NO_SESSION, root: sourceRoot, path: 'paper.tex' });
     expect(built.executor).toBe('tectonic');
+    expect(built.dependencies.sort()).toEqual(
+      [
+        join(sourceRoot, 'paper.tex'),
+        join(sourceRoot, 'sections with spaces', 'result.tex'),
+        join(sourceRoot, 'references.bib'),
+      ].sort(),
+    );
     const pdf = built.artifacts[0]?.file;
     if (!pdf?.root) throw new Error('compiled PDF has no root');
     expect(readFileSync(join(pdf.root, 'build.log'), 'utf8')).toContain('--untrusted');
