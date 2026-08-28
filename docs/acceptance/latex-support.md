@@ -146,7 +146,9 @@ Repeat with source/root paths containing spaces and non-ASCII characters.
    emitted `pdf.worker*.mjs` request succeeds with a JavaScript content type;
    module workers must never be served as `application/octet-stream`.
 2. Resize the pane and use a multi-page document. Pages remain fitted and crisp
-   on a HiDPI display; later pages paint as they approach the viewport.
+   on a HiDPI display; later pages paint as they approach the viewport. Use the
+   −/+ controls to move between 50–300% of fit width, scroll horizontally at
+   larger sizes, then click the percentage to restore fit width.
 3. Command-click on macOS or Ctrl-click elsewhere on visible text in the PDF.
    Puddle opens or reuses the corresponding source tab and places Monaco's caret
    at the returned line. Click text emitted by `sections/result.tex`: navigation

@@ -4,6 +4,37 @@ export interface PdfPagePoint {
   y: number;
 }
 
+export const PDF_ZOOM_LEVELS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3] as const;
+
+/** Move to the next explicit zoom stop; 100% means fit to the pane width. */
+export function adjacentPdfZoom(current: number, direction: 'in' | 'out'): number {
+  if (direction === 'in') {
+    return (
+      PDF_ZOOM_LEVELS.find((level) => level > current + Number.EPSILON) ?? PDF_ZOOM_LEVELS.at(-1)!
+    );
+  }
+  return (
+    [...PDF_ZOOM_LEVELS].reverse().find((level) => level < current - Number.EPSILON) ??
+    PDF_ZOOM_LEVELS[0]
+  );
+}
+
+/**
+ * HiDPI output scale with a pixel budget. Zoom changes CSS size independently,
+ * so a large page remains usable without allocating an unbounded canvas.
+ */
+export function pdfRenderOutputScale(
+  cssWidth: number,
+  cssHeight: number,
+  devicePixelRatio: number,
+  maxPixels = 12_000_000,
+): number {
+  const preferred = Math.max(1, Math.min(devicePixelRatio || 1, 2.5));
+  const cssPixels = cssWidth * cssHeight;
+  if (cssPixels <= 0 || maxPixels <= 0) return 1;
+  return Math.max(0.25, Math.min(preferred, Math.sqrt(maxPixels / cssPixels)));
+}
+
 /**
  * Converts a pointer position on a fitted PDF canvas to the coordinates
  * accepted by SyncTeX. `pageWidth` / `pageHeight` are the PDF.js viewport at

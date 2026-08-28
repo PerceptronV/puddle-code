@@ -8,6 +8,7 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from 'react';
 import { toast } from 'sonner';
+import { ZoomIn, ZoomOut } from 'lucide-react';
 import type {
   PDFDocumentLoadingTask,
   PDFDocumentProxy,
@@ -15,7 +16,12 @@ import type {
   RenderTask,
 } from 'pdfjs-dist';
 import { api } from '../../lib/api';
-import { pdfPagePoint } from './pdf-coordinates';
+import {
+  adjacentPdfZoom,
+  PDF_ZOOM_LEVELS,
+  pdfPagePoint,
+  pdfRenderOutputScale,
+} from './pdf-coordinates';
 
 interface PdfViewerProps {
   url: string;
@@ -42,9 +48,36 @@ export function PdfViewer({
   onDownload,
 }: PdfViewerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const zoomFrameRef = useRef(0);
   const [document, setDocument] = useState<PDFDocumentProxy | null>(null);
   const [error, setError] = useState(false);
+  const [zoom, setZoom] = useState(1);
   const width = useAvailablePageWidth(scrollRef);
+  const minimumZoom = PDF_ZOOM_LEVELS[0];
+  const maximumZoom = PDF_ZOOM_LEVELS.at(-1)!;
+
+  const changeZoom = useCallback(
+    (nextZoom: number) => {
+      if (nextZoom === zoom) return;
+      const scroller = scrollRef.current;
+      const horizontalAnchor = scroller
+        ? (scroller.scrollLeft + scroller.clientWidth / 2) / scroller.scrollWidth
+        : 0.5;
+      const verticalAnchor = scroller
+        ? (scroller.scrollTop + scroller.clientHeight / 2) / scroller.scrollHeight
+        : 0;
+      setZoom(nextZoom);
+      cancelAnimationFrame(zoomFrameRef.current);
+      zoomFrameRef.current = requestAnimationFrame(() => {
+        if (!scroller) return;
+        scroller.scrollLeft = horizontalAnchor * scroller.scrollWidth - scroller.clientWidth / 2;
+        scroller.scrollTop = verticalAnchor * scroller.scrollHeight - scroller.clientHeight / 2;
+      });
+    },
+    [zoom],
+  );
+
+  useEffect(() => () => cancelAnimationFrame(zoomFrameRef.current), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -116,25 +149,87 @@ export function PdfViewer({
   }
 
   return (
-    <div ref={scrollRef} className="h-full w-full overflow-auto bg-ground">
-      {!document || width === null ? (
-        <Status>
-          <span className="text-xs text-fg-muted">Loading PDF…</span>
-        </Status>
-      ) : (
-        <div className="flex min-h-full flex-col items-center gap-4 p-4">
-          {Array.from({ length: document.numPages }, (_, index) => (
-            <PdfPage
-              key={index + 1}
-              document={document}
-              pageNumber={index + 1}
-              availableWidth={width}
-              scrollRoot={scrollRef.current}
-              inverseSearch={onRevealSource ? reveal : undefined}
-            />
-          ))}
-        </div>
+    <div className="relative h-full w-full bg-ground">
+      <div ref={scrollRef} className="h-full w-full overflow-auto">
+        {!document || width === null ? (
+          <Status>
+            <span className="text-xs text-fg-muted">Loading PDF…</span>
+          </Status>
+        ) : (
+          <div className="flex min-h-full w-max min-w-full flex-col items-center gap-4 p-4">
+            {Array.from({ length: document.numPages }, (_, index) => (
+              <PdfPage
+                key={index + 1}
+                document={document}
+                pageNumber={index + 1}
+                availableWidth={width * zoom}
+                scrollRoot={scrollRef.current}
+                inverseSearch={onRevealSource ? reveal : undefined}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+      {document && width !== null && (
+        <PdfZoomControls
+          zoom={zoom}
+          minimum={minimumZoom}
+          maximum={maximumZoom}
+          onZoomOut={() => changeZoom(adjacentPdfZoom(zoom, 'out'))}
+          onReset={() => changeZoom(1)}
+          onZoomIn={() => changeZoom(adjacentPdfZoom(zoom, 'in'))}
+        />
       )}
+    </div>
+  );
+}
+
+function PdfZoomControls({
+  zoom,
+  minimum,
+  maximum,
+  onZoomOut,
+  onReset,
+  onZoomIn,
+}: {
+  zoom: number;
+  minimum: number;
+  maximum: number;
+  onZoomOut: () => void;
+  onReset: () => void;
+  onZoomIn: () => void;
+}) {
+  return (
+    <div className="absolute right-3 top-3 z-10 flex items-center gap-0.5 rounded-md bg-surface/90 p-1 shadow-sm backdrop-blur-sm">
+      <button
+        type="button"
+        disabled={zoom <= minimum}
+        onClick={onZoomOut}
+        className="cursor-pointer rounded-sm p-1 text-fg-muted transition-colors hover:bg-elevated hover:text-fg disabled:cursor-default disabled:opacity-40"
+        aria-label="Zoom out"
+        title="Zoom out"
+      >
+        <ZoomOut className="size-3.5" />
+      </button>
+      <button
+        type="button"
+        onClick={onReset}
+        className="min-w-12 cursor-pointer rounded-sm px-1.5 py-1 font-mono text-[11px] tabular-nums text-fg-secondary transition-colors hover:bg-elevated hover:text-fg"
+        aria-label={`Zoom ${Math.round(zoom * 100)}%; reset to fit width`}
+        title="Reset to fit width"
+      >
+        {Math.round(zoom * 100)}%
+      </button>
+      <button
+        type="button"
+        disabled={zoom >= maximum}
+        onClick={onZoomIn}
+        className="cursor-pointer rounded-sm p-1 text-fg-muted transition-colors hover:bg-elevated hover:text-fg disabled:cursor-default disabled:opacity-40"
+        aria-label="Zoom in"
+        title="Zoom in"
+      >
+        <ZoomIn className="size-3.5" />
+      </button>
     </div>
   );
 }
@@ -194,7 +289,11 @@ function PdfPage({
     if (!canvas || !page || !pageSize || !renderReady) return;
     const scale = availableWidth / pageSize.width;
     const cssViewport = page.getViewport({ scale });
-    const outputScale = Math.max(1, Math.min(window.devicePixelRatio || 1, 2.5));
+    const outputScale = pdfRenderOutputScale(
+      cssViewport.width,
+      cssViewport.height,
+      window.devicePixelRatio || 1,
+    );
     const renderViewport = page.getViewport({ scale: scale * outputScale });
 
     renderRef.current?.cancel();

@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Added
+
+- Allow generated LaTeX PDF previews to zoom between 50–300% of fit width and reset from the percentage control.
