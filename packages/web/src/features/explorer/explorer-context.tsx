@@ -10,7 +10,7 @@ import {
 } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import type { GitStatus, Session, TreeResponse } from '@puddle/shared';
+import type { CompilationFileTarget, GitStatus, Session, TreeResponse } from '@puddle/shared';
 import { useDaemonVersion, useHostInfo } from '../../lib/queries';
 import { clearPendingReveal, onReveal } from '../../lib/reveal-in-tree';
 import { isSecondClick, type ClickStamp } from '../../lib/second-click';
@@ -69,6 +69,9 @@ export interface ExplorerCtx {
   /** Spawn a terminal whose shell starts in this worktree-relative directory. */
   onOpenTerminal?: (dir: string) => void;
   activePath: string | null;
+  /** Extensions currently claimed by available daemon compilation providers. */
+  compilableExtensions: ReadonlySet<string>;
+  onOpenCompilationSettings?: (source: CompilationFileTarget) => void;
 
   expanded: ReadonlySet<string>;
   toggle(path: string): void;
@@ -147,6 +150,8 @@ export function ExplorerProvider({
   readOnly = false,
   onOpenFile,
   onOpenTerminal,
+  compilableExtensions,
+  onOpenCompilationSettings,
   activePath,
   children,
 }: {
@@ -161,6 +166,8 @@ export function ExplorerProvider({
   readOnly?: boolean;
   onOpenFile?: (sid: string, path: string, opts?: { preview?: boolean }) => void;
   onOpenTerminal?: (dir: string) => void;
+  compilableExtensions: ReadonlySet<string>;
+  onOpenCompilationSettings?: (source: CompilationFileTarget) => void;
   activePath: string | null;
   children: React.ReactNode;
 }) {
@@ -695,6 +702,8 @@ export function ExplorerProvider({
     onOpenFile,
     onOpenTerminal,
     activePath,
+    compilableExtensions,
+    onOpenCompilationSettings,
     expanded,
     toggle,
     collapseAll,

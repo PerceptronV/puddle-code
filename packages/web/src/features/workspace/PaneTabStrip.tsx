@@ -1,7 +1,13 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Eye, FileCode, Link, LoaderCircle, Lock, Play, Zap, X } from 'lucide-react';
-import type { CompilationMode, LayoutLeaf, Session, TabRef } from '@puddle/shared';
+import type {
+  CompilationFileTarget,
+  CompilationMode,
+  LayoutLeaf,
+  Session,
+  TabRef,
+} from '@puddle/shared';
 import { HoverMarquee } from '../../components/hover-marquee';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utils';
@@ -56,6 +62,7 @@ export function PaneTabStrip({
   compilationRunningKeys,
   onRunCompilation,
   onSetCompilationMode,
+  onOpenCompilationSettings,
   onNewFile,
   onRevealFile,
   onRenameFile,
@@ -73,6 +80,7 @@ export function PaneTabStrip({
   compilationRunningKeys: ReadonlySet<string>;
   onRunCompilation: (tab: EditorTab) => void;
   onSetCompilationMode: (tab: EditorTab, mode: CompilationMode) => void;
+  onOpenCompilationSettings?: (source: CompilationFileTarget) => void;
   /** Double-click on the strip's blank tail: open a fresh untitled file (SPEC §8). */
   onNewFile: () => void;
   /** Reveal a path-backed editor tab in Files, rebasing for external files. */
@@ -162,6 +170,16 @@ export function PaneTabStrip({
               onActivate(ref);
               requestAnimationFrame(() => onSetCompilationMode(ref.tab, mode));
             }}
+            onOpenCompilationSettings={
+              ref.type === 'editor' && onOpenCompilationSettings
+                ? () =>
+                    onOpenCompilationSettings({
+                      session: ref.tab.session,
+                      path: ref.tab.path,
+                      ...(ref.tab.root !== undefined ? { root: ref.tab.root } : {}),
+                    })
+                : undefined
+            }
             onRevealFile={() => ref.type === 'editor' && onRevealFile(ref.tab)}
             onRenameFile={(newName) =>
               ref.type === 'editor' ? onRenameFile(ref.tab, newName) : Promise.resolve(false)
@@ -345,6 +363,7 @@ function PaneTab({
   compilationRunning,
   onRunCompilation,
   onSetCompilationMode,
+  onOpenCompilationSettings,
   onRevealFile,
   onRenameFile,
 }: {
@@ -368,6 +387,7 @@ function PaneTab({
   compilationRunning: boolean;
   onRunCompilation: () => void;
   onSetCompilationMode: (mode: CompilationMode) => void;
+  onOpenCompilationSettings?: () => void;
   onRevealFile: () => void;
   onRenameFile: (newName: string) => Promise<boolean>;
 }) {
@@ -544,6 +564,7 @@ function PaneTab({
           tab={tab.tab}
           directory={fileDirectory}
           onReveal={onRevealFile}
+          onCompilationSettings={compilable ? onOpenCompilationSettings : undefined}
           onRename={() => setRenaming(true)}
           editing={renaming}
         >

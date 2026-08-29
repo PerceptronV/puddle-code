@@ -4,8 +4,11 @@ import type {
   CompilationModeRequest,
   CompilationRunRequest,
   CompilationRunResponse,
+  CompilationSettingsRequest,
+  CompilationSettingsResponse,
   CompilationStatusResponse,
   CompilationTargetRequest,
+  UpdateCompilationSettingsRequest,
 } from '@puddle/shared';
 import { api } from './api';
 
@@ -41,11 +44,25 @@ export function compilationStatus(request: CompilationTargetRequest) {
 /** Live status of one registered eager source. */
 export function useCompilationStatus(request: CompilationTargetRequest, enabled: boolean) {
   return useQuery({
-    queryKey: ['compilation-status', request.provider, request.source],
+    queryKey: ['compilation-status', request],
     queryFn: () => compilationStatus(request),
     enabled,
     refetchInterval: 750,
     refetchIntervalInBackground: false,
     retry: 2,
   });
+}
+
+/** Project/file-specific command slots and their provider defaults. */
+export function useCompilationSettings(request: CompilationSettingsRequest | null) {
+  return useQuery({
+    queryKey: ['compilation-settings', request],
+    queryFn: () => api<CompilationSettingsResponse>('POST', '/api/compilation/settings', request!),
+    enabled: request !== null,
+    staleTime: 30_000,
+  });
+}
+
+export function updateCompilationSettings(request: UpdateCompilationSettingsRequest) {
+  return api<CompilationSettingsResponse>('PUT', '/api/compilation/settings', request);
 }

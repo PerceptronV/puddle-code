@@ -38,8 +38,17 @@ export function CompilationWatcher({
         ...(target.source.root !== undefined ? { root: target.source.root } : {}),
       },
       ...(target.provider !== undefined ? { provider: target.provider } : {}),
+      ...(target.profile_id !== undefined ? { profile_id: target.profile_id } : {}),
+      ...(target.project_id !== undefined ? { project_id: target.project_id } : {}),
     }),
-    [target.provider, target.source.session, target.source.path, target.source.root],
+    [
+      target.provider,
+      target.profile_id,
+      target.project_id,
+      target.source.session,
+      target.source.path,
+      target.source.root,
+    ],
   );
 
   useEffect(() => {

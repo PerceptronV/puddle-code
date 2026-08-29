@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { CornerLeftUp, Undo2 } from 'lucide-react';
-import type { Session } from '@puddle/shared';
+import type { CompilationFileTarget, Session } from '@puddle/shared';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { ExplorerProvider } from './explorer-context';
 import { FileExplorer } from './FileExplorer';
@@ -31,6 +31,8 @@ export function BrowseTree({
   onReset,
   onOpenFile,
   activePath,
+  compilableExtensions,
+  onOpenCompilationSettings,
 }: {
   session: Session;
   root: string;
@@ -47,6 +49,8 @@ export function BrowseTree({
   onOpenFile: (path: string, opts?: { preview?: boolean }) => void;
   /** Path of the active editor tab when it is a file under this root. */
   activePath: string | null;
+  compilableExtensions: ReadonlySet<string>;
+  onOpenCompilationSettings?: (source: CompilationFileTarget) => void;
 }) {
   return (
     // Keyed by root: walking up is a different tree, so its expansion,
@@ -57,6 +61,8 @@ export function BrowseTree({
       root={root}
       readOnly={readOnly}
       onOpenFile={(_sid, path, opts) => onOpenFile(path, opts)}
+      compilableExtensions={compilableExtensions}
+      onOpenCompilationSettings={onOpenCompilationSettings}
       activePath={activePath}
     >
       {boundHeader}

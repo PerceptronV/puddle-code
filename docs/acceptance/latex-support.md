@@ -67,6 +67,20 @@ An accepted result cites \cite{puddle}.
    conventional location but absent from that reduced `PATH`.
 5. On a no-tool host, TeX remains an ordinary editable source file without
    compile controls. Puddle does not attempt to install a distribution.
+6. Right-click a TeX file in Files, then its open source tab. Both menus offer
+   **Compilation Settings…** and open the same compact LaTeX dialog. **When
+   clicked** explains the play icon; **Upon file change** explains the eager
+   initial run and later on-disk dependency changes.
+7. Both fields initially contain the discovered host command. Give each slot a
+   distinct valid command template, retaining `{{output_dir}}`, save, and run
+   the play and eager paths separately. Confirm the compiler log shows the
+   corresponding command. Reopen the dialog and confirm both overrides persist;
+   choose **Use default**, save, and confirm only that slot returns to the live
+   provider default.
+8. Browse to and open a TeX file outside the worktree. Save a distinct override,
+   switch tabs/projects and reopen its settings: the rooted external file keeps
+   its own canonical-path setting, while a same-relative-path file elsewhere
+   remains unchanged.
 
 Record the selected executor from `GET /api/compilation/capabilities`. Exercise
 the setups available to the release host matrix:

@@ -8,6 +8,7 @@ import {
   type CompilationFailure,
   type CompilationMode,
   type CompilationRunResponse,
+  type CompilationSettingsRequest,
   type LatexSynctexResponse,
   type LayoutLeaf,
   type SavedLayout,
@@ -22,6 +23,7 @@ import { basename, dirOf, joinPath } from '../explorer/explorer-paths';
 import { tabKind } from '../editor/editor-tabs';
 import { compilationSourceKey, sourceExtension } from '../editor/compilation-kind';
 import { CompilationWatcher } from '../editor/CompilationWatcher';
+import { CompilationSettingsDialog } from '../editor/CompilationSettingsDialog';
 import { clearCompilationDiagnostics } from '../editor/compilation-diagnostics-store';
 import { reportCompilationFailure } from '../editor/compilation-errors';
 import { bumpMediaRefresh } from '../editor/media-refresh-store';
@@ -46,6 +48,7 @@ import { useExplorerTarget } from '../explorer/use-explorer-target';
 import { fileTabRevealTarget } from '../explorer/file-tab-reveal';
 import {
   compilationSupported,
+  compilationSettingsSupported,
   directoryTargetSupported,
   nativeConversationSyncSupported,
   untitledSupported,
@@ -173,7 +176,10 @@ function WorkspaceInner() {
   const saveKey = useHotkeyLabel('editor.save');
   const daemonProtocol = useDaemonVersion().data?.protocol;
   const compilationCapabilities = useCompilationCapabilities(compilationSupported(daemonProtocol));
+  const commandSettingsAvailable = compilationSettingsSupported(daemonProtocol);
   const runCompilation = useRunCompilation();
+  const [compilationSettingsRequest, setCompilationSettingsRequest] =
+    useState<CompilationSettingsRequest | null>(null);
   const [manualCompilationRunningKey, setManualCompilationRunningKey] = useState<string | null>(
     null,
   );
@@ -423,9 +429,21 @@ function WorkspaceInner() {
     (tab: EditorTab) => compilationProviderForTab(tab)?.id,
     [compilationProviderForTab],
   );
+  const compilationScope = useCallback(
+    (sessionId: string) => {
+      if (profileId === undefined) return null;
+      return {
+        profile_id: profileId,
+        project_id:
+          tabSessions.find((session) => session.id === sessionId)?.project_id ?? projectId,
+      };
+    },
+    [profileId, projectId, tabSessions],
+  );
   const compilationTarget = useCallback(
     (tab: EditorTab) => {
       const provider = providerForTab(tab);
+      const scope = compilationScope(tab.session);
       return {
         source: {
           session: tab.session,
@@ -433,9 +451,26 @@ function WorkspaceInner() {
           ...(tab.root !== undefined ? { root: tab.root } : {}),
         } satisfies CompilationFileTarget,
         ...(provider !== undefined ? { provider } : {}),
+        ...(scope ?? {}),
       };
     },
-    [providerForTab],
+    [compilationScope, providerForTab],
+  );
+  const openCompilationSettings = useCallback(
+    (source: CompilationFileTarget) => {
+      if (!commandSettingsAvailable || profileId === undefined) return;
+      const extension = sourceExtension(source.path);
+      const provider =
+        extension === null
+          ? undefined
+          : availableCompilationProviders.find((candidate) =>
+              candidate.extensions.includes(extension),
+            );
+      const scope = compilationScope(source.session);
+      if (!provider || !scope) return;
+      setCompilationSettingsRequest({ source, provider: provider.id, ...scope });
+    },
+    [availableCompilationProviders, commandSettingsAvailable, compilationScope, profileId],
   );
 
   const presentCompilationResult = useCallback(
@@ -1618,6 +1653,8 @@ function WorkspaceInner() {
       target={sidebarTarget}
       browseRequest={browseRequest}
       onFiletreeRootChange={rememberFiletreeRoot}
+      compilableExtensions={compilableExtensions}
+      onOpenCompilationSettings={commandSettingsAvailable ? openCompilationSettings : undefined}
       onOpenFile={openTreeFile}
       onOpenExternalFile={openExternalFile}
       onOpenTerminalIn={openTerminalIn}
@@ -1689,6 +1726,7 @@ function WorkspaceInner() {
           compilationRunningKeys={compilationRunningKeys}
           onRunCompilation={(leafId, tab) => void onRunCompilation(leafId, tab)}
           onSetCompilationMode={onSetCompilationMode}
+          onOpenCompilationSettings={commandSettingsAvailable ? openCompilationSettings : undefined}
           onRevealPreviewSource={revealPreviewSource}
           onRevealCompiledSource={revealCompiledSource}
           onNewUntitled={onNewUntitled}
@@ -1860,6 +1898,10 @@ function WorkspaceInner() {
             profileId={profileId}
             onClose={() => setSavingUntitled(null)}
             onSaved={finishUntitledSave}
+          />
+          <CompilationSettingsDialog
+            request={compilationSettingsRequest}
+            onOpenChange={(open) => !open && setCompilationSettingsRequest(null)}
           />
           <Dialog
             open={discardingUntitled !== null}

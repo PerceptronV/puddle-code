@@ -44,6 +44,7 @@ export function FileTabContextMenu({
   tab,
   directory,
   onReveal,
+  onCompilationSettings,
   onRename,
   editing,
   children,
@@ -52,6 +53,7 @@ export function FileTabContextMenu({
   /** Absolute root `tab.path` is relative to (worktree path or external root). */
   directory: string;
   onReveal: () => void;
+  onCompilationSettings?: () => void;
   onRename: () => void;
   /** Prevent Radix returning focus to the chip while its rename input mounts. */
   editing?: boolean;
@@ -111,6 +113,7 @@ export function FileTabContextMenu({
             onCopyPath={() => copyPath(false)}
             onCopyRelativePath={() => copyPath(true)}
             onReveal={onReveal}
+            onCompilationSettings={onCompilationSettings}
             onRename={onRename}
             onDelete={() => setDeleting(true)}
             onDownload={() => {

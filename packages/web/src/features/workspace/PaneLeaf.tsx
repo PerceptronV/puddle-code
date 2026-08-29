@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import type {
   CompilationMode,
+  CompilationFileTarget,
   LatexSynctexResponse,
   LayoutLeaf,
   Session,
@@ -49,6 +50,7 @@ export function PaneLeaf({
   compilationRunningKeys,
   onRunCompilation,
   onSetCompilationMode,
+  onOpenCompilationSettings,
   onRevealPreviewSource,
   onRevealCompiledSource,
   onNewUntitled,
@@ -76,6 +78,7 @@ export function PaneLeaf({
   compilationRunningKeys: ReadonlySet<string>;
   onRunCompilation: (leafId: string, tab: EditorTab) => void;
   onSetCompilationMode: (tab: EditorTab, mode: CompilationMode) => void;
+  onOpenCompilationSettings?: (source: CompilationFileTarget) => void;
   /** Reveal a following preview click in its associated ordinary source tab. */
   onRevealPreviewSource: (leafId: string, tab: EditorTab, position: EditorPosition) => void;
   /** Reveal an inverse SyncTeX result in an ordinary source tab. */
@@ -230,6 +233,7 @@ export function PaneLeaf({
           compilationRunningKeys={compilationRunningKeys}
           onRunCompilation={(tab) => onRunCompilation(leaf.id, tab)}
           onSetCompilationMode={onSetCompilationMode}
+          onOpenCompilationSettings={onOpenCompilationSettings}
           onNewFile={() => onNewUntitled(leaf)}
           onRevealFile={onRevealFile}
           onRenameFile={onRenameFile}

@@ -19,6 +19,7 @@ export function FileMenuItems({
   onCopyPath,
   onCopyRelativePath,
   onReveal,
+  onCompilationSettings,
   onRename,
   onDelete,
   onDownload,
@@ -32,6 +33,8 @@ export function FileMenuItems({
   onCopyRelativePath: () => void;
   /** Tab-only: the tree row is already revealed by definition. */
   onReveal?: () => void;
+  /** Compilable-file-only: edit this file's project-scoped command slots. */
+  onCompilationSettings?: () => void;
   onRename: () => void;
   onDelete: () => void;
   onDownload: () => void;
@@ -59,6 +62,9 @@ export function FileMenuItems({
         Copy Relative Path <Shortcut>⌥⇧⌘C</Shortcut>
       </ContextMenuItem>
       {onReveal && <ContextMenuItem onSelect={onReveal}>Reveal in Filetree</ContextMenuItem>}
+      {onCompilationSettings && (
+        <ContextMenuItem onSelect={onCompilationSettings}>Compilation Settings…</ContextMenuItem>
+      )}
       <ContextMenuSeparator />
       {!readOnly && (
         <>

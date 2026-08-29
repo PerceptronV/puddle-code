@@ -2,6 +2,7 @@ import { Fragment, useMemo } from 'react';
 import { Group, Panel, Separator, type Layout } from 'react-resizable-panels';
 import type {
   CompilationMode,
+  CompilationFileTarget,
   LatexSynctexResponse,
   LayoutLeaf,
   LayoutNode,
@@ -40,6 +41,7 @@ export interface TileHandlers {
   compilationRunningKeys: ReadonlySet<string>;
   onRunCompilation: (leafId: string, tab: EditorTab) => void;
   onSetCompilationMode: (tab: EditorTab, mode: CompilationMode) => void;
+  onOpenCompilationSettings?: (source: CompilationFileTarget) => void;
   onRevealPreviewSource: (leafId: string, tab: EditorTab, position: EditorPosition) => void;
   onRevealCompiledSource: (leafId: string, target: LatexSynctexResponse) => void;
   /** Double-click on a strip's blank tail: open a fresh untitled file there. */
@@ -107,6 +109,7 @@ function TileNode({ node, ...handlers }: { node: LayoutNode } & TileHandlers) {
         compilationRunningKeys={handlers.compilationRunningKeys}
         onRunCompilation={handlers.onRunCompilation}
         onSetCompilationMode={handlers.onSetCompilationMode}
+        onOpenCompilationSettings={handlers.onOpenCompilationSettings}
         onRevealPreviewSource={handlers.onRevealPreviewSource}
         onRevealCompiledSource={handlers.onRevealCompiledSource}
         onNewUntitled={handlers.onNewUntitled}

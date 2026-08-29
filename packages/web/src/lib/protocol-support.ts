@@ -24,6 +24,11 @@ export function compilationSupported(protocol: Protocol): boolean {
   return atLeast(protocol, 17, 1);
 }
 
+/** Per-project, canonical-file compilation command overrides (protocol 17.3). */
+export function compilationSettingsSupported(protocol: Protocol): boolean {
+  return atLeast(protocol, 17, 3);
+}
+
 /** Worktree-agnostic untitled drafts in the profile store (10.3). */
 export const untitledSupported = (p: Protocol): boolean => atLeast(p, 10, 3);
 

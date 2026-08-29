@@ -9,7 +9,7 @@ import {
   Search,
   type LucideIcon,
 } from 'lucide-react';
-import type { Session } from '@puddle/shared';
+import type { CompilationFileTarget, Session } from '@puddle/shared';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { useDaemonVersion } from '../../lib/queries';
 import { onReveal } from '../../lib/reveal-in-tree';
@@ -126,6 +126,8 @@ export function NavigatorSidebar({
   target,
   browseRequest,
   onFiletreeRootChange,
+  compilableExtensions,
+  onOpenCompilationSettings,
   onOpenFile,
   onOpenExternalFile,
   onOpenTerminalIn,
@@ -151,6 +153,8 @@ export function NavigatorSidebar({
   browseRequest?: { session: string; root: string; nonce: number } | null;
   /** Report the absolute root currently represented by the Files tree. */
   onFiletreeRootChange?: (root: string | null) => void;
+  compilableExtensions: ReadonlySet<string>;
+  onOpenCompilationSettings?: (source: CompilationFileTarget) => void;
   onOpenFile: (sessionId: string, path: string, opts?: { preview?: boolean }) => void;
   /** Spawn a terminal whose shell starts in this worktree-relative directory. */
   onOpenTerminalIn: (sessionId: string, dir: string) => void;
@@ -348,6 +352,8 @@ export function NavigatorSidebar({
               onReset={sidebarTarget.unpin}
               onOpenFile={(path, opts) => onOpenExternalFile(session.id, path, browseRoot, opts)}
               activePath={activeExternalTab?.root === browseRoot ? activeExternalTab.path : null}
+              compilableExtensions={compilableExtensions}
+              onOpenCompilationSettings={onOpenCompilationSettings}
             />
           </>
         ) : session ? (
@@ -365,6 +371,8 @@ export function NavigatorSidebar({
                 ? onOpenFile
                 : (sid, path, opts) => onOpenExternalFile(sid, path, targetRoot, opts)
             }
+            compilableExtensions={compilableExtensions}
+            onOpenCompilationSettings={onOpenCompilationSettings}
             // "Open Terminal in Directory" needs a worktree: the daemon confines
             // a terminal's cwd to one (11.1), and this target has no session.
             onOpenTerminal={

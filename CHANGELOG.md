@@ -12,3 +12,4 @@ Past releases: see docs/changelogs/.
 ### Added
 
 - Persist independent per-file compilation commands for clicked and file-change runs by profile, project, provider and canonical rooted path (protocol 17.3).
+- Add Compilation Settings to compilable file and tab menus with provider defaults, managed placeholders and per-mode reset controls.

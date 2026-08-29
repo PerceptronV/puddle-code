@@ -12,6 +12,7 @@ import { HoverMarquee } from '../../components/hover-marquee';
 import { cn } from '../../lib/utils';
 import { useWorktreeTree } from '../../lib/worktree-queries';
 import { encodeTabTransfer, TAB_MIME } from '../workspace/tab-transfer';
+import { isCompilableSource } from '../editor/compilation-kind';
 import { useExplorer } from './explorer-context';
 import {
   decodeDragPaths,
@@ -155,6 +156,16 @@ export function TreeNode({
   const targets = isSelected && ex.selection.size > 1 ? [...ex.selection] : [path];
   const pasteDir = isDir ? path : dirOf(path);
   const editingHere = ex.editing?.mode === 'rename' && ex.editing.path === path;
+  const compilationSource =
+    !isDir &&
+    ex.onOpenCompilationSettings !== undefined &&
+    isCompilableSource(path, ex.compilableExtensions)
+      ? {
+          session: ex.sid,
+          path,
+          ...(ex.root !== undefined ? { root: ex.root } : {}),
+        }
+      : null;
 
   if (editingHere) {
     return (
@@ -319,6 +330,11 @@ export function TreeNode({
             onPaste={() => ex.paste(pasteDir)}
             onCopyPath={() => ex.copyPathToClipboard(targets, false)}
             onCopyRelativePath={() => ex.copyPathToClipboard(targets, true)}
+            onCompilationSettings={
+              compilationSource
+                ? () => ex.onOpenCompilationSettings?.(compilationSource)
+                : undefined
+            }
             onRename={() => ex.beginRename(path)}
             onDelete={() => ex.requestDelete(targets)}
             onDownload={() => ex.download(targets)}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   compilationSupported,
+  compilationSettingsSupported,
   crossFiletreeTransferSupported,
   nativeConversationSyncSupported,
 } from '../src/lib/protocol-support';
@@ -19,6 +20,12 @@ describe('compilation compatibility gate', () => {
     expect(compilationSupported({ major: 17, minor: 0 })).toBe(false);
     expect(compilationSupported({ major: 17, minor: 1 })).toBe(true);
     expect(compilationSupported({ major: 18, minor: 0 })).toBe(true);
+  });
+
+  it('enables per-file command settings from protocol 17.3', () => {
+    expect(compilationSettingsSupported({ major: 17, minor: 2 })).toBe(false);
+    expect(compilationSettingsSupported({ major: 17, minor: 3 })).toBe(true);
+    expect(compilationSettingsSupported({ major: 18, minor: 0 })).toBe(true);
   });
 });
 
