@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   adjacentPdfZoom,
+  clampPdfZoom,
+  formatPdfZoom,
   pdfPagePoint,
+  pdfPinchZoom,
   pdfRenderOutputScale,
+  pdfWheelZoom,
 } from '../src/features/editor/pdf-coordinates';
 
 describe('pdfPagePoint', () => {
@@ -32,6 +36,18 @@ describe('PDF zoom', () => {
     expect(adjacentPdfZoom(1, 'out')).toBe(0.75);
     expect(adjacentPdfZoom(3, 'in')).toBe(3);
     expect(adjacentPdfZoom(0.5, 'out')).toBe(0.5);
+  });
+
+  it('scales fractionally for wheel and two-touch pinch gestures', () => {
+    expect(pdfWheelZoom(1, -10)).toBeCloseTo(Math.exp(0.1));
+    expect(pdfPinchZoom(1.25, 200, 220)).toBeCloseTo(1.375);
+    expect(formatPdfZoom(1.375)).toBe('137.5%');
+  });
+
+  it('bounds continuous gestures to the explicit zoom range', () => {
+    expect(clampPdfZoom(0.1)).toBe(0.5);
+    expect(pdfWheelZoom(2.9, -100)).toBe(3);
+    expect(pdfPinchZoom(0.75, 100, 10)).toBe(0.5);
   });
 
   it('keeps normal pages crisp and caps oversized canvas allocation', () => {

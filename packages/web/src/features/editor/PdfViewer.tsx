@@ -18,9 +18,14 @@ import type {
 import { api } from '../../lib/api';
 import {
   adjacentPdfZoom,
-  PDF_ZOOM_LEVELS,
+  clampPdfZoom,
+  formatPdfZoom,
+  PDF_MAX_ZOOM,
+  PDF_MIN_ZOOM,
   pdfPagePoint,
+  pdfPinchZoom,
   pdfRenderOutputScale,
+  pdfWheelZoom,
 } from './pdf-coordinates';
 
 interface PdfViewerProps {
@@ -30,6 +35,16 @@ interface PdfViewerProps {
   root: string;
   onRevealSource?: (target: LatexSynctexResponse) => void;
   onDownload: () => void;
+}
+
+interface ZoomAnchor {
+  clientX: number;
+  clientY: number;
+}
+
+interface TouchPinch {
+  distance: number;
+  zoom: number;
 }
 
 let pdfJsPromise: Promise<typeof import('pdfjs-dist')> | null = null;
@@ -49,33 +64,84 @@ export function PdfViewer({
 }: PdfViewerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const zoomFrameRef = useRef(0);
+  const zoomRef = useRef(1);
   const [document, setDocument] = useState<PDFDocumentProxy | null>(null);
   const [error, setError] = useState(false);
   const [zoom, setZoom] = useState(1);
   const width = useAvailablePageWidth(scrollRef);
-  const minimumZoom = PDF_ZOOM_LEVELS[0];
-  const maximumZoom = PDF_ZOOM_LEVELS.at(-1)!;
 
-  const changeZoom = useCallback(
-    (nextZoom: number) => {
-      if (nextZoom === zoom) return;
-      const scroller = scrollRef.current;
-      const horizontalAnchor = scroller
-        ? (scroller.scrollLeft + scroller.clientWidth / 2) / scroller.scrollWidth
-        : 0.5;
-      const verticalAnchor = scroller
-        ? (scroller.scrollTop + scroller.clientHeight / 2) / scroller.scrollHeight
-        : 0;
-      setZoom(nextZoom);
-      cancelAnimationFrame(zoomFrameRef.current);
-      zoomFrameRef.current = requestAnimationFrame(() => {
-        if (!scroller) return;
-        scroller.scrollLeft = horizontalAnchor * scroller.scrollWidth - scroller.clientWidth / 2;
-        scroller.scrollTop = verticalAnchor * scroller.scrollHeight - scroller.clientHeight / 2;
-      });
-    },
-    [zoom],
-  );
+  const changeZoom = useCallback((requestedZoom: number, anchor?: ZoomAnchor) => {
+    const nextZoom = clampPdfZoom(requestedZoom);
+    if (Math.abs(nextZoom - zoomRef.current) < Number.EPSILON) return;
+    const scroller = scrollRef.current;
+    const bounds = scroller?.getBoundingClientRect();
+    const anchorX =
+      anchor && bounds ? anchor.clientX - bounds.left : (scroller?.clientWidth ?? 0) / 2;
+    const anchorY =
+      anchor && bounds ? anchor.clientY - bounds.top : (scroller?.clientHeight ?? 0) / 2;
+    const horizontalAnchor = scroller
+      ? (scroller.scrollLeft + anchorX) / Math.max(1, scroller.scrollWidth)
+      : 0.5;
+    const verticalAnchor = scroller
+      ? (scroller.scrollTop + anchorY) / Math.max(1, scroller.scrollHeight)
+      : 0;
+
+    zoomRef.current = nextZoom;
+    setZoom(nextZoom);
+    cancelAnimationFrame(zoomFrameRef.current);
+    zoomFrameRef.current = requestAnimationFrame(() => {
+      if (!scroller) return;
+      scroller.scrollLeft = horizontalAnchor * scroller.scrollWidth - anchorX;
+      scroller.scrollTop = verticalAnchor * scroller.scrollHeight - anchorY;
+    });
+  }, []);
+
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    let touchPinch: TouchPinch | null = null;
+
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      const pixels = wheelPixels(event, scroller.clientHeight);
+      changeZoom(pdfWheelZoom(zoomRef.current, pixels), event);
+    };
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 2) {
+        touchPinch = null;
+        return;
+      }
+      touchPinch = {
+        distance: touchDistance(event.touches),
+        zoom: zoomRef.current,
+      };
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      if (!touchPinch || event.touches.length !== 2) return;
+      event.preventDefault();
+      changeZoom(
+        pdfPinchZoom(touchPinch.zoom, touchPinch.distance, touchDistance(event.touches)),
+        touchCentre(event.touches),
+      );
+    };
+    const onTouchEnd = (event: TouchEvent) => {
+      if (event.touches.length < 2) touchPinch = null;
+    };
+
+    scroller.addEventListener('wheel', onWheel, { passive: false });
+    scroller.addEventListener('touchstart', onTouchStart, { passive: true });
+    scroller.addEventListener('touchmove', onTouchMove, { passive: false });
+    scroller.addEventListener('touchend', onTouchEnd, { passive: true });
+    scroller.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    return () => {
+      scroller.removeEventListener('wheel', onWheel);
+      scroller.removeEventListener('touchstart', onTouchStart);
+      scroller.removeEventListener('touchmove', onTouchMove);
+      scroller.removeEventListener('touchend', onTouchEnd);
+      scroller.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, [changeZoom]);
 
   useEffect(() => () => cancelAnimationFrame(zoomFrameRef.current), []);
 
@@ -173,8 +239,8 @@ export function PdfViewer({
       {document && width !== null && (
         <PdfZoomControls
           zoom={zoom}
-          minimum={minimumZoom}
-          maximum={maximumZoom}
+          minimum={PDF_MIN_ZOOM}
+          maximum={PDF_MAX_ZOOM}
           onZoomOut={() => changeZoom(adjacentPdfZoom(zoom, 'out'))}
           onReset={() => changeZoom(1)}
           onZoomIn={() => changeZoom(adjacentPdfZoom(zoom, 'in'))}
@@ -199,6 +265,7 @@ function PdfZoomControls({
   onReset: () => void;
   onZoomIn: () => void;
 }) {
+  const zoomLabel = formatPdfZoom(zoom);
   return (
     <div className="absolute right-3 top-3 z-10 flex items-center gap-0.5 rounded-md bg-surface/90 p-1 shadow-sm backdrop-blur-sm">
       <button
@@ -215,10 +282,10 @@ function PdfZoomControls({
         type="button"
         onClick={onReset}
         className="min-w-12 cursor-pointer rounded-sm px-1.5 py-1 font-mono text-[11px] tabular-nums text-fg-secondary transition-colors hover:bg-elevated hover:text-fg"
-        aria-label={`Zoom ${Math.round(zoom * 100)}%; reset to fit width`}
+        aria-label={`Zoom ${zoomLabel}; reset to fit width`}
         title="Reset to fit width"
       >
-        {Math.round(zoom * 100)}%
+        {zoomLabel}
       </button>
       <button
         type="button"
@@ -232,6 +299,29 @@ function PdfZoomControls({
       </button>
     </div>
   );
+}
+
+function wheelPixels(event: WheelEvent, pageHeight: number): number {
+  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) return event.deltaY * 16;
+  if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) return event.deltaY * pageHeight;
+  return event.deltaY;
+}
+
+function touchDistance(touches: TouchList): number {
+  const first = touches.item(0);
+  const second = touches.item(1);
+  if (!first || !second) return 0;
+  return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
+}
+
+function touchCentre(touches: TouchList): ZoomAnchor | undefined {
+  const first = touches.item(0);
+  const second = touches.item(1);
+  if (!first || !second) return undefined;
+  return {
+    clientX: (first.clientX + second.clientX) / 2,
+    clientY: (first.clientY + second.clientY) / 2,
+  };
 }
 
 function PdfPage({

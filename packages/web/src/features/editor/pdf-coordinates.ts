@@ -5,6 +5,37 @@ export interface PdfPagePoint {
 }
 
 export const PDF_ZOOM_LEVELS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3] as const;
+export const PDF_MIN_ZOOM = PDF_ZOOM_LEVELS[0];
+export const PDF_MAX_ZOOM = PDF_ZOOM_LEVELS.at(-1)!;
+
+/** Bound a continuous gesture scale to the same range as the explicit controls. */
+export function clampPdfZoom(zoom: number): number {
+  return clamp(zoom, PDF_MIN_ZOOM, PDF_MAX_ZOOM);
+}
+
+/**
+ * Turn pixel-like wheel input from a trackpad pinch into a smooth multiplicative
+ * scale. Multiplication keeps zoom speed perceptually even at every scale.
+ */
+export function pdfWheelZoom(current: number, deltaPixels: number): number {
+  return clampPdfZoom(current * Math.exp(-deltaPixels * 0.01));
+}
+
+/** Scale a two-touch pinch from the distance recorded when the gesture began. */
+export function pdfPinchZoom(
+  initialZoom: number,
+  initialDistance: number,
+  currentDistance: number,
+): number {
+  if (initialDistance <= 0 || currentDistance <= 0) return clampPdfZoom(initialZoom);
+  return clampPdfZoom(initialZoom * (currentDistance / initialDistance));
+}
+
+/** Retain one decimal place when a gesture lands between the button stops. */
+export function formatPdfZoom(zoom: number): string {
+  const percentage = Math.round(clampPdfZoom(zoom) * 1_000) / 10;
+  return `${Number.isInteger(percentage) ? percentage.toFixed(0) : percentage.toFixed(1)}%`;
+}
 
 /** Move to the next explicit zoom stop; 100% means fit to the pane width. */
 export function adjacentPdfZoom(current: number, direction: 'in' | 'out'): number {

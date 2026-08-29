@@ -166,7 +166,10 @@ Repeat with source/root paths containing spaces and non-ASCII characters.
 2. Resize the pane and use a multi-page document. Pages remain fitted and crisp
    on a HiDPI display; later pages paint as they approach the viewport. Use the
    −/+ controls to move between 50–300% of fit width, scroll horizontally at
-   larger sizes, then click the percentage to restore fit width.
+   larger sizes, then click the percentage to restore fit width. Pinch on a
+   trackpad and a two-touch screen: scaling changes continuously between the
+   button stops, remains bounded to 50–300%, and keeps the content beneath the
+   gesture centre stable. Ordinary two-finger scrolling still scrolls.
 3. Command-click on macOS or Ctrl-click elsewhere on visible text in the PDF.
    Puddle opens or reuses the corresponding source tab and places Monaco's caret
    at the returned line. Click text emitted by `sections/result.tex`: navigation
