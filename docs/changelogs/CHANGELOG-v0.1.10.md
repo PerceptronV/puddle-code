@@ -7,4 +7,9 @@ Past releases: see docs/changelogs/.
 
 # Changelog
 
-## [Unreleased]
+## [0.1.10] — 2026-09-05
+
+### Added
+
+- Render GitHub-style footnotes, `==highlights==`, and fenced Mermaid diagrams in Markdown previews.
+- Render GitHub-compatible one- or two-tilde strikethrough and `NOTE`/`TIP`/`IMPORTANT`/`WARNING`/`CAUTION` alerts in Markdown previews.
