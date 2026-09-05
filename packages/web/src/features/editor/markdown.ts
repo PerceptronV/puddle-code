@@ -1,9 +1,12 @@
 import MarkdownIt, { type Env, type StateInline, type Token } from 'markdown-it';
+import markdownItFootnote from 'markdown-it-footnote';
+import markdownItMark from 'markdown-it-mark';
 import { matchMathAt, renderMathHtml, type MathMacros } from './math';
 import { SOURCE_END_LINE_ATTRIBUTE, SOURCE_LINE_ATTRIBUTE } from './source-anchor-map';
 
 interface MarkdownEnvironment extends Env {
   mathMacros: MathMacros;
+  docId?: string;
 }
 
 function markdownEnvironment(env: Env | undefined): MarkdownEnvironment {
@@ -40,6 +43,8 @@ const parser = new MarkdownIt({
   typographer: false,
 });
 
+parser.use(markdownItFootnote);
+parser.use(markdownItMark);
 parser.inline.ruler.before('escape', 'puddle_math', mathRule);
 parser.renderer.rules.math = (tokens, index, _options, env) => {
   const token = tokens[index]!;
@@ -50,6 +55,12 @@ const defaultFence = parser.renderer.rules.fence;
 parser.renderer.rules.fence = (tokens, index, options, env, renderer) => {
   const token = tokens[index]!;
   const language = token.info.trim().split(/\s+/)[0]?.toLowerCase();
+  if (language === 'mermaid') {
+    token.attrJoin('class', 'mermaid-diagram');
+    token.attrSet('data-puddle-mermaid', '');
+    const attributes = renderer.renderAttrs(token);
+    return `<div${attributes}><pre><code>${parser.utils.escapeHtml(token.content)}</code></pre></div>\n`;
+  }
   if (language !== 'math') {
     return defaultFence
       ? defaultFence(tokens, index, options, env, renderer)
@@ -101,6 +112,9 @@ parser.core.ruler.after('inline', 'puddle_task_lists', (state) => {
  * MarkdownPreview's responsibility because DOMPurify needs a browser DOM.
  * Each render owns its macro table, so definitions never leak between files.
  */
-export function markdownToHtml(text: string): string {
-  return parser.render(text, { mathMacros: {} } satisfies MarkdownEnvironment);
+export function markdownToHtml(text: string, docId?: string): string {
+  return parser.render(text, {
+    mathMacros: {},
+    ...(docId ? { docId } : {}),
+  } satisfies MarkdownEnvironment);
 }

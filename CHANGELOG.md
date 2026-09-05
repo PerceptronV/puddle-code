@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Added
+
+- Render footnotes, `==highlights==`, and fenced Mermaid diagrams in Markdown previews.

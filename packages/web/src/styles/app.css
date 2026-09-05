@@ -264,6 +264,12 @@
     color: var(--accent-hover);
     text-decoration: underline;
   }
+  .md-preview mark {
+    border-radius: 2px;
+    background: var(--selection);
+    color: inherit;
+    padding: 0.05em 0.15em;
+  }
   .md-preview code {
     background: var(--bg-elevated);
     border-radius: 4px;
@@ -312,6 +318,41 @@
   }
   .md-preview input[type='checkbox'] {
     margin-right: 0.4em;
+  }
+  .md-preview .footnote-ref {
+    font-size: 0.75em;
+    line-height: 0;
+  }
+  .md-preview .footnote-ref a,
+  .md-preview .footnote-backref {
+    text-decoration: none;
+  }
+  .md-preview .footnotes {
+    color: var(--text-secondary);
+    font-size: 0.88em;
+    margin-top: 2em;
+  }
+  .md-preview .footnotes-list {
+    padding-left: 1.75em;
+  }
+  .md-preview .mermaid-diagram {
+    margin: 1.25em 0;
+    max-width: 100%;
+    overflow-x: auto;
+    text-align: center;
+  }
+  .md-preview .mermaid-diagram > pre {
+    text-align: left;
+  }
+  .md-preview .mermaid-diagram > svg {
+    display: block;
+    height: auto;
+    margin: 0 auto;
+    max-width: 100%;
+  }
+  .md-preview .mermaid-error {
+    color: var(--danger);
+    text-align: left;
   }
 
   /* KaTeX maths (SPEC §8): the glyphs are KaTeX's own; only the block flow and

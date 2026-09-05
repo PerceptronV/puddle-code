@@ -31,6 +31,30 @@ describe('markdownToHtml', () => {
     expect(task).toContain('<input type="checkbox" disabled>');
   });
 
+  it('renders named and inline footnotes with document-scoped anchors', () => {
+    const html = markdownToHtml(
+      'Named note.[^note] Inline note.^[Written here.]\n\n[^note]: Written below.',
+      'preview-a',
+    );
+    expect(html).toContain('href="#fn-preview-a-1"');
+    expect(html).toContain('id="fn-preview-a-1"');
+    expect(html).toContain('id="fn-preview-a-2"');
+    expect(html).toContain('class="footnote-backref"');
+  });
+
+  it('renders double-equals highlights outside code', () => {
+    expect(markdownToHtml('Read ==this part==.')).toContain('<mark>this part</mark>');
+    expect(markdownToHtml('`==not this part==`')).not.toContain('<mark>');
+  });
+
+  it('marks Mermaid fences for deferred browser rendering', () => {
+    const html = markdownToHtml('```mermaid\ngraph TD\n  A[<unsafe>] --> B\n```');
+    expect(html).toContain('class="mermaid-diagram"');
+    expect(html).toContain('data-puddle-mermaid=""');
+    expect(html).toContain('A[&lt;unsafe&gt;]');
+    expect(html).not.toContain('class="language-mermaid"');
+  });
+
   it('does not treat single newlines as hard breaks (breaks: false)', () => {
     expect(markdownToHtml('one\ntwo')).not.toContain('<br');
   });

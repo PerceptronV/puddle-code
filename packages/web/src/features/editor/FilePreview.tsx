@@ -1,8 +1,17 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent } from 'react';
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type MouseEvent,
+} from 'react';
 import DOMPurify from 'dompurify';
 import 'katex/dist/katex.min.css';
 import { apiFetchRaw } from '../../lib/api';
 import { useClientSettings } from '../../lib/client-settings';
+import { currentTheme, onThemeChange } from '../../lib/theme';
 import { rootParam } from '../../lib/worktree-queries';
 import { DomFindController } from '../find/dom-find';
 import { FindWidget } from '../find/FindWidget';
@@ -13,6 +22,7 @@ import { bufferKey, subscribe } from './buffer-store';
 import { ConflictSurface } from './ConflictSurface';
 import { useEditorBuffer } from './use-editor-buffer';
 import { markdownToHtml } from './markdown';
+import { renderMermaidDiagrams } from './markdown-mermaid';
 import { MATH_LAYOUT_CSS } from './math';
 import { renderMathInDocument } from './math-dom';
 import {
@@ -178,14 +188,23 @@ function MarkdownPreview({
   focused: boolean;
   onRevealSource?: (position: EditorPosition) => void;
 }) {
-  const html = useMemo(() => DOMPurify.sanitize(markdownToHtml(text)), [text]);
+  const documentId = useId().replace(/[^A-Za-z0-9_-]/g, '');
+  const theme = useSyncExternalStore(
+    (onChange) => onThemeChange(onChange),
+    currentTheme,
+    currentTheme,
+  );
+  const html = useMemo(
+    () => DOMPurify.sanitize(markdownToHtml(text, documentId)),
+    [text, documentId],
+  );
   const lineCount = useMemo(() => countSourceLines(text), [text]);
   // React compares dangerouslySetInnerHTML by object identity before writing
   // innerHTML. Keep that object stable across find-result state updates: a
   // redundant rewrite replaces every text node, detaching the CSS Highlight
   // ranges immediately after they are painted and leaving navigation with
   // detached elements that cannot scroll into view.
-  const renderedHtml = useMemo(() => ({ __html: html }), [html]);
+  const renderedHtml = useMemo(() => ({ __html: html }), [html, theme]);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const findControllerRef = useRef<DomFindController | null>(null);
@@ -211,7 +230,19 @@ function MarkdownPreview({
 
   // React replaces the rendered prose when the shared buffer changes. Rebuild
   // the ranges against the new text instead of retaining detached Range nodes.
-  useEffect(() => find.refresh(), [html, find.refresh]);
+  useEffect(() => find.refresh(), [html, theme, find.refresh]);
+
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+    const abort = new AbortController();
+    void renderMermaidDiagrams(body, theme, abort.signal).then(() => {
+      // Mermaid replaces source text with SVG labels after the ordinary HTML
+      // render, so active rendered-view searches need fresh DOM ranges.
+      if (!abort.signal.aborted) find.refresh();
+    });
+    return () => abort.abort();
+  }, [html, theme, find.refresh]);
 
   useEffect(() => {
     const scroller = scrollerRef.current;
@@ -301,6 +332,14 @@ function MarkdownPreview({
       const href = anchor.getAttribute('href') ?? '';
       if (/^https?:/i.test(href)) return;
       e.preventDefault();
+      if (href.startsWith('#')) {
+        const id = decodeFragment(href);
+        const target = id
+          ? bodyRef.current?.querySelector<HTMLElement>(`#${CSS.escape(id)}`)
+          : null;
+        target?.scrollIntoView({ block: 'nearest' });
+        return;
+      }
       if (!e.metaKey && !e.ctrlKey) return;
       const resolved = resolvePreviewAsset(path, href);
       if (!resolved) return;
@@ -343,6 +382,14 @@ function MarkdownPreview({
       <FindOverlay controls={find} />
     </div>
   );
+}
+
+function decodeFragment(href: string): string | null {
+  try {
+    return decodeURIComponent(href.slice(1));
+  } catch {
+    return null;
+  }
 }
 
 /** (element selector, URL attribute) pairs whose worktree references get inlined. */
