@@ -1,6 +1,8 @@
 import MarkdownIt, { type Env, type StateInline, type Token } from 'markdown-it';
 import markdownItFootnote from 'markdown-it-footnote';
+import markdownItGithubAlerts from 'markdown-it-github-alerts';
 import markdownItMark from 'markdown-it-mark';
+import { installGithubStrikethrough } from './github-strikethrough';
 import { matchMathAt, renderMathHtml, type MathMacros } from './math';
 import { SOURCE_END_LINE_ATTRIBUTE, SOURCE_LINE_ATTRIBUTE } from './source-anchor-map';
 
@@ -44,7 +46,32 @@ const parser = new MarkdownIt({
 });
 
 parser.use(markdownItFootnote);
+parser.inline.ruler.disable('footnote_inline');
+parser.renderer.rules.footnote_caption = (tokens, index) => {
+  const id = tokens[index]?.meta?.id;
+  return String((typeof id === 'number' ? id : 0) + 1);
+};
+const defaultFootnoteReference = parser.renderer.rules.footnote_ref;
+parser.renderer.rules.footnote_ref = (tokens, index, options, env, renderer) => {
+  const rendered = defaultFootnoteReference?.(tokens, index, options, env, renderer) ?? '';
+  return rendered.replace('<a ', '<a data-footnote-ref ');
+};
+const defaultFootnoteBackReference = parser.renderer.rules.footnote_anchor;
+parser.renderer.rules.footnote_anchor = (tokens, index, options, env, renderer) => {
+  const token = tokens[index];
+  const id = token?.meta?.id;
+  const subId = token?.meta?.subId;
+  const number = (typeof id === 'number' ? id : 0) + 1;
+  const referenceIndex = (typeof subId === 'number' ? subId : 0) + 1;
+  const rendered = defaultFootnoteBackReference?.(tokens, index, options, env, renderer) ?? '';
+  return rendered.replace(
+    '<a ',
+    `<a data-footnote-backref data-footnote-backref-idx="${referenceIndex}" aria-label="Back to reference ${number}" `,
+  );
+};
+parser.use(markdownItGithubAlerts, { matchCaseSensitive: true });
 parser.use(markdownItMark);
+installGithubStrikethrough(parser);
 parser.inline.ruler.before('escape', 'puddle_math', mathRule);
 parser.renderer.rules.math = (tokens, index, _options, env) => {
   const token = tokens[index]!;
@@ -79,13 +106,21 @@ parser.renderer.rules.fence = (tokens, index, options, env, renderer) => {
  * those coordinates to the elements it renders so the preview can measure
  * the real, reflowed DOM just as VS Code's Markdown preview does.
  */
-parser.core.ruler.after('block', 'puddle_source_lines', (state) => {
+parser.core.ruler.after('github-alerts', 'puddle_source_lines', (state) => {
   for (const token of state.tokens) {
     if (!token.map || token.hidden || token.tag === '' || token.nesting < 0) continue;
     token.attrSet(SOURCE_LINE_ATTRIBUTE, String(token.map[0] + 1));
     token.attrSet(SOURCE_END_LINE_ATTRIBUTE, String(token.map[1] + 1));
   }
 });
+
+// The alerts plugin renders its opening element itself. Preserve the source
+// attributes added above so following previews can still reveal alert lines.
+const defaultAlertOpen = parser.renderer.rules.alert_open;
+parser.renderer.rules.alert_open = (tokens, index, options, env, renderer) => {
+  const rendered = defaultAlertOpen?.(tokens, index, options, env, renderer) ?? '';
+  return rendered.replace('<div', `<div${renderer.renderAttrs(tokens[index]!)}`);
+};
 
 // markdown-it deliberately keeps task lists outside CommonMark. Preserve the
 // GFM behaviour Puddle's former Marked renderer exposed with this tiny rule

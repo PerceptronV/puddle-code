@@ -335,6 +335,39 @@
   .md-preview .footnotes-list {
     padding-left: 1.75em;
   }
+  .md-preview .markdown-alert {
+    --markdown-alert-colour: var(--accent);
+    border-left: 3px solid var(--markdown-alert-colour);
+    margin: 1em 0;
+    padding: 0.1em 0 0.1em 1em;
+  }
+  .md-preview .markdown-alert-tip {
+    --markdown-alert-colour: var(--success);
+  }
+  .md-preview .markdown-alert-important {
+    --markdown-alert-colour: var(--ansi-magenta);
+  }
+  .md-preview .markdown-alert-warning {
+    --markdown-alert-colour: var(--warning);
+  }
+  .md-preview .markdown-alert-caution {
+    --markdown-alert-colour: var(--danger);
+  }
+  .md-preview .markdown-alert-title {
+    align-items: center;
+    color: var(--markdown-alert-colour);
+    display: flex;
+    font-weight: 600;
+    gap: 0.45em;
+    margin: 0 0 0.25em;
+  }
+  .md-preview .markdown-alert-title svg {
+    fill: currentColor;
+    flex: none;
+  }
+  .md-preview .markdown-alert > :last-child {
+    margin-bottom: 0;
+  }
   .md-preview .mermaid-diagram {
     margin: 1.25em 0;
     max-width: 100%;

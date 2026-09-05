@@ -11,4 +11,5 @@ Past releases: see docs/changelogs/.
 
 ### Added
 
-- Render footnotes, `==highlights==`, and fenced Mermaid diagrams in Markdown previews.
+- Render GitHub-style footnotes, `==highlights==`, and fenced Mermaid diagrams in Markdown previews.
+- Render GitHub-compatible one- or two-tilde strikethrough and `NOTE`/`TIP`/`IMPORTANT`/`WARNING`/`CAUTION` alerts in Markdown previews.

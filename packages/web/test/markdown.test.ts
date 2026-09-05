@@ -31,15 +31,43 @@ describe('markdownToHtml', () => {
     expect(task).toContain('<input type="checkbox" disabled>');
   });
 
-  it('renders named and inline footnotes with document-scoped anchors', () => {
+  it('renders GitHub footnotes with accessible, document-scoped anchors', () => {
     const html = markdownToHtml(
-      'Named note.[^note] Inline note.^[Written here.]\n\n[^note]: Written below.',
+      'Here is a simple footnote[^1].\n\n[^1]: My reference.  \nThis is a second line.',
       'preview-a',
     );
     expect(html).toContain('href="#fn-preview-a-1"');
     expect(html).toContain('id="fn-preview-a-1"');
-    expect(html).toContain('id="fn-preview-a-2"');
-    expect(html).toContain('class="footnote-backref"');
+    expect(html).toContain('data-footnote-ref');
+    expect(html).toContain('>1</a>');
+    expect(html).not.toContain('>[1]</a>');
+    expect(html).toContain('<br>\nThis is a second line.');
+    expect(html).toContain('data-footnote-backref-idx="1"');
+    expect(html).toContain('aria-label="Back to reference 1"');
+  });
+
+  it('leaves Pandoc inline footnotes as prose, matching GitHub', () => {
+    const html = markdownToHtml('This is not a footnote.^[Written here.]');
+    expect(html).toContain('.^[Written here.]');
+    expect(html).not.toContain('class="footnote-ref"');
+  });
+
+  it('renders GFM strikethrough with one or two tildes only', () => {
+    expect(markdownToHtml('~one~ and ~~two~~')).toContain('<s>one</s> and <s>two</s>');
+    expect(markdownToHtml('Keep ~~~three~~~ literal.')).toContain('Keep ~~~three~~~ literal.');
+    expect(markdownToHtml('Keep ~~~three~~~ literal.')).not.toContain('<s>');
+    expect(markdownToHtml('~one~~')).not.toContain('<s>');
+  });
+
+  it('renders the five GitHub alert types and leaves other quotes alone', () => {
+    const html = markdownToHtml(
+      '> [!NOTE]\n> Note text.\n\n> [!TIP]\n> Tip text.\n\n> [!IMPORTANT]\n> Important text.\n\n> [!WARNING]\n> Warning text.\n\n> [!CAUTION]\n> Caution text.',
+    );
+    for (const type of ['note', 'tip', 'important', 'warning', 'caution']) {
+      expect(html).toContain(`class="markdown-alert markdown-alert-${type}"`);
+    }
+    expect(markdownToHtml('> Ordinary quote.')).toContain('<blockquote');
+    expect(markdownToHtml('> [!note]\n> Lowercase stays a quote.')).toContain('<blockquote');
   });
 
   it('renders double-equals highlights outside code', () => {
