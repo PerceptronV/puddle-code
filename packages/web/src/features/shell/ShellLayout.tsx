@@ -303,7 +303,10 @@ function ShellBody() {
     return onThemeChange(report);
   }, [themeToDaemon]);
   return (
-    <div className="flex h-screen flex-col bg-ground">
+    // The cockpit owns exactly one viewport; routed views provide the scroll
+    // surfaces within it. Clip any missed descendant constraint here and stop
+    // a nested surface at its limit from rubber-banding the whole window.
+    <div className="flex h-screen flex-col overflow-hidden overscroll-y-none bg-ground">
       <TopBar />
       <main className="min-h-0 flex-1">
         {/* The routed view gets its OWN boundary so a crash in it leaves the top
