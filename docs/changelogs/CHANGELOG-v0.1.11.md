@@ -7,4 +7,9 @@ Past releases: see docs/changelogs/.
 
 # Changelog
 
-## [Unreleased]
+## [0.1.11] — 2026-09-07
+
+### Fixed
+
+- Keep overflowing session sidebars within their own scroll regions instead of scrolling the whole workspace.
+- Keep routed panes and nested scroll surfaces from extending or rubber-banding the cockpit viewport.
