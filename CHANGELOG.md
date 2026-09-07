@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Keep overflowing session sidebars within their own scroll regions instead of scrolling the whole workspace.

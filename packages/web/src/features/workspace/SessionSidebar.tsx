@@ -397,7 +397,7 @@ export function CollapsedSessionsRail({
     patchProject.mutate({ id: group.projectId, abbrev: next }, { onError: (e) => toastError(e) });
   };
   return (
-    <div className="flex h-full w-9 shrink-0 flex-col items-center bg-surface py-1.5 compact:py-1">
+    <div className="flex h-full min-h-0 w-9 shrink-0 flex-col items-center overflow-hidden bg-surface py-1.5 compact:py-1">
       <div className="flex flex-col items-center gap-1 compact:gap-0.5">
         <IconButton
           icon={PanelRightOpen}
@@ -413,7 +413,7 @@ export function CollapsedSessionsRail({
           tooltipSide="left"
         />
       </div>
-      <div className="no-scrollbar flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto compact:gap-0.5">
+      <div className="no-scrollbar flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto overscroll-contain compact:gap-0.5">
         {groups.map((group) => (
           // A divider precedes every group (the first one separates dots from
           // the controls above; the rest separate one project from the next).
@@ -690,7 +690,7 @@ export function SessionSidebar({
   projectActions: ProjectHeaderActions;
 }) {
   return (
-    <div className="flex h-full flex-col bg-surface">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface">
       {/* Fixed controls: collapse on the left edge; the Agent · Terminal
           symbols on the right (SPEC §8) — the Scratchpad lives in the top bar
           (SPEC §11), not here. */}
@@ -794,7 +794,7 @@ function SessionListBody({
       {/* No horizontal padding: the active/hover fill-shift bleeds to both
           sidebar edges (each row carries its own px-3). Scrolls without a
           visible scrollbar so a long cross-project list still works. */}
-      <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto py-1.5">
+      <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain py-1.5">
         {total === 0 && archived.length === 0 && (
           <p className="px-3 py-3 text-xs text-fg-muted">
             No sessions yet — press {paletteKey} to start one.
@@ -925,7 +925,7 @@ function SessionListBody({
               <span className="ml-auto tabular-nums">{archived.length}</span>
             </button>
             {showArchived && (
-              <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
+              <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 {archivedGroups.map((group) => (
                   <div key={group.projectId}>
                     {/* Dimmer than a live group's header and inert: archived rows

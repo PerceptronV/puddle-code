@@ -1766,7 +1766,7 @@ function WorkspaceInner() {
           );
         }}
       >
-        <div className="relative flex h-full">
+        <div className="relative flex h-full min-h-0 overflow-hidden">
           {isNarrow ? (
             /* Narrow (SPEC §12): both rails stay put; expanding opens the sidebar
              as an overlay above the tiling area — a translucent ground dims
