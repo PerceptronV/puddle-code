@@ -219,6 +219,31 @@ activate_env
     h.kill();
   });
 
+  it('reclaims history after a user hook repoints it around activation and cd', async () => {
+    const h = harness({
+      '.zshrc': `autoload -Uz add-zsh-hook
+unsetopt APPEND_HISTORY
+setopt INC_APPEND_HISTORY_TIME
+foreign_history_context() {
+  HISTFILE="$HOME/foreign-history"
+}
+add-zsh-hook precmd foreign_history_context
+`,
+    });
+    h.spawn(zshPath!);
+    await waitFor(() => h.cwds.some((e) => e.cwd === h.home));
+    h.write('mkdir hook-nested && cd hook-nested\n');
+    await waitFor(() => h.cwds.some((e) => e.cwd === join(h.home, 'hook-nested')));
+    h.write('echo hook-history-probe\n');
+    await waitFor(() => h.output().includes('hook-history-probe'));
+    await waitFor(() => readFileSync(h.historyFile, 'utf8').includes('hook-history-probe'));
+    expect(readFileSync(h.historyFile, 'utf8')).toContain('mkdir hook-nested && cd hook-nested');
+    expect(readFileSync(h.historyFile, 'utf8')).toContain('echo hook-history-probe');
+    const foreignHistory = join(h.home, 'foreign-history');
+    expect(!existsSync(foreignHistory) || !readFileSync(foreignHistory, 'utf8').includes('probe'));
+    h.kill();
+  });
+
   it('does not replace history state initialised by the user rc', async () => {
     const h = harness({ '.zshrc': "print -s 'echo zsh-rc-history-probe'\n" });
     h.spawn(zshPath!);

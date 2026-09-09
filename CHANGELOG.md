@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Keep session shell history on its private file when directory, environment, or prompt hooks repoint `HISTFILE` at runtime.

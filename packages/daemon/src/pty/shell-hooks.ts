@@ -117,6 +117,11 @@ _puddle_env_report() {
 
 _puddle_prompt_report() {
   if [[ -n \${_puddle_session_history_file-} ]]; then
+    # Prompt/directory/environment hooks may repoint HISTFILE after startup.
+    # Reclaim it before the next command: incremental history modes otherwise
+    # mark entries as written to that foreign file before fc -AI can save them
+    # in the Puddle session.
+    HISTFILE=\$_puddle_session_history_file
     builtin fc -AI "\$_puddle_session_history_file" 2>/dev/null
   fi
   _puddle_cwd_report
@@ -274,7 +279,9 @@ fi
 _puddle_prompt_report() {
   if [ -n "\$_puddle_session_history_file" ]; then
     # Append only this tab's new commands, then merge commands appended by
-    # sibling tabs. Never rewrite the shared file or replace the live list.
+    # sibling tabs. Reclaim the private destination from any runtime hook that
+    # repointed it; never rewrite the shared file or replace the live list.
+    HISTFILE=\$_puddle_session_history_file
     history -a "\$_puddle_session_history_file" 2>/dev/null
     history -n "\$_puddle_session_history_file" 2>/dev/null
   fi
