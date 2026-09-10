@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Added
+
+- Select session ranges in either right-sidebar presentation and archive the selected batch from its context menu or archive drop target.

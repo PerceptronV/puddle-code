@@ -102,6 +102,12 @@ export interface SessionMenu {
   setMigrateTo: (a: Account) => void;
 }
 
+/** The deliberately small action surface shared by a multi-session selection. */
+export interface SessionBatchMenu {
+  sessionIds: readonly string[];
+  archiveAll: (ids: readonly string[]) => void;
+}
+
 /** Menu primitives shared by the dropdown and context-menu renderers. */
 interface MenuKit {
   Item: React.ElementType;
@@ -563,6 +569,16 @@ function SessionMenuItems({ kit, menu }: { kit: MenuKit; menu: SessionMenu }) {
   );
 }
 
+/** Batch actions replace the single-session menu when its trigger is selected. */
+function SessionBatchMenuItems({ batch }: { batch: SessionBatchMenu }) {
+  return (
+    <ContextMenuItem onSelect={() => batch.archiveAll(batch.sessionIds)}>
+      <Archive /> Archive all
+      <span className="ml-auto pl-3 tabular-nums text-fg-muted">{batch.sessionIds.length}</span>
+    </ContextMenuItem>
+  );
+}
+
 /** The hover ellipsis trigger — shares `menu` with the row's context menu. */
 export function SessionActionsEllipsis({ menu }: { menu: SessionMenu }) {
   return (
@@ -589,10 +605,13 @@ export function SessionActionsEllipsis({ menu }: { menu: SessionMenu }) {
 export function SessionContextMenu({
   session,
   onArchived,
+  batch,
   children,
 }: {
   session: Session;
   onArchived?: (id: string) => void;
+  /** Present only when this trigger belongs to a multi-session selection. */
+  batch?: SessionBatchMenu;
   children: React.ReactElement | ((menu: SessionMenu) => React.ReactElement);
 }) {
   const { menu, dialogs } = useSessionMenu(session, onArchived);
@@ -603,7 +622,11 @@ export function SessionContextMenu({
           {typeof children === 'function' ? children(menu) : children}
         </ContextMenuTrigger>
         <ContextMenuContent>
-          <SessionMenuItems kit={contextKit} menu={menu} />
+          {batch ? (
+            <SessionBatchMenuItems batch={batch} />
+          ) : (
+            <SessionMenuItems kit={contextKit} menu={menu} />
+          )}
         </ContextMenuContent>
       </ContextMenu>
       {dialogs}
@@ -613,10 +636,20 @@ export function SessionContextMenu({
 
 /** For surfaces that need the menu but compose their own trigger (e.g. the
  *  tooltip-wrapped collapsed dot): renders the context-menu content + dialogs. */
-export function SessionContextMenuBody({ menu }: { menu: SessionMenu }) {
+export function SessionContextMenuBody({
+  menu,
+  batch,
+}: {
+  menu: SessionMenu;
+  batch?: SessionBatchMenu;
+}) {
   return (
     <ContextMenuContent>
-      <SessionMenuItems kit={contextKit} menu={menu} />
+      {batch ? (
+        <SessionBatchMenuItems batch={batch} />
+      ) : (
+        <SessionMenuItems kit={contextKit} menu={menu} />
+      )}
     </ContextMenuContent>
   );
 }

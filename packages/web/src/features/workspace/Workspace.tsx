@@ -129,7 +129,13 @@ import {
   type SidebarMode,
 } from './NavigatorSidebar';
 import { NewSessionDialog } from './NewSessionDialog';
-import { CollapsedSessionsRail, SessionSidebar, type SessionGroup } from './SessionSidebar';
+import {
+  CollapsedSessionsRail,
+  SessionSidebar,
+  type SessionGroup,
+  type SidebarSessionSelection,
+} from './SessionSidebar';
+import { nextSessionSelection, retainVisibleSessions } from './session-selection';
 import { TileTree } from './TileTree';
 import { TilingDnd } from './TilingDnd';
 import { useLayoutTree } from './useLayoutTree';
@@ -289,6 +295,46 @@ function WorkspaceInner() {
     orderedProjects,
     allSessions.data,
   ]);
+  // Sidebar selection is workspace state rather than list state so the same
+  // selected conversations survive switching between the expanded list and
+  // collapsed rail. The range follows their shared flattened visual order.
+  const visibleSessionIds = useMemo(
+    () => sessionGroups.flatMap((group) => group.sessions.map((session) => session.id)),
+    [sessionGroups],
+  );
+  const [selectedSessionIds, setSelectedSessionIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const sessionSelectionAnchor = useRef<string | null>(null);
+  useEffect(() => {
+    setSelectedSessionIds((selection) => retainVisibleSessions(selection, visibleSessionIds));
+    if (
+      sessionSelectionAnchor.current !== null &&
+      !visibleSessionIds.includes(sessionSelectionAnchor.current)
+    ) {
+      sessionSelectionAnchor.current = null;
+    }
+  }, [visibleSessionIds]);
+  const selectSidebarSession = useCallback(
+    (id: string, modifiers: { shift: boolean; toggle: boolean }) => {
+      setSelectedSessionIds((selection) => {
+        const next = nextSessionSelection(
+          visibleSessionIds,
+          selection,
+          sessionSelectionAnchor.current,
+          id,
+          modifiers,
+        );
+        sessionSelectionAnchor.current = next.anchor;
+        return next.selection;
+      });
+    },
+    [visibleSessionIds],
+  );
+  const selectOnlySidebarSession = useCallback((id: string) => {
+    sessionSelectionAnchor.current = id;
+    setSelectedSessionIds(new Set([id]));
+  }, []);
   // A sidebar project-header drag persists into the SAME projectOrder the
   // homescreen cards drag (SPEC §11) — one source of truth for project order.
   // dragover fires continuously, so identical orders never re-persist.
@@ -1083,20 +1129,50 @@ function WorkspaceInner() {
     },
     [layout, uiState, activeSessionId, navigate, projectId],
   );
-  // A session dropped on an archive target (rail icon / list header): archive
-  // it — no confirmation, nothing is destroyed (SPEC §4) — and drop its tab.
+  // Sessions dropped on an archive target (rail icon / list header), or chosen
+  // through a selected row's batch menu: archive every one — no confirmation,
+  // nothing is destroyed (SPEC §4) — and drop their tabs.
   // Declared HERE, with the other hooks: every hook in this component must run
   // before the loading gate below returns early, or the gate flipping changes
   // the hook count mid-life and React blanks the workspace (React #310).
   const archiveSession = useArchiveSession();
-  const archiveFromDrag = useCallback(
-    (id: string) =>
-      archiveSession.mutate(id, {
-        onSuccess: () => closeTab(id),
-        onError: (e) => toastError(e),
-      }),
+  const archiveSidebarSessions = useCallback(
+    async (ids: readonly string[]) => {
+      const uniqueIds = [...new Set(ids)];
+      const results = await Promise.allSettled(
+        uniqueIds.map((id) => archiveSession.mutateAsync(id)),
+      );
+      const archivedIds = uniqueIds.filter((_, index) => results[index]?.status === 'fulfilled');
+      for (const id of archivedIds) closeTab(id);
+      if (archivedIds.length > 0) {
+        setSelectedSessionIds((selection) => {
+          const next = new Set(selection);
+          for (const id of archivedIds) next.delete(id);
+          return next;
+        });
+        if (
+          sessionSelectionAnchor.current !== null &&
+          archivedIds.includes(sessionSelectionAnchor.current)
+        ) {
+          sessionSelectionAnchor.current = null;
+        }
+      }
+      const failures = results.filter((result) => result.status === 'rejected');
+      const firstFailure = failures[0];
+      if (failures.length === 1 && firstFailure) {
+        toastError(firstFailure.reason);
+      } else if (failures.length > 1) {
+        toast.error(`Couldn’t archive ${failures.length} of ${uniqueIds.length} sessions`);
+      }
+    },
     [archiveSession, closeTab],
   );
+  const sidebarSessionSelection: SidebarSessionSelection = {
+    ids: selectedSessionIds,
+    onSelect: selectSidebarSession,
+    onSelectOnly: selectOnlySidebarSession,
+    onArchive: (ids) => void archiveSidebarSessions(ids),
+  };
 
   // Activating a tab focuses its pane; activating a terminal also navigates so
   // the left sidebar binds to it. A terminal tab may belong to ANOTHER project
@@ -1683,7 +1759,8 @@ function WorkspaceInner() {
       onNewTerminal={() => openCreate('terminal')}
       onCollapse={onCollapse}
       onArchived={closeTab}
-      onArchiveDrop={archiveFromDrag}
+      onArchiveDrop={(ids) => void archiveSidebarSessions(ids)}
+      selection={sidebarSessionSelection}
       projectActions={projectActions}
     />
   );
@@ -1749,7 +1826,7 @@ function WorkspaceInner() {
     <KeepAliveHost tree={layout.tree} parked={parkedSessions} onOpenFile={openFromTerminal}>
       <TilingDnd
         onDrop={layout.drop}
-        onArchive={archiveFromDrag}
+        onArchive={(id) => void archiveSidebarSessions([id])}
         renderOverlay={(ref) => {
           const s =
             ref.type === 'terminal' ? tabSessions.find((x) => x.id === ref.session) : undefined;
@@ -1791,7 +1868,8 @@ function WorkspaceInner() {
                 onNewTerminal={() => openCreate('terminal')}
                 onNewSession={() => openCreate('agent')}
                 onArchived={closeTab}
-                onArchiveDrop={archiveFromDrag}
+                onArchiveDrop={(ids) => void archiveSidebarSessions(ids)}
+                selection={sidebarSessionSelection}
                 projectActions={projectActions}
               />
               {narrowNav && (
@@ -1865,7 +1943,8 @@ function WorkspaceInner() {
                   onNewTerminal={() => openCreate('terminal')}
                   onNewSession={() => openCreate('agent')}
                   onArchived={closeTab}
-                  onArchiveDrop={archiveFromDrag}
+                  onArchiveDrop={(ids) => void archiveSidebarSessions(ids)}
+                  selection={sidebarSessionSelection}
                   projectActions={projectActions}
                 />
               )}

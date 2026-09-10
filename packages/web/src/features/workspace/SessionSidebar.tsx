@@ -44,6 +44,14 @@ import {
   SessionContextMenuBody,
   useSessionMenu,
 } from './SessionActions';
+import type { SessionSelectionModifiers } from './session-selection';
+import {
+  decodeSessionDrag,
+  encodeSessionDrag,
+  hasSessionDrag,
+  sessionsForDrag,
+  SESSION_DRAG_MIME,
+} from './session-selection';
 import { moveWithinGroups } from './session-order';
 import { decodeTabTransfer, encodeTabTransfer, hasTabTransfer, TAB_MIME } from './tab-transfer';
 import { ARCHIVE_DROP_PREFIX, useActiveDragRef } from './TilingDnd';
@@ -72,6 +80,14 @@ export interface ProjectHeaderActions {
   onMoveProject: (dragId: string, beforeId: string) => void;
 }
 
+/** Selection state shared by the expanded list and collapsed rail. */
+export interface SidebarSessionSelection {
+  ids: ReadonlySet<string>;
+  onSelect: (id: string, modifiers: SessionSelectionModifiers) => void;
+  onSelectOnly: (id: string) => void;
+  onArchive: (ids: readonly string[]) => void;
+}
+
 /**
  * A project-name drag reorders projects; its payload is this private MIME so no
  * pane or list mistakes it for a tab drag (reordering rides dragover, the
@@ -81,6 +97,16 @@ const PROJECT_MIME = 'application/x-puddle-project';
 
 /** Which hover drives a session row's marquees: the row itself (`group`). */
 const ROW_MARQUEE = 'group-hover:[transform:translateX(var(--tail))]';
+
+/** Give a multi-session drag an honest preview instead of showing one row. */
+function setCountDragImage(e: DragEvent, count: number) {
+  const chip = document.createElement('div');
+  chip.textContent = `${count} sessions`;
+  chip.className = 'fixed -top-12 left-0 rounded-md bg-elevated px-2 py-1 text-xs text-fg';
+  document.body.appendChild(chip);
+  e.dataTransfer.setDragImage(chip, 12, 12);
+  requestAnimationFrame(() => chip.remove());
+}
 
 /**
  * The project header's right-click menu: start a new agent or terminal IN that
@@ -120,13 +146,13 @@ function ProjectMenuBody({
 
 /**
  * Archive-by-drag plumbing (SPEC §12): a session dragged onto an archive
- * target is archived. Two payload paths land here — the sidebar's own rows and
- * rail dots ride native HTML5 DnD (`TAB_MIME`), while centre tab chips ride
- * dnd-kit (a droppable under the workspace-wide `TilingDnd` context, which
- * routes the release via its `onArchive`). Editor payloads are ignored — only
- * a terminal ref names a session.
+ * target is archived. The sidebar's own rows and rail glyphs ride native HTML5
+ * DnD (`TAB_MIME`, plus `SESSION_DRAG_MIME` for a selected batch), while centre
+ * tab chips ride dnd-kit (a droppable under the workspace-wide `TilingDnd`
+ * context, which routes the release via its `onArchive`). Editor payloads are
+ * ignored — only a terminal ref names a session.
  */
-function useArchiveDrop(id: string, onArchiveDrop: (session: string) => void) {
+function useArchiveDrop(id: string, onArchiveDrop: (sessions: readonly string[]) => void) {
   const { isOver, setNodeRef } = useDroppable({ id: `${ARCHIVE_DROP_PREFIX}${id}` });
   const activeRef = useActiveDragRef();
   const [nativeOver, setNativeOver] = useState(false);
@@ -143,17 +169,23 @@ function useArchiveDrop(id: string, onArchiveDrop: (session: string) => void) {
     armed: nativeOver || (isOver && activeRef?.type === 'terminal'),
     props: {
       onDragOver: (e: DragEvent) => {
-        if (!hasTabTransfer(e.dataTransfer.types)) return;
+        if (!hasSessionDrag(e.dataTransfer.types) && !hasTabTransfer(e.dataTransfer.types)) return;
         e.preventDefault();
         setNativeOver(true);
       },
       onDragLeave: () => setNativeOver(false),
       onDrop: (e: DragEvent) => {
         setNativeOver(false);
+        const sessions = decodeSessionDrag(e.dataTransfer.getData(SESSION_DRAG_MIME));
+        if (sessions.length > 0) {
+          e.preventDefault();
+          onArchiveDrop(sessions);
+          return;
+        }
         const ref = decodeTabTransfer(e.dataTransfer.getData(TAB_MIME));
         if (ref?.type !== 'terminal') return;
         e.preventDefault();
-        onArchiveDrop(ref.session);
+        onArchiveDrop([ref.session]);
       },
     },
   };
@@ -164,7 +196,7 @@ function RailArchiveTarget({
   onArchiveDrop,
   onExpand,
 }: {
-  onArchiveDrop: (session: string) => void;
+  onArchiveDrop: (sessions: readonly string[]) => void;
   onExpand: () => void;
 }) {
   const drop = useArchiveDrop('rail', onArchiveDrop);
@@ -185,7 +217,7 @@ function RailArchiveTarget({
           <span className="sr-only">Archived sessions</span>
         </button>
       </TooltipTrigger>
-      <TooltipContent side="left">Drop a session here to archive it</TooltipContent>
+      <TooltipContent side="left">Drop selected sessions here to archive them</TooltipContent>
     </Tooltip>
   );
 }
@@ -277,7 +309,7 @@ function SessionLabel({ session, accountLabel }: { session: Session; accountLabe
 }
 
 /**
- * One collapsed-rail status dot: navigates on click (to its own project, so the
+ * One collapsed-rail status glyph: navigates on click (to its own project, so the
  * cross-project rail switches projects too) and right-clicking opens the same
  * lifecycle menu as the expanded row's ellipsis. The context-menu and tooltip
  * triggers both wrap the single `<Link>` (stacked `asChild`).
@@ -288,15 +320,24 @@ function CollapsedSessionDot({
   activeSessionId,
   onPromote,
   onArchived,
+  selectedIds,
+  selection,
 }: {
   session: Session;
   accountLabel?: string;
   activeSessionId: string | null;
   onPromote: (id: string) => void;
   onArchived: (id: string) => void;
+  selectedIds: readonly string[];
+  selection: SidebarSessionSelection;
 }) {
   const { menu, dialogs } = useSessionMenu(session, onArchived);
   const renderTitle = useSessionTitleRenderer();
+  const selected = selection.ids.has(session.id);
+  const batch =
+    selected && selectedIds.length > 1
+      ? { sessionIds: selectedIds, archiveAll: selection.onArchive }
+      : undefined;
   return (
     <ContextMenu>
       <Tooltip>
@@ -307,11 +348,23 @@ function CollapsedSessionDot({
               aria-current={session.id === activeSessionId ? 'true' : undefined}
               // Single click opens the session's terminal as a preview tab
               // (via navigation); double click pins it, like a file's tab.
+              onClick={(e) => {
+                const modified = e.shiftKey || e.metaKey || e.ctrlKey;
+                selection.onSelect(session.id, {
+                  shift: e.shiftKey,
+                  toggle: e.metaKey || e.ctrlKey,
+                });
+                if (modified) e.preventDefault();
+              }}
               onDoubleClick={() => onPromote(session.id)}
+              onContextMenu={() => {
+                if (!selected) selection.onSelectOnly(session.id);
+              }}
               to={`/project/${session.project_id}/session/${session.id}`}
+              aria-selected={selected}
               className={cn(
                 'flex items-center rounded-md p-1 transition-colors hover:bg-elevated',
-                session.id === activeSessionId && 'bg-elevated',
+                selected ? 'bg-selection' : session.id === activeSessionId && 'bg-elevated',
               )}
             >
               {/* Active session marked with the same bg-elevated fill-shift the
@@ -320,7 +373,7 @@ function CollapsedSessionDot({
                   settled by eye against the live rail (2026-08-06, three
                   rounds): 16px marks comfortable / 12px compact at 0.75×
                   stroke — the mark full-bleeds its box rather than floating a
-                  12px icon in a 16px one, which is what made the dots swim in
+                  12px icon in a 16px one, which is what made the marks swim in
                   their chips. */}
               <SessionGlyph
                 status={session.status}
@@ -335,13 +388,13 @@ function CollapsedSessionDot({
             </Link>
           </TooltipTrigger>
         </ContextMenuTrigger>
-        {/* To the left, into the workspace — a tooltip above the dot would sit
-            on the dots before it in the rail. */}
+        {/* To the left, into the workspace — a tooltip above the glyph would sit
+            on the glyphs before it in the rail. */}
         <TooltipContent side="left">
           <SessionLabel session={session} accountLabel={accountLabel} />
         </TooltipContent>
       </Tooltip>
-      <SessionContextMenuBody menu={menu} />
+      <SessionContextMenuBody menu={menu} batch={batch} />
       {dialogs}
     </ContextMenu>
   );
@@ -365,6 +418,7 @@ export function CollapsedSessionsRail({
   onNewSession,
   onArchived,
   onArchiveDrop,
+  selection,
   projectActions,
 }: {
   groups: SessionGroup[];
@@ -378,14 +432,23 @@ export function CollapsedSessionsRail({
   onNewSession: () => void;
   onArchived: (id: string) => void;
   /** A session dropped on the rail's archive icon: archive it (SPEC §12). */
-  onArchiveDrop: (session: string) => void;
+  onArchiveDrop: (sessions: readonly string[]) => void;
+  selection: SidebarSessionSelection;
   projectActions: ProjectHeaderActions;
 }) {
-  const [dragging, setDragging] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<{
+    sourceId: string;
+    sessionIds: readonly string[];
+  } | null>(null);
   const [dragProject, setDragProject] = useState<string | null>(null);
   const [editingAbbrev, setEditingAbbrev] = useState<string | null>(null);
   const patchProject = usePatchProject();
   const accountLabel = new Map(accounts.map((a) => [a.id, a.label]));
+  const visibleIds = useMemo(
+    () => groups.flatMap((group) => group.sessions.map((session) => session.id)),
+    [groups],
+  );
+  const selectedIds = visibleIds.filter((id) => selection.ids.has(id));
   const move = (id: string, before: string) => {
     const next = moveWithinGroups(groups, id, before);
     if (next) onReorder(next);
@@ -415,8 +478,8 @@ export function CollapsedSessionsRail({
       </div>
       <div className="no-scrollbar flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto overscroll-contain compact:gap-0.5">
         {groups.map((group) => (
-          // A divider precedes every group (the first one separates dots from
-          // the controls above; the rest separate one project from the next).
+          // A divider precedes every group (the first one separates glyphs
+          // from the controls above; the rest separate projects).
           <div
             key={group.projectId}
             className="flex flex-col items-center gap-1 compact:gap-0.5"
@@ -486,20 +549,31 @@ export function CollapsedSessionsRail({
                     key={session.id}
                     draggable
                     onDragStart={(e) => {
+                      const sessionIds = sessionsForDrag(visibleIds, selection.ids, session.id);
                       // The same drag reorders within the rail AND, dropped on a
-                      // tiling pane, opens the session there as a permanent tab.
+                      // tiling pane, opens the grabbed session there as a
+                      // permanent tab. The companion payload lets the archive
+                      // target act on the whole selection.
                       e.dataTransfer.setData(
                         TAB_MIME,
                         encodeTabTransfer({ type: 'terminal', session: session.id }),
                       );
-                      setDragging(session.id);
+                      e.dataTransfer.setData(SESSION_DRAG_MIME, encodeSessionDrag(sessionIds));
+                      e.dataTransfer.effectAllowed = 'copyMove';
+                      if (sessionIds.length > 1) setCountDragImage(e, sessionIds.length);
+                      if (!selection.ids.has(session.id)) selection.onSelectOnly(session.id);
+                      setDragging({ sourceId: session.id, sessionIds });
                     }}
                     onDragEnd={() => setDragging(null)}
                     onDragOver={(e) => {
                       e.preventDefault();
-                      if (dragging && dragging !== session.id) move(dragging, session.id);
+                      if (dragging?.sessionIds.length === 1 && dragging.sourceId !== session.id)
+                        move(dragging.sourceId, session.id);
                     }}
-                    className={cn('transition-opacity', dragging === session.id && 'opacity-50')}
+                    className={cn(
+                      'transition-opacity',
+                      dragging?.sessionIds.includes(session.id) && 'opacity-50',
+                    )}
                   >
                     <CollapsedSessionDot
                       session={session}
@@ -511,6 +585,8 @@ export function CollapsedSessionsRail({
                       activeSessionId={activeSessionId}
                       onPromote={onPromote}
                       onArchived={onArchived}
+                      selectedIds={selectedIds}
+                      selection={selection}
                     />
                   </div>
                 ))}
@@ -519,7 +595,7 @@ export function CollapsedSessionsRail({
           </div>
         ))}
       </div>
-      {/* The rail's foot: sessions dragged here — dots above or centre tab
+      {/* The rail's foot: sessions dragged here — glyphs above or centre tab
           chips — archive; a click expands the sidebar to the full list. */}
       <RailArchiveTarget onArchiveDrop={onArchiveDrop} onExpand={onExpand} />
     </div>
@@ -533,6 +609,8 @@ function SessionRow({
   accountLabel,
   onPromote,
   onArchived,
+  selectedIds,
+  selection,
   ellipsis,
   lastActive = false,
 }: {
@@ -542,6 +620,8 @@ function SessionRow({
   /** Double-click: pin the session's (preview) terminal tab. */
   onPromote?: (id: string) => void;
   onArchived: (id: string) => void;
+  selectedIds?: readonly string[];
+  selection?: SidebarSessionSelection;
   /** Whether to mount the hover ellipsis (archived rows omit it). */
   ellipsis: boolean;
   /**
@@ -552,6 +632,11 @@ function SessionRow({
   lastActive?: boolean;
 }) {
   const renderTitle = useSessionTitleRenderer();
+  const selected = selection?.ids.has(session.id) ?? false;
+  const batch =
+    selection && selected && selectedIds && selectedIds.length > 1
+      ? { sessionIds: selectedIds, archiveAll: selection.onArchive }
+      : undefined;
   const kindLabel = session.kind === 'terminal' ? 'terminal' : (session.agent_type ?? 'agent');
   // An archived row trades its account for its last activity — the account is
   // fixed for the session's life and interesting while it runs; once archived,
@@ -564,7 +649,7 @@ function SessionRow({
       ? ` · ${accountLabel.get(session.account_id)}`
       : '';
   return (
-    <SessionContextMenu session={session} onArchived={onArchived}>
+    <SessionContextMenu session={session} onArchived={onArchived} batch={batch}>
       {(menu) => (
         <Link
           // draggable=false: let the <li> own the drag (reorder), not the
@@ -573,11 +658,24 @@ function SessionRow({
           draggable={false}
           // Single click = preview terminal (via navigation); double click
           // pins it, matching the file tree's single/double-click semantics.
+          onClick={(e) => {
+            if (!selection) return;
+            const modified = e.shiftKey || e.metaKey || e.ctrlKey;
+            selection.onSelect(session.id, {
+              shift: e.shiftKey,
+              toggle: e.metaKey || e.ctrlKey,
+            });
+            if (modified) e.preventDefault();
+          }}
           onDoubleClick={onPromote && (() => onPromote(session.id))}
+          onContextMenu={() => {
+            if (selection && !selected) selection.onSelectOnly(session.id);
+          }}
           to={`/project/${session.project_id}/session/${session.id}`}
+          aria-selected={selection ? selected : undefined}
           className={cn(
             'group flex items-center gap-2 px-3 py-1.5 transition-colors hover:bg-elevated compact:gap-1.5 compact:py-1',
-            session.id === activeSessionId && 'bg-elevated',
+            selected ? 'bg-selection' : session.id === activeSessionId && 'bg-elevated',
           )}
         >
           <SessionGlyph
@@ -652,7 +750,7 @@ function SessionRow({
 
 /**
  * Session list: a display-font title over the mono branch (git-branch icon) and
- * account (agent-brand icon) lines, live status ripples, badges, lifecycle menu.
+ * account (agent-brand icon) lines, live status glyphs, badges, lifecycle menu.
  * Sessions are grouped by project (a header per project in the cross-project
  * view); the list scrolls with no visible scrollbar while the controls stay
  * fixed. Archived sessions are not deleted — they collapse into a disclosure at
@@ -670,6 +768,7 @@ export function SessionSidebar({
   onCollapse,
   onArchived,
   onArchiveDrop,
+  selection,
   projectActions,
 }: {
   groups: SessionGroup[];
@@ -686,7 +785,8 @@ export function SessionSidebar({
   onCollapse: () => void;
   onArchived: (id: string) => void;
   /** A session dropped on the Archived header: archive it (SPEC §12). */
-  onArchiveDrop: (session: string) => void;
+  onArchiveDrop: (sessions: readonly string[]) => void;
+  selection: SidebarSessionSelection;
   projectActions: ProjectHeaderActions;
 }) {
   return (
@@ -710,6 +810,7 @@ export function SessionSidebar({
         archived={archived}
         onArchived={onArchived}
         onArchiveDrop={onArchiveDrop}
+        selection={selection}
         projectActions={projectActions}
       />
     </div>
@@ -726,6 +827,7 @@ function SessionListBody({
   archived,
   onArchived,
   onArchiveDrop,
+  selection,
   projectActions,
 }: {
   groups: SessionGroup[];
@@ -735,10 +837,14 @@ function SessionListBody({
   onPromote: (id: string) => void;
   archived: Session[];
   onArchived: (id: string) => void;
-  onArchiveDrop: (session: string) => void;
+  onArchiveDrop: (sessions: readonly string[]) => void;
+  selection: SidebarSessionSelection;
   projectActions: ProjectHeaderActions;
 }) {
-  const [dragging, setDragging] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<{
+    sourceId: string;
+    sessionIds: readonly string[];
+  } | null>(null);
   const [dragProject, setDragProject] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
@@ -752,6 +858,11 @@ function SessionListBody({
   const paletteKey = useHotkeyLabel('palette.toggle');
   const accountLabel = new Map(accounts.map((a) => [a.id, a.label]));
   const total = groups.reduce((n, g) => n + g.sessions.length, 0);
+  const visibleIds = useMemo(
+    () => groups.flatMap((group) => group.sessions.map((session) => session.id)),
+    [groups],
+  );
+  const selectedIds = visibleIds.filter((id) => selection.ids.has(id));
   // The open archived pane's height, dragged by the border above its header.
   const { height: archivedHeight, handle } = useResizableHeight('sessions-archived', 200, {
     sized: 'below',
@@ -862,20 +973,31 @@ function SessionListBody({
                     key={session.id}
                     draggable
                     onDragStart={(e) => {
+                      const sessionIds = sessionsForDrag(visibleIds, selection.ids, session.id);
                       // Reorders within the list AND, dropped on a tiling pane,
-                      // opens the session there as a permanent tab.
+                      // opens the grabbed session there as a permanent tab. A
+                      // selected batch travels beside that single-tab payload
+                      // for the archive target.
                       e.dataTransfer.setData(
                         TAB_MIME,
                         encodeTabTransfer({ type: 'terminal', session: session.id }),
                       );
-                      setDragging(session.id);
+                      e.dataTransfer.setData(SESSION_DRAG_MIME, encodeSessionDrag(sessionIds));
+                      e.dataTransfer.effectAllowed = 'copyMove';
+                      if (sessionIds.length > 1) setCountDragImage(e, sessionIds.length);
+                      if (!selection.ids.has(session.id)) selection.onSelectOnly(session.id);
+                      setDragging({ sourceId: session.id, sessionIds });
                     }}
                     onDragEnd={() => setDragging(null)}
                     onDragOver={(e) => {
                       e.preventDefault();
-                      if (dragging && dragging !== session.id) move(dragging, session.id);
+                      if (dragging?.sessionIds.length === 1 && dragging.sourceId !== session.id)
+                        move(dragging.sourceId, session.id);
                     }}
-                    className={cn('transition-opacity', dragging === session.id && 'opacity-50')}
+                    className={cn(
+                      'transition-opacity',
+                      dragging?.sessionIds.includes(session.id) && 'opacity-50',
+                    )}
                   >
                     <SessionRow
                       session={session}
@@ -883,6 +1005,8 @@ function SessionListBody({
                       accountLabel={accountLabel}
                       onPromote={onPromote}
                       onArchived={onArchived}
+                      selectedIds={selectedIds}
+                      selection={selection}
                       ellipsis
                     />
                   </li>
