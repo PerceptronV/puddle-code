@@ -7,4 +7,8 @@ Past releases: see docs/changelogs/.
 
 # Changelog
 
-## [Unreleased]
+## [0.1.13] — 2026-09-10
+
+### Added
+
+- Select session ranges in either right-sidebar presentation and archive the selected batch from its context menu or archive drop target.
