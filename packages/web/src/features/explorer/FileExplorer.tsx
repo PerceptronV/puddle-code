@@ -63,7 +63,11 @@ function ExplorerBody() {
           role="tree"
           tabIndex={0}
           onKeyDown={ex.handleKeyDown}
-          onPaste={(e) => ex.onDropUpload('', e.clipboardData.items, e.clipboardData.files)}
+          onPaste={(e) => {
+            if (ex.onClipboardPaste(e.clipboardData.items, e.clipboardData.files)) {
+              e.preventDefault();
+            }
+          }}
           onDragOver={(e) => {
             if (ex.readOnly) return;
             e.preventDefault();

@@ -27,7 +27,7 @@ import {
   type ExplorerClipboardState,
   type ExplorerClipboardTarget,
 } from './clipboard-store';
-import { collectDroppedFiles } from './drop-files';
+import { collectDroppedFiles, collectPastedFiles, hasPastedFiles } from './drop-files';
 import { buildStatusMap } from './git-decoration';
 import {
   ancestorDirs,
@@ -114,11 +114,13 @@ export interface ExplorerCtx {
 
   onUpload(dir: string, files: File[]): void;
   /**
-   * OS drop/paste into `dir`: resolves the DataTransfer — walking dropped
-   * folders when the daemon supports them — then uploads. Call it synchronously
-   * from the event handler (the DataTransfer is only readable during dispatch).
+   * OS drop into `dir`: resolves the DataTransfer — walking dropped folders
+   * when the daemon supports them — then uploads. Call it synchronously from
+   * the event handler (the DataTransfer is only readable during dispatch).
    */
   onDropUpload(dir: string, items: DataTransferItemList | undefined, files: FileList): void;
+  /** Upload native clipboard files, or fall back to the internal cut/copy clipboard. */
+  onClipboardPaste(items: DataTransferItemList | undefined, files: FileList): boolean;
   dropTarget: string | null;
   setDropTarget(path: string | null): void;
   onInternalDrop(targetDir: string, draggedPaths: string[]): void;
@@ -473,6 +475,39 @@ export function ExplorerProvider({
     [clipboard, fs, protocol, readOnly, target],
   );
 
+  const onClipboardPaste = useCallback<ExplorerCtx['onClipboardPaste']>(
+    (items, files) => {
+      // A rename/create input owns ordinary text paste while it is mounted.
+      if (readOnly || editing) return false;
+      const focusedRow = focusedPath
+        ? visibleRows.find((row) => row.path === focusedPath)
+        : undefined;
+      const targetDir = focusedRow
+        ? focusedRow.type === 'dir'
+          ? focusedRow.path
+          : focusedRow.parentDir
+        : '';
+
+      // Native clipboard files win over Puddle's persistent tree clipboard.
+      // Capture them before returning from this dispatch; Chromium invalidates
+      // DataTransferItem access after the paste event has unwound.
+      if (hasPastedFiles(items, files)) {
+        collectPastedFiles(items, files, foldersSupported)
+          .then((collected) => onUpload(targetDir, collected))
+          .catch((e: unknown) =>
+            toast.error(e instanceof Error ? e.message : "Couldn't read the pasted files"),
+          );
+        return true;
+      }
+      if (canPaste) {
+        paste(targetDir);
+        return true;
+      }
+      return false;
+    },
+    [readOnly, editing, focusedPath, visibleRows, foldersSupported, onUpload, canPaste, paste],
+  );
+
   const beginRename = useCallback(
     (path: string) => {
       if (!readOnly) setEditing({ mode: 'rename', path });
@@ -648,13 +683,6 @@ export function ExplorerProvider({
         cut(actionTargets());
         return;
       }
-      if (meta && (e.key === 'v' || e.key === 'V')) {
-        e.preventDefault();
-        const targetDir = cur ? (cur.type === 'dir' ? cur.path : cur.parentDir) : '';
-        paste(targetDir);
-        return;
-      }
-
       // Type-to-jump: match the next visible row by name prefix.
       if (!meta && !e.altKey && e.key.length === 1 && /\S/.test(e.key)) {
         const now = Date.now();
@@ -689,7 +717,6 @@ export function ExplorerProvider({
       actionTargets,
       copy,
       cut,
-      paste,
       copyPathToClipboard,
     ],
   );
@@ -731,6 +758,7 @@ export function ExplorerProvider({
     refresh,
     onUpload,
     onDropUpload,
+    onClipboardPaste,
     dropTarget,
     setDropTarget,
     onInternalDrop,
