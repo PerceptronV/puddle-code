@@ -34,6 +34,7 @@ import { wsManager } from '../../lib/ws';
 import { dynamicColourReport, type DynamicColourCode } from './osc-colour';
 import { isCopyShortcut } from './copy-shortcut';
 import { interceptImagePaste } from './paste-image';
+import { macLineEditSequence } from './line-edit-shortcut';
 import { rewriteTerminalUri } from './proxy-links';
 import {
   TerminalResizeScrollGuard,
@@ -87,19 +88,6 @@ function useTerminalFontReady(): boolean {
 
 /** Statuses in which a process is attached to the PTY (see the restart refit). */
 const LIVE_STATUSES: SessionStatus[] = ['starting', 'running', 'waiting_input'];
-
-/**
- * macOS line-editing shortcuts the browser would otherwise eat: ⌘←/⌘→ move to
- * line start/end and ⌘⌫/⌘⌦ delete to line start/end, translated to the readline
- * control codes the PTY expects. ⌘←/⌘→ are also the browser's history
- * back/forward, so we must preventDefault. Keyed by `e.key` (layout-independent).
- */
-const MAC_LINE_EDITS: Record<string, string> = {
-  ArrowLeft: '\x01', // ⌘← → Ctrl-A: start of line
-  ArrowRight: '\x05', // ⌘→ → Ctrl-E: end of line
-  Backspace: '\x15', // ⌘⌫ → Ctrl-U: delete to start of line
-  Delete: '\x0b', // ⌘⌦ → Ctrl-K: delete to end of line
-};
 
 /** Search decorations derive from the live theme, like xterm itself. */
 function terminalFindOptions(options: FindOptions): ISearchOptions {
@@ -501,10 +489,9 @@ export function Terminal({
         }
       }
       if (!IS_MAC) return true;
-      if (e.type !== 'keydown' || !e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return true;
-      const seq = MAC_LINE_EDITS[e.key];
+      const seq = macLineEditSequence(e);
       if (!seq) return true;
-      e.preventDefault(); // stop the browser's ⌘←/⌘→ history navigation
+      e.preventDefault(); // stop browser navigation and macOS Option-key text input
       wsManager.write(stream, term, seq);
       return false; // consume: xterm must not also emit its default bytes
     });

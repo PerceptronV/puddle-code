@@ -12,3 +12,4 @@ Past releases: see docs/changelogs/.
 ### Fixed
 
 - Keep session shell history on its private file when directory, environment, or prompt hooks repoint `HISTFILE` at runtime.
+- Make Option+Left/Right move by word in macOS terminals instead of inserting the unrecognised xterm sequence tail.
