@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Fix self-hosted application builds with filtered dependencies by separating the production Vite configuration from the development cockpit gateway.

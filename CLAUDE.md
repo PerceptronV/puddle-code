@@ -122,6 +122,7 @@ supervised one.
 - Layout-tree node ids are **unique within a tree** (`layout-tree.ts` "Node identity"). Anything that COPIES a tree re-ids the copy (`reidNodes`) and anything that combines trees deduplicates (`dedupeIds`): ids are the tiling area's React keys and resizable-panel ids, so a repeat aliases panes and throws "Panel ids must be unique" mid-render (this shipped in v0.0.22–v0.0.23, when it blanked every window).
 - A render throw is now caught (`components/error-boundary.tsx`, mounted around the routed view and at the root — SPEC §12), so a crash is a legible message rather than a white page. That is a net, NOT a licence: it neither fixes nor hides anything, the console still gets the error and component stack, and the two invariants above are still what keep the app rendering.
 - Prefer small modules with one responsibility over utils grab-bags. If a file passes ~300 lines, look for a seam.
+- Web production builds use `vite.build.config.ts` with only web dependencies; the default `vite.config.ts` adds the authenticated development cockpit gateway. Keep CLI imports out of the production configuration so filtered Docker installs remain buildable.
 
 ## Housekeeping — read this, future agents
 
