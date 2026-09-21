@@ -14,17 +14,6 @@ import { findFreePort } from '../../cli/src/lib/net.js';
 
 /** Real daemon, cockpit, service and connector; only the coding agent and GitHub are fixtures. */
 export async function mobileFixture() {
-  const local = await fixture();
-  // Make the actual connector entry point available to the built desktop cockpit.
-  // No supervisor is installed or invoked; this fixture owns the connector process.
-  mkdirSync(join(local.home, 'bin/current/bin'), { recursive: true });
-  mkdirSync(join(local.home, 'bin/current/daemon'), { recursive: true });
-  symlinkSync(process.execPath, join(local.home, 'bin/current/bin/node'));
-  symlinkSync(
-    join(root, 'packages/connector/dist/index.js'),
-    join(local.home, 'bin/current/daemon/connector.mjs'),
-  );
-  const session = await createSession(local);
   const directory = mkdtempSync(join(tmpdir(), 'puddle-mobile-browser-'));
   const servicePort = await findFreePort();
   const appPort = await findFreePort();
@@ -53,6 +42,17 @@ export async function mobileFixture() {
     ],
     { stdio: 'ignore' },
   );
+  const local = await fixture({ caCert: certPath });
+  // Make the actual connector entry point available to the built desktop cockpit.
+  // No supervisor is installed or invoked; this fixture owns the connector process.
+  mkdirSync(join(local.home, 'bin/current/bin'), { recursive: true });
+  mkdirSync(join(local.home, 'bin/current/daemon'), { recursive: true });
+  symlinkSync(process.execPath, join(local.home, 'bin/current/bin/node'));
+  symlinkSync(
+    join(root, 'packages/connector/dist/index.js'),
+    join(local.home, 'bin/current/daemon/connector.mjs'),
+  );
+  const session = await createSession(local);
   const tls = { cert: readFileSync(certPath), key: readFileSync(keyPath) };
   const github = githubFixture();
   const remote = await startRemoteService({
@@ -162,14 +162,36 @@ export async function mobileFixture() {
     serviceOrigin,
     github,
     admin: (request: unknown) => administrativeRequest(local.home, request),
-    async enable(account: string) {
-      const registration = remote.store.redeem(remote.store.register(account, 'Fixture host').code);
-      atomicPrivateJson(join(local.home, 'remote/config.json'), {
-        ...registration,
-        service: serviceOrigin,
-        app: appOrigin,
-        enabled: true,
-      });
+    async enable(account: string, code?: string) {
+      if (code) {
+        await new Promise<void>((resolve, reject) => {
+          const configure = spawn(
+            process.execPath,
+            [join(root, 'packages/connector/dist/index.js'), '--configure'],
+            {
+              env: { ...env(local.home), NODE_EXTRA_CA_CERTS: certPath },
+              stdio: ['pipe', 'pipe', 'pipe'],
+            },
+          );
+          configure.once('error', reject);
+          configure.once('exit', (status) =>
+            status === 0 ? resolve() : reject(new Error('Fixture registration failed')),
+          );
+          configure.stdin.end(
+            JSON.stringify({ service: serviceOrigin, app: appOrigin, code, managed: false }) + '\n',
+          );
+        });
+      } else {
+        const registration = remote.store.redeem(
+          remote.store.register(account, 'Fixture host').code,
+        );
+        atomicPrivateJson(join(local.home, 'remote/config.json'), {
+          ...registration,
+          service: serviceOrigin,
+          app: appOrigin,
+          enabled: true,
+        });
+      }
       connector = spawn(process.execPath, [join(root, 'packages/connector/dist/index.js')], {
         env: { ...env(local.home), NODE_EXTRA_CA_CERTS: certPath },
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -185,7 +207,7 @@ export async function mobileFixture() {
         },
         (value) => value?.connected === true,
       );
-      return registration;
+      return JSON.parse(readFileSync(join(local.home, 'remote/config.json'), 'utf8')) as unknown;
     },
     async close() {
       github.close();

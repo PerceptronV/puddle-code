@@ -1,6 +1,6 @@
 # Mobile access acceptance
 
-Remote protocol 2; daemon/cockpit protocol 19.1. Run in isolated homes with fake agents.
+Remote protocol 2; daemon/cockpit protocol 20.0. Run in isolated homes with fake agents.
 Never launch an installed daemon from a coding-agent environment. Deployment and
 recovery instructions: [self-hosted mobile access](../mobile-access.md).
 
@@ -18,11 +18,16 @@ recovery instructions: [self-hosted mobile access](../mobile-access.md).
   approval from desktop Settings → Remote & Sync, QR/link generation, Unicode
   composer input, draft retention through resize/reconnect, desktop revocation/
   disablement and continued local agent access. A separate UI fixture covers
-  registration/re-enablement, explicit identity-reset confirmation, and registration
+  in-place registration editing, editable defaults, cancellation and quiet polling during sign-in,
+  re-enablement, explicit identity-reset confirmation, and registration
   deletion with cancellation/error recovery, chevron keyboard toggling, legacy
   settings links and quiet status polling without
   installing a supervisor. This suite requires a locally
   installed Playwright Chromium; no browser download occurs as part of the test.
+  A desktop handoff test follows real HTTPS approval/status/redemption across OAuth,
+  then starts the built connector under fixture-owned supervision; no OS service is installed.
+  Verify that the URL contains only the hash, the private verifier is not persisted,
+  redemption is single-use and no browser grant is created by account registration.
 - `pnpm test:e2e` and `pnpm test:ssh`: preserve local/SSH foundation behaviour,
   cockpit replacement, connection leases and isolated loopback SSH integration.
 - `pnpm build:tarball`: bundle/smoke-test daemon and connector against the shipped
@@ -40,8 +45,14 @@ review, production OAuth-provider acceptance or physical-phone acceptance.
   identity reset. Delete enabled and disabled registrations: cancelling preserves
   access, confirming clears settings and revokes all browsers/invitations while
   agents continue. Repeat with the relay offline; fresh registration must require
-  a new code and new approvals. Older connectors must hide deletion. Test actual
+  a new sign-in handoff (or CLI code) and new approvals. Older connectors must hide deletion. Test actual
   systemd/launchd enablement on disposable hosts.
+- Confirm new desktop settings pre-fill the application/relay addresses. Edit a disabled
+  registration in place, cancel to restore saved values, then sign in to replace it.
+  Match the request identifier in the external browser and verify OAuth/MFA returns
+  to the pending confirmation. Cancel or close desktop settings before confirming:
+  no connector must be enabled. Repeat after expiry and with an older/unavailable
+  service; surface an error without retrying an uncertain enablement.
 - Build the example images from a clean checkout and launch with distinct real
   app/relay HTTPS origins. Confirm only ingress ports are published; the daemon
   remains unreachable directly. Check CSP, framing, MIME and cache headers.

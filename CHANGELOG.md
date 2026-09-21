@@ -17,6 +17,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Start remote registration from desktop browser sign-in, with editable default origins and in-place connection settings instead of a second form or copied registration code.
+
 - Combine remote access and settings sync under Remote & Sync, preserving existing settings links.
 - Replace native disclosure triangles throughout the UI with Puddle chevrons.
 

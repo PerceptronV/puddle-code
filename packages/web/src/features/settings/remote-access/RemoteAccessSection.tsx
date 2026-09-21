@@ -160,7 +160,18 @@ export function RemoteAccessSection() {
       )}
       {data?.availability === 'ready' && (
         <>
-          {data.configured && (
+          {!data.enabled && data.supervisor && (!data.configured || replace) ? (
+            <RegistrationForm
+              key={data.host ?? 'new'}
+              service={data.service}
+              app={data.app}
+              hostName={host.data?.displayName || host.data?.hostname || 'My host'}
+              busy={busy}
+              disabled={disabled}
+              enable={act}
+              cancel={data.configured ? () => setReplace(false) : undefined}
+            />
+          ) : data.configured ? (
             <dl className="mt-4 space-y-2 text-xs text-fg-secondary">
               <div>
                 <dt className="text-fg-muted">Application</dt>
@@ -181,7 +192,7 @@ export function RemoteAccessSection() {
                 </div>
               )}
             </dl>
-          )}
+          ) : null}
           {!data.enabled && !data.supervisor && (
             <p className="mt-4 text-sm text-fg-secondary">
               This host needs persistent systemd or launchd supervision before access can be enabled
@@ -189,36 +200,15 @@ export function RemoteAccessSection() {
               CLI commands.
             </p>
           )}
-          {!data.enabled && data.supervisor && (
-            <>
-              {data.configured && (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Button disabled={disabled} onClick={() => void act({ t: 'enable' })}>
-                    Enable remote access
-                  </Button>
-                  <Button variant="ghost" disabled={disabled} onClick={() => setReplace(!replace)}>
-                    {replace ? 'Cancel registration change' : 'Change registration'}
-                  </Button>
-                </div>
-              )}
-              {(!data.configured || replace) && (
-                <>
-                  {replace && (
-                    <p className="mt-4 text-sm text-fg-secondary">
-                      Changing registration revokes existing browser approvals and invitations.
-                    </p>
-                  )}
-                  <RegistrationForm
-                    key={data.host ?? 'new'}
-                    service={data.service}
-                    app={data.app}
-                    busy={busy}
-                    disabled={disabled}
-                    enable={act}
-                  />
-                </>
-              )}
-            </>
+          {!data.enabled && data.supervisor && data.configured && !replace && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button disabled={disabled} onClick={() => void act({ t: 'enable' })}>
+                Enable remote access
+              </Button>
+              <Button variant="ghost" disabled={disabled} onClick={() => setReplace(true)}>
+                Change registration
+              </Button>
+            </div>
           )}
           {data.enabled && (
             <div className="mt-4 flex flex-wrap gap-2">

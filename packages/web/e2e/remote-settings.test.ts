@@ -1,13 +1,19 @@
 import { test, expect } from '@playwright/test';
 import { rmSync } from 'node:fs';
 import { fixture, createSession } from '../../cli/e2e/helpers';
-import type { CockpitRemoteRequest, CockpitRemoteStatus } from '@puddle/shared';
+import type {
+  CockpitRemoteRequest,
+  CockpitRemoteStatus,
+  DesktopRegistration,
+} from '@puddle/shared';
+import { createHash } from 'node:crypto';
 
 test('desktop registration, re-enablement, recovery and confirmed deletion', async ({
   page,
 }, testInfo) => {
   const local = await fixture();
   let finishRead: (() => void) | undefined;
+  let finishCheck: (() => void) | undefined;
   try {
     await createSession(local);
     const profiles = await (await local.req('/api/profiles')).json();
@@ -30,6 +36,26 @@ test('desktop registration, re-enablement, recovery and confirmed deletion', asy
       devices: [],
     };
     const requests: CockpitRemoteRequest[] = [];
+    let signInReady = false;
+    let verifier = '';
+    let holdCheck = false;
+    let checkHeld = false;
+    await page.route('**/cockpit/remote/registration', async (route) => {
+      verifier = route.request().postDataJSON().code;
+      if (holdCheck) {
+        holdCheck = false;
+        checkHeld = true;
+        await new Promise<void>((resolve) => {
+          finishCheck = resolve;
+        });
+        return route.fulfill({ json: { ready: true } });
+      }
+      await route.fulfill({ json: { ready: signInReady } });
+    });
+    // Avoid external navigation: the full HTTPS fixture covers browser sign-in.
+    await page.addInitScript(() => {
+      window.open = () => null;
+    });
     let failDeletion = false;
     let holdRead = false;
     let readHeld = false;
@@ -96,21 +122,46 @@ test('desktop registration, re-enablement, recovery and confirmed deletion', asy
     await expect(page.getByRole('heading', { name: 'Remote access', exact: true })).toBeVisible();
     await navigation.getByRole('button', { name: 'Remote & Sync', exact: true }).click();
     await expect(page).toHaveURL(/#settings\/remote-sync$/);
+    await expect(page.getByLabel('Relay origin', { exact: true })).toHaveValue(
+      'https://charles.waddlelabs.ai',
+    );
+    await expect(page.getByLabel('Application origin', { exact: true })).toHaveValue(
+      'https://puddle.waddlelabs.ai',
+    );
     await page.getByLabel('Relay origin', { exact: true }).fill('https://relay.example.test');
     await page.getByLabel('Application origin', { exact: true }).fill('https://app.example.test');
-    const code = 'a'.repeat(64);
-    await page.getByLabel('Registration code', { exact: true }).fill(code);
     holdRead = true;
     await expect.poll(() => readHeld, { timeout: 10_000 }).toBe(true);
-    await expect(page.getByLabel('Registration code', { exact: true })).toBeFocused();
-    await expect(page.getByLabel('Registration code', { exact: true })).toHaveValue(code);
+    await expect(page.getByLabel('Application origin', { exact: true })).toBeFocused();
+    await expect(page.getByLabel('Application origin', { exact: true })).toHaveValue(
+      'https://app.example.test',
+    );
     await expect(
-      page.getByRole('button', { name: 'Enable remote access', exact: true }),
+      page.getByRole('button', { name: 'Sign in and enable', exact: true }),
     ).toBeEnabled();
     await expect(page.getByRole('button', { name: 'Refresh status', exact: true })).toBeEnabled();
     await expect(page.getByRole('button', { name: 'Enabling…', exact: true })).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath('desktop-enable-remote.png') });
-    await page.getByRole('button', { name: 'Enable remote access', exact: true }).click();
+    await page.getByRole('button', { name: 'Sign in and enable', exact: true }).click();
+    const link = page.getByRole('link', { name: 'Continue in browser' });
+    const handoff = JSON.parse(
+      new URLSearchParams(new URL((await link.getAttribute('href'))!).hash.slice(1)).get(
+        'register',
+      )!,
+    ) as DesktopRegistration;
+    await expect.poll(() => verifier).toMatch(/^[a-f0-9]{64}$/);
+    expect(handoff.challenge).toBe(createHash('sha256').update(verifier).digest('hex'));
+    expect(await link.getAttribute('href')).not.toContain(verifier);
+    // Cancelling discards the verifier, so a late browser approval cannot enable the host.
+    holdCheck = true;
+    await expect.poll(() => checkHeld).toBe(true);
+    await page.getByRole('button', { name: 'Cancel sign-in', exact: true }).click();
+    finishCheck!();
+    const abandoned = verifier;
+    await page.getByRole('button', { name: 'Sign in and enable', exact: true }).click();
+    await expect.poll(() => verifier).not.toBe(abandoned);
+    signInReady = true;
+    await expect(page.getByRole('button', { name: 'Enabling…', exact: true })).toBeVisible();
     expect(requests).toHaveLength(0); // Explicit mutations wait for the background read to finish.
     finishRead!();
     await expect(page.getByText('Connected to relay', { exact: true })).toBeVisible();
@@ -119,14 +170,32 @@ test('desktop registration, re-enablement, recovery and confirmed deletion', asy
       registration: {
         service: 'https://relay.example.test',
         app: 'https://app.example.test',
-        code,
+        code: verifier,
       },
     });
     expect(
       await page.evaluate(() => JSON.stringify({ ...localStorage, ...sessionStorage })),
-    ).not.toContain(code);
+    ).not.toContain(verifier);
     await page.getByRole('button', { name: 'Disable remote access', exact: true }).click();
     await expect(page.getByText('Disabled', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Change registration', exact: true }).click();
+    await expect(
+      page.getByRole('button', { name: 'Enable remote access', exact: true }),
+    ).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Sign in and enable', exact: true })).toHaveCount(
+      1,
+    );
+    await expect(page.getByLabel('Relay origin', { exact: true })).toHaveValue(
+      'https://relay.example.test',
+    );
+    await page.getByLabel('Relay origin', { exact: true }).fill('https://replacement.example.test');
+    await page.getByRole('button', { name: 'Refresh status', exact: true }).click();
+    await expect(page.getByLabel('Relay origin', { exact: true })).toHaveValue(
+      'https://replacement.example.test',
+    );
+    await page.screenshot({ path: testInfo.outputPath('desktop-edit-registration.png') });
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(page.getByLabel('Relay origin', { exact: true })).toHaveCount(0);
     await page.getByRole('button', { name: 'Enable remote access', exact: true }).click();
     await expect(page.getByText('Connected to relay', { exact: true })).toBeVisible();
     expect(requests.at(-1)).toEqual({ t: 'enable' });
@@ -171,13 +240,18 @@ test('desktop registration, re-enablement, recovery and confirmed deletion', asy
     await page.getByRole('button', { name: 'Delete registration', exact: true }).click();
     await expect(confirmation).toHaveCount(0);
     await expect(page.getByText('Not configured', { exact: true })).toBeVisible();
-    await expect(page.getByLabel('Relay origin', { exact: true })).toHaveValue('');
-    await expect(page.getByLabel('Application origin', { exact: true })).toHaveValue('');
-    await expect(page.getByLabel('Registration code', { exact: true })).toHaveValue('');
+    await expect(page.getByLabel('Relay origin', { exact: true })).toHaveValue(
+      'https://charles.waddlelabs.ai',
+    );
+    await expect(page.getByLabel('Application origin', { exact: true })).toHaveValue(
+      'https://puddle.waddlelabs.ai',
+    );
+    await expect(page.getByLabel('Registration code', { exact: true })).toHaveCount(0);
     await expect(
       page.getByRole('button', { name: 'Delete registration…', exact: true }),
     ).toHaveCount(0);
   } finally {
+    finishCheck?.();
     finishRead?.();
     await page.context().close();
     await local.close();

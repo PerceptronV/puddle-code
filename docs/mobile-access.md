@@ -141,9 +141,20 @@ browsers again. This does not stop daemon-owned work.
 In a Puddle desktop window (local or connected over SSH), open **Settings → Remote &
 Sync**. The Remote access controls apply to the host open in that window, across
 its profiles.
-Enter the relay and application origins, open the application to create a host
-registration code, and paste it into the masked Registration code field. Choose
-**Enable remote access**. An existing registration can be re-enabled directly.
+The application and relay fields start with `https://puddle.waddlelabs.ai` and
+`https://charles.waddlelabs.ai`; both are editable for any self-hosted deployment.
+Choose a host name and **Sign in and enable**. Puddle opens the application in your
+browser. Sign in with Google or GitHub, complete MFA if enabled, compare the request
+identifier with desktop, and choose **Confirm host**. Desktop finishes registration
+automatically; there is no registration code to copy. Keep settings open while
+signing in. Cancelling or closing them discards the pending verifier; a request
+expires after five minutes. The host's cryptographic identity is generated locally,
+not on the website. Browser pairing and approval remain separate.
+
+An existing registration can be re-enabled directly. To change it, disable remote
+access and choose **Change registration**: the existing origin fields become
+editable in place. Cancel restores the saved values; completing sign-in replaces
+the registration and revokes previous browser approvals and invitations.
 The connector needs persistent systemd/launchd supervision; the settings view
 explains when the host needs configuration or an upgrade.
 
@@ -154,16 +165,23 @@ refresh automatically while settings are open. Each browser has a Revoke action;
 Disable remote access detaches every remote viewer. Under Host identity recovery,
 Reset host identity performs the same local/SSH recovery as `puddle remote reset`
 after explicit confirmation. Codes and invitations are not stored in cockpit
-settings or logs. These controls work even when the relay is unavailable.
+settings or logs. Disable, revoke and delete remain available when the relay is
+unavailable.
 
 Choose **Delete registration…** to disable access, revoke every browser and
 invitation, and remove the saved origins and registration credential from this
 host. Confirming returns settings to **Not configured**; connecting again needs
-a new registration code and fresh approvals. Agents continue running. The host
-identity and revoked device records remain for audit/recovery. This local/SSH-only
+a new browser sign-in handoff (or CLI registration code) and fresh approvals.
+Agents continue running. The host identity and revoked device records remain for audit/recovery. This local/SSH-only
 action requires an updated host connector. It does not sign in to the relay on
 your behalf: remove its account-list entry separately with **Your hosts →
 Unregister** in the web application.
+
+Update both deployed service and application images before using desktop sign-in;
+older deployments do not expose its approval/status endpoints. This flow ships with
+daemon/cockpit protocol 20.0 and retains encrypted remote protocol 2. Update desktop
+and the host daemon together. Existing host registrations and pairings are preserved
+by the service's database migration.
 
 The equivalent CLI workflow is:
 

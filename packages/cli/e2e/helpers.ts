@@ -51,7 +51,7 @@ export async function startFixtureDaemon(home: string) {
   });
   return { daemon, port };
 }
-export async function fixture() {
+export async function fixture(options: { caCert?: string } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'puddle-auth-e2e-'));
   const { daemon, port } = await startFixtureDaemon(home);
   const uiPort = await findFreePort();
@@ -68,7 +68,10 @@ export async function fixture() {
         '--port',
         String(uiPort),
       ],
-      { env: env(home), stdio: ['ignore', 'pipe', 'pipe'] },
+      {
+        env: { ...env(home), ...(options.caCert ? { NODE_EXTRA_CA_CERTS: options.caCert } : {}) },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
     );
     let output = '';
     child.stdout.on('data', (c) => (output += String(c)));

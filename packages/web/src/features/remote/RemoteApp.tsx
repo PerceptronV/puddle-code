@@ -15,6 +15,7 @@ import { loadBrowserHost, saveBrowserHost, forgetBrowserHost } from './identity-
 import { RemoteClient } from './client';
 import { ConnectedHost } from './ConnectedHost';
 import { Disclosure } from '../../components/ui/disclosure';
+import { DesktopRegistrationPrompt, takeDesktopRegistration } from './DesktopRegistration';
 import './remote.css';
 
 // Strip invitations before rendering, fetching or loading any repository content.
@@ -35,6 +36,7 @@ function takeInvitation(): RemoteInvitation | null {
     return null;
   }
 }
+const initialRegistration = takeDesktopRegistration();
 const initialInvitation = takeInvitation();
 
 export function RemoteApp() {
@@ -42,12 +44,13 @@ export function RemoteApp() {
   const [providers, setProviders] = useState<Array<'google' | 'github'>>([]);
   const [hosts, setHosts] = useState<RemoteHost[]>([]);
   const [client, setClient] = useState<RemoteClient | null>(null);
+  const [desktopRegistration, setDesktopRegistration] = useState(initialRegistration.request);
   const [invitation, setInvitation] = useState(initialInvitation);
   const [label, setLabel] = useState('');
   const [registration, setRegistration] = useState<ReturnType<
     typeof registrationResponseSchema.parse
   > | null>(null);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(initialRegistration.error);
   const [busy, setBusy] = useState(false);
   const refresh = async () => {
     const state = remoteLoginStateSchema.parse(await serviceRequest('/remote/me'));
@@ -159,6 +162,16 @@ export function RemoteApp() {
         </button>
       </header>
       <p>{login.user.email}</p>
+      {desktopRegistration && (
+        <DesktopRegistrationPrompt
+          request={desktopRegistration}
+          dismiss={() => setDesktopRegistration(null)}
+          complete={async () => {
+            setMessage('Host confirmed. Return to desktop to finish enabling remote access.');
+            await refresh();
+          }}
+        />
+      )}
       {invitation && (
         <section>
           <h2>Pair this browser</h2>
