@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Added
 
+- Add a five-minute browser-approved account registration handoff with one-use private verifiers, origin checks and replay protection (daemon/cockpit protocol 20.0; encrypted remote protocol remains 2).
+
 - Add confirmed registration deletion to desktop Remote access settings, with browser revocation and local/SSH-only control (daemon/cockpit protocol 19.1; remote protocol remains 2).
 
 ### Changed

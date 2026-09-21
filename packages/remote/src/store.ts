@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
-import { REMOTE_POLICY } from '@puddle/shared';
+import { REMOTE_POLICY, type DesktopRegistration } from '@puddle/shared';
 import { digest, privateDirectory, privatePath, secret } from '@puddle/shared/node';
 
 export interface HostRecord {
@@ -18,7 +18,7 @@ export class ServiceStore {
     const file = join(home, 'remote.db');
     if (existsSync(file)) privatePath(file);
     this.db = new Database(file);
-    if (Number(this.db.pragma('user_version', { simple: true })) > 1) {
+    if (Number(this.db.pragma('user_version', { simple: true })) > 2) {
       this.db.close();
       throw new Error('Remote state requires a newer Puddle version');
     }
@@ -28,7 +28,8 @@ export class ServiceStore {
       CREATE TABLE IF NOT EXISTS remote_hosts(id TEXT PRIMARY KEY, account TEXT NOT NULL, label TEXT NOT NULL, credential TEXT);
       CREATE TABLE IF NOT EXISTS registrations(hash TEXT PRIMARY KEY, host TEXT NOT NULL, expires INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS mfa_sessions(hash TEXT PRIMARY KEY, account TEXT NOT NULL, expires INTEGER NOT NULL);
-      PRAGMA user_version = 1;
+      CREATE TABLE IF NOT EXISTS desktop_registrations(hash TEXT PRIMARY KEY, host TEXT NOT NULL, expires INTEGER NOT NULL, redeemed INTEGER NOT NULL DEFAULT 0);
+      PRAGMA user_version = 2;
     `);
   }
   list(account: string): HostRecord[] {
@@ -56,19 +57,56 @@ export class ServiceStore {
   }
   redeem(code: string) {
     return this.db.transaction(() => {
-      const registration = this.db
-        .prepare('SELECT host, expires FROM registrations WHERE hash = ?')
-        .get(digest(code)) as { host: string; expires: number } | undefined;
-      if (!registration || registration.expires <= Date.now())
+      const hash = digest(code);
+      const desktop = this.db
+        .prepare('SELECT host, expires, redeemed FROM desktop_registrations WHERE hash = ?')
+        .get(hash) as { host: string; expires: number; redeemed: number } | undefined;
+      const registration =
+        desktop ??
+        (this.db.prepare('SELECT host, expires FROM registrations WHERE hash = ?').get(hash) as
+          { host: string; expires: number } | undefined);
+      if (!registration || desktop?.redeemed || registration.expires <= Date.now())
         throw new Error('Registration code expired or used');
-      const host = this.host(registration.host)!;
+      const host = this.host(registration.host);
+      if (!host) throw new Error('Registration host removed');
       const credential = secret();
       this.db
         .prepare('UPDATE remote_hosts SET credential = ? WHERE id = ?')
         .run(digest(credential), host.id);
-      this.db.prepare('DELETE FROM registrations WHERE hash = ?').run(digest(code));
+      // Keep a tombstone until expiry: reopening a browser handoff cannot mint a second host.
+      if (desktop)
+        this.db.prepare('UPDATE desktop_registrations SET redeemed = 1 WHERE hash = ?').run(hash);
+      else this.db.prepare('DELETE FROM registrations WHERE hash = ?').run(hash);
       return { host: host.id, account: host.account, credential };
     })();
+  }
+  registerDesktop(account: string, request: DesktopRegistration): void {
+    const now = Date.now();
+    if (request.expires <= now || request.expires > now + REMOTE_POLICY.invitationMs)
+      throw new Error('Registration expired');
+    this.prune();
+    if (this.list(account).length >= 32) throw new Error('Host quota reached');
+    this.db.transaction(() => {
+      // A hash is a public request identifier, never a bearer credential. Reject duplicate
+      // approvals across accounts and after redemption, including after host removal.
+      if (this.db.prepare('SELECT 1 FROM registrations WHERE hash = ?').get(request.challenge))
+        throw new Error('Registration already exists');
+      const host = randomUUID();
+      this.db
+        .prepare('INSERT INTO remote_hosts VALUES (?, ?, ?, NULL)')
+        .run(host, account, request.label);
+      this.db
+        .prepare('INSERT INTO desktop_registrations(hash, host, expires) VALUES (?, ?, ?)')
+        .run(request.challenge, host, request.expires);
+    })();
+  }
+  registrationReady(code: string): boolean {
+    return !!this.db
+      .prepare(
+        `SELECT 1 FROM desktop_registrations r
+      JOIN remote_hosts h ON h.id = r.host WHERE r.hash = ? AND r.expires > ? AND r.redeemed = 0`,
+      )
+      .get(digest(code), Date.now());
   }
   authenticate(credential: string): HostRecord | undefined {
     if (!/^[a-f0-9]{64}$/.test(credential)) return undefined;
@@ -100,6 +138,13 @@ export class ServiceStore {
     this.db.prepare('DELETE FROM mfa_sessions WHERE account = ?').run(account);
   }
   prune(): void {
+    this.db
+      .prepare(
+        `DELETE FROM remote_hosts WHERE credential IS NULL AND id IN
+      (SELECT host FROM desktop_registrations WHERE expires <= ?)`,
+      )
+      .run(Date.now());
+    this.db.prepare('DELETE FROM desktop_registrations WHERE expires <= ?').run(Date.now());
     this.db
       .prepare(
         'DELETE FROM remote_hosts WHERE credential IS NULL AND id IN (SELECT host FROM registrations WHERE expires <= ?)',

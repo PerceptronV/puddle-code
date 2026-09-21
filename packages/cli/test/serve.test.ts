@@ -133,6 +133,31 @@ describe('UI server in front of a real daemon', () => {
     expect(remoteCommands.at(-1)).toMatch(/--admin$/);
   });
 
+  it('protects registration polling with cockpit authority and exact origins', async () => {
+    const path = '/cockpit/remote/registration';
+    expect((await get(path)).status).toBe(401);
+    const check = (
+      origin?: string,
+      body: object = { service: 'https://relay.example.test', code: 'a'.repeat(64) },
+    ) =>
+      fetch(ui.origin + path, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${credential}`,
+          'content-type': 'application/json',
+          ...(origin ? { origin } : {}),
+        },
+        body: JSON.stringify(body),
+      });
+    expect((await check()).status).toBe(403);
+    expect((await check('https://foreign.example.test')).status).toBe(403);
+    expect(
+      (await check(ui.origin, { service: 'http://relay.example.test', code: 'a'.repeat(64) }))
+        .status,
+    ).toBe(400);
+    expect((await get(path, { authorization: `Bearer ${credential}` })).status).toBe(405);
+  });
+
   it('serves the UI tokenlessly with SPA fallback and confinement', async () => {
     expect(await (await get('/')).text()).toContain('puddle');
     expect((await get('/assets/app.js')).headers.get('content-type')).toContain('javascript');

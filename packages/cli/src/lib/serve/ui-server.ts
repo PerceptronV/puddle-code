@@ -24,6 +24,7 @@ import {
 import { WsBridge } from './ws-bridge.js';
 import type { RemoteAccessControl } from '../remote-access.js';
 import { remoteAccessHandler } from './remote-access.js';
+import { checkRemoteRegistration } from './remote-registration.js';
 
 export interface UiServerOptions {
   assetsDir: string;
@@ -113,6 +114,10 @@ export async function startUiServer(opts: UiServerOptions): Promise<UiServer> {
         return handleLocalSync(req, res, opts.localSync, () => browsers.valid(browser));
       if (url.pathname === '/cockpit/remote')
         return handleRemoteAccess(req, res, () => browsers.valid(browser));
+      if (url.pathname === '/cockpit/remote/registration') {
+        if (!opts.remoteAccess) return fail(res, 404, 'remote_controls_unavailable');
+        return checkRemoteRegistration(req, res, () => browsers.valid(browser));
+      }
       if (url.pathname === '/cockpit/refresh' && req.method === 'POST') {
         if (!opts.control) return fail(res, 404, 'refresh_unavailable');
         const body = cockpitRefreshRequestSchema.parse(await readJson(req));

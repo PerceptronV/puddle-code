@@ -31,6 +31,11 @@ export const cockpitRemoteRequestSchema = z.union([
 ]);
 export type CockpitRemoteRequest = z.infer<typeof cockpitRemoteRequestSchema>;
 
+/** Read-only machine-side check; neither consumes the code nor returns a routing credential. */
+export const cockpitRegistrationCheckSchema = z
+  .object({ service: remoteOriginSchema, code: remoteSecretSchema })
+  .strict();
+
 /** Deliberately excludes routing credentials, account tokens and host private keys. */
 export const cockpitRemoteStatusSchema = z.object({
   availability: z.enum(['ready', 'not_installed', 'upgrade_required']),

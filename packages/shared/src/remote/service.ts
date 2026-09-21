@@ -37,6 +37,18 @@ export const registrationResponseSchema = z
   .object({ host: remoteIdSchema, code: remoteSecretSchema, expires: z.number() })
   .strict();
 export const redeemRegistrationSchema = z.object({ code: remoteSecretSchema }).strict();
+/** Public browser handoff. The secret whose SHA-256 hash is challenge stays in the cockpit. */
+export const desktopRegistrationSchema = z
+  .object({
+    challenge: remoteSecretSchema,
+    label: remoteLabelSchema,
+    service: remoteOriginSchema,
+    app: remoteOriginSchema,
+    expires: z.number().int().positive(),
+  })
+  .strict();
+export type DesktopRegistration = z.infer<typeof desktopRegistrationSchema>;
+export const registrationStatusSchema = z.object({ ready: z.boolean() }).strict();
 export const connectorRegistrationSchema = z
   .object({
     host: remoteIdSchema,

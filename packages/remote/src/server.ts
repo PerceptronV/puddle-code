@@ -8,6 +8,7 @@ import {
   remoteIdSchema,
   registerHostRequestSchema,
   redeemRegistrationSchema,
+  desktopRegistrationSchema,
 } from '@puddle/shared';
 import type { RemoteConfig } from './config.js';
 import { createServiceAuth } from './auth.js';
@@ -48,7 +49,11 @@ export async function startRemoteService(config: RemoteConfig) {
       return c.body(null, 204);
     }
     // Registration redemption is a machine-only bearer exchange, never cookie authenticated.
-    if (!['GET', 'HEAD'].includes(c.req.method) && c.req.path !== '/remote/register' && !origin)
+    if (
+      !['GET', 'HEAD'].includes(c.req.method) &&
+      !['/remote/register', '/remote/registration-status'].includes(c.req.path) &&
+      !origin
+    )
       return c.json({ error: 'Origin required' }, 403);
     if (!limits.take(c.req.header('x-puddle-peer-ip') ?? ''))
       return c.json({ error: 'Too many requests' }, 429);
@@ -122,6 +127,31 @@ export async function startRemoteService(config: RemoteConfig) {
     store.remove(id, session.user.id);
     relay.remove(id);
     return c.body(null, 204);
+  });
+  app.post('/remote/desktop-registration', async (c) => {
+    const session = await auth.authorised(c.req.raw.headers);
+    if (!session) return c.json({ error: 'Sign in and complete verification first' }, 401);
+    if (!registrationLimits.take(session.user.id))
+      return c.json({ error: 'Too many registrations' }, 429);
+    const body = desktopRegistrationSchema.safeParse(await c.req.json());
+    if (!body.success || body.data.service !== config.service || body.data.app !== config.app)
+      return c.json({ error: 'Invalid registration request' }, 400);
+    try {
+      store.registerDesktop(session.user.id, body.data);
+      return c.body(null, 204);
+    } catch {
+      return c.json(
+        { error: 'Registration expired or already approved. Start again in desktop.' },
+        409,
+      );
+    }
+  });
+  app.post('/remote/registration-status', async (c) => {
+    if (c.req.header('origin') !== undefined || c.req.header('cookie') !== undefined)
+      return c.json({ error: 'Registration status requires the local cockpit' }, 403);
+    const body = redeemRegistrationSchema.safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'Invalid registration' }, 400);
+    return c.json({ ready: store.registrationReady(body.data.code) });
   });
   app.post('/remote/register', async (c) => {
     if (c.req.header('origin') !== undefined || c.req.header('cookie') !== undefined)

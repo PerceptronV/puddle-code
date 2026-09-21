@@ -87,3 +87,10 @@ Daemon/cockpit protocol 19.1 adds local/SSH registration deletion and an optiona
 capability in cockpit status. Older connectors keep their existing controls;
 deletion is hidden and rejected until the host advertises support. The encrypted
 remote admin schema excludes deletion, so remote protocol remains 2.
+
+Daemon/cockpit protocol 20.0 adds desktop-initiated registration: an authenticated
+cockpit polls a machine-only service endpoint with an ephemeral verifier, while
+the signed-in application approves its public SHA-256 hash. This is a new token
+flow, so the cockpit major advances. The existing connector code redemption,
+Noise envelopes, pairing and host leases are unchanged; remote protocol remains 2.
+The service and application must be updated to expose the new handoff endpoints.

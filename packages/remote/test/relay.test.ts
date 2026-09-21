@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import WebSocket from 'ws';
 import { expect, it } from 'vitest';
 import { REMOTE_PROTOCOL_VERSION, remoteServiceInfoSchema } from '@puddle/shared';
+import { digest, secret } from '@puddle/shared/node';
 import { startRemoteService } from '../src/server.js';
 import { githubFixture, cookies } from './helpers/oauth.js';
 
@@ -46,7 +47,12 @@ it('enforces HTTP origins, account routing and live service-session revocation o
             const headers = new Headers();
             for (let i = 0; i < response.rawHeaders.length; i += 2)
               headers.append(response.rawHeaders[i]!, response.rawHeaders[i + 1]!);
-            resolve(new Response(Buffer.concat(parts), { status: response.statusCode!, headers }));
+            resolve(
+              new Response(response.statusCode === 204 ? null : Buffer.concat(parts), {
+                status: response.statusCode!,
+                headers,
+              }),
+            );
           });
         },
       );
@@ -90,6 +96,56 @@ it('enforces HTTP origins, account routing and live service-session revocation o
     ).toBe(403);
     const cookie = await login('owner@example.test');
     const other = await login('other@another.test');
+    const desktopCode = secret();
+    const handoff = {
+      challenge: digest(desktopCode),
+      label: 'Desktop host',
+      service: config.service,
+      app: config.app,
+      expires: Date.now() + 60_000,
+    };
+    expect((await req('/remote/desktop-registration', handoff)).status).toBe(401);
+    expect((await req('/remote/desktop-registration', handoff, cookie, null)).status).toBe(403);
+    expect(
+      (await req('/remote/desktop-registration', handoff, cookie, 'https://foreign.example.test'))
+        .status,
+    ).toBe(403);
+    expect(
+      (
+        await req(
+          '/remote/desktop-registration',
+          { ...handoff, app: 'https://wrong.example.test' },
+          cookie,
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (await req('/remote/registration-status', { code: desktopCode }, cookie, null)).status,
+    ).toBe(403);
+    expect((await req('/remote/registration-status', { code: desktopCode })).status).toBe(403);
+    expect(
+      await (
+        await req('/remote/registration-status', { code: desktopCode }, undefined, null)
+      ).json(),
+    ).toEqual({ ready: false });
+    expect((await req('/remote/desktop-registration', handoff, cookie)).status).toBe(204);
+    expect((await req('/remote/desktop-registration', handoff, other)).status).toBe(409);
+    expect(
+      await (
+        await req('/remote/registration-status', { code: desktopCode }, undefined, null)
+      ).json(),
+    ).toEqual({ ready: true });
+    expect(
+      (await req('/remote/register', { code: handoff.challenge }, undefined, null)).status,
+    ).toBe(403);
+    expect((await req('/remote/register', { code: desktopCode }, cookie, null)).status).toBe(403);
+    expect((await req('/remote/register', { code: desktopCode }, undefined, null)).status).toBe(
+      200,
+    );
+    expect((await req('/remote/register', { code: desktopCode }, undefined, null)).status).toBe(
+      403,
+    );
+    expect((await req('/remote/desktop-registration', handoff, cookie)).status).toBe(409);
     const registered = await req('/remote/hosts', { label: 'Host' }, cookie);
     const { code, host } = (await registered.json()) as { code: string; host: string };
     expect(await (await req('/remote/hosts', undefined, other)).json()).toEqual([]);
