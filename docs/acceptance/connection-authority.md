@@ -118,6 +118,10 @@ and the normal SSH credentials; do not substitute the installed personal daemon.
   state recoverable. Success retires the old master once, closes legacy
   connections and requires one fresh launch; another restart does not rotate
   host authority again. A newer unsupported protocol requests a compatible CLI.
+- Repeat migration with the disposable Puddle home explicitly set to `0755`
+  (temporary directories usually start at `0700`). It becomes `0700` before
+  authority access, preserving existing data. Also install into a missing home
+  with caller umask `022`; startup must work without a manual permissions fix.
 
 Record platform, browser/Electron version, scenario and observed result for
 manual runs. An automated green suite must not be reported as these checks

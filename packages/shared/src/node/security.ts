@@ -2,6 +2,9 @@ import { createHash, randomBytes } from 'node:crypto';
 import {
   chmodSync,
   closeSync,
+  constants,
+  fchmodSync,
+  fstatSync,
   fsyncSync,
   lstatSync,
   mkdirSync,
@@ -13,7 +16,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { connect, createServer, type Server, type Socket } from 'node:net';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { CONTROL_MAX_BYTES } from '../api/connection-auth.js';
 
 export const digest = (value: string): string => createHash('sha256').update(value).digest('hex');
@@ -34,6 +37,35 @@ export function privatePath(path: string, directory = false): void {
 
 export function privateDirectory(path: string): void {
   mkdirSync(path, { recursive: true, mode: 0o700 });
+  privatePath(path, true);
+}
+
+/**
+ * Older installers and client state writers created the Puddle home as 0755.
+ * Migrate that root before using authority; existing authority directories
+ * and files still go through the strict privateDirectory/privatePath checks.
+ */
+export function initialisePrivateHome(home: string): void {
+  const path = resolve(home);
+  mkdirSync(path, { recursive: true, mode: 0o700 });
+  if (process.platform === 'win32') {
+    privatePath(path, true);
+    return;
+  }
+  // Operate on the verified directory itself, without following a symlink or
+  // chmodding a replacement path. Never adopt state another user could write.
+  const fd = openSync(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+  try {
+    const st = fstatSync(fd);
+    if (!st.isDirectory() || st.uid !== process.getuid!() || (st.mode & 0o022) !== 0) {
+      throw new Error(
+        `Puddle home must be owned by the current user and not writable by other users: ${path}`,
+      );
+    }
+    if ((st.mode & 0o077) !== 0) fchmodSync(fd, 0o700);
+  } finally {
+    closeSync(fd);
+  }
   privatePath(path, true);
 }
 
@@ -61,7 +93,7 @@ export function readPrivateJson(path: string): unknown {
 
 /** Short paths also fit macOS's 104-byte sockaddr_un limit. */
 export function ipcPath(home: string, scope: string): string {
-  privateDirectory(home);
+  initialisePrivateHome(home);
   const key = digest(`${realpathSync(home)}\0${scope}`).slice(0, 24);
   if (process.platform === 'win32') return `\\\\.\\pipe\\puddle-${key}`;
   const dir = join('/tmp', `puddle-${process.getuid!()}-${key}`);

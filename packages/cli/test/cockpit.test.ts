@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -16,6 +16,8 @@ describe('ensureDaemon identity probe', () => {
   beforeAll(async () => {
     daemonPort = await findFreePort();
     const homeA = mkdtempSync(join(tmpdir(), 'puddle-cockpit-a-'));
+    // Exercise startup and authenticated readiness from an actual legacy mode.
+    chmodSync(homeA, 0o755);
     writeFileSync(join(homeA, 'config.json'), JSON.stringify({ port: daemonPort }) + '\n');
     daemon = await startDaemon({ home: homeA, adapters: [], version: 'identity-test' });
   });

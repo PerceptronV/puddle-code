@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -13,6 +13,15 @@ function freshPaths() {
 }
 
 describe('resolvePaths', () => {
+  it('makes a legacy home private before loading configuration or opening host control', () => {
+    const paths = resolvePaths(mkdtempSync(join(tmpdir(), 'puddle-legacy-home-')));
+    chmodSync(paths.home, 0o755);
+    writeFileSync(paths.configFile, 'existing configuration');
+    ensureHome(paths);
+    expect(statSync(paths.home).mode & 0o777).toBe(0o700);
+    expect(readFileSync(paths.configFile, 'utf8')).toBe('existing configuration');
+  });
+
   it('lays out every path under the given home', () => {
     const home = '/x/home';
     const p = resolvePaths(home);

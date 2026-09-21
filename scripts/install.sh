@@ -76,6 +76,19 @@ if [ "$OS" = linux ] && [ -f /etc/alpine-release ]; then
 fi
 
 HOME_DIR="${PUDDLE_HOME:-$HOME/.puddle}"
+while [ "$HOME_DIR" != / ] && [ "${HOME_DIR%/}" != "$HOME_DIR" ]; do HOME_DIR=${HOME_DIR%/}; done
+# New homes must be private even with umask 022. Existing releases used 0755;
+# tighten only an owned directory that other users could not have modified.
+# Keep this migration aligned with shared/node's initialisePrivateHome.
+[ ! -L "$HOME_DIR" ] || die "Puddle home must not be a symlink: $HOME_DIR"
+(umask 077; mkdir -p "$HOME_DIR")
+case "$OS" in
+  darwin) DIR_OWNER=$(stat -f '%u' "$HOME_DIR"); DIR_MODE=$(stat -f '%Lp' "$HOME_DIR") ;;
+  linux) DIR_OWNER=$(stat -c '%u' "$HOME_DIR"); DIR_MODE=$(stat -c '%a' "$HOME_DIR") ;;
+esac
+[ "$DIR_OWNER" = "$(id -u)" ] || die "Puddle home must be owned by the current user: $HOME_DIR"
+[ "$((0$DIR_MODE & 0022))" -eq 0 ] || die "Puddle home must not be writable by other users: $HOME_DIR"
+chmod 700 "$HOME_DIR"
 BIN_DIR="$HOME_DIR/bin"
 CACHE_DIR="$HOME_DIR/cache"
 mkdir -p "$BIN_DIR/versions" "$CACHE_DIR" "$HOME_DIR/logs"

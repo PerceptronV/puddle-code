@@ -1,6 +1,6 @@
 import { mkdtempSync, chmodSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { connect, type Socket } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import { CONTROL_MAX_BYTES, PROTOCOL_VERSION, controlResponseSchema } from '@puddle/shared';
@@ -75,9 +75,11 @@ describe('private host control', () => {
     await expect(startHostControl(f.home, f.registry, f.info)).rejects.toThrow('already active');
     expect(statSync(path).ino).toBe(inode);
     expect(statSync(path).mode & 0o777).toBe(0o600);
-    chmodSync(f.home, 0o755);
+    // Only the legacy Puddle home may migrate; IPC storage stays fail-closed.
+    const runtimeDir = dirname(path);
+    chmodSync(runtimeDir, 0o755);
     expect(() => ipcPath(f.home, 'host')).toThrow('must be private');
-    chmodSync(f.home, 0o700);
+    chmodSync(runtimeDir, 0o700);
   });
 
   it('bounds unterminated control frames and does not accept data credentials as control messages', async () => {

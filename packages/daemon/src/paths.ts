@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { initialisePrivateHome } from '@puddle/shared/node';
 
 /** Every filesystem location the daemon touches, derived from one home dir. */
 export interface PuddlePaths {
@@ -54,7 +55,7 @@ export function resolvePaths(
 }
 
 export function ensureHome(paths: PuddlePaths): void {
-  mkdirSync(paths.home, { recursive: true, mode: 0o700 });
+  initialisePrivateHome(paths.home);
   mkdirSync(paths.profilesDir, { recursive: true });
   mkdirSync(paths.worktreesDir, { recursive: true });
   mkdirSync(paths.logsDir, { recursive: true });

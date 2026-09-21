@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -28,6 +28,8 @@ beforeEach(async () => {
   major = 17;
   install.mockClear();
   home = mkdtempSync(join(tmpdir(), 'puddle-migration-'));
+  // Released installations predate the private authority directory requirement.
+  chmodSync(home, 0o755);
   process.env.PUDDLE_HOME = home;
   writeFileSync(join(home, 'token'), master + '\n', { mode: 0o600 });
   server = createServer((req, res) => {
@@ -56,6 +58,7 @@ it('honours --no-upgrade before replacing a legacy host', async () => {
     code: 'upgrade_failed',
   });
   expect(install).not.toHaveBeenCalled();
+  expect(statSync(home).mode & 0o777).toBe(0o700);
   expect(readFileSync(join(home, 'token'), 'utf8').trim()).toBe(master);
 });
 it('reports newer protocols without attempting an install', async () => {
