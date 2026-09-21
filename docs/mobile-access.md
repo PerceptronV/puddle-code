@@ -174,8 +174,8 @@ host. Confirming returns settings to **Not configured**; connecting again needs
 a new browser sign-in handoff (or CLI registration code) and fresh approvals.
 Agents continue running. The host identity and revoked device records remain for audit/recovery. This local/SSH-only
 action requires an updated host connector. It does not sign in to the relay on
-your behalf: remove its account-list entry separately with **Your hosts →
-Unregister** in the web application.
+your behalf: remove its account-list entry separately with **Settings → Manage
+pairings → Unregister…** in the web application.
 
 Update both deployed service and application images before using desktop sign-in;
 older deployments do not expose its approval/status endpoints. This flow ships with
@@ -185,7 +185,7 @@ by the service's database migration.
 
 The equivalent CLI workflow is:
 
-In the application, expand Add a host, enter a name and create a registration
+In the application, open Settings, expand Add a host, enter a name and create a registration
 code. On the machine running the daemon:
 
 ```sh
@@ -216,7 +216,7 @@ puddle remote pair                 # add user@host for an SSH host
 ```
 
 Open the printed link in the intended browser (or use the QR/link from an already
-paired browser's Devices page). Give the browser a name and request approval.
+paired browser's Paired browsers dialogue). Give the browser a name and request approval.
 Compare the browser identity shown on both devices, then on the host:
 
 ```sh
@@ -226,7 +226,7 @@ puddle remote approve <request-id>
 
 The host must approve that exact browser. A copied invitation or successful
 service login alone grants no terminal access. An already paired browser can
-approve the new browser under Devices instead of using SSH. Invitations expire
+approve the new browser under Paired browsers instead of using SSH. Invitations expire
 in five minutes and can enrol only one identity.
 
 ## Use, revoke and recover
