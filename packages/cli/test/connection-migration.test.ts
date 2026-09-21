@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { PROTOCOL_VERSION } from '@puddle/shared';
 
 const install = vi.hoisted(() =>
   vi.fn(async () => {
@@ -58,7 +59,7 @@ it('honours --no-upgrade before replacing a legacy host', async () => {
   expect(readFileSync(join(home, 'token'), 'utf8').trim()).toBe(master);
 });
 it('reports newer protocols without attempting an install', async () => {
-  major = 19;
+  major = PROTOCOL_VERSION.major + 1;
   await expect(ensureDaemon(new LocalTransport(), {})).rejects.toMatchObject({
     code: 'cli_outdated',
   });
