@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Keyboard, TextCursorInput } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, TextCursorInput } from 'lucide-react';
 import { Button } from '../../components/ui/button';
+import { ImagePasteButton } from './ImagePasteButton';
 import {
   focusTerminal,
   sendTerminalInput,
@@ -31,15 +32,7 @@ export function TerminalKeys({
   return (
     <>
       <div className="phone-keys" role="toolbar" aria-label="Terminal keys">
-        <Button
-          variant="ghost"
-          aria-label="Open keyboard"
-          disabled={!ready}
-          onPointerDown={(event) => event.preventDefault()}
-          onClick={() => focusTerminal(session, term)}
-        >
-          <Keyboard />
-        </Button>
+        <ImagePasteButton session={session} term={term} ready={ready} />
         <Button
           variant="ghost"
           disabled={!ready}

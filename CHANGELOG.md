@@ -9,6 +9,10 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Changed
+
+- Replace the mobile keyboard button with an image picker that shares desktop image paste, inserts without submitting, and resizes large photos to fit remote request limits.
+
 ### Fixed
 
 - Keep mobile swipes inside terminal history and agent interfaces, preserve tap-to-type, and prevent terminal, file and session scrolling from moving the surrounding page.

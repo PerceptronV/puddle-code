@@ -70,6 +70,31 @@ describe('remote surface', () => {
       ).toThrow();
     }
   });
+  it('allows bounded image paste without opening neighbouring file-write operations', () => {
+    const paste = (body: unknown, path = `/api/worktrees/${id}/paste`) =>
+      permittedRequest({ t: 'request', id, method: 'POST', path, body });
+    const image = { mime: 'image/png', data: 'aGVsbG8=' };
+    expect(JSON.parse(paste(image).body!)).toEqual(image);
+    for (const body of [
+      undefined,
+      { ...image, mime: 'image/svg+xml' },
+      { ...image, data: '' },
+      { ...image, data: 'a'.repeat(REMOTE_POLICY.requestBytes) },
+      { ...image, path: '../outside.png' },
+      { ...image, root: '/tmp' },
+      { ...image, token: 'substitute' },
+    ])
+      expect(() => paste(body)).toThrow();
+    for (const path of [
+      `/api/worktrees/${id}/paste?root=%2Ftmp`,
+      `/api/worktrees/${id}/paste?path=outside.png`,
+      `/api/worktrees/${id}/upload`,
+      `/api/worktrees/${id}/file`,
+      '/api/worktrees/home/paste',
+    ])
+      expect(() => paste(image, path)).toThrow();
+    expect(() => request('GET', `/api/worktrees/${id}/paste`)).toThrow();
+  });
   it.each([
     '/proxy/a/3000',
     '/cockpit/refresh',

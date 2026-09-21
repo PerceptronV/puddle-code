@@ -2,6 +2,7 @@ import {
   REMOTE_POLICY,
   createSessionRequestSchema,
   patchSessionRequestSchema,
+  pasteImageRequestSchema,
   wsClientMessageSchema,
   type RemoteMessage,
   type WsClientMessage,
@@ -25,6 +26,9 @@ const routes: ReadonlyArray<readonly [string, RegExp, readonly string[]]> = [
   // Read-only directory browsing uses the daemon's existing validated root override.
   // Responses remain bounded JSON; raw media, executable previews and writes stay denied.
   ['GET', new RegExp(`^/api/worktrees/${uuid}/(tree|file|resolve)$`), ['path', 'root']],
+  // Images only: daemon-generated names under this placement's .puddle/pastes/.
+  // No caller-selected destination, root override, multipart or general file writes.
+  ['POST', new RegExp(`^/api/worktrees/${uuid}/paste$`), []],
   [
     'GET',
     new RegExp(
@@ -59,6 +63,8 @@ export function permittedRequest(message: Extract<RemoteMessage, { t: 'request' 
   if (message.method === 'POST' && url.pathname === '/api/sessions')
     body = createSessionRequestSchema.parse(message.body);
   else if (message.method === 'PATCH') body = patchSessionRequestSchema.parse(message.body);
+  else if (message.method === 'POST' && url.pathname.endsWith('/paste'))
+    body = pasteImageRequestSchema.strict().parse(message.body);
   else if (message.body !== undefined) throw new Error('This operation has no request body');
   const encoded = body === undefined ? undefined : JSON.stringify(body);
   if (encoded && Buffer.byteLength(encoded) > REMOTE_POLICY.requestBytes)

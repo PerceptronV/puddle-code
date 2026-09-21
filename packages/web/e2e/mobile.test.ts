@@ -5,6 +5,7 @@ import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { projectSchema } from '@puddle/shared';
 import { checkTerminalScrolling, expectStationaryPage, swipe } from './mobile-scrolling';
+import { checkImagePicker } from './mobile-image-paste';
 
 test.use({ hasTouch: true, isMobile: true });
 
@@ -158,7 +159,7 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     );
     viewer.close();
     expect(Buffer.concat(ciphertext).includes(Buffer.from('Hello 日本語 🌊'))).toBe(false);
-    await page.getByRole('button', { name: 'Open keyboard' }).tap();
+    await page.locator('.phone-terminal:not([hidden]) .xterm-screen').tap();
     await page.keyboard.type('Direct input');
     await page.keyboard.press('Enter');
     const typed = await websocket(fixture.local.origin, fixture.local.credential);
@@ -172,6 +173,7 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     );
     typed.close();
     await checkTerminalScrolling(page, fixture);
+    await checkImagePicker(page, fixture);
     await page.getByRole('button', { name: 'Ctrl', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Ctrl', exact: true })).toHaveAttribute(
       'aria-pressed',
@@ -307,7 +309,7 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     await expect(page.getByRole('textbox', { name: 'Prompt', exact: true })).toHaveValue(
       'Unsent draft',
     );
-    await expect(page.getByRole('button', { name: 'Open keyboard' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Insert image' })).toBeEnabled();
     await page.screenshot({
       path: testInfo.outputPath('phone-terminal-dark.png'),
       animations: 'disabled',
@@ -318,6 +320,7 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
       timeout: 20_000,
     });
     await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Insert image' })).toBeDisabled();
     expect(errors).toEqual([]);
     const alive = await fixture.local.req(`/api/sessions/${fixture.session.id}`);
     expect(alive.status).toBe(200);

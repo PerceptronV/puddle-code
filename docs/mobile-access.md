@@ -244,7 +244,14 @@ the workspace to return to cards. New agent/terminal buttons are at the top of t
 rail; archived sessions and their restore action are behind the bottom icon.
 
 Tap directly into a terminal to type. Its bottom strip supplies Escape, arrows,
-Tab, Enter and one-shot Ctrl/Opt modifiers above the keyboard. The optional prompt
+Tab, Enter and one-shot Ctrl/Opt modifiers above the keyboard. The image button
+opens your photo/file picker and inserts the uploaded image into the current
+terminal without submitting, just like desktop image paste. PNG, JPEG, GIF and WebP
+files up to 20 MiB are supported. Larger remote photos are resized to fit the
+connection's request limit; a notice confirms this. GIFs must be smaller than
+191 KiB remotely to retain animation. Update the host's connector along with
+the web app to enable image attachments; rebuilding only the app is insufficient.
+The optional prompt
 composer retains drafts in this tab across reconnect/reload; Send respects
 bracketed-paste mode. If delivery is uncertain, check the terminal before sending
 again. No operation is replayed automatically.
@@ -252,7 +259,7 @@ again. No operation is replayed automatically.
 Files browses the selected worktree (or the project's repository without a session).
 Tap the path to browse a custom host directory. Double-tap a file to view it, then
 use Back to files to return to the same directory. Changes remains available from
-the Files toolbar. File and change review renders text only. Remote transfers,
+the Files toolbar. File and change review renders text only. General file transfers,
 source editing, Git mutations, forwarded applications and executable previews are
 unavailable. A paired terminal still has the host owner's execution authority.
 
