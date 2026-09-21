@@ -1,7 +1,7 @@
 # Mobile access
 
-Status: implemented for self-hosting. Remote protocol 1 sits outside daemon
-protocol 18.1 (the host-authority foundation shipped in 18.0). Deployment instructions are in [self-hosted mobile access](../mobile-access.md).
+Status: implemented for self-hosting. Remote protocol 2 sits outside daemon
+protocol 19.0 (the host-authority foundation shipped in 18.0). Deployment instructions are in [self-hosted mobile access](../mobile-access.md).
 Automated tests and the remaining physical-device/security review gates are in
 [mobile acceptance](../acceptance/mobile-access.md).
 
@@ -14,14 +14,18 @@ of the launching laptop. Both browser and connector initiate outbound WSS.
 The daemon still accepts loopback traffic only. No VPN, public daemon listener,
 router forwarding, hosted identity server or default hosted service is required.
 
-The relay embeds Better Auth for Google, GitHub and verified email/password,
-email recovery and optional authenticator MFA with recovery codes. Registration
-is closed to an email allowlist unless the operator explicitly enables open
-signup. Service cookies are Secure, HttpOnly, host-only, SameSite=Lax; exact
-Origin checks protect browser upgrades and mutations. MFA is also required after
-social sign-in before a session can register hosts or open pipes. Implicit
-provider account linking is disabled. Recovering service login grants no new
-host authority.
+The relay embeds Better Auth for Google/GitHub OAuth only and optional
+passwordless authenticator MFA with recovery codes. At least one provider must
+be configured. Every sign-in requires the provider's verified-email claim;
+registration is closed to an email allowlist unless the operator explicitly
+opens signup. There is no password login, email delivery or email recovery.
+Service cookies are Secure, HttpOnly, host-only, SameSite=Lax; exact Origin checks
+protect browser upgrades and mutations. MFA is also required after social sign-in
+before a session can register hosts or open pipes. Authentication endpoints have
+an explicit allowlist; provider account linking is unavailable. Recover the
+original provider account through Google/GitHub; matching email addresses cannot
+claim another provider identity's host records. Recovering service login grants
+no new host authority.
 
 The browser and connector use the maintained `@chainsafe/libp2p-noise` Noise XX
 implementation, without discovery or a libp2p network stack. Ed25519 identities

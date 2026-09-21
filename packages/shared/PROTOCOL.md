@@ -61,7 +61,7 @@ bump in `CHANGELOG.md`.
 
 ## Remote transport
 
-`REMOTE_PROTOCOL_VERSION = 1` versions the separate service/connector/browser
+`REMOTE_PROTOCOL_VERSION = 2` versions the separate service/connector/browser
 contract in `src/remote/`. Its strict envelopes and Noise prologue require an
 exact match; incompatible peers fail closed. Its introduction did not change
 daemon protocol 18.0. Turning the existing server WS union into an equivalent
@@ -73,3 +73,8 @@ the cockpit invokes their administrative commands.
 Breaking changes to daemon operations exposed by the remote allowlist also
 require a remote protocol bump: an unchanged envelope does not make changed
 application messages compatible with a previously deployed browser build.
+
+Remote protocol 2 removes email login from the service discovery/auth contract.
+Daemon/cockpit protocol 19.0 accompanies its changed pairing invitation literal
+in `/cockpit/remote`; host lease and operation semantics remain unchanged.
+Deploy the service, browser and host connectors together.

@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import {
   REMOTE_POLICY,
+  REMOTE_PROTOCOL_VERSION,
   remoteIdSchema,
   registerHostRequestSchema,
   redeemRegistrationSchema,
@@ -14,12 +15,9 @@ import { ServiceStore } from './store.js';
 import { Relay } from './relay.js';
 import { RateLimit } from './rate-limit.js';
 
-export async function startRemoteService(
-  config: RemoteConfig,
-  deliver?: (to: string, subject: string, url: string) => Promise<void>,
-) {
+export async function startRemoteService(config: RemoteConfig) {
   const store = new ServiceStore(config.home);
-  const auth = await createServiceAuth(config, store, deliver);
+  const auth = await createServiceAuth(config, store);
   const limits = new RateLimit(180);
   const registrationLimits = new RateLimit(10);
   const app = new Hono();
@@ -88,8 +86,7 @@ export async function startRemoteService(
   app.get('/remote/config', (c) =>
     c.json({
       providers: [...(config.google ? ['google'] : []), ...(config.github ? ['github'] : [])],
-      email: true,
-      protocol: 1,
+      protocol: REMOTE_PROTOCOL_VERSION,
     }),
   );
   app.get('/remote/me', async (c) => {

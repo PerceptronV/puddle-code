@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  REMOTE_PROTOCOL_VERSION,
   remoteAccountSchema,
   remoteIdSchema,
   remoteLabelSchema,
@@ -17,8 +18,7 @@ export const remoteHostsSchema = z.array(remoteHostSchema);
 export type RemoteHost = z.infer<typeof remoteHostSchema>;
 export const remoteServiceInfoSchema = z.object({
   providers: z.array(z.enum(['google', 'github'])),
-  email: z.literal(true),
-  protocol: z.literal(1),
+  protocol: z.literal(REMOTE_PROTOCOL_VERSION),
 });
 export const remoteLoginStateSchema = z.object({
   user: z

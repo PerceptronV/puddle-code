@@ -5,7 +5,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import WebSocket from 'ws';
 import { expect, it } from 'vitest';
+import { REMOTE_PROTOCOL_VERSION, remoteServiceInfoSchema } from '@puddle/shared';
 import { startRemoteService } from '../src/server.js';
+import { githubFixture, cookies } from './helpers/oauth.js';
 
 it('enforces HTTP origins, account routing and live service-session revocation on real sockets', async () => {
   const home = mkdtempSync(join(tmpdir(), 'puddle-relay-'));
@@ -14,17 +16,14 @@ it('enforces HTTP origins, account routing and live service-session revocation o
     service: 'https://relay.example.test',
     app: 'https://app.example.test',
     secret: 'isolated-test-secret-long-enough-for-better-auth',
-    smtp: 'smtp://localhost:2525',
-    from: 'puddle@example.test',
+    github: { clientId: 'fixture-client', clientSecret: 'fixture-secret' },
     address: '127.0.0.1',
     port: 0,
     signupEmails: [],
     openSignup: true,
   };
-  const emails: string[] = [];
-  const remote = await startRemoteService(config, async (_to, _subject, url) => {
-    emails.push(url);
-  });
+  const github = githubFixture();
+  const remote = await startRemoteService(config);
   const address = remote.server.address();
   if (!address || typeof address === 'string') throw new Error('Missing port');
   const http = `http://127.0.0.1:${address.port}`;
@@ -57,23 +56,22 @@ it('enforces HTTP origins, account routing and live service-session revocation o
       outgoing.end(body ? JSON.stringify(body) : undefined);
     });
   const login = async (email: string) => {
-    const signup = await req('/api/auth/sign-up/email', {
-      email,
-      name: 'Owner',
-      password: 'safe-fixture-password',
+    const start = await req('/api/auth/sign-in/social', {
+      provider: 'github',
+      callbackURL: config.app,
     });
-    expect(signup.status, await signup.text()).toBe(200);
-    expect(signup.headers.get('access-control-allow-origin')).toBe(config.app);
-    await remote.auth.handle(new Request(emails.at(-1)!));
-    const response = await req('/api/auth/sign-in/email', {
-      email,
-      password: 'safe-fixture-password',
-    });
-    expect(response.status).toBe(200);
-    return response.headers
-      .getSetCookie()
-      .map((cookie) => cookie.split(';')[0])
-      .join('; ');
+    expect(start.status).toBe(200);
+    expect(start.headers.get('access-control-allow-origin')).toBe(config.app);
+    const { url } = (await start.json()) as { url: string };
+    const callback = new URL(github.callback(url, { email }));
+    const response = await req(
+      callback.pathname + callback.search,
+      undefined,
+      cookies(start),
+      null,
+    );
+    expect(response.status).toBe(302);
+    return cookies(response);
   };
   const socket = (path: string, headers: Record<string, string>) => {
     const ws = new WebSocket(http.replace('http:', 'ws:') + path, {
@@ -84,6 +82,9 @@ it('enforces HTTP origins, account routing and live service-session revocation o
     return ws;
   };
   try {
+    const discovery = await (await req('/remote/config')).json();
+    expect(discovery).toEqual({ providers: ['github'], protocol: REMOTE_PROTOCOL_VERSION });
+    expect(remoteServiceInfoSchema.parse(discovery)).toEqual(discovery);
     expect((await req('/remote/hosts', { label: 'Host' }, undefined, null)).status).toBe(403);
     expect(
       (await req('/remote/hosts', { label: 'Host' }, undefined, 'https://foreign.example.test'))
@@ -133,6 +134,7 @@ it('enforces HTTP origins, account routing and live service-session revocation o
     await closed;
     expect(remote.relay.online(host)).toBe(true);
   } finally {
+    github.close();
     for (const socket of sockets) socket.terminate();
     await remote.close();
     rmSync(home, { recursive: true, force: true });

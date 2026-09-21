@@ -1,6 +1,6 @@
 # Mobile access acceptance
 
-Remote protocol 1; daemon/cockpit protocol 18.1. Run in isolated homes with fake agents.
+Remote protocol 2; daemon/cockpit protocol 19.0. Run in isolated homes with fake agents.
 Never launch an installed daemon from a coding-agent environment. Deployment and
 recovery instructions: [self-hosted mobile access](../mobile-access.md).
 
@@ -9,7 +9,7 @@ recovery instructions: [self-hosted mobile access](../mobile-access.md).
 - `pnpm test:remote`: real Noise handshakes, host substitution, authenticated
   record tampering, Unicode/order, host invitation consumption and exact device
   approval, expiry/revocation persistence, stale/replayed participation, route
-  denials, real Better Auth email verification/cookies/MFA session gates, service
+  denials, real Better Auth OAuth callbacks/cookies/MFA session gates, service
   registration replay and account isolation, real HTTP/WS origin checks and live
   sign-out revocation.
 - `pnpm test:mobile` after `pnpm build`: real Chromium against temporary HTTPS
@@ -40,9 +40,10 @@ review, production OAuth-provider acceptance or physical-phone acceptance.
   app/relay HTTPS origins. Confirm only ingress ports are published; the daemon
   remains unreachable directly. Check CSP, framing, MIME and cache headers.
 - Complete Google and GitHub login against operator-owned applications; verify
-  email registration, email delivery/recovery, optional TOTP and a recovery code.
-  With MFA enabled, a fresh social/recovery session must not list/register hosts,
-  attach pipes, disable MFA or link another provider until verification completes.
+  provider-verified email admission, optional TOTP and a recovery code. Confirm
+  email/password/recovery endpoints return 404 and provider account linking is
+  unavailable. With MFA enabled, a fresh social session must not list/register
+  hosts, attach pipes or disable MFA until verification completes.
 - Use two accounts and two hosts. Attempt cross-account host selection and pipe
   attachment, wrong host pins, expired/reused invitations and wrong-browser
   approval. None may acquire host authority.
@@ -86,7 +87,7 @@ record replay/order, challenge deadlines/generations, every allowlisted route,
 revocation/recovery and stale-backup behaviour. Inspect application build and TLS
 control separately from the relay. A compromised application distributor can
 capture plaintext and keys; document that assumption explicitly. Review dependency
-updates, OAuth registration, SMTP/recovery, admission limits and metadata retention.
+updates, OAuth registration/provider recovery, admission limits and metadata retention.
 
 Record actual reviewer findings and physical-device results here when performed;
 do not convert an automated test result into a claim that either review occurred.

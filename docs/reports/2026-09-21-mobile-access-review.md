@@ -1,7 +1,10 @@
 # Mobile access implementation review
 
 This is the implementation's internal review record, not an independent audit.
-Remote protocol 1 and daemon protocol 18.0 have separate version boundaries.
+Remote protocol 2 and daemon/cockpit protocol 19.0 have separate version boundaries.
+The OAuth-only revision removes email delivery and password authentication; tests
+exercise provider callbacks, verified claims, admission, blocked credential routes
+and legacy password cleanup.
 
 The host dispatch path is deliberately small: `connector/src/admission.ts`
 checks exact Noise peer/account approval and participation; `policy.ts` owns the
@@ -28,7 +31,7 @@ Review and test findings fixed during implementation:
 - Initial authenticator enrolment rotates the session cookie while the response
   body can reference the previous token. MFA confirmation now resolves the newly
   issued signed cookie through Better Auth. Real TOTP and single-use recovery-code
-  tests cover this transition and the social/recovery-session gate.
+  tests cover this transition and the social-session gate.
 - Composer input waits for the terminal's paste encoder and authenticated stream.
   Acknowledgements clear drafts; uncertain sends retain them.
 - Ordinary terminal keys use bounded writes rather than exhausting the eight
@@ -54,6 +57,6 @@ smoke testing loads both daemon and connector with the shipped runtime.
 
 The Compose configuration validates. Docker image execution was not verified here
 because the Docker daemon is unavailable; CI includes both image builds. Real
-OAuth-provider registration, SMTP delivery, deployed systemd/launchd restart,
+OAuth-provider registration, deployed systemd/launchd restart,
 iOS/Android keyboards and independent security review remain explicit
 [acceptance gates](../acceptance/mobile-access.md).

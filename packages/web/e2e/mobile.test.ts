@@ -18,14 +18,18 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
   );
   try {
     await page.goto(fixture.appOrigin + '/');
-    await page.getByRole('button', { name: 'Create account', exact: true }).click();
-    await page.getByLabel('Name', { exact: true }).fill('Owner');
-    await page.getByLabel('Email', { exact: true }).fill('owner@example.test');
-    await page.getByLabel('Password', { exact: true }).fill('mobile-fixture-password');
-    await page.getByRole('button', { name: 'Create account', exact: true }).first().click();
-    await expect(page.getByRole('status')).toContainText('Check your email');
-    await fixture.remote.auth.handle(new Request(fixture.emails.at(-1)!));
-    await page.getByRole('button', { name: 'Sign in', exact: true }).first().click();
+    await expect(page.getByLabel('Email', { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel('Password', { exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Forgot password' })).toHaveCount(0);
+    await page.route('https://github.com/login/oauth/authorize?**', async (route) => {
+      await route.fulfill({
+        status: 302,
+        headers: {
+          location: fixture.github.callback(route.request().url(), { email: 'owner@example.test' }),
+        },
+      });
+    });
+    await page.getByRole('button', { name: 'Continue with GitHub', exact: true }).click();
     await expect(page.getByText('Your hosts')).toBeVisible();
     const cookie = (await page.context().cookies(fixture.serviceOrigin))
       .map((cookie) => `${cookie.name}=${cookie.value}`)

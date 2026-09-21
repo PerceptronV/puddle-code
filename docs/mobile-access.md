@@ -20,11 +20,13 @@ openssl rand -hex 32
 ```
 
 Edit `.env`: set the origins, hostnames, certificate email, a fresh random
-`BETTER_AUTH_SECRET`, SMTP credentials/sender and `PUDDLE_SIGNUP_EMAILS`. Percent
-encode special characters in SMTP URL credentials. SMTP must support TLS.
+`BETTER_AUTH_SECRET`, OAuth credentials and `PUDDLE_SIGNUP_EMAILS`.
 Keep this file private (`chmod 600 deploy/remote/.env`). The default email
 allowlist is closed; `PUDDLE_OPEN_SIGNUP=true` explicitly opens registration.
-Optional Google/GitHub client credentials enable their buttons. Register these
+Configure Google, GitHub or both; startup rejects missing or incomplete provider
+credentials. Puddle sends no email and has no password login or email recovery.
+The allowlist checks the verified email supplied by the provider, not an address
+entered into Puddle. Register these
 provider callback URLs, respectively:
 
 - `https://relay.example.com/api/auth/callback/google`
@@ -33,11 +35,8 @@ provider callback URLs, respectively:
 On DigitalOcean, use a Docker Marketplace Droplet with public DNS for both
 origins and inbound TCP 80/443 (SSH restricted to your own address). Copy this
 checkout, including the mobile-access commits, onto the Droplet before running
-Compose. DigitalOcean [blocks SMTP ports 25, 465 and 587](https://docs.digitalocean.com/support/why-is-smtp-blocked/).
-Use a mail server that supports STARTTLS on an alternate port, for example
-`PUDDLE_SMTP_URL=smtp://username:password@mail.example.com:2525`.
-Puddle requires TLS before SMTP authentication. Verify the sender/domain with
-your mail service; an API-only email credential is not an SMTP credential.
+Compose. Authentication uses outbound HTTPS to the configured providers; no mail
+provider, mail server or SMTP port is needed.
 
 ```sh
 docker compose --env-file deploy/remote/.env -f deploy/remote/compose.yaml up --build -d
@@ -57,10 +56,52 @@ its JavaScript or alter its deployment. The browser necessarily trusts the
 application distributor with keys, terminal input and decrypted output. Separate
 origins alone do not protect against a shared compromised root account.
 
-Open the application, create and verify an account or use a configured provider,
+Open the application and sign in with a configured provider,
 and optionally enable authenticator MFA under Account security. Store the recovery
-codes privately. Email recovery and social login restore the service account;
-they do not enrol a new browser at any host.
+codes privately. Recover a lost provider login through Google or GitHub; signing
+in again does not enrol a new browser at any host. Use the original provider:
+matching email addresses do not automatically link different provider identities.
+
+### Configure Google or GitHub
+
+For Google, create an OAuth client of type **Web application** in your Google
+Cloud project's Google Auth Platform. Configure the consent screen/audience for
+the people who will use this deployment and register the exact Google callback
+URL above. Put the client ID in `GOOGLE_CLIENT_ID` and client secret in
+`GOOGLE_CLIENT_SECRET`. A Google Workspace address works as the login identity;
+no Gmail API, app password or mail configuration is needed. See
+[Google's web application setup](https://developers.google.com/identity/protocols/oauth2/web-server#creatingcred).
+
+For GitHub, register an OAuth App in **Settings → Developer settings → OAuth
+Apps**. Set the homepage to your application origin and the authorisation callback
+to the GitHub URL above. Set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` from that
+app. Use the verified email returned by GitHub (the primary email when the public
+profile email is private) in `PUDDLE_SIGNUP_EMAILS`. See
+[GitHub's OAuth app setup](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app).
+
+Leave both credential values empty for a provider you do not use. Credentials
+belong only in the private service environment, never the static application's
+build arguments. After changing credentials, recreate the service:
+
+```sh
+docker compose --env-file deploy/remote/.env -f deploy/remote/compose.yaml up -d service
+```
+
+### Upgrade an earlier email-login deployment
+
+Rebuild the service/application and update host connectors together for remote
+protocol 2 (daemon/cockpit protocol 19.0). Create fresh pairing invitations;
+protocol-1 invitations are rejected. Existing browser keys and approvals survive
+for accounts with an existing Google/GitHub binding.
+
+Startup deletes legacy password credentials and, when any are found, invalidates
+all service sessions, pending authentication challenges and MFA confirmations.
+Provider bindings and host records are preserved. Remove `PUDDLE_SMTP_URL` and
+`PUDDLE_EMAIL_FROM` from old environment files. Accounts that only had a password
+cannot sign in or be claimed through a matching provider email. If you used such
+an account while testing, back up the service state and initialise a fresh service
+database, then register the hosts again through local/SSH access and approve the
+browsers again. This does not stop daemon-owned work.
 
 ## Register and pair a host
 
@@ -180,7 +221,7 @@ do not add logs of cookies, authorization headers, bodies, codes or pairing URLs
 Expired unused registrations and MFA confirmations are pruned every minute.
 Accounts and redeemed host registrations persist until removed; device records
 remain on the host for inspection. Relay traffic still reveals addresses,
-timings, sizes and availability. Operators own TLS, SMTP/OAuth, capacity,
+timings, sizes and availability. Operators own TLS, OAuth, capacity,
 backups, updates and incident response. Rate limits use the actual peer address,
 not caller-supplied forwarding headers; behind the example ingress that is a
 shared admission budget. Add edge admission controls before increasing exposure.
@@ -189,6 +230,6 @@ After dependency or security changes, run `pnpm build`, `pnpm test:remote`,
 `pnpm test:e2e`, `pnpm test:ssh` and `pnpm test:mobile`. Install the test browser
 with `pnpm --filter @puddle/web exec playwright install chromium` if needed.
 The browser suite creates temporary HTTPS endpoints, isolated homes, fake agents
-and email delivery; it does not launch an installed personal daemon. Use the
+and provider responses; it does not launch an installed personal daemon. Use the
 [physical-device and security acceptance checklist](acceptance/mobile-access.md)
 before a production deployment. Automated coverage does not replace those checks.

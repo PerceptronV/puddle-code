@@ -1,5 +1,15 @@
 import { expect, it } from 'vitest';
-import { remoteOriginSchema, cockpitRemoteRequestSchema } from '../src/index.js';
+import {
+  remoteOriginSchema,
+  cockpitRemoteRequestSchema,
+  remoteServiceInfoSchema,
+} from '../src/index.js';
+
+it('rejects the previous email-login service contract', () => {
+  expect(
+    remoteServiceInfoSchema.safeParse({ providers: ['google'], email: true, protocol: 1 }).success,
+  ).toBe(false);
+});
 
 it.each([
   '',

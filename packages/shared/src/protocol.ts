@@ -283,4 +283,5 @@
 // command templates/placeholders.
 // 18.0: separate browser authorisation and host-controlled connection leases.
 // 18.1: additive — authenticated cockpit-local remote-access administration.
-export const PROTOCOL_VERSION = { major: 18, minor: 1 } as const;
+// 19.0: remove email login and move cockpit pairing invitations to remote protocol 2.
+export const PROTOCOL_VERSION = { major: 19, minor: 0 } as const;

@@ -8,8 +8,6 @@ export interface RemoteConfig {
   address: string;
   port: number;
   secret: string;
-  smtp: string;
-  from: string;
   signupEmails: string[];
   openSignup: boolean;
   google?: { clientId: string; clientSecret: string };
@@ -25,9 +23,6 @@ export function readConfig(env: NodeJS.ProcessEnv): RemoteConfig {
   const secret = env.BETTER_AUTH_SECRET ?? '';
   if (secret.length < 32 || secret.startsWith('replace-with-'))
     throw new Error('BETTER_AUTH_SECRET must contain at least 32 random characters');
-  const smtp = env.PUDDLE_SMTP_URL ?? '';
-  if (!/^smtps?:\/\//.test(smtp) || !env.PUDDLE_EMAIL_FROM)
-    throw new Error('SMTP delivery and sender configuration are required');
   const port = Number(env.PORT ?? 7440);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid service port');
   const provider = (name: string) => {
@@ -36,12 +31,14 @@ export function readConfig(env: NodeJS.ProcessEnv): RemoteConfig {
     if (!!clientId !== !!clientSecret) throw new Error(`${name} requires both OAuth credentials`);
     return clientId && clientSecret ? { clientId, clientSecret } : undefined;
   };
+  const google = provider('GOOGLE');
+  const github = provider('GITHUB');
+  if (!google && !github)
+    throw new Error('Configure at least one OAuth provider: Google or GitHub');
   return {
     service,
     app,
     secret,
-    smtp,
-    from: env.PUDDLE_EMAIL_FROM,
     port,
     home: env.PUDDLE_REMOTE_HOME ?? '/var/lib/puddle-remote',
     address: env.HOST ?? '127.0.0.1',
@@ -50,7 +47,7 @@ export function readConfig(env: NodeJS.ProcessEnv): RemoteConfig {
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean),
     openSignup: env.PUDDLE_OPEN_SIGNUP === 'true',
-    google: provider('GOOGLE'),
-    github: provider('GITHUB'),
+    google,
+    github,
   };
 }

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { wsClientMessageSchema, wsServerMessageSchema } from '../ws/messages.js';
 
 /** Independent transport contract; host authority uses the daemon's protocol-18 leases. */
-export const REMOTE_PROTOCOL_VERSION = 1;
+export const REMOTE_PROTOCOL_VERSION = 2;
 export const REMOTE_POLICY = {
   chunkBytes: 32 * 1024,
   frameBytes: 48 * 1024,

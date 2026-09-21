@@ -22,7 +22,7 @@ describe('decideHandshake', () => {
   });
 
   it('treats a 15.x daemon as incompatible with protocol 18', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 18, minor: 1 });
+    expect(PROTOCOL_VERSION).toEqual({ major: 19, minor: 0 });
     expect(decideHandshake(PROTOCOL_VERSION, { major: 15 })).toEqual({
       kind: 'upgrade-daemon',
     });

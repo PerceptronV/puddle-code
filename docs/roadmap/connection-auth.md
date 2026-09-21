@@ -1,7 +1,7 @@
 # Connection authentication
 
 Status: the local/SSH foundation is implemented in protocol 18.0. Self-hosted
-mobile access is implemented in the separately versioned remote protocol 1. The [implementation contract](short-lived-connection-tokens.md)
+mobile access is implemented in the separately versioned remote protocol 2. The [implementation contract](short-lived-connection-tokens.md)
 records concrete lifetimes, migration and verification; this document retains
 the architectural rationale and shared transport boundary.
 
@@ -220,3 +220,7 @@ storage are resolved in the implemented [connection-token contract](short-lived-
 The independently versioned remote transport reuses that authority without
 changing the protocol-18 host authority contract. Protocol 18.1 adds authenticated
 local/SSH cockpit administration for the desktop remote-access settings.
+
+The OAuth-only service revision uses remote protocol 2 and daemon/cockpit protocol
+19.0 for the changed pairing invitation contract. Host-authority semantics remain
+unchanged; account login supports Google/GitHub, with no email/password machinery.

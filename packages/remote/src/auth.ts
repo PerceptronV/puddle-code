@@ -1,8 +1,7 @@
-import { betterAuth } from 'better-auth';
+import { betterAuth, type BetterAuthOptions } from 'better-auth';
 import { APIError } from 'better-auth/api';
 import { twoFactor } from 'better-auth/plugins';
 import { getMigrations } from 'better-auth/db/migration';
-import { createMailer } from './mail.js';
 import type { RemoteConfig } from './config.js';
 import type { ServiceStore } from './store.js';
 import { RateLimit } from './rate-limit.js';
@@ -25,43 +24,29 @@ export interface ServiceAuth {
 export async function createServiceAuth(
   config: RemoteConfig,
   store: ServiceStore,
-  deliver?: (to: string, subject: string, url: string) => Promise<void>,
 ): Promise<ServiceAuth> {
-  const mail = createMailer(config.smtp);
-  const send =
-    deliver ??
-    (async (to: string, subject: string, url: string) => {
-      await mail.sendMail({
-        from: config.from,
-        to,
-        subject,
-        text: `${subject}\n\n${url}\n\nIf you did not request this, ignore this message.`,
-      });
-    });
   const options = {
     appName: 'Puddle',
     baseURL: config.service,
     secret: config.secret,
     database: store.db,
     trustedOrigins: [config.app, config.service],
-    emailAndPassword: {
-      enabled: true,
-      requireEmailVerification: true,
-      revokeSessionsOnPasswordReset: true,
-      sendResetPassword: async ({ user, url }: { user: { email: string }; url: string }) =>
-        send(user.email, 'Reset your Puddle password', url),
-    },
-    emailVerification: {
-      sendOnSignUp: true,
-      sendOnSignIn: true,
-      sendVerificationEmail: async ({ user, url }: { user: { email: string }; url: string }) =>
-        send(user.email, 'Verify your Puddle email', url),
-    },
     socialProviders: {
-      ...(config.google ? { google: config.google } : {}),
+      ...(config.google ? { google: { ...config.google, disableIdTokenSignIn: true } } : {}),
       ...(config.github ? { github: config.github } : {}),
     },
-    account: { accountLinking: { enabled: true, disableImplicitLinking: true } },
+    user: {
+      // Check the current provider claim on every sign-in, including existing users.
+      validateUserInfo: async ({ user }) => {
+        if (user.emailVerified !== true)
+          return {
+            error: 'email_not_verified',
+            errorDescription: 'Verify your email with your login provider first',
+          };
+      },
+    },
+    onAPIError: { errorURL: config.app },
+    account: { accountLinking: { enabled: false } },
     session: { expiresIn: 7 * 24 * 60 * 60, cookieCache: { enabled: false } },
     // Disable Better Auth's automatic __Secure- prefix so the browser enforces
     // __Host- semantics; Secure itself remains mandatory on every cookie.
@@ -83,6 +68,7 @@ export async function createServiceAuth(
           before: async (user: { email: string }) => {
             if (!config.openSignup && !config.signupEmails.includes(user.email.toLowerCase()))
               throw new APIError('FORBIDDEN', {
+                code: 'registration_not_enabled',
                 message: 'Registration is not enabled for this email',
               });
           },
@@ -91,9 +77,17 @@ export async function createServiceAuth(
     },
     plugins: [twoFactor({ allowPasswordless: true })],
     logger: { disabled: true },
-  };
+  } satisfies BetterAuthOptions;
   const migrations = await getMigrations(options);
   await migrations.runMigrations();
+  // Retire credentials from earlier builds without relinking accounts by email.
+  // Existing provider bindings and host ownership survive; all old sessions end.
+  store.db.transaction(() => {
+    if (!store.db.prepare("SELECT 1 FROM account WHERE providerId = 'credential'").get()) return;
+    store.db.exec(
+      "DELETE FROM account WHERE providerId = 'credential'; DELETE FROM session; DELETE FROM verification; DELETE FROM mfa_sessions;",
+    );
+  })();
   const auth = betterAuth(options);
   const mfaAttempts = new RateLimit(5);
   const session = async (headers: Headers): Promise<ServiceSession | null> => {
@@ -122,6 +116,13 @@ export async function createServiceAuth(
   };
   const handle = async (request: Request): Promise<Response> => {
     const path = new URL(request.url).pathname.slice('/api/auth'.length);
+    // Expose only the authentication flows Puddle uses. In particular, Better
+    // Auth's built-in password/email endpoints must never become reachable.
+    const publicFlow =
+      /^(\/get-session|\/sign-out|\/sign-in\/social|\/callback\/(google|github)|\/two-factor\/verify-(totp|backup-code))$/;
+    const securityFlow = /^\/two-factor\/(enable|disable)$/;
+    if (!publicFlow.test(path) && !securityFlow.test(path))
+      return Response.json({ message: 'Unknown authentication endpoint' }, { status: 404 });
     const current = await session(request.headers);
     if (
       request.method === 'POST' &&
@@ -133,9 +134,7 @@ export async function createServiceAuth(
         { status: 429 },
       );
     // Social logins can issue a session before optional MFA. Such a session cannot
-    // alter account security, link providers, register a host, or open a relay pipe.
-    const publicFlow =
-      /^(\/get-session|\/sign-out|\/sign-in\/(email|social)|\/callback\/(google|github)|\/two-factor\/verify-(totp|backup-code)|\/request-password-reset|\/reset-password|\/verify-email|\/send-verification-email)$/;
+    // alter account security, register a host, or open a relay pipe.
     if (
       current?.user.twoFactorEnabled &&
       !store.hasMfa(current.session.token) &&

@@ -6,12 +6,13 @@ import { mkdtempSync, readFileSync, rmSync, existsSync, mkdirSync, symlinkSync }
 import { tmpdir } from 'node:os';
 import { join, resolve, extname } from 'node:path';
 import { startRemoteService } from '../../remote/src/server.js';
+import { githubFixture } from '../../remote/test/helpers/oauth.js';
 import { atomicPrivateJson } from '../../shared/src/node/security.js';
 import { administrativeRequest } from '../../connector/src/admin.js';
 import { fixture, createSession, env, stop, until, root } from '../../cli/e2e/helpers.js';
 import { findFreePort } from '../../cli/src/lib/net.js';
 
-/** Real daemon, cockpit, service and connector; only the coding agent and SMTP are fixtures. */
+/** Real daemon, cockpit, service and connector; only the coding agent and GitHub are fixtures. */
 export async function mobileFixture() {
   const local = await fixture();
   // Make the actual connector entry point available to the built desktop cockpit.
@@ -53,24 +54,18 @@ export async function mobileFixture() {
     { stdio: 'ignore' },
   );
   const tls = { cert: readFileSync(certPath), key: readFileSync(keyPath) };
-  const emails: string[] = [];
-  const remote = await startRemoteService(
-    {
-      service: serviceOrigin,
-      app: appOrigin,
-      home: join(directory, 'service'),
-      port: 0,
-      address: '127.0.0.1',
-      secret: 'isolated-mobile-test-secret-long-enough-for-auth',
-      smtp: 'smtp://localhost:2525',
-      from: 'puddle@example.test',
-      signupEmails: ['owner@example.test'],
-      openSignup: false,
-    },
-    async (_to, _subject, url) => {
-      emails.push(url);
-    },
-  );
+  const github = githubFixture();
+  const remote = await startRemoteService({
+    service: serviceOrigin,
+    app: appOrigin,
+    home: join(directory, 'service'),
+    port: 0,
+    address: '127.0.0.1',
+    secret: 'isolated-mobile-test-secret-long-enough-for-auth',
+    github: { clientId: 'fixture-client', clientSecret: 'fixture-secret' },
+    signupEmails: ['owner@example.test'],
+    openSignup: false,
+  });
   const address = remote.server.address();
   if (!address || typeof address === 'string') throw new Error('Missing service port');
   const relay = createServer(tls, (req, res) => {
@@ -167,7 +162,7 @@ export async function mobileFixture() {
     remote,
     appOrigin,
     serviceOrigin,
-    emails,
+    github,
     admin: (request: unknown) => administrativeRequest(local.home, request),
     async enable(account: string) {
       const registration = remote.store.redeem(remote.store.register(account, 'Fixture host').code);
@@ -195,6 +190,7 @@ export async function mobileFixture() {
       return registration;
     },
     async close() {
+      github.close();
       if (connector) await stop(connector);
       for (const socket of sockets) socket.destroy();
       relay.closeAllConnections();
