@@ -89,7 +89,7 @@ export function PhoneSessionRail({
             {expanded && <span>New terminal</span>}
           </Button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-1">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1">
           {projects
             .filter((project) => !project.archived)
             .map((project) => (

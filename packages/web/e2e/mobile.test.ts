@@ -4,6 +4,7 @@ import { websocket, until } from '../../cli/e2e/helpers';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { projectSchema } from '@puddle/shared';
+import { checkTerminalScrolling, expectStationaryPage, swipe } from './mobile-scrolling';
 
 test.use({ hasTouch: true, isMobile: true });
 
@@ -170,6 +171,7 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
       Boolean,
     );
     typed.close();
+    await checkTerminalScrolling(page, fixture);
     await page.getByRole('button', { name: 'Ctrl', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Ctrl', exact: true })).toHaveAttribute(
       'aria-pressed',
@@ -217,7 +219,7 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     restored.close();
     writeFileSync(
       join(String(fixture.session.worktree_path), 'review.html'),
-      '<script>window.repositoryExecuted = true</script>\n',
+      '<script>window.repositoryExecuted = true</script>\n' + 'File scroll content\n'.repeat(100),
     );
     await page.getByRole('button', { name: 'Files', exact: true }).click();
     await page.getByRole('button', { name: 'Review changes' }).click();
@@ -233,6 +235,11 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
       '<script>window.repositoryExecuted = true</script>',
     );
     expect(await page.evaluate(() => 'repositoryExecuted' in window)).toBe(false);
+    const fileViewer = page.locator('.phone-file-source').locator('..');
+    const topbarY = (await page.locator('.remote-topbar').boundingBox())!.y;
+    await swipe(page, fileViewer, 'up');
+    await expect.poll(() => fileViewer.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+    await expectStationaryPage(page, topbarY);
     await page.getByRole('button', { name: 'Back to files', exact: true }).click();
     await expect(
       page.getByRole('button', { name: 'Select file review.html', exact: true }),

@@ -1013,6 +1013,8 @@ Puddle's UI must read as a polished, intentional developer cockpit — dense, ca
 
   Tap the terminal or its keyboard control to type directly into xterm, including native composition. A per-terminal bottom strip provides Escape, Tab, arrows, Enter, Ctrl-C and one-shot Ctrl/Opt modifiers; touch controls retain terminal focus and use hardware-equivalent sequences. An optional multiline composer retains unsent drafts and uses xterm's bracketed-paste encoder with acknowledged delivery. VisualViewport height/offset and safe-area sizing keep the strip above the keyboard and shared dialogues within the visible area. Real iOS/Android keyboard behaviour remains a physical-device acceptance check.
 
+  The remote document stays fixed to the visible viewport; the dashboard, files, session rail and dialogues own their native scrolling without chaining to the page. The shared terminal translates single-finger drags into normal-buffer scrollback or xterm-encoded wheel/alternate-screen input when the application owns scrolling. Swipe distance follows terminal row height, swipes never focus the keyboard or become clicks, and pinch zoom remains available. Touch scrolling supersedes pending resize-position restoration just like a mouse wheel.
+
 - **Quality floor**: visible keyboard focus everywhere (`--focus-ring`); session tabs, palette, and explorer fully keyboard-navigable; empty states direct action ("No sessions yet — press ⌘K to start one"); error copy states cause and fix, never apologises vaguely.
 
 - **Window title**: a project workspace normally reads `<project> — <host>`; while agents wait it reads `● <n> waiting — <project> (<host>)`. Waiting status never replaces the host label, because similarly named projects can be open against different machines.

@@ -17,7 +17,9 @@ recovery instructions: [self-hosted mobile access](../mobile-access.md).
   with a deterministic fake agent. Cover login, fragment removal, exact-key
   approval from desktop Settings → Remote & Sync, QR/link generation, Unicode
   composer input, draft retention through resize/reconnect, desktop revocation/
-  disablement and continued local agent access. A separate UI fixture covers
+  disablement and continued local agent access. Browser-level touch gestures cover
+  terminal scrollback, SGR mouse reporting, alternate-screen scrolling, tap-to-type,
+  and native file scrolling while the surrounding page stays fixed. A separate UI fixture covers
   in-place registration editing, editable defaults, cancellation and quiet polling during sign-in,
   re-enablement, explicit identity-reset confirmation, and registration
   deletion with cancellation/error recovery, chevron keyboard toggling, legacy
@@ -91,6 +93,8 @@ Run on current iOS Safari and Android Chrome, recording versions and results:
 | IME composition, Unicode, dictation, multiline paste | Native composition remains intact; Send follows terminal paste mode and submits once |
 | Direct terminal typing; Escape, Tab, arrows, Enter, Ctrl/Opt chords | Tapping xterm opens the keyboard; touch controls retain focus and deliver hardware-equivalent sequences; one-shot modifiers clear after use |
 | Long output and text selection | Terminal remains responsive; selection/scroll position survives switching |
+| Terminal swipes, including scrollback boundaries and keyboard open/closed | History scrolls in both directions without moving the page or opening the keyboard; agent-owned mouse/alternate-screen scrolling works; a subsequent tap still opens the keyboard and pinch zoom remains available |
+| Long file tree, file contents, session rail, settings and project dashboard | Each surface scrolls independently; gestures at either boundary do not move the surrounding workspace |
 | Desktop and phone on the same PTY | Active viewer claims size; hidden/background phone does not repeatedly resize |
 | Lock/suspend; Wi-Fi to cellular; offline during Send | Draft survives, uncertain outcome is visible, no automatic replay |
 | Return to existing runtime after expiry | Fresh admission and canonical snapshot; agent continues on the host |

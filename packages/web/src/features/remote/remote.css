@@ -1,6 +1,21 @@
+.remote-viewport,
+.remote-viewport body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+.remote-viewport #root {
+  position: fixed;
+  top: var(--phone-top, 0px);
+  inset-inline: 0;
+  height: var(--phone-height, 100dvh);
+  overflow: auto;
+  overscroll-behavior: none;
+}
 .remote-ui {
   height: 100%;
   overflow: auto;
+  overscroll-behavior: contain;
   color: var(--text-primary);
   background: var(--bg-base);
 }
@@ -22,12 +37,11 @@
   border-top: 1px solid var(--border);
 }
 .remote-connected {
-  position: fixed;
-  top: var(--phone-top, 0px);
-  inset-inline: 0;
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
-  height: var(--phone-height, 100dvh);
+  height: 100%;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
     env(safe-area-inset-left);
   overflow: hidden;
@@ -173,6 +187,7 @@
   gap: 0.125rem;
   padding-inline: 0.375rem;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
 }
 .phone-terminal-tabs button {
   min-height: 2.5rem;
@@ -262,6 +277,7 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 0.5rem;
 }
 .phone-review nav {
@@ -299,6 +315,9 @@
   flex: 1;
   min-width: 0;
   background: var(--bg-surface);
+}
+.remote-viewport [role='dialog'] {
+  overscroll-behavior: contain;
 }
 @media (pointer: coarse) {
   input,

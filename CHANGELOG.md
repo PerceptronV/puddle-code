@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Keep mobile swipes inside terminal history and agent interfaces, preserve tap-to-type, and prevent terminal, file and session scrolling from moving the surrounding page.

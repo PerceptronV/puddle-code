@@ -142,7 +142,7 @@ export function PhoneFiles({ session, worktree }: { session?: string; worktree?:
             </div>
           )}
           {file ? (
-            <div className="min-h-0 flex-1 overflow-auto px-3 pb-3">
+            <div className="min-h-0 flex-1 overflow-auto overscroll-contain px-3 pb-3">
               <p className="mb-3 break-all font-mono text-2xs text-fg-muted">{file} · read only</p>
               {source.isPending ? (
                 <p className="text-sm text-fg-muted">Loading file…</p>
@@ -159,7 +159,10 @@ export function PhoneFiles({ session, worktree }: { session?: string; worktree?:
               )}
             </div>
           ) : (
-            <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4" aria-label="File tree">
+            <div
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-4"
+              aria-label="File tree"
+            >
               {tree.isFetching && !tree.data && (
                 <p className="p-2 text-sm text-fg-muted">Loading files…</p>
               )}

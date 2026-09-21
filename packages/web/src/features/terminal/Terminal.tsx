@@ -44,6 +44,7 @@ import {
 import { registerFileLinks, type FileLinkTarget } from './file-links';
 import { consumeTerminalModifiers, registerTerminalInput } from './input';
 import { preserveXtermScrollUp } from './xterm-scrollback';
+import { attachTerminalTouchScroll } from './touch-scroll';
 
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -530,6 +531,7 @@ export function Terminal({
     // never mistaken for part of the application redraw.
     const onWheel = () => resizeScrollGuardRef.current.release();
     container.addEventListener('wheel', onWheel, { capture: true, passive: true });
+    const detachTouchScroll = attachTerminalTouchScroll(xterm, () => activeRef.current, onWheel);
 
     // Focus wins the PTY size (tmux's `window-size latest`, SPEC §6). The PTY
     // has one size and every viewer's attach/resize claims it, so with the
@@ -556,6 +558,7 @@ export function Terminal({
       container.removeEventListener('paste', onPaste, true);
       container.removeEventListener('wheel', onWheel, true);
       container.removeEventListener('focusin', onFocusIn);
+      detachTouchScroll();
       observer.disconnect();
       unsubscribeTheme();
       resizeScrollGuardRef.current.release();
@@ -733,7 +736,7 @@ export function Terminal({
   }, [stream, refit]);
 
   return (
-    <div className={cn('relative size-full', className)}>
+    <div className={cn('puddle-terminal relative size-full', className)}>
       <div ref={containerRef} className="size-full" />
       {find.open && (
         <FindWidget

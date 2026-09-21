@@ -80,6 +80,11 @@
 }
 
 @layer base {
+  /* The shared terminal owns single-finger drags; browser zoom stays available. */
+  .puddle-terminal .xterm-screen {
+    touch-action: pinch-zoom;
+  }
+
   html {
     font-size: var(--ui-font-size, 17.6px);
   }

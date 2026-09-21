@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 
 export function usePhoneViewport(): void {
   useEffect(() => {
+    document.documentElement.classList.add('remote-viewport');
     const viewport = window.visualViewport;
     const update = () => {
       document.documentElement.style.setProperty(
@@ -15,6 +16,7 @@ export function usePhoneViewport(): void {
     viewport?.addEventListener('scroll', update);
     window.addEventListener('resize', update);
     return () => {
+      document.documentElement.classList.remove('remote-viewport');
       viewport?.removeEventListener('resize', update);
       viewport?.removeEventListener('scroll', update);
       window.removeEventListener('resize', update);
