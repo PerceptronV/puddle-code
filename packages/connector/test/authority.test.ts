@@ -56,6 +56,20 @@ describe('remote surface', () => {
       'stdin',
     );
   });
+  it('allows bounded directory and text reads at an explicit host root, without raw previews or writes', () => {
+    const target = '00000000-0000-0000-0000-000000000000';
+    for (const operation of ['tree', 'file', 'resolve']) {
+      const path = `/api/worktrees/${target}/${operation}?path=notes.txt&root=%2Ftmp%2Fproject`;
+      expect(request('GET', path).path).toBe(path);
+      expect(() => request('POST', path)).toThrow();
+      expect(() => request('GET', path + '&root=%2F')).toThrow();
+    }
+    for (const operation of ['media', 'download', 'upload', 'preview']) {
+      expect(() =>
+        request('GET', `/api/worktrees/${id}/${operation}?path=index.html&root=%2Ftmp`),
+      ).toThrow();
+    }
+  });
   it.each([
     '/proxy/a/3000',
     '/cockpit/refresh',

@@ -42,7 +42,7 @@ import {
   type TerminalScrollPosition,
 } from './scroll-position';
 import { registerFileLinks, type FileLinkTarget } from './file-links';
-import { registerTerminalInput } from './input';
+import { consumeTerminalModifiers, registerTerminalInput } from './input';
 import { preserveXtermScrollUp } from './xterm-scrollback';
 
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
@@ -378,15 +378,20 @@ export function Terminal({
     const osc52 = { stash: null as string | null };
 
     let capturedPaste: string[] | null = null;
-    const unregisterInput = registerTerminalInput(stream, term, (text) => {
-      capturedPaste = [];
-      try {
-        xterm.paste(text);
-        return capturedPaste.join('');
-      } finally {
-        capturedPaste = null;
-      }
-    });
+    const unregisterInput = registerTerminalInput(
+      stream,
+      term,
+      (text) => {
+        capturedPaste = [];
+        try {
+          xterm.paste(text);
+          return capturedPaste.join('');
+        } finally {
+          capturedPaste = null;
+        }
+      },
+      () => xterm.focus(),
+    );
     const stdin = xterm.onData((data) => {
       if (capturedPaste) {
         capturedPaste.push(data);
@@ -405,7 +410,7 @@ export function Terminal({
       // later copy chord cannot commit stale text. Mouse reports (wheel
       // scrolling, `ESC[<…`) are not typing and keep it.
       if (!data.startsWith('\x1b[<')) osc52.stash = null;
-      wsManager.write(stream, term, data);
+      wsManager.write(stream, term, consumeTerminalModifiers(stream, term, data));
     });
 
     // Answer the terminal dynamic-colour queries (OSC 10 foreground, OSC 11

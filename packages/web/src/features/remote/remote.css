@@ -1,110 +1,51 @@
-.remote-ui,
-.phone-workspace {
+.remote-ui {
+  height: 100%;
+  overflow: auto;
   color: var(--text-primary);
   background: var(--bg-base);
 }
-.remote-ui {
-  font-size: 16px;
-  height: 100%;
-  overflow: auto;
-}
 .remote-account {
-  max-width: 44rem;
+  width: min(100%, 28rem);
   margin-inline: auto;
-  padding: max(1.5rem, env(safe-area-inset-top)) max(1.5rem, env(safe-area-inset-right))
-    max(1.5rem, env(safe-area-inset-bottom)) max(1.5rem, env(safe-area-inset-left));
-  overflow: auto;
+  padding: max(4rem, env(safe-area-inset-top)) 1.5rem 2rem;
 }
-.remote-ui h1 {
-  font-size: 1.6rem;
+.remote-dashboard {
+  max-width: 52rem;
+  margin-inline: auto;
+  padding: max(1.5rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right))
+    max(2rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
 }
-.remote-ui h2 {
-  font-size: 1.2rem;
+.remote-host-projects {
+  padding-block: 1.25rem;
 }
-.remote-ui p,
-.remote-ui h2,
-.remote-ui pre {
-  margin-block: 1rem;
-}
-.remote-ui section {
-  margin-block: 1.5rem;
-}
-.remote-ui button,
-.remote-ui summary,
-.phone-workspace button,
-.phone-workspace summary {
-  min-height: 44px;
-  padding: 0.5rem 0.75rem;
-  cursor: pointer;
-  color: var(--text-primary);
-  touch-action: manipulation;
-}
-.remote-ui button:hover,
-.phone-workspace button:hover {
-  background: var(--bg-surface);
-}
-.remote-ui button:disabled,
-.phone-workspace button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-.remote-ui input,
-.remote-ui select,
-.remote-ui textarea,
-.phone-workspace input,
-.phone-workspace select,
-.phone-workspace textarea {
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  padding: 0.65rem;
-  border: none;
-  min-height: 44px;
-  font-size: 16px;
-  max-width: 100%;
-}
-.remote-ui label,
-.phone-workspace label {
-  display: grid;
-  gap: 0.5rem;
-  margin-block: 0.75rem;
-}
-.remote-ui a {
-  color: var(--accent);
-}
-.remote-ui a.pairing-link {
-  color: var(--text-primary);
-}
-.remote-ui pre,
-.phone-workspace pre {
-  font-family: var(--font-mono);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.remote-ui header,
-.remote-host-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+.remote-host-projects + .remote-host-projects {
+  border-top: 1px solid var(--border);
 }
 .remote-connected {
+  position: fixed;
+  top: var(--phone-top, 0px);
+  inset-inline: 0;
   display: flex;
   flex-direction: column;
   height: var(--phone-height, 100dvh);
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
     env(safe-area-inset-left);
+  overflow: hidden;
 }
-.remote-connected > header {
-  padding-inline: 0.5rem;
+.remote-topbar {
+  display: flex;
   flex: none;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.375rem;
+}
+.remote-topbar > button {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
 }
 .remote-workspace {
   flex: 1;
   min-height: 0;
-}
-.remote-workspace[hidden] {
-  display: none;
 }
 .phone-workspace {
   display: flex;
@@ -112,62 +53,171 @@
   height: 100%;
   min-width: 0;
   min-height: 0;
-  font-size: 16px;
+  color: var(--text-primary);
+  background: var(--bg-base);
 }
-.phone-selectors,
-.phone-actions {
+.phone-workspace-bar {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem;
   flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
 }
-.phone-selectors select {
+.phone-workspace-bar > button {
+  min-height: 2.75rem;
+}
+.phone-view-switch {
+  display: flex;
+  flex: none;
+  gap: 0.125rem;
+}
+.phone-view-switch button {
+  padding-inline: 0.625rem;
+  min-height: 2.75rem;
+  font-size: var(--text-xs);
+}
+.phone-view-switch [aria-pressed='true'],
+.phone-terminal-tabs [aria-pressed='true'],
+.phone-keys [aria-pressed='true'] {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+.phone-workspace-body {
+  display: flex;
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.phone-centre {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-width: 0;
-  width: 35%;
+  min-height: 0;
 }
-.phone-actions details {
-  position: relative;
+.phone-session-rail {
+  display: flex;
+  flex-direction: column;
+  width: 3.25rem;
+  flex: none;
 }
-.phone-actions details[open] {
+.phone-session-rail.is-expanded {
+  position: absolute;
+  z-index: 30;
+  inset: 0 0 0 auto;
+  width: min(18rem, 85%);
   background: var(--bg-elevated);
 }
-.phone-actions details[open] button {
-  display: block;
+.phone-rail-backdrop {
+  position: absolute;
+  z-index: 20;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg-base) 70%, transparent);
+  backdrop-filter: blur(2px);
+}
+.phone-session-rail .rail-control {
+  min-height: 2.75rem;
+  width: 100%;
+}
+.phone-session-rail.is-expanded .rail-control {
+  justify-content: start;
+  gap: 0.75rem;
+}
+.phone-session-group {
+  margin-top: 0.5rem;
+}
+.phone-project-label {
+  width: 100%;
+  min-height: 2.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+.phone-project-label:hover {
+  color: var(--text-primary);
+}
+.is-expanded .phone-project-label {
+  text-align: left;
+  padding-inline: 0.75rem;
+  font-size: var(--text-xs);
+}
+.phone-session-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0.5rem;
+  border-radius: var(--radius-md);
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.phone-session-button:hover {
+  background: var(--bg-surface);
+}
+.is-expanded .phone-session-button {
+  justify-content: start;
+}
+.phone-terminal-tabs {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 0.125rem;
+  padding-inline: 0.375rem;
+  overflow-x: auto;
+}
+.phone-terminal-tabs button {
+  min-height: 2.5rem;
 }
 .phone-view {
   flex: 1;
   min-height: 0;
   position: relative;
 }
+.phone-view[hidden],
+.phone-terminal[hidden] {
+  display: none;
+}
 .phone-terminal {
+  display: flex;
+  flex-direction: column;
   position: absolute;
   inset: 0;
   padding-inline: 0.25rem;
 }
-.phone-terminal[hidden] {
-  display: none;
-}
 .phone-composer {
   flex: none;
-  padding: 0.25rem 0.5rem;
+  min-width: 0;
+  padding-block: 0.25rem;
   background: var(--bg-base);
 }
 .phone-keys {
   display: flex;
   overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
 }
 .phone-keys button {
-  flex: 1;
-  padding-inline: 0.6rem;
-  white-space: nowrap;
+  min-width: 2.5rem;
+  min-height: 2.75rem;
+  flex: none;
+  padding-inline: 0.5rem;
+  font-size: var(--text-xs);
+  touch-action: manipulation;
 }
 .phone-composer form {
   display: flex;
   gap: 0.5rem;
   align-items: flex-end;
+  padding: 0.25rem;
 }
 .phone-composer textarea {
   flex: 1;
@@ -178,24 +228,87 @@
 .phone-composer p {
   margin-block: 0.5rem;
 }
-.phone-review {
+.phone-files {
+  display: flex;
+  flex-direction: column;
   height: 100%;
+  min-height: 0;
+}
+.phone-files button {
+  min-height: 2.75rem;
+}
+.phone-file-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem;
+  text-align: left;
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  touch-action: manipulation;
+}
+.phone-file-row:hover {
+  background: var(--bg-surface);
+}
+.phone-file-source {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  white-space: pre;
+  tab-size: 2;
+}
+.phone-review {
+  flex: 1;
+  min-height: 0;
   overflow: auto;
-  padding: 0.5rem 1rem;
-  margin-block: 0 !important;
+  padding: 0.5rem;
+}
+.phone-review nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+.phone-review pre {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding-block: 1rem;
 }
 .phone-file {
   display: block;
   text-align: left;
   width: 100%;
+  height: auto;
+  white-space: normal;
   overflow-wrap: anywhere;
-}
-.phone-new {
-  padding: 0.5rem 1rem;
-  max-height: 45%;
-  overflow: auto;
 }
 .phone-empty {
   padding: 1rem;
-  color: var(--text-secondary);
+  color: var(--text-muted);
+}
+/* The local cockpit still mounts its existing mobile selector above this pane. */
+.phone-selectors {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+.phone-selectors select {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-surface);
+}
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select,
+  .xterm-helper-textarea {
+    font-size: max(16px, 1rem);
+  }
+  [role='dialog'] button,
+  .remote-account button {
+    min-height: 2.75rem;
+  }
 }

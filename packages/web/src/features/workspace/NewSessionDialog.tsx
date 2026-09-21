@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { Project, Session, SessionKind } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
@@ -51,8 +51,7 @@ import { resolveSessionSeed } from './session-seed';
  * of the base branch; turn it off to share a directory — picking an existing one
  * to drop into). Both axes and the base branch open on the profile's per-kind
  * `sessionDefaults` (Settings → Sessions), falling back to the built-ins:
- * agents on a new branch in their own directory, terminals sharing the base
- * branch's directory. The skip toggle renders only when the profile gate is on
+ * both kinds sharing the base branch's directory. The skip toggle renders only when the profile gate is on
  * and the chosen account opted in.
  *
  * The PROJECT is retargetable here too (decision 2026-08-03), seeded from
@@ -70,6 +69,7 @@ export function NewSessionDialog({
   seedAccountId,
   onOpenChange,
   onCreated,
+  accountSetup,
 }: {
   /** Seeds the project control; the user can retarget it. */
   projectId: string;
@@ -82,6 +82,8 @@ export function NewSessionDialog({
   seedAccountId?: number;
   onOpenChange: (open: boolean) => void;
   onCreated: (session: Session) => void;
+  /** An embedder can direct account setup to the shell that owns it. */
+  accountSetup?: ReactNode;
 }) {
   const isTerminal = kind === 'terminal';
   const profileId = useCurrentProfileId();
@@ -266,15 +268,19 @@ export function NewSessionDialog({
               <Label>Account</Label>
               {accounts.data?.length === 0 ? (
                 <p className="text-sm text-fg-secondary">
-                  No accounts yet —{' '}
-                  <button
-                    type="button"
-                    className="text-accent underline"
-                    onClick={() => openSettings('accounts')}
-                  >
-                    add one in settings
-                  </button>
-                  .
+                  {accountSetup ?? (
+                    <>
+                      No accounts yet —{' '}
+                      <button
+                        type="button"
+                        className="text-accent underline"
+                        onClick={() => openSettings('accounts')}
+                      >
+                        add one in settings
+                      </button>
+                      .
+                    </>
+                  )}
                 </p>
               ) : (
                 <Select value={effectiveAccountId} onValueChange={setAccountId}>

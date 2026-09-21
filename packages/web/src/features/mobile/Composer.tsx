@@ -2,26 +2,20 @@ import { useState } from 'react';
 import { browserScope } from '../../lib/browser-transport';
 import { sendTerminalInput, useTerminalInputReady } from '../terminal/input';
 
-const controls = [
-  ['Esc', '\u001b'],
-  ['Tab', '\t'],
-  ['←', '\u001b[D'],
-  ['↑', '\u001b[A'],
-  ['↓', '\u001b[B'],
-  ['→', '\u001b[C'],
-  ['Enter', '\r'],
-  ['Ctrl-C', '\u0003'],
-] as const;
+import { Button } from '../../components/ui/button';
+import { TerminalKeys } from './TerminalKeys';
 
 /** Keyed by placement + terminal; draft storage never contains submitted history. */
 export function Composer({
   session,
   term,
   connected,
+  compact = false,
 }: {
   session: string;
   term: string;
   connected: boolean;
+  compact?: boolean;
 }) {
   const ready = useTerminalInputReady(session, term) && connected;
   const storageKey = browserScope(`puddle.phone.draft:${session}:${term}`);
@@ -32,6 +26,7 @@ export function Composer({
       return '';
     }
   });
+  const [composing, setComposing] = useState(!compact || !!draft);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const save = (text: string) => {
@@ -62,32 +57,35 @@ export function Composer({
   };
   return (
     <div className="phone-composer">
-      <div className="phone-keys" aria-label="Terminal keys">
-        {controls.map(([label, data]) => (
-          <button key={label} disabled={!ready || busy} onClick={() => void send(data)}>
-            {label}
-          </button>
-        ))}
-      </div>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (draft) void send(draft, true);
-        }}
-      >
-        <textarea
-          aria-label="Prompt"
-          rows={2}
-          value={draft}
-          onChange={(e) => save(e.target.value)}
-          placeholder="Write a prompt…"
-          autoCapitalize="sentences"
-          spellCheck
-        />
-        <button type="submit" disabled={!ready || busy || !draft}>
-          {busy ? 'Sending…' : 'Send'}
-        </button>
-      </form>
+      <TerminalKeys
+        session={session}
+        term={term}
+        connected={connected}
+        composing={composing}
+        toggleComposer={() => setComposing(!composing)}
+      />
+      {composing && (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (draft) void send(draft, true);
+          }}
+        >
+          <textarea
+            className="rounded-md bg-surface p-2 text-base"
+            aria-label="Prompt"
+            rows={2}
+            value={draft}
+            onChange={(e) => save(e.target.value)}
+            placeholder="Write a prompt…"
+            autoCapitalize="sentences"
+            spellCheck
+          />
+          <Button type="submit" disabled={!ready || busy || !draft}>
+            {busy ? 'Sending…' : 'Send'}
+          </Button>
+        </form>
+      )}
       {message && <p role="alert">{message}</p>}
     </div>
   );

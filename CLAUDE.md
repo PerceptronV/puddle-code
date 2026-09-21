@@ -20,10 +20,12 @@ packages/
 ├── web/       # React UI: Tailwind v4 + owned shadcn-style components (src/components/ui/)
 │   ├── src/styles/tokens.css   # THE colour source; scripts/check-tokens.mjs guards it in lint/CI
 │   ├── src/lib/       # browser authorisation, TanStack Query hooks, singleton WS manager, theme registry
-│   └── src/features/  # dashboard, workspace (sidebar/tabs/xterm), editor/explorer/changes/search/worktrees
+│   ├── src/features/  # dashboard, workspace (sidebar/tabs/xterm), editor/explorer/changes/search/worktrees
 │                      # (Monaco tabs + drafts + dirty-diff gutter, file tree + transfer, repository-aware
 │                      #  source control + commit-graph SVG, filename+content search), scratchpad + layouts (top-bar
 │                      #  popovers), settings, ⌘K palette
+│   └── src/features/remote/ + mobile/ # remote account/pairing/settings + host-grouped project cards,
+│                                     # Files/Terminals workspace, session rail and touch terminal keys
 ├── remote-transport/ # standalone Noise XX + bounded encrypted framing (remote protocol 2)
 ├── connector/ # outbound host connector: exact device approval, route allowlist, manual host leases
 ├── remote/    # self-hosted Better Auth service + opaque bounded WSS relay; no host content storage
@@ -119,6 +121,7 @@ supervised one.
 - This is a public MIT repo: no company-, team-, or person-specific names anywhere (code, tests, docs, examples). Do not copy code from AGPL-licensed projects.
 - **Terminology**: a "session" is always an immutable _Puddle placement_ (`sessions.id`: project + canonical worktree + conversation overlay). An agent's own thread is a "native conversation", stored in `agent_conversations`; its public identifier is the "agent session ref" joined onto `Session.agent_session_ref`. A live "runtime" owns the PTYs and may move between placements. Never conflate these three identities in code, comments, or UI copy.
 - Design tokens in `packages/web/src/styles/tokens.css` are the single source for colour, type, radius, and spacing; the Tailwind config, xterm theme, and Monaco theme derive from them. Never hard-code a hex value or font stack in a component. UI conventions live in `SPEC.md` §12.
+- Remote/mobile UI distils the cockpit: reuse dashboard card content, session glyphs, shared dialogues and the new-session dialogue. Keep host catalogue connections separate from the singleton workspace transport, scope caches/drafts to service/account/host, and detach hidden terminals. The mobile rail shows only the active project's non-archived sessions; Files uses bounded, inert tree/file reads, including validated custom host roots. Remote allowlist additions belong in `connector/src/policy.ts` with denial tests for neighbouring operations.
 - Collapsible disclosures use `components/ui/disclosure.tsx`: native keyboard semantics with a Lucide chevron, never browser triangle markers. Remote status polls must not disable or relabel controls; only explicit operations show pending state. Remote access and profile sync share Settings → Remote & Sync.
 - Every hook in a React component runs **above** that component's loading gate. `pnpm lint` enforces `react-hooks/rules-of-hooks`: a hook after an early return changes the hook count when the gate flips and React blanks the whole page (this shipped once, in v0.0.22).
 - Layout-tree node ids are **unique within a tree** (`layout-tree.ts` "Node identity"). Anything that COPIES a tree re-ids the copy (`reidNodes`) and anything that combines trees deduplicates (`dedupeIds`): ids are the tiling area's React keys and resizable-panel ids, so a repeat aliases panes and throws "Panel ids must be unique" mid-render (this shipped in v0.0.22–v0.0.23, when it blanked every window).

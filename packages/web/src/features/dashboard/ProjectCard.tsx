@@ -1,8 +1,8 @@
-import { type DragEvent, useMemo, useState } from 'react';
+import { type DragEvent, useState } from 'react';
 import { Link } from 'react-router';
 import { ArchiveRestore, Archive as ArchiveIcon, Pencil } from 'lucide-react';
 import { toastError } from '../../lib/errors';
-import type { Project, SessionStatus } from '@puddle/shared';
+import type { Project } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import {
   ContextMenu,
@@ -23,42 +23,7 @@ import { ABBREV_MAX, normaliseAbbrev, projectAbbrev } from '../../lib/project-ab
 import { usePatchProject, useSessions } from '../../lib/queries';
 import { cn } from '../../lib/utils';
 
-const COUNTED: Array<{ status: SessionStatus; colour: string }> = [
-  { status: 'running', colour: 'bg-running' },
-  { status: 'waiting_input', colour: 'bg-waiting' },
-  { status: 'interrupted', colour: 'bg-interrupted' },
-];
-
-/** The "N sessions · N running" line under a project's name. */
-export function SessionCounts({ projectId }: { projectId: string }) {
-  const sessions = useSessions(projectId);
-  const counts = useMemo(() => {
-    const byStatus = new Map<SessionStatus, number>();
-    for (const session of sessions.data ?? []) {
-      byStatus.set(session.status, (byStatus.get(session.status) ?? 0) + 1);
-    }
-    return byStatus;
-  }, [sessions.data]);
-
-  const active = (sessions.data ?? []).filter((s) => s.status !== 'archived').length;
-  return (
-    <div className="flex items-center gap-3 text-2xs text-fg-muted tabular-nums">
-      <span>
-        {active} session{active === 1 ? '' : 's'}
-      </span>
-      {COUNTED.map(({ status, colour }) => {
-        const count = counts.get(status) ?? 0;
-        if (count === 0) return null;
-        return (
-          <span key={status} className="flex items-center gap-1">
-            <span className={`size-1.5 rounded-full ${colour}`} />
-            {count} {status.replace('_', ' ')}
-          </span>
-        );
-      })}
-    </div>
-  );
-}
+import { ProjectCardContent, projectCardSurface } from './ProjectCardContent';
 
 /** A borderless icon button revealed on card hover (HUMANS.md: fill-shift, no border). */
 function CardIconButton({
@@ -111,6 +76,7 @@ export function ProjectCard({
   onDragOver: (e: DragEvent<HTMLDivElement>) => void;
 }) {
   const patch = usePatchProject();
+  const sessions = useSessions(project.id);
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(project.name);
   const [abbrev, setAbbrev] = useState(projectAbbrev(project));
@@ -158,18 +124,12 @@ export function ProjectCard({
             onDragOver={onDragOver}
             className={cn('group relative transition-opacity', dragging && 'opacity-50')}
           >
-            <Link
-              draggable={false}
-              to={`/project/${project.id}`}
-              className="block rounded-lg bg-surface p-4 transition-colors hover:bg-elevated"
-            >
-              <h2 className="truncate pr-16 text-base font-semibold text-fg group-hover:text-accent">
-                {project.name}
-              </h2>
-              <p className="mt-1 truncate text-2xs text-fg-muted">{repoPath ?? '…'}</p>
-              <div className="mt-3">
-                <SessionCounts projectId={project.id} />
-              </div>
+            <Link draggable={false} to={`/project/${project.id}`} className={projectCardSurface}>
+              <ProjectCardContent
+                project={project}
+                repoPath={repoPath}
+                sessions={sessions.data ?? []}
+              />
             </Link>
             {/* Actions sit over the card's top-right, revealed on hover; siblings
                 of the Link so a click never navigates. */}

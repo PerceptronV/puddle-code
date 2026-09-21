@@ -7,6 +7,7 @@ import {
   fileResponseSchema,
   treeResponseSchema,
 } from '@puddle/shared';
+import { Button } from '../../components/ui/button';
 import { api } from '../../lib/api';
 
 /** Source is rendered as text only. Active previews never enter this origin. */
@@ -98,7 +99,8 @@ export function PhoneReview({ session }: { session: string }) {
   return (
     <section className="phone-review">
       <nav>
-        <button
+        <Button
+          variant="ghost"
           onClick={() => {
             setMode('changes');
             setPath(null);
@@ -106,8 +108,9 @@ export function PhoneReview({ session }: { session: string }) {
           }}
         >
           Changes
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
           onClick={() => {
             setMode('files');
             setPath(null);
@@ -116,8 +119,9 @@ export function PhoneReview({ session }: { session: string }) {
           }}
         >
           Files
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
           onClick={() => {
             void changes.refetch();
             void tree.refetch();
@@ -125,26 +129,35 @@ export function PhoneReview({ session }: { session: string }) {
           }}
         >
           Refresh
-        </button>
+        </Button>
       </nav>
       {path === null ? (
         mode === 'changes' ? (
           <>
             <p>Changes against {changes.data?.base_ref ?? 'base'}</p>
             {changes.data?.entries.map((entry) => (
-              <button className="phone-file" key={entry.path} onClick={() => setPath(entry.path)}>
+              <Button
+                variant="ghost"
+                className="phone-file"
+                key={entry.path}
+                onClick={() => setPath(entry.path)}
+              >
                 {entry.path} · {entry.status}
-              </button>
+              </Button>
             ))}
             {changes.data?.entries.length === 0 && <p>No changes.</p>}
           </>
         ) : (
           <>
-            <button onClick={() => setDirectory(directory.split('/').slice(0, -1).join('/'))}>
+            <Button
+              variant="ghost"
+              onClick={() => setDirectory(directory.split('/').slice(0, -1).join('/'))}
+            >
               Up · {directory || '/'}
-            </button>
+            </Button>
             {tree.data?.entries.map((entry) => (
-              <button
+              <Button
+                variant="ghost"
                 className="phone-file"
                 key={entry.name}
                 disabled={entry.type === 'symlink'}
@@ -156,17 +169,20 @@ export function PhoneReview({ session }: { session: string }) {
               >
                 {entry.name}
                 {entry.type === 'dir' ? '/' : ''}
-              </button>
+              </Button>
             ))}
           </>
         )
       ) : (
         <>
-          <button onClick={() => setPath(null)}>Back</button>
+          <Button variant="ghost" onClick={() => setPath(null)}>
+            Back
+          </Button>
           <span>{path} · read only</span>
           {mode === 'changes' && (
             <nav>
-              <button
+              <Button
+                variant="ghost"
                 onClick={() => {
                   setShowDiff(true);
                   setBaseline(false);
@@ -174,8 +190,9 @@ export function PhoneReview({ session }: { session: string }) {
                 aria-pressed={showDiff}
               >
                 Diff
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
                 onClick={() => {
                   setShowDiff(false);
                   setBaseline(true);
@@ -183,8 +200,9 @@ export function PhoneReview({ session }: { session: string }) {
                 aria-pressed={!showDiff && baseline}
               >
                 Before
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
                 onClick={() => {
                   setShowDiff(false);
                   setBaseline(false);
@@ -192,7 +210,7 @@ export function PhoneReview({ session }: { session: string }) {
                 aria-pressed={!showDiff && !baseline}
               >
                 After
-              </button>
+              </Button>
             </nav>
           )}
           {file.data?.binary || (showDiff && before.data?.binary) ? (

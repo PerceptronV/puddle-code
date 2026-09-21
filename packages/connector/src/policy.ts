@@ -22,7 +22,9 @@ const routes: ReadonlyArray<readonly [string, RegExp, readonly string[]]> = [
   ['PATCH', new RegExp(`^/api/sessions/${uuid}$`), []],
   ['POST', new RegExp(`^/api/sessions/${uuid}/(resume|kill|archive|unarchive)$`), []],
   ['POST', new RegExp(`^/api/projects/${hex}/conversations/refresh$`), []],
-  ['GET', new RegExp(`^/api/worktrees/${uuid}/(tree|file|resolve)$`), ['path']],
+  // Read-only directory browsing uses the daemon's existing validated root override.
+  // Responses remain bounded JSON; raw media, executable previews and writes stay denied.
+  ['GET', new RegExp(`^/api/worktrees/${uuid}/(tree|file|resolve)$`), ['path', 'root']],
   [
     'GET',
     new RegExp(

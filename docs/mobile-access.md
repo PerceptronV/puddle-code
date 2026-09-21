@@ -231,16 +231,30 @@ in five minutes and can enrol only one identity.
 
 ## Use, revoke and recover
 
-Choose a host, project and session. Create an agent session with an existing
-account or a shell session; use session actions to resume, stop or archive it.
-The phone view has one terminal or text review, explicit terminal keys and a
-multiline prompt composer. Send respects the terminal's bracketed-paste mode.
-Drafts remain in this tab across reconnect/reload. If delivery is uncertain,
-check the terminal before sending again. No operation is replayed automatically.
+Open a project card on the homescreen; projects are grouped by host. Settings
+contains appearance, account security, host disconnection and pairing management.
+Disconnecting pauses this browser's connection for the current visit until you
+choose Connect; it does not stop agents or remove the saved pairing.
 
-File and change review renders text only. Remote transfers, source editing,
-Git mutations, forwarded applications and executable previews are unavailable.
-A paired terminal still has the host owner's execution authority.
+Switch between Files and Terminals at the top. The compact right rail shows only
+the active project's non-archived sessions. Tap a glyph to switch terminals; hold
+it for details and actions, including archiving. Expand the rail for titles and
+branches, tap a project label to switch projects, or use the project name above
+the workspace to return to cards. New agent/terminal buttons are at the top of the
+rail; archived sessions and their restore action are behind the bottom icon.
+
+Tap directly into a terminal to type. Its bottom strip supplies Escape, arrows,
+Tab, Enter and one-shot Ctrl/Opt modifiers above the keyboard. The optional prompt
+composer retains drafts in this tab across reconnect/reload; Send respects
+bracketed-paste mode. If delivery is uncertain, check the terminal before sending
+again. No operation is replayed automatically.
+
+Files browses the selected worktree (or the project's repository without a session).
+Tap the path to browse a custom host directory. Double-tap a file to view it, then
+use Back to files to return to the same directory. Changes remains available from
+the Files toolbar. File and change review renders text only. Remote transfers,
+source editing, Git mutations, forwarded applications and executable previews are
+unavailable. A paired terminal still has the host owner's execution authority.
 
 ```sh
 puddle remote status

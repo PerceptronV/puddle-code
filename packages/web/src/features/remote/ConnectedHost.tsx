@@ -1,17 +1,34 @@
 import { useEffect, useState } from 'react';
+import { House, Monitor, Settings2, ShieldCheck } from 'lucide-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from '../../components/ui/sonner';
+import { Button } from '../../components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '../../components/ui/dialog';
 import { ErrorBoundary } from '../../components/error-boundary';
-import { TooltipProvider } from '../../components/ui/tooltip';
 import { installBrowserTransport } from '../../lib/browser-transport';
 import { wsManager } from '../../lib/ws';
 import { DeviceAccess } from './DeviceAccess';
 import { PhoneWorkspace } from '../mobile/PhoneWorkspace';
-import { usePhoneViewport } from '../mobile/use-phone-viewport';
 import type { RemoteClient } from './client';
 
-export function ConnectedHost({ client, leave }: { client: RemoteClient; leave(): void }) {
-  usePhoneViewport();
+export function ConnectedHost({
+  client,
+  initialProject,
+  hostName,
+  leave,
+  settings,
+}: {
+  client: RemoteClient;
+  initialProject: string;
+  hostName: string;
+  leave(): void;
+  settings(): void;
+}) {
   const [state, setState] = useState(client.state);
   const [admitted, setAdmitted] = useState(false);
   const [devices, setDevices] = useState(false);
@@ -43,43 +60,84 @@ export function ConnectedHost({ client, leave }: { client: RemoteClient; leave()
       queryClient.clear();
     };
   }, [client, queryClient]);
+  const status =
+    state === 'ready'
+      ? 'Connected'
+      : state === 'pairing'
+        ? 'Waiting for host approval'
+        : state === 'rejected'
+          ? 'Pairing required or access revoked'
+          : 'Reconnecting…';
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <ErrorBoundary scope="remote host">
-          <div className="remote-connected">
-            <header>
-              <button onClick={leave}>Hosts</button>
-              <span role="status">
-                {state === 'ready'
-                  ? 'Connected'
-                  : state === 'pairing'
-                    ? 'Waiting for host approval'
-                    : state === 'rejected'
-                      ? 'Pairing required or access revoked'
-                      : 'Reconnecting…'}
-              </span>
-              <button disabled={state !== 'ready'} onClick={() => setDevices(!devices)}>
-                {devices ? 'Workspace' : 'Devices'}
-              </button>
-            </header>
-            {state === 'pairing' && client.pendingDevice && (
-              <section className="remote-account">
-                <p>Approve this exact browser on the host or an already paired device.</p>
-                <code className="break-all">{client.pendingDevice.peer}</code>
-                <pre>{`puddle remote approve ${client.pendingDevice.id}`}</pre>
-              </section>
-            )}
-            {admitted && (
-              <div className="remote-workspace" hidden={devices}>
-                <PhoneWorkspace connected={state === 'ready' && !devices} />
+      <ErrorBoundary scope="remote host">
+        <div className="remote-connected">
+          <header className="remote-topbar">
+            <Button variant="ghost" size="icon" aria-label="All projects" onClick={leave}>
+              <House />
+            </Button>
+            <span className="min-w-0 flex-1 truncate text-xs text-fg-muted">{hostName}</span>
+            <span role="status" className={state === 'ready' ? 'sr-only' : 'text-xs text-fg-muted'}>
+              {status}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Paired browsers"
+              disabled={state !== 'ready'}
+              onClick={() => setDevices(true)}
+            >
+              <ShieldCheck />
+            </Button>
+            <Button variant="ghost" size="icon" aria-label="Settings" onClick={settings}>
+              <Settings2 />
+            </Button>
+          </header>
+          {!admitted && (
+            <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+              <div className="max-w-sm space-y-5 text-center">
+                <Monitor className="mx-auto size-8 text-fg-muted" />
+                <h1 className="text-lg font-semibold">
+                  {state === 'pairing' ? 'Approve this browser' : status}
+                </h1>
+                {state === 'pairing' && client.pendingDevice && (
+                  <>
+                    <p className="text-sm text-fg-secondary">
+                      Open Remote & Sync on your host and approve this browser’s identity.
+                    </p>
+                    <code className="block break-all rounded-md bg-surface p-3 text-xs">
+                      {client.pendingDevice.peer}
+                    </code>
+                    <p className="text-xs text-fg-muted">Or run on the host:</p>
+                    <code className="block break-all text-xs">{`puddle remote approve ${client.pendingDevice.id}`}</code>
+                  </>
+                )}
+                <Button variant="ghost" onClick={leave}>
+                  Back to projects
+                </Button>
               </div>
-            )}
-            {devices && <DeviceAccess client={client} leave={leave} />}
-          </div>
-        </ErrorBoundary>
-      </TooltipProvider>
+            </div>
+          )}
+          {admitted && (
+            <div className="remote-workspace">
+              <PhoneWorkspace
+                connected={state === 'ready' && !devices}
+                initialProject={initialProject}
+                hostName={hostName}
+              />
+            </div>
+          )}
+          <Dialog open={devices} onOpenChange={setDevices}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Paired browsers</DialogTitle>
+                <DialogDescription>{hostName}</DialogDescription>
+              </DialogHeader>
+              {devices && <DeviceAccess client={client} leave={leave} />}
+            </DialogContent>
+          </Dialog>
+        </div>
+      </ErrorBoundary>
     </QueryClientProvider>
   );
 }

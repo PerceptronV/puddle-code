@@ -17,6 +17,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Distil remote access into Puddle’s shared project cards and dialogues, with host-grouped projects, host disconnection in settings, a compact session rail, Files/Terminals views, custom-path browsing and direct terminal typing with touch keys.
+
 - Render pairing QR codes as sharp SVGs with rounded white surfaces and Puddle foreground ink, and match pairing links to the theme's text colour.
 
 - Start remote registration from desktop browser sign-in, with editable default origins and in-place connection settings instead of a second form or copied registration code.

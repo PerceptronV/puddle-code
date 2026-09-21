@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { RemoteDevice } from '@puddle/shared';
+import { Button } from '../../components/ui/button';
+import { Disclosure } from '../../components/ui/disclosure';
 import { QrCode } from '../../components/ui/qr-code';
 import type { RemoteClient } from './client';
 import { forgetBrowserHost } from './identity-store';
@@ -29,22 +31,30 @@ export function DeviceAccess({ client, leave }: { client: RemoteClient; leave():
     void action(refresh);
   }, [client]);
   return (
-    <section className="remote-account">
-      <h2>Paired browsers</h2>
+    <section className="grid gap-4 text-sm">
       <p>
         Approval grants terminal control of this host. Compare the browser identity with the device
         requesting access.
       </p>
       {devices.map((device) => (
-        <section key={device.id}>
+        <section key={device.id} className="grid gap-2">
           <h3>
             {device.label} · {device.status}
             {device.id === client.deviceId ? ' · this browser' : ''}
           </h3>
-          <code className="break-all">{device.peer}</code>
-          <p>Expires {new Date(device.expires).toLocaleString()}</p>
+          {device.status === 'pending' ? (
+            <code className="break-all text-xs">{device.peer}</code>
+          ) : (
+            <Disclosure summary="Browser identity">
+              <code className="block break-all py-2 text-xs text-fg-muted">{device.peer}</code>
+              <p className="text-xs text-fg-muted">
+                Expires {new Date(device.expires).toLocaleString()}
+              </p>
+            </Disclosure>
+          )}
           {device.status === 'pending' && (
-            <button
+            <Button
+              variant="ghost"
               disabled={busy}
               onClick={() =>
                 void action(async () => {
@@ -55,27 +65,31 @@ export function DeviceAccess({ client, leave }: { client: RemoteClient; leave():
               }
             >
               Approve this identity
-            </button>
+            </Button>
           )}
           {device.status !== 'revoked' && (
-            <button
+            <Button
+              variant="ghost"
               disabled={busy}
               onClick={() =>
                 void action(async () => {
-                  await client.admin({ t: 'revoke', id: device.id });
-                  await refresh();
+                  const result = await client.admin({ t: 'revoke', id: device.id });
+                  if (result.error) throw new Error(result.error);
+                  if (device.id === client.deviceId) leave();
+                  else await refresh();
                 })
               }
             >
               Revoke
-            </button>
+            </Button>
           )}
         </section>
       ))}
-      <button disabled={busy} onClick={() => void action(refresh)}>
+      <Button variant="ghost" disabled={busy} onClick={() => void action(refresh)}>
         Refresh devices
-      </button>
-      <button
+      </Button>
+      <Button
+        variant="ghost"
         disabled={busy}
         onClick={() =>
           void action(async () => {
@@ -86,7 +100,7 @@ export function DeviceAccess({ client, leave }: { client: RemoteClient; leave():
         }
       >
         Pair another browser
-      </button>
+      </Button>
       {url && (
         <section>
           <p>
@@ -94,39 +108,49 @@ export function DeviceAccess({ client, leave }: { client: RemoteClient; leave():
             identity.
           </p>
           <QrCode value={url} label="Pairing invitation QR code" />
-          <button onClick={() => void action(() => navigator.clipboard.writeText(url))}>
+          <Button
+            variant="ghost"
+            onClick={() => void action(() => navigator.clipboard.writeText(url))}
+          >
             Copy pairing link
-          </button>
+          </Button>
           <a className="pairing-link break-all hover:opacity-80" href={url}>
             Pairing link
           </a>
         </section>
       )}
-      <button
-        disabled={busy}
-        onClick={() =>
-          void action(async () => {
-            // Deleting a local key never impersonates successful host revocation.
-            await forgetBrowserHost(client.host);
-            leave();
-          })
-        }
-      >
-        Forget this browser’s local pairing
-      </button>
-      <p>Forgetting removes the key here. Revoke the browser on the host to end its authority.</p>
-      <button
-        disabled={busy}
-        onClick={() =>
-          void action(async () => {
-            await client.admin({ t: 'disable' });
-            leave();
-          })
-        }
-      >
-        Disable remote access on this host
-      </button>
-      <p role="status">{message}</p>
+      <Disclosure summary="Host access">
+        <Button
+          variant="ghost"
+          disabled={busy}
+          onClick={() =>
+            void action(async () => {
+              // Deleting a local key never impersonates successful host revocation.
+              await forgetBrowserHost(client.host);
+              leave();
+            })
+          }
+        >
+          Forget this browser’s local pairing
+        </Button>
+        <p>Forgetting removes the key here. Revoke the browser on the host to end its authority.</p>
+        <Button
+          variant="ghost"
+          disabled={busy}
+          onClick={() =>
+            void action(async () => {
+              const result = await client.admin({ t: 'disable' });
+              if (result.error) throw new Error(result.error);
+              leave();
+            })
+          }
+        >
+          Disable remote access on this host
+        </Button>
+      </Disclosure>
+      <p role="status" className="text-xs text-danger">
+        {message}
+      </p>
     </section>
   );
 }

@@ -4,17 +4,24 @@ import {
   remoteInvitationSchema,
   remoteLoginStateSchema,
   remoteServiceInfoSchema,
-  registrationResponseSchema,
   type RemoteHost,
   type RemoteInvitation,
 } from '@puddle/shared';
 import { createIdentity } from '@puddle/remote-transport';
-import { AccountAccess, AccountSecurity } from './AccountAccess';
-import { authClient, authResult, serviceOrigin, serviceRequest } from './service';
-import { loadBrowserHost, saveBrowserHost, forgetBrowserHost } from './identity-store';
+import { AccountAccess } from './AccountAccess';
+import { serviceOrigin, serviceRequest } from './service';
+import { loadBrowserHost, saveBrowserHost } from './identity-store';
 import { RemoteClient } from './client';
 import { ConnectedHost } from './ConnectedHost';
-import { Disclosure } from '../../components/ui/disclosure';
+import { Settings2, Laptop } from 'lucide-react';
+import { Button } from '../../components/ui/button';
+import { TooltipProvider } from '../../components/ui/tooltip';
+import { Toaster } from '../../components/ui/sonner';
+import { ErrorBoundary } from '../../components/error-boundary';
+import { usePhoneViewport } from '../mobile/use-phone-viewport';
+import { HostProjects } from './HostProjects';
+import { RemoteSettings } from './RemoteSettings';
+import { PairBrowserDialog } from './PairBrowserDialog';
 import { DesktopRegistrationPrompt, takeDesktopRegistration } from './DesktopRegistration';
 import './remote.css';
 
@@ -44,19 +51,20 @@ export function RemoteApp() {
   const [providers, setProviders] = useState<Array<'google' | 'github'>>([]);
   const [hosts, setHosts] = useState<RemoteHost[]>([]);
   const [client, setClient] = useState<RemoteClient | null>(null);
+  const [projectId, setProjectId] = useState('');
+  const [settings, setSettings] = useState(false);
+  const [disconnected, setDisconnected] = useState<Set<string>>(new Set());
   const [desktopRegistration, setDesktopRegistration] = useState(initialRegistration.request);
   const [invitation, setInvitation] = useState(initialInvitation);
-  const [label, setLabel] = useState('');
-  const [registration, setRegistration] = useState<ReturnType<
-    typeof registrationResponseSchema.parse
-  > | null>(null);
   const [message, setMessage] = useState(initialRegistration.error);
   const [busy, setBusy] = useState(false);
+  usePhoneViewport();
   const refresh = async () => {
     const state = remoteLoginStateSchema.parse(await serviceRequest('/remote/me'));
     setLogin(state);
     if (state.user?.emailVerified && !state.mfaRequired)
       setHosts(remoteHostsSchema.parse(await serviceRequest('/remote/hosts')));
+    else setHosts([]);
   };
   useEffect(() => {
     void Promise.all([
@@ -74,6 +82,7 @@ export function RemoteApp() {
     if (login && (!login.user || login.mfaRequired)) {
       client?.close();
       setClient(null);
+      setDisconnected(new Set());
     }
   }, [login, client]);
   const action = async (fn: () => Promise<void>) => {
@@ -87,12 +96,12 @@ export function RemoteApp() {
       setBusy(false);
     }
   };
-  const connect = async (host: string, pairing?: RemoteInvitation) => {
+  const connect = async (host: string, project = '', pairing?: RemoteInvitation, label = '') => {
     if (!login?.user) return;
     let identity = await loadBrowserHost(serviceOrigin, login.user.id, host);
     if (pairing && identity && identity.peer !== pairing.peer)
       throw new Error(
-        'The host identity has changed. Forget the old pairing in this browser before accepting its replacement.',
+        'The host identity has changed. Forget the old pairing in settings before accepting its replacement.',
       );
     if (!identity) {
       if (!pairing)
@@ -110,166 +119,146 @@ export function RemoteApp() {
       };
       await saveBrowserHost(identity);
     }
-    const next = new RemoteClient(identity, pairing?.invitation);
     client?.close();
-    setClient(next);
+    setProjectId(project);
+    setClient(new RemoteClient(identity, pairing?.invitation));
+    setDisconnected((current) => {
+      const next = new Set(current);
+      next.delete(host);
+      return next;
+    });
     if (pairing) {
       sessionStorage.removeItem('puddle.pending-pair');
       setInvitation(null);
     }
   };
-  if (!login)
-    return (
-      <main className="remote-account">
-        <h1>Puddle</h1>
-        <p role="status">{message || 'Connecting…'}</p>
-      </main>
-    );
-  if (!login.user || login.mfaRequired)
-    return (
-      <div className="remote-ui">
-        <AccountAccess providers={providers} mfa={login.mfaRequired} refresh={refresh} />
-      </div>
-    );
-  if (client)
-    return (
-      <div className="remote-ui">
-        <ConnectedHost
-          key={client.scope}
-          client={client}
-          leave={() => {
-            client.close();
-            setClient(null);
-          }}
-        />
-      </div>
-    );
+  const leave = () => {
+    client?.close();
+    setClient(null);
+  };
   return (
-    <main className="remote-ui remote-account">
-      <header>
-        <h1>Puddle</h1>
-        <button
-          disabled={busy}
-          onClick={() =>
-            void action(async () => {
-              authResult(await authClient.signOut());
-              setRegistration(null);
-              await refresh();
-            })
-          }
-        >
-          Sign out
-        </button>
-      </header>
-      <p>{login.user.email}</p>
-      {desktopRegistration && (
-        <DesktopRegistrationPrompt
-          request={desktopRegistration}
-          dismiss={() => setDesktopRegistration(null)}
-          complete={async () => {
-            setMessage('Host confirmed. Return to desktop to finish enabling remote access.');
-            await refresh();
-          }}
-        />
-      )}
-      {invitation && (
-        <section>
-          <h2>Pair this browser</h2>
-          <p>Host identity</p>
-          <code className="break-all">{invitation.peer}</code>
-          <label>
-            Browser name
-            <input
-              value={label}
-              maxLength={80}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="Phone"
-            />
-          </label>
-          <button
-            disabled={busy}
-            onClick={() => void action(() => connect(invitation.host, invitation))}
-          >
-            Request host approval
-          </button>
-        </section>
-      )}
-      <section>
-        <h2>Your hosts</h2>
-        {hosts.length === 0 && <p>No registered hosts yet.</p>}
-        {hosts.map((host) => (
-          <div key={host.id} className="remote-host-row">
-            <button
-              disabled={busy || !host.online}
-              onClick={() => void action(() => connect(host.id))}
-            >
-              {host.label} · {host.online ? 'Connect' : 'Offline'}
-            </button>
-            <button
-              disabled={busy}
-              onClick={() =>
-                void action(async () => {
-                  const saved = await loadBrowserHost(serviceOrigin, login.user!.id, host.id);
-                  if (saved) await forgetBrowserHost(saved);
-                  setMessage(
-                    'Local key removed. Revoke its device record on the host to end its authority.',
-                  );
-                })
-              }
-            >
-              Forget pairing
-            </button>
-            <button
-              disabled={busy}
-              onClick={() =>
-                void action(async () => {
-                  await serviceRequest(`/remote/hosts/${host.id}`, 'DELETE');
-                  await refresh();
-                })
-              }
-            >
-              Unregister
-            </button>
-          </div>
-        ))}
-        <button onClick={() => void action(refresh)}>Refresh hosts</button>
-      </section>
-      <Disclosure summary="Add a host">
-        <label>
-          Host name
-          <input value={label} maxLength={80} onChange={(e) => setLabel(e.target.value)} />
-        </label>
-        <button
-          disabled={busy || !label.trim()}
-          onClick={() =>
-            void action(async () => {
-              setRegistration(
-                registrationResponseSchema.parse(
-                  await serviceRequest('/remote/hosts', 'POST', { label }),
-                ),
-              );
-              await refresh();
-            })
-          }
-        >
-          Create registration code
-        </button>
-        {registration && (
-          <>
-            <p>On the machine running Puddle, or through SSH, run:</p>
-            <pre>{`puddle remote enable --service ${serviceOrigin} --app-origin ${location.origin}`}</pre>
-            <p>Paste this code when prompted. It expires in five minutes.</p>
-            <code className="break-all select-all">{registration.code}</code>
-            <p>
-              Then run <code>puddle remote pair</code> and open its link in this browser.
+    <TooltipProvider>
+      <Toaster />
+      <ErrorBoundary scope="remote app">
+        {!login ? (
+          <main className="remote-account">
+            <h1 className="text-xl font-semibold">Puddle</h1>
+            <p role="status" className="mt-4 text-sm text-fg-muted">
+              {message || 'Connecting…'}
             </p>
-          </>
+          </main>
+        ) : !login.user || login.mfaRequired ? (
+          <AccountAccess providers={providers} mfa={login.mfaRequired} refresh={refresh} />
+        ) : (
+          <div className="remote-ui">
+            {client ? (
+              <ConnectedHost
+                key={client.scope}
+                client={client}
+                initialProject={projectId}
+                hostName={hosts.find((host) => host.id === client.host.host)?.label ?? 'Host'}
+                leave={leave}
+                settings={() => setSettings(true)}
+              />
+            ) : (
+              <main className="remote-dashboard">
+                <header className="mb-10 flex items-center justify-between">
+                  <h1 className="text-lg font-semibold tracking-tight">Puddle</h1>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Settings"
+                    onClick={() => setSettings(true)}
+                  >
+                    <Settings2 />
+                  </Button>
+                </header>
+                <div className="mb-6">
+                  <h2 className="text-xl font-semibold">Projects</h2>
+                  <p className="mt-1 text-sm text-fg-muted">Your workspace, wherever you are.</p>
+                </div>
+                {hosts.map((host) => (
+                  <HostProjects
+                    key={`${login.user!.id}:${host.id}`}
+                    host={host}
+                    account={login.user!.id}
+                    disconnected={disconnected.has(host.id)}
+                    reconnect={() =>
+                      setDisconnected((current) => {
+                        const next = new Set(current);
+                        next.delete(host.id);
+                        return next;
+                      })
+                    }
+                    open={(project) => void action(() => connect(host.id, project.id))}
+                  />
+                ))}
+                {hosts.length === 0 && (
+                  <div className="py-12 text-center">
+                    <Laptop className="mx-auto mb-4 size-8 text-fg-muted" />
+                    <p className="text-sm text-fg-secondary">
+                      Connect your first host to see its projects here.
+                    </p>
+                    <Button className="mt-4" variant="secondary" onClick={() => setSettings(true)}>
+                      Add a host
+                    </Button>
+                  </div>
+                )}
+                {message && !invitation && (
+                  <p role="status" className="mt-4 text-sm text-fg-secondary">
+                    {message}
+                  </p>
+                )}
+              </main>
+            )}
+            <RemoteSettings
+              open={settings}
+              onOpenChange={setSettings}
+              hosts={hosts}
+              account={login.user.id}
+              email={login.user.email}
+              mfa={login.user.twoFactorEnabled}
+              disconnected={disconnected}
+              disconnect={(id) => {
+                setDisconnected((current) => new Set([...current, id]));
+                if (client?.host.host === id) leave();
+              }}
+              reconnect={(id) =>
+                setDisconnected((current) => {
+                  const next = new Set(current);
+                  next.delete(id);
+                  return next;
+                })
+              }
+              refresh={refresh}
+            />
+            {desktopRegistration && (
+              <DesktopRegistrationPrompt
+                request={desktopRegistration}
+                dismiss={() => setDesktopRegistration(null)}
+                complete={async () => {
+                  setMessage('Host confirmed. Return to desktop to finish enabling remote access.');
+                  await refresh();
+                }}
+              />
+            )}
+            {invitation && (
+              <PairBrowserDialog
+                invitation={invitation}
+                hostName={hosts.find((host) => host.id === invitation.host)?.label}
+                busy={busy}
+                error={message}
+                dismiss={() => {
+                  setInvitation(null);
+                  setMessage('');
+                  sessionStorage.removeItem('puddle.pending-pair');
+                }}
+                pair={(label) => void action(() => connect(invitation.host, '', invitation, label))}
+              />
+            )}
+          </div>
         )}
-      </Disclosure>
-      <Disclosure summary="Account security">
-        <AccountSecurity enabled={login.user.twoFactorEnabled} refresh={refresh} />
-      </Disclosure>
-      <p role="status">{message}</p>
-    </main>
+      </ErrorBoundary>
+    </TooltipProvider>
   );
 }

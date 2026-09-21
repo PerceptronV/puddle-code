@@ -1,87 +1,153 @@
 import { useState } from 'react';
+import { Archive, ArchiveRestore, Play, Square, SquareTerminal } from 'lucide-react';
 import type { Session } from '@puddle/shared';
 import { api } from '../../lib/api';
 import { wsManager } from '../../lib/ws';
-import { Disclosure } from '../../components/ui/disclosure';
+import { sessionDisplayName } from '../../lib/session-display';
+import { Button } from '../../components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '../../components/ui/dialog';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
+import { SessionGlyph } from '../status/SessionGlyph';
 
 export function SessionActions({
   session,
   connected,
   attached,
-  busy,
-  action,
+  close,
+  changed,
   shell,
 }: {
   session: Session;
   connected: boolean;
   attached: boolean;
-  busy: boolean;
-  action(fn: () => Promise<void>): Promise<void>;
+  close(): void;
+  changed(): Promise<void>;
   shell(term: string): void;
 }) {
-  const [renaming, setRenaming] = useState(false);
-  const [title, setTitle] = useState('');
+  const [title, setTitle] = useState(session.title ?? '');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const action = async (fn: () => Promise<void>) => {
+    setBusy(true);
+    setMessage('');
+    try {
+      await fn();
+      await changed();
+      close();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not update this session.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const live = ['starting', 'running', 'waiting_input'].includes(session.status);
+  const archived = session.status === 'archived';
   return (
-    <Disclosure summary="Session actions">
-      <button
-        disabled={!attached || busy}
-        onClick={() => void action(async () => shell(await wsManager.spawnShell(session.id)))}
-      >
-        Add shell
-      </button>
-      <button
-        disabled={!connected || busy}
-        onClick={() => {
-          setTitle(session.title ?? '');
-          setRenaming(!renaming);
-        }}
-      >
-        Rename
-      </button>
-      {renaming && (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) close();
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <SessionGlyph
+              status={session.status}
+              kind={session.kind}
+              agentType={session.agent_type}
+            />
+            {sessionDisplayName(session)}
+          </DialogTitle>
+          <DialogDescription>
+            {session.status.replace('_', ' ')}
+            {session.agent_type ? ` · ${session.agent_type}` : ' · terminal'}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-1 overflow-hidden font-mono text-xs text-fg-muted">
+          <p>{session.branch}</p>
+          <p className="break-all">{session.worktree_path}</p>
+        </div>
         <form
+          className="grid gap-2"
           onSubmit={(event) => {
             event.preventDefault();
             void action(async () => {
               await api('PATCH', `/api/sessions/${session.id}`, { title });
-              setRenaming(false);
             });
           }}
         >
-          <label>
-            Title
-            <input
+          <Label htmlFor="session-title">Title</Label>
+          <div className="flex gap-2">
+            <Input
+              id="session-title"
               value={title}
+              placeholder="Use the agent’s title"
               maxLength={200}
               onChange={(event) => setTitle(event.target.value)}
             />
-          </label>
-          <button type="submit" disabled={!connected || busy}>
-            Save title
-          </button>
+            <Button variant="secondary" disabled={!connected || busy} type="submit">
+              Save
+            </Button>
+          </div>
         </form>
-      )}
-      {(['resume', 'kill', session.status === 'archived' ? 'unarchive' : 'archive'] as const).map(
-        (operation) => (
-          <button
-            key={operation}
+        <div className="grid gap-1">
+          {!archived && (
+            <Button
+              variant="ghost"
+              className="justify-start"
+              disabled={!attached || busy}
+              onClick={() => void action(async () => shell(await wsManager.spawnShell(session.id)))}
+            >
+              <SquareTerminal />
+              Add shell
+            </Button>
+          )}
+          {!archived && (
+            <Button
+              variant="ghost"
+              className="justify-start"
+              disabled={!connected || busy}
+              onClick={() =>
+                void action(async () => {
+                  await api('POST', `/api/sessions/${session.id}/${live ? 'kill' : 'resume'}`);
+                })
+              }
+            >
+              {live ? <Square /> : <Play />}
+              {live ? 'Stop session' : 'Resume'}
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            className="justify-start"
             disabled={!connected || busy}
             onClick={() =>
               void action(async () => {
-                await api('POST', `/api/sessions/${session.id}/${operation}`);
+                await api(
+                  'POST',
+                  `/api/sessions/${session.id}/${archived ? 'unarchive' : 'archive'}`,
+                );
               })
             }
           >
-            {operation === 'kill'
-              ? 'Stop session'
-              : operation === 'resume'
-                ? 'Resume'
-                : operation === 'archive'
-                  ? 'Archive'
-                  : 'Unarchive'}
-          </button>
-        ),
-      )}
-    </Disclosure>
+            {archived ? <ArchiveRestore /> : <Archive />}
+            {archived ? 'Restore session' : 'Archive session'}
+          </Button>
+        </div>
+        {message && (
+          <p role="alert" className="text-sm text-danger">
+            {message}
+          </p>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

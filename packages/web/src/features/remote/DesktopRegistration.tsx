@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react';
 import { desktopRegistrationSchema, REMOTE_POLICY, type DesktopRegistration } from '@puddle/shared';
+import { Button } from '../../components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../components/ui/dialog';
 import { serviceOrigin, serviceRequest } from './service';
 
 const storageKey = 'puddle.pending-registration';
@@ -59,39 +68,53 @@ export function DesktopRegistrationPrompt({
     dismiss();
   };
   return (
-    <section aria-label="Desktop registration">
-      <h2>Connect {request.label}</h2>
-      <p>
-        Confirm that request{' '}
-        <strong className="font-mono">{request.challenge.slice(0, 8).toUpperCase()}</strong> matches
-        the Puddle desktop window you just opened. This adds the host to your signed-in account.
-      </p>
-      <p>Browser access still requires pairing and approval on the host.</p>
-      {expired && <p role="alert">Sign-in expired. Start again in desktop.</p>}
-      {error && <p role="alert">{error}</p>}
-      <button
-        disabled={busy || expired}
-        onClick={() => {
-          setBusy(true);
-          setError('');
-          void serviceRequest('/remote/desktop-registration', 'POST', request)
-            .then(async () => {
-              clear();
-              await complete();
-            })
-            .catch(() =>
-              setError(
-                'Could not confirm this request. It may have expired or already been approved. Start again in desktop.',
-              ),
-            )
-            .finally(() => setBusy(false));
-        }}
-      >
-        {busy ? 'Connecting…' : 'Confirm host'}
-      </button>
-      <button disabled={busy} onClick={clear}>
-        Cancel
-      </button>
-    </section>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !busy) clear();
+      }}
+    >
+      <DialogContent aria-label="Desktop registration">
+        <DialogHeader>
+          <DialogTitle>Connect {request.label}</DialogTitle>
+          <DialogDescription>
+            Confirm that request{' '}
+            <strong className="font-mono">{request.challenge.slice(0, 8).toUpperCase()}</strong>{' '}
+            matches the Puddle desktop window you just opened. This adds the host to your signed-in
+            account.
+          </DialogDescription>
+        </DialogHeader>
+        <p className="text-sm text-fg-muted">
+          Browser access still requires pairing and approval on the host.
+        </p>
+        {expired && <p role="alert">Sign-in expired. Start again in desktop.</p>}
+        {error && <p role="alert">{error}</p>}
+        <DialogFooter>
+          <Button
+            disabled={busy || expired}
+            onClick={() => {
+              setBusy(true);
+              setError('');
+              void serviceRequest('/remote/desktop-registration', 'POST', request)
+                .then(async () => {
+                  clear();
+                  await complete();
+                })
+                .catch(() =>
+                  setError(
+                    'Could not confirm this request. It may have expired or already been approved. Start again in desktop.',
+                  ),
+                )
+                .finally(() => setBusy(false));
+            }}
+          >
+            {busy ? 'Connecting…' : 'Confirm host'}
+          </Button>
+          <Button variant="ghost" disabled={busy} onClick={clear}>
+            Cancel
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

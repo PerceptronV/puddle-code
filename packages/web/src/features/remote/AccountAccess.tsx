@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
 import { authClient, authResult } from './service';
 
 export function AccountAccess({
@@ -31,10 +34,11 @@ export function AccountAccess({
   };
   return (
     <main className="remote-account">
-      <h1>Puddle</h1>
-      <p>Connect to your own machines.</p>
+      <h1 className="text-xl font-semibold tracking-tight">Puddle</h1>
+      <p className="mb-8 mt-2 text-sm text-fg-muted">Your workspace, wherever you are.</p>
       {mfa ? (
         <form
+          className="grid gap-4"
           onSubmit={(event) => {
             event.preventDefault();
             void action(async () => {
@@ -48,26 +52,27 @@ export function AccountAccess({
             });
           }}
         >
-          <label>
+          <Label className="grid gap-2">
             {backup ? 'Recovery code' : 'Authenticator code'}
-            <input
+            <Input
               autoComplete="one-time-code"
               inputMode={backup ? 'text' : 'numeric'}
               value={code}
               onChange={(e) => setCode(e.target.value)}
               required
             />
-          </label>
-          <button type="button" onClick={() => setBackup(!backup)}>
+          </Label>
+          <Button variant="ghost" type="button" onClick={() => setBackup(!backup)}>
             {backup ? 'Use authenticator' : 'Use recovery code'}
-          </button>
-          <button disabled={busy} type="submit">
+          </Button>
+          <Button disabled={busy} type="submit">
             {busy ? 'Please wait…' : 'Verify'}
-          </button>
+          </Button>
         </form>
       ) : (
         providers.map((provider) => (
-          <button
+          <Button
+            className="mb-3 w-full"
             key={provider}
             disabled={busy}
             onClick={() =>
@@ -79,10 +84,12 @@ export function AccountAccess({
             }
           >
             Continue with {provider === 'github' ? 'GitHub' : 'Google'}
-          </button>
+          </Button>
         ))
       )}
-      <p role="status">{message}</p>
+      <p role="status" className="mt-3 text-sm text-fg-muted">
+        {message}
+      </p>
     </main>
   );
 }
@@ -110,14 +117,13 @@ export function AccountSecurity({
     }
   };
   return (
-    <section>
-      <h2>Account security</h2>
+    <section className="grid gap-3 text-sm text-fg-secondary">
       <p>
         Two-factor authentication: {enabled ? 'enabled' : 'off'}. Account recovery does not replace
         host pairing.
       </p>
       {!setup && (
-        <button
+        <Button
           disabled={busy}
           onClick={() =>
             void action(async () => {
@@ -132,24 +138,24 @@ export function AccountSecurity({
           }
         >
           {enabled ? 'Disable two-factor authentication' : 'Set up authenticator'}
-        </button>
+        </Button>
       )}
       {setup && (
         <>
           <p>Add this account to your authenticator. Save the recovery codes somewhere private.</p>
           <a href={setup.totpURI}>Open authenticator</a>
           <p className="break-all select-all">{setup.totpURI}</p>
-          <pre>{setup.backupCodes.join('\n')}</pre>
-          <label>
+          <pre className="rounded-md bg-surface p-3 text-xs">{setup.backupCodes.join('\n')}</pre>
+          <Label className="grid gap-2">
             Authenticator code
-            <input
+            <Input
               value={code}
               onChange={(e) => setCode(e.target.value)}
               inputMode="numeric"
               autoComplete="one-time-code"
             />
-          </label>
-          <button
+          </Label>
+          <Button
             disabled={busy}
             onClick={() =>
               void action(async () => {
@@ -161,10 +167,12 @@ export function AccountSecurity({
             }
           >
             Verify and finish
-          </button>
+          </Button>
         </>
       )}
-      <p role="status">{message}</p>
+      <p role="status" className="mt-3 text-sm text-fg-muted">
+        {message}
+      </p>
     </section>
   );
 }

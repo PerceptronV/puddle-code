@@ -87,13 +87,16 @@ Run on current iOS Safari and Android Chrome, recording versions and results:
 
 | Scenario | Required result |
 | --- | --- |
-| Portrait/landscape; keyboard open/closed | Composer and essential controls fit the visible viewport and safe areas |
+| Portrait/landscape; keyboard open/closed | Terminal key strip sits above the keyboard; shared dialogues fit the visible viewport and safe areas |
 | IME composition, Unicode, dictation, multiline paste | Native composition remains intact; Send follows terminal paste mode and submits once |
-| Escape, Tab, arrows, Enter, Ctrl-C | Visible touch controls deliver the intended sequence |
+| Direct terminal typing; Escape, Tab, arrows, Enter, Ctrl/Opt chords | Tapping xterm opens the keyboard; touch controls retain focus and deliver hardware-equivalent sequences; one-shot modifiers clear after use |
 | Long output and text selection | Terminal remains responsive; selection/scroll position survives switching |
 | Desktop and phone on the same PTY | Active viewer claims size; hidden/background phone does not repeatedly resize |
 | Lock/suspend; Wi-Fi to cellular; offline during Send | Draft survives, uncertain outcome is visible, no automatic replay |
 | Return to existing runtime after expiry | Fresh admission and canonical snapshot; agent continues on the host |
+| Project cards and session rail | Hosts have separate card groups; only the active project’s non-archived sessions appear; tap switches, hold opens details, archive/restore and rail expansion work |
+| Files and custom paths | Double-tap opens text, Back returns to the same directory, custom host roots and projects without sessions can be browsed |
+| Disconnect in settings | Viewer closes without stopping agents; the host stays disconnected until Connect during this visit |
 | File/HTML/SVG review | Text only; no repository-controlled script or preview gains application authority |
 | Breakpoint and project/session changes | Terminal identity and unsent text survive; desktop layout seed stays unchanged |
 
