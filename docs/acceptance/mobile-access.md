@@ -1,6 +1,6 @@
 # Mobile access acceptance
 
-Remote protocol 2; daemon/cockpit protocol 19.0. Run in isolated homes with fake agents.
+Remote protocol 2; daemon/cockpit protocol 19.1. Run in isolated homes with fake agents.
 Never launch an installed daemon from a coding-agent environment. Deployment and
 recovery instructions: [self-hosted mobile access](../mobile-access.md).
 
@@ -18,7 +18,8 @@ recovery instructions: [self-hosted mobile access](../mobile-access.md).
   approval from desktop Settings → Remote access, QR/link generation, Unicode
   composer input, draft retention through resize/reconnect, desktop revocation/
   disablement and continued local agent access. A separate UI fixture covers
-  registration/re-enablement and explicit identity-reset confirmation without
+  registration/re-enablement, explicit identity-reset confirmation, and registration
+  deletion with cancellation/error recovery without
   installing a supervisor. This suite requires a locally
   installed Playwright Chromium; no browser download occurs as part of the test.
 - `pnpm test:e2e` and `pnpm test:ssh`: preserve local/SSH foundation behaviour,
@@ -35,7 +36,11 @@ review, production OAuth-provider acceptance or physical-phone acceptance.
   enable, pair, inspect/approve/revoke browsers and disable. Confirm the window's
   host is the target, secrets do not enter settings/logs, and unsupported older
   connectors request an upgrade. Verify offline disable/revoke and confirmed
-  identity reset. Test actual systemd/launchd enablement on disposable hosts.
+  identity reset. Delete enabled and disabled registrations: cancelling preserves
+  access, confirming clears settings and revokes all browsers/invitations while
+  agents continue. Repeat with the relay offline; fresh registration must require
+  a new code and new approvals. Older connectors must hide deletion. Test actual
+  systemd/launchd enablement on disposable hosts.
 - Build the example images from a clean checkout and launch with distinct real
   app/relay HTTPS origins. Confirm only ingress ports are published; the daemon
   remains unreachable directly. Check CSP, framing, MIME and cache headers.

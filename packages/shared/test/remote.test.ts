@@ -3,12 +3,26 @@ import {
   remoteOriginSchema,
   cockpitRemoteRequestSchema,
   remoteServiceInfoSchema,
+  remoteAdminRequestSchema,
+  remoteMessageSchema,
 } from '../src/index.js';
 
 it('rejects the previous email-login service contract', () => {
   expect(
     remoteServiceInfoSchema.safeParse({ providers: ['google'], email: true, protocol: 1 }).success,
   ).toBe(false);
+});
+
+it('allows registration deletion only through host-local controls', () => {
+  const request = { t: 'delete_registration' };
+  expect(cockpitRemoteRequestSchema.safeParse(request).success).toBe(true);
+  expect(remoteAdminRequestSchema.safeParse(request).success).toBe(false);
+  expect(
+    remoteMessageSchema.safeParse({ t: 'admin', id: crypto.randomUUID(), request }).success,
+  ).toBe(false);
+  expect(cockpitRemoteRequestSchema.safeParse({ ...request, host: 'another-host' }).success).toBe(
+    false,
+  );
 });
 
 it.each([

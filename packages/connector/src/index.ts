@@ -1,5 +1,6 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 import { startConnector } from './runtime.js';
 import { jsonLines } from '@puddle/shared/node';
 import { administrativeRequest, configureConnector, resetConnectorIdentity } from './admin.js';
@@ -10,7 +11,7 @@ const home = process.env.PUDDLE_HOME ?? join(homedir(), '.puddle');
 
 if (process.argv.includes('--version')) {
   process.stdout.write(
-    `puddle-connector remote protocol ${REMOTE_PROTOCOL_VERSION}; daemon protocol ${PROTOCOL_VERSION.major}.${PROTOCOL_VERSION.minor}; cockpit controls 1\n`,
+    `puddle-connector remote protocol ${REMOTE_PROTOCOL_VERSION}; daemon protocol ${PROTOCOL_VERSION.major}.${PROTOCOL_VERSION.minor}; cockpit controls 1; delete registration 1\n`,
   );
 } else if (process.argv.includes('--inspect')) {
   process.stdout.write(JSON.stringify(await inspectConnector(home)) + '\n');
@@ -41,7 +42,8 @@ if (process.argv.includes('--version')) {
       process.exitCode = 1;
     },
   );
-} else {
+} else if (existsSync(join(home, 'remote/config.json'))) {
+  // After deletion an installed supervisor may launch us again; exit cleanly until configured.
   const connector = await startConnector(home);
   let stopping = false;
   const stop = () => {

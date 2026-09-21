@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { mobileFixture } from './mobile-fixture';
 import { websocket, until } from '../../cli/e2e/helpers';
-import { writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 test('pairs a real browser, sends Unicode exactly once, preserves drafts and revokes a live viewer', async ({
@@ -138,6 +138,11 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     await desktop.getByRole('button', { name: 'Disable remote access', exact: true }).click();
     await expect(desktop.getByText('Disabled', { exact: true })).toBeVisible();
     expect((await fixture.admin({ t: 'status' })).enabled).toBe(false);
+    await desktop.getByRole('button', { name: 'Delete registration…', exact: true }).click();
+    await desktop.getByRole('button', { name: 'Delete registration', exact: true }).click();
+    await expect(desktop.getByText('Not configured', { exact: true })).toBeVisible();
+    expect(existsSync(join(fixture.local.home, 'remote/config.json'))).toBe(false);
+    expect((await fixture.local.req(`/api/sessions/${fixture.session.id}`)).status).toBe(200);
   } finally {
     await page.context().close();
     await fixture.close();

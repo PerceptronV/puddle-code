@@ -20,6 +20,37 @@ function fixture() {
 }
 
 describe('desktop remote control boundary', () => {
+  it('gates deletion by host capability and rechecks browser authority', async () => {
+    const { exec, control } = fixture();
+    await expect(control.request({ t: 'delete_registration' }, () => true)).rejects.toThrow(
+      'Upgrade the daemon',
+    );
+    expect(exec).toHaveBeenCalledTimes(1);
+    exec.mockResolvedValue({
+      code: 0,
+      stdout: 'cockpit controls 1; delete registration 1',
+      stderr: '',
+    });
+    await expect(control.request({ t: 'delete_registration' }, () => false)).rejects.toThrow(
+      'expired before dispatch',
+    );
+    expect(exec).toHaveBeenCalledTimes(2);
+    exec.mockResolvedValueOnce({
+      code: 0,
+      stdout: 'cockpit controls 1; delete registration 1',
+      stderr: '',
+    });
+    exec.mockResolvedValueOnce({
+      code: 0,
+      stdout: '{"enabled":false,"connected":false}',
+      stderr: '',
+    });
+    await control.request({ t: 'delete_registration' }, () => true);
+    const [command, options] = exec.mock.calls.at(-1)!;
+    expect(command).toMatch(/--admin$/);
+    expect(JSON.parse(options!.stdin!)).toEqual({ t: 'delete_registration' });
+  });
+
   it('passes registration secrets only through stdin and uses managed supervision', async () => {
     const { exec, control } = fixture();
     exec.mockResolvedValueOnce({ code: 0, stdout: 'cockpit controls 1', stderr: '' });

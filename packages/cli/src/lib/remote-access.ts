@@ -15,22 +15,28 @@ const binary = `${hostPaths.current}/bin/node ${hostPaths.current}/daemon/connec
 export class RemoteAccessControl {
   constructor(private readonly transport: Transport) {}
 
-  private async availability(): Promise<CockpitRemoteStatus['availability']> {
+  private async capabilities(): Promise<{
+    availability: CockpitRemoteStatus['availability'];
+    canDeleteRegistration: boolean;
+  }> {
     const result = await this.transport.exec(
       `if test -f ${hostPaths.current}/daemon/connector.mjs; then ${binary} --version; else exit 44; fi`,
       { timeoutMs: 10_000 },
     );
-    if (result.code === 44) return 'not_installed';
+    if (result.code === 44) return { availability: 'not_installed', canDeleteRegistration: false };
     if (result.code !== 0)
       throw new Error('Host control is unavailable. Check the host connection.');
-    return result.stdout.includes('cockpit controls 1') ? 'ready' : 'upgrade_required';
+    return {
+      availability: result.stdout.includes('cockpit controls 1') ? 'ready' : 'upgrade_required',
+      canDeleteRegistration: result.stdout.includes('delete registration 1'),
+    };
   }
 
   async status(): Promise<CockpitRemoteStatus> {
-    const availability = await this.availability();
-    if (availability !== 'ready')
+    const capabilities = await this.capabilities();
+    if (capabilities.availability !== 'ready')
       return {
-        availability,
+        ...capabilities,
         configured: false,
         enabled: false,
         connected: false,
@@ -39,7 +45,7 @@ export class RemoteAccessControl {
       };
     const result = await this.transport.exec(`${binary} --inspect`, { timeoutMs: 10_000 });
     if (result.code !== 0) throw new Error('Could not read remote access status on this host.');
-    return cockpitRemoteStatusSchema.parse(JSON.parse(result.stdout));
+    return cockpitRemoteStatusSchema.parse({ ...JSON.parse(result.stdout), ...capabilities });
   }
 
   async request(
@@ -47,8 +53,11 @@ export class RemoteAccessControl {
     authorised: () => boolean,
   ): Promise<RemoteAdminResponse> {
     const request = cockpitRemoteRequestSchema.parse(value);
-    if ((await this.availability()) !== 'ready')
+    const capabilities = await this.capabilities();
+    if (capabilities.availability !== 'ready')
       throw new Error('Upgrade the daemon on this host to manage remote access here.');
+    if (request.t === 'delete_registration' && !capabilities.canDeleteRegistration)
+      throw new Error('Upgrade the daemon on this host to delete its remote registration.');
     if (!authorised()) throw new Error('Browser authorisation expired before dispatch.');
     const flag =
       request.t === 'enable' ? '--configure' : request.t === 'reset' ? '--reset' : '--admin';

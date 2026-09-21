@@ -155,6 +155,15 @@ Reset host identity performs the same local/SSH recovery as `puddle remote reset
 after explicit confirmation. Codes and invitations are not stored in cockpit
 settings or logs. These controls work even when the relay is unavailable.
 
+Choose **Delete registration…** to disable access, revoke every browser and
+invitation, and remove the saved origins and registration credential from this
+host. Confirming returns settings to **Not configured**; connecting again needs
+a new registration code and fresh approvals. Agents continue running. The host
+identity and revoked device records remain for audit/recovery. This local/SSH-only
+action requires an updated host connector. It does not sign in to the relay on
+your behalf: remove its account-list entry separately with **Your hosts →
+Unregister** in the web application.
+
 The equivalent CLI workflow is:
 
 In the application, expand Add a host, enter a name and create a registration

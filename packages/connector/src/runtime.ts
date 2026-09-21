@@ -5,7 +5,7 @@ import {
   REMOTE_POLICY,
   REMOTE_PROTOCOL_VERSION,
   connectorConfigSchema,
-  remoteAdminRequestSchema,
+  connectorLocalRequestSchema,
   remoteIdentitySchema,
   relayMessageSchema,
   type RemoteAdminRequest,
@@ -23,6 +23,7 @@ import {
 import { createIdentity, identityPeer, secureChannel, SocketWire } from '@puddle/remote-transport';
 import { DeviceStore } from './devices.js';
 import { admit } from './admission.js';
+import { deleteRegistration } from './delete-registration.js';
 
 export async function startConnector(home: string) {
   const directory = join(home, 'remote');
@@ -39,6 +40,7 @@ export async function startConnector(home: string) {
   const peer = identityPeer(identity);
   const devices = new DeviceStore(directory);
   let stopped = false;
+  let registrationDeleted = false;
   let connected = false;
   let control: WebSocket | null = null;
   let nextAttempt = 0;
@@ -46,6 +48,8 @@ export async function startConnector(home: string) {
   let controlUntil = 0;
   const pipes = new Set<WebSocket>();
   const admin = (request: RemoteAdminRequest): RemoteAdminResponse => {
+    // An old process must never recreate deleted configuration or approve old requests.
+    if (registrationDeleted) throw new Error('Remote registration has been deleted');
     switch (request.t) {
       case 'status':
         return { enabled: config.enabled, connected, host: config.host, peer };
@@ -95,7 +99,15 @@ export async function startConnector(home: string) {
         used = true;
         let result: RemoteAdminResponse;
         try {
-          result = admin(remoteAdminRequestSchema.parse(value));
+          const request = connectorLocalRequestSchema.parse(value);
+          if (request.t === 'delete_registration') {
+            config.enabled = false;
+            deleteRegistration(directory, devices);
+            registrationDeleted = true;
+            control?.terminate();
+            for (const pipe of pipes) pipe.terminate();
+            result = { enabled: false, connected: false };
+          } else result = admin(request);
         } catch {
           result = { error: 'Remote administrative operation failed or expired' };
         }

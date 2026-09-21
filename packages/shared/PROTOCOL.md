@@ -82,3 +82,8 @@ Remote protocol 2 removes email login from the service discovery/auth contract.
 Daemon/cockpit protocol 19.0 accompanies its changed pairing invitation literal
 in `/cockpit/remote`; host lease and operation semantics remain unchanged.
 Deploy the service, browser and host connectors together.
+
+Daemon/cockpit protocol 19.1 adds local/SSH registration deletion and an optional
+capability in cockpit status. Older connectors keep their existing controls;
+deletion is hidden and rejected until the host advertises support. The encrypted
+remote admin schema excludes deletion, so remote protocol remains 2.

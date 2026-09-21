@@ -8,9 +8,16 @@ import {
   remoteSecretSchema,
 } from '../remote/protocol.js';
 
+/** Private host IPC only. Deletion is deliberately absent from remoteAdminRequestSchema. */
+export const connectorLocalRequestSchema = z.union([
+  remoteAdminRequestSchema,
+  z.object({ t: z.literal('delete_registration') }).strict(),
+]);
+export type ConnectorLocalRequest = z.infer<typeof connectorLocalRequestSchema>;
+
 /** Trusted local/SSH cockpit controls. Never admitted by the encrypted remote policy. */
 export const cockpitRemoteRequestSchema = z.union([
-  remoteAdminRequestSchema,
+  connectorLocalRequestSchema,
   z
     .object({
       t: z.literal('enable'),
@@ -30,6 +37,7 @@ export const cockpitRemoteStatusSchema = z.object({
   configured: z.boolean(),
   enabled: z.boolean(),
   connected: z.boolean(),
+  canDeleteRegistration: z.boolean().optional(),
   supervisor: z.enum(['systemd', 'launchd']).nullable(),
   host: remoteIdSchema.optional(),
   peer: remotePeerSchema.optional(),

@@ -284,4 +284,5 @@
 // 18.0: separate browser authorisation and host-controlled connection leases.
 // 18.1: additive — authenticated cockpit-local remote-access administration.
 // 19.0: remove email login and move cockpit pairing invitations to remote protocol 2.
-export const PROTOCOL_VERSION = { major: 19, minor: 0 } as const;
+// 19.1: additive — local/SSH registration deletion with connector capability discovery.
+export const PROTOCOL_VERSION = { major: 19, minor: 1 } as const;

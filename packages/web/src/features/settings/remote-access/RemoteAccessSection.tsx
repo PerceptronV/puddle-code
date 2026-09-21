@@ -20,6 +20,7 @@ import { SectionTitle } from '../parts';
 import { RegistrationForm } from './RegistrationForm';
 import { PairingInvitation } from './PairingInvitation';
 import { DeviceList } from './DeviceList';
+import { DeleteRegistrationDialog } from './DeleteRegistrationDialog';
 
 export function RemoteAccessSection() {
   const host = useHostInfo();
@@ -28,6 +29,7 @@ export function RemoteAccessSection() {
   const [error, setError] = useState('');
   const [replace, setReplace] = useState(false);
   const [reset, setReset] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [invitation, setInvitation] = useState<{ url: string; expires: number } | null>(null);
   const dismiss = useCallback(() => setInvitation(null), []);
   const status = useQuery({
@@ -53,16 +55,24 @@ export function RemoteAccessSection() {
             approve: 'Browser approved.',
             revoke: 'Browser revoked.',
             disable: 'Remote access disabled. Agents continue running.',
+            delete_registration: 'Registration deleted from this host. Agents continue running.',
             reset: 'Host identity rotated and all browsers revoked. Enable access and pair again.',
             status: 'Status refreshed.',
             devices: 'Browsers refreshed.',
             pair: 'Invitation created.',
           }[request.t],
         );
-        if (request.t === 'disable' || request.t === 'reset' || request.t === 'enable') dismiss();
+        if (
+          request.t === 'disable' ||
+          request.t === 'reset' ||
+          request.t === 'enable' ||
+          request.t === 'delete_registration'
+        )
+          dismiss();
       }
-      if (request.t === 'enable') setReplace(false);
+      if (request.t === 'enable' || request.t === 'delete_registration') setReplace(false);
       setReset(false);
+      setDeleting(false);
       await status.refetch();
       return true;
     } catch (failure) {
@@ -124,7 +134,7 @@ export function RemoteAccessSection() {
             : status.error.message}
         </p>
       )}
-      {error && (
+      {error && !deleting && (
         <p role="alert" className="mt-3 text-sm text-danger">
           {error}
         </p>
@@ -217,6 +227,19 @@ export function RemoteAccessSection() {
           {invitation && data.enabled && <PairingInvitation {...invitation} dismiss={dismiss} />}
           {data.configured && (
             <>
+              {data.canDeleteRegistration && (
+                <Button
+                  className="mt-4"
+                  variant="ghost"
+                  disabled={disabled}
+                  onClick={() => {
+                    setError('');
+                    setDeleting(true);
+                  }}
+                >
+                  Delete registration…
+                </Button>
+              )}
               <DeviceList
                 devices={data.devices}
                 now={status.dataUpdatedAt}
@@ -260,6 +283,13 @@ export function RemoteAccessSection() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <DeleteRegistrationDialog
+        open={deleting}
+        busy={busy}
+        error={error}
+        onOpenChange={setDeleting}
+        onConfirm={() => void act({ t: 'delete_registration' })}
+      />
     </div>
   );
 }

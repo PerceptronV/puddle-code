@@ -9,6 +9,10 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Added
+
+- Add confirmed registration deletion to desktop Remote access settings, with browser revocation and local/SSH-only control (daemon/cockpit protocol 19.1; remote protocol remains 2).
+
 ### Fixed
 
 - Initialise remote service volumes with private directory permissions to prevent startup failures and ingress 502 responses.

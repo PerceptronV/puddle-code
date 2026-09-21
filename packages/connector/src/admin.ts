@@ -5,9 +5,9 @@ import {
   connectorConfigSchema,
   connectorRegistrationSchema,
   connectorSetupSchema,
-  remoteAdminRequestSchema,
+  connectorLocalRequestSchema,
   remoteAdminResponseSchema,
-  type RemoteAdminRequest,
+  type ConnectorLocalRequest,
   type RemoteAdminResponse,
 } from '@puddle/shared';
 import {
@@ -20,8 +20,12 @@ import {
 import { installConnectorSupervisor, supervisorKind } from './supervisor.js';
 import { createIdentity } from '@puddle/remote-transport';
 import { DeviceStore } from './devices.js';
+import { deleteRegistration } from './delete-registration.js';
 
-async function exchange(home: string, request: RemoteAdminRequest): Promise<RemoteAdminResponse> {
+async function exchange(
+  home: string,
+  request: ConnectorLocalRequest,
+): Promise<RemoteAdminResponse> {
   const path = ipcPath(home, 'remote');
   privatePath(path);
   return new Promise((resolve, reject) => {
@@ -55,11 +59,19 @@ export async function administrativeRequest(
   home: string,
   value: unknown,
 ): Promise<RemoteAdminResponse> {
-  const request = remoteAdminRequestSchema.parse(value);
+  const request = connectorLocalRequestSchema.parse(value);
   try {
     return await exchange(home, request);
-  } catch {
+  } catch (error) {
     const directory = join(home, 'remote');
+    if (request.t === 'delete_registration') {
+      // A timeout or lost acknowledgement does not prove the live writer has stopped.
+      // Only mutate offline when its socket is absent or refuses connections.
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== 'ENOENT' && code !== 'ECONNREFUSED') throw error;
+      deleteRegistration(directory);
+      return { enabled: false, connected: false };
+    }
     const path = join(directory, 'config.json');
     const config = connectorConfigSchema.parse(readPrivateJson(path));
     if (request.t === 'status')
@@ -78,7 +90,9 @@ export async function administrativeRequest(
         devices.close();
       }
     }
-    throw new Error('Start the configured connector before pairing or approving a browser');
+    throw new Error('Start the configured connector before pairing or approving a browser', {
+      cause: error,
+    });
   }
 }
 export async function configureConnector(
