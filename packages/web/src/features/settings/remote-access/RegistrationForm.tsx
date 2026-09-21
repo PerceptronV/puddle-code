@@ -11,11 +11,13 @@ export function RegistrationForm({
   service = '',
   app = '',
   busy,
+  disabled,
   enable,
 }: {
   service?: string;
   app?: string;
   busy: boolean;
+  disabled: boolean;
   enable(request: CockpitRemoteRequest): Promise<boolean>;
 }) {
   const [serviceOrigin, setServiceOrigin] = useState(service);
@@ -57,7 +59,7 @@ export function RegistrationForm({
           onChange={(e) => setServiceOrigin(e.target.value)}
           placeholder="https://relay.example.com"
           autoComplete="off"
-          disabled={busy}
+          disabled={disabled}
         />
       </label>
       <label className="grid gap-1.5 text-sm">
@@ -69,7 +71,7 @@ export function RegistrationForm({
           onChange={(e) => setAppOrigin(e.target.value)}
           placeholder="https://app.example.com"
           autoComplete="off"
-          disabled={busy}
+          disabled={disabled}
         />
       </label>
       {validApp.success && (
@@ -92,7 +94,7 @@ export function RegistrationForm({
           maxLength={64}
           autoComplete="off"
           spellCheck={false}
-          disabled={busy}
+          disabled={disabled}
         />
       </label>
       {error && (
@@ -100,7 +102,7 @@ export function RegistrationForm({
           {error}
         </p>
       )}
-      <Button type="submit" disabled={busy || !code || !serviceOrigin || !appOrigin}>
+      <Button type="submit" disabled={disabled || !code || !serviceOrigin || !appOrigin}>
         {busy ? 'Enabling…' : 'Enable remote access'}
       </Button>
     </form>

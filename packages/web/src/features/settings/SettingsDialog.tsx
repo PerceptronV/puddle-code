@@ -6,7 +6,6 @@ import {
   Palette,
   RefreshCw,
   Server,
-  Smartphone,
   SlidersHorizontal,
   UserRound,
   Users,
@@ -23,10 +22,9 @@ import { SessionsSection } from './sections/sessions';
 import { NotificationsSection } from './sections/notifications';
 import { EditorSection } from './sections/editor';
 import { HotkeysSection } from './sections/hotkeys';
-import { SyncSection } from './sections/sync';
+import { RemoteSyncSection } from './sections/remote-sync';
 import { RepositoriesSection } from './sections/repositories';
 import { HostSection } from './sections/host';
-import { RemoteAccessSection } from './remote-access/RemoteAccessSection';
 
 const SECTIONS: Array<{ id: string; label: string; icon: LucideIcon; render: () => ReactElement }> =
   [
@@ -55,12 +53,11 @@ const SECTIONS: Array<{ id: string; label: string; icon: LucideIcon; render: () 
     },
     { id: 'host', label: 'Host', icon: Server, render: () => <HostSection /> },
     {
-      id: 'remote',
-      label: 'Remote access',
-      icon: Smartphone,
-      render: () => <RemoteAccessSection />,
+      id: 'remote-sync',
+      label: 'Remote & Sync',
+      icon: RefreshCw,
+      render: () => <RemoteSyncSection />,
     },
-    { id: 'sync', label: 'Sync', icon: RefreshCw, render: () => <SyncSection /> },
   ];
 
 /** Pre-split section ids still deep-linked from old bookmarks/docs. */
@@ -70,6 +67,8 @@ const LEGACY_SECTIONS: Record<string, string> = {
   // Renamed to Projects (decision 2026-08-03): the rows are per-repository
   // settings, but users reach them thinking in projects.
   repositories: 'projects',
+  remote: 'remote-sync',
+  sync: 'remote-sync',
 };
 
 /** Route-addressable settings dialog: `#settings/<section>` (SPEC §11). */

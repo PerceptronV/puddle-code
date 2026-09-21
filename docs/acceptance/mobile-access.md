@@ -15,11 +15,12 @@ recovery instructions: [self-hosted mobile access](../mobile-access.md).
 - `pnpm test:mobile` after `pnpm build`: real Chromium against temporary HTTPS
   application/service endpoints, the built connector and isolated built daemon
   with a deterministic fake agent. Cover login, fragment removal, exact-key
-  approval from desktop Settings → Remote access, QR/link generation, Unicode
+  approval from desktop Settings → Remote & Sync, QR/link generation, Unicode
   composer input, draft retention through resize/reconnect, desktop revocation/
   disablement and continued local agent access. A separate UI fixture covers
   registration/re-enablement, explicit identity-reset confirmation, and registration
-  deletion with cancellation/error recovery without
+  deletion with cancellation/error recovery, chevron keyboard toggling, legacy
+  settings links and quiet status polling without
   installing a supervisor. This suite requires a locally
   installed Playwright Chromium; no browser download occurs as part of the test.
 - `pnpm test:e2e` and `pnpm test:ssh`: preserve local/SSH foundation behaviour,
@@ -32,7 +33,7 @@ review, production OAuth-provider acceptance or physical-phone acceptance.
 
 ## Deployment and recovery
 
-- In local and SSH Electron windows, use Settings → Remote access to register,
+- In local and SSH Electron windows, use Settings → Remote & Sync to register,
   enable, pair, inspect/approve/revoke browsers and disable. Confirm the window's
   host is the target, secrets do not enter settings/logs, and unsupported older
   connectors request an upgrade. Verify offline disable/revoke and confirmed

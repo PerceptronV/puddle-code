@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { toastError } from '../../../lib/errors';
 import { Button } from '../../../components/ui/button';
 import { Textarea } from '../../../components/ui/input';
 import { Switch } from '../../../components/ui/switch';
+import { Disclosure } from '../../../components/ui/disclosure';
 import {
   clientSettings,
   updateClientSettings,
@@ -69,7 +69,7 @@ function GroupChecklist({
 }
 
 /**
- * Settings → Sync (SPEC §11). Three blocks:
+ * Settings → Remote & Sync (SPEC §11). Three sync blocks:
  *  - "Sync locally": mirror the selected groups through the machine-shared
  *    cockpit store, so every Puddle window (any port, any daemon) follows —
  *    the checklist then governs BOTH directions;
@@ -91,7 +91,6 @@ export function SyncSection() {
 
   const [importText, setImportText] = useState('');
   const [exported, setExported] = useState('');
-  const [customise, setCustomise] = useState(false);
   const [busy, setBusy] = useState(false);
   const [localSelection, setLocalSelection] = useState<string[]>(storedSelection);
 
@@ -227,21 +226,11 @@ export function SyncSection() {
         )}
       </div>
 
-      <div className="mb-6">
-        <button
-          type="button"
-          onClick={() => setCustomise((v) => !v)}
-          className="flex items-center gap-1 text-xs text-fg-secondary transition-colors hover:text-fg"
-        >
-          {customise ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-          Choose what to sync
-        </button>
-        {customise && (
-          <div className="mt-2">
-            <GroupChecklist selected={selected} onToggle={onToggleGroup} />
-          </div>
-        )}
-      </div>
+      <Disclosure className="mb-6" summary="Choose what to sync" summaryClassName="text-xs">
+        <div className="mt-2">
+          <GroupChecklist selected={selected} onToggle={onToggleGroup} />
+        </div>
+      </Disclosure>
 
       <div className="mb-6">
         <h3 className="text-sm font-medium text-fg">Export</h3>

@@ -14,6 +14,7 @@ import { authClient, authResult, serviceOrigin, serviceRequest } from './service
 import { loadBrowserHost, saveBrowserHost, forgetBrowserHost } from './identity-store';
 import { RemoteClient } from './client';
 import { ConnectedHost } from './ConnectedHost';
+import { Disclosure } from '../../components/ui/disclosure';
 import './remote.css';
 
 // Strip invitations before rendering, fetching or loading any repository content.
@@ -220,8 +221,7 @@ export function RemoteApp() {
         ))}
         <button onClick={() => void action(refresh)}>Refresh hosts</button>
       </section>
-      <details>
-        <summary>Add a host</summary>
+      <Disclosure summary="Add a host">
         <label>
           Host name
           <input value={label} maxLength={80} onChange={(e) => setLabel(e.target.value)} />
@@ -252,11 +252,10 @@ export function RemoteApp() {
             </p>
           </>
         )}
-      </details>
-      <details>
-        <summary>Account security</summary>
+      </Disclosure>
+      <Disclosure summary="Account security">
         <AccountSecurity enabled={login.user.twoFactorEnabled} refresh={refresh} />
-      </details>
+      </Disclosure>
       <p role="status">{message}</p>
     </main>
   );

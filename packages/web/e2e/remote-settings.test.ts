@@ -7,6 +7,7 @@ test('desktop registration, re-enablement, recovery and confirmed deletion', asy
   page,
 }, testInfo) => {
   const local = await fixture();
+  let finishRead: (() => void) | undefined;
   try {
     await createSession(local);
     const profiles = await (await local.req('/api/profiles')).json();
@@ -30,8 +31,19 @@ test('desktop registration, re-enablement, recovery and confirmed deletion', asy
     };
     const requests: CockpitRemoteRequest[] = [];
     let failDeletion = false;
+    let holdRead = false;
+    let readHeld = false;
     await page.route('**/cockpit/remote', async (route) => {
-      if (route.request().method() === 'GET') return route.fulfill({ json: state });
+      if (route.request().method() === 'GET') {
+        if (holdRead) {
+          holdRead = false;
+          readHeld = true;
+          await new Promise<void>((resolve) => {
+            finishRead = resolve;
+          });
+        }
+        return route.fulfill({ json: state });
+      }
       const request = route.request().postDataJSON() as CockpitRemoteRequest;
       requests.push(request);
       if (request.t === 'delete_registration' && failDeletion) {
@@ -66,12 +78,41 @@ test('desktop registration, re-enablement, recovery and confirmed deletion', asy
     await page.setViewportSize({ width: 1200, height: 850 });
     await page.goto(local.origin + '/#settings/remote');
     await expect(page.getByText('Not configured', { exact: true })).toBeVisible();
+    const navigation = page
+      .getByRole('dialog', { name: 'Settings', exact: true })
+      .getByRole('navigation');
+    await expect(
+      navigation.getByRole('button', { name: 'Remote & Sync', exact: true }),
+    ).toBeVisible();
+    await expect(
+      navigation.getByRole('button', { name: 'Remote access', exact: true }),
+    ).toHaveCount(0);
+    await expect(navigation.getByRole('button', { name: 'Sync', exact: true })).toHaveCount(0);
+    // Both former deep links and the canonical sidebar entry open the same combined section.
+    await page.evaluate(() => {
+      location.hash = '#settings/sync';
+    });
+    await expect(page.getByRole('heading', { name: 'Sync', exact: true })).toBeAttached();
+    await expect(page.getByRole('heading', { name: 'Remote access', exact: true })).toBeVisible();
+    await navigation.getByRole('button', { name: 'Remote & Sync', exact: true }).click();
+    await expect(page).toHaveURL(/#settings\/remote-sync$/);
     await page.getByLabel('Relay origin', { exact: true }).fill('https://relay.example.test');
     await page.getByLabel('Application origin', { exact: true }).fill('https://app.example.test');
     const code = 'a'.repeat(64);
     await page.getByLabel('Registration code', { exact: true }).fill(code);
+    holdRead = true;
+    await expect.poll(() => readHeld, { timeout: 10_000 }).toBe(true);
+    await expect(page.getByLabel('Registration code', { exact: true })).toBeFocused();
+    await expect(page.getByLabel('Registration code', { exact: true })).toHaveValue(code);
+    await expect(
+      page.getByRole('button', { name: 'Enable remote access', exact: true }),
+    ).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Refresh status', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Enabling…', exact: true })).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath('desktop-enable-remote.png') });
     await page.getByRole('button', { name: 'Enable remote access', exact: true }).click();
+    expect(requests).toHaveLength(0); // Explicit mutations wait for the background read to finish.
+    finishRead!();
     await expect(page.getByText('Connected to relay', { exact: true })).toBeVisible();
     expect(requests[0]).toEqual({
       t: 'enable',
@@ -89,7 +130,12 @@ test('desktop registration, re-enablement, recovery and confirmed deletion', asy
     await page.getByRole('button', { name: 'Enable remote access', exact: true }).click();
     await expect(page.getByText('Connected to relay', { exact: true })).toBeVisible();
     expect(requests.at(-1)).toEqual({ t: 'enable' });
-    await page.getByText('Host identity recovery', { exact: true }).click();
+    const recovery = page.locator('summary').filter({ hasText: 'Host identity recovery' });
+    await expect(recovery).toHaveCSS('list-style-type', 'none');
+    await expect(recovery.locator('svg')).toHaveCSS('rotate', 'none');
+    await recovery.focus();
+    await page.keyboard.press('Enter');
+    await expect(recovery.locator('svg')).toHaveCSS('rotate', '90deg');
     await page.getByRole('button', { name: 'Reset host identity…', exact: true }).click();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     expect(requests.some((request) => request.t === 'reset')).toBe(false);
@@ -132,6 +178,7 @@ test('desktop registration, re-enablement, recovery and confirmed deletion', asy
       page.getByRole('button', { name: 'Delete registration…', exact: true }),
     ).toHaveCount(0);
   } finally {
+    finishRead?.();
     await page.context().close();
     await local.close();
     rmSync(local.home, { recursive: true, force: true });

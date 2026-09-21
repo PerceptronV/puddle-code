@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
 import {
   cockpitRemoteStatusSchema,
@@ -9,6 +9,7 @@ import {
 import { api, ApiError } from '../../../lib/api';
 import { useHostInfo } from '../../../lib/queries';
 import { Button } from '../../../components/ui/button';
+import { Disclosure } from '../../../components/ui/disclosure';
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,7 @@ import { DeviceList } from './DeviceList';
 import { DeleteRegistrationDialog } from './DeleteRegistrationDialog';
 
 export function RemoteAccessSection() {
+  const queryClient = useQueryClient();
   const host = useHostInfo();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -36,6 +38,8 @@ export function RemoteAccessSection() {
     queryKey: ['cockpit-remote'],
     queryFn: async () => cockpitRemoteStatusSchema.parse(await api('GET', '/cockpit/remote')),
     refetchInterval: busy ? false : 5000,
+    refetchOnWindowFocus: !busy,
+    refetchOnReconnect: !busy,
     retry: false,
     gcTime: 0,
   });
@@ -45,6 +49,11 @@ export function RemoteAccessSection() {
     setError('');
     setMessage('');
     try {
+      // Keep background reads quiet, but let them finish before the serial host mutation.
+      if (queryClient.isFetching({ queryKey: ['cockpit-remote'], exact: true })) {
+        const latest = await status.refetch({ cancelRefetch: false });
+        if (latest.isError) throw latest.error;
+      }
       const result = remoteAdminResponseSchema.parse(await api('POST', '/cockpit/remote', request));
       if (request.t === 'pair' && result.url && result.invitation)
         setInvitation({ url: result.url, expires: result.invitation.expires });
@@ -89,7 +98,7 @@ export function RemoteAccessSection() {
   };
   const data = status.data;
   const unavailable = status.error instanceof ApiError && status.error.status === 404;
-  const disabled = busy || status.isFetching || status.isError;
+  const disabled = busy || status.isError;
   return (
     <div>
       <SectionTitle
@@ -120,8 +129,8 @@ export function RemoteAccessSection() {
         <Button
           variant="ghost"
           size="sm"
-          disabled={busy || status.isFetching}
-          onClick={() => void status.refetch()}
+          disabled={busy}
+          onClick={() => void status.refetch({ cancelRefetch: false })}
         >
           <RefreshCw />
           Refresh status
@@ -203,7 +212,8 @@ export function RemoteAccessSection() {
                     key={data.host ?? 'new'}
                     service={data.service}
                     app={data.app}
-                    busy={disabled}
+                    busy={busy}
+                    disabled={disabled}
                     enable={act}
                   />
                 </>
@@ -250,10 +260,11 @@ export function RemoteAccessSection() {
                 Revocation and disabling detach remote viewers; agents continue running. Browsers
                 expire after 30 days of inactivity or 90 days overall.
               </p>
-              <details className="mt-6 text-sm">
-                <summary className="cursor-pointer py-2 text-fg-secondary hover:text-fg">
-                  Host identity recovery
-                </summary>
+              <Disclosure
+                className="mt-6 text-sm"
+                summary="Host identity recovery"
+                summaryClassName="py-2"
+              >
                 <p className="my-3 text-xs text-fg-muted">
                   Rotate a lost or compromised host identity. All browser approvals and invitations
                   will be revoked.
@@ -261,7 +272,7 @@ export function RemoteAccessSection() {
                 <Button variant="ghost" disabled={disabled} onClick={() => setReset(true)}>
                   Reset host identity…
                 </Button>
-              </details>
+              </Disclosure>
             </>
           )}
         </>

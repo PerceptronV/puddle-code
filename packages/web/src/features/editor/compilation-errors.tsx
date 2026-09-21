@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { ApiError } from '../../lib/api';
 import { setCompilationDiagnostics } from './compilation-diagnostics-store';
 import { compilationSourceKey } from './compilation-kind';
+import { Disclosure } from '../../components/ui/disclosure';
 
 /** Publish source markers and one expandable, deduplicated compiler notification. */
 export function reportCompilationFailure(owner: string, error: unknown): CompilationFailure {
@@ -22,17 +23,17 @@ export function reportCompilationFailure(owner: string, error: unknown): Compila
     ...(details
       ? {
           description: (
-            <details className="group/compiler-error">
-              <summary className="cursor-pointer select-none text-fg-secondary transition-colors hover:text-fg">
-                {failure.diagnostics?.length
+            <Disclosure
+              summary={
+                (failure.diagnostics?.length
                   ? `${failure.diagnostics.length} source diagnostic${failure.diagnostics.length === 1 ? '' : 's'} · `
-                  : ''}
-                Show compiler output
-              </summary>
+                  : '') + 'Show compiler output'
+              }
+            >
               <pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs leading-snug text-fg-secondary">
                 {details}
               </pre>
-            </details>
+            </Disclosure>
           ),
         }
       : {}),

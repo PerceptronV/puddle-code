@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Session } from '@puddle/shared';
 import { api } from '../../lib/api';
 import { wsManager } from '../../lib/ws';
+import { Disclosure } from '../../components/ui/disclosure';
 
 export function SessionActions({
   session,
@@ -21,8 +22,7 @@ export function SessionActions({
   const [renaming, setRenaming] = useState(false);
   const [title, setTitle] = useState('');
   return (
-    <details>
-      <summary>Session actions</summary>
+    <Disclosure summary="Session actions">
       <button
         disabled={!attached || busy}
         onClick={() => void action(async () => shell(await wsManager.spawnShell(session.id)))}
@@ -82,6 +82,6 @@ export function SessionActions({
           </button>
         ),
       )}
-    </details>
+    </Disclosure>
   );
 }

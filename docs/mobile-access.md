@@ -138,8 +138,9 @@ browsers again. This does not stop daemon-owned work.
 
 ## Register and pair a host
 
-In a Puddle desktop window (local or connected over SSH), open **Settings → Remote
-access**. The controls apply to the host open in that window, across its profiles.
+In a Puddle desktop window (local or connected over SSH), open **Settings → Remote &
+Sync**. The Remote access controls apply to the host open in that window, across
+its profiles.
 Enter the relay and application origins, open the application to create a host
 registration code, and paste it into the masked Registration code field. Choose
 **Enable remote access**. An existing registration can be re-enabled directly.
