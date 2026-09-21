@@ -216,3 +216,28 @@ describe('argument parsing', () => {
     expect(parseArgs(['--version'])).toEqual({ cmd: 'version' });
   });
 });
+
+describe('remote administration arguments', () => {
+  it('keeps registration secrets out of arguments and requires explicit secure origins', () => {
+    expect(
+      parseArgs([
+        'remote',
+        'enable',
+        'user@host',
+        '--service',
+        'https://relay.example.test',
+        '--app-origin',
+        'https://app.example.test',
+      ]),
+    ).toMatchObject({ cmd: 'remote', action: 'enable', host: 'user@host', foreground: false });
+    expect(parseArgs(['remote', 'reset'])).toMatchObject({ cmd: 'remote', action: 'reset' });
+    expect(() => parseArgs(['remote', 'enable', '--code', 'secret'])).toThrow();
+    expect(() =>
+      parseArgs(['remote', 'enable', '--service', 'http://relay.example.test']),
+    ).toThrow();
+    expect(() => parseArgs(['remote', 'approve', 'Phone'])).toThrow();
+    expect(() =>
+      parseArgs(['remote', 'disable', '--service', 'https://relay.example.test']),
+    ).toThrow();
+  });
+});

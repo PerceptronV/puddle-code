@@ -1,5 +1,6 @@
 import { errorResponseSchema } from '@puddle/shared';
 import { clearToken, tokenStore } from './auth';
+import { browserTransport } from './browser-transport';
 
 /** Typed view of the daemon's uniform error envelope. */
 export class ApiError extends Error {
@@ -20,14 +21,17 @@ export class ApiError extends Error {
  */
 export async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
   const token = tokenStore.get();
-  const res = await fetch(path, {
-    method,
-    headers: {
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
-      ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
-    },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  const remote = browserTransport();
+  const res = remote
+    ? await remote.request(method, path, body)
+    : await fetch(path, {
+        method,
+        headers: {
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+          ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
+        },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      });
   if (res.status === 204) return undefined as T;
   if (!res.ok) {
     const parsed = errorResponseSchema.safeParse(await res.json().catch(() => null));
@@ -62,6 +66,12 @@ export async function apiFetchRaw(
   path: string,
   init?: RequestInit,
 ): Promise<Response> {
+  if (browserTransport())
+    throw new ApiError(
+      403,
+      'remote_unavailable',
+      'File transfers and previews are unavailable remotely',
+    );
   const res = await fetch(path, {
     ...init,
     method,

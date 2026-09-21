@@ -1,0 +1,22 @@
+{
+  "name": "@puddle/connector",
+  "version": "0.1.13",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@puddle/shared": "workspace:*",
+    "@puddle/remote-transport": "workspace:*",
+    "better-sqlite3": "^12.0.0",
+    "ws": "^8.21.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.0"
+  }
+}

@@ -1,3 +1,4 @@
+import { browserScope } from '../../lib/browser-transport';
 export interface TerminalScrollPosition {
   /** Absolute buffer line shown at the top of the viewport. */
   viewportY: number;
@@ -43,7 +44,7 @@ const RESIZE_REDRAW_WAIT_MS = 1_000;
 const RESIZE_REDRAW_QUIET_MS = 250;
 
 function keyFor(stream: string, term: string): string {
-  return JSON.stringify([stream, term]);
+  return browserScope(JSON.stringify([stream, term]));
 }
 
 function bufferLine(value: number): number {

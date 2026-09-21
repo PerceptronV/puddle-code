@@ -25,3 +25,5 @@ export * from './api/ports.js';
 export * from './api/cockpit.js';
 export * from './ws/messages.js';
 export * from './api/connection-auth.js';
+export * from './remote/protocol.js';
+export * from './remote/service.js';

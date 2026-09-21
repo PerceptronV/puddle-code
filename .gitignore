@@ -10,3 +10,8 @@ coverage/
 tsc-out/
 # electron-builder output (packages/desktop)
 release/
+
+# Private self-hosted remote configuration and browser test artefacts
+/deploy/remote/.env
+**/test-results/
+**/playwright-report/

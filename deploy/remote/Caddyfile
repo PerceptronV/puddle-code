@@ -1,0 +1,14 @@
+{
+  admin off
+  email {$TLS_EMAIL}
+}
+{$APP_HOST} {
+  header Strict-Transport-Security "max-age=31536000"
+  reverse_proxy app:8080
+}
+{$RELAY_HOST} {
+  request_body {
+    max_size 64KB
+  }
+  reverse_proxy service:7440
+}

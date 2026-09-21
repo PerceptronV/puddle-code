@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { SessionStatus } from '../api/sessions.js';
+import { sessionStatusSchema } from '../api/sessions.js';
 
 /** Terminal ids within a stream: the agent PTY or numbered shells. */
 export const termId = z.string().regex(/^(agent|shell-[0-9]+)$/);
@@ -55,52 +55,50 @@ export const wsClientMessageSchema = z.discriminatedUnion('t', [
 ]);
 export type WsClientMessage = z.infer<typeof wsClientMessageSchema>;
 
-export type WsServerMessage =
-  | { t: 'authenticated' }
-  | { t: 'shell-spawned'; session: string; term: string }
-  | { t: 'replay'; session: string; term: string; data: string }
-  | { t: 'output'; session: string; term: string; data: string }
-  | { t: 'status'; session: string; status: SessionStatus; last_activity_at: string | null }
-  | {
-      t: 'renamed';
-      session: string;
-      title: string | null;
-      agent_title?: string | null;
-      osc_title?: string | null;
-    }
-  | { t: 'exit'; session: string; term: string; code: number }
-  /**
-   * Something went wrong that the user must SEE, not just something a log
-   * records. Broadcast to every status subscriber rather than only to a client
-   * attached to the stream, because the whole point is to reach someone whose
-   * tab is elsewhere. The UI surfaces these as toasts.
-   *
-   * `detail` is the tail of whatever the process printed — for a failed launch
-   * that is the agent's own error text, which is usually the entire diagnosis.
-   */
-  | {
-      t: 'notice';
-      level: 'error' | 'warning';
-      title: string;
-      detail?: string;
-      session?: string;
-      term?: string;
-    }
-  /**
-   * An account's `logged_in` flag changed (protocol 15.1). Broadcast to every
-   * status subscriber: the daemon only records the flag after the adapter's
-   * own auth check answers — after the login dialog has already closed — so
-   * this push is what turns the accounts UI green without a reload. Older
-   * clients drop the unknown `t` per PROTOCOL.md wire rule 1.
-   */
-  | { t: 'account'; account_id: number; profile_id: string; logged_in: boolean }
-  | {
-      t: 'session-switched';
-      source_session: string;
-      target_session: string;
-      target_project: string;
-      cause: 'clear' | 'resume' | 'fork';
-      outcome: 'rebound' | 'focused-existing';
-    }
-  | { t: 'sessions-changed'; project_ids: string[] }
-  | { t: 'error'; message: string };
+/** Server messages are validated before crossing the encrypted remote boundary. */
+export const wsServerMessageSchema = z.discriminatedUnion('t', [
+  z.object({ t: z.literal('authenticated') }),
+  z.object({ t: z.literal('shell-spawned'), session: z.string(), term: z.string() }),
+  z.object({ t: z.literal('replay'), session: z.string(), term: z.string(), data: z.string() }),
+  z.object({ t: z.literal('output'), session: z.string(), term: z.string(), data: z.string() }),
+  z.object({
+    t: z.literal('status'),
+    session: z.string(),
+    status: sessionStatusSchema,
+    last_activity_at: z.string().nullable(),
+  }),
+  z.object({
+    t: z.literal('renamed'),
+    session: z.string(),
+    title: z.string().nullable(),
+    agent_title: z.string().nullable().optional(),
+    osc_title: z.string().nullable().optional(),
+  }),
+  z.object({ t: z.literal('exit'), session: z.string(), term: z.string(), code: z.number() }),
+  // Visible errors are broadcast to status subscribers, even if their terminal is elsewhere.
+  z.object({
+    t: z.literal('notice'),
+    level: z.enum(['error', 'warning']),
+    title: z.string(),
+    detail: z.string().optional(),
+    session: z.string().optional(),
+    term: z.string().optional(),
+  }),
+  z.object({
+    t: z.literal('account'),
+    account_id: z.number(),
+    profile_id: z.string(),
+    logged_in: z.boolean(),
+  }),
+  z.object({
+    t: z.literal('session-switched'),
+    source_session: z.string(),
+    target_session: z.string(),
+    target_project: z.string(),
+    cause: z.enum(['clear', 'resume', 'fork']),
+    outcome: z.enum(['rebound', 'focused-existing']),
+  }),
+  z.object({ t: z.literal('sessions-changed'), project_ids: z.array(z.string()) }),
+  z.object({ t: z.literal('error'), message: z.string() }),
+]);
+export type WsServerMessage = z.infer<typeof wsServerMessageSchema>;

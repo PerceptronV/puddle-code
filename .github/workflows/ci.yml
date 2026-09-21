@@ -27,6 +27,15 @@ jobs:
       - name: provision loopback OpenSSH tests
         run: sudo apt-get update && sudo apt-get install -y openssh-server && sudo mkdir -p /run/sshd
       - run: pnpm test:ssh
+      - name: install isolated mobile test browser
+        run: pnpm --filter @puddle/web exec playwright install --with-deps chromium
+      - run: pnpm test:mobile
+      - name: validate self-hosted deployment configuration
+        run: docker compose --env-file deploy/remote/.env.example -f deploy/remote/compose.yaml config --no-env-resolution -q
+      - name: build self-hosted service image
+        run: docker build -f deploy/remote/Dockerfile.service -t puddle-remote-service:test .
+      - name: build trusted application image
+        run: docker build -f deploy/remote/Dockerfile.app --build-arg PUDDLE_REMOTE_SERVICE=https://relay.example.test -t puddle-remote-app:test .
       - name: assert web assets ship inside the CLI
         run: test -f packages/cli/dist/public/index.html && test -f packages/cli/dist/install.sh && test -f packages/cli/dist/host-control.mjs
       # Self-smoke-tests the staged tree (puddled --version loads both native

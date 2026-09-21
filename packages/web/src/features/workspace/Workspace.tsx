@@ -97,6 +97,7 @@ import {
   resolveFileLinkTarget,
   type FileLinkTarget,
 } from '../terminal/file-links';
+import { LocalPhonePane } from '../mobile/LocalPhonePane';
 import { KeepAliveHost } from './keep-alive';
 import { registerOpenPathHandler } from '../../lib/path-open';
 import { requestReveal } from '../../lib/reveal-in-tree';
@@ -671,6 +672,8 @@ function WorkspaceInner() {
   // ui_state — the persisted collapse flags belong to the desktop layout, and
   // a phone visit must not clobber them (ui_state is shared per profile).
   const isNarrow = useMediaQuery(NARROW_VIEWPORT);
+  const [phoneSelection, setPhoneSelection] = useState<string | null>(null);
+  const [phoneVisited, setPhoneVisited] = useState<string[]>([]);
   const isNarrowRef = useRef(isNarrow);
   isNarrowRef.current = isNarrow;
   const [narrowNav, setNarrowNav] = useState(false);
@@ -1075,6 +1078,14 @@ function WorkspaceInner() {
   // and the deps limited to what actually changes on navigation.
   useEffect(() => {
     if (!restored) return;
+    if (isNarrowRef.current) {
+      if (activeSessionId) {
+        setPhoneSelection(activeSessionId);
+        setPhoneVisited((ids) => (ids.includes(activeSessionId) ? ids : [...ids, activeSessionId]));
+      }
+      setNarrowSessions(false);
+      return;
+    }
     // Navigation is how a phone picks a session — the overlay's job is done.
     setNarrowSessions(false);
     if (!activeSessionId) {
@@ -1772,7 +1783,20 @@ function WorkspaceInner() {
   // bottom-right of ITS OWN pane (PaneSessionOverlay). The DnD context wraps
   // the WHOLE workspace (not just this area) so a strip drag can land on the
   // sidebar's archive targets.
-  const mainArea = (
+  const phoneSession =
+    sessions.find((session) => session.id === phoneSelection)?.id ??
+    sessions.find((session) => session.id === activeSessionId)?.id ??
+    null;
+  const mainArea = isNarrow ? (
+    <LocalPhonePane
+      sessions={sessions}
+      selected={phoneSession}
+      select={(id) => {
+        setPhoneSelection(id);
+        setPhoneVisited((ids) => (ids.includes(id) ? ids : [...ids, id]));
+      }}
+    />
+  ) : (
     <div className="flex h-full flex-col bg-ground">
       {eagerCompilationTargets.map(({ key, leafId, target }) => (
         <CompilationWatcher
@@ -1823,7 +1847,11 @@ function WorkspaceInner() {
   // project-based layout it also holds the OTHER projects' terminals (parked,
   // detached) so switching project parks them instead of rebuilding them.
   return (
-    <KeepAliveHost tree={layout.tree} parked={parkedSessions} onOpenFile={openFromTerminal}>
+    <KeepAliveHost
+      tree={layout.tree}
+      parked={[...parkedSessions, ...phoneVisited, ...(phoneSession ? [phoneSession] : [])]}
+      onOpenFile={openFromTerminal}
+    >
       <TilingDnd
         onDrop={layout.drop}
         onArchive={(id) => void archiveSidebarSessions([id])}

@@ -1,0 +1,198 @@
+.remote-ui,
+.phone-workspace {
+  color: var(--text-primary);
+  background: var(--bg-base);
+}
+.remote-ui {
+  font-size: 16px;
+  height: 100%;
+  overflow: auto;
+}
+.remote-account {
+  max-width: 44rem;
+  margin-inline: auto;
+  padding: max(1.5rem, env(safe-area-inset-top)) max(1.5rem, env(safe-area-inset-right))
+    max(1.5rem, env(safe-area-inset-bottom)) max(1.5rem, env(safe-area-inset-left));
+  overflow: auto;
+}
+.remote-ui h1 {
+  font-size: 1.6rem;
+}
+.remote-ui h2 {
+  font-size: 1.2rem;
+}
+.remote-ui p,
+.remote-ui h2,
+.remote-ui pre {
+  margin-block: 1rem;
+}
+.remote-ui section {
+  margin-block: 1.5rem;
+}
+.remote-ui button,
+.remote-ui summary,
+.phone-workspace button,
+.phone-workspace summary {
+  min-height: 44px;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  color: var(--text-primary);
+  touch-action: manipulation;
+}
+.remote-ui button:hover,
+.phone-workspace button:hover {
+  background: var(--bg-surface);
+}
+.remote-ui button:disabled,
+.phone-workspace button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.remote-ui input,
+.remote-ui select,
+.remote-ui textarea,
+.phone-workspace input,
+.phone-workspace select,
+.phone-workspace textarea {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  padding: 0.65rem;
+  border: none;
+  min-height: 44px;
+  font-size: 16px;
+  max-width: 100%;
+}
+.remote-ui label,
+.phone-workspace label {
+  display: grid;
+  gap: 0.5rem;
+  margin-block: 0.75rem;
+}
+.remote-ui a {
+  color: var(--accent);
+}
+.remote-ui pre,
+.phone-workspace pre {
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.remote-ui header,
+.remote-host-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.remote-connected {
+  display: flex;
+  flex-direction: column;
+  height: var(--phone-height, 100dvh);
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+.remote-connected > header {
+  padding-inline: 0.5rem;
+  flex: none;
+}
+.remote-workspace {
+  flex: 1;
+  min-height: 0;
+}
+.remote-workspace[hidden] {
+  display: none;
+}
+.phone-workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  font-size: 16px;
+}
+.phone-selectors,
+.phone-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  flex: none;
+}
+.phone-selectors select {
+  flex: 1;
+  min-width: 0;
+  width: 35%;
+}
+.phone-actions details {
+  position: relative;
+}
+.phone-actions details[open] {
+  background: var(--bg-elevated);
+}
+.phone-actions details[open] button {
+  display: block;
+}
+.phone-view {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.phone-terminal {
+  position: absolute;
+  inset: 0;
+  padding-inline: 0.25rem;
+}
+.phone-terminal[hidden] {
+  display: none;
+}
+.phone-composer {
+  flex: none;
+  padding: 0.25rem 0.5rem;
+  background: var(--bg-base);
+}
+.phone-keys {
+  display: flex;
+  overflow-x: auto;
+}
+.phone-keys button {
+  flex: 1;
+  padding-inline: 0.6rem;
+  white-space: nowrap;
+}
+.phone-composer form {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+.phone-composer textarea {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  max-height: 25dvh;
+}
+.phone-composer p {
+  margin-block: 0.5rem;
+}
+.phone-review {
+  height: 100%;
+  overflow: auto;
+  padding: 0.5rem 1rem;
+  margin-block: 0 !important;
+}
+.phone-file {
+  display: block;
+  text-align: left;
+  width: 100%;
+  overflow-wrap: anywhere;
+}
+.phone-new {
+  padding: 0.5rem 1rem;
+  max-height: 45%;
+  overflow: auto;
+}
+.phone-empty {
+  padding: 1rem;
+  color: var(--text-secondary);
+}

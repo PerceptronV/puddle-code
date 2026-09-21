@@ -1,4 +1,5 @@
 import { acquireAuthority } from '../lib/auth/connection-authority.js';
+import { runRemote } from './remote.js';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -101,6 +102,8 @@ export async function run(command: Command): Promise<number> {
   const logger = terminalLogger();
 
   switch (command.cmd) {
+    case 'remote':
+      return runRemote(command);
     case 'help':
       process.stdout.write(USAGE + '\n');
       return 0;

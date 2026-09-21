@@ -1,0 +1,203 @@
+import { spawn, execFileSync } from 'node:child_process';
+import { createServer } from 'node:https';
+import { request } from 'node:http';
+import { connect, type Socket } from 'node:net';
+import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve, extname } from 'node:path';
+import { startRemoteService } from '../../remote/src/server.js';
+import { atomicPrivateJson } from '../../shared/src/node/security.js';
+import { administrativeRequest } from '../../connector/src/admin.js';
+import { fixture, createSession, env, stop, until, root } from '../../cli/e2e/helpers.js';
+import { findFreePort } from '../../cli/src/lib/net.js';
+
+/** Real daemon, cockpit, service and connector; only the coding agent and SMTP are fixtures. */
+export async function mobileFixture() {
+  const local = await fixture();
+  const session = await createSession(local);
+  const directory = mkdtempSync(join(tmpdir(), 'puddle-mobile-browser-'));
+  const servicePort = await findFreePort();
+  const appPort = await findFreePort();
+  const serviceOrigin = `https://localhost:${servicePort}`;
+  const appOrigin = `https://localhost:${appPort}`;
+  const certPath = join(directory, 'cert.pem');
+  const keyPath = join(directory, 'key.pem');
+  execFileSync(
+    'openssl',
+    [
+      'req',
+      '-x509',
+      '-newkey',
+      'rsa:2048',
+      '-nodes',
+      '-keyout',
+      keyPath,
+      '-out',
+      certPath,
+      '-days',
+      '1',
+      '-subj',
+      '/CN=localhost',
+      '-addext',
+      'subjectAltName=DNS:localhost',
+    ],
+    { stdio: 'ignore' },
+  );
+  const tls = { cert: readFileSync(certPath), key: readFileSync(keyPath) };
+  const emails: string[] = [];
+  const remote = await startRemoteService(
+    {
+      service: serviceOrigin,
+      app: appOrigin,
+      home: join(directory, 'service'),
+      port: 0,
+      address: '127.0.0.1',
+      secret: 'isolated-mobile-test-secret-long-enough-for-auth',
+      smtp: 'smtp://localhost:2525',
+      from: 'puddle@example.test',
+      signupEmails: ['owner@example.test'],
+      openSignup: false,
+    },
+    async (_to, _subject, url) => {
+      emails.push(url);
+    },
+  );
+  const address = remote.server.address();
+  if (!address || typeof address === 'string') throw new Error('Missing service port');
+  const relay = createServer(tls, (req, res) => {
+    const upstream = request(
+      {
+        host: '127.0.0.1',
+        port: address.port,
+        method: req.method,
+        path: req.url,
+        headers: req.headers,
+      },
+      (response) => {
+        res.writeHead(response.statusCode!, response.headers);
+        response.pipe(res);
+      },
+    );
+    upstream.on('error', () => res.destroy());
+    req.pipe(upstream);
+  });
+  const sockets = new Set<Socket>();
+  relay.on('connection', (socket) => {
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
+  });
+  relay.on('upgrade', (req, socket, head) => {
+    const upstream = connect(address.port, '127.0.0.1', () => {
+      upstream.write(
+        `${req.method} ${req.url} HTTP/1.1\r\n` +
+          req.rawHeaders.reduce(
+            (text, part, index) => text + part + (index % 2 ? '\r\n' : ': '),
+            '',
+          ) +
+          '\r\n',
+      );
+      if (head.length) upstream.write(head);
+      socket.pipe(upstream).pipe(socket);
+    });
+    upstream.on('error', () => socket.destroy());
+    socket.on('error', () => upstream.destroy());
+    socket.on('close', () => upstream.destroy());
+  });
+  await new Promise<void>((resolve) => relay.listen(servicePort, '127.0.0.1', resolve));
+  const web = join(directory, 'web');
+  execFileSync(
+    process.execPath,
+    [
+      join(root, 'packages/web/node_modules/vite/bin/vite.js'),
+      'build',
+      '--outDir',
+      web,
+      '--logLevel',
+      'silent',
+    ],
+    {
+      cwd: join(root, 'packages/web'),
+      env: { ...env(local.home), VITE_PUDDLE_REMOTE_SERVICE: serviceOrigin },
+      stdio: 'pipe',
+    },
+  );
+  execFileSync(process.execPath, [join(root, 'deploy/remote/externalise-theme.mjs'), web]);
+  const app = createServer(tls, (req, res) => {
+    const path = resolve(web, '.' + new URL(req.url!, appOrigin).pathname);
+    if (path !== web && !path.startsWith(web + '/')) {
+      res.writeHead(404);
+      res.end();
+      return;
+    }
+    const file = existsSync(path) && extname(path) ? path : join(web, 'index.html');
+    const mime: Record<string, string> = {
+      '.js': 'text/javascript',
+      '.css': 'text/css',
+      '.html': 'text/html',
+      '.svg': 'image/svg+xml',
+      '.woff2': 'font/woff2',
+    };
+    res.setHeader('content-type', mime[extname(file)] ?? 'application/octet-stream');
+    res.setHeader('cache-control', 'no-store');
+    res.setHeader('x-content-type-options', 'nosniff');
+    res.setHeader(
+      'content-security-policy',
+      `default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src ${serviceOrigin} ${serviceOrigin.replace('https:', 'wss:')}; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`,
+    );
+    res.end(readFileSync(file));
+  });
+  app.on('connection', (socket) => {
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
+  });
+  await new Promise<void>((resolve) => app.listen(appPort, '127.0.0.1', resolve));
+  let connector: ReturnType<typeof spawn> | undefined;
+  return {
+    local,
+    session,
+    remote,
+    appOrigin,
+    serviceOrigin,
+    emails,
+    admin: (request: unknown) => administrativeRequest(local.home, request),
+    async enable(account: string) {
+      const registration = remote.store.redeem(remote.store.register(account, 'Fixture host').code);
+      atomicPrivateJson(join(local.home, 'remote/config.json'), {
+        ...registration,
+        service: serviceOrigin,
+        app: appOrigin,
+        enabled: true,
+      });
+      connector = spawn(process.execPath, [join(root, 'packages/connector/dist/index.js')], {
+        env: { ...env(local.home), NODE_EXTRA_CA_CERTS: certPath },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let errors = '';
+      connector.stderr!.on('data', (part) => {
+        errors += String(part);
+      });
+      await until(
+        async () => {
+          if (connector!.exitCode !== null) throw new Error(errors || 'Connector exited');
+          return administrativeRequest(local.home, { t: 'status' }).catch(() => null);
+        },
+        (value) => value?.connected === true,
+      );
+      return registration;
+    },
+    async close() {
+      if (connector) await stop(connector);
+      for (const socket of sockets) socket.destroy();
+      relay.closeAllConnections();
+      app.closeAllConnections();
+      await Promise.all([
+        new Promise<void>((resolve) => relay.close(() => resolve())),
+        new Promise<void>((resolve) => app.close(() => resolve())),
+      ]);
+      await remote.close();
+      await local.close();
+      rmSync(directory, { recursive: true, force: true });
+      rmSync(local.home, { recursive: true, force: true });
+    },
+  };
+}

@@ -42,6 +42,7 @@ import {
   type TerminalScrollPosition,
 } from './scroll-position';
 import { registerFileLinks, type FileLinkTarget } from './file-links';
+import { registerTerminalInput } from './input';
 import { preserveXtermScrollUp } from './xterm-scrollback';
 
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
@@ -173,6 +174,8 @@ export function Terminal({
   // Also pause when the whole document is hidden: a backgrounded browser tab
   // otherwise keeps receiving and parsing every byte of PTY output.
   const visible = useDocumentVisible();
+  const activeRef = useRef(!paused && visible);
+  activeRef.current = !paused && visible;
   const attached = useLingeringTrue(!paused && visible, DETACH_LINGER_MS);
   // Both the mount and attach effects key on this: xterm must not exist —
   // let alone measure glyphs — before the webfont it measures is loaded.
@@ -263,6 +266,7 @@ export function Terminal({
 
   /** Complete a local fit by telling the shared PTY which grid now owns it. */
   const refit = useCallback(() => {
+    if (!activeRef.current) return;
     const xterm = fitPreservingScroll();
     if (!xterm) return;
     wsManager.resize(stream, term, xterm.cols, xterm.rows);
@@ -373,7 +377,21 @@ export function Terminal({
     // (decision 2026-07-31): the copy shortcut below is what commits it.
     const osc52 = { stash: null as string | null };
 
+    let capturedPaste: string[] | null = null;
+    const unregisterInput = registerTerminalInput(stream, term, (text) => {
+      capturedPaste = [];
+      try {
+        xterm.paste(text);
+        return capturedPaste.join('');
+      } finally {
+        capturedPaste = null;
+      }
+    });
     const stdin = xterm.onData((data) => {
+      if (capturedPaste) {
+        capturedPaste.push(data);
+        return;
+      }
       // Not just typing: xterm CORE answers device queries (ESC[6n cursor
       // position, ESC[c device attributes, …) through this same event. During
       // a replay those are answers to HISTORICAL queries whose asker is long
@@ -542,6 +560,7 @@ export function Terminal({
       oscBackground?.dispose();
       oscClipboard.dispose();
       fileLinks?.dispose();
+      unregisterInput();
       stdin.dispose();
       xterm.dispose();
       xtermRef.current = null;

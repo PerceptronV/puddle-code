@@ -24,6 +24,9 @@ packages/
 │                      # (Monaco tabs + drafts + dirty-diff gutter, file tree + transfer, repository-aware
 │                      #  source control + commit-graph SVG, filename+content search), scratchpad + layouts (top-bar
 │                      #  popovers), settings, ⌘K palette
+├── remote-transport/ # standalone Noise XX + bounded encrypted framing (remote protocol 1)
+├── connector/ # outbound host connector: exact device approval, route allowlist, manual host leases
+├── remote/    # self-hosted Better Auth service + opaque bounded WSS relay; no host content storage
 ├── cli/       # @puddle-code/cli (the command is `puddle`): serves the UI at localhost:7433 and
 │   │          # proxies /api + /ws + /proxy to the daemon on 127.0.0.1:7434 (through the ssh
 │   │          # tunnel remotely); bootstrap/handshake/attach live in src/lib/ (no process/TTY
@@ -36,6 +39,7 @@ packages/
                # embedded cockpit. Shell concerns only (windows, OS links, notification raise);
                # anything both shells need goes in cli/src/lib, NEVER here. Build mirrors the
                # CLI's (scripts/build.mjs); `pnpm --filter @puddle-code/desktop dist` packages it.
+deploy/remote/       # self-hosted service/static app images, Caddy TLS ingress and private env example
 scripts/build-tarball.mjs   # self-contained puddled release tarball for the CURRENT platform
 scripts/install.sh          # THE daemon bootstrap (curl-pipeable; the CLI pipes it over ssh)
 docs/assets/          # README imagery: cockpit hero screenshots (dark chromeless, light in Mac chrome)
@@ -54,6 +58,8 @@ pnpm build              # all packages; web assets land inside the CLI (packages
 pnpm test               # vitest across workspaces
 pnpm lint               # eslint + prettier check
 pnpm test:e2e           # after build: isolated daemon/cockpit process tests, no browser download
+pnpm test:remote        # transport, host authority and live relay authentication tests
+pnpm test:mobile        # after build: isolated HTTPS browser/connector/daemon flow (Playwright Chromium)
 pnpm test:ssh           # after build: loopback OpenSSH integration (sshd + ssh-keygen required)
 pnpm build:tarball      # self-contained puddled tarball for this platform (dist-release/)
 pnpm --filter @puddle-code/desktop start   # run the Electron shell (after pnpm build; NOT from
@@ -97,6 +103,7 @@ supervised one.
 - TypeScript strict; no `any` without a comment justifying it.
 - Every REST/WS shape is a zod schema in `packages/shared`; daemon validates input, web imports the inferred types. Never define an API shape locally. The schemas are a versioned protocol: any wire-shape change bumps `PROTOCOL_VERSION` per `packages/shared/PROTOCOL.md` in the same commit (additive → minor, breaking → major).
 - Connection authority lives in daemon `security/` and CLI `lib/auth/`; browser credentials, connection tokens, host authority and agent signal nonces have separate audiences. Never read a remote master token into the client, persist a connection token, or put invitations in registry records/background logs. Renew streams only through explicit resource ids on the client-participating control channel. Revocation detaches viewers without stopping agents; reconnect never replays uncertain writes. The shared production browser gateway also fronts Vite.
+- Mobile access uses self-hosted Better Auth login, separately trusted application delivery, maintained Noise XX and exact host-approved browser keys. Remote protocol 1 is separate from daemon protocol 18.0. `puddle remote` manages host registration, pairing, approval/revocation, disable and local-only identity reset; configuration lives in `~/.puddle/remote`. The complete remote operation allowlist is `connector/src/policy.ts`. New remote operations require review there; never bypass the shared host lease boundary. See `docs/mobile-access.md` and `docs/acceptance/mobile-access.md`.
 - Authentication verification uses isolated temporary homes, sanitised subprocess environments and deterministic fake agents. `test:e2e` exercises actual built cockpit replacement; `test:ssh` provisions an ephemeral loopback SSH server. Browser/desktop rendering and interactive SSH acceptance remain manual in `docs/acceptance/connection-authority.md`.
 - Agent-specific behaviour (flags, env vars, session-file locations, status regexes) lives ONLY in that agent's adapter under `packages/daemon/src/agents/`. Core session logic must stay agent-agnostic. When you verify a CLI flag against an installed agent version, record the version you checked in a comment in the adapter.
 - Compilable file support uses providers under `packages/daemon/src/`: generic mode/watch/run orchestration stays in `compilation/`, while tool discovery, command arguments, dependency parsing, artefact promotion, and source navigation stay in the provider (LaTeX in `latex/`). The web consumes advertised extensions and artefacts; never hard-code a generic compile path to TeX.

@@ -3,6 +3,9 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: {
+      '@puddle/shared/node/host-control': fileURLToPath(
+        new URL('../shared/src/node/host-control.ts', import.meta.url),
+      ),
       '@puddle/shared/node': fileURLToPath(
         new URL('../shared/src/node/security.ts', import.meta.url),
       ),

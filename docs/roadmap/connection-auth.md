@@ -1,9 +1,9 @@
 # Connection authentication
 
-Status: the local/SSH foundation is implemented in protocol 18.0. Mobile
-access and relay work remain deferred. The [implementation contract](short-lived-connection-tokens.md)
+Status: the local/SSH foundation is implemented in protocol 18.0. Self-hosted
+mobile access is implemented in the separately versioned remote protocol 1. The [implementation contract](short-lived-connection-tokens.md)
 records concrete lifetimes, migration and verification; this document retains
-the architectural rationale and eventual transport seams.
+the architectural rationale and shared transport boundary.
 
 ## First-phase scope
 
@@ -14,11 +14,10 @@ connection lifetime. Cover the existing CLI and desktop cockpits, local and
 SSH connections, REST, WebSockets, and proxy paths, including migration from
 the currently distributed master token.
 
-Mobile layout/input, remote-device pairing, internet-facing gateways, Tunnel/
-Access deployment, host relay connectors, relay operation, and end-to-end
-encryption are later work. Their design choices do not block this foundation.
-Preserve reusable authentication seams without implementing those transports
-in the first phase.
+The foundation shipped independently. The [mobile implementation](mobile-access.md)
+now adds phone input/layout, host device approval, an outbound connector and a
+self-hosted encrypted relay around that authority. Tunnel/Access and hosted
+operation remain outside the implementation.
 
 ## Compatibility and change boundaries
 
@@ -26,7 +25,7 @@ The foundation fits the existing daemon/web split. The daemon continues to own
 Puddle placements, live runtimes, PTYs, worktrees, SQLite, and replay. Existing
 React views and API operation meanings can largely remain. First-phase changes
 belong around authentication, connection management, and the current HTTP/WS
-transport. The later relay/connector subsystem builds on those boundaries.
+transport. The relay/connector subsystem builds on those boundaries.
 
 | Area                                                       | Expected work                                                                                                                                |
 | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -34,8 +33,8 @@ transport. The later relay/connector subsystem builds on those boundaries.
 | Daemon authentication                                      | Add one consistent connection-authority model for REST, WS, and proxy paths                                                                  |
 | CLI/desktop cockpit                                        | Replace transparent credential forwarding with an authenticated browser boundary and upstream credential management                          |
 | Web data transport                                         | Update `api.ts`, `ws.ts`, and auth/bootstrap for the new credentials; audit binary transfers, direct fetches, downloads, previews, and links |
-| Web presentation                                           | Preserve existing views in the foundation; phone input/layout adaptations follow later                                                       |
-| Relay, host connector, remote enrolment, service operation | Deferred subsystems that reuse the completed host authentication boundary                                                                    |
+| Web presentation                                           | Preserve existing desktop views; narrow presentation uses kept-alive terminals and local drafts                                                       |
+| Relay, host connector, remote enrolment, service operation | Implemented self-hosted subsystems reusing the completed host authentication boundary                                                                    |
 
 A conventional HTTP tunnel can preserve the browser's same-origin request
 shape. An opaque end-to-end encrypted relay also needs a browser transport
@@ -100,11 +99,13 @@ Local mode uses the same lease rules with a local control channel instead of
 SSH. Each cockpit/viewer connection has its own authority; closing one must
 not invalidate other clients.
 
-The later relay path will check paired browser proof on the host; any relay
-login cookie authenticates the service account separately. A host-local
-connector will obtain daemon authority for admitted connections through the
-same foundation without exposing the master token to the relay. That remote
-enrolment and connector work is outside the first phase.
+The relay path checks the Noise-authenticated browser identity against durable
+host approval; a relay login cookie authenticates the service account separately.
+The connector obtains daemon authority only after approval, using the shared
+manual-participation HostControlClient. Fresh encrypted browser challenges renew
+explicit resource ids; a healthy connector cannot renew an absent browser.
+The master token never enters the relay. See [mobile access](mobile-access.md)
+for pairing, recovery, encryption and the separately trusted application origin.
 
 A bearer lease returned over SSH is still a credential that can be replayed
 while valid if stolen. Labelling it with a tunnel id does not cryptographically
@@ -199,10 +200,9 @@ expands the following sequence into workstreams and verification criteria.
    reuse, port changes, daemon restart, concurrent cockpits, stale callbacks,
    old credential rejection, and revocation of already authenticated sockets.
    Verify transport loss preserves daemon-owned work and never repeats writes.
-4. After the foundation is complete, proceed with the deferred
-   [mobile access roadmap](mobile-access.md). Relay connections reuse the same
+4. The implemented [mobile access extension](mobile-access.md) follows this foundation. Relay connections reuse the same
    host authority model. Connector/relay cryptography remains a separate
-   reviewed transport layer, not something lease tokens provide by themselves.
+   transport layer with its own review gate, not something lease tokens provide by themselves.
 
 The foundation is complete when local and SSH CLI/desktop workflows use the
 new short-lived connection tokens; master credentials no longer leave the host
@@ -215,7 +215,7 @@ No mobile, relay, or provider deployment is required to meet this milestone.
 Changing existing daemon authentication/token flow requires a major protocol
 bump under `packages/shared/PROTOCOL.md`, even if API operation payloads remain
 unchanged. The implementation must define shared schemas and update SPEC and
-the changelog together. Exact lease durations, IPC details, and the browser
-credential storage mechanism remain implementation decisions to resolve within
-this first phase; its priority and use of short-lived connection tokens are
-settled.
+the changelog together. Lease durations, private IPC and browser credential
+storage are resolved in the implemented [connection-token contract](short-lived-connection-tokens.md).
+The independently versioned remote transport reuses that authority without
+changing the daemon's protocol 18.0 contract.

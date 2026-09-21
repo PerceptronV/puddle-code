@@ -34,6 +34,13 @@ puddle launch <user>@<host>
 
 This connects Puddle to the remote host over SSH, bootstrapping the Puddle daemon on first contact and enabling you to begin development.
 
+**To connect from a phone or another browser over the internet:** deploy your own
+[mobile access service and trusted web application](docs/mobile-access.md), then
+use `puddle remote enable` and `puddle remote pair`. The host connects outward;
+there is no public daemon port or VPN requirement. Each browser needs explicit
+host approval. The phone view provides live terminals, prompt input and read-only
+text/diff review over a pinned Noise connection through the relay.
+
 Puddle works using your system `ssh`, so `~/.ssh/config`, agents, and jump hosts apply.
 
 **For development on your own machine:**

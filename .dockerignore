@@ -1,0 +1,15 @@
+.git
+**/node_modules
+**/dist
+dist-release
+deploy/remote/.env
+**/*.tsbuildinfo
+test-results
+playwright-report
+
+# Never send host credentials or local agent state to an image builder.
+**/.env
+**/.env.*
+**/.puddle
+**/.codex
+**/.agents

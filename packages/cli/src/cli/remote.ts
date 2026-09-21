@@ -1,0 +1,164 @@
+import { createInterface } from 'node:readline';
+import { Writable } from 'node:stream';
+import {
+  remoteAdminRequestSchema,
+  remoteAdminResponseSchema,
+  remoteOriginSchema,
+  remoteSecretSchema,
+} from '@puddle/shared';
+import { LocalTransport } from '../lib/transport/local.js';
+import { SshTransport } from '../lib/transport/ssh.js';
+import { hostPaths } from '../lib/paths.js';
+import { CliError } from '../lib/types.js';
+
+export interface RemoteCommand {
+  cmd: 'remote';
+  action:
+    'enable' | 'status' | 'pair' | 'approve' | 'devices' | 'revoke' | 'disable' | 'reset' | 'run';
+  host?: string;
+  id?: string;
+  service?: string;
+  app?: string;
+  foreground: boolean;
+}
+export function parseRemoteArgs(args: string[]): RemoteCommand {
+  const [action, ...rest] = args;
+  if (
+    !action ||
+    ![
+      'enable',
+      'status',
+      'pair',
+      'approve',
+      'devices',
+      'revoke',
+      'disable',
+      'reset',
+      'run',
+    ].includes(action)
+  )
+    throw new CliError(
+      'bad_arguments',
+      'remote takes enable, status, pair, approve, devices, revoke, disable, reset or run',
+    );
+  const command: RemoteCommand = {
+    cmd: 'remote',
+    action: action as RemoteCommand['action'],
+    foreground: false,
+  };
+  const positional: string[] = [];
+  for (let i = 0; i < rest.length; i++) {
+    const arg = rest[i]!;
+    if (arg === '--foreground') command.foreground = true;
+    else if (arg === '--service' || arg === '--app-origin') {
+      const value = remoteOriginSchema.safeParse(rest[++i]);
+      if (!value.success) throw new CliError('bad_arguments', `${arg} needs an exact HTTPS origin`);
+      if (arg === '--service') command.service = value.data;
+      else command.app = value.data;
+    } else if (arg.startsWith('-'))
+      throw new CliError('bad_arguments', `Unknown remote option ${arg}`);
+    else positional.push(arg);
+  }
+  if (action === 'approve' || action === 'revoke') {
+    command.id = positional.shift();
+    if (!remoteAdminRequestSchema.safeParse({ t: action, id: command.id }).success)
+      throw new CliError(
+        'bad_arguments',
+        `${action} requires an exact device/request id from remote devices`,
+      );
+  }
+  command.host = positional.shift();
+  if (command.host === 'local') command.host = undefined;
+  if (positional.length || (command.host && !command.host.includes('@')))
+    throw new CliError('bad_arguments', 'Use local or user@host');
+  if (action !== 'enable' && (command.service || command.app || command.foreground))
+    throw new CliError('bad_arguments', 'Configuration options apply only to remote enable');
+  if (!!command.service !== !!command.app)
+    throw new CliError('bad_arguments', 'Specify both --service and --app-origin');
+  return command;
+}
+async function registrationCode(): Promise<string> {
+  if (!process.stdin.isTTY) {
+    let input = '';
+    for await (const chunk of process.stdin) {
+      input += String(chunk);
+      if (input.length > 256) throw new Error('Registration code is too long');
+    }
+    return remoteSecretSchema.parse(input.trim());
+  }
+  process.stderr.write('Registration code (input hidden): ');
+  const silent = new Writable({
+    write(_chunk, _encoding, callback) {
+      callback();
+    },
+  });
+  const readline = createInterface({ input: process.stdin, output: silent, terminal: true });
+  try {
+    return remoteSecretSchema.parse(
+      await new Promise<string>((resolve) => readline.question('', resolve)),
+    );
+  } finally {
+    readline.close();
+    process.stderr.write('\n');
+  }
+}
+export async function runRemote(command: RemoteCommand): Promise<number> {
+  const transport = command.host ? new SshTransport(command.host) : new LocalTransport();
+  try {
+    if (transport instanceof SshTransport) await transport.open();
+    const base = `${hostPaths.current}/bin/node ${hostPaths.current}/daemon/connector.mjs`;
+    const check = await transport.exec(`test -f ${hostPaths.current}/daemon/connector.mjs`);
+    if (check.code !== 0)
+      throw new CliError(
+        'not_installed',
+        'The installed daemon does not include mobile access',
+        `puddle upgrade daemon${command.host ? ` ${command.host}` : ''}`,
+      );
+    if (command.action === 'run') {
+      const result = await transport.exec(base, { onStdout: (text) => process.stdout.write(text) });
+      return result.code;
+    }
+    if (command.action === 'reset') {
+      const result = await transport.exec(`${base} --reset`, { timeoutMs: 30_000 });
+      if (result.code !== 0)
+        throw new CliError('bad_arguments', result.stderr.trim() || 'Reset failed');
+      process.stdout.write(
+        'Remote access disabled; host identity rotated and all browsers revoked. Enable and pair again.\n',
+      );
+      return 0;
+    }
+    const payload =
+      command.action === 'enable'
+        ? {
+            service: command.service,
+            app: command.app,
+            ...(command.service ? { code: await registrationCode() } : {}),
+            managed: !command.foreground,
+          }
+        : { t: command.action, ...(command.id ? { id: command.id } : {}) };
+    const result = await transport.exec(
+      `${base} ${command.action === 'enable' ? '--configure' : '--admin'}`,
+      {
+        stdin: JSON.stringify(payload) + '\n',
+        timeoutMs: 30_000,
+      },
+    );
+    if (result.code !== 0)
+      throw new CliError('bad_arguments', result.stderr.trim() || 'Remote operation failed');
+    const response = remoteAdminResponseSchema.parse(JSON.parse(result.stdout));
+    if (response.error) throw new CliError('bad_arguments', response.error);
+    if (response.url) process.stdout.write(`${response.url}\n`);
+    else if (response.devices)
+      for (const device of response.devices)
+        process.stdout.write(`${device.id}  ${device.status}  ${device.label}\n  ${device.peer}\n`);
+    else
+      process.stdout.write(
+        `Remote access ${response.enabled ? 'enabled' : 'disabled'}${response.connected ? ', connected' : ', disconnected'}\n`,
+      );
+    if (command.action === 'enable' && command.foreground)
+      process.stdout.write('Run puddle remote run under your external supervisor.\n');
+    return 0;
+  } finally {
+    transport.dispose();
+  }
+}

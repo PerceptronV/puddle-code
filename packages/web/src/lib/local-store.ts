@@ -11,10 +11,10 @@ export interface LocalValue {
 export function localValue(key: string): LocalValue {
   const listeners = new Set<() => void>();
   return {
-    get: () => localStorage.getItem(key),
+    get: () => localStorage.getItem(browserScope(key)),
     set(value) {
-      if (value === null) localStorage.removeItem(key);
-      else localStorage.setItem(key, value);
+      if (value === null) localStorage.removeItem(browserScope(key));
+      else localStorage.setItem(browserScope(key), value);
       for (const listener of listeners) listener();
     },
     subscribe(listener) {
@@ -23,3 +23,4 @@ export function localValue(key: string): LocalValue {
     },
   };
 }
+import { browserScope } from './browser-transport';

@@ -58,3 +58,15 @@ bump in `CHANGELOG.md`.
   `nohup` children. This changes bootstrap and transport lifecycle only; REST
   and WebSocket schemas, authentication, token flow, and the protocol
   handshake are unchanged. No protocol bump.
+
+## Remote transport
+
+`REMOTE_PROTOCOL_VERSION = 1` versions the separate service/connector/browser
+contract in `src/remote/`. Its strict envelopes and Noise prologue require an
+exact match; incompatible peers fail closed. It introduces no daemon wire
+changes: daemon protocol remains 18.0. Turning the existing server WS union
+into an equivalent zod schema does not change that wire contract.
+
+Breaking changes to daemon operations exposed by the remote allowlist also
+require a remote protocol bump: an unchanged envelope does not make changed
+application messages compatible with a previously deployed browser build.

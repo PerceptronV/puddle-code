@@ -54,14 +54,28 @@ set -u
 HOME_DIR="\${PUDDLE_HOME:-$HOME/.puddle}"
 say() { printf 'puddled remove: %s\\n' "$1"; }
 
+# Persist remote disable before unregistering either supervisor.
+if [ -f "$HOME_DIR/bin/current/daemon/connector.mjs" ] && [ -f "$HOME_DIR/remote/config.json" ]; then
+  printf '%s\\n' '{"t":"disable"}' | "$HOME_DIR/bin/current/bin/node" "$HOME_DIR/bin/current/daemon/connector.mjs" --admin >/dev/null 2>&1 || exit 1
+fi
+
 # systemd user unit
 if command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
+  systemctl --user disable --now puddle-connector >/dev/null 2>&1 || true
+  rm -f "$HOME/.config/systemd/user/puddle-connector.service"
   systemctl --user disable --now puddled >/dev/null 2>&1 || true
   if [ -f "$HOME/.config/systemd/user/puddled.service" ]; then
     rm -f "$HOME/.config/systemd/user/puddled.service"
     systemctl --user daemon-reload >/dev/null 2>&1 || true
     say "removed the systemd user unit"
   fi
+fi
+
+# launchd connector
+CONNECTOR_PLIST="$HOME/Library/LaunchAgents/dev.puddle.connector.plist"
+if [ -f "$CONNECTOR_PLIST" ]; then
+  launchctl bootout "gui/$(id -u)/dev.puddle.connector" 2>/dev/null || true
+  rm -f "$CONNECTOR_PLIST"
 fi
 
 # launchd agent

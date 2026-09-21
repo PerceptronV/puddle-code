@@ -1,0 +1,46 @@
+services:
+  service:
+    build:
+      context: ../..
+      dockerfile: deploy/remote/Dockerfile.service
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+    volumes:
+      - service-data:/data
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+  app:
+    build:
+      context: ../..
+      dockerfile: deploy/remote/Dockerfile.app
+      args:
+        PUDDLE_REMOTE_SERVICE: ${PUDDLE_REMOTE_SERVICE}
+    environment:
+      PUDDLE_REMOTE_SERVICE: ${PUDDLE_REMOTE_SERVICE}
+      PUDDLE_REMOTE_WSS: ${PUDDLE_REMOTE_WSS}
+    user: '10001:10001'
+    read_only: true
+    tmpfs: [/data, /config, /tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+  ingress:
+    image: caddy:2-alpine
+    environment:
+      APP_HOST: ${APP_HOST}
+      RELAY_HOST: ${RELAY_HOST}
+      TLS_EMAIL: ${TLS_EMAIL}
+    ports: ['80:80', '443:443']
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - tls-data:/data
+      - tls-config:/config
+    restart: unless-stopped
+volumes:
+  service-data:
+  tls-data:
+  tls-config:

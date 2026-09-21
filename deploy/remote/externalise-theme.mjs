@@ -1,0 +1,10 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+const directory = process.argv[2];
+if (!directory) throw new Error('A built web directory is required');
+const index = join(directory, 'index.html');
+const html = readFileSync(index, 'utf8');
+const script = /<script>([\s\S]*?)<\/script>/.exec(html);
+if (!script) throw new Error('Expected the first-paint theme script');
+writeFileSync(join(directory, 'theme.js'), script[1]);
+writeFileSync(index, html.replace(script[0], '<script src="/theme.js"></script>'));

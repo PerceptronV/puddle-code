@@ -33,6 +33,7 @@ await build({
   format: 'esm',
   external: ['bufferutil', 'utf-8-validate'], // ws's optional accelerators
   alias: {
+    '@puddle/shared/node/host-control': join(repoRoot, 'packages/shared/src/node/host-control.ts'),
     '@puddle/shared/node': join(repoRoot, 'packages/shared/src/node/security.ts'),
     '@puddle/shared': join(repoRoot, 'packages/shared/src/index.ts'),
   },
@@ -82,6 +83,7 @@ await build({
   target: 'node22',
   format: 'esm',
   alias: {
+    '@puddle/shared/node/host-control': join(repoRoot, 'packages/shared/src/node/host-control.ts'),
     '@puddle/shared/node': join(repoRoot, 'packages/shared/src/node/security.ts'),
     '@puddle/shared': join(repoRoot, 'packages/shared/src/index.ts'),
   },

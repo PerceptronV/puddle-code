@@ -243,4 +243,12 @@ else
 fi
 
 printf '%s\n' "$KIND" > "$HOME_DIR/supervisor"
+# An upgrade replaces the supervised connector too. Never opt a new host in.
+if [ "$START" = 1 ] && [ -f "$HOME_DIR/remote/config.json" ]; then
+  if [ "$KIND" = systemd ] && [ -f "$HOME/.config/systemd/user/puddle-connector.service" ]; then
+    systemctl --user restart puddle-connector || die "connector restart failed"
+  elif [ "$KIND" = launchd ] && [ -f "$HOME/Library/LaunchAgents/dev.puddle.connector.plist" ]; then
+    launchctl kickstart -k "gui/$(id -u)/dev.puddle.connector" 2>/dev/null || die "connector restart failed"
+  fi
+fi
 say "installed puddled $VERSION under $HOME_DIR (supervisor: $KIND)"

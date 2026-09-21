@@ -1,0 +1,21 @@
+{
+  "name": "@puddle/remote-transport",
+  "version": "0.1.13",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@chainsafe/libp2p-noise": "17.0.0",
+    "@libp2p/crypto": "^5.1.9",
+    "@libp2p/interface": "^3.0.0",
+    "@libp2p/logger": "^6.0.0",
+    "@libp2p/peer-id": "^6.0.0",
+    "@libp2p/utils": "^7.0.0",
+    "@puddle/shared": "workspace:*"
+  }
+}

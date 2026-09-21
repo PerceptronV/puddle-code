@@ -1,5 +1,4 @@
 import { createRoot } from 'react-dom/client';
-import { App } from './App';
 import { bootstrapToken } from './lib/auth';
 import { initClientSettings } from './lib/client-settings';
 import { captureHostParam } from './lib/editor-links';
@@ -10,5 +9,14 @@ initTheme();
 initClientSettings();
 // Order matters: captureHostParam reads the #invite= fragment (its local-mode
 // signal) that bootstrapToken strips.
-captureHostParam();
-void bootstrapToken().then(() => createRoot(document.getElementById('root')!).render(<App />));
+if (import.meta.env.VITE_PUDDLE_REMOTE_SERVICE) {
+  void import('./features/remote/RemoteApp').then(({ RemoteApp }) =>
+    createRoot(document.getElementById('root')!).render(<RemoteApp />),
+  );
+} else {
+  captureHostParam();
+  void bootstrapToken().then(async () => {
+    const { App } = await import('./App');
+    createRoot(document.getElementById('root')!).render(<App />);
+  });
+}

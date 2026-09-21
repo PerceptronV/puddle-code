@@ -1,6 +1,8 @@
 import { CliError } from '../lib/types.js';
+import { parseRemoteArgs, type RemoteCommand } from './remote.js';
 
 export type Command =
+  | RemoteCommand
   | {
       cmd: 'launch';
       /** 'local' or user@host — the parser normalises "no argument" to 'local'. */
@@ -108,6 +110,10 @@ usage:
   puddle install <daemon|desktop>[@version] [user@host] [--tarball <path>]
   puddle upgrade [cli|daemon|desktop][@version] [user@host] [--tarball <path>]
   puddle remove  <cli|daemon|desktop> [user@host] [--yes] [--purge]
+  puddle remote enable [user@host] --service <https-origin> --app-origin <https-origin>
+                       [--foreground]
+  puddle remote status|pair|devices|disable|reset|run [user@host]
+  puddle remote approve|revoke <device-id> [user@host]
   puddle --version | --help
 
 --version lists the installed CLI, daemon, and desktop app with the protocol
@@ -138,6 +144,7 @@ profiles, session history, worktrees — unless you also confirm --purge.`;
 /** Hand-rolled argv parser — the surface is small enough to own outright. */
 export function parseArgs(argv: string[]): Command {
   const [cmd, ...rest] = argv;
+  if (cmd === 'remote') return parseRemoteArgs(rest);
   if (cmd === undefined || cmd === 'help' || cmd === '--help' || cmd === '-h')
     return { cmd: 'help' };
   if (cmd === '--version' || cmd === '-v') return { cmd: 'version' };

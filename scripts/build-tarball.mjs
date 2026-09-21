@@ -96,6 +96,10 @@ async function bundleDaemon() {
     // ws's optional accelerators must stay unresolved requires it can catch.
     external: ['node-pty', 'better-sqlite3', 'bufferutil', 'utf-8-validate'],
     alias: {
+      '@puddle/shared/node/host-control': join(
+        repoRoot,
+        'packages/shared/src/node/host-control.ts',
+      ),
       '@puddle/shared/node': join(repoRoot, 'packages/shared/src/node/security.ts'),
       '@puddle/shared': join(repoRoot, 'packages/shared/src/index.ts'),
     },
@@ -227,6 +231,11 @@ function writeMetadata() {
     '#!/bin/sh\ndir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)\nexec "$dir/bin/node" "$dir/daemon/puddled.mjs" "$@"\n',
   );
   chmodSync(join(stage, 'puddled'), 0o755);
+  writeFileSync(
+    join(stage, 'puddle-connector'),
+    '#!/bin/sh\ndir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)\nexec "$dir/bin/node" "$dir/daemon/connector.mjs" "$@"\n',
+  );
+  chmodSync(join(stage, 'puddle-connector'), 0o755);
   writeFileSync(join(stage, 'VERSION'), `${version}\n`);
   // Read directly by `puddle --version`; an offline inventory must never
   // execute an unknown historical daemon just to discover compatibility.
@@ -240,7 +249,11 @@ function smokeTest() {
   if (!out.startsWith(`puddled ${version} `)) {
     fail(`smoke test failed: unexpected --version output ${JSON.stringify(out)}`);
   }
-  log(`smoke test passed: ${out.trim()}`);
+  const connector = execFileSync(join(stage, 'puddle-connector'), ['--version'], {
+    encoding: 'utf8',
+  });
+  if (!connector.startsWith('puddle-connector ')) fail('connector smoke test failed');
+  log(`smoke test passed: ${out.trim()}; ${connector.trim()}`);
 }
 
 /* 6 — tar + checksum. */
@@ -267,8 +280,27 @@ await build({
   target: 'node22',
   format: 'esm',
   alias: {
+    '@puddle/shared/node/host-control': join(repoRoot, 'packages/shared/src/node/host-control.ts'),
     '@puddle/shared/node': join(repoRoot, 'packages/shared/src/node/security.ts'),
     '@puddle/shared': join(repoRoot, 'packages/shared/src/index.ts'),
+  },
+});
+await build({
+  entryPoints: [join(repoRoot, 'packages/connector/src/index.ts')],
+  outfile: join(stage, 'daemon/connector.mjs'),
+  bundle: true,
+  platform: 'node',
+  target: 'node22',
+  format: 'esm',
+  external: ['better-sqlite3', 'bufferutil', 'utf-8-validate'],
+  alias: {
+    '@puddle/shared/node/host-control': join(repoRoot, 'packages/shared/src/node/host-control.ts'),
+    '@puddle/shared/node': join(repoRoot, 'packages/shared/src/node/security.ts'),
+    '@puddle/shared': join(repoRoot, 'packages/shared/src/index.ts'),
+    '@puddle/remote-transport': join(repoRoot, 'packages/remote-transport/src/index.ts'),
+  },
+  banner: {
+    js: "import { createRequire as __puddleCreateRequire } from 'node:module';\nconst require = __puddleCreateRequire(import.meta.url);",
   },
 });
 copyNativePackages();

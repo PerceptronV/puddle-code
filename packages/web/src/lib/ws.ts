@@ -1,6 +1,7 @@
 import { toast } from 'sonner';
 import type { SessionStatus, WsClientMessage, WsServerMessage } from '@puddle/shared';
 import { clearToken, tokenStore } from './auth';
+import { browserTransport, type CockpitSocket } from './browser-transport';
 
 /**
  * Singleton WebSocket manager. One socket carries every terminal and the
@@ -67,7 +68,7 @@ function key(session: string, term: string): string {
 }
 
 export class WsManager {
-  private ws: WebSocket | null = null;
+  private ws: CockpitSocket | null = null;
   private open = false;
   private backoff = INITIAL_BACKOFF_MS;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -195,6 +196,21 @@ export class WsManager {
     this.ws?.close();
   }
 
+  /** A different host must never inherit terminal registrations or uncertain writes. */
+  switchHost(): void {
+    const socket = this.ws;
+    this.ws = null;
+    this.open = false;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+    this.terminals.clear();
+    for (const waiters of this.shellWaiters.values())
+      for (const waiter of waiters) waiter.reject(new Error('Host changed'));
+    this.shellWaiters.clear();
+    socket?.close();
+    for (const listener of this.connectionListeners) listener(false);
+  }
+
   private ensureConnected(): void {
     if (this.ws || this.reconnectTimer) return;
     this.connect();
@@ -202,9 +218,12 @@ export class WsManager {
 
   private connect(): void {
     const token = tokenStore.get();
-    if (!token) return; // the token gate is showing; nothing to do yet
+    const remote = browserTransport();
+    if (!token && !remote) return; // the token gate is showing; nothing to do yet
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(`${proto}://${window.location.host}/ws`);
+    const ws: CockpitSocket = remote
+      ? remote.socket()
+      : new WebSocket(`${proto}://${window.location.host}/ws`);
     this.ws = ws;
 
     ws.addEventListener('open', () => {
@@ -212,7 +231,7 @@ export class WsManager {
         ws.close();
         return;
       }
-      ws.send(JSON.stringify({ t: 'auth', token }));
+      if (!remote) ws.send(JSON.stringify({ t: 'auth', token }));
     });
     ws.addEventListener('message', (evt) => {
       if (this.ws !== ws) return;
