@@ -25,6 +25,7 @@ Past releases: see docs/changelogs/.
 
 ### Security
 
+- Enforce TLS on the SMTP connection before authentication, including alternate-port STARTTLS delivery for DigitalOcean deployments.
 - Require exact browser approval at the host, pinned Noise XX transport, bounded forwarding and fresh browser participation in the existing host leases; keep remote protocol 1 independent of daemon protocol 18.0.
 - Persist device revocation and offline remote disable, isolate application delivery from the relay origin, and deny unreviewed remote routes and executable previews.
 

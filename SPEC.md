@@ -85,6 +85,8 @@ Binding to `127.0.0.1` is **not** protection from the web: any website open in t
 
 Self-hosted mobile access uses an outbound connector and a separately served trusted browser application, with Better Auth service login and independently approved host device identities. Noise XX carries application messages through an opaque relay; host authority continues to use protocol 18.0 leases. Remote protocol 1 is independent. There is no default hosted service or provider tunnel. See [mobile design](docs/roadmap/mobile-access.md), [deployment](docs/mobile-access.md) and [acceptance](docs/acceptance/mobile-access.md).
 
+Service verification/recovery email uses SMTP with TLS required on the transport before authentication; STARTTLS failure rejects delivery. Alternate SMTP ports are supported for deployments whose provider blocks the standard submission ports.
+
 ### Why no tmux
 
 The daemon is the persistence layer. It is the parent of every PTY, runs under a persistent supervisor or a cockpit-owned SSH channel, and tees all output to disk. tmux would duplicate that role with a second session registry that can drift. The "attach from a raw terminal" escape hatch tmux provided is replaced by `puddle attach <session>` (CLI → daemon WebSocket).

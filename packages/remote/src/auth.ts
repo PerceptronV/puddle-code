@@ -2,7 +2,7 @@ import { betterAuth } from 'better-auth';
 import { APIError } from 'better-auth/api';
 import { twoFactor } from 'better-auth/plugins';
 import { getMigrations } from 'better-auth/db/migration';
-import nodemailer from 'nodemailer';
+import { createMailer } from './mail.js';
 import type { RemoteConfig } from './config.js';
 import type { ServiceStore } from './store.js';
 import { RateLimit } from './rate-limit.js';
@@ -27,7 +27,7 @@ export async function createServiceAuth(
   store: ServiceStore,
   deliver?: (to: string, subject: string, url: string) => Promise<void>,
 ): Promise<ServiceAuth> {
-  const mail = nodemailer.createTransport(config.smtp, { requireTLS: true });
+  const mail = createMailer(config.smtp);
   const send =
     deliver ??
     (async (to: string, subject: string, url: string) => {

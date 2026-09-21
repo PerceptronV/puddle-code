@@ -30,6 +30,15 @@ provider callback URLs, respectively:
 - `https://relay.example.com/api/auth/callback/google`
 - `https://relay.example.com/api/auth/callback/github`
 
+On DigitalOcean, use a Docker Marketplace Droplet with public DNS for both
+origins and inbound TCP 80/443 (SSH restricted to your own address). Copy this
+checkout, including the mobile-access commits, onto the Droplet before running
+Compose. DigitalOcean [blocks SMTP ports 25, 465 and 587](https://docs.digitalocean.com/support/why-is-smtp-blocked/).
+Use a mail server that supports STARTTLS on an alternate port, for example
+`PUDDLE_SMTP_URL=smtp://username:password@mail.example.com:2525`.
+Puddle requires TLS before SMTP authentication. Verify the sender/domain with
+your mail service; an API-only email credential is not an SMTP credential.
+
 ```sh
 docker compose --env-file deploy/remote/.env -f deploy/remote/compose.yaml up --build -d
 ```
