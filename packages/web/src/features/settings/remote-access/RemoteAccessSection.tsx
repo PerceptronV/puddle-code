@@ -106,10 +106,6 @@ export function RemoteAccessSection() {
       >
         Remote access
       </SectionTitle>
-      <p className="mt-3 text-sm text-fg-secondary">
-        Connect a phone or another browser through your self-hosted relay. Paired browsers can
-        control terminals on this host.
-      </p>
       <div className="mt-5 flex items-center justify-between gap-3">
         <span role="status" className="text-sm font-medium">
           {status.isError

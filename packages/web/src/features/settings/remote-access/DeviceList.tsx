@@ -15,10 +15,7 @@ export function DeviceList({
   return (
     <section className="mt-6 space-y-4" aria-label="Browsers">
       <h3 className="text-sm font-medium">Browsers</h3>
-      <p className="text-xs text-fg-muted">
-        Approval grants terminal control of this host. Compare the full identity with the browser
-        requesting access.
-      </p>
+      <p className="text-xs text-fg-muted">Approval grants terminal control of this host.</p>
       {devices.length === 0 && (
         <p className="text-sm text-fg-secondary">
           No browsers yet. Create a pairing invitation to add one.
