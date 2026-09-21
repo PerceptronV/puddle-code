@@ -58,6 +58,33 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     await desktop.getByRole('button', { name: 'Pair a browser', exact: true }).click();
     const invitation = desktop.getByRole('link', { name: 'Open pairing link' });
     await expect(invitation).toBeVisible();
+    const qr = desktop.getByRole('img', { name: 'Pairing invitation QR code' });
+    await expect(qr).toBeVisible();
+    expect(await qr.evaluate((element) => element.tagName)).toBe('svg');
+    let scanInk = '';
+    for (const theme of ['light', 'dark']) {
+      await desktop.evaluate((value) => {
+        document.documentElement.dataset.theme = value;
+      }, theme);
+      const normalInk = await desktop
+        .locator('body')
+        .evaluate((element) => getComputedStyle(element).color);
+      await expect(invitation).toHaveCSS('color', normalInk);
+      await expect(qr).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+      const appearance = await qr.evaluate((element) => ({
+        colour: getComputedStyle(element).color,
+        radius: parseFloat(getComputedStyle(element).borderRadius),
+      }));
+      if (theme === 'light') scanInk = normalInk;
+      expect(appearance.colour).toBe(scanInk);
+      expect(appearance.radius).toBeGreaterThan(0);
+      await desktop.getByRole('region', { name: 'Pairing invitation' }).screenshot({
+        path: testInfo.outputPath(`pairing-${theme}.png`),
+      });
+    }
+    await desktop.evaluate(() => {
+      document.documentElement.dataset.theme = 'light';
+    });
     await page.goto((await invitation.getAttribute('href'))!);
     await expect(page.getByText('Pair this browser')).toBeVisible();
     expect(new URL(page.url()).hash).toBe('');

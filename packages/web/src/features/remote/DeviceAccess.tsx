@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
-import QRCode from 'qrcode';
 import type { RemoteDevice } from '@puddle/shared';
+import { QrCode } from '../../components/ui/qr-code';
 import type { RemoteClient } from './client';
 import { forgetBrowserHost } from './identity-store';
 
 export function DeviceAccess({ client, leave }: { client: RemoteClient; leave(): void }) {
   const [devices, setDevices] = useState<RemoteDevice[]>([]);
   const [url, setUrl] = useState('');
-  const [qr, setQr] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const refresh = async () => {
@@ -83,7 +82,6 @@ export function DeviceAccess({ client, leave }: { client: RemoteClient; leave():
             const result = await client.admin({ t: 'pair' });
             if (!result.url) throw new Error(result.error ?? 'Could not create invitation');
             setUrl(result.url);
-            setQr(await QRCode.toDataURL(result.url, { width: 280 }));
           })
         }
       >
@@ -95,11 +93,11 @@ export function DeviceAccess({ client, leave }: { client: RemoteClient; leave():
             Open this link on the new browser within five minutes, then return here to approve its
             identity.
           </p>
-          <img src={qr} alt="Pairing invitation QR code" width={280} height={280} />
+          <QrCode value={url} label="Pairing invitation QR code" />
           <button onClick={() => void action(() => navigator.clipboard.writeText(url))}>
             Copy pairing link
           </button>
-          <a className="break-all" href={url}>
+          <a className="pairing-link break-all hover:opacity-80" href={url}>
             Pairing link
           </a>
         </section>

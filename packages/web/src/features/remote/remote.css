@@ -71,6 +71,9 @@
 .remote-ui a {
   color: var(--accent);
 }
+.remote-ui a.pairing-link {
+  color: var(--text-primary);
+}
 .remote-ui pre,
 .phone-workspace pre {
   font-family: var(--font-mono);

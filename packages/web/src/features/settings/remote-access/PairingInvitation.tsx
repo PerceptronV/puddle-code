@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import QRCode from 'qrcode';
 import { Button } from '../../../components/ui/button';
+import { QrCode } from '../../../components/ui/qr-code';
 
 /** Invitation secrets stay in mounted component state and disappear at expiry. */
 export function PairingInvitation({
@@ -12,30 +12,18 @@ export function PairingInvitation({
   expires: number;
   dismiss(): void;
 }) {
-  const [qr, setQr] = useState('');
   const [message, setMessage] = useState('');
   useEffect(() => {
-    let current = true;
-    void QRCode.toDataURL(url, { width: 240 })
-      .then((data) => {
-        if (current) setQr(data);
-      })
-      .catch(() => {
-        if (current) setMessage('QR code unavailable. Use the pairing link.');
-      });
     const expiry = setTimeout(dismiss, Math.max(0, expires - Date.now()));
-    return () => {
-      current = false;
-      clearTimeout(expiry);
-    };
-  }, [url, expires, dismiss]);
+    return () => clearTimeout(expiry);
+  }, [expires, dismiss]);
   return (
     <section className="mt-5 space-y-3" aria-label="Pairing invitation">
       <p className="text-sm text-fg-secondary">
         Scan or open this link on the new browser, then approve its exact identity below. Expires{' '}
         {new Date(expires).toLocaleTimeString()}.
       </p>
-      {qr && <img src={qr} width={240} height={240} alt="Pairing invitation QR code" />}
+      <QrCode value={url} label="Pairing invitation QR code" />
       <div className="flex flex-wrap items-center gap-2">
         <Button
           variant="secondary"
@@ -54,7 +42,7 @@ export function PairingInvitation({
           href={url}
           target="_blank"
           rel="noreferrer"
-          className="px-2 text-sm text-accent hover:opacity-80"
+          className="px-2 text-sm text-fg hover:opacity-80"
         >
           Open pairing link ↗
         </a>
