@@ -49,12 +49,15 @@ The example builds a Node service and a static application, with Caddy managing
 TLS. Only ingress ports are published. The service runs as an unprivileged user
 with a read-only root filesystem; its SQLite state is in `service-data`. Agent
 homes, worktrees, SSH sockets and Docker sockets are never mounted into it.
+The image creates `/data` with mode `0700`, owned by the service user (UID 10001),
+so fresh Docker volumes satisfy the private-storage checks.
 The app's service origin is fixed at build time. Changing it requires rebuilding
 the app, not editing a pairing link.
 
 CI builds both images from a checkout with private file permissions and runs
-`node deploy/remote/test-images.mjs` to check service/database startup and every
-static asset under the production non-root, read-only, capability-free settings.
+`node deploy/remote/test-images.mjs` to check service/database startup with a fresh
+Docker volume, restart with retained state, and every static asset under the
+production non-root, read-only, capability-free settings.
 The application image removes Caddy's privileged-port file capability because it
 serves port 8080; retaining that capability prevents execution with `cap_drop: ALL`.
 
@@ -70,6 +73,25 @@ and optionally enable authenticator MFA under Account security. Store the recove
 codes privately. Recover a lost provider login through Google or GitHub; signing
 in again does not enrol a new browser at any host. Use the original provider:
 matching email addresses do not automatically link different provider identities.
+
+### Repair a volume created by an older image
+
+Earlier service images created `/data` with mode `0755`. The private-storage check
+rejects this, causing a service restart loop and ingress responses of 502. If
+service logs report `Puddle authority storage must be private and owned by the
+current user`, tighten the existing volume's directory permissions:
+
+```sh
+cd deploy/remote
+docker compose stop service
+docker compose run --rm --no-deps --entrypoint chmod service 700 /data
+docker compose up -d service
+```
+
+This runs as the existing service user and preserves the volume's contents. Image
+updates do not change an existing volume's permissions, so this repair is needed
+once for affected volumes. Keep the private-storage checks enabled; do not delete
+the volume to resolve this error.
 
 ### Configure Google or GitHub
 

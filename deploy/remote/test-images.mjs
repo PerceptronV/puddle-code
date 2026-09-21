@@ -22,8 +22,6 @@ function start(image, port, extra) {
     '--security-opt=no-new-privileges:true',
     '--tmpfs',
     '/tmp',
-    '--tmpfs',
-    '/data:uid=10001,gid=10001,mode=0700',
     '-e',
     'PUDDLE_REMOTE_SERVICE=https://relay.example.test',
     '-e',
@@ -70,6 +68,9 @@ async function ready(container, path, headers = {}) {
 
 try {
   const service = start(serviceImage, 7440, [
+    // Docker must copy the image's directory permissions, as with the Compose volume.
+    '--mount',
+    'type=volume,dst=/data',
     '-e',
     `BETTER_AUTH_SECRET=${randomBytes(32).toString('hex')}`,
     '-e',
@@ -79,11 +80,17 @@ try {
   ]);
   const health = await ready(service, '/health', { host: 'relay.example.test' });
   assert.deepEqual(JSON.parse(health.body), { status: 'ok' });
-  console.log('Remote service: database and non-root, read-only startup pass.');
+  docker('restart', service.id);
+  service.base = `http://${docker('port', service.id, '7440/tcp')}`;
+  const restarted = await ready(service, '/health', { host: 'relay.example.test' });
+  assert.deepEqual(JSON.parse(restarted.body), { status: 'ok' });
+  console.log('Remote service: fresh-volume startup and restart with retained state pass.');
 
   const app = start(appImage, 8080, [
     '--tmpfs',
-    '/config:uid=10001,gid=10001,mode=0700',
+    '/config',
+    '--tmpfs',
+    '/data',
     '-e',
     'PUDDLE_REMOTE_WSS=wss://relay.example.test',
   ]);
@@ -101,5 +108,5 @@ try {
   for (const id of containers) console.error(docker('logs', id));
   process.exitCode = 1;
 } finally {
-  for (const id of containers) docker('rm', '-f', id);
+  for (const id of containers) docker('rm', '-f', '-v', id);
 }

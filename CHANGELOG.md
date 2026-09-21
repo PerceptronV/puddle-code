@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Initialise remote service volumes with private directory permissions to prevent startup failures and ingress 502 responses.
