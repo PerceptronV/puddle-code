@@ -3,11 +3,17 @@ import { join } from 'node:path';
 import { startConnector } from './runtime.js';
 import { jsonLines } from '@puddle/shared/node';
 import { administrativeRequest, configureConnector, resetConnectorIdentity } from './admin.js';
+import { inspectConnector } from './inspect.js';
+import { PROTOCOL_VERSION, REMOTE_PROTOCOL_VERSION } from '@puddle/shared';
 
 const home = process.env.PUDDLE_HOME ?? join(homedir(), '.puddle');
 
 if (process.argv.includes('--version')) {
-  process.stdout.write('puddle-connector remote protocol 1; daemon protocol 18.0\n');
+  process.stdout.write(
+    `puddle-connector remote protocol ${REMOTE_PROTOCOL_VERSION}; daemon protocol ${PROTOCOL_VERSION.major}.${PROTOCOL_VERSION.minor}; cockpit controls 1\n`,
+  );
+} else if (process.argv.includes('--inspect')) {
+  process.stdout.write(JSON.stringify(await inspectConnector(home)) + '\n');
 } else if (process.argv.includes('--reset')) {
   await resetConnectorIdentity(home);
 } else if (process.argv.includes('--admin') || process.argv.includes('--configure')) {

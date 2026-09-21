@@ -1,6 +1,6 @@
 # Mobile access acceptance
 
-Remote protocol 1; daemon protocol 18.0. Run in isolated homes with fake agents.
+Remote protocol 1; daemon/cockpit protocol 18.1. Run in isolated homes with fake agents.
 Never launch an installed daemon from a coding-agent environment. Deployment and
 recovery instructions: [self-hosted mobile access](../mobile-access.md).
 
@@ -15,8 +15,11 @@ recovery instructions: [self-hosted mobile access](../mobile-access.md).
 - `pnpm test:mobile` after `pnpm build`: real Chromium against temporary HTTPS
   application/service endpoints, the built connector and isolated built daemon
   with a deterministic fake agent. Cover login, fragment removal, exact-key
-  approval, Unicode composer input, draft retention through resize/reconnect,
-  host revocation and continued local agent access. This suite requires a locally
+  approval from desktop Settings → Remote access, QR/link generation, Unicode
+  composer input, draft retention through resize/reconnect, desktop revocation/
+  disablement and continued local agent access. A separate UI fixture covers
+  registration/re-enablement and explicit identity-reset confirmation without
+  installing a supervisor. This suite requires a locally
   installed Playwright Chromium; no browser download occurs as part of the test.
 - `pnpm test:e2e` and `pnpm test:ssh`: preserve local/SSH foundation behaviour,
   cockpit replacement, connection leases and isolated loopback SSH integration.
@@ -28,6 +31,11 @@ review, production OAuth-provider acceptance or physical-phone acceptance.
 
 ## Deployment and recovery
 
+- In local and SSH Electron windows, use Settings → Remote access to register,
+  enable, pair, inspect/approve/revoke browsers and disable. Confirm the window's
+  host is the target, secrets do not enter settings/logs, and unsupported older
+  connectors request an upgrade. Verify offline disable/revoke and confirmed
+  identity reset. Test actual systemd/launchd enablement on disposable hosts.
 - Build the example images from a clean checkout and launch with distinct real
   app/relay HTTPS origins. Confirm only ingress ports are published; the daemon
   remains unreachable directly. Check CSP, framing, MIME and cache headers.

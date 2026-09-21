@@ -7,6 +7,7 @@ import type { Plugin } from 'vite';
 import { HostConnection } from '../../cli/src/lib/auth/connection-authority';
 import { LocalTransport } from '../../cli/src/lib/transport/local';
 import { startUiServer, type UiServer } from '../../cli/src/lib/serve/ui-server';
+import { RemoteAccessControl } from '../../cli/src/lib/remote-access';
 
 /** Development uses the production browser boundary, including the isolated proxy origin. */
 export function cockpitGateway(): Plugin {
@@ -34,6 +35,7 @@ export function cockpitGateway(): Plugin {
             browserPort: port,
             identity: 'local',
             localSync: { file: join(clientHome(), 'local-sync.json') },
+            remoteAccess: new RemoteAccessControl(new LocalTransport()),
             authority,
             target: { host: '127.0.0.1', port: authority.port },
           });

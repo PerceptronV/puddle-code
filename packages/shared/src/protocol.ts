@@ -282,4 +282,5 @@
 // command settings, with independent manual/eager overrides and provider-owned
 // command templates/placeholders.
 // 18.0: separate browser authorisation and host-controlled connection leases.
-export const PROTOCOL_VERSION = { major: 18, minor: 0 } as const;
+// 18.1: additive — authenticated cockpit-local remote-access administration.
+export const PROTOCOL_VERSION = { major: 18, minor: 1 } as const;

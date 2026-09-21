@@ -33,8 +33,28 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     const account = await fixture.remote.auth.authorised(new Headers({ cookie }));
     expect(account).not.toBeNull();
     await fixture.enable(account!.user.id);
-    const invitation = await fixture.admin({ t: 'pair' });
-    await page.goto(invitation.url!);
+    const desktop = await page.context().newPage();
+    await desktop.setViewportSize({ width: 1200, height: 850 });
+    const profiles = await (await fixture.local.req('/api/profiles')).json();
+    await desktop.addInitScript(
+      ({ origin, credential, profile }) => {
+        if (location.origin === origin) {
+          localStorage.setItem('puddle.browser-authorisation', credential);
+          localStorage.setItem('puddle.profile-id', profile);
+        }
+      },
+      {
+        origin: fixture.local.origin,
+        credential: fixture.local.credential,
+        profile: profiles[0].id,
+      },
+    );
+    await desktop.goto(fixture.local.origin + '/#settings/remote');
+    await expect(desktop.getByText('Connected to relay', { exact: true })).toBeVisible();
+    await desktop.getByRole('button', { name: 'Pair a browser', exact: true }).click();
+    const invitation = desktop.getByRole('link', { name: 'Open pairing link' });
+    await expect(invitation).toBeVisible();
+    await page.goto((await invitation.getAttribute('href'))!);
     await expect(page.getByText('Pair this browser')).toBeVisible();
     expect(new URL(page.url()).hash).toBe('');
     await page.getByLabel('Browser name').fill('Test phone');
@@ -43,7 +63,9 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     const devices = await fixture.admin({ t: 'devices' });
     const device = devices.devices!.find((device) => device.status === 'pending')!;
     await expect(page.getByText(device.peer, { exact: true })).toBeVisible();
-    await fixture.admin({ t: 'approve', id: device.id });
+    await desktop.getByRole('button', { name: 'Refresh status' }).click();
+    await expect(desktop.getByText(device.peer, { exact: true })).toBeVisible();
+    await desktop.getByRole('button', { name: 'Approve this identity' }).click();
     await expect(page.getByRole('status')).toHaveText('Connected');
     await page
       .getByRole('combobox', { name: 'Project', exact: true })
@@ -99,7 +121,8 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     );
     expect(await page.evaluate(() => 'repositoryExecuted' in window)).toBe(false);
     await page.getByRole('button', { name: 'Terminal', exact: true }).click();
-    await fixture.admin({ t: 'revoke', id: device.id });
+    await desktop.screenshot({ path: testInfo.outputPath('desktop-remote-access.png') });
+    await desktop.getByRole('button', { name: 'Revoke Test phone', exact: true }).click();
     await expect(page.getByRole('status')).toHaveText('Pairing required or access revoked', {
       timeout: 20_000,
     });
@@ -107,6 +130,10 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     expect(errors).toEqual([]);
     const alive = await fixture.local.req(`/api/sessions/${fixture.session.id}`);
     expect(alive.status).toBe(200);
+    await expect(desktop.getByText('Revoked', { exact: true })).toBeVisible();
+    await desktop.getByRole('button', { name: 'Disable remote access', exact: true }).click();
+    await expect(desktop.getByText('Disabled', { exact: true })).toBeVisible();
+    expect((await fixture.admin({ t: 'status' })).enabled).toBe(false);
   } finally {
     await page.context().close();
     await fixture.close();

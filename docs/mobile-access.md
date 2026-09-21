@@ -55,6 +55,25 @@ they do not enrol a new browser at any host.
 
 ## Register and pair a host
 
+In a Puddle desktop window (local or connected over SSH), open **Settings → Remote
+access**. The controls apply to the host open in that window, across its profiles.
+Enter the relay and application origins, open the application to create a host
+registration code, and paste it into the masked Registration code field. Choose
+**Enable remote access**. An existing registration can be re-enabled directly.
+The connector needs persistent systemd/launchd supervision; the settings view
+explains when the host needs configuration or an upgrade.
+
+Choose **Pair a browser**, scan the QR code or copy/open the link on the new
+browser, and request approval there. Return to the desktop, compare the full
+browser identity and choose **Approve this identity**. Status and device requests
+refresh automatically while settings are open. Each browser has a Revoke action;
+Disable remote access detaches every remote viewer. Under Host identity recovery,
+Reset host identity performs the same local/SSH recovery as `puddle remote reset`
+after explicit confirmation. Codes and invitations are not stored in cockpit
+settings or logs. These controls work even when the relay is unavailable.
+
+The equivalent CLI workflow is:
+
 In the application, expand Add a host, enter a name and create a registration
 code. On the machine running the daemon:
 

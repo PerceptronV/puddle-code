@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { wsClientMessageSchema, wsServerMessageSchema } from '../ws/messages.js';
 
-/** Independent transport contract: the daemon continues to speak protocol 18.0. */
+/** Independent transport contract; host authority uses the daemon's protocol-18 leases. */
 export const REMOTE_PROTOCOL_VERSION = 1;
 export const REMOTE_POLICY = {
   chunkBytes: 32 * 1024,
@@ -35,8 +35,12 @@ export const remoteOriginSchema = z
   .string()
   .url()
   .refine((value) => {
-    const url = new URL(value);
-    return url.protocol === 'https:' && url.origin === value && !url.username && !url.password;
+    try {
+      const url = new URL(value);
+      return url.protocol === 'https:' && url.origin === value && !url.username && !url.password;
+    } catch {
+      return false;
+    }
   }, 'An exact HTTPS origin is required');
 
 export const remoteInvitationSchema = z

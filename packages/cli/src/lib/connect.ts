@@ -6,6 +6,7 @@ import { runHandshake } from './handshake.js';
 import { waitForHttp } from './net.js';
 import { clientHome } from './paths.js';
 import { startUiServer } from './serve/ui-server.js';
+import { RemoteAccessControl } from './remote-access.js';
 import { openCallbackForward, openTunnel } from './tunnel.js';
 import { LocalTransport } from './transport/local.js';
 import { SshTransport } from './transport/ssh.js';
@@ -182,6 +183,7 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
       // The store lives on the CLIENT machine — every cockpit here shares it,
       // whichever remote daemon each one drives.
       localSync: { file: join(clientHome(), 'local-sync.json') },
+      remoteAccess: new RemoteAccessControl(ssh),
     });
     uiResource = ui;
 

@@ -1,7 +1,7 @@
 # Mobile access
 
 Status: implemented for self-hosting. Remote protocol 1 sits outside daemon
-protocol 18.0. Deployment instructions are in [self-hosted mobile access](../mobile-access.md).
+protocol 18.1 (the host-authority foundation shipped in 18.0). Deployment instructions are in [self-hosted mobile access](../mobile-access.md).
 Automated tests and the remaining physical-device/security review gates are in
 [mobile acceptance](../acceptance/mobile-access.md).
 
@@ -40,6 +40,13 @@ application on separately controlled infrastructure when protecting against a
 relay operator. No service worker caches source, output or credentials.
 
 ## Host approval and recovery
+
+Desktop/local and SSH cockpits expose **Settings → Remote access** for registration,
+status, pairing, exact-browser approval, revocation, disablement and confirmed
+identity reset. These controls use the authenticated cockpit's existing host
+transport and remain available independently of the relay. They are not added
+to the encrypted remote allowlist. Only public connector metadata returns to
+the cockpit; registration codes travel through stdin and are not persisted there.
 
 `puddle remote enable` redeems a five-minute service registration code from hidden
 stdin. Routing credentials stay in the host's private remote configuration; the

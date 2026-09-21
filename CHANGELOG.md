@@ -11,6 +11,7 @@ Past releases: see docs/changelogs/.
 
 ### Added
 
+- Add Settings → Remote access in local and SSH desktop cockpits for enablement, status, QR/link pairing, browser approval/revocation, disablement and host identity recovery; add authenticated cockpit controls in protocol 18.1.
 - Add self-hosted mobile access with email/Google/GitHub login, optional authenticator MFA, independently supervised host connectors and QR/link browser pairing.
 - Add a single-terminal phone view, native multiline prompt composer, visible terminal keys and read-only text/change review without rewriting desktop layouts.
 - Add remote administration and recovery commands, deployment images and isolated relay/browser acceptance suites.
@@ -19,6 +20,7 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Reject incomplete remote-origin input without throwing during registration form rendering.
 - Preserve browser login, terminal snapshots and refresh correlation across cockpit replacement and upstream recovery; retain desktop routes when the origin moves.
 
 ### Security

@@ -2,7 +2,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { createServer } from 'node:https';
 import { request } from 'node:http';
 import { connect, type Socket } from 'node:net';
-import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, existsSync, mkdirSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, extname } from 'node:path';
 import { startRemoteService } from '../../remote/src/server.js';
@@ -14,6 +14,15 @@ import { findFreePort } from '../../cli/src/lib/net.js';
 /** Real daemon, cockpit, service and connector; only the coding agent and SMTP are fixtures. */
 export async function mobileFixture() {
   const local = await fixture();
+  // Make the actual connector entry point available to the built desktop cockpit.
+  // No supervisor is installed or invoked; this fixture owns the connector process.
+  mkdirSync(join(local.home, 'bin/current/bin'), { recursive: true });
+  mkdirSync(join(local.home, 'bin/current/daemon'), { recursive: true });
+  symlinkSync(process.execPath, join(local.home, 'bin/current/bin/node'));
+  symlinkSync(
+    join(root, 'packages/connector/dist/index.js'),
+    join(local.home, 'bin/current/daemon/connector.mjs'),
+  );
   const session = await createSession(local);
   const directory = mkdtempSync(join(tmpdir(), 'puddle-mobile-browser-'));
   const servicePort = await findFreePort();

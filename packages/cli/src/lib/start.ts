@@ -7,6 +7,7 @@ import { startUiServer } from './serve/ui-server.js';
 import { LocalTransport } from './transport/local.js';
 import type { CliEvent, Logger } from './types.js';
 import { silentLogger } from './types.js';
+import { RemoteAccessControl } from './remote-access.js';
 
 export interface StartOptions {
   /** UI port; auto-picks the next free one when omitted (7433 default). */
@@ -65,6 +66,7 @@ export async function startLocal(opts: StartOptions): Promise<RunningCockpit> {
         ? { control: { onRefresh: opts.onRefreshRequest } }
         : {}),
       localSync: { file: join(clientHome(), 'local-sync.json') },
+      remoteAccess: new RemoteAccessControl(transport),
     });
     currentUi = ui;
 

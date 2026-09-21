@@ -218,4 +218,5 @@ unchanged. The implementation must define shared schemas and update SPEC and
 the changelog together. Lease durations, private IPC and browser credential
 storage are resolved in the implemented [connection-token contract](short-lived-connection-tokens.md).
 The independently versioned remote transport reuses that authority without
-changing the daemon's protocol 18.0 contract.
+changing the protocol-18 host authority contract. Protocol 18.1 adds authenticated
+local/SSH cockpit administration for the desktop remote-access settings.

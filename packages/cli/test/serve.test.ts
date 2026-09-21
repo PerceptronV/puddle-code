@@ -7,6 +7,7 @@ import WebSocket from 'ws';
 import { startDaemon, type RunningDaemon } from '../../daemon/test/helpers/authorised-daemon.js';
 import { startUiServer, type UiServer } from '../src/lib/serve/ui-server.js';
 import { isLocalHostHeader, isLocalOrigin } from '../src/lib/serve/guard.js';
+import { RemoteAccessControl } from '../src/lib/remote-access.js';
 
 function withAssets(): string {
   const dir = mkdtempSync(join(tmpdir(), 'puddle-cli-assets-'));
@@ -39,6 +40,7 @@ describe('UI server in front of a real daemon', () => {
   let ui: UiServer;
   let refreshes = 0;
   let credential: string;
+  const remoteCommands: string[] = [];
 
   beforeAll(async () => {
     daemon = await startDaemon({
@@ -58,6 +60,32 @@ describe('UI server in front of a real daemon', () => {
       localSync: {
         file: join(mkdtempSync(join(tmpdir(), 'puddle-cli-sync-')), 'local-sync.json'),
       },
+      remoteAccess: new RemoteAccessControl({
+        kind: 'local',
+        label: 'fixture',
+        readFile: async () => null,
+        copyTo: async () => {},
+        dispose() {},
+        exec: async (command) => {
+          remoteCommands.push(command);
+          return {
+            code: 0,
+            stderr: '',
+            stdout: command.includes('--version')
+              ? 'cockpit controls 1'
+              : command.endsWith('--inspect')
+                ? JSON.stringify({
+                    availability: 'ready',
+                    configured: false,
+                    enabled: false,
+                    connected: false,
+                    supervisor: null,
+                    devices: [],
+                  })
+                : JSON.stringify({ enabled: false }),
+          };
+        },
+      }),
     });
     const invitation = new URLSearchParams(new URL(ui.createInvitation()).hash.slice(1)).get(
       'invite',
@@ -78,6 +106,32 @@ describe('UI server in front of a real daemon', () => {
     fetch(`${ui.origin}${path}`, {
       headers: { host: `localhost:${ui.port}`, ...headers },
     });
+
+  it('authenticates remote controls and rejects cross-origin, arbitrary and unreviewed operations before host dispatch', async () => {
+    remoteCommands.length = 0;
+    expect((await get('/cockpit/remote')).status).toBe(401);
+    const post = (body: unknown, origin: string | undefined = ui.origin) =>
+      fetch(ui.origin + '/cockpit/remote', {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${credential}`,
+          'content-type': 'application/json',
+          ...(origin ? { origin } : {}),
+        },
+        body: JSON.stringify(body),
+      });
+    expect((await post({ t: 'disable' }, 'https://foreign.example.test')).status).toBe(403);
+    expect((await post({ t: 'disable' }, '')).status).toBe(403);
+    expect((await post({ t: 'run', command: 'anything' })).status).toBe(400);
+    expect((await post({ t: 'enable', managed: false })).status).toBe(400);
+    expect(remoteCommands).toEqual([]);
+    const status = await get('/cockpit/remote', { authorization: `Bearer ${credential}` });
+    expect(status.status).toBe(200);
+    expect(status.headers.get('cache-control')).toBe('no-store');
+    expect((await status.json()).configured).toBe(false);
+    expect((await post({ t: 'disable' })).status).toBe(200);
+    expect(remoteCommands.at(-1)).toMatch(/--admin$/);
+  });
 
   it('serves the UI tokenlessly with SPA fallback and confinement', async () => {
     expect(await (await get('/')).text()).toContain('puddle');

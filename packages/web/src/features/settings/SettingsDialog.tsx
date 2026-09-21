@@ -6,6 +6,7 @@ import {
   Palette,
   RefreshCw,
   Server,
+  Smartphone,
   SlidersHorizontal,
   UserRound,
   Users,
@@ -25,6 +26,7 @@ import { HotkeysSection } from './sections/hotkeys';
 import { SyncSection } from './sections/sync';
 import { RepositoriesSection } from './sections/repositories';
 import { HostSection } from './sections/host';
+import { RemoteAccessSection } from './remote-access/RemoteAccessSection';
 
 const SECTIONS: Array<{ id: string; label: string; icon: LucideIcon; render: () => ReactElement }> =
   [
@@ -52,6 +54,12 @@ const SECTIONS: Array<{ id: string; label: string; icon: LucideIcon; render: () 
       render: () => <RepositoriesSection />,
     },
     { id: 'host', label: 'Host', icon: Server, render: () => <HostSection /> },
+    {
+      id: 'remote',
+      label: 'Remote access',
+      icon: Smartphone,
+      render: () => <RemoteAccessSection />,
+    },
     { id: 'sync', label: 'Sync', icon: RefreshCw, render: () => <SyncSection /> },
   ];
 

@@ -63,9 +63,12 @@ bump in `CHANGELOG.md`.
 
 `REMOTE_PROTOCOL_VERSION = 1` versions the separate service/connector/browser
 contract in `src/remote/`. Its strict envelopes and Noise prologue require an
-exact match; incompatible peers fail closed. It introduces no daemon wire
-changes: daemon protocol remains 18.0. Turning the existing server WS union
-into an equivalent zod schema does not change that wire contract.
+exact match; incompatible peers fail closed. Its introduction did not change
+daemon protocol 18.0. Turning the existing server WS union into an equivalent
+zod schema did not change that wire contract. Protocol 18.1 adds local/SSH
+`/cockpit/remote` administration; it does not change the remote envelope or
+host-authority semantics. Older connector builds are capability-detected before
+the cockpit invokes their administrative commands.
 
 Breaking changes to daemon operations exposed by the remote allowlist also
 require a remote protocol bump: an unchanged envelope does not make changed
