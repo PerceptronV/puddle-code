@@ -15,7 +15,7 @@ Choose two HTTPS origins under the same site, such as `app.example.com` and
 From a checkout of the version you intend to run:
 
 ```sh
-cp deploy/remote/.env.example deploy/remote/.env
+install -m 600 deploy/remote/.env.example deploy/remote/.env
 openssl rand -hex 32
 ```
 
@@ -29,6 +29,11 @@ contact setting. Register these provider callback URLs, respectively:
 
 - `https://relay.example.com/api/auth/callback/google`
 - `https://relay.example.com/api/auth/callback/github`
+
+Restrict the environment file itself rather than changing the shell's umask for
+later Git operations. Runtime images explicitly make application metadata,
+configuration and public assets readable by their unprivileged users, even when
+the checkout has private file permissions.
 
 On DigitalOcean, use a Docker Marketplace Droplet with public DNS for both
 origins and inbound TCP 80/443 (SSH restricted to your own address). Copy this
@@ -46,6 +51,12 @@ with a read-only root filesystem; its SQLite state is in `service-data`. Agent
 homes, worktrees, SSH sockets and Docker sockets are never mounted into it.
 The app's service origin is fixed at build time. Changing it requires rebuilding
 the app, not editing a pairing link.
+
+CI builds both images from a checkout with private file permissions and runs
+`node deploy/remote/test-images.mjs` to check service/database startup and every
+static asset under the production non-root, read-only, capability-free settings.
+The application image removes Caddy's privileged-port file capability because it
+serves port 8080; retaining that capability prevents execution with `cap_drop: ALL`.
 
 The example has one infrastructure administrator. To protect against a relay
 operator, put the application image and its TLS termination on separately

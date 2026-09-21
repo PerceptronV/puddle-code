@@ -1,0 +1,105 @@
+// Exercise the built images with the same restrictions as the Compose deployment.
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
+import { request } from 'node:http';
+import { setTimeout as delay } from 'node:timers/promises';
+
+const [serviceImage = 'puddle-remote-service:test', appImage = 'puddle-remote-app:test'] =
+  process.argv.slice(2);
+const containers = [];
+const docker = (...args) =>
+  execFileSync('docker', args, { encoding: 'utf8', timeout: 30_000 }).trim();
+
+function start(image, port, extra) {
+  const id = docker(
+    'run',
+    '-d',
+    '--user',
+    '10001:10001',
+    '--read-only',
+    '--cap-drop=ALL',
+    '--security-opt=no-new-privileges:true',
+    '--tmpfs',
+    '/tmp',
+    '--tmpfs',
+    '/data:uid=10001,gid=10001,mode=0700',
+    '-e',
+    'PUDDLE_REMOTE_SERVICE=https://relay.example.test',
+    '-e',
+    'PUDDLE_REMOTE_APP=https://app.example.test',
+    '-p',
+    `127.0.0.1::${port}`,
+    ...extra,
+    image,
+  );
+  containers.push(id);
+  return { id, base: `http://${docker('port', id, `${port}/tcp`)}` };
+}
+
+// Use node:http to preserve the exact Host header required by the service.
+function get(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    const req = request(url, options, (res) => {
+      let body = '';
+      res.on('data', (chunk) => (body += chunk));
+      res.on('error', reject);
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body }));
+    });
+    req.setTimeout(1000, () => req.destroy(new Error('Request timed out')));
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+async function ready(container, path, headers = {}) {
+  let last;
+  for (let attempt = 0; attempt < 100; attempt++) {
+    try {
+      const response = await get(`${container.base}${path}`, { headers });
+      if (response.status === 200) return response;
+      last = `${response.status}: ${response.body}`;
+    } catch (error) {
+      last = String(error);
+    }
+    if (docker('inspect', '--format', '{{.State.Running}}', container.id) !== 'true') break;
+    await delay(100);
+  }
+  throw new Error(`Container failed readiness: ${last}`);
+}
+
+try {
+  const service = start(serviceImage, 7440, [
+    '-e',
+    `BETTER_AUTH_SECRET=${randomBytes(32).toString('hex')}`,
+    '-e',
+    'GITHUB_CLIENT_ID=container-smoke-test',
+    '-e',
+    'GITHUB_CLIENT_SECRET=container-smoke-test',
+  ]);
+  const health = await ready(service, '/health', { host: 'relay.example.test' });
+  assert.deepEqual(JSON.parse(health.body), { status: 'ok' });
+  console.log('Remote service: database and non-root, read-only startup pass.');
+
+  const app = start(appImage, 8080, [
+    '--tmpfs',
+    '/config:uid=10001,gid=10001,mode=0700',
+    '-e',
+    'PUDDLE_REMOTE_WSS=wss://relay.example.test',
+  ]);
+  const index = await ready(app, '/');
+  assert.ok(index.headers['content-security-policy']?.includes('https://relay.example.test'));
+  const assets = docker('exec', app.id, 'find', '/srv', '-type', 'f').split('\n');
+  assert.ok(assets.includes('/srv/index.html'));
+  for (const file of assets) {
+    const response = await get(`${app.base}${file.slice('/srv'.length)}`, { method: 'HEAD' });
+    assert.equal(response.status, 200, `Unreadable application asset: ${file}`);
+  }
+  console.log(`Remote application: non-root, read-only startup and ${assets.length} assets pass.`);
+} catch (error) {
+  console.error(error);
+  for (const id of containers) console.error(docker('logs', id));
+  process.exitCode = 1;
+} finally {
+  for (const id of containers) docker('rm', '-f', id);
+}

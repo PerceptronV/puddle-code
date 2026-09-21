@@ -11,10 +11,11 @@ RUN groupadd --gid 10001 puddle && useradd --uid 10001 --gid puddle --no-create-
 WORKDIR /app
 COPY --from=build /build/node_modules ./node_modules
 COPY --from=build /build/packages/remote/node_modules ./packages/remote/node_modules
-COPY --from=build /build/packages/remote/package.json ./packages/remote/package.json
+# Git checkouts may use umask 077; the runtime user must still read package metadata.
+COPY --from=build --chmod=644 /build/packages/remote/package.json ./packages/remote/package.json
 COPY --from=build /build/packages/remote/dist ./packages/remote/dist
 COPY --from=build /build/packages/shared/node_modules ./packages/shared/node_modules
-COPY --from=build /build/packages/shared/package.json ./packages/shared/package.json
+COPY --from=build --chmod=644 /build/packages/shared/package.json ./packages/shared/package.json
 COPY --from=build /build/packages/shared/dist ./packages/shared/dist
 USER 10001:10001
 WORKDIR /app/packages/remote

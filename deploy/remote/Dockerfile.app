@@ -11,5 +11,8 @@ RUN node deploy/remote/externalise-theme.mjs packages/web/dist
 
 FROM caddy:2-alpine
 COPY --from=build /build/packages/web/dist /srv
-COPY deploy/remote/Caddyfile.app /etc/caddy/Caddyfile
+COPY --chmod=644 deploy/remote/Caddyfile.app /etc/caddy/Caddyfile
+# Public assets can retain private checkout permissions when Vite copies them.
+# Port 8080 needs no privileged-port capability; it conflicts with cap_drop: ALL.
+RUN chmod -R a+rX /srv && setcap -r /usr/bin/caddy
 EXPOSE 8080

@@ -12,3 +12,5 @@ Past releases: see docs/changelogs/.
 ### Fixed
 
 - Fix self-hosted application builds with filtered dependencies by separating the production Vite configuration from the development cockpit gateway.
+- Fix remote container builds and static file serving from checkouts with private file permissions.
+- Remove Caddy's unused privileged-port capability so the application container starts with all capabilities dropped.
