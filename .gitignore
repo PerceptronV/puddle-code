@@ -15,3 +15,5 @@ release/
 /deploy/remote/.env
 **/test-results/
 **/playwright-report/
+
+.env
