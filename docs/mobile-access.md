@@ -19,15 +19,13 @@ cp deploy/remote/.env.example deploy/remote/.env
 openssl rand -hex 32
 ```
 
-Edit `.env`: set the origins, hostnames, certificate email, a fresh random
-`BETTER_AUTH_SECRET`, OAuth credentials and `PUDDLE_SIGNUP_EMAILS`.
-Keep this file private (`chmod 600 deploy/remote/.env`). The default email
-allowlist is closed; `PUDDLE_OPEN_SIGNUP=true` explicitly opens registration.
+Edit `.env`: set the origins, hostnames, a fresh random `BETTER_AUTH_SECRET` and
+OAuth credentials. Keep this file private (`chmod 600 deploy/remote/.env`).
 Configure Google, GitHub or both; startup rejects missing or incomplete provider
-credentials. Puddle sends no email and has no password login or email recovery.
-The allowlist checks the verified email supplied by the provider, not an address
-entered into Puddle. Register these
-provider callback URLs, respectively:
+credentials. Anyone with a provider-verified email can create an account. Host
+access still requires explicit browser approval at the host. Puddle sends no email
+and has no password login or email recovery. Caddy manages HTTPS without an email
+contact setting. Register these provider callback URLs, respectively:
 
 - `https://relay.example.com/api/auth/callback/google`
 - `https://relay.example.com/api/auth/callback/github`
@@ -65,18 +63,20 @@ matching email addresses do not automatically link different provider identities
 ### Configure Google or GitHub
 
 For Google, create an OAuth client of type **Web application** in your Google
-Cloud project's Google Auth Platform. Configure the consent screen/audience for
-the people who will use this deployment and register the exact Google callback
-URL above. Put the client ID in `GOOGLE_CLIENT_ID` and client secret in
-`GOOGLE_CLIENT_SECRET`. A Google Workspace address works as the login identity;
+Cloud project's Google Auth Platform. Configure the consent screen with an
+**External** audience so people outside your Workspace organisation can sign up,
+and register the exact Google callback URL above. Put the client ID in
+`GOOGLE_CLIENT_ID` and client secret in `GOOGLE_CLIENT_SECRET`.
+A Google Workspace address works as the login identity;
 no Gmail API, app password or mail configuration is needed. See
-[Google's web application setup](https://developers.google.com/identity/protocols/oauth2/web-server#creatingcred).
+[Google's web application setup](https://developers.google.com/identity/protocols/oauth2/web-server#creatingcred)
+and [audience settings](https://support.google.com/cloud/answer/15549945).
 
 For GitHub, register an OAuth App in **Settings → Developer settings → OAuth
 Apps**. Set the homepage to your application origin and the authorisation callback
 to the GitHub URL above. Set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` from that
-app. Use the verified email returned by GitHub (the primary email when the public
-profile email is private) in `PUDDLE_SIGNUP_EMAILS`. See
+app. GitHub must report a verified email address; its primary email is used when
+the public profile email is private. See
 [GitHub's OAuth app setup](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app).
 
 Leave both credential values empty for a provider you do not use. Credentials

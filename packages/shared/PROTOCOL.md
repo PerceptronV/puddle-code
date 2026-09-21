@@ -58,6 +58,10 @@ bump in `CHANGELOG.md`.
   `nohup` children. This changes bootstrap and transport lifecycle only; REST
   and WebSocket schemas, authentication, token flow, and the protocol
   handshake are unchanged. No protocol bump.
+- **Public remote signup (2026-09-21)**: remove the deployment email allowlist
+  and fix registration policy to the already supported open-signup behaviour.
+  OAuth verification, cookies, host authority and all wire shapes are unchanged;
+  remote protocol remains 2 and daemon/cockpit protocol remains 19.0.
 
 ## Remote transport
 

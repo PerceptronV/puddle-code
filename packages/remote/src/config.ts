@@ -8,8 +8,6 @@ export interface RemoteConfig {
   address: string;
   port: number;
   secret: string;
-  signupEmails: string[];
-  openSignup: boolean;
   google?: { clientId: string; clientSecret: string };
   github?: { clientId: string; clientSecret: string };
 }
@@ -42,11 +40,6 @@ export function readConfig(env: NodeJS.ProcessEnv): RemoteConfig {
     port,
     home: env.PUDDLE_REMOTE_HOME ?? '/var/lib/puddle-remote',
     address: env.HOST ?? '127.0.0.1',
-    signupEmails: (env.PUDDLE_SIGNUP_EMAILS ?? '')
-      .split(',')
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean),
-    openSignup: env.PUDDLE_OPEN_SIGNUP === 'true',
     google,
     github,
   };

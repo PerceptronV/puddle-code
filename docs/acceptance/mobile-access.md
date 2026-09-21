@@ -40,7 +40,8 @@ review, production OAuth-provider acceptance or physical-phone acceptance.
   app/relay HTTPS origins. Confirm only ingress ports are published; the daemon
   remains unreachable directly. Check CSP, framing, MIME and cache headers.
 - Complete Google and GitHub login against operator-owned applications; verify
-  provider-verified email admission, optional TOTP and a recovery code. Confirm
+  public signup for unrelated verified provider identities, rejection of unverified
+  email claims, optional TOTP and a recovery code. Confirm
   email/password/recovery endpoints return 404 and provider account linking is
   unavailable. With MFA enabled, a fresh social session must not list/register
   hosts, attach pipes or disable MFA until verification completes.

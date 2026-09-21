@@ -15,7 +15,7 @@ export function AccountAccess({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(() =>
     new URLSearchParams(location.search).has('error')
-      ? 'Sign-in failed. Use your original provider and an allowed, verified email address.'
+      ? 'Sign-in failed. Use your original provider with a verified email address.'
       : '',
   );
   const action = async (fn: () => Promise<void>) => {

@@ -1,5 +1,4 @@
 import { betterAuth, type BetterAuthOptions } from 'better-auth';
-import { APIError } from 'better-auth/api';
 import { twoFactor } from 'better-auth/plugins';
 import { getMigrations } from 'better-auth/db/migration';
 import type { RemoteConfig } from './config.js';
@@ -62,19 +61,6 @@ export async function createServiceAuth(
       ipAddress: { ipAddressHeaders: ['x-puddle-peer-ip'] },
     },
     rateLimit: { enabled: true, storage: 'database' as const, window: 60, max: 30 },
-    databaseHooks: {
-      user: {
-        create: {
-          before: async (user: { email: string }) => {
-            if (!config.openSignup && !config.signupEmails.includes(user.email.toLowerCase()))
-              throw new APIError('FORBIDDEN', {
-                code: 'registration_not_enabled',
-                message: 'Registration is not enabled for this email',
-              });
-          },
-        },
-      },
-    },
     plugins: [twoFactor({ allowPasswordless: true })],
     logger: { disabled: true },
   } satisfies BetterAuthOptions;

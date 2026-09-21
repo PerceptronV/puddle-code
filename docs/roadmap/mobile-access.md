@@ -17,8 +17,8 @@ router forwarding, hosted identity server or default hosted service is required.
 The relay embeds Better Auth for Google/GitHub OAuth only and optional
 passwordless authenticator MFA with recovery codes. At least one provider must
 be configured. Every sign-in requires the provider's verified-email claim;
-registration is closed to an email allowlist unless the operator explicitly
-opens signup. There is no password login, email delivery or email recovery.
+registration is open to everyone through the configured providers. There is no
+password login, email delivery or email recovery.
 Service cookies are Secure, HttpOnly, host-only, SameSite=Lax; exact Origin checks
 protect browser upgrades and mutations. MFA is also required after social sign-in
 before a session can register hosts or open pipes. Authentication endpoints have

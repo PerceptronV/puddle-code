@@ -1,6 +1,5 @@
 {
   admin off
-  email {$TLS_EMAIL}
 }
 {$APP_HOST} {
   header Strict-Transport-Security "max-age=31536000"

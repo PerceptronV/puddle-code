@@ -63,8 +63,6 @@ export async function mobileFixture() {
     address: '127.0.0.1',
     secret: 'isolated-mobile-test-secret-long-enough-for-auth',
     github: { clientId: 'fixture-client', clientSecret: 'fixture-secret' },
-    signupEmails: ['owner@example.test'],
-    openSignup: false,
   });
   const address = remote.server.address();
   if (!address || typeof address === 'string') throw new Error('Missing service port');

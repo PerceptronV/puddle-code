@@ -33,7 +33,6 @@ services:
     environment:
       APP_HOST: ${APP_HOST}
       RELAY_HOST: ${RELAY_HOST}
-      TLS_EMAIL: ${TLS_EMAIL}
     ports: ['80:80', '443:443']
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro

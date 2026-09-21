@@ -10,7 +10,7 @@ import { base32 } from '@better-auth/utils/base32';
 import { githubFixture, cookies } from './helpers/oauth.js';
 
 describe('service login is separate from host authority', () => {
-  it('requires verified provider email and Secure host-only cookies; optional MFA gates social sessions', async () => {
+  it('admits new verified provider identities publicly; Secure cookies and optional MFA protect sessions', async () => {
     const home = mkdtempSync(join(tmpdir(), 'puddle-auth-'));
     const config: RemoteConfig = {
       home,
@@ -21,8 +21,6 @@ describe('service login is separate from host authority', () => {
       google: { clientId: 'fixture-google-client', clientSecret: 'fixture-google-secret' },
       address: '127.0.0.1',
       port: 0,
-      signupEmails: ['owner@example.test'],
-      openSignup: false,
     };
     const store = new ServiceStore(home);
     const github = githubFixture();
@@ -75,15 +73,17 @@ describe('service login is separate from host authority', () => {
       );
       expect(await auth.authorised(new Headers({ cookie: cookies(rejectedState) }))).toBeNull();
       expect(store.db.prepare('SELECT * FROM user').all()).toEqual([]);
-      const denied = await github.login(auth, config, { email: 'stranger@example.test' });
-      expect(denied.headers.get('location')).toContain('error=');
-      expect(await auth.authorised(new Headers({ cookie: cookies(denied) }))).toBeNull();
       const unverified = await github.login(auth, config, {
         email: 'owner@example.test',
         verified: false,
       });
       expect(unverified.headers.get('location')).toContain('error=email_not_verified');
       expect(store.db.prepare('SELECT * FROM user').all()).toEqual([]);
+      const newcomer = await github.login(auth, config, { email: 'newcomer@another.test' });
+      expect(newcomer.status).toBe(302);
+      const newcomerSession = await auth.authorised(new Headers({ cookie: cookies(newcomer) }));
+      expect(newcomerSession?.user.email).toBe('newcomer@another.test');
+      expect(store.list(newcomerSession!.user.id)).toEqual([]);
       const login = await github.login(auth, config, { email: 'owner@example.test' });
       expect(login.status).toBe(302);
       const issuedCookies = login.headers.getSetCookie();
@@ -99,6 +99,7 @@ describe('service login is separate from host authority', () => {
       let headers = new Headers({ cookie });
       const session = await auth.authorised(headers);
       expect(session?.user.email).toBe('owner@example.test');
+      expect(session?.user.id).not.toBe(newcomerSession!.user.id);
       expect(store.list(session!.user.id)).toEqual([]);
       // Neither a changed provider claim nor another identity with a matching
       // email can recover this account by bypassing the original provider binding.

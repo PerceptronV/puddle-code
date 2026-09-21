@@ -19,8 +19,6 @@ it('enforces HTTP origins, account routing and live service-session revocation o
     github: { clientId: 'fixture-client', clientSecret: 'fixture-secret' },
     address: '127.0.0.1',
     port: 0,
-    signupEmails: [],
-    openSignup: true,
   };
   const github = githubFixture();
   const remote = await startRemoteService(config);
@@ -91,9 +89,10 @@ it('enforces HTTP origins, account routing and live service-session revocation o
         .status,
     ).toBe(403);
     const cookie = await login('owner@example.test');
-    const other = await login('other@example.test');
+    const other = await login('other@another.test');
     const registered = await req('/remote/hosts', { label: 'Host' }, cookie);
     const { code, host } = (await registered.json()) as { code: string; host: string };
+    expect(await (await req('/remote/hosts', undefined, other)).json()).toEqual([]);
     const redeemed = await req('/remote/register', { code }, undefined, null);
     const { credential } = (await redeemed.json()) as { credential: string };
     expect((await req('/remote/register', { code }, undefined, null)).status).toBe(403);

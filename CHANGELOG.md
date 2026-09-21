@@ -18,8 +18,13 @@ Past releases: see docs/changelogs/.
 
 - Add lightweight built-process and loopback OpenSSH authentication suites, with separate manual browser and desktop acceptance.
 
+### Changed
+
+- Open remote account registration to every verified Google/GitHub identity; remove the signup allowlist and registration switch while retaining account isolation and explicit host approval.
+
 ### Removed
 
+- Remove the TLS contact email setting from the Caddy deployment and environment example.
 - Remove email/password login, verification/reset email delivery, SMTP configuration and Nodemailer; require Google and/or GitHub OAuth, retain verified-email admission and optional authenticator MFA, and retire legacy passwords/sessions. Bump remote protocol to 2 and daemon/cockpit protocol to 19.0 for the changed pairing contract.
 
 ### Fixed

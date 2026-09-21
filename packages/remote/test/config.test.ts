@@ -25,7 +25,5 @@ it('requires a complete Google or GitHub configuration without mail settings', (
       clientId: 'id',
       clientSecret: 'secret',
     });
-    expect(config.openSignup).toBe(false);
-    expect(config.signupEmails).toEqual([]);
   }
 });
