@@ -15,8 +15,8 @@ export class ApiError extends Error {
 }
 
 /**
- * Authenticated JSON request against the daemon. 401 clears the stored token,
- * which sends the shell back to the token gate.
+ * Authenticated JSON request through the cockpit. Only browser rejection
+ * clears login; upstream recovery has an independent lifetime.
  */
 export async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
   const token = tokenStore.get();
@@ -28,14 +28,11 @@ export async function api<T>(method: string, path: string, body?: unknown): Prom
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  if (res.status === 401) {
-    clearToken();
-    throw new ApiError(401, 'unauthorised', 'invalid or expired token');
-  }
   if (res.status === 204) return undefined as T;
   if (!res.ok) {
     const parsed = errorResponseSchema.safeParse(await res.json().catch(() => null));
     if (parsed.success) {
+      if (parsed.data.error.code === 'browser_rejected') clearToken();
       throw new ApiError(
         res.status,
         parsed.data.error.code,
@@ -70,13 +67,10 @@ export async function apiFetchRaw(
     method,
     headers: { ...authHeaders(), ...init?.headers },
   });
-  if (res.status === 401) {
-    clearToken();
-    throw new ApiError(401, 'unauthorised', 'invalid or expired token');
-  }
   if (!res.ok) {
     const parsed = errorResponseSchema.safeParse(await res.json().catch(() => null));
     if (parsed.success) {
+      if (parsed.data.error.code === 'browser_rejected') clearToken();
       throw new ApiError(
         res.status,
         parsed.data.error.code,

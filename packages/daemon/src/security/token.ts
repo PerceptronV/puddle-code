@@ -1,20 +1,23 @@
-import { randomBytes } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { z } from 'zod';
+import { atomicPrivateJson, readPrivateJson, secret } from '@puddle/shared/node';
 import type { PuddlePaths } from '../paths.js';
 
-/**
- * The browser-facing bearer token (SPEC §2 "Local security"). Generated once
- * at first start; the CLI reads this file (locally or over SSH) and hands it
- * to the browser as a URL fragment.
- */
+const authorityFile = z.object({
+  migration: z.literal(18),
+  master: z.string().regex(/^[a-f0-9]{64}$/),
+});
+
+/** The old distributed bearer is replaced atomically with the migration marker.
+ * This host-only recovery credential is never accepted by the HTTP/WS surface. */
 export function ensureToken(paths: PuddlePaths): string {
   try {
-    const existing = readFileSync(paths.tokenFile, 'utf8').trim();
-    if (existing) return existing;
-  } catch {
-    // absent → generate below
+    const parsed = authorityFile.safeParse(readPrivateJson(paths.tokenFile));
+    if (parsed.success) return parsed.data.master;
+  } catch (err) {
+    if (!(err instanceof SyntaxError) && (err as NodeJS.ErrnoException).code !== 'ENOENT')
+      throw err;
   }
-  const token = randomBytes(32).toString('hex');
-  writeFileSync(paths.tokenFile, token + '\n', { mode: 0o600 });
-  return token;
+  const master = secret();
+  atomicPrivateJson(paths.tokenFile, { migration: 18, master });
+  return master;
 }

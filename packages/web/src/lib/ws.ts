@@ -1,6 +1,6 @@
 import { toast } from 'sonner';
 import type { SessionStatus, WsClientMessage, WsServerMessage } from '@puddle/shared';
-import { tokenStore } from './auth';
+import { clearToken, tokenStore } from './auth';
 
 /**
  * Singleton WebSocket manager. One socket carries every terminal and the
@@ -86,7 +86,10 @@ export class WsManager {
   private readonly switchListeners = new Set<(e: SessionSwitchEvent) => void>();
   private readonly sessionsChangedListeners = new Set<(e: SessionsChangedEvent) => void>();
   private readonly connectionListeners = new Set<ConnectionListener>();
-  private readonly shellWaiters = new Map<string, Array<(term: string) => void>>();
+  private readonly shellWaiters = new Map<
+    string,
+    Array<{ resolve(term: string): void; reject(error: Error): void }>
+  >();
 
   /** Registers a terminal and attaches it (now, or on the next connect). */
   attach(
@@ -124,9 +127,10 @@ export class WsManager {
 
   spawnShell(session: string): Promise<string> {
     this.ensureConnected();
-    return new Promise((resolve) => {
+    if (!this.open) return Promise.reject(new Error('Connection is unavailable'));
+    return new Promise((resolve, reject) => {
       const waiters = this.shellWaiters.get(session) ?? [];
-      waiters.push(resolve);
+      waiters.push({ resolve, reject });
       this.shellWaiters.set(session, waiters);
       if (this.open) this.send({ t: 'spawn-shell', session });
     });
@@ -204,28 +208,45 @@ export class WsManager {
     this.ws = ws;
 
     ws.addEventListener('open', () => {
-      this.open = true;
-      this.backoff = INITIAL_BACKOFF_MS;
-      this.send({ t: 'auth', token });
-      this.send({ t: 'subscribe-status' });
-      // Before the attaches: an agent spawned right after this connect should
-      // find the theme already reported.
-      if (this.theme) this.send({ t: 'theme', fg: this.theme.fg, bg: this.theme.bg });
-      for (const { session, term, cols, rows } of this.terminals.values()) {
-        this.send({ t: 'attach', session, term, cols, rows });
+      if (this.ws !== ws) {
+        ws.close();
+        return;
       }
-      for (const listener of this.connectionListeners) listener(true);
+      ws.send(JSON.stringify({ t: 'auth', token }));
     });
-
     ws.addEventListener('message', (evt) => {
-      this.handle(JSON.parse(String(evt.data)) as WsServerMessage);
+      if (this.ws !== ws) return;
+      let message: WsServerMessage;
+      try {
+        message = JSON.parse(String(evt.data)) as WsServerMessage;
+      } catch {
+        return;
+      }
+      if (message.t === 'authenticated') {
+        if (this.open) return;
+        this.open = true;
+        this.backoff = INITIAL_BACKOFF_MS;
+        this.send({ t: 'subscribe-status' });
+        if (this.theme) this.send({ t: 'theme', ...this.theme });
+        for (const { session, term, cols, rows } of this.terminals.values())
+          this.send({ t: 'attach', session, term, cols, rows });
+        for (const listener of this.connectionListeners) listener(true);
+      } else if (this.open) this.handle(message);
     });
-
-    ws.addEventListener('close', () => {
+    ws.addEventListener('close', (event) => {
+      if (this.ws !== ws) return;
       const wasOpen = this.open;
       this.open = false;
       this.ws = null;
+      for (const waiters of this.shellWaiters.values())
+        for (const waiter of waiters)
+          waiter.reject(new Error('Connection lost; operation outcome is unknown'));
+      this.shellWaiters.clear();
       if (wasOpen) for (const listener of this.connectionListeners) listener(false);
+      if (event.code === 4401 && event.reason === 'browser_rejected') {
+        clearToken();
+        return;
+      }
       this.scheduleReconnect();
     });
   }
@@ -250,7 +271,7 @@ export class WsManager {
   }
 
   private send(msg: WsClientMessage): void {
-    this.ws?.send(JSON.stringify(msg));
+    if (this.open && this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg));
   }
 
   private handle(msg: WsServerMessage): void {
@@ -299,7 +320,7 @@ export class WsManager {
       case 'shell-spawned': {
         const waiters = this.shellWaiters.get(msg.session);
         const next = waiters?.shift();
-        if (next) next(msg.term);
+        if (next) next.resolve(msg.term);
         break;
       }
       // Failures are never swallowed: the daemon raises these precisely

@@ -1,3 +1,4 @@
+import { Duplex } from 'node:stream';
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { clientHome } from '../paths.js';
@@ -57,7 +58,7 @@ export class SshTransport implements Transport {
       this.controlArgs = [];
     } else {
       const home = clientHome();
-      mkdirSync(home, { recursive: true });
+      mkdirSync(home, { recursive: true, mode: 0o700 });
       this.controlArgs = [
         '-o',
         'ControlMaster=auto',
@@ -193,6 +194,7 @@ export class SshTransport implements Transport {
         if (timer) clearTimeout(timer);
         resolve({ code: code ?? -1, stdout, stderr });
       });
+      child.stdin.on('error', () => {}); // EPIPE is reported by the command's exit status.
       if (opts.stdin !== undefined) child.stdin.end(opts.stdin);
       else child.stdin.end();
     });
@@ -242,6 +244,23 @@ export class SshTransport implements Transport {
         else reject(new CliError('ssh_unreachable', `scp to ${this.host} failed (exit ${code})`));
       });
     });
+  }
+
+  openChannel(command: string): Duplex {
+    const child = spawn(
+      this.ssh,
+      this.args('-T', this.host, '--', `sh -c ${shellQuote(command)}`),
+      {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: this.spawnEnv(),
+      },
+    );
+    const stream = Duplex.from({ readable: child.stdout, writable: child.stdin });
+    child.stderr.resume(); // diagnostics must not enter the credential protocol
+    child.once('error', () => stream.destroy(new Error('SSH control channel failed')));
+    child.once('close', () => stream.destroy());
+    stream.once('close', () => child.kill('SIGTERM'));
+    return stream;
   }
 
   dispose(): void {

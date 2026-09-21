@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { startDaemon, type RunningDaemon } from '../../daemon/src/daemon.js';
+import { startDaemon, type RunningDaemon } from '../../daemon/test/helpers/authorised-daemon.js';
 import { connectRemote } from '../src/lib/connect.js';
 import { findFreePort } from '../src/lib/net.js';
 import type { RunningCockpit } from '../src/lib/cockpit.js';
@@ -63,6 +63,7 @@ describe('puddle launch against a fake ssh + real daemon (SSH mode)', () => {
   let daemon: RunningDaemon;
   let cockpit: RunningCockpit;
   let daemonPort: number;
+  let credential: string;
 
   beforeAll(async () => {
     chmodSync(FAKE_SSH, 0o755);
@@ -74,10 +75,12 @@ describe('puddle launch against a fake ssh + real daemon (SSH mode)', () => {
     // A "remote" daemon: pre-installed under the fake host home, on a fixed
     // port recorded in its config.json — exactly what connect discovers.
     daemonPort = await findFreePort();
-    mkdirSync(hostPuddle, { recursive: true });
+    mkdirSync(hostPuddle, { recursive: true, mode: 0o700 });
     writeFileSync(join(hostPuddle, 'config.json'), JSON.stringify({ port: daemonPort }) + '\n');
     daemon = await startDaemon({ home: hostPuddle, adapters: [], version: 'remote-test' });
     mkdirSync(join(hostPuddle, 'bin', 'versions', '9.9.9'), { recursive: true });
+    mkdirSync(join(hostPuddle, 'bin', 'versions', '9.9.9', 'bin'));
+    symlinkSync(process.execPath, join(hostPuddle, 'bin', 'versions', '9.9.9', 'bin', 'node'));
     symlinkSync('versions/9.9.9', join(hostPuddle, 'bin', 'current'));
 
     cockpit = await connectRemote({
@@ -86,6 +89,15 @@ describe('puddle launch against a fake ssh + real daemon (SSH mode)', () => {
       sshBinary: FAKE_SSH,
       platform: 'darwin',
     });
+    const invite = new URLSearchParams(new URL(cockpit.createInvitation()).hash.slice(1)).get(
+      'invite',
+    );
+    const response = await fetch(cockpit.origin + '/cockpit/bootstrap', {
+      method: 'POST',
+      headers: { origin: cockpit.origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ invitation: invite }),
+    });
+    credential = ((await response.json()) as { credential: string }).credential;
   }, 30_000);
 
   afterAll(async () => {
@@ -103,16 +115,18 @@ describe('puddle launch against a fake ssh + real daemon (SSH mode)', () => {
     expect(daemonPort).toBe(daemon.port); // config.json really drove the bind
     expect(await (await viaCockpit('/')).text()).toContain('puddle');
     const version = await viaCockpit('/api/version', {
-      authorization: `Bearer ${daemon.token}`,
+      authorization: `Bearer ${credential}`,
     });
     expect(version.status).toBe(200);
     expect(((await version.json()) as { version: string }).version).toBe('remote-test');
   });
 
-  it('builds the browser URL with ?host= and the token fragment', () => {
-    expect(cockpit.browserUrl).toBe(
-      `${cockpit.origin}/?host=${encodeURIComponent('alice@devbox')}#token=${daemon.token}`,
-    );
+  it('creates fresh, independent browser invitations', () => {
+    const one = cockpit.createInvitation();
+    const two = cockpit.createInvitation();
+    expect(one).not.toBe(two);
+    expect(one).toContain(`#invite=iv_`);
+    expect(one).not.toContain(daemon.token);
   });
 
   it('reconnects the tunnel after it drops, on the same local port', async () => {
@@ -122,8 +136,13 @@ describe('puddle launch against a fake ssh + real daemon (SSH mode)', () => {
     await waitUntil(() => events.includes('tunnel-down'), 5000);
     rmSync(killFile); // let the respawn survive
     await waitUntil(() => events.includes('tunnel-up'), 15_000);
+    for (let n = 0; n < 100; n++) {
+      const status = await viaCockpit('/cockpit/status', { authorization: `Bearer ${credential}` });
+      if (((await status.json()) as { upstream: string }).upstream === 'ready') break;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
     const version = await viaCockpit('/api/version', {
-      authorization: `Bearer ${daemon.token}`,
+      authorization: `Bearer ${credential}`,
     });
     expect(version.status).toBe(200);
   }, 25_000);

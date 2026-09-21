@@ -1,3 +1,5 @@
+import { LeaseRegistry } from '../src/security/leases.js';
+import { bearerAuth } from '../src/security/middleware.js';
 import { createServer, request as httpRequest, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { serve, type ServerType } from '@hono/node-server';
@@ -6,10 +8,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import type { Session } from '@puddle/shared';
 import { ApiError } from '../src/http/errors.js';
 import { hostOriginGuard } from '../src/security/middleware.js';
-import { proxyAuth, stripTokenParam } from '../src/proxy/auth.js';
+import { stripTokenParam } from '../src/proxy/auth.js';
 import { proxyRoutes } from '../src/proxy/http.js';
 
-const TOKEN = 't'.repeat(64);
+const authority = new LeaseRegistry();
+const TOKEN = authority.create().token;
 const SID = 'session-abcdef';
 
 /**
@@ -110,7 +113,7 @@ describe('tier-2 proxy: auth + HTTP forwarding', () => {
       return c.json({ error: { code: 'internal', message: 'internal error' } }, 500);
     });
     app.use('/proxy/*', hostOriginGuard());
-    app.use('/proxy/*', proxyAuth(TOKEN));
+    app.use('/proxy/*', bearerAuth(authority));
     app.route('/proxy', proxyRoutes({ sessions: stubSessions, scanner: { hasPort } }));
 
     await new Promise<void>((resolve) => {
@@ -138,7 +141,7 @@ describe('tier-2 proxy: auth + HTTP forwarding', () => {
     it('rejects a request with no credential (401)', async () => {
       const res = await raw(proxyPort, 'GET', `/proxy/${SID}/${upstreamPort}/`);
       expect(res.status).toBe(401);
-      expect(JSON.parse(res.body).error.code).toBe('unauthorised');
+      expect(JSON.parse(res.body).error.code).toBe('upstream_expired');
     });
 
     it('accepts a bearer token (200, forwarded)', async () => {
@@ -154,26 +157,13 @@ describe('tier-2 proxy: auth + HTTP forwarding', () => {
       expect(res.status).toBe(401);
     });
 
-    it('accepts the puddle_proxy cookie (200)', async () => {
-      const res = await raw(proxyPort, 'GET', `/proxy/${SID}/${upstreamPort}/`, {
-        cookie: `puddle_proxy=${TOKEN}`,
-      });
-      expect(res.status).toBe(200);
-    });
-
-    it('bootstraps ?puddle_token= on GET: 302 + Set-Cookie + stripped Location', async () => {
-      const res = await raw(
-        proxyPort,
-        'GET',
-        `/proxy/${SID}/${upstreamPort}/dash?puddle_token=${TOKEN}&x=1`,
-      );
-      expect(res.status).toBe(302);
-      const location = res.headers.location as string;
-      expect(location).toBe(`/proxy/${SID}/${upstreamPort}/dash?x=1`);
-      expect(location).not.toContain('puddle_token');
-      const setCookie = res.headers['set-cookie'] as string[];
-      expect(setCookie).toHaveLength(1);
-      expect(setCookie[0]).toBe(`puddle_proxy=${TOKEN}; Path=/proxy; HttpOnly; SameSite=Lax`);
+    it('rejects legacy cookie and query credentials', async () => {
+      for (const [path, headers] of [
+        [`/proxy/${SID}/${upstreamPort}/`, { cookie: `puddle_proxy=${TOKEN}` }],
+        [`/proxy/${SID}/${upstreamPort}/?puddle_token=${TOKEN}`, {}],
+      ] as const) {
+        expect((await raw(proxyPort, 'GET', path, headers)).status).toBe(401);
+      }
     });
   });
 
@@ -222,7 +212,7 @@ describe('tier-2 proxy: auth + HTTP forwarding', () => {
         proxyPort,
         'GET',
         `/proxy/${SID}/${upstreamPort}/a?x=%20y&puddle_token=${TOKEN}&b=2`,
-        { cookie: `puddle_proxy=${TOKEN}` },
+        { ...bearer, cookie: `puddle_proxy=${TOKEN}` },
       );
       expect(res.status).toBe(200);
       // Only the token pair is gone; the other pairs are byte-intact (no re-encode).
@@ -234,7 +224,7 @@ describe('tier-2 proxy: auth + HTTP forwarding', () => {
         proxyPort,
         'POST',
         `/proxy/${SID}/${upstreamPort}/p?puddle_token=${TOKEN}`,
-        { 'content-type': 'text/plain' },
+        { ...bearer, 'content-type': 'text/plain' },
         'x',
       );
       expect(res.status).toBe(200);
@@ -247,6 +237,7 @@ describe('tier-2 proxy: auth + HTTP forwarding', () => {
         'GET',
         `/proxy/${SID}/${upstreamPort}?puddle_token=${TOKEN}&x=1`,
         {
+          ...bearer,
           cookie: `puddle_proxy=${TOKEN}`,
         },
       );
@@ -287,7 +278,7 @@ describe('tier-2 proxy: auth + HTTP forwarding', () => {
         proxyPort,
         'GET',
         `/proxy/${SID}/${upstreamPort}/a?puddle%5Ftoken=${TOKEN}&a=1`,
-        { cookie: `puddle_proxy=${TOKEN}` },
+        { ...bearer, cookie: `puddle_proxy=${TOKEN}` },
       );
       expect(res.status).toBe(200);
       expect(res.headers['x-seen-url']).toBe('/a?a=1');

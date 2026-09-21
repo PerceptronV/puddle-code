@@ -1,3 +1,4 @@
+import { ForwardLanding } from './features/ports/ForwardLanding';
 import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Suspense, lazy, useSyncExternalStore } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router';
@@ -77,7 +78,17 @@ export function App() {
         {/* The outer net: whatever the routed view's own boundary does not catch
             — the shell, the providers, the token gate — still says something
             rather than emptying the window (components/error-boundary). */}
-        <ErrorBoundary scope="app">{token ? <Gated /> : <TokenGate />}</ErrorBoundary>
+        <ErrorBoundary scope="app">
+          {token ? (
+            window.location.pathname.startsWith('/forward/') ? (
+              <ForwardLanding />
+            ) : (
+              <Gated />
+            )
+          ) : (
+            <TokenGate />
+          )}
+        </ErrorBoundary>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

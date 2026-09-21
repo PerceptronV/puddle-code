@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
-import { startDaemon, type RunningDaemon } from '../../daemon/src/daemon.js';
+import { startDaemon, type RunningDaemon } from '../../daemon/test/helpers/authorised-daemon.js';
 import { startUiServer, type UiServer } from '../src/lib/serve/ui-server.js';
 import { isLocalHostHeader, isLocalOrigin } from '../src/lib/serve/guard.js';
 
@@ -38,6 +38,7 @@ describe('UI server in front of a real daemon', () => {
   let daemon: RunningDaemon;
   let ui: UiServer;
   let refreshes = 0;
+  let credential: string;
 
   beforeAll(async () => {
     daemon = await startDaemon({
@@ -48,14 +49,25 @@ describe('UI server in front of a real daemon', () => {
     });
     ui = await startUiServer({
       assetsDir: withAssets(),
+      identity: 'local',
+      authHome: daemon.paths.home,
+      authority: daemon.connection,
       port: 0 + 17500, // fixed-ish start; auto-picks the next free
       target: { host: '127.0.0.1', port: daemon.port },
-      control: { token: 'control-token', onRefresh: () => (refreshes += 1) },
+      control: { onRefresh: () => (refreshes += 1) },
       localSync: {
-        token: 'control-token',
         file: join(mkdtempSync(join(tmpdir(), 'puddle-cli-sync-')), 'local-sync.json'),
       },
     });
+    const invitation = new URLSearchParams(new URL(ui.createInvitation()).hash.slice(1)).get(
+      'invite',
+    );
+    const response = await fetch(ui.origin + '/cockpit/bootstrap', {
+      method: 'POST',
+      headers: { origin: ui.origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ invitation }),
+    });
+    credential = ((await response.json()) as { credential: string }).credential;
   });
   afterAll(async () => {
     await ui.close();
@@ -63,7 +75,7 @@ describe('UI server in front of a real daemon', () => {
   });
 
   const get = (path: string, headers: Record<string, string> = {}) =>
-    fetch(`http://127.0.0.1:${ui.port}${path}`, {
+    fetch(`${ui.origin}${path}`, {
       headers: { host: `localhost:${ui.port}`, ...headers },
     });
 
@@ -82,10 +94,39 @@ describe('UI server in front of a real daemon', () => {
     expect(missing.headers.get('content-type')).not.toContain('text/html');
   });
 
+  it('preserves application paths and fragments through a target-scoped proxy grant', async () => {
+    const prefix = `/proxy/${crypto.randomUUID()}/3000/`;
+    const response = await fetch(ui.origin + '/cockpit/proxy-grant', {
+      method: 'POST',
+      headers: {
+        origin: ui.origin,
+        authorization: `Bearer ${credential}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        session: prefix.split('/')[2],
+        port: 3000,
+        path: '/app?query=yes#section',
+      }),
+    });
+    expect(response.status).toBe(200);
+    const target = new URL(((await response.json()) as { url: string }).url);
+    const invitation = new URLSearchParams(target.hash.slice(1)).get('invite');
+    const exchange = await fetch(target.origin + prefix + '_puddle/exchange', {
+      method: 'POST',
+      headers: { origin: target.origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ invitation }),
+    });
+    expect(exchange.status).toBe(200);
+    expect(await exchange.json()).toEqual({
+      url: target.origin + prefix + 'app?query=yes#section',
+    });
+  });
+
   it('recovers a proxied page’s stray absolute-path requests via 307', async () => {
-    const referer = `http://localhost:${ui.port}/proxy/sess-1/3000/`;
+    const referer = `http://127.0.0.1:${ui.port}/proxy/sess-1/3000/`;
     const strayAsset = await fetch(`http://127.0.0.1:${ui.port}/assets/main.js`, {
-      headers: { host: `localhost:${ui.port}`, referer },
+      headers: { origin: `http://127.0.0.1:${ui.port}`, referer },
       redirect: 'manual',
     });
     expect(strayAsset.status).toBe(307);
@@ -95,7 +136,7 @@ describe('UI server in front of a real daemon', () => {
     // to puddle's API — it is recovered too, query string intact.
     const strayApi = await fetch(`http://127.0.0.1:${ui.port}/api/items?page=2`, {
       method: 'POST',
-      headers: { host: `localhost:${ui.port}`, referer },
+      headers: { origin: `http://127.0.0.1:${ui.port}`, referer },
       redirect: 'manual',
     });
     expect(strayApi.status).toBe(307);
@@ -106,7 +147,7 @@ describe('UI server in front of a real daemon', () => {
     // The web UI's own API calls carry a non-proxy Referer: proxied verbatim.
     const own = await get('/api/version', {
       referer: `http://localhost:${ui.port}/project/42`,
-      authorization: `Bearer ${daemon.token}`,
+      authorization: `Bearer ${credential}`,
     });
     expect(own.status).toBe(200);
     // A request already under /proxy/ is never rewritten (no redirect loops).
@@ -126,7 +167,7 @@ describe('UI server in front of a real daemon', () => {
   });
 
   it('proxies /api verbatim: bearer passes through, daemon auth still applies', async () => {
-    const ok = await get('/api/version', { authorization: `Bearer ${daemon.token}` });
+    const ok = await get('/api/version', { authorization: `Bearer ${credential}` });
     expect(ok.status).toBe(200);
     const body = (await ok.json()) as { version: string };
     expect(body.version).toBe('cli-test');
@@ -142,7 +183,7 @@ describe('UI server in front of a real daemon', () => {
           host: '127.0.0.1',
           port: ui.port,
           path: '/api/version',
-          headers: { host: 'evil.example.com', authorization: `Bearer ${daemon.token}` },
+          headers: { host: 'evil.example.com', authorization: `Bearer ${credential}` },
         },
         (res) => {
           res.resume();
@@ -155,7 +196,7 @@ describe('UI server in front of a real daemon', () => {
     expect(badHostStatus).toBe(403);
     const badOrigin = await get('/api/version', {
       origin: 'https://evil.example.com',
-      authorization: `Bearer ${daemon.token}`,
+      authorization: `Bearer ${credential}`,
     });
     expect(badOrigin.status).toBe(403);
   });
@@ -164,43 +205,49 @@ describe('UI server in front of a real daemon', () => {
     const before = refreshes;
     // Wrong or missing token → 401, no callback.
     const post = (headers: Record<string, string> = {}) =>
-      fetch(`http://127.0.0.1:${ui.port}/cockpit/refresh`, {
+      fetch(`${ui.origin}/cockpit/refresh`, {
         method: 'POST',
-        headers: { host: `localhost:${ui.port}`, ...headers },
+        headers: {
+          host: `localhost:${ui.port}`,
+          origin: ui.origin,
+          'content-type': 'application/json',
+          ...headers,
+        },
+        body: JSON.stringify({ refreshId: crypto.randomUUID() }),
       });
     expect((await post()).status).toBe(401);
     expect((await post({ authorization: 'Bearer wrong' })).status).toBe(401);
     // Non-POST → 405; foreign Origin → 403 (same discipline as /api).
-    expect((await get('/cockpit/refresh', { authorization: 'Bearer control-token' })).status).toBe(
-      405,
+    expect((await get('/cockpit/refresh', { authorization: `Bearer ${credential}` })).status).toBe(
+      404,
     );
     expect(
       (
         await post({
-          authorization: 'Bearer control-token',
+          authorization: `Bearer ${credential}`,
           origin: 'https://evil.example.com',
         })
       ).status,
     ).toBe(403);
     expect(refreshes).toBe(before);
     // The real thing: 202 with the refreshing body, callback fired.
-    const accepted = await post({ authorization: 'Bearer control-token' });
+    const accepted = await post({ authorization: `Bearer ${credential}` });
     expect(accepted.status).toBe(202);
-    expect(await accepted.json()).toEqual({ status: 'refreshing' });
+    expect(await accepted.json()).toMatchObject({ status: 'refreshing', instance: ui.nonce });
     await new Promise((resolve) => setImmediate(resolve)); // the deferred callback
     expect(refreshes).toBe(before + 1);
   });
 
   it('GET/PUT /cockpit/local-sync: token-gated, merges per profile key, survives rereads', async () => {
     const call = (init: RequestInit & { headers?: Record<string, string> } = {}) =>
-      fetch(`http://127.0.0.1:${ui.port}/cockpit/local-sync`, {
+      fetch(`${ui.origin}/cockpit/local-sync`, {
         ...init,
-        headers: { host: `localhost:${ui.port}`, ...init.headers },
+        headers: { host: `localhost:${ui.port}`, origin: ui.origin, ...init.headers },
       });
     expect((await call()).status).toBe(401);
     expect((await call({ headers: { authorization: 'Bearer wrong' } })).status).toBe(401);
 
-    const auth = { authorization: 'Bearer control-token', 'content-type': 'application/json' };
+    const auth = { authorization: `Bearer ${credential}`, 'content-type': 'application/json' };
     // Empty store before any write.
     expect(await (await call({ headers: auth })).json()).toEqual({ version: 1, profiles: {} });
 
@@ -232,19 +279,17 @@ describe('UI server in front of a real daemon', () => {
 
   it('synthesises a daemon_unreachable 502 when the target is down', async () => {
     ui.setTarget({ host: '127.0.0.1', port: 1 }); // nothing listens there
-    const res = await get('/api/version', { authorization: `Bearer ${daemon.token}` });
+    const res = await get('/api/version', { authorization: `Bearer ${credential}` });
     expect(res.status).toBe(502);
     const body = (await res.json()) as { error: { code: string } };
-    expect(body.error.code).toBe('daemon_unreachable');
+    expect(body.error.code).toBe('upstream_unavailable');
     ui.setTarget({ host: '127.0.0.1', port: daemon.port });
-    expect((await get('/api/version', { authorization: `Bearer ${daemon.token}` })).status).toBe(
-      200,
-    );
+    expect((await get('/api/version', { authorization: `Bearer ${credential}` })).status).toBe(200);
   });
 
   it('splices the /ws upgrade through to the daemon gateway', async () => {
     const ws = new WebSocket(`ws://127.0.0.1:${ui.port}/ws`, {
-      headers: { host: `localhost:${ui.port}` },
+      headers: { host: `localhost:${ui.port}`, origin: ui.origin },
     });
     const messages: Array<{ t: string }> = [];
     ws.on('message', (data) => messages.push(JSON.parse(String(data)) as { t: string }));
@@ -254,7 +299,14 @@ describe('UI server in front of a real daemon', () => {
     });
     // Auth then attach to a nonexistent session: the daemon's error frame
     // proves both directions of the splice.
-    ws.send(JSON.stringify({ t: 'auth', token: daemon.token }));
+    ws.send(JSON.stringify({ t: 'auth', token: credential }));
+    await new Promise<void>((resolve) => {
+      const check = () => {
+        if (messages.some((m) => m.t === 'authenticated')) resolve();
+        else setTimeout(check, 10);
+      };
+      check();
+    });
     ws.send(JSON.stringify({ t: 'attach', session: 'nope', term: 'agent', cols: 80, rows: 24 }));
     await new Promise<void>((resolve) => {
       const timer = setInterval(() => {

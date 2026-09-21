@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 class FakeWebSocket {
+  static OPEN = 1;
+  readyState = 1;
   static instances: FakeWebSocket[] = [];
   sent: string[] = [];
   listeners = new Map<string, Array<(evt: unknown) => void>>();
@@ -52,7 +54,7 @@ beforeEach(() => {
   vi.stubGlobal('localStorage', storageStub());
   vi.stubGlobal('window', { location: { protocol: 'http:', host: '127.0.0.1:7433' } });
   vi.stubGlobal('WebSocket', FakeWebSocket);
-  localStorage.setItem('puddle.token', 'test-token');
+  localStorage.setItem('puddle.browser-authorisation', 'test-token');
 });
 
 afterEach(() => {
@@ -75,6 +77,9 @@ describe('WsManager', () => {
 
     const socket = FakeWebSocket.instances[0]!;
     socket.emit('open', {});
+    expect(ws.isConnected()).toBe(false);
+    expect(socket.messages).toHaveLength(1);
+    socket.emit('message', { data: JSON.stringify({ t: 'authenticated' }) });
     expect(socket.messages[0]).toEqual({ t: 'auth', token: 'test-token' });
     expect(socket.messages[1]).toEqual({ t: 'subscribe-status' });
     expect(socket.messages[2]).toEqual({
@@ -92,6 +97,9 @@ describe('WsManager', () => {
     ws.attach('session-1', 'agent', 80, 24, { onData: (d, kind) => received.push([kind, d]) });
     const socket = FakeWebSocket.instances[0]!;
     socket.emit('open', {});
+    expect(ws.isConnected()).toBe(false);
+    expect(socket.messages).toHaveLength(1);
+    socket.emit('message', { data: JSON.stringify({ t: 'authenticated' }) });
 
     const send = (msg: unknown) => socket.emit('message', { data: JSON.stringify(msg) });
     send({ t: 'replay', session: 'session-1', term: 'agent', data: 'old' });
@@ -109,6 +117,7 @@ describe('WsManager', () => {
     ws.attach('session-1', 'agent', 80, 24, { onData: () => undefined });
     const first = FakeWebSocket.instances[0]!;
     first.emit('open', {});
+    first.emit('message', { data: JSON.stringify({ t: 'authenticated' }) });
     ws.resize('session-1', 'agent', 132, 43);
 
     first.close();
@@ -117,6 +126,7 @@ describe('WsManager', () => {
     const second = FakeWebSocket.instances[1]!;
     expect(second).toBeDefined();
     second.emit('open', {});
+    second.emit('message', { data: JSON.stringify({ t: 'authenticated' }) });
     expect(second.messages[0]?.t).toBe('auth');
     expect(second.messages).toContainEqual({
       t: 'attach',
@@ -133,6 +143,9 @@ describe('WsManager', () => {
     ws.onStatus((e) => statuses.push(`${e.session}:${e.status}`));
     const socket = FakeWebSocket.instances[0]!;
     socket.emit('open', {});
+    expect(ws.isConnected()).toBe(false);
+    expect(socket.messages).toHaveLength(1);
+    socket.emit('message', { data: JSON.stringify({ t: 'authenticated' }) });
 
     const shell = ws.spawnShell('session-1');
     socket.emit('message', {
@@ -161,6 +174,9 @@ describe('WsManager', () => {
     ws.onSessionsChanged((event) => changed.push(event.project_ids));
     const socket = FakeWebSocket.instances[0]!;
     socket.emit('open', {});
+    expect(ws.isConnected()).toBe(false);
+    expect(socket.messages).toHaveLength(1);
+    socket.emit('message', { data: JSON.stringify({ t: 'authenticated' }) });
 
     socket.emit('message', {
       data: JSON.stringify({

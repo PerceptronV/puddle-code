@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { startDaemon, type RunningDaemon } from '../../daemon/src/daemon.js';
+import { startDaemon, type RunningDaemon } from '../../daemon/test/helpers/authorised-daemon.js';
 import { ensureDaemon } from '../src/lib/cockpit.js';
 import { findFreePort } from '../src/lib/net.js';
 import { startUiServer } from '../src/lib/serve/ui-server.js';
@@ -29,7 +29,7 @@ describe('ensureDaemon identity probe', () => {
     // shape of the port-collision incident (another cockpit or foreign
     // daemon answering on the expected port).
     const homeB = mkdtempSync(join(tmpdir(), 'puddle-cockpit-b-'));
-    mkdirSync(join(homeB, '.puddle'), { recursive: true });
+    mkdirSync(join(homeB, '.puddle'), { recursive: true, mode: 0o700 });
     writeFileSync(join(homeB, '.puddle', 'token'), 'b'.repeat(64) + '\n');
     writeFileSync(
       join(homeB, '.puddle', 'config.json'),
@@ -39,14 +39,16 @@ describe('ensureDaemon identity probe', () => {
 
     await expect(ensureDaemon(new LocalTransport(), {})).rejects.toMatchObject({
       code: 'port_in_use',
-      message: expect.stringContaining('rejects this host'),
+      message: expect.stringContaining('rejects its local'),
     });
   });
 
   it("accepts the daemon when the token matches (probe = 'ok')", async () => {
     process.env.PUDDLE_HOME = daemon.paths.home;
     const endpoint = await ensureDaemon(new LocalTransport(), {});
-    expect(endpoint).toMatchObject({ port: daemonPort, token: daemon.token, bootstrapped: false });
+    expect(endpoint).toMatchObject({ port: daemonPort, bootstrapped: false });
+    expect(endpoint.authority.credential()).toMatch(/^cn_/);
+    endpoint.authority.close();
   });
 });
 
@@ -57,6 +59,18 @@ describe('UI server avoids the daemon port', () => {
     const start = await findFreePort();
     const ui = await startUiServer({
       assetsDir: assets,
+      identity: 'local',
+      authHome: mkdtempSync(join(tmpdir(), 'puddle-avoid-auth-')),
+      authority: {
+        state: 'ready',
+        credential: () => '',
+        onChange: () => () => {},
+        close() {},
+        generation: null,
+        resource() {
+          throw new Error('not used');
+        },
+      },
       port: start,
       avoidPort: start, // the daemon's port: must be skipped, not taken
       target: { host: '127.0.0.1', port: 1 },
@@ -99,7 +113,7 @@ describe('SSH daemon lifetime fallback', () => {
         fallbackStarts += 1;
         return {
           port: 7434,
-          token: 'a'.repeat(64),
+          authority: {} as import('../src/lib/auth/connection-authority.js').HostConnection,
           bootstrapped: true,
           daemonLifetime: 'cockpit',
           lease: { async ensureRunning() {}, async stop() {} },

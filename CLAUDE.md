@@ -11,6 +11,7 @@ packages/
 ├── shared/    # the protocol package: zod schemas for REST + WS messages (the single source of
 │              # truth for API shapes) + PROTOCOL_VERSION — read its PROTOCOL.md before schema changes
 ├── daemon/    # puddled: Hono HTTP/WS server, PTY manager, worktree manager, SQLite
+│   ├── src/security/     # private host control, monotonic connection leases and resource revocation
 │   ├── src/agents/       # adapters own flags, cached native catalogue discovery, and exact lifecycle integration
 │   ├── src/compilation/  # provider-neutral compile modes, scheduling, dependency observation, and artefacts
 │   ├── src/latex/        # local TeX discovery/recipes, managed outputs, and inverse SyncTeX
@@ -18,7 +19,7 @@ packages/
 │   └── src/worktrees/    # worktree lifecycle plus repository-aware Git inspection/mutations
 ├── web/       # React UI: Tailwind v4 + owned shadcn-style components (src/components/ui/)
 │   ├── src/styles/tokens.css   # THE colour source; scripts/check-tokens.mjs guards it in lint/CI
-│   ├── src/lib/       # token gate, TanStack Query hooks, singleton WS manager, theme registry
+│   ├── src/lib/       # browser authorisation, TanStack Query hooks, singleton WS manager, theme registry
 │   └── src/features/  # dashboard, workspace (sidebar/tabs/xterm), editor/explorer/changes/search/worktrees
 │                      # (Monaco tabs + drafts + dirty-diff gutter, file tree + transfer, repository-aware
 │                      #  source control + commit-graph SVG, filename+content search), scratchpad + layouts (top-bar
@@ -28,6 +29,7 @@ packages/
 │   │          # tunnel remotely); bootstrap/handshake/attach live in src/lib/ (no process/TTY
 │   │          # access there — the desktop shell reuses it; src/lib/index.ts is the deliberate
 │   │          # embedder surface), the bin in src/cli/
+│   ├── src/lib/auth/    # connection authority, host-only inspection and protected launcher IPC
 │   └── scripts/build.mjs   # esbuild bundle + embeds install.sh + copies web assets into dist/
 └── desktop/   # @puddle-code/desktop (private): the Electron shell — a thin main process calling
                # startLocal() from @puddle-code/cli/lib and opening a BrowserWindow on the
@@ -51,6 +53,8 @@ pnpm dev                # daemon (watch) + web (vite) for local development
 pnpm build              # all packages; web assets land inside the CLI (packages/cli/dist/public)
 pnpm test               # vitest across workspaces
 pnpm lint               # eslint + prettier check
+pnpm test:e2e           # after build: isolated daemon/cockpit process tests, no browser download
+pnpm test:ssh           # after build: loopback OpenSSH integration (sshd + ssh-keygen required)
 pnpm build:tarball      # self-contained puddled tarball for this platform (dist-release/)
 pnpm --filter @puddle-code/desktop start   # run the Electron shell (after pnpm build; NOT from
                                       # inside an agent session — see the puddled warning below)
@@ -92,6 +96,8 @@ supervised one.
 - **British English everywhere**: comments, documentation, commit messages, UI copy, and identifiers you choose (`colour`, `initialise`, `behaviour`, `licence` as the noun). Exception: never rename third-party API surface — CSS `color`, `Array.prototype.normalize`-style library methods, and external config keys keep their canonical spelling.
 - TypeScript strict; no `any` without a comment justifying it.
 - Every REST/WS shape is a zod schema in `packages/shared`; daemon validates input, web imports the inferred types. Never define an API shape locally. The schemas are a versioned protocol: any wire-shape change bumps `PROTOCOL_VERSION` per `packages/shared/PROTOCOL.md` in the same commit (additive → minor, breaking → major).
+- Connection authority lives in daemon `security/` and CLI `lib/auth/`; browser credentials, connection tokens, host authority and agent signal nonces have separate audiences. Never read a remote master token into the client, persist a connection token, or put invitations in registry records/background logs. Renew streams only through explicit resource ids on the client-participating control channel. Revocation detaches viewers without stopping agents; reconnect never replays uncertain writes. The shared production browser gateway also fronts Vite.
+- Authentication verification uses isolated temporary homes, sanitised subprocess environments and deterministic fake agents. `test:e2e` exercises actual built cockpit replacement; `test:ssh` provisions an ephemeral loopback SSH server. Browser/desktop rendering and interactive SSH acceptance remain manual in `docs/acceptance/connection-authority.md`.
 - Agent-specific behaviour (flags, env vars, session-file locations, status regexes) lives ONLY in that agent's adapter under `packages/daemon/src/agents/`. Core session logic must stay agent-agnostic. When you verify a CLI flag against an installed agent version, record the version you checked in a comment in the adapter.
 - Compilable file support uses providers under `packages/daemon/src/`: generic mode/watch/run orchestration stays in `compilation/`, while tool discovery, command arguments, dependency parsing, artefact promotion, and source navigation stay in the provider (LaTeX in `latex/`). The web consumes advertised extensions and artefacts; never hard-code a generic compile path to TeX.
 - Agent storage lookup hooks may be asynchronous. Any account-wide discovery must yield to the daemon event loop, bound file reads to the metadata actually needed, and reuse unchanged results across polls; putting synchronous filesystem work inside a background promise still freezes every API and PTY.

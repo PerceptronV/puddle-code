@@ -15,7 +15,7 @@ import type { PuddlePaths } from '../paths.js';
 import type { PortScanner } from '../ports/scanner.js';
 import type { PtyManager } from '../pty/pty-manager.js';
 import { bearerAuth, hostOriginGuard } from '../security/middleware.js';
-import { proxyAuth } from '../proxy/auth.js';
+import type { LeaseRegistry } from '../security/leases.js';
 import { proxyRoutes } from '../proxy/http.js';
 import type { ProxySocketTracker } from '../proxy/sockets.js';
 import type { ConversationShare } from '../sessions/conversation-share.js';
@@ -46,7 +46,7 @@ import { worktreeRoutes } from './routes/worktrees.js';
 /** Everything the REST + WS surface needs; `api` is absent in narrow tests. */
 export interface AppDeps {
   version: string;
-  token: string;
+  authority: LeaseRegistry;
   api?: {
     paths: PuddlePaths;
     profiles: ProfileStore;
@@ -96,7 +96,7 @@ export function buildApp(deps: AppDeps): Hono {
   });
 
   app.use('/api/*', hostOriginGuard());
-  app.use('/api/*', bearerAuth(deps.token));
+  app.use('/api/*', bearerAuth(deps.authority));
   app.route('/api/version', versionRoutes(deps.version));
 
   if (deps.api) {
@@ -138,7 +138,7 @@ export function buildApp(deps: AppDeps): Hono {
     // static catch-all below. WebSocket handshakes are owned by the raw upgrade
     // listener wired in daemon.ts; this router only serves plain HTTP forwards.
     app.use('/proxy/*', hostOriginGuard());
-    app.use('/proxy/*', proxyAuth(deps.token));
+    app.use('/proxy/*', bearerAuth(deps.authority));
     app.route('/proxy', proxyRoutes(api));
   }
 

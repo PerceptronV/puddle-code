@@ -1,3 +1,4 @@
+import WebSocket from 'ws';
 import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
@@ -13,7 +14,7 @@ import type {
   SessionEnvResponse,
   WsServerMessage,
 } from '@puddle/shared';
-import { startDaemon, type RunningDaemon } from '../src/daemon.js';
+import { startDaemon, type RunningDaemon } from './helpers/authorised-daemon.js';
 import { fakeAdapter } from './helpers/daemon-fixtures.js';
 import { initRepo } from './helpers/git-fixtures.js';
 import { waitFor } from './helpers/daemon-fixtures.js';
@@ -50,7 +51,7 @@ function wsClient(daemon: RunningDaemon) {
   });
   const open = new Promise<void>((resolve, reject) => {
     ws.addEventListener('open', () => {
-      ws.send(JSON.stringify({ t: 'auth', token: daemon.token }));
+      ws.send(JSON.stringify({ t: 'auth', token: daemon.token, resource: daemon.resourceId() }));
       resolve();
     });
     ws.addEventListener('error', () => reject(new Error('ws error')));
@@ -792,23 +793,13 @@ describe('tier-2 reverse proxy end-to-end (Phase 5 acceptance)', () => {
     expect(listenerPort).toBeGreaterThan(0);
   });
 
-  it('bootstraps the cookie via ?puddle_token= then forwards HTTP', async () => {
+  it('rejects legacy query/cookie auth and forwards connection-authorised HTTP', async () => {
     const base = `http://127.0.0.1:${daemon.port}`;
-    // Manual redirect: the one-shot query param plants the cookie and strips itself.
-    const boot = await fetch(`${base}/proxy/${sid}/${listenerPort}/?puddle_token=${daemon.token}`, {
-      redirect: 'manual',
-    });
-    expect(boot.status).toBe(302);
-    const setCookie = boot.headers.get('set-cookie') ?? '';
-    expect(setCookie).toContain(`puddle_proxy=${daemon.token}`);
-    expect(setCookie).toContain('Path=/proxy');
-    expect(setCookie).toContain('HttpOnly');
-    expect(boot.headers.get('location')).not.toContain('puddle_token');
-
-    // Node fetch keeps no cookie jar across the redirect, so replay the cookie
-    // explicitly (a browser would send it automatically) → the forward lands.
+    expect(
+      (await fetch(`${base}/proxy/${sid}/${listenerPort}/?puddle_token=${daemon.token}`)).status,
+    ).toBe(401);
     const forwarded = await fetch(`${base}/proxy/${sid}/${listenerPort}/`, {
-      headers: { cookie: `puddle_proxy=${daemon.token}` },
+      headers: { authorization: `Bearer ${daemon.token}` },
     });
     expect(forwarded.status).toBe(200);
     expect(await forwarded.text()).toBe('proxy-ok');
@@ -827,7 +818,12 @@ describe('tier-2 reverse proxy end-to-end (Phase 5 acceptance)', () => {
 
   it('proxies a raw WebSocket upgrade both directions', async () => {
     const url = `ws://127.0.0.1:${daemon.port}/proxy/${sid}/${listenerPort}/?puddle_token=${daemon.token}`;
-    const ws = new WebSocket(url);
+    const ws = new WebSocket(url, {
+      headers: {
+        authorization: `Bearer ${daemon.token}`,
+        'x-puddle-resource': daemon.resourceId(),
+      },
+    });
     const first = await new Promise<string>((resolve, reject) => {
       ws.addEventListener('message', (evt) => resolve(String(evt.data)));
       ws.addEventListener('error', () => reject(new Error('proxied ws error')));
@@ -840,7 +836,7 @@ describe('tier-2 reverse proxy end-to-end (Phase 5 acceptance)', () => {
     // request line must NOT have seen it (it would land in dev-server logs).
     const seen = await fetch(
       `http://127.0.0.1:${daemon.port}/proxy/${sid}/${listenerPort}/seen-upgrade`,
-      { headers: { cookie: `puddle_proxy=${daemon.token}` } },
+      { headers: { authorization: `Bearer ${daemon.token}` } },
     );
     const seenUrl = await seen.text();
     expect(seenUrl).toBe('/'); // the sole query pair was spliced out
@@ -849,7 +845,12 @@ describe('tier-2 reverse proxy end-to-end (Phase 5 acceptance)', () => {
 
   it('stops cleanly while a proxied WebSocket is still open', async () => {
     const url = `ws://127.0.0.1:${daemon.port}/proxy/${sid}/${listenerPort}/?puddle_token=${daemon.token}`;
-    const ws = new WebSocket(url);
+    const ws = new WebSocket(url, {
+      headers: {
+        authorization: `Bearer ${daemon.token}`,
+        'x-puddle-resource': daemon.resourceId(),
+      },
+    });
     await new Promise<void>((resolve, reject) => {
       ws.addEventListener('message', () => resolve());
       ws.addEventListener('error', () => reject(new Error('proxied ws error')));

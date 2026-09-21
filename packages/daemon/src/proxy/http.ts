@@ -97,7 +97,6 @@ async function handle(c: Context, deps: HttpProxyDeps): Promise<Response> {
   const outHeaders = forwardHeaders(c.req.header(), portNum);
   const method = c.req.method;
   const hasBody = method !== 'GET' && method !== 'HEAD';
-  const incoming = (c.env as { incoming?: IncomingMessage }).incoming;
 
   let upstreamRes: IncomingMessage;
   try {
@@ -118,7 +117,10 @@ async function handle(c: Context, deps: HttpProxyDeps): Promise<Response> {
       });
       // If the client disconnects before we've responded, abort upstream too.
       c.req.raw.signal.addEventListener('abort', () => upstreamReq.destroy(), { once: true });
-      if (hasBody && incoming) incoming.pipe(upstreamReq);
+      if (hasBody && c.req.raw.body)
+        Readable.fromWeb(c.req.raw.body as import('node:stream/web').ReadableStream).pipe(
+          upstreamReq,
+        );
       else upstreamReq.end();
     });
   } catch {
@@ -147,7 +149,11 @@ function forwardHeaders(headers: Record<string, string>, port: number): Record<s
     // hand the full-RCE token to a session's dev server (potentially
     // agent-generated code). The upstream's own auth, if any, rides its own
     // headers — not ours (SPEC §9).
-    if (name === 'authorization') continue;
+    if (name === 'x-puddle-application-authorization') {
+      out.authorization = value;
+      continue;
+    }
+    if (name === 'authorization' || name.startsWith('x-puddle-')) continue;
     if (name === 'cookie') {
       const kept = stripProxyCookie(value);
       if (kept !== undefined) out.cookie = kept;

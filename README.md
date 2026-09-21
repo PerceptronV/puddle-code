@@ -106,7 +106,7 @@ auth prompts unless you use a key).
                                         └───────────────────────────────────┘
 ```
 
-The CLI serves the UI at a stable local origin and reverse-proxies the API to the daemon, directly in local mode, through the tunnel in SSH mode. The daemon is headless and host-agnostic on `127.0.0.1:7434`. UI updates ship with the CLI (`npm update -g @puddle-code/cli` refreshes the cockpit for every host); the daemon only has to update when the versioned protocol breaks, and the CLI does that automatically. A mandatory bearer token plus Host/Origin validation guard the localhost API against malicious web pages.
+The CLI serves the UI at a stable local origin and reverse-proxies the API to the daemon, directly in local mode, through the tunnel in SSH mode. The daemon is headless and host-agnostic on `127.0.0.1:7434`. UI updates ship with the CLI (`npm update -g @puddle-code/cli` refreshes the cockpit for every host); the daemon only has to update when the versioned protocol breaks, and the CLI does that automatically. Short-lived host connection leases, separate browser authorisation and exact cockpit Host/Origin checks guard local access. Launch invitations are single-use; browser login survives cockpit restarts, while forwarded applications use a separate loopback origin. After upgrading from the old token flow, run `puddle launch` once to authorise existing tabs.
 
 Everything lives under `~/.puddle` on the host, installed without sudo — and `puddle remove daemon` takes it apart again.
 

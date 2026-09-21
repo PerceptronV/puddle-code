@@ -5,11 +5,12 @@ import {
   type OutgoingHttpHeaders,
   type Server as HttpServer,
 } from 'node:http';
-import type { Duplex } from 'node:stream';
+import { Transform, type Duplex } from 'node:stream';
+import type { LeaseRegistry } from '../security/leases.js';
 import type { SessionStore } from '../db/stores/sessions.js';
 import type { PortScanner } from '../ports/scanner.js';
 import { isLocalHostHeader, isLocalOrigin } from '../security/middleware.js';
-import { isProxyAuthorised, stripProxyCookie, stripTokenParam } from './auth.js';
+import { stripProxyCookie, stripTokenParam } from './auth.js';
 import type { ProxySocketTracker } from './sockets.js';
 
 const PROXY_UPGRADE = /^\/proxy\/([^/]+)\/(\d+)(?:\/.*)?$/;
@@ -17,7 +18,7 @@ const PROXY_UPGRADE = /^\/proxy\/([^/]+)\/(\d+)(?:\/.*)?$/;
 export interface UpgradeProxyDeps {
   sessions: Pick<SessionStore, 'get'>;
   scanner: Pick<PortScanner, 'hasPort'>;
-  token: string;
+  authority: LeaseRegistry;
   tracker: ProxySocketTracker;
 }
 
@@ -59,7 +60,13 @@ async function forward(
   if (!isLocalHostHeader(req.headers.host) || !isLocalOrigin(req.headers.origin)) {
     return refuse(socket, 403, 'Forbidden');
   }
-  if (!isProxyAuthorised({ headers: req.headers, url: req.url }, deps.token)) {
+  const resource = deps.authority.attach(
+    req.headers.authorization?.replace(/^Bearer /, '') ?? '',
+    String(req.headers['x-puddle-resource'] ?? ''),
+    () => socket.destroy(),
+  );
+  socket.once('close', () => resource?.release());
+  if (!resource) {
     return refuse(socket, 401, 'Unauthorized');
   }
   try {
@@ -74,6 +81,8 @@ async function forward(
   if (!(await deps.scanner.hasPort(sid, portNum))) {
     return refuse(socket, 403, 'Forbidden');
   }
+
+  if (!resource.valid()) return refuse(socket, 401, 'Unauthorized');
 
   // Forward the handshake verbatim EXCEPT: strip the puddle_proxy cookie pair,
   // rewrite Host. connection/upgrade/sec-websocket-* are kept as-is (unlike the
@@ -91,6 +100,10 @@ async function forward(
   if (head.length > 0) socket.unshift(head);
 
   upstreamReq.on('upgrade', (upstreamRes, upstreamSocket, upstreamHead: Buffer) => {
+    if (!resource.valid()) {
+      upstreamSocket.destroy();
+      return;
+    }
     if (upstreamHead.length > 0) upstreamSocket.unshift(upstreamHead);
     socket.write(
       statusHead(101, upstreamRes.statusMessage || 'Switching Protocols', upstreamRes.headers),
@@ -100,10 +113,22 @@ async function forward(
       socket.destroy();
       upstreamSocket.destroy();
     };
+    socket.once('close', teardown);
+    upstreamSocket.once('close', teardown);
     socket.on('error', teardown);
     upstreamSocket.on('error', teardown);
-    socket.pipe(upstreamSocket);
-    upstreamSocket.pipe(socket);
+    const gate = () =>
+      new Transform({
+        transform(chunk, _encoding, cb) {
+          if (resource.valid()) cb(null, chunk);
+          else {
+            teardown();
+            cb();
+          }
+        },
+      });
+    socket.pipe(gate()).pipe(upstreamSocket);
+    upstreamSocket.pipe(gate()).pipe(socket);
   });
 
   // Upstream refused the upgrade (a plain HTTP response): relay it and close.
@@ -121,6 +146,7 @@ async function forward(
     deps.tracker.add(socket, upstreamRes.socket ?? socket);
     upstreamRes.pipe(socket);
   });
+  socket.once('close', () => upstreamReq.destroy());
   upstreamReq.on('error', () => refuse(socket, 502, 'Bad Gateway'));
   upstreamReq.end();
 }
@@ -156,7 +182,11 @@ function upgradeHeaders(headers: IncomingHttpHeaders, port: number): OutgoingHtt
     // hand the full-RCE token to a session's dev server (potentially
     // agent-generated code). The upstream's own auth, if any, rides its own
     // headers — not ours (SPEC §9).
-    if (name === 'authorization') continue;
+    if (name === 'x-puddle-application-authorization') {
+      out.authorization = Array.isArray(value) ? value[0] : value;
+      continue;
+    }
+    if (name === 'authorization' || name.startsWith('x-puddle-')) continue;
     if (name === 'cookie') {
       const kept = stripProxyCookie(Array.isArray(value) ? value.join('; ') : value);
       if (kept !== undefined) out.cookie = kept;

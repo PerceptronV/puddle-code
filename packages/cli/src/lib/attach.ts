@@ -1,3 +1,4 @@
+import type { ConnectionAuthority } from './auth/connection-authority.js';
 import type { Session } from '@puddle/shared';
 import type { DaemonClient } from './daemon-client.js';
 import { connectGateway } from './ws-client.js';
@@ -18,7 +19,7 @@ export interface AttachOptions {
   client: DaemonClient;
   /** Daemon-reachable port (tunnel local end when remote). */
   port: number;
-  token: string;
+  authority: ConnectionAuthority;
   session: string;
   term?: string;
   streams: AttachStreams;
@@ -65,7 +66,7 @@ export async function attachSession(opts: AttachOptions): Promise<AttachOutcome>
   if (typeof stdin.setRawMode === 'function') stdin.setRawMode(true);
   streams.stderr.write(`— attached to ${session.id.slice(0, 8)} (${term}); Ctrl-] detaches —\r\n`);
 
-  const gateway = await connectGateway(opts.port, opts.token);
+  const gateway = await connectGateway(opts.port, opts.authority);
   const dims = () => ({
     cols: (streams.stdout as NodeJS.WriteStream).columns ?? 80,
     rows: (streams.stdout as NodeJS.WriteStream).rows ?? 24,

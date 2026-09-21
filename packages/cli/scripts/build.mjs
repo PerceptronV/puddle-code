@@ -32,7 +32,10 @@ await build({
   target: 'node22',
   format: 'esm',
   external: ['bufferutil', 'utf-8-validate'], // ws's optional accelerators
-  alias: { '@puddle/shared': join(repoRoot, 'packages/shared/src/index.ts') },
+  alias: {
+    '@puddle/shared/node': join(repoRoot, 'packages/shared/src/node/security.ts'),
+    '@puddle/shared': join(repoRoot, 'packages/shared/src/index.ts'),
+  },
   define: {
     __PUDDLE_CLI_VERSION__: JSON.stringify(version),
     ...(slug ? { __PUDDLE_REPO_SLUG__: JSON.stringify(slug) } : {}),
@@ -70,3 +73,16 @@ cpSync(webDist, join(pkgRoot, 'dist/public'), { recursive: true });
 console.log(
   `cli build: dist/index.js + install.sh + public/ (v${version}${slug ? `, repo ${slug}` : ''})`,
 );
+
+await build({
+  entryPoints: [join(pkgRoot, 'src/host-control.ts')],
+  outfile: join(pkgRoot, 'dist/host-control.mjs'),
+  bundle: true,
+  platform: 'node',
+  target: 'node22',
+  format: 'esm',
+  alias: {
+    '@puddle/shared/node': join(repoRoot, 'packages/shared/src/node/security.ts'),
+    '@puddle/shared': join(repoRoot, 'packages/shared/src/index.ts'),
+  },
+});

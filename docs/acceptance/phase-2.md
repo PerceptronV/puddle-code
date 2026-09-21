@@ -5,18 +5,17 @@ logic (theme generation, contrast maths, ui-state serialisation, debounce,
 WS manager) is unit-tested in CI; this script verifies what needs eyes and a
 real browser. Editor-tab clauses are deferred to Phase 3 with Monaco.
 
-Setup:
+Setup (plain shell only; see [connection authority acceptance](connection-authority.md)):
 
 ```sh
 pnpm build
 export PUDDLE_HOME=$(mktemp -d)
 node packages/daemon/dist/index.js &
-until [ -f "$PUDDLE_HOME/token" ]; do sleep 0.2; done   # the daemon writes it on boot
-open "http://127.0.0.1:7433/#token=$(cat $PUDDLE_HOME/token)"
+node packages/cli/dist/index.js launch --foreground --no-upgrade
 ```
 
-First load: the token is captured from the fragment (the URL bar shows it
-stripped), then the profile picker appears. Create a profile, then a project
+First load: the single-use invitation is cleared from the fragment and
+exchanged for cockpit-only browser authorisation, then the profile picker appears. Create a profile, then a project
 against a real git repo, and add + login a claude-code account in Settings →
 Accounts (the login terminal opens in-app; the account flips to "logged in"
 when the OAuth flow completes).

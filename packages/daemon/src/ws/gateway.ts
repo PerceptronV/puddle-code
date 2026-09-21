@@ -1,4 +1,4 @@
-import { timingSafeEqual } from 'node:crypto';
+import type { AuthorityResource, LeaseRegistry } from '../security/leases.js';
 import { homedir } from 'node:os';
 import type { WSContext } from 'hono/ws';
 import {
@@ -25,7 +25,7 @@ import { ApiError } from '../http/errors.js';
 import { stripDeviceReplies } from './device-replies.js';
 
 export interface WsGatewayDeps {
-  token: string;
+  authority: LeaseRegistry;
   ptys: PtyManager;
   logs: LogStore;
   service: SessionService;
@@ -68,6 +68,7 @@ interface PendingAttach {
  * first message — browsers cannot set WS headers.
  */
 export class WsGateway {
+  private readonly resources = new Map<WSContext, AuthorityResource>();
   private readonly viewers = new Map<string, Set<WSContext>>();
   private readonly statusSubs = new Set<WSContext>();
   private readonly pendingOutput = new Map<string, PendingOutput>();
@@ -169,7 +170,7 @@ export class WsGateway {
 
   /** Per-connection handler factory for upgradeWebSocket. */
   connection(): WsEventHandlers {
-    let authed = false;
+    let resource: AuthorityResource | null = null;
     const attached = new Set<string>();
 
     const onMessage = (evt: { data: unknown }, ws: WSContext): void => {
@@ -180,17 +181,23 @@ export class WsGateway {
       }
       const msg = parsed.data;
       if (msg.t === 'auth') {
-        if (this.tokenMatches(msg.token)) {
-          authed = true;
-        } else {
-          this.send(ws, { t: 'error', message: 'invalid token' });
-          ws.close(4401, 'invalid token');
+        if (resource) {
+          ws.close(4401, 'already authenticated');
+          return;
         }
+        resource = this.deps.authority.attach(msg.token, msg.resource ?? '', () =>
+          ws.close(4401, 'upstream_expired'),
+        );
+        if (!resource) {
+          ws.close(4401, 'upstream_expired');
+          return;
+        }
+        this.resources.set(ws, resource);
+        this.send(ws, { t: 'authenticated' });
         return;
       }
-      if (!authed) {
-        this.send(ws, { t: 'error', message: 'authenticate first' });
-        ws.close(4401, 'authenticate first');
+      if (!resource?.valid()) {
+        ws.close(4401, 'upstream_expired');
         return;
       }
       try {
@@ -282,6 +289,8 @@ export class WsGateway {
     };
 
     const onClose = (_evt: unknown, ws: WSContext): void => {
+      resource?.release();
+      this.resources.delete(ws);
       for (const key of attached) this.dropViewer(key, ws);
       this.statusSubs.delete(ws);
     };
@@ -314,12 +323,6 @@ export class WsGateway {
     return term;
   }
 
-  private tokenMatches(presented: string): boolean {
-    const a = Buffer.from(presented);
-    const b = Buffer.from(this.deps.token);
-    return a.length === b.length && timingSafeEqual(a, b);
-  }
-
   private decode(data: unknown): unknown {
     try {
       return JSON.parse(String(data));
@@ -329,7 +332,7 @@ export class WsGateway {
   }
 
   private send(ws: WSContext, msg: WsServerMessage): void {
-    if (ws.readyState === 1) ws.send(JSON.stringify(msg));
+    if (ws.readyState === 1 && this.resources.get(ws)?.valid()) ws.send(JSON.stringify(msg));
   }
 
   /**
@@ -364,6 +367,7 @@ export class WsGateway {
     if (!set) return;
     const encoded = JSON.stringify(msg);
     for (const ws of set) {
+      if (!this.resources.get(ws)?.valid()) continue;
       const pending = this.pendingAttaches.get(key)?.get(ws);
       if (pending) pending.messages.push(msg);
       else if (ws.readyState === 1) ws.send(encoded);
@@ -388,7 +392,7 @@ export class WsGateway {
     try {
       const snapshot = await this.deps.ptys.snapshot(stream, term, cols, rows);
       if (this.pendingAttaches.get(key)?.get(ws) !== pending) return;
-      if (!this.viewers.get(key)?.has(ws)) return;
+      if (!this.viewers.get(key)?.has(ws) || !this.resources.get(ws)?.valid()) return;
       this.send(ws, { t: 'replay', session: stream, term, data: snapshot });
       this.pendingAttaches.get(key)?.delete(ws);
       if (this.pendingAttaches.get(key)?.size === 0) this.pendingAttaches.delete(key);

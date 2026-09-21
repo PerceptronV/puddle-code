@@ -17,6 +17,7 @@
  *   ├── bin/node           # pinned runtime, nothing else from the Node dist
  *   └── daemon/
  *       ├── puddled.mjs    # esbuild bundle (daemon + shared + hono + ws + zod + yazl)
+ *       ├── host-control.mjs # private control relay and host-only legacy inspection
  *       └── node_modules/  # pruned node-pty, better-sqlite3, bindings, file-uri-to-path
  */
 import { execFileSync } from 'node:child_process';
@@ -94,7 +95,10 @@ async function bundleDaemon() {
     // Native modules stay external (shipped pruned in daemon/node_modules);
     // ws's optional accelerators must stay unresolved requires it can catch.
     external: ['node-pty', 'better-sqlite3', 'bufferutil', 'utf-8-validate'],
-    alias: { '@puddle/shared': join(repoRoot, 'packages/shared/src/index.ts') },
+    alias: {
+      '@puddle/shared/node': join(repoRoot, 'packages/shared/src/node/security.ts'),
+      '@puddle/shared': join(repoRoot, 'packages/shared/src/index.ts'),
+    },
     define: { __PUDDLED_VERSION__: JSON.stringify(version) },
     // Bundled CJS deps keep guarded `require(...)` calls (ws's optional
     // natives); in an ESM bundle `require` must exist for them to fail softly.
@@ -255,6 +259,18 @@ function pack() {
 rmSync(stage, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
 await bundleDaemon();
+await build({
+  entryPoints: [join(repoRoot, 'packages/cli/src/host-control.ts')],
+  outfile: join(stage, 'daemon/host-control.mjs'),
+  bundle: true,
+  platform: 'node',
+  target: 'node22',
+  format: 'esm',
+  alias: {
+    '@puddle/shared/node': join(repoRoot, 'packages/shared/src/node/security.ts'),
+    '@puddle/shared': join(repoRoot, 'packages/shared/src/index.ts'),
+  },
+});
 copyNativePackages();
 await fetchNodeRuntime();
 writeMetadata();

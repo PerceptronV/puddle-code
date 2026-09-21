@@ -1,22 +1,33 @@
+import { browserBootstrapResponseSchema } from '@puddle/shared';
 import { localValue } from './local-store';
 
-/**
- * Daemon bearer token. `puddle launch` opens the UI as `/#token=<hex>`; the
- * fragment is captured once, stripped from the URL (fragments never reach the
- * server, but they linger in history), and kept in localStorage.
- */
-export const tokenStore = localValue('puddle.token');
+/** Origin-scoped browser credential. Daemon credentials are never accepted here. */
+export const tokenStore = localValue('puddle.browser-authorisation');
 
-export function bootstrapToken(): void {
-  const match = /[#&]token=([0-9a-fA-F]+)/.exec(window.location.hash);
-  if (!match) return;
-  tokenStore.set(match[1]!);
-  const url = new URL(window.location.href);
-  url.hash = '';
-  history.replaceState(null, '', url);
+export async function bootstrapToken(): Promise<void> {
+  localStorage.removeItem('puddle.token');
+  const params = new URLSearchParams(window.location.hash.slice(1));
+  const invitation = params.get('invite');
+  if (params.has('invite') || params.has('token')) {
+    const url = new URL(window.location.href);
+    url.hash = '';
+    history.replaceState(null, '', url);
+  }
+  if (!invitation) return;
+  try {
+    const response = await fetch('/cockpit/bootstrap', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ invitation }),
+    });
+    if (!response.ok) return;
+    tokenStore.set(browserBootstrapResponseSchema.parse(await response.json()).credential);
+  } catch {
+    /* A failed invitation never discards an existing browser authorisation. */
+  }
 }
 
-/** A 401 means the stored token is stale: drop it and return to the gate. */
+/** Only explicit browser rejection clears login; upstream outages preserve it. */
 export function clearToken(): void {
   tokenStore.set(null);
 }

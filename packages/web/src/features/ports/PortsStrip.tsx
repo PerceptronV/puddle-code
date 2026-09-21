@@ -7,7 +7,6 @@ import {
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
-import { tokenStore } from '../../lib/auth';
 import { useHostInfo, useSessionPorts } from '../../lib/queries';
 import { sshMode } from '../../lib/ssh-mode';
 import { sshForwardCommand } from './ssh-command';
@@ -83,11 +82,7 @@ function PortChip({ sessionId, port }: { sessionId: string; port: SessionPort })
         ) : (
           <DropdownMenuItem
             onSelect={() => {
-              window.open(
-                `/proxy/${sessionId}/${port.port}/?puddle_token=${tokenStore.get() ?? ''}`,
-                '_blank',
-                'noopener,noreferrer',
-              );
+              window.open(`/forward/${sessionId}/${port.port}`, '_blank', 'noopener,noreferrer');
             }}
           >
             Open via proxy

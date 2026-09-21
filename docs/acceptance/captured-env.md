@@ -24,7 +24,7 @@ node packages/cli/dist/index.js start --tarball dist-release/puddled-v*.tar.gz -
 1. **zsh capture.** In the session, open a shell tab. Run
    `export ACC_TOKEN=secret-123`. Within ~5 s the `env` strip appears under the
    pane listing `ACC_TOKEN` (name only; hover shows its byte size).
-   `curl -H "Authorization: Bearer $(cat $PUDDLE_HOME/token)" localhost:7434/api/sessions/<sid>/env`
+   an authenticated `GET /api/sessions/<sid>/env` at the cockpit origin (copy the request from devtools; never use the host master)
    returns `{"vars":[{"name":"ACC_TOKEN","bytes":10}]}` — **no value**.
 2. **New shell tab sees it.** Open a second shell tab; `echo $ACC_TOKEN` prints
    `secret-123`.

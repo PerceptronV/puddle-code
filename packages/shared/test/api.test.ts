@@ -188,7 +188,7 @@ describe('shared API schemas', () => {
     });
   });
 
-  it('validates cross-filetree transfers and carries protocol 17.3', () => {
+  it('validates cross-filetree transfers and carries protocol 18.0', () => {
     expect(
       transferEntryRequestSchema.parse({
         operation: 'copy',
@@ -208,7 +208,7 @@ describe('shared API schemas', () => {
       from: 'docs/readme.md',
       to: 'imported/readme.md',
     });
-    expect(PROTOCOL_VERSION).toEqual({ major: 17, minor: 3 });
+    expect(PROTOCOL_VERSION).toEqual({ major: 18, minor: 0 });
   });
 
   it('accepts additive native conversation fields and lifecycle signals', () => {

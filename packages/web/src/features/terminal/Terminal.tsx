@@ -5,7 +5,6 @@ import { SearchAddon, type ISearchOptions } from '@xterm/addon-search';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 import { HOME_STREAM, type SessionStatus } from '@puddle/shared';
-import { tokenStore } from '../../lib/auth';
 import { useClientSettings } from '../../lib/client-settings';
 import {
   actionForBinding,
@@ -299,9 +298,7 @@ export function Terminal({
     // from the client; login and home terminals have no session to proxy through.
     const sessionless = stream.startsWith('login-') || stream === HOME_STREAM;
     const openUri = (uri: string) => {
-      const target = sessionless
-        ? uri
-        : rewriteTerminalUri(uri, stream, sshMode() !== null, tokenStore.get());
+      const target = sessionless ? uri : rewriteTerminalUri(uri, stream, sshMode() !== null);
       window.open(target, '_blank', 'noopener,noreferrer');
     };
 

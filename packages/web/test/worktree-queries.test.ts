@@ -64,7 +64,7 @@ function storageStub(): Storage {
 describe('apiFetchRaw', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', storageStub());
-    localStorage.setItem('puddle.token', 'test-token');
+    localStorage.setItem('puddle.browser-authorisation', 'test-token');
   });
 
   afterEach(() => {
@@ -123,11 +123,21 @@ describe('apiFetchRaw', () => {
   });
 
   it('on 401, clears the stored token and throws ApiError', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(
+            JSON.stringify({ error: { code: 'browser_rejected', message: 'authorise again' } }),
+            { status: 401 },
+          ),
+        ),
+    );
     const { apiFetchRaw, ApiError } = await import('../src/lib/api');
 
     await expect(apiFetchRaw('GET', '/api/worktrees/s1/download?path=a')).rejects.toThrow(ApiError);
-    expect(localStorage.getItem('puddle.token')).toBeNull();
+    expect(localStorage.getItem('puddle.browser-authorisation')).toBeNull();
   });
 
   it('on a non-OK response, throws ApiError with the parsed error envelope', async () => {

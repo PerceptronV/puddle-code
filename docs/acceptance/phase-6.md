@@ -28,7 +28,7 @@ takes a CLIENT-side path and delivers it over scp.
 1. **Local mode, fresh machine.** With no `~/.puddle` (or `PUDDLE_HOME` set to
    a scratch dir): `puddle launch --tarball dist-release/puddled-v*-<os>-<arch>.tar.gz`.
    Expect: installer output, then `puddle cockpit at http://localhost:7433`,
-   the browser opening a working cockpit (no token gate — the `#token=`
+   the browser opening a working cockpit (no authorisation gate — the `#invite=`
    fragment authenticates and is stripped from the address bar). Create a
    project and a session; the agent runs. `~/.puddle/bin/current` points at
    `versions/<v>`; on macOS `launchctl list | grep puddle` shows the agent,

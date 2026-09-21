@@ -1,3 +1,4 @@
+import type { HostConnection } from './auth/connection-authority.js';
 import { randomUUID } from 'node:crypto';
 import { waitForStartedDaemon, type DaemonEndpoint, type DaemonLease } from './cockpit.js';
 import { sleep } from './net.js';
@@ -41,7 +42,8 @@ export class AttachedDaemon implements DaemonLease {
     }
     this.pid = null;
     this.leasePidPath = null;
-    await this.launchAndWait(this.port);
+    const started = await this.launchAndWait(this.port);
+    started.authority.close();
   }
 
   async stop(): Promise<void> {
@@ -78,7 +80,9 @@ export class AttachedDaemon implements DaemonLease {
     this.leasePidPath = null;
   }
 
-  private async launchAndWait(preferredPort?: number): Promise<{ port: number; token: string }> {
+  private async launchAndWait(
+    preferredPort?: number,
+  ): Promise<{ port: number; authority: HostConnection }> {
     const portFlag = preferredPort === undefined ? '' : ` --port ${preferredPort}`;
     const leasePidPath = `${hostPaths.home}/attached-${randomUUID()}.pid`;
     this.leasePidPath = leasePidPath;
@@ -96,11 +100,12 @@ export class AttachedDaemon implements DaemonLease {
     });
 
     let outcome:
-      | { kind: 'started'; started: { port: number; token: string } }
+      | { kind: 'started'; started: { port: number; authority: HostConnection } }
       | { kind: 'exited'; result: Awaited<RunningSshCommand['result']> };
+    const waiting = new AbortController();
     try {
       outcome = await Promise.race([
-        waitForStartedDaemon(this.ssh, 20_000).then((started) => ({
+        waitForStartedDaemon(this.ssh, 20_000, waiting.signal).then((started) => ({
           kind: 'started' as const,
           started,
         })),
@@ -110,6 +115,8 @@ export class AttachedDaemon implements DaemonLease {
       command.terminate();
       await this.clearFailedLaunch(leasePidPath);
       throw err;
+    } finally {
+      waiting.abort();
     }
     if (outcome.kind === 'exited') {
       await this.clearFailedLaunch(leasePidPath);
@@ -122,6 +129,7 @@ export class AttachedDaemon implements DaemonLease {
       this.readPidFile(hostPaths.runtime, true),
     ]);
     if (claimedPid === null || runtimePid !== claimedPid) {
+      outcome.started.authority.close();
       command.terminate();
       await this.clearFailedLaunch(leasePidPath);
       throw new CliError(

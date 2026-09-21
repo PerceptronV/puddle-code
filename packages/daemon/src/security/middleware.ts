@@ -1,4 +1,6 @@
-import { timingSafeEqual } from 'node:crypto';
+import { secret } from '@puddle/shared/node';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { LeaseRegistry } from './leases.js';
 import type { MiddlewareHandler } from 'hono';
 import { ApiError } from '../http/errors.js';
 
@@ -20,12 +22,13 @@ export function isLocalHostHeader(host: string | undefined): boolean {
 }
 
 /**
- * Whether an `Origin` header is acceptable: absent, the opaque `'null'`, or a
- * localhost origin. Same rule the middleware applies, extracted so the raw WS
+ * Whether an `Origin` header is acceptable: absent or a localhost origin.
+ * Opaque null origins are rejected. Same rule the middleware applies, extracted so the raw WS
  * upgrade handler can call it directly.
  */
 export function isLocalOrigin(origin: string | undefined): boolean {
-  if (origin === undefined || origin === 'null') return true;
+  if (origin === undefined) return true;
+  if (origin === 'null') return false;
   try {
     return LOCAL_HOSTNAMES.has(new URL(origin).hostname);
   } catch {
@@ -51,12 +54,59 @@ export function hostOriginGuard(): MiddlewareHandler {
   };
 }
 
-export function bearerAuth(token: string): MiddlewareHandler {
-  const expected = Buffer.from(`Bearer ${token}`);
+/** Requests without a resource id get a non-renewable resource (short CLI reads).
+ * Streaming clients supply an unguessable id and renew it on their control channel. */
+export function bearerAuth(authority: LeaseRegistry): MiddlewareHandler {
   return async (c, next) => {
-    const presented = Buffer.from(c.req.header('authorization') ?? '');
-    const ok = presented.length === expected.length && timingSafeEqual(presented, expected);
-    if (!ok) throw new ApiError(401, 'unauthorised', 'missing or invalid token');
-    await next();
+    if (c.req.path.startsWith('/proxy/') && c.req.header('upgrade')) return next(); // raw upgrades authenticate separately
+    const token = c.req.header('authorization')?.replace(/^Bearer /, '') ?? '';
+    const env = (c.env ?? {}) as { incoming?: IncomingMessage; outgoing?: ServerResponse };
+    const resource = authority.attach(token, c.req.header('x-puddle-resource') ?? secret(), () => {
+      env.outgoing?.destroy();
+      env.incoming?.destroy();
+    });
+    if (!resource) throw new ApiError(401, 'upstream_expired', 'connection authority expired');
+    env.outgoing?.once('close', () => resource.release());
+    // Guard the web body without putting IncomingMessage into flowing mode:
+    // a data listener here would consume uploads before their route reads them.
+    if (c.req.raw.body) {
+      const body = c.req.raw.body.pipeThrough(
+        new TransformStream({
+          transform(chunk, controller) {
+            if (resource.valid()) controller.enqueue(chunk);
+            else controller.error(new Error('connection authority expired'));
+          },
+        }),
+      );
+      const init = { body, duplex: 'half' };
+      c.req.raw = new Request(c.req.raw, init);
+    }
+    try {
+      if (!resource.valid())
+        throw new ApiError(401, 'upstream_expired', 'connection authority expired');
+      await next();
+      if (!resource.valid())
+        throw new ApiError(401, 'upstream_expired', 'connection authority expired');
+      const body = c.res.body;
+      if (body) {
+        c.res = new Response(
+          body.pipeThrough(
+            new TransformStream({
+              transform(chunk, controller) {
+                if (resource.valid()) controller.enqueue(chunk);
+                else controller.error(new Error('connection authority expired'));
+              },
+              flush() {
+                if (!env.outgoing) resource.release();
+              },
+            }),
+          ),
+          c.res,
+        );
+      } else resource.release();
+    } catch (err) {
+      resource.release();
+      throw err;
+    }
   };
 }

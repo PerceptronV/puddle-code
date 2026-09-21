@@ -29,6 +29,7 @@ const shared = {
   external: ['electron', 'bufferutil', 'utf-8-validate'],
   alias: {
     '@puddle-code/cli/lib': join(repoRoot, 'packages/cli/src/lib/index.ts'),
+    '@puddle/shared/node': join(repoRoot, 'packages/shared/src/node/security.ts'),
     '@puddle/shared': join(repoRoot, 'packages/shared/src/index.ts'),
   },
   define: {
@@ -79,4 +80,9 @@ cpSync(webDist, join(pkgRoot, 'dist/public'), { recursive: true });
 
 console.log(
   `desktop build: dist/main.js + preloads + shell prompts + install.sh + public/ (cli v${cliVersion})`,
+);
+
+cpSync(
+  join(repoRoot, 'packages/cli/dist/host-control.mjs'),
+  join(pkgRoot, 'dist/host-control.mjs'),
 );

@@ -33,6 +33,7 @@ export class LocalTransport implements Transport {
         if (timer) clearTimeout(timer);
         resolve({ code: code ?? -1, stdout, stderr });
       });
+      child.stdin.on('error', () => {}); // A command may exit before reading all input.
       if (opts.stdin !== undefined) child.stdin.end(opts.stdin);
       else child.stdin.end();
     });

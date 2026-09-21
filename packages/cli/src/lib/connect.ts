@@ -39,7 +39,8 @@ export interface ConnectOptions {
   logger?: Logger;
   /** POST /cockpit/refresh (the UI's refresh button) invokes this — the CLI
    *  layer supplies the process-spawning behaviour; lib stays process-free. */
-  onRefreshRequest?: () => void;
+  onRefreshRequest?: (refreshId: string) => void;
+  refreshId?: string;
   /** Test seams. */
   sshBinary?: string;
   scpBinary?: string;
@@ -78,14 +79,15 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
   let endpointResource: Awaited<ReturnType<typeof ensureDaemon>> | undefined;
 
   try {
-    const bootstrap = { tarball: opts.tarball, logger };
+    const bootstrap = { tarball: opts.tarball, logger, noUpgrade: opts.noUpgrade };
     const attachedDaemon = new AttachedDaemon(ssh, logger);
     const endpoint = await ensureDaemon(ssh, {
       ...bootstrap,
       attachedFallback: () => attachedDaemon.start(),
     });
     endpointResource = endpoint;
-    const remotePort = opts.remotePort ?? endpoint.port;
+    let remotePort = opts.remotePort ?? endpoint.port;
+    const eventCbs = new Set<(e: CliEvent) => void>();
 
     // Readiness is the daemon answering /api/version through the forward — any
     // HTTP status proves the byte path (the authenticated handshake follows).
@@ -98,8 +100,24 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
       },
     });
     tunnelResource = tunnel;
-    const client = new DaemonClient(tunnel.localPort, endpoint.token);
-    tunnel.onPortChange((port) => client.setPort(port));
+    const client = new DaemonClient(tunnel.localPort, endpoint.authority);
+    const watchTunnel = (active: typeof tunnel) => {
+      active.onPortChange((port) => {
+        if (tunnelResource !== active) return;
+        client.setPort(port);
+        uiResource?.setTarget({ host: '127.0.0.1', port });
+      });
+      active.onAvailability((available) => {
+        if (tunnelResource === active) endpoint.authority.setTransportAvailable(available);
+      });
+      active.onEvent((e) => {
+        if (tunnelResource !== active) return;
+        if (e.t === 'tunnel-down') logger.warn(`tunnel to ${opts.host} lost — reconnecting…`);
+        if (e.t === 'tunnel-up') logger.info('tunnel restored');
+        eventCbs.forEach((cb) => cb(e));
+      });
+    };
+    watchTunnel(tunnel);
 
     // Carry the client's localhost:1455 to the host for the cockpit's lifetime,
     // so the login URL a remote codex prints works AS PRINTED — clicked or
@@ -126,32 +144,51 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
     // only coincides when the remote uses the default 7434.
     const avoidPort = await readDaemonPort(new LocalTransport());
 
+    endpoint.authority.setVerifier(async () => {
+      const generation = endpoint.authority.generation;
+      const nextPort = opts.remotePort ?? endpoint.authority.port;
+      if (nextPort !== remotePort) {
+        const replacement = await openTunnel(ssh, nextPort, {
+          sshBinary: opts.sshBinary,
+          logger,
+          ready: (port) => waitForHttp(`http://127.0.0.1:${port}/api/version`, 8000),
+        });
+        if (endpoint.authority.generation !== generation) {
+          await replacement.close();
+          throw new Error('Connection generation changed during recovery');
+        }
+        const previous = tunnelResource;
+        tunnelResource = replacement;
+        remotePort = nextPort;
+        client.setPort(replacement.localPort);
+        uiResource?.setTarget({ host: '127.0.0.1', port: replacement.localPort });
+        watchTunnel(replacement);
+        await previous?.close();
+      }
+      await client.version();
+    });
     const ui = await startUiServer({
+      authority: endpoint.authority,
+      identity: opts.host,
+      refreshId: opts.refreshId,
       assetsDir: opts.assetsDir,
       port: opts.port ?? opts.preferPort,
       strictPort: opts.port !== undefined, // a preferred port stays non-strict
       avoidPort,
       target: { host: '127.0.0.1', port: tunnel.localPort },
       ...(opts.onRefreshRequest !== undefined
-        ? { control: { token: endpoint.token, onRefresh: opts.onRefreshRequest } }
+        ? { control: { onRefresh: opts.onRefreshRequest } }
         : {}),
       // The store lives on the CLIENT machine — every cockpit here shares it,
       // whichever remote daemon each one drives.
-      localSync: { token: endpoint.token, file: join(clientHome(), 'local-sync.json') },
+      localSync: { file: join(clientHome(), 'local-sync.json') },
     });
     uiResource = ui;
-    tunnel.onPortChange((port) => ui.setTarget({ host: '127.0.0.1', port }));
-
-    const eventCbs = new Set<(e: CliEvent) => void>();
-    tunnel.onEvent((e) => {
-      if (e.t === 'tunnel-down') logger.warn(`tunnel to ${opts.host} lost — reconnecting…`);
-      if (e.t === 'tunnel-up') logger.info('tunnel restored');
-      eventCbs.forEach((cb) => cb(e));
-    });
 
     return {
       origin: ui.origin,
-      browserUrl: `${ui.origin}/?host=${encodeURIComponent(opts.host)}#token=${endpoint.token}`,
+      createInvitation: ui.createInvitation,
+      launcherPath: ui.launcherPath,
       nonce: ui.nonce,
       daemon,
       daemonLifetime: endpoint.daemonLifetime,
@@ -160,7 +197,7 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
         return () => eventCbs.delete(cb);
       },
       async stop() {
-        await closeRemoteResources(ui, oauthForward, endpoint, tunnel, ssh);
+        await closeRemoteResources(ui, oauthForward, endpoint, tunnelResource, ssh);
       },
     };
   } catch (err) {
@@ -189,6 +226,7 @@ async function closeRemoteResources(
   const actions: Array<() => void | Promise<void>> = [
     () => ui?.close(),
     () => oauthForward?.(),
+    () => endpoint?.authority.close(),
     () => endpoint?.lease?.stop(),
     () => tunnel?.close(),
     () => ssh.dispose(),

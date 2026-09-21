@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { startDaemon, type RunningDaemon } from '../../daemon/src/daemon.js';
+import { startDaemon, type RunningDaemon } from '../../daemon/test/helpers/authorised-daemon.js';
 import { fakeAdapter } from '../../daemon/test/helpers/daemon-fixtures.js';
 import { initRepo } from '../../daemon/test/helpers/git-fixtures.js';
 import { attachSession, resolveSession, type AttachOutcome } from '../src/lib/attach.js';
@@ -23,7 +23,7 @@ describe('puddle attach', () => {
       version: 'attach-test',
       statusQuietMs: 150,
     });
-    client = new DaemonClient(daemon.port, daemon.token);
+    client = new DaemonClient(daemon.port, daemon.connection);
 
     const json = async <T>(method: string, path: string, body?: unknown): Promise<T> => {
       const res = await fetch(`http://127.0.0.1:${daemon.port}${path}`, {
@@ -79,7 +79,7 @@ describe('puddle attach', () => {
     const outcomePromise: Promise<AttachOutcome> = attachSession({
       client,
       port: daemon.port,
-      token: daemon.token,
+      authority: daemon.connection,
       session: sessionId.slice(0, 8),
       streams: { stdin, stdout, stderr: new PassThrough() },
     });

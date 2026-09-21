@@ -1,3 +1,5 @@
+import { LeaseRegistry } from '../src/security/leases.js';
+import { secret } from '@puddle/shared/node';
 import { EventEmitter } from 'node:events';
 import type { WSContext } from 'hono/ws';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -22,8 +24,10 @@ function fixture(snapshot: Promise<string> = Promise.resolve('restored screen'))
   const logs = { readTail: vi.fn(() => 'replayed tail') };
   const catalogue = new EventEmitter();
   const theme = { set: vi.fn() };
+  const authority = new LeaseRegistry();
+  const token = authority.create().token;
   const gateway = new WsGateway({
-    token: 'secret',
+    authority,
     ptys: ptys as unknown as PtyManager,
     logs: logs as unknown as LogStore,
     service: service as unknown as SessionService,
@@ -34,7 +38,8 @@ function fixture(snapshot: Promise<string> = Promise.resolve('restored screen'))
   const ws = { readyState: 1, send, close: vi.fn() } as unknown as WSContext;
   const connection = gateway.connection();
   const receive = (message: object) => connection.onMessage({ data: JSON.stringify(message) }, ws);
-  receive({ t: 'auth', token: 'secret' });
+  receive({ t: 'auth', token, resource: secret() });
+  send.mockClear();
   receive({ t: 'attach', session: 'session-1', term: 'agent', cols: 120, rows: 40 });
   // finishAttach's await continuation was registered by receive() first.
   const attached = snapshot.then(() => Promise.resolve());

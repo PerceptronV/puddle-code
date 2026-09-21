@@ -1,5 +1,6 @@
 import { request as httpRequest, type IncomingMessage, type ServerResponse } from 'node:http';
-import type { Duplex } from 'node:stream';
+import { Transform, type Duplex } from 'node:stream';
+import { openAccess, type GatewayAccess } from './access.js';
 
 /**
  * Where /api, /ws, and /proxy requests go: the daemon port locally, the SSH
@@ -14,9 +15,8 @@ export interface ProxyTarget {
 
 /**
  * Hop-by-hop headers (RFC 7230 §6.1), same set as the daemon's tier-2 proxy.
- * Everything else — including Authorization and Cookie — passes through
- * verbatim: the CLI adds no credentials and strips none; the browser's token
- * must reach the daemon exactly as it left the page (SPEC §2).
+ * Browser credentials and internal Puddle headers are removed separately;
+ * only the current connection authority reaches the daemon (SPEC §2).
  */
 const HOP_BY_HOP = new Set([
   'connection',
@@ -37,8 +37,17 @@ function isBodylessStatus(status: number): boolean {
 function forwardHeaders(req: IncomingMessage): Record<string, string | string[]> {
   const out: Record<string, string | string[]> = {};
   for (const [name, value] of Object.entries(req.headers)) {
-    if (value === undefined || HOP_BY_HOP.has(name)) continue;
-    out[name] = value;
+    if (
+      value === undefined ||
+      HOP_BY_HOP.has(name) ||
+      name === 'authorization' ||
+      name.startsWith('x-puddle-')
+    )
+      continue;
+    if (name === 'cookie') {
+      const cookie = stripPuddleCookies(String(value));
+      if (cookie) out[name] = cookie;
+    } else out[name] = value;
   }
   return out;
 }
@@ -49,16 +58,34 @@ function forwardHeaders(req: IncomingMessage): Record<string, string | string[]>
  * A connect failure synthesises a 502 in the daemon's error envelope so the
  * web UI's ApiError path renders it; upstream statuses pass through as-is.
  */
-export function proxyRequest(req: IncomingMessage, res: ServerResponse, target: ProxyTarget): void {
+export function proxyRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  target: ProxyTarget,
+  access: GatewayAccess,
+  application = false,
+): void {
+  const resource = openAccess(access, () => res.destroy());
+  const headers = forwardHeaders(req);
+  headers.host = `127.0.0.1:${target.port}`;
+  headers.authorization = `Bearer ${resource.token}`;
+  headers['x-puddle-resource'] = resource.id;
+  if (application && applicationAuthorization(req.headers.authorization))
+    headers['x-puddle-application-authorization'] = req.headers.authorization!;
   const upstream = httpRequest({
     host: target.host,
     port: target.port,
     method: req.method,
     path: req.url,
-    headers: forwardHeaders(req),
+    headers,
   });
 
   upstream.on('response', (upstreamRes) => {
+    if (!resource.valid()) {
+      upstreamRes.destroy();
+      res.destroy();
+      return;
+    }
     const headers = { ...upstreamRes.headers };
     for (const name of HOP_BY_HOP) delete headers[name];
     res.writeHead(upstreamRes.statusCode ?? 502, headers);
@@ -67,7 +94,19 @@ export function proxyRequest(req: IncomingMessage, res: ServerResponse, target: 
       upstreamRes.resume();
       return;
     }
-    upstreamRes.pipe(res);
+    upstreamRes
+      .pipe(
+        new Transform({
+          transform(chunk, _encoding, cb) {
+            if (resource.valid()) cb(null, chunk);
+            else {
+              res.destroy();
+              cb();
+            }
+          },
+        }),
+      )
+      .pipe(res);
   });
 
   upstream.on('error', () => {
@@ -78,14 +117,29 @@ export function proxyRequest(req: IncomingMessage, res: ServerResponse, target: 
     res.writeHead(502, { 'content-type': 'application/json' });
     res.end(
       JSON.stringify({
-        error: { code: 'daemon_unreachable', message: 'The puddle daemon is not reachable.' },
+        error: { code: 'upstream_unavailable', message: 'The puddle daemon is not reachable.' },
       }),
     );
   });
 
   // A dropped browser connection must not leak the upstream request.
-  res.on('close', () => upstream.destroy());
-  req.pipe(upstream);
+  res.on('close', () => {
+    upstream.destroy();
+    resource.release();
+  });
+  req
+    .pipe(
+      new Transform({
+        transform(chunk, _encoding, cb) {
+          if (resource.valid()) cb(null, chunk);
+          else {
+            res.destroy();
+            cb();
+          }
+        },
+      }),
+    )
+    .pipe(upstream);
 }
 
 /**
@@ -115,10 +169,9 @@ export class ProxySocketTracker {
 }
 
 /**
- * Verbatim WebSocket splice to the target — covers /ws and /proxy WS alike
- * (the daemon does its own auth and scoping on the other side). Handshake
- * headers pass through untouched apart from hop-by-hop normalisation being
- * skipped entirely: connection/upgrade/sec-websocket-* are load-bearing here.
+ * Authenticated application WebSocket splice. The main cockpit WebSocket
+ * uses WsBridge instead. Preserve handshake headers while substituting
+ * connection authority and stripping proxy credentials.
  */
 export function proxyUpgrade(
   req: IncomingMessage,
@@ -126,11 +179,23 @@ export function proxyUpgrade(
   head: Buffer,
   target: ProxyTarget,
   tracker: ProxySocketTracker,
+  access: GatewayAccess,
 ): void {
+  const resource = openAccess(access, () => socket.destroy());
+  socket.once('close', resource.release);
   const headers: Record<string, string | string[]> = {};
   for (const [name, value] of Object.entries(req.headers)) {
-    if (value !== undefined) headers[name] = value;
+    if (value !== undefined && name !== 'authorization' && !name.startsWith('x-puddle-'))
+      headers[name] = value;
   }
+  headers.host = `127.0.0.1:${target.port}`;
+  headers.authorization = `Bearer ${resource.token}`;
+  headers['x-puddle-resource'] = resource.id;
+  if (applicationAuthorization(req.headers.authorization))
+    headers['x-puddle-application-authorization'] = req.headers.authorization!;
+  const cookie = stripPuddleCookies(req.headers.cookie);
+  if (cookie) headers.cookie = cookie;
+  else delete headers.cookie;
   const upstreamReq = httpRequest({
     host: target.host,
     port: target.port,
@@ -142,6 +207,11 @@ export function proxyUpgrade(
   if (head.length > 0) socket.unshift(head);
 
   upstreamReq.on('upgrade', (upstreamRes, upstreamSocket, upstreamHead: Buffer) => {
+    if (!resource.valid()) {
+      upstreamSocket.destroy();
+      socket.destroy();
+      return;
+    }
     if (upstreamHead.length > 0) upstreamSocket.unshift(upstreamHead);
     socket.write(
       statusHead(101, upstreamRes.statusMessage || 'Switching Protocols', upstreamRes.headers),
@@ -151,10 +221,22 @@ export function proxyUpgrade(
       socket.destroy();
       upstreamSocket.destroy();
     };
+    socket.once('close', teardown);
+    upstreamSocket.once('close', teardown);
     socket.on('error', teardown);
     upstreamSocket.on('error', teardown);
-    socket.pipe(upstreamSocket);
-    upstreamSocket.pipe(socket);
+    const gate = () =>
+      new Transform({
+        transform(chunk, _encoding, cb) {
+          if (resource.valid()) cb(null, chunk);
+          else {
+            teardown();
+            cb();
+          }
+        },
+      });
+    socket.pipe(gate()).pipe(upstreamSocket);
+    upstreamSocket.pipe(gate()).pipe(socket);
   });
 
   // Upstream refused the upgrade with a plain HTTP response: relay and close.
@@ -168,6 +250,7 @@ export function proxyUpgrade(
     tracker.add(socket, upstreamRes.socket ?? socket);
     upstreamRes.pipe(socket);
   });
+  socket.once('close', () => upstreamReq.destroy());
   upstreamReq.on('error', () => refuse(socket, 502, 'Bad Gateway'));
   upstreamReq.end();
 }
@@ -191,4 +274,19 @@ export function refuse(socket: Duplex, status: number, message: string): void {
     socket.write(`HTTP/1.1 ${status} ${message}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
   }
   socket.destroy();
+}
+
+export function stripPuddleCookies(header: string | undefined): string | undefined {
+  return (
+    header
+      ?.split(';')
+      .filter((part) => !part.trim().split('=')[0]?.startsWith('puddle_'))
+      .join(';')
+      .trim() || undefined
+  );
+}
+
+/** Recognisable Puddle credentials must never become application credentials. */
+function applicationAuthorization(value: string | undefined): boolean {
+  return !!value && !/^Bearer (?:cn_|br_|iv_|pg_)[a-f0-9]{64}$/i.test(value);
 }

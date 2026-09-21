@@ -1,5 +1,5 @@
 import { installDaemon, installedVersion, type BootstrapOptions } from './bootstrap.js';
-import { DaemonClient, readDaemonPort, readToken } from './daemon-client.js';
+import { inspectHost } from './auth/control-channel.js';
 import type { Transport } from './transport/transport.js';
 import { type Logger, silentLogger } from './types.js';
 import { pinnedDaemonVersion } from './version.js';
@@ -22,14 +22,7 @@ export async function upgradeDaemon(
   const logger = opts.logger ?? silentLogger;
   const from = await installedVersion(transport);
 
-  let liveSessions = 0;
-  const token = await readToken(transport);
-  if (token !== null && transport.kind === 'local') {
-    // Local mode can count live sessions directly; over SSH the caller
-    // already has a tunnel-aware client when it needs the count.
-    const client = new DaemonClient(await readDaemonPort(transport), token);
-    liveSessions = await client.liveSessionCount().catch(() => 0);
-  }
+  const liveSessions = (await inspectHost(transport).catch(() => null))?.liveSessions ?? 0;
   if (liveSessions > 0) {
     logger.info(`${liveSessions} live session(s) will be interrupted and can be resumed`);
   }

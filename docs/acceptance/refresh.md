@@ -1,12 +1,12 @@
 # Cockpit refresh acceptance — `puddle refresh` + the UI's connection banner (manual)
 
-SPEC §10 "Refresh: replace a cockpit in one step". Run by hand from a **plain
-terminal** (never from inside a coding-agent session — CLAUDE.md's `puddled`
-env warning) against a real host; the interesting part is a genuinely broken
-tunnel/cockpit, which CI cannot fabricate. The pieces that CAN be unit-tested
-are: argument parsing and the `argvFor` round-trip (`test/args.test.ts`), and
-the `POST /cockpit/refresh` control endpoint's auth/method/origin matrix plus
-its deferred callback (`test/serve.test.ts`).
+SPEC §10. Run these browser and desktop checks from a **plain terminal**
+(never an agent session). Built-process tests now exercise real cockpit
+replacement, correlated readiness, retained login and canonical replay;
+web logic tests cover duplicate suppression and rejected/old status responses.
+These manual checks verify actual controls, rendering and interactive SSH.
+See [connection authority acceptance](connection-authority.md) for setup and
+the complete authentication/migration matrix.
 
 ## 1. CLI refresh, local
 
@@ -33,7 +33,7 @@ puddle refresh user@host
 - Works even when `puddle list` showed the cockpit as `unverified`.
 - If the daemon itself was down (host rebooted), refresh restarts it
   (the "installed but not running — restarting it" path) and sessions come
-  back `interrupted` with resume buttons — the normal reconcile story.
+  through boot reconciliation and default auto-resume (or as resumable when auto-resume is disabled).
 
 ## 3. UI-driven refresh
 
@@ -43,7 +43,7 @@ puddle refresh user@host
   is back…", the cockpit log (`~/.puddle/logs/cockpit-<target>.log`) shows
   "refresh requested from the UI — replacing this cockpit" followed by the
   new cockpit's startup, and the page reloads by itself on the same origin.
-- Terminals reattach with their scrollback (log-tail replay) after the reload.
+- Terminals reattach with their scrollback (canonical snapshot replay) after the reload.
 
 ## 4. Failure modes stay honest
 

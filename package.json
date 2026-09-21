@@ -14,7 +14,9 @@
     "lint": "eslint . && prettier --check . && pnpm --filter @puddle/web check-tokens",
     "format": "prettier --write .",
     "dev": "pnpm --parallel --filter @puddle/daemon --filter @puddle/web dev",
-    "build:tarball": "node scripts/build-tarball.mjs"
+    "build:tarball": "node scripts/build-tarball.mjs",
+    "test:e2e": "pnpm --filter @puddle-code/cli exec vitest run --config vitest.e2e.config.ts",
+    "test:ssh": "pnpm --filter @puddle-code/cli exec vitest run --config vitest.ssh.config.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

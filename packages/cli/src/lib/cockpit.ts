@@ -1,6 +1,8 @@
-import type { VersionResponse } from '@puddle/shared';
+import { PROTOCOL_VERSION, type VersionResponse } from '@puddle/shared';
 import { installDaemon, installedVersion, type BootstrapOptions } from './bootstrap.js';
-import { DaemonClient, readDaemonPort, readToken, waitForToken } from './daemon-client.js';
+import { DaemonClient } from './daemon-client.js';
+import { acquireAuthority, type HostConnection } from './auth/connection-authority.js';
+import { inspectHost } from './auth/control-channel.js';
 import { sleep } from './net.js';
 import { hostPaths } from './paths.js';
 import type { Transport } from './transport/transport.js';
@@ -13,8 +15,9 @@ import { CliError, type CliEvent, type Logger, silentLogger } from './types.js';
  */
 export interface RunningCockpit {
   origin: string;
-  /** origin + ?host= (SSH mode) + #token= — what the browser opens. */
-  browserUrl: string;
+  /** Mint a single-use browser invitation. Never persist the returned URL. */
+  createInvitation(): string;
+  launcherPath: string;
   /** The UI server's per-instance identity (see UiServer.nonce). */
   nonce: string;
   daemon: VersionResponse;
@@ -34,7 +37,7 @@ export interface DaemonLease {
 export interface DaemonEndpoint {
   /** The daemon's own port on its host (not a tunnel port). */
   port: number;
-  token: string;
+  authority: HostConnection;
   /** True when this call installed or restarted the daemon. */
   bootstrapped: boolean;
   /** Persistent supervisor, or an SSH channel owned by this cockpit. */
@@ -46,8 +49,8 @@ export interface DaemonEndpoint {
 /**
  * Make sure a daemon is installed and answering on its host, installing or
  * restarting via the embedded install.sh when needed; returns its port and
- * token. `probe` must check reachability of the daemon's OWN port on its
- * host (from the host itself), since the tunnel may not exist yet.
+ * connection authority. Legacy inspection stays on the host because the
+ * tunnel may not exist and the master credential must never leave it.
  */
 export async function ensureDaemon(
   transport: Transport,
@@ -57,47 +60,41 @@ export async function ensureDaemon(
     attachedFallback?: () => Promise<DaemonEndpoint>;
     /** Test seam; normal launches use five seconds with a fallback, twenty without. */
     startTimeoutMs?: number;
+    noUpgrade?: boolean;
   },
 ): Promise<DaemonEndpoint> {
   const logger = opts.logger ?? silentLogger;
   const startTimeoutMs =
     opts.startTimeoutMs ?? (opts.attachedFallback === undefined ? 20_000 : 5_000);
-  let bootstrapped = false;
-
-  const token = await readToken(transport);
-  if (token === null) {
-    // Never installed (or never started): first-time bootstrap. The daemon
-    // writes runtime.json only once it has bound, so wait for it to answer
-    // rather than probe a port it may not be listening on yet.
-    await installDaemon(transport, opts);
-    bootstrapped = true;
-    return waitAfterInstall(transport, opts, logger, bootstrapped, startTimeoutMs);
+  try {
+    const authority = await acquireAuthority(transport);
+    return { port: authority.port, authority, bootstrapped: false, daemonLifetime: 'persistent' };
+  } catch (err) {
+    if (err instanceof CliError && err.code === 'cli_outdated') throw err;
   }
-
-  // Installed and holding a token: probe the discoverable port once — the fast
-  // path for an already-running daemon.
-  const port = await readDaemonPort(transport);
-  const probe = await hostProbe(transport, port, token);
-  if (probe === 'unauthorised') throw portConflict(transport, port);
-  if (probe === 'down') {
-    // The daemon may be installed but stopped (nohup host rebooted, service
-    // disabled).
-    if ((await installedVersion(transport)) === null) {
-      // A state dir without a managed install (a dev daemon's leftovers, an
-      // interrupted bootstrap): `start`/`connect` promise a running daemon
-      // (SPEC §10), so install rather than refuse — ~/.puddle state (db,
-      // token, worktrees) is untouched; install.sh only writes bin/ and the
-      // supervisor.
-      logger.info(`no managed daemon on ${transport.label} — bootstrapping one`);
-    } else {
-      logger.info(`puddled is installed on ${transport.label} but not running — restarting it`);
+  const inspection = await inspectHost(transport).catch((err: unknown) => {
+    if (err instanceof CliError) throw err;
+    return null;
+  });
+  if (inspection) {
+    if (inspection.version.protocol.major > PROTOCOL_VERSION.major) {
+      throw new CliError('cli_outdated', 'the host uses a newer protocol; update the CLI');
     }
-    await installDaemon(transport, opts); // idempotent: (re)installs + restarts
-    bootstrapped = true;
-    return waitAfterInstall(transport, opts, logger, bootstrapped, startTimeoutMs);
+    if (opts.noUpgrade) {
+      throw new CliError(
+        'upgrade_failed',
+        `the daemon speaks protocol ${inspection.version.protocol.major} and --no-upgrade is set`,
+        'run puddle launch without --no-upgrade',
+      );
+    }
+    logger.info(
+      `updating puddled — ${inspection.liveSessions} live session(s) will be interrupted and can be resumed`,
+    );
+  } else if ((await installedVersion(transport)) !== null) {
+    logger.info(`restarting puddled on ${transport.label}`);
   }
-
-  return { port, token, bootstrapped, daemonLifetime: 'persistent' };
+  await installDaemon(transport, opts);
+  return waitAfterInstall(transport, opts, logger, true, startTimeoutMs);
 }
 
 async function waitAfterInstall(
@@ -142,16 +139,27 @@ async function detachedNohupWasReaped(transport: Transport): Promise<boolean> {
   return probe.code !== 0;
 }
 
-/** Wait for a freshly spawned daemon's token and authenticated host-local API. */
+/** Wait for authenticated host control readiness, never a TCP/401 probe. */
 export async function waitForStartedDaemon(
   transport: Transport,
   timeoutMs: number,
-): Promise<{ port: number; token: string }> {
-  const token = await waitForToken(transport, timeoutMs);
-  const up = await waitForHostProbe(transport, token, timeoutMs);
-  if (up.result === 'unauthorised') throw portConflict(transport, up.port);
-  if (up.result !== 'ok') throw startTimeout(transport);
-  return { port: up.port, token };
+  signal?: AbortSignal,
+): Promise<{ port: number; authority: HostConnection }> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline && !signal?.aborted) {
+    try {
+      const authority = await acquireAuthority(transport);
+      if (signal?.aborted) {
+        authority.close();
+        throw startTimeout(transport);
+      }
+      return { port: authority.port, authority };
+    } catch (err) {
+      if (err instanceof CliError && err.code === 'cli_outdated') throw err;
+    }
+    await sleep(500);
+  }
+  throw startTimeout(transport);
 }
 
 function startTimeout(transport: Transport): CliError {
@@ -162,60 +170,6 @@ function startTimeout(transport: Transport): CliError {
       ? `inspect it with: puddle logs ${transport.label}`
       : 'inspect it with: puddle logs',
   );
-}
-
-function portConflict(transport: Transport, port: number): CliError {
-  return new CliError(
-    'port_in_use',
-    `something on ${transport.label} answers on 127.0.0.1:${port} but rejects this host's token`,
-    `it is probably not this host's daemon — another Puddle cockpit's UI server that auto-picked ${port}, ` +
-      `or a daemon started before the token changed. Close it (or restart it), or point the daemon at ` +
-      `another port in ~/.puddle/config.json.`,
-  );
-}
-
-type ProbeResult = 'ok' | 'unauthorised' | 'down';
-
-/**
- * Reachability AND identity of the daemon on 127.0.0.1:<port>, checked from
- * its own host: only a 200 with this host's token counts as "our daemon is
- * up". A 401/403 means SOMETHING answers but not our daemon (typically a
- * `puddle launch` UI server that auto-picked the port) — proceeding would
- * silently wire the cockpit to the wrong backend. Node is guaranteed on the
- * host only under ~/.puddle/bin, so this rides curl, degrading to a plain
- * TCP check (bash /dev/tcp) that cannot verify identity.
- */
-async function hostProbe(transport: Transport, port: number, token: string): Promise<ProbeResult> {
-  const cmd =
-    `if command -v curl >/dev/null 2>&1; then ` +
-    `curl -s -o /dev/null --max-time 2 -w 'HTTP:%{http_code}' ` +
-    `-H 'Authorization: Bearer ${token}' http://127.0.0.1:${port}/api/version || echo DOWN; ` +
-    `elif command -v bash >/dev/null 2>&1 && bash -c 'exec 3<>/dev/tcp/127.0.0.1/${port}' 2>/dev/null; ` +
-    `then echo TCPOPEN; else echo DOWN; fi`;
-  const out = (await transport.exec(cmd, { timeoutMs: 10_000 })).stdout;
-  if (out.includes('HTTP:200')) return 'ok';
-  if (out.includes('HTTP:401') || out.includes('HTTP:403')) return 'unauthorised';
-  if (out.includes('TCPOPEN')) return 'ok'; // no curl on host: cannot verify identity
-  return 'down';
-}
-
-async function waitForHostProbe(
-  transport: Transport,
-  token: string,
-  timeoutMs: number,
-): Promise<{ result: ProbeResult; port: number }> {
-  const deadline = Date.now() + timeoutMs;
-  let last: ProbeResult = 'down';
-  let port = await readDaemonPort(transport);
-  while (Date.now() < deadline) {
-    // Re-read every pass: the daemon writes runtime.json only after it binds,
-    // and it may have fallen back off the configured port onto a free one.
-    port = await readDaemonPort(transport);
-    last = await hostProbe(transport, port, token);
-    if (last !== 'down') return { result: last, port };
-    await sleep(500);
-  }
-  return { result: last, port };
 }
 
 /** Build the client-facing upgrade callback the handshake needs. */
@@ -231,6 +185,8 @@ export function makeUpgrader(
     // attempt is another reaped nohup child, so restore the cockpit-owned
     // process before waiting for the upgraded API.
     await lease?.ensureRunning();
+    const fresh = await waitForStartedDaemon(transport, 30_000);
+    client.setAuthority(fresh.authority);
     const deadline = Date.now() + 30_000;
     while (Date.now() < deadline) {
       if (await client.responds()) return;

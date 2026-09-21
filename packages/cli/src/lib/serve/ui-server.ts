@@ -1,10 +1,19 @@
 import { randomUUID } from 'node:crypto';
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { createServer, type Server } from 'node:http';
+import {
+  browserBootstrapSchema,
+  cockpitRefreshRequestSchema,
+  proxyGrantRequestSchema,
+} from '@puddle/shared';
+import type { ConnectionAuthority } from '../auth/connection-authority.js';
+import { startLauncher } from '../auth/launcher.js';
+import { clientHome } from '../paths.js';
 import { CliError } from '../types.js';
-import { isLocalHostHeader, isLocalOrigin } from './guard.js';
+import { BrowserAuthority } from './browser-authority.js';
+import { exactOrigin, fail, json, readJson } from './http-auth.js';
 import { handleLocalSync, type LocalSyncOptions } from './local-sync.js';
-import { recoverProxiedPath } from './proxy-recovery.js';
 import { createStaticHandler } from './static.js';
+import { handleProxy, proxyPrefix } from './proxy-gateway.js';
 import {
   ProxySocketTracker,
   proxyRequest,
@@ -12,175 +21,188 @@ import {
   refuse,
   type ProxyTarget,
 } from './proxy.js';
+import { WsBridge } from './ws-bridge.js';
 
 export interface UiServerOptions {
-  /** Directory holding the built web UI (dist/public). */
   assetsDir: string;
-  /** Preferred port; auto-picks the next free one unless `strictPort`. */
   port?: number;
-  /** An explicitly requested port that is busy is a hard error. */
   strictPort?: boolean;
-  /**
-   * Never auto-pick this port (the daemon's own port in local mode): a UI
-   * server squatting it would make the next `puddle launch` handshake with a
-   * proxy instead of the daemon. Ignored for an explicit --port.
-   */
   avoidPort?: number;
-  /** Initial proxy target (daemon port locally, tunnel local end remotely). */
   target: ProxyTarget;
-  /**
-   * The cockpit-local control surface (SPEC §10): POST /cockpit/refresh, taken
-   * by the UI's refresh button, requires this bearer `token` (the daemon's)
-   * and invokes `onRefresh` — the caller replaces the whole cockpit. Absent →
-   * the endpoint answers 404 (e.g. embedded servers with no process to swap).
-   */
-  control?: { token: string; onRefresh: () => void };
-  /**
-   * GET/PUT /cockpit/local-sync — the machine-shared settings-sync store (a
-   * JSON file under the client's ~/.puddle; see local-sync.ts). Absent → 404,
-   * and the web hides its "Sync locally" option.
-   */
+  authority: ConnectionAuthority;
+  /** Stable target identity, independent of tunnel/local port changes. */
+  identity: string;
+  authHome?: string;
+  /** Vite fronts this same gateway at its own listener port. */
+  browserPort?: number;
+  refreshId?: string;
+  control?: { onRefresh: (refreshId: string) => void };
   localSync?: LocalSyncOptions;
 }
-
 export interface UiServer {
   port: number;
   origin: string;
-  /**
-   * Per-instance identity, echoed on every response as X-Puddle-Cockpit —
-   * how the cockpit registry tells this server from a recycled pid or a
-   * stranger on the same port.
-   */
   nonce: string;
-  /** Repoint /api + /ws + /proxy (a reconnected tunnel may move ports). */
+  launcherPath: string;
+  createInvitation(): string;
   setTarget(target: ProxyTarget): void;
   close(): Promise<void>;
 }
-
 export const DEFAULT_UI_PORT = 7433;
 const MAX_PORT_PROBES = 50;
 
-function isProxiedPath(url: string): boolean {
-  const pathname = url.split('?')[0] ?? '';
-  return (
-    pathname === '/api' ||
-    pathname.startsWith('/api/') ||
-    pathname === '/ws' ||
-    pathname === '/proxy' ||
-    pathname.startsWith('/proxy/')
-  );
-}
-
-/**
- * The one stable local origin (SPEC §2): serves the web UI tokenlessly and
- * reverse-proxies /api + /ws + /proxy verbatim to the daemon target, with the
- * daemon's own Host/Origin checks applied at this port too.
- */
 export async function startUiServer(opts: UiServerOptions): Promise<UiServer> {
-  const target: ProxyTarget = { ...opts.target };
+  const target = { ...opts.target };
+  const authority = opts.authority;
   const tracker = new ProxySocketTracker();
   const serveStatic = createStaticHandler(opts.assetsDir);
   const nonce = randomUUID();
-
+  let origin = '';
+  let proxyOrigin = '';
+  let browsers: BrowserAuthority;
+  let refreshing: string | null = null;
   const server = createServer((req, res) => {
     res.setHeader('x-puddle-cockpit', nonce);
-    const url = req.url ?? '/';
-    // A proxied page's absolute-path subresource lands outside /proxy/…;
-    // bounce it back under the page's prefix before any other routing (its
-    // /api and /assets belong to the proxied app, not to puddle).
-    const recovered = recoverProxiedPath(req.headers.referer, url);
-    if (recovered !== null) {
-      res.writeHead(307, { location: recovered });
-      res.end();
-      return;
-    }
-    if ((url.split('?')[0] ?? '') === '/cockpit/refresh') {
-      handleRefresh(req, res, opts.control);
-      return;
-    }
-    if ((url.split('?')[0] ?? '') === '/cockpit/local-sync') {
-      handleLocalSync(req, res, opts.localSync);
-      return;
-    }
-    if (isProxiedPath(url)) {
-      if (!isLocalHostHeader(req.headers.host) || !isLocalOrigin(req.headers.origin)) {
-        res.writeHead(403, { 'content-type': 'application/json' });
-        res.end(
-          JSON.stringify({
-            error: { code: 'forbidden_host', message: 'requests must address localhost' },
-          }),
-        );
+    res.setHeader('referrer-policy', 'no-referrer');
+    void (async () => {
+      if (!browsers) return fail(res, 503, 'upstream_unavailable');
+      if (req.headers.host === new URL(proxyOrigin).host)
+        return handleProxy(req, res, proxyOrigin, browsers, authority, target);
+      if (!exactOrigin(req, origin, !['GET', 'HEAD'].includes(req.method ?? '')))
+        return fail(res, 403, 'forbidden_origin');
+      const url = new URL(req.url ?? '/', origin);
+      if (url.pathname === '/cockpit/bootstrap' && req.method === 'POST') {
+        if (!exactOrigin(req, origin, true)) return fail(res, 403, 'forbidden_origin');
+        const body = browserBootstrapSchema.parse(await readJson(req));
+        const credential = browsers.exchange(body.invitation);
+        return credential ? json(res, 200, { credential }) : fail(res, 401, 'browser_rejected');
+      }
+      if (url.pathname.startsWith('/proxy')) return fail(res, 404, 'not_found');
+      const protectedPath =
+        url.pathname === '/api' ||
+        url.pathname.startsWith('/api/') ||
+        url.pathname.startsWith('/cockpit/');
+      if (!protectedPath) {
+        serveStatic(req, res);
         return;
       }
-      proxyRequest(req, res, target);
+      const browser = browsers.authenticate(
+        req.headers.authorization?.replace(/^Bearer /, '') ?? '',
+      );
+      if (!browser)
+        return fail(res, 401, 'browser_rejected', 'Run puddle launch to authorise this browser.');
+      const unbind = browsers.bind(browser, () => res.destroy());
+      res.once('close', unbind);
+      if (url.pathname === '/cockpit/logout' && req.method === 'POST') {
+        unbind();
+        browsers.revoke(browser);
+        return json(res, 200, { status: 'revoked' });
+      }
+      if (url.pathname === '/cockpit/status' && req.method === 'GET') {
+        return json(res, 200, {
+          instance: nonce,
+          refreshId: opts.refreshId ?? null,
+          upstream: authority.state,
+        });
+      }
+      if (url.pathname === '/cockpit/local-sync')
+        return handleLocalSync(req, res, opts.localSync, () => browsers.valid(browser));
+      if (url.pathname === '/cockpit/refresh' && req.method === 'POST') {
+        if (!opts.control) return fail(res, 404, 'refresh_unavailable');
+        const body = cockpitRefreshRequestSchema.parse(await readJson(req));
+        if (!browsers.valid(browser)) return fail(res, 401, 'browser_rejected');
+        const first = refreshing === null;
+        refreshing ??= body.refreshId;
+        browsers.persist();
+        json(res, 202, { status: 'refreshing', refreshId: refreshing, instance: nonce });
+        if (first) setImmediate(() => opts.control?.onRefresh(refreshing!));
+        return;
+      }
+      if (url.pathname === '/cockpit/proxy-grant' && req.method === 'POST') {
+        if (authority.state !== 'ready') return fail(res, 503, authority.state);
+        const body = proxyGrantRequestSchema.parse(await readJson(req));
+        if (!browsers.valid(browser)) return fail(res, 401, 'browser_rejected');
+        const prefix = `/proxy/${body.session}/${body.port}/`;
+        if (
+          !body.path.startsWith('/') ||
+          body.path.startsWith('//') ||
+          body.path.includes('\\') ||
+          /[\r\n]/.test(body.path)
+        )
+          return fail(res, 400, 'bad_request');
+        const path = prefix + body.path.slice(1);
+        if (!new URL(path, proxyOrigin).pathname.startsWith(prefix))
+          return fail(res, 400, 'bad_request');
+        const invitation = browsers.proxyInvite(browser, prefix, path);
+        return json(res, 200, { url: `${proxyOrigin}${prefix}_puddle/enter#invite=${invitation}` });
+      }
+      if (!url.pathname.startsWith('/api/')) return fail(res, 404, 'not_found');
+      if (authority.state !== 'ready') return fail(res, 503, authority.state);
+      proxyRequest(req, res, target, { authority, browsers, browser });
+    })().catch(() => {
+      if (!res.headersSent) fail(res, 400, 'bad_request');
+      else res.destroy();
+    });
+  });
+  server.on('upgrade', (req, socket, head) => {
+    if (!browsers) return refuse(socket, 503, 'Unavailable');
+    if (req.headers.host === new URL(proxyOrigin).host) {
+      if (!exactOrigin(req, proxyOrigin, true)) return refuse(socket, 403, 'Forbidden');
+      const prefix = proxyPrefix(new URL(req.url ?? '/', proxyOrigin).pathname);
+      const browser = prefix && browsers.proxyBrowser(req.headers.cookie, prefix);
+      if (!browser) return refuse(socket, 401, 'Unauthorized');
+      if (authority.state !== 'ready') return refuse(socket, 503, 'Unavailable');
+      try {
+        proxyUpgrade(req, socket, head, target, tracker, { authority, browsers, browser });
+      } catch {
+        refuse(socket, 503, 'Unavailable');
+      }
       return;
     }
-    serveStatic(req, res);
+    if (!exactOrigin(req, origin, true)) return refuse(socket, 403, 'Forbidden');
+    if (req.url !== '/ws') return refuse(socket, 404, 'Not Found');
+    bridge.upgrade(req, socket, head);
   });
-
-  server.on('upgrade', (req, socket, head) => {
-    if (!isProxiedPath(req.url ?? '/')) return refuse(socket, 404, 'Not Found');
-    if (!isLocalHostHeader(req.headers.host) || !isLocalOrigin(req.headers.origin)) {
-      return refuse(socket, 403, 'Forbidden');
-    }
-    proxyUpgrade(req, socket, head, target, tracker);
-  });
-
   const port = await listen(
     server,
     opts.port ?? DEFAULT_UI_PORT,
     opts.strictPort ?? false,
     opts.avoidPort,
   );
-
+  origin = `http://localhost:${opts.browserPort ?? port}`;
+  proxyOrigin = `http://127.0.0.1:${opts.browserPort ?? port}`;
+  const home = opts.authHome ?? clientHome();
+  try {
+    browsers = new BrowserAuthority(home, origin, opts.identity);
+  } catch (err) {
+    server.close();
+    throw err;
+  }
+  const bridge = new WsBridge(browsers, authority, target);
+  const createInvitation = () =>
+    `${origin}/${opts.identity === 'local' ? '' : `?host=${encodeURIComponent(opts.identity)}`}#invite=${browsers.invite()}`;
+  const launcher = await startLauncher(home, `${opts.identity}:${origin}`, createInvitation);
   return {
     port,
-    origin: `http://localhost:${port}`,
+    origin,
     nonce,
+    launcherPath: launcher.path,
+    createInvitation,
     setTarget(next) {
       target.host = next.host;
       target.port = next.port;
     },
-    close() {
+    async close() {
+      await launcher.close();
+      browsers.close();
+      bridge.close();
       tracker.destroyAll();
-      return new Promise((resolve) => {
+      await new Promise<void>((resolve) => {
         server.close(() => resolve());
         server.closeAllConnections();
       });
     },
   };
-}
-
-/**
- * POST /cockpit/refresh — the cockpit-local control endpoint behind the UI's
- * "refresh connection" button. Same Host/Origin discipline as the proxied
- * paths, plus the daemon's bearer token (which the UI already holds): a
- * foreign page cannot restart the cockpit, and neither can an unauthenticated
- * local request. Responds 202 first, THEN fires the callback — the requesting
- * tab must receive the acknowledgement before the replacement kills us.
- */
-function handleRefresh(
-  req: IncomingMessage,
-  res: ServerResponse,
-  control: UiServerOptions['control'],
-): void {
-  const fail = (status: number, code: string, message: string) => {
-    res.writeHead(status, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ error: { code, message } }));
-  };
-  if (!isLocalHostHeader(req.headers.host) || !isLocalOrigin(req.headers.origin)) {
-    return fail(403, 'forbidden_host', 'requests must address localhost');
-  }
-  if (control === undefined) {
-    return fail(404, 'refresh_unavailable', 'this cockpit has no refresh control');
-  }
-  if (req.method !== 'POST') return fail(405, 'method_not_allowed', 'use POST');
-  if (req.headers.authorization !== `Bearer ${control.token}`) {
-    return fail(401, 'unauthorised', 'missing or invalid token');
-  }
-  res.writeHead(202, { 'content-type': 'application/json' });
-  res.end(JSON.stringify({ status: 'refreshing' }));
-  setImmediate(control.onRefresh);
 }
 
 async function listen(
@@ -206,7 +228,7 @@ async function listen(
       server.once('listening', onListening);
       server.listen(port, '127.0.0.1');
     });
-    if (ok) return port;
+    if (ok) return (server.address() as import('node:net').AddressInfo).port;
     if (strict) {
       throw new CliError(
         'port_in_use',

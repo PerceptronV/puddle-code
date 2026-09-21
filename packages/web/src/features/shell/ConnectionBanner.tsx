@@ -2,11 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
-import {
-  registerRefreshTrigger,
-  requestCockpitRefresh,
-  waitForCockpitBack,
-} from '../../lib/cockpit-refresh';
+import { registerRefreshTrigger, refreshController } from '../../lib/cockpit-refresh';
 import { wsManager } from '../../lib/ws';
 
 /** A blip this short (the WS manager's own reconnect usually wins) shows nothing. */
@@ -53,15 +49,7 @@ export function ConnectionBanner() {
     if (phaseRef.current === 'refreshing') return;
     setPhase('refreshing');
     const settle = () => setPhase(wsManager.isConnected() ? 'hidden' : 'lost');
-    if (!(await requestCockpitRefresh())) {
-      toast.error('The cockpit did not accept the refresh — run `puddle refresh` in a terminal.');
-      settle();
-      return;
-    }
-    if (await waitForCockpitBack()) {
-      window.location.reload();
-      return;
-    }
+    if (await refreshController.refresh()) return;
     toast.error(
       'The cockpit has not come back — it may need a terminal (ssh re-auth): puddle refresh',
     );

@@ -36,6 +36,7 @@ import { createSshAuthPrompter } from './ssh-auth-prompt.js';
 import { startSshAskpass, type RunningSshAskpass } from './ssh-askpass.js';
 import { restoredCockpitBounds, type DisplayGeometry } from './window-bounds.js';
 import { readX11Workspace, restoreX11Workspace } from './x11-workspace.js';
+import { refreshNavigation } from './refresh-navigation.js';
 
 /**
  * The desktop shell (SPEC §10): an Electron main process that drives the SAME
@@ -119,18 +120,23 @@ function sshAskpass(): Promise<RunningSshAskpass> {
   return sshAskpassPromise;
 }
 
-async function openCockpit(target: string, preferPort?: number): Promise<RunningCockpit> {
+async function openCockpit(
+  target: string,
+  preferPort?: number,
+  refreshId?: string,
+): Promise<RunningCockpit> {
   const common = {
     assetsDir: join(here, 'public'),
     preferPort,
+    refreshId,
     logger,
     // The UI's connection banner and ⌘K "Refresh connection" POST
     // /cockpit/refresh; in-process there is no process to swap, so refresh
     // is simply: close the UI server (and tunnel), re-run the same flow
     // (which restarts the daemon if it is down), keep the origin.
-    onRefreshRequest: () => {
+    onRefreshRequest: (id: string) => {
       const shell = shells.get(target);
-      if (shell) void refreshShell(shell);
+      if (shell) void refreshShell(shell, id);
     },
   };
   if (target === LOCAL) return startLocal(common);
@@ -138,18 +144,19 @@ async function openCockpit(target: string, preferPort?: number): Promise<Running
   return connectRemote({ host: target, sshAskpassProgram: askpass.program, ...common });
 }
 
-async function refreshShell(shell: Shell): Promise<void> {
+async function refreshShell(shell: Shell, refreshId?: string): Promise<void> {
   if (shell.refreshing) return;
   shell.refreshing = true;
   try {
     const oldOrigin = shell.cockpit.origin;
+    const previousUrl = shell.win.webContents.getURL();
     const preferPort = Number(new URL(oldOrigin).port);
     await shell.cockpit.stop();
-    shell.cockpit = await openCockpit(shell.target, preferPort);
-    // The page polls its old origin and reloads itself once /api/version
-    // answers; only a stolen port (new origin) needs an explicit repoint.
-    if (shell.cockpit.origin !== oldOrigin && !shell.win.isDestroyed())
-      void shell.win.loadURL(shell.cockpit.browserUrl);
+    shell.cockpit = await openCockpit(shell.target, preferPort, refreshId);
+    // UI requests poll correlated status. Menu requests need an explicit reload;
+    // a moved origin also needs a new invitation and its previous route.
+    const navigation = refreshNavigation(previousUrl, oldOrigin, shell.cockpit, refreshId);
+    if (navigation && !shell.win.isDestroyed()) void shell.win.loadURL(navigation);
   } catch (e) {
     logger.warn(`refresh of ${shell.target} failed: ${errorText(e)}`);
   } finally {
@@ -262,7 +269,7 @@ function createWindow(
     if (shell) void shell.cockpit.stop();
   });
 
-  void win.loadURL(cockpit.browserUrl);
+  void win.loadURL(cockpit.createInvitation());
   return win;
 }
 

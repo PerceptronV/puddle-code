@@ -1,3 +1,4 @@
+import type { Duplex } from 'node:stream';
 /**
  * A place commands run and files are read: this machine (local mode) or an
  * SSH host (remote mode). Bootstrap, discovery, and `logs` are written
@@ -28,5 +29,7 @@ export interface Transport {
   readFile(path: string): Promise<string | null>;
   /** Deliver a local file to the target (scp over the master when remote). */
   copyTo(localPath: string, destPath: string): Promise<void>;
+  /** Dedicated credential channel; stdout is never collected as diagnostics. */
+  openChannel?(command: string): Duplex;
   dispose(): void;
 }

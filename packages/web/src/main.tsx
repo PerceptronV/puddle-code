@@ -8,8 +8,7 @@ import './styles/app.css';
 
 initTheme();
 initClientSettings();
-// Order matters: captureHostParam reads the #token= fragment (its local-mode
+// Order matters: captureHostParam reads the #invite= fragment (its local-mode
 // signal) that bootstrapToken strips.
 captureHostParam();
-bootstrapToken();
-createRoot(document.getElementById('root')!).render(<App />);
+void bootstrapToken().then(() => createRoot(document.getElementById('root')!).render(<App />));

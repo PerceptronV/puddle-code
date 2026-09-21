@@ -1,4 +1,5 @@
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, rmSync } from 'node:fs';
+import { atomicPrivateJson, privateDirectory } from '@puddle/shared/node';
 import { join } from 'node:path';
 import { clientHome } from './paths.js';
 
@@ -20,8 +21,8 @@ export interface CockpitRecord {
   cliVersion: string;
   /** Set once ready. */
   origin?: string;
-  /** Contains the daemon token fragment — the record file is mode 0600. */
-  browserUrl?: string;
+  /** Protected launcher IPC address; contains no credentials. */
+  launcherPath?: string;
   /** Echoed by the UI server as X-Puddle-Cockpit; proves origin is this cockpit. */
   nonce?: string;
   /** `cockpit` when the remote daemon is held by this process's SSH channel. */
@@ -59,15 +60,15 @@ export function cockpitLogPath(target: string): string {
 }
 
 export function writeCockpitRecord(record: CockpitRecord): void {
-  mkdirSync(cockpitsDir(), { recursive: true, mode: 0o700 });
-  writeFileSync(cockpitRecordPath(record.target), JSON.stringify(record, null, 2) + '\n', {
-    mode: 0o600,
-  });
+  privateDirectory(cockpitsDir());
+  atomicPrivateJson(cockpitRecordPath(record.target), sanitise(record));
 }
 
 export function readCockpitRecord(target: string): CockpitRecord | null {
   try {
-    return JSON.parse(readFileSync(cockpitRecordPath(target), 'utf8')) as CockpitRecord;
+    const record = JSON.parse(readFileSync(cockpitRecordPath(target), 'utf8')) as CockpitRecord;
+    if ('browserUrl' in record) writeCockpitRecord(record);
+    return sanitise(record);
   } catch {
     return null;
   }
@@ -88,7 +89,9 @@ export function listCockpitRecords(): CockpitRecord[] {
   for (const name of names) {
     if (!name.endsWith('.json')) continue;
     try {
-      records.push(JSON.parse(readFileSync(join(cockpitsDir(), name), 'utf8')) as CockpitRecord);
+      const record = JSON.parse(readFileSync(join(cockpitsDir(), name), 'utf8')) as CockpitRecord;
+      if ('browserUrl' in record) writeCockpitRecord(record);
+      records.push(sanitise(record));
     } catch {
       // A half-written or corrupt record reads as absent; verification would
       // have discarded it anyway.
@@ -127,4 +130,35 @@ export async function checkCockpit(record: CockpitRecord): Promise<CockpitLivene
   } catch {
     return 'unverified';
   }
+}
+
+function sanitise(record: CockpitRecord): CockpitRecord {
+  const {
+    target,
+    pid,
+    status,
+    startedAt,
+    cliVersion,
+    origin,
+    nonce,
+    launcherPath,
+    daemonLifetime,
+    logFile,
+    message,
+    hint,
+  } = record;
+  return {
+    target,
+    pid,
+    status,
+    startedAt,
+    cliVersion,
+    origin,
+    nonce,
+    launcherPath,
+    daemonLifetime,
+    logFile,
+    message,
+    hint,
+  };
 }

@@ -1,7 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { isLocalHostHeader, isLocalOrigin } from './guard.js';
 
 /**
  * The cockpit-local settings-sync store (SPEC §10/§11): one JSON file under
@@ -14,12 +13,11 @@ import { isLocalHostHeader, isLocalOrigin } from './guard.js';
  *   GET /cockpit/local-sync            → the whole file { version, profiles }
  *   PUT /cockpit/local-sync            ← { profile, entry } merges one profile key
  *
- * Same discipline as /cockpit/refresh: localhost Host/Origin plus the daemon
- * bearer token this cockpit proxies for. Writes are read-merge-rename so
+ * Same discipline as /cockpit/refresh: exact cockpit Host/Origin and browser
+ * authorisation, independently of upstream availability. Writes are read-merge-rename so
  * concurrent cockpits never tear the file (last write per profile key wins).
  */
 export interface LocalSyncOptions {
-  token: string;
   file: string;
 }
 
@@ -72,6 +70,7 @@ export function handleLocalSync(
   req: IncomingMessage,
   res: ServerResponse,
   opts: LocalSyncOptions | undefined,
+  authorised: () => boolean,
 ): void {
   const send = (status: number, body: unknown) => {
     res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
@@ -80,14 +79,11 @@ export function handleLocalSync(
   const fail = (status: number, code: string, message: string) =>
     send(status, { error: { code, message } });
 
-  if (!isLocalHostHeader(req.headers.host) || !isLocalOrigin(req.headers.origin)) {
-    return fail(403, 'forbidden_host', 'requests must address localhost');
-  }
   if (opts === undefined) {
     return fail(404, 'local_sync_unavailable', 'this cockpit has no local sync store');
   }
-  if (req.headers.authorization !== `Bearer ${opts.token}`) {
-    return fail(401, 'unauthorised', 'missing or invalid token');
+  if (!authorised()) {
+    return fail(401, 'browser_rejected', 'browser authorisation expired');
   }
 
   if (req.method === 'GET') return send(200, readStore(opts.file));
@@ -95,6 +91,7 @@ export function handleLocalSync(
   if (req.method === 'PUT') {
     void readBody(req)
       .then((text) => {
+        if (!authorised()) return fail(401, 'browser_rejected', 'browser authorisation expired');
         const body = JSON.parse(text) as { profile?: unknown; entry?: unknown };
         if (typeof body.profile !== 'string' || body.profile === '' || body.entry === undefined) {
           return fail(400, 'bad_request', 'expected { profile: string, entry: object }');

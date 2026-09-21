@@ -6,46 +6,52 @@ The automated equivalent (with a deterministic fake agent) lives in
 verify the pieces CI cannot: real `claude` flags, its TUI status patterns,
 and the systemd/launchd restart path.
 
+Run only from a plain shell, as described in [connection authority acceptance](connection-authority.md). Wait for the WebSocket `authenticated` acknowledgement before attaching.
+
 Prerequisites: `pnpm build`; a git repo with a remote at `~/src/my-repo`;
 Claude Code ≥ 2.1.207 on PATH.
 
 ```sh
 export PUDDLE_HOME=~/.puddle          # or a scratch dir for a clean run
 node packages/daemon/dist/index.js &  # or via the systemd/launchd unit
-TOKEN=$(cat $PUDDLE_HOME/token)
+node packages/cli/dist/index.js launch --no-upgrade
+# Copy the browser-only credential from an authorised request in devtools.
+# Keep it private; never read the host master into this shell variable.
+read -rs TOKEN
 AUTH="Authorization: Bearer $TOKEN"
-API=http://127.0.0.1:7433/api
+ORIGIN=http://localhost:7433
+API=$ORIGIN/api
 ```
 
 1. **Token enforcement.** `curl -si $API/version` → 401.
-   `curl -si -H "$AUTH" $API/version` → 200. A wrong `Host:` header → 403.
+   `curl -si -H "$AUTH" -H "Origin: $ORIGIN" $API/version` → 200. A wrong `Host:` header → 403.
 
 2. **Setup.**
    ```sh
-   curl -s -H "$AUTH" -X POST $API/profiles -d '{"name":"alice","branch_prefix":"alice/"}'
-   curl -s -H "$AUTH" -X POST $API/accounts -d '{"profile_id":1,"agent_type":"claude-code","label":"personal"}'
-   curl -s -H "$AUTH" -X POST $API/accounts -d '{"profile_id":1,"agent_type":"claude-code","label":"org"}'
-   curl -s -H "$AUTH" -X POST $API/repos    -d "{\"path\":\"$HOME/src/my-repo\",\"onboarding_notes\":\"always pnpm install\"}"
-   curl -s -H "$AUTH" -X POST $API/projects -d '{"profile_id":1,"repo_id":1,"name":"demo"}'
+   curl -s -H "$AUTH" -H "Origin: $ORIGIN" -X POST $API/profiles -d '{"name":"alice","branch_prefix":"alice/"}'
+   curl -s -H "$AUTH" -H "Origin: $ORIGIN" -X POST $API/accounts -d '{"profile_id":1,"agent_type":"claude-code","label":"personal"}'
+   curl -s -H "$AUTH" -H "Origin: $ORIGIN" -X POST $API/accounts -d '{"profile_id":1,"agent_type":"claude-code","label":"org"}'
+   curl -s -H "$AUTH" -H "Origin: $ORIGIN" -X POST $API/repos    -d "{\"path\":\"$HOME/src/my-repo\",\"onboarding_notes\":\"always pnpm install\"}"
+   curl -s -H "$AUTH" -H "Origin: $ORIGIN" -X POST $API/projects -d '{"profile_id":1,"repo_id":1,"name":"demo"}'
    ```
 
 3. **Login both accounts.** For each account id:
-   `curl -s -H "$AUTH" -X POST $API/accounts/1/login` → `{"stream":"login-1","term":"agent"}`;
+   `curl -s -H "$AUTH" -H "Origin: $ORIGIN" -X POST $API/accounts/1/login` → `{"stream":"login-1","term":"agent"}`;
    attach with wscat (below) and complete the OAuth flow. `GET $API/accounts?profile=1`
    shows `logged_in: true` afterwards. Confirm `$PUDDLE_HOME/profiles/alice/accounts/claude-code/…`
    received the agent state — never `~/.claude`.
 
-4. **Closed gate.** `curl -si -H "$AUTH" -X POST $API/sessions -d '{"project_id":1,"account_id":1,"skip_permissions":true}'`
+4. **Closed gate.** `curl -si -H "$AUTH" -H "Origin: $ORIGIN" -X POST $API/sessions -d '{"project_id":1,"account_id":1,"skip_permissions":true}'`
    → 400 `skip_permissions_denied`.
 
 5. **Two sessions on two accounts.**
    ```sh
-   curl -s -H "$AUTH" -X POST $API/sessions -d '{"project_id":1,"account_id":1,"title":"task one","prompt":"summarise the README"}'
-   curl -s -H "$AUTH" -X POST $API/sessions -d '{"project_id":1,"account_id":2,"title":"task two","prompt":"list the test files"}'
+   curl -s -H "$AUTH" -H "Origin: $ORIGIN" -X POST $API/sessions -d '{"project_id":1,"account_id":1,"title":"task one","prompt":"summarise the README"}'
+   curl -s -H "$AUTH" -H "Origin: $ORIGIN" -X POST $API/sessions -d '{"project_id":1,"account_id":2,"title":"task two","prompt":"list the test files"}'
    ```
    Attach two wscat windows (send each line as one message):
    ```
-   wscat -c ws://127.0.0.1:7433/ws
+   wscat -c ws://localhost:7433/ws -o http://localhost:7433
    > {"t":"auth","token":"<TOKEN>"}
    > {"t":"subscribe-status"}
    > {"t":"attach","session":"<id>","term":"agent","cols":120,"rows":32}
@@ -59,7 +65,7 @@ API=http://127.0.0.1:7433/api
 6. **Restart / reconcile.** `systemctl --user restart puddled` (Linux) or kill
    and relaunch the process. `GET $API/sessions?project=1` → both `interrupted`.
 
-7. **Resume.** `curl -s -H "$AUTH" -X POST $API/sessions/<id>/resume` for each.
+7. **Resume.** `curl -s -H "$AUTH" -H "Origin: $ORIGIN" -X POST $API/sessions/<id>/resume` for each.
    Reattach: the `replay` message carries the pre-restart scrollback; claude
    resumes with history intact and receives the interruption note ("Processes
    you started are gone…"). Confirm the conversation JSONL lives at

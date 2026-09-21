@@ -28,43 +28,29 @@ describe('SSH-attached daemon', () => {
     process.env.PUDDLE_HOME = join(clientHome, '.puddle');
     process.env.FAKE_SSH_HOME = hostHome;
     const port = await findFreePort();
-    const token = 'b'.repeat(64);
+    mkdirSync(puddleHome, { recursive: true, mode: 0o700 });
     mkdirSync(join(puddleHome, 'bin', 'versions', 'test'), { recursive: true });
     mkdirSync(join(puddleHome, 'logs'), { recursive: true });
-    writeFileSync(join(puddleHome, 'token'), `${token}\n`);
+    writeFileSync(join(puddleHome, 'saved-note'), 'durable-state');
     writeFileSync(join(puddleHome, 'config.json'), `${JSON.stringify({ port })}\n`);
 
     const serverFile = join(hostHome, 'fake-puddled.mjs');
     writeFileSync(
       serverFile,
-      `import { createServer } from 'node:http';
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-const home = process.env.PUDDLE_HOME;
+      `import { startDaemon } from ${JSON.stringify(fileURLToPath(new URL('../../daemon/dist/daemon.js', import.meta.url)))};
 const args = process.argv.slice(2);
 const at = args.indexOf('--port');
-const configured = JSON.parse(readFileSync(join(home, 'config.json'), 'utf8')).port;
-const port = at === -1 ? configured : Number(args[at + 1]);
-const db = join(home, 'puddle.db');
-if (!existsSync(db)) writeFileSync(db, 'durable-state');
-const server = createServer((_req, res) => {
-  res.setHeader('content-type', 'application/json');
-  res.end('{"version":"test","protocol":{"major":1,"minor":0}}');
-});
-server.listen(port, '127.0.0.1', () => {
-  writeFileSync(join(home, 'runtime.json'), JSON.stringify({ port, pid: process.pid }));
-});
-const stop = () => server.close(() => {
-  rmSync(join(home, 'runtime.json'), { force: true });
-  process.exit(0);
-});
-process.on('SIGTERM', stop);
-process.on('SIGHUP', stop);
+const daemon = await startDaemon({home: process.env.PUDDLE_HOME, ...(at === -1 ? {} : {port:Number(args[at+1])}), adapters:[], version:'test'});
+let stopping = false;
+const stop = () => { if (stopping) return; stopping=true; void daemon.stop().then(() => process.exit(0)); };
+process.on('SIGTERM', stop); process.on('SIGHUP', stop);
 `,
     );
     const launcher = join(puddleHome, 'bin', 'versions', 'test', 'puddled');
     writeFileSync(launcher, `#!/bin/sh\nexec "${process.execPath}" "${serverFile}" "$@"\n`);
     chmodSync(launcher, 0o755);
+    mkdirSync(join(puddleHome, 'bin', 'versions', 'test', 'bin'));
+    symlinkSync(process.execPath, join(puddleHome, 'bin', 'versions', 'test', 'bin', 'node'));
     symlinkSync('versions/test', join(puddleHome, 'bin', 'current'));
 
     const ssh = new SshTransport('alice@devbox', {
@@ -86,15 +72,16 @@ process.on('SIGHUP', stop);
     expect(endpoint.daemonLifetime).toBe('cockpit');
     expect(existsSync(join(puddleHome, 'runtime.json'))).toBe(true);
     expect(existsSync(join(puddleHome, 'puddled.pid'))).toBe(true);
-    expect(readFileSync(join(puddleHome, 'puddle.db'), 'utf8')).toBe('durable-state');
+    expect(readFileSync(join(puddleHome, 'saved-note'), 'utf8')).toBe('durable-state');
 
+    endpoint.authority.close();
     await endpoint.lease?.stop();
     expect(existsSync(join(puddleHome, 'runtime.json'))).toBe(false);
     expect(existsSync(join(puddleHome, 'puddled.pid'))).toBe(false);
-    expect(readFileSync(join(puddleHome, 'puddle.db'), 'utf8')).toBe('durable-state');
+    expect(readFileSync(join(puddleHome, 'saved-note'), 'utf8')).toBe('durable-state');
 
     await endpoint.lease?.ensureRunning();
     expect(existsSync(join(puddleHome, 'runtime.json'))).toBe(true);
-    expect(readFileSync(join(puddleHome, 'puddle.db'), 'utf8')).toBe('durable-state');
+    expect(readFileSync(join(puddleHome, 'saved-note'), 'utf8')).toBe('durable-state');
   }, 60_000);
 });

@@ -9,14 +9,13 @@ run under vitest (Monaco needs a real `window`) and was flagged as an
 outstanding gap in every Phase 3 implementation report. This script is where
 that gap closes.
 
-Setup:
+Setup (plain shell only; see [connection authority acceptance](connection-authority.md)):
 
 ```sh
 pnpm build
 export PUDDLE_HOME=$(mktemp -d)
 node packages/daemon/dist/index.js &
-until [ -f "$PUDDLE_HOME/token" ]; do sleep 0.2; done   # the daemon writes it on boot
-open "http://127.0.0.1:7433/#token=$(cat $PUDDLE_HOME/token)"
+node packages/cli/dist/index.js launch --foreground --no-upgrade
 ```
 
 **Start the daemon from a plain shell, not from inside this (or any) coding-agent

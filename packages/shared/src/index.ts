@@ -24,3 +24,4 @@ export * from './api/worktree-search.js';
 export * from './api/ports.js';
 export * from './api/cockpit.js';
 export * from './ws/messages.js';
+export * from './api/connection-auth.js';

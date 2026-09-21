@@ -8,7 +8,7 @@ import {
   type Session,
   type VersionResponse,
 } from '@puddle/shared';
-import { sleep } from './net.js';
+import type { ConnectionAuthority } from './auth/connection-authority.js';
 import { hostPaths } from './paths.js';
 import type { Transport } from './transport/transport.js';
 import { CliError } from './types.js';
@@ -23,8 +23,13 @@ const LIVE = new Set(['starting', 'running', 'waiting_input']);
 export class DaemonClient {
   constructor(
     private port: number,
-    private token: string,
+    private authority: ConnectionAuthority,
   ) {}
+
+  setAuthority(authority: ConnectionAuthority): void {
+    this.authority.close();
+    this.authority = authority;
+  }
 
   setPort(port: number): void {
     this.port = port;
@@ -34,7 +39,7 @@ export class DaemonClient {
     let res: Response;
     try {
       res = await fetch(`http://127.0.0.1:${this.port}${path}`, {
-        headers: { authorization: `Bearer ${this.token}` },
+        headers: { authorization: `Bearer ${this.authority.credential()}` },
         signal: AbortSignal.timeout(10_000),
       });
     } catch {
@@ -43,8 +48,8 @@ export class DaemonClient {
     if (res.status === 401) {
       throw new CliError(
         'token_rejected',
-        'the stored token was rejected by the daemon',
-        'inspect ~/.puddle/token on the host — it may have been regenerated',
+        'connection authority was rejected by the daemon',
+        'reconnect with puddle launch',
       );
     }
     if (!res.ok) {
@@ -78,14 +83,14 @@ export class DaemonClient {
     return (await this.sessions()).filter((s) => LIVE.has(s.status)).length;
   }
 
-  /** Whether anything daemon-shaped answers /api/version (401 counts as alive). */
+  /** Readiness requires an authenticated response; rejection never counts as ready. */
   async responds(): Promise<boolean> {
     try {
       const res = await fetch(`http://127.0.0.1:${this.port}/api/version`, {
-        headers: { authorization: `Bearer ${this.token}` },
+        headers: { authorization: `Bearer ${this.authority.credential()}` },
         signal: AbortSignal.timeout(2000),
       });
-      return res.status < 500;
+      return res.ok;
     } catch {
       return false;
     }
@@ -118,28 +123,4 @@ export async function readDaemonPort(transport: Transport): Promise<number> {
     }
   }
   return 7434;
-}
-
-/** The daemon's browser token, or null before its first start. */
-export async function readToken(transport: Transport): Promise<string | null> {
-  const raw = await transport.readFile(hostPaths.token);
-  const token = raw?.trim() ?? '';
-  return /^[0-9a-f]{32,}$/.test(token) ? token : null;
-}
-
-/** Poll for the token file a freshly installed daemon writes on first start. */
-export async function waitForToken(transport: Transport, timeoutMs: number): Promise<string> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const token = await readToken(transport);
-    if (token !== null) return token;
-    await sleep(500);
-  }
-  throw new CliError(
-    'daemon_start_timeout',
-    `puddled did not come up on ${transport.label}`,
-    transport.kind === 'ssh'
-      ? `inspect it with: puddle logs ${transport.label}`
-      : 'inspect it with: puddle logs',
-  );
 }

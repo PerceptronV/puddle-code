@@ -1,3 +1,4 @@
+import { acquireAuthority } from '../lib/auth/connection-authority.js';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { chmod, copyFile, mkdir, rename, rm } from 'node:fs/promises';
@@ -9,7 +10,7 @@ import {
   componentProtocolForVersion,
   recordDesktopInstallation,
 } from '../lib/component-versions.js';
-import { DaemonClient, readDaemonPort, readToken } from '../lib/daemon-client.js';
+import { DaemonClient, readDaemonPort } from '../lib/daemon-client.js';
 import {
   applyDesktopUpdate,
   checkForDesktopUpdate,
@@ -489,8 +490,8 @@ async function removeDaemonCmd(
     let live: Session[] | null = null;
     let profileNames: string[] | null = null;
     try {
-      const token = await readToken(transport);
-      if (token !== null) {
+      const authority = await acquireAuthority(transport);
+      try {
         let port = await readDaemonPort(transport);
         if (transport instanceof SshTransport) {
           tunnel = await openTunnel(transport, port, {
@@ -498,9 +499,11 @@ async function removeDaemonCmd(
           });
           port = tunnel.localPort;
         }
-        const client = new DaemonClient(port, token);
+        const client = new DaemonClient(port, authority);
         live = await client.liveSessions();
         profileNames = (await client.profiles()).map((p) => p.name);
+      } finally {
+        authority.close();
       }
     } catch {
       // Daemon down or unreachable — the removal proceeds either way.

@@ -22,7 +22,8 @@ export interface StartOptions {
   logger?: Logger;
   /** POST /cockpit/refresh (the UI's refresh button) invokes this — the CLI
    *  layer supplies the process-spawning behaviour; lib stays process-free. */
-  onRefreshRequest?: () => void;
+  onRefreshRequest?: (refreshId: string) => void;
+  refreshId?: string;
 }
 
 /**
@@ -33,43 +34,61 @@ export interface StartOptions {
 export async function startLocal(opts: StartOptions): Promise<RunningCockpit> {
   const logger = opts.logger ?? silentLogger;
   const transport = new LocalTransport();
-  const bootstrap = { tarball: opts.tarball, logger };
+  const bootstrap = { tarball: opts.tarball, logger, noUpgrade: opts.noUpgrade };
 
   const endpoint = await ensureDaemon(transport, bootstrap);
-  const client = new DaemonClient(endpoint.port, endpoint.token);
-  const daemon = await runHandshake({
-    client,
-    noUpgrade: opts.noUpgrade,
-    upgradeDaemon: makeUpgrader(transport, client, bootstrap),
-    logger,
-  });
+  try {
+    const client = new DaemonClient(endpoint.port, endpoint.authority);
+    const daemon = await runHandshake({
+      client,
+      noUpgrade: opts.noUpgrade,
+      upgradeDaemon: makeUpgrader(transport, client, bootstrap),
+      logger,
+    });
 
-  const ui = await startUiServer({
-    assetsDir: opts.assetsDir,
-    port: opts.port ?? opts.preferPort,
-    strictPort: opts.port !== undefined, // a preferred port stays non-strict
-    avoidPort: endpoint.port, // never squat the daemon's own port
-    target: { host: '127.0.0.1', port: endpoint.port },
-    ...(opts.onRefreshRequest !== undefined
-      ? { control: { token: endpoint.token, onRefresh: opts.onRefreshRequest } }
-      : {}),
-    localSync: { token: endpoint.token, file: join(clientHome(), 'local-sync.json') },
-  });
+    let currentUi: Awaited<ReturnType<typeof startUiServer>> | undefined = undefined;
+    endpoint.authority.setVerifier(async () => {
+      client.setPort(endpoint.authority.port);
+      await client.version();
+      currentUi?.setTarget({ host: '127.0.0.1', port: endpoint.authority.port });
+    });
+    const ui = await startUiServer({
+      authority: endpoint.authority,
+      identity: 'local',
+      refreshId: opts.refreshId,
+      assetsDir: opts.assetsDir,
+      port: opts.port ?? opts.preferPort,
+      strictPort: opts.port !== undefined, // a preferred port stays non-strict
+      avoidPort: endpoint.port, // never squat the daemon's own port
+      target: { host: '127.0.0.1', port: endpoint.port },
+      ...(opts.onRefreshRequest !== undefined
+        ? { control: { onRefresh: opts.onRefreshRequest } }
+        : {}),
+      localSync: { file: join(clientHome(), 'local-sync.json') },
+    });
+    currentUi = ui;
 
-  const eventCbs = new Set<(e: CliEvent) => void>();
-  return {
-    origin: ui.origin,
-    browserUrl: `${ui.origin}/#token=${endpoint.token}`,
-    nonce: ui.nonce,
-    daemon,
-    daemonLifetime: 'persistent',
-    onEvent(cb) {
-      eventCbs.add(cb);
-      return () => eventCbs.delete(cb);
-    },
-    async stop() {
-      await ui.close();
-      transport.dispose();
-    },
-  };
+    const eventCbs = new Set<(e: CliEvent) => void>();
+    return {
+      origin: ui.origin,
+      createInvitation: ui.createInvitation,
+      launcherPath: ui.launcherPath,
+      nonce: ui.nonce,
+      daemon,
+      daemonLifetime: 'persistent',
+      onEvent(cb) {
+        eventCbs.add(cb);
+        return () => eventCbs.delete(cb);
+      },
+      async stop() {
+        await ui.close();
+        endpoint.authority.close();
+        transport.dispose();
+      },
+    };
+  } catch (err) {
+    endpoint.authority.close();
+    transport.dispose();
+    throw err;
+  }
 }

@@ -9,6 +9,8 @@ export interface Tunnel {
   onEvent(cb: (e: CliEvent) => void): () => void;
   /** The port may move if the original is stolen during a reconnect. */
   onPortChange(cb: (port: number) => void): () => void;
+  /** Immediate transport availability, before notification debounce. */
+  onAvailability(cb: (available: boolean) => void): () => void;
   close(): Promise<void>;
 }
 
@@ -112,6 +114,7 @@ export async function openTunnel(
   const healthIntervalMs = opts.healthIntervalMs ?? HEALTH_INTERVAL_MS;
   const isReady = opts.ready ?? (() => Promise.resolve(true));
   const eventCbs = new Set<(e: CliEvent) => void>();
+  const availabilityCbs = new Set<(available: boolean) => void>();
   const portCbs = new Set<(port: number) => void>();
   const emit = (e: CliEvent) => eventCbs.forEach((cb) => cb(e));
 
@@ -179,6 +182,7 @@ export async function openTunnel(
   const reconnect = async () => {
     if (reconnectActive || stopping) return; // set synchronously below — single loop, always
     reconnectActive = true;
+    availabilityCbs.forEach((cb) => cb(false));
     const flapping = lastRestoredAt !== 0 && Date.now() - lastRestoredAt < STABLE_MS;
     let announced = false;
     const announce = () => {
@@ -229,6 +233,7 @@ export async function openTunnel(
       return;
     }
     if (restored) {
+      availabilityCbs.forEach((cb) => cb(true));
       lastRestoredAt = Date.now();
       if (announced) emit({ t: 'tunnel-up' });
     }
@@ -253,6 +258,10 @@ export async function openTunnel(
     onEvent(cb) {
       eventCbs.add(cb);
       return () => eventCbs.delete(cb);
+    },
+    onAvailability(cb) {
+      availabilityCbs.add(cb);
+      return () => availabilityCbs.delete(cb);
     },
     onPortChange(cb) {
       portCbs.add(cb);

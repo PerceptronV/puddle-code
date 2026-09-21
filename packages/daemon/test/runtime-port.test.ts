@@ -3,7 +3,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { startDaemon, type RunningDaemon } from '../src/daemon.js';
+import { startDaemon, type RunningDaemon } from './helpers/authorised-daemon.js';
 import { resolvePaths } from '../src/paths.js';
 import { readRuntime } from '../src/runtime-file.js';
 

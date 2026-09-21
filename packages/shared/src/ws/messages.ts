@@ -23,7 +23,14 @@ const dims = {
  * (HOME_STREAM) for the homescreen shell.
  */
 export const wsClientMessageSchema = z.discriminatedUnion('t', [
-  z.object({ t: z.literal('auth'), token: z.string() }),
+  z.object({
+    t: z.literal('auth'),
+    token: z.string().max(128),
+    resource: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
+  }),
   z.object({ t: z.literal('attach'), session: z.string(), term: termId, ...dims }),
   z.object({ t: z.literal('stdin'), session: z.string(), term: termId, data: z.string() }),
   z.object({ t: z.literal('resize'), session: z.string(), term: termId, ...dims }),
@@ -49,6 +56,7 @@ export const wsClientMessageSchema = z.discriminatedUnion('t', [
 export type WsClientMessage = z.infer<typeof wsClientMessageSchema>;
 
 export type WsServerMessage =
+  | { t: 'authenticated' }
   | { t: 'shell-spawned'; session: string; term: string }
   | { t: 'replay'; session: string; term: string; data: string }
   | { t: 'output'; session: string; term: string; data: string }

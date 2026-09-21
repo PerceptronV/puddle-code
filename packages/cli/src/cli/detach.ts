@@ -1,3 +1,5 @@
+import { requestInvitation } from '../lib/auth/launcher.js';
+import { clientHome } from '../lib/paths.js';
 import { spawn } from 'node:child_process';
 import { closeSync, mkdirSync, openSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -52,12 +54,9 @@ export async function launchDetached(opts: {
   const existing = readCockpitRecord(target);
   if (existing !== null) {
     const liveness = await checkCockpit(existing);
-    if (liveness === 'running') {
+    if (liveness === 'running' && existing.launcherPath) {
       logger.info(`a cockpit for ${target} is already running at ${existing.origin ?? '?'}`);
-      if (existing.browserUrl !== undefined) {
-        if (!opts.noBrowser) openBrowser(existing.browserUrl);
-        logger.info(`open: ${existing.browserUrl}`);
-      }
+      await presentInvitation(existing, opts.noBrowser, logger);
       logger.info(killHint(target));
       return 0;
     }
@@ -67,6 +66,7 @@ export async function launchDetached(opts: {
       );
       return 0;
     }
+    if (liveness === 'running' && !existing.launcherPath) await terminateCockpit(existing);
     if (liveness === 'unverified') {
       // A live pid we cannot identify — never silently discard its record.
       throw new CliError(
@@ -116,10 +116,7 @@ export async function launchDetached(opts: {
 
   const arrow = target === 'local' ? '' : ` → ${target}`;
   logger.info(`Puddle cockpit at ${record.origin ?? '?'}${arrow} — running in the background`);
-  if (record.browserUrl !== undefined) {
-    if (!opts.noBrowser) openBrowser(record.browserUrl);
-    logger.info(`open: ${record.browserUrl}`);
-  }
+  await presentInvitation(record, opts.noBrowser, logger);
   logger.info(killHint(target));
   return 0;
 }
@@ -169,11 +166,15 @@ async function followStartup(
  * spawned from a detached cockpit that carries the marker itself. Its output
  * appends to the cockpit log, so the whole swap reads as one story there.
  */
-export function spawnDetachedRefresh(target: string, argv: string[]): void {
+export function spawnDetachedRefresh(target: string, argv: string[], refreshId: string): void {
   const logFile = cockpitLogPath(target);
   mkdirSync(dirname(logFile), { recursive: true });
   const fd = openSync(logFile, 'a');
-  const env = { ...process.env };
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    PUDDLE_REFRESH_ID: refreshId,
+    PUDDLE_INTERNAL_REFRESH: '1',
+  };
   delete env[COCKPIT_CHILD_ENV];
   const child = spawn(process.execPath, [process.argv[1] ?? '', ...argv], {
     detached: true,
@@ -208,4 +209,17 @@ export async function terminateCockpit(record: CockpitRecord): Promise<void> {
   // removed its own record) — its entry is not ours to delete.
   const current = readCockpitRecord(record.target);
   if (current === null || current.pid === record.pid) removeCockpitRecord(record.target);
+}
+
+async function presentInvitation(
+  record: CockpitRecord,
+  noBrowser: boolean,
+  logger: Logger,
+): Promise<void> {
+  if (process.env.PUDDLE_INTERNAL_REFRESH === '1') return;
+  if (!record.launcherPath)
+    throw new CliError('cockpit_launch_failed', 'Run puddle refresh to replace this older cockpit');
+  const url = await requestInvitation(clientHome(), record.launcherPath);
+  if (noBrowser) logger.info(`open: ${url}`);
+  else openBrowser(url);
 }

@@ -1,11 +1,13 @@
+import { LeaseRegistry } from '../src/security/leases.js';
 import { describe, expect, it } from 'vitest';
 import { versionResponseSchema } from '@puddle/shared';
 import { buildApp } from '../src/http/app.js';
 
-const TOKEN = 't'.repeat(64);
+const authority = new LeaseRegistry();
+const TOKEN = authority.create().token;
 
 function app() {
-  return buildApp({ version: '0.0.1', token: TOKEN });
+  return buildApp({ version: '0.0.1', authority });
 }
 
 function get(path: string, headers: Record<string, string> = {}) {
@@ -24,7 +26,7 @@ describe('local security middleware', () => {
   it('rejects /api requests without a token', async () => {
     const res = await get('/api/version');
     expect(res.status).toBe(401);
-    expect(((await res.json()) as { error: { code: string } }).error.code).toBe('unauthorised');
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe('upstream_expired');
   });
 
   it('rejects a wrong token of the same length', async () => {

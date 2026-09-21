@@ -1,3 +1,4 @@
+import { acquireAuthority } from '../lib/auth/connection-authority.js';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,7 +7,7 @@ import { openBrowser } from '../lib/browser.js';
 import { formatComponentVersions, installedComponentVersions } from '../lib/component-versions.js';
 import { connectRemote } from '../lib/connect.js';
 import { type RunningCockpit } from '../lib/cockpit.js';
-import { DaemonClient, readDaemonPort, readToken } from '../lib/daemon-client.js';
+import { DaemonClient, readDaemonPort } from '../lib/daemon-client.js';
 import { showLogs } from '../lib/logs.js';
 import { waitForHttp } from '../lib/net.js';
 import { openTunnel } from '../lib/tunnel.js';
@@ -57,14 +58,7 @@ function assetsDir(): string {
 async function openTarget(host: string | undefined) {
   const transport: Transport = host === undefined ? new LocalTransport() : new SshTransport(host);
   if (transport instanceof SshTransport) await transport.open();
-  const token = await readToken(transport);
-  if (token === null) {
-    throw new CliError(
-      'not_installed',
-      `no Puddle daemon is set up on ${transport.label}`,
-      host === undefined ? 'run: puddle launch' : `run: puddle launch ${host}`,
-    );
-  }
+  const authority = await acquireAuthority(transport);
   const daemonPort = await readDaemonPort(transport);
   let port = daemonPort;
   let tunnel: Awaited<ReturnType<typeof openTunnel>> | null = null;
@@ -76,10 +70,11 @@ async function openTarget(host: string | undefined) {
   }
   return {
     transport,
-    token,
+    authority,
     port,
-    client: new DaemonClient(port, token),
+    client: new DaemonClient(port, authority),
     async close() {
+      authority.close();
       await tunnel?.close();
       transport.dispose();
     },
@@ -301,7 +296,7 @@ export async function run(command: Command): Promise<number> {
         const outcome = await attachSession({
           client: target.client,
           port: target.port,
-          token: target.token,
+          authority: target.authority,
           session: command.session,
           ...(command.term !== undefined ? { term: command.term } : {}),
           streams: {
@@ -404,22 +399,32 @@ async function runCockpit(
   // detached `puddle refresh` takes over — it stops this process, then starts
   // a fresh cockpit on the same UI port — carrying the original flags so a
   // --tarball/--no-upgrade dev run refreshes into the same configuration.
-  const onRefreshRequest = () => {
+  const onRefreshRequest = (refreshId: string) => {
     logger.info('refresh requested from the UI — replacing this cockpit');
-    spawnDetachedRefresh(target, [
-      'refresh',
+    spawnDetachedRefresh(
       target,
-      '--no-browser', // the requesting tab reloads itself; no second tab
-      ...(command.port !== undefined ? ['--port', String(command.port)] : []),
-      ...(command.remotePort !== undefined ? ['--remote-port', String(command.remotePort)] : []),
-      ...(command.tarball !== undefined ? ['--tarball', command.tarball] : []),
-      ...(command.noUpgrade ? ['--no-upgrade'] : []),
-    ]);
+      [
+        'refresh',
+        target,
+        '--no-browser', // the requesting tab reloads itself; no second tab
+        ...(command.port !== undefined ? ['--port', String(command.port)] : []),
+        ...(command.remotePort !== undefined ? ['--remote-port', String(command.remotePort)] : []),
+        ...(command.tarball !== undefined ? ['--tarball', command.tarball] : []),
+        ...(command.noUpgrade ? ['--no-upgrade'] : []),
+      ],
+      refreshId,
+    );
   };
 
   let cockpit: RunningCockpit;
   try {
-    const common = { ...command, assetsDir: assetsDir(), logger, onRefreshRequest };
+    const common = {
+      ...command,
+      assetsDir: assetsDir(),
+      logger,
+      onRefreshRequest,
+      refreshId: process.env.PUDDLE_REFRESH_ID,
+    };
     cockpit =
       command.target === 'local'
         ? await startLocal(common)
@@ -441,16 +446,17 @@ async function runCockpit(
     ...base,
     status: 'ready',
     origin: cockpit.origin,
-    browserUrl: cockpit.browserUrl,
+    launcherPath: cockpit.launcherPath,
     nonce: cockpit.nonce,
     daemonLifetime: cockpit.daemonLifetime,
   });
 
   const arrow = command.target === 'local' ? '' : ` → ${command.target}`;
   logger.info(`Puddle cockpit at ${cockpit.origin}${arrow} (daemon ${cockpit.daemon.version})`);
-  if (!detached) {
-    if (!command.noBrowser) openBrowser(cockpit.browserUrl);
-    logger.info(`open: ${cockpit.browserUrl}`);
+  if (!detached && process.env.PUDDLE_INTERNAL_REFRESH !== '1') {
+    const url = cockpit.createInvitation();
+    if (command.noBrowser) logger.info(`open: ${url}`);
+    else openBrowser(url);
   }
 
   const where = command.target === 'local' ? 'this machine' : command.target;
