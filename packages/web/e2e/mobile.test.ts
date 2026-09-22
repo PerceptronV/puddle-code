@@ -137,8 +137,12 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     const device = devices.devices!.find((device) => device.status === 'pending')!;
     await expect(page.getByText(device.peer, { exact: true })).toBeVisible();
     await desktop.getByRole('button', { name: 'Refresh status' }).click();
+    const browserDisclosure = desktop.locator('summary').filter({ hasText: 'Connected browsers' });
+    await expect(desktop.getByText(device.peer, { exact: true })).toBeHidden();
+    await browserDisclosure.click();
     await expect(desktop.getByText(device.peer, { exact: true })).toBeVisible();
-    await desktop.getByRole('button', { name: 'Approve this identity' }).click();
+    await desktop.getByRole('button', { name: 'Approve Test phone', exact: true }).click();
+    await expect(desktop.getByText(device.peer, { exact: true })).toBeHidden();
     await expect(page.getByRole('status')).toHaveText('Connected');
     await page.getByRole('button', { name: 'Open fixture', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Expand sessions' })).toBeVisible();
@@ -148,6 +152,15 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
       page.getByRole('button', { name: 'Open session Other project terminal', exact: true }),
     ).toHaveCount(0);
     await checkMobileHeader(page, testInfo);
+    await page.getByRole('button', { name: 'Paired browsers', exact: true }).click();
+    const browserCard = page.getByRole('article', { name: 'Test phone', exact: true });
+    await expect(browserCard).toContainText('Approved · this browser');
+    await expect(browserCard.locator('code')).toBeHidden();
+    expect((await browserCard.boundingBox())!.height).toBeLessThan(90);
+    await page.screenshot({ path: testInfo.outputPath('phone-browser-cards.png') });
+    await browserCard.locator('summary').click();
+    await expect(browserCard.getByText(device.peer, { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
     await page.getByRole('button', { name: 'Compose prompt' }).click();
     await expect(page.getByRole('button', { name: 'Ctrl-C' })).toBeEnabled();
     await page.getByRole('textbox', { name: 'Prompt', exact: true }).fill('Hello 日本語 🌊');
@@ -341,8 +354,11 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     await desktop.getByRole('button', { name: 'Disable remote access', exact: true }).click();
     await expect(desktop.getByText('Disabled', { exact: true })).toBeVisible();
     expect((await fixture.admin({ t: 'status' })).enabled).toBe(false);
-    await desktop.getByRole('button', { name: 'Delete registration…', exact: true }).click();
     await desktop.getByRole('button', { name: 'Delete registration', exact: true }).click();
+    await desktop
+      .getByRole('dialog', { name: 'Delete this host’s remote registration?' })
+      .getByRole('button', { name: 'Delete registration', exact: true })
+      .click();
     await expect(desktop.getByText('Not configured', { exact: true })).toBeVisible();
     expect(existsSync(join(fixture.local.home, 'remote/config.json'))).toBe(false);
     expect((await fixture.local.req(`/api/sessions/${fixture.session.id}`)).status).toBe(200);

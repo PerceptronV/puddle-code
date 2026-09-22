@@ -20,15 +20,41 @@ export function useRegistration(
     code: string;
     url: string;
   } | null>(null);
-  const [preparing, setPreparing] = useState(false);
+  const [preparing, setPreparing] = useState(true);
   const [error, setError] = useState('');
   const generation = useRef(0);
+  const prepared = useRef<{ code: string; challenge: string } | null>(null);
   useEffect(
     () => () => {
       generation.current += 1;
     },
     [],
   );
+  useEffect(() => {
+    if (attempt) return;
+    let live = true;
+    prepared.current = null;
+    setPreparing(true);
+    const prepare = async () => {
+      try {
+        const code = hex(crypto.getRandomValues(new Uint8Array(32)));
+        const challenge = hex(
+          new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(code))),
+        );
+        if (live) prepared.current = { code, challenge };
+      } catch (failure) {
+        if (live)
+          setError(failure instanceof Error ? failure.message : 'Could not prepare sign-in.');
+      } finally {
+        if (live) setPreparing(false);
+      }
+    };
+    void prepare();
+    return () => {
+      live = false;
+      prepared.current = null;
+    };
+  }, [attempt]);
   const enableRef = useRef(enable);
   useEffect(() => {
     enableRef.current = enable;
@@ -85,16 +111,11 @@ export function useRegistration(
       clearTimeout(timer);
     };
   }, [attempt, disabled]);
-  const begin = async (service: string, app: string, label: string) => {
-    const current = ++generation.current;
-    setPreparing(true);
+  const begin = (service: string, app: string, label: string) => {
+    if (disabled || !prepared.current) return;
     setError('');
     try {
-      const code = hex(crypto.getRandomValues(new Uint8Array(32)));
-      const challenge = hex(
-        new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(code))),
-      );
-      if (current !== generation.current) return;
+      const { code, challenge } = prepared.current;
       const parsed = desktopRegistrationSchema.safeParse({
         service: service.trim(),
         app: app.trim(),
@@ -106,13 +127,16 @@ export function useRegistration(
         throw new Error('Enter a host name and exact HTTPS application and relay origins.');
       const request = parsed.data;
       const url = `${request.app}/#register=${encodeURIComponent(JSON.stringify(request))}`;
+      generation.current += 1;
+      prepared.current = null;
       setAttempt({ request, code, url });
-      // Electron opens HTTPS links in the system browser. A visible link also handles popup blocking.
+      // Stay on this click's call stack: browser tabs open on the UI machine,
+      // and Electron forwards HTTPS links to that desktop's system browser.
+      // No opener command is sent to the daemon/SSH host. The visible link is
+      // still available when the user's browser blocks new tabs.
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Could not start sign-in.');
-    } finally {
-      setPreparing(false);
     }
   };
   return {
@@ -122,6 +146,8 @@ export function useRegistration(
     begin,
     cancel: () => {
       generation.current += 1;
+      prepared.current = null;
+      setPreparing(true);
       setAttempt(null);
     },
   };

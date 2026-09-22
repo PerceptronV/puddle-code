@@ -196,36 +196,38 @@ export function RemoteAccessSection() {
               CLI commands.
             </p>
           )}
-          {!data.enabled && data.supervisor && data.configured && !replace && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button disabled={disabled} onClick={() => void act({ t: 'enable' })}>
-                Enable remote access
-              </Button>
-              <Button variant="ghost" disabled={disabled} onClick={() => setReplace(true)}>
-                Change registration
-              </Button>
-            </div>
-          )}
-          {data.enabled && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button disabled={disabled} onClick={() => void act({ t: 'pair' })}>
-                Pair a browser
-              </Button>
-              <Button
-                variant="ghost"
-                disabled={disabled}
-                onClick={() => void act({ t: 'disable' })}
-              >
-                Disable remote access
-              </Button>
-            </div>
-          )}
-          {invitation && data.enabled && <PairingInvitation {...invitation} dismiss={dismiss} />}
           {data.configured && (
-            <>
+            <div
+              className="mt-4 flex flex-wrap gap-2"
+              role="group"
+              aria-label="Registration actions"
+            >
+              {!data.enabled && data.supervisor && !replace && (
+                <>
+                  <Button disabled={disabled} onClick={() => void act({ t: 'enable' })}>
+                    Enable remote access
+                  </Button>
+                  <Button variant="ghost" disabled={disabled} onClick={() => setReplace(true)}>
+                    Change registration
+                  </Button>
+                </>
+              )}
+              {data.enabled && (
+                <>
+                  <Button disabled={disabled} onClick={() => void act({ t: 'pair' })}>
+                    Pair a browser
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    disabled={disabled}
+                    onClick={() => void act({ t: 'disable' })}
+                  >
+                    Disable remote access
+                  </Button>
+                </>
+              )}
               {data.canDeleteRegistration && (
                 <Button
-                  className="mt-4"
                   variant="ghost"
                   disabled={disabled}
                   onClick={() => {
@@ -233,19 +235,20 @@ export function RemoteAccessSection() {
                     setDeleting(true);
                   }}
                 >
-                  Delete registration…
+                  Delete registration
                 </Button>
               )}
+            </div>
+          )}
+          {invitation && data.enabled && <PairingInvitation {...invitation} dismiss={dismiss} />}
+          {data.configured && (
+            <>
               <DeviceList
                 devices={data.devices}
                 now={status.dataUpdatedAt}
                 busy={disabled}
                 act={act}
               />
-              <p className="mt-4 text-xs text-fg-muted">
-                Revocation and disabling detach remote viewers; agents continue running. Browsers
-                expire after 30 days of inactivity or 90 days overall.
-              </p>
               <Disclosure
                 className="mt-6 text-sm"
                 summary="Host identity recovery"

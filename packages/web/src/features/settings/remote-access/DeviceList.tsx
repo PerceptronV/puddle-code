@@ -1,5 +1,6 @@
-import { REMOTE_POLICY, type CockpitRemoteRequest, type RemoteDevice } from '@puddle/shared';
-import { Button } from '../../../components/ui/button';
+import type { CockpitRemoteRequest, RemoteDevice } from '@puddle/shared';
+import { Disclosure } from '../../../components/ui/disclosure';
+import { BrowserCards } from '../../remote/BrowserCards';
 
 export function DeviceList({
   devices,
@@ -12,64 +13,25 @@ export function DeviceList({
   busy: boolean;
   act(request: CockpitRemoteRequest): Promise<boolean>;
 }) {
-  const visible = devices.filter((device) => device.status !== 'revoked');
   return (
-    <section className="mt-6 space-y-4" aria-label="Browsers">
-      <h3 className="text-sm font-medium">Browsers</h3>
-      <p className="text-xs text-fg-muted">Approval grants terminal control of this host.</p>
-      {visible.length === 0 && (
-        <p className="text-sm text-fg-secondary">
-          No browsers yet. Create a pairing invitation to add one.
+    <Disclosure className="mt-6 text-sm" summary="Connected browsers" summaryClassName="py-2">
+      <section className="space-y-3 pt-2" aria-label="Browsers">
+        <p className="text-xs text-fg-muted">
+          Approval grants terminal control of this host. Compare the identity with the browser
+          requesting access.
         </p>
-      )}
-      {visible
-        .sort((a, b) => Number(b.status === 'pending') - Number(a.status === 'pending'))
-        .map((device) => {
-          const expires =
-            device.status === 'approved'
-              ? Math.min(device.expires, device.lastUsed + REMOTE_POLICY.idleMs)
-              : device.expires;
-          const expired = expires <= now;
-          const status = expired
-            ? 'Expired'
-            : device.status === 'pending'
-              ? 'Awaiting approval'
-              : 'Approved';
-          return (
-            <div key={device.id} className="space-y-1.5 py-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm font-medium">{device.label}</span>
-                <span className="text-xs text-fg-muted">{status}</span>
-              </div>
-              <code className="block break-all text-xs text-fg-secondary">{device.peer}</code>
-              <p className="text-xs text-fg-muted">
-                {expired ? 'Expired' : 'Expires'} {new Date(expires).toLocaleString()}
-              </p>
-              {device.status !== 'revoked' && (
-                <div className="flex gap-2 pt-1">
-                  {device.status === 'pending' && !expired && (
-                    <Button
-                      size="sm"
-                      disabled={busy}
-                      onClick={() => void act({ t: 'approve', id: device.id })}
-                    >
-                      Approve this identity
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={busy}
-                    aria-label={`Revoke ${device.label}`}
-                    onClick={() => void act({ t: 'revoke', id: device.id })}
-                  >
-                    Revoke
-                  </Button>
-                </div>
-              )}
-            </div>
-          );
-        })}
-    </section>
+        <BrowserCards
+          devices={devices}
+          now={now}
+          busy={busy}
+          approve={(id) => void act({ t: 'approve', id })}
+          revoke={(id) => void act({ t: 'revoke', id })}
+        />
+        <p className="text-xs text-fg-muted">
+          Revocation detaches viewers; agents continue running. Browsers expire after 30 days of
+          inactivity or 90 days overall.
+        </p>
+      </section>
+    </Disclosure>
   );
 }

@@ -64,7 +64,7 @@ test('desktop sign-in survives OAuth and enables through a private one-use verif
     expect(new URL(browser.url()).hash).toBe('');
     expect(fixture.remote.store.db.prepare('SELECT * FROM remote_hosts').all()).toEqual([]);
     await browser.getByRole('button', { name: 'Continue with GitHub', exact: true }).click();
-    const confirmation = browser.getByRole('region', { name: 'Desktop registration' });
+    const confirmation = browser.getByRole('dialog', { name: 'Connect Fixture workstation' });
     await expect(confirmation).toContainText('Fixture workstation');
     await expect(confirmation).toContainText(handoff.challenge.slice(0, 8).toUpperCase());
     // Authentication alone must not add the host; explicit confirmation binds the request.
@@ -88,6 +88,9 @@ test('desktop sign-in survives OAuth and enables through a private one-use verif
     expect((await fixture.admin({ t: 'devices' })).devices).toEqual([]);
     expect(errors).toEqual([]);
   } finally {
+    // Let any in-flight status read finish before disposing its request context.
+    await page.unrouteAll({ behavior: 'wait' });
+    await page.context().unrouteAll({ behavior: 'wait' });
     await page.context().close();
     await fixture.close();
   }

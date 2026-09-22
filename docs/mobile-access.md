@@ -143,8 +143,10 @@ Sync**. The Remote access controls apply to the host open in that window, across
 its profiles.
 The application and relay fields start with `https://puddle.waddlelabs.ai` and
 `https://charles.waddlelabs.ai`; both are editable for any self-hosted deployment.
-Choose a host name and **Sign in and enable**. Puddle opens the application in your
-browser. Sign in with Google or GitHub, complete MFA if enabled, compare the request
+Choose a host name and **Sign in and enable**. Puddle opens the application in a
+browser on the machine displaying the UI, including when the host is reached over SSH. Electron uses that machine’s system
+browser; the web cockpit opens a new tab directly from your click. Sign in with
+Google or GitHub, complete MFA if enabled, compare the request
 identifier with desktop, and choose **Confirm host**. Desktop finishes registration
 automatically; there is no registration code to copy. Keep settings open while
 signing in. Cancelling or closing them discards the pending verifier; a request
@@ -159,17 +161,20 @@ The connector needs persistent systemd/launchd supervision; the settings view
 explains when the host needs configuration or an upgrade.
 
 Choose **Pair a browser**, scan the QR code or copy/open the link on the new
-browser, and request approval there. Return to the desktop, compare the full
-browser identity and choose **Approve this identity**. Status and device requests
-refresh automatically while settings are open. Each browser has a Revoke action;
+browser, and request approval there. Return to the desktop, expand **Connected
+browsers**, compare the full browser identity and choose **Approve**. Status and
+device requests refresh automatically while settings are open. Desktop and mobile
+show compact browser cards; expand a card to see an approved browser’s identity
+and expiry. Pending identities stay visible before approval. Each card has a
+**Revoke browser** icon; revoked browsers disappear from the list.
 Disable remote access detaches every remote viewer. Under Host identity recovery,
 Reset host identity performs the same local/SSH recovery as `puddle remote reset`
 after explicit confirmation. Codes and invitations are not stored in cockpit
 settings or logs. Disable, revoke and delete remain available when the relay is
 unavailable.
 
-Choose **Delete registration…** to disable access, revoke every browser and
-invitation, and remove the saved origins and registration credential from this
+Choose **Delete registration** beside the other registration actions to disable
+access, revoke every browser and invitation, and remove the saved origins and registration credential from this
 host. Confirming returns settings to **Not configured**; connecting again needs
 a new browser sign-in handoff (or CLI registration code) and fresh approvals.
 Agents continue running. The host identity and revoked device records remain for audit/recovery. This local/SSH-only

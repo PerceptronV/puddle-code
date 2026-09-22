@@ -5,6 +5,7 @@ import { Disclosure } from '../../components/ui/disclosure';
 import { QrCode } from '../../components/ui/qr-code';
 import type { RemoteClient } from './client';
 import { forgetBrowserHost } from './identity-store';
+import { BrowserCards } from './BrowserCards';
 
 export function DeviceAccess({ client, leave }: { client: RemoteClient; leave(): void }) {
   const [devices, setDevices] = useState<RemoteDevice[]>([]);
@@ -36,55 +37,27 @@ export function DeviceAccess({ client, leave }: { client: RemoteClient; leave():
         Approval grants terminal control of this host. Compare the browser identity with the device
         requesting access.
       </p>
-      {devices.map((device) => (
-        <section key={device.id} className="grid gap-2">
-          <h3>
-            {device.label} · {device.status}
-            {device.id === client.deviceId ? ' · this browser' : ''}
-          </h3>
-          {device.status === 'pending' ? (
-            <code className="break-all text-xs">{device.peer}</code>
-          ) : (
-            <Disclosure summary="Browser identity">
-              <code className="block break-all py-2 text-xs text-fg-muted">{device.peer}</code>
-              <p className="text-xs text-fg-muted">
-                Expires {new Date(device.expires).toLocaleString()}
-              </p>
-            </Disclosure>
-          )}
-          {device.status === 'pending' && (
-            <Button
-              variant="ghost"
-              disabled={busy}
-              onClick={() =>
-                void action(async () => {
-                  const result = await client.admin({ t: 'approve', id: device.id });
-                  if (result.error) throw new Error(result.error);
-                  await refresh();
-                })
-              }
-            >
-              Approve this identity
-            </Button>
-          )}
-          {device.status !== 'revoked' && (
-            <Button
-              variant="ghost"
-              disabled={busy}
-              onClick={() =>
-                void action(async () => {
-                  const result = await client.admin({ t: 'revoke', id: device.id });
-                  if (result.error) throw new Error(result.error);
-                  if (device.id === client.deviceId) leave();
-                  else await refresh();
-                })
-              }
-            >
-              Revoke
-            </Button>
-          )}
-        </section>
-      ))}
+      <BrowserCards
+        devices={devices}
+        now={Date.now()}
+        currentDevice={client.deviceId ?? undefined}
+        busy={busy}
+        approve={(id) =>
+          void action(async () => {
+            const result = await client.admin({ t: 'approve', id });
+            if (result.error) throw new Error(result.error);
+            await refresh();
+          })
+        }
+        revoke={(id) =>
+          void action(async () => {
+            const result = await client.admin({ t: 'revoke', id });
+            if (result.error) throw new Error(result.error);
+            if (id === client.deviceId) leave();
+            else await refresh();
+          })
+        }
+      />
       <Button variant="ghost" disabled={busy} onClick={() => void action(refresh)}>
         Refresh devices
       </Button>

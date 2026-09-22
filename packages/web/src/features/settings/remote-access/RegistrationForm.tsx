@@ -105,7 +105,7 @@ export function RegistrationForm({
             {busy
               ? 'Enabling…'
               : registration.preparing
-                ? 'Opening browser…'
+                ? 'Preparing sign-in…'
                 : 'Sign in and enable'}
           </Button>
           {cancel && (

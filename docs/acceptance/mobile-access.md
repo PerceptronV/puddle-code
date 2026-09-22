@@ -29,11 +29,14 @@ recovery instructions: [self-hosted mobile access](../mobile-access.md).
   and filename prefills, invalid input, nested files, and files outside the project.
   Held touch drags select and copy file text and Unicode across terminal rows in normal,
   mouse-reporting and alternate-screen modes; quick swipes still scroll. Revoked browser rows disappear
-  from desktop settings while their host records remain revoked.
+  from desktop settings while their host records remain revoked. Shared browser cards
+  keep approved identities collapsed and pending identities visible; desktop wraps
+  the cards in an initially collapsed disclosure.
   A separate UI fixture covers
-  in-place registration editing, editable defaults, cancellation and quiet polling during sign-in,
+  in-place registration editing, editable defaults, synchronous UI-client tab opening
+  with its challenge prepared before the click, cancellation and quiet polling during sign-in,
   re-enablement, explicit identity-reset confirmation, and registration
-  deletion with cancellation/error recovery, chevron keyboard toggling, legacy
+  deletion beside the other registration actions with cancellation/error recovery, chevron keyboard toggling, legacy
   settings links and quiet status polling without
   installing a supervisor. This suite requires a locally
   installed Playwright Chromium; no browser download occurs as part of the test.
@@ -62,6 +65,8 @@ review, production OAuth-provider acceptance or physical-phone acceptance.
   systemd/launchd enablement on disposable hosts.
 - Confirm new desktop settings pre-fill the application/relay addresses. Edit a disabled
   registration in place, cancel to restore saved values, then sign in to replace it.
+  Confirm sign-in opens the browser on the machine displaying the UI, including
+  from an SSH Electron window, without launching a browser on the remote host.
   Match the request identifier in the external browser and verify OAuth/MFA returns
   to the pending confirmation. Cancel or close desktop settings before confirming:
   no connector must be enabled. Repeat after expiry and with an older/unavailable

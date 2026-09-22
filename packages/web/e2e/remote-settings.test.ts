@@ -54,7 +54,20 @@ test('desktop registration, re-enablement, recovery and confirmed deletion', asy
     });
     // Avoid external navigation: the full HTTPS fixture covers browser sign-in.
     await page.addInitScript(() => {
-      window.open = () => null;
+      const record = (event: string) => {
+        document.documentElement.dataset.registrationEvents =
+          (document.documentElement.dataset.registrationEvents ?? '') + event + ',';
+      };
+      const digest = crypto.subtle.digest.bind(crypto.subtle);
+      crypto.subtle.digest = (...args) => {
+        record('hash');
+        return digest(...args);
+      };
+      window.open = (url) => {
+        record('open');
+        document.documentElement.dataset.registrationUrl = String(url);
+        return null;
+      };
     });
     let failDeletion = false;
     let holdRead = false;
@@ -142,8 +155,18 @@ test('desktop registration, re-enablement, recovery and confirmed deletion', asy
     await expect(page.getByRole('button', { name: 'Refresh status', exact: true })).toBeEnabled();
     await expect(page.getByRole('button', { name: 'Enabling…', exact: true })).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath('desktop-enable-remote.png') });
+    await page.evaluate(() => {
+      document.documentElement.dataset.registrationEvents = '';
+    });
     await page.getByRole('button', { name: 'Sign in and enable', exact: true }).click();
     const link = page.getByRole('link', { name: 'Continue in browser' });
+    // Opening is synchronous on the UI client; no hashing or host operation intervenes.
+    expect(await page.evaluate(() => document.documentElement.dataset.registrationEvents)).toBe(
+      'open,',
+    );
+    expect(await page.evaluate(() => document.documentElement.dataset.registrationUrl)).toBe(
+      await link.getAttribute('href'),
+    );
     const handoff = JSON.parse(
       new URLSearchParams(new URL((await link.getAttribute('href'))!).hash.slice(1)).get(
         'register',
@@ -165,6 +188,16 @@ test('desktop registration, re-enablement, recovery and confirmed deletion', asy
     expect(requests).toHaveLength(0); // Explicit mutations wait for the background read to finish.
     finishRead!();
     await expect(page.getByText('Connected to relay', { exact: true })).toBeVisible();
+    const actions = page.getByRole('group', { name: 'Registration actions' });
+    await expect(actions.getByRole('button')).toHaveText([
+      'Pair a browser',
+      'Disable remote access',
+      'Delete registration',
+    ]);
+    const positions = await actions
+      .getByRole('button')
+      .evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().y));
+    expect(new Set(positions).size).toBe(1);
     expect(requests[0]).toEqual({
       t: 'enable',
       registration: {
@@ -215,13 +248,13 @@ test('desktop registration, re-enablement, recovery and confirmed deletion', asy
     state.canDeleteRegistration = false;
     await page.getByRole('button', { name: 'Refresh status', exact: true }).click();
     await expect(
-      page.getByRole('button', { name: 'Delete registration…', exact: true }),
+      page.getByRole('button', { name: 'Delete registration', exact: true }),
     ).toHaveCount(0);
     state.canDeleteRegistration = true;
     await page.getByRole('button', { name: 'Refresh status', exact: true }).click();
     await page.getByRole('button', { name: 'Enable remote access', exact: true }).click();
     await expect(page.getByText('Connected to relay', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Delete registration…', exact: true }).click();
+    await page.getByRole('button', { name: 'Delete registration', exact: true }).click();
     const confirmation = page.getByRole('dialog', {
       name: 'Delete this host’s remote registration?',
     });
@@ -229,15 +262,15 @@ test('desktop registration, re-enablement, recovery and confirmed deletion', asy
     await page.screenshot({ path: testInfo.outputPath('desktop-delete-registration.png') });
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     expect(requests.some((request) => request.t === 'delete_registration')).toBe(false);
-    await page.getByRole('button', { name: 'Delete registration…', exact: true }).click();
-    failDeletion = true;
     await page.getByRole('button', { name: 'Delete registration', exact: true }).click();
+    failDeletion = true;
+    await confirmation.getByRole('button', { name: 'Delete registration', exact: true }).click();
     await expect(confirmation).toBeVisible();
     await expect(confirmation.getByRole('alert')).toContainText('Host unavailable');
     await expect(
-      page.getByRole('button', { name: 'Delete registration', exact: true }),
+      confirmation.getByRole('button', { name: 'Delete registration', exact: true }),
     ).toBeEnabled();
-    await page.getByRole('button', { name: 'Delete registration', exact: true }).click();
+    await confirmation.getByRole('button', { name: 'Delete registration', exact: true }).click();
     await expect(confirmation).toHaveCount(0);
     await expect(page.getByText('Not configured', { exact: true })).toBeVisible();
     await expect(page.getByLabel('Relay origin', { exact: true })).toHaveValue(
@@ -248,7 +281,7 @@ test('desktop registration, re-enablement, recovery and confirmed deletion', asy
     );
     await expect(page.getByLabel('Registration code', { exact: true })).toHaveCount(0);
     await expect(
-      page.getByRole('button', { name: 'Delete registration…', exact: true }),
+      page.getByRole('button', { name: 'Delete registration', exact: true }),
     ).toHaveCount(0);
   } finally {
     finishCheck?.();
