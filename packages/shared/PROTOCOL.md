@@ -94,3 +94,11 @@ the signed-in application approves its public SHA-256 hash. This is a new token
 flow, so the cockpit major advances. The existing connector code redemption,
 Noise envelopes, pairing and host leases are unchanged; remote protocol remains 2.
 The service and application must be updated to expose the new handoff endpoints.
+
+Daemon/cockpit protocol 21.0 adds host-authenticated registration retirement via
+machine-only `POST /remote/unregister`. The existing routing credential authorises
+removal of its own service record only; browser Origin/cookies are rejected and
+retries are idempotent. This adds an authentication flow, so the cockpit major
+advances. Noise envelopes, pairing and host leases are unchanged; remote protocol
+remains 2. Update the service and host connector for automatic cleanup; an older
+service leaves private retirement requests queued until it is upgraded.

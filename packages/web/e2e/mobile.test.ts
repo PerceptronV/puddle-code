@@ -361,6 +361,22 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
       .click();
     await expect(desktop.getByText('Not configured', { exact: true })).toBeVisible();
     expect(existsSync(join(fixture.local.home, 'remote/config.json'))).toBe(false);
+    expect(fixture.remote.store.host(existing.id)).toBeUndefined();
+    // Entries deleted by older connectors can be removed explicitly, even while offline.
+    await page.reload();
+    await expect(page.getByRole('region', { name: 'Fixture host', exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByRole('button', { name: 'Remove Offline host', exact: true }).click();
+    const removal = page.getByRole('dialog', { name: 'Remove Offline host?' });
+    await removal.getByRole('button', { name: 'Cancel', exact: true }).click();
+    expect(fixture.remote.store.list(account!.user.id)).toHaveLength(1);
+    await page.getByRole('button', { name: 'Remove Offline host', exact: true }).click();
+    await removal.getByRole('button', { name: 'Remove host', exact: true }).click();
+    await expect(removal).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: 'Remove Offline host', exact: true }),
+    ).toHaveCount(0);
+    expect(fixture.remote.store.list(account!.user.id)).toEqual([]);
     expect((await fixture.local.req(`/api/sessions/${fixture.session.id}`)).status).toBe(200);
   } finally {
     await page.context().close();

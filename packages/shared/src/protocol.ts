@@ -286,4 +286,5 @@
 // 19.0: remove email login and move cockpit pairing invitations to remote protocol 2.
 // 19.1: additive — local/SSH registration deletion with connector capability discovery.
 // 20.0: desktop-initiated account registration with a browser-approved, hashed handoff.
-export const PROTOCOL_VERSION = { major: 20, minor: 0 } as const;
+// 21.0: host-authenticated retirement of deleted/replaced remote registrations.
+export const PROTOCOL_VERSION = { major: 21, minor: 0 } as const;

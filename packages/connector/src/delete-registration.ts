@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { connectorConfigSchema } from '@puddle/shared';
 import { atomicPrivateJson, readPrivateJson } from '@puddle/shared/node';
 import { DeviceStore } from './devices.js';
+import { retireRegistration } from './registration-cleanup.js';
 
 /** Disable durably before revocation/removal; retain the identity and revoked audit records. */
 export function deleteRegistration(directory: string, liveDevices?: DeviceStore): void {
@@ -10,6 +11,7 @@ export function deleteRegistration(directory: string, liveDevices?: DeviceStore)
   if (existsSync(path)) {
     const config = connectorConfigSchema.parse(readPrivateJson(path));
     atomicPrivateJson(path, { ...config, enabled: false });
+    retireRegistration(directory, config);
   }
   const devices =
     liveDevices ??

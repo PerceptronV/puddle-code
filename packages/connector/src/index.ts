@@ -6,6 +6,7 @@ import { jsonLines } from '@puddle/shared/node';
 import { administrativeRequest, configureConnector, resetConnectorIdentity } from './admin.js';
 import { inspectConnector } from './inspect.js';
 import { PROTOCOL_VERSION, REMOTE_PROTOCOL_VERSION } from '@puddle/shared';
+import { hasRegistrationCleanup, startRegistrationCleanup } from './registration-cleanup.js';
 
 const home = process.env.PUDDLE_HOME ?? join(homedir(), '.puddle');
 
@@ -42,9 +43,13 @@ if (process.argv.includes('--version')) {
       process.exitCode = 1;
     },
   );
-} else if (existsSync(join(home, 'remote/config.json'))) {
-  // After deletion an installed supervisor may launch us again; exit cleanly until configured.
-  const connector = await startConnector(home);
+} else if (
+  existsSync(join(home, 'remote/config.json')) ||
+  hasRegistrationCleanup(join(home, 'remote'))
+) {
+  const connector = existsSync(join(home, 'remote/config.json'))
+    ? await startConnector(home)
+    : startRegistrationCleanup(join(home, 'remote'), true);
   let stopping = false;
   const stop = () => {
     if (stopping) return;

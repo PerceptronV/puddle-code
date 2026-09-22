@@ -21,6 +21,11 @@ import { installConnectorSupervisor, supervisorKind } from './supervisor.js';
 import { createIdentity } from '@puddle/remote-transport';
 import { DeviceStore } from './devices.js';
 import { deleteRegistration } from './delete-registration.js';
+import {
+  checkRetirementCapacity,
+  flushRegistrationCleanup,
+  retireRegistration,
+} from './registration-cleanup.js';
 
 async function exchange(
   home: string,
@@ -60,8 +65,9 @@ export async function administrativeRequest(
   value: unknown,
 ): Promise<RemoteAdminResponse> {
   const request = connectorLocalRequestSchema.parse(value);
+  let result: RemoteAdminResponse;
   try {
-    return await exchange(home, request);
+    result = await exchange(home, request);
   } catch (error) {
     const directory = join(home, 'remote');
     if (request.t === 'delete_registration') {
@@ -70,6 +76,7 @@ export async function administrativeRequest(
       const code = (error as NodeJS.ErrnoException).code;
       if (code !== 'ENOENT' && code !== 'ECONNREFUSED') throw error;
       deleteRegistration(directory);
+      await flushRegistrationCleanup(directory);
       return { enabled: false, connected: false };
     }
     const path = join(directory, 'config.json');
@@ -94,6 +101,9 @@ export async function administrativeRequest(
       cause: error,
     });
   }
+  if (request.t === 'delete_registration' && !result.error)
+    await flushRegistrationCleanup(join(home, 'remote'));
+  return result;
 }
 export async function configureConnector(
   home: string,
@@ -107,6 +117,7 @@ export async function configureConnector(
     throw new Error('Remote access is already enabled; disable it before changing registration');
   let config;
   if (setup.code && setup.service && setup.app) {
+    if (existing) checkRetirementCapacity(join(home, 'remote'), existing);
     const response = await fetch(`${setup.service}/remote/register`, {
       method: 'POST',
       redirect: 'error',
@@ -143,6 +154,7 @@ export async function configureConnector(
       devices.close();
     }
   }
+  if (setup.code && existing) retireRegistration(join(home, 'remote'), existing);
   atomicPrivateJson(path, connectorConfigSchema.parse(config));
   try {
     if (setup.managed) installConnectorSupervisor(home);
@@ -150,6 +162,7 @@ export async function configureConnector(
     atomicPrivateJson(path, { ...config, enabled: false });
     throw error;
   }
+  await flushRegistrationCleanup(join(home, 'remote'));
   return { enabled: true, host: config.host, connected: false };
 }
 

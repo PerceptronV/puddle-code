@@ -174,19 +174,25 @@ settings or logs. Disable, revoke and delete remain available when the relay is
 unavailable.
 
 Choose **Delete registration** beside the other registration actions to disable
-access, revoke every browser and invitation, and remove the saved origins and registration credential from this
-host. Confirming returns settings to **Not configured**; connecting again needs
+access, revoke every browser and invitation, and remove the active registration
+from this host. Confirming returns settings to **Not configured**; connecting again needs
 a new browser sign-in handoff (or CLI registration code) and fresh approvals.
 Agents continue running. The host identity and revoked device records remain for audit/recovery. This local/SSH-only
-action requires an updated host connector. It does not sign in to the relay on
-your behalf: remove its account-list entry separately with **Settings → Manage
-pairings → Unregister…** in the web application.
+action requires an updated host connector. It also removes the host from your
+remote account’s host list. If the relay is unavailable, a private removal request
+retains the old routing credential on the host until the relay acknowledges
+removal. It retries when connectivity returns, including after a host restart. Replacing a registration also retires the previous entry. Disabling remote
+access or taking a host offline keeps its registration.
 
-Update both deployed service and application images before using desktop sign-in;
-older deployments do not expose its approval/status endpoints. This flow ships with
-daemon/cockpit protocol 20.0 and retains encrypted remote protocol 2. Update desktop
-and the host daemon together. Existing host registrations and pairings are preserved
-by the service's database migration.
+For stale entries left by older connectors, open remote **Settings → Hosts**, use
+the **Remove host registration** trash icon beside the obsolete entry, and confirm.
+This works for offline hosts too; it removes only the selected registration.
+Machines with identical names are kept separate.
+
+Update the deployed service/application images and the host connector for automatic
+registration cleanup. Update desktop and the host daemon together for daemon/cockpit
+protocol 21.0; encrypted remote protocol stays 2. Existing registrations and browser
+pairings are preserved. Older services leave removal requests queued until upgraded.
 
 The equivalent CLI workflow is:
 

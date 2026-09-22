@@ -11,4 +11,6 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
-- Update stale protocol assertions for desktop registration’s existing protocol 20.0 and verify that 19.x daemons require an upgrade.
+- Retire deleted and replaced remote registrations from the relay, retry cleanup across outages/restarts, and expose confirmed removal of legacy phantom hosts in remote settings (daemon/cockpit protocol 21.0; encrypted remote protocol stays 2).
+
+- Keep the current protocol assertion separate from schema tests and verify that older daemons require an upgrade.

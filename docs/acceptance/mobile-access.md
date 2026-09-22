@@ -1,6 +1,6 @@
 # Mobile access acceptance
 
-Remote protocol 2; daemon/cockpit protocol 20.0. Run in isolated homes with fake agents.
+Remote protocol 2; daemon/cockpit protocol 21.0. Run in isolated homes with fake agents.
 Never launch an installed daemon from a coding-agent environment. Deployment and
 recovery instructions: [self-hosted mobile access](../mobile-access.md).
 
@@ -62,7 +62,12 @@ review, production OAuth-provider acceptance or physical-phone acceptance.
   connectors request an upgrade. Verify offline disable/revoke and confirmed
   identity reset. Delete enabled and disabled registrations: cancelling preserves
   access, confirming clears settings and revokes all browsers/invitations while
-  agents continue. Repeat with the relay offline; fresh registration must require
+  agents continue. Confirm the relay row disappears and re-registration leaves one
+  current entry. Repeat with the relay offline, then restart the connector without
+  a saved config and restore relay connectivity: queued cleanup must finish.
+  Disable alone must retain the account row. Remove legacy offline entries with
+  Settings → Hosts → Remove, checking cancellation and same-named host isolation.
+  With an older relay, keep cleanup queued until upgrade. After deletion, fresh registration must require
   a new sign-in handoff (or CLI code) and new approvals. Older connectors must hide deletion. Test actual
   systemd/launchd enablement on disposable hosts.
 - Confirm new desktop settings pre-fill the application/relay addresses. Edit a disabled

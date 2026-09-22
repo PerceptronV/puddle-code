@@ -30,7 +30,8 @@ export function DeleteRegistrationDialog({
           registration code and fresh browser approvals.
         </DialogDescription>
         <p className="text-sm text-fg-secondary">
-          To also remove this host from the relay’s account list, choose Unregister in the web app.
+          This also removes the host from the remote host list. If the service is unavailable,
+          removal finishes when it reconnects.
         </p>
         {error && (
           <p role="alert" className="text-sm text-danger">

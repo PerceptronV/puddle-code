@@ -21,7 +21,7 @@ describe('decideHandshake', () => {
     });
   });
 
-  it.each([15, 19])('upgrades a %i.x daemon to the current protocol', (major) => {
+  it.each([15, 19, 20])('upgrades a %i.x daemon to the current protocol', (major) => {
     expect(decideHandshake(PROTOCOL_VERSION, { major })).toEqual({
       kind: 'upgrade-daemon',
     });

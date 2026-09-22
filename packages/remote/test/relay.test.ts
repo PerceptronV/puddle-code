@@ -188,6 +188,30 @@ it('enforces HTTP origins, account routing and live service-session revocation o
     await remote.relay.recheck();
     await closed;
     expect(remote.relay.online(host)).toBe(true);
+    const sameName = remote.store.redeem(
+      remote.store.register(remote.store.host(host)!.account, 'Host').code,
+    );
+    const removal = { credential };
+    expect((await req('/remote/unregister', removal)).status).toBe(403);
+    expect((await req('/remote/unregister', removal, cookie, null)).status).toBe(403);
+    expect(
+      (await req('/remote/unregister', { credential: 'invalid' }, undefined, null)).status,
+    ).toBe(400);
+    expect(
+      (await req('/remote/unregister', { ...removal, host: sameName.host }, undefined, null))
+        .status,
+    ).toBe(400);
+    expect(
+      (await req('/remote/unregister', { credential: secret() }, undefined, null)).status,
+    ).toBe(204);
+    expect(remote.store.host(host)).toBeDefined();
+    const disconnected = once(connector, 'close');
+    expect((await req('/remote/unregister', removal, undefined, null)).status).toBe(204);
+    await disconnected;
+    expect(remote.store.host(host)).toBeUndefined();
+    expect(remote.store.authenticate(credential)).toBeUndefined();
+    expect(remote.store.host(sameName.host)).toBeDefined();
+    expect((await req('/remote/unregister', removal, undefined, null)).status).toBe(204);
   } finally {
     github.close();
     for (const socket of sockets) socket.terminate();

@@ -9,6 +9,7 @@ import {
   registerHostRequestSchema,
   redeemRegistrationSchema,
   desktopRegistrationSchema,
+  unregisterHostRequestSchema,
 } from '@puddle/shared';
 import type { RemoteConfig } from './config.js';
 import { createServiceAuth } from './auth.js';
@@ -48,10 +49,12 @@ export async function startRemoteService(config: RemoteConfig) {
       c.header('access-control-allow-headers', 'Content-Type');
       return c.body(null, 204);
     }
-    // Registration redemption is a machine-only bearer exchange, never cookie authenticated.
+    // Machine registration operations use private credentials, never browser cookies.
     if (
       !['GET', 'HEAD'].includes(c.req.method) &&
-      !['/remote/register', '/remote/registration-status'].includes(c.req.path) &&
+      !['/remote/register', '/remote/registration-status', '/remote/unregister'].includes(
+        c.req.path,
+      ) &&
       !origin
     )
       return c.json({ error: 'Origin required' }, 403);
@@ -163,6 +166,19 @@ export async function startRemoteService(config: RemoteConfig) {
     } catch {
       return c.json({ error: 'Registration expired or used' }, 403);
     }
+  });
+  app.post('/remote/unregister', async (c) => {
+    if (c.req.header('origin') !== undefined || c.req.header('cookie') !== undefined)
+      return c.json({ error: 'Host removal requires the local connector' }, 403);
+    const body = unregisterHostRequestSchema.safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'Invalid host removal' }, 400);
+    const host = store.authenticate(body.data.credential);
+    if (host) {
+      store.remove(host.id, host.account);
+      relay.remove(host.id);
+    }
+    // Idempotent after a lost acknowledgement, without revealing whether a credential existed.
+    return c.body(null, 204);
   });
   const listener = getRequestListener(app.fetch);
   const server = createServer({ maxHeaderSize: 16 * 1024 }, (req, res) => {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LogOut, Laptop, Unplug } from 'lucide-react';
+import { LogOut, Laptop, Trash2, Unplug } from 'lucide-react';
 import { registrationResponseSchema, type RemoteHost } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import {
@@ -115,6 +115,19 @@ export function RemoteSettings({
                 <Unplug />
                 {disconnected.has(host.id) ? 'Connect' : 'Disconnect'}
               </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={busy}
+                aria-label={`Remove ${host.label}`}
+                title="Remove host registration"
+                onClick={() => {
+                  setMessage('');
+                  setRemoving(host);
+                }}
+              >
+                <Trash2 />
+              </Button>
             </div>
           ))}
           {hosts.length === 0 && <p className="text-sm text-fg-muted">No hosts connected yet.</p>}
@@ -186,16 +199,6 @@ export function RemoteSettings({
                 >
                   Forget pairing
                 </Button>
-                <Button
-                  variant="ghost"
-                  disabled={busy}
-                  onClick={() => {
-                    setMessage('');
-                    setRemoving(host);
-                  }}
-                >
-                  Unregister…
-                </Button>
               </div>
             ))}
           </Disclosure>
@@ -228,7 +231,7 @@ export function RemoteSettings({
         >
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Unregister {removing?.label}?</DialogTitle>
+              <DialogTitle>Remove {removing?.label}?</DialogTitle>
               <DialogDescription>
                 Remove this host from your account and disconnect its remote viewers. Its agents
                 keep running. Register it again from desktop to reconnect.
@@ -250,13 +253,15 @@ export function RemoteSettings({
                   void action(async () => {
                     if (!removing) return;
                     await serviceRequest(`/remote/hosts/${removing.id}`, 'DELETE');
+                    const identity = await loadBrowserHost(serviceOrigin, account, removing.id);
+                    if (identity) await forgetBrowserHost(identity);
                     disconnect(removing.id);
                     setRemoving(null);
                     await refresh();
                   })
                 }
               >
-                Unregister host
+                Remove host
               </Button>
             </DialogFooter>
           </DialogContent>

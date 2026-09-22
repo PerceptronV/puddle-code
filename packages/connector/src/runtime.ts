@@ -24,6 +24,7 @@ import { createIdentity, identityPeer, secureChannel, SocketWire } from '@puddle
 import { DeviceStore } from './devices.js';
 import { admit } from './admission.js';
 import { deleteRegistration } from './delete-registration.js';
+import { startRegistrationCleanup } from './registration-cleanup.js';
 
 export async function startConnector(home: string) {
   const directory = join(home, 'remote');
@@ -102,10 +103,10 @@ export async function startConnector(home: string) {
           const request = connectorLocalRequestSchema.parse(value);
           if (request.t === 'delete_registration') {
             config.enabled = false;
-            deleteRegistration(directory, devices);
-            registrationDeleted = true;
             control?.terminate();
             for (const pipe of pipes) pipe.terminate();
+            deleteRegistration(directory, devices);
+            registrationDeleted = true;
             result = { enabled: false, connected: false };
           } else result = admin(request);
         } catch {
@@ -216,10 +217,12 @@ export async function startConnector(home: string) {
     });
   };
   const reconnect = setInterval(establish, 500);
+  const cleanup = startRegistrationCleanup(directory);
   establish();
   return {
     admin,
     async close() {
+      await cleanup.close();
       stopped = true;
       clearInterval(reconnect);
       control?.terminate();

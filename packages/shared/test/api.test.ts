@@ -30,8 +30,8 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 20.0 for browser-approved desktop registration', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 20, minor: 0 });
+  it('declares protocol 21.0 for host-authenticated registration retirement', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 21, minor: 0 });
   });
 
   it('accepts a well-formed error envelope and rejects a malformed one', () => {
