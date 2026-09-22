@@ -7,8 +7,8 @@ import {
   Folder,
   FolderOpen,
   GitCompareArrows,
+  Monitor,
   RefreshCw,
-  SquareTerminal,
 } from 'lucide-react';
 import { fileResponseSchema, treeResponseSchema } from '@puddle/shared';
 import { api } from '../../lib/api';
@@ -80,7 +80,7 @@ export function PhoneFiles({
       title="Terminals"
       onClick={terminals}
     >
-      <SquareTerminal />
+      <Monitor />
     </Button>
   );
   return (

@@ -19,6 +19,8 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Fit five-letter project abbreviations in the mobile rail, match desktop gold controls, align the collapse button with both workspace toolbars, and distinguish the Files return action with a computer icon.
+
 - Prepare browser sign-in before the registration click so its tab opens directly on the machine displaying the UI, including desktop windows connected to SSH hosts.
 - Prefill mobile path browsing with the current directory or file and resolve both file and directory paths before navigating.
 - Keep mobile swipes inside terminal history and agent interfaces, preserve tap-to-type, and prevent terminal, file and session scrolling from moving the surrounding page.

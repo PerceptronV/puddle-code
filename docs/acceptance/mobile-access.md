@@ -24,7 +24,9 @@ recovery instructions: [self-hosted mobile access](../mobile-access.md).
   under the production CSP, unsubmitted path insertion and retained composer drafts.
   Header coverage verifies saved desktop project/session order, touch selection from
   the shared title dropdown, archived-session filtering, the home breadcrumb and
-  the single-row file toolbar.
+  the single-row file toolbar. Five-letter rail labels fit without clipping, rail controls
+  use the desktop gold token, file/title bars align with the collapse toggle, and the
+  Files return action uses a computer icon.
   Host disclosures collapse without losing cards. Path checks cover current-directory
   and filename prefills, invalid input, nested files, and files outside the project.
   Held touch drags select and copy file text and Unicode across terminal rows in normal,

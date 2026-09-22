@@ -21,6 +21,7 @@ export async function saveDesktopOrder(
     ).json(),
   );
   for (const [path, method, body] of [
+    [`/api/projects/${second.id}`, 'PATCH', { abbrev: 'WWWWW' }],
     [`/api/sessions/${fixture.session.id}`, 'PATCH', { title: 'Active agent' }],
     [
       `/api/profiles/${original.profile_id}/settings`,
@@ -44,7 +45,15 @@ export async function checkMobileHeader(page: Page, testInfo: TestInfo) {
   await expect(page.getByRole('button', { name: 'Switch project', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Terminals', exact: true })).toHaveCount(0);
   const rail = page.getByRole('complementary', { name: 'Sessions' });
-  await expect(rail.getByRole('button', { name: /^Switch to / })).toHaveText(['FIXTU', 'SECON']);
+  const projectLabels = rail.getByRole('button', { name: /^Switch to / });
+  await expect(projectLabels).toHaveText(['FIXTU', 'WWWWW']);
+  await page.evaluate(() => document.fonts.ready);
+  for (const label of await projectLabels.all()) {
+    expect(await label.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+      true,
+    );
+  }
+  await expectToolbarAlignment(page);
   await expect
     .poll(() =>
       rail
@@ -61,6 +70,21 @@ export async function checkMobileHeader(page: Page, testInfo: TestInfo) {
   await expect(
     rail.getByRole('button', { name: 'New agent', exact: true }).locator('svg'),
   ).toHaveClass(/lucide-bot/);
+  const gold = await rail.evaluate((element) => {
+    const probe = document.createElement('span');
+    probe.style.color = 'var(--text-gold)';
+    element.append(probe);
+    const colour = getComputedStyle(probe).color;
+    probe.remove();
+    return colour;
+  });
+  // Hover changes desktop-style controls to primary ink; inspect them at rest.
+  for (const name of ['Expand sessions', 'New agent', 'New terminal', 'Archived sessions']) {
+    await expect(rail.getByRole('button', { name, exact: true }).locator('svg')).toHaveCSS(
+      'color',
+      gold,
+    );
+  }
 
   const selector = page.getByRole('button', { name: 'Switch session', exact: true });
   await expect(selector).toContainText('Active agent');
@@ -125,6 +149,24 @@ export async function checkFileToolbar(page: Page, testInfo: TestInfo) {
     ),
   );
   expect(Math.max(...rows) - Math.min(...rows)).toBeLessThanOrEqual(1);
+  await expectToolbarAlignment(page);
+  await expect(
+    toolbar.getByRole('button', { name: 'Terminals', exact: true }).locator('svg'),
+  ).toHaveClass(/lucide-monitor/);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await expect(
+    page.getByRole('button', { name: 'Select file review.html', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('Choose a PNG, JPEG, GIF or WebP image.', { exact: true }),
+  ).toBeHidden();
   await page.screenshot({ path: testInfo.outputPath('phone-file-toolbar.png') });
+}
+
+async function expectToolbarAlignment(page: Page) {
+  const bar = (await page.getByRole('navigation', { name: 'Workspace view' }).boundingBox())!;
+  const toggle = (await page
+    .getByRole('button', { name: 'Expand sessions', exact: true })
+    .boundingBox())!;
+  expect(Math.abs(bar.y + bar.height / 2 - (toggle.y + toggle.height / 2))).toBeLessThanOrEqual(1);
 }

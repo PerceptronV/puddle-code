@@ -60,7 +60,7 @@ export function PhoneSessionRail({
         <div className="flex shrink-0 flex-col px-1">
           <Button
             variant="ghost"
-            className="rail-control"
+            className="rail-control rail-toggle"
             onClick={() => setExpanded(!expanded)}
             aria-label={expanded ? 'Collapse sessions' : 'Expand sessions'}
             aria-expanded={expanded}
@@ -89,7 +89,7 @@ export function PhoneSessionRail({
             {expanded && <span>New terminal</span>}
           </Button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1">
+        <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-1">
           {projects
             .filter((project) => !project.archived)
             .map((project) => (
