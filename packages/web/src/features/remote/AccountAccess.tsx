@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RemoteBrand } from './RemoteBrand';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
@@ -34,7 +35,7 @@ export function AccountAccess({
   };
   return (
     <main className="remote-account">
-      <h1 className="text-xl font-semibold tracking-tight">Puddle</h1>
+      <RemoteBrand />
       <p className="mb-8 mt-2 text-sm text-fg-muted">Your workspace, wherever you are.</p>
       {mfa ? (
         <form

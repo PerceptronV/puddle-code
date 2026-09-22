@@ -231,7 +231,8 @@ in five minutes and can enrol only one identity.
 
 ## Use, revoke and recover
 
-Open a project card on the homescreen; projects are grouped by host. Settings
+Open a project card on the homescreen; projects are grouped by host. Tap a host's
+chevron to collapse or expand its projects. Settings
 contains appearance, account security, host disconnection and pairing management.
 Disconnecting pauses this browser's connection for the current visit until you
 choose Connect; it does not stop agents or remove the saved pairing.
@@ -249,7 +250,9 @@ projects, or tap the grey host/project breadcrumb to return home. New agent/term
 buttons are at the top of the rail; archived sessions and their restore action
 are behind the bottom icon.
 
-Tap directly into a terminal to type. Its bottom strip supplies Escape, arrows,
+Tap directly into a terminal to type. Hold and drag to select terminal text, then
+tap Copy; a quick swipe scrolls. File contents support the same held-drag gesture
+and Copy action with native text selection. The terminal's bottom strip supplies Escape, arrows,
 Tab, Enter and one-shot Ctrl/Opt modifiers above the keyboard. The image button
 opens your photo/file picker and inserts the uploaded image into the current
 terminal without submitting, just like desktop image paste. PNG, JPEG, GIF and WebP
@@ -263,7 +266,9 @@ bracketed-paste mode. If delivery is uncertain, check the terminal before sendin
 again. No operation is replayed automatically.
 
 Files browses the selected worktree (or the project's repository without a session).
-Tap the path to browse a custom host directory. Double-tap a file to view it, then
+Tap the path or filename to open a file or directory; the dialogue starts at the
+current location, including the filename when viewing a file. Absolute, `~/` and
+paths relative to the current browse root are accepted. Double-tap a file to view it, then
 use Back to files to return to the same directory. Changes remains available from
 the Files toolbar. File and change review renders text only. General file transfers,
 source editing, Git mutations, forwarded applications and executable previews are
@@ -277,7 +282,8 @@ puddle remote disable
 
 These commands accept an optional `user@host` and work through local/SSH host
 control without the relay. Disable is persisted before viewer shutdown. Revocation
-and disconnection detach viewers; agents continue. Service sign-out/unregistration
+and disconnection detach viewers; agents continue. Revoked browsers disappear
+from mobile and desktop lists while the host keeps its audit records. Service sign-out/unregistration
 also closes routed connections. A sleeping host remains unavailable.
 
 Browser grants have a 30-day inactivity limit and a 90-day absolute limit. Renew

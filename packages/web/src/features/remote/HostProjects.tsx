@@ -10,6 +10,7 @@ import {
   type Session,
 } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
+import { Disclosure } from '../../components/ui/disclosure';
 import { ProjectCardContent, projectCardSurface } from '../dashboard/ProjectCardContent';
 import { loadBrowserHost } from './identity-store';
 import { RemoteClient } from './client';
@@ -105,51 +106,62 @@ export function HostProjects({
   }, [host.id, host.online, account, disconnected]);
   return (
     <section aria-label={host.label} className="remote-host-projects">
-      <header className="mb-3 flex items-center gap-2 text-fg-muted">
-        <Laptop className="size-4" />
-        <h2 className="text-xs font-medium text-fg-secondary">{host.label}</h2>
-        {(!host.online || disconnected) && (
-          <span className="ml-auto text-xs">{host.online ? 'Disconnected' : 'Offline'}</span>
+      <Disclosure
+        open
+        summaryClassName="mb-3 gap-2 py-1"
+        summary={
+          <>
+            <span>
+              <Laptop className="size-4 shrink-0" />
+            </span>
+            <span className="text-xs font-medium">{host.label}</span>
+            {(!host.online || disconnected) && (
+              <span className="ml-auto text-xs">{host.online ? 'Disconnected' : 'Offline'}</span>
+            )}
+          </>
+        }
+      >
+        {host.online && !disconnected ? (
+          <>
+            {message && <p className="py-3 text-sm text-fg-muted">{message}</p>}
+            {catalogue && (
+              <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2">
+                {catalogue.projects
+                  .filter((project) => !project.archived)
+                  .map((project) => (
+                    <button
+                      key={project.id}
+                      className={projectCardSurface}
+                      onClick={() => open(project)}
+                      aria-label={`Open ${project.name}`}
+                    >
+                      <ProjectCardContent
+                        project={project}
+                        repoPath={catalogue.repos.find((repo) => repo.id === project.repo_id)?.path}
+                        sessions={catalogue.sessions.filter(
+                          (session) => session.project_id === project.id,
+                        )}
+                      />
+                    </button>
+                  ))}
+                {!catalogue.projects.some((project) => !project.archived) && (
+                  <p className="py-3 text-sm text-fg-muted">
+                    No projects yet. Open a project on this host in desktop.
+                  </p>
+                )}
+              </div>
+            )}
+          </>
+        ) : disconnected && host.online ? (
+          <Button variant="secondary" onClick={reconnect}>
+            Connect
+          </Button>
+        ) : (
+          <p className="py-3 text-sm text-fg-muted">
+            Projects will appear when this host is online.
+          </p>
         )}
-      </header>
-      {host.online && !disconnected ? (
-        <>
-          {message && <p className="py-3 text-sm text-fg-muted">{message}</p>}
-          {catalogue && (
-            <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2">
-              {catalogue.projects
-                .filter((project) => !project.archived)
-                .map((project) => (
-                  <button
-                    key={project.id}
-                    className={projectCardSurface}
-                    onClick={() => open(project)}
-                    aria-label={`Open ${project.name}`}
-                  >
-                    <ProjectCardContent
-                      project={project}
-                      repoPath={catalogue.repos.find((repo) => repo.id === project.repo_id)?.path}
-                      sessions={catalogue.sessions.filter(
-                        (session) => session.project_id === project.id,
-                      )}
-                    />
-                  </button>
-                ))}
-              {!catalogue.projects.some((project) => !project.archived) && (
-                <p className="py-3 text-sm text-fg-muted">
-                  No projects yet. Open a project on this host in desktop.
-                </p>
-              )}
-            </div>
-          )}
-        </>
-      ) : disconnected && host.online ? (
-        <Button variant="secondary" onClick={reconnect}>
-          Connect
-        </Button>
-      ) : (
-        <p className="py-3 text-sm text-fg-muted">Projects will appear when this host is online.</p>
-      )}
+      </Disclosure>
     </section>
   );
 }

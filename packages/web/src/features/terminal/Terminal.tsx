@@ -45,6 +45,7 @@ import { registerFileLinks, type FileLinkTarget } from './file-links';
 import { consumeTerminalModifiers, registerTerminalInput } from './input';
 import { preserveXtermScrollUp } from './xterm-scrollback';
 import { attachTerminalTouchScroll } from './touch-scroll';
+import { SelectionActions } from '../../components/selection-actions';
 
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -159,6 +160,7 @@ export function Terminal({
 }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
+  const [touchSelection, setTouchSelection] = useState('');
   const fitRef = useRef<FitAddon | null>(null);
   const searchRef = useRef<SearchAddon | null>(null);
   const resizeScrollGuardRef = useRef(new TerminalResizeScrollGuard());
@@ -531,7 +533,12 @@ export function Terminal({
     // never mistaken for part of the application redraw.
     const onWheel = () => resizeScrollGuardRef.current.release();
     container.addEventListener('wheel', onWheel, { capture: true, passive: true });
-    const detachTouchScroll = attachTerminalTouchScroll(xterm, () => activeRef.current, onWheel);
+    const detachTouchScroll = attachTerminalTouchScroll(
+      xterm,
+      () => activeRef.current,
+      onWheel,
+      setTouchSelection,
+    );
 
     // Focus wins the PTY size (tmux's `window-size latest`, SPEC §6). The PTY
     // has one size and every viewer's attach/resize claims it, so with the
@@ -738,6 +745,16 @@ export function Terminal({
   return (
     <div className={cn('puddle-terminal relative size-full', className)}>
       <div ref={containerRef} className="size-full" />
+      {touchSelection && !paused && (
+        <SelectionActions
+          label="Selected terminal text"
+          text={touchSelection}
+          clear={() => {
+            xtermRef.current?.clearSelection();
+            setTouchSelection('');
+          }}
+        />
+      )}
       {find.open && (
         <FindWidget
           query={find.query}

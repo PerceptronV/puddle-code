@@ -25,6 +25,11 @@ recovery instructions: [self-hosted mobile access](../mobile-access.md).
   Header coverage verifies saved desktop project/session order, touch selection from
   the shared title dropdown, archived-session filtering, the home breadcrumb and
   the single-row file toolbar.
+  Host disclosures collapse without losing cards. Path checks cover current-directory
+  and filename prefills, invalid input, nested files, and files outside the project.
+  Held touch drags select and copy file text and Unicode across terminal rows in normal,
+  mouse-reporting and alternate-screen modes; quick swipes still scroll. Revoked browser rows disappear
+  from desktop settings while their host records remain revoked.
   A separate UI fixture covers
   in-place registration editing, editable defaults, cancellation and quiet polling during sign-in,
   re-enablement, explicit identity-reset confirmation, and registration
@@ -99,14 +104,14 @@ Run on current iOS Safari and Android Chrome, recording versions and results:
 | IME composition, Unicode, dictation, multiline paste | Native composition remains intact; Send follows terminal paste mode and submits once |
 | Direct terminal typing; Escape, Tab, arrows, Enter, Ctrl/Opt chords | Tapping xterm opens the keyboard; touch controls retain focus and deliver hardware-equivalent sequences; one-shot modifiers clear after use |
 | Image picker and desktop clipboard image paste | Image button opens the native picker; accepted images appear in the host worktree and their paths are inserted once without submitting or clearing the composer; larger photos fit the remote limit with a resize notice; unsupported images fail visibly, cancellation sends nothing, and selecting the same image twice works |
-| Long output and text selection | Terminal remains responsive; selection/scroll position survives switching |
+| Long output and text selection | Terminal remains responsive; hold-and-drag selects Unicode text across rows, Copy writes only on tap, edge dragging scrolls history, and quick swipes remain scrolling; file text supports native selection handles and Copy |
 | Terminal swipes, including scrollback boundaries and keyboard open/closed | History scrolls in both directions without moving the page or opening the keyboard; agent-owned mouse/alternate-screen scrolling works; a subsequent tap still opens the keyboard and pinch zoom remains available |
 | Long file tree, file contents, session rail, settings and project dashboard | Each surface scrolls independently; gestures at either boundary do not move the surrounding workspace |
 | Desktop and phone on the same PTY | Active viewer claims size; hidden/background phone does not repeatedly resize |
 | Lock/suspend; Wi-Fi to cellular; offline during Send | Draft survives, uncertain outcome is visible, no automatic replay |
 | Return to existing runtime after expiry | Fresh admission and canonical snapshot; agent continues on the host |
 | Project cards and session rail | Hosts have separate card groups; only the active project’s non-archived sessions appear; tap switches, hold opens details, archive/restore and rail expansion work |
-| Files and custom paths | Double-tap opens text, Back returns to the same directory, custom host roots and projects without sessions can be browsed |
+| Files and custom paths | Double-tap opens text, Back returns to the same directory, path dialogue starts at the current directory/file, typed file paths open the viewer, and custom host roots and projects without sessions can be browsed |
 | Disconnect in settings | Viewer closes without stopping agents; the host stays disconnected until Connect during this visit |
 | File/HTML/SVG review | Text only; no repository-controlled script or preview gains application authority |
 | Breakpoint and project/session changes | Terminal identity and unsent text survive; desktop layout seed stays unchanged |

@@ -14,7 +14,7 @@ export function DeviceAccess({ client, leave }: { client: RemoteClient; leave():
   const refresh = async () => {
     const result = await client.admin({ t: 'devices' });
     if (result.error) throw new Error(result.error);
-    setDevices(result.devices ?? []);
+    setDevices((result.devices ?? []).filter((device) => device.status !== 'revoked'));
   };
   const action = async (fn: () => Promise<void>) => {
     setBusy(true);

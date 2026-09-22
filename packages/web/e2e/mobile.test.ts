@@ -6,6 +6,8 @@ import { join } from 'node:path';
 import { projectSchema } from '@puddle/shared';
 import { checkTerminalScrolling, expectStationaryPage, swipe } from './mobile-scrolling';
 import { checkImagePicker } from './mobile-image-paste';
+import { checkTerminalSelection } from './mobile-selection';
+import { checkMobilePaths } from './mobile-files';
 import { checkFileToolbar, checkMobileHeader, saveDesktopOrder } from './mobile-header';
 
 test.use({ hasTouch: true, isMobile: true });
@@ -64,7 +66,7 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
       });
     });
     await page.getByRole('button', { name: 'Continue with GitHub', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Projects', exact: true })).toBeVisible();
+    await expect(page.getByRole('main', { name: 'Hosts and projects' })).toBeVisible();
     const cookie = (await page.context().cookies(fixture.serviceOrigin))
       .map((cookie) => `${cookie.name}=${cookie.value}`)
       .join('; ');
@@ -176,6 +178,7 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     );
     typed.close();
     await checkTerminalScrolling(page, fixture);
+    await checkTerminalSelection(page, fixture, testInfo);
     await checkImagePicker(page, fixture);
     await page.getByRole('button', { name: 'Ctrl', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Ctrl', exact: true })).toHaveAttribute(
@@ -250,13 +253,7 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     await expect(
       page.getByRole('button', { name: 'Select file review.html', exact: true }),
     ).toBeVisible();
-    await page.getByRole('button', { name: 'Browse directory', exact: true }).click();
-    await page.getByLabel('Directory path').fill(String(fixture.session.worktree_path));
-    await page.getByRole('button', { name: 'Open directory', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Back to worktree' })).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: 'Select file review.html', exact: true }),
-    ).toBeVisible();
+    await checkMobilePaths(page, fixture, testInfo);
     await page.getByRole('button', { name: 'Terminals', exact: true }).click();
     await page.getByRole('button', { name: 'Expand sessions' }).click();
     await expect(page.getByRole('button', { name: 'Collapse sessions' })).toBeVisible();
@@ -295,7 +292,7 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
       .getByRole('button', { name: 'Disconnect', exact: true })
       .click();
     await page.getByRole('button', { name: 'Close', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Projects', exact: true })).toBeVisible();
+    await expect(page.getByRole('main', { name: 'Hosts and projects' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Open fixture', exact: true })).toHaveCount(0);
     await expect(page.getByRole('region', { name: 'Offline host' })).toBeVisible();
     await page.getByRole('button', { name: 'Connect', exact: true }).click();
@@ -334,7 +331,13 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     expect(errors).toEqual([]);
     const alive = await fixture.local.req(`/api/sessions/${fixture.session.id}`);
     expect(alive.status).toBe(200);
-    await expect(desktop.getByText('Revoked', { exact: true })).toBeVisible();
+    await expect(
+      desktop.getByRole('region', { name: 'Browsers' }).getByText('Test phone', { exact: true }),
+    ).toHaveCount(0);
+    expect(
+      (await fixture.admin({ t: 'devices' })).devices!.find((entry) => entry.id === device.id)
+        ?.status,
+    ).toBe('revoked');
     await desktop.getByRole('button', { name: 'Disable remote access', exact: true }).click();
     await expect(desktop.getByText('Disabled', { exact: true })).toBeVisible();
     expect((await fixture.admin({ t: 'status' })).enabled).toBe(false);

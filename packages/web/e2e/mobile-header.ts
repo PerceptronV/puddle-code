@@ -90,10 +90,20 @@ export async function checkMobileHeader(page: Page, testInfo: TestInfo) {
 
   // The host/project breadcrumb returns to the host-grouped home cards directly.
   await breadcrumb.click();
-  await expect(page.getByRole('heading', { name: 'Projects', exact: true })).toBeVisible();
+  await expect(page.getByRole('main', { name: 'Hosts and projects' })).toBeVisible();
   await expect(
     page.getByRole('region', { name: 'Fixture host' }).getByRole('button', { name: /^Open / }),
   ).toHaveText([/fixture/, /Second project/]);
+  await expect(page.getByRole('heading', { name: 'Projects', exact: true })).toHaveCount(0);
+  await expect(page.getByText('Your workspace, wherever you are.', { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole('heading', { name: 'Puddle Remote', exact: true }).locator('svg'),
+  ).toBeVisible();
+  const disclosure = page.getByRole('region', { name: 'Fixture host' }).locator('summary');
+  await disclosure.click();
+  await expect(page.getByRole('button', { name: 'Open fixture', exact: true })).toBeHidden();
+  await disclosure.press('Space');
+  await expect(page.getByRole('button', { name: 'Open fixture', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Open fixture', exact: true }).click();
   await expect(breadcrumb).toHaveText('Fixture host/fixture');
 }
@@ -104,7 +114,7 @@ export async function checkFileToolbar(page: Page, testInfo: TestInfo) {
   await expect(page.getByRole('button', { name: 'Switch session', exact: true })).toHaveCount(0);
   const buttons = [
     'Parent directory',
-    'Browse directory',
+    'Open file or directory',
     'Review changes',
     'Refresh files',
     'Terminals',

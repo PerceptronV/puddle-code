@@ -21,6 +21,7 @@ import { ErrorBoundary } from '../../components/error-boundary';
 import { usePhoneViewport } from '../mobile/use-phone-viewport';
 import { HostProjects } from './HostProjects';
 import { RemoteSettings } from './RemoteSettings';
+import { RemoteBrand } from './RemoteBrand';
 import { PairBrowserDialog } from './PairBrowserDialog';
 import { DesktopRegistrationPrompt, takeDesktopRegistration } from './DesktopRegistration';
 import './remote.css';
@@ -142,7 +143,7 @@ export function RemoteApp() {
       <ErrorBoundary scope="remote app">
         {!login ? (
           <main className="remote-account">
-            <h1 className="text-xl font-semibold">Puddle</h1>
+            <RemoteBrand />
             <p role="status" className="mt-4 text-sm text-fg-muted">
               {message || 'Connecting…'}
             </p>
@@ -161,9 +162,9 @@ export function RemoteApp() {
                 settings={() => setSettings(true)}
               />
             ) : (
-              <main className="remote-dashboard">
-                <header className="mb-10 flex items-center justify-between">
-                  <h1 className="text-lg font-semibold tracking-tight">Puddle</h1>
+              <main className="remote-dashboard" aria-label="Hosts and projects">
+                <header className="mb-3 flex items-center justify-between">
+                  <RemoteBrand />
                   <Button
                     variant="ghost"
                     size="icon"
@@ -173,10 +174,6 @@ export function RemoteApp() {
                     <Settings2 />
                   </Button>
                 </header>
-                <div className="mb-6">
-                  <h2 className="text-xl font-semibold">Projects</h2>
-                  <p className="mt-1 text-sm text-fg-muted">Your workspace, wherever you are.</p>
-                </div>
                 {hosts.map((host) => (
                   <HostProjects
                     key={`${login.user!.id}:${host.id}`}

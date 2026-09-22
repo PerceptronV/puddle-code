@@ -13,18 +13,10 @@ import {
 import { fileResponseSchema, treeResponseSchema } from '@puddle/shared';
 import { api } from '../../lib/api';
 import { Button } from '../../components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../../components/ui/dialog';
-import { Input } from '../../components/ui/input';
-import { Label } from '../../components/ui/label';
 import { FileTypeIcon } from '../explorer/file-icons';
 import { PhoneReview } from './PhoneReview';
+import { PhonePathDialog } from './PhonePathDialog';
+import { PhoneFileText } from './PhoneFileText';
 import { cn } from '../../lib/utils';
 
 const NO_SESSION = '00000000-0000-0000-0000-000000000000';
@@ -44,10 +36,13 @@ export function PhoneFiles({
   const [file, setFile] = useState<string | null>(null);
   const [selected, setSelected] = useState('');
   const [editingPath, setEditingPath] = useState(false);
-  const [pathDraft, setPathDraft] = useState('');
   const [changes, setChanges] = useState(false);
   const tap = useRef({ path: '', at: 0 });
   const effectiveRoot = root ?? worktree;
+  const relativePath = file ?? directory;
+  const currentPath = relativePath
+    ? `${effectiveRoot?.replace(/\/$/, '') ?? ''}/${relativePath}`
+    : (effectiveRoot ?? '');
   const rootOverride = root ?? (session ? undefined : worktree);
   const target = session ?? NO_SESSION;
   const query = (path: string) =>
@@ -117,12 +112,9 @@ export function PhoneFiles({
             </Button>
             <button
               className="min-w-0 flex-1 truncate text-left font-mono text-xs text-fg-muted hover:text-fg"
-              title={effectiveRoot}
-              aria-label="Browse directory"
-              onClick={() => {
-                setPathDraft(effectiveRoot ?? '');
-                setEditingPath(true);
-              }}
+              title={currentPath}
+              aria-label="Open file or directory"
+              onClick={() => setEditingPath(true)}
             >
               {file?.split('/').pop() ?? (directory || effectiveRoot || 'Choose a path')}
             </button>
@@ -165,7 +157,7 @@ export function PhoneFiles({
             </div>
           )}
           {file ? (
-            <div className="min-h-0 flex-1 overflow-auto overscroll-contain px-3 pb-3">
+            <div className="flex min-h-0 flex-1 flex-col px-3 pb-3">
               <p className="mb-3 break-all font-mono text-2xs text-fg-muted">{file} · read only</p>
               {source.isPending ? (
                 <p className="text-sm text-fg-muted">Loading file…</p>
@@ -176,9 +168,7 @@ export function PhoneFiles({
               ) : source.data.binary ? (
                 <p className="text-sm text-fg-muted">Binary file; preview unavailable.</p>
               ) : (
-                <pre className="phone-file-source" tabIndex={0}>
-                  {source.data.content}
-                </pre>
+                <PhoneFileText content={source.data.content ?? ''} />
               )}
             </div>
           ) : (
@@ -258,43 +248,26 @@ export function PhoneFiles({
           )}
         </>
       )}
-      <Dialog open={editingPath} onOpenChange={setEditingPath}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Browse a directory</DialogTitle>
-            <DialogDescription>Open a path on this host.</DialogDescription>
-          </DialogHeader>
-          <form
-            className="grid gap-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              setRoot(pathDraft.trim());
-              reset();
-              setEditingPath(false);
-            }}
-          >
-            <Label htmlFor="phone-directory">Directory path</Label>
-            <Input
-              id="phone-directory"
-              autoFocus
-              value={pathDraft}
-              placeholder="/path/to/directory or ~/"
-              onChange={(event) => setPathDraft(event.target.value)}
-            />
-            <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => setEditingPath(false)}>
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={!pathDraft.trim().startsWith('/') && !pathDraft.trim().startsWith('~')}
-              >
-                Open directory
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {editingPath && (
+        <PhonePathDialog
+          target={NO_SESSION}
+          root={effectiveRoot}
+          path={currentPath}
+          close={() => setEditingPath(false)}
+          open={(result) => {
+            reset();
+            if (result.kind === 'dir') {
+              if (result.relative_path !== undefined) setDirectory(result.relative_path);
+              else setRoot(result.path === worktree ? null : result.path);
+            } else {
+              if (result.root) setRoot(result.root);
+              setFile(result.path);
+              setSelected(result.path);
+              setDirectory(result.path.split('/').slice(0, -1).join('/'));
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

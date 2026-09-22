@@ -250,13 +250,13 @@ function SessionButton({
           kind={session.kind}
           agentType={session.agent_type}
           stale={session.stale_running}
-          className="size-5 shrink-0"
+          className="size-4 shrink-0"
           iconClassName="size-full"
           iconStrokeScale={0.8}
         />
         {expanded && (
           <span className="min-w-0 text-left">
-            <span className="block truncate font-mono text-xs">{name}</span>
+            <span className="block truncate font-mono text-2xs">{name}</span>
             <span className="block truncate text-2xs text-fg-muted">
               {session.branch || session.status.replace('_', ' ')}
             </span>

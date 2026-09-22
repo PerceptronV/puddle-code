@@ -1,4 +1,5 @@
 import type { Terminal } from '@xterm/xterm';
+import { terminalTouchSelection } from './touch-selection';
 
 const DRAG_THRESHOLD = 8;
 
@@ -10,9 +11,12 @@ export function attachTerminalTouchScroll(
   terminal: Terminal,
   active: () => boolean,
   onScroll: () => void,
+  onSelection: (text: string) => void,
 ): () => void {
   const screen = terminal.element?.querySelector<HTMLElement>('.xterm-screen');
   if (!screen) return () => {};
+  const selection = terminalTouchSelection(terminal, screen, onSelection, onScroll);
+  let hold: ReturnType<typeof setTimeout> | undefined;
   let gesture: {
     id: number;
     x: number;
@@ -21,14 +25,18 @@ export function attachTerminalTouchScroll(
     remainder: number;
     at: number;
     dragged: boolean;
+    selecting: boolean;
   } | null = null;
 
   const reset = () => {
+    clearTimeout(hold);
+    selection.stop();
     gesture = null;
   };
   const start = (event: TouchEvent) => {
     reset();
     if (event.touches.length !== 1 || !active()) return;
+    selection.clear();
     const touch = event.touches[0]!;
     gesture = {
       id: touch.identifier,
@@ -38,7 +46,13 @@ export function attachTerminalTouchScroll(
       remainder: 0,
       at: performance.now(),
       dragged: false,
+      selecting: false,
     };
+    hold = setTimeout(() => {
+      if (!gesture || !active()) return;
+      gesture.selecting = true;
+      selection.begin(gesture.x, gesture.y);
+    }, 450);
   };
   const move = (event: TouchEvent) => {
     if (!gesture) return;
@@ -47,9 +61,15 @@ export function attachTerminalTouchScroll(
       reset();
       return;
     }
+    if (gesture.selecting) {
+      event.preventDefault();
+      selection.extend(touch.clientX, touch.clientY);
+      return;
+    }
     if (!gesture.dragged) {
       if (Math.hypot(touch.clientX - gesture.x, touch.clientY - gesture.y) < DRAG_THRESHOLD) return;
       gesture.dragged = true;
+      clearTimeout(hold);
     }
     // Even at the scrollback boundaries, a terminal drag must not pan the page.
     event.preventDefault();
@@ -82,11 +102,18 @@ export function attachTerminalTouchScroll(
     }
   };
   const end = (event: TouchEvent) => {
-    if (gesture?.dragged)
+    if (gesture?.dragged || gesture?.selecting)
       event.preventDefault(); // suppress the emulated click after a swipe
     else if (gesture && active() && performance.now() - gesture.at < 300) terminal.focus();
     reset();
   };
+  const contextMenu = (event: Event) => {
+    if (!gesture || !active()) return;
+    // Mobile browser callouts must not focus xterm or replace our held selection.
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  screen.addEventListener('contextmenu', contextMenu, true);
   screen.addEventListener('touchstart', start, { passive: true });
   screen.addEventListener('touchmove', move, { passive: false });
   screen.addEventListener('touchend', end, { passive: false });
@@ -96,6 +123,8 @@ export function attachTerminalTouchScroll(
     screen.removeEventListener('touchmove', move);
     screen.removeEventListener('touchend', end);
     screen.removeEventListener('touchcancel', reset);
+    screen.removeEventListener('contextmenu', contextMenu, true);
     reset();
+    selection.dispose();
   };
 }
