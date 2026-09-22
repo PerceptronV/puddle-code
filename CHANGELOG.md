@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Update stale protocol assertions for desktop registration’s existing protocol 20.0 and verify that 19.x daemons require an upgrade.

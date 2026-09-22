@@ -30,6 +30,10 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
+  it('declares protocol 20.0 for browser-approved desktop registration', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 20, minor: 0 });
+  });
+
   it('accepts a well-formed error envelope and rejects a malformed one', () => {
     const parsed = errorResponseSchema.parse({
       error: { code: 'not_found', message: 'no such profile' },
@@ -188,7 +192,7 @@ describe('shared API schemas', () => {
     });
   });
 
-  it('validates cross-filetree transfers and carries protocol 19.0', () => {
+  it('validates cross-filetree transfers', () => {
     expect(
       transferEntryRequestSchema.parse({
         operation: 'copy',
@@ -208,7 +212,6 @@ describe('shared API schemas', () => {
       from: 'docs/readme.md',
       to: 'imported/readme.md',
     });
-    expect(PROTOCOL_VERSION).toEqual({ major: 19, minor: 0 });
   });
 
   it('accepts additive native conversation fields and lifecycle signals', () => {
