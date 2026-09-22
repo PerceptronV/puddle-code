@@ -4,7 +4,7 @@ import {
   MoreHorizontal,
   PanelRightClose,
   PanelRightOpen,
-  Plus,
+  Bot,
   SquareTerminal,
 } from 'lucide-react';
 import type { Project, Session, SessionKind } from '@puddle/shared';
@@ -57,7 +57,7 @@ export function PhoneSessionRail({
         />
       )}
       <aside className={cn('phone-session-rail', expanded && 'is-expanded')} aria-label="Sessions">
-        <div className="flex shrink-0 flex-col gap-1 p-1">
+        <div className="flex shrink-0 flex-col px-1">
           <Button
             variant="ghost"
             className="rail-control"
@@ -75,7 +75,7 @@ export function PhoneSessionRail({
             onClick={() => create('agent')}
             aria-label="New agent"
           >
-            <Plus />
+            <Bot />
             {expanded && <span>New agent</span>}
           </Button>
           <Button

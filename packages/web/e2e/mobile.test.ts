@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { projectSchema } from '@puddle/shared';
 import { checkTerminalScrolling, expectStationaryPage, swipe } from './mobile-scrolling';
 import { checkImagePicker } from './mobile-image-paste';
+import { checkFileToolbar, checkMobileHeader, saveDesktopOrder } from './mobile-header';
 
 test.use({ hasTouch: true, isMobile: true });
 
@@ -40,6 +41,7 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
       separate_branch: false,
     }),
   });
+  await saveDesktopOrder(fixture, originalProject, secondProject);
   const errors: string[] = [];
   const ciphertext: Buffer[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
@@ -139,10 +141,11 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     await page.getByRole('button', { name: 'Open fixture', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Expand sessions' })).toBeVisible();
     await expect(page.getByRole('combobox', { name: 'Session', exact: true })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: /^Open session / })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: /^Open session / })).toHaveCount(2);
     await expect(
       page.getByRole('button', { name: 'Open session Other project terminal', exact: true }),
     ).toHaveCount(0);
+    await checkMobileHeader(page, testInfo);
     await page.getByRole('button', { name: 'Compose prompt' }).click();
     await expect(page.getByRole('button', { name: 'Ctrl-C' })).toBeEnabled();
     await page.getByRole('textbox', { name: 'Prompt', exact: true }).fill('Hello 日本語 🌊');
@@ -224,6 +227,7 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
       '<script>window.repositoryExecuted = true</script>\n' + 'File scroll content\n'.repeat(100),
     );
     await page.getByRole('button', { name: 'Files', exact: true }).click();
+    await checkFileToolbar(page, testInfo);
     await page.getByRole('button', { name: 'Review changes' }).click();
     await page.getByRole('button', { name: 'review.html · added', exact: true }).click();
     await expect(page.locator('pre')).toContainText(
@@ -246,7 +250,7 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     await expect(
       page.getByRole('button', { name: 'Select file review.html', exact: true }),
     ).toBeVisible();
-    await page.locator('.phone-files button[title]').click();
+    await page.getByRole('button', { name: 'Browse directory', exact: true }).click();
     await page.getByLabel('Directory path').fill(String(fixture.session.worktree_path));
     await page.getByRole('button', { name: 'Open directory', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Back to worktree' })).toBeVisible();
@@ -269,9 +273,15 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     await page.getByRole('button', { name: 'Open terminal', exact: true }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(page.getByRole('button', { name: /^Open session / })).toHaveCount(2);
+    await expect(
+      page.getByRole('button', { name: 'Open session Active agent', exact: true }),
+    ).not.toHaveAttribute('aria-current', 'page');
     await page.getByRole('button', { name: 'Session details' }).click();
     await page.getByRole('button', { name: 'Archive session', exact: true }).click();
     await expect(page.getByRole('button', { name: /^Open session / })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: 'Switch session', exact: true })).toContainText(
+      'Active agent',
+    );
     await page.getByRole('button', { name: 'Archived sessions', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Archived sessions' })).toBeVisible();
     await page.getByRole('button', { name: 'Close', exact: true }).click();

@@ -8,6 +8,7 @@ import {
   FolderOpen,
   GitCompareArrows,
   RefreshCw,
+  SquareTerminal,
 } from 'lucide-react';
 import { fileResponseSchema, treeResponseSchema } from '@puddle/shared';
 import { api } from '../../lib/api';
@@ -29,7 +30,15 @@ import { cn } from '../../lib/utils';
 const NO_SESSION = '00000000-0000-0000-0000-000000000000';
 
 /** The same daemon tree/read APIs as desktop; remote source stays inert text. */
-export function PhoneFiles({ session, worktree }: { session?: string; worktree?: string }) {
+export function PhoneFiles({
+  session,
+  worktree,
+  terminals,
+}: {
+  session?: string;
+  worktree?: string;
+  terminals(): void;
+}) {
   const [root, setRoot] = useState<string | null>(null);
   const [directory, setDirectory] = useState('');
   const [file, setFile] = useState<string | null>(null);
@@ -68,21 +77,33 @@ export function PhoneFiles({ session, worktree }: { session?: string; worktree?:
   const entries = [...(tree.data?.entries ?? [])].sort(
     (a, b) => Number(b.type === 'dir') - Number(a.type === 'dir') || a.name.localeCompare(b.name),
   );
+  const terminalButton = (
+    <Button
+      variant="ghost"
+      size="icon"
+      aria-label="Terminals"
+      title="Terminals"
+      onClick={terminals}
+    >
+      <SquareTerminal />
+    </Button>
+  );
   return (
     <div className="phone-files">
       {changes ? (
         <>
-          <div className="flex shrink-0 px-2">
+          <nav className="phone-workspace-bar" aria-label="Workspace view">
             <Button variant="ghost" onClick={() => setChanges(false)}>
               <ArrowLeft />
               Back to files
             </Button>
-          </div>
+            {terminalButton}
+          </nav>
           <PhoneReview session={target} />
         </>
       ) : (
         <>
-          <div className="flex shrink-0 items-center gap-1 px-2 py-1">
+          <nav className="phone-workspace-bar phone-files-toolbar" aria-label="Workspace view">
             <Button
               variant="ghost"
               size="icon"
@@ -97,6 +118,7 @@ export function PhoneFiles({ session, worktree }: { session?: string; worktree?:
             <button
               className="min-w-0 flex-1 truncate text-left font-mono text-xs text-fg-muted hover:text-fg"
               title={effectiveRoot}
+              aria-label="Browse directory"
               onClick={() => {
                 setPathDraft(effectiveRoot ?? '');
                 setEditingPath(true);
@@ -125,7 +147,8 @@ export function PhoneFiles({ session, worktree }: { session?: string; worktree?:
             >
               <RefreshCw />
             </Button>
-          </div>
+            {terminalButton}
+          </nav>
           {root && !file && (
             <div className="px-3 pb-2">
               <Button

@@ -236,12 +236,18 @@ contains appearance, account security, host disconnection and pairing management
 Disconnecting pauses this browser's connection for the current visit until you
 choose Connect; it does not stop agents or remove the saved pairing.
 
-Switch between Files and Terminals at the top. The compact right rail shows only
-the active project's non-archived sessions. Tap a glyph to switch terminals; hold
-it for details and actions, including archiving. Expand the rail for titles and
-branches, tap a project label to switch projects, or use the project name above
-the workspace to return to cards. New agent/terminal buttons are at the top of the
-rail; archived sessions and their restore action are behind the bottom icon.
+Tap the terminal title to switch between the active project's agent and terminal
+sessions in the shared dropdown; its three-dot button opens session details.
+Files opens the file browser with navigation, path, changes and refresh in the
+same toolbar. Its terminal icon returns to the terminal. Project cards and
+sessions follow their profile's saved desktop order.
+
+The compact right rail shows only the active project's non-archived sessions.
+Tap a glyph to switch terminals; hold it for details and actions, including
+archiving. Expand the rail for titles and branches, tap a project label to switch
+projects, or tap the grey host/project breadcrumb to return home. New agent/terminal
+buttons are at the top of the rail; archived sessions and their restore action
+are behind the bottom icon.
 
 Tap directly into a terminal to type. Its bottom strip supplies Escape, arrows,
 Tab, Enter and one-shot Ctrl/Opt modifiers above the keyboard. The image button

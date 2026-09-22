@@ -14,6 +14,7 @@ import { ProjectCardContent, projectCardSurface } from '../dashboard/ProjectCard
 import { loadBrowserHost } from './identity-store';
 import { RemoteClient } from './client';
 import { serviceOrigin } from './service';
+import { loadOrderedProjects } from '../mobile/project-order';
 
 /** Catalogue readers never install a global transport or attach a terminal. */
 export function HostProjects({
@@ -58,7 +59,9 @@ export function HostProjects({
           read('/api/sessions').then((value) => sessionSchema.array().parse(value)),
         ]);
         if (live) {
-          setCatalogue({ projects, repos, sessions });
+          const ordered = await loadOrderedProjects(projects, read);
+          if (!live) return;
+          setCatalogue({ projects: ordered, repos, sessions });
           setMessage('');
         }
       } catch (error) {

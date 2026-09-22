@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { Archive, ArchiveRestore, Play, Square, SquareTerminal } from 'lucide-react';
+import { Archive, ArchiveRestore, Play, Square } from 'lucide-react';
 import type { Session } from '@puddle/shared';
 import { api } from '../../lib/api';
-import { wsManager } from '../../lib/ws';
 import { sessionDisplayName } from '../../lib/session-display';
 import { Button } from '../../components/ui/button';
 import {
@@ -19,17 +18,13 @@ import { SessionGlyph } from '../status/SessionGlyph';
 export function SessionActions({
   session,
   connected,
-  attached,
   close,
   changed,
-  shell,
 }: {
   session: Session;
   connected: boolean;
-  attached: boolean;
   close(): void;
   changed(): Promise<void>;
-  shell(term: string): void;
 }) {
   const [title, setTitle] = useState(session.title ?? '');
   const [busy, setBusy] = useState(false);
@@ -99,17 +94,6 @@ export function SessionActions({
           </div>
         </form>
         <div className="grid gap-1">
-          {!archived && (
-            <Button
-              variant="ghost"
-              className="justify-start"
-              disabled={!attached || busy}
-              onClick={() => void action(async () => shell(await wsManager.spawnShell(session.id)))}
-            >
-              <SquareTerminal />
-              Add shell
-            </Button>
-          )}
           {!archived && (
             <Button
               variant="ghost"

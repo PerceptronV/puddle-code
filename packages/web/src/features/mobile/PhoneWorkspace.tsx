@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, Files, MoreHorizontal, SquareTerminal } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { SquareTerminal } from 'lucide-react';
 import type { Session, SessionKind } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { browserScope } from '../../lib/browser-transport';
-import { useAllSessions, useProjects, useRepos } from '../../lib/queries';
-import { sessionDisplayName } from '../../lib/session-display';
+import { fetchProfileState, useAllSessions, useProjects, useRepos } from '../../lib/queries';
+import { api } from '../../lib/api';
+import { orderByDrag } from '../workspace/session-order';
+import { loadOrderedProjects } from './project-order';
+import { PhoneTerminalBar } from './PhoneTerminalBar';
 import { wsManager } from '../../lib/ws';
 import { ProjectCardContent, projectCardSurface } from '../dashboard/ProjectCardContent';
 import { profileStore } from '../profile/profile-store';
@@ -19,33 +22,49 @@ export function PhoneWorkspace({
   connected,
   initialProject,
   hostName,
+  onProjectName,
 }: {
   connected: boolean;
   initialProject: string;
   hostName: string;
+  onProjectName(name: string): void;
 }) {
   const qc = useQueryClient();
   const [projectId, setProjectId] = useState(initialProject);
   const [sessionId, setSessionId] = useState(
     () => localStorage.getItem(browserScope(`phone.session:${initialProject}`)) ?? '',
   );
-  const [selectedTerm, setSelectedTerm] = useState({ session: '', term: 'agent' });
   const [view, setView] = useState<'terminals' | 'files'>('terminals');
   const [pickingProject, setPickingProject] = useState(!initialProject);
   const [creating, setCreating] = useState<SessionKind | null>(null);
   const [inspected, setInspected] = useState<Session | null>(null);
   const [attached, setAttached] = useState(wsManager.isConnected());
-  const [terminals, setTerminals] = useState<Array<{ session: string; term: string }>>([]);
+  const [terminals, setTerminals] = useState<string[]>([]);
   const projects = useProjects(undefined);
   const sessions = useAllSessions();
   const repos = useRepos();
   const project = projects.data?.find((project) => project.id === projectId && !project.archived);
-  const activeSessions =
-    sessions.data?.filter(
-      (session) => session.project_id === projectId && session.status !== 'archived',
-    ) ?? [];
+  const orderedProjects = useQuery({
+    queryKey: ['phone-project-order', projects.data],
+    queryFn: () => loadOrderedProjects(projects.data ?? [], (path) => api('GET', path)),
+    enabled: connected && !!projects.data,
+    refetchInterval: connected ? 15_000 : false,
+  });
+  const profileState = useQuery({
+    queryKey: ['phone-profile-order', project?.profile_id],
+    queryFn: () => fetchProfileState(project!.profile_id),
+    enabled: connected && !!project,
+    refetchInterval: connected ? 10_000 : false,
+  });
+  const projectRows = orderedProjects.data ?? projects.data ?? [];
+  const sessionRows = orderByDrag(
+    sessions.data ?? [],
+    profileState.data?.ui_state.session_order ?? [],
+  );
+  const activeSessions = sessionRows.filter(
+    (session) => session.project_id === projectId && session.status !== 'archived',
+  );
   const session = activeSessions.find((session) => session.id === sessionId) ?? activeSessions[0];
-  const term = selectedTerm.session === session?.id ? selectedTerm.term : 'agent';
   const refresh = async () => {
     await qc.invalidateQueries({ queryKey: ['sessions'] });
   };
@@ -87,12 +106,21 @@ export function PhoneWorkspace({
   }, [project]);
   useEffect(() => {
     if (!session) return;
-    setTerminals((current) =>
-      current.some((entry) => entry.session === session.id && entry.term === term)
-        ? current
-        : [...current, { session: session.id, term }],
-    );
-  }, [session, term]);
+    setTerminals((current) => (current.includes(session.id) ? current : [...current, session.id]));
+  }, [session]);
+  useEffect(() => {
+    if (
+      !session ||
+      !profileState.isSuccess ||
+      session.id === sessionId ||
+      // A newly created or rebound placement may precede the catalogue refresh.
+      // Keep that explicit selection until it arrives instead of saving a fallback.
+      (sessionId && !sessionRows.some((entry) => entry.id === sessionId))
+    )
+      return;
+    setSessionId(session.id);
+    localStorage.setItem(browserScope(`phone.session:${session.project_id}`), session.id);
+  }, [session, sessionId, sessionRows, profileState.isSuccess]);
   const chooseProject = (id: string) => {
     setProjectId(id);
     setSessionId(localStorage.getItem(browserScope(`phone.session:${id}`)) ?? '');
@@ -101,51 +129,24 @@ export function PhoneWorkspace({
   const choose = (next: Session) => {
     setProjectId(next.project_id);
     setSessionId(next.id);
-    setSelectedTerm({ session: next.id, term: 'agent' });
     setView('terminals');
     localStorage.setItem(browserScope(`phone.session:${next.project_id}`), next.id);
   };
   const showProjects = pickingProject || !project;
+  const visibleProjectName = showProjects ? '' : project.name;
+  useEffect(() => {
+    onProjectName(visibleProjectName);
+  }, [onProjectName, visibleProjectName]);
   return (
     <div className="phone-workspace">
-      <header className="phone-workspace-bar">
-        <button
-          className="flex min-w-0 items-center gap-1 text-sm font-medium hover:text-accent"
-          onClick={() => setPickingProject(!pickingProject)}
-          aria-label="Switch project"
-        >
-          <span className="truncate">{showProjects ? 'Projects' : project.name}</span>
-          <ChevronDown className="size-3 shrink-0" />
-        </button>
-        {!showProjects && (
-          <nav className="phone-view-switch" aria-label="Workspace view">
-            <Button
-              variant="ghost"
-              aria-pressed={view === 'files'}
-              onClick={() => setView('files')}
-            >
-              <Files />
-              Files
-            </Button>
-            <Button
-              variant="ghost"
-              aria-pressed={view === 'terminals'}
-              onClick={() => setView('terminals')}
-            >
-              <SquareTerminal />
-              Terminals
-            </Button>
-          </nav>
-        )}
-      </header>
       <div className="phone-workspace-body">
         <div className="phone-centre">
           {showProjects && (
             <div className="overflow-auto p-4">
               <h2 className="mb-3 text-xs text-fg-muted">{hostName}</h2>
               <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2">
-                {projects.data
-                  ?.filter((project) => !project.archived)
+                {projectRows
+                  .filter((project) => !project.archived)
                   .map((project) => (
                     <button
                       key={project.id}
@@ -172,33 +173,14 @@ export function PhoneWorkspace({
               )}
             </div>
           )}
-          {!showProjects && view === 'terminals' && session && (
-            <div className="phone-terminal-tabs">
-              {terminals
-                .filter((entry) => entry.session === session.id)
-                .map((entry) => (
-                  <Button
-                    key={entry.term}
-                    variant="ghost"
-                    aria-pressed={term === entry.term}
-                    onClick={() => setSelectedTerm(entry)}
-                    className="min-w-0 max-w-52 font-mono text-xs"
-                  >
-                    <span className="truncate">
-                      {entry.term === 'agent' ? sessionDisplayName(session) : entry.term}
-                    </span>
-                  </Button>
-                ))}
-              <Button
-                className="ml-auto shrink-0"
-                variant="ghost"
-                size="icon"
-                aria-label="Session details"
-                onClick={() => setInspected(session)}
-              >
-                <MoreHorizontal />
-              </Button>
-            </div>
+          {!showProjects && view === 'terminals' && (
+            <PhoneTerminalBar
+              session={session}
+              sessions={activeSessions}
+              choose={choose}
+              inspect={setInspected}
+              files={() => setView('files')}
+            />
           )}
           <div className="phone-view" hidden={showProjects}>
             {terminals
@@ -206,20 +188,16 @@ export function PhoneWorkspace({
                 (entry) =>
                   !sessions.data ||
                   sessions.data.some(
-                    (session) => session.id === entry.session && session.status !== 'archived',
+                    (session) => session.id === entry && session.status !== 'archived',
                   ),
               )
               .map((entry) => {
-                const active =
-                  !showProjects &&
-                  view === 'terminals' &&
-                  entry.session === session?.id &&
-                  entry.term === term;
+                const active = !showProjects && view === 'terminals' && entry === session?.id;
                 return (
                   <MobileTerminal
-                    key={`${entry.session}:${entry.term}`}
-                    session={entry.session}
-                    term={entry.term}
+                    key={entry}
+                    session={entry}
+                    term="agent"
                     active={active}
                     connected={connected}
                     attached={attached}
@@ -230,6 +208,7 @@ export function PhoneWorkspace({
               <PhoneFiles
                 key={session?.id ?? projectId}
                 session={session?.id}
+                terminals={() => setView('terminals')}
                 worktree={
                   session?.worktree_path ??
                   repos.data?.find((repo) => repo.id === project?.repo_id)?.path
@@ -260,9 +239,9 @@ export function PhoneWorkspace({
         </div>
         {!showProjects && (
           <PhoneSessionRail
-            projects={projects.data ?? []}
+            projects={projectRows}
             projectId={projectId}
-            sessions={sessions.data ?? []}
+            sessions={sessionRows}
             selected={session?.id}
             connected={connected}
             chooseProject={chooseProject}
@@ -272,9 +251,12 @@ export function PhoneWorkspace({
           />
         )}
       </div>
-      {(projects.error || sessions.error) && (
+      {(projects.error || sessions.error || orderedProjects.error || profileState.error) && (
         <p role="alert" className="px-3 py-2 text-xs text-danger">
-          {projects.error?.message || sessions.error?.message}
+          {projects.error?.message ||
+            sessions.error?.message ||
+            orderedProjects.error?.message ||
+            profileState.error?.message}
         </p>
       )}
       {project && creating && (
@@ -298,13 +280,8 @@ export function PhoneWorkspace({
           key={inspected.id}
           session={sessions.data?.find((session) => session.id === inspected.id) ?? inspected}
           connected={connected}
-          attached={attached}
           close={() => setInspected(null)}
           changed={refresh}
-          shell={(term) => {
-            choose(inspected);
-            setSelectedTerm({ session: inspected.id, term });
-          }}
         />
       )}
     </div>

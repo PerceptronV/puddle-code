@@ -22,6 +22,9 @@ recovery instructions: [self-hosted mobile access](../mobile-access.md).
   and native file scrolling while the surrounding page stays fixed. Image-picker
   coverage verifies exact small-image bytes, repeat selection, large-image resizing
   under the production CSP, unsubmitted path insertion and retained composer drafts.
+  Header coverage verifies saved desktop project/session order, touch selection from
+  the shared title dropdown, archived-session filtering, the home breadcrumb and
+  the single-row file toolbar.
   A separate UI fixture covers
   in-place registration editing, editable defaults, cancellation and quiet polling during sign-in,
   re-enablement, explicit identity-reset confirmation, and registration

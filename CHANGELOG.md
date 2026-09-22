@@ -11,6 +11,7 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Compact the mobile workspace header, switch sessions from the shared title dropdown, follow desktop project/session ordering, and combine file navigation into one toolbar.
 - Replace the mobile keyboard button with an image picker that shares desktop image paste, inserts without submitting, and resizes large photos to fit remote request limits.
 
 ### Fixed

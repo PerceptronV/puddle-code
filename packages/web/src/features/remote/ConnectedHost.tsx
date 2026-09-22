@@ -32,6 +32,7 @@ export function ConnectedHost({
   const [state, setState] = useState(client.state);
   const [admitted, setAdmitted] = useState(false);
   const [devices, setDevices] = useState(false);
+  const [projectName, setProjectName] = useState('');
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -76,7 +77,15 @@ export function ConnectedHost({
             <Button variant="ghost" size="icon" aria-label="All projects" onClick={leave}>
               <House />
             </Button>
-            <span className="min-w-0 flex-1 truncate text-xs text-fg-muted">{hostName}</span>
+            <button
+              className="min-w-0 flex-1 truncate text-left text-xs text-fg-muted hover:text-fg"
+              aria-label="Back to all projects"
+              title={projectName ? `${hostName}/${projectName}` : hostName}
+              onClick={leave}
+            >
+              {hostName}
+              {projectName && `/${projectName}`}
+            </button>
             <span role="status" className={state === 'ready' ? 'sr-only' : 'text-xs text-fg-muted'}>
               {status}
             </span>
@@ -124,6 +133,7 @@ export function ConnectedHost({
                 connected={state === 'ready' && !devices}
                 initialProject={initialProject}
                 hostName={hostName}
+                onProjectName={setProjectName}
               />
             </div>
           )}
