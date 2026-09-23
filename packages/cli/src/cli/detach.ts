@@ -1,3 +1,4 @@
+import { relayDaemonUpgradePrompt } from './daemon-upgrade-prompt.js';
 import { requestInvitation } from '../lib/auth/launcher.js';
 import { clientHome } from '../lib/paths.js';
 import { spawn } from 'node:child_process';
@@ -20,9 +21,9 @@ import { CliError, type Logger } from '../lib/types.js';
  * Backgrounding a cockpit: `puddle launch` re-execs itself detached
  * (stdio to ~/.puddle/logs/cockpit-<target>.log), streams that log to the
  * launching terminal until the child's registry record turns ready, prints
- * the URL and exits — the terminal may then close. Everything interactive
- * happens BEFORE the detach: ssh auth prompts warm the control master here,
- * so the child, which has no TTY, only ever reuses it.
+ * the URL and exits — the terminal may then close. SSH auth warms the control
+ * master before detaching; daemon update approval uses the parent terminal
+ * through a private IPC pipe until startup completes.
  */
 
 const COCKPIT_CHILD_ENV = 'PUDDLE_COCKPIT_CHILD';
@@ -88,7 +89,7 @@ export async function launchDetached(opts: {
   const argv = opts.argv ?? process.argv.slice(2);
   const child = spawn(process.execPath, [process.argv[1] ?? '', ...argv], {
     detached: true,
-    stdio: ['ignore', fd, fd],
+    stdio: ['ignore', fd, fd, 'ipc'],
     env: { ...process.env, [COCKPIT_CHILD_ENV]: '1' },
   });
   closeSync(fd);
@@ -98,7 +99,13 @@ export async function launchDetached(opts: {
   }
 
   logger.info(`starting the cockpit for ${target} in the background…`);
-  const record = await followStartup(target, child.pid, logFile);
+  const stopPromptRelay = relayDaemonUpgradePrompt(child);
+  let record: CockpitRecord | null;
+  try {
+    record = await followStartup(target, child.pid, logFile);
+  } finally {
+    stopPromptRelay();
+  }
 
   if (record === null || record.status !== 'ready') {
     if (record?.status === 'error') {

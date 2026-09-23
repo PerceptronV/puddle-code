@@ -12,6 +12,11 @@
 export { startLocal, type StartOptions } from './start.js';
 export { connectRemote, type ConnectOptions } from './connect.js';
 export type { RunningCockpit } from './cockpit.js';
+export {
+  daemonUpgradeMessage,
+  type ConfirmDaemonUpgrade,
+  type DaemonUpgradeRequest,
+} from './handshake.js';
 export { CliError, silentLogger, type CliErrorCode, type CliEvent, type Logger } from './types.js';
 export { cliVersion, pinnedDaemonVersion } from './version.js';
 export { clientHome } from './paths.js';

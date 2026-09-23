@@ -1,6 +1,6 @@
-import { PROTOCOL_VERSION, type VersionResponse } from '@puddle/shared';
+import type { VersionResponse } from '@puddle/shared';
 import { installDaemon, installedVersion, type BootstrapOptions } from './bootstrap.js';
-import { DaemonClient } from './daemon-client.js';
+import { runHandshake, type ConfirmDaemonUpgrade } from './handshake.js';
 import { acquireAuthority, type HostConnection } from './auth/connection-authority.js';
 import { inspectHost } from './auth/control-channel.js';
 import { sleep } from './net.js';
@@ -61,40 +61,58 @@ export async function ensureDaemon(
     /** Test seam; normal launches use five seconds with a fallback, twenty without. */
     startTimeoutMs?: number;
     noUpgrade?: boolean;
+    confirmDaemonUpgrade?: ConfirmDaemonUpgrade;
   },
 ): Promise<DaemonEndpoint> {
   const logger = opts.logger ?? silentLogger;
   const startTimeoutMs =
     opts.startTimeoutMs ?? (opts.attachedFallback === undefined ? 20_000 : 5_000);
+  let mismatch: CliError | undefined;
   try {
     const authority = await acquireAuthority(transport);
     return { port: authority.port, authority, bootstrapped: false, daemonLifetime: 'persistent' };
   } catch (err) {
-    if (err instanceof CliError && err.code === 'cli_outdated') throw err;
+    if (err instanceof CliError && err.code === 'protocol_mismatch') mismatch = err;
   }
   const inspection = await inspectHost(transport).catch((err: unknown) => {
-    if (err instanceof CliError) throw err;
+    // A known, live mismatch must never become a blind bootstrap when inspection fails.
+    if (err instanceof CliError || mismatch) throw err;
     return null;
   });
+  if (!inspection && mismatch) throw mismatch;
+  const install = async () => {
+    await installDaemon(transport, opts);
+    return waitAfterInstall(transport, opts, logger, true, startTimeoutMs);
+  };
   if (inspection) {
-    if (inspection.version.protocol.major > PROTOCOL_VERSION.major) {
-      throw new CliError('cli_outdated', 'the host uses a newer protocol; update the CLI');
+    let replacement: DaemonEndpoint | undefined;
+    try {
+      await runHandshake({
+        host: transport.label,
+        inspection,
+        noUpgrade: opts.noUpgrade,
+        confirmDaemonUpgrade: opts.confirmDaemonUpgrade,
+        reinspect: () => inspectHost(transport),
+        logger,
+        upgradeDaemon: async () => {
+          replacement = await install();
+          return replacement.authority.version!;
+        },
+      });
+      if (replacement) return replacement;
+      // Inspection found a compatible host. Retry its authority, without reinstalling it.
+      const authority = await acquireAuthority(transport);
+      return { port: authority.port, authority, bootstrapped: false, daemonLifetime: 'persistent' };
+    } catch (err) {
+      replacement?.authority.close();
+      await replacement?.lease?.stop();
+      throw err;
     }
-    if (opts.noUpgrade) {
-      throw new CliError(
-        'upgrade_failed',
-        `the daemon speaks protocol ${inspection.version.protocol.major} and --no-upgrade is set`,
-        'run puddle launch without --no-upgrade',
-      );
-    }
-    logger.info(
-      `updating puddled — ${inspection.liveSessions} live session(s) will be interrupted and can be resumed`,
-    );
-  } else if ((await installedVersion(transport)) !== null) {
+  }
+  if ((await installedVersion(transport)) !== null) {
     logger.info(`restarting puddled on ${transport.label}`);
   }
-  await installDaemon(transport, opts);
-  return waitAfterInstall(transport, opts, logger, true, startTimeoutMs);
+  return install();
 }
 
 async function waitAfterInstall(
@@ -155,7 +173,7 @@ export async function waitForStartedDaemon(
       }
       return { port: authority.port, authority };
     } catch (err) {
-      if (err instanceof CliError && err.code === 'cli_outdated') throw err;
+      if (err instanceof CliError && err.code === 'protocol_mismatch') throw err;
     }
     await sleep(500);
   }
@@ -170,31 +188,4 @@ function startTimeout(transport: Transport): CliError {
       ? `inspect it with: puddle logs ${transport.label}`
       : 'inspect it with: puddle logs',
   );
-}
-
-/** Build the client-facing upgrade callback the handshake needs. */
-export function makeUpgrader(
-  transport: Transport,
-  client: DaemonClient,
-  opts: BootstrapOptions & { logger?: Logger },
-  lease?: DaemonLease,
-): () => Promise<void> {
-  return async () => {
-    await installDaemon(transport, opts);
-    // install.sh restarts the selected supervisor. On an attached host that
-    // attempt is another reaped nohup child, so restore the cockpit-owned
-    // process before waiting for the upgraded API.
-    await lease?.ensureRunning();
-    const fresh = await waitForStartedDaemon(transport, 30_000);
-    client.setAuthority(fresh.authority);
-    const deadline = Date.now() + 30_000;
-    while (Date.now() < deadline) {
-      if (await client.responds()) return;
-      await sleep(500);
-    }
-    throw new CliError(
-      'daemon_start_timeout',
-      `puddled did not come back after updating on ${transport.label}`,
-    );
-  };
 }

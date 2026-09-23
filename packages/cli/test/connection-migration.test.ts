@@ -69,7 +69,9 @@ it('reports newer protocols without attempting an install', async () => {
   expect(install).not.toHaveBeenCalled();
 });
 it('keeps local recovery authority when an upgrade fails', async () => {
-  await expect(ensureDaemon(new LocalTransport(), {})).rejects.toThrow('installation failed');
+  await expect(
+    ensureDaemon(new LocalTransport(), { confirmDaemonUpgrade: async () => true }),
+  ).rejects.toThrow('installation failed');
   expect(install).toHaveBeenCalledOnce();
   expect(readFileSync(join(home, 'token'), 'utf8').trim()).toBe(master);
 });

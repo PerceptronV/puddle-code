@@ -23,13 +23,8 @@ const LIVE = new Set(['starting', 'running', 'waiting_input']);
 export class DaemonClient {
   constructor(
     private port: number,
-    private authority: ConnectionAuthority,
+    private readonly authority: ConnectionAuthority,
   ) {}
-
-  setAuthority(authority: ConnectionAuthority): void {
-    this.authority.close();
-    this.authority = authority;
-  }
 
   setPort(port: number): void {
     this.port = port;
@@ -77,23 +72,6 @@ export class DaemonClient {
   /** The live subset of sessions() — what an upgrade/removal interrupts. */
   async liveSessions(): Promise<Session[]> {
     return (await this.sessions()).filter((s) => LIVE.has(s.status));
-  }
-
-  async liveSessionCount(): Promise<number> {
-    return (await this.sessions()).filter((s) => LIVE.has(s.status)).length;
-  }
-
-  /** Readiness requires an authenticated response; rejection never counts as ready. */
-  async responds(): Promise<boolean> {
-    try {
-      const res = await fetch(`http://127.0.0.1:${this.port}/api/version`, {
-        headers: { authorization: `Bearer ${this.authority.credential()}` },
-        signal: AbortSignal.timeout(2000),
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
   }
 }
 

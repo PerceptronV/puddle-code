@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { DaemonClient } from './daemon-client.js';
-import { ensureDaemon, makeUpgrader, type RunningCockpit } from './cockpit.js';
-import { runHandshake } from './handshake.js';
+import { ensureDaemon, type RunningCockpit } from './cockpit.js';
+import { verifyDaemonVersion, type ConfirmDaemonUpgrade } from './handshake.js';
 import { clientHome } from './paths.js';
 import { startUiServer } from './serve/ui-server.js';
 import { LocalTransport } from './transport/local.js';
@@ -20,6 +20,7 @@ export interface StartOptions {
   /** Directory holding the built web UI. */
   assetsDir: string;
   noUpgrade?: boolean;
+  confirmDaemonUpgrade?: ConfirmDaemonUpgrade;
   logger?: Logger;
   /** POST /cockpit/refresh (the UI's refresh button) invokes this — the CLI
    *  layer supplies the process-spawning behaviour; lib stays process-free. */
@@ -35,26 +36,28 @@ export interface StartOptions {
 export async function startLocal(opts: StartOptions): Promise<RunningCockpit> {
   const logger = opts.logger ?? silentLogger;
   const transport = new LocalTransport();
-  const bootstrap = { tarball: opts.tarball, logger, noUpgrade: opts.noUpgrade };
+  const bootstrap = {
+    tarball: opts.tarball,
+    logger,
+    noUpgrade: opts.noUpgrade,
+    confirmDaemonUpgrade: opts.confirmDaemonUpgrade,
+  };
 
-  const endpoint = await ensureDaemon(transport, bootstrap);
+  let endpoint: Awaited<ReturnType<typeof ensureDaemon>> | undefined;
   try {
-    const client = new DaemonClient(endpoint.port, endpoint.authority);
-    const daemon = await runHandshake({
-      client,
-      noUpgrade: opts.noUpgrade,
-      upgradeDaemon: makeUpgrader(transport, client, bootstrap),
-      logger,
-    });
+    endpoint = await ensureDaemon(transport, bootstrap);
+    const authority = endpoint.authority;
+    const client = new DaemonClient(endpoint.port, authority);
+    const daemon = verifyDaemonVersion(await client.version());
 
     let currentUi: Awaited<ReturnType<typeof startUiServer>> | undefined = undefined;
-    endpoint.authority.setVerifier(async () => {
-      client.setPort(endpoint.authority.port);
-      await client.version();
-      currentUi?.setTarget({ host: '127.0.0.1', port: endpoint.authority.port });
+    authority.setVerifier(async () => {
+      client.setPort(authority.port);
+      verifyDaemonVersion(await client.version());
+      currentUi?.setTarget({ host: '127.0.0.1', port: authority.port });
     });
     const ui = await startUiServer({
-      authority: endpoint.authority,
+      authority,
       identity: 'local',
       refreshId: opts.refreshId,
       assetsDir: opts.assetsDir,
@@ -84,12 +87,12 @@ export async function startLocal(opts: StartOptions): Promise<RunningCockpit> {
       },
       async stop() {
         await ui.close();
-        endpoint.authority.close();
+        authority.close();
         transport.dispose();
       },
     };
   } catch (err) {
-    endpoint.authority.close();
+    endpoint?.authority.close();
     transport.dispose();
     throw err;
   }

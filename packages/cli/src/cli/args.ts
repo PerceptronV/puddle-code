@@ -126,6 +126,8 @@ running in the background once ready, so the terminal may close (--foreground
 to stay attached; Ctrl-C then stops the cockpit). refresh stops a target's
 cockpit (even a wedged one) and runs the full launch flow again — tunnel,
 daemon restart if needed — keeping the old UI port so open tabs survive.
+An older host protocol prompts before updating its daemon; --no-upgrade
+aborts before prompting. Without a terminal, upgrade the daemon explicitly first.
 list shows running cockpits; kill stops one. Sessions keep running under a
 persistent supervisor; an SSH-attached daemon keeps their state for the next launch.
 

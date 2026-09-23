@@ -46,7 +46,7 @@ export class HostControlClient implements ConnectionAuthority {
     private readonly openChannel: () => Promise<Duplex>,
     private readonly automatic = true,
     private readonly error: (
-      code: 'daemon_unreachable' | 'cli_outdated',
+      code: 'daemon_unreachable' | 'protocol_mismatch',
       message: string,
     ) => Error = (_code, message) => new Error(message),
   ) {
@@ -137,8 +137,8 @@ export class HostControlClient implements ConnectionAuthority {
               this.status = 'protocol_mismatch';
               reject(
                 this.error(
-                  'cli_outdated',
-                  `Host protocol ${message.version.protocol.major} requires a compatible CLI`,
+                  'protocol_mismatch',
+                  `Host protocol ${message.version.protocol.major} does not match client protocol ${PROTOCOL_VERSION.major}`,
                 ),
               );
               channel.destroy();

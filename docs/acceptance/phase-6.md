@@ -66,13 +66,22 @@ takes a CLIENT-side path and delivers it over scp.
    the log tail replays, keystrokes reach the agent, window resize reflows,
    Ctrl-] detaches leaving the session running. `puddle logs user@host
    <session-prefix>` prints the same output; `-f` follows.
-8. **Older-major auto-update.** On the host, fake an older protocol:
+8. **Confirmed older-major update.** On the host, fake an older protocol:
    `ln -sfn versions/<old> ~/.puddle/bin/current && systemctl --user restart
    puddled` with any earlier-major build (or temporarily edit
    `PROTOCOL_VERSION` and rebuild a tarball). `puddle launch user@host`
-   prints the live-session interruption count, reinstalls, restarts, and
-   lands in the cockpit; the interrupted sessions show resume buttons and
-   resume with history. `--no-upgrade` instead aborts with the count.
+   shows the host, both protocols and live-session interruption count, then
+   asks `Update and connect? [y/N]` on the launching terminal (check both
+   default background and `--foreground`). Answer no: no install or restart.
+   Retry and answer yes: one install, fresh compatible authority, and a
+   working cockpit with resumable history. `--no-upgrade` aborts before any
+   prompt. A non-interactive launch refuses the update with manual upgrade
+   guidance. Repeat from the desktop host picker: **Update and connect**
+   opens the cockpit after updating; **Cancel** leaves the host untouched.
+   Repeat against a newer-major host: client-update guidance, no daemon
+   update offer. A failed/incompatible update must report an error without
+   prompting again or opening the cockpit. Run these on both a modern
+   control-socket host and a pre-protocol-18 legacy host.
 9. **Mode switching on one origin.** After the SSH session, run a local
    `puddle launch` on the same machine. The ports strip now offers **Open
    localhost** (the stale `user@host` from step 3 was cleared by the local

@@ -26,6 +26,7 @@ export type CliErrorCode =
   | 'daemon_start_timeout'
   | 'upgrade_failed'
   | 'cli_outdated'
+  | 'protocol_mismatch'
   | 'port_in_use'
   | 'ambiguous_session'
   | 'unknown_session'

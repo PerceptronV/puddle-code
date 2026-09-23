@@ -17,6 +17,8 @@ import {
   clientHome,
   CliError,
   connectRemote,
+  daemonUpgradeMessage,
+  type DaemonUpgradeRequest,
   pruneDesktopUpdateCache,
   recordDesktopInstallation,
   stageDesktopUpdate,
@@ -130,6 +132,23 @@ async function openCockpit(
     preferPort,
     refreshId,
     logger,
+    confirmDaemonUpgrade: async (request: DaemonUpgradeRequest) => {
+      const parent = shells.get(target)?.win ?? promptWin ?? pickerWin;
+      const options = {
+        type: 'question' as const,
+        title: 'Update host daemon',
+        message: `Update Puddle on ${request.host}?`,
+        detail: daemonUpgradeMessage(request),
+        buttons: ['Update and connect', 'Cancel'],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+      };
+      const result = await (parent && !parent.isDestroyed()
+        ? dialog.showMessageBox(parent, options)
+        : dialog.showMessageBox(options));
+      return !stopped && result.response === 0;
+    },
     // The UI's connection banner and ⌘K "Refresh connection" POST
     // /cockpit/refresh; in-process there is no process to swap, so refresh
     // is simply: close the UI server (and tunnel), re-run the same flow

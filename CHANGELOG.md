@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Unify launcher protocol negotiation so older host daemons offer an update before connecting, with desktop and CLI confirmation, live-session interruption details, and compatible authority verification after the update.

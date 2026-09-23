@@ -47,7 +47,10 @@ export async function inspectLegacyHost(home: string): Promise<HostInspection | 
   };
   try {
     const version = versionResponseSchema.parse(await get('/api/version'));
-    const sessions = sessionSchema.array().parse(await get('/api/sessions'));
+    const sessions = sessionSchema
+      .pick({ status: true })
+      .array()
+      .parse(await get('/api/sessions'));
     return hostInspectionSchema.parse({
       t: 'inspection',
       port,
@@ -96,7 +99,10 @@ export async function inspectHostLocally(home: string): Promise<HostInspection |
       signal: AbortSignal.timeout(3000),
     });
     if (!response.ok) throw new Error('Host inspection rejected');
-    const sessions = sessionSchema.array().parse(await response.json());
+    const sessions = sessionSchema
+      .pick({ status: true })
+      .array()
+      .parse(await response.json());
     return hostInspectionSchema.parse({
       t: 'inspection',
       port: grant.port,

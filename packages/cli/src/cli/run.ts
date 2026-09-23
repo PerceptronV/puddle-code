@@ -1,3 +1,4 @@
+import { confirmDaemonUpgrade } from './daemon-upgrade-prompt.js';
 import { acquireAuthority } from '../lib/auth/connection-authority.js';
 import { runRemote } from './remote.js';
 import { existsSync } from 'node:fs';
@@ -424,6 +425,7 @@ async function runCockpit(
     const common = {
       ...command,
       assetsDir: assetsDir(),
+      confirmDaemonUpgrade,
       logger,
       onRefreshRequest,
       refreshId: process.env.PUDDLE_REFRESH_ID,

@@ -1,8 +1,8 @@
 import { join } from 'node:path';
 import { AttachedDaemon } from './attached-daemon.js';
 import { DaemonClient, readDaemonPort } from './daemon-client.js';
-import { ensureDaemon, makeUpgrader, type RunningCockpit } from './cockpit.js';
-import { runHandshake } from './handshake.js';
+import { ensureDaemon, type RunningCockpit } from './cockpit.js';
+import { verifyDaemonVersion, type ConfirmDaemonUpgrade } from './handshake.js';
 import { waitForHttp } from './net.js';
 import { clientHome } from './paths.js';
 import { startUiServer } from './serve/ui-server.js';
@@ -37,6 +37,7 @@ export interface ConnectOptions {
   tarball?: string;
   assetsDir: string;
   noUpgrade?: boolean;
+  confirmDaemonUpgrade?: ConfirmDaemonUpgrade;
   logger?: Logger;
   /** POST /cockpit/refresh (the UI's refresh button) invokes this — the CLI
    *  layer supplies the process-spawning behaviour; lib stays process-free. */
@@ -52,7 +53,7 @@ export interface ConnectOptions {
 
 /**
  * SSH mode (SPEC §10): master connection → bootstrap/upgrade the daemon →
- * tunnel → handshake → serve the UI locally with /api + /ws proxied through
+ * tunnel → verify the API → serve the UI locally with /api + /ws proxied through
  * the tunnel. Ctrl-C (the caller's stop()) closes the tunnel and UI server;
  * supervised daemons keep running, while an attached fallback shuts down
  * cleanly and resumes its interrupted sessions on the next launch.
@@ -80,7 +81,12 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
   let endpointResource: Awaited<ReturnType<typeof ensureDaemon>> | undefined;
 
   try {
-    const bootstrap = { tarball: opts.tarball, logger, noUpgrade: opts.noUpgrade };
+    const bootstrap = {
+      tarball: opts.tarball,
+      logger,
+      noUpgrade: opts.noUpgrade,
+      confirmDaemonUpgrade: opts.confirmDaemonUpgrade,
+    };
     const attachedDaemon = new AttachedDaemon(ssh, logger);
     const endpoint = await ensureDaemon(ssh, {
       ...bootstrap,
@@ -130,12 +136,7 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
     });
     oauthForwardResource = oauthForward;
 
-    const daemon = await runHandshake({
-      client,
-      noUpgrade: opts.noUpgrade,
-      upgradeDaemon: makeUpgrader(ssh, client, bootstrap, endpoint.lease),
-      logger,
-    });
+    const daemon = verifyDaemonVersion(await client.version());
 
     // Never squat the port a local `puddle launch` will probe for its own daemon,
     // or that probe would find this cockpit's proxy answering for a different
@@ -166,7 +167,7 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
         watchTunnel(replacement);
         await previous?.close();
       }
-      await client.version();
+      verifyDaemonVersion(await client.version());
     });
     const ui = await startUiServer({
       authority: endpoint.authority,
