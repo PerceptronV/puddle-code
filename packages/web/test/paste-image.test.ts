@@ -13,7 +13,14 @@ const session = '00000000-0000-4000-8000-000000000001';
 const path = '.puddle/pastes/image.png';
 const remote = (): BrowserTransport => ({
   scope: crypto.randomUUID(),
-  request: vi.fn(),
+  generation: crypto.randomUUID(),
+  request: vi.fn(async (method, url, body) =>
+    Response.json(
+      url === '/api/version'
+        ? { version: 'test', protocol: { major: 21, minor: 1 } }
+        : await api(method, url, body),
+    ),
+  ),
   input: vi.fn().mockResolvedValue(undefined),
   socket: vi.fn(),
 });
@@ -88,10 +95,40 @@ describe('shared image paste', () => {
     ).rejects.toThrow('20 MiB');
     await expect(
       prepareImage(
-        new File([new Uint8Array(200 * 1024)], 'animation.gif', { type: 'image/gif' }),
+        new File([new Uint8Array(4 * 1024 * 1024 + 1)], 'animation.gif', { type: 'image/gif' }),
         true,
       ),
-    ).rejects.toThrow('smaller than 191 KiB');
+    ).rejects.toThrow('no larger than 4 MiB');
     expect(api).not.toHaveBeenCalled();
   });
+
+  it('does not insert after cancellation or reconnect on the same transport object', async () => {
+    for (const action of ['cancel', 'reconnect']) {
+      const transport = remote();
+      installBrowserTransport(transport);
+      const abort = new AbortController();
+      vi.mocked(api).mockImplementationOnce(async () => {
+        if (action === 'cancel') abort.abort();
+        else Object.assign(transport, { generation: crypto.randomUUID() });
+        return { path };
+      });
+      await expect(pasteImage(file, session, 'agent', { signal: abort.signal })).rejects.toThrow();
+      expect(transport.input).not.toHaveBeenCalled();
+    }
+  });
+
+  it.each(['image/png', 'image/jpeg', 'image/webp', 'image/gif'])(
+    'preserves images up to 4 MiB: %s',
+    async (type) => {
+      const original = new File([new Uint8Array(4 * 1024 * 1024)], 'image', { type });
+      const decode = vi.fn();
+      vi.stubGlobal('createImageBitmap', decode);
+      expect(await prepareImage(original, true)).toEqual({
+        blob: original,
+        mime: type,
+        resized: false,
+      });
+      expect(decode).not.toHaveBeenCalled();
+    },
+  );
 });

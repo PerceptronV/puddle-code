@@ -52,7 +52,7 @@ describe('connection-owned image staging', () => {
     const completed = f.send({ action: 'finish' });
     if (!('paste' in completed)) throw new Error('Expected a completed image');
     expect(completed.paste.mime).toBe('image/gif');
-    expect(Buffer.from(completed.paste.data, 'base64')).toEqual(bytes);
+    expect(Buffer.from(completed.paste.data, 'base64').equals(bytes)).toBe(true);
     expect(() => f.send({ action: 'finish' })).toThrow('already being saved');
     completed.release();
     expect(() => f.send({ action: 'finish' })).toThrow('no longer available');

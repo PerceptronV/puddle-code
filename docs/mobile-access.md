@@ -267,10 +267,17 @@ and Copy action with native text selection. The terminal's bottom strip supplies
 Tab, Enter and one-shot Ctrl/Opt modifiers above the keyboard. The image button
 opens your photo/file picker and inserts the uploaded image into the current
 terminal without submitting, just like desktop image paste. PNG, JPEG, GIF and WebP
-files up to 20 MiB are supported. Larger remote photos are resized to fit the
-connection's request limit; a notice confirms this. GIFs must be smaller than
-191 KiB remotely to retain animation. Update the host's connector along with
-the web app to enable image attachments; rebuilding only the app is insufficient.
+originals up to 4 MiB retain their exact bytes. Larger PNG/JPEG/WebP originals, up
+to 20 MiB, are resized/recompressed with a notice; GIFs above 4 MiB are rejected
+to retain animation. Upload progress reflects bytes acknowledged by your host;
+tap the cross to cancel. Cancellation stops path insertion and discards partial
+uploads, though a final save already dispatched may leave a completed image file.
+The ordinary remote request limit stays 256 KiB: images travel in acknowledged
+64 KiB chunks inside the same end-to-end encrypted channel as terminal data,
+preview assets and file names/metadata. The relay sees routing, sizes and timing,
+not those contents. Files are saved normally on the host, without added encryption
+at rest. Update the host connector and web app for 4 MiB uploads; older connectors
+retain small uploads (about 191 KiB) and show an upgrade message for larger files.
 The optional prompt
 composer retains drafts in this tab across reconnect/reload; Send respects
 bracketed-paste mode. If delivery is uncertain, check the terminal before sending

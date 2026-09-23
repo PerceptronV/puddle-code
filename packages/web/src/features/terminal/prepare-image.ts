@@ -1,15 +1,16 @@
-import { REMOTE_POLICY, pasteImageMimeSchema, type PasteImageMime } from '@puddle/shared';
+import { IMAGE_UPLOAD_POLICY, pasteImageMimeSchema, type PasteImageMime } from '@puddle/shared';
 
 export const IMAGE_ACCEPT = pasteImageMimeSchema.options.join(',');
-// Reserve room for the JSON body and encrypted request envelope, including its ids.
-const REMOTE_IMAGE_BYTES = Math.floor(((REMOTE_POLICY.requestBytes - 1024) * 3) / 4);
+const REMOTE_IMAGE_BYTES = IMAGE_UPLOAD_POLICY.imageBytes;
 // Matches the existing daemon image-paste cap; reject before reading/decoding the file.
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 
 export async function prepareImage(
   file: File,
   remote: boolean,
+  signal?: AbortSignal,
 ): Promise<{ blob: Blob; mime: PasteImageMime; resized: boolean }> {
+  signal?.throwIfAborted();
   const mime = pasteImageMimeSchema.safeParse(file.type);
   if (!mime.success) throw new Error('Choose a PNG, JPEG, GIF or WebP image.');
   if (file.size === 0) throw new Error('This image is empty.');
@@ -18,13 +19,12 @@ export async function prepareImage(
     return { blob: file, mime: mime.data, resized: false };
   // Preserve animation rather than silently turning a GIF into its first frame.
   if (mime.data === 'image/gif')
-    throw new Error(
-      `Choose a GIF smaller than ${Math.floor(REMOTE_IMAGE_BYTES / 1024)} KiB for remote access.`,
-    );
+    throw new Error('Choose a GIF no larger than 4 MiB for remote access.');
 
-  // Decode the File directly: the remote app intentionally disallows blob: image URLs.
+  // Decode directly without retaining a temporary object URL.
   const image = await createImageBitmap(file);
   try {
+    signal?.throwIfAborted();
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Could not prepare this image.');
@@ -38,6 +38,7 @@ export async function prepareImage(
         const blob = await new Promise<Blob | null>((resolve) =>
           canvas.toBlob(resolve, type, quality),
         );
+        signal?.throwIfAborted();
         if (blob && blob.size <= REMOTE_IMAGE_BYTES)
           return { blob, mime: pasteImageMimeSchema.parse(blob.type), resized: true };
       }

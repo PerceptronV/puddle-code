@@ -48,11 +48,12 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
   const errors: string[] = [];
   const ciphertext: Buffer[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  page.on('websocket', (socket) =>
-    socket.on('framesent', ({ payload }) => {
-      if (Buffer.isBuffer(payload)) ciphertext.push(payload);
-    }),
-  );
+  page.on('websocket', (socket) => {
+    for (const event of ['framesent', 'framereceived'] as const)
+      socket.on(event, ({ payload }) => {
+        if (Buffer.isBuffer(payload)) ciphertext.push(payload);
+      });
+  });
   try {
     await page.goto(fixture.appOrigin + '/');
     await expect(page.getByLabel('Email', { exact: true })).toHaveCount(0);
@@ -193,7 +194,7 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     typed.close();
     await checkTerminalScrolling(page, fixture);
     await checkTerminalSelection(page, fixture, testInfo);
-    await checkImagePicker(page, fixture);
+    await checkImagePicker(page, fixture, testInfo);
     await page.getByRole('button', { name: 'Ctrl', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Ctrl', exact: true })).toHaveAttribute(
       'aria-pressed',
@@ -269,6 +270,17 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     ).toBeVisible();
     await checkMobilePaths(page, fixture, testInfo);
     await checkMobilePreviews(page, fixture, testInfo);
+    // Both directions use the encrypted channel for upload bytes, paths, source and assets.
+    const wire = Buffer.concat(ciphertext);
+    for (const plaintext of [
+      '.puddle/pastes/',
+      '/paste-upload',
+      'previews/guide.md',
+      '# Preview guide',
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB',
+      Buffer.from('document.querySelector("h1").textContent = "Script loaded";').toString('base64'),
+    ])
+      expect(wire.includes(Buffer.from(plaintext))).toBe(false);
     await page.getByRole('button', { name: 'Terminals', exact: true }).click();
     await page.getByRole('button', { name: 'Expand sessions' }).click();
     await expect(page.getByRole('button', { name: 'Collapse sessions' })).toBeVisible();

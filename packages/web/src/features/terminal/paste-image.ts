@@ -4,6 +4,11 @@ import { api } from '../../lib/api';
 import { browserTransport } from '../../lib/browser-transport';
 import { wsManager } from '../../lib/ws';
 import { prepareImage } from './prepare-image';
+import { uploadRemoteImage } from '../remote/image-upload';
+
+export type ImagePasteProgress =
+  | { stage: 'preparing' | 'saving' | 'inserting' }
+  | { stage: 'uploading'; received: number; total: number };
 
 /**
  * Clipboard-image paste for terminals (SPEC §7). xterm's built-in paste only
@@ -46,22 +51,49 @@ export async function pasteImage(
   file: File,
   stream: string,
   term: string,
+  options: { signal?: AbortSignal; onProgress?: (progress: ImagePasteProgress) => void } = {},
 ): Promise<{ resized: boolean }> {
   if (stream.startsWith('login-') || stream === HOME_STREAM)
     throw new Error('Open a project terminal to attach an image.');
   const transport = browserTransport();
+  const generation = transport?.generation;
   const checkConnection = () => {
-    if (browserTransport() !== transport || !wsManager.isConnected())
+    if (
+      browserTransport() !== transport ||
+      transport?.generation !== generation ||
+      !wsManager.isConnected()
+    )
       throw new Error('The terminal connection changed; the image was not inserted.');
   };
+  options.signal?.throwIfAborted();
   checkConnection();
-  const { blob, mime, resized } = await prepareImage(file, transport !== null);
-  const data = await toBase64(blob);
+  options.onProgress?.({ stage: 'preparing' });
+  const { blob, mime, resized } = await prepareImage(file, transport !== null, options.signal);
   checkConnection();
-  const res = pasteImageResponseSchema.parse(
-    await api('POST', `/api/worktrees/${stream}/paste`, { mime, data }),
-  );
+  const res = transport
+    ? await uploadRemoteImage(
+        transport,
+        stream,
+        blob,
+        mime,
+        checkConnection,
+        options.signal,
+        (received, total) =>
+          options.onProgress?.(
+            received === total ? { stage: 'saving' } : { stage: 'uploading', received, total },
+          ),
+      )
+    : await (async () => {
+        const data = await toBase64(blob);
+        checkConnection();
+        options.signal?.throwIfAborted();
+        return pasteImageResponseSchema.parse(
+          await api('POST', `/api/worktrees/${stream}/paste`, { mime, data }),
+        );
+      })();
+  options.signal?.throwIfAborted();
   checkConnection();
+  options.onProgress?.({ stage: 'inserting' });
   if (transport) await transport.input(stream, term, `${res.path} `);
   else wsManager.write(stream, term, `${res.path} `);
   return { resized };

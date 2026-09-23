@@ -1,8 +1,8 @@
-import { useRef, useState } from 'react';
-import { ImagePlus, LoaderCircle } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ImagePlus, LoaderCircle, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
-import { pasteImage } from '../terminal/paste-image';
+import { pasteImage, type ImagePasteProgress } from '../terminal/paste-image';
 import { IMAGE_ACCEPT } from '../terminal/prepare-image';
 
 export function ImagePasteButton({
@@ -15,20 +15,39 @@ export function ImagePasteButton({
   ready: boolean;
 }) {
   const input = useRef<HTMLInputElement>(null);
-  const pending = useRef(false);
-  const [busy, setBusy] = useState(false);
+  const pending = useRef<AbortController | null>(null);
+  const [progress, setProgress] = useState<ImagePasteProgress | null>(null);
+  const busy = progress !== null;
+  useEffect(() => () => pending.current?.abort(), [session, term, ready]);
+  const percentage =
+    progress?.stage === 'uploading'
+      ? Math.floor((progress.received / progress.total) * 100)
+      : undefined;
+  const label =
+    progress?.stage === 'uploading'
+      ? `${percentage}%`
+      : progress?.stage === 'saving'
+        ? 'Saving…'
+        : progress?.stage === 'inserting'
+          ? 'Inserting…'
+          : 'Preparing…';
   const insert = async (file: File) => {
     if (!ready || pending.current) return;
-    pending.current = true;
-    setBusy(true);
+    const abort = new AbortController();
+    pending.current = abort;
+    setProgress({ stage: 'preparing' });
     try {
-      const { resized } = await pasteImage(file, session, term);
+      const { resized } = await pasteImage(file, session, term, {
+        signal: abort.signal,
+        onProgress: setProgress,
+      });
       if (resized) toast('Image resized for remote access');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not insert the image.');
+      if (!abort.signal.aborted)
+        toast.error(error instanceof Error ? error.message : 'Could not insert the image.');
     } finally {
-      pending.current = false;
-      setBusy(false);
+      pending.current = null;
+      setProgress(null);
     }
   };
   return (
@@ -48,13 +67,30 @@ export function ImagePasteButton({
       />
       <Button
         variant="ghost"
-        aria-label="Insert image"
-        title="Insert image"
+        aria-label={busy ? 'Cancel image upload' : 'Insert image'}
+        title={busy ? 'Cancel image upload' : 'Insert image'}
         aria-busy={busy}
-        disabled={!ready || busy}
-        onClick={() => input.current?.click()}
+        disabled={!ready || progress?.stage === 'inserting'}
+        onClick={() => (busy ? pending.current?.abort() : input.current?.click())}
       >
-        {busy ? <LoaderCircle className="animate-spin" /> : <ImagePlus />}
+        {busy ? (
+          <>
+            {progress.stage === 'inserting' ? <LoaderCircle className="animate-spin" /> : <X />}
+            <span
+              role="progressbar"
+              aria-label="Image upload"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={percentage}
+              aria-valuetext={label}
+              className="text-xs"
+            >
+              {label}
+            </span>
+          </>
+        ) : (
+          <ImagePlus />
+        )}
       </Button>
     </>
   );

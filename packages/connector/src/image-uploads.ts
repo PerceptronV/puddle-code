@@ -12,7 +12,7 @@ interface Upload {
   mime: PasteImageMime;
   size: number;
   received: number;
-  parts: Buffer[];
+  bytes: Buffer;
   started: number;
   updated: number;
   abort?: AbortController;
@@ -50,7 +50,7 @@ export class ImageUploads {
     const upload = this.current;
     this.current = null;
     upload?.abort?.abort();
-    if (upload) upload.parts = [];
+    if (upload) upload.bytes = Buffer.alloc(0);
   }
   dispose(): void {
     clearInterval(this.timer);
@@ -77,7 +77,8 @@ export class ImageUploads {
         mime: request.mime,
         size: request.size,
         received: 0,
-        parts: [],
+        // A fixed allocation also bounds overhead from adversarial one-byte chunks.
+        bytes: Buffer.alloc(request.size),
         started: this.now(),
         updated: this.now(),
       };
@@ -103,7 +104,7 @@ export class ImageUploads {
         this.clear();
         throw new ImageUploadError(400, 'Invalid, repeated or out-of-order image chunk.');
       }
-      upload.parts.push(bytes);
+      bytes.copy(upload.bytes, upload.received);
       upload.received += bytes.length;
       upload.updated = this.now();
       return { progress: { received: upload.received } };
@@ -113,8 +114,8 @@ export class ImageUploads {
       throw new ImageUploadError(400, 'The image upload is incomplete.');
     }
     upload.abort = abort;
-    const data = Buffer.concat(upload.parts, upload.received).toString('base64');
-    upload.parts = [];
+    const data = upload.bytes.toString('base64');
+    upload.bytes = Buffer.alloc(0);
     return {
       paste: { mime: upload.mime, data },
       release: () => {

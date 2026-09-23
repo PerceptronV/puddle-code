@@ -1,13 +1,14 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Page, type TestInfo } from '@playwright/test';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { REMOTE_POLICY } from '@puddle/shared';
+import { IMAGE_UPLOAD_POLICY, REMOTE_POLICY } from '@puddle/shared';
 import { until, websocket } from '../../cli/e2e/helpers';
 import type { mobileFixture } from './mobile-fixture';
 
 export async function checkImagePicker(
   page: Page,
   fixture: Awaited<ReturnType<typeof mobileFixture>>,
+  testInfo: TestInfo,
 ) {
   const png = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=',
@@ -57,41 +58,99 @@ export async function checkImagePicker(
     await expect(button).toBeEnabled();
     await page.getByRole('button', { name: 'Enter', exact: true }).click();
 
-    // A phone-sized source exceeds the encrypted request limit; the picker must
-    // resize it before upload without changing that limit or losing the connection.
-    const large = await page.evaluate(() => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 1200;
-      canvas.height = 900;
-      const context = canvas.getContext('2d')!;
-      const pixels = context.createImageData(canvas.width, canvas.height);
-      let seed = 123;
-      for (let index = 0; index < pixels.data.length; index += 4) {
-        seed = (Math.imul(seed, 1664525) + 1013904223) | 0;
-        pixels.data[index] = seed & 255;
-        pixels.data[index + 1] = (seed >>> 8) & 255;
-        pixels.data[index + 2] = (seed >>> 16) & 255;
-        pixels.data[index + 3] = 255;
-      }
-      context.putImageData(pixels, 0, 0);
-      return canvas.toDataURL('image/png').split(',')[1]!;
-    });
-    expect(Buffer.from(large, 'base64').length).toBeGreaterThan(REMOTE_POLICY.requestBytes);
+    // Sources below 4 MiB cross many encrypted requests without changing their bytes.
+    const photo = async (width: number, height: number) =>
+      Buffer.from(
+        await page.evaluate(
+          ({ width, height }) => {
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext('2d')!;
+            const pixels = context.createImageData(width, height);
+            let seed = 123;
+            for (let index = 0; index < pixels.data.length; index += 4) {
+              seed = (Math.imul(seed, 1664525) + 1013904223) | 0;
+              pixels.data[index] = seed & 255;
+              pixels.data[index + 1] = (seed >>> 8) & 255;
+              pixels.data[index + 2] = (seed >>> 16) & 255;
+              pixels.data[index + 3] = 255;
+            }
+            context.putImageData(pixels, 0, 0);
+            return canvas.toDataURL('image/png').split(',')[1]!;
+          },
+          { width, height },
+        ),
+        'base64',
+      );
+    const large = await photo(1200, 900);
+    expect(large.length).toBeGreaterThan(REMOTE_POLICY.requestBytes);
+    expect(large.length).toBeLessThanOrEqual(IMAGE_UPLOAD_POLICY.imageBytes);
     const before = new Set(files());
-    await chooser.setInputFiles({
-      name: 'photo.png',
-      mimeType: 'image/png',
-      buffer: Buffer.from(large, 'base64'),
-    });
+    await chooser.setInputFiles({ name: 'photo.png', mimeType: 'image/png', buffer: large });
     await until(files, (names) => names.length === 3);
     await expect(button).toBeEnabled();
-    const resized = files().find((name) => !before.has(name))!;
-    expect(resized).toMatch(/\.(webp|png)$/);
-    const bytes = readFileSync(join(directory, resized));
-    expect(
-      Buffer.byteLength(JSON.stringify({ mime: 'image/webp', data: bytes.toString('base64') })) +
-        1024,
-    ).toBeLessThan(REMOTE_POLICY.requestBytes);
+    const preserved = files().find((name) => !before.has(name))!;
+    expect(readFileSync(join(directory, preserved)).equals(large)).toBe(true);
+    await expect(page.getByText('Image resized for remote access', { exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Enter', exact: true }).click();
+    await until(output, (text) => text.includes(`INPUT:.puddle/pastes/${preserved} `));
+
+    // Hold the second local chunk read after the first acknowledgement, leaving
+    // the real encrypted channel free to exercise terminal input and cancellation.
+    await page.evaluate(() => {
+      const original = Blob.prototype.arrayBuffer;
+      let reads = 0;
+      Blob.prototype.arrayBuffer = async function () {
+        const bytes = await original.call(this);
+        if (this.size === 64 * 1024 && ++reads === 2) {
+          Blob.prototype.arrayBuffer = original;
+          await new Promise<void>((resolve) => {
+            (window as typeof window & { releaseImageChunk?: () => void }).releaseImageChunk =
+              resolve;
+          });
+        }
+        return bytes;
+      };
+    });
+    await chooser.setInputFiles({ name: 'cancel.png', mimeType: 'image/png', buffer: large });
+    await expect(page.getByRole('progressbar', { name: 'Image upload' })).toHaveAttribute(
+      'aria-valuenow',
+      /^[1-9]\d*$/,
+    );
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            typeof (window as typeof window & { releaseImageChunk?: () => void }).releaseImageChunk,
+        ),
+      )
+      .toBe('function');
+    await page
+      .getByRole('button', { name: 'Cancel image upload', exact: true })
+      .scrollIntoViewIfNeeded();
+    await page.screenshot({ path: testInfo.outputPath('phone-image-upload.png') });
+    await page.getByRole('textbox', { name: 'Prompt', exact: true }).fill('during-image-upload');
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    await until(output, (text) => text.includes('INPUT:during-image-upload'));
+    await page.getByRole('button', { name: 'Cancel image upload', exact: true }).click();
+    await page.evaluate(() =>
+      (window as typeof window & { releaseImageChunk?: () => void }).releaseImageChunk?.(),
+    );
+    await expect(button).toBeEnabled();
+    expect(files()).toHaveLength(3);
+
+    // Larger originals are recompressed and can immediately follow a cancelled upload.
+    const oversized = await photo(1600, 1200);
+    expect(oversized.length).toBeGreaterThan(IMAGE_UPLOAD_POLICY.imageBytes);
+    const previous = new Set(files());
+    await chooser.setInputFiles({ name: 'resize.png', mimeType: 'image/png', buffer: oversized });
+    await until(files, (names) => names.length === 4);
+    await expect(button).toBeEnabled();
+    const resized = files().find((name) => !previous.has(name))!;
+    expect(readFileSync(join(directory, resized)).length).toBeLessThanOrEqual(
+      IMAGE_UPLOAD_POLICY.imageBytes,
+    );
     await expect(page.getByText('Image resized for remote access', { exact: true })).toBeVisible();
     await expect(page.getByRole('status')).toHaveText('Connected');
     await page.getByRole('button', { name: 'Enter', exact: true }).click();
@@ -105,7 +164,7 @@ export async function checkImagePicker(
     await expect(
       page.getByText('Choose a PNG, JPEG, GIF or WebP image.', { exact: true }),
     ).toBeVisible();
-    expect(files()).toHaveLength(3);
+    expect(files()).toHaveLength(4);
     await expect(button).toBeEnabled();
     await page.getByRole('textbox', { name: 'Prompt', exact: true }).fill('');
   } finally {

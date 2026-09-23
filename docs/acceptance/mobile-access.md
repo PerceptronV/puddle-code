@@ -20,7 +20,7 @@ recovery instructions: [self-hosted mobile access](../mobile-access.md).
   disablement and continued local agent access. Browser-level touch gestures cover
   terminal scrollback, SGR mouse reporting, alternate-screen scrolling, tap-to-type,
   and native file scrolling while the surrounding page stays fixed. Image-picker
-  coverage verifies exact small-image bytes, repeat selection, large-image resizing
+  coverage verifies exact image bytes across multiple chunks, repeat selection, 4 MiB limits, large-image resizing, acknowledged progress and mid-upload cancellation while terminal input remains usable
   under the production CSP, unsubmitted path insertion and retained composer drafts.
   Header coverage verifies saved desktop project/session order, touch selection from
   the shared title dropdown, archived-session filtering, the home breadcrumb and
@@ -118,7 +118,7 @@ Run on current iOS Safari and Android Chrome, recording versions and results:
 | Portrait/landscape; keyboard open/closed | Terminal key strip sits above the keyboard; shared dialogues fit the visible viewport and safe areas |
 | IME composition, Unicode, dictation, multiline paste | Native composition remains intact; Send follows terminal paste mode and submits once |
 | Direct terminal typing; Escape, Tab, arrows, Enter, Ctrl/Opt chords | Tapping xterm opens the keyboard; touch controls retain focus and deliver hardware-equivalent sequences; one-shot modifiers clear after use |
-| Image picker and desktop clipboard image paste | Image button opens the native picker; accepted images appear in the host worktree and their paths are inserted once without submitting or clearing the composer; larger photos fit the remote limit with a resize notice; unsupported images fail visibly, cancellation sends nothing, and selecting the same image twice works |
+| Image picker and desktop clipboard image paste | Image button opens the native picker; accepted images appear in the host worktree and their paths are inserted once without submitting or clearing the composer; originals up to 4 MiB retain their bytes and larger photos fit that limit with a resize notice; progress advances after acknowledgements and cancellation prevents insertion (a final save may leave a completed file); unsupported images fail visibly and selecting the same image twice works |
 | Long output and text selection | Terminal remains responsive; hold-and-drag selects Unicode text across rows, Copy writes only on tap, edge dragging scrolls history, and quick swipes remain scrolling; file text supports native selection handles and Copy |
 | Terminal swipes, including scrollback boundaries and keyboard open/closed | History scrolls in both directions without moving the page or opening the keyboard; agent-owned mouse/alternate-screen scrolling works; a subsequent tap still opens the keyboard and pinch zoom remains available |
 | Long file tree, file contents, session rail, settings and project dashboard | Each surface scrolls independently; gestures at either boundary do not move the surrounding workspace |
