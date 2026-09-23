@@ -42,7 +42,7 @@ import {
   type TerminalScrollPosition,
 } from './scroll-position';
 import { registerFileLinks, type FileLinkTarget } from './file-links';
-import { consumeTerminalModifiers, registerTerminalInput } from './input';
+import { consumeTerminalModifiers, pasteTerminalClipboard, registerTerminalInput } from './input';
 import { preserveXtermScrollUp } from './xterm-scrollback';
 import { attachTerminalTouchScroll } from './touch-scroll';
 import { SelectionActions } from '../../components/selection-actions';
@@ -160,7 +160,8 @@ export function Terminal({
 }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
-  const [touchSelection, setTouchSelection] = useState('');
+  // An empty held cell still offers Paste; null means the touch menu is closed.
+  const [touchSelection, setTouchSelection] = useState<string | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const searchRef = useRef<SearchAddon | null>(null);
   const resizeScrollGuardRef = useRef(new TerminalResizeScrollGuard());
@@ -745,13 +746,14 @@ export function Terminal({
   return (
     <div className={cn('puddle-terminal relative size-full', className)}>
       <div ref={containerRef} className="size-full" />
-      {touchSelection && !paused && (
+      {touchSelection !== null && !paused && (
         <SelectionActions
           label="Selected terminal text"
           text={touchSelection}
+          paste={() => pasteTerminalClipboard(stream, term, () => activeRef.current)}
           clear={() => {
             xtermRef.current?.clearSelection();
-            setTouchSelection('');
+            setTouchSelection(null);
           }}
         />
       )}

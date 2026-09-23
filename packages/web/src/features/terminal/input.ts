@@ -70,6 +70,44 @@ export async function sendTerminalInput(
   const encode = encoders.get(key(session, term));
   if (!encode) throw new Error('Wait for the terminal to attach; nothing was sent');
   const data = paste ? `${encode(text)}\r` : consumeTerminalModifiers(session, term, text);
+  await writeTerminalInput(session, term, data);
+}
+
+/** Explicit touch-menu paste: use xterm's encoder without the composer's trailing Enter. */
+export async function pasteTerminalClipboard(
+  session: string,
+  term: string,
+  active: () => boolean,
+): Promise<void> {
+  const id = key(session, term);
+  const encode = encoders.get(id);
+  const transport = browserTransport();
+  const generation = transport?.generation;
+  if (!encode || !active() || !wsManager.isConnected())
+    throw new Error('Wait for the terminal to attach; nothing was pasted.');
+  let text: string;
+  try {
+    // Start the read and focus inside the user's tap, before yielding to a browser permission prompt.
+    const reading = navigator.clipboard.readText();
+    focusTerminal(session, term);
+    text = await reading;
+  } catch {
+    throw new Error(
+      'Could not read the clipboard. Allow clipboard access or use your keyboard’s Paste action.',
+    );
+  }
+  if (
+    !active() ||
+    encoders.get(id) !== encode ||
+    browserTransport() !== transport ||
+    transport?.generation !== generation ||
+    !wsManager.isConnected()
+  )
+    throw new Error('The terminal changed; nothing was pasted. Try again in the active terminal.');
+  if (text) await writeTerminalInput(session, term, encode(text));
+}
+
+async function writeTerminalInput(session: string, term: string, data: string): Promise<void> {
   const remote = browserTransport();
   if (remote) await remote.input(session, term, data);
   else {

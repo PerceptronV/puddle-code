@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Added
 
+- Add Paste beside Copy in mobile terminal long-press controls, including empty inputs, preserving terminal paste handling without adding Enter.
+
 - Raise mobile terminal image uploads to 4 MiB with progress and cancellation, preserve smaller originals and recompress larger photos while retaining ordinary remote request limits (daemon/cockpit protocol 21.2; encrypted remote protocol stays 2).
 
 - Add an eye toggle for read-only mobile remote previews of Markdown, HTML with sandboxed JavaScript, images, audio, video and PDFs, including bounded local assets and custom browse roots (daemon/cockpit protocol 21.1).

@@ -11,7 +11,7 @@ export function attachTerminalTouchScroll(
   terminal: Terminal,
   active: () => boolean,
   onScroll: () => void,
-  onSelection: (text: string) => void,
+  onSelection: (text: string | null) => void,
 ): () => void {
   const screen = terminal.element?.querySelector<HTMLElement>('.xterm-screen');
   if (!screen) return () => {};

@@ -85,8 +85,33 @@ export async function checkTerminalSelection(
       expect(copied).toContain('SELECT_ALPHA SELECT_BETA 日本語');
       expect(copied).toContain('SELECT_SECOND');
     }
-    send('\x1b[?1049l\x1b[?1000l\x1b[?1006lSELECTION COMPLETE\n');
+    send('\x1b[?1049l\x1b[?1000l\x1b[?1006l\x1b[?2004hSELECTION COMPLETE\n');
     await expect(rows).toContainText('SELECTION COMPLETE');
+    // An empty cell must offer Paste too, without overwriting the clipboard or submitting.
+    const screen = terminal.locator('.xterm-screen');
+    const bounds = (await screen.boundingBox())!;
+    const blank = { x: bounds.width - 10, y: bounds.height - 10 };
+    await page.evaluate(() => navigator.clipboard.writeText('PASTE 日本語 🌊'));
+    await holdAndDrag(page, screen, blank, blank);
+    const actions = page.getByRole('toolbar', { name: 'Selected terminal text' });
+    await expect(actions).toBeVisible();
+    await expect(actions.getByRole('button', { name: 'Copy', exact: true })).toBeDisabled();
+    await expect(actions.getByRole('button', { name: 'Paste', exact: true })).toBeEnabled();
+    await actions.getByRole('button', { name: 'Paste', exact: true }).tap();
+    await expect(actions).toHaveCount(0);
+    const output = () =>
+      viewer.messages
+        .filter((message) => message.t === 'output')
+        .map((message) => ('data' in message ? message.data : ''))
+        .join('');
+    const pasted = 'INPUT:\x1b[200~PASTE 日本語 🌊\x1b[201~';
+    expect(output()).not.toContain(pasted);
+    await expect(terminal.locator('textarea')).toBeFocused();
+    await page.getByRole('button', { name: 'Enter', exact: true }).tap();
+    await until(output, (text) => text.includes(pasted));
+    expect(output().split(pasted).length - 1).toBe(1);
+    send('\x1b[?2004lPASTE COMPLETE\n');
+    await expect(rows).toContainText('PASTE COMPLETE');
   } finally {
     viewer.close();
   }

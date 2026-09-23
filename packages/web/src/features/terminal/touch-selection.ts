@@ -4,7 +4,7 @@ import type { Terminal } from '@xterm/xterm';
 export function terminalTouchSelection(
   terminal: Terminal,
   screen: HTMLElement,
-  changed: (text: string) => void,
+  changed: (text: string | null) => void,
   scrolled: () => void,
 ) {
   let anchor: { start: number; end: number } | null = null;
@@ -71,7 +71,7 @@ export function terminalTouchSelection(
     anchor = null;
     owned = false;
     terminal.clearSelection();
-    changed('');
+    changed(null);
   };
   return {
     begin(x: number, y: number) {
