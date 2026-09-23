@@ -33,6 +33,8 @@ export async function checkMobilePaths(
   await expect(page.getByRole('dialog').getByRole('alert')).toBeVisible();
   await input.fill(path);
   await open.click();
+  // The file is already visible beneath the dialogue while its request is in flight.
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   const source = page.locator('.phone-file-source');
   await expect(source).toContainText('Selectable file text 日本語');
   expect(await source.evaluate((element) => getComputedStyle(element).userSelect)).toBe('text');

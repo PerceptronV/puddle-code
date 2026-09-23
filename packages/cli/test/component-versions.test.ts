@@ -88,3 +88,19 @@ describe('installed component versions', () => {
     );
   });
 });
+
+it('displays connector metadata as a suffix without changing the daemon compatibility protocol', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'puddle-connector-version-'));
+  const directory = join(home, 'bin', 'versions', '9.8.7');
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(join(directory, 'PROTOCOL'), '21.3\n');
+  writeFileSync(join(directory, 'CONNECTOR_PROTOCOL'), '4\n');
+  symlinkSync('versions/9.8.7', join(home, 'bin', 'current'));
+  const components = await installedComponentVersions({ home, platform: 'linux' });
+  expect(components[1]).toMatchObject({ protocol: { major: 21, minor: 3 }, connectorProtocol: 4 });
+  expect(formatComponentVersions(components)).toContain('daemon  9.8.7 (protocol 21.3-c4)');
+  writeFileSync(join(directory, 'CONNECTOR_PROTOCOL'), 'bad\n');
+  expect(
+    formatComponentVersions(await installedComponentVersions({ home, platform: 'linux' })),
+  ).toContain('daemon  9.8.7 (protocol 21.3)');
+});

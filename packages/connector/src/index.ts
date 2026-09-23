@@ -1,40 +1,66 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
-import { startConnector } from './runtime.js';
-import { jsonLines } from '@puddle/shared/node';
+import { registeredProfiles, profileDirectory } from './profile-state.js';
+import { jsonLines, atomicPrivateJson, readPrivateJson } from '@puddle/shared/node';
 import { administrativeRequest, configureConnector, resetConnectorIdentity } from './admin.js';
 import { inspectConnector } from './inspect.js';
-import { PROTOCOL_VERSION, REMOTE_PROTOCOL_VERSION } from '@puddle/shared';
-import { hasRegistrationCleanup, startRegistrationCleanup } from './registration-cleanup.js';
+import { startConnectorManager } from './manager.js';
+import {
+  PROTOCOL_VERSION,
+  REMOTE_PROTOCOL_VERSION,
+  connectorConfigSchema,
+  connectorProfileSchema,
+  connectorAdminSchema,
+  connectorConfigureSchema,
+} from '@puddle/shared';
 
 const home = process.env.PUDDLE_HOME ?? join(homedir(), '.puddle');
-
 if (process.argv.includes('--version')) {
   process.stdout.write(
-    `puddle-connector remote protocol ${REMOTE_PROTOCOL_VERSION}; daemon protocol ${PROTOCOL_VERSION.major}.${PROTOCOL_VERSION.minor}; cockpit controls 1; delete registration 1\n`,
+    `puddle-connector remote protocol ${REMOTE_PROTOCOL_VERSION}; daemon protocol ${PROTOCOL_VERSION.major}.${PROTOCOL_VERSION.minor}; cockpit controls 2; delete registration 1\n`,
   );
-} else if (process.argv.includes('--inspect')) {
-  process.stdout.write(JSON.stringify(await inspectConnector(home)) + '\n');
-} else if (process.argv.includes('--reset')) {
-  await resetConnectorIdentity(home);
-} else if (process.argv.includes('--admin') || process.argv.includes('--configure')) {
+} else if (process.argv.includes('--disable-all')) {
+  const legacy = join(home, 'remote', 'config.json');
+  if (existsSync(legacy))
+    atomicPrivateJson(legacy, {
+      ...connectorConfigSchema.parse(readPrivateJson(legacy)),
+      enabled: false,
+    });
+  for (const profile of registeredProfiles(home)) {
+    if (existsSync(join(profileDirectory(home, profile), 'config.json'))) {
+      const result = await administrativeRequest(home, { t: 'disable' }, profile);
+      if (result.error) throw new Error('Could not disable remote access');
+    }
+  }
+} else if (
+  ['--inspect', '--reset', '--admin', '--configure'].some((flag) => process.argv.includes(flag))
+) {
   let used = false;
+  const act = async (value: unknown) => {
+    if (process.argv.includes('--configure')) {
+      const { profile, setup } = connectorConfigureSchema.parse(value);
+      return configureConnector(home, setup, profile);
+    }
+    if (process.argv.includes('--admin')) {
+      const { profile, request } = connectorAdminSchema.parse(value);
+      return administrativeRequest(home, request, profile);
+    }
+    const { profile } = connectorProfileSchema.parse(value);
+    if (process.argv.includes('--inspect')) return inspectConnector(home, profile);
+    await resetConnectorIdentity(home, profile);
+    return { enabled: false, connected: false };
+  };
   jsonLines(
     process.stdin,
     (value) => {
       if (used) return;
       used = true;
-      const action = process.argv.includes('--configure')
-        ? configureConnector
-        : administrativeRequest;
-      void action(home, value)
-        .then((result) => {
-          process.stdout.write(JSON.stringify(result) + '\n');
-        })
-        .catch((error: unknown) => {
+      void act(value)
+        .then((result) => process.stdout.write(JSON.stringify(result) + '\n'))
+        .catch(() => {
           process.stderr.write(
-            `Puddle remote: ${error instanceof Error ? error.message : 'operation failed'}\n`,
+            'Puddle remote: operation failed; refresh status before retrying.\n',
           );
           process.exitCode = 1;
         });
@@ -43,13 +69,8 @@ if (process.argv.includes('--version')) {
       process.exitCode = 1;
     },
   );
-} else if (
-  existsSync(join(home, 'remote/config.json')) ||
-  hasRegistrationCleanup(join(home, 'remote'))
-) {
-  const connector = existsSync(join(home, 'remote/config.json'))
-    ? await startConnector(home)
-    : startRegistrationCleanup(join(home, 'remote'), true);
+} else {
+  const connector = await startConnectorManager(home);
   let stopping = false;
   const stop = () => {
     if (stopping) return;

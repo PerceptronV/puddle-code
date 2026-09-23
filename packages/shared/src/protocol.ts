@@ -290,4 +290,5 @@
 // 21.1: additive — bounded JSON file assets for remote previews.
 // 21.2: additive — connector image-upload capability and bounded upload operations.
 // 21.3: additive — accept an empty repository default to follow the clone's current branch.
-export const PROTOCOL_VERSION = { major: 21, minor: 3 } as const;
+// 22.0: profile-scoped remote registrations and host connection authority.
+export const PROTOCOL_VERSION = { major: 22, minor: 0 } as const;

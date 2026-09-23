@@ -110,14 +110,15 @@ usage:
   puddle install <daemon|desktop>[@version] [user@host] [--tarball <path>]
   puddle upgrade [cli|daemon|desktop][@version] [user@host] [--tarball <path>]
   puddle remove  <cli|daemon|desktop> [user@host] [--yes] [--purge]
-  puddle remote enable [user@host] --service <https-origin> --app-origin <https-origin>
+  puddle remote enable --profile <profile-id> [user@host] --service <https-origin> --app-origin <https-origin>
                        [--foreground]
-  puddle remote status|pair|devices|disable|reset|run [user@host]
-  puddle remote approve|revoke <device-id> [user@host]
+  puddle remote status|pair|devices|disable|reset --profile <profile-id> [user@host]
+  puddle remote run [user@host]
+  puddle remote approve|revoke <device-id> --profile <profile-id> [user@host]
   puddle --version | --help
 
 --version lists the installed CLI, daemon, and desktop app with the protocol
-each speaks; absent local components are reported as not installed.
+each speaks (daemon -cN reports the connector’s remote protocol); absent local components are reported as not installed.
 
 launch serves the cockpit at http://localhost:7433 against the daemon on this
 machine when no host (or 'local') is given — installing it under ~/.puddle if

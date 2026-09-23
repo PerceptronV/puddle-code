@@ -26,12 +26,18 @@ export class RemoteUpstream {
     private readonly channel: Pick<EncryptedChannel, 'send'>,
     private readonly valid: () => boolean,
     private readonly close: () => void,
+    profile: string,
   ) {
-    this.authority = new HostControlClient(async () => {
-      const path = ipcPath(home, 'host');
-      privatePath(path);
-      return connect(path);
-    }, false);
+    this.authority = new HostControlClient(
+      async () => {
+        const path = ipcPath(home, 'host');
+        privatePath(path);
+        return connect(path);
+      },
+      false,
+      undefined,
+      profile,
+    );
     this.authority.onChange(() => {
       if (this.authority.state !== 'ready') close();
     });

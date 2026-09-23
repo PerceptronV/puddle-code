@@ -30,8 +30,8 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 21.3 for dynamic repository defaults', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 21, minor: 3 });
+  it('declares protocol 22.0 for profile-scoped remote authority', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 22, minor: 0 });
   });
 
   it('accepts a well-formed error envelope and rejects a malformed one', () => {

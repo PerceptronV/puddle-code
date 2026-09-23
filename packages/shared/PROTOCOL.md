@@ -65,7 +65,7 @@ bump in `CHANGELOG.md`.
 
 ## Remote transport
 
-`REMOTE_PROTOCOL_VERSION = 2` versions the separate service/connector/browser
+`REMOTE_PROTOCOL_VERSION = 3` versions the separate service/connector/browser
 contract in `src/remote/`. Its strict envelopes and Noise prologue require an
 exact match; incompatible peers fail closed. Its introduction did not change
 daemon protocol 18.0. Turning the existing server WS union into an equivalent
@@ -124,3 +124,21 @@ fields retain their existing meaning (registration snapshots the clone's branch;
 PATCH leaves it unchanged). Settings only offers clearing the default on 21.3
 or newer. Session requests, remote operations and authentication are unchanged,
 so remote protocol remains 2.
+
+Daemon/cockpit protocol 22.0 adds an optional profile to host-control `open` and
+binds that profile to every resource in the lease. Remote connectors always
+request this scope; local/SSH cockpit leases remain host-wide. The daemon filters
+discovery and WebSocket events and checks direct session/project operations.
+`/cockpit/remote` requires a profile query parameter; connector administration
+uses validated profile envelopes on stdin (`cockpit controls 2`). This changes
+authority semantics, so the daemon major advances. Remote protocol 3 accompanies
+the change from host-wide to profile-only access. Upgrade the service, app,
+daemon and connector together. Legacy host-wide registrations are deleted and
+their approvals revoked; users register and pair each profile afresh.
+
+The daemon line in `puddle --version` may display `protocol 22.0-c3`. The `c3`
+reports the bundled connector's remote protocol, read from `CONNECTOR_PROTOCOL`
+in the release archive (or a known historical release). It is display-only:
+`PROTOCOL` remains the daemon's plain `major.minor`, and CLI/desktop handshake
+comparisons never parse or compare the suffix. Unknown connector versions are
+omitted rather than inferred from the running CLI.

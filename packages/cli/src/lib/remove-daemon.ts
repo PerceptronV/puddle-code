@@ -55,8 +55,12 @@ HOME_DIR="\${PUDDLE_HOME:-$HOME/.puddle}"
 say() { printf 'puddled remove: %s\\n' "$1"; }
 
 # Persist remote disable before unregistering either supervisor.
-if [ -f "$HOME_DIR/bin/current/daemon/connector.mjs" ] && [ -f "$HOME_DIR/remote/config.json" ]; then
-  printf '%s\\n' '{"t":"disable"}' | "$HOME_DIR/bin/current/bin/node" "$HOME_DIR/bin/current/daemon/connector.mjs" --admin >/dev/null 2>&1 || exit 1
+if [ -f "$HOME_DIR/bin/current/daemon/connector.mjs" ] && [ -d "$HOME_DIR/remote" ]; then
+  if [ -f "$HOME_DIR/bin/current/CONNECTOR_PROTOCOL" ]; then
+    "$HOME_DIR/bin/current/bin/node" "$HOME_DIR/bin/current/daemon/connector.mjs" --disable-all >/dev/null 2>&1 || exit 1
+  elif [ -f "$HOME_DIR/remote/config.json" ]; then
+    printf '%s\\n' '{"t":"disable"}' | "$HOME_DIR/bin/current/bin/node" "$HOME_DIR/bin/current/daemon/connector.mjs" --admin >/dev/null 2>&1 || exit 1
+  fi
 fi
 
 # systemd user unit

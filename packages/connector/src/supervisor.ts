@@ -31,7 +31,6 @@ export function installConnectorSupervisor(home: string): void {
     );
     execFileSync('systemctl', ['--user', 'daemon-reload'], { stdio: 'pipe' });
     execFileSync('systemctl', ['--user', 'enable', '--now', 'puddle-connector'], { stdio: 'pipe' });
-    execFileSync('systemctl', ['--user', 'restart', 'puddle-connector'], { stdio: 'pipe' });
   } else {
     const directory = join(homedir(), 'Library/LaunchAgents');
     mkdirSync(directory, { recursive: true });
@@ -43,7 +42,9 @@ export function installConnectorSupervisor(home: string): void {
     );
     const domain = `gui/${process.getuid!()}`;
     try {
-      execFileSync('launchctl', ['bootout', `${domain}/dev.puddle.connector`], { stdio: 'pipe' });
+      execFileSync('launchctl', ['print', `${domain}/dev.puddle.connector`], { stdio: 'pipe' });
+      execFileSync('launchctl', ['kickstart', `${domain}/dev.puddle.connector`], { stdio: 'pipe' });
+      return;
     } catch {
       /* First installation. */
     }

@@ -72,7 +72,8 @@ test('desktop registration, re-enablement, recovery and confirmed deletion', asy
     let failDeletion = false;
     let holdRead = false;
     let readHeld = false;
-    await page.route('**/cockpit/remote', async (route) => {
+    await page.route('**/cockpit/remote?profile=*', async (route) => {
+      expect(new URL(route.request().url()).searchParams.get('profile')).toBe(profiles[0].id);
       if (route.request().method() === 'GET') {
         if (holdRead) {
           holdRead = false;
@@ -256,7 +257,7 @@ test('desktop registration, re-enablement, recovery and confirmed deletion', asy
     await expect(page.getByText('Connected to relay', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Delete registration', exact: true }).click();
     const confirmation = page.getByRole('dialog', {
-      name: 'Delete this host’s remote registration?',
+      name: 'Delete this profile’s remote registration?',
     });
     await expect(confirmation).toContainText('Agents keep running');
     await page.screenshot({ path: testInfo.outputPath('desktop-delete-registration.png') });

@@ -1,3 +1,4 @@
+import { profileDirectory } from './profile-state.js';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -12,7 +13,10 @@ import { supervisorKind } from './supervisor.js';
 import { DeviceStore } from './devices.js';
 
 /** Host-side projection: no private configuration is ever returned to the cockpit. */
-export async function inspectConnector(home: string): Promise<CockpitRemoteStatus> {
+export async function inspectConnector(
+  home: string,
+  profile: string,
+): Promise<CockpitRemoteStatus> {
   let supervisor: CockpitRemoteStatus['supervisor'] = null;
   try {
     supervisor = supervisorKind(home);
@@ -27,11 +31,11 @@ export async function inspectConnector(home: string): Promise<CockpitRemoteStatu
     supervisor,
     devices: [],
   };
-  const directory = join(home, 'remote');
+  const directory = profileDirectory(home, profile);
   const path = join(directory, 'config.json');
   if (!existsSync(path)) return result;
   const config = connectorConfigSchema.parse(readPrivateJson(path));
-  const status = await administrativeRequest(home, { t: 'status' });
+  const status = await administrativeRequest(home, { t: 'status' }, profile);
   if (status.error) throw new Error('Could not inspect remote access');
   // Reset can leave a disabled process holding the old identity until restart.
   // Report the durable identity which the next enabled connector will use.

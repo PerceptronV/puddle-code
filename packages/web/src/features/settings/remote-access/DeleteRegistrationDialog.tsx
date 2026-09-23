@@ -23,15 +23,15 @@ export function DeleteRegistrationDialog({
   return (
     <Dialog open={open} onOpenChange={(value) => !busy && onOpenChange(value)}>
       <DialogContent>
-        <DialogTitle>Delete this host’s remote registration?</DialogTitle>
+        <DialogTitle>Delete this profile’s remote registration?</DialogTitle>
         <DialogDescription>
-          Disable remote access, remove the saved registration from this host and revoke every
+          Disable remote access, remove the saved registration for this profile and revoke its
           browser approval and invitation. Agents keep running. Connecting again requires a new
           registration code and fresh browser approvals.
         </DialogDescription>
         <p className="text-sm text-fg-secondary">
-          This also removes the host from the remote host list. If the service is unavailable,
-          removal finishes when it reconnects.
+          This also removes this registration from its account’s remote host list. If the service is
+          unavailable, removal finishes when it reconnects.
         </p>
         {error && (
           <p role="alert" className="text-sm text-danger">

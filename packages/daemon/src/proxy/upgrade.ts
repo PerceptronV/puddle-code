@@ -69,6 +69,10 @@ async function forward(
   if (!resource) {
     return refuse(socket, 401, 'Unauthorized');
   }
+  if (resource.profile) {
+    resource.release();
+    return refuse(socket, 403, 'Forbidden');
+  }
   try {
     deps.sessions.get(sid); // throws when unknown
   } catch {

@@ -1,4 +1,5 @@
-import { spawn, execFileSync } from 'node:child_process';
+import { promisify } from 'node:util';
+import { spawn, execFile, execFileSync } from 'node:child_process';
 import { createServer } from 'node:https';
 import { request } from 'node:http';
 import { connect, type Socket } from 'node:net';
@@ -107,7 +108,7 @@ export async function mobileFixture() {
   });
   await new Promise<void>((resolve) => relay.listen(servicePort, '127.0.0.1', resolve));
   const web = join(directory, 'web');
-  execFileSync(
+  await promisify(execFile)(
     process.execPath,
     [
       join(root, 'packages/web/node_modules/vite/bin/vite.js'),
@@ -120,10 +121,13 @@ export async function mobileFixture() {
     {
       cwd: join(root, 'packages/web'),
       env: { ...env(local.home), VITE_PUDDLE_REMOTE_SERVICE: serviceOrigin },
-      stdio: 'pipe',
+      maxBuffer: 4 * 1024 * 1024,
     },
   );
-  execFileSync(process.execPath, [join(root, 'deploy/remote/externalise-theme.mjs'), web]);
+  await promisify(execFile)(process.execPath, [
+    join(root, 'deploy/remote/externalise-theme.mjs'),
+    web,
+  ]);
   const app = createServer(tls, (req, res) => {
     const path = resolve(web, '.' + new URL(req.url!, appOrigin).pathname);
     if (path !== web && !path.startsWith(web + '/')) {
@@ -155,6 +159,7 @@ export async function mobileFixture() {
     socket.on('close', () => sockets.delete(socket));
   });
   await new Promise<void>((resolve) => app.listen(appPort, '127.0.0.1', resolve));
+  const profile = (await (await local.req('/api/profiles')).json())[0].id as string;
   let connector: ReturnType<typeof spawn> | undefined;
   return {
     local,
@@ -163,8 +168,10 @@ export async function mobileFixture() {
     appOrigin,
     serviceOrigin,
     github,
-    admin: (request: unknown) => administrativeRequest(local.home, request),
-    async enable(account: string, code?: string) {
+    profile,
+    admin: (request: unknown, selectedProfile = profile) =>
+      administrativeRequest(local.home, request, selectedProfile),
+    async enable(account: string, code?: string, selectedProfile = profile) {
       if (code) {
         await new Promise<void>((resolve, reject) => {
           const configure = spawn(
@@ -180,21 +187,24 @@ export async function mobileFixture() {
             status === 0 ? resolve() : reject(new Error('Fixture registration failed')),
           );
           configure.stdin.end(
-            JSON.stringify({ service: serviceOrigin, app: appOrigin, code, managed: false }) + '\n',
+            JSON.stringify({
+              profile: selectedProfile,
+              setup: { service: serviceOrigin, app: appOrigin, code, managed: false },
+            }) + '\n',
           );
         });
       } else {
         const registration = remote.store.redeem(
           remote.store.register(account, 'Fixture host').code,
         );
-        atomicPrivateJson(join(local.home, 'remote/config.json'), {
+        atomicPrivateJson(join(local.home, 'remote', 'profiles', selectedProfile, 'config.json'), {
           ...registration,
           service: serviceOrigin,
           app: appOrigin,
           enabled: true,
         });
       }
-      connector = spawn(process.execPath, [join(root, 'packages/connector/dist/index.js')], {
+      connector ??= spawn(process.execPath, [join(root, 'packages/connector/dist/index.js')], {
         env: { ...env(local.home), NODE_EXTRA_CA_CERTS: certPath },
         stdio: ['ignore', 'pipe', 'pipe'],
       });
@@ -205,11 +215,18 @@ export async function mobileFixture() {
       await until(
         async () => {
           if (connector!.exitCode !== null) throw new Error(errors || 'Connector exited');
-          return administrativeRequest(local.home, { t: 'status' }).catch(() => null);
+          return administrativeRequest(local.home, { t: 'status' }, selectedProfile).catch(
+            () => null,
+          );
         },
         (value) => value?.connected === true,
       );
-      return JSON.parse(readFileSync(join(local.home, 'remote/config.json'), 'utf8')) as unknown;
+      return JSON.parse(
+        readFileSync(
+          join(local.home, 'remote', 'profiles', selectedProfile, 'config.json'),
+          'utf8',
+        ),
+      ) as unknown;
     },
     async close() {
       github.close();

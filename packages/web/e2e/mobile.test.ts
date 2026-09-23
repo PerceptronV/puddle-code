@@ -3,7 +3,7 @@ import { mobileFixture } from './mobile-fixture';
 import { websocket, until } from '../../cli/e2e/helpers';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { projectSchema } from '@puddle/shared';
+import { projectSchema, profileSchema } from '@puddle/shared';
 import { checkTerminalScrolling, expectStationaryPage, swipe } from './mobile-scrolling';
 import { checkImagePicker } from './mobile-image-paste';
 import { checkTerminalSelection } from './mobile-selection';
@@ -44,6 +44,38 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
       separate_branch: false,
     }),
   });
+  const foreignProfile = profileSchema.parse(
+    await (
+      await fixture.local.req('/api/profiles', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'separate-profile' }),
+      })
+    ).json(),
+  );
+  const foreignProject = projectSchema.parse(
+    await (
+      await fixture.local.req('/api/projects', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'Private other project',
+          profile_id: foreignProfile.id,
+          repo_id: originalProject.repo_id,
+        }),
+      })
+    ).json(),
+  );
+  expect(
+    (
+      await fixture.local.req('/api/sessions', {
+        method: 'POST',
+        body: JSON.stringify({
+          project_id: foreignProject.id,
+          kind: 'terminal',
+          title: 'Private other session',
+        }),
+      })
+    ).ok,
+  ).toBe(true);
   await saveDesktopOrder(fixture, originalProject, secondProject);
   const errors: string[] = [];
   const ciphertext: Buffer[] = [];
@@ -146,6 +178,8 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     await desktop.getByRole('button', { name: 'Approve Test phone', exact: true }).click();
     await expect(desktop.getByText(device.peer, { exact: true })).toBeHidden();
     await expect(page.getByRole('status')).toHaveText('Connected');
+    await expect(page.getByRole('button', { name: 'Open fixture', exact: true })).toBeVisible();
+    await expect(page.getByText('Private other project', { exact: true })).toHaveCount(0);
     await page.getByRole('button', { name: 'Open fixture', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Expand sessions' })).toBeVisible();
     await expect(page.getByRole('combobox', { name: 'Session', exact: true })).toHaveCount(0);
@@ -370,11 +404,15 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     expect((await fixture.admin({ t: 'status' })).enabled).toBe(false);
     await desktop.getByRole('button', { name: 'Delete registration', exact: true }).click();
     await desktop
-      .getByRole('dialog', { name: 'Delete this host’s remote registration?' })
+      .getByRole('dialog', { name: 'Delete this profile’s remote registration?' })
       .getByRole('button', { name: 'Delete registration', exact: true })
       .click();
     await expect(desktop.getByText('Not configured', { exact: true })).toBeVisible();
-    expect(existsSync(join(fixture.local.home, 'remote/config.json'))).toBe(false);
+    expect(
+      existsSync(
+        join(fixture.local.home, 'remote', 'profiles', originalProject.profile_id, 'config.json'),
+      ),
+    ).toBe(false);
     expect(fixture.remote.store.host(existing.id)).toBeUndefined();
     // Entries deleted by older connectors can be removed explicitly, even while offline.
     await page.reload();

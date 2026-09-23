@@ -1,3 +1,4 @@
+import { profileDirectory } from './profile-state.js';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import WebSocket from 'ws';
@@ -24,10 +25,9 @@ import { createIdentity, identityPeer, secureChannel, SocketWire } from '@puddle
 import { DeviceStore } from './devices.js';
 import { admit } from './admission.js';
 import { deleteRegistration } from './delete-registration.js';
-import { startRegistrationCleanup } from './registration-cleanup.js';
 
-export async function startConnector(home: string) {
-  const directory = join(home, 'remote');
+export async function startConnector(home: string, profile: string) {
+  const directory = profileDirectory(home, profile);
   privateDirectory(directory);
   const configPath = join(directory, 'config.json');
   const config = connectorConfigSchema.parse(readPrivateJson(configPath));
@@ -89,7 +89,7 @@ export async function startConnector(home: string) {
     }
   };
   const adminSockets = new Set<import('node:net').Socket>();
-  const server = await listenPrivate(ipcPath(home, 'remote'), (socket) => {
+  const server = await listenPrivate(ipcPath(home, `remote-${profile}`), (socket) => {
     adminSockets.add(socket);
     socket.setTimeout(5000, () => socket.destroy());
     let used = false;
@@ -121,6 +121,9 @@ export async function startConnector(home: string) {
       stop();
       adminSockets.delete(socket);
     });
+  }).catch((error: unknown) => {
+    devices.close();
+    throw error;
   });
   const openPipe = (connection: string) => {
     if (!config.enabled || pipes.size >= REMOTE_POLICY.connectionsPerHost) return;
@@ -153,6 +156,7 @@ export async function startConnector(home: string) {
         .then((channel) =>
           admit(channel, {
             home,
+            profile,
             account: config.account,
             devices,
             enabled: () => config.enabled && !stopped,
@@ -217,12 +221,11 @@ export async function startConnector(home: string) {
     });
   };
   const reconnect = setInterval(establish, 500);
-  const cleanup = startRegistrationCleanup(directory);
   establish();
   return {
+    fingerprint: JSON.stringify([config, [...identity]]),
     admin,
     async close() {
-      await cleanup.close();
       stopped = true;
       clearInterval(reconnect);
       control?.terminate();

@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { cockpitRemoteRequestSchema } from '@puddle/shared';
+import { cockpitRemoteRequestSchema, connectorProfileSchema } from '@puddle/shared';
 import type { RemoteAccessControl } from '../remote-access.js';
 import { fail, json, readJson } from './http-auth.js';
 
@@ -9,6 +9,11 @@ export function remoteAccessHandler(control: RemoteAccessControl | undefined) {
   return async (req: IncomingMessage, res: ServerResponse, authorised: () => boolean) => {
     if (!control) return fail(res, 404, 'remote_controls_unavailable');
     if (req.method !== 'GET' && req.method !== 'POST') return fail(res, 405, 'method_not_allowed');
+    const url = new URL(req.url!, 'http://localhost');
+    const scope = connectorProfileSchema.safeParse(Object.fromEntries(url.searchParams));
+    if (!scope.success || url.searchParams.getAll('profile').length !== 1)
+      return fail(res, 400, 'invalid_profile', 'Select the profile to manage remote access.');
+    const { profile } = scope.data;
     const request =
       req.method === 'POST' ? cockpitRemoteRequestSchema.parse(await readJson(req)) : null;
     if (!authorised()) return fail(res, 401, 'browser_rejected');
@@ -17,8 +22,8 @@ export function remoteAccessHandler(control: RemoteAccessControl | undefined) {
     busy = true;
     try {
       const response = request
-        ? await control.request(request, authorised)
-        : await control.status();
+        ? await control.request(request, authorised, profile)
+        : await control.status(profile);
       if (!authorised()) return fail(res, 401, 'browser_rejected');
       json(res, 200, response);
     } catch (error) {

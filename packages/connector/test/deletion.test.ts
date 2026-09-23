@@ -1,3 +1,4 @@
+const profile = 'a'.repeat(10);
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -16,9 +17,9 @@ import {
 
 it.each([false, true])('deletes registration with a live connector: %s', async (live) => {
   const home = mkdtempSync(join(tmpdir(), 'puddle-delete-registration-'));
-  const directory = join(home, 'remote');
+  const directory = join(home, 'remote', 'profiles', profile);
   const configPath = join(directory, 'config.json');
-  const socketPath = ipcPath(home, 'remote');
+  const socketPath = ipcPath(home, `remote-${profile}`);
   let connector: Awaited<ReturnType<typeof startConnector>> | undefined;
   const fetch = vi.fn(async () => {
     throw new Error('Relay offline');
@@ -43,8 +44,8 @@ it.each([false, true])('deletes registration with a live connector: %s', async (
       devices.approve(device.id);
       const pending = devices.enrol(devices.invite().invitation, peer, 'owner', 'Tablet');
       const unused = devices.invite();
-      if (live) connector = await startConnector(home);
-      expect(await administrativeRequest(home, { t: 'delete_registration' })).toEqual({
+      if (live) connector = await startConnector(home, profile);
+      expect(await administrativeRequest(home, { t: 'delete_registration' }, profile)).toEqual({
         enabled: false,
         connected: false,
       });
@@ -53,23 +54,23 @@ it.each([false, true])('deletes registration with a live connector: %s', async (
       expect(devices.valid(device.id, peer, 'owner')).toBe(false);
       expect(devices.list().every((row) => row.status === 'revoked')).toBe(true);
       expect(() => devices.enrol(unused.invitation, peer, 'owner', 'Old invitation')).toThrow();
-      expect(await inspectConnector(home)).toMatchObject({
+      expect(await inspectConnector(home, profile)).toMatchObject({
         configured: false,
         enabled: false,
         devices: [],
       });
-      await expect(configureConnector(home, { managed: false })).rejects.toThrow(
+      await expect(configureConnector(home, { managed: false }, profile)).rejects.toThrow(
         'First registration requires',
       );
       if (live) {
         // A delayed old request cannot recreate the deleted registration or restore an approval.
-        expect((await administrativeRequest(home, { t: 'disable' })).error).toBeDefined();
+        expect((await administrativeRequest(home, { t: 'disable' }, profile)).error).toBeDefined();
         expect(
-          (await administrativeRequest(home, { t: 'approve', id: pending.id })).error,
+          (await administrativeRequest(home, { t: 'approve', id: pending.id }, profile)).error,
         ).toBeDefined();
         expect(existsSync(configPath)).toBe(false);
       }
-      await administrativeRequest(home, { t: 'delete_registration' });
+      await administrativeRequest(home, { t: 'delete_registration' }, profile);
       expect(JSON.parse(readFileSync(join(directory, 'identity.json'), 'utf8'))).toEqual(identity);
       expect(readFileSync(join(home, 'agent-state'), 'utf8')).toBe('work continues');
       // A later supervisor start can finish removal without a saved configuration.
@@ -98,14 +99,16 @@ it.each([false, true])('deletes registration with a live connector: %s', async (
 
 it('does not fall back to deleting files after an uncertain live IPC response', async () => {
   const home = mkdtempSync(join(tmpdir(), 'puddle-delete-uncertain-'));
-  const path = join(home, 'remote/config.json');
+  const path = join(home, 'remote', 'profiles', profile, 'config.json');
   atomicPrivateJson(path, { retained: true });
-  const socketPath = ipcPath(home, 'remote');
+  const socketPath = ipcPath(home, `remote-${profile}`);
   const server = await listenPrivate(socketPath, (socket) => {
     socket.once('data', () => socket.end('invalid response\n'));
   });
   try {
-    await expect(administrativeRequest(home, { t: 'delete_registration' })).rejects.toThrow();
+    await expect(
+      administrativeRequest(home, { t: 'delete_registration' }, profile),
+    ).rejects.toThrow();
     expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({ retained: true });
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));

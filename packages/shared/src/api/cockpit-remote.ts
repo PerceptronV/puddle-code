@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { profileId } from './common.js';
+import { connectorSetupSchema } from '../remote/service.js';
 import {
   remoteAdminRequestSchema,
   remoteDeviceSchema,
@@ -51,3 +53,12 @@ export const cockpitRemoteStatusSchema = z.object({
   devices: z.array(remoteDeviceSchema),
 });
 export type CockpitRemoteStatus = z.infer<typeof cockpitRemoteStatusSchema>;
+
+/** The profile is selected by the trusted local/SSH cockpit, never the remote browser. */
+export const connectorProfileSchema = z.object({ profile: profileId }).strict();
+export const connectorAdminSchema = z
+  .object({ profile: profileId, request: connectorLocalRequestSchema })
+  .strict();
+export const connectorConfigureSchema = z
+  .object({ profile: profileId, setup: connectorSetupSchema })
+  .strict();

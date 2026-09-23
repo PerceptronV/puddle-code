@@ -72,7 +72,7 @@ describe('UI server in front of a real daemon', () => {
             code: 0,
             stderr: '',
             stdout: command.includes('--version')
-              ? 'cockpit controls 1'
+              ? 'cockpit controls 2'
               : command.endsWith('--inspect')
                 ? JSON.stringify({
                     availability: 'ready',
@@ -109,9 +109,9 @@ describe('UI server in front of a real daemon', () => {
 
   it('authenticates remote controls and rejects cross-origin, arbitrary and unreviewed operations before host dispatch', async () => {
     remoteCommands.length = 0;
-    expect((await get('/cockpit/remote')).status).toBe(401);
+    expect((await get('/cockpit/remote?profile=0123456789')).status).toBe(401);
     const post = (body: unknown, origin: string | undefined = ui.origin) =>
-      fetch(ui.origin + '/cockpit/remote', {
+      fetch(ui.origin + '/cockpit/remote?profile=0123456789', {
         method: 'POST',
         headers: {
           authorization: `Bearer ${credential}`,
@@ -124,8 +124,16 @@ describe('UI server in front of a real daemon', () => {
     expect((await post({ t: 'disable' }, '')).status).toBe(403);
     expect((await post({ t: 'run', command: 'anything' })).status).toBe(400);
     expect((await post({ t: 'enable', managed: false })).status).toBe(400);
+    for (const path of [
+      '/cockpit/remote',
+      '/cockpit/remote?profile=../other',
+      '/cockpit/remote?profile=0123456789&profile=aaaaaaaaaa',
+    ])
+      expect((await get(path, { authorization: `Bearer ${credential}` })).status).toBe(400);
     expect(remoteCommands).toEqual([]);
-    const status = await get('/cockpit/remote', { authorization: `Bearer ${credential}` });
+    const status = await get('/cockpit/remote?profile=0123456789', {
+      authorization: `Bearer ${credential}`,
+    });
     expect(status.status).toBe(200);
     expect(status.headers.get('cache-control')).toBe('no-store');
     expect((await status.json()).configured).toBe(false);

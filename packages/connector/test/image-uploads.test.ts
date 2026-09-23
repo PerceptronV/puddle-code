@@ -180,6 +180,7 @@ describe('image upload policy and upstream authority', () => {
       },
       () => valid,
       vi.fn(),
+      '0123456789',
     );
     upstreams.push(upstream);
     vi.spyOn(upstream.authority, 'credential').mockReturnValue('host-owned-test-credential');
@@ -235,7 +236,13 @@ describe('image upload policy and upstream authority', () => {
 
   it('advertises the capability only on a successful encrypted version response', async () => {
     const send = vi.fn().mockResolvedValue(undefined);
-    const upstream = new RemoteUpstream('/tmp/unused-image-test', { send }, () => true, vi.fn());
+    const upstream = new RemoteUpstream(
+      '/tmp/unused-image-test',
+      { send },
+      () => true,
+      vi.fn(),
+      '0123456789',
+    );
     upstreams.push(upstream);
     vi.spyOn(upstream.authority, 'credential').mockReturnValue('test-credential');
     vi.spyOn(upstream.authority, 'resource').mockReturnValue({

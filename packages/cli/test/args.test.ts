@@ -223,6 +223,8 @@ describe('remote administration arguments', () => {
       parseArgs([
         'remote',
         'enable',
+        '--profile',
+        '0123456789',
         'user@host',
         '--service',
         'https://relay.example.test',
@@ -230,7 +232,10 @@ describe('remote administration arguments', () => {
         'https://app.example.test',
       ]),
     ).toMatchObject({ cmd: 'remote', action: 'enable', host: 'user@host', foreground: false });
-    expect(parseArgs(['remote', 'reset'])).toMatchObject({ cmd: 'remote', action: 'reset' });
+    expect(parseArgs(['remote', 'reset', '--profile', '0123456789'])).toMatchObject({
+      cmd: 'remote',
+      action: 'reset',
+    });
     expect(() => parseArgs(['remote', 'enable', '--code', 'secret'])).toThrow();
     expect(() =>
       parseArgs(['remote', 'enable', '--service', 'http://relay.example.test']),

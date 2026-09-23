@@ -182,9 +182,8 @@ docker compose --env-file deploy/remote/.env -f deploy/remote/compose.yaml up -d
 ### Upgrade an earlier email-login deployment
 
 Rebuild the service/application and update host connectors together for remote
-protocol 2 (daemon/cockpit protocol 19.0). Create fresh pairing invitations;
-protocol-1 invitations are rejected. Existing browser keys and approvals survive
-for accounts with an existing Google/GitHub binding.
+protocol 3 (daemon/cockpit protocol 22.0). Register each profile and create fresh
+pairing invitations; earlier host-wide registrations and approvals are removed.
 
 Startup deletes legacy password credentials and, when any are found, invalidates
 all service sessions, pending authentication challenges and MFA confirmations.
@@ -198,8 +197,10 @@ browsers again. This does not stop daemon-owned work.
 ## Register and pair a host
 
 In a Puddle desktop window (local or connected over SSH), open **Settings → Remote &
-Sync**. The Remote access controls apply to the host open in that window, across
-its profiles.
+Sync**. Remote access applies to the selected profile on the host open in that window.
+Each profile registers independently and may use a different remote account. Its
+approved browsers see only its projects and sessions. Switching profiles lets you
+register another without replacing the first registration.
 The application and relay fields start with `https://puddle.waddlelabs.ai` and
 `https://charles.waddlelabs.ai`; both are editable for any self-hosted deployment.
 Choose a host name and **Sign in and enable**. Puddle opens the application in a
@@ -226,15 +227,15 @@ device requests refresh automatically while settings are open. Desktop and mobil
 show compact browser cards; expand a card to see an approved browser’s identity
 and expiry. Pending identities stay visible before approval. Each card has a
 **Revoke browser** icon; revoked browsers disappear from the list.
-Disable remote access detaches every remote viewer. Under Host identity recovery,
+Disable remote access detaches this profile’s remote viewers. Under Host identity recovery,
 Reset host identity performs the same local/SSH recovery as `puddle remote reset`
 after explicit confirmation. Codes and invitations are not stored in cockpit
 settings or logs. Disable, revoke and delete remain available when the relay is
 unavailable.
 
 Choose **Delete registration** beside the other registration actions to disable
-access, revoke every browser and invitation, and remove the active registration
-from this host. Confirming returns settings to **Not configured**; connecting again needs
+access, revoke this profile’s browsers and invitations, and remove its registration
+from this host. Other profiles remain connected. Confirming returns settings to **Not configured**; connecting again needs
 a new browser sign-in handoff (or CLI registration code) and fresh approvals.
 Agents continue running. The host identity and revoked device records remain for audit/recovery. This local/SSH-only
 action requires an updated host connector. It also removes the host from your
@@ -248,24 +249,25 @@ the **Remove host registration** trash icon beside the obsolete entry, and confi
 This works for offline hosts too; it removes only the selected registration.
 Machines with identical names are kept separate.
 
-Update the deployed service/application images and the host connector for automatic
-registration cleanup. Update desktop and the host daemon together for daemon/cockpit
-protocol 21.0; encrypted remote protocol stays 2. Existing registrations and browser
-pairings are preserved. Older services leave removal requests queued until upgraded.
+Upgrade the service/application, desktop and host daemon/connector together for
+remote protocol 3 and daemon/cockpit protocol 22.0. On connector startup, existing
+host-wide registrations are deleted and their browser approvals revoked. Register
+each profile again and pair its browsers afresh. Old relay entries are removed
+immediately when reachable, or queued privately for retry. Agents keep running.
 
-The equivalent CLI workflow is:
+The equivalent CLI workflow is (use the profile’s id from the desktop profile data):
 
 In the application, open Settings, expand Add a host, enter a name and create a registration
 code. On the machine running the daemon:
 
 ```sh
-puddle remote enable --service https://relay.example.com --app-origin https://app.example.com
+puddle remote enable --profile <profile-id> --service https://relay.example.com --app-origin https://app.example.com
 ```
 
 Or register over SSH:
 
 ```sh
-puddle remote enable user@host --service https://relay.example.com --app-origin https://app.example.com
+puddle remote enable --profile <profile-id> user@host --service https://relay.example.com --app-origin https://app.example.com
 ```
 
 Paste the five-minute code at the hidden prompt. Do not put it in command-line
@@ -282,7 +284,7 @@ Supervise **both** daemon and connector outside an agent session. No nohup or
 cockpit-bound fallback is silently selected for mobile access.
 
 ```sh
-puddle remote pair                 # add user@host for an SSH host
+puddle remote pair --profile <profile-id>                 # add user@host for an SSH host
 ```
 
 Open the printed link in the intended browser (or use the QR/link from an already
@@ -290,8 +292,8 @@ paired browser's Paired browsers dialogue). Give the browser a name and request 
 Compare the browser identity shown on both devices, then on the host:
 
 ```sh
-puddle remote devices
-puddle remote approve <request-id>
+puddle remote devices --profile <profile-id>
+puddle remote approve <request-id> --profile <profile-id>
 ```
 
 The host must approve that exact browser. A copied invitation or successful
@@ -362,9 +364,9 @@ script policy intact. General file transfers, source editing, Git mutations and
 forwarded applications remain unavailable. A paired terminal still has the host owner's execution authority.
 
 ```sh
-puddle remote status
-puddle remote revoke <device-id>
-puddle remote disable
+puddle remote status --profile <profile-id>
+puddle remote revoke <device-id> --profile <profile-id>
+puddle remote disable --profile <profile-id>
 ```
 
 These commands accept an optional `user@host` and work through local/SSH host
@@ -382,9 +384,9 @@ If every browser is lost, use local/SSH access. To rotate a compromised or missi
 host identity and revoke all browser grants:
 
 ```sh
-puddle remote reset
-puddle remote enable
-puddle remote pair
+puddle remote reset --profile <profile-id>
+puddle remote enable --profile <profile-id>
+puddle remote pair --profile <profile-id>
 ```
 
 Forget the old host pairing in each browser before accepting the replacement.

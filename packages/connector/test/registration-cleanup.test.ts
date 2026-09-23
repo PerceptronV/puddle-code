@@ -1,3 +1,4 @@
+const profile = 'a'.repeat(10);
 import { existsSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -21,7 +22,7 @@ const registration = () => ({
 
 it('retires a replaced registration without unregistering a disabled or newly enabled host', async () => {
   const home = mkdtempSync(join(tmpdir(), 'puddle-replace-registration-'));
-  const directory = join(home, 'remote');
+  const directory = join(home, 'remote', 'profiles', profile);
   const old = registration();
   const next = registration();
   const fetch = vi.fn(async (url: string, request: RequestInit) => {
@@ -33,16 +34,20 @@ it('retires a replaced registration without unregistering a disabled or newly en
   vi.stubGlobal('fetch', fetch);
   try {
     atomicPrivateJson(join(directory, 'config.json'), old);
-    await configureConnector(home, { managed: false });
+    await configureConnector(home, { managed: false }, profile);
     expect(fetch).not.toHaveBeenCalled();
     expect(hasRegistrationCleanup(directory)).toBe(false);
     atomicPrivateJson(join(directory, 'config.json'), old);
-    await configureConnector(home, {
-      service: next.service,
-      app: next.app,
-      code: 'a'.repeat(64),
-      managed: false,
-    });
+    await configureConnector(
+      home,
+      {
+        service: next.service,
+        app: next.app,
+        code: 'a'.repeat(64),
+        managed: false,
+      },
+      profile,
+    );
     expect(readPrivateJson(join(directory, 'config.json'))).toEqual({ ...next, enabled: true });
     expect(hasRegistrationCleanup(directory)).toBe(true);
     const file = join(directory, 'retired', readdirSync(join(directory, 'retired'))[0]!);
@@ -115,7 +120,7 @@ it('preserves new cleanup entries arriving during an in-flight acknowledgement',
 
 it('refuses replacement before consuming a new code when cleanup capacity is exhausted', async () => {
   const home = mkdtempSync(join(tmpdir(), 'puddle-retirement-capacity-'));
-  const directory = join(home, 'remote');
+  const directory = join(home, 'remote', 'profiles', profile);
   const current = registration();
   const fetch = vi.fn();
   vi.stubGlobal('fetch', fetch);
@@ -123,12 +128,16 @@ it('refuses replacement before consuming a new code when cleanup capacity is exh
     for (let index = 0; index < 32; index++) retireRegistration(directory, registration());
     atomicPrivateJson(join(directory, 'config.json'), current);
     await expect(
-      configureConnector(home, {
-        service: current.service,
-        app: current.app,
-        code: 'a'.repeat(64),
-        managed: false,
-      }),
+      configureConnector(
+        home,
+        {
+          service: current.service,
+          app: current.app,
+          code: 'a'.repeat(64),
+          managed: false,
+        },
+        profile,
+      ),
     ).rejects.toThrow('pending remote registration cleanup');
     expect(fetch).not.toHaveBeenCalled();
     expect(readPrivateJson(join(directory, 'config.json'))).toEqual(current);

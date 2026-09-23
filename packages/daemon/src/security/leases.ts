@@ -7,6 +7,7 @@ interface Resource {
   close: () => void;
 }
 interface Lease {
+  profile?: string;
   id: string;
   until: number;
   rotatedAt: number;
@@ -15,6 +16,7 @@ interface Lease {
   used: Set<string>;
 }
 export interface AuthorityResource {
+  readonly profile?: string;
   valid(): boolean;
   release(): void;
 }
@@ -28,8 +30,9 @@ export class LeaseRegistry {
     this.timer = setInterval(() => this.sweep(), 1000);
     this.timer.unref();
   }
-  create(): { generation: string; token: string } {
+  create(profile?: string): { generation: string; token: string } {
     const lease: Lease = {
+      profile,
       id: randomUUID(),
       until: this.now() + CONNECTION_POLICY.leaseMs,
       rotatedAt: this.now(),
@@ -80,6 +83,7 @@ export class LeaseRegistry {
     };
     lease.resources.set(id, resource);
     return {
+      profile: lease.profile,
       valid: () => {
         const ok =
           this.live(lease) && lease.resources.get(id) === resource && resource.until > this.now();

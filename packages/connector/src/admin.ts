@@ -1,3 +1,5 @@
+import { profileMutation } from './mutation.js';
+import { profileDirectory } from './profile-state.js';
 import { connect } from 'node:net';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -30,8 +32,9 @@ import {
 async function exchange(
   home: string,
   request: ConnectorLocalRequest,
+  profile: string,
 ): Promise<RemoteAdminResponse> {
-  const path = ipcPath(home, 'remote');
+  const path = ipcPath(home, `remote-${profile}`);
   privatePath(path);
   return new Promise((resolve, reject) => {
     const socket = connect(path);
@@ -60,16 +63,18 @@ async function exchange(
     });
   });
 }
-export async function administrativeRequest(
+async function requestUnlocked(
   home: string,
   value: unknown,
+  profile: string,
 ): Promise<RemoteAdminResponse> {
+  profileDirectory(home, profile); // Validate before constructing an IPC name.
   const request = connectorLocalRequestSchema.parse(value);
   let result: RemoteAdminResponse;
   try {
-    result = await exchange(home, request);
+    result = await exchange(home, request, profile);
   } catch (error) {
-    const directory = join(home, 'remote');
+    const directory = profileDirectory(home, profile);
     if (request.t === 'delete_registration') {
       // A timeout or lost acknowledgement does not prove the live writer has stopped.
       // Only mutate offline when its socket is absent or refuses connections.
@@ -102,22 +107,23 @@ export async function administrativeRequest(
     });
   }
   if (request.t === 'delete_registration' && !result.error)
-    await flushRegistrationCleanup(join(home, 'remote'));
+    await flushRegistrationCleanup(profileDirectory(home, profile));
   return result;
 }
-export async function configureConnector(
+async function configureUnlocked(
   home: string,
   value: unknown,
+  profile: string,
 ): Promise<RemoteAdminResponse> {
   const setup = connectorSetupSchema.parse(value);
   if (setup.managed) supervisorKind(home); // Refuse cockpit-bound lifetimes before consuming the code.
-  const path = join(home, 'remote/config.json');
+  const path = join(profileDirectory(home, profile), 'config.json');
   const existing = existsSync(path) ? connectorConfigSchema.parse(readPrivateJson(path)) : null;
   if (existing?.enabled)
     throw new Error('Remote access is already enabled; disable it before changing registration');
   let config;
   if (setup.code && setup.service && setup.app) {
-    if (existing) checkRetirementCapacity(join(home, 'remote'), existing);
+    if (existing) checkRetirementCapacity(profileDirectory(home, profile), existing);
     const response = await fetch(`${setup.service}/remote/register`, {
       method: 'POST',
       redirect: 'error',
@@ -146,15 +152,15 @@ export async function configureConnector(
     );
   // A new registration has a new service/account/host context. Never carry old
   // approvals or unused invitations across that administrative trust change.
-  if (setup.code && existsSync(join(home, 'remote/devices.db'))) {
-    const devices = new DeviceStore(join(home, 'remote'));
+  if (setup.code && existsSync(join(profileDirectory(home, profile), 'devices.db'))) {
+    const devices = new DeviceStore(profileDirectory(home, profile));
     try {
       devices.revokeAll();
     } finally {
       devices.close();
     }
   }
-  if (setup.code && existing) retireRegistration(join(home, 'remote'), existing);
+  if (setup.code && existing) retireRegistration(profileDirectory(home, profile), existing);
   atomicPrivateJson(path, connectorConfigSchema.parse(config));
   try {
     if (setup.managed) installConnectorSupervisor(home);
@@ -162,14 +168,14 @@ export async function configureConnector(
     atomicPrivateJson(path, { ...config, enabled: false });
     throw error;
   }
-  await flushRegistrationCleanup(join(home, 'remote'));
+  await flushRegistrationCleanup(profileDirectory(home, profile));
   return { enabled: true, host: config.host, connected: false };
 }
 
 /** Local/SSH-only recovery. This operation is absent from the encrypted admin protocol. */
-export async function resetConnectorIdentity(home: string): Promise<void> {
-  await administrativeRequest(home, { t: 'disable' });
-  const directory = join(home, 'remote');
+async function resetUnlocked(home: string, profile: string): Promise<void> {
+  await requestUnlocked(home, { t: 'disable' }, profile);
+  const directory = profileDirectory(home, profile);
   const devices = new DeviceStore(directory);
   try {
     devices.revokeAll();
@@ -177,4 +183,25 @@ export async function resetConnectorIdentity(home: string): Promise<void> {
     devices.close();
   }
   atomicPrivateJson(join(directory, 'identity.json'), [...(await createIdentity())]);
+}
+
+export function administrativeRequest(
+  home: string,
+  value: unknown,
+  profile: string,
+): Promise<RemoteAdminResponse> {
+  const request = connectorLocalRequestSchema.parse(value);
+  return request.t === 'status' || request.t === 'devices'
+    ? requestUnlocked(home, request, profile)
+    : profileMutation(home, profile, () => requestUnlocked(home, request, profile));
+}
+export function configureConnector(
+  home: string,
+  value: unknown,
+  profile: string,
+): Promise<RemoteAdminResponse> {
+  return profileMutation(home, profile, () => configureUnlocked(home, value, profile));
+}
+export function resetConnectorIdentity(home: string, profile: string): Promise<void> {
+  return profileMutation(home, profile, () => resetUnlocked(home, profile));
 }

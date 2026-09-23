@@ -1,3 +1,4 @@
+import type { ProfileAccess } from '../security/profile-access.js';
 import type { AuthorityResource, LeaseRegistry } from '../security/leases.js';
 import { homedir } from 'node:os';
 import type { WSContext } from 'hono/ws';
@@ -26,6 +27,7 @@ import { stripDeviceReplies } from './device-replies.js';
 
 export interface WsGatewayDeps {
   authority: LeaseRegistry;
+  profileAccess?: ProfileAccess;
   ptys: PtyManager;
   logs: LogStore;
   service: SessionService;
@@ -201,6 +203,16 @@ export class WsGateway {
         return;
       }
       try {
+        if (
+          resource.profile &&
+          'session' in msg &&
+          !this.deps.profileAccess?.session(resource.profile, msg.session)
+        )
+          throw new ApiError(
+            403,
+            'profile_scope',
+            'This session is outside the registered profile',
+          );
         switch (msg.t) {
           case 'attach': {
             this.assertStream(msg.session);
@@ -332,7 +344,10 @@ export class WsGateway {
   }
 
   private send(ws: WSContext, msg: WsServerMessage): void {
-    if (ws.readyState === 1 && this.resources.get(ws)?.valid()) ws.send(JSON.stringify(msg));
+    const resource = this.resources.get(ws);
+    if (ws.readyState !== 1 || !resource?.valid()) return;
+    const allowed = resource.profile ? this.deps.profileAccess?.event(resource.profile, msg) : msg;
+    if (allowed) ws.send(JSON.stringify(allowed));
   }
 
   /**
@@ -367,7 +382,9 @@ export class WsGateway {
     if (!set) return;
     const encoded = JSON.stringify(msg);
     for (const ws of set) {
-      if (!this.resources.get(ws)?.valid()) continue;
+      const resource = this.resources.get(ws);
+      if (!resource?.valid()) continue;
+      if (resource.profile && !this.deps.profileAccess?.event(resource.profile, msg)) continue;
       const pending = this.pendingAttaches.get(key)?.get(ws);
       if (pending) pending.messages.push(msg);
       else if (ws.readyState === 1) ws.send(encoded);

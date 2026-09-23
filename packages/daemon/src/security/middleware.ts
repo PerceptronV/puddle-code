@@ -84,6 +84,9 @@ export function bearerAuth(authority: LeaseRegistry): MiddlewareHandler {
     try {
       if (!resource.valid())
         throw new ApiError(401, 'upstream_expired', 'connection authority expired');
+      c.set('remoteProfile', resource.profile);
+      if (resource.profile && c.req.path.startsWith('/proxy/'))
+        throw new ApiError(403, 'profile_scope', 'Forwarding is unavailable remotely');
       await next();
       if (!resource.valid())
         throw new ApiError(401, 'upstream_expired', 'connection authority expired');

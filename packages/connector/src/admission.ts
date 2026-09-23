@@ -11,6 +11,7 @@ import { RemoteUpstream } from './upstream.js';
 
 export interface AdmissionHost {
   home: string;
+  profile: string;
   account: string;
   devices: DeviceStore;
   enabled(): boolean;
@@ -79,7 +80,7 @@ export async function admit(channel: EncryptedChannel, host: AdmissionHost): Pro
     }
     deviceId = device.id;
     participation = new Participation();
-    upstream = new RemoteUpstream(host.home, channel, valid, close);
+    upstream = new RemoteUpstream(host.home, channel, valid, close, host.profile);
     await upstream.authority.establish();
     // Pairing may take five minutes. Participation starts with admission, not with the invitation.
     const active = participation;

@@ -34,7 +34,7 @@ test('desktop sign-in survives OAuth and enables through a private one-use verif
     );
     // Only process supervision is substituted: use the real connector's --configure,
     // HTTPS redemption and runtime, but never install an OS service from this fixture.
-    await page.route('**/cockpit/remote', async (route) => {
+    await page.route('**/cockpit/remote?profile=*', async (route) => {
       if (route.request().method() === 'GET') {
         const response = await route.fetch();
         return route.fulfill({ json: { ...(await response.json()), supervisor: 'launchd' } });

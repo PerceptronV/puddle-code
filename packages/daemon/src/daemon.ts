@@ -37,6 +37,7 @@ import { installShellHooks } from './pty/shell-hooks.js';
 import { clearRuntime, writeRuntime } from './runtime-file.js';
 import { PROTOCOL_VERSION } from '@puddle/shared';
 import { LeaseRegistry } from './security/leases.js';
+import { ProfileAccess } from './security/profile-access.js';
 import { startHostControl } from './security/control.js';
 import { ensureToken } from './security/token.js';
 import { ConversationShare } from './sessions/conversation-share.js';
@@ -215,6 +216,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
 
     const tracker = new ProxySocketTracker();
     const gateway = new WsGateway({
+      profileAccess: new ProfileAccess({ profiles, projects, sessions }),
       authority,
       ptys,
       logs,

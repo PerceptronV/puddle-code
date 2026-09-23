@@ -14,6 +14,7 @@ import type { RepoStore } from '../db/stores/repos.js';
 import type { PuddlePaths } from '../paths.js';
 import type { PortScanner } from '../ports/scanner.js';
 import type { PtyManager } from '../pty/pty-manager.js';
+import { profileAccessMiddleware } from '../security/profile-access.js';
 import { bearerAuth, hostOriginGuard } from '../security/middleware.js';
 import type { LeaseRegistry } from '../security/leases.js';
 import { proxyRoutes } from '../proxy/http.js';
@@ -97,6 +98,7 @@ export function buildApp(deps: AppDeps): Hono {
 
   app.use('/api/*', hostOriginGuard());
   app.use('/api/*', bearerAuth(deps.authority));
+  if (deps.api) app.use('/api/*', profileAccessMiddleware(deps.api));
   app.route('/api/version', versionRoutes(deps.version));
 
   if (deps.api) {

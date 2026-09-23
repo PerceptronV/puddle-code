@@ -49,6 +49,7 @@ export class HostControlClient implements ConnectionAuthority {
       code: 'daemon_unreachable' | 'protocol_mismatch',
       message: string,
     ) => Error = (_code, message) => new Error(message),
+    private readonly profile?: string,
   ) {
     this.timer = setInterval(() => {
       if (this.channel && performance.now() >= this.until)
@@ -176,7 +177,7 @@ export class HostControlClient implements ConnectionAuthority {
         channel.once('error', closed);
         channel.once('close', closed);
         channel.once('end', closed);
-        send({ t: 'open' });
+        send({ t: 'open', ...(this.profile ? { profile: this.profile } : {}) });
       });
     } finally {
       this.connecting = false;

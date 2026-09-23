@@ -2,6 +2,7 @@ import { createInterface } from 'node:readline';
 import { Writable } from 'node:stream';
 import {
   remoteAdminRequestSchema,
+  profileId,
   remoteAdminResponseSchema,
   remoteOriginSchema,
   remoteSecretSchema,
@@ -16,6 +17,7 @@ export interface RemoteCommand {
   action:
     'enable' | 'status' | 'pair' | 'approve' | 'devices' | 'revoke' | 'disable' | 'reset' | 'run';
   host?: string;
+  profile?: string;
   id?: string;
   service?: string;
   app?: string;
@@ -50,7 +52,12 @@ export function parseRemoteArgs(args: string[]): RemoteCommand {
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i]!;
     if (arg === '--foreground') command.foreground = true;
-    else if (arg === '--service' || arg === '--app-origin') {
+    else if (arg === '--profile') {
+      const parsed = profileId.safeParse(rest[++i]);
+      if (!parsed.success)
+        throw new CliError('bad_arguments', '--profile requires an exact profile id');
+      command.profile = parsed.data;
+    } else if (arg === '--service' || arg === '--app-origin') {
       const value = remoteOriginSchema.safeParse(rest[++i]);
       if (!value.success) throw new CliError('bad_arguments', `${arg} needs an exact HTTPS origin`);
       if (arg === '--service') command.service = value.data;
@@ -75,6 +82,10 @@ export function parseRemoteArgs(args: string[]): RemoteCommand {
     throw new CliError('bad_arguments', 'Configuration options apply only to remote enable');
   if (!!command.service !== !!command.app)
     throw new CliError('bad_arguments', 'Specify both --service and --app-origin');
+  if (action !== 'run' && !command.profile)
+    throw new CliError('bad_arguments', 'Select a profile with --profile <profile-id>');
+  if (action === 'run' && command.profile)
+    throw new CliError('bad_arguments', 'remote run supervises all registered profiles');
   return command;
 }
 async function registrationCode(): Promise<string> {
@@ -114,12 +125,21 @@ export async function runRemote(command: RemoteCommand): Promise<number> {
         'The installed daemon does not include mobile access',
         `puddle upgrade daemon${command.host ? ` ${command.host}` : ''}`,
       );
+    const capabilities = await transport.exec(`${base} --version`, { timeoutMs: 10_000 });
+    if (capabilities.code !== 0 || !capabilities.stdout.includes('cockpit controls 2'))
+      throw new CliError(
+        'protocol_mismatch',
+        'Upgrade the host daemon before managing profile registrations.',
+      );
     if (command.action === 'run') {
       const result = await transport.exec(base, { onStdout: (text) => process.stdout.write(text) });
       return result.code;
     }
     if (command.action === 'reset') {
-      const result = await transport.exec(`${base} --reset`, { timeoutMs: 30_000 });
+      const result = await transport.exec(`${base} --reset`, {
+        timeoutMs: 30_000,
+        stdin: JSON.stringify({ profile: command.profile }) + '\n',
+      });
       if (result.code !== 0)
         throw new CliError('bad_arguments', result.stderr.trim() || 'Reset failed');
       process.stdout.write(
@@ -139,7 +159,12 @@ export async function runRemote(command: RemoteCommand): Promise<number> {
     const result = await transport.exec(
       `${base} ${command.action === 'enable' ? '--configure' : '--admin'}`,
       {
-        stdin: JSON.stringify(payload) + '\n',
+        stdin:
+          JSON.stringify(
+            command.action === 'enable'
+              ? { profile: command.profile, setup: payload }
+              : { profile: command.profile, request: payload },
+          ) + '\n',
         timeoutMs: 30_000,
       },
     );

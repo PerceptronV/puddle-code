@@ -42,7 +42,7 @@ export async function startHostControl(
         }
         if (message.t === 'open') {
           if (generation) return fail();
-          const issued = registry.create();
+          const issued = registry.create(message.profile);
           generation = issued.generation;
           send({ t: 'authority', ...issued, ...ready, validForMs: CONNECTION_POLICY.leaseMs });
         } else {

@@ -20,6 +20,8 @@ export interface SpeakingProtocol {
 export interface InstalledComponentVersion {
   component: 'cli' | 'daemon' | 'desktop';
   installed: boolean;
+  /** Display-only remote protocol spoken by the bundled connector. */
+  connectorProtocol?: number;
   version?: string;
   protocol?: SpeakingProtocol;
 }
@@ -198,6 +200,17 @@ function daemonProtocol(home: string, version: string): SpeakingProtocol | undef
   return releasedProtocol(version);
 }
 
+function daemonConnectorProtocol(home: string, version: string): number | undefined {
+  try {
+    const raw = readFileSync(join(home, 'bin', 'current', 'CONNECTOR_PROTOCOL'), 'utf8').trim();
+    if (/^[1-9][0-9]*$/.test(raw) && Number.isSafeInteger(Number(raw))) return Number(raw);
+    return undefined;
+  } catch {
+    // Every published 0.2.0–0.2.7 daemon bundled remote protocol 2.
+    return /^0\.2\.[0-7]$/.test(version) ? 2 : undefined;
+  }
+}
+
 /** Local, offline inventory used by `puddle --version`. */
 export async function installedComponentVersions(
   opts: InventoryOptions = {},
@@ -213,6 +226,8 @@ export async function installedComponentVersions(
   const installedDaemon = daemonVersion(home);
   const installedDaemonProtocol =
     installedDaemon === undefined ? undefined : daemonProtocol(home, installedDaemon);
+  const connectorProtocol =
+    installedDaemon === undefined ? undefined : daemonConnectorProtocol(home, installedDaemon);
   const daemon: InstalledComponentVersion =
     installedDaemon === undefined
       ? { component: 'daemon', installed: false }
@@ -220,6 +235,7 @@ export async function installedComponentVersions(
           component: 'daemon',
           installed: true,
           version: installedDaemon,
+          ...(connectorProtocol !== undefined ? { connectorProtocol } : {}),
           ...(installedDaemonProtocol ? { protocol: installedDaemonProtocol } : {}),
         };
 
@@ -269,7 +285,7 @@ export function formatComponentVersions(components: InstalledComponentVersion[])
       if (!component.installed) return `${name} not installed`;
       const version = component.version ?? 'unknown version';
       const protocol = component.protocol
-        ? `protocol ${component.protocol.major}.${component.protocol.minor}`
+        ? `protocol ${component.protocol.major}.${component.protocol.minor}${component.component === 'daemon' && component.connectorProtocol !== undefined ? `-c${component.connectorProtocol}` : ''}`
         : 'protocol unknown';
       return `${name} ${version} (${protocol})`;
     })

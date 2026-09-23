@@ -1,7 +1,7 @@
 # Mobile access
 
-Status: implemented for self-hosting. Remote protocol 2 sits outside daemon
-protocol 19.0 (the host-authority foundation shipped in 18.0). Deployment instructions are in [self-hosted mobile access](../mobile-access.md).
+Status: implemented for self-hosting. Remote protocol 3 sits outside daemon
+protocol 22.0 (the host-authority foundation shipped in 18.0). Deployment instructions are in [self-hosted mobile access](../mobile-access.md).
 Automated tests and the remaining physical-device/security review gates are in
 [mobile acceptance](../acceptance/mobile-access.md).
 
@@ -45,19 +45,19 @@ relay operator. No service worker caches source, output or credentials.
 
 ## Host approval and recovery
 
-Desktop/local and SSH cockpits expose **Settings → Remote access** for registration,
+Desktop/local and SSH cockpits expose **Settings → Remote & Sync** for registration,
 status, pairing, exact-browser approval, revocation, disablement and confirmed
 identity reset. These controls use the authenticated cockpit's existing host
 transport and remain available independently of the relay. They are not added
 to the encrypted remote allowlist. Only public connector metadata returns to
 the cockpit; registration codes travel through stdin and are not persisted there.
 
-`puddle remote enable` redeems a five-minute service registration code from hidden
+`puddle remote enable --profile <profile-id>` redeems a five-minute service registration code from hidden
 stdin. Routing credentials stay in the host's private remote configuration; the
 service stores their hashes. The host keeps its Ed25519 identity in a private
 file and device records/revocations in private SQLite storage.
 
-`puddle remote pair` or an approved browser issues a five-minute, single-use
+`puddle remote pair --profile <profile-id>` or an approved browser issues a five-minute, single-use
 invitation. Its link/QR contains the host identity and secret in the fragment.
 The application removes the fragment before rendering and retains it only in
 sessionStorage for a provider redirect. A new browser generates a key and saves
@@ -143,3 +143,15 @@ rotation, IME/dictation, long output, concurrent viewers, sleep and Wi-Fi/cellul
 changes on real devices. Independent security review must assess the complete
 Noise integration, web distribution, recovery and deployment before making a
 reviewed production-security claim. See the acceptance checklist for evidence.
+
+## Independent profile registrations
+
+Each profile on a physical host registers independently with its own remote
+account. The supervised connector owns a runtime and private registration,
+identity, invitations and grants per profile under `remote/profiles/<id>/`.
+Changing one registration leaves the others connected. Every admitted browser
+gets a daemon lease scoped to that profile. Daemon HTTP and WS checks enforce
+resource ownership and filter discovery/events, including direct session ids.
+This is not OS isolation; terminal and explicit file browsing authority still
+belongs to the shared OS user. Startup deletes previous host-wide registrations
+and revokes their approvals, retaining bounded relay-retirement retries.

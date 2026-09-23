@@ -13,6 +13,7 @@
  *   ├── puddled            # sh launcher: exec bin/node daemon/puddled.mjs "$@"
  *   ├── VERSION
  *   ├── PROTOCOL           # exact major.minor, readable without executing puddled
+ *   ├── CONNECTOR_PROTOCOL # remote protocol, display-only in the component inventory
  *   ├── LICENSE
  *   ├── bin/node           # pinned runtime, nothing else from the Node dist
  *   └── daemon/
@@ -57,6 +58,10 @@ const protocolMatch = /PROTOCOL_VERSION\s*=\s*{\s*major:\s*(\d+),\s*minor:\s*(\d
 if (protocolMatch === null)
   fail('cannot read PROTOCOL_VERSION from packages/shared/src/protocol.ts');
 const protocolVersion = `${protocolMatch[1]}.${protocolMatch[2]}`;
+const connectorMatch = /REMOTE_PROTOCOL_VERSION\s*=\s*(\d+)/.exec(
+  readFileSync(join(repoRoot, 'packages/shared/src/remote/protocol.ts'), 'utf8'),
+);
+if (!connectorMatch) fail('cannot read REMOTE_PROTOCOL_VERSION');
 const outDir = resolve(repoRoot, flag('--out-dir') ?? 'dist-release');
 const stageOnly = args.includes('--stage-only');
 
@@ -201,6 +206,7 @@ function writeMetadata() {
   // Read directly by `puddle --version`; an offline inventory must never
   // execute an unknown historical daemon just to discover compatibility.
   writeFileSync(join(stage, 'PROTOCOL'), `${protocolVersion}\n`);
+  writeFileSync(join(stage, 'CONNECTOR_PROTOCOL'), `${connectorMatch[1]}\n`);
   cpSync(join(repoRoot, 'LICENSE'), join(stage, 'LICENSE'));
 }
 

@@ -1,3 +1,4 @@
+const profile = 'a'.repeat(10);
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -14,7 +15,7 @@ import { DeviceStore } from '../src/devices.js';
 
 it('disables and revokes offline; identity recovery cannot be invoked remotely', async () => {
   const home = mkdtempSync(join(tmpdir(), 'puddle-offline-recovery-'));
-  const directory = join(home, 'remote');
+  const directory = join(home, 'remote', 'profiles', profile);
   try {
     atomicPrivateJson(join(directory, 'config.json'), {
       enabled: true,
@@ -36,11 +37,11 @@ it('disables and revokes offline; identity recovery cannot be invoked remotely',
     devices.approve(device.id);
     const unused = devices.invite();
     devices.close();
-    await administrativeRequest(home, { t: 'disable' });
+    await administrativeRequest(home, { t: 'disable' }, profile);
     expect(
       connectorConfigSchema.parse(readPrivateJson(join(directory, 'config.json'))).enabled,
     ).toBe(false);
-    await resetConnectorIdentity(home);
+    await resetConnectorIdentity(home, profile);
     expect(
       identityPeer(
         Uint8Array.from(
@@ -81,15 +82,19 @@ it('rejects an oversized registration response before persisting host configurat
   );
   try {
     await expect(
-      configureConnector(home, {
-        service: 'https://relay.example.test',
-        app: 'https://app.example.test',
-        code: 'a'.repeat(64),
-        managed: false,
-      }),
+      configureConnector(
+        home,
+        {
+          service: 'https://relay.example.test',
+          app: 'https://app.example.test',
+          code: 'a'.repeat(64),
+          managed: false,
+        },
+        profile,
+      ),
     ).rejects.toThrow('response is too large');
     expect(cancelled).toBe(true);
-    expect(existsSync(join(home, 'remote/config.json'))).toBe(false);
+    expect(existsSync(join(home, 'remote', 'profiles', profile, 'config.json'))).toBe(false);
   } finally {
     vi.unstubAllGlobals();
     rmSync(home, { recursive: true, force: true });
@@ -98,7 +103,7 @@ it('rejects an oversized registration response before persisting host configurat
 
 it('requires fresh device approval after registering the host in a new service context', async () => {
   const home = mkdtempSync(join(tmpdir(), 'puddle-reregister-'));
-  const directory = join(home, 'remote');
+  const directory = join(home, 'remote', 'profiles', profile);
   const devices = new DeviceStore(directory);
   vi.stubGlobal(
     'fetch',
@@ -115,12 +120,16 @@ it('requires fresh device approval after registering the host in a new service c
     const device = devices.enrol(devices.invite().invitation, peer, 'owner', 'Phone');
     devices.approve(device.id);
     const unused = devices.invite();
-    await configureConnector(home, {
-      service: 'https://relay.example.test',
-      app: 'https://app.example.test',
-      code: 'a'.repeat(64),
-      managed: false,
-    });
+    await configureConnector(
+      home,
+      {
+        service: 'https://relay.example.test',
+        app: 'https://app.example.test',
+        code: 'a'.repeat(64),
+        managed: false,
+      },
+      profile,
+    );
     expect(devices.valid(device.id, peer, 'owner')).toBe(false);
     expect(() => devices.enrol(unused.invitation, peer, 'owner', 'Old invitation')).toThrow();
   } finally {

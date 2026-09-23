@@ -100,3 +100,18 @@ describe('private host control', () => {
     await rejected;
   });
 });
+
+it('binds the requested profile to all resources across token rotation', async () => {
+  const f = await fixture();
+  const received = reply(f.socket);
+  f.socket.write(JSON.stringify({ t: 'open', profile: '0123456789' }) + '\n');
+  const grant = await received;
+  if (grant.t !== 'authority' || !grant.token) throw new Error('Missing authority');
+  expect(f.registry.attach(grant.token, secret(), () => {})?.profile).toBe('0123456789');
+  f.advance(30_000);
+  const renewed = reply(f.socket);
+  f.socket.write(JSON.stringify({ t: 'renew', resources: [] }) + '\n');
+  const replacement = await renewed;
+  if (replacement.t !== 'authority' || !replacement.token) throw new Error('Missing token');
+  expect(f.registry.attach(replacement.token, secret(), () => {})?.profile).toBe('0123456789');
+});

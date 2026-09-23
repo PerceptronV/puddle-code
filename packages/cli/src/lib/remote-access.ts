@@ -1,5 +1,6 @@
 import {
   cockpitRemoteRequestSchema,
+  profileId,
   cockpitRemoteStatusSchema,
   remoteAdminResponseSchema,
   type CockpitRemoteRequest,
@@ -27,12 +28,13 @@ export class RemoteAccessControl {
     if (result.code !== 0)
       throw new Error('Host control is unavailable. Check the host connection.');
     return {
-      availability: result.stdout.includes('cockpit controls 1') ? 'ready' : 'upgrade_required',
+      availability: result.stdout.includes('cockpit controls 2') ? 'ready' : 'upgrade_required',
       canDeleteRegistration: result.stdout.includes('delete registration 1'),
     };
   }
 
-  async status(): Promise<CockpitRemoteStatus> {
+  async status(profile: string): Promise<CockpitRemoteStatus> {
+    profileId.parse(profile);
     const capabilities = await this.capabilities();
     if (capabilities.availability !== 'ready')
       return {
@@ -43,7 +45,10 @@ export class RemoteAccessControl {
         supervisor: null,
         devices: [],
       };
-    const result = await this.transport.exec(`${binary} --inspect`, { timeoutMs: 10_000 });
+    const result = await this.transport.exec(`${binary} --inspect`, {
+      timeoutMs: 10_000,
+      stdin: JSON.stringify({ profile }) + '\n',
+    });
     if (result.code !== 0) throw new Error('Could not read remote access status on this host.');
     return cockpitRemoteStatusSchema.parse({ ...JSON.parse(result.stdout), ...capabilities });
   }
@@ -51,8 +56,10 @@ export class RemoteAccessControl {
   async request(
     value: CockpitRemoteRequest,
     authorised: () => boolean,
+    profile: string,
   ): Promise<RemoteAdminResponse> {
     const request = cockpitRemoteRequestSchema.parse(value);
+    profileId.parse(profile);
     const capabilities = await this.capabilities();
     if (capabilities.availability !== 'ready')
       throw new Error('Upgrade the daemon on this host to manage remote access here.');
@@ -61,7 +68,12 @@ export class RemoteAccessControl {
     if (!authorised()) throw new Error('Browser authorisation expired before dispatch.');
     const flag =
       request.t === 'enable' ? '--configure' : request.t === 'reset' ? '--reset' : '--admin';
-    const payload = request.t === 'enable' ? { ...request.registration, managed: true } : request;
+    const payload =
+      request.t === 'enable'
+        ? { profile, setup: { ...request.registration, managed: true } }
+        : request.t === 'reset'
+          ? { profile }
+          : { profile, request };
     const result = await this.transport.exec(`${binary} ${flag}`, {
       stdin: JSON.stringify(payload) + '\n',
       timeoutMs: 30_000,

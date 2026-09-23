@@ -7,7 +7,8 @@ import {
   type CockpitRemoteRequest,
 } from '@puddle/shared';
 import { api, ApiError } from '../../../lib/api';
-import { useHostInfo } from '../../../lib/queries';
+import { useCurrentProfileId } from '../../profile/profile-store';
+import { useHostInfo, useProfiles } from '../../../lib/queries';
 import { Button } from '../../../components/ui/button';
 import { Disclosure } from '../../../components/ui/disclosure';
 import {
@@ -26,6 +27,10 @@ import { DeleteRegistrationDialog } from './DeleteRegistrationDialog';
 export function RemoteAccessSection() {
   const queryClient = useQueryClient();
   const host = useHostInfo();
+  const profile = useCurrentProfileId();
+  const profiles = useProfiles();
+  const profileName = profiles.data?.find((row) => row.id === profile)?.name ?? 'this profile';
+  const path = `/cockpit/remote?profile=${encodeURIComponent(profile ?? '')}`;
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -35,26 +40,27 @@ export function RemoteAccessSection() {
   const [invitation, setInvitation] = useState<{ url: string; expires: number } | null>(null);
   const dismiss = useCallback(() => setInvitation(null), []);
   const status = useQuery({
-    queryKey: ['cockpit-remote'],
-    queryFn: async () => cockpitRemoteStatusSchema.parse(await api('GET', '/cockpit/remote')),
+    queryKey: ['cockpit-remote', profile],
+    queryFn: async () => cockpitRemoteStatusSchema.parse(await api('GET', path)),
     refetchInterval: busy ? false : 5000,
     refetchOnWindowFocus: !busy,
     refetchOnReconnect: !busy,
     retry: false,
     gcTime: 0,
+    enabled: !!profile,
   });
   const act = async (request: CockpitRemoteRequest): Promise<boolean> => {
-    if (busy) return false;
+    if (busy || !profile) return false;
     setBusy(true);
     setError('');
     setMessage('');
     try {
       // Keep background reads quiet, but let them finish before the serial host mutation.
-      if (queryClient.isFetching({ queryKey: ['cockpit-remote'], exact: true })) {
+      if (queryClient.isFetching({ queryKey: ['cockpit-remote', profile], exact: true })) {
         const latest = await status.refetch({ cancelRefetch: false });
         if (latest.isError) throw latest.error;
       }
-      const result = remoteAdminResponseSchema.parse(await api('POST', '/cockpit/remote', request));
+      const result = remoteAdminResponseSchema.parse(await api('POST', path, request));
       if (request.t === 'pair' && result.url && result.invitation)
         setInvitation({ url: result.url, expires: result.invitation.expires });
       else {
@@ -102,7 +108,7 @@ export function RemoteAccessSection() {
   return (
     <div>
       <SectionTitle
-        note={`Applies to ${host.data?.displayName || host.data?.hostname || 'the host open in this window'}, across all profiles`}
+        note={`${profileName} on ${host.data?.displayName || host.data?.hostname || 'this host'} · only this profile’s projects and sessions`}
       >
         Remote access
       </SectionTitle>
@@ -161,7 +167,7 @@ export function RemoteAccessSection() {
               key={data.host ?? 'new'}
               service={data.service}
               app={data.app}
-              hostName={host.data?.displayName || host.data?.hostname || 'My host'}
+              hostName={`${host.data?.displayName || host.data?.hostname || 'My host'} · ${profileName}`}
               busy={busy}
               disabled={disabled}
               enable={act}
@@ -255,8 +261,8 @@ export function RemoteAccessSection() {
                 summaryClassName="py-2"
               >
                 <p className="my-3 text-xs text-fg-muted">
-                  Rotate a lost or compromised host identity. All browser approvals and invitations
-                  will be revoked.
+                  Rotate a lost or compromised host identity. This profile’s browser approvals and
+                  invitations will be revoked.
                 </p>
                 <Button variant="ghost" disabled={disabled} onClick={() => setReset(true)}>
                   Reset host identity…
@@ -268,10 +274,11 @@ export function RemoteAccessSection() {
       )}
       <Dialog open={reset} onOpenChange={(open) => !busy && setReset(open)}>
         <DialogContent>
-          <DialogTitle>Reset this host’s remote identity?</DialogTitle>
+          <DialogTitle>Reset this profile’s remote identity?</DialogTitle>
           <DialogDescription>
-            Disable remote access, rotate the host identity and revoke every paired browser and
-            invitation. Agents keep running. Enable access and pair each browser again afterwards.
+            Disable remote access, rotate the host identity and revoke this profile’s paired
+            browsers and invitation. Agents keep running. Enable access and pair each browser again
+            afterwards.
           </DialogDescription>
           <DialogFooter>
             <Button variant="ghost" disabled={busy} onClick={() => setReset(false)}>

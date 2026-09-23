@@ -1,6 +1,6 @@
 # Mobile access acceptance
 
-Remote protocol 2; daemon/cockpit protocol 21.0. Run in isolated homes with fake agents.
+Remote protocol 3; daemon/cockpit protocol 22.0. Run in isolated homes with fake agents.
 Never launch an installed daemon from a coding-agent environment. Deployment and
 recovery instructions: [self-hosted mobile access](../mobile-access.md).
 
@@ -64,7 +64,7 @@ review, production OAuth-provider acceptance or physical-phone acceptance.
   host is the target, secrets do not enter settings/logs, and unsupported older
   connectors request an upgrade. Verify offline disable/revoke and confirmed
   identity reset. Delete enabled and disabled registrations: cancelling preserves
-  access, confirming clears settings and revokes all browsers/invitations while
+  access, confirming clears settings and revokes that profile’s browsers/invitations while
   agents continue. Confirm the relay row disappears and re-registration leaves one
   current entry. Repeat with the relay offline, then restart the connector without
   a saved config and restore relay connectivity: queued cleanup must finish.
@@ -144,3 +144,20 @@ updates, OAuth registration/provider recovery, admission limits and metadata ret
 
 Record actual reviewer findings and physical-device results here when performed;
 do not convert an automated test result into a claim that either review occurred.
+
+## Independent registrations per profile
+
+1. On one isolated daemon, create two profiles with separate projects and sessions.
+2. Register each profile to a different service account through desktop Settings.
+   Pair and approve a browser for each. Both registrations must stay connected.
+3. Check each browser’s catalogue, new-session account picker and terminal rail:
+   only its own profile appears. Direct requests for the other profile’s project,
+   session, file target, settings and terminal must be denied; status, notices and
+   session-switch events must not reveal it.
+4. Disable, reset or delete the first registration. The second must keep its
+   identity, approvals, connection and live terminal. Agents keep running.
+5. Start the new connector with a legacy `remote/config.json` and approved devices.
+   Its registration disappears, grants become revoked, and the relay record is
+   retired (or queued while offline). Neither profile inherits it.
+6. Check `puddle --version`: the daemon line includes `-c3` when its archive has
+   connector metadata. CLI/desktop compatibility still compares daemon major/minor.
