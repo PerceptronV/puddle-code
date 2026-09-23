@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Fix standalone CLI distribution checks on Linux and macOS by retaining gzip on the isolated PATH and invoking system utilities at their original paths.

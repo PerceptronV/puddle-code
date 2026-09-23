@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Exercise the real packaged CLI with only POSIX tools on PATH. No daemons start.
+// Exercise the real packaged CLI with only required system tools on PATH. No daemons start.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import {
@@ -9,7 +9,6 @@ import {
   readFileSync,
   readlinkSync,
   rmSync,
-  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -40,6 +39,7 @@ for (const tool of [
   'dirname',
   'basename',
   'tar',
+  'gzip', // GNU tar invokes gzip through PATH when extracting .tar.gz archives.
   'sed',
   'grep',
   'awk',
@@ -52,7 +52,10 @@ for (const tool of [
 ]) {
   const source = ['/usr/bin', '/bin'].map((dir) => join(dir, tool)).find(existsSync);
   assert.ok(source, `Missing fixture tool ${tool}`);
-  symlinkSync(source, join(bin, tool));
+  // Invoke the original path: macOS's Perl launcher locates versioned shasum
+  // scripts beside it, so relocating shasum through a symlink breaks dispatch.
+  // These source paths contain only fixed system directories and tool names.
+  writeFileSync(join(bin, tool), `#!/bin/sh\nexec '${source}' "$@"\n`, { mode: 0o755 });
 }
 // Simulate GitHub responses with the freshly built archive, never the network.
 writeFileSync(
