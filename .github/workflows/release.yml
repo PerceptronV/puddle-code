@@ -186,7 +186,7 @@ jobs:
           pattern: desktop-*
           merge-multiple: true
           path: dist-release
-      - name: assemble SHA256SUMS and both installers
+      - name: assemble SHA256SUMS and the public CLI installer
         run: |
           cat dist-release/*.sha256 > dist-release/SHA256SUMS
           node scripts/stage-installers.mjs dist-release "$GITHUB_REPOSITORY"
@@ -206,8 +206,6 @@ jobs:
             dist-release/*.AppImage \
             dist-release/SHA256SUMS \
             dist-release/install.sh \
-            dist-release/install-cli.sh \
-            dist-release/install-daemon.sh \
             --verify-tag --notes-file dist-release/RELEASE_NOTES.md
 
   npm-publish:

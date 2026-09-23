@@ -336,7 +336,7 @@ export function parseArgs(argv: string[]): Command {
           'bad_arguments',
           'install takes one of: daemon | desktop (with an optional @version)',
           spec?.what === 'cli'
-            ? 'install the CLI with install-cli.sh or npm; update it with puddle upgrade cli'
+            ? 'install the CLI with the public install.sh or npm; update it with puddle upgrade cli'
             : 'e.g. puddle install daemon@v0.0.32 user@host',
         );
       }

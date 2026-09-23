@@ -26,7 +26,7 @@ For a standalone installation without Node.js or npm, use your deployed app's
 installer (replace the example host):
 
 ```sh
-curl -fsSL https://app.example.com/install-cli.sh | sh
+curl -fsSL https://app.example.com/install.sh | sh
 ```
 
 This installs the CLI under `~/.local/share/puddle/cli` and its launcher at
@@ -37,7 +37,7 @@ An optional `--version` selects a release; `--prefix` and `--bin-dir` select the
 installation and launcher directories:
 
 ```sh
-curl -fsSL https://app.example.com/install-cli.sh | sh -s -- --version X.Y.Z
+curl -fsSL https://app.example.com/install.sh | sh -s -- --version X.Y.Z
 ```
 
 Alternatively, with Node.js already installed, use npm:
@@ -76,17 +76,11 @@ detached processes, Puddle instead keeps the daemon attached to the cockpit; clo
 live processes. The next `puddle launch` restarts the daemon from the host's persistent state and,
 when auto-resume is enabled (the default), restores the interrupted sessions.
 
-**Daemon-only installs:**
-
-The daemon has its own separate installer; it does not install the CLI:
-
-```sh
-curl -fsSL https://app.example.com/install-daemon.sh | sh
-```
-
-Both scripts are served by the [deployed app](docs/mobile-access.md#host-the-installers)
-and refreshed on every app rebuild. They download archives and checksums from
-GitHub Releases. The historical GitHub `install.sh` URL remains daemon-only.
+The [deployed app](docs/mobile-access.md#host-the-installer) serves `/install.sh`
+as the single public installer. Install daemon and desktop components through
+`puddle install daemon [user@host]` and `puddle install desktop`. A first
+`puddle launch user@host` still installs a missing daemon automatically from
+GitHub Releases.
 
 **Managing components:**
 
@@ -100,17 +94,9 @@ puddle remove daemon                      # uninstall; your data stays unless yo
 
 **Desktop app (optional):**
 
-The same cockpit also ships as a standalone desktop app — identical UI and engine, plus a File → "Connect to SSH Host…" menu for remote hosts. Grab the dmg (macOS arm64) or AppImage (Linux x64) from the Releases page.
+The same cockpit also ships as a standalone desktop app — identical UI and engine, plus a File → "Connect to SSH Host…" menu for remote hosts. Install it with `puddle install desktop` (macOS arm64 or Linux x64). Once installed, it runs independently of the CLI.
 
 An installed Puddle CLI manages the desktop app directly: quit Puddle, then `puddle install desktop`, `puddle upgrade desktop`, or `puddle remove desktop`. On macOS a fresh install goes to `/Applications` when writable, otherwise `~/Applications`; on Linux `install desktop` asks where to put the AppImage (default `~/puddle`) and opens the folder — later updates happen from inside the app.
-
-The macOS downloads are **not code-signed** (an open-source project without Apple Developer Program fees), so Gatekeeper will refuse the first launch. Either allow it once — open the app, let macOS block it, then System Settings → Privacy & Security → **Open Anyway** — or clear the download quarantine in a terminal:
-
-```sh
-xattr -dr com.apple.quarantine /Applications/Puddle.app
-```
-
-Building from source avoids the dance entirely (locally built apps are never quarantined): `pnpm build && pnpm --filter @puddle-code/desktop dist`.
 
 **Host requirements**: Linux with glibc 2.28+ (Ubuntu 20.04+, Debian 11+, RHEL/Rocky 8+;
 Alpine is not supported) or macOS, with `git` and `curl`, plus whichever agent CLIs you want on

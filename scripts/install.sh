@@ -1,19 +1,16 @@
 #!/bin/sh
-# puddled installer — the single bootstrap implementation (SPEC §10).
+# Internal puddled bootstrap — embedded in the CLI and desktop (SPEC §10).
 #
-# Runs three ways, always with the same steps:
-#   1. curl-piped:   curl -fsSL .../install.sh | sh -s -- --version 0.1.0
-#   2. by the puddle CLI over SSH (the CLI embeds this exact script and pipes
-#      it through the master connection: ssh host 'sh -s -- ...')
-#   3. by hand, for daemon-only installs without the CLI.
+# The launcher pipes this exact script locally or through its SSH master
+# connection. It fetches daemon archives from GitHub Releases, including on
+# first connection to a new host. It is not a public installer asset; public
+# install.sh comes from scripts/install-cli.sh and installs the CLI only.
 #
 # Everything lands under ~/.puddle — never sudo. Idempotent: upgrade and
 # rollback are the same script with a different --version.
 #
-# The committed template carries @@REPO@@; the release workflow substitutes
-# the publishing repository before attaching this file to the release, so no
-# owner slug lives in the repo (CLAUDE.md conventions). Running the template
-# directly requires --repo or PUDDLE_REPO=owner/repo.
+# The launcher supplies --repo from its baked-in release repository; no owner
+# slug lives in this template (CLAUDE.md conventions).
 set -eu
 
 REPO="${PUDDLE_REPO:-@@REPO@@}"

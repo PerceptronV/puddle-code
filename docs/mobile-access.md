@@ -74,41 +74,52 @@ codes privately. Recover a lost provider login through Google or GitHub; signing
 in again does not enrol a new browser at any host. Use the original provider:
 matching email addresses do not automatically link different provider identities.
 
-### Host the installers
+### Host the installer
 
-The app image serves two independent installers at its own HTTPS origin:
+The app image serves the CLI installer at its own HTTPS origin:
 
 ```sh
-curl -fsSL https://app.example.com/install-cli.sh | sh
-curl -fsSL https://app.example.com/install-daemon.sh | sh
+curl -fsSL https://app.example.com/install.sh | sh
 ```
 
-The CLI installer includes a Node runtime and does not use npm. It installs under
+It includes a Node runtime and does not use npm. It installs under
 `~/.local/share/puddle/cli` (or XDG_DATA_HOME/`--prefix`), puts `puddle` in
-`~/.local/bin` (or `--bin-dir`), and prints any necessary PATH setup. The daemon
-installer manages `~/.puddle` and its supervisor independently. `/install.sh`
-remains a daemon-only alias. Add `sh -s -- --version X.Y.Z` to pin a release.
+`~/.local/bin` (or `--bin-dir`), and prints any necessary PATH setup.
+Add `sh -s -- --version X.Y.Z` to pin a release.
 
-Each build copies the current canonical scripts from the checkout, bakes in the
-repository from CLI package metadata, and serves them as uncached plain text.
-The scripts resolve the latest release when run, so ordinary releases need no
-server update. Rebuild when the installer logic or configured repository changes.
-For a fork, set `PUDDLE_REPO=owner/repo` in the deployment environment before
-building. Both scripts fetch published archives and SHA256SUMS from GitHub;
-hosting the scripts does not mirror release binaries. Publish a release containing
-the new CLI archives before using the standalone online installer.
+Install the other components through the CLI:
 
-After pulling an update, rebuild the app to refresh both scripts:
+```sh
+puddle install daemon             # local daemon
+puddle install daemon user@host   # remote daemon
+puddle install desktop           # desktop app on this machine
+```
+
+A first `puddle launch user@host` still bootstraps a missing daemon automatically.
+The CLI and desktop embed the daemon bootstrap and download daemon archives from
+GitHub Releases; they do not fetch the public `/install.sh` for daemon installs.
+There is no separately published daemon installer. The former `/install-cli.sh`
+and `/install-daemon.sh` URLs return 404 after rebuilding the app.
+
+Each build copies the CLI installer from the checkout, bakes in the repository
+from CLI package metadata, and serves it as uncached plain text. The script
+resolves the latest release when run, so ordinary releases need no server update.
+Rebuild when the installer logic or configured repository changes. For a fork,
+set `PUDDLE_REPO=owner/repo` in the deployment environment before building.
+The installer fetches published archives and SHA256SUMS from GitHub; hosting it
+does not mirror release binaries. Publish a release containing the new CLI
+archives before using the standalone online installer.
+
+After pulling an installer update, rebuild the app:
 
 ```sh
 docker compose --env-file deploy/remote/.env -f deploy/remote/compose.yaml up --build -d app
-curl -fsSL https://app.example.com/install-cli.sh | sh -s -- --help
-curl -fsSL https://app.example.com/install-daemon.sh | sh -s -- --help
+curl -fsSL https://app.example.com/install.sh | sh -s -- --help
 ```
 
-The installer URLs bypass the application HTML fallback; missing installer paths
-return 404. CI checks both scripts' content, shell syntax, content type and cache
-headers with the image running under the production restrictions.
+Installer URLs bypass the application HTML fallback. CI checks the CLI script's
+content, shell syntax, content type and cache headers, and verifies that removed
+installer URLs return 404 under the production container restrictions.
 
 ### Repair a volume created by an older image
 

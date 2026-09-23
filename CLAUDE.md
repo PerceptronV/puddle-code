@@ -44,9 +44,9 @@ packages/
 deploy/remote/       # self-hosted service/static app images, Caddy TLS ingress and private env example
 scripts/build-tarball.mjs   # self-contained puddled release tarball for the CURRENT platform
 scripts/build-cli-tarball.mjs # self-contained CLI archive; shares scripts/lib/node-runtime.mjs
-scripts/install.sh          # THE daemon bootstrap (published as install-daemon.sh + legacy install.sh)
-scripts/install-cli.sh      # standalone CLI installer; separate from daemon state/supervisors
-scripts/stage-installers.mjs # render both installers for releases and the deployed app
+scripts/install.sh          # internal daemon bootstrap, embedded in CLI/desktop; never published alone
+scripts/install-cli.sh      # public CLI installer, published as install.sh
+scripts/stage-installers.mjs # stage only the public CLI installer as install.sh
 docs/assets/          # README imagery: cockpit hero screenshots (dark chromeless, light in Mac chrome)
 docs/changelogs/      # archived per-version changelogs (see Changelog discipline)
 docs/acceptance/      # manual per-phase acceptance scripts (real-agent verification CI can't do)
@@ -96,9 +96,11 @@ Standalone CLI installs live under `~/.local/share/puddle/cli` (XDG/`--prefix`
 overrides supported), with a `~/.local/bin/puddle` wrapper. CLI upgrade/removal
 uses the actual installation channel; daemon removal cannot delete the CLI.
 Keep old standalone release trees during upgrades: live cockpits serve their assets.
-The remote app image serves separate `/install-cli.sh` and `/install-daemon.sh`
-scripts, refreshed from the canonical sources on rebuild; archives remain on
-GitHub Releases. See SPEC §10 and `docs/mobile-access.md`.
+The remote app and new GitHub releases publish only the CLI installer at
+`/install.sh`. Install daemon/desktop components through the CLI; the embedded
+daemon bootstrap still fetches GitHub archives automatically on first local/SSH
+connection. Rebuild the app when installer logic changes. See SPEC §10 and
+`docs/mobile-access.md`.
 
 On an SSH host where the installer selected `nohup` but the host reaps that
 child as soon as its exec channel closes, `puddle launch` falls back to an

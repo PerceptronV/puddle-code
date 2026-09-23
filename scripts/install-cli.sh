@@ -1,5 +1,5 @@
 #!/bin/sh
-# Standalone CLI installer. The daemon has its own installer (install.sh).
+# Standalone CLI installer, published as install.sh. Daemon bootstrap stays embedded.
 # Release/app builds bake @@REPO@@; source runs accept --repo or PUDDLE_REPO.
 # Keep old releases: running cockpits still serve assets from their own tree.
 set -eu
@@ -8,7 +8,7 @@ say() { printf 'puddle install: %s\n' "$1"; }
 die() { printf 'puddle install: error: %s\n' "$1" >&2; exit 1; }
 usage() {
   cat <<'EOF'
-usage: install-cli.sh [--version X.Y.Z] [--repo owner/repo]
+usage: install.sh [--version X.Y.Z] [--repo owner/repo]
                       [--prefix <directory>] [--bin-dir <directory>]
                       [--tarball <path>] [--sums <path>]
 

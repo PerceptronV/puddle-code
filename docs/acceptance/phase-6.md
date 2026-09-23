@@ -86,11 +86,14 @@ takes a CLIENT-side path and delivers it over scp.
    `puddle launch` on the same machine. The ports strip now offers **Open
    localhost** (the stale `user@host` from step 3 was cleared by the local
    boot); editor deep links open local paths.
-10. **install.sh by hand (daemon-only path).** On a scratch host:
-   `PUDDLE_REPO=<owner>/<repo> sh scripts/install.sh` (or `--tarball <path>`).
-   Expect platform detection, checksum verification, versioned install,
-   supervisor start, and a status line. Re-running is a no-op; `--version
-   <older>` flips the symlink back (rollback).
+10. **CLI-managed installation.** Install the CLI on a scratch client with
+    `curl -fsSL https://app.example.com/install.sh | sh`. Check that the old
+    `/install-cli.sh` and `/install-daemon.sh` URLs return 404. Run
+    `puddle install daemon user@host` on a scratch host: expect platform
+    detection, checksum verification, versioned install and supervisor start.
+    Re-running is a no-op; `puddle install daemon@<older> user@host` selects a
+    specific older release. A fresh `puddle launch user@host` still installs a
+    missing daemon automatically through the embedded GitHub bootstrap.
 11. **Fresh desktop install (macOS).** With Puddle absent from both
     `/Applications` and `~/Applications`, run `puddle upgrade desktop` from a
     released CLI. It downloads and verifies the latest mac zip, then installs

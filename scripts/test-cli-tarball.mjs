@@ -92,7 +92,13 @@ try {
   assert.equal(existsSync(join(bin, 'node')), false);
   assert.equal(existsSync(join(bin, 'npm')), false);
   // Pipe the installer exactly as curl | sh would, including paths with quotes.
-  const script = readFileSync(join(root, 'scripts/install-cli.sh'), 'utf8');
+  const publicDir = join(temp, 'public');
+  execFileSync(process.execPath, [
+    join(root, 'scripts/stage-installers.mjs'),
+    publicDir,
+    'example/puddle',
+  ]);
+  const script = readFileSync(join(publicDir, 'install.sh'), 'utf8');
   run(join(bin, 'sh'), ['-s', '--', '--tarball', archive, '--sums', `${archive}.sha256`], {
     input: script,
   });

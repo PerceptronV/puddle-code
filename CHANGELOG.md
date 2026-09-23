@@ -12,7 +12,7 @@ Past releases: see docs/changelogs/.
 ### Added
 
 - Ship standalone CLI archives with a bundled Node runtime, checksum-verified installation, and upgrades/removal independent of npm.
-- Serve separate CLI and daemon installers from the deployed application, refreshed from the canonical scripts on each image build.
+- Serve the CLI installer at `/install.sh` from the deployed application and new releases; install daemon/desktop components through the CLI while retaining automatic GitHub daemon bootstrap on first connection.
 
 ### Fixed
 

@@ -6,6 +6,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   readlinkSync,
   rmSync,
   statSync,
@@ -15,13 +16,16 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { installDaemon, readInstallScript } from '../src/lib/bootstrap.js';
+import type { Transport } from '../src/lib/transport/transport.js';
 import { standaloneInstallation } from '../src/lib/standalone-cli.js';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const installer = join(root, 'scripts/install-cli.sh');
 const temps: string[] = [];
 afterEach(() => {
+  vi.unstubAllEnvs();
   for (const temp of temps.splice(0)) rmSync(temp, { recursive: true, force: true });
 });
 
@@ -147,24 +151,44 @@ describe('standalone CLI installer', () => {
   });
 });
 
-it('stages two canonical installers and the legacy daemon alias without runtime repository placeholders', () => {
+it('publishes only the CLI as install.sh and removes obsolete staged installers', () => {
   const f = fixture();
   const output = join(f.temp, 'public');
+  mkdirSync(output);
+  for (const name of ['install.sh', 'install-cli.sh', 'install-daemon.sh']) {
+    writeFileSync(join(output, name), 'obsolete installer');
+  }
+  writeFileSync(join(output, 'index.html'), 'application');
   execFileSync(process.execPath, [
     join(root, 'scripts/stage-installers.mjs'),
     output,
     'example/puddle',
   ]);
-  for (const [name, source] of [
-    ['install-cli.sh', 'install-cli.sh'],
-    ['install-daemon.sh', 'install.sh'],
-    ['install.sh', 'install.sh'],
-  ]) {
-    const script = readFileSync(join(output, name!), 'utf8');
-    expect(script).toBe(
-      readFileSync(join(root, 'scripts', source!), 'utf8').replaceAll('@@REPO@@', 'example/puddle'),
-    );
-    execFileSync('sh', ['-n'], { input: script });
-    expect(script).not.toContain('@@REPO@@');
-  }
+  expect(readdirSync(output).sort()).toEqual(['index.html', 'install.sh']);
+  const script = readFileSync(join(output, 'install.sh'), 'utf8');
+  expect(script).toBe(readFileSync(installer, 'utf8').replaceAll('@@REPO@@', 'example/puddle'));
+  expect(script).not.toContain('@@REPO@@');
+  expect(execFileSync('sh', ['-s', '--', '--help'], { input: script, encoding: 'utf8' })).toContain(
+    'usage: install.sh',
+  );
+  expect(readFileSync(join(output, 'index.html'), 'utf8')).toBe('application');
+});
+
+it('pipes the embedded daemon bootstrap over SSH with the GitHub release source', async () => {
+  vi.stubEnv('PUDDLE_REPO', 'example/puddle');
+  const transport: Transport = {
+    kind: 'ssh',
+    label: 'user@host',
+    exec: vi.fn<Transport['exec']>().mockResolvedValue({ code: 0, stdout: '', stderr: '' }),
+    readFile: vi.fn<Transport['readFile']>(),
+    copyTo: vi.fn<Transport['copyTo']>(),
+    dispose: vi.fn(),
+  };
+  await installDaemon(transport, { version: '1.2.3' });
+  expect(transport.exec).toHaveBeenCalledWith(
+    "sh -s -- '--version' '1.2.3' '--repo' 'example/puddle'",
+    expect.objectContaining({ stdin: readInstallScript() }),
+  );
+  expect(readInstallScript()).toContain('https://github.com/$REPO/releases/download/v$VERSION');
+  expect(readInstallScript()).toContain('puddled-v$VERSION-$OS-$ARCH.tar.gz');
 });

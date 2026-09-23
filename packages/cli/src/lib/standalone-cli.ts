@@ -40,7 +40,7 @@ export function standaloneInstallation(
     throw new CliError(
       'not_installed',
       'this standalone archive is not an installer-managed CLI',
-      'run install-cli.sh to install it before using upgrade or remove',
+      'run the public install.sh to install the CLI before using upgrade or remove',
     );
   }
 }
