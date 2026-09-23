@@ -109,3 +109,10 @@ root and host lease; the connector explicitly allowlists it. Existing operations
 and remote envelopes are unchanged, so remote protocol remains 2. Update the
 host daemon, connector and static app (including the sandboxed preview shell's
 response CSP); newer clients hide the toggle below daemon 21.1.
+
+Daemon/cockpit protocol 21.2 adds connector-local chunked image uploads and the
+optional `remote_image_uploads` version capability. New browsers check that flag
+before calling `/api/worktrees/:sid/paste-upload`; older connectors retain small
+legacy pastes. Each chunk uses the existing bounded encrypted request envelope,
+and finish uses the existing host-local paste route. Noise, authentication and
+host leases are unchanged; remote protocol remains 2.

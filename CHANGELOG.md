@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Added
 
+- Add bounded, cancellable chunked image upload support to host connectors, capped at 4 MiB while retaining ordinary remote request limits (daemon/cockpit protocol 21.2; encrypted remote protocol stays 2).
+
 - Add an eye toggle for read-only mobile remote previews of Markdown, HTML with sandboxed JavaScript, images, audio, video and PDFs, including bounded local assets and custom browse roots (daemon/cockpit protocol 21.1).
 
 ### Fixed

@@ -27,4 +27,5 @@ export * from './api/cockpit-remote.js';
 export * from './ws/messages.js';
 export * from './api/connection-auth.js';
 export * from './remote/protocol.js';
+export * from './remote/image-upload.js';
 export * from './remote/service.js';

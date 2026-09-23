@@ -1,10 +1,16 @@
 import { connect } from 'node:net';
 import WebSocket from 'ws';
-import { REMOTE_POLICY, wsServerMessageSchema, type RemoteMessage } from '@puddle/shared';
+import {
+  REMOTE_POLICY,
+  versionResponseSchema,
+  wsServerMessageSchema,
+  type RemoteMessage,
+} from '@puddle/shared';
 import { ipcPath, privatePath } from '@puddle/shared/node';
 import { HostControlClient } from '@puddle/shared/node/host-control';
 import type { EncryptedChannel } from '@puddle/remote-transport';
 import { permittedRequest, permittedTerminal } from './policy.js';
+import { ImageUploads, ImageUploadError } from './image-uploads.js';
 
 /** The only code which constructs daemon requests. Destinations and credentials are host-owned. */
 export class RemoteUpstream {
@@ -14,9 +20,10 @@ export class RemoteUpstream {
   private readonly resources = new Map<string, { id: string; release(): void; valid(): boolean }>();
   private readonly requests = new Map<string, AbortController>();
   private readonly used = new Set<string>();
+  private readonly uploads = new ImageUploads();
   constructor(
     home: string,
-    private readonly channel: EncryptedChannel,
+    private readonly channel: Pick<EncryptedChannel, 'send'>,
     private readonly valid: () => boolean,
     private readonly close: () => void,
   ) {
@@ -108,9 +115,28 @@ export class RemoteUpstream {
     this.requests.set(message.id, abort);
     const resource = this.authority.resource(() => abort.abort());
     this.resources.set(message.id, resource);
+    let releaseUpload: (() => void) | undefined;
     try {
+      if (!this.valid() || !resource.valid() || abort.signal.aborted) return;
+      if (request.upload) {
+        const result = this.uploads.accept(request.path.split('/')[3]!, request.upload, abort);
+        if ('progress' in result) {
+          await this.channel.send({
+            t: 'response',
+            id: message.id,
+            status: 200,
+            body: result.progress,
+          });
+          return;
+        }
+        releaseUpload = result.release;
+        // Only the validated finish operation can construct this larger host-local request.
+        // Every browser request, including each image chunk, retains the 256 KiB cap.
+        request.path = request.path.slice(0, -'-upload'.length);
+        request.body = JSON.stringify(result.paste);
+      }
       // Recheck immediately before dispatch. No browser URL, header, or credential reaches fetch.
-      if (!this.valid() || !resource.valid()) return;
+      if (!this.valid() || !resource.valid() || abort.signal.aborted) return;
       const response = await fetch(`http://127.0.0.1:${this.authority.port}${request.path}`, {
         method: request.method,
         body: request.body,
@@ -138,23 +164,30 @@ export class RemoteUpstream {
         }
         if (bytes) body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
       }
-      if (this.valid())
+      if (request.path === '/api/version' && response.ok)
+        body = { ...versionResponseSchema.parse(body), remote_image_uploads: true };
+      if (this.valid() && !abort.signal.aborted)
         await this.channel.send({ t: 'response', id: message.id, status: response.status, body });
-    } catch {
+    } catch (error) {
       abort.abort();
       if (this.valid() && this.requests.has(message.id))
         await this.channel.send({
           t: 'response',
           id: message.id,
-          status: 502,
+          status: error instanceof ImageUploadError ? error.status : 502,
           body: {
             error: {
-              code: 'upstream_unavailable',
-              message: 'Connection interrupted; the operation may have taken effect.',
+              code:
+                error instanceof ImageUploadError ? 'image_upload_failed' : 'upstream_unavailable',
+              message:
+                error instanceof ImageUploadError
+                  ? error.message
+                  : 'Connection interrupted; the operation may have taken effect.',
             },
           },
         });
     } finally {
+      releaseUpload?.();
       resource.release();
       this.resources.delete(message.id);
       this.requests.delete(message.id);
@@ -165,6 +198,7 @@ export class RemoteUpstream {
     this.requests.delete(id);
   }
   dispose(): void {
+    this.uploads.dispose();
     for (const request of this.requests.values()) request.abort();
     this.requests.clear();
     this.resources.clear();

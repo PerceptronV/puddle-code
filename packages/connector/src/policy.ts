@@ -3,6 +3,8 @@ import {
   createSessionRequestSchema,
   patchSessionRequestSchema,
   pasteImageRequestSchema,
+  imageUploadRequestSchema,
+  type ImageUploadRequest,
   wsClientMessageSchema,
   type RemoteMessage,
   type WsClientMessage,
@@ -33,6 +35,8 @@ const routes: ReadonlyArray<readonly [string, RegExp, readonly string[]]> = [
   // Images only: daemon-generated names under this placement's .puddle/pastes/.
   // No caller-selected destination, root override, multipart or general file writes.
   ['POST', new RegExp(`^/api/worktrees/${uuid}/paste$`), []],
+  // Connector-owned staging, restricted to the same placement image-paste destination.
+  ['POST', new RegExp(`^/api/worktrees/${uuid}/paste-upload$`), []],
   [
     'GET',
     new RegExp(
@@ -48,6 +52,7 @@ export function permittedRequest(message: Extract<RemoteMessage, { t: 'request' 
   method: string;
   path: string;
   body?: string;
+  upload?: ImageUploadRequest;
 } {
   // eslint-disable-next-line no-control-regex -- Reject control characters at the trust boundary.
   if (!message.path.startsWith('/api/') || /[\\#\u0000-\u0020]/.test(message.path))
@@ -64,16 +69,27 @@ export function permittedRequest(message: Extract<RemoteMessage, { t: 'request' 
   if (new Set(keys).size !== keys.length || keys.some((key) => !route[2].includes(key)))
     throw new Error('Invalid remote parameters');
   let body: unknown;
+  let upload: ImageUploadRequest | undefined;
   if (message.method === 'POST' && url.pathname === '/api/sessions')
     body = createSessionRequestSchema.parse(message.body);
   else if (message.method === 'PATCH') body = patchSessionRequestSchema.parse(message.body);
   else if (message.method === 'POST' && url.pathname.endsWith('/paste'))
     body = pasteImageRequestSchema.strict().parse(message.body);
-  else if (message.body !== undefined) throw new Error('This operation has no request body');
+  else if (message.method === 'POST' && url.pathname.endsWith('/paste-upload')) {
+    if (url.pathname.split('/')[3] === '00000000-0000-0000-0000-000000000000')
+      throw new Error('A placement is required for image uploads');
+    upload = imageUploadRequestSchema.parse(message.body);
+    body = upload;
+  } else if (message.body !== undefined) throw new Error('This operation has no request body');
   const encoded = body === undefined ? undefined : JSON.stringify(body);
   if (encoded && Buffer.byteLength(encoded) > REMOTE_POLICY.requestBytes)
     throw new Error('Request is too large');
-  return { method: message.method, path: url.pathname + url.search, body: encoded };
+  return {
+    method: message.method,
+    path: url.pathname + url.search,
+    body: encoded,
+    ...(upload ? { upload } : {}),
+  };
 }
 
 /** Remote terminals address placements only: no account-login or home stream. */
