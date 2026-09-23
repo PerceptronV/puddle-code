@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Fix CI deployment validation by creating a private temporary service environment file from the checked-in example before resolving the Compose configuration.

@@ -31,7 +31,11 @@ jobs:
         run: pnpm --filter @puddle/web exec playwright install --with-deps chromium
       - run: pnpm test:mobile
       - name: validate self-hosted deployment configuration
-        run: docker compose --env-file deploy/remote/.env.example -f deploy/remote/compose.yaml config --no-env-resolution -q
+        run: |
+          # Compose also loads the service's env_file, independently of --env-file.
+          trap 'rm -f deploy/remote/.env' EXIT
+          install -m 600 deploy/remote/.env.example deploy/remote/.env
+          docker compose --env-file deploy/remote/.env -f deploy/remote/compose.yaml config -q
       - name: exercise container builds from a private checkout
         run: git ls-files -z | xargs -0 chmod go-rwx
       - name: build self-hosted service image
