@@ -121,6 +121,14 @@ Installer URLs bypass the application HTML fallback. CI checks the CLI script's
 content, shell syntax, content type and cache headers, and verifies that removed
 installer URLs return 404 under the production container restrictions.
 
+### Edit the public FAQ
+
+The deployed app serves `/faq` without sign-in. Edit
+`packages/web/src/features/faq/faq.md` to change its setup and upgrade instructions,
+then rebuild the app using the command above. `{{APP_ORIGIN}}` becomes the current
+app origin in installation commands, so the same content works on any deployment.
+The sign-in screen and signed-in project list link to this page.
+
 ### Repair a volume created by an older image
 
 Earlier service images created `/data` with mode `0755`. The private-storage check

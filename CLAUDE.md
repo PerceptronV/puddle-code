@@ -24,6 +24,7 @@ packages/
 │                      # (Monaco tabs + drafts + dirty-diff gutter, file tree + transfer, repository-aware
 │                      #  source control + commit-graph SVG, filename+content search), scratchpad + layouts (top-bar
 │                      #  popovers), settings, ⌘K palette
+│   ├── src/features/faq/ # public deployed-app /faq; edit faq.md for setup/upgrade instructions
 │   └── src/features/remote/ + mobile/ # remote account/pairing/settings + host-grouped project cards,
 │                                     # Files/Terminals workspace, session rail and touch terminal keys
 ├── remote-transport/ # standalone Noise XX + bounded encrypted framing (remote protocol 2)

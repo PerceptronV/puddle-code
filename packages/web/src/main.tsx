@@ -10,9 +10,16 @@ initClientSettings();
 // Order matters: captureHostParam reads the #invite= fragment (its local-mode
 // signal) that bootstrapToken strips.
 if (import.meta.env.VITE_PUDDLE_REMOTE_SERVICE) {
-  void import('./features/remote/RemoteApp').then(({ RemoteApp }) =>
-    createRoot(document.getElementById('root')!).render(<RemoteApp />),
-  );
+  if (/^\/faq\/?$/.test(location.pathname)) {
+    // Public setup documentation must not depend on sign-in or relay availability.
+    void import('./features/faq/FaqPage').then(({ FaqPage }) =>
+      createRoot(document.getElementById('root')!).render(<FaqPage />),
+    );
+  } else {
+    void import('./features/remote/RemoteApp').then(({ RemoteApp }) =>
+      createRoot(document.getElementById('root')!).render(<RemoteApp />),
+    );
+  }
 } else {
   captureHostParam();
   void bootstrapToken().then(async () => {
