@@ -117,9 +117,7 @@ For example:
 - **Desktop app:** provides the same workspace UI in a native application window, with local and SSH connections. Component-management commands live in the CLI.
 - **Daemon (`puddled`):** the backend. It runs on the host machine, communicates with the CLI/desktop frontends, owns live terminal and agent processes, and saves session state and Git worktrees on disk. Saved state survives restarts; live processes do not.
 
-Install the CLI first and use it to install the desktop app or daemon. Once installed, the desktop app runs without the CLI. Both frontends need a daemon for their workspaces and install a missing daemon automatically when connecting, including over SSH, using the embedded GitHub release bootstrap.
-
-A supervised daemon keeps running after you close the frontend. On SSH hosts that cannot keep it running independently, Puddle falls back to a daemon attached to that connection; closing the workspace interrupts its processes, while saved state remains for the next launch.
+The daemon and desktop can run standalone without the CLI, but the CLI makes it easy to manage upgrades and installations.
 
 ## How do I remove the CLI?
 
