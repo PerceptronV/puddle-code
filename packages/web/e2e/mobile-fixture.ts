@@ -144,7 +144,9 @@ export async function mobileFixture() {
     res.setHeader('x-content-type-options', 'nosniff');
     res.setHeader(
       'content-security-policy',
-      `default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src ${serviceOrigin} ${serviceOrigin.replace('https:', 'wss:')}; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`,
+      file === join(web, 'preview.html')
+        ? "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' data: https:; style-src 'unsafe-inline' data: https:; img-src data: https:; font-src data: https:; media-src data: https:; connect-src https:; frame-ancestors 'self'; base-uri 'none'; object-src 'none'; form-action 'none'"
+        : `default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; media-src blob:; frame-src 'self' blob:; connect-src ${serviceOrigin} ${serviceOrigin.replace('https:', 'wss:')}; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; form-action 'self'`,
     );
     res.end(readFileSync(file));
   });

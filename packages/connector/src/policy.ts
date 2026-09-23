@@ -24,8 +24,12 @@ const routes: ReadonlyArray<readonly [string, RegExp, readonly string[]]> = [
   ['POST', new RegExp(`^/api/sessions/${uuid}/(resume|kill|archive|unarchive)$`), []],
   ['POST', new RegExp(`^/api/projects/${hex}/conversations/refresh$`), []],
   // Read-only directory browsing uses the daemon's existing validated root override.
-  // Responses remain bounded JSON; raw media, executable previews and writes stay denied.
-  ['GET', new RegExp(`^/api/worktrees/${uuid}/(tree|file|resolve)$`), ['path', 'root']],
+  // Preview assets use bounded JSON too; raw media, downloads and writes stay denied.
+  [
+    'GET',
+    new RegExp(`^/api/worktrees/${uuid}/(tree|file|resolve|preview-asset)$`),
+    ['path', 'root'],
+  ],
   // Images only: daemon-generated names under this placement's .puddle/pastes/.
   // No caller-selected destination, root override, multipart or general file writes.
   ['POST', new RegExp(`^/api/worktrees/${uuid}/paste$`), []],

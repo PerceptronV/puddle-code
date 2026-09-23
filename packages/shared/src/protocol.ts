@@ -287,4 +287,5 @@
 // 19.1: additive — local/SSH registration deletion with connector capability discovery.
 // 20.0: desktop-initiated account registration with a browser-approved, hashed handoff.
 // 21.0: host-authenticated retirement of deleted/replaced remote registrations.
-export const PROTOCOL_VERSION = { major: 21, minor: 0 } as const;
+// 21.1: additive — bounded JSON file assets for remote previews.
+export const PROTOCOL_VERSION = { major: 21, minor: 1 } as const;

@@ -102,3 +102,10 @@ retries are idempotent. This adds an authentication flow, so the cockpit major
 advances. Noise envelopes, pairing and host leases are unchanged; remote protocol
 remains 2. Update the service and host connector for automatic cleanup; an older
 service leaves private retirement requests queued until it is upgraded.
+
+Daemon/cockpit protocol 21.1 adds `GET /api/worktrees/:sid/preview-asset`:
+bounded base64 JSON for read-only remote previews. It uses the existing browse
+root and host lease; the connector explicitly allowlists it. Existing operations
+and remote envelopes are unchanged, so remote protocol remains 2. Update the
+host daemon, connector and static app (including the sandboxed preview shell's
+response CSP); newer clients hide the toggle below daemon 21.1.

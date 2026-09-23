@@ -96,6 +96,13 @@ try {
   ]);
   const index = await ready(app, '/');
   assert.ok(index.headers['content-security-policy']?.includes('https://relay.example.test'));
+  assert.ok(index.headers['content-security-policy']?.includes("script-src 'self';"));
+  const preview = await get(`${app.base}/preview.html`);
+  assert.equal(preview.status, 200);
+  assert.ok(preview.headers['content-security-policy']?.includes('sandbox allow-scripts;'));
+  assert.ok(preview.headers['content-security-policy']?.includes("frame-ancestors 'self';"));
+  assert.ok(!preview.headers['content-security-policy']?.includes('allow-same-origin'));
+  assert.equal(preview.headers['x-frame-options'], undefined);
   const assets = docker('exec', app.id, 'find', '/srv', '-type', 'f').split('\n');
   assert.ok(assets.includes('/srv/index.html'));
   for (const file of assets) {

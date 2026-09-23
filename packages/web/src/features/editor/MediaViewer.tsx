@@ -1,8 +1,8 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import type { LatexSynctexResponse } from '@puddle/shared';
 import { toast } from 'sonner';
-import { apiFetchRaw } from '../../lib/api';
-import { downloadPath, rootParam } from '../../lib/worktree-queries';
+import { fetchPreviewAsset } from './preview-assets';
+import { downloadPath } from '../../lib/worktree-queries';
 import type { MediaKind } from './media-kind';
 import { useMediaRefresh } from './media-refresh-store';
 
@@ -25,7 +25,9 @@ export function MediaViewer({
   generatedBy,
   refreshKey,
   onRevealSource,
+  readOnly = false,
 }: {
+  readOnly?: boolean;
   session: string;
   path: string;
   kind: MediaKind;
@@ -43,8 +45,8 @@ export function MediaViewer({
   if (error) {
     return (
       <Centre>
-        <p className="text-sm text-fg-secondary">Couldn’t load this file.</p>
-        <DownloadButton session={session} path={path} root={root} />
+        <p className="text-sm text-fg-secondary">{error}</p>
+        {!readOnly && <DownloadButton session={session} path={path} root={root} />}
       </Centre>
     );
   }
@@ -78,7 +80,7 @@ export function MediaViewer({
     );
   }
   // pdf
-  if (root && isLatexGeneratedPdf(path, root, generatedBy)) {
+  if (!readOnly && root && isLatexGeneratedPdf(path, root, generatedBy)) {
     return (
       <Suspense
         fallback={
@@ -129,27 +131,24 @@ function useMediaObjectUrl(
   root?: string,
   refreshRevision = 0,
   refreshKey?: string | number,
-): { url: string | null; error: boolean } {
+): { url: string | null; error: string | null } {
   const [url, setUrl] = useState<string | null>(null);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let objectUrl: string | null = null;
     let cancelled = false;
     setUrl(null);
-    setError(false);
-    apiFetchRaw(
-      'GET',
-      `/api/worktrees/${session}/media?path=${encodeURIComponent(path)}${rootParam(root)}`,
-    )
-      .then((res) => res.blob())
+    setError(null);
+    fetchPreviewAsset(session, path, root)
       .then((blob) => {
         if (cancelled) return;
         objectUrl = URL.createObjectURL(blob);
         setUrl(objectUrl);
       })
-      .catch(() => {
-        if (!cancelled) setError(true);
+      .catch((error: unknown) => {
+        if (!cancelled)
+          setError(error instanceof Error ? error.message : 'Couldn’t load this file.');
       });
     return () => {
       cancelled = true;

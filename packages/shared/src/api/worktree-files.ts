@@ -40,6 +40,14 @@ export const fileResponseSchema = z.object({
 });
 export type FileResponse = z.infer<typeof fileResponseSchema>;
 
+/** Bounded JSON assets fit inside the encrypted remote response limit after base64. */
+export const MAX_PREVIEW_ASSET_BYTES = 8 * 1024 * 1024;
+export const previewAssetResponseSchema = z.object({
+  mime: z.string().min(1).max(128),
+  data: z.string().max(4 * Math.ceil(MAX_PREVIEW_ASSET_BYTES / 3)),
+});
+export type PreviewAssetResponse = z.infer<typeof previewAssetResponseSchema>;
+
 /** `PUT /api/worktrees/:sid/file?path=…` — save editor content back to disk. */
 export const putFileRequestSchema = z.object({
   content: z.string(),

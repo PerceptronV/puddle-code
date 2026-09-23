@@ -2,7 +2,7 @@
  * Which non-text files render as an inline preview instead of Monaco (SPEC §8):
  * images, video, audio, PDF. Pure and DOM-free so `EditorZone` can branch on it
  * and it stays unit-testable. Extensions mirror the daemon's `MEDIA_MIME` map in
- * `worktree-files.ts` — keep the two in step.
+ * `media-mime.ts` — keep the two in step.
  */
 
 export type MediaKind = 'image' | 'video' | 'audio' | 'pdf';

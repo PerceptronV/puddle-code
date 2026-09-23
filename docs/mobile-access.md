@@ -281,9 +281,19 @@ Tap the path or filename to open a file or directory; the dialogue starts at the
 current location, including the filename when viewing a file. Absolute, `~/` and
 paths relative to the current browse root are accepted. Double-tap a file to view it, then
 use Back to files to return to the same directory. Changes remains available from
-the Files toolbar. File and change review renders text only. General file transfers,
-source editing, Git mutations, forwarded applications and executable previews are
-unavailable. A paired terminal still has the host owner's execution authority.
+the Files toolbar. In file view, the eye icon toggles Markdown, HTML, images,
+audio, video and PDFs between source and preview. Markdown supports maths and
+Mermaid; HTML runs JavaScript in an isolated sandbox without access to the app’s
+storage or credentials. Local images, styles and scripts resolve against the
+current browse root, including custom host directories. Individual preview assets
+are limited to 8 MiB. Refresh reloads the preview and its assets. There is no
+editing, locking or scroll synchronisation. Change review stays text-only.
+
+Update the daemon (protocol 21.1), host connector and remote app deployment to use
+previews. Custom static hosting must apply the separate sandbox CSP for
+`/preview.html` from `deploy/remote/Caddyfile.app`, while keeping the main app’s
+script policy intact. General file transfers, source editing, Git mutations and
+forwarded applications remain unavailable. A paired terminal still has the host owner's execution authority.
 
 ```sh
 puddle remote status

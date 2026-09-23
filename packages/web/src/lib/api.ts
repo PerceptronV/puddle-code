@@ -67,11 +67,7 @@ export async function apiFetchRaw(
   init?: RequestInit,
 ): Promise<Response> {
   if (browserTransport())
-    throw new ApiError(
-      403,
-      'remote_unavailable',
-      'File transfers and previews are unavailable remotely',
-    );
+    throw new ApiError(403, 'remote_unavailable', 'Raw file transfers are unavailable remotely');
   const res = await fetch(path, {
     ...init,
     method,

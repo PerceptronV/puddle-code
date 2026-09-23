@@ -14,6 +14,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as yauzl from 'yauzl';
 import {
   fileResponseSchema,
+  previewAssetResponseSchema,
+  MAX_PREVIEW_ASSET_BYTES,
   putFileResponseSchema,
   treeResponseSchema,
   uploadResponseSchema,
@@ -433,6 +435,40 @@ describe('GET /api/worktrees/:sid/media', () => {
     const escape = await media(sessionId, '../../etc/hosts');
     expect(escape.status).toBe(400);
     expect(errorCode(await escape.json())).toBe('path_outside_worktree');
+  });
+});
+
+describe('bounded preview assets', () => {
+  const asset = (path: string, root?: string, sid = sessionId) =>
+    app.request(
+      `/api/worktrees/${sid}/preview-asset?${new URLSearchParams({ path, ...(root ? { root } : {}) })}`,
+    );
+
+  it('preserves binary bytes and MIME, and accepts validated directory targets', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'puddle-preview-'));
+    try {
+      const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 255]);
+      writeFileSync(join(outside, 'asset.png'), bytes);
+      const response = await asset('asset.png', outside, '00000000-0000-0000-0000-000000000000');
+      expect(response.status).toBe(200);
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      const result = previewAssetResponseSchema.parse(await response.json());
+      expect(result.mime).toBe('image/png');
+      expect(Buffer.from(result.data, 'base64')).toEqual(bytes);
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects large assets, directories, traversal and invalid roots', async () => {
+    writeFileSync(join(worktree, 'large-preview.png'), Buffer.alloc(MAX_PREVIEW_ASSET_BYTES + 1));
+    const large = await asset('large-preview.png');
+    expect(large.status).toBe(413);
+    expect(errorCode(await large.json())).toBe('preview_too_large');
+    expect((await asset('.')).status).toBe(400);
+    expect((await asset('../outside')).status).toBe(400);
+    expect((await asset('missing')).status).toBe(404);
+    expect((await asset('asset.png', 'relative')).status).toBe(400);
   });
 });
 

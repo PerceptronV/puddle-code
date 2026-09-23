@@ -58,7 +58,7 @@ describe('remote surface', () => {
   });
   it('allows bounded directory and text reads at an explicit host root, without raw previews or writes', () => {
     const target = '00000000-0000-0000-0000-000000000000';
-    for (const operation of ['tree', 'file', 'resolve']) {
+    for (const operation of ['tree', 'file', 'resolve', 'preview-asset']) {
       const path = `/api/worktrees/${target}/${operation}?path=notes.txt&root=%2Ftmp%2Fproject`;
       expect(request('GET', path).path).toBe(path);
       expect(() => request('POST', path)).toThrow();

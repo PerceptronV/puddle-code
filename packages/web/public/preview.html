@@ -1,0 +1,18 @@
+<!doctype html>
+<!-- Served with its own CSP sandbox, including on direct navigation. No app code or credentials. -->
+<meta charset="utf-8" />
+<script>
+  addEventListener('message', function receive(event) {
+    if (
+      parent === window ||
+      event.source !== parent ||
+      event.data?.kind !== 'puddle-preview-document' ||
+      typeof event.data.html !== 'string'
+    )
+      return;
+    removeEventListener('message', receive);
+    document.open();
+    document.write(event.data.html);
+    document.close();
+  });
+</script>

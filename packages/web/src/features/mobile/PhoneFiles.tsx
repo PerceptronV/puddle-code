@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   ArrowUp,
   ChevronRight,
+  Eye,
   Folder,
   FolderOpen,
   GitCompareArrows,
@@ -11,17 +12,20 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { fileResponseSchema, treeResponseSchema } from '@puddle/shared';
+import { useDaemonVersion } from '../../lib/queries';
+import { previewKind } from '../editor/preview-kind';
+import { mediaKind } from '../editor/media-kind';
 import { api } from '../../lib/api';
 import { Button } from '../../components/ui/button';
 import { FileTypeIcon } from '../explorer/file-icons';
 import { PhoneReview } from './PhoneReview';
 import { PhonePathDialog } from './PhonePathDialog';
-import { PhoneFileText } from './PhoneFileText';
+import { PhoneFileContent } from './PhoneFileContent';
 import { cn } from '../../lib/utils';
 
 const NO_SESSION = '00000000-0000-0000-0000-000000000000';
 
-/** The same daemon tree/read APIs as desktop; remote source stays inert text. */
+/** Read-only source and desktop renderers, scoped to this host and browse root. */
 export function PhoneFiles({
   session,
   worktree,
@@ -34,6 +38,18 @@ export function PhoneFiles({
   const [root, setRoot] = useState<string | null>(null);
   const [directory, setDirectory] = useState('');
   const [file, setFile] = useState<string | null>(null);
+  const [preview, setPreview] = useState(false);
+  const [refresh, setRefresh] = useState(0);
+  const version = useDaemonVersion().data?.protocol;
+  const canPreview =
+    !!version && (version.major > 21 || (version.major === 21 && version.minor >= 1));
+  const textKind = file ? previewKind(file) : null;
+  const media = file ? mediaKind(file) : null;
+  const showPreview = canPreview && preview && !!(textKind || media);
+  const openFile = (path: string, rendered = false) => {
+    setFile(path);
+    setPreview(rendered);
+  };
   const [selected, setSelected] = useState('');
   const [editingPath, setEditingPath] = useState(false);
   const [changes, setChanges] = useState(false);
@@ -62,11 +78,12 @@ export function PhoneFiles({
     queryKey: ['phone-source', target, effectiveRoot, file],
     queryFn: async () =>
       fileResponseSchema.parse(await api('GET', `/api/worktrees/${target}/file?${query(file!)}`)),
-    enabled: file !== null,
+    enabled: file !== null && !(showPreview && media),
   });
   const reset = () => {
     setDirectory('');
     setFile(null);
+    setPreview(false);
     setSelected('');
   };
   const entries = [...(tree.data?.entries ?? [])].sort(
@@ -118,6 +135,19 @@ export function PhoneFiles({
             >
               {file?.split('/').pop() ?? (directory || effectiveRoot || 'Choose a path')}
             </button>
+            {file && canPreview && (textKind || media) && (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Preview file"
+                title={showPreview ? 'Show source' : 'Preview file'}
+                aria-pressed={showPreview}
+                className={showPreview ? 'text-accent' : undefined}
+                onClick={() => setPreview(!showPreview)}
+              >
+                <Eye />
+              </Button>
+            )}
             {session && !file && (
               <Button
                 variant="ghost"
@@ -133,8 +163,9 @@ export function PhoneFiles({
               size="icon"
               aria-label="Refresh files"
               onClick={() => {
+                setRefresh((value) => value + 1);
                 void tree.refetch();
-                if (file) void source.refetch();
+                if (file && !(showPreview && media)) void source.refetch();
               }}
             >
               <RefreshCw />
@@ -157,19 +188,23 @@ export function PhoneFiles({
             </div>
           )}
           {file ? (
-            <div className="flex min-h-0 flex-1 flex-col px-3 pb-3">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col px-3 pb-3">
               <p className="mb-3 break-all font-mono text-2xs text-fg-muted">{file} · read only</p>
-              {source.isPending ? (
-                <p className="text-sm text-fg-muted">Loading file…</p>
-              ) : source.error ? (
-                <p role="alert" className="text-sm text-danger">
-                  {source.error.message}
-                </p>
-              ) : source.data.binary ? (
-                <p className="text-sm text-fg-muted">Binary file; preview unavailable.</p>
-              ) : (
-                <PhoneFileText content={source.data.content ?? ''} />
-              )}
+              <PhoneFileContent
+                session={target}
+                file={file}
+                root={rootOverride}
+                preview={showPreview}
+                textKind={textKind}
+                media={media}
+                refresh={refresh}
+                source={source}
+                openFile={(path) => {
+                  openFile(path, !!previewKind(path) || !!mediaKind(path));
+                  setSelected(path);
+                  setDirectory(path.split('/').slice(0, -1).join('/'));
+                }}
+              />
             </div>
           ) : (
             <div
@@ -208,12 +243,12 @@ export function PhoneFiles({
                           event.detail === 0 ||
                           (tap.current.path === path && performance.now() - tap.current.at < 450)
                         )
-                          setFile(path);
+                          openFile(path);
                         tap.current = { path, at: performance.now() };
                         setSelected(path);
                       }}
                       onDoubleClick={() => {
-                        if (entry.type === 'file') setFile(path);
+                        if (entry.type === 'file') openFile(path);
                       }}
                     >
                       {entry.type === 'dir' ? (
@@ -228,7 +263,7 @@ export function PhoneFiles({
                         variant="ghost"
                         size="icon"
                         aria-label={`View ${entry.name}`}
-                        onClick={() => setFile(path)}
+                        onClick={() => openFile(path)}
                       >
                         <ChevronRight />
                       </Button>
@@ -261,7 +296,7 @@ export function PhoneFiles({
               else setRoot(result.path === worktree ? null : result.path);
             } else {
               if (result.root) setRoot(result.root);
-              setFile(result.path);
+              openFile(result.path);
               setSelected(result.path);
               setDirectory(result.path.split('/').slice(0, -1).join('/'));
             }

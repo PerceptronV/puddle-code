@@ -11,6 +11,7 @@ import {
 import { ApiError } from '../errors.js';
 import { expandTilde } from '../tilde.js';
 import { parseBody } from '../validate.js';
+import { worktreePreviewRoutes } from './worktree-preview.js';
 import { worktreeFileRoutes } from './worktree-files.js';
 import { worktreeFsOpsRoutes } from './worktree-fs-ops.js';
 import { worktreeGitRoutes } from './worktree-git.js';
@@ -146,6 +147,7 @@ export function worktreeRoutes(deps: WorktreeDeps): Hono {
   });
 
   app.route('/', worktreeFileRoutes(deps));
+  app.route('/', worktreePreviewRoutes(deps));
   app.route('/', worktreeFsOpsRoutes(deps));
   app.route('/', worktreeGitRoutes(deps));
   return app;

@@ -8,6 +8,7 @@ import { checkTerminalScrolling, expectStationaryPage, swipe } from './mobile-sc
 import { checkImagePicker } from './mobile-image-paste';
 import { checkTerminalSelection } from './mobile-selection';
 import { checkMobilePaths } from './mobile-files';
+import { checkMobilePreviews } from './mobile-previews';
 import { checkFileToolbar, checkMobileHeader, saveDesktopOrder } from './mobile-header';
 
 test.use({ hasTouch: true, isMobile: true });
@@ -267,6 +268,7 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
       page.getByRole('button', { name: 'Select file review.html', exact: true }),
     ).toBeVisible();
     await checkMobilePaths(page, fixture, testInfo);
+    await checkMobilePreviews(page, fixture, testInfo);
     await page.getByRole('button', { name: 'Terminals', exact: true }).click();
     await page.getByRole('button', { name: 'Expand sessions' }).click();
     await expect(page.getByRole('button', { name: 'Collapse sessions' })).toBeVisible();
