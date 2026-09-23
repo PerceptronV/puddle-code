@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Archive,
   MoreHorizontal,
-  PanelRightClose,
-  PanelRightOpen,
+  PanelLeftClose,
+  PanelLeftOpen,
   Bot,
   SquareTerminal,
 } from 'lucide-react';
@@ -65,7 +65,7 @@ export function PhoneSessionRail({
             aria-label={expanded ? 'Collapse sessions' : 'Expand sessions'}
             aria-expanded={expanded}
           >
-            {expanded ? <PanelRightClose /> : <PanelRightOpen />}
+            {expanded ? <PanelLeftClose /> : <PanelLeftOpen />}
             {expanded && <span>Sessions</span>}
           </Button>
           <Button

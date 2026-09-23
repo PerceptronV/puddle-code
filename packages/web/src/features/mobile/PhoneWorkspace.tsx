@@ -140,6 +140,19 @@ export function PhoneWorkspace({
   return (
     <div className="phone-workspace">
       <div className="phone-workspace-body">
+        {!showProjects && (
+          <PhoneSessionRail
+            projects={projectRows}
+            projectId={projectId}
+            sessions={sessionRows}
+            selected={session?.id}
+            connected={connected}
+            chooseProject={chooseProject}
+            choose={choose}
+            create={setCreating}
+            inspect={setInspected}
+          />
+        )}
         <div className="phone-centre">
           {showProjects && (
             <div className="overflow-auto p-4">
@@ -237,19 +250,6 @@ export function PhoneWorkspace({
             )}
           </div>
         </div>
-        {!showProjects && (
-          <PhoneSessionRail
-            projects={projectRows}
-            projectId={projectId}
-            sessions={sessionRows}
-            selected={session?.id}
-            connected={connected}
-            chooseProject={chooseProject}
-            choose={choose}
-            create={setCreating}
-            inspect={setInspected}
-          />
-        )}
       </div>
       {(projects.error || sessions.error || orderedProjects.error || profileState.error) && (
         <p role="alert" className="px-3 py-2 text-xs text-danger">

@@ -126,7 +126,7 @@ Run on current iOS Safari and Android Chrome, recording versions and results:
 | Desktop and phone on the same PTY | Active viewer claims size; hidden/background phone does not repeatedly resize |
 | Lock/suspend; Wi-Fi to cellular; offline during Send | Draft survives, uncertain outcome is visible, no automatic replay |
 | Return to existing runtime after expiry | Fresh admission and canonical snapshot; agent continues on the host |
-| Project cards and session rail | Hosts have separate card groups; only the active project’s non-archived sessions appear; tap switches, hold opens details, archive/restore and rail expansion work |
+| Project cards and session rail | Hosts have separate card groups; only the active project’s non-archived sessions appear; tap switches, hold opens details, archive/restore and rail expansion work; the collapsed rail and expanded drawer sit on the left, aligned with the workspace toolbar |
 | Files and custom paths | Double-tap opens text, Back returns to the same directory, path dialogue starts at the current directory/file, typed file paths open the viewer, and custom host roots and projects without sessions can be browsed |
 | Disconnect in settings | Viewer closes without stopping agents; the host stays disconnected until Connect during this visit |
 | File previews and change review | Eye switches supported files between source and rendered preview; Markdown maths/diagrams, HTML JavaScript and local assets work; HTML cannot read parent DOM/storage/cookies; image/audio/video/PDF viewers work within the 8 MiB asset cap; changes stay text-only |

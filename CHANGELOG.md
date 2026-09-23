@@ -17,6 +17,10 @@ Past releases: see docs/changelogs/.
 
 - Add an eye toggle for read-only mobile remote previews of Markdown, HTML with sandboxed JavaScript, images, audio, video and PDFs, including bounded local assets and custom browse roots (daemon/cockpit protocol 21.1).
 
+### Changed
+
+- Move the mobile session sidebar and its expanded drawer to the left, with matching collapse/expand icons.
+
 ### Fixed
 
 - Retire deleted and replaced remote registrations from the relay, retry cleanup across outages/restarts, and expose confirmed removal of legacy phantom hosts in remote settings (daemon/cockpit protocol 21.0; encrypted remote protocol stays 2).

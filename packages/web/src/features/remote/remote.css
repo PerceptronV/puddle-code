@@ -105,6 +105,7 @@
 }
 .phone-centre {
   display: flex;
+  isolation: isolate;
   flex-direction: column;
   flex: 1;
   min-width: 0;
@@ -120,7 +121,7 @@
 .phone-session-rail.is-expanded {
   position: absolute;
   z-index: 30;
-  inset: 0 0 0 auto;
+  inset: 0 auto 0 0;
   width: min(18rem, 85%);
   background: var(--bg-elevated);
 }
