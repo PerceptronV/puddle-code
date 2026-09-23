@@ -6,12 +6,14 @@ import type { RepoWithOrphans } from '@puddle/shared';
 import { Button } from '../../../components/ui/button';
 import { Input, Textarea } from '../../../components/ui/input';
 import { Switch } from '../../../components/ui/switch';
-import { useFetchRepo, usePatchRepo, useRepos } from '../../../lib/queries';
+import { useDaemonVersion, useFetchRepo, usePatchRepo, useRepos } from '../../../lib/queries';
+import { dynamicBaseBranchSupported } from '../../../lib/protocol-support';
 import { SectionTitle, SettingRow } from '../parts';
 
 function RepoCard({ repo }: { repo: RepoWithOrphans }) {
   const patch = usePatchRepo();
   const fetchNow = useFetchRepo();
+  const dynamicBase = dynamicBaseBranchSupported(useDaemonVersion().data?.protocol);
   const [base, setBase] = useState(repo.default_base_branch);
   const [notes, setNotes] = useState(repo.onboarding_notes ?? '');
 
@@ -42,9 +44,19 @@ function RepoCard({ repo }: { repo: RepoWithOrphans }) {
         </Button>
       </div>
 
-      <SettingRow label="Default base branch" htmlFor={`base-${repo.id}`} className="py-1.5">
+      <SettingRow
+        label="Default base branch"
+        description={
+          dynamicBase
+            ? 'Blank = the branch checked out at the clone location when each agent or terminal is created.'
+            : 'Choose a branch. Update the host to allow a blank default that follows the clone.'
+        }
+        htmlFor={`base-${repo.id}`}
+        className="py-1.5"
+      >
         <Input
           id={`base-${repo.id}`}
+          placeholder={dynamicBase ? 'current clone branch' : undefined}
           value={base}
           onChange={(e) => setBase(e.target.value)}
           className="w-40"
@@ -52,8 +64,17 @@ function RepoCard({ repo }: { repo: RepoWithOrphans }) {
         <Button
           size="sm"
           variant="secondary"
-          disabled={base === repo.default_base_branch || patch.isPending}
-          onClick={() => patch.mutate({ id: repo.id, default_base_branch: base }, { onError })}
+          disabled={
+            base.trim() === repo.default_base_branch ||
+            patch.isPending ||
+            (!dynamicBase && !base.trim())
+          }
+          onClick={() =>
+            patch.mutate(
+              { id: repo.id, default_base_branch: base.trim() },
+              { onError, onSuccess: () => setBase(base.trim()) },
+            )
+          }
         >
           Save
         </Button>

@@ -3,8 +3,18 @@ import {
   compilationSupported,
   compilationSettingsSupported,
   crossFiletreeTransferSupported,
+  dynamicBaseBranchSupported,
   nativeConversationSyncSupported,
 } from '../src/lib/protocol-support';
+
+describe('dynamic repository default compatibility gate', () => {
+  it('allows clearing the default only from protocol 21.3', () => {
+    expect(dynamicBaseBranchSupported(undefined)).toBe(false);
+    expect(dynamicBaseBranchSupported({ major: 21, minor: 2 })).toBe(false);
+    expect(dynamicBaseBranchSupported({ major: 21, minor: 3 })).toBe(true);
+    expect(dynamicBaseBranchSupported({ major: 22, minor: 0 })).toBe(true);
+  });
+});
 
 describe('cross-filetree transfer compatibility gate', () => {
   it('stays disabled until protocol 16.3 is positively identified', () => {

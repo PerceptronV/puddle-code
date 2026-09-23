@@ -11,6 +11,7 @@ import {
 import type { RepoStore } from '../../db/stores/repos.js';
 import type { SessionStore } from '../../db/stores/sessions.js';
 import { git } from '../../git/exec.js';
+import { resolveDefaultBaseBranch } from '../../git/base-branch.js';
 import type { WorktreeManager } from '../../worktrees/manager.js';
 import { ApiError } from '../errors.js';
 import { expandTilde } from '../tilde.js';
@@ -20,16 +21,6 @@ export interface RepoRouteDeps {
   repos: RepoStore;
   sessions: SessionStore;
   worktrees: WorktreeManager;
-}
-
-async function checkedOutBranch(path: string): Promise<string | undefined> {
-  try {
-    return (await git(['symbolic-ref', '--quiet', '--short', 'HEAD'], { cwd: path })) || undefined;
-  } catch {
-    // A detached HEAD has no branch to inherit. Keep the historical fallback
-    // so registration remains possible for clones checked out at a commit.
-    return undefined;
-  }
 }
 
 export function repoRoutes(deps: RepoRouteDeps): Hono {
@@ -58,7 +49,9 @@ export function repoRoutes(deps: RepoRouteDeps): Hono {
       if (existing) return c.json(existing);
       const repo = deps.repos.create({
         path,
-        default_base_branch: body.default_base_branch ?? (await checkedOutBranch(path)) ?? 'main',
+        default_base_branch:
+          body.default_base_branch ??
+          (await resolveDefaultBaseBranch({ path, default_base_branch: '' })),
         onboarding_notes: body.onboarding_notes ?? null,
         fetch_enabled: body.fetch_enabled ?? true,
       });
@@ -89,14 +82,11 @@ export function repoRoutes(deps: RepoRouteDeps): Hono {
       const sessionTitles = new Map(
         deps.sessions.branchesForRepo(repo.id).map((s) => [s.branch, s.title]),
       );
+      const defaultBaseBranch = await resolveDefaultBaseBranch(repo);
       const branches = [...names]
         .sort((a, b) =>
           // The repo's default base branch leads the list.
-          a === repo.default_base_branch
-            ? -1
-            : b === repo.default_base_branch
-              ? 1
-              : a.localeCompare(b),
+          a === defaultBaseBranch ? -1 : b === defaultBaseBranch ? 1 : a.localeCompare(b),
         )
         .map((name) => ({
           name,

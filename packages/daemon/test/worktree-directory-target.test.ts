@@ -7,6 +7,7 @@ import { worktreeRoutes } from '../src/http/routes/worktrees.js';
 import { NO_SESSION } from '../src/http/routes/worktree-shared.js';
 import { ApiError } from '../src/http/errors.js';
 import { fixture, waitFor, type Fixture } from './helpers/daemon-fixtures.js';
+import { sh } from './helpers/git-fixtures.js';
 
 /**
  * The directory target (protocol 12.4): the nil session id plus an absolute
@@ -67,6 +68,21 @@ describe('directory target', () => {
     expect(res.status).toBe(200);
     const diff = diffResponseSchema.parse(await res.json());
     expect(diff.base_ref).not.toBeNull();
+  });
+
+  it('resolves an empty default against the current clone branch for base diffs', async () => {
+    fx.stores.repos.patch(fx.ids.repo, { default_base_branch: '' });
+    sh(fx.repoPath, 'checkout', '-b', 'develop');
+    try {
+      const res = await app.request(
+        `/api/worktrees/${NO_SESSION}/diff?against=base&root=${root()}`,
+      );
+      expect(res.status).toBe(200);
+      expect(diffResponseSchema.parse(await res.json()).base_ref).toBe('develop');
+    } finally {
+      sh(fx.repoPath, 'checkout', 'main');
+      fx.stores.repos.patch(fx.ids.repo, { default_base_branch: 'main' });
+    }
   });
 
   it('falls back to HEAD for a directory that is not a registered repo', async () => {

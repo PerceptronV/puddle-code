@@ -30,8 +30,8 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 21.2 for bounded image uploads', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 21, minor: 2 });
+  it('declares protocol 21.3 for dynamic repository defaults', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 21, minor: 3 });
   });
 
   it('accepts a well-formed error envelope and rejects a malformed one', () => {

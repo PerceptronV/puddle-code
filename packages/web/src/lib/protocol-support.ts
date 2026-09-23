@@ -19,6 +19,10 @@ export function atLeast(protocol: Protocol, major: number, minor: number): boole
   return protocol.major > major || (protocol.major === major && protocol.minor >= minor);
 }
 
+/** Empty repository defaults follow the clone's current branch (21.3). */
+export const dynamicBaseBranchSupported = (p: Protocol): boolean =>
+  p !== undefined && atLeast(p, 21, 3);
+
 /** Modular host-side compilation providers and eager modes (protocol 17.1). */
 export function compilationSupported(protocol: Protocol): boolean {
   return atLeast(protocol, 17, 1);

@@ -4,6 +4,7 @@ import { isoTimestamp, rowId } from './common.js';
 export const repoSchema = z.object({
   id: rowId,
   path: z.string(),
+  /** Empty follows the branch currently checked out at path, resolved for each new session. */
   default_base_branch: z.string(),
   onboarding_notes: z.string().nullable(),
   fetch_enabled: z.boolean(),
@@ -19,7 +20,8 @@ export type RepoWithOrphans = z.infer<typeof repoWithOrphansSchema>;
 
 export const createRepoRequestSchema = z.object({
   path: z.string().min(1),
-  default_base_branch: z.string().min(1).optional(),
+  /** Empty follows the clone's current branch; omitted snapshots it at registration. */
+  default_base_branch: z.string().optional(),
   onboarding_notes: z.string().nullable().optional(),
   fetch_enabled: z.boolean().optional(),
 });
@@ -80,7 +82,8 @@ export const repoWorktreesResponseSchema = z.object({
 export type RepoWorktreesResponse = z.infer<typeof repoWorktreesResponseSchema>;
 
 export const patchRepoRequestSchema = z.object({
-  default_base_branch: z.string().min(1).optional(),
+  /** Empty follows the clone's current branch; omitted leaves the setting unchanged. */
+  default_base_branch: z.string().optional(),
   onboarding_notes: z.string().nullable().optional(),
   fetch_enabled: z.boolean().optional(),
 });

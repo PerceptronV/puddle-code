@@ -118,13 +118,17 @@ export function NewSessionDialog({
 
   const repo = repos.data?.find((r) => r.id === effectiveRepoId);
   const branches = useRepoBranches(open ? effectiveRepoId : undefined);
-  const worktrees = useRepoWorktrees(open ? effectiveRepoId : undefined);
+  const worktrees = useRepoWorktrees(open ? effectiveRepoId : undefined, 0);
   const branchPreview = `leave blank for auto`;
   const account = accounts.data?.find((a) => String(a.id) === accountId);
   const gateOpen = settings.data?.allowSkipPermissions === true;
   const showSkipToggle = !isTerminal && gateOpen && account?.skip_permissions_default === true;
 
-  const baseName = baseBranch.trim() || repo?.default_base_branch || '';
+  const followsClone = repo?.default_base_branch === '' && !baseBranch.trim();
+  const cloneBranch = worktrees.data?.worktrees.find((w) => w.is_primary)?.branch;
+  const defaultBaseName =
+    repo?.default_base_branch || cloneBranch || (worktrees.data ? 'main' : '');
+  const baseName = baseBranch.trim() || defaultBaseName;
 
   // Re-seed the project each time the dialog opens: `projectId` is where the
   // gesture came from (the workspace's project, or a right-clicked sidebar
@@ -216,7 +220,11 @@ export function NewSessionDialog({
         ...(separateBranch && branch.trim() ? { branch: branch.trim() } : {}),
         // Only meaningful without a separate branch; a new branch always gets its own dir.
         ...(!separateBranch ? { separate_worktree: separateWorktree } : {}),
-        ...(sharingDirectory && effectiveJoin ? { join_worktree: effectiveJoin } : {}),
+        // A preview of the clone's branch must not pin the automatic choice:
+        // the daemon resolves it again on creation. Explicit directory choices win.
+        ...(sharingDirectory && effectiveJoin && (!followsClone || joinWorktree)
+          ? { join_worktree: effectiveJoin }
+          : {}),
         ...(showSkipToggle && skip ? { skip_permissions: true } : {}),
       },
       {
@@ -311,7 +319,7 @@ export function NewSessionDialog({
               <Label htmlFor="base-branch">Base branch</Label>
               <HintInput
                 id="base-branch"
-                placeholder={repo?.default_base_branch ?? 'main'}
+                placeholder={repo?.default_base_branch || 'current clone branch'}
                 value={baseBranch}
                 onValueChange={setBaseBranch}
                 hints={(branches.data?.branches ?? [])
@@ -320,7 +328,7 @@ export function NewSessionDialog({
                   .map((b) => ({
                     value: b.name,
                     badge:
-                      b.name === repo?.default_base_branch
+                      b.name === defaultBaseName
                         ? 'default'
                         : b.is_session
                           ? `session: ${b.session_title ?? 'untitled'}`
@@ -328,6 +336,12 @@ export function NewSessionDialog({
                   }))}
                 hintsClassName="w-max min-w-full max-w-[36rem]"
               />
+              {followsClone && (
+                <p className="text-xs text-fg-muted">
+                  Uses the clone’s current branch when created{baseName ? ` (now ${baseName})` : ''}
+                  .
+                </p>
+              )}
             </div>
             {separateBranch && (
               <div className="flex min-w-0 flex-1 flex-col gap-1.5">

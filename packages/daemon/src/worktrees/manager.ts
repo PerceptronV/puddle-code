@@ -11,6 +11,7 @@ import type { Repo, WorktreeInfo } from '@puddle/shared';
 import type { RepoStore } from '../db/stores/repos.js';
 import type { SessionStore } from '../db/stores/sessions.js';
 import { git } from '../git/exec.js';
+import { resolveDefaultBaseBranch } from '../git/base-branch.js';
 import { gitMutexKey, type KeyedMutex } from '../git/mutex.js';
 import { ApiError } from '../http/errors.js';
 import type { PuddlePaths } from '../paths.js';
@@ -56,7 +57,7 @@ export class WorktreeManager {
   }): Promise<CreateWorktreeResult> {
     const { repo } = opts;
     return this.runGitMutation(repo.path, async () => {
-      const baseBranch = opts.baseBranch ?? repo.default_base_branch;
+      const baseBranch = opts.baseBranch ?? (await resolveDefaultBaseBranch(repo));
       await this.fetchCoreQuietly(repo);
       const baseRef = (await this.refExists(repo, `refs/remotes/origin/${baseBranch}`))
         ? `origin/${baseBranch}`
@@ -86,7 +87,7 @@ export class WorktreeManager {
   attachShared(opts: { repo: Repo; baseBranch?: string }): Promise<CreateWorktreeResult> {
     const { repo } = opts;
     return this.runGitMutation(repo.path, async () => {
-      const branch = opts.baseBranch ?? repo.default_base_branch;
+      const branch = opts.baseBranch ?? (await resolveDefaultBaseBranch(repo));
       await this.fetchCoreQuietly(repo);
       const localExists = await this.refExists(repo, `refs/heads/${branch}`);
       if (!localExists) {
@@ -151,7 +152,7 @@ export class WorktreeManager {
   }): Promise<CreateWorktreeResult> {
     const { repo } = opts;
     return this.runGitMutation(repo.path, async () => {
-      const branch = opts.baseBranch ?? repo.default_base_branch;
+      const branch = opts.baseBranch ?? (await resolveDefaultBaseBranch(repo));
       await this.fetchCoreQuietly(repo);
       if (!(await this.refExists(repo, `refs/heads/${branch}`))) {
         if (!(await this.refExists(repo, `refs/remotes/origin/${branch}`))) {

@@ -1,5 +1,6 @@
 import type { CommitSummary, DiffEntry, DiffStatus, ShowCommitResponse } from '@puddle/shared';
 import { git, gitBuffer } from '../git/exec.js';
+import { resolveDefaultBaseBranch } from '../git/base-branch.js';
 import { ApiError } from '../http/errors.js';
 
 /** Read-only git inspection for a session's worktree (SPEC §6/§8, Phase 3
@@ -41,6 +42,7 @@ async function refExists(cwd: string, ref: string): Promise<boolean> {
 
 /** `origin/<base>` when the worktree has that remote-tracking ref, else the local branch. */
 async function resolveBaseRef(worktree: string, baseBranch: string): Promise<string> {
+  baseBranch = await resolveDefaultBaseBranch({ path: worktree, default_base_branch: baseBranch });
   const hasRemote = await refExists(worktree, `refs/remotes/origin/${baseBranch}`);
   return hasRemote ? `origin/${baseBranch}` : baseBranch;
 }

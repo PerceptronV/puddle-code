@@ -157,12 +157,12 @@ export function useRepoBranches(repoId: number | undefined) {
 }
 
 /** Every git worktree currently checked out for a repo (SPEC §4, join_worktree). */
-export function useRepoWorktrees(repoId: number | undefined) {
+export function useRepoWorktrees(repoId: number | undefined, staleTime = 10_000) {
   return useQuery({
     queryKey: ['repo-worktrees', repoId],
     queryFn: () => api<RepoWorktreesResponse>('GET', `/api/repos/${repoId}/worktrees`),
     enabled: repoId !== undefined,
-    staleTime: 10_000,
+    staleTime,
   });
 }
 

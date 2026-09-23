@@ -289,4 +289,5 @@
 // 21.0: host-authenticated retirement of deleted/replaced remote registrations.
 // 21.1: additive — bounded JSON file assets for remote previews.
 // 21.2: additive — connector image-upload capability and bounded upload operations.
-export const PROTOCOL_VERSION = { major: 21, minor: 2 } as const;
+// 21.3: additive — accept an empty repository default to follow the clone's current branch.
+export const PROTOCOL_VERSION = { major: 21, minor: 3 } as const;

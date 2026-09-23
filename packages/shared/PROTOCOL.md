@@ -116,3 +116,11 @@ before calling `/api/worktrees/:sid/paste-upload`; older connectors retain small
 legacy pastes. Each chunk uses the existing bounded encrypted request envelope,
 and finish uses the existing host-local paste route. Noise, authentication and
 host leases are unchanged; remote protocol remains 2.
+
+Daemon/cockpit protocol 21.3 accepts an empty `default_base_branch` on repository
+creation and update to follow the clone's current branch for each new session.
+This adds a previously rejected request value; non-empty values and omitted
+fields retain their existing meaning (registration snapshots the clone's branch;
+PATCH leaves it unchanged). Settings only offers clearing the default on 21.3
+or newer. Session requests, remote operations and authentication are unchanged,
+so remote protocol remains 2.

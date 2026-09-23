@@ -1,7 +1,7 @@
 import { rmSync } from 'node:fs';
 import { Hono } from 'hono';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { repoSchema, type Repo } from '@puddle/shared';
+import { repoBranchesResponseSchema, repoSchema, type Repo } from '@puddle/shared';
 import { repoRoutes } from '../src/http/routes/repos.js';
 import { fixture, type Fixture } from './helpers/daemon-fixtures.js';
 import { cloneRepo, initRepo, sh } from './helpers/git-fixtures.js';
@@ -52,6 +52,33 @@ describe('POST /api/repos default base branch', () => {
     cleanup.push(repo);
 
     expect((await register(repo, 'main')).default_base_branch).toBe('main');
+  });
+
+  it('preserves an explicitly empty default at registration', async () => {
+    const repo = initRepo();
+    cleanup.push(repo);
+    expect((await register(repo, '')).default_base_branch).toBe('');
+  });
+
+  it('clears a saved default and puts the current clone branch first in hints', async () => {
+    const path = initRepo();
+    cleanup.push(path);
+    const repo = await register(path, 'main');
+    const response = await app.request(`/api/repos/${repo.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ default_base_branch: '' }),
+    });
+    expect(response.status).toBe(200);
+    expect(repoSchema.parse(await response.json()).default_base_branch).toBe('');
+
+    for (const branch of ['next', 'topic']) {
+      sh(path, 'checkout', '-b', branch);
+      const hints = await app.request(`/api/repos/${repo.id}/branches`);
+      expect(hints.status).toBe(200);
+      expect(repoBranchesResponseSchema.parse(await hints.json()).branches[0]?.name).toBe(branch);
+      expect(fx.stores.repos.get(repo.id).default_base_branch).toBe('');
+    }
   });
 
   it('falls back to main when HEAD is detached', async () => {
