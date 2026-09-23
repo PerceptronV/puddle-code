@@ -95,9 +95,9 @@ try {
     'PUDDLE_REMOTE_WSS=wss://relay.example.test',
   ]);
   const index = await ready(app, '/');
-  const faq = await get(`${app.base}/faq`);
-  assert.equal(faq.status, 200);
-  assert.match(faq.headers['content-type'], /^text\/html/);
+  const guide = await get(`${app.base}/guide`);
+  assert.equal(guide.status, 200);
+  assert.match(guide.headers['content-type'], /^text\/html/);
   assert.ok(index.headers['content-security-policy']?.includes('https://relay.example.test'));
   assert.ok(index.headers['content-security-policy']?.includes("script-src 'self';"));
   const preview = await get(`${app.base}/preview.html`);

@@ -22,14 +22,14 @@ test.beforeAll(async () => {
   });
   await server.listen();
   const address = server.httpServer?.address();
-  if (!address || typeof address === 'string') throw new Error('Missing FAQ test server port');
+  if (!address || typeof address === 'string') throw new Error('Missing Guide test server port');
   origin = `http://127.0.0.1:${address.port}`;
 });
 test.afterAll(async () => {
   await server?.close();
 });
 
-test('FAQ loads directly without authentication or relay access on mobile and desktop', async ({
+test('Guide loads directly without authentication or relay access on mobile and desktop', async ({
   page,
 }, testInfo) => {
   const requests: string[] = [];
@@ -45,18 +45,38 @@ test('FAQ loads directly without authentication or relay access on mobile and de
   ] as const) {
     await page.setViewportSize({ width, height: 844 });
     await page.emulateMedia({ colorScheme: theme });
-    await page.goto(`${origin}/faq${width === 390 ? '/' : ''}`);
-    await expect(page).toHaveTitle('FAQs · Puddle');
-    await expect(page.getByRole('heading', { name: 'FAQs', exact: true })).toBeVisible();
-    await expect(page.locator('pre').first()).toHaveText(`curl -fsSL ${origin}/install.sh | sh\n`);
+    await page.goto(`${origin}/guide${width === 390 ? '/' : ''}`);
+    await expect(page).toHaveTitle('Guide · Puddle');
+    await expect(page.getByRole('heading', { name: 'Puddle Guide', exact: true })).toBeVisible();
+    await expect(page.locator('pre').filter({ hasText: 'curl -fsSL' }).first()).toHaveText(
+      `curl -fsSL ${origin}/install.sh | sh\n`,
+    );
     await expect(page.getByRole('button', { name: /Continue with/ })).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
-    await page.screenshot({ path: testInfo.outputPath(`faq-${theme}.png`) });
-    await page.getByRole('heading', { name: 'How do I remove the CLI?' }).scrollIntoViewIfNeeded();
-    await expect(page.getByRole('heading', { name: 'How do I remove the CLI?' })).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath(`guide-${theme}.png`) });
+    const contents = page.locator('article a[href^="#"]');
+    expect(await contents.count()).toBeGreaterThan(0);
+    for (const link of await contents.all()) {
+      const href = await link.getAttribute('href');
+      await expect(page.locator(`article ${href}`)).toHaveCount(1);
+    }
+    await page.getByRole('link', { name: 'CLI installation', exact: true }).click();
+    await expect(page).toHaveURL(`${origin}/guide${width === 390 ? '/' : ''}#cli-installation`);
+    await expect(
+      page.getByRole('heading', { name: 'CLI installation', exact: true }),
+    ).toBeInViewport();
+    const note = page.locator('li .markdown-alert-note');
+    await expect(note.locator('.markdown-alert-title')).toHaveText('Note');
+    await expect(note).toContainText('Linux needs glibc 2.28 or newer');
+    await expect(note.locator('pre')).toContainText('export PATH="$HOME/.local/bin:$PATH"');
+    await expect(page.locator('article')).not.toContainText('[!NOTE]');
+    await note.screenshot({ path: testInfo.outputPath(`guide-note-${theme}.png`) });
   }
+  await page.goto(`${origin}/faq/?source=old-link#cli-installation`);
+  await expect(page).toHaveURL(`${origin}/guide?source=old-link#cli-installation`);
+  await expect(page.getByRole('heading', { name: 'Puddle Guide', exact: true })).toBeVisible();
   expect(requests).toEqual([]);
   expect(errors).toEqual([]);
 });
@@ -79,7 +99,7 @@ test('setup link appears below sign-in buttons and above the signed-in host list
         json: remoteLoginStateSchema.parse({
           user: signedIn
             ? {
-                id: 'faq-reader',
+                id: 'guide-reader',
                 name: 'Reader',
                 email: 'reader@example.test',
                 emailVerified: true,
@@ -98,13 +118,13 @@ test('setup link appears below sign-in buttons and above the signed-in host list
     return route.abort();
   });
   await page.goto(origin);
-  const help = page.getByText('For setup or upgrade instructions, see FAQs.', { exact: true });
+  const help = page.getByText('For setup or upgrade instructions, see Guide.', { exact: true });
   await expect(help).toBeVisible();
   const button = await page.getByRole('button', { name: 'Continue with GitHub' }).boundingBox();
   expect((await help.boundingBox())!.y).toBeGreaterThan(button!.y + button!.height);
-  await page.getByRole('link', { name: 'FAQs', exact: true }).click();
-  await expect(page).toHaveURL(`${origin}/faq`);
-  await expect(page.getByRole('heading', { name: 'FAQs', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Guide', exact: true }).click();
+  await expect(page).toHaveURL(`${origin}/guide`);
+  await expect(page.getByRole('heading', { name: 'Puddle Guide', exact: true })).toBeVisible();
   signedIn = true;
   await page.getByRole('link', { name: 'Back to Puddle' }).click();
   await expect(help).toBeVisible();

@@ -24,7 +24,7 @@ packages/
 │                      # (Monaco tabs + drafts + dirty-diff gutter, file tree + transfer, repository-aware
 │                      #  source control + commit-graph SVG, filename+content search), scratchpad + layouts (top-bar
 │                      #  popovers), settings, ⌘K palette
-│   ├── src/features/faq/ # public deployed-app /faq; edit faq.md for setup/upgrade instructions
+│   ├── src/features/guide/ # public deployed-app /guide; edit guide.md for setup/upgrade instructions
 │   └── src/features/remote/ + mobile/ # remote account/pairing/settings + host-grouped project cards,
 │                                     # Files/Terminals workspace, session rail and touch terminal keys
 ├── remote-transport/ # standalone Noise XX + bounded encrypted framing (remote protocol 2)
@@ -82,11 +82,12 @@ developing so the cockpit stays attached to your terminal (`puddle list` / `pudd
 kill` manage backgrounded ones; `puddle refresh` is kill-then-launch in one step, also
 reachable from the UI's connection banner).
 
-`puddle install <daemon|desktop>[@version] [user@host]` and
-`puddle upgrade/remove <cli|daemon|desktop>[@version] [user@host]`
+`puddle install <daemon|desktop>[@version] [user@host]`,
+`puddle upgrade [cli|daemon|desktop][@version] [user@host]`, and
+`puddle remove <cli|daemon|desktop> [user@host]`
 manage the three components (SPEC §10): install ensures presence, upgrade
-moves to newest (or the named version; bare `upgrade` covers everything
-installed, CLI last), remove uninstalls behind y/N confirmations — daemon
+moves to newest (or the named version; bare `upgrade` covers the installed local
+daemon and macOS desktop, then the CLI), remove uninstalls behind y/N confirmations — daemon
 removal keeps ~/.puddle's data unless purged, and sweeps worktrees for
 uncommitted/unpushed work first. cli/desktop are client-machine only;
 `upgrade desktop` still installs the macOS app when none exists (writable

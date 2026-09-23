@@ -9,7 +9,7 @@ import {
 } from '@puddle/shared';
 import { createIdentity } from '@puddle/remote-transport';
 import { AccountAccess } from './AccountAccess';
-import { FaqLink } from '../faq/FaqLink';
+import { GuideLink } from '../guide/GuideLink';
 import { serviceOrigin, serviceRequest } from './service';
 import { loadBrowserHost, saveBrowserHost } from './identity-store';
 import { RemoteClient } from './client';
@@ -175,7 +175,7 @@ export function RemoteApp() {
                     <Settings2 />
                   </Button>
                 </header>
-                <FaqLink className="mb-4" />
+                <GuideLink className="mb-4" />
                 {hosts.map((host) => (
                   <HostProjects
                     key={`${login.user!.id}:${host.id}`}

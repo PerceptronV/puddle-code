@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { authClient, authResult } from './service';
-import { FaqLink } from '../faq/FaqLink';
+import { GuideLink } from '../guide/GuideLink';
 
 export function AccountAccess({
   providers,
@@ -89,7 +89,7 @@ export function AccountAccess({
           </Button>
         ))
       )}
-      {!mfa && <FaqLink className="mt-3" />}
+      {!mfa && <GuideLink className="mt-3" />}
       <p role="status" className="mt-3 text-sm text-fg-muted">
         {message}
       </p>

@@ -10,10 +10,13 @@ initClientSettings();
 // Order matters: captureHostParam reads the #invite= fragment (its local-mode
 // signal) that bootstrapToken strips.
 if (import.meta.env.VITE_PUDDLE_REMOTE_SERVICE) {
-  if (/^\/faq\/?$/.test(location.pathname)) {
+  if (/^\/(?:guide|faq)\/?$/.test(location.pathname)) {
+    if (/^\/faq\/?$/.test(location.pathname)) {
+      history.replaceState(null, '', `/guide${location.search}${location.hash}`);
+    }
     // Public setup documentation must not depend on sign-in or relay availability.
-    void import('./features/faq/FaqPage').then(({ FaqPage }) =>
-      createRoot(document.getElementById('root')!).render(<FaqPage />),
+    void import('./features/guide/GuidePage').then(({ GuidePage }) =>
+      createRoot(document.getElementById('root')!).render(<GuidePage />),
     );
   } else {
     void import('./features/remote/RemoteApp').then(({ RemoteApp }) =>

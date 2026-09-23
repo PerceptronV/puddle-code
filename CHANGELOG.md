@@ -11,7 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Added
 
-- Add a public `/faq` page with editable Markdown setup and component-management instructions, linked below sign-in buttons and above the signed-in project list.
+- Add a public `/guide` page with editable Markdown setup and component-management instructions, linked below sign-in buttons and above the signed-in project list; redirect old `/faq` links to the guide.
+- Add a guide table of contents and GitHub-style Markdown alerts; clarify component dependencies, supported commands and platform-specific management.
 - Ship standalone CLI archives with a bundled Node runtime, checksum-verified installation, and upgrades/removal independent of npm.
 - Serve the CLI installer at `/install.sh` from the deployed application and new releases; install daemon/desktop components through the CLI while retaining automatic GitHub daemon bootstrap on first connection.
 

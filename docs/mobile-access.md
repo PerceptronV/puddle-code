@@ -121,13 +121,17 @@ Installer URLs bypass the application HTML fallback. CI checks the CLI script's
 content, shell syntax, content type and cache headers, and verifies that removed
 installer URLs return 404 under the production container restrictions.
 
-### Edit the public FAQ
+### Edit the public guide
 
-The deployed app serves `/faq` without sign-in. Edit
-`packages/web/src/features/faq/faq.md` to change its setup and upgrade instructions,
+The deployed app serves `/guide` without sign-in. Edit
+`packages/web/src/features/guide/guide.md` to change its setup and upgrade instructions,
 then rebuild the app using the command above. `{{APP_ORIGIN}}` becomes the current
 app origin in installation commands, so the same content works on any deployment.
-The sign-in screen and signed-in project list link to this page.
+The sign-in screen and signed-in project list link to this page; old `/faq` links
+redirect to `/guide`. Keep the Markdown table of contents aligned with the heading
+text (lowercase, punctuation removed, spaces replaced with hyphens). GitHub-style
+`> [!NOTE]`, `TIP`, `IMPORTANT`, `WARNING` and `CAUTION` alerts are supported,
+including inside lists; indent every line of an alert to the same list depth.
 
 ### Repair a volume created by an older image
 
