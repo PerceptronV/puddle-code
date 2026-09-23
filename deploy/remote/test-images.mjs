@@ -103,6 +103,16 @@ try {
   assert.ok(preview.headers['content-security-policy']?.includes("frame-ancestors 'self';"));
   assert.ok(!preview.headers['content-security-policy']?.includes('allow-same-origin'));
   assert.equal(preview.headers['x-frame-options'], undefined);
+  for (const name of ['install-cli.sh', 'install-daemon.sh', 'install.sh']) {
+    const script = await get(`${app.base}/${name}`);
+    assert.equal(script.status, 200);
+    assert.match(script.headers['content-type'], /^text\/plain/);
+    assert.equal(script.headers['cache-control'], 'no-store');
+    assert.ok(script.body.startsWith('#!/bin/sh\n'));
+    assert.ok(!script.body.includes('@@REPO@@'));
+    execFileSync('sh', ['-n'], { input: script.body });
+  }
+  assert.equal((await get(`${app.base}/install-missing.sh`)).status, 404);
   const assets = docker('exec', app.id, 'find', '/srv', '-type', 'f').split('\n');
   assert.ok(assets.includes('/srv/index.html'));
   for (const file of assets) {

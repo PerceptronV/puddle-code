@@ -9,6 +9,11 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Added
+
+- Ship standalone CLI archives with a bundled Node runtime, checksum-verified installation, and upgrades/removal independent of npm.
+- Serve separate CLI and daemon installers from the deployed application, refreshed from the canonical scripts on each image build.
+
 ### Fixed
 
 - Unify launcher protocol negotiation so older host daemons offer an update before connecting, with desktop and CLI confirmation, live-session interruption details, and compatible authority verification after the update.

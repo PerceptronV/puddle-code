@@ -51,6 +51,14 @@ jobs:
           # launch Electron - skip its ~100 MB binary download.
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - run: node scripts/build-tarball.mjs --version "${GITHUB_REF_NAME#v}"
+      - name: build standalone CLI archive
+        env:
+          PUDDLE_REPO_SLUG: ${{ github.repository }}
+        run: |
+          pnpm --filter @puddle/web... build
+          pnpm --filter @puddle-code/cli build
+          node scripts/build-cli-tarball.mjs --version "${GITHUB_REF_NAME#v}"
+          node scripts/test-cli-tarball.mjs
       - name: verify packaged native ABI
         run: node scripts/check-linux-native-abi.mjs dist-release/stage
       - uses: actions/upload-artifact@v4
@@ -76,6 +84,14 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - run: node scripts/build-tarball.mjs --version "${GITHUB_REF_NAME#v}"
+      - name: build standalone CLI archive
+        env:
+          PUDDLE_REPO_SLUG: ${{ github.repository }}
+        run: |
+          pnpm --filter @puddle/web... build
+          pnpm --filter @puddle-code/cli build
+          node scripts/build-cli-tarball.mjs --version "${GITHUB_REF_NAME#v}"
+          node scripts/test-cli-tarball.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: tarball-darwin-arm64
@@ -170,10 +186,10 @@ jobs:
           pattern: desktop-*
           merge-multiple: true
           path: dist-release
-      - name: assemble SHA256SUMS and bake the repository into install.sh
+      - name: assemble SHA256SUMS and both installers
         run: |
           cat dist-release/*.sha256 > dist-release/SHA256SUMS
-          sed "s|@@REPO@@|${GITHUB_REPOSITORY}|" scripts/install.sh > dist-release/install.sh
+          node scripts/stage-installers.mjs dist-release "$GITHUB_REPOSITORY"
       - name: extract release notes from the changelog
         # The notes come from docs/changelogs/CHANGELOG-v<version>.md, cut in
         # the release commit — the single source of truth for both this release
@@ -190,6 +206,8 @@ jobs:
             dist-release/*.AppImage \
             dist-release/SHA256SUMS \
             dist-release/install.sh \
+            dist-release/install-cli.sh \
+            dist-release/install-daemon.sh \
             --verify-tag --notes-file dist-release/RELEASE_NOTES.md
 
   npm-publish:

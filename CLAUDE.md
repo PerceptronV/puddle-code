@@ -35,7 +35,7 @@ packages/
 │   │          # access there — the desktop shell reuses it; src/lib/index.ts is the deliberate
 │   │          # embedder surface), the bin in src/cli/
 │   ├── src/lib/auth/    # connection authority, host-only inspection and protected launcher IPC
-│   └── scripts/build.mjs   # esbuild bundle + embeds install.sh + copies web assets into dist/
+│   └── scripts/build.mjs   # esbuild bundle + embeds both installers + copies web assets into dist/
 └── desktop/   # @puddle-code/desktop (private): the Electron shell — a thin main process calling
                # startLocal() from @puddle-code/cli/lib and opening a BrowserWindow on the
                # embedded cockpit. Shell concerns only (windows, OS links, notification raise);
@@ -43,7 +43,10 @@ packages/
                # CLI's (scripts/build.mjs); `pnpm --filter @puddle-code/desktop dist` packages it.
 deploy/remote/       # self-hosted service/static app images, Caddy TLS ingress and private env example
 scripts/build-tarball.mjs   # self-contained puddled release tarball for the CURRENT platform
-scripts/install.sh          # THE daemon bootstrap (curl-pipeable; the CLI pipes it over ssh)
+scripts/build-cli-tarball.mjs # self-contained CLI archive; shares scripts/lib/node-runtime.mjs
+scripts/install.sh          # THE daemon bootstrap (published as install-daemon.sh + legacy install.sh)
+scripts/install-cli.sh      # standalone CLI installer; separate from daemon state/supervisors
+scripts/stage-installers.mjs # render both installers for releases and the deployed app
 docs/assets/          # README imagery: cockpit hero screenshots (dark chromeless, light in Mac chrome)
 docs/changelogs/      # archived per-version changelogs (see Changelog discipline)
 docs/acceptance/      # manual per-phase acceptance scripts (real-agent verification CI can't do)
@@ -64,6 +67,7 @@ pnpm test:remote        # transport, host authority and live relay authenticatio
 pnpm test:mobile        # after build: isolated HTTPS browser/connector/daemon flow (Playwright Chromium)
 pnpm test:ssh           # after build: loopback OpenSSH integration (sshd + ssh-keygen required)
 pnpm build:tarball      # self-contained puddled tarball for this platform (dist-release/)
+pnpm build:cli-tarball  # standalone CLI archive (after build; same output directory)
 pnpm --filter @puddle-code/desktop start   # run the Electron shell (after pnpm build; NOT from
                                       # inside an agent session — see the puddled warning below)
 pnpm --filter @puddle-code/desktop dist    # package it (dmg/zip/AppImage via electron-builder)
@@ -77,7 +81,8 @@ developing so the cockpit stays attached to your terminal (`puddle list` / `pudd
 kill` manage backgrounded ones; `puddle refresh` is kill-then-launch in one step, also
 reachable from the UI's connection banner).
 
-`puddle install/upgrade/remove <cli|daemon|desktop>[@version] [user@host]`
+`puddle install <daemon|desktop>[@version] [user@host]` and
+`puddle upgrade/remove <cli|daemon|desktop>[@version] [user@host]`
 manage the three components (SPEC §10): install ensures presence, upgrade
 moves to newest (or the named version; bare `upgrade` covers everything
 installed, CLI last), remove uninstalls behind y/N confirmations — daemon
@@ -86,6 +91,14 @@ uncommitted/unpushed work first. cli/desktop are client-machine only;
 `upgrade desktop` still installs the macOS app when none exists (writable
 `/Applications`, else `~/Applications`); Linux desktop stays in-app-update
 only (an AppImage has no fixed install path).
+
+Standalone CLI installs live under `~/.local/share/puddle/cli` (XDG/`--prefix`
+overrides supported), with a `~/.local/bin/puddle` wrapper. CLI upgrade/removal
+uses the actual installation channel; daemon removal cannot delete the CLI.
+Keep old standalone release trees during upgrades: live cockpits serve their assets.
+The remote app image serves separate `/install-cli.sh` and `/install-daemon.sh`
+scripts, refreshed from the canonical sources on rebuild; archives remain on
+GitHub Releases. See SPEC §10 and `docs/mobile-access.md`.
 
 On an SSH host where the installer selected `nohup` but the host reaps that
 child as soon as its exec channel closes, `puddle launch` falls back to an

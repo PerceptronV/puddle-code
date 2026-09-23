@@ -17,6 +17,14 @@
   }
   @preview path /preview.html
   header @preview Content-Security-Policy "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' data: https:; style-src 'unsafe-inline' data: https:; img-src data: https:; font-src data: https:; media-src data: https:; connect-src https:; frame-ancestors 'self'; base-uri 'none'; object-src 'none'; form-action 'none'"
-  try_files {path} /index.html
-  file_server
+  # Installer requests must never receive the SPA fallback (including typos).
+  @installers path /install*.sh
+  handle @installers {
+    header Content-Type "text/plain; charset=utf-8"
+    file_server
+  }
+  handle {
+    try_files {path} /index.html
+    file_server
+  }
 }

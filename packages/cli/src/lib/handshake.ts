@@ -6,7 +6,7 @@ export type HandshakeDecision =
   | { kind: 'upgrade-daemon' }
   | { kind: 'refuse-cli-outdated'; command: string };
 
-export const CLI_UPGRADE_COMMAND = 'npm install -g @puddle-code/cli';
+export const CLI_UPGRADE_COMMAND = 'puddle upgrade cli';
 
 /** One compatibility policy for host inspection and authenticated API verification. */
 export function decideHandshake(

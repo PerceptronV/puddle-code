@@ -20,7 +20,27 @@ Puddle manages parallel agents anywhere you SSH into, insulates agents in dedica
 
 ## Quick start
 
-**On your local machine where you will be using the GUI, run:**
+**On your local machine where you will be using the GUI:**
+
+For a standalone installation without Node.js or npm, use your deployed app's
+installer (replace the example host):
+
+```sh
+curl -fsSL https://app.example.com/install-cli.sh | sh
+```
+
+This installs the CLI under `~/.local/share/puddle/cli` and its launcher at
+`~/.local/bin/puddle`. Add `~/.local/bin` to your `PATH` if the installer asks.
+The standalone releases support Linux x64/arm64 and macOS arm64. The script and
+checksum-verified archives are also attached to this repository's GitHub Releases.
+An optional `--version` selects a release; `--prefix` and `--bin-dir` select the
+installation and launcher directories:
+
+```sh
+curl -fsSL https://app.example.com/install-cli.sh | sh -s -- --version X.Y.Z
+```
+
+Alternatively, with Node.js already installed, use npm:
 
 ```sh
 npm install -g @puddle-code/cli
@@ -58,11 +78,15 @@ when auto-resume is enabled (the default), restores the interrupted sessions.
 
 **Daemon-only installs:**
 
-Daemon-only installs (no CLI) use the `install.sh` attached to each release — see the Releases page of this repository:
+The daemon has its own separate installer; it does not install the CLI:
 
 ```sh
-curl -fsSL https://github.com/PerceptronV/puddle-code/releases/latest/download/install.sh | sh
+curl -fsSL https://app.example.com/install-daemon.sh | sh
 ```
+
+Both scripts are served by the [deployed app](docs/mobile-access.md#host-the-installers)
+and refreshed on every app rebuild. They download archives and checksums from
+GitHub Releases. The historical GitHub `install.sh` URL remains daemon-only.
 
 **Managing components:**
 
@@ -86,11 +110,11 @@ The macOS downloads are **not code-signed** (an open-source project without Appl
 xattr -dr com.apple.quarantine /Applications/Puddle.app
 ```
 
-Building from source avoids the dance entirely (locally built apps are never quarantined): `pnpm build && pnpm --filter @puddle/desktop dist`.
+Building from source avoids the dance entirely (locally built apps are never quarantined): `pnpm build && pnpm --filter @puddle-code/desktop dist`.
 
 **Host requirements**: Linux with glibc 2.28+ (Ubuntu 20.04+, Debian 11+, RHEL/Rocky 8+;
 Alpine is not supported) or macOS, with `git` and `curl`, plus whichever agent CLIs you want on
-`PATH`. The client side works from any OS with a browser and `ssh` (Windows works, with repeated
+`PATH`. Standalone CLI installs include Node and require no npm; npm installs require Node 22+. The client side works from any OS with a browser and `ssh` (Windows works, with repeated
 auth prompts unless you use a key).
 
 ## How it works
@@ -113,7 +137,7 @@ auth prompts unless you use a key).
                                         └───────────────────────────────────┘
 ```
 
-The CLI serves the UI at a stable local origin and reverse-proxies the API to the daemon, directly in local mode, through the tunnel in SSH mode. The daemon is headless and host-agnostic on `127.0.0.1:7434`. UI updates ship with the CLI (`npm update -g @puddle-code/cli` refreshes the cockpit for every host); the daemon only has to update when the versioned protocol breaks, and the launcher asks for approval before updating it. The prompt shows the host, both protocols and how many live sessions the restart interrupts; declining leaves the daemon running. `--no-upgrade` refuses before prompting, and non-interactive launches require an explicit `puddle upgrade daemon [user@host]` first. Short-lived host connection leases, separate browser authorisation and exact cockpit Host/Origin checks guard local access. Launch invitations are single-use; browser login survives cockpit restarts, while forwarded applications use a separate loopback origin. After upgrading from the old token flow, run `puddle launch` once to authorise existing tabs.
+The CLI serves the UI at a stable local origin and reverse-proxies the API to the daemon, directly in local mode, through the tunnel in SSH mode. The daemon is headless and host-agnostic on `127.0.0.1:7434`. UI updates ship with the CLI (`puddle upgrade cli` refreshes the cockpit for every host); the daemon only has to update when the versioned protocol breaks, and the launcher asks for approval before updating it. The prompt shows the host, both protocols and how many live sessions the restart interrupts; declining leaves the daemon running. `--no-upgrade` refuses before prompting, and non-interactive launches require an explicit `puddle upgrade daemon [user@host]` first. Short-lived host connection leases, separate browser authorisation and exact cockpit Host/Origin checks guard local access. Launch invitations are single-use; browser login survives cockpit restarts, while forwarded applications use a separate loopback origin. After upgrading from the old token flow, run `puddle launch` once to authorise existing tabs.
 
 Everything lives under `~/.puddle` on the host, installed without sudo — and `puddle remove daemon` takes it apart again.
 
@@ -121,7 +145,7 @@ Everything lives under `~/.puddle` on the host, installed without sudo — and `
 
 **One daemon, many clients.** There is a single local daemon per machine, living under `~/.puddle` and run by one supervised service (launchd's `dev.puddle.puddled` on macOS, systemd's `puddled` on Linux). The global `puddle` and a repo-run `node packages/cli/dist/index.js` are **both just clients** that talk to — and, when needed, install — that same daemon. They never run side by side, and there is no separate "dev daemon" alongside a "production daemon".
 
-**Dev build vs. production.** `npm i -g @puddle-code/cli` is the production path — its `puddle` fetches and upgrades the daemon from this repo's GitHub Releases. To exercise uncommitted changes, build and run from the repo:
+**Dev build vs. production.** The standalone installer or `npm i -g @puddle-code/cli` is the production path — its `puddle` fetches and upgrades the daemon from this repo's GitHub Releases. To exercise uncommitted changes, build and run from the repo:
 
 ```sh
 pnpm build && pnpm build:tarball
@@ -150,7 +174,7 @@ kill "$(cat ~/.puddle/puddled.pid)"                 # nohup fallback (no supervi
 
 ```sh
 puddle remove daemon --purge   # stops the daemon, unregisters its service, deletes ~/.puddle
-puddle remove cli              # npm uninstall -g, once the daemons you care about are gone
+puddle remove cli              # standalone or npm removal, using its installation channel
 ```
 
 > ⚠️ `~/.puddle` **is** your local state — the SQLite database with every profile, account, and session (plus conversation history), the daemon's worktree tracking, and the auth token. `--purge` deletes it irreversibly (the command lists dirty or unpushed worktrees and asks first); without it, `puddle remove daemon` keeps the data for a later reinstall.

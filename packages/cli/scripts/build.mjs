@@ -50,6 +50,7 @@ await build({
 });
 
 cpSync(join(repoRoot, 'scripts/install.sh'), join(pkgRoot, 'dist/install.sh'));
+cpSync(join(repoRoot, 'scripts/install-cli.sh'), join(pkgRoot, 'dist/install-cli.sh'));
 
 // npm only renders a README living in the package directory, and shows no
 // changelog at all — so surface both by copying them in at build time (both

@@ -74,6 +74,42 @@ codes privately. Recover a lost provider login through Google or GitHub; signing
 in again does not enrol a new browser at any host. Use the original provider:
 matching email addresses do not automatically link different provider identities.
 
+### Host the installers
+
+The app image serves two independent installers at its own HTTPS origin:
+
+```sh
+curl -fsSL https://app.example.com/install-cli.sh | sh
+curl -fsSL https://app.example.com/install-daemon.sh | sh
+```
+
+The CLI installer includes a Node runtime and does not use npm. It installs under
+`~/.local/share/puddle/cli` (or XDG_DATA_HOME/`--prefix`), puts `puddle` in
+`~/.local/bin` (or `--bin-dir`), and prints any necessary PATH setup. The daemon
+installer manages `~/.puddle` and its supervisor independently. `/install.sh`
+remains a daemon-only alias. Add `sh -s -- --version X.Y.Z` to pin a release.
+
+Each build copies the current canonical scripts from the checkout, bakes in the
+repository from CLI package metadata, and serves them as uncached plain text.
+The scripts resolve the latest release when run, so ordinary releases need no
+server update. Rebuild when the installer logic or configured repository changes.
+For a fork, set `PUDDLE_REPO=owner/repo` in the deployment environment before
+building. Both scripts fetch published archives and SHA256SUMS from GitHub;
+hosting the scripts does not mirror release binaries. Publish a release containing
+the new CLI archives before using the standalone online installer.
+
+After pulling an update, rebuild the app to refresh both scripts:
+
+```sh
+docker compose --env-file deploy/remote/.env -f deploy/remote/compose.yaml up --build -d app
+curl -fsSL https://app.example.com/install-cli.sh | sh -s -- --help
+curl -fsSL https://app.example.com/install-daemon.sh | sh -s -- --help
+```
+
+The installer URLs bypass the application HTML fallback; missing installer paths
+return 404. CI checks both scripts' content, shell syntax, content type and cache
+headers with the image running under the production restrictions.
+
 ### Repair a volume created by an older image
 
 Earlier service images created `/data` with mode `0755`. The private-storage check

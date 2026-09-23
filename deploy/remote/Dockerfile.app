@@ -6,6 +6,8 @@ RUN pnpm install --frozen-lockfile --filter @puddle/web...
 ARG PUDDLE_REMOTE_SERVICE
 ENV VITE_PUDDLE_REMOTE_SERVICE=$PUDDLE_REMOTE_SERVICE
 RUN test -n "$VITE_PUDDLE_REMOTE_SERVICE" && pnpm --filter @puddle/shared build && pnpm --filter @puddle/remote-transport build && pnpm --filter @puddle/web build
+ARG PUDDLE_REPO
+RUN node scripts/stage-installers.mjs packages/web/dist "$PUDDLE_REPO"
 # The first-paint theme script is external so script-src needs no inline exception.
 RUN node deploy/remote/externalise-theme.mjs packages/web/dist
 

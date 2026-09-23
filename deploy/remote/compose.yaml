@@ -19,6 +19,7 @@ services:
       dockerfile: deploy/remote/Dockerfile.app
       args:
         PUDDLE_REMOTE_SERVICE: ${PUDDLE_REMOTE_SERVICE}
+        PUDDLE_REPO: ${PUDDLE_REPO:-}
     environment:
       PUDDLE_REMOTE_SERVICE: ${PUDDLE_REMOTE_SERVICE}
       PUDDLE_REMOTE_WSS: ${PUDDLE_REMOTE_WSS}

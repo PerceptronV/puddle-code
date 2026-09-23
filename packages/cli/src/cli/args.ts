@@ -137,7 +137,7 @@ AppImage placed where you say (default ~/puddle), then opened in the file
 manager. Already installed and no @version → nothing changes.
 upgrade moves components to the newest release (or the named @version),
 installing any that are missing; with no component it covers everything
-installed on the target — the CLI last, via npm. cli and desktop are
+installed on the target — the CLI last, using its installation channel. cli and desktop are
 client-machine artefacts: user@host targets the daemon only. remove
 uninstalls a component after confirmation; 'daemon' stops it (interrupting
 its sessions), unregisters the supervisor, and keeps ~/.puddle's data —
@@ -336,7 +336,7 @@ export function parseArgs(argv: string[]): Command {
           'bad_arguments',
           'install takes one of: daemon | desktop (with an optional @version)',
           spec?.what === 'cli'
-            ? 'the CLI installs itself via npm: npm install -g @puddle-code/cli'
+            ? 'install the CLI with install-cli.sh or npm; update it with puddle upgrade cli'
             : 'e.g. puddle install daemon@v0.0.32 user@host',
         );
       }

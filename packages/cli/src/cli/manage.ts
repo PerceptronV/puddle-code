@@ -1,3 +1,4 @@
+import { upgradeCli, removeCli } from './manage-cli.js';
 import { acquireAuthority } from '../lib/auth/connection-authority.js';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -208,32 +209,6 @@ export async function runUpgrade(
   return upgradeCli(cmd.version, logger);
 }
 
-/** The CLI is npm-distributed, so its upgrade IS an npm install. */
-function upgradeCli(version: string | undefined, logger: Logger): Promise<number> {
-  const spec = `@puddle-code/cli@${version ?? 'latest'}`;
-  logger.info(`puddle CLI ${cliVersion()} — asking npm for ${version ?? 'the latest release'}`);
-  return new Promise((resolve, reject) => {
-    const child = spawn('npm', ['install', '-g', spec], { stdio: 'inherit' });
-    child.on('error', () =>
-      reject(
-        new CliError(
-          'not_installed',
-          'npm is not on PATH',
-          `the CLI is installed and upgraded via npm: npm install -g ${spec}`,
-        ),
-      ),
-    );
-    child.on('exit', (code) => {
-      if (code === 0) {
-        logger.info('done — `puddle --version` shows the installed version');
-        resolve(0);
-      } else {
-        reject(new CliError('not_installed', `npm install exited with ${code ?? 'a signal'}`));
-      }
-    });
-  });
-}
-
 // ---------------------------------------------------------------------------
 // desktop (shared by install and upgrade)
 
@@ -397,44 +372,6 @@ export async function runRemove(
     case 'daemon':
       return removeDaemonCmd(cmd, logger);
   }
-}
-
-async function removeCli(yes: boolean, logger: Logger): Promise<number> {
-  // Only an npm-global install can be removed the way it arrived; a repo
-  // checkout or a linked dev build is not ours to delete.
-  const managed = await new Promise<boolean>((resolve) => {
-    const child = spawn('npm', ['ls', '-g', '@puddle-code/cli', '--depth=0'], { stdio: 'ignore' });
-    child.on('error', () => resolve(false));
-    child.on('exit', (code) => resolve(code === 0));
-  });
-  if (!managed) {
-    throw new CliError(
-      'not_installed',
-      'the puddle CLI is not an npm global install on this machine',
-      'a repo checkout or linked dev build is removed the way it was installed',
-    );
-  }
-  const proceed = await confirm(
-    `Remove the puddle CLI (npm uninstall -g @puddle-code/cli)? Running cockpits keep ` +
-      `running until killed; daemons and their sessions are untouched.`,
-    { skip: yes },
-  );
-  if (!proceed) {
-    logger.info('nothing removed');
-    return 0;
-  }
-  return new Promise((resolve, reject) => {
-    const child = spawn('npm', ['uninstall', '-g', '@puddle-code/cli'], { stdio: 'inherit' });
-    child.on('error', () => reject(new CliError('not_installed', 'npm is not on PATH')));
-    child.on('exit', (code) => {
-      if (code === 0) {
-        logger.info('removed — daemons keep running (puddle remove daemon uninstalls one)');
-        resolve(0);
-      } else {
-        reject(new CliError('not_installed', `npm uninstall exited with ${code ?? 'a signal'}`));
-      }
-    });
-  });
 }
 
 async function removeDesktop(yes: boolean, logger: Logger): Promise<number> {

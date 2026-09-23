@@ -41,11 +41,15 @@ jobs:
       - name: verify hardened remote container startup and static files
         run: node deploy/remote/test-images.mjs
       - name: assert web assets ship inside the CLI
-        run: test -f packages/cli/dist/public/index.html && test -f packages/cli/dist/install.sh && test -f packages/cli/dist/host-control.mjs
+        run: test -f packages/cli/dist/public/index.html && test -f packages/cli/dist/install.sh && test -f packages/cli/dist/host-control.mjs && test -f packages/cli/dist/install-cli.sh
       # Self-smoke-tests the staged tree (puddled --version loads both native
       # modules), so the release packaging cannot rot between tags.
       - name: build the daemon tarball
         run: pnpm build:tarball
+      - name: build and exercise standalone CLI without system Node or npm
+        run: |
+          pnpm build:cli-tarball
+          node scripts/test-cli-tarball.mjs
 
   # The ordinary build above proves packaging on the current hosted image.
   # This second job exercises the actual release container before a tag: native
