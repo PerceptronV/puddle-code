@@ -18,3 +18,8 @@ Past releases: see docs/changelogs/.
 
 - Require `--profile <profile-id>` for remote CLI administration; keep `remote run` as the supervisor for all registrations.
 - Advance daemon/cockpit protocol to 22.0 and remote protocol to 3 for profile-scoped authority; delete legacy host-wide registrations and revoke their approvals on connector startup, retrying relay removal when offline.
+- Switch to Files and reveal the file when clicking a filename in Search; keep per-line results in Search.
+
+### Fixed
+
+- Leave 2.5 rows of blank space below file trees so the directory context menu remains accessible in long lists.

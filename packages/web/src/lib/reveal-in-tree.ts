@@ -8,9 +8,8 @@
  * never mounted together: the left sidebar shows ONE navigator at a time, so a
  * path clicked in Search or Changes is asking a tree that does not exist yet.
  * The request is therefore kept until a tree claims it — which is exactly the
- * behaviour a user wants, since the reveal is what they will find when they open
- * Files next. Clicking a path never yanks the sidebar off their results to prove
- * it happened.
+ * behaviour a user wants, whether the caller switches to Files immediately
+ * (search filenames) or keeps its results visible (search lines and changes).
  *
  * The request carries the worktree root it is relative to (`root`, undefined for
  * a session's own worktree, matching `?root=` everywhere else), so a browse tree
@@ -39,7 +38,7 @@ const listeners = new Set<(request: RevealRequest) => void>();
 /** Ask the Files tree to reveal `path`. Kept until a mounted tree takes it. */
 export function requestReveal(request: RevealRequest): void {
   pending = request;
-  // A mounted tree consumes it synchronously via `takePendingReveal`.
+  // A mounted tree consumes it synchronously via `clearPendingReveal`.
   listeners.forEach((l) => l(request));
 }
 

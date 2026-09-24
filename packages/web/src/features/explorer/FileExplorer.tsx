@@ -84,8 +84,10 @@ function ExplorerBody() {
             if (dragged.length > 0) ex.onInternalDrop('', dragged);
             else ex.onDropUpload('', e.dataTransfer.items, e.dataTransfer.files);
           }}
+          // Leave 2.5 row heights inside the scroll surface for the root menu,
+          // including when a long tree fills the viewport (rows are h-6/h-5).
           className={cn(
-            'h-full overflow-y-auto py-1 outline-none',
+            'h-full overflow-y-auto pb-15 pt-1 outline-none compact:pb-12.5',
             ex.dropTarget === '' && 'bg-selection',
           )}
         >

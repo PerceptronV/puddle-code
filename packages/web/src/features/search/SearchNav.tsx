@@ -49,8 +49,9 @@ function Toggle({
  * The Search navigator (SPEC §8): filename + content search over the bound
  * worktree, Obsidian-style — one query returns a "Files" section (name matches)
  * and a "Contents" section (per-file line matches). Case / whole-word / regex
- * toggles mirror the daemon's `git grep`. Clicking a filename opens the file;
- * clicking a content match opens it at that line. The query is debounced.
+ * toggles mirror the daemon's `git grep`. Clicking a filename opens the file
+ * and switches to Files; clicking a content match opens it at that line while
+ * keeping Search visible. The query is debounced.
  */
 export function SearchNav({
   session,
@@ -81,11 +82,9 @@ export function SearchNav({
   const data = search.data;
   const hasResults = !!data && (data.files.length > 0 || data.content.length > 0);
 
-  // Opening a hit also LOCATES it: the Files tree expands to the file and selects
-  // it (SPEC §8), so a result you act on stops being an orphan path. The sidebar
-  // deliberately stays on the results — the reveal is latched and waits for the
-  // tree (`lib/reveal-in-tree`), rather than throwing away the search you are
-  // reading to prove it happened.
+  // Every hit also locates its file in the tree. The navigator switches to Files
+  // for filename clicks; line hits keep Search visible. The reveal latch waits
+  // for the tree to mount in either case (`lib/reveal-in-tree`, SPEC §8).
   const open = (path: string, line?: number, preview = true) => {
     onOpen(path, line, preview ? undefined : { preview: false });
     requestReveal({ path, root });

@@ -441,7 +441,10 @@ export function NavigatorSidebar({
             key={navigatorScope}
             session={session.id}
             root={requestRoot}
-            onOpen={onOpenSearchFile}
+            onOpen={(path, line, opts) => {
+              onOpenSearchFile(path, line, opts);
+              if (line === undefined) onModeChange('files');
+            }}
           />
         ) : (
           <div className="px-3 py-2 text-xs text-fg-muted">No worktree to search.</div>
