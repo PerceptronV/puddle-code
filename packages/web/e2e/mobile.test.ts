@@ -281,10 +281,15 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     await page.getByRole('button', { name: 'Files', exact: true }).click();
     await checkFileToolbar(page, testInfo);
     await page.getByRole('button', { name: 'Review changes' }).click();
+    const review = page.getByRole('region', { name: 'Changes', exact: true });
+    for (const label of ['Changes', 'Files', 'Refresh'])
+      await expect(review.getByRole('button', { name: label, exact: true })).toHaveCount(0);
     await page.getByRole('button', { name: 'review.html · added', exact: true }).click();
-    await expect(page.locator('pre')).toContainText(
-      '+<script>window.repositoryExecuted = true</script>',
+    await expect(page.locator('.phone-diff')).toContainText(
+      '<script>window.repositoryExecuted = true</script>',
     );
+    await expect(page.locator('.phone-diff-line[data-change="added"]').first()).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath('phone-diff.png') });
     expect(await page.evaluate(() => 'repositoryExecuted' in window)).toBe(false);
     await page.getByRole('button', { name: 'Terminals', exact: true }).click();
     await page.getByRole('button', { name: 'Files', exact: true }).click();

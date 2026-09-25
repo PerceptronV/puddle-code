@@ -8,3 +8,13 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Changed
+
+- Simplify mobile change review and show vertically stacked Before/After sections with line numbers, addition/deletion colours and changed-word highlights.
+
+### Fixed
+
+- Clarify browser approval instructions with the Connected browsers settings path.
+- Support native mobile keyboard suggestions, corrections and caret movement, including iOS spacebar cursor gestures and taps within verified live terminal input.
+- Keep the mobile keyboard focused during rapid terminal key-strip taps without duplicating commands.

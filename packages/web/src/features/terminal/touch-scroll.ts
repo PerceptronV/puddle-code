@@ -12,6 +12,7 @@ export function attachTerminalTouchScroll(
   active: () => boolean,
   onScroll: () => void,
   onSelection: (text: string | null) => void,
+  onTap?: (x: number, y: number) => void,
 ): () => void {
   const screen = terminal.element?.querySelector<HTMLElement>('.xterm-screen');
   if (!screen) return () => {};
@@ -104,7 +105,11 @@ export function attachTerminalTouchScroll(
   const end = (event: TouchEvent) => {
     if (gesture?.dragged || gesture?.selecting)
       event.preventDefault(); // suppress the emulated click after a swipe
-    else if (gesture && active() && performance.now() - gesture.at < 300) terminal.focus();
+    else if (gesture && active() && performance.now() - gesture.at < 300) {
+      event.preventDefault(); // no delayed mouse click to refocus or report to the application
+      if (onTap) onTap(gesture.x, gesture.y);
+      else terminal.focus();
+    }
     reset();
   };
   const contextMenu = (event: Event) => {

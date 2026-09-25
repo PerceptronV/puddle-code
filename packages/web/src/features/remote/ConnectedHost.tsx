@@ -112,7 +112,8 @@ export function ConnectedHost({
                 {state === 'pairing' && client.pendingDevice && (
                   <>
                     <p className="text-sm text-fg-secondary">
-                      Open Remote & Sync on your host and approve this browser’s identity.
+                      Open Remote & Sync → Connected browsers on your host and approve this
+                      browser’s identity.
                     </p>
                     <code className="block break-all rounded-md bg-surface p-3 text-xs">
                       {client.pendingDevice.peer}

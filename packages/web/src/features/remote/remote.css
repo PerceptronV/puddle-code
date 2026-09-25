@@ -302,12 +302,65 @@
   gap: 0.25rem;
   margin-bottom: 0.5rem;
 }
-.phone-review pre {
+.phone-review .phone-file-source {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   padding-block: 1rem;
+}
+.phone-review [aria-pressed='true'] {
+  background: var(--bg-surface);
+}
+.phone-diff-hunk {
+  margin-bottom: 1.5rem;
+}
+.phone-diff-pane + .phone-diff-pane {
+  margin-top: 0.75rem;
+}
+.phone-diff-code {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  tab-size: 2;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.phone-diff-line {
+  display: flex;
+  align-items: baseline;
+  min-height: 1.5em;
+}
+.phone-diff-number,
+.phone-diff-sign {
+  flex: none;
+  color: var(--text-muted);
+  user-select: none;
+}
+.phone-diff-number {
+  width: 4ch;
+  padding-right: 0.5ch;
+  text-align: right;
+}
+.phone-diff-sign {
+  width: 2ch;
+  text-align: center;
+}
+.phone-diff-line code {
+  min-width: 0;
+  flex: 1;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.phone-diff-line[data-change='added'],
+.phone-diff-line[data-change='added'] mark {
+  background: var(--diff-added);
+}
+.phone-diff-line[data-change='removed'],
+.phone-diff-line[data-change='removed'] mark {
+  background: var(--diff-removed);
+}
+.phone-diff-line mark {
+  color: inherit;
 }
 .phone-file {
   display: block;

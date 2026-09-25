@@ -37,6 +37,10 @@ recovery instructions: [self-hosted mobile access](../mobile-access.md).
   from desktop settings while their host records remain revoked. Shared browser cards
   keep approved identities collapsed and pending identities visible; desktop wraps
   the cards in an initially collapsed disclosure.
+  An isolated xterm/browser fixture covers native replacement edits, Unicode/IME
+  commits, native caret changes, verified tap placement, focus retention during rapid
+  key taps, cancellation after deactivation and inert highlighted diffs. Browser
+  emulation does not establish physical iOS keyboard behaviour.
   A separate UI fixture covers
   in-place registration editing, editable defaults, synchronous UI-client tab opening
   with its challenge prepared before the click, cancellation and quiet polling during sign-in,
@@ -118,6 +122,9 @@ Run on current iOS Safari and Android Chrome, recording versions and results:
 | Portrait/landscape; keyboard open/closed | Terminal key strip sits above the keyboard; shared dialogues fit the visible viewport and safe areas |
 | IME composition, Unicode, dictation, multiline paste | Native composition remains intact; Send follows terminal paste mode and submits once |
 | Direct terminal typing; Escape, Tab, arrows, Enter, Ctrl/Opt chords | Tapping xterm opens the keyboard; touch controls retain focus and deliver hardware-equivalent sequences; one-shot modifiers clear after use |
+| Native suggestions, autocorrection and dictation | Type a misspelling, accept a suggestion, then edit in the middle; unchanged words and Unicode must not repeat, and Enter submits once |
+| Tap placement and iOS spacebar trackpad | Within freshly typed text, tap a word and insert in the middle, including wrapped rows and wide glyphs; hold the keyboard spacebar and slide to move the terminal caret. After history/completion/reconnect, fall back to cursor keys until typing establishes new context; transcript taps must not send movement |
+| Rapid terminal key-strip taps | Tap Escape, Ctrl/Opt and arrows repeatedly; the keyboard stays visible, each tap sends once, and horizontal scrolling sends no key |
 | Image picker and desktop clipboard image paste | Image button opens the native picker; accepted images appear in the host worktree and their paths are inserted once without submitting or clearing the composer; originals up to 4 MiB retain their bytes and larger photos fit that limit with a resize notice; progress advances after acknowledgements and cancellation prevents insertion (a final save may leave a completed file); unsupported images fail visibly and selecting the same image twice works |
 | Long-press terminal paste | Hold a word or empty input cell to open Copy/Paste; Paste inserts Unicode text once without adding Enter, honours bracketed paste, opens the keyboard, and reports denied clipboard permission; switching hosts or terminals while permission is pending sends nothing |
 | Long output and text selection | Terminal remains responsive; hold-and-drag selects Unicode text across rows, Copy writes only on tap, edge dragging scrolls history, and quick swipes remain scrolling; file text supports native selection handles and Copy |
@@ -129,7 +136,7 @@ Run on current iOS Safari and Android Chrome, recording versions and results:
 | Project cards and session rail | Hosts have separate card groups; only the active project’s non-archived sessions appear; tap switches, hold opens details, archive/restore and rail expansion work; the collapsed rail and expanded drawer sit on the left, aligned with the workspace toolbar |
 | Files and custom paths | Double-tap opens text, Back returns to the same directory, path dialogue starts at the current directory/file, typed file paths open the viewer, and custom host roots and projects without sessions can be browsed |
 | Disconnect in settings | Viewer closes without stopping agents; the host stays disconnected until Connect during this visit |
-| File previews and change review | Eye switches supported files between source and rendered preview; Markdown maths/diagrams, HTML JavaScript and local assets work; HTML cannot read parent DOM/storage/cookies; image/audio/video/PDF viewers work within the 8 MiB asset cap; changes stay text-only |
+| File previews and change review | Eye switches supported files between source and rendered preview; Markdown maths/diagrams, HTML JavaScript and local assets work; HTML cannot read parent DOM/storage/cookies; image/audio/video/PDF viewers work within the 8 MiB asset cap; changes have no duplicate Changes/Files/Refresh row; each hunk stacks numbered Before/After text with addition/deletion and changed-word highlights in both themes, while source stays inert |
 | Breakpoint and project/session changes | Terminal identity and unsent text survive; desktop layout seed stays unchanged |
 
 ## Independent review gate

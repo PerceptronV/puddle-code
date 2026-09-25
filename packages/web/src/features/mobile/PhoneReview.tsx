@@ -1,67 +1,25 @@
-import { useMemo, useState } from 'react';
-import { createTwoFilesPatch } from 'diff';
+import { useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import {
-  diffResponseSchema,
-  fileAtResponseSchema,
-  fileResponseSchema,
-  treeResponseSchema,
-} from '@puddle/shared';
+import { diffResponseSchema, fileAtResponseSchema, fileResponseSchema } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { api } from '../../lib/api';
+import { PhoneDiff } from './PhoneDiff';
+import { PhoneFileText } from './PhoneFileText';
 
-/** Source is rendered as text only. Active previews never enter this origin. */
+/** Changes only: navigation and refresh belong to the Files workspace. */
 export function PhoneReview({ session }: { session: string }) {
-  const [mode, setMode] = useState<'changes' | 'files'>('changes');
-  const [directory, setDirectory] = useState('');
   const [path, setPath] = useState<string | null>(null);
-  const [baseline, setBaseline] = useState(false);
-  const [showDiff, setShowDiff] = useState(true);
+  const [view, setView] = useState<'diff' | 'before' | 'after'>('diff');
   const changes = useQuery({
     queryKey: ['phone-diff', session],
     queryFn: async () =>
       diffResponseSchema.parse(await api('GET', `/api/worktrees/${session}/diff?against=base`)),
-    enabled: mode === 'changes',
   });
-  const tree = useQuery({
-    queryKey: ['phone-tree', session, directory],
-    queryFn: async () =>
-      treeResponseSchema.parse(
-        await api(
-          'GET',
-          `/api/worktrees/${session}/tree?path=${encodeURIComponent(directory || '.')}`,
-        ),
-      ),
-    enabled: mode === 'files',
-  });
-  const file = useQuery({
-    queryKey: ['phone-file', session, path, baseline, showDiff, changes.data?.against],
-    queryFn: async () => {
-      if (baseline && !showDiff && changes.data) {
-        const entry = changes.data.entries.find((entry) => entry.path === path);
-        if (entry?.status === 'added') return { content: '', binary: false };
-        return fileAtResponseSchema.parse(
-          await api(
-            'GET',
-            `/api/worktrees/${session}/file-at?ref=${encodeURIComponent(changes.data.against)}&path=${encodeURIComponent(entry?.old_path ?? path!)}`,
-          ),
-        );
-      }
-      if (
-        mode === 'changes' &&
-        changes.data?.entries.find((entry) => entry.path === path)?.status === 'deleted'
-      )
-        return { content: '', binary: false };
-      return fileResponseSchema.parse(
-        await api('GET', `/api/worktrees/${session}/file?path=${encodeURIComponent(path!)}`),
-      );
-    },
-    enabled: path !== null,
-  });
+  const entry = changes.data?.entries.find((entry) => entry.path === path);
   const before = useQuery({
-    queryKey: ['phone-before', session, path, changes.data?.against],
+    queryKey: ['phone-before', session, path, entry?.old_path, changes.data?.against],
     queryFn: async () => {
-      const entry = changes.data!.entries.find((entry) => entry.path === path);
       if (entry?.status === 'added') return { content: '', binary: false };
       return fileAtResponseSchema.parse(
         await api(
@@ -70,161 +28,98 @@ export function PhoneReview({ session }: { session: string }) {
         ),
       );
     },
-    enabled: !!path && mode === 'changes' && showDiff && !!changes.data,
+    enabled: path !== null && !!changes.data,
   });
-  const patch = useMemo(() => {
-    if (
-      !showDiff ||
-      mode !== 'changes' ||
-      !before.data ||
-      !file.data ||
-      before.data.binary ||
-      file.data.binary
-    )
-      return null;
-    // Bound pathological diffs; the original text remains available through Before/After.
-    return (
-      createTwoFilesPatch(
-        path!,
-        path!,
-        before.data.content ?? '',
-        file.data.content ?? '',
-        '',
-        '',
-        { context: 3, timeout: 100 },
-      ) ?? 'Diff is too large. Use Before and After to review the text.'
-    );
-  }, [showDiff, mode, before.data, file.data, path]);
-  const error = changes.error ?? tree.error ?? file.error ?? before.error;
+  const after = useQuery({
+    queryKey: ['phone-after', session, path, entry?.status],
+    queryFn: async () => {
+      if (entry?.status === 'deleted') return { content: '', binary: false };
+      return fileResponseSchema.parse(
+        await api('GET', `/api/worktrees/${session}/file?path=${encodeURIComponent(path!)}`),
+      );
+    },
+    enabled: path !== null && !!changes.data,
+  });
+  const error = changes.error ?? (path ? (before.error ?? after.error) : null);
+  const binary =
+    view === 'diff'
+      ? before.data?.binary || after.data?.binary
+      : view === 'before'
+        ? before.data?.binary
+        : after.data?.binary;
   return (
-    <section className="phone-review">
-      <nav>
-        <Button
-          variant="ghost"
-          onClick={() => {
-            setMode('changes');
-            setPath(null);
-            setShowDiff(true);
-          }}
-        >
-          Changes
-        </Button>
-        <Button
-          variant="ghost"
-          onClick={() => {
-            setMode('files');
-            setPath(null);
-            setBaseline(false);
-            setShowDiff(false);
-          }}
-        >
-          Files
-        </Button>
-        <Button
-          variant="ghost"
-          onClick={() => {
-            void changes.refetch();
-            void tree.refetch();
-            if (path) void file.refetch();
-          }}
-        >
-          Refresh
-        </Button>
-      </nav>
+    <section className="phone-review" aria-label="Changes">
       {path === null ? (
-        mode === 'changes' ? (
-          <>
-            <p>Changes against {changes.data?.base_ref ?? 'base'}</p>
-            {changes.data?.entries.map((entry) => (
-              <Button
-                variant="ghost"
-                className="phone-file"
-                key={entry.path}
-                onClick={() => setPath(entry.path)}
-              >
-                {entry.path} · {entry.status}
-              </Button>
-            ))}
-            {changes.data?.entries.length === 0 && <p>No changes.</p>}
-          </>
-        ) : (
-          <>
+        <>
+          <p className="mb-2 text-sm text-fg-muted">
+            Changes against {changes.data?.base_ref ?? 'base'}
+          </p>
+          {changes.isPending && <p className="text-sm text-fg-muted">Loading changes…</p>}
+          {changes.data?.entries.map((entry) => (
             <Button
               variant="ghost"
-              onClick={() => setDirectory(directory.split('/').slice(0, -1).join('/'))}
+              className="phone-file"
+              key={entry.path}
+              onClick={() => {
+                setPath(entry.path);
+                setView('diff');
+              }}
             >
-              Up · {directory || '/'}
+              {entry.path} · {entry.status}
             </Button>
-            {tree.data?.entries.map((entry) => (
-              <Button
-                variant="ghost"
-                className="phone-file"
-                key={entry.name}
-                disabled={entry.type === 'symlink'}
-                onClick={() => {
-                  const next = [directory, entry.name].filter(Boolean).join('/');
-                  if (entry.type === 'dir') setDirectory(next);
-                  else setPath(next);
-                }}
-              >
-                {entry.name}
-                {entry.type === 'dir' ? '/' : ''}
-              </Button>
-            ))}
-          </>
-        )
+          ))}
+          {changes.data?.entries.length === 0 && (
+            <p className="text-sm text-fg-muted">No changes.</p>
+          )}
+        </>
       ) : (
         <>
-          <Button variant="ghost" onClick={() => setPath(null)}>
-            Back
-          </Button>
-          <span>{path} · read only</span>
-          {mode === 'changes' && (
-            <nav>
+          <div className="mb-2 flex min-w-0 items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Back to changes"
+              onClick={() => setPath(null)}
+            >
+              <ArrowLeft />
+            </Button>
+            <span className="min-w-0 break-all font-mono text-xs">{path} · read only</span>
+          </div>
+          <nav aria-label="Diff view">
+            {(['diff', 'before', 'after'] as const).map((mode) => (
               <Button
+                key={mode}
                 variant="ghost"
-                onClick={() => {
-                  setShowDiff(true);
-                  setBaseline(false);
-                }}
-                aria-pressed={showDiff}
+                size="sm"
+                aria-pressed={view === mode}
+                onClick={() => setView(mode)}
               >
-                Diff
+                {mode === 'diff' ? 'Diff' : mode === 'before' ? 'Before' : 'After'}
               </Button>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setShowDiff(false);
-                  setBaseline(true);
-                }}
-                aria-pressed={!showDiff && baseline}
-              >
-                Before
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setShowDiff(false);
-                  setBaseline(false);
-                }}
-                aria-pressed={!showDiff && !baseline}
-              >
-                After
-              </Button>
-            </nav>
-          )}
-          {file.data?.binary || (showDiff && before.data?.binary) ? (
-            <p>Binary file; preview unavailable.</p>
+            ))}
+          </nav>
+          {binary ? (
+            <p className="text-sm text-fg-muted">Binary file; preview unavailable.</p>
+          ) : view === 'diff' ? (
+            before.data && after.data ? (
+              <PhoneDiff before={before.data.content ?? ''} after={after.data.content ?? ''} />
+            ) : (
+              !error && <p className="text-sm text-fg-muted">Loading diff…</p>
+            )
+          ) : (view === 'before' ? before.data : after.data) ? (
+            <PhoneFileText
+              content={(view === 'before' ? before.data?.content : after.data?.content) ?? ''}
+            />
           ) : (
-            <pre tabIndex={0}>
-              {showDiff && mode === 'changes'
-                ? (patch ?? 'Loading…')
-                : (file.data?.content ?? 'Loading…')}
-            </pre>
+            !error && <p className="text-sm text-fg-muted">Loading file…</p>
           )}
         </>
       )}
-      {error && <p role="alert">{error.message}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error.message}
+        </p>
+      )}
     </section>
   );
 }

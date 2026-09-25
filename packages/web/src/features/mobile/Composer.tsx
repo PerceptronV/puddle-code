@@ -79,6 +79,7 @@ export function Composer({
             onChange={(e) => save(e.target.value)}
             placeholder="Write a prompt…"
             autoCapitalize="sentences"
+            autoCorrect="on"
             spellCheck
           />
           <Button type="submit" disabled={!ready || busy || !draft}>
