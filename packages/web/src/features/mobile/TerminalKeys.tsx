@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, TextCursorInput } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { ImagePasteButton } from './ImagePasteButton';
-import { TerminalKey } from './TerminalKey';
+import { keepTerminalFocus, TerminalKey } from './TerminalKey';
 import {
   focusTerminal,
   sendTerminalInput,
@@ -33,7 +33,12 @@ export function TerminalKeys({
   };
   return (
     <>
-      <div className="phone-keys" role="toolbar" aria-label="Terminal keys">
+      <div
+        className="phone-keys"
+        role="toolbar"
+        aria-label="Terminal keys"
+        onTouchEnd={keepTerminalFocus(() => focusTerminal(session, term))}
+      >
         <ImagePasteButton session={session} term={term} ready={ready} />
         <TerminalKey variant="ghost" disabled={!ready} activate={() => send('\x1b')}>
           Esc

@@ -1,9 +1,9 @@
 import { createRoot } from 'react-dom/client';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
-import { attachNativeTerminalInput } from '../../src/features/terminal/native-input';
+import { attachIosTerminalInput } from '../../src/features/terminal/ios-input';
 import { attachTerminalTouchScroll } from '../../src/features/terminal/touch-scroll';
-import { TerminalKey } from '../../src/features/mobile/TerminalKey';
+import { keepTerminalFocus, TerminalKey } from '../../src/features/mobile/TerminalKey';
 import { PhoneDiff } from '../../src/features/mobile/PhoneDiff';
 import '../../src/features/remote/remote.css';
 import '../../src/styles/tokens.css';
@@ -12,24 +12,24 @@ const terminal = new Terminal({ cols: 32, rows: 8 });
 terminal.open(document.getElementById('terminal')!);
 let active = true;
 let input: string[] = [];
-const native = attachNativeTerminalInput(terminal, () => active);
-terminal.onData((data) => {
-  native.observe(data);
-  input.push(data);
-});
+attachIosTerminalInput(terminal, () => active);
+terminal.onData((data) => input.push(data));
 attachTerminalTouchScroll(
   terminal,
   () => active,
   () => {},
   () => {},
-  (x, y) => native.tap(x, y),
 );
 const send = (data: string) => {
   terminal.focus();
   terminal.input(data, true);
 };
 createRoot(document.getElementById('controls')!).render(
-  <div className="phone-keys">
+  <div
+    className="phone-keys"
+    style={{ paddingInline: '2rem' }}
+    onTouchEnd={keepTerminalFocus(() => terminal.focus())}
+  >
     <TerminalKey activate={() => send('\x1b')}>Esc</TerminalKey>
     <TerminalKey activate={() => send('\x1b[D')}>Left</TerminalKey>
     <TerminalKey activate={() => send('\x1b[C')}>Right</TerminalKey>
@@ -50,7 +50,6 @@ Object.assign(window, {
     focus: () => terminal.focus(),
     active: (value: boolean) => {
       active = value;
-      if (!value) native.reset();
     },
     write: (data: string) => new Promise<void>((resolve) => terminal.write(data, resolve)),
     cell: (column: number, row: number) => {

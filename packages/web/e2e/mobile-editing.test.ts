@@ -2,7 +2,12 @@ import { test, expect, type Page } from '@playwright/test';
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 
-test.use({ hasTouch: true, isMobile: true });
+test.use({
+  hasTouch: true,
+  isMobile: true,
+  userAgent:
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+});
 
 // Real xterm and native browser events, isolated from a daemon or coding-agent process.
 let javascript: Uint8Array;
@@ -53,90 +58,94 @@ declare global {
 const input = (page: Page) => page.evaluate(() => window.editing.input());
 const clear = (page: Page) => page.evaluate(() => window.editing.clear());
 
-async function nativeReplacement(
-  page: Page,
-  text: string,
-  cursor: number,
-  type = 'insertReplacementText',
-) {
+const PAD = '        \n        \n        ';
+const CENTRE = 13;
+async function moveCaret(page: Page, offset: number) {
+  await page.locator('textarea').evaluate((element, offset) => {
+    element.setSelectionRange(offset, offset);
+  }, offset);
+}
+async function beforeInput(page: Page, inputType: string, data: string | null = null) {
   await page.locator('textarea').evaluate(
-    (element, { text, cursor, type }) => {
-      element.value = text;
-      element.setSelectionRange(cursor, cursor);
+    (element, { inputType, data }) => {
       element.dispatchEvent(
-        new InputEvent('input', { bubbles: true, inputType: type, data: text }),
+        new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType, data }),
       );
     },
-    { text, cursor, type },
+    { inputType, data },
   );
 }
 
-test('native suggestions replace words; composition and Unicode arrive exactly once', async ({
+test('spacebar trackpad steps send one arrow each and never exhaust the padding', async ({
   page,
 }) => {
-  await expect(page.locator('textarea')).toHaveAttribute('autocorrect', 'on');
-  await page.keyboard.type('teh cat');
-  expect(await input(page)).toBe('teh cat');
+  const textarea = page.locator('textarea');
+  await expect(textarea).toHaveValue(PAD);
+  for (const [offset, key] of [
+    [CENTRE - 1, 'D'],
+    [CENTRE + 1, 'C'],
+    [CENTRE - 9, 'A'],
+    [CENTRE + 9, 'B'],
+    // A leap to either end, as iOS makes at a row boundary, is still one step.
+    [0, 'A'],
+    [PAD.length, 'B'],
+    [CENTRE + 4, 'C'],
+  ] as const) {
+    await clear(page);
+    await moveCaret(page, offset);
+    await expect.poll(() => input(page)).toBe(`\x1b[${key}`);
+    await expect.poll(() => textarea.evaluate((element) => element.selectionEnd)).toBe(CENTRE);
+  }
   await clear(page);
-  await nativeReplacement(page, 'the cat', 7);
-  expect(await input(page)).toBe('\x1b[D'.repeat(4) + '\x7f\x7fhe' + '\x1b[C'.repeat(4));
-  await page.keyboard.press('Enter');
+  await page.evaluate(() => window.editing.write('\x1b[?1h'));
+  await moveCaret(page, CENTRE - 1);
+  await expect.poll(() => input(page)).toBe('\x1bOD');
+  await expect(textarea).toHaveValue(PAD);
+});
+
+test('keys, keyless insertions and IME commits arrive once without editing the padding', async ({
+  page,
+}) => {
+  const textarea = page.locator('textarea');
+  await page.keyboard.type('hi');
+  await page.keyboard.press('Backspace');
+  expect(await input(page)).toBe('hi\x7f');
   await clear(page);
-  await page.locator('textarea').evaluate((element) => {
+  await beforeInput(page, 'insertText', 'predicted ');
+  await beforeInput(page, 'deleteContentBackward');
+  await beforeInput(page, 'insertReplacementText', 'ignored');
+  expect(await input(page)).toBe('predicted \x7f');
+  await expect(textarea).toHaveValue(PAD);
+  await clear(page);
+  await textarea.evaluate((element) => {
     element.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
-    element.value = '日本語 🌊';
-    element.setSelectionRange(element.value.length, element.value.length);
     element.dispatchEvent(
-      new InputEvent('input', {
-        bubbles: true,
-        isComposing: true,
-        inputType: 'insertCompositionText',
-        data: element.value,
-      }),
+      new KeyboardEvent('keydown', { bubbles: true, keyCode: 229, isComposing: true }),
     );
-    element.dispatchEvent(
-      new CompositionEvent('compositionend', { bubbles: true, data: element.value }),
-    );
-    element.dispatchEvent(
-      new InputEvent('input', { bubbles: true, inputType: 'insertText', data: element.value }),
-    );
+    element.value = element.value.slice(0, 13) + '日本' + element.value.slice(13);
+    element.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: '日本' }));
   });
-  expect(await input(page)).toBe('日本語 🌊');
-});
-
-test('native caret movement and selection replacement edit in the middle', async ({ page }) => {
-  await page.keyboard.type('hello world');
+  await page.waitForTimeout(50);
+  expect(await input(page)).toBe('日本');
+  await expect(textarea).toHaveValue(PAD);
   await clear(page);
-  await page.locator('textarea').evaluate((element) => {
-    element.setSelectionRange(5, 5);
-  });
-  await expect.poll(() => input(page)).toBe('\x1b[D'.repeat(6));
-  await clear(page);
-  await page.keyboard.type('!');
-  expect(await input(page)).toBe('!');
-  await expect(page.locator('textarea')).toHaveValue('hello! world');
-  await page.locator('textarea').evaluate((element) => {
-    element.setSelectionRange(0, 5);
-  });
-  await expect.poll(() => input(page)).toBe('!\x1b[D');
-  await clear(page);
-  await page.keyboard.type('Hi');
-  expect(await input(page)).toBe('\x7f'.repeat(5) + 'Hi');
-});
-
-test('taps reposition within verified terminal input and leave transcript taps alone', async ({
-  page,
-}) => {
-  await page.keyboard.type('hello world');
-  await page.evaluate(() => window.editing.write('\x1b[2J\x1b[H› hello world'));
-  await clear(page);
-  const point = await page.evaluate(() => window.editing.cell(7, 0));
-  await page.touchscreen.tap(point.x, point.y);
-  await expect.poll(() => input(page)).toBe('\x1b[D'.repeat(6));
-  await clear(page);
-  const output = await page.evaluate(() => window.editing.cell(4, 4));
-  await page.touchscreen.tap(output.x, output.y);
+  await page.evaluate(() => window.editing.active(false));
+  await beforeInput(page, 'insertText', 'hidden');
+  await moveCaret(page, CENTRE - 1);
+  await expect.poll(() => textarea.evaluate((element) => element.selectionEnd)).toBe(CENTRE);
   expect(await input(page)).toBe('');
+});
+
+test('taps focus without moving the caret and reach mouse-aware applications', async ({ page }) => {
+  await page.evaluate(() => window.editing.write('› hello world'));
+  await clear(page);
+  const point = await page.evaluate(() => window.editing.cell(4, 0));
+  await page.touchscreen.tap(point.x, point.y);
+  await expect(page.locator('textarea')).toBeFocused();
+  expect(await input(page)).toBe('');
+  await page.evaluate(() => window.editing.write('\x1b[?1000h\x1b[?1006h'));
+  await page.touchscreen.tap(point.x, point.y);
+  await expect.poll(() => input(page)).toBe('\x1b[<0;5;1M\x1b[<0;5;1m');
 });
 
 test('rapid command taps retain focus and send each key once; dragging sends nothing', async ({
@@ -169,13 +178,12 @@ test('rapid command taps retain focus and send each key once; dragging sends not
   });
   await button.dispatchEvent('touchend', { touches: [] });
   expect(await input(page)).toBe('');
-});
-
-test('hidden or disconnected inputs cannot commit a pending composition', async ({ page }) => {
-  await page.locator('textarea').dispatchEvent('compositionstart');
-  await page.evaluate(() => window.editing.active(false));
-  await nativeReplacement(page, 'do not send', 11);
-  await page.locator('textarea').dispatchEvent('compositionend', { data: 'do not send' });
+  await expect(textarea).toBeFocused();
+  // A tap between keys, with the keyboard dismissed, raises it again.
+  await textarea.evaluate((element) => element.blur());
+  const strip = (await page.locator('.phone-keys').boundingBox())!;
+  await page.touchscreen.tap(strip.x + 8, strip.y + strip.height / 2);
+  await expect(textarea).toBeFocused();
   expect(await input(page)).toBe('');
 });
 
@@ -188,45 +196,4 @@ test('diffs stack highlighted numbered panes and keep source inert', async ({ pa
   await expect(after).toContainText('<script>window.executed = true</script>');
   expect(await page.evaluate(() => 'executed' in window)).toBe(false);
   await expect(after.locator('.phone-diff-number')).toHaveText(['1', '2', '3', '4']);
-});
-
-for (const [text, screen, column, offset] of [
-  ['first words second row', '› first words\r\n  second row', 8, 6],
-  ['abcdefghijklmnopqrstuvwxyz0123456789', '› abcdefghijklmnopqrstuvwxyz0123456789', 5, 3],
-  ['hi 🌊 there', '› hi 🌊 there', 5, 3],
-] as const) {
-  test(`tap placement follows wrapped and wide text: ${text}`, async ({ page }) => {
-    await nativeReplacement(page, text, text.length, 'insertText');
-    expect(await input(page)).toBe(text);
-    await page.evaluate((screen) => window.editing.write('\x1b[2J\x1b[H' + screen), screen);
-    await clear(page);
-    const point = await page.evaluate((column) => window.editing.cell(column, 0), column);
-    await page.touchscreen.tap(point.x, point.y);
-    await expect
-      .poll(() => input(page))
-      .toBe('\x1b[D'.repeat(Array.from(text.slice(offset)).length));
-  });
-}
-
-test('IME candidates stay visible and a cancelled composition cannot cross reconnection', async ({
-  page,
-}) => {
-  const textarea = page.locator('textarea');
-  await textarea.evaluate((element) => {
-    element.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
-    element.dispatchEvent(
-      new CompositionEvent('compositionupdate', { bubbles: true, data: '日本' }),
-    );
-  });
-  await expect(page.locator('.terminal-native-composition')).toHaveText('日本');
-  await expect(page.locator('.terminal-native-composition')).toBeVisible();
-  expect(await input(page)).toBe('');
-  await page.evaluate(() => {
-    window.editing.active(false);
-    window.editing.active(true);
-  });
-  await nativeReplacement(page, '日本', 2);
-  await textarea.dispatchEvent('compositionend', { data: '日本' });
-  expect(await input(page)).toBe('');
-  await expect(page.locator('.terminal-native-composition')).toBeHidden();
 });

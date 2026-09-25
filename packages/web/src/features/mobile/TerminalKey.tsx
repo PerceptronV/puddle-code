@@ -1,4 +1,4 @@
-import { useRef, type ComponentProps } from 'react';
+import { useRef, type ComponentProps, type TouchEvent } from 'react';
 import { Button } from '../../components/ui/button';
 
 /** Activate on touchend, before Safari can blur the input or synthesise a second click. */
@@ -11,6 +11,7 @@ export function TerminalKey({
   return (
     <Button
       {...props}
+      data-terminal-key=""
       onPointerDown={(event) => {
         event.preventDefault();
         // A real mouse/pen press is a new activation, even just after a touch.
@@ -50,4 +51,17 @@ export function TerminalKey({
       }}
     />
   );
+}
+
+/**
+ * Any tap on a key strip (a key, a gap, a disabled or slightly moved key) keeps or raises
+ * the keyboard: Safari's synthetic click would otherwise blur the terminal. Controls with
+ * their own click action (image picker, composer) keep that click.
+ */
+export function keepTerminalFocus(focus: () => void) {
+  return (event: TouchEvent) => {
+    if ((event.target as Element).closest('button:not([data-terminal-key])')) return;
+    if (event.cancelable) event.preventDefault();
+    focus();
+  };
 }

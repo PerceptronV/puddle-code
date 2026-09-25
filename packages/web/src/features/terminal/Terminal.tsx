@@ -45,7 +45,7 @@ import { registerFileLinks, type FileLinkTarget } from './file-links';
 import { consumeTerminalModifiers, pasteTerminalClipboard, registerTerminalInput } from './input';
 import { preserveXtermScrollUp } from './xterm-scrollback';
 import { attachTerminalTouchScroll } from './touch-scroll';
-import { attachNativeTerminalInput } from './native-input';
+import { attachIosTerminalInput } from './ios-input';
 import { SelectionActions } from '../../components/selection-actions';
 
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
@@ -161,7 +161,6 @@ export function Terminal({
 }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
-  const nativeInputRef = useRef<ReturnType<typeof attachNativeTerminalInput> | null>(null);
   // An empty held cell still offers Paste; null means the touch menu is closed.
   const [touchSelection, setTouchSelection] = useState<string | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -183,9 +182,6 @@ export function Terminal({
   const activeRef = useRef(!paused && visible);
   activeRef.current = !paused && visible;
   const attached = useLingeringTrue(!paused && visible, DETACH_LINGER_MS);
-  useEffect(() => {
-    if (paused || !visible) nativeInputRef.current?.reset();
-  }, [paused, visible]);
   // Both the mount and attach effects key on this: xterm must not exist —
   // let alone measure glyphs — before the webfont it measures is loaded.
   const fontReady = useTerminalFontReady();
@@ -387,12 +383,10 @@ export function Terminal({
     const osc52 = { stash: null as string | null };
 
     let capturedPaste: string[] | null = null;
-    const nativeInput = attachNativeTerminalInput(
+    const detachIosInput = attachIosTerminalInput(
       xterm,
       () => activeRef.current && wsManager.isConnected() && !replayingRef.current,
     );
-    nativeInputRef.current = nativeInput;
-    const stopNativeInput = wsManager.onConnectionChange(() => nativeInput.reset());
     const unregisterInput = registerTerminalInput(
       stream,
       term,
@@ -406,7 +400,6 @@ export function Terminal({
         }
       },
       () => xterm.focus(),
-      (data) => nativeInput.observe(data),
     );
     const stdin = xterm.onData((data) => {
       if (capturedPaste) {
@@ -426,10 +419,7 @@ export function Terminal({
       // later copy chord cannot commit stale text. Mouse reports (wheel
       // scrolling, `ESC[<…`) are not typing and keep it.
       if (!data.startsWith('\x1b[<')) osc52.stash = null;
-      const input = consumeTerminalModifiers(stream, term, data);
-      if (input !== data) nativeInput.reset();
-      else nativeInput.observe(data);
-      wsManager.write(stream, term, input);
+      wsManager.write(stream, term, consumeTerminalModifiers(stream, term, data));
     });
 
     // Answer the terminal dynamic-colour queries (OSC 10 foreground, OSC 11
@@ -554,7 +544,6 @@ export function Terminal({
       () => activeRef.current,
       onWheel,
       setTouchSelection,
-      (x, y) => nativeInput.tap(x, y),
     );
 
     // Focus wins the PTY size (tmux's `window-size latest`, SPEC §6). The PTY
@@ -583,9 +572,7 @@ export function Terminal({
       container.removeEventListener('wheel', onWheel, true);
       container.removeEventListener('focusin', onFocusIn);
       detachTouchScroll();
-      nativeInput.dispose();
-      nativeInputRef.current = null;
-      stopNativeInput();
+      detachIosInput();
       observer.disconnect();
       unsubscribeTheme();
       resizeScrollGuardRef.current.release();
@@ -671,7 +658,6 @@ export function Terminal({
     const detach = wsManager.attach(stream, term, xterm.cols, xterm.rows, {
       onData: (data, kind) => {
         if (kind === 'replay') {
-          nativeInputRef.current?.reset();
           // A replay is the complete daemon snapshot at the attach boundary;
           // discard an old attachment's unpainted frame rather than duplicate it.
           if (outputFrame !== 0) cancelAnimationFrame(outputFrame);

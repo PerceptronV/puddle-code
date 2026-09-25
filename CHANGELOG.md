@@ -16,5 +16,5 @@ Past releases: see docs/changelogs/.
 ### Fixed
 
 - Clarify browser approval instructions with the Connected browsers settings path.
-- Support native mobile keyboard suggestions, corrections and caret movement, including iOS spacebar cursor gestures and taps within verified live terminal input.
-- Keep the mobile keyboard focused during rapid terminal key-strip taps without duplicating commands.
+- Make the iOS spacebar trackpad send one arrow key per step in its direction, without exploding at line boundaries.
+- Keep the mobile keyboard focused during rapid terminal key-strip taps without duplicating commands, and raise it from any tap on the strip.
