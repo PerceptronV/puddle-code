@@ -256,7 +256,7 @@ export function RemoteAccessSection() {
                 act={act}
               />
               <Disclosure
-                className="mt-6 text-sm"
+                className="text-sm"
                 summary="Host identity recovery"
                 summaryClassName="py-2"
               >
