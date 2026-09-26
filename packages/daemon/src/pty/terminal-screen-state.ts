@@ -5,6 +5,7 @@ import headless, {
   type Terminal as HeadlessTerminal,
 } from '@xterm/headless';
 import { SerializeAddon } from '@xterm/addon-serialize';
+import { serialiseXtermMouseEncoding } from './xterm-mouse-encoding.js';
 import { preserveXtermScrollUp } from './xterm-scrollback.js';
 
 const { Terminal } = headless;
@@ -85,7 +86,7 @@ export class TerminalScreenStateStore {
     const state = this.ensure(stream, term);
     await state.queue;
     if (!state.hasContent) return null;
-    return state.serialiser.serialize({ scrollback: SCROLLBACK_LINES });
+    return this.serialise(state);
   }
 
   /** Persist and release an exited PTY's in-memory buffer. */
@@ -222,7 +223,7 @@ export class TerminalScreenStateStore {
         version: 1,
         cols: state.cols,
         rows: state.rows,
-        data: state.serialiser.serialize({ scrollback: SCROLLBACK_LINES }),
+        data: this.serialise(state),
       };
       const temp = `${file}.tmp-${process.pid}-${this.tempSequence++}`;
       await mkdir(join(stateDir, stream), { recursive: true });
@@ -237,6 +238,14 @@ export class TerminalScreenStateStore {
     state.queue = state.queue.then(operation).catch((error: unknown) => {
       console.warn('Could not update canonical terminal state:', error);
     });
+  }
+
+  /** Attach and disk snapshots must restore the same terminal modes. */
+  private serialise(state: ScreenState): string {
+    return (
+      state.serialiser.serialize({ scrollback: SCROLLBACK_LINES }) +
+      serialiseXtermMouseEncoding(state.terminal)
+    );
   }
 
   private writeTerminal(terminal: HeadlessTerminal, data: string): Promise<void> {
