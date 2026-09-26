@@ -8,7 +8,3 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
-
-### Fixed
-
-- Forward Codex selections to the viewing browser even when copying to the daemon host's native clipboard succeeds; apply the compatibility setting on agent launch and resume.
