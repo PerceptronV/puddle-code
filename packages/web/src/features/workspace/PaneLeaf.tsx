@@ -277,7 +277,7 @@ export function PaneLeaf({
         />
         {/* Embedded browsing contexts consume pointer events before dnd-kit's
             document-level sensor can see them. Cover every pane body for the
-            duration of a strip drag so HTML and native-PDF iframes remain
+            duration of a strip drag so HTML iframes remain
             ordinary move/split destinations. The registered leaf beneath this
             transparent shield still supplies collision geometry. */}
         {activeDragRef && (

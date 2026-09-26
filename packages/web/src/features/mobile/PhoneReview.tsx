@@ -108,6 +108,7 @@ export function PhoneReview({ session }: { session: string }) {
             )
           ) : (view === 'before' ? before.data : after.data) ? (
             <PhoneFileText
+              target={[session, path, changes.data?.against, view]}
               content={(view === 'before' ? before.data?.content : after.data?.content) ?? ''}
             />
           ) : (

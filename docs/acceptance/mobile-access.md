@@ -132,6 +132,7 @@ Run on current iOS Safari and Android Chrome, recording versions and results:
 | Long output and text selection | Terminal remains responsive; hold-and-drag selects Unicode text across rows, Copy writes only on tap, edge dragging scrolls history, and quick swipes remain scrolling; file text supports native selection handles and Copy |
 | Terminal swipes, including scrollback boundaries and keyboard open/closed | History scrolls in both directions without moving the page or opening the keyboard; agent-owned mouse/alternate-screen scrolling works; a subsequent tap still opens the keyboard and pinch zoom remains available |
 | Long file tree, file contents, session rail, settings and project dashboard | Each surface scrolls independently; gestures at either boundary do not move the surrounding workspace |
+| Return to a file or terminal | Scroll two files/agents to different positions, switch projects and reopen each: source, shared previews and terminal replay retain their own progress; PDF zoom remains set and pinching on a later page keeps the touch midpoint anchored |
 | Desktop and phone on the same PTY | Active viewer claims size; hidden/background phone does not repeatedly resize |
 | Lock/suspend; Wi-Fi to cellular; offline during Send | Draft survives, uncertain outcome is visible, no automatic replay |
 | Return to existing runtime after expiry | Fresh admission and canonical snapshot; agent continues on the host |

@@ -4,6 +4,7 @@ import { useClientSettings } from '../../lib/client-settings';
 import { monaco, THEME_NAME } from './monaco-setup';
 import { editorIndentationOptions } from './monaco-options';
 import type { ComparedDiskConflict } from './conflict-store';
+import { useDiffViewState } from './monaco-view-state';
 
 /**
  * How a refused save is reconciled (SPEC §8). The daemon rejects a write whose
@@ -42,6 +43,7 @@ export function ConflictView({
   onReady?(revision: number): void;
 }) {
   const settings = useClientSettings();
+  const restoreView = useDiffViewState(['conflict', model.uri.toString()]);
   const instanceId = useId();
   const fontMono = useMemo(
     () =>
@@ -110,6 +112,7 @@ export function ConflictView({
           keepCurrentModifiedModel
           loading={<div className="p-3 text-xs text-fg-muted">…</div>}
           onMount={(diffEditor) => {
+            restoreView(diffEditor);
             diffRef.current = diffEditor;
             diffEditor.onDidDispose(() => {
               diffRef.current = null;

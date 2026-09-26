@@ -128,6 +128,34 @@ class FakeScroller {
 }
 
 describe('Markdown scroll binding', () => {
+  it('restores a tab before publishing and saves a last scroll before its frame', () => {
+    const store = new PreviewScrollStore();
+    const binding = {
+      viewKey: 'returning-markdown-tab',
+      channel: 'workspace',
+      target,
+      driver: true,
+      receiver: false,
+      store,
+    };
+    const first = new FakeScroller();
+    const close = bindPreviewScrollElement(first, binding);
+    first.scrollTop = 250;
+    first.scroll();
+    close(); // The queued publication has not run yet.
+    const returned = new FakeScroller();
+    const reports: number[] = [];
+    const unsubscribe = store.subscribe('workspace', target, (position) =>
+      reports.push(position.ratio),
+    );
+    const closeReturned = bindPreviewScrollElement(returned, binding);
+    expect(returned.scrollTop).toBe(250);
+    flushFrames();
+    expect(reports.every((ratio) => ratio === 0.5)).toBe(true);
+    closeReturned();
+    unsubscribe();
+  });
+
   it('reports from a driver and applies/reflows without receiver feedback', () => {
     const store = new PreviewScrollStore();
     const driver = new FakeScroller();

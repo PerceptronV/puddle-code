@@ -24,6 +24,7 @@ describe('sandboxed HTML preview scroll bridge', () => {
       ratio: 0.4,
       sourceLine: 12.5,
       layout: true,
+      scrolled: false,
     };
     expect(htmlPreviewScrollReport(event(valid), iframeWindow, channel)).toEqual(valid);
     expect(

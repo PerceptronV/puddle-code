@@ -171,6 +171,9 @@ export function Terminal({
   // in the past — a stale clipboard overwrite, or a stale reply written into a
   // working agent's stdin.
   const replayingRef = useRef(false);
+  // Initial fitting sees an empty buffer. Only a completed snapshot can
+  // replace this PTY's saved viewport from an earlier workspace mount.
+  const hasReplayRef = useRef(false);
   const settings = useClientSettings();
   const onExitRef = useRef(onExit);
   onExitRef.current = onExit;
@@ -230,6 +233,7 @@ export function Terminal({
 
   const restoreResizeScroll = useCallback(
     (xterm: XTerm) => {
+      if (!hasReplayRef.current || replayingRef.current) return;
       resizeScrollGuardRef.current.restore(xterm);
       const buffer = xterm.buffer.active;
       if (buffer.type === 'normal') {
@@ -343,6 +347,8 @@ export function Terminal({
       linkHandler: { activate: (_event, uri) => openUri(uri) },
     });
     preserveXtermScrollUp(xterm);
+    hasReplayRef.current = false;
+    replayingRef.current = false;
     xtermRef.current = xterm;
     const fit = new FitAddon();
     const search = new SearchAddon();
@@ -357,7 +363,7 @@ export function Terminal({
       find.setResult({ index: result.resultIndex, count: result.resultCount });
     });
     const viewportScroll = xterm.onScroll((viewportY) => {
-      if (replayingRef.current) return;
+      if (!hasReplayRef.current || replayingRef.current) return;
       // A scroll outside a fit/write is a user gesture. It supersedes any
       // pre-resize position before the delayed application redraw arrives.
       if (!resizeScrollGuardRef.current.managingScroll) resizeScrollGuardRef.current.release();
@@ -679,7 +685,9 @@ export function Terminal({
           xterm.reset();
           xterm.write(data, () => {
             try {
+              if (xtermRef.current !== xterm) return;
               replayingRef.current = false;
+              hasReplayRef.current = true;
               // A large replay after this terminal has been parked can update
               // the buffer while the renderer keeps some rows marked clean. Selection
               // dirties those cells and reveals the text, but the replay itself
@@ -710,7 +718,15 @@ export function Terminal({
     // `fontReady` because the attach reads xtermRef, a REF: when the font gate
     // flips and the mount effect above finally creates the terminal, nothing
     // else would re-run this to attach it.
-  }, [stream, term, attached, fontReady, fitPreservingScroll, restoreResizeScroll]);
+  }, [
+    stream,
+    term,
+    attached,
+    fontReady,
+    daemonAnswersColours,
+    fitPreservingScroll,
+    restoreResizeScroll,
+  ]);
 
   // Font size and scrollback patch the LIVE instance (recreating it would drop
   // scrollback). A font change resizes the CELL, not the container, so the

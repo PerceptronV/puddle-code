@@ -1,4 +1,12 @@
-import { useEffect, useId, useMemo, useRef, useSyncExternalStore, type MouseEvent } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useId,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+  type MouseEvent,
+} from 'react';
 import DOMPurify from 'dompurify';
 import { useClientSettings } from '../../lib/client-settings';
 import { currentTheme, onThemeChange } from '../../lib/theme';
@@ -9,6 +17,7 @@ import { markdownToHtml } from './markdown';
 import { renderMermaidDiagrams } from './markdown-mermaid';
 import { parsePreviewSrcset, resolvePreviewAsset, serialisePreviewSrcset } from './preview-kind';
 import { bindPreviewScrollElement } from './preview-scroll-store';
+import { useViewStateKey } from './view-state-context';
 import { countSourceLines, measureSourceAnchors, sourceLineAtOffset } from './source-anchor-map';
 import { fetchPreviewAsset } from './preview-assets';
 import { FindOverlay, editorLine, type TextPreviewProps } from './preview-controls';
@@ -34,6 +43,7 @@ export function MarkdownPreview({
   onOpenFile,
   mobile = false,
 }: TextPreviewProps) {
+  const viewKey = useViewStateKey('markdown', [session, root, path]);
   const documentId = useId().replace(/[^A-Za-z0-9_-]/g, '');
   const theme = useSyncExternalStore(
     (onChange) => onThemeChange(onChange),
@@ -90,11 +100,12 @@ export function MarkdownPreview({
     return () => abort.abort();
   }, [html, theme, find.refresh]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const scroller = scrollerRef.current;
     const body = bodyRef.current;
     if (!scroller || !body) return;
     return bindPreviewScrollElement(scroller, {
+      viewKey,
       channel: scrollChannel,
       target: { session, path, root },
       driver: scrollDriver,
@@ -102,7 +113,7 @@ export function MarkdownPreview({
       resizeElements: [scroller, body],
       sourceAnchors: () => measureSourceAnchors(scroller, body, lineCount),
     });
-  }, [html, lineCount, session, path, root, scrollChannel, scrollDriver, scrollReceiver]);
+  }, [html, lineCount, session, path, root, scrollChannel, scrollDriver, scrollReceiver, viewKey]);
 
   // Resolve worktree images (relative or /-absolute) through the authed media
   // endpoint: image elements carry no bearer header, so the bytes travel as a

@@ -8,6 +8,7 @@ import { DeletedContent, Note, ReadOnlyView, viewerUri } from '../diff/FileDiffC
 import { monaco, THEME_NAME } from '../editor/monaco-setup';
 import { editorIndentationOptions } from '../editor/monaco-options';
 import { effectiveStatus } from './history-logic';
+import { useDiffViewState } from '../editor/monaco-view-state';
 
 /**
  * `added` (and the root-commit override, and a `sha^` original that 404s
@@ -72,6 +73,14 @@ function HistoryDiffEditor({
   root?: string;
 }) {
   const settings = useClientSettings();
+  const restoreView = useDiffViewState([
+    session,
+    root,
+    originalRef,
+    originalPath,
+    modifiedRef,
+    modifiedPath,
+  ]);
   const editorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
   const fontMono = useMemo(
     () =>
@@ -114,6 +123,7 @@ function HistoryDiffEditor({
       keepCurrentModifiedModel
       loading={<Note>…</Note>}
       onMount={(editor) => {
+        restoreView(editor);
         editorRef.current = editor;
         // Cheap insurance mirroring ModifiedContent — see that file's comment.
         editor.onDidDispose(() => {

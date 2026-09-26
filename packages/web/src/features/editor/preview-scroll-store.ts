@@ -1,4 +1,5 @@
 import { offsetAtSourceLine, sourceLineAtOffset, type SourceAnchor } from './source-anchor-map';
+import { ViewStateStore } from './view-state-store';
 
 export interface PreviewScrollTarget {
   session: string;
@@ -102,6 +103,8 @@ export class PreviewScrollStore {
 }
 
 export const previewScrollStore = new PreviewScrollStore();
+/** Each rendered tab remembers its own position, independent of scroll ownership. */
+export const previewViewPositions = new ViewStateStore<PreviewScrollPosition>();
 
 export interface AnimationFramePublisher {
   schedule(): void;
@@ -139,6 +142,7 @@ interface ScrollElement {
 }
 
 export interface PreviewScrollBinding {
+  viewKey?: string;
   channel: string;
   target: PreviewScrollTarget;
   driver: boolean;
@@ -184,13 +188,14 @@ export function bindPreviewScrollElement(
     throw new Error('a preview scroll surface cannot be both driver and receiver');
   }
   const store = binding.store ?? previewScrollStore;
-  let current: PreviewScrollPosition | undefined;
+  let current = binding.viewKey ? previewViewPositions.get(binding.viewKey) : undefined;
   let sourceAnchors = binding.sourceAnchors?.();
   let unsubscribe: () => void = () => undefined;
   let frames: AnimationFramePublisher | undefined;
 
   const apply = (position: PreviewScrollPosition) => {
     current = position;
+    if (binding.viewKey) previewViewPositions.set(binding.viewKey, position);
     element.scrollTop = scrollTopForPosition(
       position,
       element.scrollHeight,
@@ -199,35 +204,43 @@ export function bindPreviewScrollElement(
     );
   };
 
+  if (current) apply(current);
+  const remember = () => {
+    if (element.clientHeight <= 0) return;
+    const ratio = normalisedScrollRatio(
+      element.scrollTop,
+      element.scrollHeight,
+      element.clientHeight,
+    );
+    const sourceLine = sourceAnchors ? sourceLineAtOffset(sourceAnchors, element.scrollTop) : null;
+    current = { ratio, sourceLine, revision: 0 };
+    if (binding.viewKey) previewViewPositions.set(binding.viewKey, current);
+    if (binding.driver) store.publish(binding.channel, binding.target, ratio, sourceLine);
+  };
+
   if (binding.receiver) {
     // Subscribe before applying: subscribe's replay belongs only to this exact
     // target, so a retarget with no publisher waits instead of reusing old state.
     unsubscribe = store.subscribe(binding.channel, binding.target, apply);
-  } else if (binding.driver) {
-    frames = createAnimationFramePublisher(() => {
-      const ratio = normalisedScrollRatio(
-        element.scrollTop,
-        element.scrollHeight,
-        element.clientHeight,
-      );
-      const sourceLine = sourceAnchors
-        ? sourceLineAtOffset(sourceAnchors, element.scrollTop)
-        : null;
-      store.publish(binding.channel, binding.target, ratio, sourceLine);
-    });
+  } else if (binding.driver || binding.viewKey) {
+    frames = createAnimationFramePublisher(remember);
     element.addEventListener('scroll', frames.schedule, { passive: true });
     frames.schedule();
   }
 
   const observer = new ResizeObserver(() => {
     sourceAnchors = binding.sourceAnchors?.();
-    if (binding.receiver && current) apply(current);
-    else if (binding.driver) frames?.schedule();
+    if (current) apply(current);
+    else frames?.schedule();
   });
   for (const resized of binding.resizeElements ?? []) observer.observe(resized);
 
   return () => {
-    if (binding.driver && frames) element.removeEventListener('scroll', frames.schedule);
+    if (frames) {
+      // Don't drop a user's last scroll when switching before the next frame.
+      remember();
+      element.removeEventListener('scroll', frames.schedule);
+    }
     unsubscribe();
     observer.disconnect();
     frames?.dispose();

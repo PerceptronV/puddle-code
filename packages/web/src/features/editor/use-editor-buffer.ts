@@ -39,6 +39,7 @@ import { registerEditorKeybindings } from './editor-keybindings';
 import { monaco } from './monaco-setup';
 import { registerSaver, saverKey } from './save-registry';
 import type { RevealTarget } from '../workspace/editor-context';
+import { consumeEditorReveal } from './editor-reveal';
 
 /** What the CodeEditor view renders for a (session, path) tab. */
 export type BufferStatus = 'loading' | 'binary' | 'too-large' | 'error' | 'ready';
@@ -392,16 +393,18 @@ export function useEditorBuffer(
     if (
       !ed ||
       !r ||
+      !focused ||
       r.session !== session ||
       r.path !== path ||
       (r.root ?? undefined) !== (root ?? undefined)
     ) {
       return;
     }
+    if (!consumeEditorReveal(r)) return;
     ed.revealLineInCenter(r.line);
     ed.setPosition({ lineNumber: r.line, column: r.column ?? 1 });
     ed.focus();
-  }, [session, path, root]);
+  }, [session, path, root, focused]);
 
   const onMount = useCallback(
     (editor: monaco.editor.IStandaloneCodeEditor) => {

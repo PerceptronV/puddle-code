@@ -73,7 +73,7 @@ export function PhoneFileContent({
           </Suspense>
         </div>
       ) : (
-        <PhoneFileText content={source.data.content ?? ''} />
+        <PhoneFileText target={[session, root, file]} content={source.data.content ?? ''} />
       )}
     </>
   );

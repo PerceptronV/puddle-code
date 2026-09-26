@@ -19,6 +19,7 @@ import { api } from '../../lib/api';
 import { useViewStateKey } from './view-state-context';
 import { ViewStateStore } from './view-state-store';
 import { bindScrollRestoration, type ScrollRestoration } from './scroll-restoration';
+import { capturePdfZoomAnchor, restorePdfZoomAnchor, type PdfZoomAnchor } from './pdf-zoom-anchor';
 import {
   adjacentPdfZoom,
   clampPdfZoom,
@@ -69,7 +70,7 @@ export function PdfViewer({
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const restoration = useRef<ScrollRestoration | null>(null);
-  const zoomFrameRef = useRef(0);
+  const zoomAnchorRef = useRef<PdfZoomAnchor | null>(null);
   const [zoom, setZoom] = useState(() => zoomPositions.get(viewKey) ?? 1);
   const zoomRef = useRef(zoom);
   const zoomingRef = useRef(false);
@@ -98,35 +99,26 @@ export function PdfViewer({
     };
   }, [document, viewKey, hasWidth]);
 
+  useLayoutEffect(() => {
+    const scroller = scrollRef.current;
+    const anchor = zoomAnchorRef.current;
+    if (scroller && anchor) restorePdfZoomAnchor(scroller, anchor);
+    zoomAnchorRef.current = null;
+    zoomingRef.current = false;
+    if (anchor) restoration.current?.capture();
+  }, [zoom]);
+
   const changeZoom = useCallback(
     (requestedZoom: number, anchor?: ZoomAnchor) => {
       const nextZoom = clampPdfZoom(requestedZoom);
       if (Math.abs(nextZoom - zoomRef.current) < Number.EPSILON) return;
       const scroller = scrollRef.current;
-      const bounds = scroller?.getBoundingClientRect();
-      const anchorX =
-        anchor && bounds ? anchor.clientX - bounds.left : (scroller?.clientWidth ?? 0) / 2;
-      const anchorY =
-        anchor && bounds ? anchor.clientY - bounds.top : (scroller?.clientHeight ?? 0) / 2;
-      const horizontalAnchor = scroller
-        ? (scroller.scrollLeft + anchorX) / Math.max(1, scroller.scrollWidth)
-        : 0.5;
-      const verticalAnchor = scroller
-        ? (scroller.scrollTop + anchorY) / Math.max(1, scroller.scrollHeight)
-        : 0;
+      zoomAnchorRef.current = scroller ? capturePdfZoomAnchor(scroller, anchor) : null;
 
       zoomRef.current = nextZoom;
       zoomPositions.set(viewKey, nextZoom);
       zoomingRef.current = true;
       setZoom(nextZoom);
-      cancelAnimationFrame(zoomFrameRef.current);
-      zoomFrameRef.current = requestAnimationFrame(() => {
-        if (!scroller) return;
-        scroller.scrollLeft = horizontalAnchor * scroller.scrollWidth - anchorX;
-        scroller.scrollTop = verticalAnchor * scroller.scrollHeight - anchorY;
-        zoomingRef.current = false;
-        restoration.current?.capture();
-      });
     },
     [viewKey],
   );
@@ -177,8 +169,6 @@ export function PdfViewer({
       scroller.removeEventListener('touchcancel', onTouchEnd);
     };
   }, [changeZoom]);
-
-  useEffect(() => () => cancelAnimationFrame(zoomFrameRef.current), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -481,6 +471,7 @@ function PdfPage({
     <div
       ref={holderRef}
       data-scroll-ready={pageSize !== null}
+      data-pdf-page={pageNumber}
       className="shrink-0 bg-elevated shadow-sm"
       style={{ width: availableWidth, height: fittedHeight }}
       aria-label={`PDF page ${pageNumber}`}

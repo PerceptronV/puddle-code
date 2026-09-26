@@ -169,6 +169,9 @@ Repeat with source/root paths containing spaces and non-ASCII characters.
    trackpad and a two-touch screen: scaling changes continuously between the
    button stops, remains bounded to 50–300%, and keeps the content beneath the
    gesture centre stable. Ordinary two-finger scrolling still scrolls.
+   Test away from the top-left corner on a later page, including a document
+   with unequal page sizes: the point beneath the pointer/touch midpoint must
+   remain fixed after each zoom step, including when zooming back out.
    Scroll to a later page at 125% zoom, including a horizontal offset. Switch
    tabs, switch projects and return, then compile again: the same scroll
    progress and zoom return after page layout. Repeat with an ordinary PDF;

@@ -14,7 +14,12 @@ import {
   HTML_PREVIEW_FIND_OPEN,
   HTML_PREVIEW_FIND_RESULT,
 } from './html-preview-find';
-import { previewScrollStore, type PreviewScrollTarget } from './preview-scroll-store';
+import {
+  previewScrollStore,
+  previewViewPositions,
+  type PreviewScrollTarget,
+} from './preview-scroll-store';
+import { useViewStateKey } from './view-state-context';
 import { countSourceLines } from './source-anchor-map';
 import { inlineWorktreeAssets } from './html-preview-document';
 import { FindOverlay, editorLine, type TextPreviewProps } from './preview-controls';
@@ -31,6 +36,7 @@ export function HtmlPreview({
   onRevealSource,
   mobile = false,
 }: TextPreviewProps) {
+  const viewKey = useViewStateKey('html', [session, root, path]);
   const [doc, setDoc] = useState<string | null>(null);
   // Resolved path → data-URI promise, per mount: an edit re-inlines the
   // document without re-fetching every asset.
@@ -67,7 +73,7 @@ export function HtmlPreview({
       assets.current,
       fontSize,
       root,
-      mobile ? undefined : bridgeChannel,
+      bridgeChannel,
       findChannel,
     ).then((html) => {
       if (!cancelled) setDoc(html);
@@ -99,7 +105,6 @@ export function HtmlPreview({
   }, [scrollReceiver, scrollChannel, target, bridgeChannel]);
 
   useEffect(() => {
-    if (!scrollDriver && !scrollReceiver && !onRevealSource) return;
     const onMessage = (event: MessageEvent<unknown>) => {
       const report = htmlPreviewScrollReport(
         event,
@@ -107,10 +112,10 @@ export function HtmlPreview({
         bridgeChannel,
       );
       if (report) {
-        if (scrollDriver) {
-          previewScrollStore.publish(scrollChannel, target, report.ratio, report.sourceLine);
-        } else if (report.layout) {
-          const current = previewScrollStore.get(scrollChannel, target);
+        if (report.layout && (scrollReceiver || !report.scrolled)) {
+          const current =
+            (scrollReceiver ? previewScrollStore.get(scrollChannel, target) : undefined) ??
+            previewViewPositions.get(viewKey);
           if (current) {
             applyHtmlPreviewScroll(
               iframeRef.current?.contentWindow ?? null,
@@ -118,6 +123,18 @@ export function HtmlPreview({
               current,
             );
           }
+          if (scrollDriver) {
+            const position = current ?? report;
+            previewScrollStore.publish(scrollChannel, target, position.ratio, position.sourceLine);
+          }
+        } else {
+          previewViewPositions.set(viewKey, {
+            ratio: report.ratio,
+            sourceLine: report.sourceLine,
+            revision: 0,
+          });
+          if (scrollDriver)
+            previewScrollStore.publish(scrollChannel, target, report.ratio, report.sourceLine);
         }
       }
       const reveal = onRevealSource
@@ -135,6 +152,7 @@ export function HtmlPreview({
     bridgeChannel,
     onRevealSource,
     lineCount,
+    viewKey,
   ]);
 
   if (doc === null) return null; // first inline pass; later passes keep the old doc up
@@ -159,8 +177,10 @@ export function HtmlPreview({
             frame.dataset.delivered = 'true';
             frame.contentWindow?.postMessage({ kind: 'puddle-preview-document', html: doc }, '*');
           }
-          if (scrollReceiver) {
-            const current = previewScrollStore.get(scrollChannel, target);
+          {
+            const current =
+              (scrollReceiver ? previewScrollStore.get(scrollChannel, target) : undefined) ??
+              previewViewPositions.get(viewKey);
             if (current) {
               applyHtmlPreviewScroll(
                 iframeRef.current?.contentWindow ?? null,

@@ -10,6 +10,7 @@ import { bufferKey, releaseModel, retainModel } from '../editor/buffer-store';
 import { monaco, THEME_NAME } from '../editor/monaco-setup';
 import { editorIndentationOptions } from '../editor/monaco-options';
 import { useEditorBuffer } from '../editor/use-editor-buffer';
+import { useCodeViewState, useDiffViewState } from '../editor/monaco-view-state';
 
 /**
  * A muted one-line note filling the section body (loading, binary, errors).
@@ -82,6 +83,7 @@ export function ReadOnlyView({
   content: string;
 }) {
   const settings = useClientSettings();
+  const restoreView = useCodeViewState([session, refName, path]);
   const fontMono = useMemo(
     () =>
       getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim() ||
@@ -93,6 +95,8 @@ export function ReadOnlyView({
       path={viewerUri('puddle-view', session, refName, path)}
       defaultValue={content}
       theme={THEME_NAME}
+      saveViewState={false}
+      onMount={restoreView}
       loading={<Note>…</Note>}
       options={{
         readOnly: true,
@@ -169,6 +173,7 @@ function ModifiedContent({
   focused?: boolean;
 }) {
   const settings = useClientSettings();
+  const restoreView = useDiffViewState([session, root, against, indexBase, path]);
   // NB: when the same file is also open as an editor tab, its useEditorBuffer
   // instance and this one BOTH persist a draft per keystroke. The writes are
   // idempotent (same key, same content, debounced) — merely duplicated — and
@@ -240,6 +245,7 @@ function ModifiedContent({
       keepCurrentModifiedModel
       loading={<Note>…</Note>}
       onMount={(diffEditor) => {
+        restoreView(diffEditor);
         diffEditorRef.current = diffEditor;
         // If the widget somehow disposes before our cleanup (it shouldn't —
         // parent-first ordering — but cheap insurance), drop the stale ref so
@@ -281,6 +287,7 @@ function StagedContent({
   root?: string;
 }) {
   const settings = useClientSettings();
+  const restoreView = useDiffViewState([session, root, against, 'staged', entry.path]);
   const basePath = entry.old_path ?? entry.path;
   const base = useFileAt(session, against, basePath, {
     root,
@@ -323,6 +330,7 @@ function StagedContent({
       modifiedModelPath={viewerUri('puddle-index', session, `${against}:${root ?? ''}`, entry.path)}
       original={base.data.content ?? ''}
       modified={indexed.data.content ?? ''}
+      onMount={restoreView}
       theme={THEME_NAME}
       loading={<Note>…</Note>}
       options={{

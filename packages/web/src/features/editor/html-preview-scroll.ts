@@ -16,6 +16,8 @@ export interface HtmlPreviewScrollReport {
   sourceLine: number | null;
   /** Load/resize/mutation report: a locked parent should reapply after reflow. */
   layout: boolean;
+  /** A scroll can share a frame with load/resize; do not discard that movement. */
+  scrolled: boolean;
 }
 
 export interface HtmlPreviewSourceReveal {
@@ -59,7 +61,8 @@ export function htmlPreviewScrollReport(
     !Number.isFinite(data['ratio']) ||
     (data['sourceLine'] !== null &&
       (typeof data['sourceLine'] !== 'number' || !Number.isFinite(data['sourceLine']))) ||
-    typeof data['layout'] !== 'boolean'
+    typeof data['layout'] !== 'boolean' ||
+    typeof data['scrolled'] !== 'boolean'
   ) {
     return null;
   }
@@ -69,6 +72,7 @@ export function htmlPreviewScrollReport(
     ratio: clampScrollRatio(data['ratio']),
     sourceLine: data['sourceLine'] === null ? null : Math.max(1, data['sourceLine']),
     layout: data['layout'],
+    scrolled: data['scrolled'],
   };
 }
 
@@ -133,6 +137,7 @@ export function htmlPreviewScrollBridgeScript(channel: string): string {
     const countAttribute = ${countAttribute};
     let frame = 0;
     let layoutChanged = false;
+    let scrolled = false;
     let sourceAnchors = [];
     const scrolling = () => document.scrollingElement || document.documentElement;
     const clamp = (value, lower, upper) => Math.min(upper, Math.max(lower, value));
@@ -196,14 +201,15 @@ export function htmlPreviewScrollBridgeScript(channel: string): string {
       const root = scrolling();
       const ratio = clamp(root.scrollTop / Math.max(1, root.scrollHeight - innerHeight), 0, 1);
       const sourceLine = mapped(root.scrollTop, 'offset', 'line');
-      parent.postMessage({ kind: reportKind, channel, ratio, sourceLine, layout: layoutChanged }, '*');
+      parent.postMessage({ kind: reportKind, channel, ratio, sourceLine, layout: layoutChanged, scrolled }, '*');
       layoutChanged = false;
+      scrolled = false;
     };
     const schedule = (layout = false) => {
       layoutChanged = layoutChanged || layout;
       if (!frame) frame = requestAnimationFrame(report);
     };
-    addEventListener('scroll', () => schedule(false), { passive: true });
+    addEventListener('scroll', () => { scrolled = true; schedule(false); }, { passive: true });
     addEventListener('load', () => schedule(true));
     const resizeObserver = new ResizeObserver(() => schedule(true));
     resizeObserver.observe(document.documentElement);

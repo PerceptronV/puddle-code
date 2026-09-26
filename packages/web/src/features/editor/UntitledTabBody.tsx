@@ -11,6 +11,7 @@ import { registerEditorKeybindings } from './editor-keybindings';
 import { THEME_NAME, monaco } from './monaco-setup';
 import { editorIndentationOptions } from './monaco-options';
 import { publishUntitledContent, requestUntitledSave } from './untitled-save-store';
+import { useCodeViewState } from './monaco-view-state';
 
 /** How long after the last keystroke the draft persists to the profile store. */
 const PERSIST_DEBOUNCE_MS = 800;
@@ -27,6 +28,7 @@ const PERSIST_DEBOUNCE_MS = 800;
 export function UntitledTabBody({ name }: { name: string }) {
   const settings = useClientSettings();
   const profileId = useCurrentProfileId();
+  const restoreView = useCodeViewState([profileId, name]);
   const file = useUntitledFile(profileId, name);
   const queryClient = useQueryClient();
   const saveKey = useHotkeyLabel('editor.save');
@@ -83,8 +85,10 @@ export function UntitledTabBody({ name }: { name: string }) {
           defaultValue={file.data.content}
           theme={THEME_NAME}
           keepCurrentModel={false}
+          saveViewState={false}
           loading={<div className="p-3 text-xs text-fg-muted">…</div>}
           onMount={(editor) => {
+            restoreView(editor);
             editorRef.current = editor;
             publishUntitledContent(name, editor.getValue());
             registerEditorKeybindings(editor, { onSave: saveAs });

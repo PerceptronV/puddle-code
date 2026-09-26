@@ -12,6 +12,7 @@ import { bindMonacoPreviewScroll } from './monaco-preview-scroll';
 import { useCompilationDiagnostics } from './compilation-diagnostics-store';
 import { useEditorBuffer } from './use-editor-buffer';
 import { useDirtyDiff } from './use-dirty-diff';
+import { useCodeViewState } from './monaco-view-state';
 import type { RevealTarget } from '../workspace/editor-context';
 
 /** Muted centred panel for the states where there is nothing to edit. */
@@ -79,6 +80,7 @@ export function CodeEditor({
   scrollChannel?: string;
 }) {
   const settings = useClientSettings();
+  const restoreView = useCodeViewState([session, root, path]);
   const buffer = useEditorBuffer(session, path, reveal, root, { focused });
   const compilationDiagnostics = useCompilationDiagnostics(session, path, root);
   const mountDirtyDiff = useDirtyDiff(session, path, root, buffer.model);
@@ -222,7 +224,9 @@ export function CodeEditor({
             defaultValue={buffer.model.getValue()}
             theme={THEME_NAME}
             keepCurrentModel
+            saveViewState={false}
             onMount={(editor) => {
+              restoreView(editor);
               buffer.onMount(editor);
               mountDirtyDiff(editor);
               setMountedEditor(editor);
