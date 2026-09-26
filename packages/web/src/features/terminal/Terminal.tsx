@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon, type ISearchOptions } from '@xterm/addon-search';
@@ -31,7 +32,7 @@ import {
 import { cn } from '../../lib/utils';
 import { wsManager } from '../../lib/ws';
 import { dynamicColourReport, type DynamicColourCode } from './osc-colour';
-import { isCopyShortcut } from './copy-shortcut';
+import { terminalClipboard, writeTerminalClipboard } from './clipboard';
 import { interceptImagePaste } from './paste-image';
 import { macLineEditSequence } from './line-edit-shortcut';
 import { rewriteTerminalUri } from './proxy-links';
@@ -161,6 +162,7 @@ export function Terminal({
 }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
+  const clipboardRef = useRef<ReturnType<typeof terminalClipboard> | null>(null);
   // An empty held cell still offers Paste; null means the touch menu is closed.
   const [touchSelection, setTouchSelection] = useState<string | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -334,8 +336,8 @@ export function Terminal({
       // A TUI that enables mouse reporting (Claude Code does, for wheel
       // scrolling) receives mouse drags itself — xterm then makes no local
       // selection, so ⌘C has nothing to copy even though a plain shell copies
-      // fine. Shift+drag always forces a local selection; this makes ⌥+drag
-      // do the same on Mac, matching Terminal.app/iTerm convention.
+      // fine. Shift+drag forces a local selection elsewhere; on Mac this
+      // enables ⌥+drag, matching Terminal.app/iTerm convention.
       macOptionClickForcesSelection: IS_MAC,
       // OSC 8 hyperlinks (how Claude Code prints its URLs, e.g. the login
       // OAuth link). Without a handler xterm falls back to a native confirm()
@@ -382,11 +384,24 @@ export function Terminal({
         ? registerFileLinks(xterm, stream, (target) => onOpenFileRef.current?.(target))
         : null;
 
-    // The last OSC 52 payload an agent asked to copy, NOT yet on the clipboard.
-    // A mouse-reporting TUI (Claude Code) copies on EVERY drag selection, so
-    // committing it immediately meant highlighting clobbered the clipboard
-    // (decision 2026-07-31): the copy shortcut below is what commits it.
-    const osc52 = { stash: null as string | null };
+    const clipboard = terminalClipboard({
+      isMac: IS_MAC,
+      selection: () => xterm.getSelection(),
+      mouseTracking: () => xterm.modes.mouseTrackingMode !== 'none',
+      available: () => activeRef.current && wsManager.isConnected() && !replayingRef.current,
+      writeInput: (data) => wsManager.write(stream, term, data),
+      writeClipboard: (text) =>
+        writeTerminalClipboard(text, () => {
+          toast.error('Could not copy the selection. Allow clipboard access and try again.');
+        }),
+    });
+    clipboardRef.current = clipboard;
+    const onCopy = (event: ClipboardEvent) => clipboard.copy(event);
+    const onBlur = () => clipboard.reset();
+    container.addEventListener('copy', onCopy, true);
+    container.addEventListener('focusout', onBlur);
+    container.addEventListener('mousedown', onBlur, true);
+    window.addEventListener('blur', onBlur);
 
     let capturedPaste: string[] | null = null;
     const detachIosInput = attachIosTerminalInput(
@@ -421,10 +436,7 @@ export function Terminal({
       // synchronously inside the replay write, so the gate drops exactly
       // them — at worst also a keystroke typed mid-repaint.
       if (replayingRef.current) return;
-      // Typing dismisses the TUI selection behind the stash — drop it so a
-      // later copy chord cannot commit stale text. Mouse reports (wheel
-      // scrolling, `ESC[<…`) are not typing and keep it.
-      if (!data.startsWith('\x1b[<')) osc52.stash = null;
+      clipboard.input(data);
       wsManager.write(stream, term, consumeTerminalModifiers(stream, term, data));
     });
 
@@ -453,33 +465,7 @@ export function Terminal({
       ? null
       : xterm.parser.registerOscHandler(11, answerColour(11, '--bg-base'));
 
-    // OSC 52 clipboard *writes* land in the stash, not the clipboard: xterm.js
-    // takes no action on OSC 52 on its own, and a mouse-reporting agent
-    // (Claude Code) emits `OSC 52 ; c ; <base64>` for every drag selection —
-    // committing directly meant highlighting auto-copied. The copy shortcut
-    // commits the stash instead. Read requests (`?`) are ignored on purpose:
-    // the PTY must never be able to exfiltrate the clipboard.
-    //
-    // This covers the escape-sequence half only. An agent that ALSO writes the
-    // host clipboard itself (Claude Code shells out to pbcopy/xclip unless it
-    // believes it is remote) reaches the pasteboard from the daemon's side of
-    // the wire, where no browser can intervene — with a local daemon that is the
-    // same pasteboard as the user's, so highlighting appears to copy despite
-    // this. That is the agent's own setting to turn off (`copyOnSelect` in
-    // Claude Code's /config); see the finding in agents/claude-code.ts.
-    const oscClipboard = xterm.parser.registerOscHandler(52, (data) => {
-      if (replayingRef.current) return true; // a historical copy — never resurface it
-      const semi = data.indexOf(';');
-      const payload = semi === -1 ? '' : data.slice(semi + 1);
-      if (!payload || payload === '?') return true; // read/clear — nothing to stash
-      try {
-        const bytes = Uint8Array.from(atob(payload), (c) => c.charCodeAt(0));
-        osc52.stash = new TextDecoder().decode(bytes);
-      } catch {
-        // malformed base64 — nothing safe to copy
-      }
-      return true;
-    });
+    const oscClipboard = xterm.parser.registerOscHandler(52, clipboard.osc);
 
     xterm.attachCustomKeyEventHandler((e) => {
       // Monaco-style in-view find. On macOS Ctrl+F remains the shell's
@@ -489,15 +475,7 @@ export function Terminal({
         find.openFind();
         return false;
       }
-      // The copy chord (⌘C on Mac, Ctrl+Shift+C elsewhere — plain Ctrl-C stays
-      // the interrupt) copies the local selection, else the stashed OSC 52
-      // payload; with neither it falls through and does nothing. ⌘V needs no
-      // handling: xterm already pastes on the browser's native paste event, so
-      // intercepting it would paste twice.
-      if (isCopyShortcut(e, IS_MAC)) {
-        const text = xterm.getSelection() || osc52.stash;
-        if (!text) return true;
-        void navigator.clipboard?.writeText(text);
+      if (clipboard.key(e)) {
         e.preventDefault();
         return false;
       }
@@ -574,6 +552,12 @@ export function Terminal({
     });
 
     return () => {
+      clipboard.reset();
+      clipboardRef.current = null;
+      container.removeEventListener('copy', onCopy, true);
+      container.removeEventListener('focusout', onBlur);
+      container.removeEventListener('mousedown', onBlur, true);
+      window.removeEventListener('blur', onBlur);
       container.removeEventListener('paste', onPaste, true);
       container.removeEventListener('wheel', onWheel, true);
       container.removeEventListener('focusin', onFocusIn);
@@ -679,6 +663,7 @@ export function Terminal({
           );
           // Start from a clean screen: the self-contained snapshot restores
           // the buffer rather than appending to what it already shows.
+          clipboardRef.current?.reset();
           replayingRef.current = true;
           const guard = resizeScrollGuardRef.current;
           guard.beginManagedScroll();
@@ -713,6 +698,7 @@ export function Terminal({
     });
     return () => {
       if (outputFrame !== 0) cancelAnimationFrame(outputFrame);
+      clipboardRef.current?.reset();
       detach();
     };
     // `fontReady` because the attach reads xtermRef, a REF: when the font gate

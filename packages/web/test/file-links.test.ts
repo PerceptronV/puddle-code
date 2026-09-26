@@ -150,6 +150,54 @@ describe('findPathCandidates', () => {
 });
 
 describe('findBufferPathCandidates', () => {
+  it('joins indented continuations with a right gutter and keeps the original coordinates', () => {
+    const buffer = bufferWithLines(
+      [
+        { text: '  see src/features/' },
+        { text: '    terminal/file-' },
+        { text: '    links.ts:12:3' },
+      ],
+      22,
+    );
+    for (const row of [0, 1, 2]) {
+      expect(findBufferPathCandidates(buffer, row, 22)[0]).toMatchObject({
+        candidate: { path: 'src/features/terminal/file-links.ts', line: 12, column: 3 },
+        start: { row: 0, col: 6 },
+        end: { row: 2, col: 16 },
+      });
+    }
+  });
+
+  it('joins a deliberate line break at a directory separator away from the margin', () => {
+    const buffer = bufferWithLines([{ text: 'see src/' }, { text: '  nested/file.ts:4' }], 80);
+    expect(findBufferPathCandidates(buffer, 1, 80)[0]).toMatchObject({
+      candidate: { path: 'src/nested/file.ts', line: 4 },
+      start: { row: 0, col: 4 },
+      end: { row: 1, col: 17 },
+    });
+  });
+
+  it('preserves spaces at a soft wrap so separate tokens do not merge', () => {
+    const buffer = bufferWithLines(
+      [{ text: 'note' }, { text: 'src/file.ts', isWrapped: true }],
+      12,
+    );
+    expect(findBufferPathCandidates(buffer, 1, 12)[0]).toMatchObject({
+      candidate: { path: 'src/file.ts' },
+      start: { row: 1, col: 0 },
+      end: { row: 1, col: 10 },
+    });
+  });
+
+  it('does not merge a new absolute path or cross blank lines', () => {
+    const buffer = bufferWithLines(
+      [{ text: 'src/file.ts' }, { text: '/other.ts' }, { text: '' }, { text: 'last.ts' }],
+      12,
+    );
+    expect(findBufferPathCandidates(buffer, 1, 12).map((link) => link.text)).toEqual(['/other.ts']);
+    expect(findBufferPathCandidates(buffer, 3, 12).map((link) => link.text)).toEqual(['last.ts']);
+  });
+
   it('returns the same complete link from either row of a soft-wrapped path', () => {
     const buffer = bufferWithLines(
       [{ text: 'see src/long' }, { text: 'er/file.ts:3', isWrapped: true }],

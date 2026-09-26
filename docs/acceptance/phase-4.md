@@ -4,9 +4,9 @@ SPEC §14 Phase 4 acceptance, run by hand against the built daemon with a real
 git repo and a real logged-in claude-code account. The pure logic (path-
 candidate regex, the resolve-validation cache, wrapped-line assembly,
 `editorDeepLink`, host precedence, `?host=` parsing) is unit-tested in CI;
-everything that needs a live xterm instance, a real hover/click, or an actual
-`vscode://`/`cursor://` handler on the machine cannot run under vitest. This
-script is where that gap closes.
+the isolated Playwright `terminal-interactions` suite also exercises real xterm
+hover/click, native copy events and delayed OSC replies. Real-agent behaviour
+and the machine’s `vscode://`/`cursor://` handlers remain manual checks here.
 
 Setup (plain shell only; see [connection authority acceptance](connection-authority.md)):
 
@@ -54,7 +54,10 @@ install on macOS) so the open-in-editor links have somewhere to land.
    row underlines the whole logical path spanning both rows, and cmd/ctrl+
    click from either row still opens it at the right line. Repeat with output
    that inserts a newline exactly at the right edge (a terminal-rendered hard
-   wrap): it behaves the same way.
+   wrap): it behaves the same way. Repeat with two-space continuation indentation,
+   a small unused right gutter, a break immediately after a directory separator,
+   and wide Unicode characters before the path. All portions must open the full
+   file at the requested line/column, even if a shorter directory prefix exists.
 6. **Login terminal.** Open a login terminal for an account (Settings →
    Accounts → an account's login flow). A URL printed there still underlines
    and opens on click; a file path printed there does NOT underline on hover
@@ -69,12 +72,12 @@ install on macOS) so the open-in-editor links have somewhere to land.
    since no SSH host is configured). Repeat for **Open in Cursor**
    (`cursor://file/<worktree_path>`).
 9. **Open in editor — SSH form + host precedence.** In Settings → Terminal &
-   editor, set "SSH host for editor links" to `alice@devbox` (any placeholder
+   editor, set "SSH host for editor links" to `user@devbox` (any placeholder
    host — nothing needs to actually resolve for this check, you're only
    confirming the emitted URI). Click **Open in VS Code** again: the OS
-   receives `vscode://vscode-remote/ssh-remote+alice@devbox/<worktree_path>`
+   receives `vscode://vscode-remote/ssh-remote+user@devbox/<worktree_path>`
    this time (check via the OS's "open with" prompt, or watch what VS Code
-   tries to connect to). Clear the setting, add `?host=alice@devbox` to the
+   tries to connect to). Clear the setting, add `?host=user@devbox` to the
    browser's address bar, and reload: the param disappears from the address
    bar immediately (captured, not left dangling in history) and the next
    **Open in VS Code** click uses the same ssh-remote form — the stored
@@ -83,6 +86,14 @@ install on macOS) so the open-in-editor links have somewhere to land.
     `worktree_missing` state (or simulate by removing the worktree directory
     on disk and reloading): the session menu no longer shows **Open in VS
     Code** / **Open in Cursor** at all.
+11. **Copy an application-owned selection over SSH.** In a Codex session,
+    drag normally (without Shift/Option), then press Ctrl+C or Command+C.
+    Paste into a local text field: the first press must copy the selected text
+    to the client. Repeat with desktop **Edit → Copy**, and with a forced local
+    Shift/Option-drag selection. Highlighting alone and returning to the session
+    must not overwrite the browser clipboard. With no selection, Ctrl+C must
+    still interrupt; Command+C must not interrupt. Deny browser clipboard access
+    and confirm a failed copy is visible and can be retried after granting access.
 
 Record any UI/daemon mismatches found here as issues; adapter corrections
 still go to `packages/daemon/src/agents/claude-code.ts` per phase-1.

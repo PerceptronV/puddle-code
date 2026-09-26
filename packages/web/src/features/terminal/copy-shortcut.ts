@@ -10,11 +10,24 @@ export interface CopyKeyEvent {
 
 /**
  * The terminal's copy chord: ⌘C on Mac, Ctrl+Shift+C elsewhere (the
- * terminal-emulator convention — plain Ctrl-C is the interrupt on every
- * platform and must reach the PTY untouched).
+ * terminal-emulator convention). Ctrl-C also copies when there is a selection;
+ * without one it remains the application's interrupt/copy key.
  */
-export function isCopyShortcut(e: CopyKeyEvent, isMac: boolean): boolean {
+export function isCopyShortcut(e: CopyKeyEvent, isMac: boolean, hasSelection = false): boolean {
   if (e.type !== 'keydown') return false;
-  if (isMac) return e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && e.key === 'c';
+  if (hasSelection && isControlC(e)) return true;
+  if (isMac)
+    return e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'c';
   return e.ctrlKey && e.shiftKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'c';
+}
+
+export function isControlC(e: CopyKeyEvent): boolean {
+  return (
+    e.type === 'keydown' &&
+    e.ctrlKey &&
+    !e.metaKey &&
+    !e.altKey &&
+    !e.shiftKey &&
+    e.key.toLowerCase() === 'c'
+  );
 }
