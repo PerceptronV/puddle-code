@@ -118,7 +118,7 @@ usage:
   puddle --version | --help
 
 --version lists the installed CLI, daemon, and desktop app with the protocol
-each speaks (daemon -cN reports the connector’s remote protocol); absent local components are reported as not installed.
+each speaks (daemon cN reports the connector’s remote protocol); absent local components are reported as not installed.
 
 launch serves the cockpit at http://localhost:7433 against the daemon on this
 machine when no host (or 'local') is given — installing it under ~/.puddle if

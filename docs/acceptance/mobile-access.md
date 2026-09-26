@@ -174,5 +174,5 @@ do not convert an automated test result into a claim that either review occurred
 5. Start the new connector with a legacy `remote/config.json` and approved devices.
    Its registration disappears, grants become revoked, and the relay record is
    retired (or queued while offline). Neither profile inherits it.
-6. Check `puddle --version`: the daemon line includes `-c3` when its archive has
+6. Check `puddle --version`: the daemon line includes `c3` when its archive has
    connector metadata. CLI/desktop compatibility still compares daemon major/minor.

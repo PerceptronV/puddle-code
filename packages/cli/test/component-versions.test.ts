@@ -98,7 +98,7 @@ it('displays connector metadata as a suffix without changing the daemon compatib
   symlinkSync('versions/9.8.7', join(home, 'bin', 'current'));
   const components = await installedComponentVersions({ home, platform: 'linux' });
   expect(components[1]).toMatchObject({ protocol: { major: 21, minor: 3 }, connectorProtocol: 4 });
-  expect(formatComponentVersions(components)).toContain('daemon  9.8.7 (protocol 21.3-c4)');
+  expect(formatComponentVersions(components)).toContain('daemon  9.8.7 (protocol 21.3c4)');
   writeFileSync(join(directory, 'CONNECTOR_PROTOCOL'), 'bad\n');
   expect(
     formatComponentVersions(await installedComponentVersions({ home, platform: 'linux' })),

@@ -136,7 +136,7 @@ the change from host-wide to profile-only access. Upgrade the service, app,
 daemon and connector together. Legacy host-wide registrations are deleted and
 their approvals revoked; users register and pair each profile afresh.
 
-The daemon line in `puddle --version` may display `protocol 22.0-c3`. The `c3`
+The daemon line in `puddle --version` may display `protocol 22.0c3`. The `c3`
 reports the bundled connector's remote protocol, read from `CONNECTOR_PROTOCOL`
 in the release archive (or a known historical release). It is display-only:
 `PROTOCOL` remains the daemon's plain `major.minor`, and CLI/desktop handshake

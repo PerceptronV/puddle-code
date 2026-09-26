@@ -670,7 +670,7 @@ Protocol 22.0 binds each remote host-control lease to the registering profile, s
 
 Each admitted browser gets its own manual-participation host control generation. An encrypted challenge issued every 15 seconds must return once within 15 seconds with explicit resource ids; renewals anchor to issue time and expire after 45 seconds. Existing 30-second rotation and 60-second token expiry remain. Reconnect restores snapshots without retrying input/mutations. Limits, cancellation and request ids live in `REMOTE_POLICY`; overload detaches rather than accumulates. The relay stores account/routing state and bounded transient ciphertext, with no content/access logging. HTTPS app and relay origins must differ under one site; production headers include CSP, framing denial, no-store and nosniff. The static app's distributor is trusted with plaintext and keys, even when transport encryption is enabled.
 
-The offline `puddle --version` inventory appends the bundled connector protocol to the daemon’s protocol, for example `22.0-c3`. Release archives carry a separate `CONNECTOR_PROTOCOL` integer alongside the unchanged plain `PROTOCOL` major/minor file. Known historical releases use the offline lookup; unknown connector versions omit the suffix. This display has no role in CLI/desktop compatibility decisions.
+The offline `puddle --version` inventory appends the bundled connector protocol to the daemon’s protocol, for example `22.0c3`. Release archives carry a separate `CONNECTOR_PROTOCOL` integer alongside the unchanged plain `PROTOCOL` major/minor file. Known historical releases use the offline lookup; unknown connector versions omit the suffix. This display has no role in CLI/desktop compatibility decisions.
 
 ### Protocol versioning and compatibility
 

@@ -291,7 +291,7 @@ export function formatComponentVersions(components: InstalledComponentVersion[])
       if (!component.installed) return `${name} not installed`;
       const version = component.version ?? 'unknown version';
       const protocol = component.protocol
-        ? `protocol ${component.protocol.major}.${component.protocol.minor}${component.component === 'daemon' && component.connectorProtocol !== undefined ? `-c${component.connectorProtocol}` : ''}`
+        ? `protocol ${component.protocol.major}.${component.protocol.minor}${component.component === 'daemon' && component.connectorProtocol !== undefined ? `c${component.connectorProtocol}` : ''}`
         : 'protocol unknown';
       return `${name} ${version} (${protocol})`;
     })
