@@ -73,7 +73,14 @@ export const codex: AgentAdapter = {
   },
 
   env(account) {
-    return { CODEX_HOME: account.config_dir };
+    // Codex 0.157.1 (live copy probe): outside tmux, native clipboard success
+    // skips OSC 52 unless SSH_TTY or SSH_CONNECTION is present. A supervised
+    // daemon normally has neither, even when its viewers connect over SSH.
+    // Mark this browser-backed TUI as remote-capable so copies also reach the
+    // viewing terminal. An empty presence-only marker invents no SSH endpoint
+    // or tty path; preserve an actual inherited SSH_TTY when one exists.
+    // The separate lifecycle app-server does not receive this marker.
+    return { CODEX_HOME: account.config_dir, SSH_TTY: process.env['SSH_TTY'] ?? '' };
   },
 
   launchArgs(opts) {

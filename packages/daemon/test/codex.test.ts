@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Account } from '@puddle/shared';
 import { codex } from '../src/agents/codex.js';
 import { codexAppServerSpawnOptions, codexRemoteArgs } from '../src/agents/codex-lifecycle.js';
@@ -57,9 +57,23 @@ const UUID_B = '019b64f3-f981-74a3-9606-132bdae0f80c';
 
 describe('codex adapter — args', () => {
   const opts = { worktreePath: '/wt', sessionId: 's1', skipPermissions: false };
+  afterEach(() => vi.unstubAllEnvs());
 
-  it('isolates state through CODEX_HOME alone', () => {
-    expect(codex.env(account('/cfg'))).toEqual({ CODEX_HOME: '/cfg' });
+  it('isolates state and enables terminal clipboard forwarding without inherited SSH state', () => {
+    vi.stubEnv('SSH_TTY', undefined);
+    vi.stubEnv('SSH_CONNECTION', undefined);
+    expect(codex.env(account('/cfg'))).toEqual({ CODEX_HOME: '/cfg', SSH_TTY: '' });
+    // The compatibility marker belongs to the TUI, not the app-server which
+    // executes agent tools. Do not modify the daemon's process environment.
+    expect(process.env['SSH_TTY']).toBeUndefined();
+    expect(codexAppServerSpawnOptions({ account: account('/cfg'), opts }).env).not.toHaveProperty(
+      'SSH_TTY',
+    );
+  });
+
+  it('preserves a real inherited SSH tty', () => {
+    vi.stubEnv('SSH_TTY', '/dev/pts/7');
+    expect(codex.env(account('/cfg'))['SSH_TTY']).toBe('/dev/pts/7');
   });
 
   it('launches bare, and only adds the bypass flag when skipping', () => {

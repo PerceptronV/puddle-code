@@ -86,14 +86,21 @@ install on macOS) so the open-in-editor links have somewhere to land.
     `worktree_missing` state (or simulate by removing the worktree directory
     on disk and reloading): the session menu no longer shows **Open in VS
     Code** / **Open in Cursor** at all.
-11. **Copy an application-owned selection over SSH.** In a Codex session,
-    drag normally (without Shift/Option), then press Ctrl+C or Command+C.
+11. **Copy an application-owned selection over SSH.** Use an updated host daemon
+    and a newly started or resumed Codex process (the adapter environment cannot
+    change inside an already-running process). Keep the UI on a different
+    machine, and exercise a host where native clipboard copying succeeds but
+    the supervised daemon has no inherited `SSH_TTY` or `SSH_CONNECTION`.
+    In the Codex session, drag normally (without Shift/Option), then press Ctrl+C or Command+C.
     Paste into a local text field: the first press must copy the selected text
     to the client. Repeat with desktop **Edit → Copy**, and with a forced local
     Shift/Option-drag selection. Highlighting alone and returning to the session
     must not overwrite the browser clipboard. With no selection, Ctrl+C must
     still interrupt; Command+C must not interrupt. Deny browser clipboard access
     and confirm a failed copy is visible and can be retried after granting access.
+    Codex 0.157.1 may still report **Copied … chars to host clipboard** when it
+    also emits OSC 52; verify the client's pasted text, not that notice. A test
+    with the UI and agent on one machine can falsely pass via the native clipboard.
 
 Record any UI/daemon mismatches found here as issues; adapter corrections
-still go to `packages/daemon/src/agents/claude-code.ts` per phase-1.
+belong in the affected agent's adapter under `packages/daemon/src/agents/`.
