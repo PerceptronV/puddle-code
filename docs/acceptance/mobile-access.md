@@ -32,6 +32,9 @@ recovery instructions: [self-hosted mobile access](../mobile-access.md).
   Preview checks cover the eye toggle, Markdown maths/Mermaid and image-heavy pages,
   linked HTML navigation, local styles/scripts/images, script interaction, parent/storage/cookie
   isolation under the production CSP, refresh, image previews and custom host roots.
+  An isolated production file fixture uses the deployed CSP to verify PDF canvas painting,
+  horizontal switches with larger touch targets, long-press downloads with exact filenames/bytes,
+  scrolling cancellation, the 8 MiB limit, and cancellation after a host change.
   Held touch drags select and copy file text and Unicode across terminal rows in normal,
   mouse-reporting and alternate-screen modes; quick swipes still scroll. Revoked browser rows disappear
   from desktop settings while their host records remain revoked. Shared browser cards
@@ -137,6 +140,8 @@ Run on current iOS Safari and Android Chrome, recording versions and results:
 | Lock/suspend; Wi-Fi to cellular; offline during Send | Draft survives, uncertain outcome is visible, no automatic replay |
 | Return to existing runtime after expiry | Fresh admission and canonical snapshot; agent continues on the host |
 | Project cards and session rail | Hosts have separate card groups; only the active project’s non-archived sessions appear; tap switches, hold opens details, archive/restore and rail expansion work; the collapsed rail and expanded drawer sit on the left, aligned with the workspace toolbar |
+| Mobile switches | New agent switches remain horizontal, their thumb moves between endpoints, tapping a label toggles once, and disabled switches stay inert |
+| File downloads | Hold a file row, tap Download, and save/open it using the browser; verify PDF and binary bytes and a Unicode filename, including a custom browse root; scrolling must not open the menu; remote files above 8 MiB explain the limit; leaving the host during a read prevents the save |
 | Files and custom paths | Double-tap opens text, Back returns to the same directory, path dialogue starts at the current directory/file, typed file paths open the viewer, and custom host roots and projects without sessions can be browsed |
 | Disconnect in settings | Viewer closes without stopping agents; the host stays disconnected until Connect during this visit |
 | File previews and change review | Eye switches supported files between source and rendered preview; Markdown maths/diagrams, HTML JavaScript and local assets work; HTML cannot read parent DOM/storage/cookies; image/audio/video/PDF viewers work within the 8 MiB asset cap; changes have no duplicate Changes/Files/Refresh row; each hunk stacks numbered Before/After text with addition/deletion and changed-word highlights in both themes, while source stays inert |

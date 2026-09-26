@@ -13,9 +13,9 @@ const PdfDocumentViewer = lazy(() =>
 /**
  * Inline preview for media editor tabs (SPEC §8): image / video / audio / PDF.
  * Fetches the file through the authed API (`GET /media`, the real content-type)
- * and hands the element an **object URL** — so no bearer token ever needs to
- * ride in an element `src` — revoking it on unmount or path change. Falls back
- * to a Download affordance on error.
+ * and hands media elements an object URL, or PDF.js the fetched Blob directly.
+ * No bearer token rides in an element `src`; URLs are revoked on unmount or
+ * path change. Falls back to a Download affordance on error.
  */
 export function MediaViewer({
   session,
@@ -40,7 +40,7 @@ export function MediaViewer({
   onRevealSource?: (target: LatexSynctexResponse) => void;
 }) {
   const refreshRevision = useMediaRefresh(session, path, root);
-  const { url, error } = useMediaObjectUrl(session, path, root, refreshRevision, refreshKey);
+  const { asset, error } = useMediaAsset(session, path, root, refreshRevision, refreshKey);
 
   if (error) {
     return (
@@ -50,13 +50,14 @@ export function MediaViewer({
       </Centre>
     );
   }
-  if (!url) {
+  if (!asset) {
     return (
       <Centre>
         <span className="text-xs text-fg-muted">…</span>
       </Centre>
     );
   }
+  const { url, blob } = asset;
 
   if (kind === 'image') {
     return (
@@ -90,7 +91,7 @@ export function MediaViewer({
       }
     >
       <PdfDocumentViewer
-        url={url}
+        blob={blob}
         session={session}
         path={path}
         root={root}
@@ -124,27 +125,27 @@ function DownloadButton({ session, path, root }: { session: string; path: string
   );
 }
 
-/** Fetches `path` as an object URL, revoking it on change/unmount. */
-function useMediaObjectUrl(
+/** Retains fetched bytes alongside an object URL, revoking it on change/unmount. */
+function useMediaAsset(
   session: string,
   path: string,
   root?: string,
   refreshRevision = 0,
   refreshKey?: string | number,
-): { url: string | null; error: string | null } {
-  const [url, setUrl] = useState<string | null>(null);
+): { asset: { url: string; blob: Blob } | null; error: string | null } {
+  const [asset, setAsset] = useState<{ url: string; blob: Blob } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let objectUrl: string | null = null;
     let cancelled = false;
-    setUrl(null);
+    setAsset(null);
     setError(null);
     fetchPreviewAsset(session, path, root)
       .then((blob) => {
         if (cancelled) return;
         objectUrl = URL.createObjectURL(blob);
-        setUrl(objectUrl);
+        setAsset({ url: objectUrl, blob });
       })
       .catch((error: unknown) => {
         if (!cancelled)
@@ -156,7 +157,7 @@ function useMediaObjectUrl(
     };
   }, [session, path, root, refreshRevision, refreshKey]);
 
-  return { url, error };
+  return { asset, error };
 }
 
 function startDownload(session: string, path: string, root?: string): Promise<void> {

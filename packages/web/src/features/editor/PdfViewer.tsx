@@ -33,7 +33,7 @@ import {
 } from './pdf-coordinates';
 
 interface PdfViewerProps {
-  url: string;
+  blob: Blob;
   session: string;
   path: string;
   root?: string;
@@ -59,7 +59,7 @@ const zoomPositions = new ViewStateStore<number>();
  * only when a PDF is opened; inverse search is enabled only for LaTeX output.
  */
 export function PdfViewer({
-  url,
+  blob,
   session,
   path,
   root,
@@ -177,10 +177,12 @@ export function PdfViewer({
     setDocument(null);
     setError(false);
 
-    void loadPdfJs()
-      .then((pdfjs) => {
+    // The remote app forbids blob URL requests in connect-src. Read the bytes
+    // already fetched through the authorised transport, without another request.
+    void Promise.all([loadPdfJs(), blob.arrayBuffer()])
+      .then(([pdfjs, data]) => {
         if (cancelled) return null;
-        loadingTask = pdfjs.getDocument({ url });
+        loadingTask = pdfjs.getDocument({ data });
         return loadingTask.promise;
       })
       .then((pdf) => {
@@ -202,7 +204,7 @@ export function PdfViewer({
       if (loadedDocument) void loadedDocument.cleanup();
       if (loadingTask) void loadingTask.destroy();
     };
-  }, [url]);
+  }, [blob]);
 
   const reveal = useCallback(
     async (page: number, x: number, y: number) => {

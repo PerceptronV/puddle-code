@@ -1,11 +1,9 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   ArrowLeft,
   ArrowUp,
-  ChevronRight,
   Eye,
-  Folder,
   FolderOpen,
   GitCompareArrows,
   Monitor,
@@ -17,11 +15,10 @@ import { previewKind } from '../editor/preview-kind';
 import { mediaKind } from '../editor/media-kind';
 import { api } from '../../lib/api';
 import { Button } from '../../components/ui/button';
-import { FileTypeIcon } from '../explorer/file-icons';
 import { PhoneReview } from './PhoneReview';
 import { PhonePathDialog } from './PhonePathDialog';
 import { PhoneFileContent } from './PhoneFileContent';
-import { cn } from '../../lib/utils';
+import { PhoneFileRow } from './PhoneFileRow';
 
 const NO_SESSION = '00000000-0000-0000-0000-000000000000';
 
@@ -53,7 +50,6 @@ export function PhoneFiles({
   const [selected, setSelected] = useState('');
   const [editingPath, setEditingPath] = useState(false);
   const [changes, setChanges] = useState(false);
-  const tap = useRef({ path: '', at: 0 });
   const effectiveRoot = root ?? worktree;
   const relativePath = file ?? directory;
   const currentPath = relativePath
@@ -222,53 +218,22 @@ export function PhoneFiles({
               {entries.map((entry) => {
                 const path = [directory, entry.name].filter(Boolean).join('/');
                 return (
-                  <div
-                    key={path}
-                    className={cn(
-                      'flex items-center rounded-md',
-                      selected === path && 'bg-surface',
-                    )}
-                  >
-                    <button
-                      className="phone-file-row"
-                      disabled={entry.type === 'symlink'}
-                      aria-label={`${entry.type === 'dir' ? 'Open folder' : 'Select file'} ${entry.name}`}
-                      onClick={(event) => {
-                        if (entry.type === 'dir') {
-                          setDirectory(path);
-                          setSelected('');
-                          return;
-                        }
-                        if (
-                          event.detail === 0 ||
-                          (tap.current.path === path && performance.now() - tap.current.at < 450)
-                        )
-                          openFile(path);
-                        tap.current = { path, at: performance.now() };
-                        setSelected(path);
-                      }}
-                      onDoubleClick={() => {
-                        if (entry.type === 'file') openFile(path);
-                      }}
-                    >
-                      {entry.type === 'dir' ? (
-                        <Folder className="size-4 shrink-0" />
-                      ) : (
-                        <FileTypeIcon name={entry.name} />
-                      )}
-                      <span className="truncate">{entry.name}</span>
-                    </button>
-                    {entry.type === 'file' && selected === path && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`View ${entry.name}`}
-                        onClick={() => openFile(path)}
-                      >
-                        <ChevronRight />
-                      </Button>
-                    )}
-                  </div>
+                  <PhoneFileRow
+                    key={`${target}:${effectiveRoot}:${path}`}
+                    entry={entry}
+                    path={path}
+                    session={target}
+                    root={rootOverride}
+                    selected={selected === path}
+                    canDownload={canPreview}
+                    select={() => setSelected(path)}
+                    open={() => {
+                      if (entry.type === 'dir') {
+                        setDirectory(path);
+                        setSelected('');
+                      } else openFile(path);
+                    }}
+                  />
                 );
               })}
               {tree.data && entries.length === 0 && (

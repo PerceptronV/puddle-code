@@ -8,3 +8,12 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Added
+
+- Offer Download when holding a mobile file row, preserving filenames and bytes with the existing 8 MiB remote file limit.
+
+### Fixed
+
+- Render mobile PDF previews from fetched bytes without a blob request blocked by the deployed security policy.
+- Keep mobile switches horizontal while preserving their larger touch targets.
