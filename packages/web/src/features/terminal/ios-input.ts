@@ -24,6 +24,10 @@ export function attachIosTerminalInput(terminal: Terminal, active: () => boolean
   const abort = new AbortController();
   const options = { capture: true, signal: abort.signal };
   let composing = false;
+  // xterm 6 cancels handled keydowns, but leaves keypresses (spaces and capital
+  // letters) uncancelled. Prevent their native insertion too, otherwise our
+  // beforeinput fallback sends the character a second time.
+  const keys = terminal.onKey(({ domEvent }) => domEvent.preventDefault());
   // xterm's `nowrap` collapses the padding's newlines into a single row.
   textarea.style.whiteSpace = 'pre';
   const send = (data: string | null) => {
@@ -96,5 +100,8 @@ export function attachIosTerminalInput(terminal: Terminal, active: () => boolean
   );
   document.addEventListener('selectionchange', moved, { signal: abort.signal });
   if (document.activeElement === textarea) recentre();
-  return () => abort.abort();
+  return () => {
+    keys.dispose();
+    abort.abort();
+  };
 }

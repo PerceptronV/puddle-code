@@ -136,6 +136,15 @@ test('keys, keyless insertions and IME commits arrive once without editing the p
   expect(await input(page)).toBe('');
 });
 
+test('spaces and capital letters handled by xterm arrive once', async ({ page }) => {
+  for (const text of [' ', '  ', 'Hi There']) {
+    await clear(page);
+    await page.keyboard.type(text);
+    expect(await input(page)).toBe(text);
+    await expect(page.locator('textarea')).toHaveValue(PAD);
+  }
+});
+
 test('taps focus without moving the caret and reach mouse-aware applications', async ({ page }) => {
   await page.evaluate(() => window.editing.write('› hello world'));
   await clear(page);
