@@ -99,7 +99,7 @@ the setups available to the release host matrix:
 2. A successful build opens `main.pdf` as an ordinary persistent file tab in
    the same pane. Its label is not italicised. It can be moved, split, restored
    and closed like any other file tab. Move it by dropping over every pane,
-   including one currently showing an HTML or ordinary native-PDF iframe.
+   including one currently showing an HTML iframe or another PDF.
 3. Press play again. The existing rooted PDF tab is selected and refreshed;
    no duplicate opens. Put that PDF in another pane and repeat: Puddle finds it
    across the whole live layout rather than opening another copy.
@@ -158,9 +158,8 @@ Repeat with source/root paths containing spaces and non-ASCII characters.
 
 ## 5. PDF rendering and inverse SyncTeX
 
-1. A generated LaTeX PDF uses the owned PDF.js viewer. An unrelated PDF opened
-   from the worktree still uses the browser's native viewer and does not load
-   LaTeX navigation behaviour. In a packaged CLI/desktop cockpit, confirm the
+1. Generated LaTeX PDFs and ordinary PDFs use the owned PDF.js viewer. Only
+   generated LaTeX output enables inverse source navigation. In a packaged CLI/desktop cockpit, confirm the
    emitted `pdf.worker*.mjs` request succeeds with a JavaScript content type;
    module workers must never be served as `application/octet-stream`.
 2. Resize the pane and use a multi-page document. Pages remain fitted and crisp
@@ -170,6 +169,12 @@ Repeat with source/root paths containing spaces and non-ASCII characters.
    trackpad and a two-touch screen: scaling changes continuously between the
    button stops, remains bounded to 50–300%, and keeps the content beneath the
    gesture centre stable. Ordinary two-finger scrolling still scrolls.
+   Scroll to a later page at 125% zoom, including a horizontal offset. Switch
+   tabs, switch projects and return, then compile again: the same scroll
+   progress and zoom return after page layout. Repeat with an ordinary PDF;
+   different panes, files and projects retain independent positions. The
+   isolated `view-state.test.ts` browser fixture exercises real PDF.js loading,
+   remounts and refreshed bytes without a daemon or TeX installation.
 3. Command-click on macOS or Ctrl-click elsewhere on visible text in the PDF.
    Puddle opens or reuses the corresponding source tab and places Monaco's caret
    at the returned line. Click text emitted by `sections/result.tex`: navigation

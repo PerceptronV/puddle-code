@@ -6,7 +6,7 @@ import { downloadPath } from '../../lib/worktree-queries';
 import type { MediaKind } from './media-kind';
 import { useMediaRefresh } from './media-refresh-store';
 
-const GeneratedPdfViewer = lazy(() =>
+const PdfDocumentViewer = lazy(() =>
   import('./PdfViewer').then((module) => ({ default: module.PdfViewer })),
 );
 
@@ -79,28 +79,28 @@ export function MediaViewer({
       </Centre>
     );
   }
-  // pdf
-  if (!readOnly && root && isLatexGeneratedPdf(path, root, generatedBy)) {
-    return (
-      <Suspense
-        fallback={
-          <Centre>
-            <span className="text-xs text-fg-muted">Loading PDF…</span>
-          </Centre>
+  // Own the PDF scrollport: a browser's native PDF iframe exposes no position
+  // to restore when a tab or project unmounts it.
+  return (
+    <Suspense
+      fallback={
+        <Centre>
+          <span className="text-xs text-fg-muted">Loading PDF…</span>
+        </Centre>
+      }
+    >
+      <PdfDocumentViewer
+        url={url}
+        session={session}
+        path={path}
+        root={root}
+        onRevealSource={
+          !readOnly && isLatexGeneratedPdf(path, root, generatedBy) ? onRevealSource : undefined
         }
-      >
-        <GeneratedPdfViewer
-          url={url}
-          session={session}
-          path={path}
-          root={root}
-          onRevealSource={onRevealSource}
-          onDownload={() => void startDownload(session, path, root)}
-        />
-      </Suspense>
-    );
-  }
-  return <iframe src={url} title={path} className="h-full w-full border-0 bg-ground" />;
+        onDownload={readOnly ? undefined : () => void startDownload(session, path, root)}
+      />
+    </Suspense>
+  );
 }
 
 /** Centres its content over the tab's full height on the editor ground. */
@@ -165,7 +165,7 @@ function startDownload(session: string, path: string, root?: string): Promise<vo
   });
 }
 
-/** Only daemon-owned LaTeX artefacts get the interceptable PDF.js viewer. */
+/** Only daemon-owned LaTeX artefacts can request inverse source navigation. */
 export function isLatexGeneratedPdf(path: string, root?: string, generatedBy?: string): boolean {
   if (!root || !path.toLowerCase().endsWith('.pdf')) return false;
   if (generatedBy === 'latex') return true;

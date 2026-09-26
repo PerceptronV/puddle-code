@@ -16,6 +16,9 @@ import type {
   RenderTask,
 } from 'pdfjs-dist';
 import { api } from '../../lib/api';
+import { useViewStateKey } from './view-state-context';
+import { ViewStateStore } from './view-state-store';
+import { bindScrollRestoration, type ScrollRestoration } from './scroll-restoration';
 import {
   adjacentPdfZoom,
   clampPdfZoom,
@@ -32,9 +35,9 @@ interface PdfViewerProps {
   url: string;
   session: string;
   path: string;
-  root: string;
+  root?: string;
   onRevealSource?: (target: LatexSynctexResponse) => void;
-  onDownload: () => void;
+  onDownload?: () => void;
 }
 
 interface ZoomAnchor {
@@ -48,11 +51,11 @@ interface TouchPinch {
 }
 
 let pdfJsPromise: Promise<typeof import('pdfjs-dist')> | null = null;
+const zoomPositions = new ViewStateStore<number>();
 
 /**
- * Owned PDF.js view for daemon-generated LaTeX output. The library and its
- * worker are fetched only after this component mounts; ordinary PDF tabs keep
- * using the browser viewer and never pay this cost.
+ * Owned PDF.js view with restorable scroll/zoom. The library and worker load
+ * only when a PDF is opened; inverse search is enabled only for LaTeX output.
  */
 export function PdfViewer({
   url,
@@ -62,39 +65,71 @@ export function PdfViewer({
   onRevealSource,
   onDownload,
 }: PdfViewerProps) {
+  const viewKey = useViewStateKey('pdf', [session, root, path]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const restoration = useRef<ScrollRestoration | null>(null);
   const zoomFrameRef = useRef(0);
-  const zoomRef = useRef(1);
+  const [zoom, setZoom] = useState(() => zoomPositions.get(viewKey) ?? 1);
+  const zoomRef = useRef(zoom);
+  const zoomingRef = useRef(false);
   const [document, setDocument] = useState<PDFDocumentProxy | null>(null);
   const [error, setError] = useState(false);
-  const [zoom, setZoom] = useState(1);
   const width = useAvailablePageWidth(scrollRef);
+  const hasWidth = width !== null;
 
-  const changeZoom = useCallback((requestedZoom: number, anchor?: ZoomAnchor) => {
-    const nextZoom = clampPdfZoom(requestedZoom);
-    if (Math.abs(nextZoom - zoomRef.current) < Number.EPSILON) return;
+  useLayoutEffect(() => {
     const scroller = scrollRef.current;
-    const bounds = scroller?.getBoundingClientRect();
-    const anchorX =
-      anchor && bounds ? anchor.clientX - bounds.left : (scroller?.clientWidth ?? 0) / 2;
-    const anchorY =
-      anchor && bounds ? anchor.clientY - bounds.top : (scroller?.clientHeight ?? 0) / 2;
-    const horizontalAnchor = scroller
-      ? (scroller.scrollLeft + anchorX) / Math.max(1, scroller.scrollWidth)
-      : 0.5;
-    const verticalAnchor = scroller
-      ? (scroller.scrollTop + anchorY) / Math.max(1, scroller.scrollHeight)
-      : 0;
+    const content = contentRef.current;
+    if (!scroller || !content || !document) return;
+    const binding = bindScrollRestoration(
+      scroller,
+      content,
+      viewKey,
+      () =>
+        content.isConnected &&
+        !zoomingRef.current &&
+        content.querySelectorAll('[data-scroll-ready="true"]').length === document.numPages,
+    );
+    restoration.current = binding;
+    return () => {
+      binding.dispose();
+      restoration.current = null;
+    };
+  }, [document, viewKey, hasWidth]);
 
-    zoomRef.current = nextZoom;
-    setZoom(nextZoom);
-    cancelAnimationFrame(zoomFrameRef.current);
-    zoomFrameRef.current = requestAnimationFrame(() => {
-      if (!scroller) return;
-      scroller.scrollLeft = horizontalAnchor * scroller.scrollWidth - anchorX;
-      scroller.scrollTop = verticalAnchor * scroller.scrollHeight - anchorY;
-    });
-  }, []);
+  const changeZoom = useCallback(
+    (requestedZoom: number, anchor?: ZoomAnchor) => {
+      const nextZoom = clampPdfZoom(requestedZoom);
+      if (Math.abs(nextZoom - zoomRef.current) < Number.EPSILON) return;
+      const scroller = scrollRef.current;
+      const bounds = scroller?.getBoundingClientRect();
+      const anchorX =
+        anchor && bounds ? anchor.clientX - bounds.left : (scroller?.clientWidth ?? 0) / 2;
+      const anchorY =
+        anchor && bounds ? anchor.clientY - bounds.top : (scroller?.clientHeight ?? 0) / 2;
+      const horizontalAnchor = scroller
+        ? (scroller.scrollLeft + anchorX) / Math.max(1, scroller.scrollWidth)
+        : 0.5;
+      const verticalAnchor = scroller
+        ? (scroller.scrollTop + anchorY) / Math.max(1, scroller.scrollHeight)
+        : 0;
+
+      zoomRef.current = nextZoom;
+      zoomPositions.set(viewKey, nextZoom);
+      zoomingRef.current = true;
+      setZoom(nextZoom);
+      cancelAnimationFrame(zoomFrameRef.current);
+      zoomFrameRef.current = requestAnimationFrame(() => {
+        if (!scroller) return;
+        scroller.scrollLeft = horizontalAnchor * scroller.scrollWidth - anchorX;
+        scroller.scrollTop = verticalAnchor * scroller.scrollHeight - anchorY;
+        zoomingRef.current = false;
+        restoration.current?.capture();
+      });
+    },
+    [viewKey],
+  );
 
   useEffect(() => {
     const scroller = scrollRef.current;
@@ -203,26 +238,36 @@ export function PdfViewer({
     return (
       <Status>
         <p className="text-sm text-fg-secondary">Couldn’t display this PDF.</p>
-        <button
-          type="button"
-          onClick={onDownload}
-          className="rounded-md bg-elevated px-3 py-1.5 text-sm text-fg transition-colors hover:bg-border/70"
-        >
-          Download
-        </button>
+        {onDownload && (
+          <button
+            type="button"
+            onClick={onDownload}
+            className="rounded-md bg-elevated px-3 py-1.5 text-sm text-fg transition-colors hover:bg-border/70"
+          >
+            Download
+          </button>
+        )}
       </Status>
     );
   }
 
   return (
     <div className="relative h-full w-full bg-ground">
-      <div ref={scrollRef} className="h-full w-full overflow-auto">
+      <div
+        ref={scrollRef}
+        role="region"
+        aria-label="PDF document"
+        className="h-full w-full overflow-auto"
+      >
         {!document || width === null ? (
           <Status>
             <span className="text-xs text-fg-muted">Loading PDF…</span>
           </Status>
         ) : (
-          <div className="flex min-h-full w-max min-w-full flex-col items-center gap-4 p-4">
+          <div
+            ref={contentRef}
+            className="flex min-h-full w-max min-w-full flex-col items-center gap-4 p-4"
+          >
             {Array.from({ length: document.numPages }, (_, index) => (
               <PdfPage
                 key={index + 1}
@@ -422,7 +467,11 @@ function PdfPage({
   };
 
   if (error) {
-    return <p className="py-8 text-xs text-fg-muted">Couldn’t render page {pageNumber}.</p>;
+    return (
+      <p data-scroll-ready="true" className="py-8 text-xs text-fg-muted">
+        Couldn’t render page {pageNumber}.
+      </p>
+    );
   }
 
   const fittedHeight = pageSize
@@ -431,6 +480,7 @@ function PdfPage({
   return (
     <div
       ref={holderRef}
+      data-scroll-ready={pageSize !== null}
       className="shrink-0 bg-elevated shadow-sm"
       style={{ width: availableWidth, height: fittedHeight }}
       aria-label={`PDF page ${pageNumber}`}
@@ -478,7 +528,9 @@ function useAvailablePageWidth(ref: React.RefObject<HTMLDivElement | null>): num
     let frame = 0;
     const measure = () => {
       cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => setWidth(Math.max(1, element.clientWidth - 32)));
+      frame = requestAnimationFrame(() => {
+        if (element.clientWidth > 32) setWidth(element.clientWidth - 32);
+      });
     };
     measure();
     const observer = new ResizeObserver(measure);

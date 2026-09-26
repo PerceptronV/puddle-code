@@ -1835,7 +1835,7 @@ function WorkspaceInner() {
           onRenameFile={renameFileTab}
           focusedLeafId={layout.focusedLeaf.id}
           scrollDriverLeafId={scrollDriverLeafId}
-          scrollChannel={scopeKey}
+          scrollChannel={`${profileId ?? ''}:${scopeKey}`}
         />
       </div>
     </div>

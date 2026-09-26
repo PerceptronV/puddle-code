@@ -15,6 +15,7 @@ import { cn } from '../../lib/utils';
 import { LazyPaneEditorBody } from '../editor/lazy-editor-parts';
 import type { EditorTab, EditorView } from '../editor/editor-tabs';
 import { tabKind } from '../editor/editor-tabs';
+import { TabViewStateContext } from '../editor/view-state-context';
 import { previewKind } from '../editor/preview-kind';
 import type { EditorPosition, RevealTarget } from './editor-context';
 import { useKeepAliveSlot } from './keep-alive';
@@ -248,20 +249,24 @@ export function PaneLeaf({
       >
         {activeRef?.type === 'editor' && (
           <div className="absolute inset-0">
-            <LazyPaneEditorBody
-              tab={activeRef.tab}
-              reveal={reveal}
-              focused={focused}
-              scrollDriver={drivesScroll}
-              scrollReceiver={scrollReceiver}
-              scrollChannel={scrollChannel}
-              onRevealSource={
-                activeEditor?.view === 'linked' || activeEditor?.view === 'locked'
-                  ? (position) => onRevealPreviewSource(leaf.id, activeEditor, position)
-                  : undefined
-              }
-              onRevealCompiledSource={(target) => onRevealCompiledSource(leaf.id, target)}
-            />
+            <TabViewStateContext.Provider
+              value={JSON.stringify([scrollChannel, leaf.id, tabRefKey(activeRef)])}
+            >
+              <LazyPaneEditorBody
+                tab={activeRef.tab}
+                reveal={reveal}
+                focused={focused}
+                scrollDriver={drivesScroll}
+                scrollReceiver={scrollReceiver}
+                scrollChannel={scrollChannel}
+                onRevealSource={
+                  activeEditor?.view === 'linked' || activeEditor?.view === 'locked'
+                    ? (position) => onRevealPreviewSource(leaf.id, activeEditor, position)
+                    : undefined
+                }
+                onRevealCompiledSource={(target) => onRevealCompiledSource(leaf.id, target)}
+              />
+            </TabViewStateContext.Provider>
           </div>
         )}
         {/* The keep-alive slot is always mounted (stable ref) so a terminal
