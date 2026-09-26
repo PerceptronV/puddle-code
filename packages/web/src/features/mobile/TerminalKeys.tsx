@@ -17,12 +17,14 @@ export function TerminalKeys({
   connected,
   composing,
   toggleComposer,
+  insertTarget,
 }: {
   session: string;
   term: string;
   connected: boolean;
   composing: boolean;
   toggleComposer(): void;
+  insertTarget?: () => ((text: string) => void) | undefined;
 }) {
   const ready = useTerminalInputReady(session, term) && connected;
   const modifiers = useTerminalModifiers(session, term);
@@ -39,7 +41,7 @@ export function TerminalKeys({
         aria-label="Terminal keys"
         onTouchEnd={keepTerminalFocus(() => focusTerminal(session, term))}
       >
-        <ImagePasteButton session={session} term={term} ready={ready} />
+        <ImagePasteButton session={session} term={term} ready={ready} insertTarget={insertTarget} />
         <TerminalKey variant="ghost" disabled={!ready} activate={() => send('\x1b')}>
           Esc
         </TerminalKey>

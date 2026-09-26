@@ -35,8 +35,12 @@ export async function checkImagePicker(
       .filter((message) => message.t === 'output')
       .map((message) => ('data' in message ? message.data : ''))
       .join('');
+  const prompt = page.getByRole('textbox', { name: 'Prompt', exact: true });
+  const focusTerminal = () => page.locator('.xterm-helper-textarea').first().focus();
   try {
-    await page.getByRole('textbox', { name: 'Prompt', exact: true }).fill('Keep my image caption');
+    // The path goes to the input used last: first the prompt draft, at its caret.
+    await prompt.fill('Keep my image caption');
+    await prompt.evaluate((element: HTMLTextAreaElement) => element.setSelectionRange(7, 7));
     const opening = page.waitForEvent('filechooser');
     await button.tap();
     await (await opening).setFiles({ name: 'image.png', mimeType: 'image/png', buffer: png });
@@ -44,19 +48,20 @@ export async function checkImagePicker(
     await expect(button).toBeEnabled();
     const first = files()[0]!;
     expect(readFileSync(join(directory, first))).toEqual(png);
-    expect(output()).not.toContain(`INPUT:.puddle/pastes/${first}`);
-    await expect(page.getByRole('textbox', { name: 'Prompt', exact: true })).toHaveValue(
-      'Keep my image caption',
-    );
-    await page.getByRole('button', { name: 'Enter', exact: true }).click();
-    await until(output, (text) => text.includes(`INPUT:.puddle/pastes/${first} `));
-    expect(output().split(`INPUT:.puddle/pastes/${first}`).length - 1).toBe(1);
+    await expect(prompt).toHaveValue(`Keep my .puddle/pastes/${first} image caption`);
+    expect(output()).not.toContain(`.puddle/pastes/${first}`);
+    await prompt.fill('');
 
-    // Resetting the input permits selecting the same file a second time.
+    // Then the terminal. Resetting the input permits selecting the same file again.
+    await focusTerminal();
     await chooser.setInputFiles({ name: 'image.png', mimeType: 'image/png', buffer: png });
     await until(files, (names) => names.length === 2);
     await expect(button).toBeEnabled();
+    const second = files().find((name) => name !== first)!;
+    await expect(prompt).toHaveValue('');
     await page.getByRole('button', { name: 'Enter', exact: true }).click();
+    await until(output, (text) => text.includes(`INPUT:.puddle/pastes/${second} `));
+    expect(output().split(`INPUT:.puddle/pastes/${second}`).length - 1).toBe(1);
 
     // Sources below 4 MiB cross many encrypted requests without changing their bytes.
     const photo = async (width: number, height: number) =>
@@ -144,6 +149,7 @@ export async function checkImagePicker(
     const oversized = await photo(1600, 1200);
     expect(oversized.length).toBeGreaterThan(IMAGE_UPLOAD_POLICY.imageBytes);
     const previous = new Set(files());
+    await focusTerminal();
     await chooser.setInputFiles({ name: 'resize.png', mimeType: 'image/png', buffer: oversized });
     await until(files, (names) => names.length === 4);
     await expect(button).toBeEnabled();
@@ -166,7 +172,7 @@ export async function checkImagePicker(
     ).toBeVisible();
     expect(files()).toHaveLength(4);
     await expect(button).toBeEnabled();
-    await page.getByRole('textbox', { name: 'Prompt', exact: true }).fill('');
+    await prompt.fill('');
   } finally {
     viewer.close();
   }

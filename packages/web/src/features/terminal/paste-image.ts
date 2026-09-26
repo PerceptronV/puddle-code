@@ -46,12 +46,19 @@ export function interceptImagePaste(e: ClipboardEvent, stream: string, term: str
   return true;
 }
 
-/** Shared by desktop clipboard paste and the mobile image picker; never submits. */
+/**
+ * Shared by desktop clipboard paste and the mobile image picker; never submits. The path
+ * goes to the terminal unless `insert` names another destination (the phone's prompt draft).
+ */
 export async function pasteImage(
   file: File,
   stream: string,
   term: string,
-  options: { signal?: AbortSignal; onProgress?: (progress: ImagePasteProgress) => void } = {},
+  options: {
+    signal?: AbortSignal;
+    onProgress?: (progress: ImagePasteProgress) => void;
+    insert?: (text: string) => void;
+  } = {},
 ): Promise<{ resized: boolean }> {
   if (stream.startsWith('login-') || stream === HOME_STREAM)
     throw new Error('Open a project terminal to attach an image.');
@@ -94,7 +101,8 @@ export async function pasteImage(
   options.signal?.throwIfAborted();
   checkConnection();
   options.onProgress?.({ stage: 'inserting' });
-  if (transport) await transport.input(stream, term, `${res.path} `);
+  if (options.insert) options.insert(`${res.path} `);
+  else if (transport) await transport.input(stream, term, `${res.path} `);
   else wsManager.write(stream, term, `${res.path} `);
   return { resized };
 }

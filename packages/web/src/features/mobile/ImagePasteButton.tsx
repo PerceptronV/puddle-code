@@ -9,10 +9,13 @@ export function ImagePasteButton({
   session,
   term,
   ready,
+  insertTarget,
 }: {
   session: string;
   term: string;
   ready: boolean;
+  /** Resolved when an image is chosen; undefined inserts into the terminal. */
+  insertTarget?: () => ((text: string) => void) | undefined;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const pending = useRef<AbortController | null>(null);
@@ -35,11 +38,13 @@ export function ImagePasteButton({
     if (!ready || pending.current) return;
     const abort = new AbortController();
     pending.current = abort;
+    const insertInto = insertTarget?.();
     setProgress({ stage: 'preparing' });
     try {
       const { resized } = await pasteImage(file, session, term, {
         signal: abort.signal,
         onProgress: setProgress,
+        insert: insertInto,
       });
       if (resized) toast('Image resized for remote access');
     } catch (error) {

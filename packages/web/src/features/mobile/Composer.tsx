@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { browserScope } from '../../lib/browser-transport';
 import { sendTerminalInput, useTerminalInputReady } from '../terminal/input';
 
@@ -26,10 +26,23 @@ export function Composer({
       return '';
     }
   });
+  const draftRef = useRef(draft);
+  const prompt = useRef<HTMLTextAreaElement>(null);
+  // Chosen images go to whichever input was used last: this prompt or its terminal.
+  const lastInput = useRef<'terminal' | 'prompt'>('terminal');
+  useEffect(() => {
+    const focused = (event: FocusEvent) => {
+      if ((event.target as Element).classList?.contains('xterm-helper-textarea'))
+        lastInput.current = 'terminal';
+    };
+    document.addEventListener('focusin', focused);
+    return () => document.removeEventListener('focusin', focused);
+  }, []);
   const [composing, setComposing] = useState(!compact || !!draft);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const save = (text: string) => {
+    draftRef.current = text;
     setDraft(text);
     try {
       if (text) sessionStorage.setItem(storageKey, text);
@@ -37,6 +50,17 @@ export function Composer({
     } catch {
       /* The live textarea still retains the draft. */
     }
+  };
+  // Insert at the draft's caret (or its end once the prompt has closed), never submitting.
+  const insertIntoDraft = (text: string) => {
+    const current = draftRef.current;
+    let before = current.slice(0, prompt.current?.selectionStart ?? current.length);
+    const after = current.slice(prompt.current?.selectionEnd ?? current.length);
+    if (/\S$/.test(before)) before += ' ';
+    if (/^\s/.test(after)) text = text.trimEnd();
+    save(before + text + after);
+    const caret = before.length + text.length;
+    requestAnimationFrame(() => prompt.current?.setSelectionRange(caret, caret));
   };
   const send = async (data: string, paste = false) => {
     if (!ready || busy) return;
@@ -63,6 +87,9 @@ export function Composer({
         connected={connected}
         composing={composing}
         toggleComposer={() => setComposing(!composing)}
+        insertTarget={() =>
+          composing && lastInput.current === 'prompt' ? insertIntoDraft : undefined
+        }
       />
       {composing && (
         <form
@@ -72,6 +99,8 @@ export function Composer({
           }}
         >
           <textarea
+            ref={prompt}
+            onFocus={() => (lastInput.current = 'prompt')}
             className="rounded-md bg-surface p-2 text-base"
             aria-label="Prompt"
             rows={2}
