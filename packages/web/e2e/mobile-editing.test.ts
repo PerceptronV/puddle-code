@@ -58,8 +58,8 @@ declare global {
 const input = (page: Page) => page.evaluate(() => window.editing.input());
 const clear = (page: Page) => page.evaluate(() => window.editing.clear());
 
-const PAD = '        \n        \n        ';
-const CENTRE = 13;
+const PAD = '        \n        \n        \n        \n        ';
+const CENTRE = 22;
 async function moveCaret(page: Page, offset: number) {
   await page.locator('textarea').evaluate((element, offset) => {
     element.setSelectionRange(offset, offset);
@@ -76,17 +76,28 @@ async function beforeInput(page: Page, inputType: string, data: string | null = 
   );
 }
 
-test('spacebar trackpad steps send one arrow each and never exhaust the padding', async ({
+test('spacebar trackpad requires two caret steps per arrow and never exhausts the padding', async ({
   page,
 }) => {
   const textarea = page.locator('textarea');
   await expect(textarea).toHaveValue(PAD);
+  for (const [step, key] of [
+    [-1, 'D'],
+    [1, 'C'],
+    [-9, 'A'],
+    [9, 'B'],
+  ] as const) {
+    await clear(page);
+    await moveCaret(page, CENTRE + step);
+    await page.waitForTimeout(50);
+    expect(await input(page)).toBe('');
+    expect(await textarea.evaluate((element) => element.selectionEnd)).toBe(CENTRE + step);
+    await moveCaret(page, CENTRE + step * 2);
+    await expect.poll(() => input(page)).toBe(`\x1b[${key}`);
+    await expect.poll(() => textarea.evaluate((element) => element.selectionEnd)).toBe(CENTRE);
+  }
   for (const [offset, key] of [
-    [CENTRE - 1, 'D'],
-    [CENTRE + 1, 'C'],
-    [CENTRE - 9, 'A'],
-    [CENTRE + 9, 'B'],
-    // A leap to either end, as iOS makes at a row boundary, is still one step.
+    // A leap to either end, as iOS makes at a row boundary, still sends only one arrow.
     [0, 'A'],
     [PAD.length, 'B'],
     [CENTRE + 4, 'C'],
@@ -98,9 +109,38 @@ test('spacebar trackpad steps send one arrow each and never exhaust the padding'
   }
   await clear(page);
   await page.evaluate(() => window.editing.write('\x1b[?1h'));
-  await moveCaret(page, CENTRE - 1);
+  await moveCaret(page, CENTRE - 2);
   await expect.poll(() => input(page)).toBe('\x1bOD');
   await expect(textarea).toHaveValue(PAD);
+});
+
+test('small trackpad reversals send nothing and typing or refocusing clears partial movement', async ({
+  page,
+}) => {
+  const textarea = page.locator('textarea');
+  for (const offset of [1, 0, -1, 0, 9, 0, -9, 0]) {
+    await moveCaret(page, CENTRE + offset);
+    await page.waitForTimeout(50);
+    expect(await input(page)).toBe('');
+  }
+  for (const reset of [
+    () => page.keyboard.type('x'),
+    () => beforeInput(page, 'insertText', 'predicted'),
+    () => textarea.dispatchEvent('keyup', { key: ' ', keyCode: 32 }),
+    async () => {
+      await textarea.evaluate((element) => element.blur());
+      await page.evaluate(() => window.editing.focus());
+    },
+  ]) {
+    await moveCaret(page, CENTRE + 1);
+    await page.waitForTimeout(50);
+    await reset();
+    await expect.poll(() => textarea.evaluate((element) => element.selectionEnd)).toBe(CENTRE);
+    await clear(page);
+    await moveCaret(page, CENTRE + 1);
+    await page.waitForTimeout(50);
+    expect(await input(page)).toBe('');
+  }
 });
 
 test('keys, keyless insertions and IME commits arrive once without editing the padding', async ({
@@ -117,14 +157,14 @@ test('keys, keyless insertions and IME commits arrive once without editing the p
   expect(await input(page)).toBe('predicted \x7f');
   await expect(textarea).toHaveValue(PAD);
   await clear(page);
-  await textarea.evaluate((element) => {
+  await textarea.evaluate((element, centre) => {
     element.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
     element.dispatchEvent(
       new KeyboardEvent('keydown', { bubbles: true, keyCode: 229, isComposing: true }),
     );
-    element.value = element.value.slice(0, 13) + '日本' + element.value.slice(13);
+    element.value = element.value.slice(0, centre) + '日本' + element.value.slice(centre);
     element.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: '日本' }));
-  });
+  }, CENTRE);
   await page.waitForTimeout(50);
   expect(await input(page)).toBe('日本');
   await expect(textarea).toHaveValue(PAD);

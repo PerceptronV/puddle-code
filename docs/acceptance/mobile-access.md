@@ -37,9 +37,10 @@ recovery instructions: [self-hosted mobile access](../mobile-access.md).
   from desktop settings while their host records remain revoked. Shared browser cards
   keep approved identities collapsed and pending identities visible; desktop wraps
   the cards in an initially collapsed disclosure.
-  An isolated xterm/browser fixture (with an iOS user agent) covers one arrow per
-  spacebar-trackpad step, spaces and capital letters arriving once through native key
-  events, keyless insertions and IME commits arriving once without
+  An isolated xterm/browser fixture (with an iOS user agent) covers the two-step
+  spacebar-trackpad threshold in all four directions, small reversals sending nothing,
+  partial movement clearing on typing/release/refocus, spaces and capital letters
+  arriving once through native key events, keyless insertions and IME commits arriving once without
   editing the padding, taps reaching mouse-reporting applications, focus retention and
   raising from any key-strip tap, dropping input while inactive and inert highlighted
   diffs. Browser emulation does not establish physical iOS keyboard behaviour.
@@ -124,7 +125,7 @@ Run on current iOS Safari and Android Chrome, recording versions and results:
 | Portrait/landscape; keyboard open/closed | Terminal key strip sits above the keyboard; shared dialogues fit the visible viewport and safe areas |
 | IME composition, Unicode, dictation, multiline paste | Native composition remains intact; Send follows terminal paste mode and submits once |
 | Direct terminal typing; Escape, Tab, arrows, Enter, Ctrl/Opt chords | Tapping xterm opens the keyboard; ordinary spaces, deliberate repeated spaces and capital letters arrive exactly as typed; touch controls retain focus and deliver hardware-equivalent sequences; one-shot modifiers clear after use |
-| iOS spacebar trackpad and taps | Hold the keyboard spacebar and slide left/right/up/down in a Claude Code prompt: each small step moves the caret one position (up/down through history or rows), including at the start and end of a line, with no jumps. Tapping the terminal only focuses it; in an application with mouse reporting the tap reaches it. Predictive-bar words and dictation insert once; Backspace keeps working after Opt+Backspace |
+| iOS spacebar trackpad and taps | Hold the keyboard spacebar and slide left/right/up/down in a Claude Code prompt: small movements and reversals do nothing; two native caret steps in a direction send one arrow (up/down through history or rows), including at the start and end of a line, with no jumps. Release the spacebar, type or refocus and check that partial movement does not carry over. Tapping the terminal only focuses it; in an application with mouse reporting the tap reaches it. Predictive-bar words and dictation insert once; Backspace keeps working after Opt+Backspace |
 | Rapid terminal key-strip taps | Tap Escape, Ctrl/Opt and arrows repeatedly; the keyboard stays visible, each tap sends once, and horizontal scrolling sends no key. With the keyboard dismissed, tapping any strip key or the gap between keys raises it |
 | Image picker and desktop clipboard image paste | Image button opens the native picker; accepted images appear in the host worktree and their paths are inserted once, without submitting, into the input used last (the composer draft at its caret, otherwise the terminal); originals up to 4 MiB retain their bytes and larger photos fit that limit with a resize notice; progress advances after acknowledgements and cancellation prevents insertion (a final save may leave a completed file); unsupported images fail visibly and selecting the same image twice works |
 | Long-press terminal paste | Hold a word or empty input cell to open Copy/Paste; Paste inserts Unicode text once without adding Enter, honours bracketed paste, opens the keyboard, and reports denied clipboard permission; switching hosts or terminals while permission is pending sends nothing |

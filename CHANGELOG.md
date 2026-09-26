@@ -9,6 +9,10 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Changed
+
+- Require two native caret steps per arrow when using the iOS spacebar trackpad, ignoring smaller movements.
+
 ### Fixed
 
 - Send spaces and capital letters only once when typing into the iOS terminal.
