@@ -8,7 +8,3 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
-
-### Fixed
-
-- Restore scrolling and drag selection in fullscreen Codex and other mouse-aware terminals after attachment or reconnect by preserving mouse encoding in terminal snapshots.
