@@ -27,6 +27,7 @@ export function bufferWithLines(
     } as IBufferLine;
   });
   return {
+    length: lines.length,
     getLine: (y: number) => lines[y],
     getNullCell: () => ({}) as IBufferCell,
   } as IBuffer;

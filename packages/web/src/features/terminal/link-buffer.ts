@@ -23,7 +23,7 @@ const MAX_ROWS = 32;
 const MAX_LENGTH = 2048;
 
 /** Map UTF-16 offsets as we read, before removing any TUI indentation. */
-function readRow(buffer: IBuffer, row: number, cols: number): MappedRow | null {
+export function readRow(buffer: IBuffer, row: number, cols: number): MappedRow | null {
   const line = buffer.getLine(row);
   if (!line) return null;
   const cell = buffer.getNullCell();

@@ -13,8 +13,9 @@ export function renderMermaidDiagrams(
   root: HTMLElement,
   theme: ThemeName,
   signal?: AbortSignal,
+  compact = false,
 ): Promise<void> {
-  const job = renderQueue.then(() => renderDiagrams(root, theme, signal));
+  const job = renderQueue.then(() => renderDiagrams(root, theme, signal, compact));
   renderQueue = job.catch(() => undefined);
   return job;
 }
@@ -23,6 +24,7 @@ async function renderDiagrams(
   root: HTMLElement,
   theme: ThemeName,
   signal?: AbortSignal,
+  compact = false,
 ): Promise<void> {
   if (signal?.aborted) return;
   const diagrams = [...root.querySelectorAll<HTMLElement>(MERMAID_SELECTOR)];
@@ -41,6 +43,8 @@ async function renderDiagrams(
 
   try {
     const read = cssTokenReader();
+    const fontSize = getComputedStyle(root).fontSize;
+    const spacing = Number.parseFloat(fontSize);
     mermaid.initialize({
       startOnLoad: false,
       securityLevel: 'strict',
@@ -48,6 +52,19 @@ async function renderDiagrams(
       theme: 'base',
       htmlLabels: false,
       fontFamily: read('--font-sans'),
+      // A terminal diagram has only its source rows available. Reduce empty
+      // layout space before scaling, so its labels remain as large as possible.
+      ...(compact && Number.isFinite(spacing)
+        ? {
+            flowchart: {
+              nodeSpacing: spacing,
+              rankSpacing: spacing * 2,
+              padding: spacing / 2,
+              subGraphTitleMargin: { top: spacing / 2, bottom: spacing },
+            },
+            sequence: { diagramMarginY: spacing / 2, messageMargin: spacing, actorMargin: spacing },
+          }
+        : {}),
       secure: [
         'secure',
         'securityLevel',
@@ -75,7 +92,7 @@ async function renderDiagrams(
         lineColor: read('--text-muted'),
         textColor: read('--text-primary'),
         fontFamily: read('--font-sans'),
-        fontSize: getComputedStyle(root).fontSize,
+        fontSize,
       },
     });
   } catch (error) {

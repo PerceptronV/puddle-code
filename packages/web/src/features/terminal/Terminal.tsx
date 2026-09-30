@@ -49,6 +49,7 @@ import { preserveXtermScrollUp } from './xterm-scrollback';
 import { attachTerminalTouchScroll } from './touch-scroll';
 import { attachIosTerminalInput } from './ios-input';
 import { SelectionActions } from '../../components/selection-actions';
+import { TerminalRichOutput } from './TerminalRichOutput';
 
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -163,6 +164,7 @@ export function Terminal({
 }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
+  const [richTerminal, setRichTerminal] = useState<XTerm | null>(null);
   const clipboardRef = useRef<ReturnType<typeof terminalClipboard> | null>(null);
   // An empty held cell still offers Paste; null means the touch menu is closed.
   const [touchSelection, setTouchSelection] = useState<string | null>(null);
@@ -359,6 +361,7 @@ export function Terminal({
     xterm.loadAddon(search);
     const urlLinks = registerUrlLinks(xterm, openUri);
     xterm.open(container);
+    setRichTerminal(xterm);
     fit.fit();
     fitRef.current = fit;
     searchRef.current = search;
@@ -577,6 +580,7 @@ export function Terminal({
       unregisterInput();
       stdin.dispose();
       xterm.dispose();
+      setRichTerminal(null);
       xtermRef.current = null;
       fitRef.current = null;
       searchRef.current = null;
@@ -754,8 +758,9 @@ export function Terminal({
   }, [stream, refit]);
 
   return (
-    <div className={cn('puddle-terminal relative size-full', className)}>
+    <div className={cn('puddle-terminal group/terminal relative size-full', className)}>
       <div ref={containerRef} className="size-full" />
+      {richTerminal && !paused && visible && <TerminalRichOutput terminal={richTerminal} />}
       {touchSelection !== null && !paused && (
         <SelectionActions
           label="Selected terminal text"

@@ -201,3 +201,23 @@ second project. Keep two browser windows open for the multi-viewer checks.
 9. Restart the daemon from a plain shell with auto-resume on. Reconciliation
    must preserve one runtime owner per conversation and restore the correct
    placement, terminal segment, environment, and sidecar process roots.
+
+## 7. Inline terminal rendering and tab archiving
+
+1. Ask an agent for a Mermaid flowchart with two subgraphs and a LaTeX equation
+   enclosed in `$$`. Confirm both render directly over their source rows in
+   light and dark themes, including when the agent strips the Mermaid fence.
+   While the agent works on another turn, unchanged diagrams must remain visible.
+2. Hover the terminal and use a block's source control. Confirm the literal
+   source returns, can be selected/copied, and the eye restores rendering.
+   Local selection and terminal find must reveal the original text. Invalid
+   or incomplete source must remain readable.
+3. Scroll part of a diagram above the viewport, resize the pane, switch tabs,
+   and reload to replay history. Diagrams must track the corresponding rows
+   without moving the prompt or changing terminal input. Use an alternate-screen
+   program and exit it; its screen and the normal scrollback must stay separate.
+4. Hover an agent tab and a plain terminal tab. The archive icon appears just
+   before close, without widening the chip. Archive each and confirm its tab
+   closes after success and the session moves into Archived, where it can be
+   restored. Closing a tab alone must leave its session running. On a touch
+   device the two controls must remain visible without hover.
