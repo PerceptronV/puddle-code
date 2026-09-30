@@ -1,6 +1,6 @@
 /**
  * Pure-logic tests for the commit-graph lane layout (SPEC §8, Changes
- * navigator). The SVG rendering in CommitGraph.tsx is exercised manually;
+ * navigator). SVG continuity is covered separately in commit-graph-cell.test.ts;
  * everything here is pure geometry.
  */
 import { describe, expect, it } from 'vitest';

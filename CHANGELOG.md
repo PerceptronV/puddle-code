@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Keep commit graph lanes continuous when a merge joins an existing lane.

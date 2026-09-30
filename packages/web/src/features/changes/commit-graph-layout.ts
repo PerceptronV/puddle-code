@@ -3,7 +3,7 @@
  * commits (newest first, each with its parent shas) into per-row lane
  * geometry: the node's column, the lanes entering from the row above and
  * leaving to the row below, and which of those below-lanes originate at this
- * node. The renderer (`CommitGraph.tsx`) draws one self-contained SVG cell per
+ * node. The renderer (`commit-graph-cell.tsx`) draws one self-contained SVG cell per
  * row from this, so expandable file lists can slot between commit rows without
  * disturbing the graph. Monaco-free and DOM-free so it is unit-testable.
  *
@@ -45,7 +45,7 @@ export interface GraphRow {
   above: GraphLane[];
   /** Lanes leaving this row into the gap below. */
   below: GraphLane[];
-  /** Columns in `below` whose lane originates at this node (its parents). */
+  /** Parent connector columns in `below`, including joins into existing lanes. */
   created: number[];
 }
 
