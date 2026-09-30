@@ -20,6 +20,7 @@ import { previewKind } from '../editor/preview-kind';
 import { compilationSourceKey, isCompilableSource } from '../editor/compilation-kind';
 import { FileTabContextMenu } from '../explorer/FileTabContextMenu';
 import { SessionContextMenu } from './SessionActions';
+import { SessionArchiveButton } from './SessionArchiveButton';
 import { TabTooltipBody } from './TabTooltip';
 import { tabRefKey } from './layout-tree';
 import { useDropIndicator } from './TilingDnd';
@@ -442,6 +443,9 @@ function PaneTab({
             {session ? renderTitle(session) : tab.session.slice(0, 8)}
           </span>
           <TabControls active={active}>
+            {session && session.status !== 'archived' && (
+              <SessionArchiveButton session={session.id} onArchived={onArchived} />
+            )}
             <button
               onClick={(e) => {
                 e.stopPropagation();

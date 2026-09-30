@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Added
+
+- Add an archive action beside the close button on hovered agent and terminal tabs.
