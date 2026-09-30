@@ -49,9 +49,7 @@ export function repoRoutes(deps: RepoRouteDeps): Hono {
       if (existing) return c.json(existing);
       const repo = deps.repos.create({
         path,
-        default_base_branch:
-          body.default_base_branch ??
-          (await resolveDefaultBaseBranch({ path, default_base_branch: '' })),
+        default_base_branch: body.default_base_branch ?? '',
         onboarding_notes: body.onboarding_notes ?? null,
         fetch_enabled: body.fetch_enabled ?? true,
       });

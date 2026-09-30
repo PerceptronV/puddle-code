@@ -9,7 +9,7 @@ export async function resolveDefaultBaseBranch(
   try {
     return await git(['symbolic-ref', '--quiet', '--short', 'HEAD'], { cwd: repo.path });
   } catch (error) {
-    // Detached HEAD has no branch; preserve the repository registration fallback.
+    // Detached HEAD has no branch; use the fallback without changing the saved default.
     if (error instanceof GitError && error.exitCode === 1) return 'main';
     throw error;
   }

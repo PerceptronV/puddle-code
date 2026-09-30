@@ -120,7 +120,7 @@ CREATE TABLE accounts (
 CREATE TABLE repos (
   id INTEGER PRIMARY KEY,
   path TEXT NOT NULL UNIQUE,            -- canonical clone on the box
-  default_base_branch TEXT NOT NULL DEFAULT 'main',  -- empty follows the clone's current branch
+  default_base_branch TEXT NOT NULL DEFAULT '',  -- follows the clone's current branch unless pinned
   onboarding_notes TEXT,                -- user-authored standing setup rules, injected into every worktree onboarding (§4)
   fetch_enabled INTEGER NOT NULL DEFAULT 1,    -- master switch for all fetching on this repo (create-time and periodic)
   last_fetched_at TEXT
@@ -269,7 +269,7 @@ Launch is capability-checked. Claude Code and Gemini use additive native hooks; 
 
 ### Relaxed isolation: shared branches and directories
 
-**Base branch selection.** An explicit session base branch wins, then the saved repository default. Settings → Projects accepts an empty default (protocol 21.3): resolve the branch currently checked out at `repos.path` under the Git mutation mutex for every new agent or terminal, whether sharing a directory, using a separate directory, or creating a separate branch. Switching branches at the clone therefore changes the next session's default without rewriting the setting or existing placements. Detached HEAD retains the `main` fallback; if that branch does not exist, creation returns the usual `unknown_base` error. An explicit directory to join still wins. The new-session dialogue keeps an automatic base field blank, describes its meaning, and previews the clone's branch without submitting that preview as a fixed branch or directory. Branch hints and project-directory base diffs resolve the same dynamic default. Non-empty defaults remain fixed; repository registration with an omitted default still snapshots the clone's branch, while an explicitly empty default stays empty.
+**Base branch selection.** An explicit session base branch wins, then the saved repository default. Settings → Projects accepts an empty default (protocol 21.3): resolve the branch currently checked out at `repos.path` under the Git mutation mutex for every new agent or terminal, whether sharing a directory, using a separate directory, or creating a separate branch. Switching branches at the clone therefore changes the next session's default without rewriting the setting or existing placements. Detached HEAD retains the `main` fallback; if that branch does not exist, creation returns the usual `unknown_base` error. An explicit directory to join still wins. The new-session dialogue keeps an automatic base field blank, describes its meaning, and previews the clone's branch without submitting that preview as a fixed branch or directory. Branch hints and project-directory base diffs resolve the same dynamic default. New repositories default to an empty setting, including registration requests that omit it. The new-project dialogue explicitly sends an empty default to hosts supporting protocol 21.3 or newer, including older compatible hosts that would otherwise snapshot HEAD. Non-empty explicit defaults remain fixed. Migration 023 clears all existing repository defaults once (including custom branches), preserving repository ids, other settings, project references and existing session placements. Defaults explicitly set after the migration survive restarts.
 
 Branch-per-session is the default, not a straitjacket. Two **independent** axes on session creation decide where a session lands:
 
@@ -495,7 +495,7 @@ Accounts   GET  /api/accounts?profile=…      POST /api/accounts {profile_id, a
            POST /api/accounts/:id/login      # spawns interactive login PTY; UI attaches like a session; response may carry an adapter `hint` (13.1) the dialogue shows
            GET  /api/accounts/:id/usage      # session counts + last activity (puddle); best-effort agent token totals; live_usage (context fill %, cost) via the status line; subscription rate-limit windows via the agent's own CLI (logged-in accounts, daemon-cached) — all nullable
 Repos      GET  /api/fs/dirs?prefix=…        # directory autocomplete for repo registration (dirs only, dotdirs included, is_git flag)
-           GET  /api/repos                   POST /api/repos {path, default_base_branch?, onboarding_notes?, fetch_enabled?}   # omitted base snapshots the clone's symbolic HEAD (detached → main); empty follows it on every new session
+           GET  /api/repos                   POST /api/repos {path, default_base_branch?, onboarding_notes?, fetch_enabled?}   # omitted/empty base follows the clone's current branch on every new session (detached → main)
            PATCH /api/repos/:id               # same fields (onboarding_notes also updatable via the .puddle marker-file sync — §4)
            POST  /api/repos/:id/fetch         # manual fetch now; path must be an existing git repo (validated on POST; ~ expands on the host; re-registering a known path returns it)
            GET   /api/repos/:id/branches      # local + fetched remote heads, deduped, default base first; entries are {name, is_session, session_title} so pickers can label puddle-owned branches

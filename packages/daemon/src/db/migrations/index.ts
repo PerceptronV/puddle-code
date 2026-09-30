@@ -20,6 +20,7 @@ import { migration019 } from './019-layouts.js';
 import { migration020 } from './020-unique-agent-session-refs.js';
 import { migration021 } from './021-agent-conversations.js';
 import { migration022 } from './022-compilation-settings.js';
+import { migration023 } from './023-follow-clone-base-branch.js';
 
 export interface Migration {
   version: number;
@@ -51,4 +52,5 @@ export const MIGRATIONS: Migration[] = [
   migration020,
   migration021,
   migration022,
+  migration023,
 ];

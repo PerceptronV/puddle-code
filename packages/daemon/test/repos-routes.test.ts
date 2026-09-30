@@ -37,13 +37,21 @@ async function register(path: string, defaultBaseBranch?: string): Promise<Repo>
 }
 
 describe('POST /api/repos default base branch', () => {
-  it('inherits the branch checked out by the clone', async () => {
+  it('keeps an omitted default empty and follows later clone branch changes', async () => {
     const source = initRepo();
     sh(source, 'checkout', '-b', 'develop');
     const clone = cloneRepo(source);
     cleanup.push(source, clone);
 
-    expect((await register(clone)).default_base_branch).toBe('develop');
+    const repo = await register(clone);
+    expect(repo.default_base_branch).toBe('');
+    for (const branch of ['develop', 'topic']) {
+      sh(clone, 'checkout', '-B', branch);
+      const hints = await app.request(`/api/repos/${repo.id}/branches`);
+      expect(hints.status).toBe(200);
+      expect(repoBranchesResponseSchema.parse(await hints.json()).branches[0]?.name).toBe(branch);
+      expect(fx.stores.repos.get(repo.id).default_base_branch).toBe('');
+    }
   });
 
   it('honours an explicit base branch', async () => {
@@ -81,11 +89,11 @@ describe('POST /api/repos default base branch', () => {
     }
   });
 
-  it('falls back to main when HEAD is detached', async () => {
+  it('keeps the default empty even when the clone is detached at registration', async () => {
     const repo = initRepo();
     sh(repo, 'checkout', '--detach');
     cleanup.push(repo);
 
-    expect((await register(repo)).default_base_branch).toBe('main');
+    expect((await register(repo)).default_base_branch).toBe('');
   });
 });

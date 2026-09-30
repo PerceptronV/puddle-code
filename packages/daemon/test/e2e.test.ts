@@ -246,7 +246,8 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
     const { branches } = await c.json<{
       branches: Array<{ name: string; is_session: boolean; session_title: string | null }>;
     }>('GET', `/api/repos/${repo.id}/branches`);
-    expect(branches[0]?.name).toBe(repo.default_base_branch);
+    expect(repo.default_base_branch).toBe('');
+    expect(branches[0]?.name).toBe('main');
 
     // Project ids are 10-hex URL handles.
     expect(project.id).toMatch(/^[0-9a-f]{10}$/);

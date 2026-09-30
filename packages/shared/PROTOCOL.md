@@ -17,9 +17,9 @@ only defines how the protocol is versioned. The full design is SPEC §6,
 ## The rule
 
 **Same `major` ⇒ compatible, in both directions.** Everything within a major
-is additive-only. When the CLI's handshake sees a `major` mismatch it updates
-the daemon automatically (or, if the daemon is newer, tells the user to update
-the CLI). There are no compatibility shims: old majors are not served.
+is additive-only. When the CLI's handshake finds an older daemon `major`, it
+requires explicit approval before updating it; a newer daemon tells the user
+to update the CLI. There are no compatibility shims: old majors are not served.
 
 ## When you change a schema in this package
 
@@ -62,6 +62,12 @@ bump in `CHANGELOG.md`.
   and fix registration policy to the already supported open-signup behaviour.
   OAuth verification, cookies, host authority and all wire shapes are unchanged;
   remote protocol remains 2 and daemon/cockpit protocol remains 19.0.
+- **Follow-clone default (2026-09-30)**: repository registration now defaults
+  to the already supported empty base-branch setting, and migration 023 resets
+  existing saved defaults once. Explicit empty/non-empty values, PATCH omission,
+  session requests and response shapes are unchanged. This changes the default
+  policy, not the meaning of a supplied value; daemon/cockpit remains 22.0 and
+  remote protocol remains 3.
 
 ## Remote transport
 
@@ -119,11 +125,12 @@ host leases are unchanged; remote protocol remains 2.
 
 Daemon/cockpit protocol 21.3 accepts an empty `default_base_branch` on repository
 creation and update to follow the clone's current branch for each new session.
-This adds a previously rejected request value; non-empty values and omitted
-fields retain their existing meaning (registration snapshots the clone's branch;
-PATCH leaves it unchanged). Settings only offers clearing the default on 21.3
-or newer. Session requests, remote operations and authentication are unchanged,
-so remote protocol remains 2.
+At introduction, this added a previously rejected request value while non-empty
+values and omitted fields retained their existing meaning (registration captured
+the clone's branch; PATCH left it unchanged). Registration now defaults to empty
+as described in the follow-clone default note above. Settings only offers clearing
+the default on 21.3 or newer. Session requests, remote operations and authentication
+were unchanged, so remote protocol remained 2.
 
 Daemon/cockpit protocol 22.0 adds an optional profile to host-control `open` and
 binds that profile to every resource in the lease. Remote connectors always

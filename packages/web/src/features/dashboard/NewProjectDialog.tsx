@@ -16,11 +16,13 @@ import { Label } from '../../components/ui/label';
 import {
   useCreateProject,
   useCreateRepo,
+  useDaemonVersion,
   useDirSuggestions,
   useHostInfo,
   useRepos,
 } from '../../lib/queries';
 import { ABBREV_MAX, deriveAbbrev, normaliseAbbrev } from '../../lib/project-abbrev';
+import { dynamicBaseBranchSupported } from '../../lib/protocol-support';
 import { useDebouncedValue } from '../../lib/use-debounced-value';
 
 /** '/a/b/' → '/a/b'; keeps the root slash. */
@@ -134,6 +136,7 @@ export function NewProjectDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const repos = useRepos();
+  const dynamicBase = dynamicBaseBranchSupported(useDaemonVersion().data?.protocol);
   const createRepo = useCreateRepo();
   const createProject = useCreateProject();
   const navigate = useNavigate();
@@ -212,7 +215,15 @@ export function NewProjectDialog({
     try {
       const repoPath = normalisePath(path);
       const existing = repos.data?.find((repo) => repo.path === repoPath);
-      const repoId = existing?.id ?? (await createRepo.mutateAsync({ path: repoPath })).id;
+      const repoId =
+        existing?.id ??
+        (
+          await createRepo.mutateAsync({
+            path: repoPath,
+            // Older compatible hosts snapshot HEAD when the setting is omitted.
+            ...(dynamicBase ? { default_base_branch: '' } : {}),
+          })
+        ).id;
       const project = await createProject.mutateAsync({
         profile_id: profileId,
         repo_id: repoId,

@@ -20,7 +20,7 @@ export type RepoWithOrphans = z.infer<typeof repoWithOrphansSchema>;
 
 export const createRepoRequestSchema = z.object({
   path: z.string().min(1),
-  /** Empty follows the clone's current branch; omitted snapshots it at registration. */
+  /** Empty or omitted follows the clone's current branch for each new session. */
   default_base_branch: z.string().optional(),
   onboarding_notes: z.string().nullable().optional(),
   fetch_enabled: z.boolean().optional(),
