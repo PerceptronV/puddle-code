@@ -3,7 +3,6 @@ import { toast } from 'sonner';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon, type ISearchOptions } from '@xterm/addon-search';
-import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 import { HOME_STREAM, type SessionStatus } from '@puddle/shared';
 import { useClientSettings } from '../../lib/client-settings';
@@ -33,6 +32,8 @@ import { cn } from '../../lib/utils';
 import { wsManager } from '../../lib/ws';
 import { dynamicColourReport, type DynamicColourCode } from './osc-colour';
 import { terminalClipboard, writeTerminalClipboard } from './clipboard';
+import { terminalSelectionText } from './copy-text';
+import { registerUrlLinks } from './url-links';
 import { interceptImagePaste } from './paste-image';
 import { macLineEditSequence } from './line-edit-shortcut';
 import { rewriteTerminalUri } from './proxy-links';
@@ -345,7 +346,7 @@ export function Terminal({
       // window before assigning its location — which the desktop shell's
       // window-open handler denies (about:blank is not https?:), so accepting
       // the dialogue opened nothing (fixed 2026-08-05). Route them through the
-      // same open path as the web-links addon below: no dialogue, real URL.
+      // same open path as the URL provider below: no dialogue, real URL.
       linkHandler: { activate: (_event, uri) => openUri(uri) },
     });
     preserveXtermScrollUp(xterm);
@@ -356,7 +357,7 @@ export function Terminal({
     const search = new SearchAddon();
     xterm.loadAddon(fit);
     xterm.loadAddon(search);
-    xterm.loadAddon(new WebLinksAddon((_event, uri) => openUri(uri)));
+    const urlLinks = registerUrlLinks(xterm, openUri);
     xterm.open(container);
     fit.fit();
     fitRef.current = fit;
@@ -386,7 +387,7 @@ export function Terminal({
 
     const clipboard = terminalClipboard({
       isMac: IS_MAC,
-      selection: () => xterm.getSelection(),
+      selection: () => terminalSelectionText(xterm),
       mouseTracking: () => xterm.modes.mouseTrackingMode !== 'none',
       available: () => activeRef.current && wsManager.isConnected() && !replayingRef.current,
       writeInput: (data) => wsManager.write(stream, term, data),
@@ -527,7 +528,7 @@ export function Terminal({
       xterm,
       () => activeRef.current,
       onWheel,
-      setTouchSelection,
+      (text) => setTouchSelection(text === null ? null : terminalSelectionText(xterm)),
     );
 
     // Focus wins the PTY size (tmux's `window-size latest`, SPEC §6). The PTY
@@ -571,6 +572,7 @@ export function Terminal({
       oscForeground?.dispose();
       oscBackground?.dispose();
       oscClipboard.dispose();
+      urlLinks.dispose();
       fileLinks?.dispose();
       unregisterInput();
       stdin.dispose();

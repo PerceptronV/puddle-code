@@ -2,6 +2,8 @@ import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { terminalClipboard, writeTerminalClipboard } from '../../src/features/terminal/clipboard';
 import { registerFileLinks, type FileLinkTarget } from '../../src/features/terminal/file-links';
+import { registerUrlLinks } from '../../src/features/terminal/url-links';
+import { terminalSelectionText } from '../../src/features/terminal/copy-text';
 
 const terminal = new Terminal({
   cols: 22,
@@ -16,6 +18,7 @@ let selectedByApplication = false;
 let applicationText = 'remote selection';
 const input: string[] = [];
 const opened: FileLinkTarget[] = [];
+const urls: string[] = [];
 const errors: string[] = [];
 const send = (data: string) => {
   input.push(data);
@@ -28,7 +31,7 @@ const send = (data: string) => {
 };
 const clipboard = terminalClipboard({
   isMac: true,
-  selection: () => terminal.getSelection(),
+  selection: () => terminalSelectionText(terminal),
   mouseTracking: () => terminal.modes.mouseTrackingMode !== 'none',
   available: () => !replaying,
   writeInput: send,
@@ -47,11 +50,15 @@ terminal.attachCustomKeyEventHandler((event) => {
 container.addEventListener('copy', clipboard.copy, true);
 container.addEventListener('focusout', clipboard.reset);
 container.addEventListener('mousedown', clipboard.reset, true);
+registerUrlLinks(terminal, (uri) => urls.push(uri));
 registerFileLinks(terminal, 'session', (target) => opened.push(target));
 Object.assign(window, {
   terminalInteractions: {
     input: () => [...input],
     opened: () => [...opened],
+    urls: () => [...urls],
+    resize: (cols: number) => terminal.resize(cols, terminal.rows),
+    select: (col: number, row: number, length: number) => terminal.select(col, row, length),
     errors: () => [...errors],
     selection: () => terminal.getSelection(),
     applicationText: (text: string) => {

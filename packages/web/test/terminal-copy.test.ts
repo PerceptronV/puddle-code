@@ -32,6 +32,31 @@ afterEach(() => {
 });
 
 describe('terminal copy', () => {
+  const uri = 'http://100.122.14.32:8767/r/run_name_QRD/S02-yam/motion-profiles.png';
+  const markdown = `[${uri.replaceAll('_', '\\_')}](<${uri}>)`;
+
+  it.each(['local', 'stashed', 'delayed', 'menu'])(
+    'copies a link as a plain URL via %s',
+    async (source) => {
+      const { options, clipboard } = setup();
+      if (source === 'local' || source === 'menu') options.selection.mockReturnValue(markdown);
+      if (source === 'stashed') clipboard.osc(osc(markdown));
+      if (source === 'menu') {
+        const event = {
+          clipboardData: { setData: vi.fn() },
+          preventDefault: vi.fn(),
+          stopPropagation: vi.fn(),
+        };
+        clipboard.copy(event as unknown as ClipboardEvent);
+        expect(event.clipboardData.setData).toHaveBeenCalledWith('text/plain', uri);
+      } else {
+        clipboard.key(key());
+        if (source === 'delayed') clipboard.osc(osc(markdown));
+        expect(await options.writeClipboard.mock.calls[0]![0]).toBe(uri);
+      }
+    },
+  );
+
   it('keeps local scrollback copyable when the host is unavailable', () => {
     const { options, clipboard } = setup();
     options.available.mockReturnValue(false);

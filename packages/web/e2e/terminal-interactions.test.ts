@@ -49,6 +49,9 @@ declare global {
     terminalInteractions: {
       input(): string[];
       opened(): FileLinkTarget[];
+      urls(): string[];
+      resize(cols: number): void;
+      select(col: number, row: number, length: number): void;
       errors(): string[];
       selection(): string;
       applicationText(text: string): void;
@@ -199,4 +202,93 @@ test('wide glyphs before a soft-wrapped path retain clickable cell coordinates',
   await expect
     .poll(() => page.evaluate(() => window.terminalInteractions.opened()))
     .toEqual([{ kind: 'file', path: 'src/file.ts', line: 123, column: 4 }]);
+});
+
+test('each row of a TUI-wrapped URL opens the whole address and copies without layout whitespace', async ({
+  page,
+}) => {
+  const uri = 'http://100.122.14.32:8767/r/run_name_QRD/S02-yam/motion-profiles.png';
+  await page.evaluate(async () => {
+    window.terminalInteractions.resize(80);
+    await window.terminalInteractions.write(
+      'Profiles (http://100.122.14.32:8767/r/\r\n  run_name_QRD/S02-yam/motion-profiles.png).',
+    );
+    window.terminalInteractions.focus();
+  });
+  for (const [index, [col, row]] of [
+    [14, 0],
+    [10, 1],
+  ].entries()) {
+    const cell = await page.evaluate(
+      ([col, row]) => window.terminalInteractions.cell(col, row),
+      [col!, row!],
+    );
+    await page.mouse.move(cell.x, cell.y);
+    await expect(page.locator('.xterm-screen')).toHaveClass(/xterm-cursor-pointer/);
+    await page.mouse.click(cell.x, cell.y);
+    await expect
+      .poll(() => page.evaluate(() => window.terminalInteractions.urls()))
+      .toEqual(Array(index + 1).fill(uri));
+  }
+  await page.evaluate(() => window.terminalInteractions.select(10, 0, 80 - 10 + 42));
+  await page.keyboard.press('Meta+c');
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(uri);
+});
+
+test('copying a Markdown link returned by the application yields just its URL', async ({
+  page,
+}) => {
+  const uri = 'http://100.122.14.32:8767/r/run_name_QRD/S02-yam/motion-profiles.png';
+  await page.evaluate((uri) => {
+    window.terminalInteractions.applicationText(`[${uri.replaceAll('_', '\\_')}](<${uri}>)`);
+  }, uri);
+  await selectInApplication(page);
+  await page.keyboard.press('Meta+c');
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(uri);
+});
+
+test('Unicode cell coordinates survive URL soft wrapping and resize reflow', async ({ page }) => {
+  const uri = 'https://example.test/a_(b)?q=%2F#part';
+  await page.evaluate(
+    (uri) => window.terminalInteractions.write(`日本語 e\u0301 🌊 (${uri}).\r\n`),
+    uri,
+  );
+  for (const [index, cols] of [22, 18, 30].entries()) {
+    await page.evaluate((cols) => window.terminalInteractions.resize(cols), cols);
+    const cell = await page.evaluate(() => window.terminalInteractions.cell(2, 1));
+    const blank = await page.evaluate(() => window.terminalInteractions.cell(0, 5));
+    await page.mouse.move(blank.x, blank.y);
+    await page.mouse.move(cell.x, cell.y);
+    await expect(page.locator('.xterm-screen')).toHaveClass(/xterm-cursor-pointer/);
+    await page.mouse.click(cell.x, cell.y);
+    await expect
+      .poll(() => page.evaluate(() => window.terminalInteractions.urls()))
+      .toEqual(Array(index + 1).fill(uri));
+  }
+});
+
+test('a wide URL glyph wraps early and both of its cells open the full target', async ({
+  page,
+}) => {
+  const uri = 'https://example.test/界';
+  await page.evaluate(async (uri) => {
+    window.terminalInteractions.resize(21);
+    await window.terminalInteractions.write(uri);
+  }, uri);
+  for (const [index, [col, row]] of [
+    [2, 0],
+    [0, 1],
+    [1, 1],
+  ].entries()) {
+    const cell = await page.evaluate(
+      ([col, row]) => window.terminalInteractions.cell(col, row),
+      [col!, row!],
+    );
+    await page.mouse.move(cell.x, cell.y);
+    await expect(page.locator('.xterm-screen')).toHaveClass(/xterm-cursor-pointer/);
+    await page.mouse.click(cell.x, cell.y);
+    await expect
+      .poll(() => page.evaluate(() => window.terminalInteractions.urls()))
+      .toEqual(Array(index + 1).fill(uri));
+  }
 });

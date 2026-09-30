@@ -7,7 +7,7 @@ export { findPathCandidates, type PathCandidate } from './file-link-paths';
 
 /**
  * Validated file-path links for session terminals (SPEC §7). xterm's built-in
- * links only handle URLs (that is the web-links addon's job); this provider
+ * links handle OSC 8 targets (plain URLs use our URL provider); this provider
  * underlines paths an agent prints — `src/foo.ts:12:3`, `./a/b.py`,
  * `/wt/main.c`, `~/notes/todo.md` — but ONLY after the daemon confirms the
  * target exists, so prose that merely looks path-shaped never lights up.

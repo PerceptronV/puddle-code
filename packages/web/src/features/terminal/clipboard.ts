@@ -1,4 +1,5 @@
 import { isControlC, isCopyShortcut, type CopyKeyEvent } from './copy-shortcut';
+import { normaliseCopiedLink } from './copy-text';
 
 interface ClipboardOptions {
   isMac: boolean;
@@ -47,7 +48,7 @@ export function terminalClipboard(options: ClipboardOptions) {
       }
       try {
         const bytes = Uint8Array.from(atob(payload), (c) => c.charCodeAt(0));
-        stash = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+        stash = normaliseCopiedLink(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
         if (stash) pending?.resolve(stash);
         cancel();
       } catch {
@@ -56,7 +57,7 @@ export function terminalClipboard(options: ClipboardOptions) {
       return true;
     },
     key(event: CopyKeyEvent): boolean {
-      const local = options.selection();
+      const local = normaliseCopiedLink(options.selection());
       const text = local || stash;
       const copy = isCopyShortcut(event, options.isMac, !!text);
       const controlC = isControlC(event);
@@ -104,7 +105,7 @@ export function terminalClipboard(options: ClipboardOptions) {
       return true;
     },
     copy(event: ClipboardEvent) {
-      const local = options.selection();
+      const local = normaliseCopiedLink(options.selection());
       const text = local || stash;
       if (!local && !options.available()) return;
       // Desktop Edit → Copy can arrive without a DOM keydown.
