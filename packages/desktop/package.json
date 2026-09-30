@@ -1,9 +1,9 @@
 {
   "name": "@puddle-code/desktop",
   "productName": "Puddle",
-  "version": "0.2.16",
+  "version": "0.2.17",
   "private": true,
-  "description": "Puddle Code — Multi-account agent orchestration with first-class SSH support.",
+  "description": "Puddle Code \u2014 Multi-account agent orchestration with first-class SSH support.",
   "author": "Yiding Song",
   "desktopName": "puddle-code.desktop",
   "license": "MIT",
