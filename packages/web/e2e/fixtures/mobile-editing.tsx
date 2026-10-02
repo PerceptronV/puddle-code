@@ -3,7 +3,9 @@ import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { attachIosTerminalInput } from '../../src/features/terminal/ios-input';
 import { attachTerminalTouchScroll } from '../../src/features/terminal/touch-scroll';
-import { keepTerminalFocus, TerminalKey } from '../../src/features/mobile/TerminalKey';
+import { TerminalKeys } from '../../src/features/mobile/TerminalKeys';
+import { consumeTerminalModifiers, registerTerminalInput } from '../../src/features/terminal/input';
+import { installBrowserTransport } from '../../src/lib/browser-transport';
 import { PhoneDiff } from '../../src/features/mobile/PhoneDiff';
 import '../../src/features/remote/remote.css';
 import '../../src/styles/tokens.css';
@@ -13,27 +15,43 @@ terminal.open(document.getElementById('terminal')!);
 let active = true;
 let input: string[] = [];
 attachIosTerminalInput(terminal, () => active);
-terminal.onData((data) => input.push(data));
+terminal.onData((data) => input.push(consumeTerminalModifiers('fixture', 'agent', data)));
+installBrowserTransport({
+  scope: 'editing-fixture',
+  input: async (_session, _term, data) => {
+    input.push(data);
+  },
+  request: async () => {
+    throw new Error('Unexpected request');
+  },
+  socket: () => {
+    throw new Error('Unexpected socket');
+  },
+});
+registerTerminalInput(
+  'fixture',
+  'agent',
+  (text) => text,
+  () => terminal.focus(),
+  () => terminal.modes.applicationCursorKeysMode,
+);
 attachTerminalTouchScroll(
   terminal,
   () => active,
   () => {},
   () => {},
 );
-const send = (data: string) => {
-  terminal.focus();
-  terminal.input(data, true);
-};
 createRoot(document.getElementById('controls')!).render(
-  <div
-    className="phone-keys"
-    style={{ paddingInline: '2rem' }}
-    onTouchEnd={keepTerminalFocus(() => terminal.focus())}
-  >
-    <TerminalKey activate={() => send('\x1b')}>Esc</TerminalKey>
-    <TerminalKey activate={() => send('\x1b[D')}>Left</TerminalKey>
-    <TerminalKey activate={() => send('\x1b[C')}>Right</TerminalKey>
-  </div>,
+  <>
+    <style>{'.phone-keys { padding-inline: 2rem; }'}</style>
+    <TerminalKeys
+      session="fixture"
+      term="agent"
+      connected
+      composing={false}
+      toggleComposer={() => {}}
+    />
+  </>,
 );
 createRoot(document.getElementById('diff')!).render(
   <PhoneDiff

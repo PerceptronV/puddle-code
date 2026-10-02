@@ -229,13 +229,13 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     await checkTerminalScrolling(page, fixture);
     await checkTerminalSelection(page, fixture, testInfo);
     await checkImagePicker(page, fixture, testInfo);
-    await page.getByRole('button', { name: 'Ctrl', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Ctrl', exact: true })).toHaveAttribute(
+    await page.getByRole('button', { name: 'Control', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Control', exact: true })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
     await page.keyboard.press('u');
-    await expect(page.getByRole('button', { name: 'Ctrl', exact: true })).toHaveAttribute(
+    await expect(page.getByRole('button', { name: 'Control', exact: true })).toHaveAttribute(
       'aria-pressed',
       'false',
     );

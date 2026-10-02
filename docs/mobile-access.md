@@ -315,7 +315,7 @@ Files opens the file browser with navigation, path, changes and refresh in the
 same toolbar. Its terminal icon returns to the terminal. Project cards and
 sessions follow their profile's saved desktop order.
 
-The compact right rail shows only the active project's non-archived sessions.
+The compact left rail shows only the active project's non-archived sessions.
 Tap a glyph to switch terminals; hold it for details and actions, including
 archiving. Expand the rail for titles and branches, tap a project label to switch
 projects, or tap the grey host/project breadcrumb to return home. New agent/terminal
@@ -325,7 +325,11 @@ are behind the bottom icon.
 Tap directly into a terminal to type. Hold and drag to select terminal text, then
 tap Copy; a quick swipe scrolls. File contents support the same held-drag gesture
 and Copy action with native text selection. The terminal's bottom strip supplies Escape, arrows,
-Tab, Enter and one-shot Ctrl/Opt modifiers above the keyboard. The image button
+Tab, Enter and one-shot ⌃ Control / ⌥ Option / ⇧ Shift modifiers above the keyboard. Tap a modifier
+then a key, for example Shift then Left; it clears after that key. Use the strip’s
+Shift button for strip arrows, since the phone keyboard’s Shift state does not
+carry over to these controls. Shift+Tab sends back-tab and Shift+Enter sends a
+modified Enter. The image button
 opens your photo/file picker and inserts the uploaded image into the current
 terminal without submitting, just like desktop image paste. PNG, JPEG, GIF and WebP
 originals up to 4 MiB retain their exact bytes. Larger PNG/JPEG/WebP originals, up

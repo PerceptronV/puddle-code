@@ -1,11 +1,12 @@
 import { browserScope, browserTransport } from '../../lib/browser-transport';
 import { wsManager } from '../../lib/ws';
 import { useSyncExternalStore } from 'react';
-import { isArrowInput, touchModifiedInput } from './touch-modifiers';
+import { isArrowInput, isModifiableInput, touchModifiedInput } from './touch-modifiers';
 
 type PasteEncoder = (text: string) => string;
 const encoders = new Map<string, PasteEncoder>();
 const focusers = new Map<string, () => void>();
+const cursorModes = new Map<string, () => boolean>();
 const modifiers = new Map<string, number>();
 const listeners = new Set<() => void>();
 const subscribe = (listener: () => void) => {
@@ -26,15 +27,19 @@ export function registerTerminalInput(
   term: string,
   encode: PasteEncoder,
   focus?: () => void,
+  applicationCursorKeys?: () => boolean,
 ): () => void {
   const id = key(session, term);
   encoders.set(id, encode);
   if (focus) focusers.set(id, focus);
+  if (applicationCursorKeys) cursorModes.set(id, applicationCursorKeys);
+  else cursorModes.delete(id);
   changed();
   return () => {
     if (encoders.get(id) === encode) {
       encoders.delete(id);
       focusers.delete(id);
+      cursorModes.delete(id);
       modifiers.delete(id);
       changed();
     }
@@ -56,7 +61,7 @@ export function consumeTerminalModifiers(session: string, term: string, data: st
   const value = modifiers.get(id) ?? 0;
   if (!value) return data;
   // Device-query replies and mouse reports are not user keystrokes.
-  if (data.startsWith('\x1b') && !isArrowInput(data)) return data;
+  if (!isModifiableInput(data)) return data;
   modifiers.delete(id);
   changed();
   return touchModifiedInput(data, value);
@@ -67,9 +72,11 @@ export async function sendTerminalInput(
   text: string,
   paste = false,
 ): Promise<void> {
-  const encode = encoders.get(key(session, term));
+  const id = key(session, term);
+  const encode = encoders.get(id);
   if (!encode) throw new Error('Wait for the terminal to attach; nothing was sent');
-  const data = paste ? `${encode(text)}\r` : consumeTerminalModifiers(session, term, text);
+  let data = paste ? `${encode(text)}\r` : consumeTerminalModifiers(session, term, text);
+  if (!paste && isArrowInput(data) && cursorModes.get(id)?.()) data = `\x1bO${data.slice(-1)}`;
   await writeTerminalInput(session, term, data);
 }
 

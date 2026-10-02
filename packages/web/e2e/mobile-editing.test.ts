@@ -230,6 +230,9 @@ test('rapid command taps retain focus and send each key once; dragging sends not
   await expect(textarea).toBeFocused();
   // A tap between keys, with the keyboard dismissed, raises it again.
   await textarea.evaluate((element) => element.blur());
+  await page.locator('.phone-keys').evaluate((element) => {
+    element.scrollLeft = 0;
+  });
   const strip = (await page.locator('.phone-keys').boundingBox())!;
   await page.touchscreen.tap(strip.x + 8, strip.y + strip.height / 2);
   await expect(textarea).toBeFocused();
@@ -245,4 +248,65 @@ test('diffs stack highlighted numbered panes and keep source inert', async ({ pa
   await expect(after).toContainText('<script>window.executed = true</script>');
   expect(await page.evaluate(() => 'executed' in window)).toBe(false);
   await expect(after.locator('.phone-diff-number')).toHaveText(['1', '2', '3', '4']);
+});
+
+test('touch modifier buttons send chords once, reset after a key and preserve focus', async ({
+  page,
+}) => {
+  const key = (name: string) => page.getByRole('button', { name, exact: true });
+  for (const [modifiers, name, expected] of [
+    [['Shift'], 'Left', '\x1b[1;2D'],
+    [['Shift'], 'Tab', '\x1b[Z'],
+    [['Shift'], 'Enter', '\x1b[13;2u'],
+    [['Control'], 'Left', '\x1b[1;5D'],
+    [['Option'], 'Right', '\x1b[1;3C'],
+    [['Control', 'Option', 'Shift'], 'Up', '\x1b[1;8A'],
+    [['Option'], 'Esc', '\x1b\x1b'],
+    [['Option'], 'Enter', '\x1b\r'],
+    [[], 'Ctrl-C', '\x03'],
+  ] as const) {
+    await clear(page);
+    for (const modifier of modifiers) {
+      await key(modifier).tap();
+      await expect(key(modifier)).toHaveAttribute('aria-pressed', 'true');
+    }
+    await key(name).tap();
+    expect(await input(page)).toBe(expected);
+    await expect(page.locator('textarea.xterm-helper-textarea')).toBeFocused();
+    for (const modifier of modifiers)
+      await expect(key(modifier)).toHaveAttribute('aria-pressed', 'false');
+  }
+  await clear(page);
+  await key('Shift').tap();
+  await key('Shift').tap();
+  await key('Left').tap();
+  expect(await input(page)).toBe('\x1b[D');
+});
+
+test('modifiers reach typed keys and application-mode trackpad arrows, ignoring device replies', async ({
+  page,
+}) => {
+  const key = (name: string) => page.getByRole('button', { name, exact: true });
+  for (const [modifier, character, expected] of [
+    ['Control', 'c', '\x03'],
+    ['Option', 'b', '\x1bb'],
+    ['Shift', 'a', 'A'],
+  ]) {
+    await clear(page);
+    await key(modifier!).tap();
+    await page.keyboard.type(character!);
+    expect(await input(page)).toBe(expected);
+    await expect(key(modifier!)).toHaveAttribute('aria-pressed', 'false');
+  }
+  await page.evaluate(() => window.editing.write('\x1b[?1h'));
+  await key('Shift').tap();
+  await page.evaluate(() => window.editing.write('\x1b[6n'));
+  await expect(key('Shift')).toHaveAttribute('aria-pressed', 'true');
+  await clear(page);
+  await moveCaret(page, CENTRE - 2);
+  await expect.poll(() => input(page)).toBe('\x1b[1;2D');
+  await expect(key('Shift')).toHaveAttribute('aria-pressed', 'false');
+  await clear(page);
+  await key('Left').tap();
+  expect(await input(page)).toBe('\x1bOD');
 });

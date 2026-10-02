@@ -9,6 +9,12 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Changed
+
+- Label mobile terminal modifiers with the Mac symbols ⌃, ⌥ and ⇧ while retaining accessible names and pressed-state highlighting.
+
 ### Fixed
+
+- Add a one-shot Shift key to the mobile terminal strip and preserve Ctrl/Opt/Shift combinations for application-mode arrows, Shift+Tab, Shift+Enter and Escape.
 
 - Open forwarded applications from desktop terminal links and port chips using an application-scoped invitation, so the system browser does not require a separate Puddle login.

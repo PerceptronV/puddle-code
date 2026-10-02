@@ -427,6 +427,7 @@ export function Terminal({
         }
       },
       () => xterm.focus(),
+      () => xterm.modes.applicationCursorKeysMode,
     );
     const stdin = xterm.onData((data) => {
       if (capturedPaste) {

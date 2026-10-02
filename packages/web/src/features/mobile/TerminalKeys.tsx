@@ -3,6 +3,7 @@ import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, TextCursorInput } from 'luci
 import { Button } from '../../components/ui/button';
 import { ImagePasteButton } from './ImagePasteButton';
 import { keepTerminalFocus, TerminalKey } from './TerminalKey';
+import { TOUCH_MODIFIERS } from '../terminal/touch-modifiers';
 import {
   focusTerminal,
   sendTerminalInput,
@@ -47,21 +48,26 @@ export function TerminalKeys({
         </TerminalKey>
         {(
           [
-            ['Ctrl', 1],
-            ['Opt', 2],
+            ['Control', '⌃', TOUCH_MODIFIERS.ctrl],
+            ['Option', '⌥', TOUCH_MODIFIERS.alt],
+            ['Shift', '⇧', TOUCH_MODIFIERS.shift],
           ] as const
-        ).map(([label, bit]) => (
+        ).map(([label, symbol, bit]) => (
           <TerminalKey
             key={bit}
             variant="ghost"
             disabled={!ready}
+            aria-label={label}
+            title={label}
             aria-pressed={(modifiers & bit) !== 0}
             activate={() => {
               toggleTerminalModifier(session, term, bit);
               focusTerminal(session, term);
             }}
           >
-            {label}
+            <span aria-hidden="true" className="text-base leading-none">
+              {symbol}
+            </span>
           </TerminalKey>
         ))}
         {[
