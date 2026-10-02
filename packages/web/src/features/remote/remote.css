@@ -228,10 +228,10 @@
   overscroll-behavior-x: contain;
 }
 .phone-keys button {
-  min-width: 2.5rem;
+  min-width: var(--phone-key-min-width);
   min-height: 2.75rem;
   flex: none;
-  padding-inline: 0.5rem;
+  padding-inline: var(--phone-key-padding-inline);
   font-size: var(--text-xs);
   touch-action: manipulation;
 }

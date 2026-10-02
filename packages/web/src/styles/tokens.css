@@ -15,6 +15,10 @@
  */
 
 :root {
+  /* Mobile terminal strip spacing. */
+  --phone-key-min-width: 2.25rem;
+  --phone-key-padding-inline: 0.375rem;
+
   /* -- Core palette --------------------------------------------------- */
   --altitude-blue: #7dadff; /* primary accent family */
   --krypton-green: #8be8b3; /* success / waiting family */

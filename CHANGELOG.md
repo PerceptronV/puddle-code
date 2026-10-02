@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Slightly tighten horizontal key spacing in the mobile terminal strip.
+
 - Label mobile terminal modifiers with the Mac symbols ⌃, ⌥ and ⇧ while retaining accessible names and pressed-state highlighting.
 
 ### Fixed
