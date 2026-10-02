@@ -17,12 +17,17 @@ export function SessionArchiveButton({
       disabled={archive.isPending}
       onPointerDown={(event) => event.stopPropagation()}
       onDoubleClick={(event) => event.stopPropagation()}
-      onClick={(event) => {
+      onClick={async (event) => {
         event.stopPropagation();
-        archive.mutate(session, {
-          onSuccess: () => onArchived(session),
-          onError: toastError,
-        });
+        try {
+          // An archived-session update can unmount this button before the
+          // request settles. Await it so closing survives that unmount;
+          // per-call mutate callbacks only run while the observer is mounted.
+          await archive.mutateAsync(session);
+          onArchived(session);
+        } catch (error) {
+          toastError(error);
+        }
       }}
       className="hidden rounded-sm p-0.5 text-fg-muted transition-colors hover:text-fg disabled:cursor-wait disabled:opacity-50 group-hover:inline-flex pointer-coarse:inline-flex"
       aria-label="Archive session"

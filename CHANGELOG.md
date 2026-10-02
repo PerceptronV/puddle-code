@@ -15,6 +15,8 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Close terminal and agent session panels after archiving from their tab controls, even when the archive update arrives before the request completes.
+
 - Add a one-shot Shift key to the mobile terminal strip and preserve Ctrl/Opt/Shift combinations for application-mode arrows, Shift+Tab, Shift+Enter and Escape.
 
 - Open forwarded applications from desktop terminal links and port chips using an application-scoped invitation, so the system browser does not require a separate Puddle login.
