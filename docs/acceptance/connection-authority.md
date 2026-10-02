@@ -101,6 +101,12 @@ and the normal SSH credentials; do not substitute the installed personal daemon.
 5. Keep a download, terminal and proxy WebSocket active for more than 60 seconds.
    Rotation preserves them. Stop their cockpit/control channel: those streams
    close, while another cockpit and daemon-owned agents continue.
+6. Repeat the port-chip and terminal-link checks from the desktop app with a
+   system browser that has never logged into this cockpit. Both open the
+   application without a Puddle login prompt. The desktop obtains the scoped
+   invitation before opening the browser; the browser exchanges it on
+   `127.0.0.1` and clears the fragment. Confirm an application path, query and
+   fragment survive, and the browser gains no cockpit localStorage credential.
 
 ## Real SSH, desktop and migration
 

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { proxyGrantResponseSchema } from '@puddle/shared';
-import { api } from '../../lib/api';
+import { forwardingInvitation } from './forward-link';
 
 /** Reusable public link; authority is obtained only inside the trusted cockpit. */
 export function ForwardLanding() {
@@ -12,13 +11,9 @@ export function ForwardLanding() {
       return;
     }
     let active = true;
-    void api('POST', '/cockpit/proxy-grant', {
-      session: match[1],
-      port: Number(match[2]),
-      path: new URLSearchParams(window.location.search).get('path') ?? '/',
-    })
-      .then((body) => {
-        if (active) window.location.replace(proxyGrantResponseSchema.parse(body).url);
+    void forwardingInvitation(new URL(window.location.href))
+      .then((url) => {
+        if (active) window.location.replace(url);
       })
       .catch(() => {
         if (active)

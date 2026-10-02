@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Open forwarded applications from desktop terminal links and port chips using an application-scoped invitation, so the system browser does not require a separate Puddle login.

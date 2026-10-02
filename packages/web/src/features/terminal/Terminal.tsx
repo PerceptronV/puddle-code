@@ -37,6 +37,8 @@ import { registerUrlLinks } from './url-links';
 import { interceptImagePaste } from './paste-image';
 import { macLineEditSequence } from './line-edit-shortcut';
 import { rewriteTerminalUri } from './proxy-links';
+import { openBrowserLink } from '../ports/forward-link';
+import { toastError } from '../../lib/errors';
 import {
   TerminalResizeScrollGuard,
   terminalScrollLine,
@@ -317,7 +319,7 @@ export function Terminal({
     const sessionless = stream.startsWith('login-') || stream === HOME_STREAM;
     const openUri = (uri: string) => {
       const target = sessionless ? uri : rewriteTerminalUri(uri, stream, sshMode() !== null);
-      window.open(target, '_blank', 'noopener,noreferrer');
+      void openBrowserLink(target).catch(toastError);
     };
 
     const xterm = new XTerm({

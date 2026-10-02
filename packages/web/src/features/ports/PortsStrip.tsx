@@ -10,6 +10,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/too
 import { useHostInfo, useSessionPorts } from '../../lib/queries';
 import { sshMode } from '../../lib/ssh-mode';
 import { sshForwardCommand } from './ssh-command';
+import { openBrowserLink } from './forward-link';
+import { toastError } from '../../lib/errors';
 
 const LIVE_STATUSES: Session['status'][] = ['running', 'waiting_input'];
 
@@ -82,7 +84,7 @@ function PortChip({ sessionId, port }: { sessionId: string; port: SessionPort })
         ) : (
           <DropdownMenuItem
             onSelect={() => {
-              window.open(`/forward/${sessionId}/${port.port}`, '_blank', 'noopener,noreferrer');
+              void openBrowserLink(`/forward/${sessionId}/${port.port}`).catch(toastError);
             }}
           >
             Open via proxy
