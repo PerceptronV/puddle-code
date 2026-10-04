@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Allow agent and terminal sessions to share a local repository's current branch before its first commit, without requiring a remote.

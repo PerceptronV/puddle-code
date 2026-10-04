@@ -89,17 +89,10 @@ export class WorktreeManager {
     return this.runGitMutation(repo.path, async () => {
       const branch = opts.baseBranch ?? (await resolveDefaultBaseBranch(repo));
       await this.fetchCoreQuietly(repo);
-      const localExists = await this.refExists(repo, `refs/heads/${branch}`);
-      if (!localExists) {
-        if (!(await this.refExists(repo, `refs/remotes/origin/${branch}`))) {
-          throw ApiError.badRequest('unknown_base', `base branch '${branch}' does not exist`);
-        }
-        // Only a branch that exists solely on the remote gets a fresh local
-        // tracking branch; existing local branches are never reset (SPEC §4).
-        await git(['branch', '--track', branch, `origin/${branch}`], { cwd: repo.path });
-      }
 
       // The clone itself, when it is on this branch: land there, not a sibling.
+      // Its branch may be unborn (no commits/ref yet). Sharing the existing
+      // directory needs no commit, so resolve it before requiring a base ref.
       const primary = (await this.listWorktrees(repo)).find((w) => w.is_primary);
       if (primary && primary.branch === branch) {
         await this.excludePuddleDir(repo);
@@ -111,6 +104,16 @@ export class WorktreeManager {
           baseRef: branch,
           created: false,
         };
+      }
+
+      const localExists = await this.refExists(repo, `refs/heads/${branch}`);
+      if (!localExists) {
+        if (!(await this.refExists(repo, `refs/remotes/origin/${branch}`))) {
+          throw ApiError.badRequest('unknown_base', `base branch '${branch}' does not exist`);
+        }
+        // Only a branch that exists solely on the remote gets a fresh local
+        // tracking branch; existing local branches are never reset (SPEC §4).
+        await git(['branch', '--track', branch, `origin/${branch}`], { cwd: repo.path });
       }
 
       // Distinct branches can collide on a slug ('a/b' vs 'a.b'): probe -2,
