@@ -11,4 +11,6 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Replace stale desktop SSH authentication prompts per host during background retries, and close prompts when their requesting SSH process exits.
+
 - Allow agent and terminal sessions to share a local repository's current branch before its first commit, without requiring a remote.

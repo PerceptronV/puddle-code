@@ -48,6 +48,7 @@ describe('SshTransport argv shapes', () => {
     expect(graphical.spawnEnv()).toMatchObject({
       SSH_ASKPASS: '/tmp/puddle-askpass',
       SSH_ASKPASS_REQUIRE: 'force',
+      PUDDLE_DESKTOP_SSH_TARGET: 'alice@devbox',
     });
     expect(graphical.spawnEnv()?.DISPLAY).toBeTruthy();
 

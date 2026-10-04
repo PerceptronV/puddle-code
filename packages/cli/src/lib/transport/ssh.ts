@@ -98,6 +98,7 @@ export class SshTransport implements Transport {
       ...process.env,
       SSH_ASKPASS: this.askpassProgram,
       SSH_ASKPASS_REQUIRE: 'force',
+      PUDDLE_DESKTOP_SSH_TARGET: this.host,
       DISPLAY: process.env.DISPLAY ?? 'puddle',
     };
   }

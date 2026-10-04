@@ -108,5 +108,13 @@ takes a CLIENT-side path and delivers it over scp.
     normal cockpit window. Cancel one prompt and confirm the connection fails
     without saving the host as a recent. Repeat with a previously unknown test
     host and confirm its authenticity is presented as explicit Yes/No buttons.
+    With a connected password/2FA host, interrupt its network connection and
+    leave background reconnection running without answering authentication.
+    Restore the network and repeat: each new request for that target must
+    replace its older dialogue, with no backlog to dismiss. End an SSH process
+    while its prompt is open: the prompt must disappear within about a second.
+    Connect another host with identical password prompt text and confirm it
+    waits independently; finish authentication and verify password/2FA steps
+    still work in sequence. Quit with prompts waiting and confirm none remain.
 
 Record any deviations as issues before ticking the phase off.

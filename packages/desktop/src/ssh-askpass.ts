@@ -4,6 +4,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { join } from 'node:path';
 
 export interface SshAskpassRequest {
+  /** Original SSH destination, including aliases and user, never inferred from prompt text. */
+  target: string;
   prompt: string;
   kind: 'secret' | 'confirm';
 }
@@ -23,11 +25,12 @@ export async function startSshAskpass(opts: {
   home: string;
   electronPath: string;
   helperPath: string;
-  prompt(request: SshAskpassRequest): Promise<string | null>;
+  prompt(request: SshAskpassRequest, signal: AbortSignal): Promise<string | null>;
 }): Promise<RunningSshAskpass> {
   const token = randomBytes(32).toString('hex');
+  const lifetime = new AbortController();
   const server = createServer((request, response) => {
-    void handleRequest(request, response, token, opts.prompt);
+    void handleRequest(request, response, token, opts.prompt, lifetime.signal);
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -67,6 +70,8 @@ exec env ELECTRON_RUN_AS_NODE=1 \\
     close() {
       if (closed) return Promise.resolve();
       closed = true;
+      lifetime.abort();
+      server.closeAllConnections();
       try {
         rmSync(program, { force: true });
       } catch {
@@ -83,7 +88,8 @@ async function handleRequest(
   request: IncomingMessage,
   response: ServerResponse,
   token: string,
-  prompt: (request: SshAskpassRequest) => Promise<string | null>,
+  prompt: (request: SshAskpassRequest, signal: AbortSignal) => Promise<string | null>,
+  lifetime: AbortSignal,
 ): Promise<void> {
   if (request.method !== 'POST' || request.url !== '/askpass') {
     sendJson(response, 404, { error: 'not found' });
@@ -94,35 +100,46 @@ async function handleRequest(
     return;
   }
 
-  let body = '';
-  for await (const chunk of request) {
-    body += String(chunk);
-    if (Buffer.byteLength(body) > MAX_REQUEST_BYTES) {
-      sendJson(response, 413, { error: 'request too large' });
-      request.destroy();
-      return;
-    }
-  }
-
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  response.once('close', abort);
+  lifetime.addEventListener('abort', abort, { once: true });
   try {
+    if (lifetime.aborted || response.destroyed) controller.abort();
+    let body = '';
+    for await (const chunk of request) {
+      body += String(chunk);
+      if (Buffer.byteLength(body) > MAX_REQUEST_BYTES) {
+        sendJson(response, 413, { error: 'request too large' });
+        request.destroy();
+        return;
+      }
+    }
     const value: unknown = JSON.parse(body);
     if (!isAskpassRequest(value)) {
       sendJson(response, 400, { error: 'invalid request' });
       return;
     }
-    const answer = await prompt(value);
+    if (controller.signal.aborted) return;
+    const answer = await prompt(value, controller.signal);
     sendJson(response, 200, answer === null ? { cancelled: true } : { answer });
   } catch {
     // A malformed helper request or a window disappearing both fail closed:
     // ssh sees a cancelled askpass invocation and aborts authentication.
     sendJson(response, 400, { error: 'authentication cancelled' });
+  } finally {
+    response.off('close', abort);
+    lifetime.removeEventListener('abort', abort);
   }
 }
 
 function isAskpassRequest(value: unknown): value is SshAskpassRequest {
   if (typeof value !== 'object' || value === null) return false;
-  const candidate = value as { prompt?: unknown; kind?: unknown };
+  const candidate = value as { prompt?: unknown; kind?: unknown; target?: unknown };
   return (
+    typeof candidate.target === 'string' &&
+    candidate.target.length > 0 &&
+    candidate.target.length <= MAX_REQUEST_BYTES &&
     typeof candidate.prompt === 'string' &&
     candidate.prompt.length <= MAX_REQUEST_BYTES &&
     (candidate.kind === 'secret' || candidate.kind === 'confirm')
@@ -137,7 +154,7 @@ function sameSecret(actual: string | undefined, expected: string): boolean {
 }
 
 function sendJson(response: ServerResponse, status: number, value: unknown): void {
-  if (response.headersSent) return;
+  if (response.headersSent || response.destroyed) return;
   response.writeHead(status, { 'content-type': 'application/json' });
   response.end(JSON.stringify(value));
 }
