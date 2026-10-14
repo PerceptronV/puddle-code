@@ -96,6 +96,16 @@ function fixture() {
 }
 
 describe('profile-bound host authority', () => {
+  it('denies puddlang execution and inspection to remote profile leases', async () => {
+    const f = fixture();
+    for (const [path, method] of [
+      [`/api/puddlang/${f.one.profile.id}/context`, 'GET'],
+      [`/api/puddlang/${f.one.profile.id}/runs`, 'POST'],
+      [`/api/puddlang/${f.one.profile.id}/runs/${randomUUID()}`, 'GET'],
+    ])
+      expect((await f.req(path!, method)).status).toBe(403);
+    expect(f.dispatch).not.toHaveBeenCalled();
+  });
   it('scopes discovery even when the browser omits filters, and leaves local leases unrestricted', async () => {
     const f = fixture();
     for (const [path, id] of [

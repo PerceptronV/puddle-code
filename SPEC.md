@@ -234,6 +234,31 @@ All timestamps are ISO 8601 UTC. Git operations against a given repository (work
 
 ## 4. Session state machine
 
+### Puddlang runs
+
+Script execution is separate from placements, native conversations and runtimes.
+Migration 024 adds `puddlang_runs` (profile, captured submission/hash, state,
+result/error, timestamps) and ordered `puddlang_events`. Profile deletion
+cascades these records once runs finish. Runs transition from running to
+completed, failed, cancelled or interrupted; startup interrupts running records
+without replaying source or turns.
+
+`puddlang/` supervises single-file trusted TypeScript in child processes with
+validated IPC. Handles resolve current runtime/placement ownership on each call.
+Completion/failure retains agents; cancellation/deadlines stop owned agents and
+interrupt pending asks on attached agents. Shutdown interrupts programmes;
+ordinary session recovery remains independent. Targets must be existing
+registered canonical worktree roots in the run's profile. Accounts resolve from
+explicit selection, run default, matching profile default or sole logged-in
+candidate; unavailable explicit/default choices never fall back.
+
+The runner imports `puddlang`, `zod` and Node built-ins, strips erasable TypeScript
+and stores the default export. Host Node 22.21.1+ is required. Source/results are
+bounded to 256 KiB; defaults are 50 turns, 8 agents and one hour (caps 1,000, 32,
+24 hours). The host permits 16 active runs; each run allows 64 pending/4,096 total
+operations. Programmes have host OS authority, not a sandbox. See
+[puddlang](docs/puddlang.md) for the full contract.
+
 ```
             spawn                     agent prompt detected
  starting ────────► running ◄───────────────────────────► waiting_input
@@ -349,6 +374,7 @@ export interface AgentAdapter {
   displayName: string;
   binary: string; // executable name to resolve on PATH
   matchesProcess?(command: string): boolean; // advisory foreground-agent icon detection
+  scriptedTurns?: boolean; // adapter support; runtime/version checked separately
   capabilities: {
     resume: boolean; // can restore a conversation
     presetSessionId: boolean; // id can be chosen at launch
@@ -476,10 +502,23 @@ Two tiers, surfaced as one "Continue on…" action in the session menu (and offe
 
 ## 6. API surface
 
+Lifecycle launch resources may expose `AgentControl`: `ready` and
+`ask(prompt, signal, outputSchema?)`. Codex 0.159.0+ uses its existing TUI
+app-server proxy, correlating injected RPC replies and native thread/turn ids
+with bounded assistant output. Human turns/native switches reject pending asks;
+busy runtimes reject new asks. Other adapters/fallback runtimes have no exact
+control channel. Catalogue discovery stays metadata-only.
+
 All REST endpoints are JSON under `/api`. Request/response shapes live as zod schemas in `packages/shared` and are the single source of truth for both daemon and UI.
 
 ```
 Version    GET  /api/version                 # {version, protocol: {major, minor}} — the handshake endpoint (see Protocol versioning below)
+Puddlang   GET  /api/puddlang/:profile/context
+           POST /api/puddlang/:profile/runs      # source/input, UUID, accounts/limits; 202 run record
+           GET  /api/puddlang/:profile/runs/:id
+           GET  /api/puddlang/:profile/runs/:id/events?after=0   # pages of up to 100 events
+           POST /api/puddlang/:profile/runs/:id/cancel
+                # protocol 22.6; local/SSH only, excluded from remote leases and relay allowlist
 Signal     POST /agent-signal {nonce, state} | {nonce,event,agent_session_ref?,cwd,source,parent_agent_session_ref?,native_title?,native_created_at?,native_updated_at?}
                 # backwards-compatible status or exact lifecycle side-channel (§4), OUTSIDE /api: no bearer;
                 # per-runtime nonce is auth, 404 on unknown/stale; never proxied by cockpits
@@ -812,6 +851,15 @@ Applications share the separate `127.0.0.1` origin and are not isolated from eac
 Each env/ports value list is one non-wrapping line. When it exceeds the pane width, only the values scroll horizontally, with the scrollbar hidden and the `env`/`ports` label fixed.
 
 ## 10. `puddle` CLI (client)
+
+The same npm package and standalone archives ship `puddlang`: run, context,
+status, logs, cancel and mcp commands. They reuse local/SSH authority and require
+an existing daemon at protocol 22.6+. One selected profile binds each connection.
+Run waits by default (`--detach` returns after submission); observer exit does
+not cancel work. Stdio MCP exposes the same service. HTTP MCP, automatic agent
+binding and inherited descendant budgets are deferred. Both launchers upgrade
+and remove with the CLI; desktop-only installs need the CLI for these commands.
+See [usage](docs/puddlang.md).
 
 ```
 puddle launch  [local | user@host] [--port <p>] [--remote-port <p>] [--foreground] [--no-browser]

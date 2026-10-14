@@ -2,6 +2,8 @@ import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process'
 import { createServer } from 'node:net';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import type { LifecycleLaunchContext, LifecycleLaunchResource } from './adapter.js';
+import { CodexControl } from './codex-control.js';
+import { lifecycleVersionAtLeast } from './lifecycle-version.js';
 
 interface PendingRequest {
   method: 'thread/start' | 'thread/resume' | 'thread/fork';
@@ -28,6 +30,8 @@ interface JsonRpcMessage {
 export async function prepareCodexLifecycle(
   context: LifecycleLaunchContext,
 ): Promise<LifecycleLaunchResource> {
+  // Exact turn injection/outputSchema verified against codex-cli 0.159.0.
+  const scriptedTurns = await lifecycleVersionAtLeast('codex', ['--version'], [0, 159, 0]);
   const appPort = await freePort();
   const appUrl = `ws://127.0.0.1:${appPort}`;
   const appServer = spawn(
@@ -68,7 +72,14 @@ export async function prepareCodexLifecycle(
   }
   const proxyPort = address.port;
   const sockets = new Set<WebSocket>();
+  const control = new CodexControl();
+  let owner: WebSocket | null = null;
   proxy.on('connection', (client) => {
+    if (owner && owner.readyState < WebSocket.CLOSING) {
+      client.close(1008, 'One TUI per runtime');
+      return;
+    }
+    owner = client;
     sockets.add(client);
     const upstream = new WebSocket(appUrl);
     sockets.add(upstream);
@@ -77,20 +88,37 @@ export async function prepareCodexLifecycle(
     const state: CodexSignalState = { activeRef: null, queue: Promise.resolve() };
 
     client.on('message', (data, binary) => {
+      for (const message of parseMessages(data)) control.client(message as Record<string, unknown>);
       inspectRequest(data, pending, context.opts.worktreePath);
       const packet = { data: rawBuffer(data), binary };
       if (upstream.readyState === WebSocket.OPEN) upstream.send(packet.data, { binary });
       else queue.push(packet);
     });
     upstream.on('open', () => {
+      control.connect((message) => upstream.send(JSON.stringify(message)));
       for (const packet of queue) upstream.send(packet.data, { binary: packet.binary });
       queue.length = 0;
     });
     upstream.on('message', (data, binary) => {
       inspectResponse(data, pending, context, state);
+      if (state.activeRef) control.bind(state.activeRef);
+      const messages = parseMessages(data);
+      const injected = messages.map((message) =>
+        control.server(message as Record<string, unknown>),
+      );
+      if (injected.some(Boolean)) {
+        const visible = messages.filter((_, index) => !injected[index]);
+        if (visible.length && client.readyState === WebSocket.OPEN)
+          client.send(JSON.stringify(visible.length === 1 ? visible[0] : visible));
+        return;
+      }
       if (client.readyState === WebSocket.OPEN) client.send(data, { binary });
     });
     const closePair = () => {
+      if (owner === client) {
+        owner = null;
+        control.disconnect();
+      }
       if (client.readyState < WebSocket.CLOSING) client.close();
       if (upstream.readyState < WebSocket.CLOSING) upstream.close();
     };
@@ -103,6 +131,7 @@ export async function prepareCodexLifecycle(
   });
 
   return {
+    ...(scriptedTurns ? { control } : {}),
     // Remote mode delegates workspace creation to app-server. Keep `-C`
     // explicit as well as setting the sidecar cwd below: either endpoint may
     // otherwise fall back to the daemon's directory when a protocol request
@@ -111,6 +140,7 @@ export async function prepareCodexLifecycle(
     ...(appServer.pid !== undefined ? { sidecarPids: [appServer.pid] } : {}),
     hiddenPorts: [appPort, proxyPort],
     dispose: () => {
+      control.disconnect();
       for (const socket of sockets) socket.terminate();
       proxy.close();
       stopProcess(appServer);

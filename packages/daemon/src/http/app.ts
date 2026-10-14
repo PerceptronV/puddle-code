@@ -43,6 +43,8 @@ import { scratchpadRoutes } from './routes/scratchpad.js';
 import { sessionRoutes } from './routes/sessions.js';
 import { versionRoutes } from './routes/version.js';
 import { worktreeRoutes } from './routes/worktrees.js';
+import { puddlangRoutes } from './routes/puddlang.js';
+import type { PuddlangService } from '../puddlang/service.js';
 
 /** Everything the REST + WS surface needs; `api` is absent in narrow tests. */
 export interface AppDeps {
@@ -69,6 +71,7 @@ export interface AppDeps {
     tracker: ProxySocketTracker;
     compilation: CompilationService;
     latex: LatexProvider;
+    puddlang?: PuddlangService;
   };
   ws?: {
     gateway: WsGateway;
@@ -117,6 +120,7 @@ export function buildApp(deps: AppDeps): Hono {
     app.route('/api/fs', fsRoutes());
     app.route('/api/worktrees', worktreeRoutes(api));
     app.route('/api/host', hostRoutes(api));
+    if (api.puddlang) app.route('/api/puddlang', puddlangRoutes(api.puddlang));
 
     // Agent-hook status side-channel (SPEC §4): deliberately OUTSIDE /api —
     // the caller is a hook process on this host with no bearer token; the

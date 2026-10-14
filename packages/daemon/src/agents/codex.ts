@@ -64,6 +64,7 @@ const SESSION_START_WINDOW_MS = 5 * 60 * 1000;
  * `409 migration_unsupported`; tier-2 hand-off still works).
  */
 export const codex: AgentAdapter = {
+  scriptedTurns: true,
   id: 'codex',
   displayName: 'Codex',
   binary: 'codex',

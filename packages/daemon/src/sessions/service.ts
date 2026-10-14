@@ -172,6 +172,22 @@ const MAX_ENV_VARS = 128;
  * 'renamed' (RenameEvent).
  */
 export class SessionService extends EventEmitter {
+  /** Resolve current placement through stable runtime ownership for puddlang. */
+  scriptRuntime(reference: string) {
+    const live = this.runtimes.get(reference) ?? this.liveAgents.get(reference);
+    if (!live) throw ApiError.conflict('agent_not_live', 'The agent has no live runtime');
+    const control = live.lifecycleResource?.control;
+    if (!control)
+      throw ApiError.conflict(
+        'scripted_turns_unavailable',
+        'This runtime has no exact scripted-turn channel; use a supported agent with full native synchronisation',
+      );
+    return {
+      handle: { runtime_id: live.runtimeId, session_id: live.activeSessionId },
+      session: this.get(live.activeSessionId),
+      control,
+    };
+  }
   private readonly liveAgents = new Map<string, LiveAgent>();
   /** nonce → session id for /agent-signal lookups; entries die with the PTY. */
   private readonly signalNonces = new Map<string, LiveAgent>();

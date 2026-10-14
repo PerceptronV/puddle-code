@@ -187,3 +187,9 @@ the connector advertises `remote_notification_previews` and the service advertis
 The private connector IPC retries the legacy id-only request only after an explicit
 rejection. Old clients ignore optional event content; old subscriptions retain generic
 push. Noise admission, remote envelopes and host leases are unchanged (remote 3).
+
+Daemon/cockpit protocol 22.6 adds local/SSH puddlang context, submission, status,
+events and cancellation endpoints. Shared schemas also define runner IPC and
+stdio MCP inputs. Existing authority/token flows are reused; remote profile
+leases and the connector allowlist reject this namespace (remote protocol 3).
+Puddlang checks support before submission; ordinary older cockpits stay compatible.

@@ -45,6 +45,16 @@ export class RemovalStore {
       { id: string } | undefined;
     if (!profile) throw ApiError.notFound('profile', profileId);
 
+    if (
+      this.db
+        .prepare("SELECT 1 FROM puddlang_runs WHERE profile_id = ? AND status = 'running' LIMIT 1")
+        .get(profileId)
+    )
+      throw ApiError.conflict(
+        'profile_in_use',
+        'profile has a running puddlang programme — cancel it first',
+      );
+
     const live = this.db
       .prepare(
         `SELECT COUNT(*) AS n FROM sessions

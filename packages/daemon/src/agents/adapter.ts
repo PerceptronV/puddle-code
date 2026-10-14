@@ -77,6 +77,8 @@ export interface ConversationDiscoveryHooks {
 }
 
 export interface LifecycleLaunchResource {
+  /** Optional exact message/reply control; never infer replies from PTY quietness. */
+  control?: AgentControl;
   /** Replacement CLI arguments (for example Codex's `--remote` transport). */
   args: string[];
   /** Sidecar process roots included in runtime port/process ownership. */
@@ -84,6 +86,11 @@ export interface LifecycleLaunchResource {
   /** Internal bridge ports excluded from the user-facing port catalogue. */
   hiddenPorts?: number[];
   dispose(): void | Promise<void>;
+}
+
+export interface AgentControl {
+  readonly ready: boolean;
+  ask(prompt: string, signal: AbortSignal, outputSchema?: Record<string, unknown>): Promise<string>;
 }
 
 export interface LifecycleLaunchContext {
@@ -127,6 +134,8 @@ export interface ConversationShareHooks {
  * adapter; core session logic stays agent-agnostic.
  */
 export interface AgentAdapter {
+  /** Supports exact scripted turns through its lifecycle resource. */
+  scriptedTurns?: boolean;
   id: string;
   displayName: string;
   /** Executable name resolved on PATH. */

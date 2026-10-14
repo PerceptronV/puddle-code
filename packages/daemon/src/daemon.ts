@@ -48,6 +48,8 @@ import { subscribePushNotifications } from './sessions/push-notifications.js';
 import { SessionService } from './sessions/service.js';
 import { WorktreeManager } from './worktrees/manager.js';
 import { WsGateway } from './ws/gateway.js';
+import { PuddlangService } from './puddlang/service.js';
+import { PuddlangStore } from './puddlang/store.js';
 
 export interface DaemonOptions {
   /** Overrides PUDDLE_HOME / ~/.puddle (tests). */
@@ -153,6 +155,16 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       shellHooks,
       statusQuietMs: opts.statusQuietMs,
     });
+    const puddlang = new PuddlangService(new PuddlangStore(db), {
+      profiles,
+      accounts,
+      projects,
+      repos,
+      adapters,
+      service,
+      worktrees,
+    });
+    failedStartup.push(() => puddlang.dispose());
     const stopPush = subscribePushNotifications(paths.home, service, {
       profiles,
       projects,
@@ -258,6 +270,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
         tracker,
         compilation,
         latex,
+        puddlang,
       },
       ws: { gateway, upgradeWebSocket },
     });
@@ -314,6 +327,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       paths,
       service,
       async stop() {
+        await puddlang.dispose();
         stopPush();
         controlInfo = null;
         authority.dispose();

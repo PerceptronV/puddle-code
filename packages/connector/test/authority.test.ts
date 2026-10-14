@@ -50,6 +50,17 @@ describe('remote surface', () => {
   const id = crypto.randomUUID();
   const request = (method: 'GET' | 'POST' | 'PATCH', path: string) =>
     permittedRequest({ t: 'request', id, method, path });
+  it('does not expose trusted puddlang execution through the remote relay', () => {
+    for (const suffix of [
+      'context',
+      'runs',
+      `runs/${id}`,
+      `runs/${id}/events`,
+      `runs/${id}/cancel`,
+    ])
+      for (const method of ['GET', 'POST'] as const)
+        expect(() => request(method, `/api/puddlang/1234567890/${suffix}`)).toThrow();
+  });
   it('allows text review and placement terminals', () => {
     expect(request('GET', `/api/worktrees/${id}/file?path=README.md`).path).toContain('README.md');
     expect(permittedTerminal({ t: 'stdin', session: id, term: 'agent', data: 'hello' }).t).toBe(

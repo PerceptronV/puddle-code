@@ -13,6 +13,7 @@ packages/
 ├── daemon/    # puddled: Hono HTTP/WS server, PTY manager, worktree manager, SQLite
 │   ├── src/security/     # private host control, monotonic connection leases and resource revocation
 │   ├── src/agents/       # adapters own flags, cached native catalogue discovery, and exact lifecycle integration
+│   ├── src/puddlang/     # trusted TypeScript runner, bounded operations and durable run/event records
 │   ├── src/compilation/  # provider-neutral compile modes, scheduling, dependency observation, and artefacts
 │   ├── src/latex/        # local TeX discovery/recipes, managed outputs, and inverse SyncTeX
 │   ├── src/sessions/     # immutable placement service + stable live runtimes + watched conversation catalogue
@@ -117,6 +118,8 @@ supervised one.
 > **Never launch `puddled` from inside a coding-agent session** (e.g. a Claude Code terminal, including these dev sessions). The daemon inherits that agent's orchestration env vars — `CLAUDECODE=1`, `CLAUDE_CODE_*` — and passes them to the agents it spawns (PtyManager uses `{...process.env}` by design). A `claude` that sees `CLAUDECODE`/`CLAUDE_CODE_CHILD_SESSION` treats itself as a nested child and **does not write a resumable conversation transcript**, so `--resume` silently fails with "no conversation found" (verified against Claude Code 2.1.209: the identical session persists a transcript with these unset and writes nothing with them set). Start the daemon from a plain shell (systemd/launchd does this in production, so real deployments are unaffected). If a session won't resume during development, check the daemon's env first (`ps eww <pid> | tr ' ' '\n' | grep CLAUDE`).
 
 ## Conventions
+
+- Puddlang ships with the CLI and executes trusted single-file TypeScript on an existing local/SSH daemon (protocol 22.6, host Node 22.21.1+). Agent control belongs in adapters: Codex 0.159.0+ correlates native thread/turn replies through its existing proxy; never infer scripted replies from terminal quietness or catalogue discovery. Keep runs distinct from placement/conversation/runtime identities, recheck profile ownership per operation, retain account selection without fallback and never replay interrupted runs. Remote leases and the connector allowlist exclude puddlang. Automatic agent MCP binding, delegated credentials and descendant budgets remain deferred; see `docs/puddlang.md`.
 
 - **British English everywhere**: comments, documentation, commit messages, UI copy, and identifiers you choose (`colour`, `initialise`, `behaviour`, `licence` as the noun). Exception: never rename third-party API surface — CSS `color`, `Array.prototype.normalize`-style library methods, and external config keys keep their canonical spelling.
 - TypeScript strict; no `any` without a comment justifying it.
