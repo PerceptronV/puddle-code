@@ -8,6 +8,7 @@ import {
   readFileSync,
   readdirSync,
   readlinkSync,
+  realpathSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -19,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { installDaemon, readInstallScript } from '../src/lib/bootstrap.js';
 import type { Transport } from '../src/lib/transport/transport.js';
-import { standaloneInstallation } from '../src/lib/standalone-cli.js';
+import { standaloneInstallation, removeStandaloneCli } from '../src/lib/standalone-cli.js';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const installer = join(root, 'scripts/install-cli.sh');
@@ -70,6 +71,53 @@ function fixture() {
 }
 
 describe('standalone CLI installer', () => {
+  it('installs, upgrades and removes both owned launchers; supports older archives', async () => {
+    const f = fixture();
+    const script = join(f.home, '.local/bin/puddlang');
+    f.install();
+    writeFileSync(join(f.stage, 'puddlang'), '#!/bin/sh\nprintf "fixture puddlang help\\n"\n', {
+      mode: 0o755,
+    });
+    f.pack();
+    f.install();
+    expect(execFileSync(script, ['--help'], { encoding: 'utf8' })).toContain('fixture puddlang');
+    rmSync(join(f.stage, 'puddlang'));
+    f.pack();
+    f.install();
+    expect(existsSync(script)).toBe(false);
+    writeFileSync(join(f.stage, 'puddlang'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    f.pack();
+    f.install();
+    const installation = {
+      root: realpathSync(f.prefix),
+      release: join(f.prefix, readlinkSync(join(f.prefix, 'current'))),
+      launcher: f.launcher,
+      scriptLauncher: script,
+    };
+    writeFileSync(script, 'replacement');
+    await expect(removeStandaloneCli(installation)).rejects.toThrow(
+      'puddlang launcher was replaced',
+    );
+    expect(existsSync(f.launcher)).toBe(true);
+    rmSync(script);
+    f.install();
+    await removeStandaloneCli(installation);
+    expect(existsSync(f.launcher)).toBe(false);
+    expect(existsSync(script)).toBe(false);
+  });
+
+  it('does not overwrite an unrelated puddlang command', () => {
+    const f = fixture();
+    f.install();
+    const previous = readlinkSync(join(f.prefix, 'current'));
+    writeFileSync(join(f.stage, 'puddlang'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    f.pack();
+    const script = join(f.home, '.local/bin/puddlang');
+    writeFileSync(script, 'unrelated');
+    expect(() => f.install()).toThrow('unrelated launcher');
+    expect(readFileSync(script, 'utf8')).toBe('unrelated');
+    expect(readlinkSync(join(f.prefix, 'current'))).toBe(previous);
+  });
   it('retains immutable trees on reinstall and migrates owned legacy permissions', () => {
     const f = fixture();
     f.install();

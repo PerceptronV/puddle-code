@@ -25,8 +25,8 @@ rmSync(join(pkgRoot, 'dist'), { recursive: true, force: true });
 const slug = process.env.PUDDLE_REPO_SLUG;
 
 await build({
-  entryPoints: [join(pkgRoot, 'src/index.ts')],
-  outfile: join(pkgRoot, 'dist/index.js'),
+  entryPoints: { index: join(pkgRoot, 'src/index.ts'), puddlang: join(pkgRoot, 'src/puddlang.ts') },
+  outdir: join(pkgRoot, 'dist'),
   bundle: true,
   platform: 'node',
   target: 'node22',

@@ -125,16 +125,24 @@ main() {
   done
   # Help loads the bundle without touching a daemon or user state.
   "$STAGE/puddle" --help >/dev/null || die "CLI smoke test failed"
+  if [ -f "$STAGE/puddlang" ]; then
+    "$STAGE/puddlang" --help >/dev/null || die "puddlang smoke test failed"
+  fi
   "$STAGE/bin/node" --input-type=commonjs - "$PREFIX" "$BIN_DIR" "$STAGE" <<'NODE'
 const fs = require('node:fs'), path = require('node:path');
 const [root, binDir, stage] = process.argv.slice(2);
 const launcher = path.join(binDir, 'puddle');
 const quote = (s) => "'" + s.replaceAll("'", "'\\''") + "'";
 const wrapper = '#!/bin/sh\n# puddle standalone launcher\nexec ' + quote(path.join(root, 'current/puddle')) + ' "$@"\n';
+const scriptLauncher = path.join(binDir, 'puddlang');
+const scriptWrapper = '#!/bin/sh\n# puddle standalone launcher\nexec ' + quote(path.join(root, 'current/puddlang')) + ' "$@"\n';
+const hasScript = fs.existsSync(path.join(stage, 'puddlang'));
 const stat = (p) => { try { return fs.lstatSync(p); } catch (e) { if (e.code === 'ENOENT') return null; throw e; } };
 if (stat(launcher) && (!stat(launcher).isFile() || fs.readFileSync(launcher, 'utf8') !== wrapper)) {
   throw Error('Refusing to replace an unrelated launcher: ' + launcher + '; choose --bin-dir');
 }
+const ownsScript = stat(scriptLauncher)?.isFile() && fs.readFileSync(scriptLauncher, 'utf8') === scriptWrapper;
+if (hasScript && stat(scriptLauncher) && !ownsScript) throw Error('Refusing to replace an unrelated launcher: ' + scriptLauncher + '; choose --bin-dir');
 const current = path.join(root, 'current');
 if (stat(current) && !stat(current).isSymbolicLink()) throw Error('current must be a symlink');
 const record = path.join(root, 'installation.json');
@@ -144,14 +152,17 @@ if (stat(record)) {
 }
 const tmp = '.new-' + process.pid;
 try {
-  fs.writeFileSync(record + tmp, JSON.stringify({ kind: 'puddle-cli', launcher }) + '\n', { flag: 'wx', mode: 0o600 });
+  fs.writeFileSync(record + tmp, JSON.stringify({ kind: 'puddle-cli', launcher, ...(hasScript ? { scriptLauncher } : {}) }) + '\n', { flag: 'wx', mode: 0o600 });
   fs.writeFileSync(launcher + tmp, wrapper, { flag: 'wx', mode: 0o755 });
+  if (hasScript) fs.writeFileSync(scriptLauncher + tmp, scriptWrapper, { flag: 'wx', mode: 0o755 });
   fs.symlinkSync(path.relative(root, stage), current + tmp);
   fs.renameSync(record + tmp, record);
   fs.renameSync(launcher + tmp, launcher);
+  if (hasScript) fs.renameSync(scriptLauncher + tmp, scriptLauncher);
   fs.renameSync(current + tmp, current); // Activate only after every other write succeeds.
+  if (!hasScript && ownsScript) fs.unlinkSync(scriptLauncher); // Named older releases remain installable.
 } finally {
-  for (const file of [record + tmp, launcher + tmp, current + tmp]) fs.rmSync(file, { force: true });
+  for (const file of [record + tmp, launcher + tmp, scriptLauncher + tmp, current + tmp]) fs.rmSync(file, { force: true });
 }
 NODE
   STAGE="" # Published releases stay intact, including those serving live cockpits.

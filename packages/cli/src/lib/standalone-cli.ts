@@ -9,6 +9,7 @@ interface StandaloneInstallation {
   root: string;
   release: string;
   launcher: string;
+  scriptLauncher?: string;
 }
 
 /** Match the installed script and runtime, not whichever `puddle` is on PATH. */
@@ -23,6 +24,7 @@ export function standaloneInstallation(
     const record = JSON.parse(readFileSync(join(root, 'installation.json'), 'utf8')) as {
       kind?: unknown;
       launcher?: unknown;
+      scriptLauncher?: unknown;
     };
     if (
       readFileSync(join(release, 'STANDALONE'), 'utf8').trim() !== 'puddle-cli' ||
@@ -32,10 +34,19 @@ export function standaloneInstallation(
       realpathSync(execPath) !== join(release, 'bin/node') ||
       record.kind !== 'puddle-cli' ||
       typeof record.launcher !== 'string' ||
-      !isAbsolute(record.launcher)
+      !isAbsolute(record.launcher) ||
+      (record.scriptLauncher !== undefined &&
+        record.scriptLauncher !== join(dirname(record.launcher), 'puddlang'))
     )
       throw new Error('Installation metadata does not match this CLI');
-    return { root, release, launcher: record.launcher };
+    return {
+      root,
+      release,
+      launcher: record.launcher,
+      ...(typeof record.scriptLauncher === 'string'
+        ? { scriptLauncher: record.scriptLauncher }
+        : {}),
+    };
   } catch {
     throw new CliError(
       'not_installed',
@@ -76,8 +87,11 @@ export function upgradeStandaloneCli(
 }
 
 /** Exact launcher ownership prevents removal from deleting a replacement binary. */
-export function standaloneLauncher(root: string): string {
-  const quoted = `'${join(root, 'current/puddle').replaceAll("'", "'\\''")}'`;
+export function standaloneLauncher(
+  root: string,
+  command: 'puddle' | 'puddlang' = 'puddle',
+): string {
+  const quoted = `'${join(root, `current/${command}`).replaceAll("'", "'\\''")}'`;
   return `#!/bin/sh\n# puddle standalone launcher\nexec ${quoted} "$@"\n`;
 }
 
@@ -94,6 +108,15 @@ export async function removeStandaloneCli(installation: StandaloneInstallation):
       (await readFile(installation.launcher, 'utf8')) !== standaloneLauncher(installation.root)
     )
       throw new CliError('not_installed', 'the CLI launcher was replaced; refusing removal');
+    if (installation.scriptLauncher && existsSync(installation.scriptLauncher)) {
+      if (
+        !lstatSync(installation.scriptLauncher).isFile() ||
+        (await readFile(installation.scriptLauncher, 'utf8')) !==
+          standaloneLauncher(installation.root, 'puddlang')
+      )
+        throw new CliError('not_installed', 'the puddlang launcher was replaced; refusing removal');
+      await unlink(installation.scriptLauncher);
+    }
     await unlink(installation.launcher);
     await rm(installation.root, { recursive: true, force: true });
   } finally {

@@ -33,6 +33,7 @@ const stage = join(out, 'stage', name);
 const dist = join(root, 'packages/cli/dist');
 for (const file of [
   'index.js',
+  'puddlang.js',
   'host-control.mjs',
   'install.sh',
   'install-cli.sh',
@@ -53,6 +54,11 @@ writeFileSync(
   '#!/bin/sh\ndir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)\nexec "$dir/bin/node" "$dir/cli/index.js" "$@"\n',
 );
 chmodSync(join(stage, 'puddle'), 0o755);
+writeFileSync(
+  join(stage, 'puddlang'),
+  '#!/bin/sh\ndir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)\nexec "$dir/bin/node" "$dir/cli/puddlang.js" "$@"\n',
+);
+chmodSync(join(stage, 'puddlang'), 0o755);
 await stageNodeRuntime(root, stage, target);
 
 // Offline inventory and help never start a daemon. An isolated home and PATH
@@ -63,6 +69,7 @@ try {
   const output = execFileSync(join(stage, 'puddle'), ['--version'], { env, encoding: 'utf8' });
   if (!output.includes(version)) throw new Error(`CLI version smoke test failed: ${output}`);
   execFileSync(join(stage, 'puddle'), ['--help'], { env, stdio: 'pipe' });
+  execFileSync(join(stage, 'puddlang'), ['--help'], { env, stdio: 'pipe' });
 } finally {
   rmSync(home, { recursive: true, force: true });
 }
