@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- macOS releases without signing secrets unset the empty certificate environment before ad-hoc packaging, preventing electron-builder from treating the desktop directory as a certificate file. Desktop packaging leaves publication to the release job.

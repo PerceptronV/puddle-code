@@ -140,14 +140,17 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           if [ "$RUNNER_OS" != "macOS" ]; then
-            pnpm exec electron-builder
+            pnpm exec electron-builder --publish never
           elif [ -n "$CSC_LINK" ]; then
-            pnpm exec electron-builder -c.mac.notarize=true
+            pnpm exec electron-builder --publish never -c.mac.notarize=true
           else
             echo "no signing certificate secrets — sealing with an ad-hoc signature"
+            # GitHub supplies missing secrets as empty strings. electron-builder
+            # treats an empty CSC_LINK as a certificate path (the working directory).
+            unset CSC_LINK CSC_KEY_PASSWORD
             # Ad-hoc frameworks have no Team ID for hardened runtime library
             # validation. Keep that runtime exclusive to Developer ID builds.
-            pnpm exec electron-builder -c.mac.identity=- -c.mac.hardenedRuntime=false -c.mac.notarize=false
+            pnpm exec electron-builder --publish never -c.mac.identity=- -c.mac.hardenedRuntime=false -c.mac.notarize=false
           fi
       - name: verify macOS app signature
         if: runner.os == 'macOS'

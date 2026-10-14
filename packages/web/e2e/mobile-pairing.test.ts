@@ -44,7 +44,11 @@ test('scans a real QR image in this app and saves a separate device identity onl
     await expect.poll(() => savedIdentity(tab)).not.toBeNull();
     const browserKey = (await savedIdentity(tab))!.privateKey;
     await fakeCamera(page, link);
-    await page.getByRole('button', { name: 'Pair this device', exact: true }).tap();
+    await page
+      .getByRole('main', { name: 'Hosts and projects' })
+      .locator('header')
+      .getByRole('button', { name: 'Pair this device', exact: true })
+      .tap();
     expect(await page.locator('html').getAttribute('data-camera-requests')).toBe('0');
     await page.getByRole('button', { name: 'Scan QR code' }).tap();
     const confirmation = page.getByRole('dialog', { name: 'Pair this browser' });
@@ -87,7 +91,11 @@ for (const mode of ['blank', 'pending'] as const) {
     page,
   }) => {
     await fakeCamera(page, pairingLink(fixture.origin), mode);
-    await page.getByRole('button', { name: 'Pair this device', exact: true }).tap();
+    await page
+      .getByRole('main', { name: 'Hosts and projects' })
+      .locator('header')
+      .getByRole('button', { name: 'Pair this device', exact: true })
+      .tap();
     await page.getByRole('button', { name: 'Scan QR code' }).tap();
     await expect(page.locator('html')).toHaveAttribute('data-camera-requests', '1');
     await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).tap();
@@ -103,7 +111,11 @@ test('backgrounding the app stops the camera and invalid QR codes stay in the sc
   page,
 }) => {
   await fakeCamera(page, 'https://unrelated.example.test/');
-  await page.getByRole('button', { name: 'Pair this device', exact: true }).tap();
+  await page
+    .getByRole('main', { name: 'Hosts and projects' })
+    .locator('header')
+    .getByRole('button', { name: 'Pair this device', exact: true })
+    .tap();
   await page.getByRole('button', { name: 'Scan QR code' }).tap();
   await expect(page.getByRole('alert')).toContainText('different Puddle app');
   await expect(page.locator('html')).toHaveAttribute('data-camera-stops', '1');
@@ -128,7 +140,11 @@ test('a camera timeout fits a narrow screen and releases a later permission gran
   });
   await fakeCamera(page, pairingLink(fixture.origin), 'pending');
   await page.clock.install();
-  await page.getByRole('button', { name: 'Pair this device', exact: true }).tap();
+  await page
+    .getByRole('main', { name: 'Hosts and projects' })
+    .locator('header')
+    .getByRole('button', { name: 'Pair this device', exact: true })
+    .tap();
   await page.getByRole('button', { name: 'Scan QR code' }).tap();
   const dialog = page.getByRole('dialog', { name: 'Pair this device' });
   expect(

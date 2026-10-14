@@ -11,6 +11,9 @@
 # .github/workflows/release.yml "desktop" job. Without certificate secrets,
 # releases use `-c.mac.identity=- -c.mac.hardenedRuntime=false` to seal the app
 # with an ad-hoc signature (its frameworks have no Team ID for library validation);
+# unset empty CSC_LINK/CSC_KEY_PASSWORD first so missing GitHub secrets cannot
+# trigger certificate import. Packaging uses --publish never; the release job
+# publishes the completed artefact set after every build passes.
 # `identity=null` leaves Electron's linker signature without a bound app identity.
 # Icon: build/icon.icns (mac, from the full-bleed icon-mac.svg — macOS 26+
 # applies its own squircle mask) and build/icon.png (linux, from icon.svg,
