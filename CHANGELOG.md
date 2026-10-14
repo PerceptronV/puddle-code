@@ -8,8 +8,3 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
-
-### Fixed
-
-- Align the shared API protocol assertion with protocol 22.4 so CI accepts the remote push notification changes.
-- Publish the npm CLI through GitHub OIDC trusted publishing with a compatible npm version instead of relying on a stored publishing token.
