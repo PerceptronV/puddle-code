@@ -6,6 +6,7 @@ import {
   HOME_STREAM,
   wsClientMessageSchema,
   type Account,
+  type AgentNotification,
   type WsServerMessage,
 } from '@puddle/shared';
 import type { LogStore } from '../logs/log-store.js';
@@ -97,6 +98,9 @@ export class WsGateway {
         term: e.term,
         code: e.exitCode,
       });
+    });
+    deps.service.on('agent-notification', (event: AgentNotification) => {
+      for (const ws of this.statusSubs) this.send(ws, event);
     });
     deps.service.on('status', (e: StatusEvent) => {
       for (const ws of this.statusSubs) {

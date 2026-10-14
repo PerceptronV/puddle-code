@@ -23,3 +23,12 @@ export const notificationDeliverySchema = z.object({
   message: z.string().max(512).nullable(),
 });
 export type NotificationDelivery = z.infer<typeof notificationDeliverySchema>;
+
+/** A live attention event; terminal placements retain their ordinary shell status. */
+export const agentNotificationSchema = z.object({
+  t: z.literal('agent-notification'),
+  id: z.string().uuid(),
+  session: z.string().uuid(),
+  reason: z.enum(['waiting_input', 'exited']),
+});
+export type AgentNotification = z.infer<typeof agentNotificationSchema>;

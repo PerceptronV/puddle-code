@@ -11,18 +11,30 @@ import {
 
 const adapters = [claudeCode, codex, opencode, geminiCli];
 const monitors: TerminalAgentMonitor[] = [];
-afterEach(() => monitors.splice(0).forEach((monitor) => monitor.dispose()));
+afterEach(() => {
+  monitors.splice(0).forEach((monitor) => monitor.dispose());
+  vi.useRealTimers();
+});
 
 function fixture() {
   let targets: TerminalAgentTarget[] = [{ session: 'terminal', runtime: 'first', pid: 100 }];
   const snapshot = vi.fn(async () => parseProcessSnapshot(''));
   const changed = vi.fn();
-  const monitor = new TerminalAgentMonitor({ targets: () => targets, adapters, snapshot, changed });
+  const notify = vi.fn();
+  const monitor = new TerminalAgentMonitor({
+    targets: () => targets,
+    adapters,
+    snapshot,
+    changed,
+    notify,
+    quietMs: 20,
+  });
   monitors.push(monitor);
   return {
     monitor,
     snapshot,
     changed,
+    notify,
     targets: (value: TerminalAgentTarget[]) => {
       targets = value;
     },
@@ -205,5 +217,53 @@ describe('terminal foreground agent monitor', () => {
     });
     await f.monitor.refresh();
     expect(f.changed).not.toHaveBeenCalled();
+  });
+});
+
+describe('terminal agent notifications', () => {
+  it('reports one busy-to-idle turn without notifying on the initial prompt or redraws', async () => {
+    vi.useFakeTimers();
+    const f = fixture();
+    await f.scan('200 100 200 200 ttys000 S+ codex');
+    f.monitor.feed('terminal', '› question model · /repo');
+    await vi.advanceTimersByTimeAsync(25);
+    expect(f.notify).not.toHaveBeenCalled();
+    f.monitor.feed('terminal', 'esc to interrupt');
+    f.monitor.feed('terminal', '› next model · /repo');
+    await vi.advanceTimersByTimeAsync(25);
+    expect(f.notify).toHaveBeenCalledExactlyOnceWith('terminal', 'waiting_input');
+    f.monitor.feed('terminal', '› next model · /repo');
+    await vi.advanceTimersByTimeAsync(25);
+    expect(f.notify).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports observed child exit once, but not suspension, backgrounding, or ps failure', async () => {
+    const f = fixture();
+    await f.scan('200 100 200 200 ttys000 S+ codex');
+    await f.scan('200 100 200 100 ttys000 T codex', 100);
+    await f.scan('200 100 200 100 ttys000 S codex', 100);
+    f.snapshot.mockRejectedValue(new Error('ps failed'));
+    await f.monitor.refresh();
+    expect(f.notify).not.toHaveBeenCalled();
+    await f.scan('', 100);
+    await f.scan('', 100);
+    expect(f.notify).toHaveBeenCalledExactlyOnceWith('terminal', 'exited');
+  });
+
+  it('cancels pending idle signals on suspension and forget, and scopes observations to a runtime', async () => {
+    vi.useFakeTimers();
+    const f = fixture();
+    await f.scan('200 100 200 200 ttys000 S+ codex');
+    f.monitor.feed('terminal', 'esc to interrupt');
+    f.monitor.feed('terminal', '› next model · /repo');
+    await f.scan('200 100 200 100 ttys000 T codex', 100);
+    await vi.advanceTimersByTimeAsync(25);
+    f.monitor.forget('terminal');
+    f.monitor.exited('terminal');
+    expect(f.notify).not.toHaveBeenCalled();
+    await f.scan('200 100 200 200 ttys000 S+ codex');
+    f.targets([{ session: 'terminal', runtime: 'replacement', pid: 100 }]);
+    await f.scan('', 100);
+    expect(f.notify).not.toHaveBeenCalled();
   });
 });

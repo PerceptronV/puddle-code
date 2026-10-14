@@ -1,3 +1,4 @@
+import { StatusDetector } from '../pty/status-detector.js';
 import type { AgentAdapter } from '../agents/adapter.js';
 import { foregroundProcesses, readProcessSnapshot } from '../pty/foreground-process.js';
 
@@ -9,16 +10,27 @@ export interface TerminalAgentTarget {
 
 interface Options {
   targets(): TerminalAgentTarget[];
-  adapters: Pick<AgentAdapter, 'id' | 'matchesProcess'>[];
+  adapters: Pick<AgentAdapter, 'id' | 'matchesProcess' | 'statusPatterns'>[];
   changed(session: string): void;
+  notify?(session: string, reason: 'waiting_input' | 'exited'): void;
+  quietMs?: number;
   snapshot?: typeof readProcessSnapshot;
   intervalMs?: number;
 }
 
-/** Transient icon hints only: never adopts conversations or changes session kind/status. */
+interface ObservedAgent {
+  runtime: string;
+  agent: string;
+  pid: number;
+  detector: StatusDetector | null;
+  armed: boolean;
+}
+
+/** Transient observations: never adopts conversations or changes session kind/status. */
 export class TerminalAgentMonitor {
   private readonly detected = new Map<string, { runtime: string; agent: string }>();
   private readonly timer: ReturnType<typeof setInterval>;
+  private readonly observed = new Map<string, ObservedAgent>();
   private pending = false;
   private disposed = false;
 
@@ -32,7 +44,18 @@ export class TerminalAgentMonitor {
     return value?.runtime === runtime ? value.agent : null;
   }
 
+  feed(session: string, data: string): void {
+    this.observed.get(session)?.detector?.feed(data);
+  }
+
+  exited(session: string): void {
+    if (this.observed.has(session)) this.options.notify?.(session, 'exited');
+    this.forget(session);
+  }
+
   forget(session: string): void {
+    this.observed.get(session)?.detector?.dispose();
+    this.observed.delete(session);
     if (this.detected.delete(session)) this.options.changed(session);
   }
 
@@ -40,6 +63,8 @@ export class TerminalAgentMonitor {
     this.disposed = true;
     clearInterval(this.timer);
     this.detected.clear();
+    for (const observed of this.observed.values()) observed.detector?.dispose();
+    this.observed.clear();
   }
 
   async refresh(): Promise<void> {
@@ -50,19 +75,25 @@ export class TerminalAgentMonitor {
     try {
       // Inspection failure removes hints; an unavailable ps must never leave
       // a stale agent mark or interfere with the shell itself.
-      const entries = await (this.options.snapshot ?? readProcessSnapshot)().catch(() => new Map());
+      let succeeded = true;
+      const entries = await (this.options.snapshot ?? readProcessSnapshot)().catch(() => {
+        succeeded = false;
+        return new Map();
+      });
       if (this.disposed) return;
       const current = new Map(this.options.targets().map((target) => [target.session, target]));
       for (const target of targets) {
         const now = current.get(target.session);
         if (now?.runtime !== target.runtime || now.pid !== target.pid) continue;
         const matches = new Set<string>();
+        const pids = new Set<number>();
         for (const path of foregroundProcesses(target.pid, entries)) {
           for (const entry of path) {
             let recognised = false;
             for (const adapter of this.options.adapters) {
               if (!adapter.matchesProcess?.(entry.command)) continue;
               matches.add(adapter.id);
+              pids.add(entry.pid);
               recognised = true;
             }
             if (recognised) break;
@@ -75,6 +106,52 @@ export class TerminalAgentMonitor {
         if (agent) this.detected.set(target.session, { runtime: target.runtime, agent });
         else this.detected.delete(target.session);
         if (agent !== previous) this.options.changed(target.session);
+        let observed = this.observed.get(target.session);
+        if (observed && observed.runtime !== target.runtime) {
+          observed.detector?.dispose();
+          this.observed.delete(target.session);
+          observed = undefined;
+        }
+        // Only a successful process snapshot with a live shell can establish
+        // child exit. Suspension, backgrounding and failed ps are not exits.
+        if (observed && succeeded && entries.has(target.pid) && !entries.has(observed.pid)) {
+          observed.detector?.dispose();
+          this.observed.delete(target.session);
+          this.options.notify?.(target.session, 'exited');
+          observed = undefined;
+        }
+        const pid = pids.size === 1 ? [...pids][0] : undefined;
+        if (!agent || pid === undefined) {
+          observed?.detector?.dispose();
+          if (observed) {
+            observed.detector = null;
+            observed.armed = false;
+          }
+          continue;
+        }
+        if (observed?.pid !== pid || observed.agent !== agent) {
+          observed?.detector?.dispose();
+          observed = { runtime: target.runtime, agent, pid, detector: null, armed: false };
+          this.observed.set(target.session, observed);
+        }
+        if (!observed.detector) {
+          const current = observed;
+          const adapter = this.options.adapters.find((item) => item.id === agent)!;
+          current.detector = new StatusDetector(
+            adapter.statusPatterns,
+            {
+              onBusy: () => {
+                current.armed = true;
+              },
+              onStatus: (status) => {
+                if (status !== 'waiting_input' || !current.armed || this.disposed) return;
+                current.armed = false;
+                this.options.notify?.(target.session, 'waiting_input');
+              },
+            },
+            this.options.quietMs,
+          );
+        }
       }
     } finally {
       this.pending = false;

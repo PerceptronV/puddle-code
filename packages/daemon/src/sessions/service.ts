@@ -4,6 +4,7 @@ import { existsSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type {
   Account,
+  AgentNotification,
   AgentSignalRequest,
   ClearSessionEnvResponse,
   CreateSessionRequest,
@@ -198,6 +199,8 @@ export class SessionService extends EventEmitter {
     this.sessionRefs = new SessionRefs(deps);
     this.terminalAgents = new TerminalAgentMonitor({
       adapters: deps.adapters.list(),
+      quietMs: deps.statusQuietMs,
+      notify: (session, reason) => this.notifyAgent(session, reason),
       targets: () =>
         [...this.liveAgents.values()].flatMap((live) => {
           if (live.detector !== null) return [];
@@ -1366,6 +1369,7 @@ export class SessionService extends EventEmitter {
       this.transition(e.stream, 'running');
     }
     live.detector?.feed(e.data);
+    if (live.detector === null) this.terminalAgents.feed(e.stream, e.data);
     // A session announces a name change by setting its terminal title (OSC
     // 0/1/2) — e.g. Claude Code's `/rename`, handled client-side with no status
     // transition. `extractOscTitle` returns the de-animated title (spinner
@@ -1649,7 +1653,10 @@ export class SessionService extends EventEmitter {
     this.transition(sessionId, detected);
     // Backstop for adoption: by waiting_input the agent has written its
     // conversation file, which was usually absent at spawn time.
-    if (detected === 'waiting_input') this.scheduleAdopt(sessionId);
+    if (detected === 'waiting_input') {
+      this.scheduleAdopt(sessionId);
+      this.notifyAgent(sessionId, 'waiting_input');
+    }
     // The agent's own name lands in (and updates within) the transcript as the
     // conversation progresses; pick it up on each status change.
     this.refreshAgentIdentity(sessionId);
@@ -1701,11 +1708,19 @@ export class SessionService extends EventEmitter {
     }
     this.liveAgents.delete(e.stream);
     if (this.shuttingDown) return; // reconcile turns these into `interrupted` next boot
+    const expected =
+      this.expectedExits.has(e.stream) || this.expectedExits.has(`${e.stream}:agent`);
+    if (!expected) {
+      if (live.detector === null) this.terminalAgents.exited(e.stream);
+      else this.notifyAgent(e.stream, 'exited');
+    }
     this.transition(e.stream, 'exited');
     this.terminalAgents.forget(e.stream);
     this.refreshAgentIdentity(e.stream); // capture the final ref/name for the durable row
     this.deps.events.record(e.stream, 'exited', { code: e.exitCode });
     this.noticeOnAbnormalExit(e, startupFailure);
+    this.expectedExits.delete(e.stream);
+    this.expectedExits.delete(`${e.stream}:agent`);
   }
 
   /**
@@ -1762,6 +1777,16 @@ export class SessionService extends EventEmitter {
    */
   expectExit(stream: string, term?: string): void {
     this.expectedExits.add(term === undefined ? stream : `${stream}:${term}`);
+  }
+
+  private notifyAgent(session: string, reason: AgentNotification['reason']): void {
+    if (this.shuttingDown) return;
+    this.emit('agent-notification', {
+      t: 'agent-notification',
+      id: randomUUID(),
+      session,
+      reason,
+    } satisfies AgentNotification);
   }
 
   private transition(id: string, status: SessionStatus): void {

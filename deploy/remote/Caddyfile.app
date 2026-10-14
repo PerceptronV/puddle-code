@@ -12,7 +12,7 @@
   }
   @application not path /preview.html
   header @application {
-    Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; media-src blob:; frame-src 'self' blob:; connect-src {$PUDDLE_REMOTE_SERVICE} {$PUDDLE_REMOTE_WSS}; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; form-action 'self'"
+    Content-Security-Policy "default-src 'none'; script-src 'self'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; media-src blob:; frame-src 'self' blob:; connect-src {$PUDDLE_REMOTE_SERVICE} {$PUDDLE_REMOTE_WSS}; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; form-action 'self'"
     X-Frame-Options DENY
   }
   @preview path /preview.html

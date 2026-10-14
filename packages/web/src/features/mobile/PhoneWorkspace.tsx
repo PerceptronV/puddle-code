@@ -16,6 +16,7 @@ import { NewSessionDialog } from '../workspace/NewSessionDialog';
 import { MobileTerminal } from './MobileTerminal';
 import { PhoneFiles } from './PhoneFiles';
 import { PhoneSessionRail } from './PhoneSessionRail';
+import { useAgentNotifications } from '../shell/use-waiting-notifications';
 import { SessionActions } from './SessionActions';
 
 export function PhoneWorkspace({
@@ -29,6 +30,12 @@ export function PhoneWorkspace({
   hostName: string;
   onProjectName(name: string): void;
 }) {
+  useAgentNotifications((session) => {
+    setProjectId(session.project_id);
+    setSessionId(session.id);
+    setView('terminals');
+    setPickingProject(false);
+  });
   const qc = useQueryClient();
   const [projectId, setProjectId] = useState(initialProject);
   const [sessionId, setSessionId] = useState(

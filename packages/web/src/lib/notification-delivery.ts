@@ -4,12 +4,19 @@ import {
   type DesktopNotificationRequest,
   type NotificationDelivery,
 } from '@puddle/shared';
+import { notificationWorker } from './notification-worker';
 import { desktopBridge } from './desktop';
 
 let outcome: NotificationDelivery = { state: 'unverified', message: null };
 const listeners = new Set<() => void>();
 const clicks = new Map<string, () => void>();
 let subscribed = false;
+let workerSubscribed = false;
+
+function rememberClick(id: string, onClick: () => void): void {
+  clicks.set(id, onClick);
+  if (clicks.size > 64) clicks.delete(clicks.keys().next().value!);
+}
 
 function record(result: NotificationDelivery): NotificationDelivery {
   outcome = result;
@@ -54,8 +61,7 @@ export async function deliverNotification(
         });
         subscribed = true;
       }
-      clicks.set(request.id, onClick);
-      if (clicks.size > 64) clicks.delete(clicks.keys().next().value!);
+      rememberClick(request.id, onClick);
       return record(notificationDeliverySchema.parse(await bridge.showNotification(request)));
     }
     if (typeof Notification === 'undefined')
@@ -65,6 +71,24 @@ export async function deliverNotification(
         state: 'failed',
         message: 'Allow notifications for Puddle in browser settings.',
       });
+    const worker = await notificationWorker();
+    if (worker) {
+      if (!workerSubscribed) {
+        navigator.serviceWorker.addEventListener('message', (event) => {
+          if (event.data?.t !== 'notification-click' || typeof event.data.id !== 'string') return;
+          clicks.get(event.data.id)?.();
+          clicks.delete(event.data.id);
+        });
+        workerSubscribed = true;
+      }
+      rememberClick(request.id, onClick);
+      await worker.showNotification(request.title, {
+        body: request.body,
+        tag: request.id,
+        silent: true,
+      });
+      return record({ state: 'shown', message: null });
+    }
     return await new Promise<NotificationDelivery>((resolve) => {
       const notification = new Notification(request.title, {
         body: request.body,

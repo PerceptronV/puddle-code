@@ -74,7 +74,7 @@ export async function prepareCodexLifecycle(
     sockets.add(upstream);
     const queue: Array<{ data: Buffer; binary: boolean }> = [];
     const pending = new Map<string, PendingRequest>();
-    const state: { activeRef: string | null } = { activeRef: null };
+    const state: CodexSignalState = { activeRef: null, queue: Promise.resolve() };
 
     client.on('message', (data, binary) => {
       inspectRequest(data, pending, context.opts.worktreePath);
@@ -163,14 +163,47 @@ function inspectRequest(
   }
 }
 
-function inspectResponse(
+export interface CodexSignalState {
+  activeRef: string | null;
+  queue: Promise<void>;
+}
+
+async function postStatus(
+  context: LifecycleLaunchContext,
+  state: 'working' | 'waiting_input',
+): Promise<void> {
+  try {
+    await fetch(context.signalUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ nonce: context.signalNonce, state }),
+      signal: AbortSignal.timeout(1500),
+    });
+  } catch {
+    /* Status reporting must never interrupt the native stream. */
+  }
+}
+
+export function inspectResponse(
   data: RawData,
   pending: Map<string, PendingRequest>,
   context: LifecycleLaunchContext,
-  state: { activeRef: string | null },
+  state: CodexSignalState,
 ): void {
   for (const message of parseMessages(data)) {
-    if (message.id === undefined) continue;
+    if (message.id === undefined) {
+      // Codex 0.157.1 app-server's exact turn notifications avoid relying on
+      // a footer redraw to discover completion. Side threads are never ours.
+      if (!state.activeRef || message.params?.['threadId'] !== state.activeRef) continue;
+      const status =
+        message.method === 'turn/started'
+          ? 'working'
+          : message.method === 'turn/completed'
+            ? 'waiting_input'
+            : null;
+      if (status) state.queue = state.queue.then(() => postStatus(context, status));
+      continue;
+    }
     const request = pending.get(String(message.id));
     if (!request) continue;
     pending.delete(String(message.id));
@@ -189,12 +222,14 @@ function inspectResponse(
             ? 'startup'
             : 'clear';
     state.activeRef = ref;
-    void postLifecycle(context, {
-      ref,
-      cwd: request.cwd,
-      source,
-      ...(request.parentRef !== undefined ? { parentRef: request.parentRef } : {}),
-    });
+    state.queue = state.queue.then(() =>
+      postLifecycle(context, {
+        ref,
+        cwd: request.cwd,
+        source,
+        ...(request.parentRef !== undefined ? { parentRef: request.parentRef } : {}),
+      }),
+    );
   }
 }
 

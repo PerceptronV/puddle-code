@@ -293,4 +293,5 @@
 // 22.0: profile-scoped remote registrations and host connection authority.
 // 22.1: additive — transient foreground-agent icon hints on terminal sessions.
 // 22.2: additive — notification focus preference; native desktop delivery diagnostics.
-export const PROTOCOL_VERSION = { major: 22, minor: 2 } as const;
+// 22.3: explicit agent-notification events include terminal agents and process exits.
+export const PROTOCOL_VERSION = { major: 22, minor: 3 } as const;

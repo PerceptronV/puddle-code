@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import {
   notificationPreferencesSchema,
+  type AgentNotification,
   type NotificationPreferences,
+  type VersionResponse,
   type ProjectDetail,
   type Session,
 } from '@puddle/shared';
@@ -12,6 +14,7 @@ import {
   type EffectiveNotificationPermission,
 } from '../../lib/notification-permission';
 import { deliverNotification } from '../../lib/notification-delivery';
+import { api } from '../../lib/api';
 import { fetchAllSessions, hostLabel, useHostInfo, useProfileSettings } from '../../lib/queries';
 import { wsManager } from '../../lib/ws';
 import { useCurrentProfileId } from '../profile/profile-store';
@@ -90,8 +93,17 @@ function playPing(): void {
  * waiting agent sessions in the document title. Mounted once in the shell.
  */
 export function useWaitingNotifications(): void {
-  const qc = useQueryClient();
   const navigate = useNavigate();
+  useAgentNotifications((session) => {
+    void navigate(`/project/${session.project_id}/session/${session.id}`);
+  });
+}
+
+/** Shared by the cockpit and the mobile workspace; each supplies its own navigation. */
+export function useAgentNotifications(openSession: (session: Session) => void): void {
+  const qc = useQueryClient();
+  const openRef = useRef(openSession);
+  openRef.current = openSession;
   const profileId = useCurrentProfileId();
   const settings = useProfileSettings(profileId ?? undefined);
   const prefsRef = useRef<NotificationPreferences>(DEFAULT_PREFS);
@@ -119,51 +131,70 @@ export function useWaitingNotifications(): void {
       document.title = waiting.size > 0 ? `(${waiting.size}) ${baseRef.current}` : baseRef.current;
     };
 
+    let active = true;
+    const deliver = async (event: Pick<AgentNotification, 'session' | 'reason'>) => {
+      let session = findSession(qc, event.session);
+      if (!session) {
+        try {
+          session = (await fetchAllSessions(qc)).find((s) => s.id === event.session);
+        } catch {
+          return;
+        }
+      }
+      if (!active || !session) return;
+      const found = session;
+      const verdict = decideNotification({
+        prefs: prefsRef.current,
+        projectId: found.project_id,
+        windowFocused: document.hasFocus(),
+        permission: notificationPermission(),
+      });
+      if (verdict.sound) playPing();
+      if (verdict.desktop) {
+        await deliverNotification(
+          {
+            id: `puddle-agent-${found.id}`,
+            title: displayTitle(found).slice(0, 160),
+            body: event.reason === 'exited' ? 'Agent finished running' : 'Waiting for your input',
+          },
+          () => {
+            if (active) openRef.current(found);
+          },
+        );
+      }
+    };
+    const offNotification = wsManager.onAgentNotification((event) => {
+      void deliver(event);
+    });
     const off = wsManager.onStatus((event) => {
       const wasWaiting = waiting.has(event.session);
       if (event.status === 'waiting_input') waiting.add(event.session);
       else waiting.delete(event.session);
       updateBadge();
       if (event.status !== 'waiting_input' || wasWaiting) return;
-
-      void (async () => {
-        // A tab parked on the dashboard (or one whose caches were collected
-        // after idling) may not hold the session anywhere — fetch the list
-        // rather than silently dropping the notification.
-        let session = findSession(qc, event.session);
-        if (!session) {
-          try {
-            session = (await fetchAllSessions(qc)).find((s) => s.id === event.session);
-          } catch {
-            return; // connection lost mid-transition; nothing sane to show
-          }
-        }
-        if (!session || session.kind === 'terminal') return; // shells never "wait for input"
-        const found = session;
-        const verdict = decideNotification({
-          prefs: prefsRef.current,
-          projectId: found.project_id,
-          windowFocused: document.hasFocus(),
-          permission: notificationPermission(),
-        });
-        if (verdict.sound) playPing();
-        if (verdict.desktop) {
-          await deliverNotification(
-            {
-              id: `puddle-waiting-${found.id}`,
-              title: displayTitle(found).slice(0, 160),
-              body: 'Waiting for your input',
-            },
-            () => {
-              void navigate(`/project/${found.project_id}/session/${found.id}`);
-            },
-          );
-        }
-      })();
+      // Older daemons have only status events; current ones explicitly report
+      // notifications, including terminal agents and unrequested process exits.
+      void qc
+        .fetchQuery({
+          queryKey: ['version'],
+          queryFn: () => api<VersionResponse>('GET', '/api/version'),
+          staleTime: Infinity,
+        })
+        .then((version) => {
+          if (
+            version.protocol.major > 22 ||
+            (version.protocol.major === 22 && version.protocol.minor >= 3)
+          )
+            return;
+          return deliver({ session: event.session, reason: 'waiting_input' });
+        })
+        .catch(() => {});
     });
     return () => {
+      active = false;
       off();
+      offNotification();
       document.title = baseRef.current;
     };
-  }, [qc, navigate]);
+  }, [qc]);
 }

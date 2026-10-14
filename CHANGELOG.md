@@ -15,6 +15,8 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Deliver completion events for agents in plain terminals and unrequested agent exits, use native Codex turn events, and subscribe the mobile workspace with service-worker notification delivery (protocol 22.3).
+
 - Deliver desktop notifications through the native shell, report failures and provide a test button instead of assuming that desktop permission is granted.
 - Allow notifications while Puddle is focused by default, with a background-only preference in daemon/cockpit protocol **22.2**.
 - Realign editor bracket highlights, selections and carets when the self-hosted font finishes loading.

@@ -1,5 +1,10 @@
 import { toast } from 'sonner';
-import type { SessionStatus, WsClientMessage, WsServerMessage } from '@puddle/shared';
+import type {
+  AgentNotification,
+  SessionStatus,
+  WsClientMessage,
+  WsServerMessage,
+} from '@puddle/shared';
 import { clearToken, tokenStore } from './auth';
 import { browserTransport, type CockpitSocket } from './browser-transport';
 
@@ -81,6 +86,7 @@ export class WsManager {
    */
   private theme: { fg: string; bg: string } | null = null;
   private readonly terminals = new Map<string, Registration>();
+  private readonly notificationListeners = new Set<(e: AgentNotification) => void>();
   private readonly statusListeners = new Set<(e: StatusEvent) => void>();
   private readonly renameListeners = new Set<(e: RenameEvent) => void>();
   private readonly accountListeners = new Set<(e: AccountEvent) => void>();
@@ -147,6 +153,12 @@ export class WsManager {
     this.statusListeners.add(listener);
     this.ensureConnected();
     return () => this.statusListeners.delete(listener);
+  }
+
+  onAgentNotification(listener: (e: AgentNotification) => void): () => void {
+    this.notificationListeners.add(listener);
+    this.ensureConnected();
+    return () => this.notificationListeners.delete(listener);
   }
 
   /** Rename broadcasts for every session (UI renames and agent self-naming). */
@@ -276,6 +288,7 @@ export class WsManager {
     if (
       this.terminals.size === 0 &&
       this.statusListeners.size === 0 &&
+      this.notificationListeners.size === 0 &&
       this.renameListeners.size === 0 &&
       this.accountListeners.size === 0 &&
       this.switchListeners.size === 0 &&
@@ -295,6 +308,9 @@ export class WsManager {
 
   private handle(msg: WsServerMessage): void {
     switch (msg.t) {
+      case 'agent-notification':
+        for (const listener of this.notificationListeners) listener(msg);
+        break;
       case 'replay':
       case 'output':
         this.terminals.get(key(msg.session, msg.term))?.handlers.onData(msg.data, msg.t);

@@ -45,6 +45,8 @@ export class StatusDetector {
     private readonly callbacks: {
       onStatus: (status: DetectedStatus) => void;
       onLimitReached?: () => void;
+      /** Explicit busy evidence, unlike output redraws which also emit running. */
+      onBusy?: () => void;
     },
     private readonly quietMs = 2000,
   ) {
@@ -68,6 +70,7 @@ export class StatusDetector {
     // rolling tail long after the spinner cleared.
     const busyIdx = lastMatchIndex(this.busy, this.tail);
     const waitingIdx = lastMatchIndex(this.waiting, this.tail);
+    if (busyIdx > waitingIdx) this.callbacks.onBusy?.();
     if (waitingIdx > busyIdx) {
       this.timer = setTimeout(() => this.emit('waiting_input'), this.quietMs);
     }

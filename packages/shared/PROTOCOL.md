@@ -155,7 +155,13 @@ profile preference (default true). Older peers retain their existing policy;
 native notification delivery and its bounded result use capability-detected
 desktop IPC only. Remote envelopes and host authority are unchanged.
 
-The daemon line in `puddle --version` may display `protocol 22.2c3`. The `c3`
+Daemon/cockpit protocol 22.3 adds the `agent-notification` WS event for waiting
+and unrequested agent exits, including observed agents in terminal placements.
+It shares the existing session/profile-filtered status subscription. Older clients
+ignore it; newer clients use status transitions on daemons below 22.3. Remote
+protocol remains 3: envelopes, authority and allowed operations are unchanged.
+
+The daemon line in `puddle --version` may display `protocol 22.3c3`. The `c3`
 reports the bundled connector's remote protocol, read from `CONNECTOR_PROTOCOL`
 in the release archive (or a known historical release). It is display-only:
 `PROTOCOL` remains the daemon's plain `major.minor`, and CLI/desktop handshake

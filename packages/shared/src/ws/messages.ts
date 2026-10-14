@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { agentNotificationSchema } from '../notifications.js';
 import { sessionStatusSchema } from '../api/sessions.js';
 
 /** Terminal ids within a stream: the agent PTY or numbered shells. */
@@ -57,6 +58,7 @@ export type WsClientMessage = z.infer<typeof wsClientMessageSchema>;
 
 /** Server messages are validated before crossing the encrypted remote boundary. */
 export const wsServerMessageSchema = z.discriminatedUnion('t', [
+  agentNotificationSchema,
   z.object({ t: z.literal('authenticated') }),
   z.object({ t: z.literal('shell-spawned'), session: z.string(), term: z.string() }),
   z.object({ t: z.literal('replay'), session: z.string(), term: z.string(), data: z.string() }),

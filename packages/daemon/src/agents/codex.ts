@@ -311,10 +311,11 @@ export const codex: AgentAdapter = {
    * Verified against a live 0.146.0 PTY (2026-08-03): a screen redraw places
    * the `›` composer before the `<model> · <directory>` footer in the stripped
    * stream; the previously guessed "? for shortcuts" string never appears.
-   * Codex has no hook side-channel, so these are its only status driver.
+   * Native app-server turns drive status when available (codex-lifecycle.ts);
+   * these patterns remain the fallback and support manually launched terminals.
    */
   statusPatterns: {
-    waitingInput: [/›[^\r\n]{0,1000}\s·\s/],
+    waitingInput: [/›[^›\r\n]{0,1000}\s·\s/],
     busy: [/to interrupt/i],
     limitReached: [/you've (hit|reached) your usage limit/i],
   },
