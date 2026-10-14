@@ -22,6 +22,7 @@ import { migration021 } from './021-agent-conversations.js';
 import { migration022 } from './022-compilation-settings.js';
 import { migration023 } from './023-follow-clone-base-branch.js';
 import { migration024 } from './024-puddlang.js';
+import { migration025 } from './025-agent-mode.js';
 
 export interface Migration {
   version: number;
@@ -55,4 +56,5 @@ export const MIGRATIONS: Migration[] = [
   migration022,
   migration023,
   migration024,
+  migration025,
 ];

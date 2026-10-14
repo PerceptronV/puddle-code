@@ -30,8 +30,8 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 23.0 for puddlang host execution', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 23, minor: 0 });
+  it('declares protocol 23.1 for puddlang execution modes', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 23, minor: 1 });
   });
 
   it('accepts a well-formed error envelope and rejects a malformed one', () => {

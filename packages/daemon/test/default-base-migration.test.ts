@@ -9,7 +9,6 @@ import { MIGRATIONS } from '../src/db/migrations/index.js';
 import { ProfileStore } from '../src/db/stores/profiles.js';
 import { ProjectStore } from '../src/db/stores/projects.js';
 import { RepoStore } from '../src/db/stores/repos.js';
-import { SessionStore } from '../src/db/stores/sessions.js';
 
 function databaseFile() {
   const directory = mkdtempSync(join(tmpdir(), 'puddle-base-migration-'));
@@ -29,7 +28,6 @@ it('clears every legacy repository default once while preserving settings and pl
   const repos = new RepoStore(db);
   const profiles = new ProfileStore(db);
   const projects = new ProjectStore(db);
-  const sessions = new SessionStore(db);
   const profile = profiles.create({ name: 'test', branch_prefix: 'test/' });
   for (const [index, base] of ['main', 'release/stable', ''].entries()) {
     const repo = repos.create({
@@ -44,24 +42,29 @@ it('clears every legacy repository default once while preserving settings and pl
       repo_id: repo.id,
       name: `project-${index}`,
     });
-    sessions.create({
-      id: randomUUID(),
-      project_id: project.id,
-      account_id: null,
-      worktree_path: `/tmp/worktree-${index}`,
-      base_branch: base || 'develop',
-      branch: `test/topic-${index}`,
-      separate_branch: true,
-      kind: 'terminal',
-      agent_type: null,
-      title: 'Existing placement',
-      skip_permissions: false,
-      status: 'exited',
-    });
+    // Seed the historical schema directly; current stores require new columns.
+    db.prepare(
+      `INSERT INTO sessions
+      (id, project_id, worktree_path, canonical_worktree_path, base_branch, branch,
+       separate_branch, kind, title, status, skip_permissions, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 1, 'terminal', 'Existing placement', 'exited', 0, ?, ?)`,
+    ).run(
+      randomUUID(),
+      project.id,
+      `/tmp/worktree-${index}`,
+      `/tmp/worktree-${index}`,
+      base || 'develop',
+      `test/topic-${index}`,
+      new Date().toISOString(),
+      new Date().toISOString(),
+    );
   }
   const oldRepos = repos.list();
   const oldProjects = db.prepare('SELECT * FROM projects ORDER BY id').all();
-  const oldSessions = db.prepare('SELECT * FROM sessions ORDER BY id').all();
+  const oldSessions = db.prepare('SELECT * FROM sessions ORDER BY id').all() as Record<
+    string,
+    unknown
+  >[];
   db.close();
 
   db = openDatabase(file);
@@ -69,7 +72,10 @@ it('clears every legacy repository default once while preserving settings and pl
     oldRepos.map((repo) => ({ ...repo, default_base_branch: '' })),
   );
   expect(db.prepare('SELECT * FROM projects ORDER BY id').all()).toEqual(oldProjects);
-  expect(db.prepare('SELECT * FROM sessions ORDER BY id').all()).toEqual(oldSessions);
+  expect(db.prepare('SELECT * FROM sessions ORDER BY id').all()).toEqual(
+    oldSessions.map((row) => ({ ...row, agent_mode: 'interactive' })),
+  );
+  expect(() => db.prepare("UPDATE sessions SET agent_mode = 'unknown'").run()).toThrow(/CHECK/);
   expect(db.pragma('foreign_key_check')).toEqual([]);
   expect(db.pragma('foreign_keys', { simple: true })).toBe(1);
 

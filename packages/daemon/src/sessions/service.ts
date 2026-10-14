@@ -6,13 +6,14 @@ import type {
   Account,
   AgentNotification,
   AgentSignalRequest,
+  AgentTurnSignal,
   ClearSessionEnvResponse,
   CreateSessionRequest,
   Session,
   SessionEnvResponse,
   SessionStatus,
 } from '@puddle/shared';
-import type { AgentAdapter, LifecycleLaunchResource } from '../agents/adapter.js';
+import type { AgentAdapter, LaunchOpts, LifecycleLaunchResource } from '../agents/adapter.js';
 import { assertBinaryAvailable } from '../agents/binary.js';
 import type { AdapterRegistry } from '../agents/registry.js';
 import type { AccountStore } from '../db/stores/accounts.js';
@@ -232,6 +233,9 @@ export class SessionService extends EventEmitter {
     });
     deps.ptys.on('data', (e: PtyDataEvent) => this.onPtyData(e));
     deps.ptys.on('exit', (e: PtyExitEvent) => this.onPtyExit(e));
+    deps.ptys.on('input', (e: { stream: string; term: string }) => {
+      if (e.term === 'agent') this.liveAgents.get(e.stream)?.lifecycleResource?.control?.input?.();
+    });
     deps.ptys.on('env-delta', (e: PtyEnvDeltaEvent) => this.onEnvDelta(e));
     deps.ptys.on('cwd', (e: PtyCwdEvent) => this.onCwd(e));
     // Catch in-agent renames that emit no signal (see TITLE_REFRESH_MS). Unref'd
@@ -302,8 +306,11 @@ export class SessionService extends EventEmitter {
     } catch {
       return; // best-effort identity refresh; title refresh follows the same rule
     }
-    void this.sessionRefs
-      .refreshAvailable(session, account, adapter)
+    void (
+      session.agent_mode === 'scripted'
+        ? Promise.resolve(false)
+        : this.sessionRefs.refreshAvailable(session, account, adapter)
+    )
       .catch(() => false)
       .then(() => {
         this.bindRuntimeConversation(sessionId);
@@ -346,7 +353,10 @@ export class SessionService extends EventEmitter {
     } satisfies RenameEvent);
   }
 
-  async create(input: CreateSessionRequest): Promise<Session> {
+  async create(
+    input: CreateSessionRequest,
+    agentMode: NonNullable<Session['agent_mode']> = 'interactive',
+  ): Promise<Session> {
     const project = this.deps.projects.get(input.project_id);
     const profile = this.deps.profiles.get(project.profile_id);
     const repo = this.deps.repos.get(project.repo_id);
@@ -354,6 +364,8 @@ export class SessionService extends EventEmitter {
     // A terminal session has no account/agent — it forks off into its own path
     // (a shell in the worktree, no onboarding, no conversation — SPEC §4).
     if ((input.kind ?? 'agent') === 'terminal') {
+      if (agentMode === 'scripted')
+        throw ApiError.badRequest('agent_mode', 'Terminal placements cannot use scripted mode');
       return this.createTerminal(input, project, profile, repo);
     }
     if (input.cwd !== undefined) {
@@ -370,6 +382,11 @@ export class SessionService extends EventEmitter {
       );
     }
     const adapter = this.deps.adapters.get(account.agent_type);
+    if (agentMode === 'scripted' && !adapter.prepareScriptedLaunch)
+      throw ApiError.badRequest(
+        'agent_mode',
+        `${adapter.displayName} does not support scripted mode`,
+      );
     assertBinaryAvailable(adapter); // before assertLoggedIn — see its doc comment
     await this.assertLoggedIn(account, adapter);
 
@@ -404,6 +421,7 @@ export class SessionService extends EventEmitter {
       branch_owned: worktree.created,
       kind: 'agent',
       agent_type: account.agent_type,
+      agent_mode: agentMode,
       title: input.title ?? null,
       skip_permissions: skip,
     });
@@ -429,37 +447,41 @@ export class SessionService extends EventEmitter {
       prompt: preamble === '' ? undefined : preamble,
       skipPermissions: skip,
     };
-    await this.sessionRefs.launchAndCapture(
-      session,
-      account,
-      adapter,
-      launchOpts,
-      () =>
-        this.spawnAgent(
-          sessionId,
-          worktree.worktreePath,
-          account,
-          adapter,
-          adapter.launchArgs(launchOpts),
-          'starting',
-        ),
-      () => this.refreshAgentIdentity(sessionId),
-      (error, phase) => {
-        // Minted-id launches run after the HTTP response has returned, so no
-        // request remains to carry an unexpected spawn/capture failure.
-        const detail = (error as Error).message;
-        console.warn(`agent ${phase} ${sessionId} failed: ${detail}`);
-        if (phase === 'spawn') {
-          this.emit('notice', {
-            level: 'error',
-            title: `${adapter.displayName} failed to start`,
-            detail,
-            session: sessionId,
-            term: 'agent',
-          } satisfies NoticeEvent);
-        }
-      },
-    );
+    const spawn = () =>
+      this.spawnAgent(
+        sessionId,
+        worktree.worktreePath,
+        account,
+        adapter,
+        adapter.launchArgs(launchOpts),
+        'starting',
+        launchOpts,
+      );
+    if (agentMode === 'scripted') await spawn();
+    else
+      await this.sessionRefs.launchAndCapture(
+        session,
+        account,
+        adapter,
+        launchOpts,
+        spawn,
+        () => this.refreshAgentIdentity(sessionId),
+        (error, phase) => {
+          // Minted-id launches run after the HTTP response has returned, so no
+          // request remains to carry an unexpected spawn/capture failure.
+          const detail = (error as Error).message;
+          console.warn(`agent ${phase} ${sessionId} failed: ${detail}`);
+          if (phase === 'spawn') {
+            this.emit('notice', {
+              level: 'error',
+              title: `${adapter.displayName} failed to start`,
+              detail,
+              session: sessionId,
+              term: 'agent',
+            } satisfies NoticeEvent);
+          }
+        },
+      );
     this.bindRuntimeConversation(sessionId);
     // Adopt-after-first-write: the conversation file rarely exists this early,
     // so this is a best-effort first attempt; the waiting_input flip retries.
@@ -722,7 +744,10 @@ export class SessionService extends EventEmitter {
     }
     assertBinaryAvailable(adapter); // before assertLoggedIn — see its doc comment
     await this.assertLoggedIn(account, adapter);
-    const ref = await this.sessionRefs.resolveForResume(session, account, adapter);
+    const ref =
+      session.agent_mode === 'scripted' && !session.agent_session_ref
+        ? undefined
+        : await this.sessionRefs.resolveForResume(session, account, adapter);
 
     const wasInterrupted = session.status === 'interrupted';
     const { skip } = await this.resumeSpawn(session, account, adapter, project.profile_id, ref, {
@@ -751,7 +776,7 @@ export class SessionService extends EventEmitter {
     account: Account,
     adapter: AgentAdapter,
     profileId: string,
-    ref: string,
+    ref: string | undefined,
     opts: { interruptedNote: boolean },
   ): Promise<{ skip: boolean; downgraded: boolean }> {
     const skip = this.evaluateSkip(profileId, account, adapter, session.skip_permissions);
@@ -767,13 +792,23 @@ export class SessionService extends EventEmitter {
       );
       restartNote = note.trim() === '' ? undefined : note;
     }
-    const args = adapter.resumeArgs(ref, {
+    const launchOpts = {
       worktreePath: session.worktree_path,
       sessionId: session.id,
       prompt: restartNote,
       skipPermissions: skip,
-    });
-    await this.spawnAgent(session.id, session.worktree_path, account, adapter, args, 'running');
+    };
+    const args = ref ? adapter.resumeArgs(ref, launchOpts) : adapter.launchArgs(launchOpts);
+    await this.spawnAgent(
+      session.id,
+      session.worktree_path,
+      account,
+      adapter,
+      args,
+      'running',
+      launchOpts,
+      ref,
+    );
     this.bindRuntimeConversation(session.id);
     this.transition(session.id, 'running');
     if (downgraded) {
@@ -1252,6 +1287,8 @@ export class SessionService extends EventEmitter {
     adapter: AgentAdapter,
     args: string[],
     initial: LiveAgent['status'],
+    launchOpts?: LaunchOpts,
+    resumeRef?: string,
   ): Promise<void> {
     // The status-signal side-channel (SPEC §4): a per-spawn nonce plus the
     // daemon's own /agent-signal URL, injected so agent hook processes (which
@@ -1263,12 +1300,21 @@ export class SessionService extends EventEmitter {
     let lifecycleResource: LifecycleLaunchResource | null = null;
     let spawnArgs = args;
     let nativeSync: NonNullable<Session['native_sync']> = 'fallback';
+    const scripted = this.deps.sessions.get(sessionId).agent_mode === 'scripted';
+    if (scripted && (signalNonce === null || !adapter.prepareScriptedLaunch)) {
+      this.transition(sessionId, 'exited');
+      throw ApiError.conflict(
+        'scripted_mode_unavailable',
+        'Scripted execution requires an adapter control channel',
+      );
+    }
     if (signalNonce !== null && this.signalPort !== null) {
-      if (adapter.prepareLifecycleLaunch) {
+      const prepare = scripted ? adapter.prepareScriptedLaunch : adapter.prepareLifecycleLaunch;
+      if (prepare) {
         try {
-          lifecycleResource = await adapter.prepareLifecycleLaunch({
+          lifecycleResource = await prepare({
             account,
-            opts: {
+            opts: launchOpts ?? {
               worktreePath,
               sessionId,
               skipPermissions: this.deps.sessions.get(sessionId).skip_permissions,
@@ -1276,10 +1322,36 @@ export class SessionService extends EventEmitter {
             args,
             signalUrl: `http://127.0.0.1:${this.signalPort}/agent-signal`,
             signalNonce,
+            resumeRef,
+            env: this.capturedSpawnEnv(this.deps.sessions.get(sessionId)),
+            writeInput: (data) => {
+              const live = this.signalNonces.get(signalNonce);
+              if (!live) throw new Error('Agent terminal is no longer live');
+              this.deps.ptys.write(live.activeSessionId, 'agent', data, 'script');
+            },
+            reportStatus: (state) => {
+              this.signalAgentStatus(signalNonce, state);
+            },
+            bindConversation: async (ref) => {
+              const accepted = await this.signalAgentLifecycle({
+                nonce: signalNonce,
+                event: 'session_start',
+                agent_session_ref: ref,
+                cwd: worktreePath,
+                source: resumeRef ? 'resume' : 'startup',
+              });
+              if (!accepted)
+                throw new Error('Agent runtime ended before its conversation was bound');
+            },
           });
           spawnArgs = lifecycleResource.args;
           nativeSync = 'full';
         } catch (error) {
+          if (scripted) {
+            this.transition(sessionId, 'exited');
+            this.deps.events.record(sessionId, 'spawn_failed', { message: String(error) });
+            throw ApiError.conflict('scripted_mode_unavailable', String(error));
+          }
           console.warn(
             `${adapter.displayName} lifecycle bridge unavailable: ${(error as Error).message}`,
           );
@@ -1296,21 +1368,27 @@ export class SessionService extends EventEmitter {
       }
     }
     try {
-      this.deps.ptys.spawn(sessionId, 'agent', adapter.binary, spawnArgs, {
-        cwd: worktreePath,
-        // Adapter env is sacrosanct (e.g. CLAUDE_CONFIG_DIR) — it wins over
-        // captured vars; process.env is merged underneath by PtyManager.
-        env: {
-          ...this.capturedSpawnEnv(this.deps.sessions.get(sessionId)),
-          ...adapter.env(account),
-          ...(signalNonce !== null
-            ? {
-                PUDDLE_AGENT_SIGNAL_URL: `http://127.0.0.1:${this.signalPort}/agent-signal`,
-                PUDDLE_AGENT_SIGNAL_NONCE: signalNonce,
-              }
-            : {}),
+      this.deps.ptys.spawn(
+        sessionId,
+        'agent',
+        lifecycleResource?.binary ?? adapter.binary,
+        spawnArgs,
+        {
+          cwd: worktreePath,
+          // Adapter env is sacrosanct (e.g. CLAUDE_CONFIG_DIR) — it wins over
+          // captured vars; process.env is merged underneath by PtyManager.
+          env: {
+            ...this.capturedSpawnEnv(this.deps.sessions.get(sessionId)),
+            ...adapter.env(account),
+            ...(signalNonce !== null
+              ? {
+                  PUDDLE_AGENT_SIGNAL_URL: `http://127.0.0.1:${this.signalPort}/agent-signal`,
+                  PUDDLE_AGENT_SIGNAL_NONCE: signalNonce,
+                }
+              : {}),
+          },
         },
-      });
+      );
     } catch (e) {
       await lifecycleResource?.dispose();
       this.transition(sessionId, 'exited');
@@ -1460,6 +1538,15 @@ export class SessionService extends EventEmitter {
     return true;
   }
 
+  signalAgentTurn(signal: AgentTurnSignal): boolean {
+    const live = this.signalNonces.get(signal.nonce);
+    if (!live || !this.runtimes.has(live.runtimeId) || !live.lifecycleResource?.control?.signal)
+      return false;
+    const state = live.lifecycleResource.control.signal(signal);
+    if (state) this.signalAgentStatus(signal.nonce, state);
+    return true;
+  }
+
   /**
    * Consume an exact top-level native lifecycle event. Compact and initial
    * startup only refresh identity; clear/resume/fork may atomically move the
@@ -1472,6 +1559,10 @@ export class SessionService extends EventEmitter {
       if (!this.runtimes.has(runtime.runtimeId)) return false;
       const sourceId = runtime.activeSessionId;
       const source = this.deps.sessions.get(sourceId);
+      runtime.lifecycleResource?.control?.lifecycle?.(
+        signal.agent_session_ref,
+        signal.event === 'session_end',
+      );
       if (signal.event === 'session_end') {
         this.deps.events.record(sourceId, 'native_session_end', {
           source: signal.source,

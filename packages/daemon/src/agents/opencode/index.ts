@@ -1,3 +1,5 @@
+import { prepareOpenCodeInteractive } from './control.js';
+import { prepareOpenCodeScripted } from './scripted.js';
 import { execFile } from 'node:child_process';
 import { mkdirSync, readFileSync, type Dirent } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
@@ -59,6 +61,9 @@ const METADATA_CONCURRENCY = 32;
  * does not apply and `migratableSessions` is false.
  */
 export const opencode: AgentAdapter = {
+  scriptedTurns: true,
+  prepareScriptedLaunch: prepareOpenCodeScripted,
+  prepareLifecycleLaunch: prepareOpenCodeInteractive,
   id: 'opencode',
   displayName: 'OpenCode',
   binary: 'opencode',

@@ -1,3 +1,5 @@
+import { prepareClaudeInteractive } from './control.js';
+import { prepareClaudeScripted } from './scripted.js';
 import { execFile } from 'node:child_process';
 import {
   closeSync,
@@ -109,6 +111,9 @@ const EMPTY_USAGE: AgentUsage = {
  * session reads, to fix one agent's setting.
  */
 export const claudeCode: AgentAdapter = {
+  scriptedTurns: true,
+  prepareScriptedLaunch: prepareClaudeScripted,
+  prepareLifecycleLaunch: prepareClaudeInteractive,
   id: 'claude-code',
   displayName: 'Claude Code',
   binary: 'claude',

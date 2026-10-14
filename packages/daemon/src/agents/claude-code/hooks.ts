@@ -43,6 +43,7 @@ if (mode === 'status' && (value === 'working' || value === 'waiting_input')) {
 } else if (mode === 'lifecycle') {
   let input;
   try { input = JSON.parse(raw || '{}'); } catch { process.exit(0); }
+  if (input.agent_id) process.exit(0);
   const start = value === 'session_start';
   const allowed = new Set(['startup', 'resume', 'clear', 'fork', 'compact']);
   const source = start && allowed.has(input.source) ? input.source : 'exit';

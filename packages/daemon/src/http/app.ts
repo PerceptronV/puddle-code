@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import type { UpgradeWebSocket } from 'hono/ws';
 import { agentSignalRequestSchema } from '@puddle/shared';
 import type { AdapterRegistry } from '../agents/registry.js';
@@ -127,12 +128,16 @@ export function buildApp(deps: AppDeps): Hono {
     // per-session nonce (injected into the agent PTY env) is the auth. Same
     // Host/Origin discipline as everything else; never proxied by cockpits.
     app.use('/agent-signal', hostOriginGuard());
+    // Allow JSON escaping of a 256 KiB reply without unbounded hook bodies.
+    app.use('/agent-signal', bodyLimit({ maxSize: 2 * 1024 * 1024 }));
     app.post('/agent-signal', async (c) => {
       const body = await parseBody(c, agentSignalRequestSchema);
       const accepted =
         'state' in body
           ? api.service.signalAgentStatus(body.nonce, body.state)
-          : await api.service.signalAgentLifecycle(body);
+          : 'turn_id' in body
+            ? api.service.signalAgentTurn(body)
+            : await api.service.signalAgentLifecycle(body);
       if (!accepted) {
         throw ApiError.notFound('signal', 'nonce');
       }

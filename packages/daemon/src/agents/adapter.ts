@@ -1,4 +1,4 @@
-import type { Account } from '@puddle/shared';
+import type { Account, AgentTurnSignal } from '@puddle/shared';
 
 export interface AgentUsage {
   input_tokens: number;
@@ -77,6 +77,8 @@ export interface ConversationDiscoveryHooks {
 }
 
 export interface LifecycleLaunchResource {
+  /** Optional adapter-owned terminal driver for structured execution. */
+  binary?: string;
   /** Optional exact message/reply control; never infer replies from PTY quietness. */
   control?: AgentControl;
   /** Replacement CLI arguments (for example Codex's `--remote` transport). */
@@ -91,6 +93,9 @@ export interface LifecycleLaunchResource {
 export interface AgentControl {
   readonly ready: boolean;
   ask(prompt: string, signal: AbortSignal, outputSchema?: Record<string, unknown>): Promise<string>;
+  signal?(event: AgentTurnSignal): 'working' | 'waiting_input' | undefined;
+  lifecycle?(ref: string | undefined, ended: boolean): void;
+  input?(): void;
 }
 
 export interface LifecycleLaunchContext {
@@ -99,6 +104,15 @@ export interface LifecycleLaunchContext {
   args: string[];
   signalUrl: string;
   signalNonce: string;
+  /** Exact resume identity, never a catalogue guess. */
+  resumeRef?: string;
+  /** Captured session environment; the adapter's own isolation still wins. */
+  env?: Record<string, string>;
+  /** Write only to this stable runtime's main terminal. */
+  writeInput?(data: string): void;
+  /** Exact native identity/status from a structured execution resource. */
+  bindConversation?(ref: string): Promise<void>;
+  reportStatus?(state: 'working' | 'waiting_input'): void;
 }
 
 export interface ConversationShareHooks {
@@ -290,6 +304,8 @@ export interface AgentAdapter {
   checkLifecycleSupport?(account: Account): Promise<boolean>;
   /** Per-runtime exact lifecycle transport (Codex app-server bridge). */
   prepareLifecycleLaunch?(context: LifecycleLaunchContext): Promise<LifecycleLaunchResource>;
+  /** Structured execution with a readable transcript instead of a native TUI. */
+  prepareScriptedLaunch?(context: LifecycleLaunchContext): Promise<LifecycleLaunchResource>;
   /** Phase 7: move conversation state between accounts (same agent). */
   migrateSession?(ref: string, from: Account, to: Account, worktree: string): Promise<void>;
   /** Phase 7: render the conversation as text for cross-agent hand-off. */

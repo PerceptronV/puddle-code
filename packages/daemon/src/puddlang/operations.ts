@@ -98,14 +98,17 @@ export class PuddlangOperations {
       );
     const location = await this.location(options);
     this.signal.throwIfAborted();
-    const session = await this.deps.service.create({
-      project_id: location.project,
-      account_id: account.id,
-      separate_branch: false,
-      separate_worktree: false,
-      join_worktree: location.path,
-      title: options.title ?? 'puddlang agent',
-    });
+    const session = await this.deps.service.create(
+      {
+        project_id: location.project,
+        account_id: account.id,
+        separate_branch: false,
+        separate_worktree: false,
+        join_worktree: location.path,
+        title: options.title ?? 'puddlang agent',
+      },
+      options.mode ?? 'interactive',
+    );
     let handle: PuddlangHandle | undefined;
     try {
       const deadline = Date.now() + 120_000;

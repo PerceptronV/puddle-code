@@ -11,7 +11,7 @@ import { openDatabase } from '../src/db/db.js';
 import { PuddlangStore } from '../src/puddlang/store.js';
 import { PuddlangService } from '../src/puddlang/service.js';
 import { PuddlangOperations } from '../src/puddlang/operations.js';
-import type { AgentControl } from '../src/agents/adapter.js';
+import type { AgentControl, AgentAdapter } from '../src/agents/adapter.js';
 import { puddlangRoutes } from '../src/http/routes/puddlang.js';
 import { ApiError } from '../src/http/errors.js';
 
@@ -41,23 +41,25 @@ afterEach(async () => {
 
 function setup(ask?: AgentControl['ask']) {
   const prompts: string[] = [];
+  const prepare: NonNullable<AgentAdapter['prepareLifecycleLaunch']> = async ({ args }) => ({
+    args,
+    dispose() {},
+    control: {
+      ready: true,
+      ask:
+        ask ??
+        (async (prompt) => {
+          prompts.push(prompt);
+          return prompt.includes('review') ? '{"complete":true}' : 'implemented';
+        }),
+    },
+  });
   const f = fixture({
     adapter: {
       ...fakeAdapter(),
       scriptedTurns: true,
-      prepareLifecycleLaunch: async ({ args }) => ({
-        args,
-        dispose() {},
-        control: {
-          ready: true,
-          ask:
-            ask ??
-            (async (prompt) => {
-              prompts.push(prompt);
-              return prompt.includes('review') ? '{"complete":true}' : 'implemented';
-            }),
-        },
-      }),
+      prepareLifecycleLaunch: prepare,
+      prepareScriptedLaunch: prepare,
     },
   });
   f.service.setSignalPort(1);
@@ -124,7 +126,7 @@ describe('puddlang host execution', () => {
     const run = s.start(
       `import {spawn, input, z} from 'puddlang';
       const coder = await spawn({agent:'fake', project:'demo', title:'coder'});
-      const reviewer = await spawn({agent:'fake', project:'demo', title:'reviewer'});
+      const reviewer = await spawn({agent:'fake', mode:'scripted', project:'demo', title:'reviewer'});
       const result = await coder.ask(String(input));
       const verdict = await reviewer.ask({prompt:'review', input:result, schema:z.object({complete:z.boolean()})});
       export default {verdict, coder:coder.handle, reviewer:reviewer.handle};`,
@@ -134,7 +136,15 @@ describe('puddlang host execution', () => {
     expect(result.status, result.error ?? '').toBe('completed');
     expect(result.result).toMatchObject({ verdict: { complete: true } });
     expect(s.prompts).toEqual(['implement task', 'review\n\nInput:\n"implemented"']);
-    expect(s.f.stores.sessions.list().filter((p) => p.kind === 'agent')).toHaveLength(2);
+    const placements = s.f.stores.sessions.list().filter((p) => p.kind === 'agent');
+    expect(placements).toHaveLength(2);
+    expect(placements.find((p) => p.title === 'coder')?.agent_mode).toBe('interactive');
+    expect(placements.find((p) => p.title === 'reviewer')?.agent_mode).toBe('scripted');
+    expect(s.service.context(s.f.ids.profile).agents).toContainEqual({
+      id: 'fake',
+      scripted_turns: true,
+      modes: ['interactive', 'scripted'],
+    });
     expect(s.store.events(s.f.ids.profile, run.id, 0).events.map((e) => e.type)).toContain('ask');
   });
 

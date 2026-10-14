@@ -1,3 +1,4 @@
+import { prepareCodexScripted } from './scripted.js';
 import { execFile } from 'node:child_process';
 import { statSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
@@ -65,6 +66,7 @@ const SESSION_START_WINDOW_MS = 5 * 60 * 1000;
  */
 export const codex: AgentAdapter = {
   scriptedTurns: true,
+  prepareScriptedLaunch: prepareCodexScripted,
   id: 'codex',
   displayName: 'Codex',
   binary: 'codex',

@@ -1,6 +1,7 @@
 import { execPath } from 'node:process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { installGeminiTurnHooks } from './control.js';
 
 const HELPER_FILE = 'puddle-signal.mjs';
 
@@ -86,4 +87,5 @@ export function installGeminiLifecycleHooks(configDir: string): void {
   }
   settings['hooks'] = hooks;
   writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o600 });
+  installGeminiTurnHooks(configDir);
 }

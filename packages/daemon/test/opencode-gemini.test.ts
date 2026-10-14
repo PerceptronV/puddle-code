@@ -261,7 +261,12 @@ describe('gemini-cli adapter', () => {
     const settings = JSON.parse(readFileSync(join(cfg, '.gemini', 'settings.json'), 'utf8')) as {
       hooks: Record<string, unknown[]>;
     };
-    expect(Object.keys(settings.hooks).sort()).toEqual(['SessionEnd', 'SessionStart']);
+    expect(Object.keys(settings.hooks).sort()).toEqual([
+      'AfterAgent',
+      'BeforeAgent',
+      'SessionEnd',
+      'SessionStart',
+    ]);
     expect(readFileSync(join(cfg, '.gemini', 'puddle-signal.mjs'), 'utf8')).toContain(
       'PUDDLE_AGENT_SIGNAL_NONCE',
     );

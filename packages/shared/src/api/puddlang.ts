@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { profileId, sessionId } from './common.js';
+import { agentModeSchema } from './sessions.js';
 
 export const PUDDLANG_MAX_SOURCE = 256 * 1024;
 const sourceSchema = z
@@ -13,6 +14,7 @@ const sourceSchema = z
 export const puddlangSpawnSchema = z
   .object({
     agent: z.string().min(1).max(100),
+    mode: agentModeSchema.optional(),
     account: z.union([z.string().min(1).max(100), z.number().int().positive()]).optional(),
     project: z.string().min(1).max(200).optional(),
     worktree: z.string().min(1).max(4096).optional(),
@@ -106,5 +108,11 @@ export const puddlangContextSchema = z.object({
   accounts: z.array(
     z.object({ id: z.number(), label: z.string(), agent: z.string(), logged_in: z.boolean() }),
   ),
-  agents: z.array(z.object({ id: z.string(), scripted_turns: z.boolean() })),
+  agents: z.array(
+    z.object({
+      id: z.string(),
+      scripted_turns: z.boolean(),
+      modes: z.array(agentModeSchema).optional(),
+    }),
+  ),
 });

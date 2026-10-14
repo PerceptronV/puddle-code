@@ -228,7 +228,8 @@ export class PtyManager extends EventEmitter {
     }
   }
 
-  write(stream: string, term: string, data: string): void {
+  write(stream: string, term: string, data: string, source: 'human' | 'script' = 'human'): void {
+    if (source === 'human' && data) this.emit('input', { stream, term });
     this.live.get(this.key(stream, term))?.proc.write(data);
   }
 

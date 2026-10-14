@@ -9,6 +9,10 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Added
+
+- Support Claude Code, Codex, OpenCode and Gemini CLI in Puddlang with per-agent interactive or scripted execution, persisted mode selection, exact reply correlation and account-preserving native conversation resume (daemon protocol 23.1).
+
 ### Fixed
 
 - Include the Puddlang runner and its imports in standalone daemon archives, with a release smoke test that executes a TypeScript programme using both `puddlang` and `zod`.

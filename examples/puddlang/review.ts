@@ -1,11 +1,31 @@
 import { input, spawn, z } from 'puddlang';
 
+const Agent = z.enum(['claude-code', 'codex', 'opencode', 'gemini-cli']);
+const Mode = z.enum(['interactive', 'scripted']);
 const task = z
-  .object({ project: z.string(), worktree: z.string().optional(), task: z.string() })
+  .object({
+    project: z.string(),
+    worktree: z.string().optional(),
+    task: z.string(),
+    coder: Agent.default('codex'),
+    reviewer: Agent.default('codex'),
+    coderMode: Mode.default('interactive'),
+    reviewerMode: Mode.default('scripted'),
+  })
   .parse(input);
 const location = { project: task.project, ...(task.worktree ? { worktree: task.worktree } : {}) };
-const coder = await spawn({ agent: 'codex', ...location, title: 'Implementer' });
-const reviewer = await spawn({ agent: 'codex', ...location, title: 'Reviewer' });
+const coder = await spawn({
+  agent: task.coder,
+  mode: task.coderMode,
+  ...location,
+  title: 'Implementer',
+});
+const reviewer = await spawn({
+  agent: task.reviewer,
+  mode: task.reviewerMode,
+  ...location,
+  title: 'Reviewer',
+});
 const Review = z.object({ complete: z.boolean(), feedback: z.string() });
 
 let instruction = task.task;

@@ -1,3 +1,5 @@
+import { prepareGeminiInteractive } from './control.js';
+import { prepareGeminiScripted } from './scripted.js';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -50,6 +52,9 @@ const GEMINI_DIR = '.gemini';
  * files, not per-conversation directories.
  */
 export const geminiCli: AgentAdapter = {
+  scriptedTurns: true,
+  prepareScriptedLaunch: prepareGeminiScripted,
+  prepareLifecycleLaunch: prepareGeminiInteractive,
   id: 'gemini-cli',
   displayName: 'Gemini CLI',
   binary: 'gemini',

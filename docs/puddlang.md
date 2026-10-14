@@ -1,9 +1,9 @@
 # puddlang
 
-Puddlang runs small TypeScript programmes that manage Puddle agents. The initial
-version supports **Codex 0.159.0+**, with full native synchronisation. Agents
-remain visible in the cockpit, using normal accounts, terminals and native
-conversations. Other adapters cannot yet supply exact scripted replies.
+Puddlang runs small TypeScript programmes that manage Puddle agents. Claude Code,
+Codex, OpenCode and Gemini CLI support both **interactive** and **scripted** modes.
+Both use the actual agent CLI, its selected account, tools, configuration and
+native conversation history. Agents remain visible in the cockpit.
 
 ## Distribution and setup
 
@@ -21,8 +21,8 @@ public CLI installer once to add its launcher: older embedded installers may
 only install `puddle` or the former `puddlang` command. Subsequent upgrades manage
 both commands together.
 
-The host needs daemon protocol **23.0+ within major 23**, **Node 22.21.1+**, and
-Codex installed and logged in through Puddle. Bundled releases supply Node.
+The host needs daemon protocol **23.1+ within major 23**, **Node 22.21.1+**, and
+the selected agent installed and logged in through Puddle. Bundled releases supply Node.
 Upgrade an older daemon with `puddle upgrade daemon [user@host]`. Start Puddle
 from a plain shell: `pudl` connects to an existing daemon and never bootstraps
 one from an agent environment.
@@ -69,6 +69,7 @@ import { spawn, attach, z } from 'puddlang';
 
 const agent = await spawn({
   agent: 'codex',
+  mode: 'scripted', // Omit for the normal interactive terminal.
   account: 'primary',
   project: 'app',
   worktree: 'feature/search',
@@ -85,10 +86,10 @@ export default { review, handle: sameAgent.handle };
 ```
 
 See [the two-agent example](../examples/puddlang/review.ts) for an independent
-reviewer. `ask(string)` returns final assistant text. Structured `ask` supplies
-a native output schema and validates returned JSON with Zod. Invalid output is
-an error; there is no implicit repair/retry. Native permission requests stay in
-the terminal and keep the call pending.
+reviewer. `ask(string)` returns the correlated assistant reply. Structured `ask`
+uses native output schemas where available (interactive Codex and scripted Claude)
+or includes the schema in the prompt, then validates the returned JSON with Zod.
+Invalid output is an error; there is no implicit repair/retry.
 
 `spawn` selects an existing project by id or unambiguous name. `worktree` selects
 an existing branch or absolute worktree path; omission selects the registered
@@ -108,7 +109,64 @@ are account ids. Attaching retains the existing account.
 stable `runtime_id` and `session_id` at attachment time. Operations resolve the
 current placement and recheck profile ownership. Native conversation switches
 and human turn/steer/interrupt reject a pending ask. Busy agents reject new asks.
-Replies are correlated by native thread and turn ids, never terminal quietness.
+Replies use exact native identities and prompt acknowledgements, never terminal
+quietness or catalogue recency.
+
+## Execution modes
+
+Choose `mode` on each `spawn`, including Codex. Omission means `interactive`.
+The choice is persisted with the placement and retained on resume or account
+migration. `attach` retains the existing runtime's mode; it cannot convert one.
+`pudl context` advertises supported modes; the installed version is checked when
+starting a runtime. Unsupported versions or unavailable control channels fail
+explicitly for Puddlang. Normal interactive launches may still use lifecycle
+fallback without Puddlang turn control. Scripted launches never silently switch modes.
+
+| Agent | Minimum version for Puddlang | Interactive reply source | Scripted command |
+| --- | --- | --- | --- |
+| `claude-code` | 2.1.300 | UserPromptSubmit + Stop/StopFailure hooks | `claude --print --output-format stream-json` |
+| `codex` | 0.159.0 | Native app-server thread/turn events | `codex exec --json` |
+| `opencode` | 1.18.10 | Plugin prompt/message ids + session completion | `opencode run --format json` |
+| `gemini-cli` | 0.53.1 | BeforeAgent + AfterAgent hooks | `gemini --output-format stream-json --prompt …` |
+
+Interactive mode keeps the native TUI, including its permission dialogues and
+human composer. Codex submits through its existing app-server proxy. Other
+adapters submit bracketed paste and require native acknowledgement of the exact
+prompt hash and a unique turn marker. An existing draft or human input during an
+ask rejects that ask; for these hook-based adapters, even responding to a
+permission dialogue counts as human takeover. Inspect the terminal and explicitly
+submit another operation once the native turn has finished. Unacknowledged
+prompts fail after 15 seconds and are never resubmitted automatically.
+
+Interactive completion follows the native hook/plugin boundary. In particular,
+Claude Stop and Gemini AfterAgent hooks can run before another user-installed
+hook requests continuation. Use scripted mode for workflows requiring completion
+of the whole CLI invocation, including those additional hooks.
+
+Scripted mode opens a readable transcript in the cockpit. Each ask starts a
+native non-interactive CLI invocation; subsequent asks resume the **exact same
+native conversation** under the same account. The transcript shows prompts and
+assistant text; the native TUI/composer is absent. Ctrl+C cancels the current
+turn. A reply requires both a successful structured native result and exit code
+zero. Exit alone, quiet output and another conversation's reply cannot complete
+an ask. Cancellation stops the active CLI process group and leaves an attached
+runtime available for a later explicit ask.
+
+Both modes retain Puddle's existing permission gate and selected account. Mode
+selection never enables bypass flags. Headless permission requests cannot be
+answered by typing into the transcript: use the account's permitted operations
+or interactive mode. Native denials/errors fail the ask; a CLI waiting for
+unavailable approval remains subject to the run deadline.
+
+Native flag and protocol fixtures are checked against the versions above;
+authenticated live-agent and SSH acceptance is tracked separately in
+[the acceptance checklist](acceptance/puddlang.md). Primary contracts:
+[Claude hooks](https://code.claude.com/docs/en/hooks),
+[Claude headless](https://code.claude.com/docs/en/headless),
+[Gemini hooks](https://geminicli.com/docs/hooks/reference/),
+[Gemini headless](https://geminicli.com/docs/cli/headless/),
+[OpenCode plugins](https://opencode.ai/docs/plugins/) and
+[OpenCode CLI](https://opencode.ai/docs/cli/).
 
 ## Lifecycle and limits
 
@@ -180,4 +238,4 @@ starting a daemon. `pnpm build:cli-tarball` packages
 both commands and smoke-tests help without starting a daemon.
 
 Automated tests use fake agents and isolated homes. [Manual acceptance](acceptance/puddlang.md)
-covers live Codex and SSH; [the roadmap](roadmap/puddlang.md) records deferred work.
+covers all four agents, both modes and SSH; [the roadmap](roadmap/puddlang.md) records deferred work.

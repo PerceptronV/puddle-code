@@ -19,6 +19,7 @@ export type SessionStatus = z.infer<typeof sessionStatusSchema>;
  */
 export const sessionKindSchema = z.enum(['agent', 'terminal']);
 export type SessionKind = z.infer<typeof sessionKindSchema>;
+export const agentModeSchema = z.enum(['interactive', 'scripted']);
 
 export const sessionSchema = z.object({
   id: sessionId,
@@ -33,6 +34,8 @@ export const sessionSchema = z.object({
   kind: sessionKindSchema,
   /** Null for terminal sessions, which run a plain shell rather than an agent. */
   agent_type: z.string().nullable(),
+  /** Native TUI or structured CLI execution with a terminal transcript. */
+  agent_mode: agentModeSchema.optional(),
   /** Live foreground agent in a terminal session; icon hint only, never persisted. */
   detected_agent_type: z.string().nullable().optional(),
   agent_session_ref: z.string().nullable(),

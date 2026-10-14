@@ -196,3 +196,11 @@ The major boundary is intentional for the puddlang rollout, despite the additive
 endpoints. Upgrade daemon, CLI/desktop, and the remote connector/application to
 matching daemon protocol 23.0. Existing launcher upgrade approval still applies;
 puddlang itself requires an already compatible daemon and never upgrades one.
+
+Daemon/cockpit protocol 23.1 adds optional `Session.agent_mode`, optional per-spawn
+Puddlang `mode` (omission retains interactive), advertised adapter modes and
+bounded native turn signals under the existing per-runtime nonce. Migration 025
+preserves existing placements as interactive. `pudl` requires 23.1 so older runners
+cannot silently discard the requested mode. Session creation through the public
+REST API remains interactive; no remote operation or authority is added. Remote
+protocol remains 3 and Puddlang remains excluded from remote leases/allowlists.

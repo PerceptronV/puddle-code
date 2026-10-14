@@ -298,4 +298,5 @@
 // 22.5: bounded conversation previews and exact session destinations in notifications.
 // 23.0: local/SSH puddlang runs, exact agent turns and profile-bound run history.
 // Intentional major release boundary: upgrade clients/hosts together for puddlang.
-export const PROTOCOL_VERSION = { major: 23, minor: 0 } as const;
+// 23.1: per-agent interactive/scripted modes and correlated native turn signals.
+export const PROTOCOL_VERSION = { major: 23, minor: 1 } as const;

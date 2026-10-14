@@ -39,9 +39,14 @@ export class PuddlangService {
       accounts: this.deps.accounts
         .list(profile)
         .map((a) => ({ id: a.id, label: a.label, agent: a.agent_type, logged_in: a.logged_in })),
-      agents: this.deps.adapters
-        .list()
-        .map((a) => ({ id: a.id, scripted_turns: a.scriptedTurns === true })),
+      agents: this.deps.adapters.list().map((a) => ({
+        id: a.id,
+        scripted_turns: a.scriptedTurns === true,
+        modes: [
+          ...(a.scriptedTurns ? ['interactive' as const] : []),
+          ...(a.prepareScriptedLaunch ? ['scripted' as const] : []),
+        ],
+      })),
     };
   }
 

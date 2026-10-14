@@ -7,8 +7,12 @@ features and illustrative spellings; it is not a claim of full implementation.
 
 ## Implemented first slice
 
-- Single-file TypeScript with spawn, attach, exact ask, Zod validation and stop;
-  **Codex 0.159.0+ only** for now.
+- Single-file TypeScript with spawn, attach, correlated ask, Zod validation and stop
+  for Claude Code, Codex, OpenCode and Gemini CLI.
+- Per-spawn `mode: 'interactive' | 'scripted'` (default interactive), persisted on
+  resume. Interactive uses native TUI lifecycle channels; scripted uses the same
+  CLI/account with structured output and requires successful process completion.
+  See the usage guide for version requirements and hook-completion limitations.
 - Daemon-owned runners, SQLite runs/events, idempotent submissions, bounded
   turns/agents/lifetime, explicit cancellation and interruption on restart.
 - Existing registered project/worktree roots and canonical path lookup;
@@ -19,10 +23,10 @@ features and illustrative spellings; it is not a claim of full implementation.
 - Stdio tools: puddlang_context, puddlang_run, puddlang_status, puddlang_events,
   puddlang_cancel, through existing local/SSH authority.
 
-Deferred: other adapters, direct agent MCP tools, automatic agent MCP binding,
+Deferred: additional providers, direct agent MCP tools, automatic agent MCP binding,
 delegated credentials, parent/child budgets, arbitrary directory registration,
 worktree creation, durable continuation, scheduling and the run inspector UI.
-Use two Codex agents initially; mixed-agent examples below describe extensions.
+Mixed-agent reviewer loops use the same implemented handle API.
 Live TUI/SSH acceptance is separate from automated fake-agent coverage.
 
 ## Outcome
@@ -307,9 +311,9 @@ alone cannot establish that the requested reply exists.
 Unstructured calls return the reply text. Structured calls return validated
 data. Prompting an agent to produce JSON is only one part of that contract:
 Puddle must correlate the response to the request, extract it, and validate it.
-Invalid output must remain an error or an explicit bounded repair attempt;
-never interpret it as approval. Exact result envelopes and repair defaults
-remain to be designed.
+Invalid output remains an error; never interpret it as approval. The implemented
+slice validates JSON with Zod and performs no implicit repair. Explicit bounded
+repair helpers remain deferred.
 
 Keep three outcomes distinct:
 
@@ -320,10 +324,10 @@ Keep three outcomes distinct:
 
 Agent-specific message submission, turn boundaries and response extraction
 belong in adapters. Their support must be capability-checked against the
-installed agent. Existing lifecycle hooks and native synchronisation are useful
-foundations, but do not yet establish the proposed `ask` contract. Catalogue
-discovery must remain metadata-only; reply extraction needs a separate,
-explicitly bounded mechanism.
+installed agent. The implemented slice extends lifecycle channels with bounded
+turn observation and adds structured CLI drivers. Interactive hook completion has
+the limitations described in the usage guide; scripted completion also requires
+successful process exit. Catalogue discovery remains metadata-only.
 
 ## Execution and human control
 

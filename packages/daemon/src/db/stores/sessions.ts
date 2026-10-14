@@ -17,6 +17,7 @@ interface Row {
   separate_branch: number;
   kind: Session['kind'];
   agent_type: string | null;
+  agent_mode: NonNullable<Session['agent_mode']>;
   title: string | null;
   osc_title: string | null;
   status: SessionStatus;
@@ -36,6 +37,7 @@ interface Row {
 }
 
 export interface NewSessionRow {
+  agent_mode?: Session['agent_mode'];
   id: string;
   project_id: string;
   /** Null for terminal sessions (SPEC §4). */
@@ -112,8 +114,8 @@ export class SessionStore {
         `INSERT INTO sessions (id, project_id, account_id, conversation_id,
            worktree_path, canonical_worktree_path, base_branch, branch,
            separate_branch, branch_owned, kind, agent_type, title, status,
-           native_sync, skip_permissions, created_at, updated_at, cwd)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           native_sync, skip_permissions, created_at, updated_at, cwd, agent_mode)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         row.id,
@@ -135,6 +137,7 @@ export class SessionStore {
         now,
         now,
         row.cwd ?? null,
+        row.agent_mode ?? 'interactive',
       );
     return this.get(row.id);
   }
@@ -342,10 +345,11 @@ export class SessionStore {
            skip_permissions = (SELECT skip_permissions FROM sessions WHERE id = ?),
            session_env = (SELECT session_env FROM sessions WHERE id = ?),
            native_sync = (SELECT native_sync FROM sessions WHERE id = ?),
+           agent_mode = (SELECT agent_mode FROM sessions WHERE id = ?),
            updated_at = ?
          WHERE id = ?`,
       )
-      .run(sourceId, sourceId, sourceId, sourceId, new Date().toISOString(), targetId);
+      .run(sourceId, sourceId, sourceId, sourceId, sourceId, new Date().toISOString(), targetId);
   }
 
   /** Exactly one placement owns worktree/branch-dependent destructive actions. */
