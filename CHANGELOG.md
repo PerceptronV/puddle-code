@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Include the Puddlang runner and its imports in standalone daemon archives, with a release smoke test that executes a TypeScript programme using both `puddlang` and `zod`.

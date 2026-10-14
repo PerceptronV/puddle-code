@@ -4,7 +4,7 @@ import * as api from './runtime-api.js';
 
 // Load dependencies before installing the single-file program's import policy.
 const apiUrl = new URL('./runtime-api.js', import.meta.url).href;
-const zodUrl = import.meta.resolve('zod');
+const zodUrl = new URL('./zod.js', import.meta.url).href;
 registerHooks({
   resolve(specifier, context, nextResolve) {
     if (context.parentURL?.startsWith('data:text/javascript')) {

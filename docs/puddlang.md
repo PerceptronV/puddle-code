@@ -174,7 +174,9 @@ listener, remote-relay execution or run inspector UI yet.
 ## Development
 
 Build with `pnpm build`; invoke `node packages/cli/dist/pudl.js --help`.
-Daemon builds include the runner/API modules. `pnpm build:cli-tarball` packages
+Daemon builds and standalone archives include the runner/API modules and Zod.
+Archive smoke tests execute a TypeScript programme with both imports without
+starting a daemon. `pnpm build:cli-tarball` packages
 both commands and smoke-tests help without starting a daemon.
 
 Automated tests use fake agents and isolated homes. [Manual acceptance](acceptance/puddlang.md)

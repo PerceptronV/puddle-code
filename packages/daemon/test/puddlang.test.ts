@@ -21,7 +21,9 @@ beforeAll(async () => {
   // Build the real isolated runner, including split shared module bindings.
   compiled = mkdtempSync(join(root, 'node_modules/.puddlang-test-'));
   await build({
-    entryPoints: [join(root, 'src/puddlang/runner.ts'), join(root, 'src/puddlang/runtime-api.ts')],
+    entryPoints: ['runner', 'runtime-api', 'zod'].map((name) =>
+      join(root, `src/puddlang/${name}.ts`),
+    ),
     outdir: compiled,
     bundle: true,
     splitting: true,

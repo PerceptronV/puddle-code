@@ -40,6 +40,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
 import { stageNodeRuntime } from './lib/node-runtime.mjs';
+import { smokePuddlang } from './lib/puddlang-smoke.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -240,6 +241,19 @@ rmSync(stage, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
 await bundleDaemon();
 await build({
+  entryPoints: ['runner', 'runtime-api', 'zod'].map((name) =>
+    join(repoRoot, `packages/daemon/src/puddlang/${name}.ts`),
+  ),
+  outdir: join(stage, 'daemon'),
+  bundle: true,
+  splitting: true,
+  platform: 'node',
+  target: 'node22',
+  format: 'esm',
+  alias: { '@puddle/shared': join(repoRoot, 'packages/shared/src/index.ts') },
+});
+writeFileSync(join(stage, 'daemon/package.json'), JSON.stringify({ type: 'module' }));
+await build({
   entryPoints: [join(repoRoot, 'packages/cli/src/host-control.ts')],
   outfile: join(stage, 'daemon/host-control.mjs'),
   bundle: true,
@@ -274,4 +288,6 @@ copyNativePackages();
 await stageNodeRuntime(repoRoot, stage, target, log);
 writeMetadata();
 smokeTest();
+await smokePuddlang(stage);
+log('puddlang runner smoke test passed');
 if (!stageOnly) pack();
