@@ -5,7 +5,6 @@ on:
 
 permissions:
   contents: write
-  id-token: write # npm --provenance
 
 jobs:
   tarball-linux:
@@ -102,7 +101,7 @@ jobs:
 
   desktop:
     # Packages the Electron shell (packages/desktop). Signing is dormant
-    # until secrets exist (the npm-publish pattern): with MAC_CERT_P12 +
+    # until secrets exist: with MAC_CERT_P12 +
     # MAC_CERT_PASSWORD set, the mac build is signed under hardened runtime
     # and — with APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID —
     # notarised; without them it ships unsigned (right-click-open territory,
@@ -209,33 +208,45 @@ jobs:
             --verify-tag --notes-file dist-release/RELEASE_NOTES.md
 
   npm-publish:
-    # Dormant until an NPM_TOKEN secret exists; publishes @puddle-code/cli.
+    # Configure this repository and release.yml as a trusted publisher in
+    # the npm package settings, with direct publishing allowed (SPEC §10).
     needs: release
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
           registry-url: https://registry.npmjs.org
-      - name: check for an npm token
-        id: token
+      # Node 22 bundles npm 10, which cannot authenticate through npm OIDC.
+      - name: install npm with trusted publishing support
+        run: npm install --global npm@11.21.0
+      - name: verify package version matches the release tag
         run: |
-          if [ -n "${{ secrets.NPM_TOKEN }}" ]; then echo "present=true" >> "$GITHUB_OUTPUT"; fi
-      - if: steps.token.outputs.present == 'true'
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const { version } = JSON.parse(readFileSync('packages/cli/package.json', 'utf8'));
+          if (`v${version}` !== process.env.GITHUB_REF_NAME) {
+            throw new Error('The CLI package version must match the release tag.');
+          }
+          NODE
+      - name: install dependencies
         run: pnpm install --frozen-lockfile
-      - if: steps.token.outputs.present == 'true'
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - name: build the CLI and embedded assets
         env:
           # Bakes the release-source repository into the CLI bundle so its
           # bootstrap fetches tarballs from the repo that published it.
           PUDDLE_REPO_SLUG: ${{ github.repository }}
         run: pnpm build
-      - if: steps.token.outputs.present == 'true'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: publish to npm using trusted publishing
         # Not `npm publish -w`: this is a pnpm workspace, so npm sees no
-        # workspaces at the root — publish from the package directory.
+        # workspaces at the root — publish from the package directory. Do not
+        # supply NODE_AUTH_TOKEN: npm obtains a short-lived token through OIDC.
         working-directory: packages/cli
         run: npm publish --provenance --access public

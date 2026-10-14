@@ -33,8 +33,9 @@ to update the CLI. There are no compatibility shims: old majors are not served.
 | Changing auth, the token flow, or the WS handshake           | bump `major`, reset `minor` |
 | Comment/doc-only edits, refactors with identical wire shapes | no bump                     |
 
-Bump the constant **in the same commit** as the schema change, and note the
-bump in `CHANGELOG.md`.
+Bump the constant **in the same commit** as the schema change, update the
+current-version assertion in `test/api.test.ts`, and note the bump in
+`CHANGELOG.md`.
 
 ## Wire rules that keep additive changes safe
 

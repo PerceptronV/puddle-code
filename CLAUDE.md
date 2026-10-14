@@ -174,6 +174,12 @@ This file is living documentation and part of the definition of done for every c
 
 ## Changelog discipline
 
+The npm release job uses GitHub OIDC trusted publishing, with npm 11.21.0 and
+job-scoped `id-token: write`; it never reads `NPM_TOKEN`. Configure the package's
+trusted publisher for this repository and `release.yml`, with direct publishing
+allowed and no environment name. Keep the source checkout on the triggering
+release tag so npm provenance names the built commit. See SPEC §10 for recovery.
+
 `CHANGELOG.md` in the repo root is the **rolling changelog for the next release**. Rules:
 
 1. Every user-visible or behaviour-affecting change updates `CHANGELOG.md` **in the same commit/PR** as the change. Internal-only refactors with zero behaviour change may be skipped.
