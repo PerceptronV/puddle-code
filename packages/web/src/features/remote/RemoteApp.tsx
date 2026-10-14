@@ -59,6 +59,24 @@ export function RemoteApp() {
   const [desktopRegistration, setDesktopRegistration] = useState(initialRegistration.request);
   const [invitation, setInvitation] = useState(initialInvitation);
   const [message, setMessage] = useState(initialRegistration.error);
+  const [notificationHost, setNotificationHost] = useState(() => {
+    const url = new URL(location.href);
+    const host = url.searchParams.get('notificationHost');
+    if (host) {
+      url.searchParams.delete('notificationHost');
+      history.replaceState(null, '', url);
+    }
+    return host;
+  });
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    const click = (event: MessageEvent) => {
+      if (event.data?.t === 'notification-click' && typeof event.data.host === 'string')
+        setNotificationHost(event.data.host);
+    };
+    navigator.serviceWorker.addEventListener('message', click);
+    return () => navigator.serviceWorker.removeEventListener('message', click);
+  }, []);
   const [busy, setBusy] = useState(false);
   usePhoneViewport();
   const refresh = async () => {
@@ -134,6 +152,19 @@ export function RemoteApp() {
       setInvitation(null);
     }
   };
+  useEffect(() => {
+    if (
+      !notificationHost ||
+      !login?.user ||
+      login.mfaRequired ||
+      !hosts.some((host) => host.id === notificationHost)
+    )
+      return;
+    const target = notificationHost;
+    setNotificationHost(null);
+    if (client?.host.host !== target)
+      void connect(target).catch((error: Error) => setMessage(error.message));
+  }, [notificationHost, login, hosts]);
   const leave = () => {
     client?.close();
     setClient(null);

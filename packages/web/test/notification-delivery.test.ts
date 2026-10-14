@@ -1,7 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ worker: vi.fn(), bridge: vi.fn(() => null) }));
+const mocks = vi.hoisted(() => ({
+  worker: vi.fn(),
+  show: vi.fn(async () => {}),
+  bridge: vi.fn(() => null),
+}));
 vi.mock('../src/lib/desktop', () => ({ desktopBridge: mocks.bridge }));
-vi.mock('../src/lib/notification-worker', () => ({ notificationWorker: mocks.worker }));
+vi.mock('../src/lib/notification-worker', () => ({
+  notificationWorker: mocks.worker,
+  showWorkerNotification: mocks.show,
+}));
 import { deliverNotification } from '../src/lib/notification-delivery';
 
 afterEach(() => {
@@ -26,11 +33,7 @@ describe('browser notification delivery', () => {
       message: null,
     });
     expect(constructor).not.toHaveBeenCalled();
-    expect(showNotification).toHaveBeenCalledExactlyOnceWith('Agent', {
-      body: 'Finished',
-      tag: 'test',
-      silent: true,
-    });
+    expect(mocks.show).toHaveBeenCalledExactlyOnceWith({ showNotification }, request);
     subscribe.mock.calls[0]![1]({ data: { t: 'notification-click', id: 'test' } });
     expect(click).toHaveBeenCalledTimes(1);
   });
@@ -40,11 +43,8 @@ describe('browser notification delivery', () => {
     expect((await deliverNotification(request, () => {})).state).toBe('failed');
     expect(mocks.worker).not.toHaveBeenCalled();
     vi.stubGlobal('Notification', { permission: 'granted' });
-    mocks.worker.mockResolvedValue({
-      showNotification: async () => {
-        throw new Error('System denied delivery');
-      },
-    });
+    mocks.worker.mockResolvedValue({});
+    mocks.show.mockRejectedValueOnce(new Error('System denied delivery'));
     await expect(deliverNotification(request, () => {})).resolves.toEqual({
       state: 'failed',
       message: 'System denied delivery',

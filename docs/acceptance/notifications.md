@@ -23,6 +23,18 @@ Start the installed cockpit from an ordinary shell, outside any coding-agent ses
    turn while connected. Delivery uses a service worker, including on browsers
    that reject the Notification constructor. Click to select the relevant session.
    This live connection test does not establish background Web Push delivery.
+7. In remote Settings enable background notifications and press **Send test**.
+   Check the acknowledgement and the actual banner separately. On iOS/iPadOS,
+   first install/open the Home Screen app. Complete a turn while focused, then
+   background the app, then close it. Each produces a generic alert; a cold click
+   reopens the correct host and requires normal authentication before content.
+8. Revoke the browser on the host, mute the project, disable profile notifications,
+   and disable remote access in separate trials: no new dispatches. A vendor may
+   deliver already accepted messages within two minutes. Disable the device toggle
+   and sign out: its PushManager subscription is removed.
+9. Use an older daemon, connector or service: background enablement explains the
+   missing capability. Live notification handling still works where supported.
+   Simulate a 410 vendor response and verify the stale subscription is removed.
 
 Automated coverage: native desktop delivery/failure/click/timeout; browser
 service-worker delivery and errors; terminal completion versus suspension and

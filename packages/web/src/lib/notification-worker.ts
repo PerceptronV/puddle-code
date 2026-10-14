@@ -23,3 +23,28 @@ export async function notificationWorker(): Promise<ServiceWorkerRegistration | 
   });
   return registration;
 }
+
+/** Serialise live and push delivery in the worker, so one event produces one alert. */
+export async function showWorkerNotification(
+  registration: ServiceWorkerRegistration,
+  request: import('@puddle/shared').DesktopNotificationRequest,
+): Promise<void> {
+  if (!registration.active) throw new Error('Notification support is not active.');
+  await new Promise<void>((resolve, reject) => {
+    const channel = new MessageChannel();
+    const finish = (error?: Error) => {
+      clearTimeout(timer);
+      channel.port1.close();
+      if (error) reject(error);
+      else resolve();
+    };
+    const timer = setTimeout(() => finish(new Error('Notification delivery timed out.')), 10_000);
+    channel.port1.onmessage = (event) =>
+      finish(
+        event.data?.ok
+          ? undefined
+          : new Error('The browser could not deliver the notification. Check system permissions.'),
+      );
+    registration.active!.postMessage({ t: 'show-notification', request }, [channel.port2]);
+  });
+}

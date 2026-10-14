@@ -13,6 +13,7 @@ import { Button } from '../../components/ui/button';
 import { Disclosure } from '../../components/ui/disclosure';
 import { ProjectCardContent, projectCardSurface } from '../dashboard/ProjectCardContent';
 import { loadBrowserHost } from './identity-store';
+import { watchPushNotifications } from './push-notifications';
 import { RemoteClient } from './client';
 import { serviceOrigin } from './service';
 import { loadOrderedProjects } from '../mobile/project-order';
@@ -40,6 +41,7 @@ export function HostProjects({
   useEffect(() => {
     let live = true;
     let client: RemoteClient | undefined;
+    let offPush: (() => void) | undefined;
     let unsubscribe: (() => void) | undefined;
     let loading = false;
     setCatalogue(null);
@@ -79,6 +81,7 @@ export function HostProjects({
           return;
         }
         client = new RemoteClient(identity);
+        offPush = watchPushNotifications(client);
         unsubscribe = client.onState(() => {
           if (!live) return;
           if (client!.state === 'ready') void refresh();
@@ -101,6 +104,7 @@ export function HostProjects({
       live = false;
       clearInterval(timer);
       unsubscribe?.();
+      offPush?.();
       client?.close();
     };
   }, [host.id, host.online, account, disconnected]);

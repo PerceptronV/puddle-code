@@ -1,3 +1,5 @@
+import { pushEnabled, setPushEnabled, testPushNotifications } from './push-notifications';
+import { Switch } from '../../components/ui/switch';
 import { useState } from 'react';
 import { LogOut, Laptop, Trash2, Unplug } from 'lucide-react';
 import { registrationResponseSchema, type RemoteHost } from '@puddle/shared';
@@ -48,6 +50,7 @@ export function RemoteSettings({
   reconnect(id: string): void;
   refresh(): Promise<void>;
 }) {
+  const [notifications, setNotifications] = useState(() => pushEnabled(account));
   const [theme, setTheme] = useState(storedPreference);
   const [label, setLabel] = useState('');
   const [registration, setRegistration] = useState<ReturnType<
@@ -94,6 +97,36 @@ export function RemoteSettings({
             </SelectContent>
           </Select>
         </div>
+        <section className="grid gap-3" aria-label="Notifications">
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="remote-notifications">Background notifications on this device</Label>
+            <Switch
+              id="remote-notifications"
+              checked={notifications}
+              disabled={busy}
+              onCheckedChange={(enabled) => {
+                void action(async () => {
+                  setMessage(await setPushEnabled(account, enabled));
+                  setNotifications(pushEnabled(account));
+                });
+              }}
+            />
+          </div>
+          <p className="text-xs text-fg-muted">
+            Receive generic agent alerts from your paired hosts, while this app is open or closed.
+            On iPhone or iPad, open Puddle from the Home Screen first. Host notification preferences
+            and project mutes still apply.
+          </p>
+          <Button
+            variant="ghost"
+            disabled={busy || !notifications}
+            onClick={() =>
+              void action(async () => setMessage(await testPushNotifications(account)))
+            }
+          >
+            Send test
+          </Button>
+        </section>
         <section className="grid gap-3" aria-label="Host connections">
           <h3 className="text-xs font-medium uppercase tracking-wide text-fg-muted">Hosts</h3>
           {hosts.map((host) => (
@@ -209,6 +242,8 @@ export function RemoteSettings({
           disabled={busy}
           onClick={() =>
             void action(async () => {
+              // Push cleanup must never trap the user in an authenticated account.
+              if (pushEnabled(account)) await setPushEnabled(account, false).catch(() => {});
               authResult(await authClient.signOut());
               onOpenChange(false);
               await refresh();

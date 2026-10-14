@@ -243,3 +243,10 @@ describe('profile-bound host authority', () => {
     connection.onClose({}, ws);
   });
 });
+
+it('keeps connector-only notification operations outside daemon profile authority', async () => {
+  const f = fixture();
+  expect((await f.req('/api/notifications/push', 'POST', { subscription: null })).status).toBe(403);
+  expect((await f.req('/api/notifications/test', 'POST')).status).toBe(403);
+  expect(f.dispatch).not.toHaveBeenCalled();
+});

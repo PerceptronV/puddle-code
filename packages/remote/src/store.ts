@@ -18,7 +18,7 @@ export class ServiceStore {
     const file = join(home, 'remote.db');
     if (existsSync(file)) privatePath(file);
     this.db = new Database(file);
-    if (Number(this.db.pragma('user_version', { simple: true })) > 2) {
+    if (Number(this.db.pragma('user_version', { simple: true })) > 3) {
       this.db.close();
       throw new Error('Remote state requires a newer Puddle version');
     }
@@ -29,7 +29,8 @@ export class ServiceStore {
       CREATE TABLE IF NOT EXISTS registrations(hash TEXT PRIMARY KEY, host TEXT NOT NULL, expires INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS mfa_sessions(hash TEXT PRIMARY KEY, account TEXT NOT NULL, expires INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS desktop_registrations(hash TEXT PRIMARY KEY, host TEXT NOT NULL, expires INTEGER NOT NULL, redeemed INTEGER NOT NULL DEFAULT 0);
-      PRAGMA user_version = 2;
+      CREATE TABLE IF NOT EXISTS push_subscriptions(host TEXT NOT NULL, device TEXT NOT NULL, subscription TEXT NOT NULL, expires INTEGER NOT NULL, PRIMARY KEY(host, device));
+      PRAGMA user_version = 3;
     `);
   }
   list(account: string): HostRecord[] {
@@ -121,6 +122,11 @@ export class ServiceStore {
           'DELETE FROM registrations WHERE host = ? AND host IN (SELECT id FROM remote_hosts WHERE account = ?)',
         )
         .run(id, account);
+      this.db
+        .prepare(
+          'DELETE FROM push_subscriptions WHERE host = ? AND host IN (SELECT id FROM remote_hosts WHERE account = ?)',
+        )
+        .run(id, account);
       this.db.prepare('DELETE FROM remote_hosts WHERE id = ? AND account = ?').run(id, account);
     })();
   }
@@ -138,6 +144,11 @@ export class ServiceStore {
     this.db.prepare('DELETE FROM mfa_sessions WHERE account = ?').run(account);
   }
   prune(): void {
+    this.db
+      .prepare(
+        'DELETE FROM push_subscriptions WHERE expires <= ? OR host NOT IN (SELECT id FROM remote_hosts)',
+      )
+      .run(Date.now());
     this.db
       .prepare(
         `DELETE FROM remote_hosts WHERE credential IS NULL AND id IN

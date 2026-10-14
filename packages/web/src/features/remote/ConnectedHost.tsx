@@ -14,6 +14,7 @@ import { installBrowserTransport } from '../../lib/browser-transport';
 import { wsManager } from '../../lib/ws';
 import { DeviceAccess } from './DeviceAccess';
 import { PhoneWorkspace } from '../mobile/PhoneWorkspace';
+import { watchPushNotifications } from './push-notifications';
 import type { RemoteClient } from './client';
 
 export function ConnectedHost({
@@ -52,9 +53,11 @@ export function ConnectedHost({
         void queryClient.invalidateQueries();
       }
     });
+    const offPush = watchPushNotifications(client);
     client.start();
     return () => {
       off();
+      offPush();
       client.close();
       wsManager.switchHost();
       installBrowserTransport(null);

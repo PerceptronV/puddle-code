@@ -44,6 +44,7 @@ import { ConversationShare } from './sessions/conversation-share.js';
 import { ConversationCatalogue } from './sessions/conversation-catalogue.js';
 import { MarkerFileSync } from './sessions/onboarding.js';
 import { reconcilePass } from './sessions/reconcile.js';
+import { subscribePushNotifications } from './sessions/push-notifications.js';
 import { SessionService } from './sessions/service.js';
 import { WorktreeManager } from './worktrees/manager.js';
 import { WsGateway } from './ws/gateway.js';
@@ -152,6 +153,12 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       shellHooks,
       statusQuietMs: opts.statusQuietMs,
     });
+    const stopPush = subscribePushNotifications(paths.home, service, {
+      profiles,
+      projects,
+      sessions,
+    });
+    failedStartup.push(stopPush);
     const catalogue = new ConversationCatalogue({
       accounts,
       conversations,
@@ -307,6 +314,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       paths,
       service,
       async stop() {
+        stopPush();
         controlInfo = null;
         authority.dispose();
         await closeControl();

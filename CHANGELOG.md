@@ -13,6 +13,10 @@ Past releases: see docs/changelogs/.
 
 - Show the recognised foreground agent's icon in terminal sessions, restoring the terminal icon when it exits or is suspended; add the optional `detected_agent_type` hint in daemon/cockpit protocol **22.1** (remote protocol remains **3**).
 
+### Added
+
+- Add opt-in background Web Push for paired browsers, with device-local permission and delivery tests, an installable mobile app manifest, and generic alerts that keep session content on the host (protocol 22.4; remote protocol remains 3).
+
 ### Fixed
 
 - Deliver completion events for agents in plain terminals and unrequested agent exits, use native Codex turn events, and subscribe the mobile workspace with service-worker notification delivery (protocol 22.3).

@@ -1,0 +1,11 @@
+{
+  "id": "/",
+  "name": "Puddle",
+  "short_name": "Puddle",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "icons": [
+    { "src": "/puddle-app.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" }
+  ]
+}

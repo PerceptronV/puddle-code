@@ -294,4 +294,5 @@
 // 22.1: additive — transient foreground-agent icon hints on terminal sessions.
 // 22.2: additive — notification focus preference; native desktop delivery diagnostics.
 // 22.3: explicit agent-notification events include terminal agents and process exits.
-export const PROTOCOL_VERSION = { major: 22, minor: 3 } as const;
+// 22.4: opt-in background Web Push through the approved profile connector.
+export const PROTOCOL_VERSION = { major: 22, minor: 4 } as const;

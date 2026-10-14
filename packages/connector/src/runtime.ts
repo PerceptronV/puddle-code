@@ -6,6 +6,7 @@ import {
   REMOTE_POLICY,
   REMOTE_PROTOCOL_VERSION,
   connectorConfigSchema,
+  connectorNotificationSchema,
   connectorLocalRequestSchema,
   remoteIdentitySchema,
   relayMessageSchema,
@@ -24,6 +25,7 @@ import {
 import { createIdentity, identityPeer, secureChannel, SocketWire } from '@puddle/remote-transport';
 import { DeviceStore } from './devices.js';
 import { admit } from './admission.js';
+import { ConnectorNotifications } from './notifications.js';
 import { deleteRegistration } from './delete-registration.js';
 
 export async function startConnector(home: string, profile: string) {
@@ -48,6 +50,15 @@ export async function startConnector(home: string, profile: string) {
   let backoff = 500;
   let controlUntil = 0;
   const pipes = new Set<WebSocket>();
+  const notifications = new ConnectorNotifications(config, devices, () => {
+    if (!config.enabled || stopped || registrationDeleted) return false;
+    try {
+      const stored = connectorConfigSchema.parse(readPrivateJson(configPath));
+      return stored.enabled && stored.credential === config.credential;
+    } catch {
+      return false;
+    }
+  });
   const admin = (request: RemoteAdminRequest): RemoteAdminResponse => {
     // An old process must never recreate deleted configuration or approve old requests.
     if (registrationDeleted) throw new Error('Remote registration has been deleted');
@@ -100,6 +111,12 @@ export async function startConnector(home: string, profile: string) {
         used = true;
         let result: RemoteAdminResponse;
         try {
+          const notification = connectorNotificationSchema.safeParse(value);
+          if (notification.success) {
+            void notifications.notify(notification.data.id).catch(() => {});
+            socket.end('{}\n');
+            return;
+          }
           const request = connectorLocalRequestSchema.parse(value);
           if (request.t === 'delete_registration') {
             config.enabled = false;
@@ -159,6 +176,7 @@ export async function startConnector(home: string, profile: string) {
             profile,
             account: config.account,
             devices,
+            notifications,
             enabled: () => config.enabled && !stopped,
             admin,
           }),

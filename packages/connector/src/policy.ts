@@ -1,5 +1,7 @@
 import {
   REMOTE_POLICY,
+  pushPreferenceSchema,
+  type PushPreference,
   createSessionRequestSchema,
   patchSessionRequestSchema,
   pasteImageRequestSchema,
@@ -13,6 +15,7 @@ import {
 const hex = '[a-f0-9]{10}';
 const uuid = '[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}';
 const routes: ReadonlyArray<readonly [string, RegExp, readonly string[]]> = [
+  ['POST', /^\/api\/notifications\/(push|test)$/, []],
   ['GET', /^\/api\/(version|host|config|agents|profiles|repos)$/, []],
   ['GET', /^\/api\/accounts$/, ['profile']],
   ['GET', new RegExp(`^/api/profiles/${hex}/(settings|state)$`), []],
@@ -53,6 +56,7 @@ export function permittedRequest(message: Extract<RemoteMessage, { t: 'request' 
   path: string;
   body?: string;
   upload?: ImageUploadRequest;
+  notification?: PushPreference | 'test';
 } {
   // eslint-disable-next-line no-control-regex -- Reject control characters at the trust boundary.
   if (!message.path.startsWith('/api/') || /[\\#\u0000-\u0020]/.test(message.path))
@@ -69,8 +73,15 @@ export function permittedRequest(message: Extract<RemoteMessage, { t: 'request' 
   if (new Set(keys).size !== keys.length || keys.some((key) => !route[2].includes(key)))
     throw new Error('Invalid remote parameters');
   let body: unknown;
+  let notification: PushPreference | 'test' | undefined;
   let upload: ImageUploadRequest | undefined;
-  if (message.method === 'POST' && url.pathname === '/api/sessions')
+  if (url.pathname === '/api/notifications/push') {
+    notification = pushPreferenceSchema.parse(message.body);
+    body = notification;
+  } else if (url.pathname === '/api/notifications/test') {
+    if (message.body !== undefined) throw new Error('This operation has no request body');
+    notification = 'test';
+  } else if (message.method === 'POST' && url.pathname === '/api/sessions')
     body = createSessionRequestSchema.parse(message.body);
   else if (message.method === 'PATCH') body = patchSessionRequestSchema.parse(message.body);
   else if (message.method === 'POST' && url.pathname.endsWith('/paste'))
@@ -89,6 +100,7 @@ export function permittedRequest(message: Extract<RemoteMessage, { t: 'request' 
     path: url.pathname + url.search,
     body: encoded,
     ...(upload ? { upload } : {}),
+    ...(notification ? { notification } : {}),
   };
 }
 

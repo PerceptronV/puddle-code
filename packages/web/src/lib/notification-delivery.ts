@@ -4,7 +4,7 @@ import {
   type DesktopNotificationRequest,
   type NotificationDelivery,
 } from '@puddle/shared';
-import { notificationWorker } from './notification-worker';
+import { notificationWorker, showWorkerNotification } from './notification-worker';
 import { desktopBridge } from './desktop';
 
 let outcome: NotificationDelivery = { state: 'unverified', message: null };
@@ -82,11 +82,7 @@ export async function deliverNotification(
         workerSubscribed = true;
       }
       rememberClick(request.id, onClick);
-      await worker.showNotification(request.title, {
-        body: request.body,
-        tag: request.id,
-        silent: true,
-      });
+      await showWorkerNotification(worker, request);
       return record({ state: 'shown', message: null });
     }
     return await new Promise<NotificationDelivery>((resolve) => {

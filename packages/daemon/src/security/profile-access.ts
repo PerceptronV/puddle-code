@@ -196,6 +196,7 @@ export function profileAccessMiddleware(
       if (!directoryRead && !access.session(profile, file[1]!)) throw denied();
       return next();
     }
+    // /api/notifications/* is connector-local and deliberately never reaches daemon authority.
     throw denied();
   };
 }

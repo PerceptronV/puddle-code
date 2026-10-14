@@ -17,6 +17,7 @@ export const remoteHostSchema = z.object({
 export const remoteHostsSchema = z.array(remoteHostSchema);
 export type RemoteHost = z.infer<typeof remoteHostSchema>;
 export const remoteServiceInfoSchema = z.object({
+  push_public_key: z.string().max(100).optional(),
   providers: z.array(z.enum(['google', 'github'])),
   protocol: z.literal(REMOTE_PROTOCOL_VERSION),
 });

@@ -6,6 +6,7 @@ import {
 } from '@puddle/shared';
 import type { EncryptedChannel } from '@puddle/remote-transport';
 import type { DeviceStore } from './devices.js';
+import type { ConnectorNotifications } from './notifications.js';
 import { Participation } from './participation.js';
 import { RemoteUpstream } from './upstream.js';
 
@@ -14,6 +15,7 @@ export interface AdmissionHost {
   profile: string;
   account: string;
   devices: DeviceStore;
+  notifications?: ConnectorNotifications;
   enabled(): boolean;
   admin(request: RemoteAdminRequest): RemoteAdminResponse;
 }
@@ -80,7 +82,20 @@ export async function admit(channel: EncryptedChannel, host: AdmissionHost): Pro
     }
     deviceId = device.id;
     participation = new Participation();
-    upstream = new RemoteUpstream(host.home, channel, valid, close, host.profile);
+    upstream = new RemoteUpstream(
+      host.home,
+      channel,
+      valid,
+      close,
+      host.profile,
+      host.notifications
+        ? {
+            update: (value, signal, current) =>
+              host.notifications!.update(deviceId!, value, signal, current),
+            test: (signal) => host.notifications!.test(deviceId!, signal),
+          }
+        : undefined,
+    );
     await upstream.authority.establish();
     // Pairing may take five minutes. Participation starts with admission, not with the invitation.
     const active = participation;

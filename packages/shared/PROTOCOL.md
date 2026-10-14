@@ -161,7 +161,17 @@ It shares the existing session/profile-filtered status subscription. Older clien
 ignore it; newer clients use status transitions on daemons below 22.3. Remote
 protocol remains 3: envelopes, authority and allowed operations are unchanged.
 
-The daemon line in `puddle --version` may display `protocol 22.3c3`. The `c3`
+Daemon/cockpit protocol 22.4 adds capability-detected connector-local push
+subscription/test operations and private profile IPC attention signals. The remote
+service adds optional `push_public_key` discovery and machine-only push operations
+using the existing host routing credential; the connector binds registration to
+its already-approved Noise device under the existing lease. No new authority,
+token flow, handshake or strict envelope variant is introduced, so remote
+protocol remains 3. Older services/connectors omit the capabilities; newer
+browsers keep live notification delivery and explain why background push is
+unavailable.
+
+The daemon line in `puddle --version` may display `protocol 22.4c3`. The `c3`
 reports the bundled connector's remote protocol, read from `CONNECTOR_PROTOCOL`
 in the release archive (or a known historical release). It is display-only:
 `PROTOCOL` remains the daemon's plain `major.minor`, and CLI/desktop handshake

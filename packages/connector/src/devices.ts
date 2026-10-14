@@ -21,7 +21,7 @@ export class DeviceStore {
     const file = join(directory, 'devices.db');
     if (existsSync(file)) privatePath(file);
     this.db = new Database(file);
-    if (Number(this.db.pragma('user_version', { simple: true })) > 1) {
+    if (Number(this.db.pragma('user_version', { simple: true })) > 2) {
       this.db.close();
       throw new Error('Remote state requires a newer Puddle version');
     }
@@ -37,7 +37,8 @@ export class DeviceStore {
       CREATE TABLE IF NOT EXISTS invitations (
         hash TEXT PRIMARY KEY, expires INTEGER NOT NULL, device TEXT REFERENCES devices(id)
       );
-      PRAGMA user_version = 1;
+      CREATE TABLE IF NOT EXISTS notification_devices(device TEXT PRIMARY KEY REFERENCES devices(id));
+      PRAGMA user_version = 2;
     `);
   }
   invite(): { invitation: string; expires: number } {
@@ -112,6 +113,19 @@ export class DeviceStore {
       device.lastUsed + REMOTE_POLICY.idleMs > this.now()
     );
   }
+  setNotifications(id: string, enabled: boolean): void {
+    if (enabled) this.db.prepare('INSERT OR IGNORE INTO notification_devices VALUES (?)').run(id);
+    else this.db.prepare('DELETE FROM notification_devices WHERE device = ?').run(id);
+  }
+  notificationDevices(): string[] {
+    return (
+      this.db
+        .prepare(
+          "SELECT n.device FROM notification_devices n JOIN devices d ON d.id = n.device WHERE d.status = 'approved' AND d.expires > ? AND d.lastUsed > ? LIMIT 64",
+        )
+        .all(this.now(), this.now() - REMOTE_POLICY.idleMs) as { device: string }[]
+    ).map((row) => row.device);
+  }
   touch(id: string): void {
     this.db
       .prepare('UPDATE devices SET lastUsed = ? WHERE id = ? AND lastUsed < ?')
@@ -140,11 +154,13 @@ export class DeviceStore {
     for (const listener of this.listeners) listener();
   }
   revoke(id: string): void {
+    this.setNotifications(id, false);
     this.db.prepare("UPDATE devices SET status = 'revoked' WHERE id = ?").run(id);
     for (const listener of this.listeners) listener();
   }
   revokeAll(): void {
     this.db.transaction(() => {
+      this.db.prepare('DELETE FROM notification_devices').run();
       this.db.prepare("UPDATE devices SET status = 'revoked'").run();
       this.db.prepare('DELETE FROM invitations').run();
     })();

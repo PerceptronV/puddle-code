@@ -7,6 +7,7 @@ import {
   type NotificationPreferences,
   type VersionResponse,
   type ProjectDetail,
+  type ProfileSettings,
   type Session,
 } from '@puddle/shared';
 import {
@@ -14,10 +15,11 @@ import {
   type EffectiveNotificationPermission,
 } from '../../lib/notification-permission';
 import { deliverNotification } from '../../lib/notification-delivery';
+import { browserTransport } from '../../lib/browser-transport';
+import { remotePushReady } from '../../lib/remote-notification-status';
 import { api } from '../../lib/api';
-import { fetchAllSessions, hostLabel, useHostInfo, useProfileSettings } from '../../lib/queries';
+import { fetchAllSessions, hostLabel, useHostInfo } from '../../lib/queries';
 import { wsManager } from '../../lib/ws';
-import { useCurrentProfileId } from '../profile/profile-store';
 
 /** The profile's notification prefs (SPEC §11); delivery defaults mirror the settings tab. */
 const DEFAULT_PREFS = notificationPreferencesSchema.parse({});
@@ -104,13 +106,6 @@ export function useAgentNotifications(openSession: (session: Session) => void): 
   const qc = useQueryClient();
   const openRef = useRef(openSession);
   openRef.current = openSession;
-  const profileId = useCurrentProfileId();
-  const settings = useProfileSettings(profileId ?? undefined);
-  const prefsRef = useRef<NotificationPreferences>(DEFAULT_PREFS);
-  prefsRef.current = notificationPreferencesSchema
-    .catch(DEFAULT_PREFS)
-    .parse(settings.data?.['notifications'] ?? {});
-
   // The title's base is the machine's label (display-name customisation
   // first, then hostname) — same base the workspace title builds on. A ref,
   // so a late-loaded label doesn't tear down the WS subscription (that would
@@ -132,7 +127,9 @@ export function useAgentNotifications(openSession: (session: Session) => void): 
     };
 
     let active = true;
-    const deliver = async (event: Pick<AgentNotification, 'session' | 'reason'>) => {
+    const deliver = async (
+      event: Pick<AgentNotification, 'session' | 'reason'> & { id?: string },
+    ) => {
       let session = findSession(qc, event.session);
       if (!session) {
         try {
@@ -143,17 +140,38 @@ export function useAgentNotifications(openSession: (session: Session) => void): 
       }
       if (!active || !session) return;
       const found = session;
+      let prefs: NotificationPreferences;
+      try {
+        const detail = await qc.fetchQuery({
+          queryKey: ['project', found.project_id],
+          queryFn: () => api<ProjectDetail>('GET', `/api/projects/${found.project_id}`),
+          staleTime: 10_000,
+        });
+        if (!active) return;
+        const profile = detail.project.profile_id;
+        const settings = await qc.fetchQuery({
+          queryKey: ['profile-settings', profile],
+          queryFn: () => api<ProfileSettings>('GET', `/api/profiles/${profile}/settings`),
+          staleTime: 10_000,
+        });
+        prefs = notificationPreferencesSchema
+          .catch(DEFAULT_PREFS)
+          .parse(settings['notifications'] ?? {});
+      } catch {
+        return;
+      }
+      if (!active) return;
       const verdict = decideNotification({
-        prefs: prefsRef.current,
+        prefs,
         projectId: found.project_id,
         windowFocused: document.hasFocus(),
         permission: notificationPermission(),
       });
       if (verdict.sound) playPing();
-      if (verdict.desktop) {
+      if (verdict.desktop && !remotePushReady(browserTransport()?.scope)) {
         await deliverNotification(
           {
-            id: `puddle-agent-${found.id}`,
+            id: event.id ? `puddle-event-${event.id}` : `puddle-agent-${found.id}`,
             title: displayTitle(found).slice(0, 160),
             body: event.reason === 'exited' ? 'Agent finished running' : 'Waiting for your input',
           },

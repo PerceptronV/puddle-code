@@ -15,11 +15,13 @@ import type { RemoteConfig } from './config.js';
 import { createServiceAuth } from './auth.js';
 import { ServiceStore } from './store.js';
 import { Relay } from './relay.js';
+import { PushDelivery, installPushRoutes } from './notifications.js';
 import { RateLimit } from './rate-limit.js';
 
 export async function startRemoteService(config: RemoteConfig) {
   const store = new ServiceStore(config.home);
   const auth = await createServiceAuth(config, store);
+  const push = new PushDelivery(store, config);
   const limits = new RateLimit(180);
   const registrationLimits = new RateLimit(10);
   const app = new Hono();
@@ -52,9 +54,13 @@ export async function startRemoteService(config: RemoteConfig) {
     // Machine registration operations use private credentials, never browser cookies.
     if (
       !['GET', 'HEAD'].includes(c.req.method) &&
-      !['/remote/register', '/remote/registration-status', '/remote/unregister'].includes(
-        c.req.path,
-      ) &&
+      ![
+        '/remote/register',
+        '/remote/registration-status',
+        '/remote/unregister',
+        '/remote/push/register',
+        '/remote/push/notify',
+      ].includes(c.req.path) &&
       !origin
     )
       return c.json({ error: 'Origin required' }, 403);
@@ -85,6 +91,7 @@ export async function startRemoteService(config: RemoteConfig) {
       { status: 500, headers: { 'cache-control': 'no-store' } },
     ),
   );
+  installPushRoutes(app, store, push);
   app.get('/health', (c) => c.json({ status: 'ok' }));
   app.all('/api/auth/*', async (c) => {
     const response = await auth.handle(c.req.raw);
@@ -95,6 +102,7 @@ export async function startRemoteService(config: RemoteConfig) {
     c.json({
       providers: [...(config.google ? ['google'] : []), ...(config.github ? ['github'] : [])],
       protocol: REMOTE_PROTOCOL_VERSION,
+      push_public_key: push.publicKey,
     }),
   );
   app.get('/remote/me', async (c) => {
@@ -207,6 +215,7 @@ export async function startRemoteService(config: RemoteConfig) {
     relay,
     async close() {
       clearInterval(prune);
+      push.close();
       relay.close();
       server.closeAllConnections();
       await new Promise<void>((resolve) => server.close(() => resolve()));

@@ -87,7 +87,11 @@ it('enforces HTTP origins, account routing and live service-session revocation o
   };
   try {
     const discovery = await (await req('/remote/config')).json();
-    expect(discovery).toEqual({ providers: ['github'], protocol: REMOTE_PROTOCOL_VERSION });
+    expect(discovery).toEqual({
+      providers: ['github'],
+      protocol: REMOTE_PROTOCOL_VERSION,
+      push_public_key: expect.stringMatching(/^[A-Za-z0-9_-]{87}$/),
+    });
     expect(remoteServiceInfoSchema.parse(discovery)).toEqual(discovery);
     expect((await req('/remote/hosts', { label: 'Host' }, undefined, null)).status).toBe(403);
     expect(

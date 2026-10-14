@@ -5,6 +5,7 @@ import {
   versionResponseSchema,
   wsServerMessageSchema,
   type RemoteMessage,
+  type PushPreference,
 } from '@puddle/shared';
 import { ipcPath, privatePath } from '@puddle/shared/node';
 import { HostControlClient } from '@puddle/shared/node/host-control';
@@ -27,6 +28,10 @@ export class RemoteUpstream {
     private readonly valid: () => boolean,
     private readonly close: () => void,
     profile: string,
+    private readonly notifications?: {
+      update(value: PushPreference, signal: AbortSignal, current: () => boolean): Promise<unknown>;
+      test(signal: AbortSignal): Promise<unknown>;
+    },
   ) {
     this.authority = new HostControlClient(
       async () => {
@@ -124,6 +129,17 @@ export class RemoteUpstream {
     let releaseUpload: (() => void) | undefined;
     try {
       if (!this.valid() || !resource.valid() || abort.signal.aborted) return;
+      if (request.notification) {
+        if (!this.notifications) throw new Error('Background notifications are unavailable');
+        const current = () => this.valid() && resource.valid() && !abort.signal.aborted;
+        const body =
+          request.notification === 'test'
+            ? await this.notifications.test(abort.signal)
+            : await this.notifications.update(request.notification, abort.signal, current);
+        if (current())
+          await this.channel.send({ t: 'response', id: message.id, status: 200, body });
+        return;
+      }
       if (request.upload) {
         const result = this.uploads.accept(request.path.split('/')[3]!, request.upload, abort);
         if ('progress' in result) {
@@ -170,8 +186,18 @@ export class RemoteUpstream {
         }
         if (bytes) body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
       }
-      if (request.path === '/api/version' && response.ok)
-        body = { ...versionResponseSchema.parse(body), remote_image_uploads: true };
+      if (request.path === '/api/version' && response.ok) {
+        const version = versionResponseSchema.parse(body);
+        const push =
+          this.notifications &&
+          (version.protocol.major > 22 ||
+            (version.protocol.major === 22 && version.protocol.minor >= 4));
+        body = {
+          ...version,
+          remote_image_uploads: true,
+          ...(push ? { remote_notifications: true } : {}),
+        };
+      }
       if (this.valid() && !abort.signal.aborted)
         await this.channel.send({ t: 'response', id: message.id, status: response.status, body });
     } catch (error) {

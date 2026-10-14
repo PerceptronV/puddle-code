@@ -400,10 +400,36 @@ previously revoked grants, so reset when recovery provenance is uncertain.
 Back up service SQLite and `BETTER_AUTH_SECRET` privately too. No service backup
 can restore missing browser keys or grant replacement host access.
 
+## Notifications
+
+In the remote app’s Settings, enable **Background notifications on this device**
+and use **Send test**. Each paired host must run a daemon and connector supporting
+protocol 22.4; the remote service and static app need this release too. On iPhone
+or iPad, add Puddle to the Home Screen and open that app before enabling push.
+The browser permission is separate from the host profile’s notification toggle.
+Profile notification preferences and project mutes still apply.
+
+Push alerts appear while the app is open or closed. They contain only a generic
+message; clicking reopens the host. The service retains private push vendor
+subscriptions and VAPID keys under its existing data directory, never session
+content. Keep `push-keys.json` with service backups; changing it requires browsers
+to disable and re-enable notifications. Outbound HTTPS to Apple Web Push, Google
+FCM, Mozilla push or Windows notification endpoints must be available. There is
+no new deployment secret to configure: the service generates its VAPID keys once.
+
+A successful test means the push vendor accepted the message. Actual banners
+still depend on device permission, Focus settings, network and OS delivery.
+Disable the device toggle or sign out to unsubscribe; revoking its host pairing
+stops new sends too. Messages already accepted by a vendor can arrive for up to
+two minutes. Push subscriptions do not extend host grants or keep a browser lease
+alive. Disabling a host connection in the catalogue leaves its separately enabled
+notifications active; use the notification toggle or revoke pairing to stop them.
+
 ## Operations and validation
 
 The relay holds account/routing metadata and transient bounded ciphertext. It
-stores no terminal/source history. Access logging is disabled in the example;
+stores no terminal/source history. Optional push stores only vendor subscription
+metadata and generic event identifiers; push timing remains visible to the service. Access logging is disabled in the example;
 do not add logs of cookies, authorization headers, bodies, codes or pairing URLs.
 Expired unused registrations and MFA confirmations are pruned every minute.
 Accounts and redeemed host registrations persist until removed; device records

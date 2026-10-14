@@ -30,3 +30,5 @@ export * from './api/connection-auth.js';
 export * from './remote/protocol.js';
 export * from './remote/image-upload.js';
 export * from './remote/service.js';
+
+export * from './remote/notifications.js';
