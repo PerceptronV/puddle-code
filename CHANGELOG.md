@@ -16,3 +16,4 @@ Past releases: see docs/changelogs/.
 ### Fixed
 
 - Realign editor bracket highlights, selections and carets when the self-hosted font finishes loading.
+- Refresh eager compilation PDFs when the completed result advances, so polling during a build cannot reload the previous output and skip the finished PDF.

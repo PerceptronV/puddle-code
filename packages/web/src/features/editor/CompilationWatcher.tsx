@@ -11,6 +11,9 @@ import { failureFrom } from './compilation-errors';
  * Browser bridge for one persisted eager source. The daemon owns filesystem
  * observation and build coalescing; this lightweight poll only delivers the
  * newest completed revision to the already-authenticated cockpit.
+ * Status revisions advance when a build starts, while the retained result
+ * still describes the last successful build. Deduplicate by result revision
+ * so observing an in-flight build cannot consume its eventual PDF refresh.
  */
 export function CompilationWatcher({
   target,
@@ -60,8 +63,8 @@ export function CompilationWatcher({
         if (cancelled) return;
         onRunningChange(sourceKey, snapshot.state === 'running');
         setRegistered(true);
-        if (snapshot.result && snapshot.revision > deliveredRevision.current) {
-          deliveredRevision.current = snapshot.revision;
+        if (snapshot.result && snapshot.result.revision > deliveredRevision.current) {
+          deliveredRevision.current = snapshot.result.revision;
           onResult(sourceKey, leafId, snapshot.result);
         }
       })
@@ -87,8 +90,8 @@ export function CompilationWatcher({
   useEffect(() => {
     if (!snapshot) return;
     onRunningChange(sourceKey, snapshot.state === 'running');
-    if (snapshot.result && snapshot.revision > deliveredRevision.current) {
-      deliveredRevision.current = snapshot.revision;
+    if (snapshot.result && snapshot.result.revision > deliveredRevision.current) {
+      deliveredRevision.current = snapshot.result.revision;
       onResult(sourceKey, leafId, snapshot.result);
     }
     if (

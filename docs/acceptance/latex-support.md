@@ -146,6 +146,11 @@ Repeat with source/root paths containing spaces and non-ASCII characters.
 4. Save several rapid changes while a build is running. There is one active run
    and at most one follow-up run for the dirty state; stale output never replaces
    the newest successful PDF.
+   Include a build lasting longer than the 750 ms status poll: the existing PDF
+   stays put during compilation and refreshes when the successful result arrives.
+   Repeat when eager registration returns while a follow-up build is running.
+   The isolated `compilation-refresh.test.ts` browser fixture covers both races,
+   retained output after failures, and completed results observed during a later run.
 5. Introduce an error during eager mode. The expandable failure notification
    and Monaco marker appear; fixing the watched input triggers a later successful
    build without toggling eager mode off and on.
