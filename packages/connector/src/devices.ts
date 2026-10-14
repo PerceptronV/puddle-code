@@ -2,7 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { chmodSync, existsSync } from 'node:fs';
 import Database from 'better-sqlite3';
-import { REMOTE_POLICY, remoteDeviceSchema, type RemoteDevice } from '@puddle/shared';
+import {
+  REMOTE_POLICY,
+  remoteDeviceSchema,
+  notificationPreviewKeySchema,
+  type NotificationPreviewKey,
+  type RemoteDevice,
+} from '@puddle/shared';
 import { digest, privateDirectory, privatePath, secret } from '@puddle/shared/node';
 
 /** Host-owned records only. Relay account recovery cannot write this database. */
@@ -21,7 +27,7 @@ export class DeviceStore {
     const file = join(directory, 'devices.db');
     if (existsSync(file)) privatePath(file);
     this.db = new Database(file);
-    if (Number(this.db.pragma('user_version', { simple: true })) > 2) {
+    if (Number(this.db.pragma('user_version', { simple: true })) > 3) {
       this.db.close();
       throw new Error('Remote state requires a newer Puddle version');
     }
@@ -38,7 +44,8 @@ export class DeviceStore {
         hash TEXT PRIMARY KEY, expires INTEGER NOT NULL, device TEXT REFERENCES devices(id)
       );
       CREATE TABLE IF NOT EXISTS notification_devices(device TEXT PRIMARY KEY REFERENCES devices(id));
-      PRAGMA user_version = 2;
+      CREATE TABLE IF NOT EXISTS notification_keys(device TEXT PRIMARY KEY REFERENCES devices(id), value TEXT NOT NULL);
+      PRAGMA user_version = 3;
     `);
   }
   invite(): { invitation: string; expires: number } {
@@ -113,9 +120,19 @@ export class DeviceStore {
       device.lastUsed + REMOTE_POLICY.idleMs > this.now()
     );
   }
-  setNotifications(id: string, enabled: boolean): void {
+  setNotifications(id: string, enabled: boolean, key?: NotificationPreviewKey): void {
+    this.db.prepare('DELETE FROM notification_keys WHERE device = ?').run(id);
+    if (enabled && key)
+      this.db
+        .prepare('INSERT INTO notification_keys VALUES (?, ?)')
+        .run(id, JSON.stringify(notificationPreviewKeySchema.parse(key)));
     if (enabled) this.db.prepare('INSERT OR IGNORE INTO notification_devices VALUES (?)').run(id);
     else this.db.prepare('DELETE FROM notification_devices WHERE device = ?').run(id);
+  }
+  notificationKey(id: string): NotificationPreviewKey | undefined {
+    const row = this.db.prepare('SELECT value FROM notification_keys WHERE device = ?').get(id) as
+      { value: string } | undefined;
+    return row ? notificationPreviewKeySchema.parse(JSON.parse(row.value)) : undefined;
   }
   notificationDevices(): string[] {
     return (
@@ -160,6 +177,7 @@ export class DeviceStore {
   }
   revokeAll(): void {
     this.db.transaction(() => {
+      this.db.prepare('DELETE FROM notification_keys').run();
       this.db.prepare('DELETE FROM notification_devices').run();
       this.db.prepare("UPDATE devices SET status = 'revoked'").run();
       this.db.prepare('DELETE FROM invitations').run();

@@ -47,6 +47,7 @@ import {
 import type { MarkerFileSync } from './onboarding.js';
 import { SessionRefs } from './session-refs.js';
 import { TerminalAgentMonitor } from './terminal-agent-monitor.js';
+import { notificationContent } from './notification-content.js';
 
 export interface SessionServiceDeps {
   profiles: ProfileStore;
@@ -1781,12 +1782,22 @@ export class SessionService extends EventEmitter {
 
   private notifyAgent(session: string, reason: AgentNotification['reason']): void {
     if (this.shuttingDown) return;
-    this.emit('agent-notification', {
+    this.refreshAgentTitle(session);
+    const event: AgentNotification = {
       t: 'agent-notification',
       id: randomUUID(),
       session,
       reason,
-    } satisfies AgentNotification);
+    };
+    const placement = this.deps.sessions.get(session);
+    void notificationContent(placement, reason, this.deps)
+      .then((content) => {
+        if (!this.shuttingDown)
+          this.emit('agent-notification', { ...event, content } satisfies AgentNotification);
+      })
+      .catch(() => {
+        if (!this.shuttingDown) this.emit('agent-notification', event);
+      });
   }
 
   private transition(id: string, status: SessionStatus): void {

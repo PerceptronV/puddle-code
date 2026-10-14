@@ -15,6 +15,7 @@ import {
   type EffectiveNotificationPermission,
 } from '../../lib/notification-permission';
 import { deliverNotification } from '../../lib/notification-delivery';
+import { onNotificationTarget } from '../../lib/notification-navigation';
 import { browserTransport } from '../../lib/browser-transport';
 import { remotePushReady } from '../../lib/remote-notification-status';
 import { api } from '../../lib/api';
@@ -96,6 +97,13 @@ function playPing(): void {
  */
 export function useWaitingNotifications(): void {
   const navigate = useNavigate();
+  useEffect(
+    () =>
+      onNotificationTarget((target) => {
+        if (!target.host) void navigate(`/project/${target.project}/session/${target.session}`);
+      }),
+    [navigate],
+  );
   useAgentNotifications((session) => {
     void navigate(`/project/${session.project_id}/session/${session.id}`);
   });
@@ -128,7 +136,7 @@ export function useAgentNotifications(openSession: (session: Session) => void): 
 
     let active = true;
     const deliver = async (
-      event: Pick<AgentNotification, 'session' | 'reason'> & { id?: string },
+      event: Pick<AgentNotification, 'session' | 'reason' | 'content'> & { id?: string },
     ) => {
       let session = findSession(qc, event.session);
       if (!session) {
@@ -172,8 +180,17 @@ export function useAgentNotifications(openSession: (session: Session) => void): 
         await deliverNotification(
           {
             id: event.id ? `puddle-event-${event.id}` : `puddle-agent-${found.id}`,
-            title: displayTitle(found).slice(0, 160),
-            body: event.reason === 'exited' ? 'Agent finished running' : 'Waiting for your input',
+            title: event.content?.title ?? displayTitle(found).slice(0, 160),
+            body:
+              event.content?.body ??
+              (event.reason === 'exited' ? 'Agent finished running' : 'Waiting for your input'),
+            target: {
+              project: found.project_id,
+              session: found.id,
+              ...(browserTransport()?.notificationHost
+                ? { host: browserTransport()!.notificationHost }
+                : {}),
+            },
           },
           () => {
             if (active) openRef.current(found);

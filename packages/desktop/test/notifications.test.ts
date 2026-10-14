@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
+import { randomUUID } from 'node:crypto';
 
 const nativeShow = vi.hoisted(() => vi.fn());
 vi.mock('electron', async () => {
@@ -56,6 +57,23 @@ it('reports a native failure instead of claiming permission is granted', async (
   instances[0].emit('failed', {}, 'Application is not signed');
   await expect(sent).resolves.toEqual({ state: 'failed', message: 'Application is not signed' });
   expect(delivery.status().state).toBe('failed');
+});
+
+it('retains the exact session destination in the main process across renderer reloads', async () => {
+  const target = { project: '0123456789', session: randomUUID() };
+  const sent = delivery.show({ ...request, target });
+  instances[0].emit('show');
+  await sent;
+  // No renderer callback map is needed: the native click carries the destination.
+  instances[0].emit('click');
+  expect(win.webContents.send).toHaveBeenCalledWith(
+    'puddle:notification-click',
+    request.id,
+    target,
+  );
+  await expect(
+    delivery.show({ ...request, target: { project: '../../other', session: target.session } }),
+  ).rejects.toThrow();
 });
 
 it.each([

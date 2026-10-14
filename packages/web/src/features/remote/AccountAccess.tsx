@@ -80,7 +80,7 @@ export function AccountAccess({
             onClick={() =>
               void action(async () => {
                 authResult(
-                  await authClient.signIn.social({ provider, callbackURL: location.origin }),
+                  await authClient.signIn.social({ provider, callbackURL: location.href }),
                 );
               })
             }

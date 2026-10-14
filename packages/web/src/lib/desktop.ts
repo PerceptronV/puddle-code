@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
-import type { DesktopNotificationRequest, NotificationDelivery } from '@puddle/shared';
+import type {
+  DesktopNotificationRequest,
+  NotificationDelivery,
+  NotificationTarget,
+} from '@puddle/shared';
 
 /**
  * The desktop shell's preload bridge (packages/desktop/src/preload.ts). Its
@@ -11,7 +15,8 @@ import type { DesktopNotificationRequest, NotificationDelivery } from '@puddle/s
 interface PuddleDesktopBridge {
   notificationStatus?(): Promise<NotificationDelivery>;
   showNotification?(request: DesktopNotificationRequest): Promise<NotificationDelivery>;
-  onNotificationClick?(callback: (id: string) => void): () => void;
+  notificationTargets?: boolean;
+  onNotificationClick?(callback: (id: string, target?: NotificationTarget) => void): () => void;
   /** Bring the app window to the front — renderer window.focus() cannot. */
   raiseWindow(): void;
   /**

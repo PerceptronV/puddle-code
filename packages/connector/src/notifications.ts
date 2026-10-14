@@ -4,10 +4,12 @@ import {
   pushDispatchResultSchema,
   type ConnectorConfig,
   type PushPreference,
+  type NotificationContent,
 } from '@puddle/shared';
 import type { DeviceStore } from './devices.js';
+import { encryptNotification } from './notification-preview.js';
 
-/** No daemon lease or browser impersonation: this channel can send generic alerts only. */
+/** No daemon lease or browser impersonation; previews are encrypted for each approved device. */
 export class ConnectorNotifications {
   private pending = 0;
   private readonly updates = new Map<string, Promise<unknown>>();
@@ -59,14 +61,14 @@ export class ConnectorNotifications {
     current: () => boolean,
   ): Promise<unknown> {
     if (!current() || !this.valid(device)) throw new Error('Browser access expired');
-    await this.request('register', { device, ...preference }, signal);
+    await this.request('register', { device, subscription: preference.subscription }, signal);
     if (!current() || !this.valid(device)) {
       // A revoke/cancel during registration must not leave a live host subscription.
       this.devices.setNotifications(device, false);
       await this.request('register', { device, subscription: null }).catch(() => {});
       throw new Error('Browser access expired');
     }
-    this.devices.setNotifications(device, preference.subscription !== null);
+    this.devices.setNotifications(device, preference.subscription !== null, preference.preview_key);
     return { enabled: preference.subscription !== null };
   }
   async test(device: string, signal: AbortSignal): Promise<unknown> {
@@ -97,7 +99,7 @@ export class ConnectorNotifications {
           },
     );
   }
-  async notify(id: string): Promise<void> {
+  async notify(id: string, content?: NotificationContent): Promise<void> {
     if (!this.enabled() || this.pending >= 16) return;
     this.pending++;
     try {
@@ -109,7 +111,14 @@ export class ConnectorNotifications {
             const device = devices.shift();
             if (!device || Date.now() >= deadline) return;
             if (!this.valid(device)) continue;
-            await this.request('notify', { devices: [device], id }).catch(() => {});
+            const key = this.devices.notificationKey(device);
+            const preview =
+              content && key ? encryptNotification(content, key, this.config.host, id) : undefined;
+            await this.request('notify', {
+              devices: [device],
+              id,
+              ...(preview ? { preview } : {}),
+            }).catch(() => {});
           }
         }),
       );

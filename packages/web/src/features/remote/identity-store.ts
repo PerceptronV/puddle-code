@@ -1,4 +1,5 @@
 import { remoteBrowserHostSchema } from '@puddle/shared';
+import { forgetNotificationKeys } from './notification-keys';
 
 export type BrowserHost = ReturnType<typeof remoteBrowserHostSchema.parse>;
 function key(service: string, account: string, host: string): string {
@@ -47,5 +48,6 @@ export async function saveBrowserHost(host: BrowserHost): Promise<void> {
   );
 }
 export async function forgetBrowserHost(host: BrowserHost): Promise<void> {
+  await forgetNotificationKeys(host.service, host.account, host.host);
   await access('readwrite', (store) => store.delete(key(host.service, host.account, host.host)));
 }

@@ -178,3 +178,12 @@ in the release archive (or a known historical release). It is display-only:
 `PROTOCOL` remains the daemon's plain `major.minor`, and CLI/desktop handshake
 comparisons never parse or compare the suffix. Unknown connector versions are
 omitted rather than inferred from the running CLI.
+
+Daemon/cockpit protocol 22.5 adds optional bounded content to `agent-notification`,
+validated project/session notification destinations, and capability-detected
+end-to-end encrypted push previews. New browsers send a preview key only when
+the connector advertises `remote_notification_previews` and the service advertises
+`push_encrypted_previews`; service registration explicitly rejects those keys.
+The private connector IPC retries the legacy id-only request only after an explicit
+rejection. Old clients ignore optional event content; old subscriptions retain generic
+push. Noise admission, remote envelopes and host leases are unchanged (remote 3).

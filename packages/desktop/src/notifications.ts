@@ -93,7 +93,9 @@ export class DesktopNotifications {
         current.on('click', () => {
           if (this.closed || this.win.isDestroyed()) return;
           this.raise();
-          this.win.webContents.send('puddle:notification-click', request.id);
+          if (request.target)
+            this.win.webContents.send('puddle:notification-click', request.id, request.target);
+          else this.win.webContents.send('puddle:notification-click', request.id);
           current.close();
         });
         current.show();

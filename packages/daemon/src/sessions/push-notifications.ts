@@ -3,7 +3,7 @@ import { notificationPreferencesSchema, type AgentNotification } from '@puddle/s
 import { ipcPath, privatePath } from '@puddle/shared/node';
 import type { SessionService, SessionServiceDeps } from './service.js';
 
-/** Send content-free attention signals to the profile's same-user connector. */
+/** Send bounded attention previews to the profile's same-user connector for encryption. */
 export function subscribePushNotifications(
   home: string,
   service: SessionService,
@@ -25,8 +25,29 @@ export function subscribePushNotifications(
       const socket = connect(path);
       sockets.add(socket);
       socket.setTimeout(1500, () => socket.destroy());
-      socket.on('connect', () => socket.end(JSON.stringify({ t: 'notify', id: event.id }) + '\n'));
-      socket.on('data', () => socket.destroy());
+      socket.on('connect', () =>
+        socket.end(
+          JSON.stringify({
+            t: 'notify',
+            id: event.id,
+            ...(event.content ? { content: event.content } : {}),
+          }) + '\n',
+        ),
+      );
+      let response = '';
+      socket.on('data', (chunk: Buffer) => {
+        response += chunk.toString('utf8');
+        if (response.length > 2048) socket.destroy();
+      });
+      socket.on('end', () => {
+        // Older connectors reject the extra field before dispatch. Retry only
+        // that explicit refusal, never an uncertain send (which could duplicate).
+        try {
+          if (event.content && JSON.parse(response).error) notify({ ...event, content: undefined });
+        } catch {
+          /* Unavailable connector; local notifications still work. */
+        }
+      });
       socket.on('error', () => socket.destroy());
       socket.on('close', () => sockets.delete(socket));
     } catch {

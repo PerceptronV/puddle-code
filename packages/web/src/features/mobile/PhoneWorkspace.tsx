@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SquareTerminal } from 'lucide-react';
-import type { Session, SessionKind } from '@puddle/shared';
+import type { NotificationTarget, Session, SessionKind } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { browserScope } from '../../lib/browser-transport';
 import { fetchProfileState, useAllSessions, useProjects, useRepos } from '../../lib/queries';
@@ -22,15 +22,18 @@ import { SessionActions } from './SessionActions';
 export function PhoneWorkspace({
   connected,
   initialProject,
+  notificationTarget,
   hostName,
   onProjectName,
 }: {
   connected: boolean;
   initialProject: string;
+  notificationTarget?: NotificationTarget;
   hostName: string;
   onProjectName(name: string): void;
 }) {
   useAgentNotifications((session) => {
+    setRequestedSession(undefined);
     setProjectId(session.project_id);
     setSessionId(session.id);
     setView('terminals');
@@ -45,10 +48,26 @@ export function PhoneWorkspace({
   const [pickingProject, setPickingProject] = useState(!initialProject);
   const [creating, setCreating] = useState<SessionKind | null>(null);
   const [inspected, setInspected] = useState<Session | null>(null);
+  const [requestedSession, setRequestedSession] = useState<string>();
   const [attached, setAttached] = useState(wsManager.isConnected());
   const [terminals, setTerminals] = useState<string[]>([]);
   const projects = useProjects(undefined);
   const sessions = useAllSessions();
+  useEffect(() => {
+    if (!notificationTarget) return;
+    setProjectId(notificationTarget.project);
+    setSessionId(notificationTarget.session);
+    setRequestedSession(notificationTarget.session);
+    localStorage.setItem(
+      browserScope(`phone.session:${notificationTarget.project}`),
+      notificationTarget.session,
+    );
+    setView('terminals');
+    setPickingProject(false);
+    setInspected(null);
+    setCreating(null);
+    void qc.invalidateQueries({ queryKey: ['sessions'] });
+  }, [notificationTarget, qc]);
   const repos = useRepos();
   const project = projects.data?.find((project) => project.id === projectId && !project.archived);
   const orderedProjects = useQuery({
@@ -71,7 +90,9 @@ export function PhoneWorkspace({
   const activeSessions = sessionRows.filter(
     (session) => session.project_id === projectId && session.status !== 'archived',
   );
-  const session = activeSessions.find((session) => session.id === sessionId) ?? activeSessions[0];
+  const session =
+    activeSessions.find((session) => session.id === sessionId) ??
+    (requestedSession ? undefined : activeSessions[0]);
   const refresh = async () => {
     await qc.invalidateQueries({ queryKey: ['sessions'] });
   };
@@ -129,11 +150,13 @@ export function PhoneWorkspace({
     localStorage.setItem(browserScope(`phone.session:${session.project_id}`), session.id);
   }, [session, sessionId, sessionRows, profileState.isSuccess]);
   const chooseProject = (id: string) => {
+    setRequestedSession(undefined);
     setProjectId(id);
     setSessionId(localStorage.getItem(browserScope(`phone.session:${id}`)) ?? '');
     setPickingProject(false);
   };
   const choose = (next: Session) => {
+    setRequestedSession(undefined);
     setProjectId(next.project_id);
     setSessionId(next.id);
     setView('terminals');
@@ -146,6 +169,11 @@ export function PhoneWorkspace({
   }, [onProjectName, visibleProjectName]);
   return (
     <div className="phone-workspace">
+      {requestedSession && sessions.isSuccess && !session && (
+        <p role="status" className="px-3 py-2 text-xs text-fg-muted">
+          This conversation is no longer available. It may have been archived or deleted.
+        </p>
+      )}
       <div className="phone-workspace-body">
         {!showProjects && (
           <PhoneSessionRail
@@ -235,7 +263,7 @@ export function PhoneWorkspace({
                 }
               />
             )}
-            {!showProjects && view === 'terminals' && !session && (
+            {!showProjects && view === 'terminals' && !session && !requestedSession && (
               <div className="flex h-full flex-col items-center justify-center gap-3 px-5 text-center">
                 <SquareTerminal className="size-7 text-fg-muted" />
                 <p className="text-sm text-fg-muted">Start something in {project.name}.</p>

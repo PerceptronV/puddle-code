@@ -10,6 +10,7 @@ import { notificationWorker } from '../../lib/notification-worker';
 import { waitForNotification } from '../../lib/notification-wait';
 import { serviceOrigin, serviceRequest } from './service';
 import type { RemoteClient } from './client';
+import { notificationKey, forgetNotificationKeys } from './notification-keys';
 
 const connections = new Set<RemoteClient>();
 const registrations = new Map<string, string>();
@@ -21,13 +22,16 @@ type Progress = (message: string) => void;
 async function synchronise(client: RemoteClient, testing?: Progress): Promise<boolean> {
   if (client.state !== 'ready') return false;
   const generation = client.generation;
-  const current = () => client.state === 'ready' && generation === client.generation;
+  const enabled = pushEnabled(client.host.account);
+  const current = () =>
+    client.state === 'ready' &&
+    generation === client.generation &&
+    pushEnabled(client.host.account) === enabled;
   testing?.('Checking host notification support…');
   const version = versionResponseSchema.parse(
     await (await client.request('GET', '/api/version')).json(),
   );
   if (!current() || !version.remote_notifications) return false;
-  const enabled = pushEnabled(client.host.account);
   testing?.('Checking this device’s push subscription…');
   const registration = await notificationWorker();
   const subscription =
@@ -43,12 +47,28 @@ async function synchronise(client: RemoteClient, testing?: Progress): Promise<bo
       'This device has no active push subscription. Turn background notifications off and on, then try again.',
     );
   const value = subscription ? pushSubscriptionSchema.parse(subscription.toJSON()) : null;
-  const fingerprint = JSON.stringify([generation, value]);
+  let previewKey;
+  if (value && version.remote_notification_previews) {
+    const info = remoteServiceInfoSchema.parse(
+      await waitForNotification(
+        serviceRequest('/remote/config'),
+        'The remote service did not respond while checking notification previews. Try again.',
+      ),
+    );
+    if (!current()) return false;
+    if (info.push_encrypted_previews)
+      previewKey = await notificationKey(serviceOrigin, client.host.account, client.host.host);
+  }
+  if (!current()) return false;
+  const fingerprint = JSON.stringify([generation, value, previewKey?.id]);
   // An explicit test must confirm that the service still holds this subscription;
   // the local cache cannot prove it survived service recovery or expiry.
   if (!testing && registrations.get(client.scope) === fingerprint) return true;
   testing?.('Registering this device with the host…');
-  const response = await client.request('POST', '/api/notifications/push', { subscription: value });
+  const response = await client.request('POST', '/api/notifications/push', {
+    subscription: value,
+    ...(previewKey ? { preview_key: previewKey } : {}),
+  });
   if (!response.ok) throw new Error('Could not enable background notifications on this host.');
   const result = pushPreferenceResultSchema.parse(await response.json());
   if (result.enabled !== !!value)
@@ -107,6 +127,7 @@ export async function setPushEnabled(account: string, enabled: boolean): Promise
       );
   }
   localStorage.setItem(key(account), String(enabled));
+  if (!enabled) await forgetNotificationKeys(serviceOrigin, account);
   registrations.clear();
   for (const client of connections)
     if (client.host.account === account) setRemotePushReady(client.scope, false);

@@ -55,14 +55,21 @@ export async function deliverNotification(
     const bridge = desktopBridge();
     if (bridge?.showNotification) {
       if (!subscribed && bridge.onNotificationClick) {
-        bridge.onNotificationClick((id) => {
-          clicks.get(id)?.();
+        bridge.onNotificationClick((id, target) => {
+          if (!target) clicks.get(id)?.();
           clicks.delete(id);
         });
         subscribed = true;
       }
       rememberClick(request.id, onClick);
-      return record(notificationDeliverySchema.parse(await bridge.showNotification(request)));
+      const { target, ...legacy } = request;
+      return record(
+        notificationDeliverySchema.parse(
+          await bridge.showNotification(
+            bridge.notificationTargets ? { ...legacy, target } : legacy,
+          ),
+        ),
+      );
     }
     if (typeof Notification === 'undefined')
       return record({ state: 'unsupported', message: 'This browser cannot show notifications.' });
@@ -76,7 +83,7 @@ export async function deliverNotification(
       if (!workerSubscribed) {
         navigator.serviceWorker.addEventListener('message', (event) => {
           if (event.data?.t !== 'notification-click' || typeof event.data.id !== 'string') return;
-          clicks.get(event.data.id)?.();
+          if (!event.data.target) clicks.get(event.data.id)?.();
           clicks.delete(event.data.id);
         });
         workerSubscribed = true;

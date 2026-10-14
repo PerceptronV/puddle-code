@@ -8,6 +8,7 @@ import {
   pushRegistrationSchema,
   pushSubscriptionSchema,
   type PushSubscriptionRecord,
+  type EncryptedNotification,
 } from '@puddle/shared';
 import { atomicPrivateJson, readPrivateJson } from '@puddle/shared/node';
 import type { ServiceStore, HostRecord } from './store.js';
@@ -19,7 +20,7 @@ const keySchema = z
   .strict();
 const lifetime = 90 * 24 * 60 * 60 * 1000;
 
-/** Push vendors receive an encrypted generic alert; host content never enters this service. */
+/** The service routes opaque previews; only the approved device can decrypt host content. */
 export class PushDelivery {
   readonly publicKey: string;
   private readonly keys: z.infer<typeof keySchema>;
@@ -65,6 +66,7 @@ export class PushDelivery {
     host: HostRecord,
     devices: string[],
     id: string,
+    preview?: EncryptedNotification,
   ): Promise<{ accepted: number; failed: number }> {
     const outcome = { accepted: 0, failed: 0 };
     if (this.stopped) return outcome;
@@ -91,13 +93,17 @@ export class PushDelivery {
         if (endpoints.has(subscription.endpoint)) continue;
         endpoints.add(subscription.endpoint);
         try {
-          await this.send(subscription, JSON.stringify({ id, host: host.id }), {
-            vapidDetails: { subject: this.config.service, ...this.keys },
-            TTL: 120,
-            timeout: 5000,
-            urgency: 'normal',
-            topic: id.replaceAll('-', ''),
-          });
+          await this.send(
+            subscription,
+            JSON.stringify({ id, host: host.id, ...(preview ? { preview } : {}) }),
+            {
+              vapidDetails: { subject: this.config.service, ...this.keys },
+              TTL: 120,
+              timeout: 5000,
+              urgency: 'normal',
+              topic: id.replaceAll('-', ''),
+            },
+          );
           outcome.accepted++;
         } catch (error) {
           outcome.failed++;
@@ -141,7 +147,14 @@ export function installPushRoutes(app: Hono, store: ServiceStore, delivery: Push
       if (registration?.success)
         delivery.register(host, registration.data.device, registration.data.subscription);
       if (dispatch?.success)
-        return c.json(await delivery.notify(host, dispatch.data.devices, dispatch.data.id));
+        return c.json(
+          await delivery.notify(
+            host,
+            dispatch.data.devices,
+            dispatch.data.id,
+            dispatch.data.preview,
+          ),
+        );
       return c.body(null, 204);
     });
   }

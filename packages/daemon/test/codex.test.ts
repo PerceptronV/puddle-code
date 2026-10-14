@@ -55,6 +55,38 @@ function writeRollout(
 const UUID_A = '019b746c-0713-7b11-a6b7-a812f20db547';
 const UUID_B = '019b64f3-f981-74a3-9606-132bdae0f80c';
 
+it('reads a bounded exact Codex reply without exposing tools, reasoning or another conversation', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'puddle-codex-preview-'));
+  writeRollout(dir, UUID_A, '/project', [
+    {
+      type: 'event_msg',
+      payload: { type: 'agent_message', message: 'Old output. '.repeat(30_000) },
+    },
+    { type: 'event_msg', payload: { type: 'user_message', message: 'Fix notification routing' } },
+    {
+      type: 'response_item',
+      payload: {
+        type: 'message',
+        role: 'assistant',
+        channel: 'final',
+        content: [
+          { type: 'output_text', text: 'Notifications now open the correct conversation.' },
+        ],
+      },
+    },
+    { type: 'response_item', payload: { type: 'reasoning', text: 'Private reasoning' } },
+    { type: 'event_msg', payload: { type: 'task_complete' } },
+  ]);
+  writeRollout(dir, UUID_B, '/project', [
+    { type: 'event_msg', payload: { type: 'agent_message', message: 'Other conversation' } },
+  ]);
+  await newestRolloutFor(dir, '/project'); // Populate the adapter's metadata-only path cache.
+  expect(await codex.notificationOutput!(UUID_A, account(dir))).toBe(
+    'Notifications now open the correct conversation.',
+  );
+  expect(await codex.notificationOutput!('missing', account(dir))).toBeNull();
+});
+
 describe('codex adapter — args', () => {
   const opts = { worktreePath: '/wt', sessionId: 's1', skipPermissions: false };
   afterEach(() => vi.unstubAllEnvs());

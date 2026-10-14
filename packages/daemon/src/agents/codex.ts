@@ -13,6 +13,7 @@ import {
 } from './codex-rollout.js';
 import { codexThread, codexThreadIndex, threadTitle } from './codex-threads.js';
 import { prepareCodexLifecycle } from './codex-lifecycle.js';
+import { lastJsonlOutput } from './notification-output.js';
 
 const execFileAsync = promisify(execFile);
 const SESSION_START_WINDOW_MS = 5 * 60 * 1000;
@@ -239,6 +240,46 @@ export const codex: AgentAdapter = {
 
   sessionTitle(ref, account) {
     return threadTitle(account.config_dir, ref);
+  },
+
+  async notificationOutput(ref, account) {
+    const path =
+      codexThread(account.config_dir, ref)?.rolloutPath ??
+      cachedRolloutPath(account.config_dir, ref);
+    if (!path) return null;
+    return lastJsonlOutput(path, (record) => {
+      const payload = record.payload as
+        | {
+            type?: string;
+            message?: string;
+            role?: string;
+            channel?: string;
+            content?: { type?: string; text?: string }[];
+          }
+        | undefined;
+      if (record.type === 'event_msg' && payload?.type === 'user_message') return null;
+      if (record.type === 'response_item' && payload?.type === 'message' && payload.role === 'user')
+        return null;
+      if (
+        record.type === 'event_msg' &&
+        payload?.type === 'agent_message' &&
+        typeof payload.message === 'string'
+      )
+        return payload.message;
+      if (
+        record.type === 'response_item' &&
+        payload?.type === 'message' &&
+        payload.role === 'assistant' &&
+        payload.channel !== 'analysis'
+      ) {
+        const text = payload.content
+          ?.filter((part) => part.type === 'output_text' && typeof part.text === 'string')
+          .map((part) => part.text)
+          .join('\n');
+        if (text) return text;
+      }
+      return undefined;
+    });
   },
 
   sessionActivityAt(ref, account) {

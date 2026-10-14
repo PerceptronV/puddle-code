@@ -20,12 +20,14 @@ import type { RemoteClient } from './client';
 export function ConnectedHost({
   client,
   initialProject,
+  notificationTarget,
   hostName,
   leave,
   settings,
 }: {
   client: RemoteClient;
   initialProject: string;
+  notificationTarget?: import('@puddle/shared').NotificationTarget;
   hostName: string;
   leave(): void;
   settings(): void;
@@ -33,6 +35,9 @@ export function ConnectedHost({
   const [state, setState] = useState(client.state);
   const [admitted, setAdmitted] = useState(false);
   const [devices, setDevices] = useState(false);
+  useEffect(() => {
+    if (notificationTarget) setDevices(false);
+  }, [notificationTarget]);
   const [projectName, setProjectName] = useState('');
   const [queryClient] = useState(
     () =>
@@ -136,6 +141,7 @@ export function ConnectedHost({
               <PhoneWorkspace
                 connected={state === 'ready' && !devices}
                 initialProject={initialProject}
+                notificationTarget={notificationTarget}
                 hostName={hostName}
                 onProjectName={setProjectName}
               />

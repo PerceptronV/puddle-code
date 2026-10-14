@@ -41,6 +41,35 @@ function fixture() {
 }
 
 describe('generic Web Push delivery', () => {
+  it('forwards only bounded opaque previews and rejects plaintext and preview keys', async () => {
+    const f = fixture();
+    const app = new Hono();
+    installPushRoutes(app, f.store, f.push);
+    const device = randomUUID();
+    f.push.register(f.host, device, f.subscription);
+    const preview = { key: randomUUID(), iv: 'a'.repeat(24), ciphertext: 'b'.repeat(64) };
+    const body = {
+      credential: f.registration.credential,
+      devices: [device],
+      id: randomUUID(),
+      preview,
+    };
+    const request = (value: unknown) =>
+      app.request('http://service/remote/push/notify', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(value),
+      });
+    for (const extra of [
+      { title: 'Private conversation' },
+      { preview_key: { id: randomUUID(), secret: 'c'.repeat(64) } },
+      { preview: { ...preview, ciphertext: 'a'.repeat(4000) } },
+    ])
+      expect((await request({ ...body, ...extra })).status).toBe(400);
+    expect((await request(body)).status).toBe(200);
+    const call = f.send.mock.calls[0] as unknown as [unknown, string];
+    expect(JSON.parse(call[1])).toEqual({ id: body.id, host: f.host.id, preview });
+  });
   it('binds registrations to an authenticated host/device and sends no host content', async () => {
     const f = fixture();
     const device = randomUUID();
@@ -100,6 +129,10 @@ describe('generic Web Push delivery', () => {
     expect((await request(body, { origin: 'https://app.example.test' })).status).toBe(403);
     expect((await request(body, { cookie: 'session=test' })).status).toBe(403);
     expect((await request({ ...body, credential: 'a'.repeat(64) })).status).toBe(403);
+    expect(
+      (await request({ ...body, preview_key: { id: randomUUID(), secret: 'c'.repeat(64) } }))
+        .status,
+    ).toBe(400);
     expect(
       (
         await request({

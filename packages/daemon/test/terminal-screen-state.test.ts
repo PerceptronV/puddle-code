@@ -32,6 +32,34 @@ async function visibleLines(snapshot: string, cols: number, rows: number): Promi
 }
 
 describe('TerminalScreenStateStore', () => {
+  it('reads a bounded plain notification tail after redraws without resizing the screen', async () => {
+    const store = new TerminalScreenStateStore();
+    try {
+      store.resize('session', 'agent', 40, 8);
+      store.write(
+        'session',
+        'agent',
+        'Discarded\r\u001b[2K\u001b[32mCompleted the fix\u001b[0m\r\nVerified the result.\u001b]0;Private terminal title\u0007',
+      );
+      expect(await store.textTail('session', 'agent')).toBe(
+        'Completed the fix\nVerified the result.',
+      );
+      const before = await store.snapshot('session', 'agent');
+      await store.textTail('session', 'agent');
+      expect(await store.snapshot('session', 'agent')).toBe(before);
+      store.write(
+        'session',
+        'agent',
+        '\r\n' + Array.from({ length: 100 }, (_, index) => `line ${index}`).join('\r\n'),
+      );
+      const tail = await store.textTail('session', 'agent');
+      expect(tail.split('\n')).toHaveLength(32);
+      expect(tail).toMatch(/line 99$/);
+      expect(tail).not.toContain('line 0\n');
+    } finally {
+      await store.closeAll();
+    }
+  });
   it('keeps the experimental headless/serialiser boundary on one upstream commit', () => {
     const headlessPackage = xtermPackage('@xterm/headless');
     const serialiserPackage = xtermPackage('@xterm/addon-serialize');

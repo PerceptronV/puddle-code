@@ -1,5 +1,24 @@
 import { z } from 'zod';
 import { remoteIdSchema, remoteSecretSchema } from './protocol.js';
+import { notificationContentSchema } from '../notifications.js';
+
+/** The key travels only inside the admitted browser's Noise connection. */
+export const notificationPreviewKeySchema = z
+  .object({ id: remoteIdSchema, secret: remoteSecretSchema })
+  .strict();
+export type NotificationPreviewKey = z.infer<typeof notificationPreviewKeySchema>;
+export const encryptedNotificationSchema = z
+  .object({
+    key: remoteIdSchema,
+    iv: z.string().regex(/^[a-f0-9]{24}$/),
+    ciphertext: z
+      .string()
+      .min(32)
+      .max(3072)
+      .regex(/^(?:[a-f0-9]{2})+$/),
+  })
+  .strict();
+export type EncryptedNotification = z.infer<typeof encryptedNotificationSchema>;
 
 /** Vendor endpoints only: subscription URLs must never become an arbitrary HTTP proxy. */
 export const pushEndpointSchema = z
@@ -42,10 +61,14 @@ export type PushSubscriptionRecord = z.infer<typeof pushSubscriptionSchema>;
 
 /** Connector-local operation, bound to the requesting Noise device by admission. */
 export const pushPreferenceSchema = z
-  .object({ subscription: pushSubscriptionSchema.nullable() })
+  .object({
+    subscription: pushSubscriptionSchema.nullable(),
+    preview_key: notificationPreviewKeySchema.optional(),
+  })
   .strict();
 export type PushPreference = z.infer<typeof pushPreferenceSchema>;
 export const pushRegistrationSchema = pushPreferenceSchema
+  .omit({ preview_key: true })
   .extend({ credential: remoteSecretSchema, device: remoteIdSchema })
   .strict();
 export const pushDispatchSchema = z
@@ -53,12 +76,23 @@ export const pushDispatchSchema = z
     credential: remoteSecretSchema,
     devices: z.array(remoteIdSchema).min(1).max(64),
     id: remoteIdSchema,
+    preview: encryptedNotificationSchema.optional(),
   })
   .strict();
-export const pushPayloadSchema = z.object({ id: remoteIdSchema, host: remoteIdSchema }).strict();
-/** Same-user private IPC only. No session names, paths, prompts or daemon credentials. */
+export const pushPayloadSchema = z
+  .object({
+    id: remoteIdSchema,
+    host: remoteIdSchema,
+    preview: encryptedNotificationSchema.optional(),
+  })
+  .strict();
+/** Same-user private IPC only. The connector encrypts content separately for each device. */
 export const connectorNotificationSchema = z
-  .object({ t: z.literal('notify'), id: remoteIdSchema })
+  .object({
+    t: z.literal('notify'),
+    id: remoteIdSchema,
+    content: notificationContentSchema.optional(),
+  })
   .strict();
 
 export const pushDispatchResultSchema = z

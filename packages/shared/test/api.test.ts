@@ -30,8 +30,8 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 22.4 for remote push notifications', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 22, minor: 4 });
+  it('declares protocol 22.5 for conversation notification previews', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 22, minor: 5 });
   });
 
   it('accepts a well-formed error envelope and rejects a malformed one', () => {

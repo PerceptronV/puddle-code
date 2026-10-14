@@ -89,6 +89,24 @@ export class TerminalScreenStateStore {
     return this.serialise(state);
   }
 
+  /** Bounded plain text for notification previews, without changing terminal geometry. */
+  async textTail(stream: string, term: string): Promise<string> {
+    const state = this.states.get(this.key(stream, term));
+    if (!state) return '';
+    await state.queue;
+    const buffer = state.terminal.buffer.active;
+    const lines: string[] = [];
+    // Reading the parsed screen avoids ANSI redraw fragments and OSC payloads.
+    const end = Math.min(buffer.length, buffer.baseY + buffer.cursorY + 1);
+    for (let row = Math.max(0, end - 32); row < end; row++) {
+      const line = buffer.getLine(row);
+      const text = line?.translateToString(true) ?? '';
+      if (line?.isWrapped && lines.length) lines[lines.length - 1] += text;
+      else lines.push(text);
+    }
+    return lines.join('\n');
+  }
+
   /** Persist and release an exited PTY's in-memory buffer. */
   async release(stream: string, term: string): Promise<void> {
     const key = this.key(stream, term);

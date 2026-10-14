@@ -13,8 +13,9 @@ import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('puddleDesktop', {
   notificationStatus: () => ipcRenderer.invoke('puddle:notification-status'),
   showNotification: (request: unknown) => ipcRenderer.invoke('puddle:notification-show', request),
-  onNotificationClick: (callback: (id: string) => void): (() => void) => {
-    const handler = (_event: unknown, id: string) => callback(id);
+  notificationTargets: true,
+  onNotificationClick: (callback: (id: string, target: unknown) => void): (() => void) => {
+    const handler = (_event: unknown, id: string, target: unknown) => callback(id, target);
     ipcRenderer.on('puddle:notification-click', handler);
     return () => ipcRenderer.removeListener('puddle:notification-click', handler);
   },

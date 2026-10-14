@@ -23,6 +23,9 @@ interface Pending {
 
 /** One host, one encryption generation. Reconnection restores views, never commands. */
 export class RemoteClient implements BrowserTransport {
+  get notificationHost(): string {
+    return this.host.host;
+  }
   readonly scope: string;
   state: RemoteState = 'connecting';
   pendingDevice: RemoteDevice | null = null;

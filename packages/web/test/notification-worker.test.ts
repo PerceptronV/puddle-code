@@ -1,8 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, webcrypto } from 'node:crypto';
 import { IDBFactory } from 'fake-indexeddb';
 import { describe, expect, it, vi } from 'vitest';
+import { encryptNotification } from '../../connector/src/notification-preview.js';
+import { notificationKey, forgetNotificationKeys } from '../src/features/remote/notification-keys';
 
 const source = readFileSync(new URL('../public/notification-worker.js', import.meta.url), 'utf8');
 function worker(indexedDB = new IDBFactory()) {
@@ -21,6 +23,9 @@ function worker(indexedDB = new IDBFactory()) {
     indexedDB,
     URL,
     Date,
+    crypto: webcrypto,
+    TextEncoder,
+    TextDecoder,
     self: {
       location: { origin: 'https://app.example.test' },
       registration: { showNotification },
@@ -54,6 +59,82 @@ function worker(indexedDB = new IDBFactory()) {
 }
 
 describe('notification worker', () => {
+  it('decrypts host previews after restart, authenticates the destination, and opens that session', async () => {
+    const f = worker();
+    vi.stubGlobal('indexedDB', f.indexedDB);
+    try {
+      const host = randomUUID();
+      const id = randomUUID();
+      const key = await notificationKey('https://service.example.test', 'account', host);
+      expect(await notificationKey('https://service.example.test', 'account', host)).toEqual(key);
+      const content = {
+        title: 'Fix the mobile settings',
+        body: 'Fixed the overflow and verified narrow screens.',
+        project: '0123456789',
+        session: randomUUID(),
+      };
+      const preview = encryptNotification(content, key, host, id);
+      const restarted = worker(f.indexedDB);
+      await restarted.emit('push', { data: { json: () => ({ id, host, preview }) } });
+      const target = { project: content.project, session: content.session, host };
+      expect(restarted.showNotification).toHaveBeenCalledWith(
+        content.title,
+        expect.objectContaining({ body: content.body, data: { host, target } }),
+      );
+      const notification = { tag: `puddle-event-${id}`, data: { host, target }, close: vi.fn() };
+      await restarted.emit('notificationclick', { notification });
+      expect(restarted.client.postMessage).toHaveBeenCalledWith({
+        t: 'notification-click',
+        id: notification.tag,
+        host,
+        target,
+      });
+      restarted.windows.length = 0;
+      await restarted.emit('notificationclick', { notification });
+      expect(restarted.openWindow).toHaveBeenCalledWith(
+        `/?notificationHost=${host}&notificationProject=${content.project}&notificationSession=${content.session}`,
+      );
+      // Swapping event/host identifiers invalidates authentication; still show a visible fallback.
+      await restarted.emit('push', { data: { json: () => ({ id: randomUUID(), host, preview }) } });
+      expect(restarted.showNotification).toHaveBeenLastCalledWith(
+        'Puddle',
+        expect.objectContaining({ body: 'An agent needs your attention.', data: { host } }),
+      );
+      await forgetNotificationKeys('https://service.example.test', 'account', host);
+      await restarted.emit('push', { data: { json: () => ({ id, host, preview }) } });
+      expect(restarted.showNotification).toHaveBeenLastCalledWith(
+        'Puddle',
+        expect.objectContaining({ data: { host } }),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('opens the exact local session after the originating browser tab has closed', async () => {
+    const f = worker();
+    const target = { project: '0123456789', session: randomUUID() };
+    await f.emit('message', {
+      data: {
+        t: 'show-notification',
+        request: { id: 'local', title: 'Conversation', body: 'Done', target },
+      },
+      source: f.client,
+      ports: [],
+    });
+    expect(f.showNotification).toHaveBeenCalledWith(
+      'Conversation',
+      expect.objectContaining({ data: { client: f.client.id, target } }),
+    );
+    f.windows.length = 0;
+    await f.emit('notificationclick', {
+      notification: { tag: 'local', data: { target }, close: vi.fn() },
+    });
+    expect(f.openWindow).toHaveBeenCalledWith(
+      `/project/${target.project}/session/${target.session}`,
+    );
+  });
+
   it('suppresses duplicated live events but fulfils the visible-notification promise for every push', async () => {
     const f = worker();
     const id = randomUUID();

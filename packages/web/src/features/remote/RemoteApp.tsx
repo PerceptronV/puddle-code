@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   remoteHostsSchema,
   remoteLoginStateSchema,
   remoteServiceInfoSchema,
   type RemoteHost,
   type RemoteInvitation,
+  notificationTargetSchema,
+  type NotificationTarget,
 } from '@puddle/shared';
 import { createIdentity } from '@puddle/remote-transport';
 import { AccountAccess } from './AccountAccess';
@@ -26,6 +28,7 @@ import { PairBrowserDialog } from './PairBrowserDialog';
 import { PairDeviceDialog } from './PairDeviceDialog';
 import { parsePairingInvitation, takePairingInvitation } from './pairing-invitation';
 import { DesktopRegistrationPrompt, takeDesktopRegistration } from './DesktopRegistration';
+import { onNotificationTarget } from '../../lib/notification-navigation';
 import './remote.css';
 
 const initialRegistration = takeDesktopRegistration();
@@ -36,27 +39,52 @@ export function RemoteApp() {
   const [providers, setProviders] = useState<Array<'google' | 'github'>>([]);
   const [hosts, setHosts] = useState<RemoteHost[]>([]);
   const [client, setClient] = useState<RemoteClient | null>(null);
+  const connectionAttempt = useRef(0);
   const [projectId, setProjectId] = useState('');
+  const [notificationTarget, setNotificationTarget] = useState<NotificationTarget>();
   const [settings, setSettings] = useState(false);
   const [pairingDevice, setPairingDevice] = useState(false);
   const [disconnected, setDisconnected] = useState<Set<string>>(new Set());
   const [desktopRegistration, setDesktopRegistration] = useState(initialRegistration.request);
   const [invitation, setInvitation] = useState(initialInvitation);
   const [message, setMessage] = useState(initialRegistration.error);
-  const [notificationHost, setNotificationHost] = useState(() => {
+  const [notificationHost, setNotificationHost] = useState<{
+    host: string;
+    target?: NotificationTarget;
+  } | null>(() => {
     const url = new URL(location.href);
     const host = url.searchParams.get('notificationHost');
-    if (host) {
-      url.searchParams.delete('notificationHost');
-      history.replaceState(null, '', url);
-    }
-    return host;
+    const target = notificationTargetSchema.safeParse({
+      host,
+      project: url.searchParams.get('notificationProject'),
+      session: url.searchParams.get('notificationSession'),
+    });
+    // Keep the URL until consumed so OAuth/MFA and a reload retain the destination.
+    return host ? { host, ...(target.success ? { target: target.data } : {}) } : null;
   });
+  useEffect(
+    () =>
+      onNotificationTarget((target) => {
+        if (target.host) {
+          const url = new URL(location.href);
+          url.searchParams.set('notificationHost', target.host);
+          url.searchParams.set('notificationProject', target.project);
+          url.searchParams.set('notificationSession', target.session);
+          history.replaceState(null, '', url);
+          setNotificationHost({ host: target.host, target });
+        }
+      }),
+    [],
+  );
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
     const click = (event: MessageEvent) => {
-      if (event.data?.t === 'notification-click' && typeof event.data.host === 'string')
-        setNotificationHost(event.data.host);
+      if (
+        event.data?.t === 'notification-click' &&
+        !event.data.target &&
+        typeof event.data.host === 'string'
+      )
+        setNotificationHost({ host: event.data.host });
     };
     navigator.serviceWorker.addEventListener('message', click);
     return () => navigator.serviceWorker.removeEventListener('message', click);
@@ -84,12 +112,13 @@ export function RemoteApp() {
   }, []);
   useEffect(() => {
     if (login && (!login.user || login.mfaRequired)) {
+      connectionAttempt.current++;
       client?.close();
       setClient(null);
       setDisconnected(new Set());
     }
   }, [login, client]);
-  const action = async (fn: () => Promise<void>) => {
+  const action = async (fn: () => Promise<unknown>) => {
     setBusy(true);
     setMessage('');
     try {
@@ -101,7 +130,8 @@ export function RemoteApp() {
     }
   };
   const connect = async (host: string, project = '', pairing?: RemoteInvitation, label = '') => {
-    if (!login?.user) return;
+    if (!login?.user) return false;
+    const attempt = ++connectionAttempt.current;
     if (pairing) parsePairingInvitation(JSON.stringify(pairing), serviceOrigin);
     let identity = await loadBrowserHost(serviceOrigin, login.user.id, host);
     if (pairing && identity && identity.peer !== pairing.peer)
@@ -124,8 +154,10 @@ export function RemoteApp() {
       };
       await saveBrowserHost(identity);
     }
+    if (connectionAttempt.current !== attempt) return false;
     client?.close();
     setProjectId(project);
+    setNotificationTarget(undefined);
     setClient(new RemoteClient(identity, pairing?.invitation));
     setDisconnected((current) => {
       const next = new Set(current);
@@ -136,21 +168,36 @@ export function RemoteApp() {
       sessionStorage.removeItem('puddle.pending-pair');
       setInvitation(null);
     }
+    return true;
   };
   useEffect(() => {
     if (
       !notificationHost ||
       !login?.user ||
       login.mfaRequired ||
-      !hosts.some((host) => host.id === notificationHost)
+      !hosts.some((host) => host.id === notificationHost.host)
     )
       return;
     const target = notificationHost;
     setNotificationHost(null);
-    if (client?.host.host !== target)
-      void connect(target).catch((error: Error) => setMessage(error.message));
+    setSettings(false);
+    setPairingDevice(false);
+    const open = async () => {
+      if (
+        client?.host.host !== target.host &&
+        !(await connect(target.host, target.target?.project))
+      )
+        return;
+      setNotificationTarget(target.target);
+      const url = new URL(location.href);
+      for (const key of ['notificationHost', 'notificationProject', 'notificationSession'])
+        url.searchParams.delete(key);
+      history.replaceState(null, '', url);
+    };
+    void open().catch((error: Error) => setMessage(error.message));
   }, [notificationHost, login, hosts]);
   const leave = () => {
+    connectionAttempt.current++;
     client?.close();
     setClient(null);
   };
@@ -179,6 +226,7 @@ export function RemoteApp() {
                 key={client.scope}
                 client={client}
                 initialProject={projectId}
+                notificationTarget={notificationTarget}
                 hostName={hosts.find((host) => host.id === client.host.host)?.label ?? 'Host'}
                 leave={leave}
                 settings={() => setSettings(true)}

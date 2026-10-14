@@ -10,6 +10,7 @@ export interface CockpitSocket {
 }
 export interface BrowserTransport {
   readonly scope: string;
+  readonly notificationHost?: string;
   /** Changes on reconnect so multi-request writes cannot cross an encryption generation. */
   readonly generation?: string | null;
   request(

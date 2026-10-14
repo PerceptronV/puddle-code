@@ -192,3 +192,15 @@ do not convert an automated test result into a claim that either review occurred
    retired (or queued while offline). Neither profile inherits it.
 6. Check `puddle --version`: the daemon line includes `c3` when its archive has
    connector metadata. CLI/desktop compatibility still compares daemon major/minor.
+
+### Conversation notification previews
+
+1. Update the host, connector, service and app; reconnect an opted-in Home Screen device.
+2. Complete a turn in a named conversation. Confirm its name and last assistant output
+   appear in the banner. Repeat with the app backgrounded/closed and with it focused.
+3. Tap from another session/project, then another host: the exact originating session
+   opens. Repeat after closing the app and signing out/back in (ordinary access required).
+4. Archive/delete that session before tapping: show an unavailable message, not another
+   session. Disable notifications or revoke the browser and confirm new dispatch stops.
+5. In desktop and local web, complete a turn, reload the renderer/tab, then click the
+   retained notification. Confirm the session opens; also check a closed browser tab.

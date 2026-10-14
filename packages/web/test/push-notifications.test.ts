@@ -2,11 +2,20 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { PROTOCOL_VERSION } from '@puddle/shared';
 import type { RemoteClient } from '../src/features/remote/client';
 
-const mocks = vi.hoisted(() => ({ worker: vi.fn(), subscription: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  worker: vi.fn(),
+  subscription: vi.fn(),
+  service: vi.fn(),
+  previewKey: vi.fn(),
+}));
 vi.mock('../src/lib/notification-worker', () => ({ notificationWorker: mocks.worker }));
 vi.mock('../src/features/remote/service', () => ({
   serviceOrigin: 'https://relay.example.test',
-  serviceRequest: vi.fn(),
+  serviceRequest: mocks.service,
+}));
+vi.mock('../src/features/remote/notification-keys', () => ({
+  notificationKey: mocks.previewKey,
+  forgetNotificationKeys: vi.fn(),
 }));
 
 const account = 'notification-reader';
@@ -32,6 +41,12 @@ beforeEach(async () => {
   });
   vi.stubGlobal('Notification', { permission: 'granted' });
   mocks.subscription.mockReset().mockResolvedValue(subscription);
+  mocks.service
+    .mockReset()
+    .mockResolvedValue({ providers: ['github'], protocol: 3, push_encrypted_previews: true });
+  mocks.previewKey
+    .mockReset()
+    .mockResolvedValue({ id: '00000000-0000-4000-8000-000000000001', secret: 'c'.repeat(64) });
   mocks.worker
     .mockReset()
     .mockResolvedValue({ pushManager: { getSubscription: mocks.subscription } });
@@ -87,6 +102,67 @@ it('reports progress and confirms registration afresh before every explicit test
     '/api/notifications/push',
     '/api/notifications/test',
   ]);
+});
+
+function previewHost() {
+  const original = request.getMockImplementation()!;
+  request.mockImplementation((...args) =>
+    args[1] === '/api/version'
+      ? Promise.resolve(
+          Response.json({
+            version: 'test',
+            protocol: PROTOCOL_VERSION,
+            remote_notifications: true,
+            remote_notification_previews: true,
+          }),
+        )
+      : original(...args),
+  );
+}
+
+it('registers preview keys only with a capable connector and service', async () => {
+  await api.testPushNotifications(account);
+  expect(mocks.previewKey).not.toHaveBeenCalled();
+  previewHost();
+  await api.testPushNotifications(account);
+  expect(request).toHaveBeenCalledWith('POST', '/api/notifications/push', {
+    subscription: subscription.toJSON(),
+    preview_key: { id: '00000000-0000-4000-8000-000000000001', secret: 'c'.repeat(64) },
+  });
+  mocks.previewKey.mockClear();
+  mocks.service.mockResolvedValue({ providers: ['github'], protocol: 3 });
+  await api.testPushNotifications(account);
+  expect(mocks.previewKey).not.toHaveBeenCalled();
+});
+
+it('does not restore a subscription after opt-out during preview discovery', async () => {
+  previewHost();
+  mocks.service.mockImplementationOnce(async () => {
+    localStorage.setItem(key, 'false');
+    return { providers: ['github'], protocol: 3, push_encrypted_previews: true };
+  });
+  await expect(api.testPushNotifications(account)).rejects.toThrow();
+  expect(mocks.previewKey).not.toHaveBeenCalled();
+  expect(request.mock.calls.map(([, path]) => path)).toEqual(['/api/version']);
+});
+
+it('bounds service preview discovery and ignores a late response', async () => {
+  previewHost();
+  let finish!: (value: unknown) => void;
+  mocks.service.mockReturnValueOnce(
+    new Promise((resolve) => {
+      finish = resolve;
+    }),
+  );
+  const pending = expect(api.testPushNotifications(account)).rejects.toThrow(
+    'checking notification previews',
+  );
+  await vi.advanceTimersByTimeAsync(10_000);
+  await pending;
+  finish({ providers: ['github'], protocol: 3, push_encrypted_previews: true });
+  await vi.advanceTimersByTimeAsync(1);
+  expect(mocks.previewKey).not.toHaveBeenCalled();
+  expect(request.mock.calls.map(([, path]) => path)).toEqual(['/api/version']);
 });
 
 it('times out a stalled subscription read without sending after a late reply', async () => {

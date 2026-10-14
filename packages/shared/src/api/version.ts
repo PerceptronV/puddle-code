@@ -5,6 +5,7 @@ export const versionResponseSchema = z.object({
   version: z.string(),
   /** Added by the host connector; absent on direct daemon responses and older connectors. */
   remote_notifications: z.boolean().optional(),
+  remote_notification_previews: z.boolean().optional(),
   remote_image_uploads: z.boolean().optional(),
   protocol: z.object({
     major: z.number().int().nonnegative(),

@@ -103,6 +103,7 @@ export async function startRemoteService(config: RemoteConfig) {
       providers: [...(config.google ? ['google'] : []), ...(config.github ? ['github'] : [])],
       protocol: REMOTE_PROTOCOL_VERSION,
       push_public_key: push.publicKey,
+      push_encrypted_previews: true,
     }),
   );
   app.get('/remote/me', async (c) => {

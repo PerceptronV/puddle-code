@@ -113,7 +113,9 @@ export async function startConnector(home: string, profile: string) {
         try {
           const notification = connectorNotificationSchema.safeParse(value);
           if (notification.success) {
-            void notifications.notify(notification.data.id).catch(() => {});
+            void notifications
+              .notify(notification.data.id, notification.data.content)
+              .catch(() => {});
             socket.end('{}\n');
             return;
           }

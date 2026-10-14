@@ -195,7 +195,13 @@ export class RemoteUpstream {
         body = {
           ...version,
           remote_image_uploads: true,
-          ...(push ? { remote_notifications: true } : {}),
+          ...(push
+            ? {
+                remote_notifications: true,
+                remote_notification_previews:
+                  version.protocol.major > 22 || version.protocol.minor >= 5,
+              }
+            : {}),
         };
       }
       if (this.valid() && !abort.signal.aborted)

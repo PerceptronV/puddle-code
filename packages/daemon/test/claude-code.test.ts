@@ -19,6 +19,44 @@ function account(configDir: string): Account {
 }
 
 describe('claude-code adapter', () => {
+  it('previews only the latest assistant text, excluding tool results and older turns', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'puddle-cc-preview-'));
+    const project = join(dir, 'projects', 'test-project');
+    mkdirSync(project, { recursive: true });
+    const file = join(project, 'conversation.jsonl');
+    const records = [
+      { type: 'user', message: { content: 'Fix notifications' } },
+      {
+        type: 'assistant',
+        message: {
+          content: [
+            { type: 'thinking', thinking: 'Private reasoning' },
+            { type: 'text', text: 'Added conversation previews.' },
+          ],
+        },
+      },
+      {
+        type: 'user',
+        message: {
+          content: [{ type: 'tool_result', content: 'Tool output must not become the preview' }],
+        },
+      },
+    ];
+    writeFileSync(
+      file,
+      records.map((record) => JSON.stringify(record)).join('\n') + '\n{"partial":',
+    );
+    expect(await claudeCode.notificationOutput!('conversation', account(dir))).toBe(
+      'Added conversation previews.',
+    );
+    writeFileSync(
+      file,
+      [...records, { type: 'user', message: { content: 'Now do something else' } }]
+        .map((record) => JSON.stringify(record))
+        .join('\n'),
+    );
+    expect(await claudeCode.notificationOutput!('conversation', account(dir))).toBeNull();
+  });
   it('seeds a fresh config dir so the first-run wizard never runs', () => {
     const dir = mkdtempSync(join(tmpdir(), 'puddle-cc-'));
     claudeCode.prepareConfigDir!(dir);

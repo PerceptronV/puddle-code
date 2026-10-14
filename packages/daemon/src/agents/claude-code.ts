@@ -22,6 +22,7 @@ import { installStatusLine, readLiveUsage } from './claude-statusline.js';
 import { fetchSubscriptionUsage } from './claude-usage-cli.js';
 import { lifecycleVersionAtLeast } from './lifecycle-version.js';
 import { matchesAgentProcess } from './process-match.js';
+import { lastJsonlOutput } from './notification-output.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -230,6 +231,39 @@ export const claudeCode: AgentAdapter = {
 
   sessionTitle(ref, account) {
     return transcriptEntry(account.config_dir, ref)?.title ?? null;
+  },
+
+  async notificationOutput(ref, account) {
+    // Prefer the exact cached path; discovery remains metadata-only.
+    let path = transcriptCache.get(`${account.config_dir}:${ref}`)?.path;
+    if (!path) {
+      const root = join(account.config_dir, 'projects');
+      for (const dir of await readdir(root).catch(() => [])) {
+        const candidate = join(root, dir, `${ref}.jsonl`);
+        if (await stat(candidate).catch(() => null)) {
+          path = candidate;
+          break;
+        }
+      }
+    }
+    if (!path) return null;
+    return lastJsonlOutput(path, (record) => {
+      const message = record.message as
+        { content?: string | { type?: string; text?: string }[] } | undefined;
+      const content = message?.content;
+      const text =
+        typeof content === 'string'
+          ? content
+          : Array.isArray(content)
+            ? content
+                .filter((part) => part.type === 'text' && typeof part.text === 'string')
+                .map((part) => part.text)
+                .join('\n')
+            : '';
+      if (record.type === 'assistant' && text) return text;
+      if (record.type === 'user' && text) return null;
+      return undefined;
+    });
   },
 
   async exportTranscript(ref, account) {

@@ -50,6 +50,7 @@ function fixture() {
     calls,
     send,
     subscription,
+    config,
     disable: () => {
       enabled = false;
     },
@@ -57,6 +58,37 @@ function fixture() {
 }
 
 describe('approved-device push subscriptions', () => {
+  it('keeps preview keys on the host, encrypts for the exact device, and removes keys on revocation', async () => {
+    const f = fixture();
+    const key = { id: randomUUID(), secret: 'd'.repeat(64) };
+    await f.notifications.update(
+      f.device.id,
+      { subscription: f.subscription, preview_key: key },
+      new AbortController().signal,
+      () => true,
+    );
+    expect(f.calls[0]!.body).toEqual({
+      credential: f.config.credential,
+      device: f.device.id,
+      subscription: f.subscription,
+    });
+    const content = {
+      title: 'Conversation title',
+      body: 'The changes passed verification.',
+      project: '0123456789',
+      session: randomUUID(),
+    };
+    await f.notifications.notify(randomUUID(), content);
+    expect(f.calls[1]!.body.preview).toMatchObject({ key: key.id });
+    const wire = JSON.stringify(f.calls);
+    expect(wire).not.toContain(key.secret);
+    for (const value of Object.values(content)) expect(wire).not.toContain(value);
+    expect(f.devices.notificationKey(f.device.id)).toEqual(key);
+    f.devices.revoke(f.device.id);
+    expect(f.devices.notificationKey(f.device.id)).toBeUndefined();
+    await f.notifications.notify(randomUUID(), content);
+    expect(f.calls).toHaveLength(2);
+  });
   it('sends only to an opted-in approved device and stops on revocation or disable', async () => {
     const f = fixture();
     await f.notifications.notify(randomUUID());

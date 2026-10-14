@@ -211,6 +211,8 @@ export interface AgentAdapter {
    * any user rename (SPEC §4).
    */
   sessionTitle?(ref: string, account: Account): string | null;
+  /** Bounded, exact-conversation last assistant reply for an attention preview. */
+  notificationOutput?(ref: string, account: Account): Promise<string | null>;
   /**
    * When the agent last recorded real work for conversation `ref` — for
    * Claude Code, the transcript's mtime (a cached stat). Distinct from PTY

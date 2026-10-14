@@ -469,3 +469,10 @@ The browser suite creates temporary HTTPS endpoints, isolated homes, fake agents
 and provider responses; it does not launch an installed personal daemon. Use the
 [physical-device and security acceptance checklist](acceptance/mobile-access.md)
 before a production deployment. Automated coverage does not replace those checks.
+
+Conversation previews require daemon/connector protocol 22.5 and an updated remote
+service and app. An already opted-in device registers its preview key automatically
+on its next connection. Notifications show the conversation title and a short last-output
+snippet, encrypted end to end between host and device; the relay cannot read them.
+Tapping opens that conversation even from a closed Home Screen app or another host.
+Login/pairing still applies. Older deployments and missing keys show a generic alert.

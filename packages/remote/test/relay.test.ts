@@ -90,6 +90,7 @@ it('enforces HTTP origins, account routing and live service-session revocation o
     expect(discovery).toEqual({
       providers: ['github'],
       protocol: REMOTE_PROTOCOL_VERSION,
+      push_encrypted_previews: true,
       push_public_key: expect.stringMatching(/^[A-Za-z0-9_-]{87}$/),
     });
     expect(remoteServiceInfoSchema.parse(discovery)).toEqual(discovery);

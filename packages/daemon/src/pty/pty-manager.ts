@@ -145,6 +145,10 @@ export class PtyManager extends EventEmitter {
     });
   }
 
+  notificationOutput(stream: string): Promise<string> {
+    return this.screens.textTail(stream, 'agent');
+  }
+
   private handleData(live: Live, raw: string): void {
     const { stream, term, record, filter, proc } = live;
     const { data, deltas } = filter.push(raw);
