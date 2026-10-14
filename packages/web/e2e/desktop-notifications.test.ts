@@ -81,3 +81,58 @@ test('only recent human input in the notifying terminal suppresses desktop deliv
   expect(await page.evaluate(() => window.notificationFixture.delivered())).toHaveLength(8);
   expect(errors).toEqual([]);
 });
+
+test('native notification clicks activate hidden tabs and open missing sessions across projects', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.route(`${origin}/api/**`, (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/file'))
+      return route.fulfill({
+        json: {
+          path: 'notes.md',
+          content: '# Notes',
+          binary: false,
+          size: 7,
+          mtime_ms: 1,
+        },
+      });
+    if (path.endsWith('/ports')) return route.fulfill({ json: { ports: [] } });
+    if (path.endsWith('/env')) return route.fulfill({ json: { entries: [] } });
+    return route.fulfill({ json: {} });
+  });
+  await page.goto(`${origin}/e2e/fixtures/desktop-notifications.html?workspace`);
+  const terminal = (index: number) =>
+    page.locator(`[data-notification-session="${sessionIds[index]}"]`);
+  await expect(terminal(0)).toBeVisible();
+  const notes = page.getByRole('button', { name: /^notes.md/ });
+  await notes.click({ position: { x: 3, y: 8 } });
+  await expect(terminal(0)).not.toBeVisible();
+  await expect(page.getByLabel('Route')).toHaveText(`/project/1000000001/session/${sessionIds[0]}`);
+  // No in-memory delivery callback exists: this is the native destination path,
+  // including after a renderer reload. The URL's session already matches.
+  await page.evaluate(() => window.notificationFixture.click(0));
+  await expect(terminal(0)).toBeVisible();
+  // Repeated clicks must activate it again without forcing it over file tabs.
+  await notes.click({ position: { x: 3, y: 8 } });
+  await expect(terminal(0)).not.toBeVisible();
+  await page.evaluate(() => window.notificationFixture.click(0));
+  await expect(terminal(0)).toBeVisible();
+  await expect(
+    page.locator('[aria-roledescription="draggable"]').filter({ hasText: 'Conversation 1' }),
+  ).toHaveCount(1);
+  await page.evaluate(() => window.notificationFixture.click(1));
+  await expect(terminal(1)).toBeVisible();
+  await expect(terminal(0)).not.toBeVisible();
+  // This session has never had a tab in either project layout.
+  await page.evaluate(() => window.notificationFixture.click(2));
+  await expect(terminal(2)).toBeVisible();
+  await expect(page.getByLabel('Route')).toHaveText(`/project/1000000002/session/${sessionIds[2]}`);
+  await page.getByRole('button', { name: 'Fixture home' }).click();
+  await expect(page.getByText('Fixture dashboard')).toBeVisible();
+  await page.evaluate(() => window.notificationFixture.click(0));
+  await expect(terminal(0)).toBeVisible();
+  expect(errors).toEqual([]);
+});

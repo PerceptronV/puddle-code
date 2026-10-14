@@ -22,7 +22,12 @@ Start the installed cockpit from an ordinary shell, outside any coding-agent ses
    five seconds, move to a file or another session, or leave the window: it
    notifies again. Merely opening a tab, focusing the window, hovering, scrolling
    and terminal output never extend suppression. Check sound and project mute
-   independently. Click a notification to open its session.
+   independently. Click a notification to open its session. Open a file tab over
+   that terminal without changing the URL, then click the notification again:
+   its terminal and pane must activate. Repeat from another session, project and
+   the dashboard, and with a session whose tab is closed. Each click selects the
+   exact session without duplicate tabs; later file-tab selections stay selected.
+   Reload the renderer before clicking an existing native notification and repeat.
 3. In a terminal placement, launch a supported agent, perform a turn, and leave it
    idle. Initial prompts and idle redraws do not notify; a recognised busy-to-idle
    turn does. Exit the agent back to the shell: one completion notification.

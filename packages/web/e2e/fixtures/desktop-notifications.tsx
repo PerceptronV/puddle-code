@@ -1,10 +1,11 @@
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router';
 import {
   PROTOCOL_VERSION,
   projectSchema,
   sessionSchema,
+  uiStateSnapshotSchema,
   type AgentNotification,
   type DesktopNotificationRequest,
   type NotificationTarget,
@@ -12,8 +13,15 @@ import {
 import { useWaitingNotifications } from '../../src/features/shell/use-waiting-notifications';
 import { Terminal } from '../../src/features/terminal/Terminal';
 import { wsManager } from '../../src/lib/ws';
+import { Workspace } from '../../src/features/workspace/Workspace';
+import { makeLeaf } from '../../src/features/workspace/layout-tree';
+import { profileStore } from '../../src/features/profile/profile-store';
+import { workingSetKey } from '../../src/features/workspace/use-ui-state';
+import { TooltipProvider } from '../../src/components/ui/tooltip';
 import '../../src/styles/app.css';
 
+const workspace = new URLSearchParams(location.search).has('workspace');
+const otherProjectId = '1000000002';
 export const projectId = '1000000001';
 export const profileId = '0123456789';
 export const sessionIds = [1, 2, 3].map((id) => `20000000-0000-4000-8000-00000000000${id}`);
@@ -26,10 +34,11 @@ const project = projectSchema.parse({
   created_at: stamp,
   updated_at: stamp,
 });
+const projects = [project, { ...project, id: otherProjectId, name: 'Second project' }];
 const sessions = sessionIds.map((id, i) =>
   sessionSchema.parse({
     id,
-    project_id: projectId,
+    project_id: i === 2 ? otherProjectId : projectId,
     account_id: 1,
     worktree_path: '/project',
     base_branch: 'main',
@@ -51,7 +60,42 @@ const query = new QueryClient({
   defaultOptions: { queries: { retry: false, staleTime: Infinity } },
 });
 query.setQueryData(['sessions', 'all'], sessions);
-query.setQueryData(['project', projectId], { project, sessions });
+for (const project of projects)
+  query.setQueryData(['project', project.id], {
+    project,
+    sessions: sessions.filter((s) => s.project_id === project.id),
+  });
+query.setQueryData(['projects', profileId], projects);
+query.setQueryData(['accounts', profileId], []);
+query.setQueryData(['repos'], []);
+query.setQueryData(['profiles'], []);
+query.setQueryData(['compilation-capabilities'], { providers: [] });
+if (workspace) {
+  profileStore.set(profileId);
+  sessionStorage.setItem(
+    workingSetKey(profileId),
+    JSON.stringify(
+      uiStateSnapshotSchema.parse({
+        layout_mode: 'project',
+        sidebar_collapsed: true,
+        sessions_collapsed: true,
+        project_layouts: {
+          [projectId]: {
+            active_session: sessionIds[0],
+            layout_tree: makeLeaf([
+              { type: 'terminal', session: sessionIds[0]! },
+              { type: 'terminal', session: sessionIds[1]! },
+              {
+                type: 'editor',
+                tab: { session: sessionIds[0]!, path: 'notes.md', view: 'preview' },
+              },
+            ]),
+          },
+        },
+      }),
+    ),
+  );
+}
 query.setQueryData(['profile-settings', profileId], {
   notifications: { desktop: true, sound: false, when_focused: false },
 });
@@ -103,12 +147,29 @@ Object.assign(window, {
     },
     click(index: number) {
       for (const handler of clicks)
-        handler('native-click', { project: projectId, session: sessionIds[index]! });
+        handler('native-click', {
+          project: sessions[index]!.project_id,
+          session: sessionIds[index]!,
+        });
     },
   },
 });
 function Fixture() {
   useWaitingNotifications();
+  const route = useLocation();
+  const navigate = useNavigate();
+  if (workspace)
+    return (
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <button onClick={() => void navigate('/')}>Fixture home</button>
+        <output aria-label="Route">{route.pathname}</output>
+        <Routes>
+          <Route path="/" element={<div>Fixture dashboard</div>} />
+          <Route path="/project/:id/session/:sid" element={<Workspace />} />
+          <Route path="/project/:id" element={<Workspace />} />
+        </Routes>
+      </div>
+    );
   return (
     <>
       <input aria-label="Elsewhere" />
@@ -122,8 +183,12 @@ function Fixture() {
 }
 createRoot(document.getElementById('root')!).render(
   <QueryClientProvider client={query}>
-    <MemoryRouter>
-      <Fixture />
+    <MemoryRouter
+      initialEntries={workspace ? [`/project/${projectId}/session/${sessionIds[0]}`] : undefined}
+    >
+      <TooltipProvider>
+        <Fixture />
+      </TooltipProvider>
     </MemoryRouter>
   </QueryClientProvider>,
 );

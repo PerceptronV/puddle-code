@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useLocation, useNavigate, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Group, Panel, Separator, type Layout } from 'react-resizable-panels';
 import {
@@ -169,6 +169,15 @@ function WorkspaceInner() {
   const projectId = params['id'] ?? '';
   const validProject = /^[0-9a-f]{10}$/.test(projectId);
   const activeSessionId = params['sid'] ?? null;
+  const location = useLocation();
+  // A file tab can hide the URL's terminal without changing its session id.
+  // Each notification click explicitly activates that terminal, even when the
+  // URL is identical. Ordinary renders and file-tab switches keep their focus.
+  const notificationKey =
+    (location.state as { notificationSession?: unknown } | null)?.notificationSession ===
+    activeSessionId
+      ? location.key
+      : null;
   // The detail query keeps the PREVIOUS project's data while the next one is in
   // flight, so a project switch never unmounts this component (open terminals
   // keep their viewport, and a sidebar double-click is not yanked out from under
@@ -1068,7 +1077,7 @@ function WorkspaceInner() {
     }
   }, [uiState.loaded, allSessions.data]);
 
-  // A genuine session navigation (the URL `sid` changed) ensures a terminal for
+  // A session navigation or explicit notification click ensures a terminal for
   // that session and focuses it — added to the currently focused pane if absent,
   // else just focused — and records it as the stored active session (for reload
   // restore + the left-sidebar bind). This must fire ONCE per navigation, not on
@@ -1093,7 +1102,7 @@ function WorkspaceInner() {
       return;
     }
     // Don't re-open the tab we're closing while the URL param still lags.
-    if (activeSessionId === justClosedActive.current) return;
+    if (activeSessionId === justClosedActive.current && !notificationKey) return;
     justClosedActive.current = null;
     // A gesture that had to cross projects to reach its layout (see
     // `pendingOpen`) says how the tab lands; any other navigation is a plain
@@ -1110,7 +1119,7 @@ function WorkspaceInner() {
     if (ui.snapshot.active_session !== activeSessionId) {
       ui.update({ active_session: activeSessionId });
     }
-  }, [restored, activeSessionId]);
+  }, [restored, activeSessionId, notificationKey]);
 
   // waiting_input is mirrored in the tab title (SPEC §12). The title's base
   // is the machine's label (display-name customisation first, then hostname),

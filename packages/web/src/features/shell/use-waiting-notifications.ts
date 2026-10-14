@@ -110,13 +110,18 @@ export function useWaitingNotifications(): void {
   useEffect(
     () =>
       onNotificationTarget((target) => {
-        if (!target.host) void navigate(`/project/${target.project}/session/${target.session}`);
+        if (!target.host)
+          void navigate(`/project/${target.project}/session/${target.session}`, {
+            state: { notificationSession: target.session },
+          });
       }),
     [navigate],
   );
   useAgentNotifications(
     (session) => {
-      void navigate(`/project/${session.project_id}/session/${session.id}`);
+      void navigate(`/project/${session.project_id}/session/${session.id}`, {
+        state: { notificationSession: session.id },
+      });
     },
     (session) => focus.current?.isInteracting(session.id) ?? false,
   );

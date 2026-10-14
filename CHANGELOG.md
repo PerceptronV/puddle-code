@@ -12,3 +12,7 @@ Past releases: see docs/changelogs/.
 ### Changed
 
 - Suppress desktop notifications only during recent typing, pasting or clicking in the notifying session when focused delivery is disabled; idle windows and other sessions no longer silence alerts.
+
+### Fixed
+
+- Activate the exact session tab on desktop notification clicks, including when a file hides its terminal under the same URL, and open sessions without an existing tab.
