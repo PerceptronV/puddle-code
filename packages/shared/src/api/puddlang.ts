@@ -2,6 +2,14 @@ import { z } from 'zod';
 import { profileId, sessionId } from './common.js';
 
 export const PUDDLANG_MAX_SOURCE = 256 * 1024;
+const sourceSchema = z
+  .string()
+  .min(1)
+  .max(PUDDLANG_MAX_SOURCE)
+  .refine(
+    (source) => new TextEncoder().encode(source).length <= PUDDLANG_MAX_SOURCE,
+    'Source exceeds 256 KiB',
+  );
 export const puddlangSpawnSchema = z
   .object({
     agent: z.string().min(1).max(100),
@@ -26,7 +34,7 @@ export const puddlangAskSchema = z.object({
 });
 export const puddlangStartSchema = z.object({
   id: z.uuid(),
-  source: z.string().min(1).max(PUDDLANG_MAX_SOURCE),
+  source: sourceSchema,
   input: z.unknown().optional(),
   accounts: z.record(z.string(), z.union([z.string(), z.number().int().positive()])).default({}),
   max_turns: z.number().int().min(1).max(1000).default(50),
@@ -82,7 +90,7 @@ export const puddlangRunnerMessageSchema = z.discriminatedUnion('type', [
 export const puddlangRunnerInputSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('start'),
-    source: z.string().max(PUDDLANG_MAX_SOURCE),
+    source: sourceSchema,
     input: z.unknown().optional(),
   }),
   z.object({

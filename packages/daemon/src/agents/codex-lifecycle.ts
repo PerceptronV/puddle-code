@@ -88,6 +88,7 @@ export async function prepareCodexLifecycle(
     const state: CodexSignalState = { activeRef: null, queue: Promise.resolve() };
 
     client.on('message', (data, binary) => {
+      if (owner !== client) return;
       for (const message of parseMessages(data)) control.client(message as Record<string, unknown>);
       inspectRequest(data, pending, context.opts.worktreePath);
       const packet = { data: rawBuffer(data), binary };
@@ -95,11 +96,16 @@ export async function prepareCodexLifecycle(
       else queue.push(packet);
     });
     upstream.on('open', () => {
+      if (owner !== client) {
+        upstream.close();
+        return;
+      }
       control.connect((message) => upstream.send(JSON.stringify(message)));
       for (const packet of queue) upstream.send(packet.data, { binary: packet.binary });
       queue.length = 0;
     });
     upstream.on('message', (data, binary) => {
+      if (owner !== client) return;
       inspectResponse(data, pending, context, state);
       if (state.activeRef) control.bind(state.activeRef);
       const messages = parseMessages(data);

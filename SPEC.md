@@ -524,7 +524,7 @@ Signal     POST /agent-signal {nonce, state} | {nonce,event,agent_session_ref?,c
                 # per-runtime nonce is auth, 404 on unknown/stale; never proxied by cockpits
 Profiles   GET  /api/profiles                POST /api/profiles {name, branch_prefix?}   # ids are 10-hex handles, like projects
            PATCH /api/profiles/:id {name?, branch_prefix?}   # rename (display label, UNIQUE → 409) and/or set branch prefix; dirs are id-keyed so a rename touches nothing on disk
-           DELETE /api/profiles/:id                  # 409 while any of its sessions is non-archived; cascades rows + removes its dir
+           DELETE /api/profiles/:id                  # 409 while sessions are non-archived or puddlang runs are active; cascades rows + removes its dir
            GET  /api/profiles/:id/settings   PATCH (profile-scope settings JSON — §11 Settings)
            GET  /api/profiles/:id/state      PUT (the profile's ui_state JSON — one workspace shared across its projects; debounced writes; 404 no_state until first write, no cross-profile seeding — §11)
            POST /api/profiles/:id/untitled   # new worktree-agnostic draft in profiles/<id>/untitled/ → {name: untitled-<n>.md} (10.3, §8)

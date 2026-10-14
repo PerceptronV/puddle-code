@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
+import { Hono } from 'hono';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { puddlangStartSchema, puddlangHandleSchema } from '@puddle/shared';
 import { fakeAdapter, fixture, waitFor } from './helpers/daemon-fixtures.js';
@@ -11,6 +12,8 @@ import { PuddlangStore } from '../src/puddlang/store.js';
 import { PuddlangService } from '../src/puddlang/service.js';
 import { PuddlangOperations } from '../src/puddlang/operations.js';
 import type { AgentControl } from '../src/agents/adapter.js';
+import { puddlangRoutes } from '../src/http/routes/puddlang.js';
+import { ApiError } from '../src/http/errors.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 let compiled: string;
@@ -80,6 +83,40 @@ function setup(ask?: AgentControl['ask']) {
 }
 
 describe('puddlang host execution', () => {
+  it('validates HTTP submissions and paginates run events through shared response shapes', async () => {
+    const s = setup();
+    const app = new Hono();
+    app.onError((error, c) =>
+      c.json({ error: error.message }, error instanceof ApiError ? (error.status as 400) : 500),
+    );
+    app.route('/api/puddlang', puddlangRoutes(s.service));
+    const base = `/api/puddlang/${s.f.ids.profile}`;
+    const body = { id: randomUUID(), source: 'console.log("hello"); export default 42;' };
+    const send = (input: unknown) =>
+      app.request(`${base}/runs`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+    expect((await send(body)).status).toBe(202);
+    await s.done(body.id);
+    expect(await (await app.request(`${base}/runs/${body.id}`)).json()).toMatchObject({
+      status: 'completed',
+      result: 42,
+    });
+    expect((await app.request(`${base}/runs/${body.id}/events?after=-1`)).status).toBe(400);
+    const events = (await (await app.request(`${base}/runs/${body.id}/events`)).json()) as {
+      events: Array<{ sequence: number }>;
+    };
+    expect(events.events.length).toBeGreaterThan(0);
+    expect(
+      await (
+        await app.request(`${base}/runs/${body.id}/events?after=${events.events.at(-1)!.sequence}`)
+      ).json(),
+    ).toEqual({ events: [] });
+    expect((await send({ ...body, source: 'different' })).status).toBe(409);
+    expect((await send({ id: randomUUID(), source: '界'.repeat(100_000) })).status).toBe(400);
+  });
   it('runs coder/reviewer with typed validation and normal visible placements', async () => {
     const s = setup();
     const run = s.start(
@@ -213,6 +250,42 @@ describe('puddlang host execution', () => {
     expect((await s.done(run.id)).error).toContain('deadline');
     s.f.stores.removals.deleteProfile(s.f.ids.profile);
     expect(s.store.has(run.id)).toBe(false);
+  });
+
+  it('does not wait for inherited output pipes when cancelling a runner', async () => {
+    const s = setup();
+    const run = s.start(`import {spawn} from 'node:child_process';
+      const server=spawn(process.execPath,['-e','setTimeout(()=>{},30000)'],{stdio:['ignore','inherit','inherit']});
+      console.log(server.pid); await new Promise(()=>{});`);
+    let pid: number | undefined;
+    try {
+      await waitFor(() => {
+        const event = s.store
+          .events(s.f.ids.profile, run.id, 0)
+          .events.find((e) => e.type === 'stdout');
+        if (event) pid = Number(String(event.data).trim());
+        return Number.isInteger(pid);
+      });
+      const result = await Promise.race([
+        s.service.cancel(s.f.ids.profile, run.id),
+        new Promise<never>((_, reject) => {
+          const timer = setTimeout(
+            () => reject(new Error('Cancellation waited for a descendant pipe')),
+            3000,
+          );
+          timer.unref();
+        }),
+      ]);
+      expect(result.status).toBe('cancelled');
+    } finally {
+      if (pid) {
+        try {
+          process.kill(pid, 'SIGKILL');
+        } catch {
+          /* Already exited. */
+        }
+      }
+    }
   });
 
   it('resolves only registered roots and same-profile accounts; enforces turn limits', async () => {

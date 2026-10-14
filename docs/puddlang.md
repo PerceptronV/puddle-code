@@ -13,6 +13,10 @@ include both commands and Node; the public installer installs both launchers.
 separate npm package or daemon. Desktop-only users install the CLI for the shell
 and MCP commands.
 
+When upgrading a standalone version that predates puddlang, re-run the current
+public CLI installer once to add its launcher: older embedded installers only
+install the `puddle` command. Subsequent upgrades manage both commands together.
+
 The host needs daemon protocol **22.6+ within major 22**, **Node 22.21.1+**, and
 Codex installed and logged in through Puddle. Bundled releases supply Node.
 Upgrade an older daemon with `puddle upgrade daemon [user@host]`. Start Puddle
@@ -56,7 +60,10 @@ The default export becomes the stored result, at most 256 KiB.
 import { spawn, attach, z } from 'puddlang';
 
 const agent = await spawn({
-  agent: 'codex', account: 'primary', project: 'app', worktree: 'feature/search',
+  agent: 'codex',
+  account: 'primary',
+  project: 'app',
+  worktree: 'feature/search',
 });
 // Alternatively: await spawn({ agent: 'codex', path: '/srv/app' });
 const reply = await agent.ask('Implement search and run the relevant tests.');

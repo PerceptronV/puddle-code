@@ -189,10 +189,14 @@ export class PuddlangService {
     if (active.finishing) return active.finishing;
     active.abort.abort();
     const exited =
-      active.child.exitCode !== null || active.child.signalCode !== null
+      active.child.exitCode !== null ||
+      active.child.signalCode !== null ||
+      active.child.pid === undefined
         ? Promise.resolve()
         : new Promise<void>((resolve) => {
-            active.child.once('close', () => resolve());
+            // A programme may have launched a server inheriting stdout. Its
+            // open pipe must not prevent the runner itself from being reaped.
+            active.child.once('exit', () => resolve());
           });
     active.child.kill('SIGKILL');
     active.finishing = (async () => {
