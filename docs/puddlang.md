@@ -17,11 +17,15 @@ When upgrading a standalone version that predates puddlang, re-run the current
 public CLI installer once to add its launcher: older embedded installers only
 install the `puddle` command. Subsequent upgrades manage both commands together.
 
-The host needs daemon protocol **22.6+ within major 22**, **Node 22.21.1+**, and
+The host needs daemon protocol **23.0+ within major 23**, **Node 22.21.1+**, and
 Codex installed and logged in through Puddle. Bundled releases supply Node.
 Upgrade an older daemon with `puddle upgrade daemon [user@host]`. Start Puddle
 from a plain shell: puddlang connects to an existing daemon and never bootstraps
 one from an agent environment.
+
+Protocol 23.0 is an intentional major boundary. Update CLI/desktop, daemon and
+any remote connector/application together. Remote transport protocol remains 3;
+the existing launcher still requires approval before updating an older daemon.
 
 ```sh
 puddlang context --profile personal

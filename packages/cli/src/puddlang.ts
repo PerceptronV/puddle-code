@@ -20,7 +20,7 @@ Connection: --host user@host --profile name-or-id
 Run options: --id UUID --account agent=label-or-id (repeatable)
              --max-turns 50 --max-agents 8 --timeout-ms 3600000
 
-Requires a running daemon (protocol 22.6+) and Codex 0.159.0+ on that host.
+Requires a running daemon (protocol 23.0+) and Codex 0.159.0+ on that host.
 Profiles/accounts/projects are selected on the execution host. Programs are
 trusted host code. Closing the CLI detaches; use cancel to stop a run.
 `;

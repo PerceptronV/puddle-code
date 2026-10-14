@@ -188,8 +188,11 @@ The private connector IPC retries the legacy id-only request only after an expli
 rejection. Old clients ignore optional event content; old subscriptions retain generic
 push. Noise admission, remote envelopes and host leases are unchanged (remote 3).
 
-Daemon/cockpit protocol 22.6 adds local/SSH puddlang context, submission, status,
+Daemon/cockpit protocol 23.0 adds local/SSH puddlang context, submission, status,
 events and cancellation endpoints. Shared schemas also define runner IPC and
 stdio MCP inputs. Existing authority/token flows are reused; remote profile
 leases and the connector allowlist reject this namespace (remote protocol 3).
-Puddlang checks support before submission; ordinary older cockpits stay compatible.
+The major boundary is intentional for the puddlang rollout, despite the additive
+endpoints. Upgrade daemon, CLI/desktop, and the remote connector/application to
+matching daemon protocol 23.0. Existing launcher upgrade approval still applies;
+puddlang itself requires an already compatible daemon and never upgrades one.

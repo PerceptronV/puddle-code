@@ -296,5 +296,6 @@
 // 22.3: explicit agent-notification events include terminal agents and process exits.
 // 22.4: opt-in background Web Push through the approved profile connector.
 // 22.5: bounded conversation previews and exact session destinations in notifications.
-// 22.6: local/SSH puddlang runs, exact agent turns and profile-bound run history.
-export const PROTOCOL_VERSION = { major: 22, minor: 6 } as const;
+// 23.0: local/SSH puddlang runs, exact agent turns and profile-bound run history.
+// Intentional major release boundary: upgrade clients/hosts together for puddlang.
+export const PROTOCOL_VERSION = { major: 23, minor: 0 } as const;

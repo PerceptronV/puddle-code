@@ -518,7 +518,7 @@ Puddlang   GET  /api/puddlang/:profile/context
            GET  /api/puddlang/:profile/runs/:id
            GET  /api/puddlang/:profile/runs/:id/events?after=0   # pages of up to 100 events
            POST /api/puddlang/:profile/runs/:id/cancel
-                # protocol 22.6; local/SSH only, excluded from remote leases and relay allowlist
+                # protocol 23.0; local/SSH only, excluded from remote leases and relay allowlist
 Signal     POST /agent-signal {nonce, state} | {nonce,event,agent_session_ref?,cwd,source,parent_agent_session_ref?,native_title?,native_created_at?,native_updated_at?}
                 # backwards-compatible status or exact lifecycle side-channel (§4), OUTSIDE /api: no bearer;
                 # per-runtime nonce is auth, 404 on unknown/stale; never proxied by cockpits
@@ -854,7 +854,7 @@ Each env/ports value list is one non-wrapping line. When it exceeds the pane wid
 
 The same npm package and standalone archives ship `puddlang`: run, context,
 status, logs, cancel and mcp commands. They reuse local/SSH authority and require
-an existing daemon at protocol 22.6+. One selected profile binds each connection.
+an existing daemon at protocol 23.0+. One selected profile binds each connection.
 Run waits by default (`--detach` returns after submission); observer exit does
 not cancel work. Stdio MCP exposes the same service. HTTP MCP, automatic agent
 binding and inherited descendant budgets are deferred. Both launchers upgrade
