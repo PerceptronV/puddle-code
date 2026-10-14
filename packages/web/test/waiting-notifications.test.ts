@@ -10,12 +10,12 @@ const prefs = (over = {}) => ({
 });
 
 describe('decideNotification', () => {
-  it('notifies focused windows by default and honours background-only delivery', () => {
+  it('notifies by default and only suppresses an interacting session when requested', () => {
     expect(
       decideNotification({
         prefs: prefs(),
         projectId: 'p1',
-        windowFocused: false,
+        sessionFocused: false,
         permission: 'granted',
       }),
     ).toEqual({ desktop: true, sound: true });
@@ -23,7 +23,7 @@ describe('decideNotification', () => {
       decideNotification({
         prefs: prefs(),
         projectId: 'p1',
-        windowFocused: true,
+        sessionFocused: true,
         permission: 'granted',
       }),
     ).toEqual({ desktop: true, sound: true });
@@ -31,7 +31,7 @@ describe('decideNotification', () => {
       decideNotification({
         prefs: prefs({ when_focused: false }),
         projectId: 'p1',
-        windowFocused: true,
+        sessionFocused: true,
         permission: 'granted',
       }),
     ).toEqual({ desktop: false, sound: true });
@@ -39,7 +39,7 @@ describe('decideNotification', () => {
       decideNotification({
         prefs: prefs(),
         projectId: 'p1',
-        windowFocused: true,
+        sessionFocused: true,
         permission: 'unverified',
       }),
     ).toEqual({ desktop: true, sound: true });
@@ -47,7 +47,7 @@ describe('decideNotification', () => {
       decideNotification({
         prefs: prefs(),
         projectId: 'p1',
-        windowFocused: false,
+        sessionFocused: false,
         permission: 'denied',
       }),
     ).toEqual({ desktop: false, sound: true });
@@ -58,7 +58,7 @@ describe('decideNotification', () => {
       decideNotification({
         prefs: prefs({ muted_projects: ['p1'] }),
         projectId: 'p1',
-        windowFocused: false,
+        sessionFocused: false,
         permission: 'granted',
       }),
     ).toEqual({ desktop: false, sound: false });
@@ -69,7 +69,7 @@ describe('decideNotification', () => {
       decideNotification({
         prefs: prefs({ desktop: false, sound: false }),
         projectId: 'p1',
-        windowFocused: false,
+        sessionFocused: false,
         permission: 'granted',
       }),
     ).toEqual({ desktop: false, sound: false });

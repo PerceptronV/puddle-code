@@ -761,7 +761,10 @@ export function Terminal({
   }, [stream, refit]);
 
   return (
-    <div className={cn('puddle-terminal group/terminal relative size-full', className)}>
+    <div
+      className={cn('puddle-terminal group/terminal relative size-full', className)}
+      data-notification-session={!paused && term === 'agent' ? stream : undefined}
+    >
       <div ref={containerRef} className="size-full" />
       {richTerminal && !paused && visible && <TerminalRichOutput terminal={richTerminal} />}
       {touchSelection !== null && !paused && (

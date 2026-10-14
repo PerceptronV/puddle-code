@@ -119,9 +119,9 @@ export function NotificationsSection() {
       </SettingRow>
       {prefs.desktop && <PermissionHint permission={permission} onRequest={requestPermission} />}
       <SettingRow
-        label="Notify while Puddle is focused"
+        label="Notify while interacting with a session"
         htmlFor="notify-focused"
-        description="Applies to this cockpit. Mobile Web Push is configured separately on each device."
+        description="When off, typing or clicking in a session silences its desktop alerts for five seconds. Mobile Web Push is configured separately on each device."
       >
         <Switch
           id="notify-focused"

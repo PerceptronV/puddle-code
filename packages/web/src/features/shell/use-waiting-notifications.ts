@@ -16,6 +16,7 @@ import {
 } from '../../lib/notification-permission';
 import { deliverNotification } from '../../lib/notification-delivery';
 import { onNotificationTarget } from '../../lib/notification-navigation';
+import { trackNotificationFocus } from '../../lib/notification-focus';
 import { browserTransport } from '../../lib/browser-transport';
 import { remotePushReady } from '../../lib/remote-notification-status';
 import { api } from '../../lib/api';
@@ -34,7 +35,7 @@ const DEFAULT_PREFS = notificationPreferencesSchema.parse({});
 export function decideNotification(args: {
   prefs: NotificationPreferences;
   projectId: string;
-  windowFocused: boolean;
+  sessionFocused: boolean;
   permission: EffectiveNotificationPermission;
 }): { desktop: boolean; sound: boolean } {
   if (args.prefs.muted_projects.includes(args.projectId)) return { desktop: false, sound: false };
@@ -42,7 +43,7 @@ export function decideNotification(args: {
     desktop:
       args.prefs.desktop &&
       (args.permission === 'granted' || args.permission === 'unverified') &&
-      (args.prefs.when_focused || !args.windowFocused),
+      (args.prefs.when_focused || !args.sessionFocused),
     sound: args.prefs.sound,
   };
 }
@@ -97,6 +98,15 @@ function playPing(): void {
  */
 export function useWaitingNotifications(): void {
   const navigate = useNavigate();
+  const focus = useRef<ReturnType<typeof trackNotificationFocus> | null>(null);
+  useEffect(() => {
+    const tracker = trackNotificationFocus(document);
+    focus.current = tracker;
+    return () => {
+      focus.current = null;
+      tracker.dispose();
+    };
+  }, []);
   useEffect(
     () =>
       onNotificationTarget((target) => {
@@ -104,16 +114,24 @@ export function useWaitingNotifications(): void {
       }),
     [navigate],
   );
-  useAgentNotifications((session) => {
-    void navigate(`/project/${session.project_id}/session/${session.id}`);
-  });
+  useAgentNotifications(
+    (session) => {
+      void navigate(`/project/${session.project_id}/session/${session.id}`);
+    },
+    (session) => focus.current?.isInteracting(session.id) ?? false,
+  );
 }
 
 /** Shared by the cockpit and the mobile workspace; each supplies its own navigation. */
-export function useAgentNotifications(openSession: (session: Session) => void): void {
+export function useAgentNotifications(
+  openSession: (session: Session) => void,
+  isSessionFocused: (session: Session) => boolean = () => document.hasFocus(),
+): void {
   const qc = useQueryClient();
   const openRef = useRef(openSession);
   openRef.current = openSession;
+  const focusedRef = useRef(isSessionFocused);
+  focusedRef.current = isSessionFocused;
   // The title's base is the machine's label (display-name customisation
   // first, then hostname) — same base the workspace title builds on. A ref,
   // so a late-loaded label doesn't tear down the WS subscription (that would
@@ -172,7 +190,7 @@ export function useAgentNotifications(openSession: (session: Session) => void): 
       const verdict = decideNotification({
         prefs,
         projectId: found.project_id,
-        windowFocused: document.hasFocus(),
+        sessionFocused: focusedRef.current(found),
         permission: notificationPermission(),
       });
       if (verdict.sound) playPing();

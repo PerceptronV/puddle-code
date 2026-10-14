@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Changed
+
+- Suppress desktop notifications only during recent typing, pasting or clicking in the notifying session when focused delivery is disabled; idle windows and other sessions no longer silence alerts.

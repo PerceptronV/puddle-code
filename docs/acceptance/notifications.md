@@ -16,8 +16,13 @@ Start the installed cockpit from an ordinary shell, outside any coding-agent ses
    Check the actual permission prompt, banner and click for each signing mode,
    including after an app upgrade. Removing quarantine is not a permission grant.
 2. Finish a managed agent turn while the cockpit is focused, then while unfocused.
-   Both notify by default. Select background-only delivery and repeat. Check sound
-   and project mute independently. Click a notification to open its session.
+   Both notify by default. Disable **Notify while interacting with a session**.
+   Typing, pasting or clicking inside its main terminal suppresses its desktop
+   alert for five seconds; another session still notifies. Leave it idle for
+   five seconds, move to a file or another session, or leave the window: it
+   notifies again. Merely opening a tab, focusing the window, hovering, scrolling
+   and terminal output never extend suppression. Check sound and project mute
+   independently. Click a notification to open its session.
 3. In a terminal placement, launch a supported agent, perform a turn, and leave it
    idle. Initial prompts and idle redraws do not notify; a recognised busy-to-idle
    turn does. Exit the agent back to the shell: one completion notification.
