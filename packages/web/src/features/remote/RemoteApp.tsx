@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
   remoteHostsSchema,
-  remoteInvitationSchema,
   remoteLoginStateSchema,
   remoteServiceInfoSchema,
   type RemoteHost,
@@ -14,7 +13,7 @@ import { serviceOrigin, serviceRequest } from './service';
 import { loadBrowserHost, saveBrowserHost } from './identity-store';
 import { RemoteClient } from './client';
 import { ConnectedHost } from './ConnectedHost';
-import { Settings2, Laptop } from 'lucide-react';
+import { Settings2, Laptop, ScanLine } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { TooltipProvider } from '../../components/ui/tooltip';
 import { Toaster } from '../../components/ui/sonner';
@@ -24,29 +23,13 @@ import { HostProjects } from './HostProjects';
 import { RemoteSettings } from './RemoteSettings';
 import { RemoteBrand } from './RemoteBrand';
 import { PairBrowserDialog } from './PairBrowserDialog';
+import { PairDeviceDialog } from './PairDeviceDialog';
+import { parsePairingInvitation, takePairingInvitation } from './pairing-invitation';
 import { DesktopRegistrationPrompt, takeDesktopRegistration } from './DesktopRegistration';
 import './remote.css';
 
-// Strip invitations before rendering, fetching or loading any repository content.
-function takeInvitation(): RemoteInvitation | null {
-  const fragment = new URLSearchParams(location.hash.slice(1)).get('pair');
-  if (fragment !== null) history.replaceState(null, '', location.pathname);
-  try {
-    const raw = fragment ?? sessionStorage.getItem('puddle.pending-pair');
-    if (!raw) return null;
-    const invitation = remoteInvitationSchema.parse(JSON.parse(raw));
-    if (invitation.service !== serviceOrigin || invitation.expires <= Date.now())
-      throw new Error('Expired invitation');
-    // Survives the provider redirect in this tab only. Never a durable login credential.
-    sessionStorage.setItem('puddle.pending-pair', raw);
-    return invitation;
-  } catch {
-    sessionStorage.removeItem('puddle.pending-pair');
-    return null;
-  }
-}
 const initialRegistration = takeDesktopRegistration();
-const initialInvitation = takeInvitation();
+const initialInvitation = takePairingInvitation(serviceOrigin);
 
 export function RemoteApp() {
   const [login, setLogin] = useState<ReturnType<typeof remoteLoginStateSchema.parse> | null>(null);
@@ -55,6 +38,7 @@ export function RemoteApp() {
   const [client, setClient] = useState<RemoteClient | null>(null);
   const [projectId, setProjectId] = useState('');
   const [settings, setSettings] = useState(false);
+  const [pairingDevice, setPairingDevice] = useState(false);
   const [disconnected, setDisconnected] = useState<Set<string>>(new Set());
   const [desktopRegistration, setDesktopRegistration] = useState(initialRegistration.request);
   const [invitation, setInvitation] = useState(initialInvitation);
@@ -118,6 +102,7 @@ export function RemoteApp() {
   };
   const connect = async (host: string, project = '', pairing?: RemoteInvitation, label = '') => {
     if (!login?.user) return;
+    if (pairing) parsePairingInvitation(JSON.stringify(pairing), serviceOrigin);
     let identity = await loadBrowserHost(serviceOrigin, login.user.id, host);
     if (pairing && identity && identity.peer !== pairing.peer)
       throw new Error(
@@ -169,6 +154,11 @@ export function RemoteApp() {
     client?.close();
     setClient(null);
   };
+  const pairDevice = () => {
+    setSettings(false);
+    setMessage('');
+    setPairingDevice(true);
+  };
   return (
     <TooltipProvider>
       <Toaster />
@@ -197,14 +187,24 @@ export function RemoteApp() {
               <main className="remote-dashboard" aria-label="Hosts and projects">
                 <header className="mb-3 flex items-center justify-between">
                   <RemoteBrand />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Settings"
-                    onClick={() => setSettings(true)}
-                  >
-                    <Settings2 />
-                  </Button>
+                  <div className="flex">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Pair this device"
+                      onClick={pairDevice}
+                    >
+                      <ScanLine />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Settings"
+                      onClick={() => setSettings(true)}
+                    >
+                      <Settings2 />
+                    </Button>
+                  </div>
                 </header>
                 <GuideLink className="mb-4" />
                 {hosts.map((host) => (
@@ -213,6 +213,7 @@ export function RemoteApp() {
                     host={host}
                     account={login.user!.id}
                     disconnected={disconnected.has(host.id)}
+                    pair={pairDevice}
                     reconnect={() =>
                       setDisconnected((current) => {
                         const next = new Set(current);
@@ -227,10 +228,11 @@ export function RemoteApp() {
                   <div className="py-12 text-center">
                     <Laptop className="mx-auto mb-4 size-8 text-fg-muted" />
                     <p className="text-sm text-fg-secondary">
-                      Connect your first host to see its projects here.
+                      Register a host in desktop Settings → Remote &amp; Sync, then pair this
+                      device.
                     </p>
-                    <Button className="mt-4" variant="secondary" onClick={() => setSettings(true)}>
-                      Add a host
+                    <Button className="mt-4" variant="secondary" onClick={pairDevice}>
+                      Pair this device
                     </Button>
                   </div>
                 )}
@@ -261,7 +263,19 @@ export function RemoteApp() {
                 })
               }
               refresh={refresh}
+              pair={pairDevice}
             />
+            {pairingDevice && (
+              <PairDeviceDialog
+                dismiss={() => setPairingDevice(false)}
+                accept={(invitation) => {
+                  sessionStorage.setItem('puddle.pending-pair', JSON.stringify(invitation));
+                  setMessage('');
+                  setPairingDevice(false);
+                  setInvitation(invitation);
+                }}
+              />
+            )}
             {desktopRegistration && (
               <DesktopRegistrationPrompt
                 request={desktopRegistration}

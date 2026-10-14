@@ -162,6 +162,8 @@ supervised one.
 - Web production builds use `vite.build.config.ts` with only web dependencies; the default `vite.config.ts` adds the authenticated development cockpit gateway. Keep CLI imports out of the production configuration so filtered Docker installs remain buildable.
 - Remote runtime images explicitly make package metadata, configuration and public assets readable by their unprivileged users. The service's `/data` must start at mode `0700`, owned by UID 10001: Docker copies this metadata into fresh volumes. CI builds from a private checkout and runs `node deploy/remote/test-images.mjs` with a real service volume, read-only filesystems and dropped capabilities; never rely on the operator's umask or relax permissions on deployment secrets. The app's Caddy binary must have no privileged-port file capability: it serves port 8080.
 
+- Remote Settings pairs this device through `PairDeviceDialog` (camera or pasted link); host registration starts on desktop. Keep scans inside the current app context so a Home Screen app uses its own IndexedDB identity. Validate invitations through the shared schema and retain exact host approval. Camera frames are decoded locally, and tracks stop on dismissal/backgrounding, including late permission grants. The application permits its own camera; sandboxed previews deny it.
+
 ## Housekeeping — read this, future agents
 
 This file is living documentation and part of the definition of done for every change:

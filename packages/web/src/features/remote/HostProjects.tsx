@@ -24,12 +24,14 @@ export function HostProjects({
   account,
   disconnected,
   reconnect,
+  pair,
   open,
 }: {
   host: RemoteHost;
   account: string;
   disconnected: boolean;
   reconnect(): void;
+  pair(): void;
   open(project: Project): void;
 }) {
   const [catalogue, setCatalogue] = useState<{
@@ -38,6 +40,7 @@ export function HostProjects({
     sessions: Session[];
   } | null>(null);
   const [message, setMessage] = useState('Connecting…');
+  const [needsPairing, setNeedsPairing] = useState(false);
   useEffect(() => {
     let live = true;
     let client: RemoteClient | undefined;
@@ -46,6 +49,7 @@ export function HostProjects({
     let loading = false;
     setCatalogue(null);
     setMessage('Connecting…');
+    setNeedsPairing(false);
     if (!host.online || disconnected) return;
     const refresh = async () => {
       if (!client || client.state !== 'ready' || loading) return;
@@ -77,13 +81,15 @@ export function HostProjects({
       .then((identity) => {
         if (!live) return;
         if (!identity) {
-          setMessage('Pair this browser from Settings → Remote & Sync on your desktop.');
+          setMessage('Use the pairing QR code from desktop Settings → Remote & Sync.');
+          setNeedsPairing(true);
           return;
         }
         client = new RemoteClient(identity);
         offPush = watchPushNotifications(client);
         unsubscribe = client.onState(() => {
           if (!live) return;
+          setNeedsPairing(client!.state === 'rejected');
           if (client!.state === 'ready') void refresh();
           else {
             setCatalogue(null);
@@ -128,6 +134,11 @@ export function HostProjects({
         {host.online && !disconnected ? (
           <>
             {message && <p className="py-3 text-sm text-fg-muted">{message}</p>}
+            {needsPairing && (
+              <Button variant="secondary" onClick={pair}>
+                Pair this device
+              </Button>
+            )}
             {catalogue && (
               <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2">
                 {catalogue.projects

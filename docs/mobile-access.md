@@ -220,9 +220,11 @@ the registration and revokes previous browser approvals and invitations.
 The connector needs persistent systemd/launchd supervision; the settings view
 explains when the host needs configuration or an upgrade.
 
-Choose **Pair a browser**, scan the QR code or copy/open the link on the new
-browser, and request approval there. Return to the desktop, expand **Connected
-browsers**, compare the full browser identity and choose **Approve**. Status and
+Choose **Pair a browser** on desktop. In the intended Puddle browser or Home Screen
+app, choose **Pair this device → Scan QR code**, allow camera access and scan the
+desktop code. You can also paste the pairing link there. Give this device a name
+and request approval. Return to the desktop, expand **Connected browsers**,
+compare the full browser identity and choose **Approve**. Status and
 device requests refresh automatically while settings are open. Desktop and mobile
 show compact browser cards; expand a card to see an approved browser’s identity
 and expiry. Pending identities stay visible before approval. Each card has a
@@ -232,6 +234,14 @@ Reset host identity performs the same local/SSH recovery as `puddle remote reset
 after explicit confirmation. Codes and invitations are not stored in cockpit
 settings or logs. Disable, revoke and delete remain available when the relay is
 unavailable.
+
+On iOS, open Puddle from its Home Screen icon before scanning. Scanning with the
+system Camera app can open Safari, which uses a separate device identity. Pairing
+Safari does not pair the Home Screen app. Puddle's scanner stays inside the app,
+decodes camera frames locally and stops the camera when closed or backgrounded.
+After approving this device, connect to the host before testing background
+notifications. Web Settings contains pairing controls; new hosts are registered
+from desktop Settings → Remote & Sync.
 
 Choose **Delete registration** beside the other registration actions to disable
 access, revoke this profile’s browsers and invitations, and remove its registration
@@ -255,24 +265,25 @@ host-wide registrations are deleted and their browser approvals revoked. Registe
 each profile again and pair its browsers afresh. Old relay entries are removed
 immediately when reachable, or queued privately for retry. Agents keep running.
 
-The equivalent CLI workflow is (use the profile’s id from the desktop profile data):
-
-In the application, open Settings, expand Add a host, enter a name and create a registration
-code. On the machine running the daemon:
-
-```sh
-puddle remote enable --profile <profile-id> --service https://relay.example.com --app-origin https://app.example.com
-```
-
-Or register over SSH:
+For CLI management, first register the host through desktop Settings → Remote &
+Sync (local or SSH). Use the profile’s id from the desktop profile data. Re-enable
+an existing registration on the machine running the daemon:
 
 ```sh
-puddle remote enable --profile <profile-id> user@host --service https://relay.example.com --app-origin https://app.example.com
+puddle remote enable --profile <profile-id>
 ```
 
-Paste the five-minute code at the hidden prompt. Do not put it in command-line
-arguments, shell history or background logs. For automation the command reads a
-single code from stdin. Systemd/launchd supervises the connector independently of
+Or re-enable it over SSH:
+
+```sh
+puddle remote enable --profile <profile-id> user@host
+```
+
+The existing `--service` / `--app-origin` registration flow remains available to
+automation using a five-minute code from the authenticated service API; web
+Settings no longer creates these codes. Supply the code through the hidden prompt
+or stdin, never command-line arguments, shell history or background logs.
+Systemd/launchd supervises the connector independently of
 the CLI and laptop. `remote enable` without origins re-enables an existing
 registration. Registering again clears previous approvals and invitations. An
 upgrade restarts the previously configured connector; daemon removal disables
@@ -287,8 +298,9 @@ cockpit-bound fallback is silently selected for mobile access.
 puddle remote pair --profile <profile-id>                 # add user@host for an SSH host
 ```
 
-Open the printed link in the intended browser (or use the QR/link from an already
-paired browser's Paired browsers dialogue). Give the browser a name and request approval.
+Paste the printed link into **Pair this device** in the intended Home Screen app,
+or open it directly in the intended browser. You can also scan the QR from an
+already paired browser's Paired browsers dialogue. Give the browser a name and request approval.
 Compare the browser identity shown on both devices, then on the host:
 
 ```sh

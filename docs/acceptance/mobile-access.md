@@ -61,6 +61,10 @@ recovery instructions: [self-hosted mobile access](../mobile-access.md).
   redemption is single-use and no browser grant is created by account registration.
 - `pnpm test:e2e` and `pnpm test:ssh`: preserve local/SSH foundation behaviour,
   cockpit replacement, connection leases and isolated loopback SSH integration.
+- The isolated mobile pairing fixture decodes actual QR frames, checks separate
+  browser-context identities and confirmation before key creation, camera denial,
+  cancellation, backgrounding, timeout and late permission grants. It also checks
+  the deployed application camera policy and removal of host creation from Settings.
 - `pnpm build:tarball`: bundle/smoke-test daemon and connector against the shipped
   Node/native runtime. `pnpm lint` includes hook order and design-token checks.
 
@@ -120,6 +124,17 @@ review, production OAuth-provider acceptance or physical-phone acceptance.
   memory remains bounded and local cockpit operations remain available.
 
 ## Physical phones (manual; not established by browser emulation)
+
+- On iOS, pair Safari first, then open the Home Screen app and choose **Pair this
+  device → Scan QR code**. Scan a fresh desktop invitation. The app must remain
+  open, show the existing naming/host-identity dialogue, and present its own device
+  identity for exact host approval. Approve it and verify project access, then
+  background-notification delivery. Repeat through Settings and pasted links.
+  Deny camera access, stop scanning, close the dialogue during a permission prompt,
+  grant permission late, and background the app: no camera may remain active and
+  no stale scan may pair a device. Check expired/wrong-service/wrong-app QR codes.
+  Confirm web Settings has no Add a host or registration-code form. Redeploy the
+  application headers so the app permits its own camera while previews deny it.
 
 Run on current iOS Safari and Android Chrome, recording versions and results:
 

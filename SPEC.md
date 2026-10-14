@@ -659,6 +659,23 @@ The daemon WebSocket first receives `{t:'auth', token, resource}` and acknowledg
 
 ### Self-hosted remote surface (remote protocol 3)
 
+The remote dashboard and Settings expose **Pair this device**. Its camera scanner
+decodes QR frames locally with the bundled JavaScript decoder (including browsers
+without BarcodeDetector), or accepts a pasted pairing link. Links must target this
+application's `/remote/pair` route and carry a schema-valid invitation for this
+service that has not expired. Scanning never navigates to the link or creates a
+device key: the existing name/host-identity confirmation and exact host approval
+follow, using the current app context's IndexedDB identity. Home Screen apps and
+Safari tabs can therefore pair separately. Invitations remain tab-scoped until
+used or dismissed, and expiry is checked again on confirmation. Camera access
+starts only on an explicit scan action, requests no audio, bounds frames to 960
+pixels on their longest side and decodes at most five frames per second. Camera
+startup times out after twenty seconds; cancellation, success, failure, page hiding
+and late permission replies release the tracks. The application response allows
+only its own camera access; sandboxed file previews deny it. Web Settings no longer
+creates host registration codes; desktop Settings → Remote & Sync remains the
+registration entry point. The existing service/CLI registration API is unchanged.
+
 The service owns `/api/auth/*` through Better Auth, `GET /remote/config`, `GET /remote/me`, `GET|POST /remote/hosts`, `DELETE /remote/hosts/:id`, authenticated `POST /remote/desktop-registration`, and machine-only `POST /remote/register`, `POST /remote/registration-status` and `POST /remote/unregister`. WSS `/remote/browser` requires a verified service session (plus optional MFA) and exact application Origin; `/remote/connector` and `/remote/pipe` require the host's routing credential and reject browser origins. The service never accepts a daemon token. Browser and connector use Noise XX with pinned host identity and a prologue binding service, host, protocol and connection id. Service login is insufficient to acquire host authority.
 
 Desktop registration adds a five-minute browser approval of a public SHA-256 challenge. The initiating cockpit holds the random 256-bit verifier in memory; only the challenge, host label, application/service origins and expiry enter the application URL fragment. The application strips the fragment before OAuth and retains only this public request in tab-scoped session storage. A verified account with any required MFA explicitly confirms the matching request identifier. The service validates its own application/service origins, bounds expiry and host/account registration quotas, and stores only the hash. Machine-only status polling proves knowledge of the verifier without consuming it or revealing account credentials; the connector redeems it once through the existing machine-only exchange. Used challenges remain until expiry to reject duplicate approvals, including after host deletion. Expired abandoned hosts are pruned. Service state version 2 adds this bounded handoff table without modifying existing registrations. Host identity keys are generated on the host and browser grants still require separate approval.

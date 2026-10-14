@@ -1,8 +1,8 @@
 import { pushEnabled, setPushEnabled, testPushNotifications } from './push-notifications';
 import { Switch } from '../../components/ui/switch';
 import { useState } from 'react';
-import { LogOut, Laptop, Trash2, Unplug } from 'lucide-react';
-import { registrationResponseSchema, type RemoteHost } from '@puddle/shared';
+import { LogOut, Laptop, Trash2, Unplug, ScanLine } from 'lucide-react';
+import type { RemoteHost } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import {
   Dialog,
@@ -13,7 +13,6 @@ import {
   DialogTitle,
 } from '../../components/ui/dialog';
 import { Disclosure } from '../../components/ui/disclosure';
-import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import {
   Select,
@@ -38,6 +37,7 @@ export function RemoteSettings({
   disconnect,
   reconnect,
   refresh,
+  pair,
 }: {
   open: boolean;
   onOpenChange(open: boolean): void;
@@ -49,13 +49,10 @@ export function RemoteSettings({
   disconnect(id: string): void;
   reconnect(id: string): void;
   refresh(): Promise<void>;
+  pair(): void;
 }) {
   const [notifications, setNotifications] = useState(() => pushEnabled(account));
   const [theme, setTheme] = useState(storedPreference);
-  const [label, setLabel] = useState('');
-  const [registration, setRegistration] = useState<ReturnType<
-    typeof registrationResponseSchema.parse
-  > | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [notificationMessage, setNotificationMessage] = useState('');
@@ -179,50 +176,11 @@ export function RemoteSettings({
             </div>
           ))}
           {hosts.length === 0 && <p className="text-sm text-fg-muted">No hosts connected yet.</p>}
+          <Button variant="ghost" className="justify-start" disabled={busy} onClick={pair}>
+            <ScanLine />
+            Pair this device
+          </Button>
         </section>
-        <Disclosure summary="Add a host">
-          <form
-            className="mt-3 grid gap-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void action(async () => {
-                setRegistration(
-                  registrationResponseSchema.parse(
-                    await serviceRequest('/remote/hosts', 'POST', { label: label.trim() }),
-                  ),
-                );
-                await refresh();
-              });
-            }}
-          >
-            <Label htmlFor="host-name">Host name</Label>
-            <Input
-              id="host-name"
-              value={label}
-              maxLength={80}
-              onChange={(event) => setLabel(event.target.value)}
-              required
-            />
-            <Button
-              className="h-auto min-h-8 whitespace-normal py-1.5"
-              disabled={busy || !label.trim()}
-              type="submit"
-            >
-              Create registration code
-            </Button>
-          </form>
-          {registration && (
-            <div className="mt-3 space-y-3 text-sm text-fg-secondary">
-              <p>On your host, run:</p>
-              <pre className="whitespace-pre-wrap break-all text-xs">{`puddle remote enable --service ${serviceOrigin} --app-origin ${location.origin}`}</pre>
-              <p>Paste this code within five minutes:</p>
-              <code className="block break-all select-all">{registration.code}</code>
-              <p>
-                Then open the link from <code>puddle remote pair</code> in this browser.
-              </p>
-            </div>
-          )}
-        </Disclosure>
         <Disclosure summary="Account security">
           <div className="mt-3">
             <AccountSecurity enabled={mfa} refresh={refresh} />

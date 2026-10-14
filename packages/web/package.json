@@ -34,6 +34,7 @@
     "cmdk": "^1.1.1",
     "diff": "^9.0.0",
     "dompurify": "^3.4.12",
+    "jsqr": "1.4.0",
     "katex": "^0.18.1",
     "lucide-react": "^1.24.0",
     "markdown-it": "^15.0.0",

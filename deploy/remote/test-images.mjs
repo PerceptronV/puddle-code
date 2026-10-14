@@ -100,12 +100,14 @@ try {
   assert.match(guide.headers['content-type'], /^text\/html/);
   assert.ok(index.headers['content-security-policy']?.includes('https://relay.example.test'));
   assert.ok(index.headers['content-security-policy']?.includes("script-src 'self';"));
+  assert.equal(index.headers['permissions-policy'], 'camera=(self), microphone=(), geolocation=()');
   const preview = await get(`${app.base}/preview.html`);
   assert.equal(preview.status, 200);
   assert.ok(preview.headers['content-security-policy']?.includes('sandbox allow-scripts;'));
   assert.ok(preview.headers['content-security-policy']?.includes("frame-ancestors 'self';"));
   assert.ok(!preview.headers['content-security-policy']?.includes('allow-same-origin'));
   assert.equal(preview.headers['x-frame-options'], undefined);
+  assert.equal(preview.headers['permissions-policy'], 'camera=(), microphone=(), geolocation=()');
   const script = await get(`${app.base}/install.sh`);
   assert.equal(script.status, 200);
   assert.match(script.headers['content-type'], /^text\/plain/);
