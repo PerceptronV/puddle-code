@@ -1,6 +1,22 @@
 import { Notification, type BrowserWindow } from 'electron';
 import { desktopNotificationRequestSchema, type NotificationDelivery } from '@puddle/shared';
 
+function failureMessage(error: unknown): string {
+  const detail = typeof error === 'string' ? error : error instanceof Error ? error.message : '';
+  // Electron 43.2.0 forwards NSError.localizedDescription, not the structured
+  // UNError code. Only recognise the explicit notifications-not-allowed code;
+  // keep other errors (including unrecognised translations) intact.
+  if (/\bUNErrorDomain\s+(?:error\s+|Code=)1\b/.test(detail)) {
+    return (
+      'macOS has not authorised notifications for Puddle. Enable Allow notifications in ' +
+      'System Settings → Notifications → Puddle, then send another test. ' +
+      'If Puddle is missing, install a build with a valid app signature. ' +
+      detail
+    ).slice(0, 512);
+  }
+  return detail.slice(0, 512) || 'The system rejected the notification.';
+}
+
 /** Native delivery reports failures that Chromium's permission flag cannot describe. */
 export class DesktopNotifications {
   private readonly active = new Map<string, Notification>();
@@ -67,7 +83,7 @@ export class DesktopNotifications {
         current.on('failed', (_event, error) => {
           finish({
             state: 'failed',
-            message: error.slice(0, 512) || 'The system rejected the notification.',
+            message: failureMessage(error),
           });
           if (this.active.get(request.id) === current) this.active.delete(request.id);
         });
@@ -84,7 +100,7 @@ export class DesktopNotifications {
       } catch (error) {
         finish({
           state: 'failed',
-          message: (error instanceof Error ? error.message : 'Notification failed').slice(0, 512),
+          message: failureMessage(error),
         });
         notification?.close();
         this.active.delete(request.id);

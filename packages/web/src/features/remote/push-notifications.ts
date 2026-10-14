@@ -7,6 +7,7 @@ import {
 } from '@puddle/shared';
 import { setRemotePushReady } from '../../lib/remote-notification-status';
 import { notificationWorker } from '../../lib/notification-worker';
+import { waitForNotification } from '../../lib/notification-wait';
 import { serviceOrigin, serviceRequest } from './service';
 import type { RemoteClient } from './client';
 
@@ -15,21 +16,38 @@ const registrations = new Map<string, string>();
 const key = (account: string) => `puddle.push:${serviceOrigin}:${account}`;
 export const pushEnabled = (account: string) => localStorage.getItem(key(account)) === 'true';
 
-async function synchronise(client: RemoteClient): Promise<boolean> {
+type Progress = (message: string) => void;
+
+async function synchronise(client: RemoteClient, testing?: Progress): Promise<boolean> {
   if (client.state !== 'ready') return false;
   const generation = client.generation;
   const current = () => client.state === 'ready' && generation === client.generation;
+  testing?.('Checking host notification support…');
   const version = versionResponseSchema.parse(
     await (await client.request('GET', '/api/version')).json(),
   );
   if (!current() || !version.remote_notifications) return false;
   const enabled = pushEnabled(client.host.account);
+  testing?.('Checking this device’s push subscription…');
   const registration = await notificationWorker();
-  const subscription = enabled ? await registration?.pushManager.getSubscription() : null;
+  const subscription =
+    enabled && registration
+      ? await waitForNotification(
+          registration.pushManager.getSubscription(),
+          'The browser did not respond while checking its push subscription. Reload Puddle and try again.',
+        )
+      : null;
   if (!current()) return false;
+  if (testing && !subscription)
+    throw new Error(
+      'This device has no active push subscription. Turn background notifications off and on, then try again.',
+    );
   const value = subscription ? pushSubscriptionSchema.parse(subscription.toJSON()) : null;
   const fingerprint = JSON.stringify([generation, value]);
-  if (registrations.get(client.scope) === fingerprint) return true;
+  // An explicit test must confirm that the service still holds this subscription;
+  // the local cache cannot prove it survived service recovery or expiry.
+  if (!testing && registrations.get(client.scope) === fingerprint) return true;
+  testing?.('Registering this device with the host…');
   const response = await client.request('POST', '/api/notifications/push', { subscription: value });
   if (!response.ok) throw new Error('Could not enable background notifications on this host.');
   const result = pushPreferenceResultSchema.parse(await response.json());
@@ -95,7 +113,7 @@ export async function setPushEnabled(account: string, enabled: boolean): Promise
   const hosts = [...connections].filter(
     (client) => client.host.account === account && client.state === 'ready',
   );
-  const results = await Promise.allSettled(hosts.map(synchronise));
+  const results = await Promise.allSettled(hosts.map((client) => synchronise(client)));
   const failed = results.filter((result) => result.status === 'rejected' || !result.value).length;
   if (!enabled) return 'Background notifications are off on this device.';
   if (!hosts.length)
@@ -105,14 +123,27 @@ export async function setPushEnabled(account: string, enabled: boolean): Promise
   return 'Background notifications enabled. Use Send test to check delivery.';
 }
 
-export async function testPushNotifications(account: string): Promise<string> {
+export async function testPushNotifications(
+  account: string,
+  progress: Progress = () => {},
+): Promise<string> {
+  if (!pushEnabled(account))
+    throw new Error('Enable background notifications on this device before sending a test.');
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted')
+    throw new Error('Allow notifications for Puddle in this device’s notification settings.');
   const hosts = [...connections].filter(
     (client) => client.host.account === account && client.state === 'ready',
   );
   if (!hosts.length) throw new Error('Connect to a paired host before testing delivery.');
-  if (!(await synchronise(hosts[0]!)))
+  const client = hosts[0]!;
+  const generation = client.generation;
+  const synchronised = await synchronise(client, progress);
+  if (client.state !== 'ready' || client.generation !== generation)
+    throw new Error('The host connection changed. Reconnect and send another test.');
+  if (!synchronised)
     throw new Error('Update this host and connector before testing background notifications.');
-  const response = await hosts[0]!.request('POST', '/api/notifications/test');
+  progress('Sending the test through the push service…');
+  const response = await client.request('POST', '/api/notifications/test');
   if (!response.ok)
     throw new Error(
       'Update the host connector or re-enable background notifications before testing.',

@@ -408,6 +408,9 @@ protocol 22.4; the remote service and static app need this release too. On iPhon
 or iPad, add Puddle to the Home Screen and open that app before enabling push.
 The browser permission is separate from the host profile’s notification toggle.
 Profile notification preferences and project mutes still apply.
+Web Push needs no Apple Developer Program membership or Developer ID certificate;
+Apple documents this separately from native-app signing in its
+[Web Push guidance](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/).
 
 Push alerts appear while the app is open or closed. They contain only a generic
 message; clicking reopens the host. The service retains private push vendor
@@ -419,6 +422,14 @@ no new deployment secret to configure: the service generates its VAPID keys once
 
 A successful test means the push vendor accepted the message. Actual banners
 still depend on device permission, Focus settings, network and OS delivery.
+Test progress and results appear beside **Send test**. The test checks this
+device’s subscription and confirms its registration with the host before sending.
+Browser registration and subscription reads time out after ten seconds with a
+visible error; an OS permission grant alone does not establish a live subscription.
+If the vendor accepts a test but no banner appears on iOS, check Notification Centre and Settings →
+Notifications → Puddle for **Allow Notifications** and banner delivery, then
+check Focus and Scheduled Summary. Record the test result separately from whether
+an alert appears; a missing banner alone does not identify where delivery failed.
 Disable the device toggle or sign out to unsubscribe; revoking its host pairing
 stops new sends too. Messages already accepted by a vendor can arrive for up to
 two minutes. Push subscriptions do not extend host grants or keep a browser lease

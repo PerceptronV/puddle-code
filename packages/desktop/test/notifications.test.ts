@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 
+const nativeShow = vi.hoisted(() => vi.fn());
 vi.mock('electron', async () => {
   const { EventEmitter } = await import('node:events');
   class Notification extends EventEmitter {
     static instances: Notification[] = [];
     static isSupported = vi.fn(() => true);
-    show = vi.fn();
+    show = nativeShow;
     close = vi.fn(() => this.emit('close'));
     constructor() {
       super();
@@ -17,6 +18,7 @@ vi.mock('electron', async () => {
 });
 import { Notification, type BrowserWindow } from 'electron';
 import { DesktopNotifications } from '../src/notifications.js';
+import { notificationDeliverySchema } from '@puddle/shared';
 
 const instances = (Notification as unknown as { instances: Notification[] }).instances;
 const win = {
@@ -30,6 +32,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   instances.length = 0;
   vi.clearAllMocks();
+  nativeShow.mockReset();
   delivery = new DesktopNotifications(win, raise);
 });
 afterEach(() => {
@@ -53,6 +56,52 @@ it('reports a native failure instead of claiming permission is granted', async (
   instances[0].emit('failed', {}, 'Application is not signed');
   await expect(sent).resolves.toEqual({ state: 'failed', message: 'Application is not signed' });
   expect(delivery.status().state).toBe('failed');
+});
+
+it.each([
+  'The operation couldn’t be completed. (UNErrorDomain error 1.)',
+  'Error Domain=UNErrorDomain Code=1 "Notifications are not allowed"',
+])('explains macOS authorisation failures and retains the native detail: %s', async (error) => {
+  const sent = delivery.show(request);
+  instances[0].emit('failed', {}, error);
+  const result = notificationDeliverySchema.parse(await sent);
+  expect(result.state).toBe('failed');
+  expect(result.message).toContain('System Settings → Notifications → Puddle');
+  expect(result.message).toContain('valid app signature');
+  expect(result.message).toContain(error);
+  expect(delivery.status()).toEqual(result);
+
+  const retried = delivery.show(request);
+  instances[1].emit('show');
+  await expect(retried).resolves.toEqual({ state: 'shown', message: null });
+  expect(delivery.status().state).toBe('shown');
+});
+
+it.each(['UNErrorDomain error 100.', 'OtherErrorDomain error 1.', 'A native failure'])(
+  'preserves unrelated native errors: %s',
+  async (error) => {
+    const sent = delivery.show(request);
+    instances[0].emit('failed', {}, error);
+    await expect(sent).resolves.toEqual({ state: 'failed', message: error });
+  },
+);
+
+it('bounds long authorisation errors to the IPC message limit', async () => {
+  const sent = delivery.show(request);
+  instances[0].emit('failed', {}, `UNErrorDomain error 1. ${'detail '.repeat(100)}`);
+  const result = notificationDeliverySchema.parse(await sent);
+  expect(result.message).toHaveLength(512);
+  expect(result.message).toContain('UNErrorDomain error 1.');
+});
+
+it('explains authorisation errors thrown by the native API', async () => {
+  nativeShow.mockImplementationOnce(() => {
+    throw new Error('UNErrorDomain error 1.');
+  });
+  const result = await delivery.show(request);
+  expect(result.state).toBe('failed');
+  expect(result.message).toContain('System Settings → Notifications → Puddle');
+  expect(result.message).toContain('UNErrorDomain error 1.');
 });
 
 it('leaves unconfirmed delivery unverified and disposes pending requests on close', async () => {

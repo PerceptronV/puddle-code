@@ -4,8 +4,17 @@ Start the installed cockpit from an ordinary shell, outside any coding-agent ses
 
 1. In Settings → Notifications, enable agent notifications and focused delivery.
    Use **Send test**. Check the visible result. On macOS, a rejected notification
-   must show the native error; Chromium permission must not claim OS authorisation.
+   must show the native error; `UNErrorDomain` code 1 must also explain how to
+   enable **Allow notifications** in System Settings → Notifications → Puddle,
+   and mention app signing if Puddle is absent. Chromium permission must not
+   claim OS authorisation. After enabling permission, send another test and
+   confirm that success replaces the earlier error.
    A system-accepted result does not prove a banner is visible through Focus mode.
+   Test the packaged app with both Developer ID and ad-hoc signing where available:
+   `codesign --verify --deep --strict --verbose=2 /Applications/Puddle.app` must
+   succeed, but this check alone does not verify notification approval or delivery.
+   Check the actual permission prompt, banner and click for each signing mode,
+   including after an app upgrade. Removing quarantine is not a permission grant.
 2. Finish a managed agent turn while the cockpit is focused, then while unfocused.
    Both notify by default. Select background-only delivery and repeat. Check sound
    and project mute independently. Click a notification to open its session.
@@ -24,6 +33,17 @@ Start the installed cockpit from an ordinary shell, outside any coding-agent ses
    that reject the Notification constructor. Click to select the relevant session.
    This live connection test does not establish background Web Push delivery.
 7. In remote Settings enable background notifications and press **Send test**.
+   Check the **Sending…** indicator and the result immediately below the button,
+   including a failed request; it must not appear below the host/account controls.
+   With permission and the device opt-in already enabled, check the subscription,
+   host-registration and sending progress. A stalled worker registration or
+   subscription read must report failure within ten seconds, restore the test
+   button, and never send a test when that browser operation resolves late.
+   A missing subscription must explain how to re-enable it; each explicit test
+   must confirm host registration even when a previous test succeeded.
+   At a narrow phone width and with larger text, expand Account security and
+   Manage pairings: long account/host names and button labels must wrap without
+   horizontal scrolling or clipped controls.
    Check the acknowledgement and the actual banner separately. On iOS/iPadOS,
    first install/open the Home Screen app. Complete a turn while focused, then
    background the app, then close it. Each produces a generic alert; a cold click

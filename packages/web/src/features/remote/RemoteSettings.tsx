@@ -58,22 +58,25 @@ export function RemoteSettings({
   > | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [notificationMessage, setNotificationMessage] = useState('');
+  const [testingNotifications, setTestingNotifications] = useState(false);
   const [removing, setRemoving] = useState<RemoteHost | null>(null);
-  const action = async (fn: () => Promise<void>) => {
+  const action = async (fn: () => Promise<void>, report = setMessage) => {
     setBusy(true);
     setMessage('');
+    setNotificationMessage('');
     try {
       await fn();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Could not update settings.');
+      report(error instanceof Error ? error.message : 'Could not update settings.');
     } finally {
       setBusy(false);
     }
   };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="gap-6">
-        <DialogHeader>
+      <DialogContent className="grid-cols-1 gap-6 [overflow-wrap:anywhere] [&>*]:min-w-0">
+        <DialogHeader className="pr-6">
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>{email}</DialogDescription>
         </DialogHeader>
@@ -97,7 +100,7 @@ export function RemoteSettings({
             </SelectContent>
           </Select>
         </div>
-        <section className="grid gap-3" aria-label="Notifications">
+        <section className="grid grid-cols-1 gap-3" aria-label="Notifications">
           <div className="flex items-center justify-between gap-3">
             <Label htmlFor="remote-notifications">Background notifications on this device</Label>
             <Switch
@@ -106,9 +109,9 @@ export function RemoteSettings({
               disabled={busy}
               onCheckedChange={(enabled) => {
                 void action(async () => {
-                  setMessage(await setPushEnabled(account, enabled));
+                  setNotificationMessage(await setPushEnabled(account, enabled));
                   setNotifications(pushEnabled(account));
-                });
+                }, setNotificationMessage);
               }}
             />
           </div>
@@ -120,14 +123,26 @@ export function RemoteSettings({
           <Button
             variant="ghost"
             disabled={busy || !notifications}
-            onClick={() =>
-              void action(async () => setMessage(await testPushNotifications(account)))
-            }
+            onClick={() => {
+              setTestingNotifications(true);
+              void action(
+                async () =>
+                  setNotificationMessage(
+                    await testPushNotifications(account, setNotificationMessage),
+                  ),
+                setNotificationMessage,
+              ).finally(() => setTestingNotifications(false));
+            }}
           >
-            Send test
+            {testingNotifications ? 'Sending…' : 'Send test'}
           </Button>
+          {notificationMessage && (
+            <p role="status" className="text-xs text-fg-secondary">
+              {notificationMessage}
+            </p>
+          )}
         </section>
-        <section className="grid gap-3" aria-label="Host connections">
+        <section className="grid grid-cols-1 gap-3" aria-label="Host connections">
           <h3 className="text-xs font-medium uppercase tracking-wide text-fg-muted">Hosts</h3>
           {hosts.map((host) => (
             <div key={host.id} className="flex items-center gap-3">
@@ -188,7 +203,11 @@ export function RemoteSettings({
               onChange={(event) => setLabel(event.target.value)}
               required
             />
-            <Button disabled={busy || !label.trim()} type="submit">
+            <Button
+              className="h-auto min-h-8 whitespace-normal py-1.5"
+              disabled={busy || !label.trim()}
+              type="submit"
+            >
               Create registration code
             </Button>
           </form>
@@ -264,7 +283,7 @@ export function RemoteSettings({
             if (!open) setRemoving(null);
           }}
         >
-          <DialogContent>
+          <DialogContent className="grid-cols-1 [overflow-wrap:anywhere] [&>*]:min-w-0">
             <DialogHeader>
               <DialogTitle>Remove {removing?.label}?</DialogTitle>
               <DialogDescription>

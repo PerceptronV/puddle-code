@@ -100,12 +100,12 @@ jobs:
           if-no-files-found: error
 
   desktop:
-    # Packages the Electron shell (packages/desktop). Signing is dormant
-    # until secrets exist: with MAC_CERT_P12 +
+    # Packages the Electron shell (packages/desktop). With MAC_CERT_P12 +
     # MAC_CERT_PASSWORD set, the mac build is signed under hardened runtime
     # and — with APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID —
-    # notarised; without them it ships unsigned (right-click-open territory,
-    # fine for self-hosters). AppImage needs no signing.
+    # notarised; without them an ad-hoc signature seals the app's identity and
+    # resources. This does not provide Developer ID trust or OS notification
+    # approval. AppImage needs no signing.
     strategy:
       matrix:
         include:
@@ -130,7 +130,7 @@ jobs:
           # embedded bootstrap fetches daemon tarballs from the repo that
           # published it (same as the npm CLI build).
           PUDDLE_REPO_SLUG: ${{ github.repository }}
-      - name: package (signed + notarised only when the cert secrets exist)
+      - name: package (ad-hoc signing without certificate secrets)
         working-directory: packages/desktop
         env:
           CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
@@ -144,9 +144,15 @@ jobs:
           elif [ -n "$CSC_LINK" ]; then
             pnpm exec electron-builder -c.mac.notarize=true
           else
-            echo "no signing certificate secrets — building unsigned"
-            pnpm exec electron-builder -c.mac.identity=null
+            echo "no signing certificate secrets — sealing with an ad-hoc signature"
+            # Ad-hoc frameworks have no Team ID for hardened runtime library
+            # validation. Keep that runtime exclusive to Developer ID builds.
+            pnpm exec electron-builder -c.mac.identity=- -c.mac.hardenedRuntime=false -c.mac.notarize=false
           fi
+      - name: verify macOS app signature
+        if: runner.os == 'macOS'
+        working-directory: packages/desktop
+        run: codesign --verify --deep --strict --verbose=2 release/mac-arm64/Puddle.app
       - name: checksums
         working-directory: packages/desktop/release
         run: |

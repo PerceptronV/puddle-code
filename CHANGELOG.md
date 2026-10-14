@@ -8,3 +8,9 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Seal macOS desktop releases with an ad-hoc app signature when no Developer ID certificate is configured, verify the bundle during release, and explain notification authorisation failures with permission and signing guidance.
+- Show mobile background-notification test progress and results beside their controls, reuse the service-worker registration, bound stalled browser reads, and confirm the host subscription before sending each test.
+- Keep mobile settings within the viewport by allowing long account details, host names and account-security controls to wrap.

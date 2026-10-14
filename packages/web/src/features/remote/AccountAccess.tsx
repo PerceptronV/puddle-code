@@ -127,6 +127,7 @@ export function AccountSecurity({
       </p>
       {!setup && (
         <Button
+          className="h-auto min-h-8 whitespace-normal py-1.5"
           disabled={busy}
           onClick={() =>
             void action(async () => {
@@ -148,7 +149,9 @@ export function AccountSecurity({
           <p>Add this account to your authenticator. Save the recovery codes somewhere private.</p>
           <a href={setup.totpURI}>Open authenticator</a>
           <p className="break-all select-all">{setup.totpURI}</p>
-          <pre className="rounded-md bg-surface p-3 text-xs">{setup.backupCodes.join('\n')}</pre>
+          <pre className="whitespace-pre-wrap break-all rounded-md bg-surface p-3 text-xs">
+            {setup.backupCodes.join('\n')}
+          </pre>
           <Label className="grid gap-2">
             Authenticator code
             <Input

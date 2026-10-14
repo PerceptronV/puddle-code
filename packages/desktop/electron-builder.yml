@@ -4,12 +4,14 @@
 # The SSH askpass helper is the sole unpacked file because Electron's
 # run-as-Node mode executes it as a real script from a child process.
 #
-# Signing is environment-driven so local/dev/CI-without-secrets builds stay
-# unsigned automatically: electron-builder signs when CSC_LINK +
-# CSC_KEY_PASSWORD are set, and the release workflow adds
+# Developer ID signing is environment-driven: electron-builder signs when
+# CSC_LINK + CSC_KEY_PASSWORD are set, and the release workflow adds
 # `-c.mac.notarize=true` (needs APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD,
 # APPLE_TEAM_ID) only when the certificate secrets exist — see
-# .github/workflows/release.yml "desktop" job.
+# .github/workflows/release.yml "desktop" job. Without certificate secrets,
+# releases use `-c.mac.identity=- -c.mac.hardenedRuntime=false` to seal the app
+# with an ad-hoc signature (its frameworks have no Team ID for library validation);
+# `identity=null` leaves Electron's linker signature without a bound app identity.
 # Icon: build/icon.icns (mac, from the full-bleed icon-mac.svg — macOS 26+
 # applies its own squircle mask) and build/icon.png (linux, from icon.svg,
 # self-rounded) are picked up from the default buildResources dir — rendered

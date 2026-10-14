@@ -1,7 +1,28 @@
+import { waitForNotification } from './notification-wait';
+
+let registrationTask: Promise<ServiceWorkerRegistration> | undefined;
+
 /** Mobile browsers require persistent notifications through a service worker. */
 export async function notificationWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!('serviceWorker' in navigator) || !window.isSecureContext) return null;
-  const registration = await navigator.serviceWorker.register('/notification-worker.js');
+  // Reuse the registration across host synchronisation and tests. Registering
+  // again performs an update check, which can stall independently of permission.
+  if (!registrationTask) {
+    registrationTask = registerWorker().catch((error: unknown) => {
+      registrationTask = undefined;
+      throw error;
+    });
+  }
+  return registrationTask;
+}
+
+async function registerWorker(): Promise<ServiceWorkerRegistration> {
+  // A late registration can install the notification-only worker, but must not
+  // resume a timed-out caller and send a notification or change its subscription.
+  const registration = await waitForNotification(
+    navigator.serviceWorker.register('/notification-worker.js'),
+    'Notification support did not respond. Reload Puddle and try again.',
+  );
   if (registration.active) return registration;
   const worker = registration.installing ?? registration.waiting;
   if (!worker) throw new Error('Notification support could not start. Reload and try again.');
