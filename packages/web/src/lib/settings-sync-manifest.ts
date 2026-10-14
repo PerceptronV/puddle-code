@@ -98,8 +98,8 @@ export const SYNC_GROUPS: SyncGroup[] = [
         // Muted projects are host-local project ids — they never travel, and
         // an import must not wipe the ones this host already muted.
         pick: (v) => {
-          const { desktop, sound } = asObject(v);
-          return { desktop, sound };
+          const { desktop, sound, when_focused } = asObject(v);
+          return { desktop, sound, ...(when_focused !== undefined ? { when_focused } : {}) };
         },
         mergeInto: (incoming, current) => ({ ...asObject(current), ...asObject(incoming) }),
       },

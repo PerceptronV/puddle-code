@@ -1,4 +1,5 @@
 export * from './protocol.js';
+export * from './notifications.js';
 export * from './api/common.js';
 export * from './api/version.js';
 export * from './api/agent-signal.js';

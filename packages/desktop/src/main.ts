@@ -39,6 +39,7 @@ import { startSshAskpass, type RunningSshAskpass } from './ssh-askpass.js';
 import { restoredCockpitBounds, type DisplayGeometry } from './window-bounds.js';
 import { readX11Workspace, restoreX11Workspace } from './x11-workspace.js';
 import { refreshNavigation } from './refresh-navigation.js';
+import { DesktopNotifications } from './notifications.js';
 
 /**
  * The desktop shell (SPEC §10): an Electron main process that drives the SAME
@@ -78,6 +79,7 @@ interface Shell {
 }
 
 const shells = new Map<string, Shell>();
+const notifications = new Map<number, DesktopNotifications>();
 const connecting = new Set<string>();
 let promptWin: BrowserWindow | null = null;
 let pickerWin: BrowserWindow | null = null;
@@ -248,6 +250,14 @@ function createWindow(
     restoreX11Workspace(win.getMediaSourceId(), workspace);
     win.show();
   }
+
+  const delivery = new DesktopNotifications(win, () => raise(win));
+  const contentsId = win.webContents.id;
+  notifications.set(contentsId, delivery);
+  win.on('closed', () => {
+    delivery.close();
+    notifications.delete(contentsId);
+  });
 
   // Full-screen state is a WINDOW fact only the main process knows, and the top
   // bar needs it: with the native title bar hidden the bar insets 88px for the
@@ -454,6 +464,20 @@ ipcMain.on('puddle:picker-cancel', () => pickerWin?.close());
 ipcMain.on('puddle:raise', (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (win) raise(win);
+});
+
+// Only a cockpit's main frame can use its own notification channel.
+ipcMain.handle('puddle:notification-status', (event) => {
+  if (event.senderFrame !== event.sender.mainFrame) throw new Error('Invalid notification sender');
+  const delivery = notifications.get(event.sender.id);
+  if (!delivery) throw new Error('Notification window is unavailable');
+  return delivery.status();
+});
+ipcMain.handle('puddle:notification-show', (event, request: unknown) => {
+  if (event.senderFrame !== event.sender.mainFrame) throw new Error('Invalid notification sender');
+  const delivery = notifications.get(event.sender.id);
+  if (!delivery) throw new Error('Notification window is unavailable');
+  return delivery.show(request);
 });
 
 // The `window.close` hotkey (⌘⇧W by default). A renderer cannot close a window

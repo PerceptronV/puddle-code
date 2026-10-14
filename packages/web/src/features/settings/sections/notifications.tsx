@@ -1,4 +1,12 @@
 import { useEffect, useState } from 'react';
+import { notificationPreferencesSchema, type NotificationPreferences } from '@puddle/shared';
+import { Button } from '../../../components/ui/button';
+import { desktopBridge } from '../../../lib/desktop';
+import {
+  deliverNotification,
+  refreshNotificationDelivery,
+  useNotificationDelivery,
+} from '../../../lib/notification-delivery';
 import { toastError } from '../../../lib/errors';
 import { Switch } from '../../../components/ui/switch';
 import {
@@ -9,13 +17,7 @@ import { usePatchProfileSettings, useProfileSettings, useProjects } from '../../
 import { useCurrentProfileId } from '../../profile/profile-store';
 import { SectionTitle, SettingRow } from '../parts';
 
-interface NotificationPrefs {
-  desktop: boolean;
-  sound: boolean;
-  muted_projects: string[]; // project ids (10-hex)
-}
-
-const DEFAULTS: NotificationPrefs = { desktop: true, sound: false, muted_projects: [] };
+const DEFAULTS = notificationPreferencesSchema.parse({});
 
 /**
  * The live browser permission behind the desktop toggle. Re-read on window
@@ -42,7 +44,7 @@ function PermissionHint({
   permission: EffectiveNotificationPermission;
   onRequest: () => void;
 }) {
-  if (permission === 'granted') return null;
+  if (permission === 'granted' || permission === 'unverified') return null;
   return (
     <p className="pb-2 text-xs text-warning">
       {permission === 'default' && (
@@ -79,15 +81,23 @@ export function NotificationsSection() {
   const patch = usePatchProfileSettings(profileId ?? '');
   const projects = useProjects(profileId ?? undefined);
   const [permission, refreshPermission] = usePermissionState();
+  const delivery = useNotificationDelivery();
+  const [testing, setTesting] = useState(false);
+  useEffect(() => {
+    void refreshNotificationDelivery();
+    const refresh = () => void refreshNotificationDelivery();
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
+  }, []);
 
-  const prefs: NotificationPrefs = {
-    ...DEFAULTS,
-    ...((settings.data?.['notifications'] as Partial<NotificationPrefs> | undefined) ?? {}),
-  };
-  const save = (next: NotificationPrefs) =>
+  const prefs = notificationPreferencesSchema
+    .catch(DEFAULTS)
+    .parse(settings.data?.['notifications'] ?? {});
+  const save = (next: NotificationPreferences) =>
     patch.mutate({ notifications: next }, { onError: (e) => toastError(e) });
 
   const requestPermission = () => {
+    if (desktopBridge()?.showNotification) return;
     if (typeof Notification === 'undefined') return;
     void Notification.requestPermission().then(refreshPermission);
   };
@@ -95,7 +105,7 @@ export function NotificationsSection() {
   return (
     <div>
       <SectionTitle>Notifications</SectionTitle>
-      <SettingRow label="Desktop notification on waiting" htmlFor="notify-desktop">
+      <SettingRow label="Agent notifications" htmlFor="notify-desktop">
         <Switch
           id="notify-desktop"
           checked={prefs.desktop}
@@ -108,6 +118,52 @@ export function NotificationsSection() {
         />
       </SettingRow>
       {prefs.desktop && <PermissionHint permission={permission} onRequest={requestPermission} />}
+      <SettingRow label="Notify while Puddle is focused" htmlFor="notify-focused">
+        <Switch
+          id="notify-focused"
+          checked={prefs.when_focused}
+          onCheckedChange={(checked) => save({ ...prefs, when_focused: checked })}
+        />
+      </SettingRow>
+      <SettingRow
+        label="Test delivery"
+        description="Send a notification to check this device’s permissions."
+      >
+        <Button
+          variant="ghost"
+          disabled={testing}
+          onClick={() => {
+            setTesting(true);
+            void (async () => {
+              if (
+                !desktopBridge()?.showNotification &&
+                typeof Notification !== 'undefined' &&
+                Notification.permission === 'default'
+              ) {
+                await Notification.requestPermission();
+                refreshPermission();
+              }
+              await deliverNotification(
+                {
+                  id: 'puddle-test',
+                  title: 'Puddle',
+                  body: 'Notifications are working on this device.',
+                },
+                () => {},
+              );
+            })()
+              .catch(toastError)
+              .finally(() => setTesting(false));
+          }}
+        >
+          {testing ? 'Sending…' : 'Send test'}
+        </Button>
+      </SettingRow>
+      <p role="status" className="pb-2 text-xs text-fg-muted">
+        {delivery.state === 'shown'
+          ? 'The system accepted the notification. Banner visibility also depends on Focus / Do Not Disturb.'
+          : (delivery.message ?? 'Delivery has not been tested on this device.')}
+      </p>
       <SettingRow label="Sound" htmlFor="notify-sound">
         <Switch
           id="notify-sound"

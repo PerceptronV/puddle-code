@@ -15,5 +15,7 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Deliver desktop notifications through the native shell, report failures and provide a test button instead of assuming that desktop permission is granted.
+- Allow notifications while Puddle is focused by default, with a background-only preference in daemon/cockpit protocol **22.2**.
 - Realign editor bracket highlights, selections and carets when the self-hosted font finishes loading.
 - Refresh eager compilation PDFs when the completed result advances, so polling during a build cannot reload the previous output and skip the finished PDF.

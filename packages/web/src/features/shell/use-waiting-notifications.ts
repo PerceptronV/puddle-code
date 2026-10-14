@@ -1,37 +1,42 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
-import type { ProjectDetail, Session } from '@puddle/shared';
-import { desktopBridge } from '../../lib/desktop';
-import { notificationPermission } from '../../lib/notification-permission';
+import {
+  notificationPreferencesSchema,
+  type NotificationPreferences,
+  type ProjectDetail,
+  type Session,
+} from '@puddle/shared';
+import {
+  notificationPermission,
+  type EffectiveNotificationPermission,
+} from '../../lib/notification-permission';
+import { deliverNotification } from '../../lib/notification-delivery';
 import { fetchAllSessions, hostLabel, useHostInfo, useProfileSettings } from '../../lib/queries';
 import { wsManager } from '../../lib/ws';
 import { useCurrentProfileId } from '../profile/profile-store';
 
 /** The profile's notification prefs (SPEC §11); delivery defaults mirror the settings tab. */
-interface NotificationPrefs {
-  desktop: boolean;
-  sound: boolean;
-  muted_projects: string[];
-}
-const DEFAULT_PREFS: NotificationPrefs = { desktop: true, sound: false, muted_projects: [] };
+const DEFAULT_PREFS = notificationPreferencesSchema.parse({});
 
 /**
  * Whether a waiting_input transition should raise a desktop notification /
  * sound. Pure, so the policy is testable: muted projects are silent, the
- * desktop notification additionally needs granted permission and an
- * UNFOCUSED window (a focused one already shows the green waiting pulse —
- * an OS banner over it would be noise).
+ * desktop notification needs browser permission or native delivery. Focused
+ * delivery is enabled by default and can be disabled in settings.
  */
 export function decideNotification(args: {
-  prefs: NotificationPrefs;
+  prefs: NotificationPreferences;
   projectId: string;
   windowFocused: boolean;
-  permission: NotificationPermission | 'unsupported';
+  permission: EffectiveNotificationPermission;
 }): { desktop: boolean; sound: boolean } {
   if (args.prefs.muted_projects.includes(args.projectId)) return { desktop: false, sound: false };
   return {
-    desktop: args.prefs.desktop && args.permission === 'granted' && !args.windowFocused,
+    desktop:
+      args.prefs.desktop &&
+      (args.permission === 'granted' || args.permission === 'unverified') &&
+      (args.prefs.when_focused || !args.windowFocused),
     sound: args.prefs.sound,
   };
 }
@@ -89,11 +94,10 @@ export function useWaitingNotifications(): void {
   const navigate = useNavigate();
   const profileId = useCurrentProfileId();
   const settings = useProfileSettings(profileId ?? undefined);
-  const prefsRef = useRef<NotificationPrefs>(DEFAULT_PREFS);
-  prefsRef.current = {
-    ...DEFAULT_PREFS,
-    ...((settings.data?.['notifications'] as Partial<NotificationPrefs> | undefined) ?? {}),
-  };
+  const prefsRef = useRef<NotificationPreferences>(DEFAULT_PREFS);
+  prefsRef.current = notificationPreferencesSchema
+    .catch(DEFAULT_PREFS)
+    .parse(settings.data?.['notifications'] ?? {});
 
   // The title's base is the machine's label (display-name customisation
   // first, then hostname) — same base the workspace title builds on. A ref,
@@ -144,18 +148,16 @@ export function useWaitingNotifications(): void {
         });
         if (verdict.sound) playPing();
         if (verdict.desktop) {
-          const n = new Notification(displayTitle(found), {
-            body: 'Waiting for your input',
-            tag: `puddle-waiting-${found.id}`, // replaces, never stacks per session
-          });
-          n.onclick = () => {
-            // window.focus() raises a browser tab; only the desktop shell's
-            // main process can raise an OS window.
-            desktopBridge()?.raiseWindow();
-            window.focus();
-            void navigate(`/project/${found.project_id}/session/${found.id}`);
-            n.close();
-          };
+          await deliverNotification(
+            {
+              id: `puddle-waiting-${found.id}`,
+              title: displayTitle(found).slice(0, 160),
+              body: 'Waiting for your input',
+            },
+            () => {
+              void navigate(`/project/${found.project_id}/session/${found.id}`);
+            },
+          );
         }
       })();
     });

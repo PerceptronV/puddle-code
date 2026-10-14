@@ -11,6 +11,13 @@ import { contextBridge, ipcRenderer } from 'electron';
  * the restart).
  */
 contextBridge.exposeInMainWorld('puddleDesktop', {
+  notificationStatus: () => ipcRenderer.invoke('puddle:notification-status'),
+  showNotification: (request: unknown) => ipcRenderer.invoke('puddle:notification-show', request),
+  onNotificationClick: (callback: (id: string) => void): (() => void) => {
+    const handler = (_event: unknown, id: string) => callback(id);
+    ipcRenderer.on('puddle:notification-click', handler);
+    return () => ipcRenderer.removeListener('puddle:notification-click', handler);
+  },
   /** Bring the app window to the front (renderer window.focus() cannot). */
   raiseWindow: () => ipcRenderer.send('puddle:raise'),
   /** Close this window — the `window.close` hotkey (renderer close() cannot). */

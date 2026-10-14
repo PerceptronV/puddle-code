@@ -292,4 +292,5 @@
 // 21.3: additive — accept an empty repository default to follow the clone's current branch.
 // 22.0: profile-scoped remote registrations and host connection authority.
 // 22.1: additive — transient foreground-agent icon hints on terminal sessions.
-export const PROTOCOL_VERSION = { major: 22, minor: 1 } as const;
+// 22.2: additive — notification focus preference; native desktop delivery diagnostics.
+export const PROTOCOL_VERSION = { major: 22, minor: 2 } as const;

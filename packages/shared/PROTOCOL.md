@@ -150,7 +150,12 @@ Updates reuse the profile-filtered `sessions-changed` event; no remote operation
 or authority changes, so remote protocol remains 3. Older daemons omit the hint
 and newer clients retain the terminal glyph.
 
-The daemon line in `puddle --version` may display `protocol 22.1c3`. The `c3`
+Daemon/cockpit protocol 22.2 adds the optional `notifications.when_focused`
+profile preference (default true). Older peers retain their existing policy;
+native notification delivery and its bounded result use capability-detected
+desktop IPC only. Remote envelopes and host authority are unchanged.
+
+The daemon line in `puddle --version` may display `protocol 22.2c3`. The `c3`
 reports the bundled connector's remote protocol, read from `CONNECTOR_PROTOCOL`
 in the release archive (or a known historical release). It is display-only:
 `PROTOCOL` remains the daemon's plain `major.minor`, and CLI/desktop handshake
