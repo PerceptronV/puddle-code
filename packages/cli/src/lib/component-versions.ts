@@ -136,6 +136,7 @@ const RELEASE_PROTOCOLS: Readonly<Record<string, SpeakingProtocol>> = {
   '0.2.21': { major: 22, minor: 4 },
   '0.2.22': { major: 22, minor: 4 },
   '0.2.23': { major: 22, minor: 5 },
+  '0.2.24': { major: 22, minor: 5 },
 };
 
 function validProtocol(value: unknown): value is SpeakingProtocol {
