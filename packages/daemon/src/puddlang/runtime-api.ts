@@ -30,7 +30,7 @@ process.on('disconnect', () => {
 function call(operation: PuddlangOperation): Promise<unknown> {
   return new Promise((resolve, reject) => {
     if (!process.send || !process.connected) {
-      reject(new Error('Run this program with puddlang run'));
+      reject(new Error('Run this program with pudl run'));
       return;
     }
     const id = ++next;

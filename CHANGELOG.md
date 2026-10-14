@@ -11,6 +11,7 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Rename the puddlang executable to `pudl` across npm, standalone installers and command examples; retain the puddlang language/API name.
 - Suppress desktop notifications only during recent typing, pasting or clicking in the notifying session when focused delivery is disabled; idle windows and other sessions no longer silence alerts.
 
 ### Fixed

@@ -852,7 +852,7 @@ Each env/ports value list is one non-wrapping line. When it exceeds the pane wid
 
 ## 10. `puddle` CLI (client)
 
-The same npm package and standalone archives ship `puddlang`: run, context,
+The same npm package and standalone archives ship `pudl` for puddlang: run, context,
 status, logs, cancel and mcp commands. They reuse local/SSH authority and require
 an existing daemon at protocol 23.0+. One selected profile binds each connection.
 Run waits by default (`--detach` returns after submission); observer exit does

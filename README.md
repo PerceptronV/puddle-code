@@ -29,8 +29,8 @@ installer (replace the example host):
 curl -fsSL https://app.example.com/install.sh | sh
 ```
 
-The CLI also includes `puddlang`, a TypeScript interface for coder/reviewer loops
-and other agent workflows, available through the shell or stdio MCP. See the
+The CLI also includes `pudl`, which runs puddlang programmes for coder/reviewer
+loops and other agent workflows through the shell or stdio MCP. See the
 [puddlang guide](docs/puddlang.md) for setup, examples and initial limitations.
 
 This installs the CLI under `~/.local/share/puddle/cli` and its launcher at

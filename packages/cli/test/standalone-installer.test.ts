@@ -71,21 +71,62 @@ function fixture() {
 }
 
 describe('standalone CLI installer', () => {
+  it('migrates owned puddlang launchers to pudl and permits older archive removal', async () => {
+    const f = fixture();
+    const legacy = join(f.home, '.local/bin/puddlang');
+    const current = join(f.home, '.local/bin/pudl');
+    const command = '#!/bin/sh\nexit 0\n';
+    writeFileSync(join(f.stage, 'puddlang'), command, { mode: 0o755 });
+    f.pack();
+    f.install();
+    expect(existsSync(legacy)).toBe(true);
+
+    rmSync(join(f.stage, 'puddlang'));
+    writeFileSync(join(f.stage, 'pudl'), command, { mode: 0o755 });
+    f.pack();
+    f.install();
+    expect(existsSync(legacy)).toBe(false);
+    expect(execFileSync(current, ['--help']).length).toBe(0);
+    expect(
+      JSON.parse(readFileSync(join(f.prefix, 'installation.json'), 'utf8')).scriptLauncher,
+    ).toBe(realpathSync(current));
+
+    // An unrelated executable with the former name must survive reinstalls.
+    writeFileSync(legacy, 'unrelated command');
+    f.install();
+    expect(readFileSync(legacy, 'utf8')).toBe('unrelated command');
+    rmSync(legacy);
+
+    rmSync(join(f.stage, 'pudl'));
+    writeFileSync(join(f.stage, 'puddlang'), command, { mode: 0o755 });
+    f.pack();
+    f.install();
+    expect(existsSync(current)).toBe(false);
+    await removeStandaloneCli({
+      root: realpathSync(f.prefix),
+      release: realpathSync(join(f.prefix, 'current')),
+      launcher: f.launcher,
+      scriptLauncher: legacy,
+    });
+    expect(existsSync(legacy)).toBe(false);
+    expect(existsSync(f.launcher)).toBe(false);
+  });
+
   it('installs, upgrades and removes both owned launchers; supports older archives', async () => {
     const f = fixture();
-    const script = join(f.home, '.local/bin/puddlang');
+    const script = join(f.home, '.local/bin/pudl');
     f.install();
-    writeFileSync(join(f.stage, 'puddlang'), '#!/bin/sh\nprintf "fixture puddlang help\\n"\n', {
+    writeFileSync(join(f.stage, 'pudl'), '#!/bin/sh\nprintf "fixture pudl help\\n"\n', {
       mode: 0o755,
     });
     f.pack();
     f.install();
-    expect(execFileSync(script, ['--help'], { encoding: 'utf8' })).toContain('fixture puddlang');
-    rmSync(join(f.stage, 'puddlang'));
+    expect(execFileSync(script, ['--help'], { encoding: 'utf8' })).toContain('fixture pudl');
+    rmSync(join(f.stage, 'pudl'));
     f.pack();
     f.install();
     expect(existsSync(script)).toBe(false);
-    writeFileSync(join(f.stage, 'puddlang'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    writeFileSync(join(f.stage, 'pudl'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
     f.pack();
     f.install();
     const installation = {
@@ -95,9 +136,7 @@ describe('standalone CLI installer', () => {
       scriptLauncher: script,
     };
     writeFileSync(script, 'replacement');
-    await expect(removeStandaloneCli(installation)).rejects.toThrow(
-      'puddlang launcher was replaced',
-    );
+    await expect(removeStandaloneCli(installation)).rejects.toThrow('pudl launcher was replaced');
     expect(existsSync(f.launcher)).toBe(true);
     rmSync(script);
     f.install();
@@ -106,13 +145,13 @@ describe('standalone CLI installer', () => {
     expect(existsSync(script)).toBe(false);
   });
 
-  it('does not overwrite an unrelated puddlang command', () => {
+  it('does not overwrite an unrelated pudl command', () => {
     const f = fixture();
     f.install();
     const previous = readlinkSync(join(f.prefix, 'current'));
-    writeFileSync(join(f.stage, 'puddlang'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    writeFileSync(join(f.stage, 'pudl'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
     f.pack();
-    const script = join(f.home, '.local/bin/puddlang');
+    const script = join(f.home, '.local/bin/pudl');
     writeFileSync(script, 'unrelated');
     expect(() => f.install()).toThrow('unrelated launcher');
     expect(readFileSync(script, 'utf8')).toBe('unrelated');

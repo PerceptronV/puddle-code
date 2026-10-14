@@ -125,7 +125,9 @@ main() {
   done
   # Help loads the bundle without touching a daemon or user state.
   "$STAGE/puddle" --help >/dev/null || die "CLI smoke test failed"
-  if [ -f "$STAGE/puddlang" ]; then
+  if [ -f "$STAGE/pudl" ]; then
+    "$STAGE/pudl" --help >/dev/null || die "pudl smoke test failed"
+  elif [ -f "$STAGE/puddlang" ]; then
     "$STAGE/puddlang" --help >/dev/null || die "puddlang smoke test failed"
   fi
   "$STAGE/bin/node" --input-type=commonjs - "$PREFIX" "$BIN_DIR" "$STAGE" <<'NODE'
@@ -134,9 +136,12 @@ const [root, binDir, stage] = process.argv.slice(2);
 const launcher = path.join(binDir, 'puddle');
 const quote = (s) => "'" + s.replaceAll("'", "'\\''") + "'";
 const wrapper = '#!/bin/sh\n# puddle standalone launcher\nexec ' + quote(path.join(root, 'current/puddle')) + ' "$@"\n';
-const scriptLauncher = path.join(binDir, 'puddlang');
-const scriptWrapper = '#!/bin/sh\n# puddle standalone launcher\nexec ' + quote(path.join(root, 'current/puddlang')) + ' "$@"\n';
-const hasScript = fs.existsSync(path.join(stage, 'puddlang'));
+// Older archives remain installable; current releases provide only pudl.
+const scriptCommand = ['pudl', 'puddlang'].find((name) => fs.existsSync(path.join(stage, name)));
+const scriptLauncher = path.join(binDir, scriptCommand || 'pudl');
+const scriptWrapperFor = (name) => '#!/bin/sh\n# puddle standalone launcher\nexec ' + quote(path.join(root, 'current', name)) + ' "$@"\n';
+const scriptWrapper = scriptWrapperFor(scriptCommand || 'pudl');
+const hasScript = scriptCommand !== undefined;
 const stat = (p) => { try { return fs.lstatSync(p); } catch (e) { if (e.code === 'ENOENT') return null; throw e; } };
 if (stat(launcher) && (!stat(launcher).isFile() || fs.readFileSync(launcher, 'utf8') !== wrapper)) {
   throw Error('Refusing to replace an unrelated launcher: ' + launcher + '; choose --bin-dir');
@@ -160,7 +165,13 @@ try {
   fs.renameSync(launcher + tmp, launcher);
   if (hasScript) fs.renameSync(scriptLauncher + tmp, scriptLauncher);
   fs.renameSync(current + tmp, current); // Activate only after every other write succeeds.
-  if (!hasScript && ownsScript) fs.unlinkSync(scriptLauncher); // Named older releases remain installable.
+  // Remove only exact wrappers owned by this installation when the command
+  // changes or a named older release does not contain a scripting command.
+  for (const name of ['pudl', 'puddlang']) {
+    if (name === scriptCommand) continue;
+    const obsolete = path.join(binDir, name);
+    if (stat(obsolete)?.isFile() && fs.readFileSync(obsolete, 'utf8') === scriptWrapperFor(name)) fs.unlinkSync(obsolete);
+  }
 } finally {
   for (const file of [record + tmp, launcher + tmp, scriptLauncher + tmp, current + tmp]) fs.rmSync(file, { force: true });
 }

@@ -7,14 +7,14 @@ import { puddlangStartSchema, PUDDLANG_MAX_SOURCE } from '@puddle/shared';
 import { connectPuddlang } from './puddlang/client.js';
 import { serveMcp } from './puddlang/mcp.js';
 
-const help = `puddlang — programmes that manage Puddle agents
+const help = `pudl — programmes that manage Puddle agents
 
-  puddlang run programme.ts [--input JSON] [--detach]
-  puddlang context
-  puddlang status <run-id>
-  puddlang logs <run-id> [--after sequence]
-  puddlang cancel <run-id>
-  puddlang mcp
+  pudl run programme.ts [--input JSON] [--detach]
+  pudl context
+  pudl status <run-id>
+  pudl logs <run-id> [--after sequence]
+  pudl cancel <run-id>
+  pudl mcp
 
 Connection: --host user@host --profile name-or-id
 Run options: --id UUID --account agent=label-or-id (repeatable)
@@ -132,6 +132,6 @@ async function main(): Promise<void> {
   }
 }
 void main().catch((error: unknown) => {
-  process.stderr.write(`puddlang: ${error instanceof Error ? error.message : String(error)}\n`);
+  process.stderr.write(`pudl: ${error instanceof Error ? error.message : String(error)}\n`);
   process.exitCode = 1;
 });

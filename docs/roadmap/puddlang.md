@@ -68,18 +68,18 @@ interfaces should expose the same underlying capabilities.
 
 ## Running puddlang
 
-Propose a `puddlang` executable distributed with the Puddle CLI. It reuses the
+Use a `pudl` executable distributed with the Puddle CLI. It reuses the
 CLI's local/SSH connection, handshake and authority implementation. Example
 commands, using the initial TypeScript frontend:
 
 ```sh
-puddlang run review.ts --profile personal
-puddlang run review.ts --host user@devbox --profile personal
-puddlang run review.ts --profile personal --wait --json
-puddlang run review.ts --profile personal --account codex=primary --account claude-code=review
-puddlang status <run-id> --profile personal
-puddlang logs <run-id> --profile personal --follow
-puddlang cancel <run-id> --profile personal
+pudl run review.ts --profile personal
+pudl run review.ts --host user@devbox --profile personal
+pudl run review.ts --profile personal --wait --json
+pudl run review.ts --profile personal --account codex=primary --account claude-code=review
+pudl status <run-id> --profile personal
+pudl logs <run-id> --profile personal --follow
+pudl cancel <run-id> --profile personal
 ```
 
 Every run command accepts the same host/profile selectors. Omitted host means
@@ -116,11 +116,11 @@ must not launch `puddled` from the agent's inherited orchestration environment.
 
 An agent can orchestrate workers through either interface:
 
-1. Write a script and invoke `puddlang run ... --json` using its shell tool.
+1. Write a script and invoke `pudl run ... --json` using its shell tool.
 2. Call a puddlang MCP server to submit a program or operate agent handles
    directly. A coordinator need not generate source code to ask one reviewer.
 
-Propose `puddlang mcp --profile personal` as a stdio server, with `--host`
+Propose `pudl mcp --profile personal` as a stdio server, with `--host`
 available for external clients targeting an SSH host. It is a client of the
 same host service as the CLI. A remotely hosted HTTP MCP endpoint would be a
 later transport with its own authenticated delivery design.
@@ -372,7 +372,7 @@ Likely implementation seams:
 - `packages/daemon/src/worktrees/`: directory resolution and any explicitly
   requested worktree creation or snapshot operations.
 - `packages/shared/`: validated request, reply and run-state protocol shapes.
-- `packages/cli/`: the `puddlang` executable and MCP bridge, reusing shared
+- `packages/cli/`: the `pudl` executable and MCP bridge, reusing shared
   connection libraries. Business logic stays in host services.
 - `packages/web/`: run inspection and controls, with agents visible in the
   existing cockpit.
@@ -430,7 +430,7 @@ it is a feature comparison, not an end-to-end operational benchmark.
 | Agent-control CLI, SDK and MCP                                         | Puddle's CLI currently centres on host/cockpit management, attach and logs. Add discovery, spawning, structured turn requests, inspection and control. Superset already exposes [CLI operations](https://docs.superset.sh/cli/cli-reference), a [TypeScript SDK](https://docs.superset.sh/sdk/reference) and [MCP tools](https://github.com/superset-sh/superset/blob/main/apps/docs/content/docs/mcp-server.mdx). Its SDK is labelled early alpha. |
 | Transcript reads, state waits, resume, fork and hand-off               | Puddle has status, native conversation lifecycle, resume and account/agent continuation foundations. It lacks a unified scripting surface and exact request/reply contract. Superset documents reads, waits, diagnostic state explanations and capability-dependent resume/fork in its [CLI](https://docs.superset.sh/cli/cli-reference).                                                                                                           |
 | Supported agents and launch configuration                              | Puddle has four managed adapters: Claude Code, Codex, OpenCode and Gemini CLI. Other CLIs can run in terminals. Superset documents [more integrations](https://docs.superset.sh/supported-agents), with varying depth. More adapters and capability-checked model/effort controls are separate work.                                                                                                                                                |
-| Scheduled runs                                                         | No general agent scheduler in Puddle. Superset has [recurring automations](https://docs.superset.sh/automations). Add persisted schedules, timezone handling and run history later. External cron could invoke puddlang sooner, but would not provide the same product experience.                                                                                                                                                                  |
+| Scheduled runs                                                         | No general agent scheduler in Puddle. Superset has [recurring automations](https://docs.superset.sh/automations). Add persisted schedules, timezone handling and run history later. External cron could invoke `pudl` sooner, but would not provide the same product experience.                                                                                                                                                                    |
 | Setup, teardown and reusable terminal commands                         | Puddle has agent-led onboarding notes and shell terminals. Superset has explicit [project lifecycle commands](https://docs.superset.sh/setup-teardown-scripts) and saved terminal launches. Equivalent lifecycle hooks and command bindings need their own design.                                                                                                                                                                                  |
 | Task tracking and external integrations                                | No integrated task board, issue-sync or Slack workflow in Puddle. Superset has [tasks and issue delegation](https://docs.superset.sh/tasks) and [Slack integration](https://docs.superset.sh/use-with-slack).                                                                                                                                                                                                                                       |
 | Pull-request workflow                                                  | Puddle has local Git inspection and mutations. Superset has a [GitHub PR dashboard](https://docs.superset.sh/pull-requests) with checks, comments and merge actions. Agents invoking external tools would not amount to the same built-in feature.                                                                                                                                                                                                  |

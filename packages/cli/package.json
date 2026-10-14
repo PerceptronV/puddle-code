@@ -15,7 +15,7 @@
   "type": "module",
   "bin": {
     "puddle": "dist/index.js",
-    "puddlang": "dist/puddlang.js"
+    "pudl": "dist/pudl.js"
   },
   "files": [
     "dist",

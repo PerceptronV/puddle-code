@@ -7,20 +7,24 @@ conversations. Other adapters cannot yet supply exact scripted replies.
 
 ## Distribution and setup
 
-`puddlang` ships as a second command in `@puddle-code/cli`. Standalone archives
-include both commands and Node; the public installer installs both launchers.
+`pudl` runs puddlang programmes and ships as a second command in `@puddle-code/cli`.
+Standalone archives include both commands and Node; the public installer installs both launchers.
 `puddle upgrade cli` and `puddle remove cli` manage them together. There is no
 separate npm package or daemon. Desktop-only users install the CLI for the shell
 and MCP commands.
 
-When upgrading a standalone version that predates puddlang, re-run the current
-public CLI installer once to add its launcher: older embedded installers only
-install the `puddle` command. Subsequent upgrades manage both commands together.
+The executable is `pudl`; programme imports remain `puddlang`. The installer
+replaces its own former `puddlang` launcher when upgrading an existing installation.
+
+When upgrading a standalone version that predates `pudl`, re-run the current
+public CLI installer once to add its launcher: older embedded installers may
+only install `puddle` or the former `puddlang` command. Subsequent upgrades manage
+both commands together.
 
 The host needs daemon protocol **23.0+ within major 23**, **Node 22.21.1+**, and
 Codex installed and logged in through Puddle. Bundled releases supply Node.
 Upgrade an older daemon with `puddle upgrade daemon [user@host]`. Start Puddle
-from a plain shell: puddlang connects to an existing daemon and never bootstraps
+from a plain shell: `pudl` connects to an existing daemon and never bootstraps
 one from an agent environment.
 
 Protocol 23.0 is an intentional major boundary. Update CLI/desktop, daemon and
@@ -28,14 +32,14 @@ any remote connector/application together. Remote transport protocol remains 3;
 the existing launcher still requires approval before updating an older daemon.
 
 ```sh
-puddlang context --profile personal
-puddlang run examples/puddlang/review.ts --profile personal \
+pudl context --profile personal
+pudl run examples/puddlang/review.ts --profile personal \
   --input '{"project":"app","task":"Implement search"}'
-puddlang run examples/puddlang/review.ts --host user@devbox --profile personal \
+pudl run examples/puddlang/review.ts --host user@devbox --profile personal \
   --input '{"project":"app","task":"Implement search"}' --detach
-puddlang status <run-id> --profile personal
-puddlang logs <run-id> --profile personal
-puddlang cancel <run-id> --profile personal
+pudl status <run-id> --profile personal
+pudl logs <run-id> --profile personal
+pudl cancel <run-id> --profile personal
 ```
 
 Every command accepts `--host` and `--profile`. Host omission means this machine.
@@ -143,7 +147,7 @@ Configure a stdio MCP server with a fixed host/profile, for example:
 {
   "mcpServers": {
     "puddlang": {
-      "command": "puddlang",
+      "command": "pudl",
       "args": ["mcp", "--profile", "personal"]
     }
   }
@@ -169,7 +173,7 @@ listener, remote-relay execution or run inspector UI yet.
 
 ## Development
 
-Build with `pnpm build`; invoke `node packages/cli/dist/puddlang.js --help`.
+Build with `pnpm build`; invoke `node packages/cli/dist/pudl.js --help`.
 Daemon builds include the runner/API modules. `pnpm build:cli-tarball` packages
 both commands and smoke-tests help without starting a daemon.
 
