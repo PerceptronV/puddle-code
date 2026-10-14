@@ -293,8 +293,16 @@ function SessionLabel({ session, accountLabel }: { session: Session; accountLabe
       <span className="mt-0.5 flex items-center gap-1 text-2xs text-fg-muted">
         {session.kind === 'terminal' ? (
           <>
-            <SquareTerminal className="size-3 shrink-0" />
-            <span>terminal</span>
+            {session.detected_agent_type ? (
+              <AgentIcon type={session.detected_agent_type} className="size-3 shrink-0" />
+            ) : (
+              <SquareTerminal className="size-3 shrink-0" />
+            )}
+            <span>
+              {session.detected_agent_type
+                ? `${session.detected_agent_type} · terminal`
+                : 'terminal'}
+            </span>
           </>
         ) : (
           <>
@@ -379,6 +387,7 @@ function CollapsedSessionDot({
                 status={session.status}
                 kind={session.kind}
                 agentType={session.agent_type}
+                detectedAgentType={session.detected_agent_type}
                 stale={session.stale_running}
                 className="size-4 compact:size-3"
                 iconClassName="size-full"
@@ -682,6 +691,7 @@ function SessionRow({
             status={session.status}
             kind={session.kind}
             agentType={session.agent_type}
+            detectedAgentType={session.detected_agent_type}
             stale={session.stale_running}
           />
           {/* All three lines ease leftwards on the row's hover, at the app's one

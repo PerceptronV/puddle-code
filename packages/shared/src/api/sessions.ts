@@ -33,6 +33,8 @@ export const sessionSchema = z.object({
   kind: sessionKindSchema,
   /** Null for terminal sessions, which run a plain shell rather than an agent. */
   agent_type: z.string().nullable(),
+  /** Live foreground agent in a terminal session; icon hint only, never persisted. */
+  detected_agent_type: z.string().nullable().optional(),
   agent_session_ref: z.string().nullable(),
   /** Durable native-conversation catalogue row; null for terminal sessions. */
   conversation_id: rowId.nullable().optional(),

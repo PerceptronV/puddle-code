@@ -143,7 +143,14 @@ the change from host-wide to profile-only access. Upgrade the service, app,
 daemon and connector together. Legacy host-wide registrations are deleted and
 their approvals revoked; users register and pair each profile afresh.
 
-The daemon line in `puddle --version` may display `protocol 22.0c3`. The `c3`
+Daemon/cockpit protocol 22.1 adds optional `Session.detected_agent_type`: a
+transient icon hint for a recognised foreground agent inside a terminal session.
+It leaves session kind, account, conversation identity and status unchanged.
+Updates reuse the profile-filtered `sessions-changed` event; no remote operation
+or authority changes, so remote protocol remains 3. Older daemons omit the hint
+and newer clients retain the terminal glyph.
+
+The daemon line in `puddle --version` may display `protocol 22.1c3`. The `c3`
 reports the bundled connector's remote protocol, read from `CONNECTOR_PROTOCOL`
 in the release archive (or a known historical release). It is display-only:
 `PROTOCOL` remains the daemon's plain `major.minor`, and CLI/desktop handshake

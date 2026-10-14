@@ -17,6 +17,7 @@ export function SessionGlyph({
   status,
   kind = 'agent',
   agentType,
+  detectedAgentType,
   stale = false,
   className,
   iconClassName = 'size-3',
@@ -24,8 +25,10 @@ export function SessionGlyph({
 }: {
   status: SessionStatus;
   kind?: SessionKind;
-  /** Null/absent for terminals, which show a terminal glyph instead. */
+  /** The managed agent's adapter id. */
   agentType?: string | null;
+  /** Advisory foreground-agent identity for terminal sessions. */
+  detectedAgentType?: string | null;
   /** `stale_running` (SPEC §4): running, but the agent has been quiet for over an hour. */
   stale?: boolean;
   className?: string;
@@ -42,7 +45,13 @@ export function SessionGlyph({
    */
   iconStrokeScale?: number;
 }) {
-  const what = kind === 'terminal' ? 'terminal' : (agentType ?? 'agent');
+  const displayedAgent = kind === 'terminal' ? detectedAgentType : agentType;
+  const what =
+    kind === 'terminal'
+      ? displayedAgent
+        ? `${displayedAgent} in terminal`
+        : 'terminal'
+      : (displayedAgent ?? 'agent');
   const label = `${what} — status: ${status.replace('_', ' ')}${
     stale ? ' (no agent activity for over an hour — possibly stalled)' : ''
   }`;
@@ -56,10 +65,14 @@ export function SessionGlyph({
       title={stale ? 'No agent activity for over an hour — possibly stalled' : undefined}
       aria-label={label}
     >
-      {kind === 'terminal' ? (
+      {kind === 'terminal' && !displayedAgent ? (
         <SquareTerminal className={iconClassName} strokeWidth={2 * iconStrokeScale} />
       ) : (
-        <AgentIcon type={agentType ?? ''} className={iconClassName} strokeScale={iconStrokeScale} />
+        <AgentIcon
+          type={displayedAgent ?? ''}
+          className={iconClassName}
+          strokeScale={iconStrokeScale}
+        />
       )}
     </span>
   );

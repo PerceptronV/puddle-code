@@ -60,8 +60,14 @@ export function TabTooltipBody({
       )}
       {session?.kind === 'terminal' && (
         <span className="mt-0.5 flex items-center gap-1 text-2xs text-fg-muted">
-          <SquareTerminal className="size-3 shrink-0" />
-          <span>terminal</span>
+          {session.detected_agent_type ? (
+            <AgentIcon type={session.detected_agent_type} className="size-3 shrink-0" />
+          ) : (
+            <SquareTerminal className="size-3 shrink-0" />
+          )}
+          <span>
+            {session.detected_agent_type ? `${session.detected_agent_type} · terminal` : 'terminal'}
+          </span>
         </span>
       )}
     </span>

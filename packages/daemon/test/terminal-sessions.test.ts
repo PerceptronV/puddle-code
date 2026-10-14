@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fixture, waitFor } from './helpers/daemon-fixtures.js';
+import { fakeAdapter, fixture, waitFor } from './helpers/daemon-fixtures.js';
 import { sh } from './helpers/git-fixtures.js';
 
 /** Terminal sessions (SPEC §4): a plain shell PTY, no account, no agent. */
@@ -12,6 +12,41 @@ import { sh } from './helpers/git-fixtures.js';
 process.env.SHELL = 'bash';
 
 describe('terminal sessions', () => {
+  it('reports a foreground agent hint, clears it on suspension/exit, and keeps terminal identity', async () => {
+    const f = fixture({
+      adapter: {
+        ...fakeAdapter(),
+        matchesProcess: (command) => command === '/bin/sleep 30',
+      },
+    });
+    const session = await f.service.create({ project_id: f.ids.project, kind: 'terminal' });
+    const changes: string[][] = [];
+    f.service.on('sessions-changed', (event: { projectIds: string[] }) =>
+      changes.push(event.projectIds),
+    );
+    await waitFor(() => f.service.get(session.id).status === 'running');
+    f.ptys.write(session.id, 'agent', '/bin/sleep 30\r');
+    await waitFor(() => f.service.get(session.id).detected_agent_type === 'fake', 10_000);
+    expect(f.service.list({ project_id: f.ids.project })[0]).toMatchObject({
+      kind: 'terminal',
+      account_id: null,
+      agent_type: null,
+      detected_agent_type: 'fake',
+    });
+    expect(f.stores.sessions.get(session.id).detected_agent_type).toBeUndefined();
+    expect(changes).toContainEqual([f.ids.project]);
+
+    f.ptys.write(session.id, 'agent', '\x1a'); // Ctrl+Z: suspended jobs cannot claim the icon.
+    await waitFor(() => f.service.get(session.id).detected_agent_type === null, 10_000);
+    f.ptys.write(session.id, 'agent', 'fg\r');
+    await waitFor(() => f.service.get(session.id).detected_agent_type === 'fake', 10_000);
+    f.ptys.write(session.id, 'agent', '\x03');
+    await waitFor(() => f.service.get(session.id).detected_agent_type === null, 10_000);
+    expect(f.service.get(session.id).status).toBe('running');
+    await f.service.kill(session.id);
+    expect(f.service.get(session.id).detected_agent_type).toBeNull();
+  });
+
   it('opens a shell on the base branch by default — no account, no agent, no onboarding', async () => {
     const f = fixture();
     const session = await f.service.create({

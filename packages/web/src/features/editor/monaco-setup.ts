@@ -54,6 +54,18 @@ defineTheme();
 // Kills the @monaco-editor/react CDN path: it now uses this bundled instance.
 loader.config({ monaco });
 
+// Monaco 0.55 caches fallback-font widths even after font-display: swap
+// replaces the glyphs. Refresh every editor's metrics so bracket highlights,
+// selections and carets follow the displayed text. `ready` covers the initial
+// load; `loadingdone` also covers faces first requested by later editor mounts.
+void document.fonts.ready.then(() => monaco.editor.remeasureFonts());
+document.fonts.addEventListener('loadingdone', monaco.editor.remeasureFonts);
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    document.fonts.removeEventListener('loadingdone', monaco.editor.remeasureFonts);
+  });
+}
+
 // Re-theme every live editor on a theme switch, no reload (mirrors Terminal.tsx).
 onThemeChange(() => {
   defineTheme();

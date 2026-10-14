@@ -3,6 +3,7 @@ import { statSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import type { AgentAdapter } from './adapter.js';
+import { matchesAgentProcess } from './process-match.js';
 import {
   allRollouts,
   cachedRolloutPath,
@@ -65,6 +66,8 @@ export const codex: AgentAdapter = {
   id: 'codex',
   displayName: 'Codex',
   binary: 'codex',
+  matchesProcess: (command) =>
+    matchesAgentProcess(command, 'codex', ['@openai/codex/bin/codex.js']),
   capabilities: {
     resume: true,
     presetSessionId: false,

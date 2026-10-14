@@ -92,6 +92,7 @@ describe('WebSocket terminal output batching', () => {
       outcome: 'rebound',
     });
     catalogue.emit('sessions-changed', { projectIds: ['0123456789'] });
+    service.emit('sessions-changed', { projectIds: ['9876543210'] });
     expect(messages(send)).toEqual([
       {
         t: 'session-switched',
@@ -102,6 +103,7 @@ describe('WebSocket terminal output batching', () => {
         outcome: 'rebound',
       },
       { t: 'sessions-changed', project_ids: ['0123456789'] },
+      { t: 'sessions-changed', project_ids: ['9876543210'] },
     ]);
   });
 

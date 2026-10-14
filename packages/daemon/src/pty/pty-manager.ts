@@ -298,6 +298,11 @@ export class PtyManager extends EventEmitter {
     return this.live.has(this.key(stream, term));
   }
 
+  /** Exact PTY root, excluding other shell tabs and lifecycle sidecars. */
+  pidFor(stream: string, term: string): number | null {
+    return this.live.get(this.key(stream, term))?.proc.pid ?? null;
+  }
+
   liveCount(): number {
     return this.live.size;
   }

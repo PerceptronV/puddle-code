@@ -21,6 +21,7 @@ import { installStatusHooks } from './claude-hooks.js';
 import { installStatusLine, readLiveUsage } from './claude-statusline.js';
 import { fetchSubscriptionUsage } from './claude-usage-cli.js';
 import { lifecycleVersionAtLeast } from './lifecycle-version.js';
+import { matchesAgentProcess } from './process-match.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -110,6 +111,8 @@ export const claudeCode: AgentAdapter = {
   id: 'claude-code',
   displayName: 'Claude Code',
   binary: 'claude',
+  matchesProcess: (command) =>
+    matchesAgentProcess(command, 'claude', ['@anthropic-ai/claude-code/cli.js']),
   capabilities: {
     resume: true,
     presetSessionId: true,

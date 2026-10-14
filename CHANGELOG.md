@@ -8,3 +8,11 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Added
+
+- Show the recognised foreground agent's icon in terminal sessions, restoring the terminal icon when it exits or is suspended; add the optional `detected_agent_type` hint in daemon/cockpit protocol **22.1** (remote protocol remains **3**).
+
+### Fixed
+
+- Realign editor bracket highlights, selections and carets when the self-hosted font finishes loading.

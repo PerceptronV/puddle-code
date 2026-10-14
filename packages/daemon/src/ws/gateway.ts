@@ -133,11 +133,13 @@ export class WsGateway {
         });
       }
     });
-    deps.catalogue?.on('sessions-changed', (e: SessionsChangedEvent) => {
+    const sessionsChanged = (e: SessionsChangedEvent) => {
       for (const ws of this.statusSubs) {
         this.send(ws, { t: 'sessions-changed', project_ids: e.projectIds });
       }
-    });
+    };
+    deps.catalogue?.on('sessions-changed', sessionsChanged);
+    deps.service.on('sessions-changed', sessionsChanged);
     deps.service.on('session-switched', (e: SessionSwitchEvent) => {
       for (const ws of this.statusSubs) {
         this.send(ws, {

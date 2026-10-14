@@ -58,6 +58,7 @@ export function SessionActions({
               status={session.status}
               kind={session.kind}
               agentType={session.agent_type}
+              detectedAgentType={session.detected_agent_type}
             />
             {sessionDisplayName(session)}
           </DialogTitle>

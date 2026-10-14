@@ -131,6 +131,8 @@ export interface AgentAdapter {
   displayName: string;
   /** Executable name resolved on PATH. */
   binary: string;
+  /** Recognise this agent's foreground executable/entry point; advisory icon only. */
+  matchesProcess?(command: string): boolean;
   capabilities: {
     resume: boolean;
     presetSessionId: boolean;

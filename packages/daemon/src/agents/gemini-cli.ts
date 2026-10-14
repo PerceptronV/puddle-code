@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AgentAdapter } from './adapter.js';
+import { matchesAgentProcess } from './process-match.js';
 import { installGeminiLifecycleHooks } from './gemini-hooks.js';
 import { lifecycleVersionAtLeast } from './lifecycle-version.js';
 
@@ -52,6 +53,8 @@ export const geminiCli: AgentAdapter = {
   id: 'gemini-cli',
   displayName: 'Gemini CLI',
   binary: 'gemini',
+  matchesProcess: (command) =>
+    matchesAgentProcess(command, 'gemini', ['@google/gemini-cli/dist/index.js']),
   capabilities: {
     resume: true,
     presetSessionId: true,

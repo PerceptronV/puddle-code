@@ -56,6 +56,7 @@ export function PhoneTerminalBar({
                   status={entry.status}
                   kind={entry.kind}
                   agentType={entry.agent_type}
+                  detectedAgentType={entry.detected_agent_type}
                 />
                 <span className="truncate font-mono">{sessionDisplayName(entry)}</span>
               </DropdownMenuCheckboxItem>

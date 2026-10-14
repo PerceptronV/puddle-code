@@ -165,6 +165,7 @@ export function PhoneSessionRail({
                     status={session.status}
                     kind={session.kind}
                     agentType={session.agent_type}
+                    detectedAgentType={session.detected_agent_type}
                   />
                   <span className="truncate font-mono">{sessionDisplayName(session)}</span>
                 </Button>
@@ -249,6 +250,7 @@ function SessionButton({
           status={session.status}
           kind={session.kind}
           agentType={session.agent_type}
+          detectedAgentType={session.detected_agent_type}
           stale={session.stale_running}
           className="size-4 shrink-0"
           iconClassName="size-full"

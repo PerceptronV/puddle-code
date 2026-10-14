@@ -45,6 +45,7 @@ import {
 } from './onboarding.js';
 import type { MarkerFileSync } from './onboarding.js';
 import { SessionRefs } from './session-refs.js';
+import { TerminalAgentMonitor } from './terminal-agent-monitor.js';
 
 export interface SessionServiceDeps {
   profiles: ProfileStore;
@@ -190,10 +191,25 @@ export class SessionService extends EventEmitter {
   private readonly sessionRefs: SessionRefs;
   private shuttingDown = false;
   private readonly titleTimer: ReturnType<typeof setInterval>;
+  private readonly terminalAgents: TerminalAgentMonitor;
 
   constructor(private readonly deps: SessionServiceDeps) {
     super();
     this.sessionRefs = new SessionRefs(deps);
+    this.terminalAgents = new TerminalAgentMonitor({
+      adapters: deps.adapters.list(),
+      targets: () =>
+        [...this.liveAgents.values()].flatMap((live) => {
+          if (live.detector !== null) return [];
+          const pid = deps.ptys.pidFor(live.activeSessionId, 'agent');
+          return pid === null
+            ? []
+            : [{ session: live.activeSessionId, runtime: live.runtimeId, pid }];
+        }),
+      changed: (id) => {
+        this.emit('sessions-changed', { projectIds: [deps.sessions.get(id).project_id] });
+      },
+    });
     deps.ptys.on('data', (e: PtyDataEvent) => this.onPtyData(e));
     deps.ptys.on('exit', (e: PtyExitEvent) => this.onPtyExit(e));
     deps.ptys.on('env-delta', (e: PtyEnvDeltaEvent) => this.onEnvDelta(e));
@@ -215,6 +231,7 @@ export class SessionService extends EventEmitter {
   beginShutdown(): void {
     this.shuttingDown = true;
     clearInterval(this.titleTimer);
+    this.terminalAgents.dispose();
   }
 
   get(id: string): Session {
@@ -1685,6 +1702,7 @@ export class SessionService extends EventEmitter {
     this.liveAgents.delete(e.stream);
     if (this.shuttingDown) return; // reconcile turns these into `interrupted` next boot
     this.transition(e.stream, 'exited');
+    this.terminalAgents.forget(e.stream);
     this.refreshAgentIdentity(e.stream); // capture the final ref/name for the durable row
     this.deps.events.record(e.stream, 'exited', { code: e.exitCode });
     this.noticeOnAbnormalExit(e, startupFailure);
@@ -1757,6 +1775,13 @@ export class SessionService extends EventEmitter {
 
   /** Worktree-missing and stale-running badges are computed, never stored (SPEC §4). */
   private withComputed(session: Session): Session {
+    if (session.kind === 'terminal') {
+      const live = this.liveAgents.get(session.id);
+      session = {
+        ...session,
+        detected_agent_type: live ? this.terminalAgents.get(session.id, live.runtimeId) : null,
+      };
+    }
     if (session.status === 'archived') return session;
     const computed = existsSync(session.worktree_path)
       ? session
