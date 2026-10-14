@@ -1,7 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Account } from '@puddle/shared';
-import type { ConversationShareHooks } from './adapter.js';
+import type { ConversationShareHooks } from '../adapter.js';
 
 /**
  * Shared conversation store for Claude Code (Workstream S). Agent-specific

@@ -1,9 +1,9 @@
 import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
 import { createServer } from 'node:net';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
-import type { LifecycleLaunchContext, LifecycleLaunchResource } from './adapter.js';
-import { CodexControl } from './codex-control.js';
-import { lifecycleVersionAtLeast } from './lifecycle-version.js';
+import type { LifecycleLaunchContext, LifecycleLaunchResource } from '../adapter.js';
+import { CodexControl } from './control.js';
+import { lifecycleVersionAtLeast } from '../lifecycle-version.js';
 
 interface PendingRequest {
   method: 'thread/start' | 'thread/resume' | 'thread/fork';

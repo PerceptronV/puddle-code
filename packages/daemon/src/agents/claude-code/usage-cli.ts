@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { Account } from '@puddle/shared';
-import type { SubscriptionUsageWindow } from './adapter.js';
+import type { SubscriptionUsageWindow } from '../adapter.js';
 
 const execFileAsync = promisify(execFile);
 

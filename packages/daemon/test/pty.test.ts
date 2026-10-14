@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { claudeCode } from '../src/agents/claude-code.js';
+import { claudeCode } from '../src/agents/claude-code/index.js';
 import { AdapterRegistry } from '../src/agents/registry.js';
 import { LogStore } from '../src/logs/log-store.js';
 import { extractOscTitle, stripAnsi } from '../src/pty/ansi.js';

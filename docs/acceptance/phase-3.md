@@ -169,4 +169,4 @@ the explorer, diff, and history views at.
     DOM/message listeners, observers, and iframe channels do not accumulate.
 
 Record any UI/daemon mismatches found here as issues; adapter corrections
-still go to `packages/daemon/src/agents/claude-code.ts` per phase-1.
+still go to `packages/daemon/src/agents/claude-code/index.ts` per phase-1.

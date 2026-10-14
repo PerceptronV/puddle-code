@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { claudeCode } from '../src/agents/claude-code.js';
-import { codex } from '../src/agents/codex.js';
-import { geminiCli } from '../src/agents/gemini-cli.js';
-import { opencode } from '../src/agents/opencode.js';
+import { claudeCode } from '../src/agents/claude-code/index.js';
+import { codex } from '../src/agents/codex/index.js';
+import { geminiCli } from '../src/agents/gemini-cli/index.js';
+import { opencode } from '../src/agents/opencode/index.js';
 import { parseProcessSnapshot } from '../src/pty/foreground-process.js';
 import {
   TerminalAgentMonitor,

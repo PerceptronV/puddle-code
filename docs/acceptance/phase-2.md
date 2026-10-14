@@ -86,4 +86,4 @@ when the OAuth flow completes).
    live and after switching away long enough to force a snapshot replay.
 
 Record any UI/daemon mismatches found here as issues; adapter corrections
-still go to `packages/daemon/src/agents/claude-code.ts` per phase-1.
+still go to `packages/daemon/src/agents/claude-code/index.ts` per phase-1.

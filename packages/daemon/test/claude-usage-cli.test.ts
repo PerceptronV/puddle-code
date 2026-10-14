@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseUsageOutput } from '../src/agents/claude-usage-cli.js';
+import { parseUsageOutput } from '../src/agents/claude-code/usage-cli.js';
 
 // The exact `claude -p /usage` shape this parser was written against
 // (Claude Code 2.1.209).

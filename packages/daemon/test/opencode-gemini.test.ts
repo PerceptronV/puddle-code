@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { Account } from '@puddle/shared';
-import { geminiCli } from '../src/agents/gemini-cli.js';
-import { opencode } from '../src/agents/opencode.js';
+import { geminiCli } from '../src/agents/gemini-cli/index.js';
+import { opencode } from '../src/agents/opencode/index.js';
 
 function account(configDir: string, agentType: string): Account {
   return {

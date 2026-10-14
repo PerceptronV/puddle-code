@@ -1,10 +1,10 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { AgentAdapter } from './adapter.js';
-import { matchesAgentProcess } from './process-match.js';
-import { installGeminiLifecycleHooks } from './gemini-hooks.js';
-import { lifecycleVersionAtLeast } from './lifecycle-version.js';
+import type { AgentAdapter } from '../adapter.js';
+import { matchesAgentProcess } from '../process-match.js';
+import { installGeminiLifecycleHooks } from './hooks.js';
+import { lifecycleVersionAtLeast } from '../lifecycle-version.js';
 
 /** gemini-cli hardcodes this directory name under its (overridable) home. */
 const GEMINI_DIR = '.gemini';
@@ -202,7 +202,7 @@ function safeReaddir(dir: string): string[] {
 /** Async metadata-only Gemini catalogue; unchanged chat files are never read. */
 async function discoverGeminiConversations(
   configDir: string,
-): Promise<import('./adapter.js').NativeConversation[]> {
+): Promise<import('../adapter.js').NativeConversation[]> {
   await new Promise<void>((resolve) => setImmediate(resolve));
   const root = geminiDir(configDir);
   let projects: Record<string, string>;
@@ -214,7 +214,7 @@ async function discoverGeminiConversations(
   } catch {
     return [];
   }
-  const result: import('./adapter.js').NativeConversation[] = [];
+  const result: import('../adapter.js').NativeConversation[] = [];
   const seen = new Set<string>();
   for (const [cwd, name] of Object.entries(projects)) {
     for (const dir of [

@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { installStatusHooks } from '../src/agents/claude-hooks.js';
+import { installStatusHooks } from '../src/agents/claude-code/hooks.js';
 
 interface HookGroup {
   matcher?: string;

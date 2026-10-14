@@ -90,5 +90,5 @@ root) throughout.
    full history.
 
 Record any UI/daemon mismatch as an issue; adapter corrections (store-key
-escaping, todos glob, resume flags) go to `packages/daemon/src/agents/claude-*.ts`
+escaping, todos glob, resume flags) go to `packages/daemon/src/agents/claude-code/*.ts`
 with the verified claude version pinned in a comment, per phase-1.

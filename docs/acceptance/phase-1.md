@@ -60,7 +60,7 @@ API=$ORIGIN/api
    `[puddle onboarding]` preamble (containing "always pnpm install") followed
    by the task prompt. Watch `status` messages flip `running ⇄ waiting_input`
    as claude works and idles — **verify the adapter's `statusPatterns` against
-   what you see and adjust `agents/claude-code.ts` if the TUI changed.**
+   what you see and adjust `agents/claude-code/index.ts` if the TUI changed.**
 
 6. **Restart / reconcile.** `systemctl --user restart puddled` (Linux) or kill
    and relaunch the process. `GET $API/sessions?project=1` → both `interrupted`.
@@ -86,4 +86,4 @@ API=$ORIGIN/api
     `$PUDDLE_HOME/logs/<id>/`.
 
 Record any adapter corrections (status regexes, flag changes) in
-`packages/daemon/src/agents/claude-code.ts` with the verified version number.
+`packages/daemon/src/agents/claude-code/index.ts` with the verified version number.

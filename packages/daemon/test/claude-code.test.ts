@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { Account } from '@puddle/shared';
-import { claudeCode } from '../src/agents/claude-code.js';
+import { claudeCode } from '../src/agents/claude-code/index.js';
 
 function account(configDir: string): Account {
   return {

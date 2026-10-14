@@ -2,18 +2,18 @@ import { execFile } from 'node:child_process';
 import { statSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { promisify } from 'node:util';
-import type { AgentAdapter } from './adapter.js';
-import { matchesAgentProcess } from './process-match.js';
+import type { AgentAdapter } from '../adapter.js';
+import { matchesAgentProcess } from '../process-match.js';
 import {
   allRollouts,
   cachedRolloutPath,
   renderRollout,
   rolloutForRef,
   rolloutsFor,
-} from './codex-rollout.js';
-import { codexThread, codexThreadIndex, threadTitle } from './codex-threads.js';
-import { prepareCodexLifecycle } from './codex-lifecycle.js';
-import { lastJsonlOutput } from './notification-output.js';
+} from './rollout.js';
+import { codexThread, codexThreadIndex, threadTitle } from './threads.js';
+import { prepareCodexLifecycle } from './lifecycle.js';
+import { lastJsonlOutput } from '../notification-output.js';
 
 const execFileAsync = promisify(execFile);
 const SESSION_START_WINDOW_MS = 5 * 60 * 1000;
@@ -353,7 +353,7 @@ export const codex: AgentAdapter = {
    * Verified against a live 0.146.0 PTY (2026-08-03): a screen redraw places
    * the `›` composer before the `<model> · <directory>` footer in the stripped
    * stream; the previously guessed "? for shortcuts" string never appears.
-   * Native app-server turns drive status when available (codex-lifecycle.ts);
+   * Native app-server turns drive status when available (lifecycle.ts);
    * these patterns remain the fallback and support manually launched terminals.
    */
   statusPatterns: {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { inspectResponse, type CodexSignalState } from '../src/agents/codex-lifecycle.js';
+import { inspectResponse, type CodexSignalState } from '../src/agents/codex/lifecycle.js';
 import type { LifecycleLaunchContext } from '../src/agents/adapter.js';
 
 afterEach(() => vi.unstubAllGlobals());

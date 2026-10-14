@@ -4,9 +4,9 @@ import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Account } from '@puddle/shared';
-import { codex } from '../src/agents/codex.js';
-import { codexAppServerSpawnOptions, codexRemoteArgs } from '../src/agents/codex-lifecycle.js';
-import { newestRolloutFor, renderRollout } from '../src/agents/codex-rollout.js';
+import { codex } from '../src/agents/codex/index.js';
+import { codexAppServerSpawnOptions, codexRemoteArgs } from '../src/agents/codex/lifecycle.js';
+import { newestRolloutFor, renderRollout } from '../src/agents/codex/rollout.js';
 import { StatusDetector } from '../src/pty/status-detector.js';
 
 function account(configDir: string): Account {

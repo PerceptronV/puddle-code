@@ -3,10 +3,10 @@ import { mkdirSync, readFileSync, type Dirent } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import type { AgentAdapter } from './adapter.js';
-import { matchesAgentProcess } from './process-match.js';
-import { installOpenCodePlugin } from './opencode-plugin.js';
-import { lifecycleVersionAtLeast } from './lifecycle-version.js';
+import type { AgentAdapter } from '../adapter.js';
+import { matchesAgentProcess } from '../process-match.js';
+import { installOpenCodePlugin } from './plugin.js';
+import { lifecycleVersionAtLeast } from '../lifecycle-version.js';
 
 const execFileAsync = promisify(execFile);
 

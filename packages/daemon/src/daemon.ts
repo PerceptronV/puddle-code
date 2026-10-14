@@ -2,10 +2,10 @@ import { createAdaptorServer, upgradeWebSocket, type ServerType } from '@hono/no
 import { WebSocketServer } from 'ws';
 import type { AgentAdapter } from './agents/adapter.js';
 import { isBinaryAvailable } from './agents/binary.js';
-import { claudeCode } from './agents/claude-code.js';
-import { codex } from './agents/codex.js';
-import { geminiCli } from './agents/gemini-cli.js';
-import { opencode } from './agents/opencode.js';
+import { claudeCode } from './agents/claude-code/index.js';
+import { codex } from './agents/codex/index.js';
+import { geminiCli } from './agents/gemini-cli/index.js';
+import { opencode } from './agents/opencode/index.js';
 import { AdapterRegistry } from './agents/registry.js';
 import { loadConfig } from './config.js';
 import { CompilationService } from './compilation/service.js';

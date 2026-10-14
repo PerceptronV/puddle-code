@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { AgentControl } from './adapter.js';
+import type { AgentControl } from '../adapter.js';
 
 type RecordValue = Record<string, unknown>;
 const record = (v: unknown): RecordValue =>

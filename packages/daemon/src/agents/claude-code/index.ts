@@ -15,14 +15,14 @@ import {
 import { cp, open, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import type { AgentAdapter, AgentUsage } from './adapter.js';
-import { claudeConversationShare } from './claude-share.js';
-import { installStatusHooks } from './claude-hooks.js';
-import { installStatusLine, readLiveUsage } from './claude-statusline.js';
-import { fetchSubscriptionUsage } from './claude-usage-cli.js';
-import { lifecycleVersionAtLeast } from './lifecycle-version.js';
-import { matchesAgentProcess } from './process-match.js';
-import { lastJsonlOutput } from './notification-output.js';
+import type { AgentAdapter, AgentUsage } from '../adapter.js';
+import { claudeConversationShare } from './share.js';
+import { installStatusHooks } from './hooks.js';
+import { installStatusLine, readLiveUsage } from './statusline.js';
+import { fetchSubscriptionUsage } from './usage-cli.js';
+import { lifecycleVersionAtLeast } from '../lifecycle-version.js';
+import { matchesAgentProcess } from '../process-match.js';
+import { lastJsonlOutput } from '../notification-output.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -528,7 +528,7 @@ function conversationCwdMatches(path: string, targets: Set<string>): boolean {
 interface ClaudeCatalogueCacheEntry {
   size: number;
   mtimeMs: number;
-  conversation: import('./adapter.js').NativeConversation;
+  conversation: import('../adapter.js').NativeConversation;
 }
 
 const claudeCatalogueCache = new Map<string, ClaudeCatalogueCacheEntry>();
@@ -540,7 +540,7 @@ const claudeCatalogueCache = new Map<string, ClaudeCatalogueCacheEntry>();
  */
 async function discoverClaudeConversations(
   configDir: string,
-): Promise<import('./adapter.js').NativeConversation[]> {
+): Promise<import('../adapter.js').NativeConversation[]> {
   await new Promise<void>((resolve) => setImmediate(resolve));
   const root = join(configDir, 'projects');
   const files: string[] = [];
@@ -568,7 +568,7 @@ async function discoverClaudeConversations(
   for (const path of claudeCatalogueCache.keys()) {
     if (!live.has(path)) claudeCatalogueCache.delete(path);
   }
-  const out: import('./adapter.js').NativeConversation[] = [];
+  const out: import('../adapter.js').NativeConversation[] = [];
   for (let offset = 0; offset < files.length; offset += 32) {
     const batch = await Promise.all(files.slice(offset, offset + 32).map(readClaudeMetadata));
     for (const metadata of batch) if (metadata) out.push(metadata);
@@ -578,7 +578,7 @@ async function discoverClaudeConversations(
 
 async function readClaudeMetadata(
   path: string,
-): Promise<import('./adapter.js').NativeConversation | null> {
+): Promise<import('../adapter.js').NativeConversation | null> {
   try {
     const stats = await stat(path);
     const cached = claudeCatalogueCache.get(path);
@@ -614,7 +614,7 @@ async function readClaudeMetadata(
         parentRef: null,
         createdAt: stats.birthtime.toISOString(),
         updatedAt: stats.mtime.toISOString(),
-      } satisfies import('./adapter.js').NativeConversation;
+      } satisfies import('../adapter.js').NativeConversation;
       claudeCatalogueCache.set(path, { size: stats.size, mtimeMs: stats.mtimeMs, conversation });
       return conversation;
     } finally {

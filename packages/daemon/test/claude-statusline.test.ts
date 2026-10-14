@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { execPath } from 'node:process';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { installStatusLine, readLiveUsage } from '../src/agents/claude-statusline.js';
+import { installStatusLine, readLiveUsage } from '../src/agents/claude-code/statusline.js';
 
 describe('claude-code status line capture', () => {
   it('installs a statusLine command without clobbering an existing one', () => {

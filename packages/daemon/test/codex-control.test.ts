@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CodexControl } from '../src/agents/codex-control.js';
+import { CodexControl } from '../src/agents/codex/control.js';
 
 function fixture() {
   const control = new CodexControl();
