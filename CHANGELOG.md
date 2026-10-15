@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Attach desktop SSH authentication prompts to their host's window, display the target explicitly, and discard pending and late requests when that host closes while retaining at most one request per host.

@@ -115,6 +115,13 @@ takes a CLIENT-side path and delivers it over scp.
     while its prompt is open: the prompt must disappear within about a second.
     Connect another host with identical password prompt text and confirm it
     waits independently; finish authentication and verify password/2FA steps
-    still work in sequence. Quit with prompts waiting and confirm none remain.
+    still work in sequence. Focus the other host's cockpit while the first
+    reconnects: authentication must name the first host and attach to its own
+    window. Repeat with another app focused and with the host's cockpit on a
+    different macOS Space: reconnect prompts must remain attached to that
+    cockpit, without creating standalone windows with traffic-light controls.
+    Close a host while its authentication is visible or queued behind
+    another host: its request must disappear and late helpers must not reopen
+    it. Quit with prompts waiting and confirm none remain.
 
 Record any deviations as issues before ticking the phase off.

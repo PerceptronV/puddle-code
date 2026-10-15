@@ -44,6 +44,13 @@
         padding: 20px 22px;
         user-select: none;
       }
+      #target {
+        margin-bottom: 8px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        user-select: text;
+      }
       #prompt {
         display: block;
         min-height: 1.45em;
@@ -105,6 +112,7 @@
     </style>
   </head>
   <body>
+    <div id="target"></div>
     <label id="prompt" for="answer">SSH authentication</label>
     <input id="answer" type="password" autocomplete="off" spellcheck="false" />
     <div class="row">
@@ -113,6 +121,7 @@
       <button id="submit" type="button" class="primary">Continue</button>
     </div>
     <script>
+      const target = document.getElementById('target');
       const prompt = document.getElementById('prompt');
       const answer = document.getElementById('answer');
       const submit = document.getElementById('submit');
@@ -135,6 +144,9 @@
 
       window.puddleSshAuth.onRequest((request) => {
         kind = request.kind;
+        target.textContent = request.target;
+        target.title = request.target;
+        document.title = `SSH Authentication — ${request.target}`;
         prompt.textContent = request.prompt;
         answer.hidden = kind === 'confirm';
         cancel.textContent = kind === 'confirm' ? 'No' : 'Cancel';

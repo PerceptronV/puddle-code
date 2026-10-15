@@ -89,7 +89,10 @@ let windowStateSaved = false;
 const sshAuthPrompter = createSshAuthPrompter({
   htmlPath: join(here, 'ssh-auth-prompt.html'),
   preloadPath: join(here, 'auth-preload.cjs'),
-  parent: () => promptWin ?? pickerWin ?? BrowserWindow.getFocusedWindow(),
+  isHostOpen: (target) => shells.has(target) || connecting.has(target),
+  // Focus may belong to another app or macOS Space during a reconnect; the
+  // host still owns its prompt, which must remain attached to its cockpit.
+  parent: (target) => shells.get(target)?.win ?? promptWin ?? pickerWin,
 });
 let sshAskpassPromise: Promise<RunningSshAskpass> | null = null;
 
@@ -293,6 +296,7 @@ function createWindow(
   win.on('closed', () => {
     const shell = shells.get(target);
     shells.delete(target);
+    sshAuthPrompter.cancel(target);
     // Stops this cockpit's UI server (and tunnel, remotely) only — the
     // daemon and its agents run on.
     if (shell) void shell.cockpit.stop();
@@ -317,6 +321,7 @@ async function openShell(target: string, placement?: WindowPlacement): Promise<v
     shells.set(target, { target, cockpit, win, refreshing: false });
   } finally {
     connecting.delete(target);
+    if (!shells.has(target)) sshAuthPrompter.cancel(target);
   }
 }
 

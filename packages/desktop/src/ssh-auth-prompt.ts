@@ -11,9 +11,11 @@ interface PendingPrompt {
 export function createSshAuthPrompter(opts: {
   htmlPath: string;
   preloadPath: string;
-  parent(): BrowserWindow | null;
+  isHostOpen(target: string): boolean;
+  parent(target: string): BrowserWindow | null;
 }): {
   prompt(request: SshAskpassRequest, signal: AbortSignal): Promise<string | null>;
+  cancel(target: string): void;
   close(): void;
 } {
   let pending: PendingPrompt | null = null;
@@ -38,18 +40,18 @@ export function createSshAuthPrompter(opts: {
     const current = queue.shift();
     if (!current) return;
     pending = current;
-    const candidate = opts.parent();
+    const candidate = opts.parent(current.request.target);
     const parent = candidate !== null && !candidate.isDestroyed() ? candidate : undefined;
     try {
       const win = new BrowserWindow({
         width: 460,
-        height: 210,
+        height: 240,
         show: false,
         resizable: false,
         minimizable: false,
         maximizable: false,
         fullscreenable: false,
-        title: 'SSH Authentication',
+        title: `SSH Authentication — ${current.request.target}`,
         ...(parent === undefined ? {} : { parent, modal: true }),
         webPreferences: { preload: opts.preloadPath },
       });
@@ -69,9 +71,19 @@ export function createSshAuthPrompter(opts: {
     }
   };
 
+  const cancelTarget = (target: string) => {
+    for (const current of [...(pending ? [pending] : []), ...queue]) {
+      if (current.request.target === target) current.finish(null, false);
+    }
+  };
+
   return {
     prompt(request, signal) {
-      if (closed || signal.aborted) return Promise.resolve(null);
+      // An SSH child can outlive its cockpit while it unwinds. Reject late
+      // requests from closed hosts before they can open another window.
+      if (closed || signal.aborted || !opts.isHostOpen(request.target)) {
+        return Promise.resolve(null);
+      }
       return new Promise<string | null>((resolve) => {
         let settled = false;
         const cancel = () => current.finish(null);
@@ -93,14 +105,15 @@ export function createSshAuthPrompter(opts: {
           },
         };
         // Keep distinct hosts serial, but never retain a backlog for one host.
-        const previous = [...(pending ? [pending] : []), ...queue];
-        for (const old of previous) {
-          if (old.request.target === request.target) old.finish(null, false);
-        }
+        cancelTarget(request.target);
         queue.push(current);
         signal.addEventListener('abort', cancel, { once: true });
         showNext();
       });
+    },
+    cancel(target) {
+      cancelTarget(target);
+      showNext();
     },
     close() {
       if (closed) return;
