@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -93,22 +93,25 @@ async function bridge(
   before = '',
 ) {
   const directory = mkdtempSync(join(tmpdir(), 'pudl-test-'));
-  const bound: string[] = [];
-  const driver: HeadlessDriver = {
-    ...native,
-    binary: process.execPath,
-    env: { ...native.env, PUDL_TEST: 'isolated' },
-    command: () => ({
-      args: [
-        '-e',
-        `
+  const script = join(directory, 'agent.cjs');
+  // Large replies exceed Linux's per-argument limit when embedded in node -e.
+  writeFileSync(
+    script,
+    `
       process.stdin.resume();
       process.stdin.on('end', () => {
         ${before}
         for (const event of ${JSON.stringify(records)}) console.log(JSON.stringify(event));
         setTimeout(() => { process.exitCode = ${code}; }, ${delay});
       });`,
-      ],
+  );
+  const bound: string[] = [];
+  const driver: HeadlessDriver = {
+    ...native,
+    binary: process.execPath,
+    env: { ...native.env, PUDL_TEST: 'isolated' },
+    command: () => ({
+      args: [script],
       stdin: 'prompt',
     }),
   };
@@ -225,7 +228,7 @@ describe('headless terminal ownership', () => {
       'without a successful result',
     );
   });
-  it('rejects unexpected conversation changes and oversized replies', async () => {
+  it('rejects unexpected conversation changes', async () => {
     const changed = await bridge([
       { type: 'thread.started', thread_id: ref },
       { type: 'thread.started', thread_id: randomUUID() },
@@ -233,13 +236,19 @@ describe('headless terminal ownership', () => {
     await expect(changed.control.ask('question', new AbortController().signal)).rejects.toThrow(
       'changed its native conversation',
     );
-    const large = await bridge([
+  });
+  it.each([256 * 1024, 256 * 1024 + 1])('enforces the reply limit for %i bytes', async (size) => {
+    const text = 'x'.repeat(size);
+    const s = await bridge([
       { type: 'thread.started', thread_id: ref },
-      { type: 'item.completed', item: { type: 'agent_message', text: 'x'.repeat(262145) } },
+      { type: 'item.completed', item: { type: 'agent_message', text } },
+      { type: 'turn.completed' },
     ]);
-    await expect(large.control.ask('question', new AbortController().signal)).rejects.toThrow(
-      '256 KiB',
-    );
+    const reply = s.control.ask('question', new AbortController().signal);
+    if (size <= 256 * 1024) expect(await reply).toBe(text);
+    else await expect(reply).rejects.toThrow('256 KiB');
+    expect(s.bound).toEqual([ref]);
+    expect(s.control.ready).toBe(true);
   });
   it('interrupts a native process while leaving an attached runtime available', async () => {
     const s = await bridge([{ type: 'thread.started', thread_id: ref }], 0, 60_000);
