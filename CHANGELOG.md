@@ -11,7 +11,7 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
-- Show macOS desktop notifications with the host and project on the first line, the session title below, and the message preview in the body (protocol 24.1; other clients retain their existing layout).
+- Show desktop notifications with host/project, session title and message preview in that order: native text fields on macOS and Windows, and a separate session line above the preview on Linux (protocol 24.1; browsers retain their existing layout).
 
 ### Fixed
 

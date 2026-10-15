@@ -1,5 +1,6 @@
 import { Notification, type BrowserWindow } from 'electron';
 import { desktopNotificationRequestSchema, type NotificationDelivery } from '@puddle/shared';
+import { notificationOptions } from './notification-options.js';
 
 function failureMessage(error: unknown): string {
   const detail = typeof error === 'string' ? error : error instanceof Error ? error.message : '';
@@ -27,6 +28,7 @@ export class DesktopNotifications {
   constructor(
     private readonly win: BrowserWindow,
     private readonly raise: () => void,
+    private readonly platform: NodeJS.Platform = process.platform,
   ) {}
 
   status(): NotificationDelivery {
@@ -72,12 +74,7 @@ export class DesktopNotifications {
       );
       this.pending.add(cancel);
       try {
-        notification = new Notification({
-          title: request.title,
-          subtitle: request.subtitle,
-          body: request.body,
-          silent: true,
-        });
+        notification = new Notification(notificationOptions(request, this.platform));
         const current = notification;
         this.active.set(request.id, current);
         current.on('show', () => finish({ state: 'shown', message: null }));

@@ -16,8 +16,11 @@ Start the installed cockpit from an ordinary shell, outside any coding-agent ses
    Check the actual permission prompt, banner and click for each signing mode,
    including after an app upgrade. Removing quarantine is not a permission grant.
 2. Finish a managed agent turn while the cockpit is focused, then while unfocused.
-   On macOS, check the three native text fields: `host · project` as the title,
-   the session title as the subtitle, then the message preview as the body.
+   Check the desktop text order: `host · project`, session title, then message
+   preview. macOS uses a native subtitle; Windows uses three native text blocks;
+   Linux puts the session on the first body line, above the preview (wrapping
+   and styling depend on the desktop environment). Check that notifications
+   stay silent when the separate sound preference is off, including on Windows.
    Use a custom host display name and two different projects to confirm the
    labels belong to the notifying session. Empty output still shows the usual
    waiting/exited message; older shells and browser notifications retain their

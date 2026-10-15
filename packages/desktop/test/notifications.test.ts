@@ -52,7 +52,8 @@ it('waits for the native result and focuses the originating window on click', as
   expect(win.webContents.send).toHaveBeenCalledWith('puddle:notification-click', request.id);
 });
 
-it('delivers the host/project heading, session subtitle and preview as separate native fields', async () => {
+it('delivers the host/project heading, session subtitle and preview as separate macOS fields', async () => {
+  delivery = new DesktopNotifications(win, raise, 'darwin');
   const sent = delivery.show({
     ...request,
     title: 'Build host · Example project',
@@ -71,6 +72,40 @@ it('delivers the host/project heading, session subtitle and preview as separate 
   native.emit('show');
   await expect(sent).resolves.toEqual({ state: 'shown', message: null });
 });
+
+it.each(['win32', 'linux'] as const)(
+  'keeps session text and exact click navigation on %s',
+  async (platform) => {
+    delivery = new DesktopNotifications(win, raise, platform);
+    const target = { project: '0123456789', session: randomUUID() };
+    const sent = delivery.show({
+      ...request,
+      title: 'Build host · Example project',
+      subtitle: 'Fix the cache',
+      body: 'The cache is ready.',
+      target,
+    });
+    const native = instances[0] as Notification & {
+      options: Electron.NotificationConstructorOptions;
+    };
+    expect(native.options.title).toBe('Build host · Example project');
+    if (platform === 'win32') {
+      expect(native.options.toastXml).toContain('<text>Fix the cache</text>');
+      expect(native.options.toastXml).toContain('<audio silent="true"/>');
+    } else {
+      expect(native.options.body).toBe('Fix the cache\nThe cache is ready.');
+    }
+    native.emit('show');
+    await expect(sent).resolves.toEqual({ state: 'shown', message: null });
+    native.emit('click');
+    expect(raise).toHaveBeenCalledOnce();
+    expect(win.webContents.send).toHaveBeenCalledWith(
+      'puddle:notification-click',
+      request.id,
+      target,
+    );
+  },
+);
 
 it('reports a native failure instead of claiming permission is granted', async () => {
   const sent = delivery.show(request);

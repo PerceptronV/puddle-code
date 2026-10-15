@@ -53,7 +53,9 @@ describe('browser notification delivery', () => {
     vi.stubGlobal('navigator', { serviceWorker: { addEventListener: subscribe } });
     mocks.worker.mockResolvedValue({ showNotification });
     const click = vi.fn();
-    await expect(deliverNotification(request, click)).resolves.toEqual({
+    await expect(
+      deliverNotification(request, click, 'Build host · Example project'),
+    ).resolves.toEqual({
       state: 'shown',
       message: null,
     });
