@@ -19,7 +19,7 @@ export type SessionStatus = z.infer<typeof sessionStatusSchema>;
  */
 export const sessionKindSchema = z.enum(['agent', 'terminal']);
 export type SessionKind = z.infer<typeof sessionKindSchema>;
-export const agentModeSchema = z.enum(['interactive', 'scripted']);
+export const agentModeSchema = z.enum(['interactive', 'headless']);
 
 export const sessionSchema = z.object({
   id: sessionId,

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { PROTOCOL_VERSION } from '@puddle/shared';
+import { PROTOCOL_VERSION, REMOTE_PROTOCOL_VERSION } from '@puddle/shared';
 import type { RemoteClient } from '../src/features/remote/client';
 
 const mocks = vi.hoisted(() => ({
@@ -41,9 +41,11 @@ beforeEach(async () => {
   });
   vi.stubGlobal('Notification', { permission: 'granted' });
   mocks.subscription.mockReset().mockResolvedValue(subscription);
-  mocks.service
-    .mockReset()
-    .mockResolvedValue({ providers: ['github'], protocol: 3, push_encrypted_previews: true });
+  mocks.service.mockReset().mockResolvedValue({
+    providers: ['github'],
+    protocol: REMOTE_PROTOCOL_VERSION,
+    push_encrypted_previews: true,
+  });
   mocks.previewKey
     .mockReset()
     .mockResolvedValue({ id: '00000000-0000-4000-8000-000000000001', secret: 'c'.repeat(64) });
@@ -130,7 +132,7 @@ it('registers preview keys only with a capable connector and service', async () 
     preview_key: { id: '00000000-0000-4000-8000-000000000001', secret: 'c'.repeat(64) },
   });
   mocks.previewKey.mockClear();
-  mocks.service.mockResolvedValue({ providers: ['github'], protocol: 3 });
+  mocks.service.mockResolvedValue({ providers: ['github'], protocol: REMOTE_PROTOCOL_VERSION });
   await api.testPushNotifications(account);
   expect(mocks.previewKey).not.toHaveBeenCalled();
 });
@@ -139,7 +141,11 @@ it('does not restore a subscription after opt-out during preview discovery', asy
   previewHost();
   mocks.service.mockImplementationOnce(async () => {
     localStorage.setItem(key, 'false');
-    return { providers: ['github'], protocol: 3, push_encrypted_previews: true };
+    return {
+      providers: ['github'],
+      protocol: REMOTE_PROTOCOL_VERSION,
+      push_encrypted_previews: true,
+    };
   });
   await expect(api.testPushNotifications(account)).rejects.toThrow();
   expect(mocks.previewKey).not.toHaveBeenCalled();
@@ -159,7 +165,11 @@ it('bounds service preview discovery and ignores a late response', async () => {
   );
   await vi.advanceTimersByTimeAsync(10_000);
   await pending;
-  finish({ providers: ['github'], protocol: 3, push_encrypted_previews: true });
+  finish({
+    providers: ['github'],
+    protocol: REMOTE_PROTOCOL_VERSION,
+    push_encrypted_previews: true,
+  });
   await vi.advanceTimersByTimeAsync(1);
   expect(mocks.previewKey).not.toHaveBeenCalled();
   expect(request.mock.calls.map(([, path]) => path)).toEqual(['/api/version']);

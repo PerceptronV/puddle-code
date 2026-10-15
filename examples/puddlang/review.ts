@@ -1,7 +1,7 @@
 import { input, spawn, z } from 'puddlang';
 
 const Agent = z.enum(['claude-code', 'codex', 'opencode', 'gemini-cli']);
-const Mode = z.enum(['interactive', 'scripted']);
+const Mode = z.enum(['interactive', 'headless']);
 const task = z
   .object({
     project: z.string(),
@@ -10,7 +10,7 @@ const task = z
     coder: Agent.default('codex'),
     reviewer: Agent.default('codex'),
     coderMode: Mode.default('interactive'),
-    reviewerMode: Mode.default('scripted'),
+    reviewerMode: Mode.default('headless'),
   })
   .parse(input);
 const location = { project: task.project, ...(task.worktree ? { worktree: task.worktree } : {}) };

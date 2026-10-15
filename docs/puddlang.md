@@ -1,7 +1,7 @@
 # puddlang
 
 Puddlang runs small TypeScript programmes that manage Puddle agents. Claude Code,
-Codex, OpenCode and Gemini CLI support both **interactive** and **scripted** modes.
+Codex, OpenCode and Gemini CLI support both **interactive** and **headless** modes.
 Both use the actual agent CLI, its selected account, tools, configuration and
 native conversation history. Agents remain visible in the cockpit.
 
@@ -21,15 +21,21 @@ public CLI installer once to add its launcher: older embedded installers may
 only install `puddle` or the former `puddlang` command. Subsequent upgrades manage
 both commands together.
 
-The host needs daemon protocol **23.1+ within major 23**, **Node 22.21.1+**, and
+The host needs daemon protocol **24.0+ within major 24**, **Node 22.21.1+**, and
 the selected agent installed and logged in through Puddle. Bundled releases supply Node.
 Upgrade an older daemon with `puddle upgrade daemon [user@host]`. Start Puddle
 from a plain shell: `pudl` connects to an existing daemon and never bootstraps
 one from an agent environment.
 
-Protocol 23.0 is an intentional major boundary. Update CLI/desktop, daemon and
-any remote connector/application together. Remote transport protocol remains 3;
-the existing launcher still requires approval before updating an older daemon.
+Protocol 24.0 renames the execution mode from `scripted` to `headless`. Update
+existing programmes to use `mode: 'headless'`; the old name is rejected. Saved
+placements migrate automatically, preserving their accounts and native conversation
+refs. Historical run source and events retain the original text and are never replayed.
+
+Update CLI/desktop, daemon and any remote service, connector and application
+together. Remote transport protocol is now 4 because remote session responses
+also carry the renamed mode. Existing registrations and device grants are retained.
+The existing launcher still requires approval before updating an older daemon.
 
 ```sh
 pudl context --profile personal
@@ -69,7 +75,7 @@ import { spawn, attach, z } from 'puddlang';
 
 const agent = await spawn({
   agent: 'codex',
-  mode: 'scripted', // Omit for the normal interactive terminal.
+  mode: 'headless', // Omit for the normal interactive terminal.
   account: 'primary',
   project: 'app',
   worktree: 'feature/search',
@@ -87,7 +93,7 @@ export default { review, handle: sameAgent.handle };
 
 See [the two-agent example](../examples/puddlang/review.ts) for an independent
 reviewer. `ask(string)` returns the correlated assistant reply. Structured `ask`
-uses native output schemas where available (interactive Codex and scripted Claude)
+uses native output schemas where available (interactive Codex and headless Claude)
 or includes the schema in the prompt, then validates the returned JSON with Zod.
 Invalid output is an error; there is no implicit repair/retry.
 
@@ -120,9 +126,9 @@ migration. `attach` retains the existing runtime's mode; it cannot convert one.
 `pudl context` advertises supported modes; the installed version is checked when
 starting a runtime. Unsupported versions or unavailable control channels fail
 explicitly for Puddlang. Normal interactive launches may still use lifecycle
-fallback without Puddlang turn control. Scripted launches never silently switch modes.
+fallback without Puddlang turn control. Headless launches never silently switch modes.
 
-| Agent | Minimum version for Puddlang | Interactive reply source | Scripted command |
+| Agent | Minimum version for Puddlang | Interactive reply source | Headless command |
 | --- | --- | --- | --- |
 | `claude-code` | 2.1.300 | UserPromptSubmit + Stop/StopFailure hooks | `claude --print --output-format stream-json` |
 | `codex` | 0.159.0 | Native app-server thread/turn events | `codex exec --json` |
@@ -140,10 +146,10 @@ prompts fail after 15 seconds and are never resubmitted automatically.
 
 Interactive completion follows the native hook/plugin boundary. In particular,
 Claude Stop and Gemini AfterAgent hooks can run before another user-installed
-hook requests continuation. Use scripted mode for workflows requiring completion
+hook requests continuation. Use headless mode for workflows requiring completion
 of the whole CLI invocation, including those additional hooks.
 
-Scripted mode opens a readable transcript in the cockpit. Each ask starts a
+Headless mode opens a readable transcript in the cockpit. Each ask starts a
 native non-interactive CLI invocation; subsequent asks resume the **exact same
 native conversation** under the same account. The transcript shows prompts and
 assistant text; the native TUI/composer is absent. Ctrl+C cancels the current

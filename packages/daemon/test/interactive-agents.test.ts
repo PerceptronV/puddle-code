@@ -42,7 +42,7 @@ function setup() {
 }
 
 describe('interactive exact prompt observation', () => {
-  it('waits for the initial onboarding turn before accepting scripted input', async () => {
+  it('waits for the initial onboarding turn before accepting automated input', async () => {
     const control = new InteractiveControl(() => {}, '\x1b', true);
     const ref = randomUUID();
     control.lifecycle(ref, false);

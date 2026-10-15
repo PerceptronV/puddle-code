@@ -74,9 +74,9 @@ export async function connectPuddlang(host?: string, selector?: string) {
     const port = () => tunnel?.localPort ?? authority!.port;
     const daemon = new DaemonClient(port(), authority);
     const { protocol } = await daemon.version();
-    if (protocol.major !== 23 || protocol.minor < 1)
+    if (protocol.major !== 24)
       throw new Error(
-        'This pudl version requires daemon protocol 23.1+ within major 23 for agent modes. Upgrade the daemon with puddle upgrade daemon.',
+        'This pudl version requires daemon protocol 24.0+ within major 24 for headless mode. Upgrade the daemon with puddle upgrade daemon.',
       );
     const profiles = await daemon.profiles();
     const matches = selector

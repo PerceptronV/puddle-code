@@ -299,4 +299,5 @@
 // 23.0: local/SSH puddlang runs, exact agent turns and profile-bound run history.
 // Intentional major release boundary: upgrade clients/hosts together for puddlang.
 // 23.1: per-agent interactive/scripted modes and correlated native turn signals.
-export const PROTOCOL_VERSION = { major: 23, minor: 1 } as const;
+// 24.0: rename the scripted execution mode to headless; no legacy wire alias.
+export const PROTOCOL_VERSION = { major: 24, minor: 0 } as const;

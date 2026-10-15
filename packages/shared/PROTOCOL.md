@@ -72,7 +72,7 @@ current-version assertion in `test/api.test.ts`, and note the bump in
 
 ## Remote transport
 
-`REMOTE_PROTOCOL_VERSION = 3` versions the separate service/connector/browser
+`REMOTE_PROTOCOL_VERSION = 4` versions the separate service/connector/browser
 contract in `src/remote/`. Its strict envelopes and Noise prologue require an
 exact match; incompatible peers fail closed. Its introduction did not change
 daemon protocol 18.0. Turning the existing server WS union into an equivalent
@@ -204,3 +204,17 @@ preserves existing placements as interactive. `pudl` requires 23.1 so older runn
 cannot silently discard the requested mode. Session creation through the public
 REST API remains interactive; no remote operation or authority is added. Remote
 protocol remains 3 and Puddlang remains excluded from remote leases/allowlists.
+
+Daemon/cockpit protocol 24.0 renames the execution mode enum value `scripted` to
+`headless` in Puddlang spawn/context and `Session.agent_mode`. This removes an
+accepted value, so the major advances with no legacy wire alias. Migration 026
+converts persisted placements and replaces the SQLite constraint; interactive
+remains the default. Historical run source/events retain their original text.
+Programmes using the old spelling must be updated explicitly.
+
+Remote protocol 4 accompanies the renamed mode in allowlisted session responses.
+Update CLI/desktop, daemon, connector, service and application together. Existing
+registrations and device grants are retained; invitation/Noise admission requires
+the new version. Puddlang remains local/SSH-only, with no allowlist or authority
+expansion. The `scripted_turns` capability still describes automated turn support
+in either mode; it is not an execution mode name.

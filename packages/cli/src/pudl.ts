@@ -20,8 +20,8 @@ Connection: --host user@host --profile name-or-id
 Run options: --id UUID --account agent=label-or-id (repeatable)
              --max-turns 50 --max-agents 8 --timeout-ms 3600000
 
-Requires a running daemon (protocol 23.1+) and a supported agent on that host.
-Claude Code, Codex, OpenCode and Gemini CLI support interactive and scripted modes.
+Requires a running daemon (protocol 24.0+) and a supported agent on that host.
+Claude Code, Codex, OpenCode and Gemini CLI support interactive and headless modes.
 Profiles/accounts/projects are selected on the execution host. Programs are
 trusted host code. Closing the CLI detaches; use cancel to stop a run.
 `;

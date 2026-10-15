@@ -9,10 +9,10 @@ generation do not establish live TUI compatibility.
    only that profile's public project/account metadata should appear.
 2. Run `examples/puddlang/review.ts` on a small task. Confirm two normal placements
    in the selected worktree, visible turns and validated reviewer approval.
-   The example defaults to an interactive Codex coder and scripted Codex reviewer;
+   The example defaults to an interactive Codex coder and headless Codex reviewer;
    input keys `coder`, `reviewer`, `coderMode` and `reviewerMode` select others.
    Repeat with a mixed-provider pair. Confirm permission gates remain enforced:
-   scripted mode never grants permissions merely because it is scripted.
+   headless mode never grants permissions merely because it is headless.
 3. Inspect `status`/`logs` after CLI exit. Resubmit identical work with the same
    `--id`: no extra turns or agents. Different work with that id must conflict.
 4. Repeat with SSH, a client-local script and host-local worktree. Detach,
@@ -34,21 +34,21 @@ generation do not establish live TUI compatibility.
     exact native conversation across both asks, correct account isolation and cwd,
     and no attribution of subagent/tool text to the final reply. Stop/resume the
     placement, attach a new programme and ask again; the mode and conversation
-    must persist. Resume an unused scripted placement too: no instruction should
+    must persist. Resume an unused headless placement too: no instruction should
     execute until the first explicit ask.
 11. Interactive: start with a human draft, modify/interrupt a running ask, switch
     native conversation, and test startup onboarding before the first ask. New
     asks must not overwrite drafts or race onboarding. For hook-based adapters,
     permission-dialogue input rejects the ask as human takeover. Codex permission
     approvals remain native proxy requests. Add a Stop/AfterAgent continuation hook
-    to verify the documented interactive boundary; scripted completion must wait
+    to verify the documented interactive boundary; headless completion must wait
     for the whole invocation to finish.
-12. Scripted: deny a tool, produce malformed/oversized output, hit a provider error,
+12. Headless: deny a tool, produce malformed/oversized output, hit a provider error,
     cancel with Ctrl+C and cancel a run while a child tool is active. Failure must
     stay explicit, children must terminate and a retained attached runtime must
     accept a later explicit ask. Terminating the transcript must stop its child.
 
-| Agent | Version baseline | Interactive live acceptance | Scripted live acceptance |
+| Agent | Version baseline | Interactive live acceptance | Headless live acceptance |
 | --- | --- | --- | --- |
 | Claude Code | 2.1.300 | Pending | Pending |
 | Codex | 0.159.0 | Pending | Pending |

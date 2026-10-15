@@ -59,7 +59,7 @@ function setup(ask?: AgentControl['ask']) {
       ...fakeAdapter(),
       scriptedTurns: true,
       prepareLifecycleLaunch: prepare,
-      prepareScriptedLaunch: prepare,
+      prepareHeadlessLaunch: prepare,
     },
   });
   f.service.setSignalPort(1);
@@ -126,7 +126,7 @@ describe('puddlang host execution', () => {
     const run = s.start(
       `import {spawn, input, z} from 'puddlang';
       const coder = await spawn({agent:'fake', project:'demo', title:'coder'});
-      const reviewer = await spawn({agent:'fake', mode:'scripted', project:'demo', title:'reviewer'});
+      const reviewer = await spawn({agent:'fake', mode:'headless', project:'demo', title:'reviewer'});
       const result = await coder.ask(String(input));
       const verdict = await reviewer.ask({prompt:'review', input:result, schema:z.object({complete:z.boolean()})});
       export default {verdict, coder:coder.handle, reviewer:reviewer.handle};`,
@@ -139,11 +139,11 @@ describe('puddlang host execution', () => {
     const placements = s.f.stores.sessions.list().filter((p) => p.kind === 'agent');
     expect(placements).toHaveLength(2);
     expect(placements.find((p) => p.title === 'coder')?.agent_mode).toBe('interactive');
-    expect(placements.find((p) => p.title === 'reviewer')?.agent_mode).toBe('scripted');
+    expect(placements.find((p) => p.title === 'reviewer')?.agent_mode).toBe('headless');
     expect(s.service.context(s.f.ids.profile).agents).toContainEqual({
       id: 'fake',
       scripted_turns: true,
-      modes: ['interactive', 'scripted'],
+      modes: ['interactive', 'headless'],
     });
     expect(s.store.events(s.f.ids.profile, run.id, 0).events.map((e) => e.type)).toContain('ask');
   });

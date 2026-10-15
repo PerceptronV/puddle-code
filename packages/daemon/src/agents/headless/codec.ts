@@ -13,7 +13,7 @@ export interface TurnEvent {
 }
 
 /** Native flags and event interpretation belong to the provider. */
-export interface ScriptedDriver {
+export interface HeadlessDriver {
   binary: string;
   env: Record<string, string>;
   command(
@@ -34,4 +34,4 @@ export function schemaPrompt(prompt: string, schema?: JsonRecord): string {
     : prompt;
 }
 
-export type ScriptedContext = LifecycleLaunchContext;
+export type HeadlessContext = LifecycleLaunchContext;

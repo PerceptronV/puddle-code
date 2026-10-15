@@ -1,10 +1,10 @@
 import type { LifecycleLaunchContext } from '../adapter.js';
 import { lifecycleVersionAtLeast } from '../lifecycle-version.js';
-import { prepareScripted } from '../scripted/control.js';
-import { record, type ScriptedDriver } from '../scripted/codec.js';
+import { prepareHeadless } from '../headless/control.js';
+import { record, type HeadlessDriver } from '../headless/codec.js';
 
 /** Flags checked against Claude Code 2.1.300; result events follow its print protocol. */
-export function claudeDriver(context: LifecycleLaunchContext): ScriptedDriver {
+export function claudeDriver(context: LifecycleLaunchContext): HeadlessDriver {
   return {
     binary: 'claude',
     env: { CLAUDE_CONFIG_DIR: context.account.config_dir },
@@ -60,8 +60,8 @@ export function claudeDriver(context: LifecycleLaunchContext): ScriptedDriver {
   };
 }
 
-export async function prepareClaudeScripted(context: LifecycleLaunchContext) {
+export async function prepareClaudeHeadless(context: LifecycleLaunchContext) {
   if (!(await lifecycleVersionAtLeast('claude', ['--version'], [2, 1, 300])))
-    throw new Error('Claude Code 2.1.300+ is required for scripted mode');
-  return prepareScripted(context, claudeDriver(context));
+    throw new Error('Claude Code 2.1.300+ is required for headless mode');
+  return prepareHeadless(context, claudeDriver(context));
 }

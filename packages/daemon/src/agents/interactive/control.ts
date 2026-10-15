@@ -3,7 +3,7 @@ import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AgentTurnSignal } from '@puddle/shared';
 import type { AgentControl, LifecycleLaunchContext, LifecycleLaunchResource } from '../adapter.js';
-import { schemaPrompt } from '../scripted/codec.js';
+import { schemaPrompt } from '../headless/codec.js';
 
 /** Match a submitted prompt to native hooks, never terminal activity/quietness. */
 export class InteractiveControl implements AgentControl {
@@ -39,7 +39,7 @@ export class InteractiveControl implements AgentControl {
   }
   input(): void {
     this.dirty = true;
-    this.pending?.finish(new Error('Human input interrupted the scripted turn'));
+    this.pending?.finish(new Error('Human input interrupted the automated turn'));
   }
   signal(event: AgentTurnSignal): 'working' | 'waiting_input' | undefined {
     if (event.agent_session_ref !== this.ref || this.disposed) return;
@@ -50,7 +50,7 @@ export class InteractiveControl implements AgentControl {
       this.active = event.turn_id;
       if (this.pending) {
         if (event.turn_id !== this.pending.id || event.prompt_hash !== this.pending.hash)
-          this.pending.finish(new Error('Another prompt replaced the scripted turn'));
+          this.pending.finish(new Error('Another prompt replaced the automated turn'));
         else this.pending.accepted = true;
       }
       return 'working';
@@ -93,7 +93,7 @@ export class InteractiveControl implements AgentControl {
       const abort = () => {
         this.busy = true;
         this.write(this.interrupt);
-        finish(new Error('Scripted turn cancelled'));
+        finish(new Error('Automated turn cancelled'));
       };
       const submit = setTimeout(() => {
         if (this.pending?.id === id) this.write('\r');

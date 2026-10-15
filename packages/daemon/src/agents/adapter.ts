@@ -148,7 +148,7 @@ export interface ConversationShareHooks {
  * adapter; core session logic stays agent-agnostic.
  */
 export interface AgentAdapter {
-  /** Supports exact scripted turns through its lifecycle resource. */
+  /** Supports exact automated turns through its lifecycle resource. */
   scriptedTurns?: boolean;
   id: string;
   displayName: string;
@@ -305,7 +305,7 @@ export interface AgentAdapter {
   /** Per-runtime exact lifecycle transport (Codex app-server bridge). */
   prepareLifecycleLaunch?(context: LifecycleLaunchContext): Promise<LifecycleLaunchResource>;
   /** Structured execution with a readable transcript instead of a native TUI. */
-  prepareScriptedLaunch?(context: LifecycleLaunchContext): Promise<LifecycleLaunchResource>;
+  prepareHeadlessLaunch?(context: LifecycleLaunchContext): Promise<LifecycleLaunchResource>;
   /** Phase 7: move conversation state between accounts (same agent). */
   migrateSession?(ref: string, from: Account, to: Account, worktree: string): Promise<void>;
   /** Phase 7: render the conversation as text for cross-agent hand-off. */

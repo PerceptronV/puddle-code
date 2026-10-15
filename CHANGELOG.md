@@ -11,7 +11,11 @@ Past releases: see docs/changelogs/.
 
 ### Added
 
-- Support Claude Code, Codex, OpenCode and Gemini CLI in Puddlang with per-agent interactive or scripted execution, persisted mode selection, exact reply correlation and account-preserving native conversation resume (daemon protocol 23.1).
+- Support Claude Code, Codex, OpenCode and Gemini CLI in Puddlang with per-agent interactive or headless execution, persisted mode selection, exact reply correlation and account-preserving native conversation resume (daemon protocol 24.0).
+
+### Changed
+
+- Rename Puddlang's `scripted` execution mode to `headless` across spawn options, session state, agent modules, examples and documentation; migrate existing placements and advance daemon protocol to 24.0 and remote protocol to 4.
 
 ### Fixed
 

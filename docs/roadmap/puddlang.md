@@ -9,8 +9,8 @@ features and illustrative spellings; it is not a claim of full implementation.
 
 - Single-file TypeScript with spawn, attach, correlated ask, Zod validation and stop
   for Claude Code, Codex, OpenCode and Gemini CLI.
-- Per-spawn `mode: 'interactive' | 'scripted'` (default interactive), persisted on
-  resume. Interactive uses native TUI lifecycle channels; scripted uses the same
+- Per-spawn `mode: 'interactive' | 'headless'` (default interactive), persisted on
+  resume. Interactive uses native TUI lifecycle channels; headless uses the same
   CLI/account with structured output and requires successful process completion.
   See the usage guide for version requirements and hook-completion limitations.
 - Daemon-owned runners, SQLite runs/events, idempotent submissions, bounded
@@ -326,7 +326,7 @@ Agent-specific message submission, turn boundaries and response extraction
 belong in adapters. Their support must be capability-checked against the
 installed agent. The implemented slice extends lifecycle channels with bounded
 turn observation and adds structured CLI drivers. Interactive hook completion has
-the limitations described in the usage guide; scripted completion also requires
+the limitations described in the usage guide; headless completion also requires
 successful process exit. Catalogue discovery remains metadata-only.
 
 ## Execution and human control

@@ -1,10 +1,10 @@
 import type { LifecycleLaunchContext } from '../adapter.js';
 import { lifecycleVersionAtLeast } from '../lifecycle-version.js';
-import { prepareScripted } from '../scripted/control.js';
-import { record, schemaPrompt, type ScriptedDriver } from '../scripted/codec.js';
+import { prepareHeadless } from '../headless/control.js';
+import { record, schemaPrompt, type HeadlessDriver } from '../headless/codec.js';
 
 /** Stream-json fields verified against @google/gemini-cli-core 0.53.1 output/types.d.ts. */
-export function geminiDriver(context: LifecycleLaunchContext): ScriptedDriver {
+export function geminiDriver(context: LifecycleLaunchContext): HeadlessDriver {
   return {
     binary: 'gemini',
     env: { GEMINI_CLI_HOME: context.account.config_dir },
@@ -48,8 +48,8 @@ export function geminiDriver(context: LifecycleLaunchContext): ScriptedDriver {
   };
 }
 
-export async function prepareGeminiScripted(context: LifecycleLaunchContext) {
+export async function prepareGeminiHeadless(context: LifecycleLaunchContext) {
   if (!(await lifecycleVersionAtLeast('gemini', ['--version'], [0, 53, 1])))
-    throw new Error('Gemini CLI 0.53.1+ is required for scripted mode');
-  return prepareScripted(context, geminiDriver(context));
+    throw new Error('Gemini CLI 0.53.1+ is required for headless mode');
+  return prepareHeadless(context, geminiDriver(context));
 }

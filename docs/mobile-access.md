@@ -12,6 +12,11 @@ Choose two HTTPS origins under the same site, such as `app.example.com` and
 `relay.example.com`, and point their DNS records at your ingress. Ports 80 and
 443 must reach that ingress. Keep daemon ports 7433/7434 private.
 
+Daemon protocol 24.0 and remote protocol 4 rename the session mode `scripted` to
+`headless`. Upgrade the daemon/connector, service and application together;
+previous remote clients cannot connect across this version boundary. Existing
+registrations and device grants are retained.
+
 From a checkout of the version you intend to run:
 
 ```sh

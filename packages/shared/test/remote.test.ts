@@ -1,11 +1,22 @@
 import { expect, it } from 'vitest';
 import {
+  REMOTE_PROTOCOL_VERSION,
   remoteOriginSchema,
   cockpitRemoteRequestSchema,
   remoteServiceInfoSchema,
   remoteAdminRequestSchema,
   remoteMessageSchema,
 } from '../src/index.js';
+
+it('requires remote protocol 4 for headless session responses', () => {
+  expect(REMOTE_PROTOCOL_VERSION).toBe(4);
+  expect(remoteServiceInfoSchema.safeParse({ providers: ['github'], protocol: 4 }).success).toBe(
+    true,
+  );
+  expect(remoteServiceInfoSchema.safeParse({ providers: ['github'], protocol: 3 }).success).toBe(
+    false,
+  );
+});
 
 it('rejects the previous email-login service contract', () => {
   expect(

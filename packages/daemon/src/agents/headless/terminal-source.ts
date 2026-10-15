@@ -3,7 +3,7 @@
  * structured stdout; only deliberately rendered text reaches the terminal.
  * Kept inline so bundled releases need no extra executable or module lookup.
  */
-export const SCRIPT_TERMINAL_SOURCE = String.raw`
+export const HEADLESS_TERMINAL_SOURCE = String.raw`
 const net = require('node:net');
 const { spawn } = require('node:child_process');
 const socket = net.connect(process.argv[1]);
@@ -39,7 +39,7 @@ process.stdin.on('data', (data) => {
   if (data.includes(3)) send({ type: 'interrupt' });
 });
 socket.on('connect', () => {
-  process.stdout.write('Puddlang scripted session. Ctrl+C interrupts the current turn.\r\n');
+  process.stdout.write('Puddlang headless session. Ctrl+C interrupts the current turn.\r\n');
   send({ type: 'ready' });
 });
 socket.setEncoding('utf8');

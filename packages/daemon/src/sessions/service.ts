@@ -181,7 +181,7 @@ export class SessionService extends EventEmitter {
     if (!control)
       throw ApiError.conflict(
         'scripted_turns_unavailable',
-        'This runtime has no exact scripted-turn channel; use a supported agent with full native synchronisation',
+        'This runtime has no exact automated-turn channel; use a supported agent with full native synchronisation',
       );
     return {
       handle: { runtime_id: live.runtimeId, session_id: live.activeSessionId },
@@ -307,7 +307,7 @@ export class SessionService extends EventEmitter {
       return; // best-effort identity refresh; title refresh follows the same rule
     }
     void (
-      session.agent_mode === 'scripted'
+      session.agent_mode === 'headless'
         ? Promise.resolve(false)
         : this.sessionRefs.refreshAvailable(session, account, adapter)
     )
@@ -364,8 +364,8 @@ export class SessionService extends EventEmitter {
     // A terminal session has no account/agent — it forks off into its own path
     // (a shell in the worktree, no onboarding, no conversation — SPEC §4).
     if ((input.kind ?? 'agent') === 'terminal') {
-      if (agentMode === 'scripted')
-        throw ApiError.badRequest('agent_mode', 'Terminal placements cannot use scripted mode');
+      if (agentMode === 'headless')
+        throw ApiError.badRequest('agent_mode', 'Terminal placements cannot use headless mode');
       return this.createTerminal(input, project, profile, repo);
     }
     if (input.cwd !== undefined) {
@@ -382,10 +382,10 @@ export class SessionService extends EventEmitter {
       );
     }
     const adapter = this.deps.adapters.get(account.agent_type);
-    if (agentMode === 'scripted' && !adapter.prepareScriptedLaunch)
+    if (agentMode === 'headless' && !adapter.prepareHeadlessLaunch)
       throw ApiError.badRequest(
         'agent_mode',
-        `${adapter.displayName} does not support scripted mode`,
+        `${adapter.displayName} does not support headless mode`,
       );
     assertBinaryAvailable(adapter); // before assertLoggedIn — see its doc comment
     await this.assertLoggedIn(account, adapter);
@@ -457,7 +457,7 @@ export class SessionService extends EventEmitter {
         'starting',
         launchOpts,
       );
-    if (agentMode === 'scripted') await spawn();
+    if (agentMode === 'headless') await spawn();
     else
       await this.sessionRefs.launchAndCapture(
         session,
@@ -745,7 +745,7 @@ export class SessionService extends EventEmitter {
     assertBinaryAvailable(adapter); // before assertLoggedIn — see its doc comment
     await this.assertLoggedIn(account, adapter);
     const ref =
-      session.agent_mode === 'scripted' && !session.agent_session_ref
+      session.agent_mode === 'headless' && !session.agent_session_ref
         ? undefined
         : await this.sessionRefs.resolveForResume(session, account, adapter);
 
@@ -1300,16 +1300,16 @@ export class SessionService extends EventEmitter {
     let lifecycleResource: LifecycleLaunchResource | null = null;
     let spawnArgs = args;
     let nativeSync: NonNullable<Session['native_sync']> = 'fallback';
-    const scripted = this.deps.sessions.get(sessionId).agent_mode === 'scripted';
-    if (scripted && (signalNonce === null || !adapter.prepareScriptedLaunch)) {
+    const headless = this.deps.sessions.get(sessionId).agent_mode === 'headless';
+    if (headless && (signalNonce === null || !adapter.prepareHeadlessLaunch)) {
       this.transition(sessionId, 'exited');
       throw ApiError.conflict(
-        'scripted_mode_unavailable',
-        'Scripted execution requires an adapter control channel',
+        'headless_mode_unavailable',
+        'Headless execution requires an adapter control channel',
       );
     }
     if (signalNonce !== null && this.signalPort !== null) {
-      const prepare = scripted ? adapter.prepareScriptedLaunch : adapter.prepareLifecycleLaunch;
+      const prepare = headless ? adapter.prepareHeadlessLaunch : adapter.prepareLifecycleLaunch;
       if (prepare) {
         try {
           lifecycleResource = await prepare({
@@ -1347,10 +1347,10 @@ export class SessionService extends EventEmitter {
           spawnArgs = lifecycleResource.args;
           nativeSync = 'full';
         } catch (error) {
-          if (scripted) {
+          if (headless) {
             this.transition(sessionId, 'exited');
             this.deps.events.record(sessionId, 'spawn_failed', { message: String(error) });
-            throw ApiError.conflict('scripted_mode_unavailable', String(error));
+            throw ApiError.conflict('headless_mode_unavailable', String(error));
           }
           console.warn(
             `${adapter.displayName} lifecycle bridge unavailable: ${(error as Error).message}`,

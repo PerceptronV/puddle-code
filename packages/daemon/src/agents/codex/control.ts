@@ -46,7 +46,7 @@ export class CodexControl implements AgentControl {
     this.abandoned.clear();
   }
 
-  /** Human turns and native switches cannot be attributed to a scripted ask. */
+  /** Human turns and native switches cannot be attributed to a automated ask. */
   client(message: RecordValue): void {
     const method = message['method'];
     if (
@@ -57,7 +57,7 @@ export class CodexControl implements AgentControl {
       method === 'thread/resume' ||
       method === 'thread/fork'
     ) {
-      this.pending?.finish(new Error('Human or native input interrupted the scripted turn'));
+      this.pending?.finish(new Error('Human or native input interrupted the automated turn'));
       if (method === 'turn/start') this.busy = true;
     }
   }
@@ -78,7 +78,7 @@ export class CodexControl implements AgentControl {
             params: { threadId: thread, turnId: turn },
           });
         else this.abandoned.set(id, thread);
-        finish(new Error('Scripted turn cancelled'));
+        finish(new Error('Automated turn cancelled'));
       };
       const finish = (error?: Error, reply?: string) => {
         if (this.pending?.id !== id) return;

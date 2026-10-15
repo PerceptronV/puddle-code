@@ -44,7 +44,7 @@ export class PuddlangService {
         scripted_turns: a.scriptedTurns === true,
         modes: [
           ...(a.scriptedTurns ? ['interactive' as const] : []),
-          ...(a.prepareScriptedLaunch ? ['scripted' as const] : []),
+          ...(a.prepareHeadlessLaunch ? ['headless' as const] : []),
         ],
       })),
     };

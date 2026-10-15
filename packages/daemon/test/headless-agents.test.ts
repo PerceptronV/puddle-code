@@ -6,12 +6,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { LifecycleLaunchContext } from '../src/agents/adapter.js';
-import { prepareScripted } from '../src/agents/scripted/control.js';
-import type { ScriptedDriver } from '../src/agents/scripted/codec.js';
-import { claudeDriver } from '../src/agents/claude-code/scripted.js';
-import { codexDriver } from '../src/agents/codex/scripted.js';
-import { geminiDriver } from '../src/agents/gemini-cli/scripted.js';
-import { openCodeDriver } from '../src/agents/opencode/scripted.js';
+import { prepareHeadless } from '../src/agents/headless/control.js';
+import type { HeadlessDriver } from '../src/agents/headless/codec.js';
+import { claudeDriver } from '../src/agents/claude-code/headless.js';
+import { codexDriver } from '../src/agents/codex/headless.js';
+import { geminiDriver } from '../src/agents/gemini-cli/headless.js';
+import { openCodeDriver } from '../src/agents/opencode/headless.js';
 import { fakeAdapter, fixture, waitFor } from './helpers/daemon-fixtures.js';
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -94,7 +94,7 @@ async function bridge(
 ) {
   const directory = mkdtempSync(join(tmpdir(), 'pudl-test-'));
   const bound: string[] = [];
-  const driver: ScriptedDriver = {
+  const driver: HeadlessDriver = {
     ...native,
     binary: process.execPath,
     env: { ...native.env, PUDL_TEST: 'isolated' },
@@ -112,7 +112,7 @@ async function bridge(
       stdin: 'prompt',
     }),
   };
-  const resource = await prepareScripted(
+  const resource = await prepareHeadless(
     {
       ...context,
       bindConversation: async (value) => {
@@ -190,7 +190,7 @@ describe('native structured agent protocols', () => {
   });
 });
 
-describe('scripted terminal ownership', () => {
+describe('headless terminal ownership', () => {
   for (const item of fixtures) {
     it(`${item.name} completes two turns through the real terminal driver`, async () => {
       const s = await bridge(item.records, 0, 0, item.driver(context));
@@ -280,12 +280,12 @@ describe('scripted terminal ownership', () => {
     });
     expect(s.control.ready).toBe(true);
   });
-  it('fails scripted launch explicitly without opening an interactive fallback', async () => {
+  it('fails headless launch explicitly without opening an interactive fallback', async () => {
     const f = fixture({
       adapter: {
         ...fakeAdapter(),
         scriptedTurns: true,
-        prepareScriptedLaunch: async () => {
+        prepareHeadlessLaunch: async () => {
           throw new Error('Unsupported native version');
         },
       },
@@ -297,11 +297,11 @@ describe('scripted terminal ownership', () => {
       f.logs.closeAll();
     });
     await expect(
-      f.service.create({ project_id: f.ids.project, account_id: f.ids.account }, 'scripted'),
+      f.service.create({ project_id: f.ids.project, account_id: f.ids.account }, 'headless'),
     ).rejects.toThrow('Unsupported native version');
     expect(f.ptys.liveCount()).toBe(0);
     expect(f.stores.sessions.list()).toEqual([
-      expect.objectContaining({ agent_mode: 'scripted', status: 'exited' }),
+      expect.objectContaining({ agent_mode: 'headless', status: 'exited' }),
     ]);
   });
   it('persists the selected mode and binds identity from structured output', async () => {
@@ -311,9 +311,9 @@ describe('scripted terminal ownership', () => {
         ...fakeAdapter(),
         scriptedTurns: true,
         hasConversation: () => true,
-        prepareScriptedLaunch: async (ctx) => {
+        prepareHeadlessLaunch: async (ctx) => {
           resumed = ctx.resumeRef;
-          return prepareScripted(ctx, {
+          return prepareHeadless(ctx, {
             ...codexDriver(ctx),
             binary: process.execPath,
             command: () => ({
@@ -342,9 +342,9 @@ describe('scripted terminal ownership', () => {
         separate_branch: false,
         separate_worktree: false,
       },
-      'scripted',
+      'headless',
     );
-    expect(session.agent_mode).toBe('scripted');
+    expect(session.agent_mode).toBe('headless');
     expect(session.agent_session_ref).toBeNull();
     await waitFor(() => f.service.scriptRuntime(session.id).control.ready);
     await f.service.kill(session.id);
@@ -362,7 +362,7 @@ describe('scripted terminal ownership', () => {
     await f.service.kill(session.id);
     await waitFor(() => !f.ptys.has(session.id, 'agent'));
     const restored = await f.service.resume(session.id);
-    expect(restored.agent_mode).toBe('scripted');
+    expect(restored.agent_mode).toBe('headless');
     expect(resumed).toBe(ref);
   });
 });

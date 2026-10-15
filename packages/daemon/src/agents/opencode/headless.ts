@@ -1,10 +1,10 @@
 import type { LifecycleLaunchContext } from '../adapter.js';
 import { lifecycleVersionAtLeast } from '../lifecycle-version.js';
-import { prepareScripted } from '../scripted/control.js';
-import { record, schemaPrompt, type ScriptedDriver } from '../scripted/codec.js';
+import { prepareHeadless } from '../headless/control.js';
+import { record, schemaPrompt, type HeadlessDriver } from '../headless/codec.js';
 
 /** Flags checked with OpenCode 1.18.10 `run --help`; events use its JSON run protocol. */
-export function openCodeDriver(context: LifecycleLaunchContext): ScriptedDriver {
+export function openCodeDriver(context: LifecycleLaunchContext): HeadlessDriver {
   return {
     binary: 'opencode',
     env: Object.fromEntries(
@@ -51,8 +51,8 @@ export function openCodeDriver(context: LifecycleLaunchContext): ScriptedDriver 
   };
 }
 
-export async function prepareOpenCodeScripted(context: LifecycleLaunchContext) {
+export async function prepareOpenCodeHeadless(context: LifecycleLaunchContext) {
   if (!(await lifecycleVersionAtLeast('opencode', ['--version'], [1, 18, 10])))
-    throw new Error('OpenCode 1.18.10+ is required for scripted mode');
-  return prepareScripted(context, openCodeDriver(context));
+    throw new Error('OpenCode 1.18.10+ is required for headless mode');
+  return prepareHeadless(context, openCodeDriver(context));
 }

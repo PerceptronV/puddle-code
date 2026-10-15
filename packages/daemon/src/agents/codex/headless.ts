@@ -1,10 +1,10 @@
 import type { LifecycleLaunchContext } from '../adapter.js';
 import { lifecycleVersionAtLeast } from '../lifecycle-version.js';
-import { prepareScripted } from '../scripted/control.js';
-import { record, schemaPrompt, type ScriptedDriver } from '../scripted/codec.js';
+import { prepareHeadless } from '../headless/control.js';
+import { record, schemaPrompt, type HeadlessDriver } from '../headless/codec.js';
 
 /** `exec`/`exec resume --json` flags checked against codex-cli 0.159.0. */
-export function codexDriver(context: LifecycleLaunchContext): ScriptedDriver {
+export function codexDriver(context: LifecycleLaunchContext): HeadlessDriver {
   return {
     binary: 'codex',
     env: { CODEX_HOME: context.account.config_dir },
@@ -40,8 +40,8 @@ export function codexDriver(context: LifecycleLaunchContext): ScriptedDriver {
   };
 }
 
-export async function prepareCodexScripted(context: LifecycleLaunchContext) {
+export async function prepareCodexHeadless(context: LifecycleLaunchContext) {
   if (!(await lifecycleVersionAtLeast('codex', ['--version'], [0, 159, 0])))
-    throw new Error('Codex 0.159.0+ is required for scripted mode');
-  return prepareScripted(context, codexDriver(context));
+    throw new Error('Codex 0.159.0+ is required for headless mode');
+  return prepareHeadless(context, codexDriver(context));
 }

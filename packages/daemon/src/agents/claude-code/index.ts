@@ -1,5 +1,5 @@
 import { prepareClaudeInteractive } from './control.js';
-import { prepareClaudeScripted } from './scripted.js';
+import { prepareClaudeHeadless } from './headless.js';
 import { execFile } from 'node:child_process';
 import {
   closeSync,
@@ -112,7 +112,7 @@ const EMPTY_USAGE: AgentUsage = {
  */
 export const claudeCode: AgentAdapter = {
   scriptedTurns: true,
-  prepareScriptedLaunch: prepareClaudeScripted,
+  prepareHeadlessLaunch: prepareClaudeHeadless,
   prepareLifecycleLaunch: prepareClaudeInteractive,
   id: 'claude-code',
   displayName: 'Claude Code',

@@ -84,7 +84,7 @@ Binding to `127.0.0.1` is **not** protection from the web: any website open in t
 4. **Browser gateway**: the cockpit requires its exact `localhost:<port>` Host and browser Origin on authentication/control boundaries, rejecting foreign and null origins. It authenticates browser requests, strips supplied upstream credentials and adds its current connection authority. The main WebSocket is an authenticated bridge and reports connected only after the daemon acknowledges authentication. Browser rejection is distinct from upstream expiry, unavailability and protocol mismatch; an upstream failure never clears browser login. Vite uses the same gateway. Static cockpit assets are public.
 5. **Forwarded applications**: cockpit content is served only on `localhost`, applications only on `127.0.0.1` at the same port. Reusable `/forward/:sid/:port` links open a trusted cockpit landing page, obtain a target-scoped invitation, and exchange it on the application origin for a host-only, HttpOnly, SameSite=Strict, path-scoped cookie. Desktop terminal links and port chips obtain this application-scoped invitation in the authorised cockpit before handing it to the system browser, whose storage is separate from Electron; browser cockpits continue to open the reusable landing page synchronously. Only its verifier is persisted, bound to browser authorisation; every request also requires current upstream authority. Detected-port restrictions remain mandatory. Puddle credentials are stripped before forwarding; application headers, cookies, HTTP and WebSockets are preserved. Application content never executes at the cockpit origin; HTML previews retain their existing sandbox.
 
-Self-hosted mobile access uses an outbound connector and a separately served trusted browser application, with Better Auth service login and independently approved host device identities. Noise XX carries application messages through an opaque relay; host authority continues to use protocol 18.0 leases. Remote protocol 3 is independent. There is no default hosted service or provider tunnel. See [mobile design](docs/roadmap/mobile-access.md), [deployment](docs/mobile-access.md) and [acceptance](docs/acceptance/mobile-access.md).
+Self-hosted mobile access uses an outbound connector and a separately served trusted browser application, with Better Auth service login and independently approved host device identities. Noise XX carries application messages through an opaque relay; host authority continues to use protocol 18.0 leases. Remote protocol 4 is independent. There is no default hosted service or provider tunnel. See [mobile design](docs/roadmap/mobile-access.md), [deployment](docs/mobile-access.md) and [acceptance](docs/acceptance/mobile-access.md).
 
 Service login uses Google and/or GitHub OAuth only; at least one complete provider configuration is required. Better Auth owns the OAuth state, callback and cookie flows. A current provider-verified email is required at every sign-in; account registration is open to everyone through the configured providers, with no signup allowlist or registration switch. New accounts have no access to another account's hosts, and host access still requires exact browser approval. The example Caddy deployment manages HTTPS without an email contact setting. Puddle has no email/password login, email delivery or password recovery. The public authentication surface allowlists social sign-in, provider callbacks, session inspection/sign-out and optional authenticator MFA enrolment/verification/recovery codes. Passwordless MFA still gates host registration and relay admission. Different provider identities are never linked implicitly by matching email; account recovery belongs to the original provider. Startup retires legacy password credentials and all existing service sessions/challenges when such credentials are present, preserving provider bindings and host ownership. Email-only accounts require fresh service registration through local/SSH host control. Removing email login and changing the cockpit pairing invitation contract bumps remote protocol to 2 and daemon/cockpit protocol to 19.0; the host lease semantics are unchanged.
 
@@ -242,8 +242,9 @@ result/error, timestamps) and ordered `puddlang_events`. Profile deletion
 cascades these records once runs finish. Runs transition from running to
 completed, failed, cancelled or interrupted; startup interrupts running records
 without replaying source or turns. Migration 025 adds `sessions.agent_mode`,
-defaulting existing placements to interactive and retaining scripted mode across
-resume and runtime placement switches.
+defaulting existing placements to interactive. Migration 026 renames the stored
+`scripted` value to `headless` while retaining all placement state and history.
+Mode persists across resume and runtime placement switches.
 
 `puddlang/` supervises single-file trusted TypeScript in child processes with
 validated IPC. Handles resolve current runtime/placement ownership on each call.
@@ -506,23 +507,23 @@ Two tiers, surfaced as one "Continue on…" action in the session menu (and offe
 
 Lifecycle launch resources may expose `AgentControl`: `ready` and
 `ask(prompt, signal, outputSchema?)`. All four provider folders own interactive
-and scripted launch resources. Interactive is the default: Codex 0.159.0+ uses
+and headless launch resources. Interactive is the default: Codex 0.159.0+ uses
 its TUI app-server proxy; Claude Code 2.1.300+, OpenCode 1.18.10+ and Gemini CLI
 0.53.1+ use native hooks/plugins with exact prompt hashes/turn markers and bounded
 assistant replies. Human input/native switches reject pending hook-driven asks;
 busy runtimes and existing drafts reject new asks. Claude/Gemini completion is a
 native hook boundary; other user hooks can request further work afterwards.
 
-Scripted mode runs the actual CLI's structured non-interactive interface inside
+Headless mode runs the actual CLI's structured non-interactive interface inside
 a persistent transcript PTY. The adapter owns flags, account isolation and native
-JSON parsing; shared `agents/scripted/` owns transport, bounds and process cleanup.
+JSON parsing; shared `agents/headless/` owns transport, bounds and process cleanup.
 Each ask resumes the exact recorded native conversation and requires a native
 success result plus exit zero. Ctrl+C cancels the active process group. Mode
 selection never enables bypass flags. `spawn({mode})` is internal to Puddlang;
-ordinary REST session creation stays interactive. Scripted launch failures cannot
+ordinary REST session creation stays interactive. Headless launch failures cannot
 fall back to a different mode. Fallback interactive runtimes have no Puddlang
 control channel. Catalogue discovery stays metadata-only and never binds a
-scripted runtime. See [the usage guide](docs/puddlang.md) for mode limitations.
+headless runtime. See [the usage guide](docs/puddlang.md) for mode limitations.
 
 All REST endpoints are JSON under `/api`. Request/response shapes live as zod schemas in `packages/shared` and are the single source of truth for both daemon and UI.
 
@@ -533,7 +534,7 @@ Puddlang   GET  /api/puddlang/:profile/context
            GET  /api/puddlang/:profile/runs/:id
            GET  /api/puddlang/:profile/runs/:id/events?after=0   # pages of up to 100 events
            POST /api/puddlang/:profile/runs/:id/cancel
-                # protocol 23.1; local/SSH only, excluded from remote leases and relay allowlist
+                # protocol 24.0; local/SSH only, excluded from remote leases and relay allowlist
 Signal     POST /agent-signal {nonce, state} | {nonce,event,agent_session_ref?,cwd,source,parent_agent_session_ref?,native_title?,native_created_at?,native_updated_at?}
                 | {nonce,event,agent_session_ref,turn_id,prompt_hash?,reply?,error?}
                 # status, lifecycle or bounded turn side-channel (§4), OUTSIDE /api: no bearer;
@@ -712,7 +713,11 @@ Shared schemas in `api/connection-auth.ts` define host control (`open`, explicit
 
 The daemon WebSocket first receives `{t:'auth', token, resource}` and acknowledges `{t:'authenticated'}`. Browser WebSockets send their cockpit credential without a resource id; the bridge supplies a fresh resource and current connection token upstream. HTTP uses the connection bearer and `X-Puddle-Resource` for renewable streams. Neither browser credentials nor data tokens admit host-control requests.
 
-### Self-hosted remote surface (remote protocol 3)
+### Self-hosted remote surface (remote protocol 4)
+
+Daemon protocol 24.0 renames `Session.agent_mode` from `scripted` to `headless`.
+Remote protocol 4 accompanies that response change; update the service,
+application and host connector together. Existing registrations and grants remain.
 
 The remote dashboard and Settings expose **Pair this device**. Its camera scanner
 decodes QR frames locally with the bundled JavaScript decoder (including browsers
@@ -870,7 +875,7 @@ Each env/ports value list is one non-wrapping line. When it exceeds the pane wid
 
 The same npm package and standalone archives ship `pudl` for puddlang: run, context,
 status, logs, cancel and mcp commands. They reuse local/SSH authority and require
-an existing daemon at protocol 23.1+. One selected profile binds each connection.
+an existing daemon at protocol 24.0+. One selected profile binds each connection.
 Run waits by default (`--detach` returns after submission); observer exit does
 not cancel work. Stdio MCP exposes the same service. HTTP MCP, automatic agent
 binding and inherited descendant budgets are deferred. Both launchers upgrade

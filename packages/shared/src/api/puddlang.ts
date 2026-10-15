@@ -111,6 +111,7 @@ export const puddlangContextSchema = z.object({
   agents: z.array(
     z.object({
       id: z.string(),
+      /** Automated turn support in either mode; this is not a mode name. */
       scripted_turns: z.boolean(),
       modes: z.array(agentModeSchema).optional(),
     }),

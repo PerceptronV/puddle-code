@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  agentModeSchema,
   agentSignalRequestSchema,
   createSessionRequestSchema,
   compilationCapabilitiesResponseSchema,
@@ -18,6 +19,7 @@ import {
   latexSynctexResponseSchema,
   profileSettingsSchema,
   PROTOCOL_VERSION,
+  puddlangSpawnSchema,
   sessionEnvResponseSchema,
   sessionSchema,
   sessionStatusSchema,
@@ -30,8 +32,18 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 23.1 for puddlang execution modes', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 23, minor: 1 });
+  it('declares protocol 24.0 for the headless execution mode', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 24, minor: 0 });
+  });
+
+  it('accepts headless mode and rejects the previous scripted name', () => {
+    const target = { agent: 'codex', project: 'app' };
+    expect(puddlangSpawnSchema.parse({ ...target, mode: 'headless' }).mode).toBe('headless');
+    expect(puddlangSpawnSchema.parse(target).mode).toBeUndefined();
+    expect(agentModeSchema.parse('interactive')).toBe('interactive');
+    expect(agentModeSchema.parse('headless')).toBe('headless');
+    expect(agentModeSchema.safeParse('scripted').success).toBe(false);
+    expect(puddlangSpawnSchema.safeParse({ ...target, mode: 'scripted' }).success).toBe(false);
   });
 
   it('accepts a well-formed error envelope and rejects a malformed one', () => {

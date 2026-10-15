@@ -5,14 +5,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import type { AgentControl, LifecycleLaunchResource } from '../adapter.js';
-import { record, type ScriptedContext, type ScriptedDriver, type JsonRecord } from './codec.js';
-import { SCRIPT_TERMINAL_SOURCE } from './terminal-source.js';
+import { record, type HeadlessContext, type HeadlessDriver, type JsonRecord } from './codec.js';
+import { HEADLESS_TERMINAL_SOURCE } from './terminal-source.js';
 
 const LIMIT = 256 * 1024;
 const plain = (text: string) => text.replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, ''); // eslint-disable-line no-control-regex -- Transcript output cannot carry terminal commands.
 
 /** One outstanding native command; completion requires both a result and exit 0. */
-export class ScriptedControl implements AgentControl {
+export class HeadlessControl implements AgentControl {
   private socket: Socket | null = null;
   private ref: string | undefined;
   private closed = false;
@@ -26,8 +26,8 @@ export class ScriptedControl implements AgentControl {
   } | null = null;
 
   constructor(
-    private readonly context: ScriptedContext,
-    private readonly driver: ScriptedDriver,
+    private readonly context: HeadlessContext,
+    private readonly driver: HeadlessDriver,
   ) {
     this.ref = context.resumeRef;
     this.initialPrompt = context.opts.prompt;
@@ -94,7 +94,7 @@ export class ScriptedControl implements AgentControl {
     let binding = Promise.resolve();
     let stderr = '';
     return new Promise<string>((resolve, reject) => {
-      const abort = () => this.cancel('Scripted turn cancelled');
+      const abort = () => this.cancel('Headless turn cancelled');
       const finish = (error?: Error) => {
         if (this.pending?.id !== id) return;
         this.pending = null;
@@ -205,13 +205,13 @@ export class ScriptedControl implements AgentControl {
   }
 }
 
-export async function prepareScripted(
-  context: ScriptedContext,
-  driver: ScriptedDriver,
+export async function prepareHeadless(
+  context: HeadlessContext,
+  driver: HeadlessDriver,
 ): Promise<LifecycleLaunchResource> {
   const directory = await mkdtemp(join(tmpdir(), 'pudl-'));
   const path = join(directory, 's');
-  const control = new ScriptedControl(context, driver);
+  const control = new HeadlessControl(context, driver);
   const server = createServer((socket) => control.connect(socket));
   try {
     await new Promise<void>((resolve, reject) => {
@@ -224,7 +224,7 @@ export async function prepareScripted(
   }
   return {
     binary: process.execPath,
-    args: ['-e', SCRIPT_TERMINAL_SOURCE, path],
+    args: ['-e', HEADLESS_TERMINAL_SOURCE, path],
     control,
     dispose: async () => {
       control.dispose();

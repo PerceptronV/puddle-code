@@ -1,5 +1,5 @@
 import { prepareOpenCodeInteractive } from './control.js';
-import { prepareOpenCodeScripted } from './scripted.js';
+import { prepareOpenCodeHeadless } from './headless.js';
 import { execFile } from 'node:child_process';
 import { mkdirSync, readFileSync, type Dirent } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
@@ -62,7 +62,7 @@ const METADATA_CONCURRENCY = 32;
  */
 export const opencode: AgentAdapter = {
   scriptedTurns: true,
-  prepareScriptedLaunch: prepareOpenCodeScripted,
+  prepareHeadlessLaunch: prepareOpenCodeHeadless,
   prepareLifecycleLaunch: prepareOpenCodeInteractive,
   id: 'opencode',
   displayName: 'OpenCode',
