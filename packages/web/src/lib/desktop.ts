@@ -16,6 +16,7 @@ interface PuddleDesktopBridge {
   notificationStatus?(): Promise<NotificationDelivery>;
   showNotification?(request: DesktopNotificationRequest): Promise<NotificationDelivery>;
   notificationTargets?: boolean;
+  notificationSubtitles?: boolean;
   onNotificationClick?(callback: (id: string, target?: NotificationTarget) => void): () => void;
   /** Bring the app window to the front — renderer window.focus() cannot. */
   raiseWindow(): void;

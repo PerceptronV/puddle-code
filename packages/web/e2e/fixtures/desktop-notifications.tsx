@@ -99,7 +99,7 @@ if (workspace) {
 query.setQueryData(['profile-settings', profileId], {
   notifications: { desktop: true, sound: false, when_focused: false },
 });
-query.setQueryData(['host'], { hostname: 'Test host' });
+query.setQueryData(['host'], { hostname: 'test-host', displayName: 'Test host' });
 query.setQueryData(['version'], { version: 'test', protocol: PROTOCOL_VERSION });
 const delivered: DesktopNotificationRequest[] = [];
 const clicks = new Set<(id: string, target?: NotificationTarget) => void>();
@@ -107,6 +107,7 @@ const events = new Set<(event: AgentNotification) => void>();
 window.puddleDesktop = {
   raiseWindow() {},
   notificationTargets: true,
+  notificationSubtitles: true,
   async showNotification(request) {
     delivered.push(request);
     return { state: 'shown', message: null };
@@ -134,12 +135,23 @@ wsManager.isConnected = () => true;
 Object.assign(window, {
   notificationFixture: {
     delivered: () => delivered.map((request) => request.target?.session),
+    messages: () => delivered,
     async emit(index: number) {
       const event: AgentNotification = {
         t: 'agent-notification',
         id: crypto.randomUUID(),
         session: sessionIds[index]!,
         reason: 'waiting_input',
+        ...(index === 0
+          ? {
+              content: {
+                title: 'Review the changes',
+                body: 'The requested changes are ready.',
+                project: projectId,
+                session: sessionIds[index]!,
+              },
+            }
+          : {}),
       };
       for (const handler of events) handler(event);
       // Cached notification preferences settle before this next event-loop turn.

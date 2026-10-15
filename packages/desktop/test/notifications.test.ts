@@ -10,7 +10,7 @@ vi.mock('electron', async () => {
     static isSupported = vi.fn(() => true);
     show = nativeShow;
     close = vi.fn(() => this.emit('close'));
-    constructor() {
+    constructor(readonly options: Electron.NotificationConstructorOptions) {
       super();
       Notification.instances.push(this);
     }
@@ -50,6 +50,26 @@ it('waits for the native result and focuses the originating window on click', as
   instances[0].emit('click');
   expect(raise).toHaveBeenCalledOnce();
   expect(win.webContents.send).toHaveBeenCalledWith('puddle:notification-click', request.id);
+});
+
+it('delivers the host/project heading, session subtitle and preview as separate native fields', async () => {
+  const sent = delivery.show({
+    ...request,
+    title: 'Build host · Example project',
+    subtitle: 'Fix the cache',
+    body: 'The cache is ready.',
+  });
+  const native = instances[0] as Notification & {
+    options: Electron.NotificationConstructorOptions;
+  };
+  expect(native.options).toEqual({
+    title: 'Build host · Example project',
+    subtitle: 'Fix the cache',
+    body: 'The cache is ready.',
+    silent: true,
+  });
+  native.emit('show');
+  await expect(sent).resolves.toEqual({ state: 'shown', message: null });
 });
 
 it('reports a native failure instead of claiming permission is granted', async () => {

@@ -218,3 +218,10 @@ registrations and device grants are retained; invitation/Noise admission require
 the new version. Puddlang remains local/SSH-only, with no allowlist or authority
 expansion. The `scripted_turns` capability still describes automated turn support
 in either mode; it is not an execution mode name.
+
+Protocol 24.1 adds an optional bounded `subtitle` to the desktop notification
+request schema. The macOS preload advertises `notificationSubtitles`; newer
+renderers send a host/project title and session subtitle only with that capability.
+Other shells and browsers retain the session title and body. Daemon REST/WS
+messages, remote envelopes and host authority are unchanged; remote protocol
+remains 4.

@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('puddleDesktop', {
   notificationStatus: () => ipcRenderer.invoke('puddle:notification-status'),
   showNotification: (request: unknown) => ipcRenderer.invoke('puddle:notification-show', request),
   notificationTargets: true,
+  notificationSubtitles: process.platform === 'darwin',
   onNotificationClick: (callback: (id: string, target: unknown) => void): (() => void) => {
     const handler = (_event: unknown, id: string, target: unknown) => callback(id, target);
     ipcRenderer.on('puddle:notification-click', handler);

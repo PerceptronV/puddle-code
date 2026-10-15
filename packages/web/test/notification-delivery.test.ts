@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { DesktopNotificationRequest } from '@puddle/shared';
 const mocks = vi.hoisted(() => ({
   worker: vi.fn(),
   show: vi.fn(async () => {}),
-  bridge: vi.fn(() => null),
+  bridge: vi.fn<() => ReturnType<typeof import('../src/lib/desktop').desktopBridge>>(),
 }));
 vi.mock('../src/lib/desktop', () => ({ desktopBridge: mocks.bridge }));
 vi.mock('../src/lib/notification-worker', () => ({
@@ -14,8 +15,32 @@ import { deliverNotification } from '../src/lib/notification-delivery';
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
+  mocks.bridge.mockReset();
 });
 const request = { id: 'test', title: 'Agent', body: 'Finished' };
+
+describe('desktop notification headings', () => {
+  it.each([true, false])(
+    'uses a subtitle only when the shell advertises support: %s',
+    async (supported) => {
+      const show = vi.fn(async (_request: DesktopNotificationRequest) => ({
+        state: 'shown' as const,
+        message: null,
+      }));
+      mocks.bridge.mockReturnValue({
+        raiseWindow() {},
+        showNotification: show,
+        notificationSubtitles: supported,
+      });
+      await deliverNotification(request, () => {}, 'Build host · Example project');
+      expect(show).toHaveBeenCalledExactlyOnceWith(
+        supported
+          ? { ...request, title: 'Build host · Example project', subtitle: 'Agent' }
+          : request,
+      );
+    },
+  );
+});
 
 describe('browser notification delivery', () => {
   it('uses persistent service-worker notifications where the mobile constructor throws', async () => {

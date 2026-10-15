@@ -300,4 +300,5 @@
 // Intentional major release boundary: upgrade clients/hosts together for puddlang.
 // 23.1: per-agent interactive/scripted modes and correlated native turn signals.
 // 24.0: rename the scripted execution mode to headless; no legacy wire alias.
-export const PROTOCOL_VERSION = { major: 24, minor: 0 } as const;
+// 24.1: optional desktop notification subtitles for host/project and session headings.
+export const PROTOCOL_VERSION = { major: 24, minor: 1 } as const;

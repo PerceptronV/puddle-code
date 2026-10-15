@@ -74,6 +74,7 @@ export class DesktopNotifications {
       try {
         notification = new Notification({
           title: request.title,
+          subtitle: request.subtitle,
           body: request.body,
           silent: true,
         });

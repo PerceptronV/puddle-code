@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
 import { fileURLToPath } from 'node:url';
+import type { DesktopNotificationRequest } from '@puddle/shared';
 
 test.use({ viewport: { width: 1100, height: 800 } });
 let server: ViteDevServer;
@@ -10,6 +11,7 @@ declare global {
   interface Window {
     notificationFixture: {
       delivered(): (string | undefined)[];
+      messages(): DesktopNotificationRequest[];
       emit(index: number): Promise<void>;
       click(index: number): void;
     };
@@ -44,6 +46,19 @@ test('only recent human input in the notifying terminal suppresses desktop deliv
   for (const index of [0, 1, 2])
     await page.evaluate((index) => window.notificationFixture.emit(index), index);
   expect(await page.evaluate(() => window.notificationFixture.delivered())).toEqual(sessionIds);
+  expect(await page.evaluate(() => window.notificationFixture.messages())).toMatchObject([
+    {
+      title: 'Test host · Project',
+      subtitle: 'Review the changes',
+      body: 'The requested changes are ready.',
+    },
+    { title: 'Test host · Project', subtitle: 'Conversation 2', body: 'Waiting for your input' },
+    {
+      title: 'Test host · Second project',
+      subtitle: 'Conversation 3',
+      body: 'Waiting for your input',
+    },
+  ]);
 
   await first.click();
   await page.keyboard.type('draft');

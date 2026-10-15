@@ -50,6 +50,7 @@ export async function refreshNotificationDelivery(): Promise<void> {
 export async function deliverNotification(
   request: DesktopNotificationRequest,
   onClick: () => void,
+  desktopHeading?: string,
 ): Promise<NotificationDelivery> {
   try {
     const bridge = desktopBridge();
@@ -65,9 +66,13 @@ export async function deliverNotification(
       const { target, ...legacy } = request;
       return record(
         notificationDeliverySchema.parse(
-          await bridge.showNotification(
-            bridge.notificationTargets ? { ...legacy, target } : legacy,
-          ),
+          await bridge.showNotification({
+            ...legacy,
+            ...(bridge.notificationTargets ? { target } : {}),
+            ...(bridge.notificationSubtitles && desktopHeading
+              ? { title: desktopHeading.slice(0, 160), subtitle: request.title }
+              : {}),
+          }),
         ),
       );
     }

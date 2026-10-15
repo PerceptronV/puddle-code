@@ -33,7 +33,7 @@ import {
 
 describe('shared API schemas', () => {
   it('declares protocol 24.0 for the headless execution mode', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 24, minor: 0 });
+    expect(PROTOCOL_VERSION).toEqual({ major: 24, minor: 1 });
   });
 
   it('accepts headless mode and rejects the previous scripted name', () => {

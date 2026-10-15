@@ -33,6 +33,7 @@ export const desktopNotificationRequestSchema = z
   .object({
     id: z.string().min(1).max(128),
     title: z.string().min(1).max(160),
+    subtitle: z.string().min(1).max(160).optional(),
     body: z.string().min(1).max(256),
     target: notificationTargetSchema.optional(),
   })
