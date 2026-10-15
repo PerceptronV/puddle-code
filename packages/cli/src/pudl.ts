@@ -7,9 +7,9 @@ import { puddlangStartSchema, PUDDLANG_MAX_SOURCE } from '@puddle/shared';
 import { connectPuddlang } from './puddlang/client.js';
 import { serveMcp } from './puddlang/mcp.js';
 
-const help = `pudl — programmes that manage Puddle agents
+const help = `pudl — Puddle's Ultimate Domain Language (puddlang)
 
-  pudl run programme.ts [--input JSON] [--detach]
+  pudl run script.ts [--input JSON] [--detach]
   pudl context
   pudl status <run-id>
   pudl logs <run-id> [--after sequence]
