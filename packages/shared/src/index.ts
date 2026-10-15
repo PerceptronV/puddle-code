@@ -1,5 +1,7 @@
 export * from './protocol.js';
 export * from './notifications.js';
+export * from './notification-title.js';
+export * from './project-abbrev.js';
 export * from './api/common.js';
 export * from './api/version.js';
 export * from './api/agent-signal.js';

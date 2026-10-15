@@ -1,8 +1,10 @@
 import { useSyncExternalStore } from 'react';
 import {
   notificationDeliverySchema,
+  projectNotificationTitle,
   type DesktopNotificationRequest,
   type NotificationDelivery,
+  type Project,
 } from '@puddle/shared';
 import { notificationWorker, showWorkerNotification } from './notification-worker';
 import { desktopBridge } from './desktop';
@@ -50,7 +52,7 @@ export async function refreshNotificationDelivery(): Promise<void> {
 export async function deliverNotification(
   request: DesktopNotificationRequest,
   onClick: () => void,
-  desktopHeading?: string,
+  context?: { host: string; project: Pick<Project, 'name' | 'abbrev'> },
 ): Promise<NotificationDelivery> {
   try {
     const bridge = desktopBridge();
@@ -69,8 +71,11 @@ export async function deliverNotification(
           await bridge.showNotification({
             ...legacy,
             ...(bridge.notificationTargets ? { target } : {}),
-            ...(bridge.notificationSubtitles && desktopHeading
-              ? { title: desktopHeading.slice(0, 160), subtitle: request.title }
+            ...(bridge.notificationSubtitles && context
+              ? {
+                  title: `${context.host} · ${context.project.name}`.slice(0, 160),
+                  subtitle: request.title,
+                }
               : {}),
           }),
         ),
@@ -83,6 +88,9 @@ export async function deliverNotification(
         state: 'failed',
         message: 'Allow notifications for Puddle in browser settings.',
       });
+    const browserRequest = context
+      ? { ...request, title: projectNotificationTitle(request.title, context.project) }
+      : request;
     const worker = await notificationWorker();
     if (worker) {
       if (!workerSubscribed) {
@@ -94,11 +102,11 @@ export async function deliverNotification(
         workerSubscribed = true;
       }
       rememberClick(request.id, onClick);
-      await showWorkerNotification(worker, request);
+      await showWorkerNotification(worker, browserRequest);
       return record({ state: 'shown', message: null });
     }
     return await new Promise<NotificationDelivery>((resolve) => {
-      const notification = new Notification(request.title, {
+      const notification = new Notification(browserRequest.title, {
         body: request.body,
         tag: request.id,
         silent: true,

@@ -13,45 +13,65 @@ import type { SessionService } from '../src/sessions/service.js';
 
 afterEach(() => vi.clearAllMocks());
 describe('daemon push signals', () => {
-  it('sends previews privately and falls back only after an older connector explicitly refuses them', () => {
-    const sockets = Array.from({ length: 2 }, () =>
-      Object.assign(new EventEmitter(), { setTimeout: vi.fn(), end: vi.fn(), destroy: vi.fn() }),
-    );
-    mocks.connect.mockReturnValueOnce(sockets[0]).mockReturnValueOnce(sockets[1]);
-    const service = new EventEmitter() as SessionService;
-    const stores = {
-      sessions: { get: () => ({ project_id: '0123456789' }) },
-      projects: { get: () => ({ id: '0123456789', profile_id: 'abcdef0123' }) },
-      profiles: { getSettings: () => ({ notifications: { desktop: true } }) },
-    } as unknown as Parameters<typeof subscribePushNotifications>[2];
-    const close = subscribePushNotifications('/tmp/puddle-preview-test', service, stores);
-    const event = {
-      t: 'agent-notification',
-      id: randomUUID(),
-      session: randomUUID(),
-      reason: 'waiting_input',
-      content: {
-        title: 'Conversation',
-        body: 'Completed the fix.',
-        project: '0123456789',
+  it.each([
+    { abbrev: 'EX', title: 'Conversation', expected: '[EX] Conversation' },
+    { abbrev: null, title: 'Conversation', expected: '[EXAMP] Conversation' },
+    { abbrev: 'EX', title: 'C'.repeat(160), expected: '[EX] ' + 'C'.repeat(155) },
+  ])(
+    'sends bounded project titles privately and retries explicit legacy refusal: $abbrev / $title',
+    ({ abbrev, title, expected }) => {
+      const sockets = Array.from({ length: 2 }, () =>
+        Object.assign(new EventEmitter(), { setTimeout: vi.fn(), end: vi.fn(), destroy: vi.fn() }),
+      );
+      mocks.connect.mockReturnValueOnce(sockets[0]).mockReturnValueOnce(sockets[1]);
+      const service = new EventEmitter() as SessionService;
+      const stores = {
+        sessions: { get: () => ({ project_id: '0123456789' }) },
+        projects: {
+          get: () => ({
+            id: '0123456789',
+            profile_id: 'abcdef0123',
+            name: 'Example project',
+            abbrev,
+          }),
+        },
+        profiles: { getSettings: () => ({ notifications: { desktop: true } }) },
+      } as unknown as Parameters<typeof subscribePushNotifications>[2];
+      const close = subscribePushNotifications('/tmp/puddle-preview-test', service, stores);
+      const event = {
+        t: 'agent-notification',
+        id: randomUUID(),
         session: randomUUID(),
-      },
-    };
-    service.emit('agent-notification', event);
-    sockets[0]!.emit('connect');
-    expect(sockets[0]!.end).toHaveBeenCalledWith(
-      JSON.stringify({ t: 'notify', id: event.id, content: event.content }) + '\n',
-    );
-    sockets[0]!.emit('data', Buffer.from('{"error":"Unsupported request"}\n'));
-    sockets[0]!.emit('end');
-    sockets[1]!.emit('connect');
-    expect(sockets[1]!.end).toHaveBeenCalledWith(
-      JSON.stringify({ t: 'notify', id: event.id }) + '\n',
-    );
-    sockets[1]!.emit('error', new Error('Disconnected'));
-    expect(mocks.connect).toHaveBeenCalledTimes(2);
-    close();
-  });
+        reason: 'waiting_input',
+        content: {
+          title,
+          body: 'Completed the fix.',
+          project: '0123456789',
+          session: randomUUID(),
+        },
+      };
+      service.emit('agent-notification', event);
+      sockets[0]!.emit('connect');
+      expect(sockets[0]!.end).toHaveBeenCalledWith(
+        JSON.stringify({
+          t: 'notify',
+          id: event.id,
+          content: { ...event.content, title: expected },
+        }) + '\n',
+      );
+      // The same event also feeds native desktop alerts, whose session title stays plain.
+      expect(event.content.title).toBe(title);
+      sockets[0]!.emit('data', Buffer.from('{"error":"Unsupported request"}\n'));
+      sockets[0]!.emit('end');
+      sockets[1]!.emit('connect');
+      expect(sockets[1]!.end).toHaveBeenCalledWith(
+        JSON.stringify({ t: 'notify', id: event.id }) + '\n',
+      );
+      sockets[1]!.emit('error', new Error('Disconnected'));
+      expect(mocks.connect).toHaveBeenCalledTimes(2);
+      close();
+    },
+  );
   it('checks the owning profile preferences and sends only an event id over private IPC', () => {
     const socket = Object.assign(new EventEmitter(), {
       setTimeout: vi.fn(),

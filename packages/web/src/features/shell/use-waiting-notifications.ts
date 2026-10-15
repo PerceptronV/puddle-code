@@ -172,7 +172,7 @@ export function useAgentNotifications(
       if (!active || !session) return;
       const found = session;
       let prefs: NotificationPreferences;
-      let projectName: string;
+      let project: ProjectDetail['project'];
       try {
         const detail = await qc.fetchQuery({
           queryKey: ['project', found.project_id],
@@ -180,8 +180,8 @@ export function useAgentNotifications(
           staleTime: 10_000,
         });
         if (!active) return;
-        projectName = detail.project.name;
-        const profile = detail.project.profile_id;
+        project = detail.project;
+        const profile = project.profile_id;
         const settings = await qc.fetchQuery({
           queryKey: ['profile-settings', profile],
           queryFn: () => api<ProfileSettings>('GET', `/api/profiles/${profile}/settings`),
@@ -220,7 +220,7 @@ export function useAgentNotifications(
           () => {
             if (active) openRef.current(found);
           },
-          `${baseRef.current} · ${projectName}`,
+          { host: baseRef.current, project },
         );
       }
     };

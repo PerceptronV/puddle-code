@@ -68,7 +68,7 @@ describe('notification worker', () => {
       const key = await notificationKey('https://service.example.test', 'account', host);
       expect(await notificationKey('https://service.example.test', 'account', host)).toEqual(key);
       const content = {
-        title: 'Fix the mobile settings',
+        title: '[PROJ] Fix the mobile settings',
         body: 'Fixed the overflow and verified narrow screens.',
         project: '0123456789',
         session: randomUUID(),

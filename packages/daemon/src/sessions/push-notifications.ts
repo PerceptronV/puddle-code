@@ -1,5 +1,9 @@
 import { connect, type Socket } from 'node:net';
-import { notificationPreferencesSchema, type AgentNotification } from '@puddle/shared';
+import {
+  notificationPreferencesSchema,
+  projectNotificationTitle,
+  type AgentNotification,
+} from '@puddle/shared';
 import { ipcPath, privatePath } from '@puddle/shared/node';
 import type { SessionService, SessionServiceDeps } from './service.js';
 
@@ -30,7 +34,14 @@ export function subscribePushNotifications(
           JSON.stringify({
             t: 'notify',
             id: event.id,
-            ...(event.content ? { content: event.content } : {}),
+            ...(event.content
+              ? {
+                  content: {
+                    ...event.content,
+                    title: projectNotificationTitle(event.content.title, project),
+                  },
+                }
+              : {}),
           }) + '\n',
         ),
       );
