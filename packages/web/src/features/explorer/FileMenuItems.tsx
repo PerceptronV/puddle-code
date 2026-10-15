@@ -1,4 +1,5 @@
 import { ContextMenuItem, ContextMenuSeparator } from '../../components/ui/context-menu';
+import { RevealInFileManagerItem } from './RevealInFileManagerItem';
 
 /** A short right-aligned keyboard-shortcut hint inside a file menu row. */
 export function Shortcut({ children }: { children: React.ReactNode }) {
@@ -11,6 +12,7 @@ export function Shortcut({ children }: { children: React.ReactNode }) {
  * gradually acquire different labels, ordering, or shortcut hints.
  */
 export function FileMenuItems({
+  absolutePath,
   readOnly,
   canPaste,
   onCut,
@@ -24,6 +26,7 @@ export function FileMenuItems({
   onDelete,
   onDownload,
 }: {
+  absolutePath: string;
   readOnly: boolean;
   canPaste: boolean;
   onCut: () => void;
@@ -62,6 +65,7 @@ export function FileMenuItems({
         Copy Relative Path <Shortcut>⌥⇧⌘C</Shortcut>
       </ContextMenuItem>
       {onReveal && <ContextMenuItem onSelect={onReveal}>Reveal in Filetree</ContextMenuItem>}
+      <RevealInFileManagerItem path={absolutePath} />
       {onCompilationSettings && (
         <ContextMenuItem onSelect={onCompilationSettings}>Compilation Settings…</ContextMenuItem>
       )}

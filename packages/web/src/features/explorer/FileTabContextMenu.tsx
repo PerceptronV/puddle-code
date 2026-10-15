@@ -105,6 +105,7 @@ export function FileTabContextMenu({
           }}
         >
           <FileMenuItems
+            absolutePath={absolutePath}
             readOnly={readOnly}
             canPaste={canPaste}
             onCut={() => setExplorerClipboard([tab.path], 'cut', target)}

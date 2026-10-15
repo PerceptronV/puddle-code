@@ -25,6 +25,8 @@ import { WsBridge } from './ws-bridge.js';
 import type { RemoteAccessControl } from '../remote-access.js';
 import { remoteAccessHandler } from './remote-access.js';
 import { checkRemoteRegistration } from './remote-registration.js';
+import { fileManagerHandler } from './file-manager.js';
+import type { LocalFileManager } from '../file-manager.js';
 
 export interface UiServerOptions {
   assetsDir: string;
@@ -42,6 +44,7 @@ export interface UiServerOptions {
   control?: { onRefresh: (refreshId: string) => void };
   localSync?: LocalSyncOptions;
   remoteAccess?: RemoteAccessControl;
+  fileManager?: LocalFileManager;
 }
 export interface UiServer {
   port: number;
@@ -61,6 +64,9 @@ export async function startUiServer(opts: UiServerOptions): Promise<UiServer> {
   const tracker = new ProxySocketTracker();
   const serveStatic = createStaticHandler(opts.assetsDir);
   const handleRemoteAccess = remoteAccessHandler(opts.remoteAccess);
+  const handleFileManager = fileManagerHandler(
+    opts.identity === 'local' ? opts.fileManager : undefined,
+  );
   const nonce = randomUUID();
   let origin = '';
   let proxyOrigin = '';
@@ -112,6 +118,8 @@ export async function startUiServer(opts: UiServerOptions): Promise<UiServer> {
       }
       if (url.pathname === '/cockpit/local-sync')
         return handleLocalSync(req, res, opts.localSync, () => browsers.valid(browser));
+      if (url.pathname === '/cockpit/file-manager')
+        return handleFileManager(req, res, () => browsers.valid(browser));
       if (url.pathname === '/cockpit/remote')
         return handleRemoteAccess(req, res, () => browsers.valid(browser));
       if (url.pathname === '/cockpit/remote/registration') {

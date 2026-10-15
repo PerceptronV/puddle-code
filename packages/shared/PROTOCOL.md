@@ -227,3 +227,12 @@ places the session on the first body line above the preview. Older shells and
 browsers retain the session title and body. Daemon REST/WS
 messages, remote envelopes and host authority are unchanged; remote protocol
 remains 4.
+
+Protocol 24.2 adds cockpit-local `GET /cockpit/file-manager` capability discovery
+and `POST /cockpit/file-manager` with a bounded absolute path to reveal. Both
+require browser authorisation; POST also requires the exact cockpit Origin.
+Only local-host cockpits advertise or invoke a file manager. SSH cockpits refuse
+the operation even though their UI also lives on localhost; remote browser
+transports never call these routes. Older cockpits return 404 and the UI omits
+the menu action. No daemon or connector operation is added; remote protocol
+remains 4.

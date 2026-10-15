@@ -21,6 +21,7 @@ import { cn } from '../../lib/utils';
 import { useExplorer } from './explorer-context';
 import { basename, decodeDragPaths, EXPLORER_DRAG_MIME } from './explorer-paths';
 import { DirEntries } from './TreeNode';
+import { RevealInFileManagerItem } from './RevealInFileManagerItem';
 
 /**
  * File explorer for one directory tree (SPEC §8): a VSCode-grade tree with git
@@ -123,6 +124,7 @@ function ExplorerBody() {
         <ContextMenuItem onSelect={() => ex.copyPathToClipboard([''], false)}>
           Copy Path
         </ContextMenuItem>
+        <RevealInFileManagerItem path={ex.rootPath} />
         {/* Names what it will actually zip: the worktree, or the directory
             being browsed above it. */}
         <ContextMenuItem onSelect={() => ex.download([''])}>

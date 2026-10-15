@@ -9,6 +9,10 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Added
+
+- Reveal local files and folders in Finder, File Explorer or the system file manager from file-tree and editor-tab menus, including locally served browser cockpits; SSH and remote hosts omit the action (protocol 24.2).
+
 ### Changed
 
 - Show desktop notifications with host/project, session title and message preview in that order: native text fields on macOS and Windows, and a separate session line above the preview on Linux (protocol 24.1).

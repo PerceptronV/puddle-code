@@ -301,4 +301,5 @@
 // 23.1: per-agent interactive/scripted modes and correlated native turn signals.
 // 24.0: rename the scripted execution mode to headless; no legacy wire alias.
 // 24.1: optional desktop notification subtitles for host/project and session headings.
-export const PROTOCOL_VERSION = { major: 24, minor: 1 } as const;
+// 24.2: authenticated local-cockpit file-manager discovery and reveal requests.
+export const PROTOCOL_VERSION = { major: 24, minor: 2 } as const;

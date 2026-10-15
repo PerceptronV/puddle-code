@@ -19,6 +19,7 @@ import {
   dirOf,
   encodeDragPaths,
   EXPLORER_DRAG_MIME,
+  joinAbsolutePath,
   joinPath,
   pruneNested,
   type VisibleRow,
@@ -323,6 +324,7 @@ export function TreeNode({
             </>
           )}
           <FileMenuItems
+            absolutePath={joinAbsolutePath(ex.rootPath, path)}
             readOnly={ex.readOnly}
             canPaste={ex.canPaste}
             onCut={() => ex.cut(targets)}
