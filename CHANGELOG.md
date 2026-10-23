@@ -9,3 +9,7 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Fixed
+
+- Hide archived projects from command search and list projects in the sidebar's saved order, with the same newest-first fallback.
+

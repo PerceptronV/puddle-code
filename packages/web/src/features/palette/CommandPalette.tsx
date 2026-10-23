@@ -28,10 +28,11 @@ import { registerCommandPalette } from '../../lib/command-palette';
 import { registerHotkey } from '../../lib/hotkeys';
 import { openSettings } from '../../lib/hash-route';
 import { openPath } from '../../lib/path-open';
-import { useProjects, useSessions } from '../../lib/queries';
+import { useProfileSettings, useProjects, useSessions } from '../../lib/queries';
 import { collectCommands, type PaletteCommand } from './commands';
 import { useCurrentProfileId, profileStore } from '../profile/profile-store';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
+import { orderByDrag } from '../workspace/session-order';
 
 /** ⌘K palette: switch project/session, new project/agent/terminal, theme, settings (Phase 2). */
 export function CommandPalette({
@@ -52,6 +53,7 @@ export function CommandPalette({
   const profileId = useCurrentProfileId();
   const projectId = params['id'];
   const projects = useProjects(profileId ?? undefined);
+  const profileSettings = useProfileSettings(profileId ?? undefined);
   const sessions = useSessions(projectId);
   const renderTitle = useSessionTitleRenderer();
 
@@ -73,7 +75,11 @@ export function CommandPalette({
 
   const commands = useMemo(() => {
     const items: PaletteCommand[] = [];
-    for (const project of projects.data ?? []) {
+    const orderedProjects = orderByDrag(
+      (projects.data ?? []).filter((project) => !project.archived),
+      profileSettings.data?.projectOrder ?? [],
+    );
+    for (const project of orderedProjects) {
       items.push({
         id: `project-${project.id}`,
         group: 'Projects',
@@ -190,7 +196,16 @@ export function CommandPalette({
       },
     );
     return [...items, ...collectCommands()];
-  }, [projects.data, sessions.data, projectId, navigate, onNewSession, onNewProject, renderTitle]);
+  }, [
+    projects.data,
+    profileSettings.data?.projectOrder,
+    sessions.data,
+    projectId,
+    navigate,
+    onNewSession,
+    onNewProject,
+    renderTitle,
+  ]);
 
   const groups = useMemo(() => {
     const byGroup = new Map<string, PaletteCommand[]>();
