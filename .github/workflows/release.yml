@@ -37,7 +37,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - run: node scripts/install-ci.mjs
         env:
           CC: /opt/rh/gcc-toolset-14/root/usr/bin/gcc
           CXX: /opt/rh/gcc-toolset-14/root/usr/bin/g++
@@ -79,7 +79,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - run: node scripts/install-ci.mjs
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - run: node scripts/build-tarball.mjs --version "${GITHUB_REF_NAME#v}"
@@ -119,7 +119,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - run: node scripts/install-ci.mjs
         env:
           # electron-builder fetches its own Electron dist at package time;
           # the node_modules binary is never launched here.
@@ -244,7 +244,7 @@ jobs:
           }
           NODE
       - name: install dependencies
-        run: pnpm install --frozen-lockfile
+        run: node scripts/install-ci.mjs
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - name: build the CLI and embedded assets

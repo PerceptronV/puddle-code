@@ -8,6 +8,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { compilationRunResponseSchema } from '@puddle/shared';
 import { CodeProvider, createCodeProviders } from '../src/code/provider.js';
@@ -37,6 +38,9 @@ function setup() {
   fixtures.push(f);
   vi.stubEnv('SHELL', '/bin/bash');
   vi.stubEnv('HOME', f.paths.home);
+  // CI colours Node's inspected booleans inside a PTY. Exercise that path even
+  // when the developer's terminal disables colours, and compare rendered text.
+  vi.stubEnv('FORCE_COLOR', '1');
   const deps = {
     ...f.stores,
     discover: () => process.execPath,
@@ -80,7 +84,7 @@ describe('programme terminals', () => {
       project_id: f.ids.project,
       cwd: 'source files',
     });
-    const output = () => f.logs.readTail(terminal.id, 'agent');
+    const output = () => stripVTControlCharacters(f.logs.readTail(terminal.id, 'agent'));
     await waitFor(() => output().includes('PROGRAMME_READY true true'));
     expect(output()).toContain(root);
     f.ptys.write(terminal.id, 'agent', 'reader\r');
@@ -142,13 +146,15 @@ describe('programme terminals', () => {
       const command = commandTemplate(process.execPath, [compiler, '{{source}}', '{{binary}}']);
       const first = await provider.run(source, { ...options, command });
       const id = first.terminal!.id;
-      await waitFor(() => f.logs.readTail(id, 'agent').includes('BINARY_READY'));
-      expect(f.logs.readTail(id, 'agent')).toContain('COMPILER_TTY true true');
+      const output = () => stripVTControlCharacters(f.logs.readTail(id, 'agent'));
+      await waitFor(() => output().includes('BINARY_READY'));
+      expect(output()).toContain('COMPILER_TTY true true');
       f.ptys.write(id, 'agent', 'test\r');
-      await waitFor(() => f.logs.readTail(id, 'agent').includes('BINARY_REPLY:test'));
+      await waitFor(() => output().includes('BINARY_REPLY:test'));
       writeFileSync(join(f.repoPath, source.path), 'fail');
       const second = await provider.run(source, { ...options, command });
-      const failedOutput = () => f.logs.readTail(second.terminal!.id, 'agent');
+      const failedOutput = () =>
+        stripVTControlCharacters(f.logs.readTail(second.terminal!.id, 'agent'));
       await waitFor(() => failedOutput().includes('Process exited with status 2'));
       expect(failedOutput()).toContain('COMPILER_TTY true true');
       expect(failedOutput()).toContain('BUILD_FAILED');

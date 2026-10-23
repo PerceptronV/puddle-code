@@ -182,6 +182,11 @@ This file is living documentation and part of the definition of done for every c
 
 ## Changelog discipline
 
+CI and release jobs install dependencies through `scripts/install-ci.mjs`, which
+uses the running Node installation's bundled headers for native source builds.
+Keep that header override scoped to installation so Electron packaging can use
+its own headers; preserve the Linux release compiler and ABI settings.
+
 The npm release job uses GitHub OIDC trusted publishing, with npm 11.21.0 and
 job-scoped `id-token: write`; it never reads `NPM_TOKEN`. Configure the package's
 trusted publisher for this repository and `release.yml`, with direct publishing
