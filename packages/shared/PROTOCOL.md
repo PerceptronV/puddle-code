@@ -256,3 +256,10 @@ creation and updates, using the profile icon palette. Omission on update preserv
 the saved colour; null restores default styling. Newer clients hide colour controls
 until the host advertises 24.5. Existing project routes and authority are unchanged;
 remote protocol remains 4.
+
+Protocol 24.6 adds the local/SSH-only `/api/notebooks/kernels`, `/status`, and
+`/kernel` endpoints for installed kernel discovery and explicit lifecycle
+controls. Existing notebook runs retain their compilation request/result shapes
+and managed artefacts while reusing a daemon-owned kernel. Newer clients hide
+kernel controls until confirming 24.6. No connector allowlist or remote envelope
+changes; remote protocol remains 4.

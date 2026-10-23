@@ -36,6 +36,8 @@ export function FilePreview({
   scrollReceiver = false,
   scrollChannel = 'profile',
   onRevealSource,
+  onRunCompilation,
+  compilationRunning,
 }: {
   session: string;
   path: string;
@@ -50,6 +52,8 @@ export function FilePreview({
   scrollChannel?: string;
   /** Following previews reveal the associated Monaco source on ctrl/⌘-click. */
   onRevealSource?: (position: EditorPosition) => void;
+  onRunCompilation?: () => void;
+  compilationRunning?: boolean;
 }) {
   const { openFile } = useEditor();
   const buffer = useEditorBuffer(session, path, null, root, {
@@ -83,6 +87,8 @@ export function FilePreview({
         path={path}
         root={root}
         text={text}
+        onRun={onRunCompilation}
+        running={compilationRunning}
         onChange={(value) => {
           const model = buffer.model;
           if (!model) return;

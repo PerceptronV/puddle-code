@@ -305,4 +305,5 @@
 // 24.3: optional compilation-provider action distinguishes code runs from builds.
 // 24.4: profile language defaults and inherited per-file compilation commands.
 // 24.5: optional project colours drawn from the profile icon palette.
-export const PROTOCOL_VERSION = { major: 24, minor: 5 } as const;
+// 24.6: daemon-owned notebook kernels and explicit kernel lifecycle controls.
+export const PROTOCOL_VERSION = { major: 24, minor: 6 } as const;

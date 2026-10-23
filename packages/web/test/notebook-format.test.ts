@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   notebookOutputText,
+  clearNotebookOutputs,
+  notebookOutline,
   notebookText,
   notebookTextEdit,
   parseNotebook,
@@ -27,6 +29,24 @@ const document = {
 };
 
 describe('notebook documents', () => {
+  it('clears only execution data and builds a bounded cell outline', () => {
+    const parsed = parseNotebook(JSON.stringify(document));
+    parsed.cells.push({
+      cell_type: 'markdown',
+      source: '# Heading\nMore text',
+      metadata: { keep: true },
+    });
+    const cleared = clearNotebookOutputs(parsed);
+    expect(cleared.cells[0]).toEqual({ ...parsed.cells[0], outputs: [], execution_count: null });
+    expect(cleared.cells[1]).toBe(parsed.cells[1]);
+    expect(cleared.metadata).toBe(parsed.metadata);
+    expect(parsed.cells[0]?.outputs).toHaveLength(1);
+    expect(notebookOutline(parsed)).toEqual([
+      { index: 0, label: 'print(1)' },
+      { index: 1, label: 'Heading' },
+    ]);
+  });
+
   it('keeps unchanged output data out of the cell edit undo entry', () => {
     const suffix = ',"image/png":"' + 'x'.repeat(100_000) + '"}';
     const before = '{"source":"a"' + suffix;

@@ -1,4 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { NotebookToolbar } from './NotebookToolbar';
 import DOMPurify from 'dompurify';
 import { ArrowDown, ArrowUp, Code, Plus, Trash2 } from 'lucide-react';
 import { markdownToHtml } from './markdown';
@@ -25,7 +26,13 @@ export function NotebookPreview({
   path,
   root,
   onChange,
-}: TextPreviewProps & { onChange?: (text: string) => void }) {
+  onRun,
+  running,
+}: TextPreviewProps & {
+  onChange?: (text: string) => void;
+  onRun?: () => void;
+  running?: boolean;
+}) {
   const parsed = useMemo(() => {
     try {
       return { notebook: parseNotebook(text), error: null };
@@ -34,6 +41,7 @@ export function NotebookPreview({
     }
   }, [text]);
   const [editing, setEditing] = useState<number | null>(null);
+  const addedCell = useRef<number | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const viewKey = useViewStateKey('notebook', [session, root, path]);
@@ -43,6 +51,16 @@ export function NotebookPreview({
     const binding = bindScrollRestoration(scroller.current, content.current, viewKey);
     return () => binding.dispose();
   }, [viewKey, ready]);
+  useLayoutEffect(() => {
+    if (addedCell.current === null) return;
+    const cell = content.current?.querySelector<HTMLElement>(
+      `[data-notebook-cell="${addedCell.current}"]`,
+    );
+    if (!cell) return;
+    addedCell.current = null;
+    cell.scrollIntoView({ block: 'nearest' });
+    cell.querySelector('textarea')?.focus({ preventScroll: true });
+  }, [parsed.notebook?.cells.length]);
   const update = (notebook: Notebook) => onChange?.(`${JSON.stringify(notebook, null, 1)}\n`);
   const notebook = parsed.notebook;
   if (!notebook)
@@ -58,104 +76,133 @@ export function NotebookPreview({
     setEditing(null);
     update({ ...notebook, cells });
   };
+  const addCell = (type: Notebook['cells'][number]['cell_type']) => {
+    addedCell.current = notebook.cells.length;
+    setEditing(notebook.cells.length);
+    update({ ...notebook, cells: [...notebook.cells, newNotebookCell(type)] });
+  };
   return (
-    <div ref={scroller} className="h-full overflow-auto bg-ground text-fg">
-      <div ref={content} className="mx-auto flex max-w-4xl flex-col gap-7 p-6">
-        <p className="text-xs text-fg-muted">{notebook.cells.length} cells</p>
-        {notebook.cells.map((cell, index) => (
-          <section key={index} className="group/cell min-w-0" aria-label={`Cell ${index + 1}`}>
-            <div className="mb-2 flex min-h-7 items-center gap-2 text-xs text-fg-muted">
-              <span className="font-mono">
-                {cell.cell_type === 'code' ? `[${cell.execution_count ?? ' '}]` : cell.cell_type}
-              </span>
-              {onChange && (
-                <div className="ml-auto flex items-center opacity-0 focus-within:opacity-100 group-hover/cell:opacity-100 pointer-coarse:opacity-100">
-                  {cell.cell_type === 'markdown' && (
+    <div className="flex h-full min-h-0 flex-col bg-ground">
+      <NotebookToolbar
+        notebook={notebook}
+        source={{ session, path, ...(root !== undefined ? { root } : {}) }}
+        onChange={onChange ? update : undefined}
+        onAdd={addCell}
+        onRun={onRun}
+        running={running}
+        onRevealCell={(index) => {
+          const cell = content.current?.querySelector<HTMLElement>(
+            `[data-notebook-cell="${index}"]`,
+          );
+          cell?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+          cell?.focus({ preventScroll: true });
+        }}
+      />
+      <div ref={scroller} className="min-h-0 flex-1 overflow-auto bg-ground text-fg">
+        <div ref={content} className="mx-auto flex max-w-4xl flex-col gap-7 p-6">
+          <p className="text-xs text-fg-muted">{notebook.cells.length} cells</p>
+          {notebook.cells.map((cell, index) => (
+            <section
+              key={index}
+              data-notebook-cell={index}
+              tabIndex={-1}
+              className="group/cell min-w-0 outline-none"
+              aria-label={`Cell ${index + 1}`}
+            >
+              <div className="mb-2 flex min-h-7 items-center gap-2 text-xs text-fg-muted">
+                <span className="font-mono">
+                  {cell.cell_type === 'code' ? `[${cell.execution_count ?? ' '}]` : cell.cell_type}
+                </span>
+                {onChange && (
+                  <div className="ml-auto flex items-center opacity-0 focus-within:opacity-100 group-hover/cell:opacity-100 pointer-coarse:opacity-100">
+                    {cell.cell_type === 'markdown' && (
+                      <button
+                        className={control}
+                        title="Edit Markdown cell"
+                        aria-label="Edit Markdown cell"
+                        onClick={() => setEditing(editing === index ? null : index)}
+                      >
+                        <Code className="size-3.5" />
+                      </button>
+                    )}
                     <button
                       className={control}
-                      title="Edit Markdown cell"
-                      aria-label="Edit Markdown cell"
-                      onClick={() => setEditing(editing === index ? null : index)}
+                      disabled={index === 0}
+                      title="Move cell up"
+                      aria-label="Move cell up"
+                      onClick={() => move(index, -1)}
                     >
-                      <Code className="size-3.5" />
+                      <ArrowUp className="size-3.5" />
                     </button>
-                  )}
-                  <button
-                    className={control}
-                    disabled={index === 0}
-                    title="Move cell up"
-                    aria-label="Move cell up"
-                    onClick={() => move(index, -1)}
-                  >
-                    <ArrowUp className="size-3.5" />
-                  </button>
-                  <button
-                    className={control}
-                    disabled={index === notebook.cells.length - 1}
-                    title="Move cell down"
-                    aria-label="Move cell down"
-                    onClick={() => move(index, 1)}
-                  >
-                    <ArrowDown className="size-3.5" />
-                  </button>
-                  <button
-                    className={control}
-                    title="Delete cell"
-                    aria-label="Delete cell"
-                    onClick={() => {
-                      setEditing(null);
-                      update({
-                        ...notebook,
-                        cells: notebook.cells.filter((_, at) => at !== index),
-                      });
-                    }}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
-                </div>
-              )}
-            </div>
-            {onChange && (cell.cell_type !== 'markdown' || editing === index) ? (
-              <textarea
-                aria-label={`Cell ${index + 1} source`}
-                value={notebookText(cell.source)}
-                rows={Math.max(2, Math.min(24, notebookText(cell.source).split('\n').length))}
-                spellCheck={false}
-                onChange={(event) => update(replaceCellSource(notebook, index, event.target.value))}
-                className="w-full resize-y rounded-md bg-surface p-3 font-mono text-sm leading-relaxed text-fg outline-none focus:bg-elevated"
-              />
-            ) : cell.cell_type === 'markdown' ? (
-              <NotebookHtml text={notebookText(cell.source)} markdown />
-            ) : (
-              <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-sm">
-                {notebookText(cell.source)}
-              </pre>
-            )}
-            {cell.outputs?.map((output, at) => (
-              <div key={at} className="mt-3">
-                <NotebookOutputView output={output} />
+                    <button
+                      className={control}
+                      disabled={index === notebook.cells.length - 1}
+                      title="Move cell down"
+                      aria-label="Move cell down"
+                      onClick={() => move(index, 1)}
+                    >
+                      <ArrowDown className="size-3.5" />
+                    </button>
+                    <button
+                      className={control}
+                      title="Delete cell"
+                      aria-label="Delete cell"
+                      onClick={() => {
+                        setEditing(null);
+                        update({
+                          ...notebook,
+                          cells: notebook.cells.filter((_, at) => at !== index),
+                        });
+                      }}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
-            ))}
-          </section>
-        ))}
-        {onChange && (
-          <div className="flex gap-3">
-            {(['code', 'markdown', 'raw'] as const).map((type) => (
-              <button
-                key={type}
-                disabled={notebook.cells.length >= 2_000}
-                className={`${control} flex items-center gap-1.5 text-xs`}
-                onClick={() => {
-                  setEditing(notebook.cells.length);
-                  update({ ...notebook, cells: [...notebook.cells, newNotebookCell(type)] });
-                }}
-              >
-                <Plus className="size-3.5" />
-                {type === 'code' ? 'Code' : type === 'markdown' ? 'Markdown' : 'Raw'} cell
-              </button>
-            ))}
-          </div>
-        )}
+              {onChange && (cell.cell_type !== 'markdown' || editing === index) ? (
+                <textarea
+                  aria-label={`Cell ${index + 1} source`}
+                  value={notebookText(cell.source)}
+                  rows={Math.max(2, Math.min(24, notebookText(cell.source).split('\n').length))}
+                  spellCheck={false}
+                  onChange={(event) =>
+                    update(replaceCellSource(notebook, index, event.target.value))
+                  }
+                  className="w-full resize-y rounded-md bg-surface p-3 font-mono text-sm leading-relaxed text-fg outline-none focus:bg-elevated"
+                />
+              ) : cell.cell_type === 'markdown' ? (
+                <NotebookHtml text={notebookText(cell.source)} markdown />
+              ) : (
+                <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-sm">
+                  {notebookText(cell.source)}
+                </pre>
+              )}
+              {cell.outputs?.map((output, at) => (
+                <div key={at} className="mt-3">
+                  <NotebookOutputView output={output} />
+                </div>
+              ))}
+            </section>
+          ))}
+          {onChange && (
+            <div className="flex gap-3">
+              {(['code', 'markdown', 'raw'] as const).map((type) => (
+                <button
+                  key={type}
+                  disabled={notebook.cells.length >= 2_000}
+                  className={`${control} flex items-center gap-1.5 text-xs`}
+                  onClick={() => {
+                    addCell(type);
+                  }}
+                >
+                  <Plus className="size-3.5" />
+                  {type === 'code' ? 'Code' : type === 'markdown' ? 'Markdown' : 'Raw'} cell
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

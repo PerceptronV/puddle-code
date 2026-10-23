@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   compilationSupported,
   compilationDefaultsSupported,
+  notebookKernelsSupported,
   compilationSettingsSupported,
   crossFiletreeTransferSupported,
   dynamicBaseBranchSupported,
@@ -37,6 +38,11 @@ describe('cross-filetree transfer compatibility gate', () => {
 });
 
 describe('compilation compatibility gate', () => {
+  it('requires confirmed protocol 24.6 for persistent notebook controls', () => {
+    expect(notebookKernelsSupported(undefined)).toBe(false);
+    expect(notebookKernelsSupported({ major: 24, minor: 5 })).toBe(false);
+    expect(notebookKernelsSupported({ major: 24, minor: 6 })).toBe(true);
+  });
   it('requires confirmed protocol 24.4 for language defaults', () => {
     expect(compilationDefaultsSupported(undefined)).toBe(false);
     expect(compilationDefaultsSupported({ major: 24, minor: 3 })).toBe(false);

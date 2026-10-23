@@ -30,6 +30,8 @@ export function PaneEditorBody({
   scrollChannel,
   onRevealSource,
   onRevealCompiledSource,
+  onRunCompilation,
+  compilationRunning,
 }: {
   tab: EditorTab;
   reveal: RevealTarget | null;
@@ -39,6 +41,8 @@ export function PaneEditorBody({
   scrollChannel: string;
   onRevealSource?: (position: EditorPosition) => void;
   onRevealCompiledSource?: (target: LatexSynctexResponse) => void;
+  onRunCompilation?: () => void;
+  compilationRunning?: boolean;
 }) {
   const kind = tabKind(tab);
   // A following tab renders like a preview of whatever it currently targets.
@@ -102,6 +106,8 @@ export function PaneEditorBody({
           session={tab.session}
           path={tab.path}
           kind={externalPreview}
+          onRunCompilation={tab.generated_by ? undefined : onRunCompilation}
+          compilationRunning={compilationRunning}
           root={tab.root}
           focused={focused}
           scrollDriver={scrollDriver}
@@ -153,6 +159,8 @@ export function PaneEditorBody({
         session={tab.session}
         path={tab.path}
         kind={preview}
+        onRunCompilation={tab.generated_by ? undefined : onRunCompilation}
+        compilationRunning={compilationRunning}
         focused={focused}
         scrollDriver={scrollDriver}
         scrollReceiver={scrollReceiver}

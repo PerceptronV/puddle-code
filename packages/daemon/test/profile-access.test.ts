@@ -96,6 +96,16 @@ function fixture() {
 }
 
 describe('profile-bound host authority', () => {
+  it('denies notebook kernel operations to remote profile leases', async () => {
+    const f = fixture();
+    for (const [path, method] of [
+      ['kernels', 'GET'],
+      ['status', 'POST'],
+      ['kernel', 'POST'],
+    ])
+      expect((await f.req(`/api/notebooks/${path}`, method)).status).toBe(403);
+    expect(f.dispatch).not.toHaveBeenCalled();
+  });
   it('denies compilation defaults to remote profile leases', async () => {
     const f = fixture();
     for (const method of ['POST', 'PUT'])

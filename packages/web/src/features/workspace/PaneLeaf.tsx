@@ -1,3 +1,4 @@
+import { compilationSourceKey, sourceExtension } from '../editor/compilation-kind';
 import { useEffect, useRef, useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import type {
@@ -258,6 +259,18 @@ export function PaneLeaf({
             >
               <LazyPaneEditorBody
                 tab={activeRef.tab}
+                onRunCompilation={
+                  compilableExtensions.has(sourceExtension(activeRef.tab.path) ?? '')
+                    ? () => onRunCompilation(leaf.id, activeRef.tab)
+                    : undefined
+                }
+                compilationRunning={compilationRunningKeys.has(
+                  compilationSourceKey(
+                    activeRef.tab.session,
+                    activeRef.tab.path,
+                    activeRef.tab.root,
+                  ),
+                )}
                 reveal={reveal}
                 focused={focused}
                 scrollDriver={drivesScroll}

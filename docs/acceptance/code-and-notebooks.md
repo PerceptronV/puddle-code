@@ -1,7 +1,7 @@
 # Code files and notebooks
 
 Run against a daemon started from a plain shell, locally and over SSH. Tool
-discovery and execution must occur on that host, using protocol 24.3 or newer.
+discovery and execution must occur on that host, using protocol 24.6 or newer.
 
 1. Open a Python file with a visible print statement. With Python installed,
    the tab offers **Run file** and **Compilation Settings…**, with only the
@@ -28,22 +28,37 @@ discovery and execution must occur on that host, using protocol 24.3 or newer.
    clears only its old output and execution count. Verify draft restoration and
    stale-file reconciliation after another editor changes the file. A malformed
    notebook shows a repair message and remains accessible in source view.
-6. With `jupyter-nbconvert` and the notebook's kernel installed, run the notebook.
-   Check all cells execute in a fresh kernel, an executed copy opens, and the
-   source file's saved outputs remain unchanged. Re-run after changing a value:
-   update the existing result tab. A missing kernel/import or failing cell
-   reports Jupyter's error and retains the previous successful result.
-7. Inspect `.puddle/code/<provider>/<source-hash>/`: outputs and binaries stay
+6. With `jupyter-nbconvert` and the notebook's kernel installed, use header
+   **Run All** and the tab play button. An executed copy opens and the source's
+   saved outputs stay unchanged. Run `counter = globals().get("counter", 0) + 1`
+   followed by `print(counter)` twice: results are 1 and 2, with continuing
+   execution counts. Close/reopen the source tab and reconnect the browser:
+   another run returns 3. A different notebook starts with its own state.
+   Missing kernels/imports and failing cells retain the last successful result.
+7. Select an installed kernel from the header; verify the kernelspec edit is
+   saved through ordinary notebook saving. **Restart kernel** starts fresh;
+   **Shut down kernel** stops it, and the next explicit run starts a new one.
+   Interrupt an endless loop; the current run fails and earlier variables remain
+   available. A kernel that exits reports dead and requires Restart; it must not
+   replay the interrupted source. Verify daemon shutdown and abrupt daemon exit
+   leave no child kernels. Repeat shutdown while a kernel is starting.
+8. Use header Code/Markdown and the raw-cell menu: each new cell is revealed and
+   focused. Clear All Outputs removes execution counts/results without changing
+   source, cell ids or other metadata; undo and saving still work. Outline
+   entries reveal the matching cells. Confirm header controls wrap in narrow
+   panes without obscuring notebook content. Generate is intentionally absent.
+
+9. Inspect `.puddle/code/<provider>/<source-hash>/`: outputs and binaries stay
    under this source root, five recent runs remain, and the stable current
    result refreshes only after success. Exercise an endless loop, excessive
-   stdout and daemon shutdown; bounded commands and their process groups stop.
+   stdout and daemon shutdown; ordinary bounded commands and their process groups stop; notebook output limits interrupt the active execution while retaining the kernel.
    Input-reading programmes receive EOF; interactive programmes use terminals.
-8. Verify LaTeX still has both manual and eager controls, custom commands,
+10. Verify LaTeX still has both manual and eager controls, custom commands,
    generated PDF refresh and inverse SyncTeX. In the remote mobile Files view,
    verify notebook preview is inert and read-only; remote execution is absent.
 
-Automated coverage: `code-provider.test.ts`, `notebook-format.test.ts`, and
+Automated coverage: `code-provider.test.ts`, `notebook-kernels.test.ts` (when Jupyter is installed), `notebook-routes.test.ts`, `notebook-format.test.ts`, and
 `e2e/notebook.test.ts`; the existing compilation and LaTeX suites cover shared
-orchestration and command settings. Notebook execution follows Jupyter's
-[nbconvert execution interface](https://nbconvert.readthedocs.io/en/latest/execute_api.html)
+orchestration and command settings. Notebook execution uses Jupyter's
+[kernel manager API](https://jupyter-client.readthedocs.io/en/stable/api/jupyter_client.html#jupyter_client.manager.KernelManager) and [notebook client](https://nbclient.readthedocs.io/en/latest/client.html)
 and preserves the [version 4 notebook format](https://nbformat.readthedocs.io/en/latest/format_description.html).

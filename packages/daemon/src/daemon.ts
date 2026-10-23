@@ -8,6 +8,7 @@ import { geminiCli } from './agents/gemini-cli/index.js';
 import { opencode } from './agents/opencode/index.js';
 import { AdapterRegistry } from './agents/registry.js';
 import { loadConfig } from './config.js';
+import { NotebookKernels } from './notebooks/kernels.js';
 import { createCodeProviders } from './code/provider.js';
 import { CompilationService } from './compilation/service.js';
 import { openDatabase } from './db/db.js';
@@ -121,8 +122,10 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     const scanner = new PortScanner({ ptys });
     const worktrees = new WorktreeManager({ paths, mutex: new KeyedMutex(), repos, sessions });
     const latex = new LatexProvider({ sessions, repos });
+    const notebooks = new NotebookKernels({ sessions, repos });
+    failedStartup.push(() => notebooks.dispose());
     const compilation = new CompilationService(
-      [latex, ...createCodeProviders({ sessions, repos })],
+      [latex, ...createCodeProviders({ sessions, repos, notebooks })],
       {
         settings: compilationSettings,
         projects,
@@ -274,6 +277,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
         scanner,
         tracker,
         compilation,
+        notebooks,
         latex,
         puddlang,
       },
@@ -340,6 +344,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
         clearInterval(fetchTimer);
         catalogue.dispose();
         compilation.dispose();
+        await notebooks.dispose();
         onboarding.dispose();
         // Freeze session rows at their live statuses (reconcile → interrupted),
         // then wait for PTY exits so nothing touches the db after close.

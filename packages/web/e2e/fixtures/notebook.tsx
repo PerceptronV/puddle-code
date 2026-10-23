@@ -99,6 +99,9 @@ function Fixture() {
                 {active?.type === 'editor' && (
                   <PaneEditorBody
                     tab={active.tab}
+                    onRunCompilation={() => {
+                      window.dispatchEvent(new Event('notebook-run'));
+                    }}
                     reveal={null}
                     focused
                     scrollDriver={false}

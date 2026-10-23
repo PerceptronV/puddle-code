@@ -32,6 +32,8 @@ import { parseBody } from './validate.js';
 import { accountRoutes } from './routes/accounts.js';
 import { agentRoutes } from './routes/agents.js';
 import { configRoutes } from './routes/config.js';
+import type { NotebookKernels } from '../notebooks/kernels.js';
+import { notebookRoutes } from './routes/notebooks.js';
 import { compilationRoutes } from './routes/compilation.js';
 import { fsRoutes } from './routes/fs.js';
 import { hostRoutes } from './routes/host.js';
@@ -71,6 +73,7 @@ export interface AppDeps {
     scanner: PortScanner;
     tracker: ProxySocketTracker;
     compilation: CompilationService;
+    notebooks?: NotebookKernels;
     latex: LatexProvider;
     puddlang?: PuddlangService;
   };
@@ -117,6 +120,7 @@ export function buildApp(deps: AppDeps): Hono {
     app.route('/api/sessions', sessionRoutes(api));
     app.route('/api/config', configRoutes(api));
     app.route('/api/compilation', compilationRoutes(api));
+    if (api.notebooks) app.route('/api/notebooks', notebookRoutes(api.notebooks));
     app.route('/api/latex', latexRoutes(api));
     app.route('/api/fs', fsRoutes());
     app.route('/api/worktrees', worktreeRoutes(api));

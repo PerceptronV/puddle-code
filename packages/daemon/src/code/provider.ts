@@ -1,3 +1,4 @@
+import type { NotebookKernels } from '../notebooks/kernels.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, realpathSync, statSync } from 'node:fs';
 import { copyFile, mkdir, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
@@ -24,6 +25,7 @@ interface CodeProviderDeps extends WorktreeDeps {
   discover?: (names: readonly string[]) => string | null;
   runner?: CompilationCommandRunner;
   timeoutMs?: number;
+  notebooks?: NotebookKernels;
 }
 
 /** Manual host execution through the ordinary compilation lifecycle and authority. */
@@ -150,8 +152,12 @@ export class CodeProvider implements CompilationProvider {
       await mkdir(runDir, { recursive: true, mode: 0o700 });
       let output = '';
       try {
-        const result = await runner({ ...command, ...context });
-        output += result.stdout + result.stderr;
+        if (this.recipe.notebook && this.deps.notebooks) {
+          await this.deps.notebooks.execute(absolute, join(runDir, 'notebook.ipynb'), command);
+        } else {
+          const result = await runner({ ...command, ...context });
+          output += result.stdout + result.stderr;
+        }
         if (this.recipe.compiled) {
           const executed = await runner({ file: binary, args: [], ...context });
           output += executed.stdout + executed.stderr;

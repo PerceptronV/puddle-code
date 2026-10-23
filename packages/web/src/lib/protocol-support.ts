@@ -84,3 +84,7 @@ export const nativeConversationSyncSupported = (p: Protocol): boolean => atLeast
  * all there is (and misses queries fired before the viewer attached).
  */
 export const daemonAnswersColourQueries = (p: Protocol): boolean => atLeast(p, 14, 1);
+
+/** Persistent notebook kernels and lifecycle controls (24.6). */
+export const notebookKernelsSupported = (p: Protocol): boolean =>
+  p !== undefined && atLeast(p, 24, 6);

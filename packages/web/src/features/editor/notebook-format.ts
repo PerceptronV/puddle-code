@@ -105,3 +105,29 @@ export function notebookTextEdit(
   }
   return { start, end, text: after.slice(start, nextEnd) };
 }
+
+/** Clear execution results without changing source, cell ids or other metadata. */
+export function clearNotebookOutputs(notebook: Notebook): Notebook {
+  return {
+    ...notebook,
+    cells: notebook.cells.map((cell) =>
+      cell.cell_type === 'code' ? { ...cell, outputs: [], execution_count: null } : cell,
+    ),
+  };
+}
+
+export function notebookOutline(notebook: Notebook): Array<{ index: number; label: string }> {
+  return notebook.cells.map((cell, index) => {
+    const first =
+      notebookText(cell.source)
+        .split('\n')
+        .find((line) => line.trim())
+        ?.trim() ?? '';
+    return {
+      index,
+      label:
+        (cell.cell_type === 'markdown' ? first.replace(/^#{1,6}\s+/, '') : first).slice(0, 100) ||
+        `${cell.cell_type === 'code' ? 'Code' : cell.cell_type === 'markdown' ? 'Markdown' : 'Raw'} cell`,
+    };
+  });
+}
