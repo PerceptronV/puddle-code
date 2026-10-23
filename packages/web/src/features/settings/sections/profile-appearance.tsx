@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { toastError } from '../../../lib/errors';
-import { PROFILE_ICON_COLOURS, type Profile } from '@puddle/shared';
+import type { Profile } from '@puddle/shared';
+import { ColourPicker } from '../../../components/colour-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '../../../components/ui/popover';
 import { usePatchProfile } from '../../../lib/queries';
 import { cn } from '../../../lib/utils';
-import { ProfileGlyph, profileColourClass } from '../../profile/ProfileGlyph';
+import { ProfileGlyph } from '../../profile/ProfileGlyph';
 import { PROFILE_ICONS } from '../../profile/profile-icons';
 import { SettingRow } from '../parts';
 
@@ -70,35 +71,7 @@ export function ProfileAppearance({ profile }: { profile: Profile }) {
       </SettingRow>
 
       <SettingRow label="Icon colour">
-        <div className="flex flex-wrap items-center gap-1">
-          <button
-            type="button"
-            title="Default"
-            onClick={() => setColour(null)}
-            className={cn(
-              'flex size-7 items-center justify-center rounded-md transition-colors hover:bg-elevated',
-              !profile.icon_colour && 'bg-elevated',
-            )}
-          >
-            <span className="size-3.5 rounded-full bg-fg-muted" />
-            <span className="sr-only">Default colour</span>
-          </button>
-          {PROFILE_ICON_COLOURS.map((key) => (
-            <button
-              key={key}
-              type="button"
-              title={key}
-              onClick={() => setColour(key)}
-              className={cn(
-                'flex size-7 items-center justify-center rounded-md transition-colors hover:bg-elevated',
-                profile.icon_colour === key && 'bg-elevated',
-              )}
-            >
-              <span className={cn('size-3.5 rounded-full bg-current', profileColourClass(key))} />
-              <span className="sr-only">{key}</span>
-            </button>
-          ))}
-        </div>
+        <ColourPicker value={profile.icon_colour} onChange={setColour} label="Icon colour" />
       </SettingRow>
     </>
   );

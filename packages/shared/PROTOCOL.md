@@ -250,3 +250,9 @@ Existing per-file overrides remain authoritative; null language defaults retain
 provider-owned source and engine selection. Newer clients show the language
 picker only after confirming 24.4. Compilation routes remain local/SSH-only;
 remote protocol remains 4.
+
+Protocol 24.5 adds optional nullable project `colour` fields to project responses,
+creation and updates, using the profile icon palette. Omission on update preserves
+the saved colour; null restores default styling. Newer clients hide colour controls
+until the host advertises 24.5. Existing project routes and authority are unchanged;
+remote protocol remains 4.

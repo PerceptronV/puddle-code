@@ -1,4 +1,6 @@
 import type { Project, Session, SessionStatus } from '@puddle/shared';
+import { appearanceColourClass } from '../../lib/appearance-colours';
+import { cn } from '../../lib/utils';
 
 /** Shared by the desktop dashboard and the host-grouped remote dashboard. */
 export const projectCardSurface =
@@ -22,7 +24,12 @@ export function ProjectCardContent({
   const active = sessions.filter((session) => session.status !== 'archived');
   return (
     <>
-      <h2 className="truncate pr-16 text-base font-semibold text-fg group-hover:text-accent">
+      <h2
+        className={cn(
+          'truncate pr-16 text-base font-semibold',
+          appearanceColourClass(project.colour) || 'text-fg group-hover:text-accent',
+        )}
+      >
         {project.name}
       </h2>
       <p className="mt-1 truncate text-2xs text-fg-muted">{repoPath ?? '…'}</p>

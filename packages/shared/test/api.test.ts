@@ -32,8 +32,8 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 24.4 for profile compilation defaults', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 24, minor: 4 });
+  it('declares protocol 24.5 for project colours', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 24, minor: 5 });
   });
 
   it('accepts headless mode and rejects the previous scripted name', () => {

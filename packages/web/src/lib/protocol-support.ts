@@ -23,6 +23,10 @@ export function atLeast(protocol: Protocol, major: number, minor: number): boole
 export const dynamicBaseBranchSupported = (p: Protocol): boolean =>
   p !== undefined && atLeast(p, 21, 3);
 
+/** Project name colours (24.5); older hosts silently discard unknown fields. */
+export const projectColourSupported = (p: Protocol): boolean =>
+  p !== undefined && atLeast(p, 24, 5);
+
 /** Modular host-side compilation providers and eager modes (protocol 17.1). */
 export function compilationSupported(protocol: Protocol): boolean {
   return atLeast(protocol, 17, 1);

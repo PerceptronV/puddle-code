@@ -6,7 +6,17 @@ import {
   crossFiletreeTransferSupported,
   dynamicBaseBranchSupported,
   nativeConversationSyncSupported,
+  projectColourSupported,
 } from '../src/lib/protocol-support';
+
+describe('project colour compatibility gate', () => {
+  it('requires a host that can save project colours', () => {
+    expect(projectColourSupported(undefined)).toBe(false);
+    expect(projectColourSupported({ major: 24, minor: 4 })).toBe(false);
+    expect(projectColourSupported({ major: 24, minor: 5 })).toBe(true);
+    expect(projectColourSupported({ major: 25, minor: 0 })).toBe(true);
+  });
+});
 
 describe('dynamic repository default compatibility gate', () => {
   it('allows clearing the default only from protocol 21.3', () => {

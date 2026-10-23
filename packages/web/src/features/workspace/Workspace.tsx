@@ -289,6 +289,7 @@ function WorkspaceInner() {
       projectId: p.id,
       name: p.name,
       abbrev: projectAbbrev(p),
+      colour: p.colour,
       repoId: p.repo_id,
       // Each group applies the same saved order the single-project view uses
       // (untracked sessions float to the top of their group, newest-first).

@@ -2,7 +2,10 @@ import { type DragEvent, useState } from 'react';
 import { Link } from 'react-router';
 import { ArchiveRestore, Archive as ArchiveIcon, Pencil } from 'lucide-react';
 import { toastError } from '../../lib/errors';
-import type { Project } from '@puddle/shared';
+import type { Project, ProjectColour } from '@puddle/shared';
+import { ColourPicker } from '../../components/colour-picker';
+import { appearanceColourClass } from '../../lib/appearance-colours';
+import { projectColourSupported } from '../../lib/protocol-support';
 import { Button } from '../../components/ui/button';
 import {
   ContextMenu,
@@ -20,7 +23,7 @@ import {
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { ABBREV_MAX, normaliseAbbrev, projectAbbrev } from '../../lib/project-abbrev';
-import { usePatchProject, useSessions } from '../../lib/queries';
+import { useDaemonVersion, usePatchProject, useSessions } from '../../lib/queries';
 import { cn } from '../../lib/utils';
 
 import { ProjectCardContent, projectCardSurface } from './ProjectCardContent';
@@ -76,16 +79,19 @@ export function ProjectCard({
   onDragOver: (e: DragEvent<HTMLDivElement>) => void;
 }) {
   const patch = usePatchProject();
+  const colourSupported = projectColourSupported(useDaemonVersion().data?.protocol);
   const sessions = useSessions(project.id);
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(project.name);
   const [abbrev, setAbbrev] = useState(projectAbbrev(project));
+  const [colour, setColour] = useState<ProjectColour | null>(project.colour ?? null);
 
   const archive = (archived: boolean) =>
     patch.mutate({ id: project.id, archived }, { onError: (e) => toastError(e) });
 
   const openEdit = () => {
     setName(project.name);
+    setColour(project.colour ?? null);
     // Prefilled with the label the rail actually shows (stored or derived) —
     // never an empty field that means something else.
     setAbbrev(projectAbbrev(project));
@@ -102,6 +108,7 @@ export function ProjectCard({
     const patchBody = {
       ...(trimmed !== project.name ? { name: trimmed } : {}),
       ...(nextAbbrev && nextAbbrev !== projectAbbrev(project) ? { abbrev: nextAbbrev } : {}),
+      ...(colourSupported && colour !== (project.colour ?? null) ? { colour } : {}),
     };
     if (Object.keys(patchBody).length === 0) {
       setRenaming(false);
@@ -188,6 +195,7 @@ export function ProjectCard({
               <Input
                 id={`project-name-${project.id}`}
                 value={name}
+                className={appearanceColourClass(colour)}
                 onChange={(e) => setName(e.target.value)}
                 autoFocus
               />
@@ -205,6 +213,12 @@ export function ProjectCard({
                 Up to {ABBREV_MAX} characters — the label on the collapsed sidebar rail.
               </p>
             </div>
+            {colourSupported && (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs text-fg-secondary">Colour</span>
+                <ColourPicker value={colour} onChange={setColour} label="Project colour" />
+              </div>
+            )}
             <div className="flex flex-col gap-1">
               <Label className="text-fg-muted">Path</Label>
               <p className="truncate text-2xs text-fg-muted">{repoPath ?? '…'}</p>

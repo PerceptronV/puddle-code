@@ -1,5 +1,10 @@
 import { randomBytes } from 'node:crypto';
-import type { Project } from '@puddle/shared';
+import type {
+  CreateProjectRequest,
+  PatchProjectRequest,
+  Project,
+  ProjectColour,
+} from '@puddle/shared';
 import { ApiError } from '../../http/errors.js';
 import type { Db } from '../db.js';
 
@@ -9,6 +14,7 @@ interface Row {
   repo_id: number;
   name: string;
   abbrev: string | null;
+  colour: ProjectColour | null;
   archived: number;
   created_at: string;
   updated_at: string;
@@ -21,16 +27,25 @@ function toProject(r: Row): Project {
 export class ProjectStore {
   constructor(private readonly db: Db) {}
 
-  create(input: { profile_id: string; repo_id: number; name: string; abbrev?: string }): Project {
+  create(input: CreateProjectRequest): Project {
     const now = new Date().toISOString();
     // 10 hex chars (5 random bytes): short, stable URL handles.
     const id = randomBytes(5).toString('hex');
     try {
       this.db
         .prepare(
-          `INSERT INTO projects (id, profile_id, repo_id, name, abbrev, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO projects (id, profile_id, repo_id, name, abbrev, colour, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(id, input.profile_id, input.repo_id, input.name, input.abbrev ?? null, now, now);
+        .run(
+          id,
+          input.profile_id,
+          input.repo_id,
+          input.name,
+          input.abbrev ?? null,
+          input.colour ?? null,
+          now,
+          now,
+        );
       return this.get(id);
     } catch (e) {
       if (e instanceof Error && e.message.includes('UNIQUE')) {
@@ -61,8 +76,8 @@ export class ProjectStore {
     return toProject(row);
   }
 
-  /** Rename and/or re-abbreviate; the UNIQUE(profile_id, name) collision surfaces as a 409. */
-  rename(id: string, fields: { name?: string; abbrev?: string }): Project {
+  /** Edit appearance; the UNIQUE(profile_id, name) collision surfaces as a 409. */
+  update(id: string, fields: Omit<PatchProjectRequest, 'archived'>): Project {
     const sets: string[] = [];
     const args: unknown[] = [];
     if (fields.name !== undefined) {
@@ -72,6 +87,10 @@ export class ProjectStore {
     if (fields.abbrev !== undefined) {
       sets.push('abbrev = ?');
       args.push(fields.abbrev);
+    }
+    if (fields.colour !== undefined) {
+      sets.push('colour = ?');
+      args.push(fields.colour);
     }
     if (sets.length === 0) return this.get(id);
     try {

@@ -304,4 +304,5 @@
 // 24.2: authenticated local-cockpit file-manager discovery and reveal requests.
 // 24.3: optional compilation-provider action distinguishes code runs from builds.
 // 24.4: profile language defaults and inherited per-file compilation commands.
-export const PROTOCOL_VERSION = { major: 24, minor: 4 } as const;
+// 24.5: optional project colours drawn from the profile icon palette.
+export const PROTOCOL_VERSION = { major: 24, minor: 5 } as const;

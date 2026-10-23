@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { CornerLeftUp, Folder, FolderGit2 } from 'lucide-react';
+import type { ProjectColour } from '@puddle/shared';
+import { ColourPicker } from '../../components/colour-picker';
+import { appearanceColourClass } from '../../lib/appearance-colours';
 import {
   Dialog,
   DialogContent,
@@ -22,7 +25,7 @@ import {
   useRepos,
 } from '../../lib/queries';
 import { ABBREV_MAX, deriveAbbrev, normaliseAbbrev } from '../../lib/project-abbrev';
-import { dynamicBaseBranchSupported } from '../../lib/protocol-support';
+import { dynamicBaseBranchSupported, projectColourSupported } from '../../lib/protocol-support';
 import { useDebouncedValue } from '../../lib/use-debounced-value';
 
 /** '/a/b/' → '/a/b'; keeps the root slash. */
@@ -136,7 +139,9 @@ export function NewProjectDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const repos = useRepos();
-  const dynamicBase = dynamicBaseBranchSupported(useDaemonVersion().data?.protocol);
+  const protocol = useDaemonVersion().data?.protocol;
+  const dynamicBase = dynamicBaseBranchSupported(protocol);
+  const colourSupported = projectColourSupported(protocol);
   const createRepo = useCreateRepo();
   const createProject = useCreateProject();
   const navigate = useNavigate();
@@ -149,6 +154,7 @@ export function NewProjectDialog({
   // field always shows exactly what will be stored — never an empty field
   // reinterpreted later.
   const [abbrev, setAbbrev] = useState('');
+  const [colour, setColour] = useState<ProjectColour | null>(null);
   const [abbrevTouched, setAbbrevTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The picker's current directory; null while it is closed.
@@ -228,6 +234,7 @@ export function NewProjectDialog({
         profile_id: profileId,
         repo_id: repoId,
         name: name.trim(),
+        ...(colourSupported ? { colour } : {}),
         // A cleared field falls back to deriving from the name — which is
         // exactly what the field showed before it was cleared.
         ...(normaliseAbbrev(abbrev) ? { abbrev: normaliseAbbrev(abbrev) } : {}),
@@ -291,6 +298,7 @@ export function NewProjectDialog({
               id="project-name"
               placeholder="e.g. checkout-rework"
               value={name}
+              className={appearanceColourClass(colour)}
               onChange={(e) => {
                 applyName(e.target.value);
                 setNameTouched(true);
@@ -314,6 +322,12 @@ export function NewProjectDialog({
               Up to {ABBREV_MAX} characters — the project's label on the collapsed sidebar rail.
             </p>
           </div>
+          {colourSupported && (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs text-fg-secondary">Colour</span>
+              <ColourPicker value={colour} onChange={setColour} label="Project colour" />
+            </div>
+          )}
           {error && <p className="text-xs text-danger">{error}</p>}
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>

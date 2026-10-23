@@ -66,6 +66,39 @@ function seedSession(s: ReturnType<typeof stores>) {
 }
 
 describe('openDatabase', () => {
+  it('migrates existing projects without choosing a colour and persists later choices', () => {
+    const file = freshDbFile();
+    const legacy = new Database(file);
+    for (const migration of MIGRATIONS.filter((m) => m.version < 28)) {
+      legacy.exec(migration.sql);
+      legacy.pragma(`user_version = ${migration.version}`);
+    }
+    const profile = new ProfileStore(legacy).create({ name: 'work', branch_prefix: 'puddle/' });
+    const repo = new RepoStore(legacy).create({
+      path: '/tmp/project-colour-repo',
+      default_base_branch: '',
+      onboarding_notes: null,
+      fetch_enabled: false,
+    });
+    const id = 'aabbccddee';
+    legacy
+      .prepare(
+        `INSERT INTO projects (id, profile_id, repo_id, name, abbrev, created_at, updated_at)
+       VALUES (?, ?, ?, 'existing', 'EXIST', ?, ?)`,
+      )
+      .run(id, profile.id, repo.id, new Date().toISOString(), new Date().toISOString());
+    legacy.close();
+
+    const migrated = openDatabase(file);
+    const projects = new ProjectStore(migrated);
+    expect(projects.get(id)).toMatchObject({ name: 'existing', abbrev: 'EXIST', colour: null });
+    projects.update(id, { colour: 'cyan' });
+    migrated.close();
+    const reopened = openDatabase(file);
+    expect(new ProjectStore(reopened).get(id).colour).toBe('cyan');
+    reopened.close();
+  });
+
   it('applies all migrations and records user_version', () => {
     const { db } = stores();
     expect(db.pragma('user_version', { simple: true })).toBe(MIGRATIONS.at(-1)!.version);

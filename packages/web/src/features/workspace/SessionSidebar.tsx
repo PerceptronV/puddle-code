@@ -10,13 +10,24 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Pencil,
+  Palette,
   ShieldOff,
   MessageCircleX,
   TriangleAlert,
   SquareTerminal,
   type LucideIcon,
 } from 'lucide-react';
-import type { Account, Session } from '@puddle/shared';
+import type { Account, Project, Session } from '@puddle/shared';
+import { ColourPicker } from '../../components/colour-picker';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '../../components/ui/dialog';
+import { appearanceColourClass } from '../../lib/appearance-colours';
+import { projectColourSupported } from '../../lib/protocol-support';
 import { AgentIcon } from '../../components/agent-icon';
 import { HoverMarquee } from '../../components/hover-marquee';
 import { InlineLabelEdit } from '../../components/inline-label-edit';
@@ -32,7 +43,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { toastError } from '../../lib/errors';
 import { ABBREV_MAX, normaliseAbbrev } from '../../lib/project-abbrev';
-import { usePatchProject } from '../../lib/queries';
+import { useDaemonVersion, usePatchProject } from '../../lib/queries';
 import { useHotkeyLabel } from '../../lib/hotkeys';
 import { cn } from '../../lib/utils';
 import { relativeTime } from '../history/history-logic';
@@ -65,6 +76,7 @@ export interface SessionGroup {
   name: string;
   /** The collapsed rail's ≤5-char label (stored abbrev, else derived — SPEC §12). */
   abbrev: string;
+  colour?: Project['colour'];
   /** The project's repository — seeds the create dialogue for "new … in project". */
   repoId: number;
   sessions: Session[];
@@ -118,29 +130,63 @@ function setCountDragImage(e: DragEvent, count: number) {
  */
 function ProjectMenuBody({
   projectId,
+  name,
+  colour,
   actions,
   editLabel,
 }: {
   projectId: string;
+  name: string;
+  colour: Project['colour'];
   actions: ProjectHeaderActions;
   editLabel: { label: string; onSelect: () => void };
 }) {
+  const [choosingColour, setChoosingColour] = useState(false);
+  const patch = usePatchProject();
+  const colourSupported = projectColourSupported(useDaemonVersion().data?.protocol);
   return (
-    <ContextMenuContent>
-      <ContextMenuItem onSelect={() => actions.onNewSessionIn(projectId)}>
-        <Bot />
-        New agent
-      </ContextMenuItem>
-      <ContextMenuItem onSelect={() => actions.onNewTerminalIn(projectId)}>
-        <SquareTerminal />
-        New terminal
-      </ContextMenuItem>
-      <ContextMenuSeparator />
-      <ContextMenuItem onSelect={editLabel.onSelect}>
-        <Pencil />
-        {editLabel.label}
-      </ContextMenuItem>
-    </ContextMenuContent>
+    <>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={() => actions.onNewSessionIn(projectId)}>
+          <Bot />
+          New agent
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => actions.onNewTerminalIn(projectId)}>
+          <SquareTerminal />
+          New terminal
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={editLabel.onSelect}>
+          <Pencil />
+          {editLabel.label}
+        </ContextMenuItem>
+        {colourSupported && (
+          <ContextMenuItem onSelect={() => setChoosingColour(true)}>
+            <Palette />
+            Change project colour
+          </ContextMenuItem>
+        )}
+      </ContextMenuContent>
+      <Dialog open={choosingColour} onOpenChange={setChoosingColour}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Project colour</DialogTitle>
+            <DialogDescription className={appearanceColourClass(colour)}>{name}</DialogDescription>
+          </DialogHeader>
+          <ColourPicker
+            value={colour}
+            label="Project colour"
+            disabled={patch.isPending}
+            onChange={(next) =>
+              patch.mutate(
+                { id: projectId, colour: next },
+                { onSuccess: () => setChoosingColour(false), onError: (e) => toastError(e) },
+              )
+            }
+          />
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -531,7 +577,10 @@ export function CollapsedSessionsRail({
                         }}
                         onDragEnd={() => setDragProject(null)}
                         className={cn(
-                          'w-7 truncate text-center text-[8px] uppercase leading-3 text-fg-muted transition-colors hover:text-fg',
+                          'w-7 truncate text-center text-[8px] uppercase leading-3 transition-colors',
+                          appearanceColourClass(group.colour)
+                            ? cn(appearanceColourClass(group.colour), 'hover:opacity-75')
+                            : 'text-fg-muted hover:text-fg',
                           dragProject === group.projectId && 'opacity-50',
                         )}
                       >
@@ -543,6 +592,8 @@ export function CollapsedSessionsRail({
                 </Tooltip>
                 <ProjectMenuBody
                   projectId={group.projectId}
+                  name={group.name}
+                  colour={group.colour}
                   actions={projectActions}
                   editLabel={{
                     label: 'Change project abbreviation',
@@ -893,7 +944,7 @@ function SessionListBody({
     return [
       ...byProject.filter((g) => g.sessions.length > 0),
       ...(orphans.length > 0
-        ? [{ projectId: '', name: '', abbrev: '', repoId: -1, sessions: orphans }]
+        ? [{ projectId: '', name: '', abbrev: '', colour: null, repoId: -1, sessions: orphans }]
         : []),
     ];
   }, [groups, archived]);
@@ -959,7 +1010,10 @@ function SessionListBody({
                     }}
                     onDragEnd={() => setDragProject(null)}
                     className={cn(
-                      'block truncate px-3 pb-1 pt-2 text-2xs font-medium uppercase tracking-wide text-fg-gold transition-colors hover:text-fg compact:pb-0.5 compact:pt-1.5',
+                      'block truncate px-3 pb-1 pt-2 text-2xs font-medium uppercase tracking-wide transition-colors compact:pb-0.5 compact:pt-1.5',
+                      appearanceColourClass(group.colour)
+                        ? cn(appearanceColourClass(group.colour), 'hover:opacity-75')
+                        : 'text-fg-gold hover:text-fg',
                       dragProject === group.projectId && 'opacity-50',
                     )}
                   >
@@ -968,6 +1022,8 @@ function SessionListBody({
                 </ContextMenuTrigger>
                 <ProjectMenuBody
                   projectId={group.projectId}
+                  name={group.name}
+                  colour={group.colour}
                   actions={projectActions}
                   editLabel={{
                     label: 'Change project name',
@@ -1066,7 +1122,14 @@ function SessionListBody({
                         are for finding one session again, not for navigating
                         projects (that is the live list's header, right above). */}
                     {group.name !== '' && (
-                      <div className="truncate px-3 pb-0.5 pt-1.5 text-2xs font-medium uppercase tracking-wide text-fg-muted">
+                      <div
+                        className={cn(
+                          'truncate px-3 pb-0.5 pt-1.5 text-2xs font-medium uppercase tracking-wide',
+                          appearanceColourClass(group.colour)
+                            ? cn(appearanceColourClass(group.colour), 'opacity-70')
+                            : 'text-fg-muted',
+                        )}
+                      >
                         {group.name}
                       </div>
                     )}

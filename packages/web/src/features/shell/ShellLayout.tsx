@@ -36,6 +36,7 @@ import { ScratchpadPopover } from '../scratchpad/ScratchpadPopover';
 import { LayoutsPopover } from '../layouts/LayoutsPopover';
 import { desktopBridge, useDesktopFullScreen } from '../../lib/desktop';
 import { cn } from '../../lib/utils';
+import { appearanceColourClass } from '../../lib/appearance-colours';
 
 // Under the macOS desktop shell the native title bar is hidden and the top
 // bar IS the title bar: draggable, inset on the left for the inlaid traffic
@@ -209,7 +210,11 @@ function CommandField() {
         shellTitleBar && '[-webkit-app-region:no-drag]',
       )}
     >
-      <span className="truncate text-xs">{projectName ?? 'Puddle'}</span>
+      <span
+        className={cn('truncate text-xs', projectName && appearanceColourClass(project?.colour))}
+      >
+        {projectName ?? 'Puddle'}
+      </span>
       <span className="text-2xs">{paletteKey}</span>
     </button>
   );
