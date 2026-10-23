@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,7 +7,6 @@ import { expect, it, onTestFinished } from 'vitest';
 import { openDatabase } from '../src/db/db.js';
 import { MIGRATIONS } from '../src/db/migrations/index.js';
 import { ProfileStore } from '../src/db/stores/profiles.js';
-import { ProjectStore } from '../src/db/stores/projects.js';
 import { RepoStore } from '../src/db/stores/repos.js';
 
 function databaseFile() {
@@ -27,7 +26,6 @@ it('clears every legacy repository default once while preserving settings and pl
   db.pragma('foreign_keys = ON');
   const repos = new RepoStore(db);
   const profiles = new ProfileStore(db);
-  const projects = new ProjectStore(db);
   const profile = profiles.create({ name: 'test', branch_prefix: 'test/' });
   for (const [index, base] of ['main', 'release/stable', ''].entries()) {
     const repo = repos.create({
@@ -37,12 +35,12 @@ it('clears every legacy repository default once while preserving settings and pl
       fetch_enabled: index !== 1,
     });
     repos.setLastFetchedAt(repo.id, '2026-09-01T00:00:00.000Z');
-    const project = projects.create({
-      profile_id: profile.id,
-      repo_id: repo.id,
-      name: `project-${index}`,
-    });
     // Seed the historical schema directly; current stores require new columns.
+    const projectId = randomBytes(5).toString('hex');
+    const now = new Date().toISOString();
+    db.prepare(
+      'INSERT INTO projects (id, profile_id, repo_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+    ).run(projectId, profile.id, repo.id, `project-${index}`, now, now);
     db.prepare(
       `INSERT INTO sessions
       (id, project_id, worktree_path, canonical_worktree_path, base_branch, branch,
@@ -50,7 +48,7 @@ it('clears every legacy repository default once while preserving settings and pl
       VALUES (?, ?, ?, ?, ?, ?, 1, 'terminal', 'Existing placement', 'exited', 0, ?, ?)`,
     ).run(
       randomUUID(),
-      project.id,
+      projectId,
       `/tmp/worktree-${index}`,
       `/tmp/worktree-${index}`,
       base || 'develop',
@@ -60,7 +58,10 @@ it('clears every legacy repository default once while preserving settings and pl
     );
   }
   const oldRepos = repos.list();
-  const oldProjects = db.prepare('SELECT * FROM projects ORDER BY id').all();
+  const oldProjects = db.prepare('SELECT * FROM projects ORDER BY id').all() as Record<
+    string,
+    unknown
+  >[];
   const oldSessions = db.prepare('SELECT * FROM sessions ORDER BY id').all() as Record<
     string,
     unknown
@@ -71,7 +72,9 @@ it('clears every legacy repository default once while preserving settings and pl
   expect(new RepoStore(db).list()).toEqual(
     oldRepos.map((repo) => ({ ...repo, default_base_branch: '' })),
   );
-  expect(db.prepare('SELECT * FROM projects ORDER BY id').all()).toEqual(oldProjects);
+  expect(db.prepare('SELECT * FROM projects ORDER BY id').all()).toEqual(
+    oldProjects.map((row) => ({ ...row, colour: null })),
+  );
   expect(db.prepare('SELECT * FROM sessions ORDER BY id').all()).toEqual(
     oldSessions.map((row) => ({ ...row, agent_mode: 'interactive' })),
   );

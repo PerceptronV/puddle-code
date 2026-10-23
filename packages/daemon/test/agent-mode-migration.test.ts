@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,7 +10,6 @@ import { AccountStore } from '../src/db/stores/accounts.js';
 import { ConversationStore } from '../src/db/stores/conversations.js';
 import { EventStore } from '../src/db/stores/events.js';
 import { ProfileStore } from '../src/db/stores/profiles.js';
-import { ProjectStore } from '../src/db/stores/projects.js';
 import { RepoStore } from '../src/db/stores/repos.js';
 import { SessionStore } from '../src/db/stores/sessions.js';
 
@@ -34,11 +33,12 @@ it('migrates saved scripted sessions to headless while preserving their state an
     onboarding_notes: null,
     fetch_enabled: true,
   });
-  const project = new ProjectStore(db).create({
-    profile_id: profile.id,
-    repo_id: repo.id,
-    name: 'test',
-  });
+  // Seed the historical schema independently of current project-store fields.
+  const projectId = randomBytes(5).toString('hex');
+  const now = new Date().toISOString();
+  db.prepare(
+    'INSERT INTO projects (id, profile_id, repo_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+  ).run(projectId, profile.id, repo.id, 'test', now, now);
   const account = new AccountStore(db).create({
     profile_id: profile.id,
     agent_type: 'codex',
@@ -59,7 +59,7 @@ it('migrates saved scripted sessions to headless while preserving their state an
     });
     const session = sessions.create({
       id: randomUUID(),
-      project_id: project.id,
+      project_id: projectId,
       account_id: account.id,
       conversation_id: conversation.id,
       worktree_path: repo.path,
