@@ -308,7 +308,16 @@ export class CompilationService {
     this.emit({ type: 'started', key: state.key, status: state.status });
     const command = this.commandOverride(state, mode);
     state.running = state.provider
-      .run(state.source, { mode, command })
+      .run(state.source, {
+        mode,
+        command,
+        ...(state.provider.terminal
+          ? {
+              ...(state.projectId ? { projectId: state.projectId } : {}),
+              ...(state.profileId ? { profileId: state.profileId } : {}),
+            }
+          : {}),
+      })
       .then((product) => {
         const result = responseOf(state.provider, product, revision);
         state.status = {
@@ -436,6 +445,7 @@ function responseOf(
     revision,
     source: product.source,
     artifacts: product.artifacts,
+    ...(product.terminal ? { terminal: product.terminal } : {}),
     ...(product.navigation ? { navigation: product.navigation } : {}),
   };
 }

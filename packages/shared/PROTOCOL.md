@@ -263,3 +263,14 @@ controls. Existing notebook runs retain their compilation request/result shapes
 and managed artefacts while reusing a daemon-owned kernel. Newer clients hide
 kernel controls until confirming 24.6. No connector allowlist or remote envelope
 changes; remote protocol remains 4.
+
+Protocol 25.0 makes programming-language execution terminal-only. Providers
+advertise `terminal`, and every ordinary run launches a new terminal placement
+returned in the result. Both compilation and programme execution happen in that
+PTY; a successful response confirms launch, with completion and errors shown in
+the terminal. There is no terminal-selection request flag or captured-output
+fallback for programming languages. This changes the meaning of existing code
+run requests/results, so the major advances. Upgrade daemon and CLI/desktop
+together through the normal handshake. LaTeX and notebook providers retain their
+previews. Compilation remains local/SSH-only, outside the connector allowlist;
+remote protocol remains 4.

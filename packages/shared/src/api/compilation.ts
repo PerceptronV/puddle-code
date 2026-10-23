@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { profileId, projectId, sessionId } from './common.js';
+import { sessionSchema } from './sessions.js';
 
 /** How a compilable source is driven while its tab is open. */
 export const compilationModeSchema = z.enum(['on_demand', 'eager']);
@@ -29,6 +30,8 @@ export const compilationProviderSchema = z.object({
   eager: z.boolean(),
   /** Omitted by older providers, whose action remains compilation. */
   action: z.enum(['compile', 'run']).optional(),
+  /** Runs always launch a terminal, including any compilation step (25.0). */
+  terminal: z.boolean().optional(),
 });
 export type CompilationProvider = z.infer<typeof compilationProviderSchema>;
 
@@ -95,6 +98,8 @@ export const compilationRunResponseSchema = z.object({
   /** The provider-resolved entry point (for LaTeX, the root TeX document). */
   source: compilationFileTargetSchema,
   artifacts: z.array(compilationArtifactSchema),
+  /** Newly launched terminal placement; success means launched, not programme completion. */
+  terminal: sessionSchema.optional(),
   /** Provider-owned navigation format available for the artifacts, if any. */
   navigation: z.object({ kind: z.string().min(1) }).optional(),
 });

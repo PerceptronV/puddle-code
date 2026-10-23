@@ -10,6 +10,7 @@ import { AdapterRegistry } from './agents/registry.js';
 import { loadConfig } from './config.js';
 import { NotebookKernels } from './notebooks/kernels.js';
 import { createCodeProviders } from './code/provider.js';
+import { createCodeTerminalLauncher } from './code/terminal.js';
 import { CompilationService } from './compilation/service.js';
 import { openDatabase } from './db/db.js';
 import { AccountStore } from './db/stores/accounts.js';
@@ -124,15 +125,6 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     const latex = new LatexProvider({ sessions, repos });
     const notebooks = new NotebookKernels({ sessions, repos });
     failedStartup.push(() => notebooks.dispose());
-    const compilation = new CompilationService(
-      [latex, ...createCodeProviders({ sessions, repos, notebooks })],
-      {
-        settings: compilationSettings,
-        projects,
-        profiles,
-      },
-    );
-    failedStartup.push(() => compilation.dispose());
     const onboarding = new MarkerFileSync({ repos, events, sessions });
     failedStartup.push(() => onboarding.dispose());
     const adapters = new AdapterRegistry(opts.adapters ?? [claudeCode, codex, opencode, geminiCli]);
@@ -163,6 +155,19 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       shellHooks,
       statusQuietMs: opts.statusQuietMs,
     });
+    const compilation = new CompilationService(
+      [
+        latex,
+        ...createCodeProviders({
+          sessions,
+          repos,
+          notebooks,
+          launchTerminal: createCodeTerminalLauncher({ sessions, repos, projects, service, ptys }),
+        }),
+      ],
+      { settings: compilationSettings, projects, profiles },
+    );
+    failedStartup.push(() => compilation.dispose());
     const puddlang = new PuddlangService(new PuddlangStore(db), {
       profiles,
       accounts,

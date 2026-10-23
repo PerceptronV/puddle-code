@@ -3,6 +3,7 @@ import type {
   CompilationFileTarget,
   CompilationMode,
   CompilationProvider as CompilationProviderDescriptor,
+  Session,
 } from '@puddle/shared';
 
 export interface CompilationProviderCapability {
@@ -18,6 +19,7 @@ export interface CompilationProviderResult {
   navigation?: { kind: string };
   /** Absolute source-side files whose changes should trigger an eager rebuild. */
   dependencies: string[];
+  terminal?: Session;
 }
 
 export interface CompilationCommandConfiguration {
@@ -32,6 +34,8 @@ export interface CompilationRunOptions {
   mode: CompilationMode;
   /** Null means retain the provider's built-in command selection/orchestration. */
   command: string | null;
+  projectId?: string;
+  profileId?: string;
 }
 
 /** One language/toolchain implementation behind the generic compile service. */
@@ -42,6 +46,7 @@ export interface CompilationProvider {
   readonly inputExtensions: readonly string[];
   readonly eager: boolean;
   readonly action?: 'compile' | 'run';
+  readonly terminal?: boolean;
   capability(): CompilationProviderCapability;
   /** Host defaults without requiring an existing file. */
   languageConfiguration(): Omit<CompilationCommandConfiguration, 'filePath'>;
@@ -68,6 +73,7 @@ export function descriptorOf(provider: CompilationProvider): CompilationProvider
     executor: capability.executor,
     eager: provider.eager,
     ...(provider.action ? { action: provider.action } : {}),
+    ...(provider.terminal ? { terminal: true } : {}),
   };
 }
 

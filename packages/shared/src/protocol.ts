@@ -306,4 +306,5 @@
 // 24.4: profile language defaults and inherited per-file compilation commands.
 // 24.5: optional project colours drawn from the profile icon palette.
 // 24.6: daemon-owned notebook kernels and explicit kernel lifecycle controls.
-export const PROTOCOL_VERSION = { major: 24, minor: 6 } as const;
+// 25.0: programming-language runs always compile and execute in a terminal.
+export const PROTOCOL_VERSION = { major: 25, minor: 0 } as const;

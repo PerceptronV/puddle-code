@@ -1,18 +1,22 @@
 # Code files and notebooks
 
 Run against a daemon started from a plain shell, locally and over SSH. Tool
-discovery and execution must occur on that host, using protocol 24.6 or newer.
+discovery and execution must occur on that host, using protocol 25.0 or newer.
 
 1. Open a Python file with a visible print statement. With Python installed,
-   the tab offers **Run file** and **Compilation Settings…**, with only the
+   the tab offers **Run in terminal** and **Compilation Settings…**, with only the
    **When clicked** command. No lightning control appears. Edit without saving,
-   then run: the edit is saved first and the output opens beside the source.
+   then run: the edit is saved first and a new terminal opens beside the source.
+   Read input with `input()`, answer in the terminal and verify the reply.
+   After exit, use the shell prompt. Interrupt a loop with Ctrl+C and use the
+   prompt again. Resume the terminal: the programme must not replay.
    Change a file on disk: it must never execute automatically.
 2. Repeat with C and C++ using the host's `cc`/`c++`, Clang or GCC. Use command
    settings to select a second installed compiler and add standard/include/link
    flags while retaining `{{binary}}`. Verify the programme runs after a
-   successful build. Introduce a syntax error: show compiler output, keep the
-   last successful result, and never execute an old binary. Use a filename and
+   successful build, with compiler output and programme input/output in the same
+   terminal. Introduce a syntax error: show compiler output and the
+   exit status in the new terminal, and never execute an old binary. Use a filename and
    directory containing spaces and shell punctuation.
 3. Check another installed interpreter (JavaScript, TypeScript, Go, Ruby, Perl,
    R, Bash/Zsh) and Rust where available. Missing tools must not expose runnable
@@ -49,15 +53,18 @@ discovery and execution must occur on that host, using protocol 24.6 or newer.
    panes without obscuring notebook content. Generate is intentionally absent.
 
 9. Inspect `.puddle/code/<provider>/<source-hash>/`: outputs and binaries stay
-   under this source root, five recent runs remain, and the stable current
-   result refreshes only after success. Exercise an endless loop, excessive
-   stdout and daemon shutdown; ordinary bounded commands and their process groups stop; notebook output limits interrupt the active execution while retaining the kernel.
-   Input-reading programmes receive EOF; interactive programmes use terminals.
+   under this source root. Live terminal runs remain available even after more
+   than five runs; exiting those terminals leaves five recent completed runs.
+   Run a programme for more than two minutes, reconnect and verify input still
+   works. Exercise terminal kill and daemon shutdown. Notebook output limits
+   interrupt the active execution while retaining the kernel. No programming-
+   language run opens a text-output artefact or offers the old captured-output
+   behaviour. Older daemon/client majors require the normal handshake upgrade.
 10. Verify LaTeX still has both manual and eager controls, custom commands,
    generated PDF refresh and inverse SyncTeX. In the remote mobile Files view,
    verify notebook preview is inert and read-only; remote execution is absent.
 
-Automated coverage: `code-provider.test.ts`, `notebook-kernels.test.ts` (when Jupyter is installed), `notebook-routes.test.ts`, `notebook-format.test.ts`, and
+Automated coverage: `code-terminal.test.ts`, `code-provider.test.ts`, `notebook-kernels.test.ts` (when Jupyter is installed), `notebook-routes.test.ts`, `notebook-format.test.ts`, and
 `e2e/notebook.test.ts`; the existing compilation and LaTeX suites cover shared
 orchestration and command settings. Notebook execution uses Jupyter's
 [kernel manager API](https://jupyter-client.readthedocs.io/en/stable/api/jupyter_client.html#jupyter_client.manager.KernelManager) and [notebook client](https://nbclient.readthedocs.io/en/latest/client.html)

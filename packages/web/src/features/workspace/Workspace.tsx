@@ -586,6 +586,13 @@ function WorkspaceInner() {
         clearCompilationDiagnostics(
           compilationSourceKey(result.source.session, result.source.path, result.source.root),
         );
+        if (result.terminal) {
+          await qc.invalidateQueries({ queryKey: ['sessions'] });
+          void qc.invalidateQueries({ queryKey: ['project', result.terminal.project_id] });
+          layoutRef.current.ensureTerminal(result.terminal.id);
+          void navigate(`/project/${result.terminal.project_id}/session/${result.terminal.id}`);
+          return;
+        }
         presentCompilationResult(leafId, result, true);
         toast.success(
           `${provider.action === 'run' ? 'Ran' : 'Compiled'} ${basename(result.source.path)}`,
@@ -602,6 +609,8 @@ function WorkspaceInner() {
       compilationTarget,
       presentCompilationResult,
       runCompilation,
+      qc,
+      navigate,
     ],
   );
 

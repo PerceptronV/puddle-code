@@ -332,8 +332,20 @@ function CompilationControls({
           'hidden rounded-sm p-0.5 transition-colors hover:text-fg disabled:cursor-wait group-hover:inline-flex pointer-coarse:inline-flex',
           eager ? 'text-fg-muted' : 'text-accent',
         )}
-        aria-label={provider?.action === 'run' ? 'Run file' : 'Compile on demand'}
-        title={provider?.action === 'run' ? 'Run file' : 'Compile on demand'}
+        aria-label={
+          provider?.terminal
+            ? 'Run in terminal'
+            : provider?.action === 'run'
+              ? 'Run file'
+              : 'Compile on demand'
+        }
+        title={
+          provider?.terminal
+            ? 'Run in terminal'
+            : provider?.action === 'run'
+              ? 'Run file'
+              : 'Compile on demand'
+        }
       >
         {running && !eager ? (
           <LoaderCircle className="size-3 animate-spin" />

@@ -20,12 +20,14 @@ import { ApiError } from '../http/errors.js';
 import { containedPath, resolveFsRoot, type WorktreeDeps } from '../http/routes/worktree-shared.js';
 import { codeSearchDirectories, findCodeExecutable } from './discovery.js';
 import { CODE_RECIPES, recipeCommand, type CodeRecipe } from './recipes.js';
+import type { CodeTerminalLauncher } from './terminal.js';
 
 interface CodeProviderDeps extends WorktreeDeps {
   discover?: (names: readonly string[]) => string | null;
   runner?: CompilationCommandRunner;
   timeoutMs?: number;
   notebooks?: NotebookKernels;
+  launchTerminal?: CodeTerminalLauncher;
 }
 
 /** Manual host execution through the ordinary compilation lifecycle and authority. */
@@ -34,6 +36,7 @@ export class CodeProvider implements CompilationProvider {
   readonly action = 'run';
   private readonly mutex = new KeyedMutex();
   private disposed = false;
+  private readonly activeRuns = new Set<string>();
 
   constructor(
     readonly recipe: CodeRecipe,
@@ -42,6 +45,9 @@ export class CodeProvider implements CompilationProvider {
 
   get id() {
     return this.recipe.id;
+  }
+  get terminal() {
+    return !this.recipe.notebook;
   }
   get displayName() {
     return this.recipe.name;
@@ -119,6 +125,11 @@ export class CodeProvider implements CompilationProvider {
         'Code runs only when explicitly requested',
       );
     }
+    if (this.terminal && !this.deps.launchTerminal)
+      throw ApiError.conflict(
+        'terminal_execution_unavailable',
+        'Programme execution requires a terminal launcher',
+      );
     const { root, absolute } = this.source(request);
     const identity = realpathSync(absolute);
     return this.mutex.run(identity, async () => {
@@ -143,7 +154,6 @@ export class CodeProvider implements CompilationProvider {
         output_dir: runDir,
         binary,
       });
-      const runner = this.deps.runner ?? runCompilationCommand;
       const context = {
         cwd: dirname(absolute),
         env: { ...process.env, PATH: codeSearchDirectories().join(delimiter) },
@@ -152,26 +162,50 @@ export class CodeProvider implements CompilationProvider {
       await mkdir(runDir, { recursive: true, mode: 0o700 });
       let output = '';
       try {
-        if (this.recipe.notebook && this.deps.notebooks) {
+        if (this.terminal && this.deps.launchTerminal) {
+          const launched = await this.deps.launchTerminal(request, options, {
+            cwd: context.cwd,
+            env: { PATH: context.env.PATH },
+            commands: [command, ...(this.recipe.compiled ? [{ file: binary, args: [] }] : [])],
+          });
+          const activeRun = realpathSync(runDir);
+          this.activeRuns.add(activeRun);
+          // A live programme may still need its binary or output directory.
+          // Retire it only when its terminal exits, never during another run.
+          void launched.exited
+            .then(() =>
+              this.mutex.run(identity, async () => {
+                this.activeRuns.delete(activeRun);
+                await this.pruneRuns(runs);
+              }),
+            )
+            .catch(() => undefined);
+          return {
+            executor: basename(command.file),
+            source: request,
+            dependencies: [absolute],
+            artifacts: [],
+            terminal: launched.session,
+          };
+        }
+        // Only notebooks produce a preview artefact. Programming languages
+        // always return their terminal above, including their build step.
+        if (this.deps.notebooks) {
           await this.deps.notebooks.execute(absolute, join(runDir, 'notebook.ipynb'), command);
         } else {
-          const result = await runner({ ...command, ...context });
+          const result = await (this.deps.runner ?? runCompilationCommand)({
+            ...command,
+            ...context,
+          });
           output += result.stdout + result.stderr;
-        }
-        if (this.recipe.compiled) {
-          const executed = await runner({ file: binary, args: [], ...context });
-          output += executed.stdout + executed.stderr;
         }
         await writeFile(
           join(runDir, 'output.txt'),
           output || 'Finished successfully (no output).\n',
           { mode: 0o600 },
         );
-        const outputName = this.recipe.notebook ? 'notebook.ipynb' : 'output.txt';
-        const product = join(runDir, outputName);
-        const artifactName = this.recipe.notebook
-          ? `${basename(request.path, '.ipynb')}.executed.ipynb`
-          : `${basename(request.path)}.output.txt`;
+        const product = join(runDir, 'notebook.ipynb');
+        const artifactName = `${basename(request.path, '.ipynb')}.executed.ipynb`;
         const info = await stat(product);
         if (!info.isFile() || info.size > 5 * 1024 * 1024) {
           throw new Error('Run output exceeds the 5 MiB editor limit');
@@ -191,12 +225,13 @@ export class CodeProvider implements CompilationProvider {
           artifacts: [
             {
               role: 'preview',
-              media_type: this.recipe.notebook ? 'application/x-ipynb+json' : 'text/plain',
+              media_type: 'application/x-ipynb+json',
               file: { session: request.session, root: current, path: artifactName },
             },
           ],
         };
       } catch (error) {
+        if (this.terminal) throw error;
         if (error instanceof CompilationCommandError && error.result)
           output += error.result.stdout + error.result.stderr;
         await writeFile(join(runDir, 'output.txt'), output, { mode: 0o600 });
@@ -210,19 +245,28 @@ export class CodeProvider implements CompilationProvider {
           },
         );
       } finally {
-        const entries = await readdir(runs, { withFileTypes: true });
-        for (const entry of entries
-          .filter((entry) => entry.isDirectory())
-          .sort((a, b) => b.name.localeCompare(a.name))
-          .slice(5)) {
-          await rm(join(runs, entry.name), { recursive: true, force: true });
-        }
+        // Cleanup cannot turn an already-launched programme into a failed
+        // response, leaving the user without its terminal destination.
+        await this.pruneRuns(runs).catch(() => undefined);
       }
     });
   }
 
   dispose(): void {
     this.disposed = true;
+  }
+
+  private async pruneRuns(runs: string): Promise<void> {
+    const canonicalRuns = realpathSync(runs);
+    const entries = await readdir(runs, { withFileTypes: true });
+    for (const entry of entries
+      .filter(
+        (entry) => entry.isDirectory() && !this.activeRuns.has(join(canonicalRuns, entry.name)),
+      )
+      .sort((a, b) => b.name.localeCompare(a.name))
+      .slice(5)) {
+      await rm(join(runs, entry.name), { recursive: true, force: true });
+    }
   }
 
   private source(request: CompilationFileTarget) {

@@ -40,6 +40,7 @@ import { StatusDetector, type DetectedStatus } from '../pty/status-detector.js';
 import type { CreateWorktreeResult, WorktreeManager } from '../worktrees/manager.js';
 import type { ConversationShare } from './conversation-share.js';
 import { buildHandoffPrompt } from './handoff.js';
+import { terminalCommandArgs, type TerminalCommand } from './terminal-command.js';
 import {
   buildConcurrentWorktreeNote,
   buildInterruptedResumeNote,
@@ -576,11 +577,27 @@ export class SessionService extends EventEmitter {
       : this.deps.worktrees.attachShared({ repo, baseBranch: input.base_branch });
   }
 
+  /** Internal explicit execution; the command is never persisted or replayed on resume. */
+  async createCommandTerminal(
+    input: CreateSessionRequest,
+    command: TerminalCommand,
+  ): Promise<Session> {
+    const project = this.deps.projects.get(input.project_id);
+    return this.createTerminal(
+      { ...input, kind: 'terminal' },
+      project,
+      this.deps.profiles.get(project.profile_id),
+      this.deps.repos.get(project.repo_id),
+      command,
+    );
+  }
+
   private async createTerminal(
     input: CreateSessionRequest,
     project: ReturnType<ProjectStore['get']>,
     profile: ReturnType<ProfileStore['get']>,
     repo: ReturnType<RepoStore['get']>,
+    command?: TerminalCommand,
   ): Promise<Session> {
     const separateBranch = input.separate_branch === true; // default off for terminals
     const separateWorktree = input.separate_worktree === true; // terminals: share by default
@@ -608,7 +625,7 @@ export class SessionService extends EventEmitter {
       // Validated before the row exists, so a bad cwd leaves no half-made session.
       cwd: this.validateCwd(worktree.worktreePath, input.cwd),
     });
-    this.spawnTerminal(sessionId, this.startDirOf(session));
+    this.spawnTerminal(sessionId, this.startDirOf(session), command);
     this.deps.events.record(sessionId, 'created', {
       branch: worktree.branch,
       base_ref: worktree.baseRef,
@@ -658,10 +675,16 @@ export class SessionService extends EventEmitter {
       : session.worktree_path;
   }
 
-  private spawnTerminal(sessionId: string, worktreePath: string): void {
+  private spawnTerminal(sessionId: string, worktreePath: string, command?: TerminalCommand): void {
     const { shell, args, env } = this.shellSpawnParts(sessionId);
     try {
-      this.deps.ptys.spawn(sessionId, 'agent', shell, args, { cwd: worktreePath, env });
+      this.deps.ptys.spawn(
+        sessionId,
+        'agent',
+        command ? '/bin/sh' : shell,
+        command ? terminalCommandArgs(command, shell, args) : args,
+        { cwd: command?.cwd ?? worktreePath, env: { ...env, ...command?.env } },
+      );
     } catch (e) {
       this.transition(sessionId, 'exited');
       this.deps.events.record(sessionId, 'spawn_failed', { message: (e as Error).message });

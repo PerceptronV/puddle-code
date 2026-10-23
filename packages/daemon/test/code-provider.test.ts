@@ -1,18 +1,15 @@
 import { chmodSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
-import { compilationCapabilitiesResponseSchema } from '@puddle/shared';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { compilationCapabilitiesResponseSchema, type Session } from '@puddle/shared';
 import { CodeProvider, createCodeProviders } from '../src/code/provider.js';
 import { findCodeExecutable } from '../src/code/discovery.js';
 import { CODE_RECIPES } from '../src/code/recipes.js';
 import { CompilationService } from '../src/compilation/service.js';
-import {
-  CompilationCommandError,
-  runCompilationCommand,
-  type CompilationCommand,
-} from '../src/compilation/process.js';
+import { runCompilationCommand } from '../src/compilation/process.js';
 import { commandTemplate } from '../src/compilation/command-template.js';
+import type { CodeTerminalLauncher } from '../src/code/terminal.js';
 import type { RepoStore } from '../src/db/stores/repos.js';
 import type { SessionStore } from '../src/db/stores/sessions.js';
 import { NO_SESSION } from '../src/http/routes/worktree-shared.js';
@@ -55,96 +52,105 @@ describe('code providers', () => {
     }
   });
 
-  it('runs literal paths without a shell and atomically replaces the stable output', async () => {
-    const root = directory();
-    const path = 'hello $(touch unwanted).js';
-    writeFileSync(join(root, path), 'console.log("first"); console.error("warning");');
-    const provider = new CodeProvider(recipe('javascript'), {
-      ...deps,
-      discover: () => process.execPath,
-    });
-    const source = { session: NO_SESSION, root, path };
-    const first = await provider.run(source, options);
-    const file = first.artifacts[0]!.file;
-    expect(file.root).toContain(join(root, '.puddle', 'code'));
-    expect(readFileSync(join(file.root!, file.path), 'utf8')).toBe('first\nwarning\n');
-    writeFileSync(join(root, path), 'console.log("second");');
-    const second = await provider.run(source, options);
-    expect(second.artifacts[0]!.file).toEqual(file);
-    expect(readFileSync(join(file.root!, file.path), 'utf8')).toBe('second\n');
-    writeFileSync(join(root, path), 'console.error("broken"); process.exit(3);');
-    await expect(provider.run(source, options)).rejects.toMatchObject({
-      code: 'code_run_failed',
-      details: { output: 'broken\n', source },
-    });
-    expect(readFileSync(join(file.root!, file.path), 'utf8')).toBe('second\n');
-    expect(readdirSync(root)).not.toContain('unwanted');
-    await expect(provider.run({ ...source, path: '../escape.js' }, options)).rejects.toThrow(
-      /escapes/,
-    );
-  });
-
-  it.each(['c', 'cpp', 'rust'])(
-    'executes %s output only after a successful compile',
-    async (id) => {
+  it.each(CODE_RECIPES.filter((entry) => !entry.notebook))(
+    'runs $name exclusively in a terminal, including its compiler',
+    async (entry) => {
       const root = directory();
-      const path = `main.${recipe(id).extensions[0]}`;
+      const path = `main ' $(touch unwanted).${entry.extensions[0]}`;
       writeFileSync(join(root, path), 'source');
-      const commands: CompilationCommand[] = [];
-      let fail = false;
-      const provider = new CodeProvider(recipe(id), {
+      const terminal: Session = {
+        id: '00000000-0000-0000-0000-000000000001',
+        project_id: 'project123',
+        account_id: null,
+        worktree_path: root,
+        base_branch: 'main',
+        branch: 'main',
+        separate_branch: false,
+        kind: 'terminal',
+        agent_type: null,
+        agent_session_ref: null,
+        title: 'Run source',
+        status: 'running',
+        skip_permissions: false,
+        created_at: '2026-10-23T00:00:00.000Z',
+        updated_at: '2026-10-23T00:00:00.000Z',
+        last_activity_at: null,
+      };
+      const launchTerminal = vi.fn<CodeTerminalLauncher>(async () => ({
+        session: terminal,
+        exited: new Promise<void>(() => undefined),
+      }));
+      const runner = vi.fn();
+      const provider = new CodeProvider(entry, {
         ...deps,
-        discover: () => '/tools/compiler',
-        runner: async (command) => {
-          commands.push(command);
-          if (command.file === '/tools/compiler') {
-            if (fail)
-              throw new CompilationCommandError('compile failed', command, {
-                exitCode: 1,
-                stdout: '',
-                stderr: 'syntax error',
-              });
-            const binary = command.args[command.args.indexOf('-o') + 1]!;
-            writeFileSync(binary, 'executable');
-          }
-          return { exitCode: 0, stdout: 'ok\n', stderr: '' };
-        },
+        discover: () => '/tools/executor',
+        launchTerminal,
+        runner,
       });
       const source = { session: NO_SESSION, root, path };
       const result = await provider.run(source, options);
-      expect(commands).toHaveLength(2);
-      expect(commands[1]!.file).toBe(commands[0]!.args[2]);
-      expect(commands[1]!.cwd).toBe(root);
-      expect(commands[1]!.args).toEqual([]);
-      expect(result.artifacts[0]!.media_type).toBe('text/plain');
-      commands.length = 0;
-      fail = true;
-      await expect(provider.run(source, options)).rejects.toThrow('compile failed');
-      expect(commands).toHaveLength(1);
-      expect(() => provider.validateCommand(source, 'cc {{source}}')).toThrow(/binary/);
+      expect(result.terminal).toBe(terminal);
+      expect(result.artifacts).toEqual([]);
+      expect(runner).not.toHaveBeenCalled();
+      const customArgs = [
+        '{{source}}',
+        'literal $(touch unwanted)',
+        ...(entry.compiled ? ['-o', '{{binary}}'] : []),
+      ];
+      await provider.run(source, {
+        ...options,
+        command: commandTemplate('/tools/custom', customArgs),
+      });
+      expect(launchTerminal.mock.calls[1]![2].commands[0]).toMatchObject({
+        file: '/tools/custom',
+        args: [
+          join(root, path),
+          'literal $(touch unwanted)',
+          ...(entry.compiled ? ['-o', expect.any(String)] : []),
+        ],
+      });
+      expect(runner).not.toHaveBeenCalled();
+      const invocation = launchTerminal.mock.calls[0]![2];
+      expect(invocation.cwd).toBe(root);
+      expect(invocation.commands[0]!.file).toBe('/tools/executor');
+      expect(invocation.commands[0]!.args).toContain(join(root, path));
+      expect(invocation.commands).toHaveLength(entry.compiled ? 2 : 1);
+      if (entry.compiled) {
+        const build = invocation.commands[0]!;
+        expect(invocation.commands[1]).toEqual({
+          file: build.args[build.args.indexOf('-o') + 1],
+          args: [],
+        });
+        expect(() => provider.validateCommand(source, 'cc {{source}}')).toThrow(/binary/);
+      }
+      expect(readdirSync(root)).not.toContain('unwanted');
+      expect(
+        readdirSync(join(root, '.puddle', 'code', entry.id), { recursive: true }).some((name) =>
+          String(name).endsWith('output.txt'),
+        ),
+      ).toBe(false);
+      await expect(
+        provider.run({ ...source, path: '../escape.' + entry.extensions[0] }, options),
+      ).rejects.toThrow(/escapes/);
+      expect(() => provider.validateCommand(source, 'node {{source}} && echo nope')).toThrow(
+        /without a shell/,
+      );
     },
   );
 
-  it('runs custom arguments and keeps at most five fresh run directories', async () => {
+  it('fails without a terminal launcher instead of capturing programme output', async () => {
     const root = directory();
-    writeFileSync(join(root, 'main.js'), 'console.log(process.argv[2]);');
+    writeFileSync(join(root, 'main.js'), 'console.log(1);');
+    const runner = vi.fn();
     const provider = new CodeProvider(recipe('javascript'), {
       ...deps,
       discover: () => process.execPath,
+      runner,
     });
-    const source = { session: NO_SESSION, root, path: 'main.js' };
-    for (let run = 0; run < 6; run++) {
-      const result = await provider.run(source, {
-        ...options,
-        command: commandTemplate(process.execPath, ['{{source}}', `run ${run}`]),
-      });
-      const file = result.artifacts[0]!.file;
-      expect(readFileSync(join(file.root!, file.path), 'utf8')).toBe(`run ${run}\n`);
-      expect(readdirSync(join(dirname(file.root!), 'runs')).length).toBeLessThanOrEqual(5);
-    }
-    expect(() => provider.validateCommand(source, 'node {{source}} && echo nope')).toThrow(
-      /without a shell/,
-    );
+    await expect(
+      provider.run({ session: NO_SESSION, root, path: 'main.js' }, options),
+    ).rejects.toMatchObject({ code: 'terminal_execution_unavailable' });
+    expect(runner).not.toHaveBeenCalled();
   });
 
   it('executes notebooks into a separate result and preserves the original document', async () => {
