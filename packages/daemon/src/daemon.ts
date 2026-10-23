@@ -8,6 +8,7 @@ import { geminiCli } from './agents/gemini-cli/index.js';
 import { opencode } from './agents/opencode/index.js';
 import { AdapterRegistry } from './agents/registry.js';
 import { loadConfig } from './config.js';
+import { createCodeProviders } from './code/provider.js';
 import { CompilationService } from './compilation/service.js';
 import { openDatabase } from './db/db.js';
 import { AccountStore } from './db/stores/accounts.js';
@@ -120,10 +121,13 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     const scanner = new PortScanner({ ptys });
     const worktrees = new WorktreeManager({ paths, mutex: new KeyedMutex(), repos, sessions });
     const latex = new LatexProvider({ sessions, repos });
-    const compilation = new CompilationService([latex], {
-      settings: compilationSettings,
-      projects,
-    });
+    const compilation = new CompilationService(
+      [latex, ...createCodeProviders({ sessions, repos })],
+      {
+        settings: compilationSettings,
+        projects,
+      },
+    );
     failedStartup.push(() => compilation.dispose());
     const onboarding = new MarkerFileSync({ repos, events, sessions });
     failedStartup.push(() => onboarding.dispose());

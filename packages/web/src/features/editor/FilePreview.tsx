@@ -4,6 +4,8 @@ import { bufferKey, subscribe } from './buffer-store';
 import { ConflictSurface } from './ConflictSurface';
 import { useEditorBuffer } from './use-editor-buffer';
 import { previewKind, type PreviewKind } from './preview-kind';
+import { notebookTextEdit } from './notebook-format';
+import { NotebookPreview } from './NotebookPreview';
 import { TextFilePreview } from './TextFilePreview';
 
 /**
@@ -51,7 +53,7 @@ export function FilePreview({
 }) {
   const { openFile } = useEditor();
   const buffer = useEditorBuffer(session, path, null, root, {
-    passive: true,
+    passive: kind !== 'notebook',
     live: true,
     focused,
   });
@@ -66,7 +68,47 @@ export function FilePreview({
   if (buffer.conflict && buffer.conflict.phase !== 'unresolved') {
     return <ConflictSurface session={session} path={path} buffer={buffer} focused={focused} />;
   }
-  if (text === null) return null; // loading, or a binary masquerading by extension
+  if (text === null)
+    return (
+      <p className="p-6 text-sm text-fg-muted">
+        {buffer.status === 'loading'
+          ? 'Loading…'
+          : (buffer.errorMessage ?? 'This file cannot be previewed.')}
+      </p>
+    ); // loading, or a binary masquerading by extension
+  if (kind === 'notebook')
+    return (
+      <NotebookPreview
+        session={session}
+        path={path}
+        root={root}
+        text={text}
+        onChange={(value) => {
+          const model = buffer.model;
+          if (!model) return;
+          const edit = notebookTextEdit(model.getValue(), value);
+          const start = model.getPositionAt(edit.start);
+          const end = model.getPositionAt(edit.end);
+          model.pushStackElement();
+          model.pushEditOperations(
+            [],
+            [
+              {
+                range: {
+                  startLineNumber: start.lineNumber,
+                  startColumn: start.column,
+                  endLineNumber: end.lineNumber,
+                  endColumn: end.column,
+                },
+                text: edit.text,
+              },
+            ],
+            () => null,
+          );
+          model.pushStackElement();
+        }}
+      />
+    );
   return (
     <TextFilePreview
       session={session}

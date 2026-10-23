@@ -50,6 +50,7 @@ function extensionOf(path: string): string {
 function languageForPath(path: string): string {
   const ext = extensionOf(path);
   if (!ext) return 'plaintext';
+  if (ext.toLowerCase() === '.ipynb') return 'json';
   const match = monaco.languages.getLanguages().find((lang) => lang.extensions?.includes(ext));
   return match?.id ?? 'plaintext';
 }

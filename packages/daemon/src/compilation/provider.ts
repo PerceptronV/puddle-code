@@ -41,6 +41,7 @@ export interface CompilationProvider {
   readonly extensions: readonly string[];
   readonly inputExtensions: readonly string[];
   readonly eager: boolean;
+  readonly action?: 'compile' | 'run';
   capability(): CompilationProviderCapability;
   commandConfiguration(source: CompilationFileTarget): CompilationCommandConfiguration;
   validateCommand(source: CompilationFileTarget, command: string): void;
@@ -63,6 +64,7 @@ export function descriptorOf(provider: CompilationProvider): CompilationProvider
     available: capability.available,
     executor: capability.executor,
     eager: provider.eager,
+    ...(provider.action ? { action: provider.action } : {}),
   };
 }
 

@@ -2,6 +2,7 @@ import { Fragment, useMemo } from 'react';
 import { Group, Panel, Separator, type Layout } from 'react-resizable-panels';
 import type {
   CompilationMode,
+  CompilationProvider,
   CompilationFileTarget,
   LatexSynctexResponse,
   LayoutLeaf,
@@ -37,6 +38,7 @@ export interface TileHandlers {
   onSetTabView: (leafId: string, ref: TabRef, view: EditorView) => void;
   /** Extensions claimed by available daemon compilation providers. */
   compilableExtensions: ReadonlySet<string>;
+  compilationProviders: readonly CompilationProvider[];
   /** Browser-local identity of the source currently running, when any. */
   compilationRunningKeys: ReadonlySet<string>;
   onRunCompilation: (leafId: string, tab: EditorTab) => void;
@@ -106,6 +108,7 @@ function TileNode({ node, ...handlers }: { node: LayoutNode } & TileHandlers) {
         onDropTab={handlers.onDropTab}
         onSetTabView={handlers.onSetTabView}
         compilableExtensions={handlers.compilableExtensions}
+        compilationProviders={handlers.compilationProviders}
         compilationRunningKeys={handlers.compilationRunningKeys}
         onRunCompilation={handlers.onRunCompilation}
         onSetCompilationMode={handlers.onSetCompilationMode}

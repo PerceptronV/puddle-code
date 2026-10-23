@@ -4,6 +4,7 @@ import { Eye, FileCode, Link, LoaderCircle, Lock, Play, Zap, X } from 'lucide-re
 import type {
   CompilationFileTarget,
   CompilationMode,
+  CompilationProvider,
   LayoutLeaf,
   Session,
   TabRef,
@@ -17,7 +18,11 @@ import { editorTabLabel } from '../editor/buffer-logic';
 import { tabKind, type EditorTab, type EditorView } from '../editor/editor-tabs';
 import { LazyEditorDirtyDot, LazyEditorTabClose } from '../editor/lazy-editor-parts';
 import { previewKind } from '../editor/preview-kind';
-import { compilationSourceKey, isCompilableSource } from '../editor/compilation-kind';
+import {
+  compilationSourceKey,
+  isCompilableSource,
+  sourceExtension,
+} from '../editor/compilation-kind';
 import { FileTabContextMenu } from '../explorer/FileTabContextMenu';
 import { SessionContextMenu } from './SessionActions';
 import { SessionArchiveButton } from './SessionArchiveButton';
@@ -60,6 +65,7 @@ export function PaneTabStrip({
   onArchived,
   onSetView,
   compilableExtensions,
+  compilationProviders,
   compilationRunningKeys,
   onRunCompilation,
   onSetCompilationMode,
@@ -78,6 +84,7 @@ export function PaneTabStrip({
   onSetView: (ref: TabRef, view: EditorView) => void;
   /** Host provider capabilities and execution controls for compilable tabs. */
   compilableExtensions: ReadonlySet<string>;
+  compilationProviders: readonly CompilationProvider[];
   compilationRunningKeys: ReadonlySet<string>;
   onRunCompilation: (tab: EditorTab) => void;
   onSetCompilationMode: (tab: EditorTab, mode: CompilationMode) => void;
@@ -155,6 +162,13 @@ export function PaneTabStrip({
               ref.type === 'editor' ? ref.tab.path : '',
               compilableExtensions,
             )}
+            provider={
+              ref.type === 'editor'
+                ? compilationProviders.find((provider) =>
+                    provider.extensions.includes(sourceExtension(ref.tab.path) ?? ''),
+                  )
+                : undefined
+            }
             compilationRunning={
               ref.type === 'editor' &&
               compilationRunningKeys.has(
@@ -263,9 +277,11 @@ const VIEW_TITLE: Record<EditorView, string> = {
 
 function ViewToggle({
   view,
+  notebook = false,
   onSetView,
 }: {
   view: EditorView;
+  notebook?: boolean;
   onSetView: (view: EditorView) => void;
 }) {
   const Icon = VIEW_ICON[view];
@@ -273,11 +289,15 @@ function ViewToggle({
     <button
       onClick={(e) => {
         e.stopPropagation();
-        onSetView(VIEW_CYCLE[view]);
+        onSetView(notebook ? (view === 'source' ? 'preview' : 'source') : VIEW_CYCLE[view]);
       }}
       className="hidden rounded-sm p-0.5 text-fg-muted transition-colors hover:text-fg group-hover:inline-flex pointer-coarse:inline-flex"
-      aria-label={VIEW_TITLE[view]}
-      title={VIEW_TITLE[view]}
+      aria-label={
+        notebook ? (view === 'source' ? 'Show notebook' : 'Show JSON source') : VIEW_TITLE[view]
+      }
+      title={
+        notebook ? (view === 'source' ? 'Show notebook' : 'Show JSON source') : VIEW_TITLE[view]
+      }
     >
       <Icon className="size-3" />
     </button>
@@ -290,7 +310,9 @@ function CompilationControls({
   running,
   onRun,
   onSetMode,
+  provider,
 }: {
+  provider: CompilationProvider | undefined;
   mode: CompilationMode;
   running: boolean;
   onRun: () => void;
@@ -310,8 +332,8 @@ function CompilationControls({
           'hidden rounded-sm p-0.5 transition-colors hover:text-fg disabled:cursor-wait group-hover:inline-flex pointer-coarse:inline-flex',
           eager ? 'text-fg-muted' : 'text-accent',
         )}
-        aria-label="Compile on demand"
-        title="Compile on demand"
+        aria-label={provider?.action === 'run' ? 'Run file' : 'Compile on demand'}
+        title={provider?.action === 'run' ? 'Run file' : 'Compile on demand'}
       >
         {running && !eager ? (
           <LoaderCircle className="size-3 animate-spin" />
@@ -319,28 +341,30 @@ function CompilationControls({
           <Play className="size-3" />
         )}
       </button>
-      <button
-        type="button"
-        disabled={running}
-        onClick={(event) => {
-          event.stopPropagation();
-          onSetMode(eager ? 'on_demand' : 'eager');
-        }}
-        className={cn(
-          'hidden rounded-sm p-0.5 transition-colors hover:text-fg disabled:cursor-wait group-hover:inline-flex pointer-coarse:inline-flex',
-          eager ? 'text-accent' : 'text-fg-muted',
-        )}
-        aria-label={eager ? 'Disable eager compilation' : 'Enable eager compilation'}
-        title={
-          eager ? 'Eager compilation — switch to on demand' : 'Compile eagerly on disk changes'
-        }
-      >
-        {running && eager ? (
-          <LoaderCircle className="size-3 animate-spin" />
-        ) : (
-          <Zap className="size-3" />
-        )}
-      </button>
+      {provider?.eager && (
+        <button
+          type="button"
+          disabled={running}
+          onClick={(event) => {
+            event.stopPropagation();
+            onSetMode(eager ? 'on_demand' : 'eager');
+          }}
+          className={cn(
+            'hidden rounded-sm p-0.5 transition-colors hover:text-fg disabled:cursor-wait group-hover:inline-flex pointer-coarse:inline-flex',
+            eager ? 'text-accent' : 'text-fg-muted',
+          )}
+          aria-label={eager ? 'Disable eager compilation' : 'Enable eager compilation'}
+          title={
+            eager ? 'Eager compilation — switch to on demand' : 'Compile eagerly on disk changes'
+          }
+        >
+          {running && eager ? (
+            <LoaderCircle className="size-3 animate-spin" />
+          ) : (
+            <Zap className="size-3" />
+          )}
+        </button>
+      )}
     </>
   );
 }
@@ -361,6 +385,7 @@ function PaneTab({
   onArchived,
   onSetView,
   compilable,
+  provider,
   compilationRunning,
   onRunCompilation,
   onSetCompilationMode,
@@ -385,6 +410,7 @@ function PaneTab({
   onArchived: (session: string) => void;
   onSetView: (view: EditorView) => void;
   compilable: boolean;
+  provider: CompilationProvider | undefined;
   compilationRunning: boolean;
   onRunCompilation: () => void;
   onSetCompilationMode: (mode: CompilationMode) => void;
@@ -507,16 +533,23 @@ function PaneTab({
                     commits, and untitled drafts have no rendered counterpart. */}
                 {(tabKind(tab.tab) === 'file' || tabKind(tab.tab) === 'external') &&
                   previewKind(tab.tab.path) !== null && (
-                    <ViewToggle view={tab.tab.view ?? 'source'} onSetView={onSetView} />
+                    <ViewToggle
+                      notebook={previewKind(tab.tab.path) === 'notebook'}
+                      view={tab.tab.view ?? 'source'}
+                      onSetView={onSetView}
+                    />
                   )}
-                {(tabKind(tab.tab) === 'file' || tabKind(tab.tab) === 'external') && compilable && (
-                  <CompilationControls
-                    mode={tab.tab.compile_mode ?? 'on_demand'}
-                    running={compilationRunning}
-                    onRun={onRunCompilation}
-                    onSetMode={onSetCompilationMode}
-                  />
-                )}
+                {(tabKind(tab.tab) === 'file' || tabKind(tab.tab) === 'external') &&
+                  compilable &&
+                  !tab.tab.generated_by && (
+                    <CompilationControls
+                      provider={provider}
+                      mode={tab.tab.compile_mode ?? 'on_demand'}
+                      running={compilationRunning}
+                      onRun={onRunCompilation}
+                      onSetMode={onSetCompilationMode}
+                    />
+                  )}
                 <LazyEditorTabClose
                   session={tab.tab.session}
                   path={tab.tab.path}

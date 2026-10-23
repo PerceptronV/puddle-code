@@ -5,9 +5,10 @@
  * must stay outside the lazy editor chunk, like media-kind.ts.
  */
 
-export type PreviewKind = 'markdown' | 'html';
+export type PreviewKind = 'markdown' | 'html' | 'notebook';
 
 const BY_EXT: Record<string, PreviewKind> = {
+  ipynb: 'notebook',
   md: 'markdown',
   markdown: 'markdown',
   mdown: 'markdown',

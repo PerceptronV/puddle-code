@@ -27,6 +27,8 @@ export const compilationProviderSchema = z.object({
   /** The preferred host executable when available, for honest capability UI. */
   executor: z.string().min(1).nullable(),
   eager: z.boolean(),
+  /** Omitted by older providers, whose action remains compilation. */
+  action: z.enum(['compile', 'run']).optional(),
 });
 export type CompilationProvider = z.infer<typeof compilationProviderSchema>;
 

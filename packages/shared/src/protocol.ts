@@ -302,4 +302,5 @@
 // 24.0: rename the scripted execution mode to headless; no legacy wire alias.
 // 24.1: optional desktop notification subtitles for host/project and session headings.
 // 24.2: authenticated local-cockpit file-manager discovery and reveal requests.
-export const PROTOCOL_VERSION = { major: 24, minor: 2 } as const;
+// 24.3: optional compilation-provider action distinguishes code runs from builds.
+export const PROTOCOL_VERSION = { major: 24, minor: 3 } as const;

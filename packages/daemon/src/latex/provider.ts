@@ -30,12 +30,7 @@ import { containedPath, NO_SESSION, resolveFsRoot } from '../http/routes/worktre
 import { compileLatex, defaultLatexCommand } from './compiler.js';
 import { LatexBuildFailure, type LatexSourceDiagnostic } from './diagnostics.js';
 import { discoverLatexToolchain } from './discovery.js';
-import {
-  disposeLatexCommands,
-  LatexCommandError,
-  runLatexCommand,
-  type LatexCommandRunner,
-} from './process.js';
+import { LatexCommandError, runLatexCommand, type LatexCommandRunner } from './process.js';
 import { resolveLatexSource } from './source.js';
 import { capabilitiesOf, type LatexToolchain } from './toolchain.js';
 
@@ -68,10 +63,6 @@ export class LatexProvider implements CompilationProvider {
   private readonly mutex = new KeyedMutex();
 
   constructor(private readonly deps: LatexProviderDeps) {}
-
-  dispose(): void {
-    disposeLatexCommands();
-  }
 
   capability(): { available: boolean; executor: string | null } {
     const capabilities = capabilitiesOf(this.toolchain());

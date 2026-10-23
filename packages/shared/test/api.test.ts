@@ -32,8 +32,8 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 24.2 for local file-manager integration', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 24, minor: 2 });
+  it('declares protocol 24.3 for code execution providers', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 24, minor: 3 });
   });
 
   it('accepts headless mode and rejects the previous scripted name', () => {

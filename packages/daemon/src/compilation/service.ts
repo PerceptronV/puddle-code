@@ -22,6 +22,7 @@ import {
   type CompilationProvider,
   type CompilationProviderResult,
 } from './provider.js';
+import { disposeCompilationCommands } from './process.js';
 import { DependencyWatcher } from './dependency-watcher.js';
 
 const WATCH_IDLE_TTL_MS = 6 * 60 * 60 * 1_000;
@@ -179,6 +180,7 @@ export class CompilationService {
       state.watcher.close();
     }
     for (const provider of this.providers.values()) provider.dispose?.();
+    disposeCompilationCommands();
     this.targets.clear();
     this.listeners.clear();
   }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import type {
   CompilationMode,
+  CompilationProvider,
   CompilationFileTarget,
   LatexSynctexResponse,
   LayoutLeaf,
@@ -48,6 +49,7 @@ export function PaneLeaf({
   onDropTab,
   onSetTabView,
   compilableExtensions,
+  compilationProviders,
   compilationRunningKeys,
   onRunCompilation,
   onSetCompilationMode,
@@ -76,6 +78,7 @@ export function PaneLeaf({
   /** Set THIS pane's previewable editor tab's rendered/following mode (SPEC §8). */
   onSetTabView: (leafId: string, ref: TabRef, view: EditorView) => void;
   compilableExtensions: ReadonlySet<string>;
+  compilationProviders: readonly CompilationProvider[];
   compilationRunningKeys: ReadonlySet<string>;
   onRunCompilation: (leafId: string, tab: EditorTab) => void;
   onSetCompilationMode: (tab: EditorTab, mode: CompilationMode) => void;
@@ -231,6 +234,7 @@ export function PaneLeaf({
           onArchived={onArchived}
           onSetView={(ref, view) => onSetTabView(leaf.id, ref, view)}
           compilableExtensions={compilableExtensions}
+          compilationProviders={compilationProviders}
           compilationRunningKeys={compilationRunningKeys}
           onRunCompilation={(tab) => onRunCompilation(leaf.id, tab)}
           onSetCompilationMode={onSetCompilationMode}

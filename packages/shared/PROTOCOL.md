@@ -236,3 +236,10 @@ the operation even though their UI also lives on localhost; remote browser
 transports never call these routes. Older cockpits return 404 and the UI omits
 the menu action. No daemon or connector operation is added; remote protocol
 remains 4.
+
+Protocol 24.3 adds optional compilation-provider `action` (`compile` or `run`).
+Older clients ignore it; newer clients treat omission as compilation. Code and
+notebook providers reuse the existing capability/run/settings/status schemas,
+with `eager: false` and explicit execution only. Their artefacts use existing
+file targets. No remote allowlist, authority or envelope changes; remote
+protocol remains 4.

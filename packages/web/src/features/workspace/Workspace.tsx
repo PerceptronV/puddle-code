@@ -21,6 +21,7 @@ import { deleteDraft, saveDraft } from '../../lib/drafts';
 import { renameEntry } from '../../lib/worktree-queries';
 import { basename, dirOf, joinPath } from '../explorer/explorer-paths';
 import { tabKind } from '../editor/editor-tabs';
+import { previewKind } from '../editor/preview-kind';
 import { compilationSourceKey, sourceExtension } from '../editor/compilation-kind';
 import { CompilationWatcher } from '../editor/CompilationWatcher';
 import { CompilationSettingsDialog } from '../editor/CompilationSettingsDialog';
@@ -191,6 +192,7 @@ function WorkspaceInner() {
   const renderTitle = useSessionTitleRenderer();
   const saveKey = useHotkeyLabel('editor.save');
   const daemonProtocol = useDaemonVersion().data?.protocol;
+  const qc = useQueryClient();
   const compilationCapabilities = useCompilationCapabilities(compilationSupported(daemonProtocol));
   const commandSettingsAvailable = compilationSettingsSupported(daemonProtocol);
   const runCompilation = useRunCompilation();
@@ -534,6 +536,13 @@ function WorkspaceInner() {
       const preview = result.artifacts.find((artifact) => artifact.role === 'preview');
       if (!preview) return;
       bumpMediaRefresh(preview.file.session, preview.file.path, preview.file.root);
+      void qc.invalidateQueries({
+        queryKey:
+          preview.file.root === undefined
+            ? ['wt-file', preview.file.session, preview.file.path]
+            : ['wt-file', preview.file.session, preview.file.path, preview.file.root],
+        exact: true,
+      });
       layoutRef.current.openEditorInLeaf(
         leafId,
         {
@@ -543,11 +552,12 @@ function WorkspaceInner() {
             ? { kind: 'external' as const, root: preview.file.root }
             : { kind: 'file' as const }),
           generated_by: result.provider,
+          ...(previewKind(preview.file.path) ? { view: 'preview' as const } : {}),
         },
         { dedupeAcrossTree: true, activate },
       );
     },
-    [],
+    [qc],
   );
 
   const onRunCompilation = useCallback(
@@ -564,7 +574,7 @@ function WorkspaceInner() {
           new Set(provider.input_extensions),
         );
         if (!saved) {
-          toast.error('Compilation cancelled because an input could not be saved');
+          toast.error('Run cancelled because an input could not be saved');
           return;
         }
         if ((tab.compile_mode ?? 'on_demand') === 'eager') {
@@ -576,7 +586,9 @@ function WorkspaceInner() {
           compilationSourceKey(result.source.session, result.source.path, result.source.root),
         );
         presentCompilationResult(leafId, result, true);
-        toast.success(`Compiled ${basename(result.source.path)}`);
+        toast.success(
+          `${provider.action === 'run' ? 'Ran' : 'Compiled'} ${basename(result.source.path)}`,
+        );
       } catch (error) {
         reportCompilationFailure(sourceKey, error);
       } finally {
@@ -597,7 +609,7 @@ function WorkspaceInner() {
       const previous = tab.compile_mode ?? 'on_demand';
       if (previous === mode) return;
       const provider = compilationProviderForTab(tab);
-      if (!provider) return;
+      if (!provider || (mode === 'eager' && !provider.eager)) return;
       const target = compilationTarget(tab);
       if (
         mode === 'eager' &&
@@ -628,7 +640,7 @@ function WorkspaceInner() {
       for (const ref of leaf.tabs) {
         if (ref.type !== 'editor' || ref.tab.compile_mode !== 'eager') continue;
         const provider = providerForTab(ref.tab);
-        if (!provider) continue;
+        if (!provider || !compilationProviderForTab(ref.tab)?.eager) continue;
         const key = compilationSourceKey(ref.tab.session, ref.tab.path, ref.tab.root);
         if (!targets.has(key)) {
           targets.set(key, { leafId: leaf.id, target: compilationTarget(ref.tab) });
@@ -636,7 +648,7 @@ function WorkspaceInner() {
       }
     }
     return [...targets.entries()].map(([key, value]) => ({ key, ...value }));
-  }, [layout.tree, compilationTarget, providerForTab]);
+  }, [layout.tree, compilationTarget, providerForTab, compilationProviderForTab]);
 
   const onEagerCompilationResult = useCallback(
     (_sourceKey: string, leafId: string, result: CompilationRunResponse) => {
@@ -826,7 +838,11 @@ function WorkspaceInner() {
           ...(opts?.root !== undefined
             ? { kind: 'external' as const, session: sessionId, path, root: opts.root }
             : { kind: 'file' as const, session: sessionId, path }),
-          ...(opts?.view ? { view: opts.view } : {}),
+          ...(opts?.view
+            ? { view: opts.view }
+            : !position && previewKind(path) === 'notebook'
+              ? { view: 'preview' as const }
+              : {}),
         },
         position,
         opts,
@@ -910,7 +926,6 @@ function WorkspaceInner() {
   // worktree-AGNOSTIC, held in the profile's untitled store until ⌘S places
   // it into the bound worktree via the save-as dialogue below. The nil-uuid
   // `session` keeps the tab schema-valid while binding to nothing.
-  const qc = useQueryClient();
   // Feature-detect the untitled store (PROTOCOL.md rule 3): on a pre-10.3
   // daemon the POST would 404, which reads as a bug rather than a version
   // gap — say what is actually missing. Unknown (still fetching) reads as
@@ -1833,6 +1848,7 @@ function WorkspaceInner() {
           onDropTab={onDropTab}
           onSetTabView={layout.setView}
           compilableExtensions={compilableExtensions}
+          compilationProviders={availableCompilationProviders}
           compilationRunningKeys={compilationRunningKeys}
           onRunCompilation={(leafId, tab) => void onRunCompilation(leafId, tab)}
           onSetCompilationMode={onSetCompilationMode}
