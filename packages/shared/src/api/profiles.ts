@@ -20,19 +20,10 @@ export const RULES_TOKEN = '{{rules}}';
  * repo's user-authored standing rules. Editable per profile in Settings →
  * Sessions, where it may also be cleared to an empty preamble.
  */
-export const DEFAULT_ONBOARDING_TEMPLATE = `[puddle onboarding] This is a freshly created git worktree for this task. Before starting, set up the environment:
-
-1. Standing setup rules for this repository (user-authored):
-${RULES_TOKEN}
-
-2. Inspect the codebase for setup requirements (README, CONTRIBUTING, lockfiles, .tool-versions, pyproject.toml, package.json, …).
-3. Apply what the rules above settle without asking. Ask the user about anything they leave open, stating trade-offs where relevant (e.g. a symlinked .venv saves gigabytes per worktree, but parallel sessions then share mutable dependency state).
-4. If the user states a standing rule for all future worktrees ("always…", "never…", "from now on…"), write the complete updated rules to \`.puddle/onboarding-notes.md\` in this worktree — full replacement, user-owned prose; record their decision, don't invent policy.
-
-Then proceed with the task below (or await instructions if none is given).`;
+export const DEFAULT_ONBOARDING_TEMPLATE = `This is a freshly created git worktree for this task. Before starting, set up the environment as appropriate by reading any setup rules (see below) and inspecting the codebase. If the user states a rule for all future worktrees, write the complete updated rules to \`.puddle/onboarding-notes.md\` in this worktree. Setup rules:${RULES_TOKEN}`;
 
 /** Built-in launch text for joining an existing/shared worktree (SPEC §4). */
-export const DEFAULT_CONCURRENT_TEMPLATE = `[puddle] You are joining an existing branch and worktree that other agents may be working in concurrently. Files can change underneath you, so re-check the working tree before you act, and avoid disruptive git operations (resetting, force-pushing, or deleting the branch) that would disrupt work already in progress by others.`;
+export const DEFAULT_CONCURRENT_TEMPLATE = `You are joining an existing branch and worktree that other agents may be working in; files and git status may change concurrently.`;
 
 /**
  * Built-in launch text sent when a session is resumed after an INTERRUPTION —
@@ -40,7 +31,7 @@ export const DEFAULT_CONCURRENT_TEMPLATE = `[puddle] You are joining an existing
  * started are gone, so the default asks it to re-verify its environment.
  * Editable per profile in Settings → Sessions; an empty string sends nothing.
  */
-export const DEFAULT_RESTART_TEMPLATE = `This session was interrupted (daemon or machine restart). Processes you started are gone; re-verify your environment before continuing.`;
+export const DEFAULT_RESTART_TEMPLATE = `This session has been resumed. Your work and processes may or may not have been survived, and you may or may not have unfinished tasks. Please continue working or waiting as appropriate.`;
 
 /**
  * The variables a `tabTitleTemplate` may interpolate (`${name}` style), in the
