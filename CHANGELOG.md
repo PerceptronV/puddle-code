@@ -9,7 +9,3 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
-### Fixed
-
-- Reuse installed Node headers during CI and release dependency installation so native builds can recover from prebuilt-addon download failures without a second network request.
-- Normalise ANSI colours in programme-terminal test assertions so coloured Node output does not fail CI.
