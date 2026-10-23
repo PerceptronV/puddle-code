@@ -79,6 +79,14 @@ export class LatexProvider implements CompilationProvider {
     const command = defaultLatexCommand(source, this.toolchain());
     return {
       filePath: safeRealpath(requested),
+      ...this.languageConfiguration(),
+      defaults: { on_demand: command, eager: command },
+    };
+  }
+
+  languageConfiguration() {
+    const command = defaultLatexCommand({ content: '' }, this.toolchain());
+    return {
       fileType: 'tex',
       variables: [
         {
@@ -95,7 +103,7 @@ export class LatexProvider implements CompilationProvider {
     };
   }
 
-  validateCommand(_request: CompilationFileTarget, command: string): void {
+  validateCommand(_request: CompilationFileTarget | null, command: string): void {
     parseCommandTemplate(command);
     expandCommandTemplate(command, {
       source: '/source/main.tex',

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   compilationSupported,
+  compilationDefaultsSupported,
   compilationSettingsSupported,
   crossFiletreeTransferSupported,
   dynamicBaseBranchSupported,
@@ -26,6 +27,12 @@ describe('cross-filetree transfer compatibility gate', () => {
 });
 
 describe('compilation compatibility gate', () => {
+  it('requires confirmed protocol 24.4 for language defaults', () => {
+    expect(compilationDefaultsSupported(undefined)).toBe(false);
+    expect(compilationDefaultsSupported({ major: 24, minor: 3 })).toBe(false);
+    expect(compilationDefaultsSupported({ major: 24, minor: 4 })).toBe(true);
+    expect(compilationDefaultsSupported({ major: 25, minor: 0 })).toBe(true);
+  });
   it('enables host-side providers from protocol 17.1', () => {
     expect(compilationSupported({ major: 17, minor: 0 })).toBe(false);
     expect(compilationSupported({ major: 17, minor: 1 })).toBe(true);

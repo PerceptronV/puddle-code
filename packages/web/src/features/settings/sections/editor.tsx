@@ -1,3 +1,4 @@
+import { CompilationSection } from './compilation';
 import { Input } from '../../../components/ui/input';
 import { Switch } from '../../../components/ui/switch';
 import { updateClientSettings, useClientSettings } from '../../../lib/client-settings';
@@ -5,9 +6,9 @@ import { hostParamStore } from '../../../lib/editor-links';
 import { NumberField, SectionTitle, SettingRow } from '../parts';
 
 /**
- * Editor settings (SPEC §11, client scope): the Monaco knobs plus the
+ * Editor settings (SPEC §11): client Monaco knobs plus the
  * vscode://`/`cursor:// deep-link host. Terminal and daemon knobs live under
- * Sessions — this section is purely about the centre editor.
+ * Sessions. Compilation defaults belong to the selected profile on the host.
  */
 export function EditorSection() {
   const settings = useClientSettings();
@@ -48,6 +49,7 @@ export function EditorSection() {
           onChange={(e) => updateClientSettings({ editorLinkSshHost: e.target.value })}
         />
       </SettingRow>
+      <CompilationSection />
     </div>
   );
 }

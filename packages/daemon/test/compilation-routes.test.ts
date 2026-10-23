@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 import {
   compilationCapabilitiesResponseSchema,
+  compilationDefaultsResponseSchema,
   compilationRunResponseSchema,
   compilationSettingsResponseSchema,
   compilationStatusResponseSchema,
@@ -14,6 +15,7 @@ import { RepoStore } from '../src/db/stores/repos.js';
 import type { CompilationProvider } from '../src/compilation/provider.js';
 import { CompilationService } from '../src/compilation/service.js';
 import { ApiError } from '../src/http/errors.js';
+import { expandCommandTemplate } from '../src/compilation/command-template.js';
 import { compilationRoutes } from '../src/http/routes/compilation.js';
 
 const source = {
@@ -22,7 +24,7 @@ const source = {
   root: '/source',
 };
 
-function fixture() {
+function fixture(eager = true) {
   const db = openDatabase(':memory:');
   const profiles = new ProfileStore(db);
   const projects = new ProjectStore(db);
@@ -41,8 +43,16 @@ function fixture() {
     displayName: 'LaTeX',
     extensions: ['tex'],
     inputExtensions: ['tex', 'bib', 'sty', 'cls', 'bst'],
-    eager: true,
+    eager,
     capability: () => ({ available: true, executor: 'latexmk' }),
+    languageConfiguration: () => ({
+      fileType: 'tex',
+      variables: [],
+      defaults: {
+        on_demand: 'latexmk -outdir={{output_dir}} {{source}}',
+        eager: 'latexmk -outdir={{output_dir}} {{source}}',
+      },
+    }),
     commandConfiguration: (target) => ({
       filePath: `${target.root}/${target.path}`,
       fileType: 'tex',
@@ -55,7 +65,9 @@ function fixture() {
         eager: 'latexmk -outdir={{output_dir}} {{source}}',
       },
     }),
-    validateCommand: () => undefined,
+    validateCommand: (_source, command) => {
+      expandCommandTemplate(command, { source: '/source/paper.tex', output_dir: '/output' });
+    },
     watchInputs: () => [],
     run: async (target, options) => {
       commands.push(options);
@@ -77,6 +89,7 @@ function fixture() {
   const compilation = new CompilationService([provider], {
     settings: new CompilationSettingsStore(db),
     projects,
+    profiles,
   });
   const app = new Hono();
   app.onError((error, c) =>
@@ -85,7 +98,7 @@ function fixture() {
       : c.json({ error: { code: 'internal', message: String(error) } }, 500),
   );
   app.route('/api/compilation', compilationRoutes({ compilation }));
-  return { app, compilation, commands, profile, project };
+  return { app, compilation, commands, profile, project, profiles, db, provider };
 }
 
 function jsonRequest(method: string, body: unknown): RequestInit {
@@ -205,6 +218,97 @@ describe('compilation routes', () => {
       mode: 'eager',
       command: 'eager {{source}} --out {{output_dir}}',
     });
+    compilation.dispose();
+  });
+
+  it('inherits profile defaults, preserves file overrides, and resets each layer independently', async () => {
+    const { app, compilation, commands, profile, project, profiles, db } = fixture();
+    const defaults = { profile_id: profile.id, provider: 'latex' };
+    const scope = { profile_id: profile.id, project_id: project.id };
+    const putDefault = (command: string | null, mode = 'on_demand') =>
+      app.request('/api/compilation/defaults', jsonRequest('PUT', { ...defaults, mode, command }));
+    const run = async (path = source.path) => {
+      await app.request(
+        '/api/compilation/run',
+        jsonRequest('POST', { source: { ...source, path }, ...scope }),
+      );
+      return commands.at(-1)?.command;
+    };
+    const initial = await app.request('/api/compilation/defaults', jsonRequest('POST', defaults));
+    expect(initial.status).toBe(200);
+    expect(compilationDefaultsResponseSchema.parse(await initial.json()).commands).toHaveLength(2);
+    expect((await putDefault('profile-tex {{source}}')).status).toBe(200);
+    expect(await run()).toBe('profile-tex {{source}}');
+    expect(await run('other.tex')).toBe('profile-tex {{source}}');
+    const inherited = await app.request(
+      '/api/compilation/settings',
+      jsonRequest('POST', { source, ...scope }),
+    );
+    expect(
+      compilationSettingsResponseSchema.parse(await inherited.json()).commands[0],
+    ).toMatchObject({
+      inherited_command: 'profile-tex {{source}}',
+      default_command: 'latexmk -outdir={{output_dir}} {{source}}',
+      override_command: null,
+    });
+    // Existing per-file commands take precedence without being rewritten.
+    const fileOverride = { source, ...scope, mode: 'on_demand', command: 'file-tex {{source}}' };
+    await app.request('/api/compilation/settings', jsonRequest('PUT', fileOverride));
+    await putDefault('new-profile-tex {{source}}');
+    expect(await run()).toBe('file-tex {{source}}');
+    expect(await run('other.tex')).toBe('new-profile-tex {{source}}');
+    // SQLite is the source of truth, rather than service-local state.
+    expect(new CompilationSettingsStore(db).getDefault(profile.id, 'latex', 'on_demand')).toBe(
+      'new-profile-tex {{source}}',
+    );
+    const other = profiles.create({ name: 'other', branch_prefix: '' });
+    expect(
+      compilation.defaults({ ...defaults, profile_id: other.id }).commands[0]?.override_command,
+    ).toBeNull();
+    expect(compilation.defaults(defaults).commands[1]?.override_command).toBeNull();
+    await putDefault('eager-profile {{source}}', 'eager');
+    await app.request(
+      '/api/compilation/mode',
+      jsonRequest('PUT', { source, ...scope, mode: 'eager' }),
+    );
+    expect(commands.at(-1)?.command).toBe('eager-profile {{source}}');
+    await putDefault(null);
+    expect(await run()).toBe('file-tex {{source}}');
+    await app.request(
+      '/api/compilation/settings',
+      jsonRequest('PUT', { ...fileOverride, command: null }),
+    );
+    expect(await run()).toBeNull(); // Keeps provider-owned source/engine orchestration.
+    compilation.dispose();
+  });
+
+  it('validates defaults without requiring a source file and rejects unsupported eager commands', async () => {
+    const { app, compilation, profile } = fixture(false);
+    const request = {
+      profile_id: profile.id,
+      provider: 'latex',
+      mode: 'on_demand',
+      command: 'custom {{source}}',
+    };
+    for (const [patch, status] of [
+      [{ profile_id: '0000000000' }, 404],
+      [{ provider: 'missing' }, 400],
+      [{ mode: 'eager' }, 400],
+      [{ command: '' }, 400],
+      [{ command: 'custom {{unknown}}' }, 400],
+      [{ command: 'custom {{source}} && touch /tmp/should-not-run' }, 400],
+    ] as const) {
+      const response = await app.request(
+        '/api/compilation/defaults',
+        jsonRequest('PUT', { ...request, ...patch }),
+      );
+      expect(response.status).toBe(status);
+    }
+    const response = await app.request('/api/compilation/defaults', jsonRequest('PUT', request));
+    expect(response.status).toBe(200);
+    expect(compilationDefaultsResponseSchema.parse(await response.json()).commands).toEqual([
+      expect.objectContaining({ mode: 'on_demand', override_command: request.command }),
+    ]);
     compilation.dispose();
   });
 });

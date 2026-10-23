@@ -128,6 +128,8 @@ export const compilationCommandSlotSchema = z.object({
   run_when: z.enum(['when_clicked', 'upon_file_change']),
   default_command: z.string().min(1).nullable(),
   override_command: z.string().min(1).nullable(),
+  /** Profile language default inherited by this file (24.4); null uses the provider. */
+  inherited_command: z.string().min(1).nullable().optional(),
 });
 export type CompilationCommandSlot = z.infer<typeof compilationCommandSlotSchema>;
 
@@ -157,4 +159,25 @@ export const updateCompilationSettingsRequestSchema = compilationSettingsRequest
 });
 export type UpdateCompilationSettingsRequest = z.infer<
   typeof updateCompilationSettingsRequestSchema
+>;
+
+/** Profile-wide language defaults, independent of any open file or project (24.4). */
+export const compilationDefaultsRequestSchema = z.object({
+  profile_id: profileId,
+  provider: compilationProviderIdSchema,
+});
+export type CompilationDefaultsRequest = z.infer<typeof compilationDefaultsRequestSchema>;
+
+export const compilationDefaultsResponseSchema = compilationSettingsResponseSchema.omit({
+  file_type: true,
+  file_path: true,
+});
+export type CompilationDefaultsResponse = z.infer<typeof compilationDefaultsResponseSchema>;
+
+export const updateCompilationDefaultsRequestSchema = compilationDefaultsRequestSchema.extend({
+  mode: compilationModeSchema,
+  command: updateCompilationSettingsRequestSchema.shape.command,
+});
+export type UpdateCompilationDefaultsRequest = z.infer<
+  typeof updateCompilationDefaultsRequestSchema
 >;

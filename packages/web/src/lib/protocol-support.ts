@@ -33,6 +33,10 @@ export function compilationSettingsSupported(protocol: Protocol): boolean {
   return atLeast(protocol, 17, 3);
 }
 
+/** Profile-wide language commands (24.4); never request defaults on an older host. */
+export const compilationDefaultsSupported = (p: Protocol): boolean =>
+  p !== undefined && atLeast(p, 24, 4);
+
 /** Worktree-agnostic untitled drafts in the profile store (10.3). */
 export const untitledSupported = (p: Protocol): boolean => atLeast(p, 10, 3);
 

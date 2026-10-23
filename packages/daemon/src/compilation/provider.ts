@@ -43,8 +43,11 @@ export interface CompilationProvider {
   readonly eager: boolean;
   readonly action?: 'compile' | 'run';
   capability(): CompilationProviderCapability;
+  /** Host defaults without requiring an existing file. */
+  languageConfiguration(): Omit<CompilationCommandConfiguration, 'filePath'>;
   commandConfiguration(source: CompilationFileTarget): CompilationCommandConfiguration;
-  validateCommand(source: CompilationFileTarget, command: string): void;
+  /** Null source validates a profile-wide language command. */
+  validateCommand(source: CompilationFileTarget | null, command: string): void;
   /** Inputs available before a successful build discovers richer dependencies. */
   watchInputs(source: CompilationFileTarget): string[];
   run(

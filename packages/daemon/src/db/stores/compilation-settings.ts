@@ -14,6 +14,38 @@ export interface CompilationSettingKey {
 export class CompilationSettingsStore {
   constructor(private readonly db: Db) {}
 
+  getDefault(profileId: string, provider: string, mode: CompilationMode): string | null {
+    const row = this.db
+      .prepare(
+        'SELECT command FROM compilation_defaults WHERE profile_id = ? AND provider = ? AND mode = ?',
+      )
+      .get(profileId, provider, mode) as { command: string } | undefined;
+    return row?.command ?? null;
+  }
+
+  setDefault(
+    profileId: string,
+    provider: string,
+    mode: CompilationMode,
+    command: string | null,
+  ): void {
+    if (command === null) {
+      this.db
+        .prepare(
+          'DELETE FROM compilation_defaults WHERE profile_id = ? AND provider = ? AND mode = ?',
+        )
+        .run(profileId, provider, mode);
+    } else {
+      this.db
+        .prepare(
+          `INSERT INTO compilation_defaults (profile_id, provider, mode, command)
+        VALUES (?, ?, ?, ?) ON CONFLICT(profile_id, provider, mode)
+        DO UPDATE SET command = excluded.command`,
+        )
+        .run(profileId, provider, mode, command);
+    }
+  }
+
   get(key: CompilationSettingKey): string | null {
     const row = this.db
       .prepare(

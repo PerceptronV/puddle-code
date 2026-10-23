@@ -126,6 +126,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       {
         settings: compilationSettings,
         projects,
+        profiles,
       },
     );
     failedStartup.push(() => compilation.dispose());

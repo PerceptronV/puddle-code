@@ -34,7 +34,7 @@ interface CompileOptions {
 
 /** The currently selected primary command, expressed with managed run placeholders. */
 export function defaultLatexCommand(
-  source: ResolvedLatexSource,
+  source: Pick<ResolvedLatexSource, 'engine' | 'content'>,
   toolchain: LatexToolchain,
 ): string | null {
   if (toolchain.paths.latexmk) {

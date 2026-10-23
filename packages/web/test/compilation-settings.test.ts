@@ -22,4 +22,15 @@ describe('compilation command drafts', () => {
       commandOverride({ ...slot, override_command: 'custom {{source}}' }, 'latexmk {{source}}'),
     ).toBeNull();
   });
+
+  it('shows language defaults below file overrides and resets back to inheritance', () => {
+    const inherited = { ...slot, inherited_command: 'profile-tex {{source}}' };
+    expect(commandDraft(inherited)).toBe('profile-tex {{source}}');
+    expect(commandDraft({ ...inherited, override_command: 'file-tex {{source}}' })).toBe(
+      'file-tex {{source}}',
+    );
+    expect(commandOverride(inherited, 'profile-tex {{source}}')).toBeNull();
+    expect(commandOverride(inherited, 'latexmk {{source}}')).toBe('latexmk {{source}}');
+    expect(commandDraft({ ...inherited, inherited_command: null })).toBe('latexmk {{source}}');
+  });
 });

@@ -1,6 +1,9 @@
 import {
   compilationFailureDetailsSchema,
   type CompilationFailure,
+  type CompilationDefaultsRequest,
+  type CompilationDefaultsResponse,
+  type UpdateCompilationDefaultsRequest,
   type CompilationCapabilitiesResponse,
   type CompilationFileTarget,
   type CompilationModeRequest,
@@ -14,6 +17,7 @@ import {
   type UpdateCompilationSettingsRequest,
 } from '@puddle/shared';
 import type { CompilationSettingsStore } from '../db/stores/compilation-settings.js';
+import type { ProfileStore } from '../db/stores/profiles.js';
 import type { ProjectStore } from '../db/stores/projects.js';
 import { ApiError } from '../http/errors.js';
 import {
@@ -48,6 +52,7 @@ interface TargetState {
 interface CompilationServiceDeps {
   settings: CompilationSettingsStore;
   projects: ProjectStore;
+  profiles: ProfileStore;
 }
 
 /**
@@ -109,6 +114,50 @@ export class CompilationService {
     return state.status;
   }
 
+  defaults(request: CompilationDefaultsRequest): CompilationDefaultsResponse {
+    this.requireDeps().profiles.get(request.profile_id);
+    const provider = this.defaultProvider(request.provider);
+    const configuration = provider.languageConfiguration();
+    const modes: CompilationMode[] = provider.eager ? ['on_demand', 'eager'] : ['on_demand'];
+    return {
+      provider: provider.id,
+      display_name: provider.displayName,
+      variables: configuration.variables,
+      commands: modes.map((mode) => ({
+        mode,
+        run_when: mode === 'on_demand' ? 'when_clicked' : 'upon_file_change',
+        default_command: configuration.defaults[mode] ?? null,
+        override_command: this.requireSettings().getDefault(request.profile_id, provider.id, mode),
+      })),
+    };
+  }
+
+  updateDefaults(request: UpdateCompilationDefaultsRequest): CompilationDefaultsResponse {
+    this.requireDeps().profiles.get(request.profile_id);
+    const provider = this.defaultProvider(request.provider);
+    if (request.mode === 'eager' && !provider.eager) {
+      throw ApiError.badRequest(
+        'eager_compilation_unsupported',
+        `${provider.displayName} does not support eager compilation`,
+      );
+    }
+    if (request.command !== null) provider.validateCommand(null, request.command);
+    this.requireSettings().setDefault(
+      request.profile_id,
+      provider.id,
+      request.mode,
+      request.command,
+    );
+    return this.defaults(request);
+  }
+
+  private defaultProvider(id: string): CompilationProvider {
+    const provider = this.providers.get(id);
+    if (!provider)
+      throw ApiError.badRequest('compiler_not_supported', `Unknown compilation provider: ${id}`);
+    return provider;
+  }
+
   settings(request: CompilationSettingsRequest): CompilationSettingsResponse {
     const provider = this.selectProvider(request.source, request.provider);
     const configuration = provider.commandConfiguration(request.source);
@@ -124,6 +173,7 @@ export class CompilationService {
         mode,
         run_when: mode === 'on_demand' ? 'when_clicked' : 'upon_file_change',
         default_command: configuration.defaults[mode] ?? null,
+        inherited_command: this.requireSettings().getDefault(request.profile_id, provider.id, mode),
         override_command: this.settingFor(
           request.profile_id,
           request.project_id,
@@ -307,16 +357,21 @@ export class CompilationService {
   }
 
   private commandOverride(state: TargetState, mode: CompilationMode): string | null {
-    if (!state.profileId || !state.projectId || !this.deps) return null;
+    if (!state.profileId || !this.deps) return null;
+    this.deps.profiles.get(state.profileId);
+    if (!state.projectId)
+      return this.requireSettings().getDefault(state.profileId, state.provider.id, mode);
     this.validateScope(state.profileId, state.projectId);
     const configuration = state.provider.commandConfiguration(state.source);
-    return this.settingFor(
-      state.profileId,
-      state.projectId,
-      state.provider.id,
-      configuration.fileType,
-      configuration.filePath,
-      mode,
+    return (
+      this.settingFor(
+        state.profileId,
+        state.projectId,
+        state.provider.id,
+        configuration.fileType,
+        configuration.filePath,
+        mode,
+      ) ?? this.requireSettings().getDefault(state.profileId, state.provider.id, mode)
     );
   }
 

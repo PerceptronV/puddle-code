@@ -7,6 +7,11 @@ import type { CompilationProvider } from '../src/compilation/provider.js';
 import { ApiError } from '../src/http/errors.js';
 
 const commandSupport = {
+  languageConfiguration: () => ({
+    fileType: 'demo',
+    variables: [],
+    defaults: { on_demand: 'examplec input.demo', eager: 'examplec input.demo' },
+  }),
   commandConfiguration: (source: { path: string }) => ({
     filePath: `/source/${source.path}`,
     fileType: 'demo',

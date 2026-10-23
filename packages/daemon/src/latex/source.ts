@@ -57,7 +57,7 @@ export function texDirectives(content: string): { root?: string; program?: Latex
 }
 
 export function selectDirectEngine(
-  source: ResolvedLatexSource,
+  source: Pick<ResolvedLatexSource, 'engine' | 'content'>,
   installed: readonly LatexEngine[],
 ): LatexEngine | null {
   if (source.engine && installed.includes(source.engine)) return source.engine;

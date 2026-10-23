@@ -24,6 +24,7 @@ import { migration023 } from './023-follow-clone-base-branch.js';
 import { migration024 } from './024-puddlang.js';
 import { migration025 } from './025-agent-mode.js';
 import { migration026 } from './026-headless-mode.js';
+import { migration027 } from './027-compilation-defaults.js';
 
 export interface Migration {
   version: number;
@@ -59,4 +60,5 @@ export const MIGRATIONS: Migration[] = [
   migration024,
   migration025,
   migration026,
+  migration027,
 ];

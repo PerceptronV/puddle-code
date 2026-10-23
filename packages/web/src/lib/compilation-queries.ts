@@ -1,6 +1,9 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
   CompilationCapabilitiesResponse,
+  CompilationDefaultsRequest,
+  CompilationDefaultsResponse,
+  UpdateCompilationDefaultsRequest,
   CompilationModeRequest,
   CompilationRunRequest,
   CompilationRunResponse,
@@ -65,4 +68,18 @@ export function useCompilationSettings(request: CompilationSettingsRequest | nul
 
 export function updateCompilationSettings(request: UpdateCompilationSettingsRequest) {
   return api<CompilationSettingsResponse>('PUT', '/api/compilation/settings', request);
+}
+
+/** Profile language defaults, available even without an open source file. */
+export function useCompilationDefaults(request: CompilationDefaultsRequest | null) {
+  return useQuery({
+    queryKey: ['compilation-defaults', request],
+    queryFn: () => api<CompilationDefaultsResponse>('POST', '/api/compilation/defaults', request!),
+    enabled: request !== null,
+    staleTime: 30_000,
+  });
+}
+
+export function updateCompilationDefaults(request: UpdateCompilationDefaultsRequest) {
+  return api<CompilationDefaultsResponse>('PUT', '/api/compilation/defaults', request);
 }

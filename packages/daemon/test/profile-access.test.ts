@@ -96,6 +96,12 @@ function fixture() {
 }
 
 describe('profile-bound host authority', () => {
+  it('denies compilation defaults to remote profile leases', async () => {
+    const f = fixture();
+    for (const method of ['POST', 'PUT'])
+      expect((await f.req('/api/compilation/defaults', method)).status).toBe(403);
+    expect(f.dispatch).not.toHaveBeenCalled();
+  });
   it('denies puddlang execution and inspection to remote profile leases', async () => {
     const f = fixture();
     for (const [path, method] of [

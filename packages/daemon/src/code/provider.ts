@@ -58,9 +58,12 @@ export class CodeProvider implements CompilationProvider {
 
   commandConfiguration(request: CompilationFileTarget) {
     const { absolute } = this.source(request);
+    return { ...this.languageConfiguration(), filePath: realpathSync(absolute) };
+  }
+
+  languageConfiguration() {
     const { executor } = this.capability();
     return {
-      filePath: realpathSync(absolute),
       fileType: this.id,
       variables: [
         { placeholder: '{{source}}', description: 'Absolute path of this source file' },
@@ -81,7 +84,7 @@ export class CodeProvider implements CompilationProvider {
     };
   }
 
-  validateCommand(_request: CompilationFileTarget, command: string): void {
+  validateCommand(_request: CompilationFileTarget | null, command: string): void {
     expandCommandTemplate(command, {
       source: '/source/file',
       output_dir: '/source/.puddle/run',

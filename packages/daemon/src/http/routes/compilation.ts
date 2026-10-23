@@ -1,5 +1,8 @@
 import { Hono } from 'hono';
 import {
+  compilationDefaultsRequestSchema,
+  updateCompilationDefaultsRequestSchema,
+  type CompilationDefaultsResponse,
   compilationModeRequestSchema,
   compilationRunRequestSchema,
   compilationSettingsRequestSchema,
@@ -21,6 +24,14 @@ export function compilationRoutes(deps: { compilation: CompilationService }): Ho
     .post('/run', async (c) => {
       const request = await parseBody(c, compilationRunRequestSchema);
       return c.json<CompilationRunResponse>(await deps.compilation.run(request));
+    })
+    .post('/defaults', async (c) => {
+      const request = await parseBody(c, compilationDefaultsRequestSchema);
+      return c.json<CompilationDefaultsResponse>(deps.compilation.defaults(request));
+    })
+    .put('/defaults', async (c) => {
+      const request = await parseBody(c, updateCompilationDefaultsRequestSchema);
+      return c.json<CompilationDefaultsResponse>(deps.compilation.updateDefaults(request));
     })
     .post('/settings', async (c) => {
       const request = await parseBody(c, compilationSettingsRequestSchema);

@@ -243,3 +243,10 @@ notebook providers reuse the existing capability/run/settings/status schemas,
 with `eager: false` and explicit execution only. Their artefacts use existing
 file targets. No remote allowlist, authority or envelope changes; remote
 protocol remains 4.
+
+Protocol 24.4 adds POST/PUT `/api/compilation/defaults` for profile language
+commands and an optional nullable `inherited_command` on file command slots.
+Existing per-file overrides remain authoritative; null language defaults retain
+provider-owned source and engine selection. Newer clients show the language
+picker only after confirming 24.4. Compilation routes remain local/SSH-only;
+remote protocol remains 4.
