@@ -307,4 +307,5 @@
 // 24.5: optional project colours drawn from the profile icon palette.
 // 24.6: daemon-owned notebook kernels and explicit kernel lifecycle controls.
 // 25.0: programming-language runs always compile and execute in a terminal.
-export const PROTOCOL_VERSION = { major: 25, minor: 0 } as const;
+// 25.1: Python environment discovery/selection and explicit notebook package installation.
+export const PROTOCOL_VERSION = { major: 25, minor: 1 } as const;

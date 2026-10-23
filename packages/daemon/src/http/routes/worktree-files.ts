@@ -12,6 +12,7 @@ import {
 import { basename, dirname, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { Hono } from 'hono';
+import { newFileContent } from '../../notebooks/empty.js';
 import { ZipFile } from 'yazl';
 import {
   putFileRequestSchema,
@@ -169,7 +170,11 @@ export function worktreeFileRoutes(deps: WorktreeDeps): Hono {
       // Single daemon process for v1: the stat-then-write above is not atomic
       // with this write, so a write landing in that gap is accepted as a rare
       // race rather than engineered around with file locks.
-      writeFileSync(target, body.content, 'utf8');
+      writeFileSync(
+        target,
+        existsSync(target) ? body.content : newFileContent(target, body.content),
+        'utf8',
+      );
       const st = statSync(target);
       return c.json<PutFileResponse>({ path: rel, mtime_ms: st.mtimeMs, size: st.size });
     })

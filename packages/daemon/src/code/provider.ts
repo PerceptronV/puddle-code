@@ -61,6 +61,9 @@ export class CodeProvider implements CompilationProvider {
 
   capability() {
     const executor = (this.deps.discover ?? findCodeExecutable)(this.recipe.executables);
+    // Environment selection can supply Python even without a global nbconvert.
+    if (this.recipe.notebook && this.deps.notebooks)
+      return { available: true, executor: executor ?? 'jupyter-nbconvert' };
     return { available: executor !== null, executor };
   }
 

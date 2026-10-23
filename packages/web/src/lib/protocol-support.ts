@@ -88,3 +88,7 @@ export const daemonAnswersColourQueries = (p: Protocol): boolean => atLeast(p, 1
 /** Persistent notebook kernels and lifecycle controls (24.6). */
 export const notebookKernelsSupported = (p: Protocol): boolean =>
   p !== undefined && atLeast(p, 24, 6);
+
+/** Python environments and explicit package installation (25.1). */
+export const notebookEnvironmentsSupported = (p: Protocol): boolean =>
+  p !== undefined && atLeast(p, 25, 1);

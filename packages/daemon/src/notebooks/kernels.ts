@@ -8,12 +8,15 @@ import {
   type NotebookKernelAction,
   type NotebookKernelsResponse,
   type NotebookKernelStatus,
+  type NotebookEnvironment,
+  type NotebookEnvironmentsResponse,
 } from '@puddle/shared';
 import { KeyedMutex } from '../git/mutex.js';
 import { ApiError } from '../http/errors.js';
 import { containedPath, resolveFsRoot, type WorktreeDeps } from '../http/routes/worktree-shared.js';
 import { findCodeExecutable } from '../code/discovery.js';
 import { NOTEBOOK_BRIDGE } from './bridge.js';
+import { NotebookEnvironments } from './environments.js';
 
 const messageSchema = z.object({
   event: z.enum(['catalogue', 'spawned', 'ready', 'stopped', 'dead']).optional(),
@@ -35,6 +38,7 @@ interface KernelEntry {
   cancelled: boolean;
   changing: boolean;
   finished: Promise<void> | null;
+  environment?: NotebookEnvironment;
 }
 
 /** Canonical files own their kernels until explicit shutdown or daemon disposal. */
@@ -46,7 +50,20 @@ export class NotebookKernels {
   private cataloguePending: Promise<NotebookKernelsResponse> | null = null;
   private disposed = false;
 
-  constructor(private readonly deps: WorktreeDeps) {}
+  constructor(
+    private readonly deps: WorktreeDeps,
+    private readonly pythonEnvironments = new NotebookEnvironments(),
+  ) {}
+
+  async environments(source: CompilationFileTarget): Promise<NotebookEnvironmentsResponse> {
+    const path = await this.path(source);
+    const root = await realpath(resolveFsRoot(this.deps, source.session, source.root));
+    const environments = await this.pythonEnvironments.discover(path, root);
+    const selected = this.entries.get(path)?.environment;
+    if (selected && !environments.some((environment) => environment.python === selected.python))
+      environments.unshift(await this.pythonEnvironments.inspect(selected.python));
+    return { environments };
+  }
 
   async catalogue(): Promise<NotebookKernelsResponse> {
     if (this.disposed)
@@ -83,12 +100,26 @@ export class NotebookKernels {
 
   async status(source: CompilationFileTarget): Promise<NotebookKernelStatus> {
     const path = await this.path(source);
-    return this.entries.get(path)?.status ?? { state: 'stopped', kernel: null };
+    const entry = this.entries.get(path);
+    return entry
+      ? { ...entry.status, ...(entry.environment ? { environment: entry.environment } : {}) }
+      : { state: 'stopped', kernel: null };
   }
 
   async action(request: NotebookKernelAction): Promise<NotebookKernelStatus> {
     const path = await this.path(request.source);
-    return this.lifecycle.run(path, () => this.changeKernel(path, request));
+    return this.lifecycle.run(path, async () => {
+      try {
+        const status = await this.changeKernel(path, request);
+        const environment = this.entries.get(path)?.environment;
+        return { ...status, ...(environment ? { environment } : {}) };
+      } catch (error) {
+        if (error instanceof ApiError) throw error;
+        const failure = new ApiError(422, 'notebook_kernel_failed', errorMessage(error));
+        failure.cause = error;
+        throw failure;
+      }
+    });
   }
 
   private async changeKernel(
@@ -97,6 +128,55 @@ export class NotebookKernels {
   ): Promise<NotebookKernelStatus> {
     if (this.disposed) throw new Error('Notebook kernels are closed');
     let entry = this.entries.get(path);
+    if (
+      request.action === 'select-python' ||
+      request.action === 'install-python' ||
+      (request.action === 'restart' && entry?.environment)
+    ) {
+      if (request.action === 'install-python' && request.python !== entry?.environment?.python)
+        throw ApiError.conflict(
+          'notebook_environment_changed',
+          'The selected environment changed. Select it again before installing packages.',
+        );
+      const python =
+        request.action === 'select-python'
+          ? await this.pythonEnvironments.resolvePython(request.python, dirname(path))
+          : entry?.environment?.python;
+      if (!python)
+        throw ApiError.badRequest(
+          'notebook_environment_missing',
+          'Select a Python environment first',
+        );
+      const environment = await this.pythonEnvironments.inspect(python, true);
+      if (environment.error)
+        throw ApiError.badRequest('invalid_python_environment', environment.error);
+      if (this.disposed) throw new Error('Notebook kernels are closed');
+      entry = this.entry(path, python);
+      entry.changing = true;
+      try {
+        await this.stop(entry);
+        if (this.disposed) throw new Error('Notebook kernels are closed');
+        entry.bridge = null;
+        entry.environment = environment;
+        entry.selected = 'python3';
+        entry.status = { state: 'stopped', kernel: 'python3' };
+        if (request.action === 'install-python')
+          entry.environment = await this.pythonEnvironments.install(python);
+        if (!entry.environment.ipykernel || !entry.environment.nbconvert) return entry.status;
+        entry.status = { state: 'starting', kernel: 'python3' };
+        const bridge = await this.connect(entry);
+        await bridge.request({ op: 'start', kernel: 'python3', cwd: dirname(path) }, 45_000);
+        entry.status = { state: 'idle', kernel: 'python3' };
+      } catch (error) {
+        await this.stop(entry);
+        entry.bridge = null;
+        entry.status = { state: 'dead', kernel: 'python3', error: errorMessage(error) };
+        throw error;
+      } finally {
+        entry.changing = false;
+      }
+      return entry.status;
+    }
     if (request.action === 'interrupt') {
       if (entry) entry.cancelled = true;
       if (entry?.bridge) await entry.bridge.request({ op: 'interrupt' }, 10_000);
@@ -133,6 +213,10 @@ export class NotebookKernels {
       entry.changing = true;
       await this.stop(entry);
       entry.bridge = null;
+      if (request.action === 'select') {
+        entry.environment = undefined;
+        entry.executable = findCodeExecutable(['jupyter-nbconvert']) ?? 'jupyter-nbconvert';
+      }
       entry.selected = selected;
       entry.status = { state: 'starting', kernel: selected };
       try {
@@ -185,12 +269,17 @@ export class NotebookKernels {
         'notebook_kernel_dead',
         'The notebook kernel exited. Restart it before running again.',
       );
-    if (entry.bridge && entry.executable !== file)
+    if (!entry.environment && entry.bridge && entry.executable !== file)
       throw ApiError.conflict(
         'notebook_environment_changed',
         'Shut down this kernel before changing the notebook executable',
       );
-    entry.executable = file;
+    if (entry.environment && (!entry.environment.ipykernel || !entry.environment.nbconvert))
+      throw ApiError.conflict(
+        'notebook_packages_missing',
+        'Install the missing packages for the selected Python environment before running',
+      );
+    if (!entry.environment) entry.executable = file;
     entry.busy = true;
     entry.cancelled = false;
     let finish!: () => void;
@@ -285,7 +374,7 @@ export class NotebookKernels {
         'Shut down a notebook kernel before opening another (32 maximum)',
       );
     const bridge = new KernelBridge(
-      await pythonFor(entry.executable),
+      entry.environment?.python ?? (await pythonFor(entry.executable)),
       (message) => {
         if (entry.bridge !== bridge) return;
         if (message.event === 'dead')
@@ -297,6 +386,7 @@ export class NotebookKernels {
         if (entry.bridge === bridge)
           entry.status = { state: 'dead', kernel: entry.status.kernel, error: errorMessage(error) };
       },
+      !!entry.environment,
     );
     entry.bridge = bridge;
     await bridge.ready;
@@ -355,8 +445,13 @@ class KernelBridge {
     python: string,
     onMessage?: (message: z.infer<typeof messageSchema>) => void,
     onExit?: (error: string) => void,
+    exactPython = false,
   ) {
-    this.child = spawn(python, ['-u', '-c', NOTEBOOK_BRIDGE], { stdio: ['pipe', 'pipe', 'pipe'] });
+    this.child = spawn(
+      python,
+      ['-u', '-c', NOTEBOOK_BRIDGE, ...(exactPython ? ['--puddle-python'] : [])],
+      { stdio: ['pipe', 'pipe', 'pipe'] },
+    );
     const child = this.child;
     this.ready = new Promise((resolve, reject) => {
       const timer = setTimeout(() => {

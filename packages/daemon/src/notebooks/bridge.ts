@@ -20,12 +20,24 @@ interrupted = False
 closing = False
 kernel_name = None
 runtime = tempfile.TemporaryDirectory(prefix='puddle-kernel-')
+spec_manager = KernelSpecManager()
+if '--puddle-python' in sys.argv[1:]:
+    # A private spec pins the selected interpreter even if a user-level python3
+    # spec points elsewhere. Never register or overwrite a host kernelspec.
+    specs = Path(runtime.name) / 'kernels'
+    spec = specs / 'python3'
+    spec.mkdir(parents=True)
+    (spec / 'kernel.json').write_text(json.dumps({
+        'argv': [sys.executable, '-m', 'ipykernel_launcher', '-f', '{connection_file}'],
+        'display_name': 'Python 3', 'language': 'python',
+    }))
+    spec_manager = KernelSpecManager(kernel_dirs=[str(specs)], ensure_native_kernel=False)
 
 def emit(value):
     print(json.dumps(value, ensure_ascii=True), flush=True)
 
 def catalogue():
-    specs = KernelSpecManager().get_all_specs()
+    specs = spec_manager.get_all_specs()
     return [{"name": name, "display_name": data['spec'].get('display_name') or name,
              "language": data['spec'].get('language', '')} for name, data in specs.items()]
 
@@ -46,7 +58,7 @@ async def start(name, cwd):
             raise RuntimeError('Select or restart the kernel to change its language.')
         return
     kernel_name = name
-    manager = AsyncKernelManager(kernel_name=name, connection_file=str(Path(runtime.name) / 'kernel.json'))
+    manager = AsyncKernelManager(kernel_name=name, kernel_spec_manager=spec_manager, connection_file=str(Path(runtime.name) / 'kernel.json'))
     await asyncio.wait_for(manager.start_kernel(cwd=cwd, stdout=sys.stderr, stderr=sys.stderr), timeout=30)
     pid = getattr(manager.provisioner, 'pid', None)
     emit({'event': 'spawned', **({'pid': pid} if isinstance(pid, int) else {})})

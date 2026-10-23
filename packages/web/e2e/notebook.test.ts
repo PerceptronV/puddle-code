@@ -19,6 +19,99 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => server?.close());
 
+test('offers incomplete Python environments, explicit installation and custom paths', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  const local = {
+    python: '/project/.venv/bin/python',
+    label: '.venv (python)',
+    ipykernel: false,
+    nbconvert: false,
+  };
+  let environment: typeof local | undefined;
+  let state = 'stopped';
+  let failInstall = true;
+  const actions: { action: string; python?: string }[] = [];
+  await page.route(`${origin}/api/worktrees/**/file?*`, (route) =>
+    route.fulfill({
+      json: {
+        content: JSON.stringify({ nbformat: 4, nbformat_minor: 5, metadata: {}, cells: [] }),
+        binary: false,
+        mtime_ms: 1,
+      },
+    }),
+  );
+  await page.route(`${origin}/api/version`, (route) =>
+    route.fulfill({ json: { protocol: { major: 25, minor: 1 } } }),
+  );
+  await page.route(`${origin}/api/notebooks/kernels`, (route) =>
+    route.fulfill({ json: { available: false, kernels: [] } }),
+  );
+  await page.route(`${origin}/api/notebooks/environments`, (route) =>
+    route.fulfill({ json: { environments: [local] } }),
+  );
+  await page.route(`${origin}/api/notebooks/status`, (route) =>
+    route.fulfill({ json: { state, kernel: environment ? 'python3' : null, environment } }),
+  );
+  await page.route(`${origin}/api/notebooks/kernel`, (route) => {
+    const request = route.request().postDataJSON();
+    actions.push(request);
+    if (request.action === 'select-python') {
+      environment =
+        request.python === local.python
+          ? local
+          : {
+              ...local,
+              python: '/custom env/bin/python',
+              label: 'custom env (python)',
+              ipykernel: true,
+              nbconvert: true,
+            };
+      state = environment.ipykernel ? 'idle' : 'stopped';
+    }
+    if (request.action === 'install-python') {
+      if (failInstall)
+        return route.fulfill({
+          status: 422,
+          json: { error: { code: 'install_failed', message: 'No module named pip' } },
+        });
+      environment = { ...environment!, ipykernel: true, nbconvert: true };
+      state = 'idle';
+    }
+    return route.fulfill({ json: { state, kernel: 'python3', environment } });
+  });
+  await page.goto(`${origin}/e2e/fixtures/notebook.html`);
+  await page.getByRole('button', { name: 'Select Python environment' }).click();
+  await expect(page.getByText('ipykernel not installed', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: /\.venv \(python\)/ }).click();
+  await expect(
+    page.getByRole('button', { name: 'Install ipykernel and nbconvert', exact: true }),
+  ).toBeVisible();
+  expect(actions.map((action) => action.action)).toEqual(['select-python']);
+  await page.getByRole('button', { name: 'Install ipykernel and nbconvert', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('No module named pip');
+  expect(actions.at(-1)).toMatchObject({ action: 'install-python', python: local.python });
+  failInstall = false;
+  await page.getByRole('button', { name: 'Install ipykernel and nbconvert', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Install ipykernel and nbconvert', exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByText('Idle', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Select Python environment' }).click();
+  await page
+    .getByRole('textbox', { name: 'Environment folder or Python executable' })
+    .fill('/custom env');
+  await page.getByRole('button', { name: 'Use path', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Select Python environment' })).toContainText(
+    'custom env',
+  );
+  expect(actions.at(-1)).toMatchObject({ action: 'select-python', python: '/custom env' });
+  await page.screenshot({ path: '/tmp/puddle-notebook-environment.png' });
+  expect(errors).toEqual([]);
+});
+
 test('edits and saves notebook cells, preserves metadata, sanitises output and hides eager runs', async ({
   page,
 }) => {

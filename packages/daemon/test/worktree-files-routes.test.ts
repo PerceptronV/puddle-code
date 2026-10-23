@@ -271,6 +271,22 @@ describe('PUT /api/worktrees/:sid/file', () => {
     expect(readFileSync(join(worktree, 'brand-new.txt'), 'utf8')).toBe('fresh\n');
   });
 
+  it('initialises a blank notebook on Save As but preserves subsequent literal saves', async () => {
+    expect((await putFile(sessionId, 'new-notebook.ipynb', { content: '  \n' })).status).toBe(200);
+    expect(JSON.parse(readFileSync(join(worktree, 'new-notebook.ipynb'), 'utf8'))).toEqual({
+      cells: [],
+      metadata: {},
+      nbformat: 4,
+      nbformat_minor: 5,
+    });
+    expect((await putFile(sessionId, 'new-notebook.ipynb', { content: '' })).status).toBe(200);
+    expect(readFileSync(join(worktree, 'new-notebook.ipynb'), 'utf8')).toBe('');
+    expect(
+      (await putFile(sessionId, 'literal-notebook.ipynb', { content: 'invalid JSON' })).status,
+    ).toBe(200);
+    expect(readFileSync(join(worktree, 'literal-notebook.ipynb'), 'utf8')).toBe('invalid JSON');
+  });
+
   it('409s on a stale expected_mtime_ms', async () => {
     const first = putFileResponseSchema.parse(
       await (await putFile(sessionId, 'concurrent.txt', { content: 'v1\n' })).json(),

@@ -100,6 +100,7 @@ describe('profile-bound host authority', () => {
     const f = fixture();
     for (const [path, method] of [
       ['kernels', 'GET'],
+      ['environments', 'POST'],
       ['status', 'POST'],
       ['kernel', 'POST'],
     ])

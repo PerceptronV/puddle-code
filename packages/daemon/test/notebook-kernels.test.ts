@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { NOTEBOOK_BRIDGE } from '../src/notebooks/bridge.js';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it, onTestFinished } from 'vitest';
@@ -12,9 +12,81 @@ import { NotebookKernels } from '../src/notebooks/kernels.js';
 import { CodeProvider } from '../src/code/provider.js';
 import { findCodeExecutable } from '../src/code/discovery.js';
 import { CODE_RECIPES } from '../src/code/recipes.js';
+import { runCompilationCommand } from '../src/compilation/process.js';
 
 // Integration with installed Jupyter, without starting puddled or a server.
 // Minimal CI hosts skip it; the ordinary provider suite uses deterministic runners.
+it.skipIf(!findCodeExecutable(['jupyter-nbconvert']))(
+  'executes in the selected venv without a global nbconvert executable',
+  async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'puddle-python-kernel-')));
+    const executable = findCodeExecutable(['jupyter-nbconvert'])!;
+    const python =
+      /^#!(\S*python\S*)/.exec(readFileSync(executable, 'utf8'))?.[1] ??
+      findCodeExecutable(['python3', 'python'])!;
+    const deps = { sessions: {} as SessionStore, repos: {} as RepoStore };
+    const kernels = new NotebookKernels(deps);
+    onTestFinished(async () => {
+      await kernels.dispose();
+      rmSync(root, { recursive: true, force: true });
+    });
+    await runCompilationCommand({
+      file: python,
+      args: ['-m', 'venv', '--without-pip', '--system-site-packages', join(root, 'custom env')],
+      cwd: root,
+    });
+    const source = { session: NO_SESSION, root, path: 'environment.ipynb' };
+    writeFileSync(
+      join(root, source.path),
+      JSON.stringify({
+        cells: [
+          {
+            id: 'python',
+            cell_type: 'code',
+            metadata: {},
+            source: 'import sys\nprint(sys.prefix)',
+            outputs: [],
+            execution_count: null,
+          },
+        ],
+        metadata: {},
+        nbformat: 4,
+        nbformat_minor: 5,
+      }),
+    );
+    const selected = await kernels.action({
+      source,
+      action: 'select-python',
+      python: 'custom env',
+    });
+    expect(selected).toMatchObject({
+      state: 'idle',
+      environment: {
+        python: join(root, 'custom env/bin/python'),
+        ipykernel: true,
+        nbconvert: true,
+      },
+    });
+    const provider = new CodeProvider(
+      CODE_RECIPES.find((recipe) => recipe.id === 'notebook')!,
+      { ...deps, notebooks: kernels, discover: () => null },
+    );
+    const result = await provider.run(source, { mode: 'on_demand', command: null });
+    const file = result.artifacts[0]!.file;
+    expect(
+      JSON.parse(readFileSync(join(file.root!, file.path), 'utf8')).cells[0].outputs[0].text.join(
+        '',
+      ),
+    ).toBe(join(root, 'custom env') + '\n');
+    await kernels.action({ source, action: 'shutdown' });
+    expect(await kernels.action({ source, action: 'restart' })).toMatchObject({
+      state: 'idle',
+      environment: { python: selected.environment!.python },
+    });
+  },
+  30_000,
+);
+
 it.skipIf(!findCodeExecutable(['jupyter-nbconvert']))(
   'retains kernel state across runs, interrupts, restarts and shuts down cleanly',
   async () => {

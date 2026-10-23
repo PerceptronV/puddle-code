@@ -274,3 +274,11 @@ run requests/results, so the major advances. Upgrade daemon and CLI/desktop
 together through the normal handshake. LaTeX and notebook providers retain their
 previews. Compilation remains local/SSH-only, outside the connector allowlist;
 remote protocol remains 4.
+
+Protocol 25.1 adds local/SSH-only POST `/api/notebooks/environments`, optional
+Python environment details in kernel status, and `select-python`/`install-python`
+kernel actions. Newer clients gate these controls on 25.1; registered-kernel
+controls remain available on older hosts. Selection retains incomplete environments
+and installation requires an explicit action; fixed package names run through the
+selected Python's pip without a shell. Installation includes the displayed Python path and rejects a changed selection. Remote profile leases and the connector
+continue to deny this namespace, so remote protocol remains 4.

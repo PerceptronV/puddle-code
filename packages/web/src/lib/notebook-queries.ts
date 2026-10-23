@@ -4,6 +4,7 @@ import type {
   NotebookKernelAction,
   NotebookKernelsResponse,
   NotebookKernelStatus,
+  NotebookEnvironmentsResponse,
 } from '@puddle/shared';
 import { api } from './api';
 
@@ -26,4 +27,15 @@ export function useNotebookKernelStatus(source: CompilationFileTarget, enabled: 
 }
 export function changeNotebookKernel(request: NotebookKernelAction) {
   return api<NotebookKernelStatus>('POST', '/api/notebooks/kernel', request);
+}
+
+export function useNotebookEnvironments(source: CompilationFileTarget, enabled: boolean) {
+  return useQuery({
+    queryKey: ['notebook-environments', source],
+    queryFn: () =>
+      api<NotebookEnvironmentsResponse>('POST', '/api/notebooks/environments', { source }),
+    enabled,
+    staleTime: 30_000,
+    retry: false,
+  });
 }

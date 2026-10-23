@@ -9,6 +9,7 @@ import {
 } from 'node:fs';
 import { dirname, extname, isAbsolute, join, relative, sep } from 'node:path';
 import { Hono } from 'hono';
+import { newFileContent } from '../../notebooks/empty.js';
 import {
   copyEntryRequestSchema,
   createEntryRequestSchema,
@@ -107,7 +108,7 @@ export function worktreeFsOpsRoutes(deps: WorktreeDeps): Hono {
         mkdirSync(target, { recursive: true });
       } else {
         mkdirSync(dirname(target), { recursive: true });
-        writeFileSync(target, '');
+        writeFileSync(target, newFileContent(target), { flag: 'wx' });
       }
       return c.json<FsOpResponse>({ ok: true, path: relative(root, target) }, 201);
     })

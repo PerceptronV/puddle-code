@@ -1,7 +1,7 @@
 # Code files and notebooks
 
 Run against a daemon started from a plain shell, locally and over SSH. Tool
-discovery and execution must occur on that host, using protocol 25.0 or newer.
+discovery and execution must occur on that host, using protocol 25.1 or newer.
 
 1. Open a Python file with a visible print statement. With Python installed,
    the tab offers **Run in terminal** and **Compilation Settings…**, with only the
@@ -39,20 +39,33 @@ discovery and execution must occur on that host, using protocol 25.0 or newer.
    execution counts. Close/reopen the source tab and reconnect the browser:
    another run returns 3. A different notebook starts with its own state.
    Missing kernels/imports and failing cells retain the last successful result.
-7. Select an installed kernel from the header; verify the kernelspec edit is
+7. Create a new `.ipynb` from the file tree and save a blank untitled draft as
+   `.ipynb`: both open as valid empty notebooks. Saving an existing notebook as
+   empty JSON source must remain literal. Put a `.venv` in the project and a
+   Conda/Mamba environment in a conventional host location: both appear in
+   **Select Python environment**, including when `ipykernel` is missing. Select
+   an incomplete one: installation is offered and no package changes occur until
+   clicking **Install**. Verify failure (for example, missing pip) stays visible;
+   install successfully and run `import sys; print(sys.executable)` to verify the
+   exact environment. Repeat with a custom folder and executable path containing
+   spaces, a `~` path and a notebook-relative path. Check without global nbconvert.
+   Switch environments: variables reset; reconnect: the selection remains. Check
+   that no host kernelspec was created or overwritten. Older hosts retain the
+   registered-kernel picker without environment requests.
+8. Select an installed kernel from the header; verify the kernelspec edit is
    saved through ordinary notebook saving. **Restart kernel** starts fresh;
    **Shut down kernel** stops it, and the next explicit run starts a new one.
    Interrupt an endless loop; the current run fails and earlier variables remain
    available. A kernel that exits reports dead and requires Restart; it must not
    replay the interrupted source. Verify daemon shutdown and abrupt daemon exit
    leave no child kernels. Repeat shutdown while a kernel is starting.
-8. Use header Code/Markdown and the raw-cell menu: each new cell is revealed and
+9. Use header Code/Markdown and the raw-cell menu: each new cell is revealed and
    focused. Clear All Outputs removes execution counts/results without changing
    source, cell ids or other metadata; undo and saving still work. Outline
    entries reveal the matching cells. Confirm header controls wrap in narrow
    panes without obscuring notebook content. Generate is intentionally absent.
 
-9. Inspect `.puddle/code/<provider>/<source-hash>/`: outputs and binaries stay
+10. Inspect `.puddle/code/<provider>/<source-hash>/`: outputs and binaries stay
    under this source root. Live terminal runs remain available even after more
    than five runs; exiting those terminals leaves five recent completed runs.
    Run a programme for more than two minutes, reconnect and verify input still
@@ -60,11 +73,11 @@ discovery and execution must occur on that host, using protocol 25.0 or newer.
    interrupt the active execution while retaining the kernel. No programming-
    language run opens a text-output artefact or offers the old captured-output
    behaviour. Older daemon/client majors require the normal handshake upgrade.
-10. Verify LaTeX still has both manual and eager controls, custom commands,
+11. Verify LaTeX still has both manual and eager controls, custom commands,
    generated PDF refresh and inverse SyncTeX. In the remote mobile Files view,
    verify notebook preview is inert and read-only; remote execution is absent.
 
-Automated coverage: `code-terminal.test.ts`, `code-provider.test.ts`, `notebook-kernels.test.ts` (when Jupyter is installed), `notebook-routes.test.ts`, `notebook-format.test.ts`, and
+Automated coverage: `code-terminal.test.ts`, `code-provider.test.ts`, `notebook-kernels.test.ts` (when Jupyter is installed), `notebook-routes.test.ts`, `notebook-environments.test.ts`, `notebook-format.test.ts`, and
 `e2e/notebook.test.ts`; the existing compilation and LaTeX suites cover shared
 orchestration and command settings. Notebook execution uses Jupyter's
 [kernel manager API](https://jupyter-client.readthedocs.io/en/stable/api/jupyter_client.html#jupyter_client.manager.KernelManager) and [notebook client](https://nbclient.readthedocs.io/en/latest/client.html)

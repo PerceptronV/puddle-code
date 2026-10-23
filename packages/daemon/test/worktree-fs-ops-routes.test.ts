@@ -69,6 +69,17 @@ describe('POST /:sid/create', () => {
     expect(readFileSync(join(worktree, 'nested/dir/hello.txt'), 'utf8')).toBe('');
   });
 
+  it('creates an empty version 4 notebook', async () => {
+    const res = await post(sessionId, 'create', { path: 'notebooks/new.IPYNB', kind: 'file' });
+    expect(res.status).toBe(201);
+    expect(JSON.parse(readFileSync(join(worktree, 'notebooks/new.IPYNB'), 'utf8'))).toEqual({
+      cells: [],
+      metadata: {},
+      nbformat: 4,
+      nbformat_minor: 5,
+    });
+  });
+
   it('creates a folder', async () => {
     const res = await post(sessionId, 'create', { path: 'newdir', kind: 'dir' });
     expect(res.status).toBe(201);
