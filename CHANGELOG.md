@@ -9,7 +9,4 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
-### Changed
-
-- Replace captured programming-language output with a single Run in terminal action: compile and execute in the same interactive terminal, accept input and return to a shell after exit; retain LaTeX and notebook previews (daemon/cockpit protocol 25.0).
 
