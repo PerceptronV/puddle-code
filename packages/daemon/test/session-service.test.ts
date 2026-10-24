@@ -33,7 +33,7 @@ describe('SessionService.create', () => {
 
     await waitFor(() => f.logs.readTail(session.id, 'agent').includes('READY'));
     const output = f.logs.readTail(session.id, 'agent');
-    expect(output).toContain('[puddle onboarding]');
+    expect(output).toContain('freshly created git worktree');
     expect(output).toContain('always run make setup'); // repo notes injected
     expect(output).toContain('make it faster'); // user prompt appended
     expect(output).toContain('skip=false');
@@ -293,7 +293,7 @@ describe('kill / resume / archive lifecycle', () => {
     f.stores.sessions.setStatus(session.id, 'interrupted'); // simulate reconcile
     await f.service.resume(session.id);
     await waitFor(() =>
-      f.logs.readTail(session.id, 'agent').includes('This session was interrupted'),
+      f.logs.readTail(session.id, 'agent').includes('This session has been resumed'),
     );
     await f.service.kill(session.id);
   });

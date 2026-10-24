@@ -67,7 +67,7 @@ describe('terminal sessions', () => {
     // The shell comes up (starting → running on its first prompt) and never
     // receives the onboarding preamble an agent would.
     await waitFor(() => f.service.get(session.id).status === 'running');
-    expect(f.logs.readTail(session.id, 'agent')).not.toContain('[puddle onboarding]');
+    expect(f.logs.readTail(session.id, 'agent')).not.toContain('freshly created git worktree');
 
     await f.service.kill(session.id);
     expect(f.service.get(session.id).status).toBe('exited');

@@ -292,7 +292,7 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
       () => viewer.outputFor(s1.id).includes('READY') && viewer.outputFor(s2.id).includes('READY'),
     );
     // Onboarding preamble reached both fresh worktrees, with each task prompt.
-    expect(viewer.outputFor(s1.id)).toContain('[puddle onboarding]');
+    expect(viewer.outputFor(s1.id)).toContain('freshly created git worktree');
     expect(viewer.outputFor(s1.id)).toContain('do thing one');
     expect(viewer.outputFor(s2.id)).toContain('do thing two');
     expect(viewer.outputFor(s2.id)).toContain('always run make setup');
@@ -464,7 +464,7 @@ describe('daemon end-to-end (Phase 1 acceptance)', () => {
     // Replay carries pre-restart output; live output shows the resume + note.
     await waitFor(() => viewer.outputFor(s1.id).includes('do thing one'));
     await waitFor(() => viewer.outputFor(s1.id).includes(`RESUME ref=fake-ref-${s1.id}`));
-    await waitFor(() => viewer.outputFor(s1.id).includes('This session was interrupted'));
+    await waitFor(() => viewer.outputFor(s1.id).includes('This session has been resumed'));
     viewer.close();
 
     await c.json<Session>('POST', `/api/sessions/${s1.id}/kill`);

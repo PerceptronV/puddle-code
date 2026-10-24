@@ -23,7 +23,7 @@ describe('separate_branch = false (base branch: own or shared directory)', () =>
     // It already exists (the user's checkout), so no onboarding — just a
     // concurrency heads-up.
     await waitFor(() => f.logs.readTail(first.id, 'agent').includes('READY'));
-    expect(f.logs.readTail(first.id, 'agent')).not.toContain('[puddle onboarding]');
+    expect(f.logs.readTail(first.id, 'agent')).not.toContain('freshly created git worktree');
 
     const second = await f.service.create({
       project_id: f.ids.project,
@@ -59,12 +59,12 @@ describe('separate_branch = false (base branch: own or shared directory)', () =>
     expect(sh(first.worktree_path, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe('feature/x');
     // A freshly created shared dir onboards the creator (SPEC §4).
     await waitFor(() => f.logs.readTail(first.id, 'agent').includes('READY'));
-    expect(f.logs.readTail(first.id, 'agent')).toContain('[puddle onboarding]');
+    expect(f.logs.readTail(first.id, 'agent')).toContain('freshly created git worktree');
 
     const second = await f.service.create({ ...opts, prompt: 'second task' });
     expect(second.worktree_path).toBe(first.worktree_path);
     await waitFor(() => f.logs.readTail(second.id, 'agent').includes('READY'));
-    expect(f.logs.readTail(second.id, 'agent')).not.toContain('[puddle onboarding]');
+    expect(f.logs.readTail(second.id, 'agent')).not.toContain('freshly created git worktree');
 
     // Archiving is a reversible hide now (SPEC §4): the shared worktree is kept
     // for both sessions, so it survives archiving either or both of them.
@@ -116,7 +116,7 @@ describe('separate_branch = false (base branch: own or shared directory)', () =>
     expect(b.branch).toBe('puddle/xxx');
     expect(b.separate_branch).toBe(false);
     await waitFor(() => f.logs.readTail(b.id, 'agent').includes('READY'));
-    expect(f.logs.readTail(b.id, 'agent')).not.toContain('[puddle onboarding]'); // reuse, no onboarding
+    expect(f.logs.readTail(b.id, 'agent')).not.toContain('freshly created git worktree'); // reuse, no onboarding
 
     await f.service.kill(a.id);
     await f.service.kill(b.id);
