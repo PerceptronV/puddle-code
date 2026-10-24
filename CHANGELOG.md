@@ -11,5 +11,6 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Restore desktop host windows reliably after quitting, retain pending or offline hosts across relaunches, and avoid opening an extra host picker during macOS startup.
 - Hide archived projects from command search and list projects in the sidebar's saved order, with the same newest-first fallback.
 

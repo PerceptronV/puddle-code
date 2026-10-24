@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 /** Geometry saved independently of Electron so persistence stays testable. */
@@ -111,12 +111,21 @@ function parseWindows(values: unknown[]): ReopenWindow[] {
 }
 
 export function saveReopenWindows(file: string, windows: ReopenWindow[]): void {
+  const temporary = `${file}.${process.pid}.tmp`;
   try {
     mkdirSync(dirname(file), { recursive: true });
     const state: WindowState = { windows: parseWindows(windows) };
-    writeFileSync(file, `${JSON.stringify(state, null, 2)}\n`);
+    writeFileSync(temporary, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
+    // A crash during a write must leave the previous complete snapshot intact.
+    renameSync(temporary, file);
   } catch {
     // Best-effort: inability to remember shell chrome must never block quit.
+  } finally {
+    try {
+      rmSync(temporary, { force: true });
+    } catch {
+      // The next successful write can replace an abandoned temporary file.
+    }
   }
 }
 

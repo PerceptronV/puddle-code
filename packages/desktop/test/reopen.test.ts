@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
@@ -33,6 +33,15 @@ describe('desktop window target and placement persistence', () => {
 
     expect(loadReopenWindows(file)).toEqual([]);
     expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ windows: [] });
+  });
+
+  it('keeps the last complete snapshot when a replacement cannot be written', () => {
+    const file = join(mkdtempSync(join(tmpdir(), 'puddle-window-state-')), 'windows.json');
+    saveReopenWindows(file, [{ target: 'local' }]);
+    // Block the temporary write without changing the existing snapshot.
+    mkdirSync(`${file}.${process.pid}.tmp`);
+    expect(() => saveReopenWindows(file, [{ target: 'user@host' }])).not.toThrow();
+    expect(loadReopenWindows(file)).toEqual([{ target: 'local' }]);
   });
 
   it('migrates the previous target-only standing state', () => {

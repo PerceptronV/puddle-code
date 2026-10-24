@@ -124,4 +124,15 @@ takes a CLIENT-side path and delivers it over scp.
     another host: its request must disappear and late helpers must not reopen
     it. Quit with prompts waiting and confirm none remain.
 
+13. **Desktop window restoration (macOS).** Open both a local and an SSH host
+    window, move/resize them, then quit with ⌘Q. Launch the app again: both host
+    windows reconnect with their saved bounds, without an extra host picker.
+    Repeat with the SSH host offline: the local window returns; quit, restore
+    the network, and relaunch to confirm both hosts still reopen. Quit again
+    while reconnection is pending and verify the next launch still remembers
+    those hosts. Explicitly close one host window, then quit: only the remaining
+    window returns. Explicitly close the last cockpit window and relaunch:
+    the host picker appears. With only an offline SSH host remembered, close
+    the fallback picker, restore the network, and relaunch: the host returns.
+
 Record any deviations as issues before ticking the phase off.

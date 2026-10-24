@@ -81,10 +81,15 @@ interface Shell {
 const shells = new Map<string, Shell>();
 const notifications = new Map<number, DesktopNotifications>();
 const connecting = new Set<string>();
+// Include saved targets whose reconnect is still pending or failed. An empty
+// live-shell map during startup must not erase the previous window set.
+const rememberedWindows = new Map<string, ReopenWindow>();
 let promptWin: BrowserWindow | null = null;
 let pickerWin: BrowserWindow | null = null;
 let stopped = false;
-let windowStateSaved = false;
+let quitting = false;
+let restoringWindows = true;
+let windowStateLoaded = false;
 
 const sshAuthPrompter = createSshAuthPrompter({
   htmlPath: join(here, 'ssh-auth-prompt.html'),
@@ -296,6 +301,10 @@ function createWindow(
   win.on('closed', () => {
     const shell = shells.get(target);
     shells.delete(target);
+    if (!quitting) {
+      rememberedWindows.delete(target);
+      saveReopenWindows(reopenFile(), [...rememberedWindows.values()]);
+    }
     sshAuthPrompter.cancel(target);
     // Stops this cockpit's UI server (and tunnel, remotely) only — the
     // daemon and its agents run on.
@@ -308,6 +317,7 @@ function createWindow(
 
 /** Open (or raise) the window for a target; errors surface with the caller. */
 async function openShell(target: string, placement?: WindowPlacement): Promise<void> {
+  if (quitting) return;
   const existing = shells.get(target);
   if (existing) {
     raise(existing.win);
@@ -317,8 +327,15 @@ async function openShell(target: string, placement?: WindowPlacement): Promise<v
   connecting.add(target);
   try {
     const cockpit = await openCockpit(target);
+    if (quitting) {
+      await cockpit.stop();
+      return;
+    }
     const win = createWindow(target, cockpit, placement);
-    shells.set(target, { target, cockpit, win, refreshing: false });
+    const shell = { target, cockpit, win, refreshing: false };
+    shells.set(target, shell);
+    rememberedWindows.set(target, reopenWindow(shell));
+    saveReopenWindows(reopenFile(), [...rememberedWindows.values()]);
   } finally {
     connecting.delete(target);
     if (!shells.has(target)) sshAuthPrompter.cancel(target);
@@ -353,6 +370,7 @@ function reopenWindow(shell: Shell): ReopenWindow {
 // Connect-to-host prompt (File → Connect to SSH Host…)
 
 function openConnectPrompt(): void {
+  if (quitting) return;
   if (promptWin) {
     promptWin.focus();
     return;
@@ -408,6 +426,7 @@ ipcMain.on('puddle:connect-cancel', () => promptWin?.close());
 // follow, and "Other SSH host…" hands over to the connect prompt.
 
 function openHostPicker(): void {
+  if (quitting) return;
   if (pickerWin) {
     pickerWin.focus();
     return;
@@ -656,10 +675,11 @@ if (!app.requestSingleInstanceLock()) {
   app.on('second-instance', () => {
     const first = shells.get(LOCAL) ?? [...shells.values()][0];
     if (first) raise(first.win);
-    else openHostPicker();
+    else if (!restoringWindows) openHostPicker();
   });
 
   void app.whenReady().then(() => {
+    if (quitting) return;
     // package.json's scoped npm name is an implementation detail; native menu
     // roles should say “About Puddle”, not “About @puddle-code/desktop”.
     app.setName('Puddle');
@@ -683,11 +703,14 @@ if (!app.requestSingleInstanceLock()) {
     void pruneDesktopUpdateCache([]);
     void pollForUpdate();
     setInterval(() => void pollForUpdate(), UPDATE_POLL_MS);
-    // Every launch reopens the cockpit windows present at the last clean quit;
+    // Every launch reopens the remembered cockpit windows;
     // remote authentication can surface through the same askpass modal as a
     // manual connect. If nothing comes back the picker takes over as usual.
     const reopen = loadReopenWindows(reopenFile());
+    for (const window of reopen) rememberedWindows.set(window.target, window);
+    windowStateLoaded = true;
     if (reopen.length === 0) {
+      restoringWindows = false;
       openHostPicker();
       return;
     }
@@ -699,19 +722,24 @@ if (!app.requestSingleInstanceLock()) {
         }),
       ),
     ).then(() => {
+      restoringWindows = false;
       if (shells.size === 0) openHostPicker();
     });
   });
 
   // macOS dock re-activation with every window closed: back to the picker.
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) openHostPicker();
+    if (!restoringWindows && BrowserWindow.getAllWindows().length === 0) openHostPicker();
   });
 
   // Closing the last window quits the shell on every platform (no tray, no
   // hidden resident process — daemons and their agents run on regardless,
   // exactly as when CLI cockpits are killed).
-  app.on('window-all-closed', () => app.quit());
+  app.on('window-all-closed', () => {
+    // SSH authentication dialogues can close before the restored cockpit is
+    // ready. The restore completion opens a picker if every connection fails.
+    if (!restoringWindows) app.quit();
+  });
 
   // Snapshot BEFORE Electron closes windows for a quit. An explicitly closed
   // window has already left `shells`, so it stays closed next time; windows
@@ -721,9 +749,14 @@ if (!app.requestSingleInstanceLock()) {
   app.on('before-quit', () => {
     // `window-all-closed` calls app.quit() too; guard a second before-quit so
     // windows closed by the FIRST quit cannot overwrite its pre-close snapshot.
-    if (windowStateSaved) return;
-    windowStateSaved = true;
-    saveReopenWindows(reopenFile(), [...shells.values()].map(reopenWindow));
+    if (quitting) return;
+    quitting = true;
+    // A quit before ready must leave the unread standing state intact.
+    if (!windowStateLoaded) return;
+    for (const shell of shells.values()) {
+      rememberedWindows.set(shell.target, reopenWindow(shell));
+    }
+    saveReopenWindows(reopenFile(), [...rememberedWindows.values()]);
   });
 
   // Belt and braces: window 'closed' handlers stop their own cockpits; this
