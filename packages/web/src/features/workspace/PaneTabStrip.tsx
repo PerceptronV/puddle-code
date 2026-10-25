@@ -25,23 +25,21 @@ import {
 } from '../editor/compilation-kind';
 import { FileTabContextMenu } from '../explorer/FileTabContextMenu';
 import { SessionContextMenu } from './SessionActions';
-import { SessionArchiveButton } from './SessionArchiveButton';
+import { SessionTabActions } from './SessionTabActions';
 import { TabTooltipBody } from './TabTooltip';
 import { tabRefKey } from './layout-tree';
 import { useDropIndicator } from './TilingDnd';
 
-// `min-w-16` (64px) is exactly the room the hover controls need and no more:
-// measured, not guessed — the preview + close cluster is 49.4px wide and the
-// chip carries 11px of left padding. A chip never shrinks below the icons it
-// may show, and never grows to accommodate them either, since they overlay the
-// right edge rather than sitting in the flow (see TabControls). `relative`
+// `min-w-36` leaves a clickable title beside the three hover controls a stopped
+// session can show (resume, archive and close). Controls overlay the right edge
+// (see TabControls), so revealing them never moves neighbouring tabs. `relative`
 // anchors them; `max-w-52` still caps a long title, which truncates as before.
 // `select-none`: a chip's double-click PROMOTES the tab (below), and the
 // browser's own double-click default would also select the title's word — the
 // tab would be left with a highlighted filename nobody asked to select and no
 // way to copy it from anyway.
 const TAB_CLASS =
-  'group relative flex min-w-16 max-w-52 cursor-pointer select-none items-center gap-1.5 rounded-t-md px-2.5 text-xs transition-colors';
+  'group relative flex min-w-36 max-w-52 cursor-pointer select-none items-center gap-1.5 rounded-t-md px-2.5 text-xs transition-colors';
 
 // The same constant-speed reveal as a too-long commit/file name in History,
 // driven by this tab chip's own hover. Literal so Tailwind generates it.
@@ -482,10 +480,11 @@ function PaneTab({
             {session ? renderTitle(session) : tab.session.slice(0, 8)}
           </span>
           <TabControls active={active}>
-            {session && session.status !== 'archived' && (
-              <SessionArchiveButton session={session.id} onArchived={onArchived} />
-            )}
+            {session && <SessionTabActions session={session} onArchived={onArchived} />}
             <button
+              type="button"
+              onPointerDown={(event) => event.stopPropagation()}
+              onDoubleClick={(event) => event.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
                 onClose();
