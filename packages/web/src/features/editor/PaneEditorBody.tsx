@@ -41,7 +41,7 @@ export function PaneEditorBody({
   scrollChannel: string;
   onRevealSource?: (position: EditorPosition) => void;
   onRevealCompiledSource?: (target: LatexSynctexResponse) => void;
-  onRunCompilation?: () => void;
+  onRunCompilation?: (executedCopy?: boolean) => void;
   compilationRunning?: boolean;
 }) {
   const kind = tabKind(tab);

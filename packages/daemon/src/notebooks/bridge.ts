@@ -1,3 +1,5 @@
+import { NOTEBOOK_CELL_BRIDGE } from './cell-bridge.js';
+
 /**
  * Installed Jupyter owns wire messages and language kernels. This small private
  * bridge keeps its KernelManager alive independently of notebook executions.
@@ -34,7 +36,7 @@ if '--puddle-python' in sys.argv[1:]:
     spec_manager = KernelSpecManager(kernel_dirs=[str(specs)], ensure_native_kernel=False)
 
 def emit(value):
-    print(json.dumps(value, ensure_ascii=True), flush=True)
+    print(json.dumps(value, ensure_ascii=False), flush=True)
 
 def catalogue():
     specs = spec_manager.get_all_specs()
@@ -157,8 +159,10 @@ async def start_request(message):
     except Exception as error:
         emit({'id': message['id'], 'error': str(error)})
 
+${NOTEBOOK_CELL_BRIDGE}
+
 async def main():
-    global execution, interrupted
+    global execution, interrupted, input_pending
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
         try:
@@ -171,7 +175,7 @@ async def main():
         line = await asyncio.to_thread(sys.stdin.readline)
         if not line:
             break
-        if len(line) > 262144:
+        if len(line.encode('utf-8')) > 2 * 1024 * 1024:
             raise RuntimeError('Kernel request exceeds its size limit')
         message = json.loads(line)
         op = message['op']
@@ -185,6 +189,19 @@ async def main():
                 emit({'id': message['id'], 'ok': True})
             except Exception as error:
                 emit({'id': message['id'], 'error': str(error)})
+        elif op == 'input':
+            if input_pending != (message.get('run_id'), message.get('input_id')):
+                emit({'id': message['id'], 'error': 'This input request is no longer active'})
+            else:
+                client.input(message['value'])
+                input_pending = None
+                emit({'event': 'input-cleared', 'run_id': message['run_id']})
+                emit({'id': message['id'], 'ok': True})
+        elif op == 'cells':
+            if execution is not None and not execution.done():
+                emit({'id': message['id'], 'error': 'This notebook is already running'})
+            else:
+                execution = asyncio.create_task(run_cells(message))
         elif op == 'start':
             execution = asyncio.create_task(start_request(message))
         elif op == 'run':

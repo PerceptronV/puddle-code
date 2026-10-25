@@ -282,3 +282,9 @@ controls remain available on older hosts. Selection retains incomplete environme
 and installation requires an explicit action; fixed package names run through the
 selected Python's pip without a shell. Installation includes the displayed Python path and rejects a changed selection. Remote profile leases and the connector
 continue to deny this namespace, so remote protocol remains 4.
+
+Protocol 25.2 adds local/SSH-only notebook `/execute`, `/execution` and `/input`
+operations for bounded cell source snapshots, observable live results and exact
+run/prompt input replies. New clients feature-detect interactive execution; older
+hosts retain Run to Executed Copy. The existing compilation API and kernel
+lifecycle are unchanged. Remote leases and the connector deny this namespace.

@@ -1,6 +1,8 @@
 import { useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Plus } from 'lucide-react';
 import { requestSave, saverKey } from './save-registry';
+import { useNotebookExecution } from './use-notebook-execution';
+import { NotebookInputPrompt } from './NotebookInputPrompt';
 import { NotebookToolbar } from './NotebookToolbar';
 import { NotebookCell, notebookControl } from './NotebookCell';
 import {
@@ -67,6 +69,11 @@ export function NotebookPreview({
   });
   const update = (notebook: Notebook) => onChange?.(`${JSON.stringify(notebook, null, 1)}\n`);
   const notebook = parsed.notebook;
+  const source = useMemo(
+    () => ({ session, path, ...(root !== undefined ? { root } : {}) }),
+    [session, path, root],
+  );
+  const execution = useNotebookExecution(source, notebook, onChange ? update : undefined, !!onRun);
   if (!notebook)
     return (
       <p className="p-6 text-sm text-danger" role="alert">
@@ -96,6 +103,7 @@ export function NotebookPreview({
       cells: notebook.cells.map((value, at) => (at === index ? cell : value)),
     });
   const execute = (index: number, mode: 'stay' | 'next' | 'insert') => {
+    if (notebook.cells[index]?.cell_type === 'code') void execution.run([index]);
     setEditing(null);
     if (mode === 'insert' || (mode === 'next' && index === notebook.cells.length - 1))
       add(notebook.cells[index]!.cell_type, index + 1);
@@ -200,10 +208,29 @@ export function NotebookPreview({
         source={{ session, path, ...(root !== undefined ? { root } : {}) }}
         onChange={onChange ? update : undefined}
         onAdd={add}
-        onRun={onRun}
-        running={running}
+        onRun={
+          execution.supported
+            ? () => {
+                void execution.run();
+              }
+            : onRun
+        }
+        onRunCopy={execution.supported ? onRun : undefined}
+        running={running || execution.busy}
         onRevealCell={(index) => choose(notebook.cells[index]!.id!)}
       />
+      {execution.error && (
+        <p role="alert" className="px-3 py-2 text-xs text-danger">
+          {execution.error}
+        </p>
+      )}
+      {execution.execution?.input && (
+        <NotebookInputPrompt
+          key={execution.execution.input.id}
+          source={source}
+          execution={execution.execution}
+        />
+      )}
       <div ref={scroller} className="min-h-0 flex-1 overflow-auto bg-ground text-fg">
         <div ref={content} className="mx-auto flex max-w-4xl flex-col gap-7 py-6 pr-6 pl-14">
           <p className="text-xs text-fg-muted">{notebook.cells.length} cells</p>
@@ -236,6 +263,29 @@ export function NotebookPreview({
               }}
               onSource={(source) => update(replaceCellSource(notebook, index, source))}
               onLanguage={(language) => replace(index, changeNotebookCellLanguage(cell, language))}
+              onInterrupt={() => {
+                void execution.interrupt();
+              }}
+              execution={execution.execution?.cells.find((item) => item.id === cell.id)}
+              onRun={
+                execution.supported
+                  ? (range) => {
+                      void execution.run(
+                        notebook.cells.flatMap((_, at) =>
+                          (
+                            range === 'cell'
+                              ? at === index
+                              : range === 'above'
+                                ? at < index
+                                : at >= index
+                          )
+                            ? [at]
+                            : [],
+                        ),
+                      );
+                    }
+                  : undefined
+              }
               onExecute={(mode) => execute(index, mode)}
               onOperation={(action) => operation(index, action)}
               onSave={() => {

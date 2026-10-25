@@ -18,7 +18,7 @@ import type { HeldBuffer } from './ModelRefcount';
  */
 
 type BodyProps = {
-  onRunCompilation?: () => void;
+  onRunCompilation?: (executedCopy?: boolean) => void;
   compilationRunning?: boolean;
   tab: EditorTab;
   reveal: RevealTarget | null;

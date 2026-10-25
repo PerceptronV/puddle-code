@@ -41,7 +41,7 @@ export interface TileHandlers {
   compilationProviders: readonly CompilationProvider[];
   /** Browser-local identity of the source currently running, when any. */
   compilationRunningKeys: ReadonlySet<string>;
-  onRunCompilation: (leafId: string, tab: EditorTab) => void;
+  onRunCompilation: (leafId: string, tab: EditorTab, executedCopy?: boolean) => void;
   onSetCompilationMode: (tab: EditorTab, mode: CompilationMode) => void;
   onOpenCompilationSettings?: (source: CompilationFileTarget) => void;
   onRevealPreviewSource: (leafId: string, tab: EditorTab, position: EditorPosition) => void;

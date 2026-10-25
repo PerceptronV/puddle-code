@@ -17,7 +17,18 @@ it('validates notebook targets and lifecycle actions before dispatch', async () 
   app.onError((error, c) =>
     c.json({ error: String(error) }, error instanceof ApiError ? (error.status as 400) : 500),
   );
-  app.route('/api/notebooks', notebookRoutes({ catalogue, status, action, environments }));
+  app.route(
+    '/api/notebooks',
+    notebookRoutes({
+      catalogue,
+      status,
+      action,
+      environments,
+      executeCells: vi.fn(),
+      executionStatus: vi.fn(),
+      replyToInput: vi.fn(),
+    }),
+  );
   const post = (path: string, body: unknown) =>
     app.request(`/api/notebooks/${path}`, {
       method: 'POST',

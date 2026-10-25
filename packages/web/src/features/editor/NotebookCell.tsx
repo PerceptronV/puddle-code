@@ -6,6 +6,7 @@ import {
   ArrowUpToLine,
   Copy,
   Play,
+  Square,
   Plus,
   Trash2,
   ChevronDown,
@@ -40,6 +41,7 @@ export function NotebookCell({
   onLanguage,
   onExecute,
   onRun,
+  onInterrupt,
   onOperation,
   onSplit,
   onSave,
@@ -58,6 +60,7 @@ export function NotebookCell({
   onLanguage: (language: string) => void;
   onExecute: (mode: 'stay' | 'next' | 'insert') => void;
   onRun?: (range: NotebookRunRange) => void;
+  onInterrupt?: () => void;
   onOperation: (
     operation: 'up' | 'down' | 'delete' | 'duplicate' | 'insert' | 'merge' | 'clear',
   ) => void;
@@ -111,25 +114,46 @@ export function NotebookCell({
         <button
           type="button"
           className={`${notebookControl} group/run relative w-full`}
-          disabled={!editable || (code && (!onRun || busy || !source.trim()))}
+          disabled={!editable || (code && (!onRun || (!busy && !source.trim())))}
           title={
-            code ? 'Run Cell (⌘/Ctrl+Enter)' : editing ? 'Show rendered cell' : 'Edit cell source'
+            code
+              ? busy
+                ? 'Interrupt execution'
+                : 'Run Cell (⌘/Ctrl+Enter)'
+              : editing
+                ? 'Show rendered cell'
+                : 'Edit cell source'
           }
-          aria-label={code ? 'Run Cell' : editing ? 'Show rendered cell' : 'Edit cell source'}
-          onClick={() => (code ? onRun?.('cell') : onEdit(!editing))}
+          aria-label={
+            code
+              ? busy
+                ? 'Interrupt execution'
+                : 'Run Cell'
+              : editing
+                ? 'Show rendered cell'
+                : 'Edit cell source'
+          }
+          onClick={() => {
+            if (code) {
+              if (busy) onInterrupt?.();
+              else onRun?.('cell');
+            } else onEdit(!editing);
+          }}
         >
           <span
             className={
-              code && onRun && !busy
-                ? 'group-hover/run:invisible group-focus-visible/run:invisible'
-                : ''
+              code && onRun ? 'group-hover/run:invisible group-focus-visible/run:invisible' : ''
             }
           >
             {code ? `[${busy ? '*' : (cell.execution_count ?? ' ')}]` : editing ? '[›]' : '[ ]'}
           </span>
-          {code && onRun && !busy && (
-            <Play className="absolute inset-0 m-auto hidden size-3.5 group-hover/run:block group-focus-visible/run:block" />
-          )}
+          {code &&
+            onRun &&
+            (busy ? (
+              <Square className="absolute inset-0 m-auto hidden size-3.5 group-hover/run:block group-focus-visible/run:block" />
+            ) : (
+              <Play className="absolute inset-0 m-auto hidden size-3.5 group-hover/run:block group-focus-visible/run:block" />
+            ))}
         </button>
       </div>
       <div className="mb-2 flex min-h-7 items-center gap-2 text-xs text-fg-muted">

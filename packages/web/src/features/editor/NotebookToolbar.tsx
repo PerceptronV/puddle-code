@@ -29,6 +29,7 @@ export function NotebookToolbar({
   onAdd,
   onRevealCell,
   onRun,
+  onRunCopy,
   running = false,
 }: {
   notebook: Notebook;
@@ -37,6 +38,7 @@ export function NotebookToolbar({
   onAdd: (type: NotebookCell['cell_type']) => void;
   onRevealCell: (index: number) => void;
   onRun?: () => void;
+  onRunCopy?: () => void;
   running?: boolean;
 }) {
   const [outlineOpen, setOutlineOpen] = useState(false);
@@ -140,6 +142,11 @@ export function NotebookToolbar({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
+            {onRunCopy && (
+              <DropdownMenuItem disabled={busy} onSelect={onRunCopy}>
+                Run to Executed Copy
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               disabled={notebook.cells.length >= 2000}
               onSelect={() => onAdd('raw')}

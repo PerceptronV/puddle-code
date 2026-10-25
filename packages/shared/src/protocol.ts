@@ -308,4 +308,5 @@
 // 24.6: daemon-owned notebook kernels and explicit kernel lifecycle controls.
 // 25.0: programming-language runs always compile and execute in a terminal.
 // 25.1: Python environment discovery/selection and explicit notebook package installation.
-export const PROTOCOL_VERSION = { major: 25, minor: 1 } as const;
+// 25.2: bounded interactive notebook cell execution, live results and input replies.
+export const PROTOCOL_VERSION = { major: 25, minor: 2 } as const;

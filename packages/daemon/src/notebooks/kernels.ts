@@ -1,9 +1,6 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { open, realpath, stat } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
-import { z } from 'zod';
 import {
-  notebookKernelSpecSchema,
   type CompilationFileTarget,
   type NotebookKernelAction,
   type NotebookKernelsResponse,
@@ -15,18 +12,10 @@ import { KeyedMutex } from '../git/mutex.js';
 import { ApiError } from '../http/errors.js';
 import { containedPath, resolveFsRoot, type WorktreeDeps } from '../http/routes/worktree-shared.js';
 import { findCodeExecutable } from '../code/discovery.js';
-import { NOTEBOOK_BRIDGE } from './bridge.js';
+import { KernelBridge } from './kernel-bridge.js';
+import { NotebookExecutionController } from './execution.js';
+import type { NotebookExecute, NotebookInputReply } from '@puddle/shared';
 import { NotebookEnvironments } from './environments.js';
-
-const messageSchema = z.object({
-  event: z.enum(['catalogue', 'spawned', 'ready', 'stopped', 'dead']).optional(),
-  id: z.number().int().optional(),
-  ok: z.boolean().optional(),
-  error: z.string().optional(),
-  kernel: z.string().optional(),
-  pid: z.number().int().positive().optional(),
-  kernels: z.array(notebookKernelSpecSchema).optional(),
-});
 
 interface KernelEntry {
   source: string;
@@ -39,6 +28,7 @@ interface KernelEntry {
   changing: boolean;
   finished: Promise<void> | null;
   environment?: NotebookEnvironment;
+  execution: NotebookExecutionController;
 }
 
 /** Canonical files own their kernels until explicit shutdown or daemon disposal. */
@@ -234,6 +224,68 @@ export class NotebookKernels {
     return entry?.status ?? { state: 'stopped', kernel: null };
   }
 
+  async executionStatus(source: CompilationFileTarget) {
+    const path = await this.path(source);
+    return { execution: this.entries.get(path)?.execution.snapshot() ?? null };
+  }
+
+  async executeCells(request: NotebookExecute) {
+    const path = await this.path(request.source);
+    const entry = this.entry(
+      path,
+      findCodeExecutable(['jupyter-nbconvert']) ?? 'jupyter-nbconvert',
+    );
+    if (this.disposed || entry.changing || entry.busy)
+      throw ApiError.conflict(
+        'notebook_busy',
+        'This notebook is already running or changing kernel',
+      );
+    if (entry.status.state === 'dead')
+      throw ApiError.conflict('notebook_kernel_dead', 'Restart the kernel before running again');
+    if (entry.environment && (!entry.environment.ipykernel || !entry.environment.nbconvert))
+      throw ApiError.badRequest(
+        'notebook_packages_missing',
+        'Install the missing notebook packages first',
+      );
+    const execution = entry.execution.begin(request.cells);
+    entry.busy = true;
+    entry.cancelled = false;
+    entry.status = { state: entry.bridge ? 'busy' : 'starting', kernel: entry.selected ?? null };
+    entry.finished = (async () => {
+      try {
+        const bridge = await this.connect(entry);
+        if (entry.cancelled || this.disposed) throw new Error('Notebook execution interrupted');
+        await bridge.request({
+          op: 'cells',
+          run_id: execution.id,
+          cells: request.cells,
+          cwd: dirname(path),
+          kernel: entry.selected ?? request.kernel ?? 'python3',
+        });
+        entry.execution.finish(entry.cancelled ? 'cancelled' : 'succeeded');
+      } catch (error) {
+        entry.execution.finish(entry.cancelled ? 'cancelled' : 'failed', errorMessage(error));
+      } finally {
+        entry.busy = false;
+        if (entry.status.state !== 'dead')
+          entry.status = { ...entry.status, state: entry.bridge ? 'idle' : 'stopped' };
+        entry.finished = null;
+      }
+    })();
+    return { execution: entry.execution.snapshot() };
+  }
+
+  async replyToInput(request: NotebookInputReply) {
+    const path = await this.path(request.source);
+    const entry = this.entries.get(path);
+    if (!entry?.bridge || !entry.execution.acceptsInput(request))
+      throw ApiError.conflict('notebook_input_expired', 'This input request is no longer active');
+    await entry.bridge.request(
+      { op: 'input', run_id: request.run_id, input_id: request.input_id, value: request.value },
+      10_000,
+    );
+  }
+
   async execute(
     source: string,
     output: string,
@@ -355,6 +407,7 @@ export class NotebookKernels {
         changing: false,
         cancelled: false,
         finished: null,
+        execution: new NotebookExecutionController(),
       };
       this.entries.set(source, entry);
     }
@@ -377,6 +430,7 @@ export class NotebookKernels {
       entry.environment?.python ?? (await pythonFor(entry.executable)),
       (message) => {
         if (entry.bridge !== bridge) return;
+        entry.execution.receive(message);
         if (message.event === 'dead')
           entry.status = { state: 'dead', kernel: entry.status.kernel, error: message.error };
         if (message.event === 'ready')
@@ -425,141 +479,6 @@ async function pythonFor(executable: string): Promise<string> {
   const python = findCodeExecutable(['python3', 'python']);
   if (!python) throw new Error('Python with Jupyter packages is not installed on this host');
   return python;
-}
-
-class KernelBridge {
-  readonly ready: Promise<z.infer<typeof notebookKernelSpecSchema>[]>;
-  readonly child: ChildProcessWithoutNullStreams;
-  closed = false;
-  private pid: number | null = null;
-  private sequence = 0;
-  private buffer = '';
-  private stderr = '';
-  private readonly pending = new Map<
-    number,
-    { resolve(): void; reject(error: Error): void; timer?: ReturnType<typeof setTimeout> }
-  >();
-  private closePromise: Promise<void> | null = null;
-
-  constructor(
-    python: string,
-    onMessage?: (message: z.infer<typeof messageSchema>) => void,
-    onExit?: (error: string) => void,
-    exactPython = false,
-  ) {
-    this.child = spawn(
-      python,
-      ['-u', '-c', NOTEBOOK_BRIDGE, ...(exactPython ? ['--puddle-python'] : [])],
-      { stdio: ['pipe', 'pipe', 'pipe'] },
-    );
-    const child = this.child;
-    this.ready = new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        reject(new Error('Jupyter discovery timed out'));
-        void this.close();
-      }, 30_000);
-      child.stdout.on('data', (chunk: Buffer) => {
-        this.buffer += chunk.toString('utf8');
-        if (this.buffer.length > 256 * 1024) {
-          reject(new Error('Invalid kernel bridge output'));
-          void this.close();
-          return;
-        }
-        for (;;) {
-          const end = this.buffer.indexOf('\n');
-          if (end < 0) break;
-          const line = this.buffer.slice(0, end);
-          this.buffer = this.buffer.slice(end + 1);
-          try {
-            const message = messageSchema.parse(JSON.parse(line));
-            if (message.event === 'catalogue') {
-              clearTimeout(timer);
-              resolve(message.kernels ?? []);
-            }
-            if (message.event === 'spawned' && message.pid) this.pid = message.pid;
-            if (message.event === 'stopped' || message.event === 'dead') this.pid = null;
-            onMessage?.(message);
-            if (message.id !== undefined) {
-              const pending = this.pending.get(message.id);
-              if (pending) {
-                clearTimeout(pending.timer);
-                this.pending.delete(message.id);
-                if (message.error) pending.reject(new Error(message.error));
-                else pending.resolve();
-              }
-            }
-          } catch {
-            reject(new Error('Invalid kernel bridge response'));
-            void this.close();
-          }
-        }
-      });
-      child.stderr.on('data', (chunk: Buffer) => {
-        this.stderr = (this.stderr + chunk.toString('utf8')).slice(-32768);
-      });
-      const fail = (error: Error) => {
-        clearTimeout(timer);
-        this.closed = true;
-        reject(error);
-        for (const pending of this.pending.values()) {
-          clearTimeout(pending.timer);
-          pending.reject(error);
-        }
-        this.pending.clear();
-        this.killKernel();
-        onExit?.(error.message);
-      };
-      child.once('error', fail);
-      child.once('exit', () => fail(new Error(this.stderr.trim() || 'Notebook kernel stopped')));
-      child.stdin.on('error', () => {
-        /* The exit handler rejects every pending operation. */
-      });
-    });
-  }
-
-  request(message: Record<string, unknown>, timeoutMs?: number): Promise<void> {
-    if (this.closed || this.closePromise)
-      return Promise.reject(new Error('Notebook kernel stopped'));
-    const id = ++this.sequence;
-    return new Promise((resolve, reject) => {
-      const timer =
-        timeoutMs === undefined
-          ? undefined
-          : setTimeout(() => {
-              this.pending.delete(id);
-              reject(new Error('Kernel operation timed out'));
-            }, timeoutMs);
-      this.pending.set(id, { resolve, reject, timer });
-      this.child.stdin.write(`${JSON.stringify({ ...message, id })}\n`);
-    });
-  }
-
-  close(): Promise<void> {
-    if (this.closePromise) return this.closePromise;
-    if (this.closed) return Promise.resolve();
-    this.closePromise = new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        this.killKernel();
-        this.child.kill('SIGKILL');
-      }, 3000);
-      this.child.once('exit', () => {
-        clearTimeout(timer);
-        resolve();
-      });
-      this.child.stdin.end(`${JSON.stringify({ op: 'shutdown' })}\n`);
-    });
-    return this.closePromise;
-  }
-
-  private killKernel(): void {
-    if (!this.pid) return;
-    try {
-      process.kill(-this.pid, 'SIGKILL');
-    } catch {
-      /* Already stopped by Jupyter. */
-    }
-    this.pid = null;
-  }
 }
 
 function errorMessage(error: unknown): string {

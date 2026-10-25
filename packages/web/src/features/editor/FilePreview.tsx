@@ -52,7 +52,7 @@ export function FilePreview({
   scrollChannel?: string;
   /** Following previews reveal the associated Monaco source on ctrl/⌘-click. */
   onRevealSource?: (position: EditorPosition) => void;
-  onRunCompilation?: () => void;
+  onRunCompilation?: (executedCopy?: boolean) => void;
   compilationRunning?: boolean;
 }) {
   const { openFile } = useEditor();
@@ -87,7 +87,7 @@ export function FilePreview({
         path={path}
         root={root}
         text={text}
-        onRun={onRunCompilation}
+        onRun={onRunCompilation ? () => onRunCompilation(true) : undefined}
         running={compilationRunning}
         onUndo={() => {
           void model?.undo();

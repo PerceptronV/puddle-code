@@ -103,6 +103,9 @@ describe('profile-bound host authority', () => {
       ['environments', 'POST'],
       ['status', 'POST'],
       ['kernel', 'POST'],
+      ['execute', 'POST'],
+      ['execution', 'POST'],
+      ['input', 'POST'],
     ])
       expect((await f.req(`/api/notebooks/${path}`, method)).status).toBe(403);
     expect(f.dispatch).not.toHaveBeenCalled();

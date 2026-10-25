@@ -307,3 +307,104 @@ test('edits and saves notebook cells, preserves metadata, sanitises output and h
   await page.screenshot({ path: '/tmp/puddle-notebook-preview.png' });
   expect(errors).toEqual([]);
 });
+
+test('runs exact cell ranges and merges live output without replacing newer edits', async ({
+  page,
+}) => {
+  const notebook = {
+    nbformat: 4,
+    nbformat_minor: 5,
+    metadata: {},
+    cells: [
+      {
+        id: 'setup',
+        cell_type: 'code',
+        metadata: {},
+        source: 'value = 41',
+        execution_count: null,
+        outputs: [],
+      },
+      {
+        id: 'answer',
+        cell_type: 'code',
+        metadata: {},
+        source: 'print(value + 1)',
+        execution_count: null,
+        outputs: [],
+      },
+    ],
+  };
+  const requests: { cells: { id: string; source: string }[] }[] = [];
+  let execution: import('@puddle/shared').NotebookExecution | null = null;
+  await page.route(`${origin}/api/worktrees/**/file?*`, (route) =>
+    route.fulfill({ json: { content: JSON.stringify(notebook), binary: false, mtime_ms: 1 } }),
+  );
+  await page.route(`${origin}/api/version`, (route) =>
+    route.fulfill({ json: { protocol: { major: 25, minor: 2 } } }),
+  );
+  await page.route(`${origin}/api/notebooks/kernels`, (route) =>
+    route.fulfill({ json: { available: true, kernels: [] } }),
+  );
+  await page.route(`${origin}/api/notebooks/status`, (route) =>
+    route.fulfill({ json: { state: 'idle', kernel: 'python3' } }),
+  );
+  await page.route(`${origin}/api/notebooks/execution`, (route) =>
+    route.fulfill({ json: { execution } }),
+  );
+  await page.route(`${origin}/api/notebooks/execute`, (route) => {
+    const request = route.request().postDataJSON();
+    requests.push(request);
+    execution = {
+      id: crypto.randomUUID(),
+      revision: 1,
+      state: 'running',
+      cells: request.cells.map((cell: { id: string; source: string }) => ({
+        ...cell,
+        revision: 1,
+        state: 'running',
+        outputs: [],
+        execution_count: 1,
+      })),
+    };
+    return route.fulfill({ json: { execution } });
+  });
+  await page.goto(`${origin}/e2e/fixtures/notebook.html`);
+  const second = page.getByRole('region', { name: 'Cell 2', exact: true });
+  await second.hover();
+  await second.getByRole('button', { name: 'Run Above', exact: true }).click();
+  await expect.poll(() => requests.length).toBe(1);
+  expect(requests[0]!.cells.map((cell) => cell.id)).toEqual(['setup']);
+  await editCell(page, 1, 'value = 99');
+  execution = {
+    ...execution!,
+    state: 'succeeded',
+    revision: 2,
+    cells: execution!.cells.map((cell) => ({
+      ...cell,
+      state: 'succeeded',
+      revision: 2,
+      elapsed_ms: 50,
+      outputs: [{ output_type: 'stream', text: 'old source result' }],
+    })),
+  };
+  await expect(page.getByText('old source result', { exact: true })).toBeVisible();
+  await expect(page.locator('[data-notebook-cell="0"] .view-lines')).toContainText('value = 99');
+  await expect(page.getByText('Source changed', { exact: true })).toBeVisible();
+  await second.hover();
+  await second.getByRole('button', { name: 'Run Cell and Below', exact: true }).click();
+  await expect.poll(() => requests.length).toBe(2);
+  expect(requests[1]!.cells.map((cell) => cell.id)).toEqual(['answer']);
+  execution = {
+    ...execution!,
+    state: 'succeeded',
+    revision: 2,
+    cells: execution!.cells.map((cell) => ({ ...cell, state: 'succeeded', revision: 2 })),
+  };
+  await expect(page.getByRole('button', { name: 'Run All', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Run All', exact: true }).click();
+  await expect.poll(() => requests.length).toBe(3);
+  expect(requests[2]!.cells).toEqual([
+    { id: 'setup', source: 'value = 99' },
+    { id: 'answer', source: 'print(value + 1)' },
+  ]);
+});

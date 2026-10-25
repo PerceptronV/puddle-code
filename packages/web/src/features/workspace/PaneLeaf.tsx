@@ -81,7 +81,7 @@ export function PaneLeaf({
   compilableExtensions: ReadonlySet<string>;
   compilationProviders: readonly CompilationProvider[];
   compilationRunningKeys: ReadonlySet<string>;
-  onRunCompilation: (leafId: string, tab: EditorTab) => void;
+  onRunCompilation: (leafId: string, tab: EditorTab, executedCopy?: boolean) => void;
   onSetCompilationMode: (tab: EditorTab, mode: CompilationMode) => void;
   onOpenCompilationSettings?: (source: CompilationFileTarget) => void;
   /** Reveal a following preview click in its associated ordinary source tab. */
@@ -261,7 +261,7 @@ export function PaneLeaf({
                 tab={activeRef.tab}
                 onRunCompilation={
                   compilableExtensions.has(sourceExtension(activeRef.tab.path) ?? '')
-                    ? () => onRunCompilation(leaf.id, activeRef.tab)
+                    ? (copy) => onRunCompilation(leaf.id, activeRef.tab, copy)
                     : undefined
                 }
                 compilationRunning={compilationRunningKeys.has(

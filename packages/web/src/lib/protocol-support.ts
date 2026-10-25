@@ -92,3 +92,7 @@ export const notebookKernelsSupported = (p: Protocol): boolean =>
 /** Python environments and explicit package installation (25.1). */
 export const notebookEnvironmentsSupported = (p: Protocol): boolean =>
   p !== undefined && atLeast(p, 25, 1);
+
+/** Live cell execution and kernel input (25.2). */
+export const notebookExecutionSupported = (p: Protocol): boolean =>
+  p !== undefined && atLeast(p, 25, 2);

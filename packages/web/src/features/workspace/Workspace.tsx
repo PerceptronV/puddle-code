@@ -1,3 +1,4 @@
+import { runOpenNotebook } from '../editor/notebook-run-registry';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -562,7 +563,17 @@ function WorkspaceInner() {
   );
 
   const onRunCompilation = useCallback(
-    async (leafId: string, tab: EditorTab) => {
+    async (leafId: string, tab: EditorTab, executedCopy = false) => {
+      if (
+        !executedCopy &&
+        tab.path.toLowerCase().endsWith('.ipynb') &&
+        runOpenNotebook({
+          session: tab.session,
+          path: tab.path,
+          ...(tab.root ? { root: tab.root } : {}),
+        })
+      )
+        return;
       if (manualCompilationRunningKey !== null) return;
       const target = compilationTarget(tab);
       const provider = compilationProviderForTab(tab);
@@ -1860,7 +1871,7 @@ function WorkspaceInner() {
           compilableExtensions={compilableExtensions}
           compilationProviders={availableCompilationProviders}
           compilationRunningKeys={compilationRunningKeys}
-          onRunCompilation={(leafId, tab) => void onRunCompilation(leafId, tab)}
+          onRunCompilation={(leafId, tab, copy) => void onRunCompilation(leafId, tab, copy)}
           onSetCompilationMode={onSetCompilationMode}
           onOpenCompilationSettings={commandSettingsAvailable ? openCompilationSettings : undefined}
           onRevealPreviewSource={revealPreviewSource}

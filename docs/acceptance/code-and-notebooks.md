@@ -35,9 +35,9 @@ discovery and execution must occur on that host, using protocol 25.1 or newer.
    cell container. Verify syntax highlighting and cursor retention while scrolling. Verify draft restoration and
    stale-file reconciliation after another editor changes the file. A malformed
    notebook shows a repair message and remains accessible in source view.
-6. With `jupyter-nbconvert` and the notebook's kernel installed, use header
-   **Run All** and the tab play button. An executed copy opens and the source's
-   saved outputs stay unchanged. Run `counter = globals().get("counter", 0) + 1`
+6. With `jupyter-nbconvert` and the notebook's kernel installed, use **Run to Executed Copy** from the notebook menu. An executed copy opens
+   and the source's saved outputs stay unchanged. On protocol 25.2, header
+   **Run All** and the open-tab play button update results inline instead. Run `counter = globals().get("counter", 0) + 1`
    followed by `print(counter)` twice: results are 1 and 2, with continuing
    execution counts. Close/reopen the source tab and reconnect the browser:
    another run returns 3. A different notebook starts with its own state.
@@ -85,3 +85,14 @@ Automated coverage: `code-terminal.test.ts`, `code-provider.test.ts`, `notebook-
 orchestration and command settings. Notebook execution uses Jupyter's
 [kernel manager API](https://jupyter-client.readthedocs.io/en/stable/api/jupyter_client.html#jupyter_client.manager.KernelManager) and [notebook client](https://nbclient.readthedocs.io/en/latest/client.html)
 and preserves the [version 4 notebook format](https://nbformat.readthedocs.io/en/latest/format_description.html).
+
+12. On protocol 25.2, run an individual cell, all above and this cell and below.
+    Verify exact document order, shared variables, live stdout and execution counts.
+    Edit or reorder a running cell: its output follows its id and source changes
+    remain visible. Delete or convert a running cell: output never recreates it.
+    Clear output, save and reopen: completed results stay cleared.
+13. Run a failing cell followed by a mutation: display its traceback and skip the
+    mutation. Interrupt a long batch: cancel queued cells and retain variables.
+    Answer input() and getpass prompts; reject stale replies after interruption
+    or restart. Reconnect during execution and confirm it is observed, never replayed.
+    Remote profile leases must deny execute, execution and input operations.
