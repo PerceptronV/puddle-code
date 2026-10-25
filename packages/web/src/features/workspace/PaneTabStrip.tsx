@@ -30,7 +30,7 @@ import { TabTooltipBody } from './TabTooltip';
 import { tabRefKey } from './layout-tree';
 import { useDropIndicator } from './TilingDnd';
 
-// `min-w-36` leaves a clickable title beside the three hover controls a stopped
+// The 7.2rem floor leaves a clickable title beside the three hover controls a stopped
 // session can show (resume, archive and close). Controls overlay the right edge
 // (see TabControls), so revealing them never moves neighbouring tabs. `relative`
 // anchors them; `max-w-52` still caps a long title, which truncates as before.
@@ -39,7 +39,7 @@ import { useDropIndicator } from './TilingDnd';
 // tab would be left with a highlighted filename nobody asked to select and no
 // way to copy it from anyway.
 const TAB_CLASS =
-  'group relative flex min-w-36 max-w-52 cursor-pointer select-none items-center gap-1.5 rounded-t-md px-2.5 text-xs transition-colors';
+  'group relative flex min-w-[calc(var(--spacing)*28.8)] max-w-52 cursor-pointer select-none items-center gap-1.5 rounded-t-md px-2.5 text-xs transition-colors';
 
 // The same constant-speed reveal as a too-long commit/file name in History,
 // driven by this tab chip's own hover. Literal so Tailwind generates it.

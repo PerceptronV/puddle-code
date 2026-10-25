@@ -9,4 +9,6 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Changed
 
+- Reduce the minimum file and session tab width to 80% of its previous size.
