@@ -89,6 +89,12 @@ export function FilePreview({
         text={text}
         onRun={onRunCompilation}
         running={compilationRunning}
+        onUndo={() => {
+          void model?.undo();
+        }}
+        onRedo={() => {
+          void model?.redo();
+        }}
         onChange={(value) => {
           const model = buffer.model;
           if (!model) return;

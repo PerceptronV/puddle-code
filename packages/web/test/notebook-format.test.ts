@@ -75,8 +75,8 @@ describe('notebook documents', () => {
       id: 'cell',
       metadata: { tags: ['keep'] },
       extra: 42,
-      outputs: [],
-      execution_count: null,
+      outputs: document.cells[0]!.outputs,
+      execution_count: 1,
       source: ['print(2)\n', 'print(3)'],
     });
     expect(parsed.cells[0]!.outputs).toHaveLength(1);

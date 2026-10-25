@@ -64,10 +64,53 @@ export function replaceCellSource(notebook: Notebook, index: number, source: str
         : {
             ...cell,
             source: source.match(/[^\n]*\n|[^\n]+$/g) ?? [],
-            ...(cell.cell_type === 'code' ? { outputs: [], execution_count: null } : {}),
           },
     ),
   };
+}
+
+/** Materialise legacy identities on the next edit, without dirtying a newly opened file. */
+export function notebookCellIds(notebook: Notebook): Notebook {
+  const used = new Set<string>();
+  return {
+    ...notebook,
+    cells: notebook.cells.map((cell, index) => {
+      let id = cell.id;
+      if (!id || used.has(id)) {
+        id = `puddle-${index}`;
+        while (used.has(id) || notebook.cells.some((other) => other.id === id)) id += '-';
+      }
+      used.add(id);
+      return cell.id === id ? cell : { ...cell, id };
+    }),
+  };
+}
+
+export function notebookCellLanguage(cell: NotebookCell, notebook: Notebook): string {
+  if (cell.cell_type !== 'code') return cell.cell_type === 'raw' ? 'plaintext' : 'markdown';
+  const vscode = cell.metadata.vscode as { languageId?: unknown } | undefined;
+  const language = notebook.metadata.language_info as { name?: unknown } | undefined;
+  const kernel = notebook.metadata.kernelspec as { language?: unknown } | undefined;
+  const name = vscode?.languageId ?? language?.name ?? kernel?.language ?? 'python';
+  return typeof name === 'string' ? name : 'python';
+}
+
+/** Cell kinds are nbformat values; syntax languages use VS Code's portable metadata. */
+export function changeNotebookCellLanguage(cell: NotebookCell, language: string): NotebookCell {
+  const cell_type = language === 'markdown' || language === 'raw' ? language : 'code';
+  const next: NotebookCell = { ...cell, cell_type };
+  if (cell_type === 'code') {
+    next.metadata = {
+      ...cell.metadata,
+      vscode: { ...((cell.metadata.vscode as object) ?? {}), languageId: language },
+    };
+    next.outputs ??= [];
+    next.execution_count ??= null;
+  } else {
+    delete next.outputs;
+    delete next.execution_count;
+  }
+  return next;
 }
 
 export function newNotebookCell(type: NotebookCell['cell_type']): NotebookCell {

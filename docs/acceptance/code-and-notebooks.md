@@ -29,7 +29,10 @@ discovery and execution must occur on that host, using protocol 25.1 or newer.
    exposes JSON and returns to the notebook without losing edits.
 5. Edit, add, reorder and delete cells; save and reopen. Preserve kernelspec,
    cell ids, tags, attachments and unknown extension fields. Editing a code cell
-   clears only its old output and execution count. Verify draft restoration and
+   preserves its old output and execution count. Double-click Markdown to edit
+   in Monaco and press Command/Ctrl+Enter to render. Change the cell language,
+   insert, duplicate, split and merge cells; undo structural changes from the
+   cell container. Verify syntax highlighting and cursor retention while scrolling. Verify draft restoration and
    stale-file reconciliation after another editor changes the file. A malformed
    notebook shows a repair message and remains accessible in source view.
 6. With `jupyter-nbconvert` and the notebook's kernel installed, use header

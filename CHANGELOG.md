@@ -9,6 +9,11 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Added
+
+- Add Monaco notebook cells, Markdown editing shortcuts, searchable cell languages, a left execution gutter, insertion, duplication, splitting, merging and structural undo.
+
 ### Changed
 
+- Preserve notebook outputs and execution counts while editing source.
 - Reduce the minimum file and session tab width to 80% of its previous size.

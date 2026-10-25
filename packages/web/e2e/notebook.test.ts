@@ -1,6 +1,12 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
 import { fileURLToPath } from 'node:url';
+
+async function editCell(page: Page, index: number, value: string) {
+  await page.locator(`[data-notebook-cell="${index - 1}"] .monaco-editor`).click();
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.insertText(value);
+}
 
 test.use({ viewport: { width: 1000, height: 800 } });
 let server: ViteDevServer;
@@ -201,10 +207,18 @@ test('edits and saves notebook cells, preserves metadata, sanitises output and h
   await expect(page.getByText('Saved result', { exact: true })).toBeVisible();
   expect(await page.evaluate(() => 'compromised' in window)).toBe(false);
   await expect(page.locator('[style*="position:fixed"]')).toHaveCount(0);
+  await page.getByRole('heading', { name: 'Notebook example' }).dblclick();
+  await editCell(page, 1, '# Edited notebook');
+  await page
+    .getByRole('textbox', { name: 'Cell 1 source', exact: true })
+    .press('ControlOrMeta+Enter');
+  await expect(page.getByRole('heading', { name: 'Edited notebook' })).toBeVisible();
+  await editCell(page, 2, 'print(2)');
+  await expect(page.getByText('Saved result', { exact: true })).toBeVisible();
   await expect(page.getByRole('toolbar', { name: 'Notebook', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Outline', exact: true }).click();
   await expect(page.getByRole('navigation', { name: 'Notebook outline' })).toContainText(
-    'Notebook example',
+    'Edited notebook',
   );
   await page
     .getByRole('navigation', { name: 'Notebook outline' })
@@ -251,7 +265,7 @@ test('edits and saves notebook cells, preserves metadata, sanitises output and h
       exact: true,
     }),
   ).toHaveCount(1);
-  await page.getByRole('textbox', { name: 'Cell 2 source' }).fill('print(42)\nprint("done")');
+  await editCell(page, 2, 'print(42)\nprint("done")');
   await expect(page.getByText('Saved result', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Save notebook', exact: true }).click();
   await expect.poll(() => saved?.content).toBeTruthy();
@@ -274,23 +288,21 @@ test('edits and saves notebook cells, preserves metadata, sanitises output and h
   await expect(page.locator('.monaco-editor')).toBeVisible();
   await page.getByText('analysis.ipynb', { exact: true }).first().hover();
   await page.getByRole('button', { name: 'Show notebook', exact: true }).click();
-  await expect(page.getByRole('textbox', { name: 'Cell 2 source' })).toHaveValue(
-    'print(42)\nprint("done")',
-  );
+  await expect(page.locator('[data-notebook-cell="1"] .view-lines')).toContainText('print(42)');
   await page.getByRole('button', { name: 'Add code cell', exact: true }).click();
-  await expect(page.getByRole('textbox', { name: 'Cell 3 source' })).toBeVisible();
+  await expect(page.locator('[data-notebook-cell="2"] .monaco-editor')).toBeVisible();
   // A slow kernel start must not replace edits made while its response is pending.
   delaySelection = true;
   await page.getByRole('combobox', { name: 'Select kernel' }).click();
   await page.getByRole('option', { name: 'Alternate Python' }).click();
   await expect.poll(() => releaseSelection !== null).toBe(true);
-  await page.getByRole('textbox', { name: 'Cell 3 source' }).fill('print("keep this edit")');
+  await editCell(page, 3, 'print("keep this edit")');
   releaseSelection!();
   await expect(page.getByRole('combobox', { name: 'Select kernel' })).toContainText(
     'Alternate Python',
   );
-  await expect(page.getByRole('textbox', { name: 'Cell 3 source' })).toHaveValue(
-    'print("keep this edit")',
+  await expect(page.locator('[data-notebook-cell="2"] .view-lines')).toContainText(
+    'keep this edit',
   );
   await page.screenshot({ path: '/tmp/puddle-notebook-preview.png' });
   expect(errors).toEqual([]);
