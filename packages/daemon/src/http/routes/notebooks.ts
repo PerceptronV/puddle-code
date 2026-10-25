@@ -1,6 +1,10 @@
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import { notebookExecuteSchema, notebookInputReplySchema } from '@puddle/shared';
+import {
+  notebookExecuteSchema,
+  notebookInputReplySchema,
+  notebookIntelligenceRequestSchema,
+} from '@puddle/shared';
 import { notebookKernelActionSchema, notebookKernelRequestSchema } from '@puddle/shared';
 import type { NotebookKernels } from '../../notebooks/kernels.js';
 import { parseBody } from '../validate.js';
@@ -15,10 +19,14 @@ export function notebookRoutes(
     | 'executeCells'
     | 'executionStatus'
     | 'replyToInput'
+    | 'intelligence'
   >,
 ): Hono {
   return new Hono()
     .use('*', bodyLimit({ maxSize: 2 * 1024 * 1024 }))
+    .post('/intelligence', async (c) =>
+      c.json(await kernels.intelligence(await parseBody(c, notebookIntelligenceRequestSchema))),
+    )
     .post('/execute', async (c) =>
       c.json(await kernels.executeCells(await parseBody(c, notebookExecuteSchema))),
     )

@@ -57,6 +57,9 @@ export function NotebookLanguagePicker({
             ))}
           </CommandList>
         </Command>
+        <p className="px-3 py-2 text-xs text-fg-muted">
+          Code languages set highlighting. Execution uses the notebook kernel.
+        </p>
       </PopoverContent>
     </Popover>
   );

@@ -49,6 +49,10 @@ it.skipIf(!findCodeExecutable(['jupyter-nbconvert']))(
       await expect.poll(async () => (await status()).state, { timeout: 30000 }).not.toBe('running');
       return status();
     };
+    expect(
+      await kernels.intelligence({ source, kind: 'complete', code: 'val', cursor: 3 }),
+    ).toMatchObject({ matches: [] });
+    expect((await kernels.status(source)).state).toBe('stopped');
     await kernels.executeCells({
       source,
       cells: [
@@ -72,6 +76,18 @@ it.skipIf(!findCodeExecutable(['jupyter-nbconvert']))(
     expect(first.state).toBe('succeeded');
     expect(first.cells.map((cell) => cell.execution_count)).toEqual([1, 2]);
     expect(JSON.stringify(first.cells[1]!.outputs)).toContain('42');
+    const code = '# 🙂\nval';
+    const completion = await kernels.intelligence({
+      source,
+      kind: 'complete',
+      code,
+      cursor: [...code].length,
+    });
+    expect(completion.matches).toContain('value');
+    expect(completion.start).toBe([...code].length - 3);
+    const help = await kernels.intelligence({ source, kind: 'inspect', code: 'print', cursor: 5 });
+    expect(help.documentation.toLowerCase()).toContain('print');
+
     await kernels.executeCells({
       source,
       cells: [{ id: 'input', source: 'name = input("Name: ")\nprint(name, value)' }],

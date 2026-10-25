@@ -30,6 +30,7 @@ export function NotebookToolbar({
   onRevealCell,
   onRun,
   onRunCopy,
+  onRunSection,
   running = false,
 }: {
   notebook: Notebook;
@@ -39,6 +40,7 @@ export function NotebookToolbar({
   onRevealCell: (index: number) => void;
   onRun?: () => void;
   onRunCopy?: () => void;
+  onRunSection?: (index: number) => void;
   running?: boolean;
 }) {
   const [outlineOpen, setOutlineOpen] = useState(false);
@@ -118,18 +120,38 @@ export function NotebookToolbar({
         <PopoverContent align="start" className="max-h-72 w-72 overflow-y-auto p-1">
           <nav aria-label="Notebook outline" className="flex flex-col">
             {outline.map((item) => (
-              <button
-                type="button"
+              <div
                 key={item.index}
-                className={`${control} text-left`}
-                onClick={() => {
-                  onRevealCell(item.index);
-                  setOutlineOpen(false);
-                }}
+                className="group/outline flex items-center"
+                style={{ paddingLeft: `calc(var(--spacing) * ${Math.max(0, item.level - 1) * 3})` }}
               >
-                <span className="w-5 shrink-0 text-fg-muted">{item.index + 1}</span>
-                <span className="truncate">{item.label}</span>
-              </button>
+                <button
+                  type="button"
+                  className={`${control} min-w-0 flex-1 text-left`}
+                  onClick={() => {
+                    onRevealCell(item.index);
+                    setOutlineOpen(false);
+                  }}
+                >
+                  <span className="w-5 shrink-0 text-fg-muted">{item.index + 1}</span>
+                  <span className="truncate">{item.label}</span>
+                </button>
+                {!!item.level && onRunSection && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    title="Run Section"
+                    aria-label={`Run section ${item.label}`}
+                    className={`${control} opacity-0 group-hover/outline:opacity-100 focus:opacity-100 pointer-coarse:opacity-100`}
+                    onClick={() => {
+                      onRunSection(item.index);
+                      setOutlineOpen(false);
+                    }}
+                  >
+                    <Play className="size-3.5" />
+                  </button>
+                )}
+              </div>
             ))}
           </nav>
         </PopoverContent>

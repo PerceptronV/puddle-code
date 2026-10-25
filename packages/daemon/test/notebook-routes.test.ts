@@ -27,6 +27,7 @@ it('validates notebook targets and lifecycle actions before dispatch', async () 
       executeCells: vi.fn(),
       executionStatus: vi.fn(),
       replyToInput: vi.fn(),
+      intelligence: vi.fn(),
     }),
   );
   const post = (path: string, body: unknown) =>

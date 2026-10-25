@@ -96,3 +96,7 @@ export const notebookEnvironmentsSupported = (p: Protocol): boolean =>
 /** Live cell execution and kernel input (25.2). */
 export const notebookExecutionSupported = (p: Protocol): boolean =>
   p !== undefined && atLeast(p, 25, 2);
+
+/** Kernel completion and inspection (25.3). */
+export const notebookIntelligenceSupported = (p: Protocol): boolean =>
+  p !== undefined && atLeast(p, 25, 3);

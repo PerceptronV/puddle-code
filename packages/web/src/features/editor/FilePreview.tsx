@@ -87,6 +87,13 @@ export function FilePreview({
         path={path}
         root={root}
         text={text}
+        focused={focused}
+        onOpenFile={(resolved) =>
+          openFile(session, resolved, undefined, {
+            ...(previewKind(resolved) ? { view: 'preview' as const } : {}),
+            ...(root !== undefined ? { root } : {}),
+          })
+        }
         onRun={onRunCompilation ? () => onRunCompilation(true) : undefined}
         running={compilationRunning}
         onUndo={() => {

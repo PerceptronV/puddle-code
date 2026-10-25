@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { NotebookRenderingContext } from './NotebookRenderingContext';
+import { bindNotebookIntelligence } from './notebook-intelligence';
+import { useContext, useEffect, useRef, useState } from 'react';
 import Editor from '@monaco-editor/react';
 import { monaco, THEME_NAME } from './monaco-setup';
 import { editorIndentationOptions } from './monaco-options';
@@ -16,6 +18,7 @@ export function NotebookCellEditor({
   onEscape,
   onSplit,
   onSave,
+  match,
 }: {
   value: string;
   language: string;
@@ -26,8 +29,20 @@ export function NotebookCellEditor({
   onEscape: () => void;
   onSplit: (offset: number) => void;
   onSave: () => void;
+  match?: { start: number; end: number };
 }) {
   const settings = useClientSettings();
+  const notebook = useContext(NotebookRenderingContext);
+  const [mounted, setMounted] = useState<monaco.editor.ITextModel | null>(null);
+  useEffect(() => {
+    if (!mounted || !notebook?.intelligence) return;
+    const binding = bindNotebookIntelligence(mounted, {
+      session: notebook.session,
+      path: notebook.path,
+      ...(notebook.root ? { root: notebook.root } : {}),
+    });
+    return () => binding.dispose();
+  }, [mounted, notebook?.intelligence, notebook?.session, notebook?.path, notebook?.root]);
   const host = useRef<HTMLDivElement>(null);
   const editor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const model = useRef<monaco.editor.ITextModel | null>(null);
@@ -35,6 +50,22 @@ export function NotebookCellEditor({
   const view = useRef<monaco.editor.ICodeEditorViewState | null>(null);
   const callbacks = useRef({ onChange, onExecute, onEscape, onSplit, onSave });
   callbacks.current = { onChange, onExecute, onEscape, onSplit, onSave };
+  const matchRef = useRef(match);
+  matchRef.current = match;
+  const showMatch = (instance: monaco.editor.IStandaloneCodeEditor) => {
+    const model = instance.getModel();
+    const found = matchRef.current;
+    if (!model || !found) return;
+    const start = model.getPositionAt(found.start);
+    const end = model.getPositionAt(found.end);
+    instance.setSelection(
+      new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column),
+    );
+    instance.revealPositionInCenter(start);
+  };
+  useEffect(() => {
+    if (editor.current) showMatch(editor.current);
+  }, [match]);
   const [visible, setVisible] = useState(false);
   const [height, setHeight] = useState(Math.max(64, value.split('\n').length * 22 + 24));
   useEffect(() => {
@@ -82,6 +113,7 @@ export function NotebookCellEditor({
               if (temporary !== model.current) temporary?.dispose();
             } else model.current = instance.getModel();
             editor.current = instance;
+            setMounted(instance.getModel());
             registerEditorKeybindings(instance, { onSave: () => callbacks.current.onSave() });
             if (view.current) instance.restoreViewState(view.current);
             const resize = () => setHeight(Math.max(64, instance.getContentHeight()));
@@ -122,8 +154,10 @@ export function NotebookCellEditor({
               cursor.dispose();
               change.dispose();
               editor.current = null;
+              setMounted(null);
             });
             resize();
+            showMatch(instance);
             if (focus) instance.focus();
           }}
           beforeMount={() => {

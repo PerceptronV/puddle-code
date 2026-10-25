@@ -64,6 +64,19 @@ export function replaceCellSource(notebook: Notebook, index: number, source: str
         : {
             ...cell,
             source: source.match(/[^\n]*\n|[^\n]+$/g) ?? [],
+            ...(cell.cell_type === 'code' && cell.outputs?.length && !cell.metadata.puddle_execution
+              ? {
+                  metadata: {
+                    ...cell.metadata,
+                    puddle_execution: {
+                      id: 'saved',
+                      revision: 0,
+                      source: notebookText(cell.source),
+                      state: 'saved',
+                    },
+                  },
+                }
+              : {}),
           },
     ),
   };
@@ -159,7 +172,9 @@ export function clearNotebookOutputs(notebook: Notebook): Notebook {
   };
 }
 
-export function notebookOutline(notebook: Notebook): Array<{ index: number; label: string }> {
+export function notebookOutline(
+  notebook: Notebook,
+): Array<{ index: number; label: string; level: number }> {
   return notebook.cells.map((cell, index) => {
     const first =
       notebookText(cell.source)
@@ -168,9 +183,22 @@ export function notebookOutline(notebook: Notebook): Array<{ index: number; labe
         ?.trim() ?? '';
     return {
       index,
+      level: cell.cell_type === 'markdown' ? (/^(#{1,6})\s/.exec(first)?.[1]?.length ?? 0) : 0,
       label:
         (cell.cell_type === 'markdown' ? first.replace(/^#{1,6}\s+/, '') : first).slice(0, 100) ||
         `${cell.cell_type === 'code' ? 'Code' : cell.cell_type === 'markdown' ? 'Markdown' : 'Raw'} cell`,
     };
   });
+}
+
+/** A heading owns following cells until the next heading of equal or higher rank. */
+export function notebookSectionRange(notebook: Notebook, index: number): number[] {
+  const outline = notebookOutline(notebook);
+  const level = outline[index]?.level;
+  if (!level) return [index];
+  const next = outline.find((item) => item.index > index && item.level > 0 && item.level <= level);
+  return Array.from(
+    { length: (next?.index ?? notebook.cells.length) - index },
+    (_, offset) => index + offset,
+  );
 }

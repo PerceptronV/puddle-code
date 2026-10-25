@@ -304,6 +304,49 @@ test('edits and saves notebook cells, preserves metadata, sanitises output and h
   await expect(page.locator('[data-notebook-cell="2"] .view-lines')).toContainText(
     'keep this edit',
   );
+  await page.keyboard.press('ControlOrMeta+f');
+  await page.getByRole('textbox', { name: 'Find', exact: true }).fill('keep this edit');
+  await expect(page.getByRole('search')).toContainText('1 of 1');
+  await page.getByRole('textbox', { name: 'Replace in notebook', exact: true }).fill('replacement');
+  await page.getByRole('button', { name: 'Replace', exact: true }).click();
+  await expect(page.locator('[data-notebook-cell="2"] .view-lines')).toContainText('replacement');
+  await page.getByRole('button', { name: 'Close find', exact: true }).click();
+  await page.getByRole('button', { name: 'Fold section', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Cell 2', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Expand section', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Cell 2', exact: true })).toBeVisible();
+  const third = page.getByRole('region', { name: 'Cell 3', exact: true });
+  await third.getByRole('button', { name: 'Cell language: python', exact: true }).click();
+  await page.getByRole('option', { name: 'markdown', exact: true }).click();
+  await expect(
+    third.getByRole('button', { name: 'Cell language: markdown', exact: true }),
+  ).toBeVisible();
+  await third.getByRole('button', { name: 'Cell language: markdown', exact: true }).click();
+  await page.getByRole('option', { name: 'python', exact: true }).click();
+  await third.hover();
+  await third.getByRole('button', { name: 'Duplicate cell', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Cell 4', exact: true })).toBeVisible();
+  await page.getByRole('region', { name: 'Cell 4', exact: true }).focus();
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(page.getByRole('region', { name: 'Cell 4', exact: true })).toHaveCount(0);
+  await page.getByRole('region', { name: 'Cell 2', exact: true }).focus();
+  await page.keyboard.press('Shift+ArrowDown');
+  await expect(third).toHaveClass(/bg-surface/);
+  // Exercise the native clipboard handlers without depending on the OS clipboard.
+  await third.evaluate((cell) => {
+    const clipboardData = new DataTransfer();
+    cell.dispatchEvent(new ClipboardEvent('copy', { bubbles: true, clipboardData }));
+    cell.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, clipboardData }));
+  });
+  await expect(page.getByRole('region', { name: 'Cell 5', exact: true })).toBeVisible();
+  expect(
+    await page
+      .locator('[data-cell-id]')
+      .evaluateAll((cells) => new Set(cells.map((cell) => cell.getAttribute('data-cell-id'))).size),
+  ).toBe(5);
+  await third.focus();
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(page.getByRole('region', { name: 'Cell 4', exact: true })).toHaveCount(0);
   await page.screenshot({ path: '/tmp/puddle-notebook-preview.png' });
   expect(errors).toEqual([]);
 });

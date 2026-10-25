@@ -8,7 +8,10 @@ import type {
 import { changeNotebookKernel } from '../../lib/notebook-queries';
 import { api } from '../../lib/api';
 import { useDaemonVersion } from '../../lib/queries';
-import { notebookExecutionSupported } from '../../lib/protocol-support';
+import {
+  notebookExecutionSupported,
+  notebookIntelligenceSupported,
+} from '../../lib/protocol-support';
 import { browserTransport } from '../../lib/browser-transport';
 import { notebookText, type Notebook } from './notebook-format';
 import { mergeNotebookExecution } from './notebook-execution-results';
@@ -104,6 +107,7 @@ export function useNotebookExecution(
   );
   return {
     supported,
+    intelligenceSupported: supported && notebookIntelligenceSupported(version.data?.protocol),
     run,
     interrupt: async () => {
       try {

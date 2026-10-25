@@ -42,8 +42,8 @@ describe('notebook documents', () => {
     expect(cleared.metadata).toBe(parsed.metadata);
     expect(parsed.cells[0]?.outputs).toHaveLength(1);
     expect(notebookOutline(parsed)).toEqual([
-      { index: 0, label: 'print(1)' },
-      { index: 1, label: 'Heading' },
+      { index: 0, label: 'print(1)', level: 0 },
+      { index: 1, label: 'Heading', level: 1 },
     ]);
   });
 

@@ -1,6 +1,9 @@
 import { expect, it } from 'vitest';
 import type { NotebookExecution } from '@puddle/shared';
-import { mergeNotebookExecution } from '../src/features/editor/notebook-execution-results';
+import {
+  mergeNotebookExecution,
+  savedCellExecution,
+} from '../src/features/editor/notebook-execution-results';
 import { parseNotebook, clearNotebookOutputs } from '../src/features/editor/notebook-format';
 
 it('attaches output by cell identity without replacing edits, resurrecting deletions or undoing output clearing', () => {
@@ -65,4 +68,16 @@ it('attaches output by cell identity without replacing edits, resurrecting delet
   expect(result.metadata).toBe(notebook.metadata);
   const cleared = clearNotebookOutputs(result);
   expect(mergeNotebookExecution(cleared, execution)).toBe(cleared);
+});
+
+it('does not show a saved running snapshot as an actively executing cell', () => {
+  expect(
+    savedCellExecution({
+      cell_type: 'code',
+      source: 'print(2)',
+      metadata: {
+        puddle_execution: { state: 'running', source: 'print(1)' },
+      },
+    }),
+  ).toEqual({ state: 'saved', source: 'print(1)' });
 });

@@ -288,3 +288,8 @@ operations for bounded cell source snapshots, observable live results and exact
 run/prompt input replies. New clients feature-detect interactive execution; older
 hosts retain Run to Executed Copy. The existing compilation API and kernel
 lifecycle are unchanged. Remote leases and the connector deny this namespace.
+
+Protocol 25.3 adds local/SSH-only POST `/api/notebooks/intelligence` for bounded
+completion and inspection. Requests use Unicode codepoint positions and existing
+idle kernels only. Dedicated shell clients have unique routing identities so
+assistance never consumes execution/input replies. Remote access remains denied.

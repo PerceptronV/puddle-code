@@ -1,18 +1,7 @@
-import { useState } from 'react';
-import {
-  ArrowDown,
-  ArrowUp,
-  ArrowDownToLine,
-  ArrowUpToLine,
-  Copy,
-  Play,
-  Square,
-  Plus,
-  Trash2,
-  ChevronDown,
-  ChevronRight,
-  Combine,
-} from 'lucide-react';
+import { NotebookCellToolbar } from './NotebookCellToolbar';
+import type { NotebookMatch } from './NotebookSearch';
+import { useEffect, useRef, useState } from 'react';
+import { Play, Square, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { NotebookCellEditor } from './NotebookCellEditor';
 import { NotebookLanguagePicker } from './NotebookLanguagePicker';
 import { NotebookHtml, NotebookOutputView } from './NotebookOutput';
@@ -46,6 +35,9 @@ export function NotebookCell({
   onSplit,
   onSave,
   execution,
+  match,
+  onToggleSection,
+  sectionCollapsed,
 }: {
   cell: Cell;
   notebook: Notebook;
@@ -66,9 +58,16 @@ export function NotebookCell({
   ) => void;
   onSplit: (offset: number) => void;
   onSave: () => void;
+  match?: NotebookMatch;
+  onToggleSection?: () => void;
+  sectionCollapsed?: boolean;
   execution?: { state: string; elapsed_ms?: number; source: string };
 }) {
+  const section = useRef<HTMLElement>(null);
   const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    if (match?.output) setCollapsed(false);
+  }, [match]);
   const code = cell.cell_type === 'code';
   const source = notebookText(cell.source);
   const busy = execution?.state === 'running' || execution?.state === 'queued';
@@ -87,12 +86,17 @@ export function NotebookCell({
   );
   return (
     <section
+      ref={section}
       data-notebook-cell={index}
       data-cell-id={cell.id}
       tabIndex={active ? 0 : -1}
       aria-label={`Cell ${index + 1}`}
       aria-current={active || undefined}
       className={`group/cell relative min-w-0 outline-none ${selected ? 'bg-surface' : ''}`}
+      onMouseDown={(event) => {
+        if (event.shiftKey && !(event.target as HTMLElement).closest('.monaco-editor,input,button'))
+          event.preventDefault();
+      }}
       onFocus={() => {
         if (!active) onSelect(false);
       }}
@@ -157,6 +161,16 @@ export function NotebookCell({
         </button>
       </div>
       <div className="mb-2 flex min-h-7 items-center gap-2 text-xs text-fg-muted">
+        {onToggleSection &&
+          action(
+            sectionCollapsed ? 'Expand section' : 'Fold section',
+            sectionCollapsed ? (
+              <ChevronRight className="size-3" />
+            ) : (
+              <ChevronDown className="size-3" />
+            ),
+            onToggleSection,
+          )}
         {editable ? (
           <NotebookLanguagePicker
             language={cell.cell_type === 'raw' ? 'raw' : language}
@@ -177,73 +191,31 @@ export function NotebookCell({
           <span title="The source changed after this execution">Source changed</span>
         )}
         {editable && (
-          <div className="ml-auto flex flex-wrap items-center opacity-0 focus-within:opacity-100 group-hover/cell:opacity-100 pointer-coarse:opacity-100">
-            {code && onRun && (
-              <>
-                {action('Run Cell', <Play className="size-3.5" />, () => onRun('cell'), busy)}
-                {action(
-                  'Run Above',
-                  <ArrowUpToLine className="size-3.5" />,
-                  () => onRun('above'),
-                  busy || index === 0,
-                )}
-                {action(
-                  'Run Cell and Below',
-                  <ArrowDownToLine className="size-3.5" />,
-                  () => onRun('below'),
-                  busy,
-                )}
-              </>
-            )}
-            {action(
-              'Insert cell below',
-              <Plus className="size-3.5" />,
-              () => onOperation('insert'),
-              notebook.cells.length >= 2000,
-            )}
-            {action(
-              'Duplicate cell',
-              <Copy className="size-3.5" />,
-              () => onOperation('duplicate'),
-              notebook.cells.length >= 2000,
-            )}
-            {action(
-              'Merge with next cell',
-              <Combine className="size-3.5" />,
-              () => onOperation('merge'),
-              cell.cell_type !== notebook.cells[index + 1]?.cell_type,
-            )}
-            {action(
-              'Move cell up',
-              <ArrowUp className="size-3.5" />,
-              () => onOperation('up'),
-              index === 0,
-            )}
-            {action(
-              'Move cell down',
-              <ArrowDown className="size-3.5" />,
-              () => onOperation('down'),
-              index === notebook.cells.length - 1,
-            )}
-            {action('Delete cell', <Trash2 className="size-3.5" />, () => onOperation('delete'))}
-          </div>
+          <NotebookCellToolbar
+            code={code}
+            onRun={onRun}
+            busy={busy}
+            index={index}
+            count={notebook.cells.length}
+            canMerge={cell.cell_type === notebook.cells[index + 1]?.cell_type}
+            onOperation={onOperation}
+          />
         )}
       </div>
       {editable && (code || editing) ? (
         <NotebookCellEditor
           value={source}
+          match={match && !match.output ? match : undefined}
           language={language}
           label={`Cell ${index + 1} source`}
-          focus={active && editing}
+          focus={active && editing && !match}
           onChange={(value) => {
             if (value !== source) onSource(value);
           }}
           onExecute={onExecute}
           onEscape={() => {
             onEdit(false);
-            document
-              .querySelector<HTMLElement>(`[data-cell-id="${CSS.escape(cell.id!)}"]`)
-              ?.focus();
+            section.current?.focus();
           }}
           onSave={onSave}
           onSplit={onSplit}
@@ -255,7 +227,7 @@ export function NotebookCell({
           }}
           className={editable ? 'cursor-text' : ''}
         >
-          <NotebookHtml text={source} markdown />
+          <NotebookHtml text={source} markdown attachments={cell.attachments} />
         </div>
       ) : (
         <pre

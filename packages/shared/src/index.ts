@@ -39,3 +39,4 @@ export * from './api/puddlang.js';
 export * from './api/puddlang-mcp.js';
 
 export * from './api/notebook-execution.js';
+export * from './api/notebook-intelligence.js';

@@ -1,14 +1,21 @@
-import { useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { savedCellExecution } from './notebook-execution-results';
+import { notebookActions } from './notebook-actions';
+import { notebookClipboard } from './notebook-clipboard';
+import { NotebookSearch, type NotebookMatch } from './NotebookSearch';
 import { Plus } from 'lucide-react';
 import { requestSave, saverKey } from './save-registry';
 import { useNotebookExecution } from './use-notebook-execution';
 import { NotebookInputPrompt } from './NotebookInputPrompt';
+import { NotebookRenderingContext } from './NotebookRenderingContext';
 import { NotebookToolbar } from './NotebookToolbar';
 import { NotebookCell, notebookControl } from './NotebookCell';
 import {
   parseNotebook,
   notebookCellIds,
   notebookText,
+  notebookOutline,
+  notebookSectionRange,
   newNotebookCell,
   replaceCellSource,
   changeNotebookCellLanguage,
@@ -29,6 +36,8 @@ export function NotebookPreview({
   running,
   onUndo,
   onRedo,
+  onOpenFile,
+  focused = true,
 }: TextPreviewProps & {
   onChange?: (text: string) => void;
   onRun?: () => void;
@@ -43,8 +52,12 @@ export function NotebookPreview({
       return { notebook: null, error: error instanceof Error ? error.message : 'Invalid notebook' };
     }
   }, [text]);
+  const [folded, setFolded] = useState<string[]>([]);
+  const [match, setMatch] = useState<NotebookMatch | null>(null);
+  const revealFocus = useRef(true);
   const [active, setActive] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  const selectionAnchor = useRef<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const scroller = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
@@ -63,7 +76,8 @@ export function NotebookPreview({
     );
     if (cell) {
       cell.scrollIntoView({ block: 'nearest' });
-      cell.focus({ preventScroll: true });
+      if (revealFocus.current) cell.focus({ preventScroll: true });
+      revealFocus.current = true;
       reveal.current = null;
     }
   });
@@ -80,245 +94,208 @@ export function NotebookPreview({
         {parsed.error}
       </p>
     );
-  const choose = (id: string, edit = false) => {
+  const select = (id: string, extend = false) => {
+    const anchor = selectionAnchor.current ?? active ?? id;
+    const from = notebook.cells.findIndex((cell) => cell.id === anchor);
+    const to = notebook.cells.findIndex((cell) => cell.id === id);
+    setSelected(
+      extend
+        ? notebook.cells.slice(Math.min(from, to), Math.max(from, to) + 1).map((cell) => cell.id!)
+        : [id],
+    );
+    if (!extend) selectionAnchor.current = id;
     setActive(id);
-    setSelected([id]);
+  };
+  const choose = (id: string, edit = false, extend = false) => {
+    select(id, extend);
     setEditing(edit ? id : null);
     reveal.current = id;
   };
-  const add = (
-    type: Notebook['cells'][number]['cell_type'],
-    at = notebook.cells.findIndex((cell) => cell.id === active) + 1,
-  ) => {
-    if (notebook.cells.length >= 2000) return;
-    const cell = newNotebookCell(type);
-    const cells = [...notebook.cells];
-    cells.splice(active === null ? cells.length : at, 0, cell);
-    update({ ...notebook, cells });
-    choose(cell.id!, true);
-  };
-  const replace = (index: number, cell: Notebook['cells'][number]) =>
-    update({
-      ...notebook,
-      cells: notebook.cells.map((value, at) => (at === index ? cell : value)),
-    });
-  const execute = (index: number, mode: 'stay' | 'next' | 'insert') => {
-    if (notebook.cells[index]?.cell_type === 'code') void execution.run([index]);
-    setEditing(null);
-    if (mode === 'insert' || (mode === 'next' && index === notebook.cells.length - 1))
-      add(notebook.cells[index]!.cell_type, index + 1);
-    else if (mode === 'next') choose(notebook.cells[index + 1]!.id!);
-  };
-  const operation = (
-    index: number,
-    action: 'up' | 'down' | 'delete' | 'duplicate' | 'insert' | 'merge' | 'clear',
-  ) => {
-    const cells = [...notebook.cells];
-    const cell = cells[index]!;
-    if (action === 'insert') {
-      add('code', index + 1);
-      return;
-    }
-    if (action === 'clear') {
-      replace(index, { ...cell, outputs: [], execution_count: null });
-      return;
-    }
-    if (action === 'delete') {
-      cells.splice(index, 1);
-      if (cells.length) choose(cells[Math.min(index, cells.length - 1)]!.id!);
-    }
-    if (action === 'up' || action === 'down') {
-      const other = index + (action === 'up' ? -1 : 1);
-      if (other < 0 || other >= cells.length) return;
-      [cells[index], cells[other]] = [cells[other]!, cell];
-      choose(cell.id!);
-    }
-    if (action === 'duplicate') {
-      if (cells.length >= 2000) return;
-      const copy = { ...structuredClone(cell), id: crypto.randomUUID() };
-      cells.splice(index + 1, 0, copy);
-      choose(copy.id, true);
-    }
-    if (action === 'merge') {
-      const next = cells[index + 1];
-      if (!next || next.cell_type !== cell.cell_type) return;
-      cells[index] = {
-        ...cell,
-        source: `${notebookText(cell.source)}\n${notebookText(next.source)}`,
-      };
-      cells.splice(index + 1, 1);
-      choose(cell.id!, true);
-    }
-    update({ ...notebook, cells });
-  };
-  const keyDown = (event: KeyboardEvent) => {
-    const target = event.target as HTMLElement;
-    if (target.closest('.monaco-editor,input,textarea,[role=dialog],[role=menu],[cmdk-root]'))
-      return;
-    const index = notebook.cells.findIndex((cell) => cell.id === active);
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
-      event.preventDefault();
-      if (event.shiftKey) onRedo?.();
-      else onUndo?.();
-      return;
-    }
-    if (event.key === 'Enter' && index >= 0) {
-      event.preventDefault();
-      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
-        execute(index, event.shiftKey ? 'next' : event.altKey ? 'insert' : 'stay');
-      else setEditing(active);
-    } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault();
-      const next = Math.max(
-        0,
-        Math.min(notebook.cells.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)),
-      );
-      if (notebook.cells[next]) choose(notebook.cells[next]!.id!);
-    } else if (!event.metaKey && !event.ctrlKey && !event.altKey) {
-      if (event.key === 'a' || event.key === 'b') {
-        event.preventDefault();
-        add('code', Math.max(0, index + (event.key === 'b' ? 1 : 0)));
-      }
-      if ((event.key === 'm' || event.key === 'y') && index >= 0) {
-        event.preventDefault();
-        replace(
-          index,
-          changeNotebookCellLanguage(
-            notebook.cells[index]!,
-            event.key === 'm' ? 'markdown' : 'python',
-          ),
-        );
-      }
-      if (event.key === 'Delete' || event.key === 'Backspace') {
-        event.preventDefault();
-        update({
-          ...notebook,
-          cells: notebook.cells.filter((cell) => !selected.includes(cell.id!)),
-        });
-      }
-    }
-  };
+  const outline = notebookOutline(notebook);
+  const hidden = new Set(
+    notebook.cells.flatMap((cell, index) =>
+      folded.includes(cell.id!) ? notebookSectionRange(notebook, index).slice(1) : [],
+    ),
+  );
+  const { add, replace, execute, operation, keyDown } = notebookActions({
+    notebook,
+    active,
+    selected,
+    update,
+    choose,
+    setEditing,
+    run: execution.run,
+    onUndo,
+    onRedo,
+  });
   return (
-    <div
-      className="flex h-full min-h-0 flex-col bg-ground"
-      onKeyDown={onChange ? keyDown : undefined}
+    <NotebookRenderingContext.Provider
+      value={{ ...source, onOpenFile, intelligence: execution.intelligenceSupported }}
     >
-      <NotebookToolbar
-        notebook={notebook}
-        source={{ session, path, ...(root !== undefined ? { root } : {}) }}
-        onChange={onChange ? update : undefined}
-        onAdd={add}
-        onRun={
-          execution.supported
-            ? () => {
-                void execution.run();
-              }
-            : onRun
-        }
-        onRunCopy={execution.supported ? onRun : undefined}
-        running={running || execution.busy}
-        onRevealCell={(index) => choose(notebook.cells[index]!.id!)}
-      />
-      {execution.error && (
-        <p role="alert" className="px-3 py-2 text-xs text-danger">
-          {execution.error}
-        </p>
-      )}
-      {execution.execution?.input && (
-        <NotebookInputPrompt
-          key={execution.execution.input.id}
-          source={source}
-          execution={execution.execution}
+      <div
+        className="relative flex h-full min-h-0 flex-col bg-ground"
+        onKeyDown={onChange ? keyDown : undefined}
+        onCopy={(event) => {
+          if (onChange) notebookClipboard(event, 'copy', notebook, selected, update);
+        }}
+        onCut={(event) => {
+          if (onChange) notebookClipboard(event, 'cut', notebook, selected, update);
+        }}
+        onPaste={(event) => {
+          if (onChange) notebookClipboard(event, 'paste', notebook, selected, update);
+        }}
+      >
+        <NotebookSearch
+          notebook={notebook}
+          focused={focused}
+          onChange={onChange ? update : undefined}
+          onReveal={(found) => {
+            setMatch(found);
+            if (!found) return;
+            setFolded([]);
+            setActive(found.id);
+            if (!found.output) setEditing(found.id);
+            reveal.current = found.id;
+            revealFocus.current = false;
+          }}
         />
-      )}
-      <div ref={scroller} className="min-h-0 flex-1 overflow-auto bg-ground text-fg">
-        <div ref={content} className="mx-auto flex max-w-4xl flex-col gap-7 py-6 pr-6 pl-14">
-          <p className="text-xs text-fg-muted">{notebook.cells.length} cells</p>
-          {notebook.cells.map((cell, index) => (
-            <NotebookCell
-              key={cell.id}
-              cell={cell}
-              notebook={notebook}
-              index={index}
-              active={active === cell.id}
-              editing={editing === cell.id}
-              selected={selected.length > 1 && selected.includes(cell.id!)}
-              editable={!!onChange}
-              onSelect={(extend) => {
-                if (extend && active) {
-                  const from = notebook.cells.findIndex((item) => item.id === active);
-                  setSelected(
-                    notebook.cells
-                      .slice(Math.min(from, index), Math.max(from, index) + 1)
-                      .map((item) => item.id!),
-                  );
-                } else {
-                  setActive(cell.id!);
-                  setSelected([cell.id!]);
+        <NotebookToolbar
+          notebook={notebook}
+          source={{ session, path, ...(root !== undefined ? { root } : {}) }}
+          onChange={onChange ? update : undefined}
+          onAdd={add}
+          onRun={
+            execution.supported
+              ? () => {
+                  void execution.run();
                 }
-              }}
-              onEdit={(edit) => {
-                setActive(cell.id!);
-                setEditing(edit ? cell.id! : null);
-              }}
-              onSource={(source) => update(replaceCellSource(notebook, index, source))}
-              onLanguage={(language) => replace(index, changeNotebookCellLanguage(cell, language))}
-              onInterrupt={() => {
-                void execution.interrupt();
-              }}
-              execution={execution.execution?.cells.find((item) => item.id === cell.id)}
-              onRun={
-                execution.supported
-                  ? (range) => {
-                      void execution.run(
-                        notebook.cells.flatMap((_, at) =>
-                          (
-                            range === 'cell'
-                              ? at === index
-                              : range === 'above'
-                                ? at < index
-                                : at >= index
+              : onRun
+          }
+          onRunCopy={execution.supported ? onRun : undefined}
+          running={running || execution.busy}
+          onRevealCell={(index) => {
+            setFolded([]);
+            choose(notebook.cells[index]!.id!);
+          }}
+          onRunSection={
+            execution.supported
+              ? (index) => {
+                  void execution.run(notebookSectionRange(notebook, index));
+                }
+              : undefined
+          }
+        />
+        {execution.error && (
+          <p role="alert" className="px-3 py-2 text-xs text-danger">
+            {execution.error}
+          </p>
+        )}
+        {execution.execution?.input && (
+          <NotebookInputPrompt
+            key={execution.execution.input.id}
+            source={source}
+            execution={execution.execution}
+          />
+        )}
+        <div ref={scroller} className="min-h-0 flex-1 overflow-auto bg-ground text-fg">
+          <div ref={content} className="mx-auto flex max-w-4xl flex-col gap-7 py-6 pr-6 pl-14">
+            <p className="text-xs text-fg-muted">{notebook.cells.length} cells</p>
+            {notebook.cells.map((cell, index) =>
+              hidden.has(index) ? null : (
+                <NotebookCell
+                  key={cell.id}
+                  cell={cell}
+                  match={match && match.id === cell.id ? match : undefined}
+                  sectionCollapsed={folded.includes(cell.id!)}
+                  onToggleSection={
+                    outline[index]?.level
+                      ? () =>
+                          setFolded((ids) =>
+                            ids.includes(cell.id!)
+                              ? ids.filter((id) => id !== cell.id)
+                              : [...ids, cell.id!],
                           )
-                            ? [at]
-                            : [],
-                        ),
-                      );
-                    }
-                  : undefined
-              }
-              onExecute={(mode) => execute(index, mode)}
-              onOperation={(action) => operation(index, action)}
-              onSave={() => {
-                requestSave(saverKey(session, path, root));
-              }}
-              onSplit={(offset) => {
-                if (notebook.cells.length >= 2000) return;
-                const source = notebookText(cell.source);
-                const next = { ...newNotebookCell(cell.cell_type), source: source.slice(offset) };
-                const cells = [...notebook.cells];
-                cells.splice(index, 1, { ...cell, source: source.slice(0, offset) }, next);
-                update({ ...notebook, cells });
-                choose(next.id!, true);
-              }}
-            />
-          ))}
-          {onChange && (
-            <div className="flex gap-3">
-              {(['code', 'markdown', 'raw'] as const).map((type) => (
-                <button
-                  key={type}
-                  disabled={notebook.cells.length >= 2000}
-                  className={`${notebookControl} flex items-center gap-1.5 text-xs`}
-                  onClick={() => add(type, notebook.cells.length)}
-                >
-                  <Plus className="size-3.5" />
-                  {type === 'code' ? 'Code' : type === 'markdown' ? 'Markdown' : 'Raw'} cell
-                </button>
-              ))}
-            </div>
-          )}
+                      : undefined
+                  }
+                  notebook={notebook}
+                  index={index}
+                  active={active === cell.id}
+                  editing={editing === cell.id}
+                  selected={selected.length > 1 && selected.includes(cell.id!)}
+                  editable={!!onChange}
+                  onSelect={(extend) => select(cell.id!, extend)}
+                  onEdit={(edit) => {
+                    setActive(cell.id!);
+                    setEditing(edit ? cell.id! : null);
+                  }}
+                  onSource={(source) => update(replaceCellSource(notebook, index, source))}
+                  onLanguage={(language) =>
+                    replace(index, changeNotebookCellLanguage(cell, language))
+                  }
+                  onInterrupt={() => {
+                    void execution.interrupt();
+                  }}
+                  execution={
+                    execution.execution?.cells.find((item) => item.id === cell.id) ??
+                    savedCellExecution(cell)
+                  }
+                  onRun={
+                    execution.supported
+                      ? (range) => {
+                          void execution.run(
+                            notebook.cells.flatMap((_, at) =>
+                              (
+                                range === 'cell'
+                                  ? at === index
+                                  : range === 'above'
+                                    ? at < index
+                                    : at >= index
+                              )
+                                ? [at]
+                                : [],
+                            ),
+                          );
+                        }
+                      : undefined
+                  }
+                  onExecute={(mode) => execute(index, mode)}
+                  onOperation={(action) => operation(index, action)}
+                  onSave={() => {
+                    requestSave(saverKey(session, path, root));
+                  }}
+                  onSplit={(offset) => {
+                    if (notebook.cells.length >= 2000) return;
+                    const source = notebookText(cell.source);
+                    const next = {
+                      ...newNotebookCell(cell.cell_type),
+                      source: source.slice(offset),
+                    };
+                    const cells = [...notebook.cells];
+                    cells.splice(index, 1, { ...cell, source: source.slice(0, offset) }, next);
+                    update({ ...notebook, cells });
+                    choose(next.id!, true);
+                  }}
+                />
+              ),
+            )}
+            {onChange && (
+              <div className="flex gap-3">
+                {(['code', 'markdown', 'raw'] as const).map((type) => (
+                  <button
+                    key={type}
+                    disabled={notebook.cells.length >= 2000}
+                    className={`${notebookControl} flex items-center gap-1.5 text-xs`}
+                    onClick={() => add(type, notebook.cells.length)}
+                  >
+                    <Plus className="size-3.5" />
+                    {type === 'code' ? 'Code' : type === 'markdown' ? 'Markdown' : 'Raw'} cell
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </NotebookRenderingContext.Provider>
   );
 }

@@ -5,6 +5,7 @@ import {
   notebookKernelSpecSchema,
   notebookExecutionCellSchema,
   notebookInputSchema,
+  notebookIntelligenceResponseSchema,
 } from '@puddle/shared';
 import { NOTEBOOK_BRIDGE } from './bridge.js';
 
@@ -12,6 +13,7 @@ export const messageSchema = z.object({
   event: z
     .enum(['catalogue', 'spawned', 'ready', 'stopped', 'dead', 'cell', 'input', 'input-cleared'])
     .optional(),
+  result: notebookIntelligenceResponseSchema.optional(),
   run_id: z.string().uuid().optional(),
   cell: notebookExecutionCellSchema.optional(),
   input: notebookInputSchema.optional(),
@@ -34,7 +36,11 @@ export class KernelBridge {
   private stderr = '';
   private readonly pending = new Map<
     number,
-    { resolve(): void; reject(error: Error): void; timer?: ReturnType<typeof setTimeout> }
+    {
+      resolve(value: z.infer<typeof messageSchema>): void;
+      reject(error: Error): void;
+      timer?: ReturnType<typeof setTimeout>;
+    }
   >();
   private closePromise: Promise<void> | null = null;
 
@@ -82,7 +88,7 @@ export class KernelBridge {
                 clearTimeout(pending.timer);
                 this.pending.delete(message.id);
                 if (message.error) pending.reject(new Error(message.error));
-                else pending.resolve();
+                else pending.resolve(message);
               }
             }
           } catch {
@@ -114,7 +120,10 @@ export class KernelBridge {
     });
   }
 
-  request(message: Record<string, unknown>, timeoutMs?: number): Promise<void> {
+  request(
+    message: Record<string, unknown>,
+    timeoutMs?: number,
+  ): Promise<z.infer<typeof messageSchema>> {
     if (this.closed || this.closePromise)
       return Promise.reject(new Error('Notebook kernel stopped'));
     const id = ++this.sequence;

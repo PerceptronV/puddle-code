@@ -14,7 +14,12 @@ import { containedPath, resolveFsRoot, type WorktreeDeps } from '../http/routes/
 import { findCodeExecutable } from '../code/discovery.js';
 import { KernelBridge } from './kernel-bridge.js';
 import { NotebookExecutionController } from './execution.js';
-import type { NotebookExecute, NotebookInputReply } from '@puddle/shared';
+import type {
+  NotebookExecute,
+  NotebookInputReply,
+  NotebookIntelligenceRequest,
+  NotebookIntelligenceResponse,
+} from '@puddle/shared';
 import { NotebookEnvironments } from './environments.js';
 
 interface KernelEntry {
@@ -29,6 +34,7 @@ interface KernelEntry {
   finished: Promise<void> | null;
   environment?: NotebookEnvironment;
   execution: NotebookExecutionController;
+  querying: boolean;
 }
 
 /** Canonical files own their kernels until explicit shutdown or daemon disposal. */
@@ -224,6 +230,32 @@ export class NotebookKernels {
     return entry?.status ?? { state: 'stopped', kernel: null };
   }
 
+  async intelligence(request: NotebookIntelligenceRequest): Promise<NotebookIntelligenceResponse> {
+    const path = await this.path(request.source);
+    const entry = this.entries.get(path);
+    const empty = { matches: [], start: request.cursor, end: request.cursor, documentation: '' };
+    if (
+      !entry?.bridge ||
+      entry.busy ||
+      entry.changing ||
+      entry.querying ||
+      entry.status.state !== 'idle'
+    )
+      return empty;
+    entry.querying = true;
+    try {
+      const result = await entry.bridge.request(
+        { op: 'query', kind: request.kind, code: request.code, cursor: request.cursor },
+        5000,
+      );
+      return result.result ?? empty;
+    } catch {
+      return empty;
+    } finally {
+      entry.querying = false;
+    }
+  }
+
   async executionStatus(source: CompilationFileTarget) {
     const path = await this.path(source);
     return { execution: this.entries.get(path)?.execution.snapshot() ?? null };
@@ -408,6 +440,7 @@ export class NotebookKernels {
         cancelled: false,
         finished: null,
         execution: new NotebookExecutionController(),
+        querying: false,
       };
       this.entries.set(source, entry);
     }

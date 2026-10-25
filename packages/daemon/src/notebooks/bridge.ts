@@ -1,3 +1,4 @@
+import { NOTEBOOK_INTELLIGENCE_BRIDGE } from './intelligence-bridge.js';
 import { NOTEBOOK_CELL_BRIDGE } from './cell-bridge.js';
 
 /**
@@ -160,6 +161,7 @@ async def start_request(message):
         emit({'id': message['id'], 'error': str(error)})
 
 ${NOTEBOOK_CELL_BRIDGE}
+${NOTEBOOK_INTELLIGENCE_BRIDGE}
 
 async def main():
     global execution, interrupted, input_pending
@@ -189,6 +191,8 @@ async def main():
                 emit({'id': message['id'], 'ok': True})
             except Exception as error:
                 emit({'id': message['id'], 'error': str(error)})
+        elif op == 'query':
+            asyncio.create_task(query_kernel(message))
         elif op == 'input':
             if input_pending != (message.get('run_id'), message.get('input_id')):
                 emit({'id': message['id'], 'error': 'This input request is no longer active'})

@@ -96,3 +96,13 @@ and preserves the [version 4 notebook format](https://nbformat.readthedocs.io/en
     Answer input() and getpass prompts; reject stale replies after interruption
     or restart. Reconnect during execution and confirm it is observed, never replayed.
     Remote profile leases must deny execute, execution and input operations.
+
+14. Find across cell sources and optional text output, replace source, fold a
+    heading section and run it from the outline. Copy/cut/paste selected cells;
+    pasted ids must be new and deletion/duplication must undo from command mode.
+    Verify Markdown attachments, authenticated relative images, maths and Mermaid,
+    plus SVG/JSON outputs, output copy and image downloads.
+15. On protocol 25.3, run a variable definition, then request completion and hover
+    help in another cell. Repeat after an emoji earlier in the cell. Assistance
+    must not start a stopped kernel, alter execution counts, swallow input prompts
+    or expose trusted HTML/command links.

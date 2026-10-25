@@ -1,5 +1,5 @@
 import type { NotebookExecution } from '@puddle/shared';
-import type { Notebook, NotebookOutput } from './notebook-format';
+import type { Notebook, NotebookOutput, NotebookCell } from './notebook-format';
 
 /** Apply outputs by immutable cell id, retaining newer source edits and deliberate output clearing. */
 export function mergeNotebookExecution(notebook: Notebook, execution: NotebookExecution): Notebook {
@@ -36,4 +36,27 @@ export function mergeNotebookExecution(notebook: Notebook, execution: NotebookEx
     };
   });
   return changed ? { ...notebook, cells } : notebook;
+}
+
+export function savedCellExecution(
+  cell: NotebookCell,
+): { source: string; state: string; elapsed_ms?: number } | undefined {
+  const saved = cell.metadata.puddle_execution;
+  if (
+    !saved ||
+    typeof saved !== 'object' ||
+    !('source' in saved) ||
+    typeof saved.source !== 'string' ||
+    !('state' in saved) ||
+    typeof saved.state !== 'string'
+  )
+    return;
+  return {
+    source: saved.source,
+    // A file snapshot cannot establish that the host is still executing this cell.
+    state: saved.state === 'running' || saved.state === 'queued' ? 'saved' : saved.state,
+    ...('elapsed_ms' in saved && typeof saved.elapsed_ms === 'number'
+      ? { elapsed_ms: saved.elapsed_ms }
+      : {}),
+  };
 }

@@ -11,6 +11,9 @@ Past releases: see docs/changelogs/.
 
 ### Added
 
+- Add notebook search and replacement, heading sections, cell copy/paste, image downloads, SVG/JSON output, Markdown attachments and shared asset/Mermaid rendering.
+- Add kernel-backed notebook completions and hover documentation without starting kernels on typing (protocol 25.3).
+
 - Add inline notebook cell and range execution with live output, input prompts, cancellation and persistent kernel state (protocol 25.2).
 
 - Add Monaco notebook cells, Markdown editing shortcuts, searchable cell languages, a left execution gutter, insertion, duplication, splitting, merging and structural undo.

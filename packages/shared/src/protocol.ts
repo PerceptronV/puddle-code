@@ -309,4 +309,5 @@
 // 25.0: programming-language runs always compile and execute in a terminal.
 // 25.1: Python environment discovery/selection and explicit notebook package installation.
 // 25.2: bounded interactive notebook cell execution, live results and input replies.
-export const PROTOCOL_VERSION = { major: 25, minor: 2 } as const;
+// 25.3: bounded kernel completion and inspection for notebook cell editors.
+export const PROTOCOL_VERSION = { major: 25, minor: 3 } as const;
