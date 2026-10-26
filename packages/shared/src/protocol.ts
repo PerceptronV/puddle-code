@@ -310,4 +310,5 @@
 // 25.1: Python environment discovery/selection and explicit notebook package installation.
 // 25.2: bounded interactive notebook cell execution, live results and input replies.
 // 25.3: bounded kernel completion and inspection for notebook cell editors.
-export const PROTOCOL_VERSION = { major: 25, minor: 3 } as const;
+// 25.4: bounded widget state, live comms and exact kernel-generation ownership.
+export const PROTOCOL_VERSION = { major: 25, minor: 4 } as const;

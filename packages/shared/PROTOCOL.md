@@ -1,5 +1,11 @@
 # The puddle communication protocol
 
+Protocol 25.4 adds local/SSH-only POST `/api/notebooks/widgets` for bounded
+widget snapshots and incremental comm events, and POST `/widgets/comm` for
+explicit widget actions bound to an exact kernel generation. Reconnects only
+observe state; writes are never replayed. Remote leases and the connector
+continue to deny the notebook namespace; remote protocol remains 4.
+
 `@puddle/shared` is the protocol package: the zod schemas in `src/` are the
 single, executable description of every REST shape and WebSocket message
 exchanged between the `puddle` CLI (and the UI it serves) and `puddled`. There

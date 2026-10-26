@@ -21,6 +21,12 @@ import type {
   NotebookIntelligenceResponse,
 } from '@puddle/shared';
 import { NotebookEnvironments } from './environments.js';
+import { NotebookWidgets } from './widgets.js';
+import type {
+  NotebookWidgetComm,
+  NotebookWidgetsRequest,
+  NotebookWidgetsResponse,
+} from '@puddle/shared';
 
 interface KernelEntry {
   source: string;
@@ -35,6 +41,7 @@ interface KernelEntry {
   environment?: NotebookEnvironment;
   execution: NotebookExecutionController;
   querying: boolean;
+  widgets: NotebookWidgets | null;
 }
 
 /** Canonical files own their kernels until explicit shutdown or daemon disposal. */
@@ -261,6 +268,40 @@ export class NotebookKernels {
     return { execution: this.entries.get(path)?.execution.snapshot() ?? null };
   }
 
+  async widgetState(request: NotebookWidgetsRequest): Promise<NotebookWidgetsResponse> {
+    const entry = this.entries.get(await this.path(request.source));
+    if (!entry?.bridge || entry.bridge.closed || entry.changing || entry.status.state === 'dead')
+      return { generation: null, revision: 0, events: [] };
+    return entry.widgets?.snapshot(request) ?? { generation: null, revision: 0, events: [] };
+  }
+
+  async widgetComm(request: NotebookWidgetComm): Promise<void> {
+    const entry = this.entries.get(await this.path(request.source));
+    if (
+      !entry?.bridge ||
+      entry.bridge.closed ||
+      entry.changing ||
+      entry.status.state === 'dead' ||
+      entry.widgets?.generation !== request.generation
+    )
+      throw ApiError.conflict(
+        'notebook_widget_expired',
+        'This widget belongs to a kernel that is no longer active',
+      );
+    if (
+      request.message.msg_type !== 'comm_open' &&
+      !entry.widgets.has(request.message.content.comm_id)
+    )
+      throw ApiError.conflict('notebook_widget_missing', 'This widget is no longer available');
+    if (
+      request.message.msg_type === 'comm_open' &&
+      request.message.content.target_name !== 'jupyter.widget'
+    )
+      throw ApiError.badRequest('invalid_widget_target', 'Only Jupyter widget comms are supported');
+    const bridge = entry.bridge;
+    await bridge.request({ op: 'widget', message: request.message }, 5000);
+  }
+
   async executeCells(request: NotebookExecute) {
     const path = await this.path(request.source);
     const entry = this.entry(
@@ -441,6 +482,7 @@ export class NotebookKernels {
         finished: null,
         execution: new NotebookExecutionController(),
         querying: false,
+        widgets: null,
       };
       this.entries.set(source, entry);
     }
@@ -459,11 +501,15 @@ export class NotebookKernels {
         'notebook_kernel_limit',
         'Shut down a notebook kernel before opening another (32 maximum)',
       );
+    entry.widgets = new NotebookWidgets();
     const bridge = new KernelBridge(
       entry.environment?.python ?? (await pythonFor(entry.executable)),
       (message) => {
         if (entry.bridge !== bridge) return;
         entry.execution.receive(message);
+        if (message.event === 'widget' && message.widget) entry.widgets?.receive(message.widget);
+        if (message.event === 'widget-error')
+          entry.widgets?.fail(message.error ?? 'Widget channel failed');
         if (message.event === 'dead')
           entry.status = { state: 'dead', kernel: entry.status.kernel, error: message.error };
         if (message.event === 'ready')

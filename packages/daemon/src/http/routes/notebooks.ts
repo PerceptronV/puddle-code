@@ -4,6 +4,8 @@ import {
   notebookExecuteSchema,
   notebookInputReplySchema,
   notebookIntelligenceRequestSchema,
+  notebookWidgetsRequestSchema,
+  notebookWidgetCommSchema,
 } from '@puddle/shared';
 import { notebookKernelActionSchema, notebookKernelRequestSchema } from '@puddle/shared';
 import type { NotebookKernels } from '../../notebooks/kernels.js';
@@ -20,10 +22,19 @@ export function notebookRoutes(
     | 'executionStatus'
     | 'replyToInput'
     | 'intelligence'
+    | 'widgetState'
+    | 'widgetComm'
   >,
 ): Hono {
   return new Hono()
     .use('*', bodyLimit({ maxSize: 2 * 1024 * 1024 }))
+    .post('/widgets', async (c) =>
+      c.json(await kernels.widgetState(await parseBody(c, notebookWidgetsRequestSchema))),
+    )
+    .post('/widgets/comm', async (c) => {
+      await kernels.widgetComm(await parseBody(c, notebookWidgetCommSchema));
+      return c.body(null, 204);
+    })
     .post('/intelligence', async (c) =>
       c.json(await kernels.intelligence(await parseBody(c, notebookIntelligenceRequestSchema))),
     )

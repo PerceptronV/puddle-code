@@ -6,14 +6,27 @@ import {
   notebookExecutionCellSchema,
   notebookInputSchema,
   notebookIntelligenceResponseSchema,
+  notebookWidgetMessageSchema,
 } from '@puddle/shared';
 import { NOTEBOOK_BRIDGE } from './bridge.js';
 
 export const messageSchema = z.object({
   event: z
-    .enum(['catalogue', 'spawned', 'ready', 'stopped', 'dead', 'cell', 'input', 'input-cleared'])
+    .enum([
+      'catalogue',
+      'spawned',
+      'ready',
+      'stopped',
+      'dead',
+      'cell',
+      'input',
+      'input-cleared',
+      'widget',
+      'widget-error',
+    ])
     .optional(),
   result: notebookIntelligenceResponseSchema.optional(),
+  widget: notebookWidgetMessageSchema.optional(),
   run_id: z.string().uuid().optional(),
   cell: notebookExecutionCellSchema.optional(),
   input: notebookInputSchema.optional(),

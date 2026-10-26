@@ -51,7 +51,7 @@ describe('remote surface', () => {
   const request = (method: 'GET' | 'POST' | 'PATCH', path: string) =>
     permittedRequest({ t: 'request', id, method, path });
   it('denies notebook environment discovery and installation', () => {
-    for (const suffix of ['kernels', 'environments', 'status', 'kernel'])
+    for (const suffix of ['kernels', 'environments', 'status', 'kernel', 'widgets', 'widgets/comm'])
       for (const method of ['GET', 'POST'] as const)
         expect(() => request(method, `/api/notebooks/${suffix}`)).toThrow();
   });

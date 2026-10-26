@@ -172,6 +172,13 @@ supervised one.
 
 ## Housekeeping — read this, future agents
 
+Notebook widgets use a persistent, separately addressed Jupyter IOPub subscriber
+alongside cell execution. Protocol 25.4 exposes bounded widget snapshots/events
+and explicit comm writes tied to the current kernel generation; reconnect only
+observes and must never replay a widget action. Keep Output capture owned by this
+subscriber between runs, binary buffer paths intact, and remote notebook access
+denied by both the connector and profile authority.
+
 This file is living documentation and part of the definition of done for every change:
 
 - If your change alters the repo map, commands, conventions, adapter interface, or resolves an open question from `SPEC.md` §15 — update this file (and `SPEC.md` where relevant) **in the same commit**.

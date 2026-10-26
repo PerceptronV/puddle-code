@@ -9,6 +9,10 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Added
+
+- Retain Jupyter widget state and binary buffers across cell runs, forward live widget comms and Output callbacks, and reject actions from retired kernels (protocol 25.4).
+
 ### Fixed
 
 - Place notebook input prompts inside the executing cell's output with Enter submission, Ctrl+C interruption and fresh input state for each prompt.

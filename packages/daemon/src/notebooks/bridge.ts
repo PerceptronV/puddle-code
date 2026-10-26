@@ -1,5 +1,6 @@
 import { NOTEBOOK_INTELLIGENCE_BRIDGE } from './intelligence-bridge.js';
 import { NOTEBOOK_CELL_BRIDGE } from './cell-bridge.js';
+import { NOTEBOOK_WIDGET_BRIDGE } from './widget-bridge.js';
 
 /**
  * Installed Jupyter owns wire messages and language kernels. This small private
@@ -68,6 +69,7 @@ async def start(name, cwd):
     client = manager.client()
     client.start_channels()
     await client.wait_for_ready(timeout=30)
+    await start_widgets()
     emit({'event': 'ready', 'kernel': name})
 
 async def run(message):
@@ -131,6 +133,11 @@ async def run(message):
 async def shutdown():
     global manager, client, closing, interrupted
     closing = True
+    if widget_task is not None:
+        widget_task.cancel()
+        await asyncio.gather(widget_task, return_exceptions=True)
+    if widget_client is not None:
+        widget_client.stop_channels()
     interrupted = True
     if execution is not None and not execution.done():
         execution.cancel()
@@ -162,6 +169,7 @@ async def start_request(message):
 
 ${NOTEBOOK_CELL_BRIDGE}
 ${NOTEBOOK_INTELLIGENCE_BRIDGE}
+${NOTEBOOK_WIDGET_BRIDGE}
 
 async def main():
     global execution, interrupted, input_pending
@@ -193,6 +201,12 @@ async def main():
                 emit({'id': message['id'], 'error': str(error)})
         elif op == 'query':
             asyncio.create_task(query_kernel(message))
+        elif op == 'widget':
+            try:
+                send_widget(message)
+                emit({'id': message['id'], 'ok': True})
+            except Exception as error:
+                emit({'id': message['id'], 'error': str(error)})
         elif op == 'input':
             if input_pending != (message.get('run_id'), message.get('input_id')):
                 emit({'id': message['id'], 'error': 'This input request is no longer active'})

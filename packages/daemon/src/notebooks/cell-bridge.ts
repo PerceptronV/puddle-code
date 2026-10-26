@@ -8,6 +8,12 @@ class LiveClient(BoundedClient):
         super().__init__(nb, km=manager, allow_errors=False, record_timing=False, timeout=None)
         self.kc = client
         self.kc.allow_stdin = True
+        self.widget_registry = {'@jupyter-widgets/output': {'OutputModel': PassiveOutput}}
+        if widget_collector is not None:
+            for comm_id, state in widget_collector.widget_state.items():
+                if state.get('_model_module') == '@jupyter-widgets/output' and state.get('_model_name') == 'OutputModel':
+                    self.widget_state[comm_id] = dict(state)
+                    self.comm_objects[comm_id] = PassiveOutput(comm_id, dict(state), self.kc, self)
         self.run_id = run_id
         self.states = ['queued'] * len(nb.cells)
         self.started = {}
