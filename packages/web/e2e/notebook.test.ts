@@ -499,9 +499,20 @@ test('answers successive prompts inside cell output and interrupts without steal
   const replies: import('@puddle/shared').NotebookInputReply[] = [];
   let releaseReply: (() => void) | undefined;
   let interrupts = 0;
-  await page.route(`${origin}/api/worktrees/**/file?*`, (route) =>
-    route.fulfill({ json: { content: JSON.stringify(notebook), binary: false, mtime_ms: 1 } }),
-  );
+  let saved: { content: string } | null = null;
+  await page.route(`${origin}/api/worktrees/**/file?*`, (route) => {
+    if (route.request().method() === 'PUT') {
+      saved = route.request().postDataJSON();
+      return route.fulfill({ json: { mtime_ms: 2 } });
+    }
+    return route.fulfill({
+      json: {
+        content: saved?.content ?? JSON.stringify(notebook),
+        binary: false,
+        mtime_ms: saved ? 2 : 1,
+      },
+    });
+  });
   await page.route(`${origin}/api/version`, (route) =>
     route.fulfill({ json: { protocol: { major: 25, minor: 2 } } }),
   );
@@ -551,6 +562,14 @@ test('answers successive prompts inside cell output and interrupts without steal
         ...execution!,
         revision: execution!.revision + 1,
         input: { id: crypto.randomUUID(), prompt: '', password: false },
+        cells: execution!.cells.map((cell) => ({
+          ...cell,
+          revision: cell.revision + 1,
+          outputs: [
+            ...cell.outputs,
+            { output_type: 'stream', name: 'stdout', text: 'Password: ••••••••\n' },
+          ],
+        })),
       };
     }
     return route.fulfill({ json: { ok: true } });
@@ -610,7 +629,10 @@ test('answers successive prompts inside cell output and interrupts without steal
     cells: execution!.cells.map((cell) => ({
       ...cell,
       revision: 2,
-      outputs: [{ output_type: 'stream', name: 'stdout', text: 'Hello, reader\n' }],
+      outputs: [
+        { output_type: 'stream', name: 'stdout', text: 'Name: reader\n' },
+        { output_type: 'stream', name: 'stdout', text: 'Hello, reader\n' },
+      ],
     })),
   };
   const password = output.getByLabel('Password: ', { exact: true });
@@ -619,6 +641,7 @@ test('answers successive prompts inside cell output and interrupts without steal
   await expect(password).toHaveValue('');
   await expect(password).toBeEditable();
   await expect(output.getByRole('alert')).toHaveCount(0);
+  await expect(output).toContainText('Name: reader');
   await expect(output).toContainText('Hello, reader');
   await password.fill('private value');
   // An old reply may finish after the next prompt arrives via polling.
@@ -632,6 +655,7 @@ test('answers successive prompts inside cell output and interrupts without steal
   await expect(emptyPrompt).toHaveValue('');
   await expect(output).not.toContainText('Kernel input');
   await expect(output).not.toContainText('private value');
+  await expect(output).toContainText('Password: ••••••••');
   await emptyPrompt.fill('copy this');
   await emptyPrompt.selectText();
   await emptyPrompt.press('Control+c');
@@ -642,6 +666,22 @@ test('answers successive prompts inside cell output and interrupts without steal
   await expect.poll(() => interrupts).toBe(1);
   await expect(emptyPrompt).toHaveCount(0);
   expect(replies).toHaveLength(3);
+  await page.getByRole('button', { name: 'Save notebook', exact: true }).click();
+  await expect.poll(() => saved?.content).toBeTruthy();
+  expect(JSON.parse(saved!.content).cells[2].outputs).toEqual([
+    { output_type: 'stream', name: 'stdout', text: 'Name: reader\n' },
+    { output_type: 'stream', name: 'stdout', text: 'Hello, reader\n' },
+    { output_type: 'stream', name: 'stdout', text: 'Password: ••••••••\n' },
+  ]);
+  expect(saved!.content).not.toContain('private value');
+  expect(saved!.content).not.toContain('copy this');
+  // Reopen without a live run: the traces must come from the saved notebook.
+  execution = null;
+  await page.reload();
+  await expect(cell.locator('.monaco-editor')).toBeVisible();
+  await expect(output).toContainText('Name: reader');
+  await expect(output).toContainText('Password: ••••••••');
+  await expect(output.getByRole('textbox')).toHaveCount(0);
   const heading = page.getByRole('region', { name: 'Cell 2', exact: true });
   await heading.getByRole('button', { name: 'Fold section', exact: true }).click();
   await expect(cell).toHaveCount(0);

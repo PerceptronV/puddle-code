@@ -14,8 +14,11 @@ class LiveClient(BoundedClient):
         self.elapsed = {}
         self.published = {}
         self.flush_handle = None
+        self.cell_index = None
 
     def publish(self):
+        if self.flush_handle is not None:
+            self.flush_handle.cancel()
         self.flush_handle = None
         for index, cell in enumerate(self.nb.cells):
             value = dict(id=cell.id, source=cell.source, state=self.states[index],
@@ -34,7 +37,17 @@ class LiveClient(BoundedClient):
             if self.flush_handle is None:
                 self.flush_handle = asyncio.get_running_loop().call_later(0.1, self.publish)
 
-async def poll_input(run_id):
+    def reply_input(self, cell_index, prompt, value):
+        # Standard stream output survives notebook saving and respects nbclient's
+        # clear_output handling and the shared output bound. Mask password replies.
+        text = prompt['prompt'] + ('••••••••' if prompt['password'] else value) + '\n'
+        self.process_message(dict(msg_type='stream', header={'msg_type': 'stream'},
+                                  parent_header={}, content=dict(name='stdout', text=text)),
+                             self.nb.cells[cell_index], cell_index)
+        self.kc.input(value)
+        self.publish()
+
+async def poll_input(runner):
     global input_pending
     while True:
         try:
@@ -45,10 +58,12 @@ async def poll_input(run_id):
             continue
         if message.get('header', {}).get('msg_type') != 'input_request':
             continue
+        if runner.cell_index is None or runner.states[runner.cell_index] != 'running':
+            continue
         content = message.get('content', {})
         prompt = dict(id=str(uuid.uuid4()), prompt=str(content.get('prompt', ''))[:4096], password=bool(content.get('password', False)))
-        input_pending = (run_id, prompt['id'])
-        emit({'event': 'input', 'run_id': run_id, 'input': prompt})
+        input_pending = dict(key=(runner.run_id, prompt['id']), runner=runner, cell_index=runner.cell_index, prompt=prompt)
+        emit({'event': 'input', 'run_id': runner.run_id, 'input': prompt})
 
 async def run_cells(message):
     global interrupted, input_pending
@@ -60,11 +75,12 @@ async def run_cells(message):
         await start(message['kernel'], message['cwd'])
         nb = nbformat.v4.new_notebook(cells=[nbformat.v4.new_code_cell(source=cell['source'], id=cell['id']) for cell in message['cells']])
         runner = LiveClient(nb, message['run_id'])
-        input_task = asyncio.create_task(poll_input(message['run_id']))
+        input_task = asyncio.create_task(poll_input(runner))
         for index, cell in enumerate(nb.cells):
             if interrupted:
                 raise RuntimeError('Notebook execution interrupted')
             runner.states[index] = 'running'
+            runner.cell_index = index
             runner.started[index] = time.monotonic()
             runner.publish()
             await runner.async_execute_cell(cell, index)

@@ -9,4 +9,7 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve submitted notebook input prompts and replies in code-cell outputs when saving and reopening, with password replies masked.
 

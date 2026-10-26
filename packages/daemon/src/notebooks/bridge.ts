@@ -223,13 +223,17 @@ async def main():
             except Exception as error:
                 emit({'id': message['id'], 'error': str(error)})
         elif op == 'input':
-            if input_pending != (message.get('run_id'), message.get('input_id')):
+            if input_pending is None or input_pending['key'] != (message.get('run_id'), message.get('input_id')):
                 emit({'id': message['id'], 'error': 'This input request is no longer active'})
             else:
-                client.input(message['value'])
-                input_pending = None
-                emit({'event': 'input-cleared', 'run_id': message['run_id']})
-                emit({'id': message['id'], 'ok': True})
+                try:
+                    input_pending['runner'].reply_input(input_pending['cell_index'], input_pending['prompt'], message['value'])
+                    input_pending = None
+                    emit({'event': 'input-cleared', 'run_id': message['run_id']})
+                    emit({'id': message['id'], 'ok': True})
+                except Exception as error:
+                    await manager.interrupt_kernel()
+                    emit({'id': message['id'], 'error': str(error)})
         elif op == 'cells':
             if execution is not None and not execution.done():
                 emit({'id': message['id'], 'error': 'This notebook is already running'})

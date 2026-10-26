@@ -42,6 +42,13 @@ discovery and execution must occur on that host, using protocol 25.1 or newer.
    execution counts. Close/reopen the source tab and reconnect the browser:
    another run returns 3. A different notebook starts with its own state.
    Missing kernels/imports and failing cells retain the last successful result.
+   Run successive `input()` prompts and a `getpass.getpass()` prompt in a cell:
+   accepted prompts and replies remain in output order alongside printed and rich
+   results, with a fixed mask for the password. Save and reopen without a live
+   execution: the traces remain and the password is absent from the notebook JSON.
+   Reject or interrupt a pending reply: no unsubmitted value is saved. Verify
+   `clear_output()` (including `wait=True`), Clear All Outputs and rerunning the
+   cell remove previous traces along with the other outputs.
 7. Create a new `.ipynb` from the file tree and save a blank untitled draft as
    `.ipynb`: both open as valid empty notebooks. Saving an existing notebook as
    empty JSON source must remain literal. Put a `.venv` in the project and a
