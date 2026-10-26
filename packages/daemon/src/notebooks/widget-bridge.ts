@@ -16,6 +16,39 @@ def widget_message(msg):
     emit({'event': 'widget', 'widget': value})
 
 class CapturedOutput(OutputWidget):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.display_ids = {}
+
+    def output(self, outs, msg, display_id, cell_index):
+        if self.clear_before_next_output:
+            self.display_ids.clear()
+        super().output(outs, msg, display_id, cell_index)
+        identifier = (msg['content'].get('transient') or {}).get('display_id')
+        if identifier:
+            self.display_ids.setdefault(identifier, []).append(self.outputs[-1])
+
+    def clear_output(self, outs, msg, cell_index):
+        if not msg['content'].get('wait'):
+            self.display_ids.clear()
+        super().clear_output(outs, msg, cell_index)
+
+    def handle_msg(self, msg):
+        data = msg['content']['data']
+        if data.get('method') != 'echo_update' and 'outputs' in data.get('state', {}):
+            self.outputs = data['state']['outputs']
+            self.display_ids.clear()
+        super().handle_msg(msg)
+
+    def update_display(self, msg):
+        identifier = (msg['content'].get('transient') or {}).get('display_id')
+        outputs = self.display_ids.get(identifier, [])
+        for output in outputs:
+            output['data'] = msg['content']['data']
+            output['metadata'] = msg['content'].get('metadata', {})
+        if outputs:
+            self.sync_state()
+
     def sync_state(self):
         # Publish the same trait change locally even when kernel echo is disabled.
         msg = self.kernel_client.session.msg('comm_msg', content=dict(
@@ -64,13 +97,23 @@ async def poll_widgets():
                 if kind == 'comm_close':
                     widget_collector.widget_state.pop(comm_id, None)
                     widget_collector.widget_buffers.pop(comm_id, None)
-                    widget_collector.comm_objects.pop(comm_id, None)
+                    closed_widget = widget_collector.comm_objects.pop(comm_id, None)
+                    for parent, hooks in list(widget_collector.output_hook_stack.items()):
+                        if closed_widget in hooks:
+                            hooks.remove(closed_widget)
+                        if not hooks:
+                            widget_collector.output_hook_stack.pop(parent, None)
                 else:
                     widget_collector.handle_comm_msg([], msg, 0)
-                if len(widget_collector.widget_state) > 1024 or len(json.dumps(widget_collector.widget_state, default=str).encode()) > 4 * 1024 * 1024:
+                buffer_state = {key: list(value.values()) for key, value in widget_collector.widget_buffers.items()}
+                if len(widget_collector.widget_state) > 1024 or len(json.dumps(dict(state=widget_collector.widget_state, buffers=buffer_state), default=str).encode()) > 4 * 1024 * 1024:
                     raise RuntimeError('Widget state exceeded 1,024 models / 4 MiB')
             elif kind == 'status':
                 widget_message(msg)
+            elif kind == 'update_display_data':
+                for output in list(widget_collector.comm_objects.values()):
+                    if isinstance(output, CapturedOutput):
+                        output.update_display(msg)
             else:
                 hooks = widget_collector.output_hook_stack.get(msg.get('parent_header', {}).get('msg_id', ''), [])
                 if hooks:
@@ -78,17 +121,14 @@ async def poll_widgets():
                         hooks[-1].clear_output([], msg, 0)
                     elif kind in ('stream', 'display_data', 'execute_result', 'error'):
                         hooks[-1].output([], msg, None, 0)
-                    elif kind == 'update_display_data':
-                        display_id = msg['content'].get('transient', {}).get('display_id')
-                        for output in hooks[-1].outputs:
-                            if display_id and output.get('transient', {}).get('display_id') == display_id:
-                                output['data'] = msg['content']['data']
-                                output['metadata'] = msg['content'].get('metadata', {})
-                        hooks[-1].sync_state()
     except asyncio.CancelledError:
         pass
     except Exception as error:
         emit({'event': 'widget-error', 'error': str(error)[:1024]})
+        widget_collector.widget_state.clear()
+        widget_collector.widget_buffers.clear()
+        widget_collector.comm_objects.clear()
+        widget_collector.output_hook_stack.clear()
 
 def send_widget(message):
     if widget_client is None or widget_task is None or widget_task.done():

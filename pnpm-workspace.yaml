@@ -1,8 +1,15 @@
 packages:
   - packages/*
+# Keep app component peer types on React 19 when the isolated Jupyter renderer
+# brings its own React 18 runtime through JupyterLab's output renderers.
+overrides:
+  '@types/react': '^19.0.0'
+  '@types/react-dom': '^19.0.0'
 # Native addons ship install scripts (prebuild download / node-gyp);
 # esbuild's and electron's download their platform binaries.
 allowBuilds:
+  # Widget icons ship ready to use; their postinstall only prints attribution.
+  '@fortawesome/fontawesome-free': false
   better-sqlite3: true
   electron: true
   # Windows-installer helper (electron-builder transitive); its postinstall

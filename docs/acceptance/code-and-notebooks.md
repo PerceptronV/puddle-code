@@ -25,7 +25,7 @@ discovery and execution must occur on that host, using protocol 25.1 or newer.
    path and arguments; verify those exact arguments reach the programme.
 4. Open a version 4 `.ipynb` containing Markdown/maths, code, saved stdout,
    an error traceback, an image and a rich HTML table. The notebook view renders
-   them; script output and interactive widgets never execute. The source toggle
+   them; ordinary script output never executes. Widget acceptance is below. The source toggle
    exposes JSON and returns to the notebook without losing edits.
 5. Edit, add, reorder and delete cells; save and reopen. Preserve kernelspec,
    cell ids, tags, attachments and unknown extension fields. Editing a code cell
@@ -81,7 +81,7 @@ discovery and execution must occur on that host, using protocol 25.1 or newer.
    verify notebook preview is inert and read-only; remote execution is absent.
 
 Automated coverage: `code-terminal.test.ts`, `code-provider.test.ts`, `notebook-kernels.test.ts` (when Jupyter is installed), `notebook-routes.test.ts`, `notebook-environments.test.ts`, `notebook-format.test.ts`, and
-`e2e/notebook.test.ts`; the existing compilation and LaTeX suites cover shared
+`notebook-widgets.test.ts`, `e2e/notebook-widgets.test.ts` and `e2e/notebook.test.ts`; the existing compilation and LaTeX suites cover shared
 orchestration and command settings. Notebook execution uses Jupyter's
 [kernel manager API](https://jupyter-client.readthedocs.io/en/stable/api/jupyter_client.html#jupyter_client.manager.KernelManager) and [notebook client](https://nbclient.readthedocs.io/en/latest/client.html)
 and preserves the [version 4 notebook format](https://nbformat.readthedocs.io/en/latest/format_description.html).
@@ -99,8 +99,8 @@ and preserves the [version 4 notebook format](https://nbformat.readthedocs.io/en
     selection interrupts; copying selected input keeps its usual behaviour.
     Failed replies retain the value for an explicit retry. Reject stale replies
     after interruption or restart. Reconnect during execution and confirm it is
-    observed, never replayed. Saved widget output explicitly reports that interactive
-    widgets are unsupported and retains its plain-text fallback, without a model-id badge.
+    observed, never replayed. Widget output without saved or live model state
+    explains how to restore it and retains its plain-text fallback.
     Remote profile leases must deny execute, execution and input operations.
 
 14. Find across cell sources and optional text output, replace source, fold a
@@ -112,3 +112,27 @@ and preserves the [version 4 notebook format](https://nbformat.readthedocs.io/en
     help in another cell. Repeat after an emoji earlier in the cell. Assistance
     must not start a stopped kernel, alter execution counts, swallow input prompts
     or expose trusted HTML/command links.
+
+16. On protocol 25.4 with `ipywidgets` installed in the selected kernel, display a
+    VBox containing an IntSlider, an IntText linked with `jslink`, a Button, an
+    Output and an Image. Change both controls and inspect the corresponding Python
+    values. Click a button whose callback prints inside the Output: it must update
+    after the originating cell has finished. Reuse the Output in a later cell,
+    append directly, clear with `wait=True`, and update a display handle from a
+    later cell. Captured text must not leak into ordinary cell output.
+17. Upload binary data with FileUpload, inspect its exact bytes in Python and render
+    a binary Image. Save/reload the notebook: model values, nested references and
+    buffers persist and callbacks remain connected. Use Run to Executed Copy and
+    check that it also has standard widget-state metadata. Shut down the kernel:
+    saved state renders with a disconnected label without starting another kernel.
+    Restart or switch environments: old widget actions must not reach the new kernel.
+18. Display a compatible custom AMD widget from a public npm package. Its declared
+    module/version loads in the isolated frame. Open a saved copy without a kernel:
+    the extension loads only after the explicit Load action. Missing modules show
+    an error without breaking the notebook. Core controls work without a CDN. Check
+    light/dark themes, keyboard interaction, narrow panes and icon-bearing buttons.
+    Remote/mobile previews remain inert and both widget endpoints reject remote leases.
+19. Reconnect after more than 256 widget messages: the model graph restores from its
+    snapshot without replaying clicks. Exceed the bounded widget state/message limits:
+    show an explicit failure and recover through Restart. Exceed the notebook save
+    limit with widget metadata: show the save warning while keeping the live view.

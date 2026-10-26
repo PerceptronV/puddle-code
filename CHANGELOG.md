@@ -11,10 +11,11 @@ Past releases: see docs/changelogs/.
 
 ### Added
 
+- Render Jupyter widgets with the official manager, including live controls, linked models, callback output, binary uploads/images, compatible custom extensions and saved notebook state.
 - Retain Jupyter widget state and binary buffers across cell runs, forward live widget comms and Output callbacks, and reject actions from retired kernels (protocol 25.4).
 
 ### Fixed
 
 - Place notebook input prompts inside the executing cell's output with Enter submission, Ctrl+C interruption and fresh input state for each prompt.
-- Label unsupported interactive Jupyter widgets explicitly and preserve their plain-text fallback.
+- Keep Output widget capture and display updates working between cell runs and preserve widget metadata in executed copies.
 

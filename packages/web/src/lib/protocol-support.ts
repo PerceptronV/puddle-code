@@ -100,3 +100,7 @@ export const notebookExecutionSupported = (p: Protocol): boolean =>
 /** Kernel completion and inspection (25.3). */
 export const notebookIntelligenceSupported = (p: Protocol): boolean =>
   p !== undefined && atLeast(p, 25, 3);
+
+/** Live widget comms and retained model state (25.4). */
+export const notebookWidgetsSupported = (p: Protocol): boolean =>
+  p !== undefined && atLeast(p, 25, 4);

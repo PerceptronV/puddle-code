@@ -9,3 +9,8 @@ declare module 'virtual:katex-inline-css' {
   const css: string;
   export default css;
 }
+
+declare module 'virtual:notebook-widget-runtime' {
+  const script: string;
+  export default script;
+}

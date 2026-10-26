@@ -1,4 +1,13 @@
-import { useContext, useEffect, useId, useMemo, useRef, useSyncExternalStore } from 'react';
+import {
+  lazy,
+  Suspense,
+  useContext,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from 'react';
 import DOMPurify from 'dompurify';
 import { Copy, Download } from 'lucide-react';
 import { toast } from 'sonner';
@@ -10,6 +19,7 @@ import { usePreviewAssets } from './use-preview-assets';
 import { resolvePreviewAsset } from './preview-kind';
 import { NotebookRenderingContext } from './NotebookRenderingContext';
 import { downloadBlob } from '../../lib/download-blob';
+const NotebookWidget = lazy(() => import('./widgets/NotebookWidget'));
 
 function withAttachments(text: string, attachments: unknown): string {
   if (!attachments || typeof attachments !== 'object') return text;
@@ -123,6 +133,13 @@ export function NotebookOutputView({ output }: { output: NotebookOutput }) {
   const markdown = notebookText(output.data?.['text/markdown']);
   const json = output.data?.['application/json'];
   const widget = output.data?.['application/vnd.jupyter.widget-view+json'];
+  const widgetId =
+    widget &&
+    typeof widget === 'object' &&
+    'model_id' in widget &&
+    typeof widget.model_id === 'string'
+      ? widget.model_id
+      : null;
   const text =
     notebookOutputText(output) ||
     (json !== undefined ? JSON.stringify(json, null, 2) : '') ||
@@ -160,7 +177,11 @@ export function NotebookOutputView({ output }: { output: NotebookOutput }) {
           </button>
         )}
       </div>
-      {image ? (
+      {widgetId ? (
+        <Suspense fallback={<p className="text-xs text-fg-muted">Loading widget…</p>}>
+          <NotebookWidget modelId={widgetId} fallback={notebookOutputText(output)} />
+        </Suspense>
+      ) : image ? (
         <img src={image.src} alt="Notebook output" className="max-w-full" />
       ) : safeSvg ? (
         <div dangerouslySetInnerHTML={{ __html: safeSvg }} />
@@ -168,15 +189,6 @@ export function NotebookOutputView({ output }: { output: NotebookOutput }) {
         <NotebookHtml text={html} />
       ) : markdown ? (
         <NotebookHtml text={markdown} markdown />
-      ) : widget && typeof widget === 'object' ? (
-        <div>
-          {notebookOutputText(output) && (
-            <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-sm text-fg-secondary">
-              {text}
-            </pre>
-          )}
-          <p className="text-xs text-fg-muted">Interactive Jupyter widgets are not supported.</p>
-        </div>
       ) : (
         <pre
           className={`overflow-x-auto whitespace-pre-wrap font-mono text-sm ${output.output_type === 'error' ? 'text-danger' : 'text-fg-secondary'}`}

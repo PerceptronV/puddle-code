@@ -177,7 +177,14 @@ alongside cell execution. Protocol 25.4 exposes bounded widget snapshots/events
 and explicit comm writes tied to the current kernel generation; reconnect only
 observes and must never replay a widget action. Keep Output capture owned by this
 subscriber between runs, binary buffer paths intact, and remote notebook access
-denied by both the connector and profile authority.
+denied by both the connector and profile authority. The official HTML widget manager
+runs only in an opaque-origin iframe with a validated comm-only MessagePort. Bundle
+core controls locally; load compatible AMD extensions by their declared npm
+module/version, requiring explicit consent for saved notebook extensions. Never
+expose cockpit credentials or execution APIs to widget code, relax the main CSP,
+or execute widgets in remote/mobile previews. Persist state through the shared
+notebook draft, including executed-copy metadata. See the Jupyter integration
+audit in `docs/reports/2026-10-25-jupyter-integration.md`.
 
 This file is living documentation and part of the definition of done for every change:
 

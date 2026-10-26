@@ -573,7 +573,9 @@ test('answers successive prompts inside cell output and interrupts without steal
   });
   await page.goto(`${origin}/e2e/fixtures/notebook.html`);
   const firstOutput = page.getByRole('group', { name: 'Cell 1 output', exact: true });
-  await expect(firstOutput).toContainText('Interactive Jupyter widgets are not supported.');
+  await expect(firstOutput).toContainText(
+    'Live Jupyter widgets require a local or SSH host with protocol 25.4 or newer.',
+  );
   await expect(firstOutput).toContainText('IntSlider(value=0)');
   await expect(firstOutput).not.toContainText('saved-widget');
   const cell = page.getByRole('region', { name: 'Cell 3', exact: true });

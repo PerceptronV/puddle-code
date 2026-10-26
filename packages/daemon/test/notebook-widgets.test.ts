@@ -1,4 +1,4 @@
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it, onTestFinished } from 'vitest';
@@ -175,6 +175,57 @@ display(w.VBox([slider, button, out, image]))`);
         ),
       )
       .toContain('later cell');
+    const captured = async () =>
+      (await kernels.widgetState({ source })).snapshot!.state[find('OutputModel')]!.state.outputs;
+    await run('out.append_stdout("appended\\n")');
+    await expect.poll(async () => JSON.stringify(await captured())).toContain('appended');
+    await run('with out:\n    handle = display("old display", display_id=True)');
+    await run('handle.update("updated display")');
+    await expect.poll(async () => JSON.stringify(await captured())).toContain('updated display');
+    expect(JSON.stringify(await captured())).not.toContain('old display');
+    await run('out.clear_output(wait=True)');
+    expect(JSON.stringify(await captured())).toContain('updated display');
+    await run('with out:\n    print("replacement")');
+    await expect
+      .poll(captured)
+      .toEqual([{ output_type: 'stream', name: 'stdout', text: 'replacement\n' }]);
+    writeFileSync(
+      join(root, source.path),
+      JSON.stringify({
+        nbformat: 4,
+        nbformat_minor: 5,
+        metadata: {},
+        cells: [
+          {
+            id: 'copy',
+            cell_type: 'code',
+            metadata: {},
+            source: 'display(slider)',
+            outputs: [],
+            execution_count: null,
+          },
+        ],
+      }),
+    );
+    await kernels.execute(join(root, source.path), join(root, 'notebook.ipynb'), {
+      file: findCodeExecutable(['jupyter-nbconvert'])!,
+      args: [
+        '--to',
+        'notebook',
+        '--execute',
+        join(root, source.path),
+        '--output',
+        'notebook.ipynb',
+        '--output-dir',
+        root,
+      ],
+    });
+    const copied = JSON.parse(readFileSync(join(root, 'notebook.ipynb'), 'utf8'));
+    expect(
+      copied.metadata.widgets['application/vnd.jupyter.widget-state+json'].state[
+        find('IntSliderModel')
+      ].state.value,
+    ).toBe(17);
     await kernels.action({ source, action: 'restart' });
     expect((await kernels.widgetState({ source })).generation).not.toBe(state.generation);
     await expect(

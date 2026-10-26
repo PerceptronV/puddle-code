@@ -3,6 +3,7 @@ import {
   compilationSupported,
   compilationDefaultsSupported,
   notebookKernelsSupported,
+  notebookWidgetsSupported,
   compilationSettingsSupported,
   crossFiletreeTransferSupported,
   dynamicBaseBranchSupported,
@@ -38,6 +39,11 @@ describe('cross-filetree transfer compatibility gate', () => {
 });
 
 describe('compilation compatibility gate', () => {
+  it('requires confirmed protocol 25.4 for live widget comms', () => {
+    expect(notebookWidgetsSupported(undefined)).toBe(false);
+    expect(notebookWidgetsSupported({ major: 25, minor: 3 })).toBe(false);
+    expect(notebookWidgetsSupported({ major: 25, minor: 4 })).toBe(true);
+  });
   it('requires confirmed protocol 24.6 for persistent notebook controls', () => {
     expect(notebookKernelsSupported(undefined)).toBe(false);
     expect(notebookKernelsSupported({ major: 24, minor: 5 })).toBe(false);

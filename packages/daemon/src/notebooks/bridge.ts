@@ -47,6 +47,16 @@ def catalogue():
 
 class BoundedClient(NotebookClient):
     output_bytes = 0
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.kc = client
+        self.widget_registry = {'@jupyter-widgets/output': {'OutputModel': PassiveOutput}}
+        if widget_collector is not None:
+            for comm_id, state in widget_collector.widget_state.items():
+                if state.get('_model_module') == '@jupyter-widgets/output' and state.get('_model_name') == 'OutputModel':
+                    self.widget_state[comm_id] = dict(state)
+                    self.comm_objects[comm_id] = PassiveOutput(comm_id, dict(state), self.kc, self)
+
     def process_message(self, msg, cell, cell_index):
         self.output_bytes += len(json.dumps(msg.get('content', {}), default=str).encode())
         if self.output_bytes > 2 * 1024 * 1024:
@@ -113,6 +123,11 @@ async def run(message):
             await runner.async_execute_cell(cell, index)
         if interrupted:
             raise RuntimeError('Notebook execution interrupted')
+        # Executed copies retain the same widget graph as live previews.
+        if widget_collector is not None:
+            runner.widget_state = widget_collector.widget_state
+            runner.widget_buffers = widget_collector.widget_buffers
+        runner.set_widgets_metadata()
         encoded = nbformat.writes(nb).encode('utf-8')
         if len(encoded) > LIMIT:
             raise RuntimeError('Executed notebook exceeds the 5 MiB editor limit')
