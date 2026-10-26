@@ -3,6 +3,9 @@ import * as base from '@jupyter-widgets/base';
 import * as controls from '@jupyter-widgets/controls';
 import * as output from '@jupyter-widgets/html-manager/lib/output';
 import '@jupyter-widgets/controls/css/labvariables.css';
+import 'katex/dist/katex.min.css';
+import { renderMathInElement } from '../math-dom';
+import { markdownToHtml } from '../markdown';
 import type { IClassicComm, ICallbacks } from '@jupyter-widgets/base/lib/services-shim';
 import type { NotebookWidgetMessage, NotebookWidgetState } from '@puddle/shared';
 
@@ -118,6 +121,8 @@ class Comm implements IClassicComm {
 }
 
 class LiveManager extends HTMLManager {
+  // Core controls look for JupyterLab's registry name when typesetting labels.
+  readonly _rendermime: HTMLManager['renderMime'];
   constructor() {
     super({
       loader: (name, version) => {
@@ -138,6 +143,15 @@ class LiveManager extends HTMLManager {
         return new Promise<Module>((resolve, reject) => requirejs([name], resolve, reject));
       },
     });
+    this.renderMime = this.renderMime.clone({
+      markdownParser: { render: async (source) => markdownToHtml(source) },
+      latexTypesetter: {
+        typeset(element) {
+          renderMathInElement(element);
+        },
+      },
+    });
+    this._rendermime = this.renderMime;
   }
   new_model(
     options: Parameters<HTMLManager['new_model']>[0],

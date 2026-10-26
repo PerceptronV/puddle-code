@@ -16,9 +16,9 @@ whole Jupyter Server or JupyterLab application.
 | Input | Jupyter stdin requests appear inside cell output, with Enter submission, masked passwords and Ctrl+C interruption. This is a request/reply protocol, not a PTY. |
 | Editor assistance | Completion and inspection query an existing idle kernel without starting one. |
 | Notebook files | Version 4 notebooks, metadata, attachments, shared JSON editing/drafts and normal save/conflict handling. |
-| Widget models and views | Official `@jupyter-widgets/html-manager`, locally bundled core controls, layout/style models and linked model references. Widget MIME takes priority over plain text. |
+| Widget models and views | Official `@jupyter-widgets/html-manager`, locally bundled core controls, layout/style models, linked model references and mathematical labels/HTMLMath. Widget MIME takes priority over plain text. |
 | Live widget interaction | Persistent comm open/message/close routing, trait patches, custom messages, binary buffers and Python callbacks after cell execution finishes. |
-| Output widgets | Persistent capture, later-cell reuse, direct output assignment, stream/error/rich output, clear/wait and display-id updates. Execution clients suppress duplicate capture. |
+| Output widgets | Persistent capture, later-cell reuse, direct output assignment, stream/error/rich output, Markdown/maths, clear/wait and display-id updates. Execution clients suppress duplicate capture. |
 | Persistence | Standard widget-state v2 metadata with base64 buffers, including executed copies. Saved core models render without starting a kernel. |
 | Custom widgets | Compatible public AMD widget modules load from their declared npm package/version at the standard `dist/index.js` entry point. Saved custom widgets require an explicit Load action. |
 
@@ -60,13 +60,15 @@ Real-kernel tests used `ipywidgets 8.1.8`, `nbclient 0.11.0` and
 `packages/daemon/test/notebook-widgets.test.ts` checks bounded snapshots and event
 history, binary trait replacement, real trait updates and button callbacks, Output
 reuse and deferred clearing, display-id updates, executed-copy metadata, and
-rejection of writes against a retired kernel generation.
+rejection of writes against a retired kernel generation. Trait persistence also
+runs with ipywidgets' echo updates disabled.
 
 `packages/web/e2e/notebook-widgets.test.ts` uses Chromium and a real isolated kernel
 without launching `puddled`. It verifies nested controls and `jslink`, Python
-callbacks, FileUpload byte integrity, binary Image rendering, a custom Python/AMD
+callbacks with Markdown/maths output, HTMLMath and mathematical labels, FileUpload byte integrity, binary Image rendering, a custom Python/AMD
 widget, saving and reload, live reconnection, saved rendering after shutdown,
-explicit saved-extension loading and the iframe sandbox. The custom extension's
+explicit saved-extension loading, snapshot resynchronisation without callback
+replay, and the iframe sandbox. The custom extension's
 CDN response is supplied by the test, so this proves module loading and comms,
 not availability or compatibility of every public package.
 
@@ -75,6 +77,11 @@ stale-result handling and assistance coverage. Protocol gating and remote denial
 tests cover the new endpoints. Production web building and TypeScript/lint checks
 cover the bundled renderer. Manual local/SSH acceptance is listed in
 `docs/acceptance/code-and-notebooks.md`.
+
+CI provisions an isolated Python environment with the versions above, plus
+`nbconvert 7.17.1` and `ipykernel 7.1.0`, so these integration checks run on CI.
+The widget runtime is loaded on demand, including its locally bundled maths
+renderer and WOFF2 fonts.
 
 ## Upstream contracts
 

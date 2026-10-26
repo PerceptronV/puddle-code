@@ -10,7 +10,7 @@ const id = 'virtual:notebook-widget-runtime';
 
 function inlineCss(path: string): string {
   return readFileSync(path, 'utf8')
-    .replace(/src:[^;]+;/g, (source) => {
+    .replace(/src:[^;}]+;?/g, (source) => {
       // Embedded fonts only need the modern browser format.
       const woff2 = source.match(/url\([^)]+\.woff2\)\s*format\([^)]+\)/)?.[0];
       return woff2 ? `src:${woff2};` : source.includes('.eot') ? '' : source;

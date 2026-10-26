@@ -80,6 +80,7 @@ function themeVariables(): Record<string, string> {
     '--jp-brand-color1': read('--accent'),
     '--jp-ui-font-family': read('--font-sans'),
     '--jp-code-font-family': read('--font-mono'),
+    '--danger': read('--danger'),
   };
 }
 
@@ -186,6 +187,7 @@ html,body{margin:0;background:var(--jp-layout-color0)!important;color:var(--jp-u
 .jupyter-widgets input,.jupyter-widgets select,.jupyter-widgets textarea,.jupyter-widgets button{border:0!important;color:var(--jp-ui-font-color1);background:var(--jp-layout-color1)}
 .jupyter-widgets button,.jupyter-widgets select,.jupyter-widgets input[type=range]{cursor:pointer}
 .jupyter-widgets button:hover{opacity:.8}.widget-label{color:var(--jp-ui-font-color2)}
+.math-display{display:block}
 </style></head><body><script>${script.replace(/<\/script/gi, '<\\/script')}</script></body></html>`);
     };
     window.addEventListener('message', ready);

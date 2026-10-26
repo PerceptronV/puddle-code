@@ -76,6 +76,16 @@ async def start_widgets():
     await widget_client.wait_for_ready(timeout=30)
     widget_task = asyncio.create_task(poll_widgets())
 
+def forget_widget(comm_id):
+    widget_collector.widget_state.pop(comm_id, None)
+    widget_collector.widget_buffers.pop(comm_id, None)
+    closed_widget = widget_collector.comm_objects.pop(comm_id, None)
+    for parent, hooks in list(widget_collector.output_hook_stack.items()):
+        if closed_widget in hooks:
+            hooks.remove(closed_widget)
+        if not hooks:
+            widget_collector.output_hook_stack.pop(parent, None)
+
 async def poll_widgets():
     try:
         while not closing:
@@ -95,14 +105,7 @@ async def poll_widgets():
                     continue
                 widget_message(msg)
                 if kind == 'comm_close':
-                    widget_collector.widget_state.pop(comm_id, None)
-                    widget_collector.widget_buffers.pop(comm_id, None)
-                    closed_widget = widget_collector.comm_objects.pop(comm_id, None)
-                    for parent, hooks in list(widget_collector.output_hook_stack.items()):
-                        if closed_widget in hooks:
-                            hooks.remove(closed_widget)
-                        if not hooks:
-                            widget_collector.output_hook_stack.pop(parent, None)
+                    forget_widget(comm_id)
                 else:
                     widget_collector.handle_comm_msg([], msg, 0)
                 buffer_state = {key: list(value.values()) for key, value in widget_collector.widget_buffers.items()}
@@ -141,6 +144,9 @@ def send_widget(message):
     # Reflect outgoing state before processing the kernel's response, even when
     # its echo updates are disabled. Later kernel corrections remain authoritative.
     widget_message(msg)
-    if value['msg_type'] == 'comm_open':
+    if value['msg_type'] in ('comm_open', 'comm_msg'):
+        # Keep executed-copy metadata current even when ipywidgets disables echo.
         widget_collector.handle_comm_msg([], msg, 0)
+    elif value['msg_type'] == 'comm_close':
+        forget_widget(value['content']['comm_id'])
 `;

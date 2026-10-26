@@ -8,9 +8,11 @@ import { NotebookKernels } from '../../daemon/src/notebooks/kernels.js';
 import type { SessionStore } from '../../daemon/src/db/stores/sessions.js';
 import type { RepoStore } from '../../daemon/src/db/stores/repos.js';
 import { NO_SESSION } from '../../daemon/src/http/routes/worktree-shared.js';
+import { findCodeExecutable } from '../../daemon/src/code/discovery.js';
 
 let server: ViteDevServer;
 let origin: string;
+test.skip(!findCodeExecutable(['jupyter-nbconvert']), 'Requires Jupyter and ipywidgets');
 test.use({ viewport: { width: 1100, height: 1000 }, actionTimeout: 15000 });
 test.beforeAll(async () => {
   server = await createServer({
@@ -40,7 +42,7 @@ test('renders real widgets, sends values and binary uploads, keeps callbacks liv
   const code = `import ipywidgets as w
 import base64
 from traitlets import Unicode, Int
-from IPython.display import display
+from IPython.display import display, Markdown
 class Counter(w.DOMWidget):
     _model_name = Unicode('CounterModel').tag(sync=True)
     _view_name = Unicode('CounterView').tag(sync=True)
@@ -57,6 +59,7 @@ slider = w.IntSlider(value=3, description='Amount')
 mirror = w.IntText(description='Mirror')
 link = w.jslink((slider, 'value'), (mirror, 'value'))
 button = w.Button(description='Increment')
+maths = w.HTMLMath(value='$x^2$', description='$y$')
 upload = w.FileUpload(description='Upload')
 out = w.Output()
 image = w.Image(value=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII='), format='png', layout=w.Layout(width='16px', height='16px'))
@@ -66,8 +69,9 @@ def clicked(button):
     count += 1
     with out:
         print('clicked', count, 'amount', slider.value)
+        display(Markdown('**callback** $z$'))
 button.on_click(clicked)
-display(w.VBox([slider, mirror, button, upload, image, custom, out]))`;
+display(w.VBox([slider, mirror, button, upload, image, custom, maths, out]))`;
   let content = JSON.stringify({
     nbformat: 4,
     nbformat_minor: 5,
@@ -85,6 +89,7 @@ display(w.VBox([slider, mirror, button, upload, image, custom, out]))`;
   });
   writeFileSync(join(root, source.path), content);
   let extensionLoads = 0;
+  let resynchronise = false;
   await page.route(
     'https://cdn.jsdelivr.net/npm/puddle-widget-fixture@1.0.0/dist/index.js',
     (route) => {
@@ -134,7 +139,7 @@ define(['@jupyter-widgets/base'], function(base) {
                 : endpoint === 'execute'
                   ? await kernels.executeCells({ ...body, source })
                   : endpoint === 'widgets'
-                    ? await kernels.widgetState({ ...body, source })
+                    ? await kernels.widgetState(resynchronise ? { source } : { ...body, source })
                     : endpoint === 'widgets/comm'
                       ? await kernels.widgetComm({ ...body, source })
                       : endpoint === 'kernel'
@@ -142,6 +147,7 @@ define(['@jupyter-widgets/base'], function(base) {
                         : endpoint === 'intelligence'
                           ? { matches: [], start: body.cursor, end: body.cursor, documentation: '' }
                           : {};
+      if (endpoint === 'widgets') resynchronise = false;
       await route.fulfill(result === undefined ? { status: 204 } : { json: result });
     } catch (error) {
       await route.fulfill({
@@ -161,6 +167,8 @@ define(['@jupyter-widgets/base'], function(base) {
     await expect(
       frame.getByRole('button', { name: 'Extension count: 0', exact: true }),
     ).toBeVisible();
+    await expect(frame.locator('.widget-htmlmath-content .katex')).toBeVisible();
+    await expect(frame.locator('.widget-htmlmath .widget-label .katex')).toBeVisible();
     await frame.getByRole('button', { name: 'Extension count: 0', exact: true }).click();
     await expect(
       frame.getByRole('button', { name: 'Extension count: 1', exact: true }),
@@ -180,6 +188,8 @@ define(['@jupyter-widgets/base'], function(base) {
     await mirror.press('Enter');
     await frame.getByRole('button', { name: 'Increment', exact: true }).click();
     await expect(frame.locator('.widget-output')).toContainText('clicked 1 amount 17');
+    await expect(frame.locator('.widget-output strong')).toHaveText('callback');
+    await expect(frame.locator('.widget-output .katex')).toBeVisible();
     const choosingFile = page.waitForEvent('filechooser');
     await frame.getByRole('button', { name: /Upload/ }).click();
     await (
@@ -211,10 +221,28 @@ define(['@jupyter-widgets/base'], function(base) {
     await expect(mirror).toHaveValue('17');
     await frame.getByRole('button', { name: 'Increment', exact: true }).click();
     await expect(frame.locator('.widget-output')).toContainText('clicked 2 amount 17');
+    // The server sends a fresh graph after a cursor gap. It must replace the
+    // frame, keep current model values and never repeat an earlier callback.
+    await page.locator('iframe[title="Jupyter widget"]').evaluate((element) => {
+      element.setAttribute('data-before-resynchronisation', 'true');
+    });
+    await kernels.executeCells({
+      source,
+      cells: [{ id: 'resynchronise', source: 'slider.value = 18' }],
+    });
+    resynchronise = true;
+    await expect(page.locator('iframe[title="Jupyter widget"]')).not.toHaveAttribute(
+      'data-before-resynchronisation',
+      'true',
+    );
+    await expect(mirror).toHaveValue('18');
+    await expect(frame.locator('.widget-output')).not.toContainText('clicked 3');
+    await frame.getByRole('button', { name: 'Increment', exact: true }).click();
+    await expect(frame.locator('.widget-output')).toContainText('clicked 3 amount 18');
     await page.screenshot({ path: '/tmp/puddle-live-widgets.png' });
     await kernels.action({ source, action: 'shutdown' });
     await expect(page.getByText('Saved widget · run the cell to reconnect')).toBeVisible();
-    await expect(mirror).toHaveValue('17');
+    await expect(mirror).toHaveValue('18');
     expect((await kernels.status(source)).state).toBe('stopped');
     const loadsBeforeSaved = extensionLoads;
     await expect(

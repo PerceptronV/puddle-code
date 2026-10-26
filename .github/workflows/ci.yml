@@ -22,6 +22,14 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm build
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: install isolated Jupyter test environment
+        run: |
+          python -m venv "$RUNNER_TEMP/notebook-python"
+          "$RUNNER_TEMP/notebook-python/bin/python" -m pip install nbconvert==7.17.1 nbclient==0.11.0 jupyter-client==8.6.3 ipykernel==7.1.0 ipywidgets==8.1.8
+          echo "$RUNNER_TEMP/notebook-python/bin" >> "$GITHUB_PATH"
       - run: pnpm test
       - run: pnpm test:e2e
       - name: provision loopback OpenSSH tests

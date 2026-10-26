@@ -117,7 +117,8 @@ and preserves the [version 4 notebook format](https://nbformat.readthedocs.io/en
     VBox containing an IntSlider, an IntText linked with `jslink`, a Button, an
     Output and an Image. Change both controls and inspect the corresponding Python
     values. Click a button whose callback prints inside the Output: it must update
-    after the originating cell has finished. Reuse the Output in a later cell,
+    after the originating cell has finished. Display Markdown/maths inside Output,
+    an HTMLMath widget and a mathematical control label: all must typeset. Reuse the Output in a later cell,
     append directly, clear with `wait=True`, and update a display handle from a
     later cell. Captured text must not leak into ordinary cell output.
 17. Upload binary data with FileUpload, inspect its exact bytes in Python and render

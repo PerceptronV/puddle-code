@@ -23,7 +23,12 @@ export function renderMathInDocument(doc: Document): boolean {
   if (bringsOwnMath(doc)) return false;
   const root = doc.body ?? doc.documentElement;
   if (!root) return false;
+  return renderMathInElement(root);
+}
 
+/** Also used by live widget labels and Output renderers inside their sandbox. */
+export function renderMathInElement(root: HTMLElement): boolean {
+  const doc = root.ownerDocument;
   const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const candidates: Text[] = [];
   while (walker.nextNode()) {

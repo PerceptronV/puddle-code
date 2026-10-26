@@ -110,6 +110,8 @@ it.skipIf(!findCodeExecutable(['jupyter-nbconvert']))(
       return JSON.stringify(result.cells[0]!.outputs);
     };
     await run(`import ipywidgets as w
+import ipywidgets.widgets.widget as widget_protocol
+widget_protocol.JUPYTER_WIDGET_ECHO = False
 from IPython.display import display
 slider = w.IntSlider(value=3, description='Amount')
 button = w.Button(description='Increment')

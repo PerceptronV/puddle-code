@@ -184,7 +184,9 @@ module/version, requiring explicit consent for saved notebook extensions. Never
 expose cockpit credentials or execution APIs to widget code, relax the main CSP,
 or execute widgets in remote/mobile previews. Persist state through the shared
 notebook draft, including executed-copy metadata. See the Jupyter integration
-audit in `docs/reports/2026-10-25-jupyter-integration.md`.
+audit in `docs/reports/2026-10-25-jupyter-integration.md`. CI provisions an isolated,
+pinned Python environment for real-kernel and Chromium widget tests; keep saved
+state, binary uploads, reconnect and echo-disabled persistence covered.
 
 This file is living documentation and part of the definition of done for every change:
 

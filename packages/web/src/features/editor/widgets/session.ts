@@ -64,6 +64,7 @@ export class WidgetSession {
       for (const event of value.events)
         this.state = { ...this.state, state: mergeWidgetMessage(this.state.state, event) };
       if (
+        value.snapshot ||
         value.generation !== this.current.generation ||
         value.revision !== this.current.revision ||
         value.error !== this.current.error
