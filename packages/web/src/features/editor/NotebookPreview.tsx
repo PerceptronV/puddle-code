@@ -6,7 +6,6 @@ import { NotebookSearch, type NotebookMatch } from './NotebookSearch';
 import { Plus } from 'lucide-react';
 import { requestSave, saverKey } from './save-registry';
 import { useNotebookExecution } from './use-notebook-execution';
-import { NotebookInputPrompt } from './NotebookInputPrompt';
 import { NotebookRenderingContext } from './NotebookRenderingContext';
 import { NotebookToolbar } from './NotebookToolbar';
 import { NotebookCell, notebookControl } from './NotebookCell';
@@ -88,6 +87,18 @@ export function NotebookPreview({
     [session, path, root],
   );
   const execution = useNotebookExecution(source, notebook, onChange ? update : undefined, !!onRun);
+  const inputCellId = execution.execution?.input
+    ? execution.execution.cells.find((cell) => cell.state === 'running')?.id
+    : undefined;
+  useLayoutEffect(() => {
+    if (!notebook || !inputCellId || !folded.length) return;
+    const inputIndex = notebook.cells.findIndex((cell) => cell.id === inputCellId);
+    const next = folded.filter((id) => {
+      const index = notebook.cells.findIndex((cell) => cell.id === id);
+      return index < 0 || !notebookSectionRange(notebook, index).includes(inputIndex);
+    });
+    if (next.length !== folded.length) setFolded(next);
+  }, [notebook, inputCellId, folded]);
   if (!notebook)
     return (
       <p className="p-6 text-sm text-danger" role="alert">
@@ -185,21 +196,14 @@ export function NotebookPreview({
               : undefined
           }
         />
-        {execution.error && (
-          <p role="alert" className="px-3 py-2 text-xs text-danger">
-            {execution.error}
-          </p>
-        )}
-        {execution.execution?.input && (
-          <NotebookInputPrompt
-            key={execution.execution.input.id}
-            source={source}
-            execution={execution.execution}
-          />
-        )}
         <div ref={scroller} className="min-h-0 flex-1 overflow-auto bg-ground text-fg">
           <div ref={content} className="mx-auto flex max-w-4xl flex-col gap-7 py-6 pr-6 pl-14">
             <p className="text-xs text-fg-muted">{notebook.cells.length} cells</p>
+            {execution.error && (
+              <p role="alert" className="text-xs text-danger">
+                {execution.error}
+              </p>
+            )}
             {notebook.cells.map((cell, index) =>
               hidden.has(index) ? null : (
                 <NotebookCell
@@ -239,6 +243,10 @@ export function NotebookPreview({
                     execution.execution?.cells.find((item) => item.id === cell.id) ??
                     savedCellExecution(cell)
                   }
+                  inputExecution={
+                    inputCellId === cell.id ? (execution.execution ?? undefined) : undefined
+                  }
+                  inputSource={source}
                   onRun={
                     execution.supported
                       ? (range) => {

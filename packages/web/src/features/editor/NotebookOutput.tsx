@@ -122,6 +122,7 @@ export function NotebookOutputView({ output }: { output: NotebookOutput }) {
   const html = notebookText(output.data?.['text/html']);
   const markdown = notebookText(output.data?.['text/markdown']);
   const json = output.data?.['application/json'];
+  const widget = output.data?.['application/vnd.jupyter.widget-view+json'];
   const text =
     notebookOutputText(output) ||
     (json !== undefined ? JSON.stringify(json, null, 2) : '') ||
@@ -167,6 +168,15 @@ export function NotebookOutputView({ output }: { output: NotebookOutput }) {
         <NotebookHtml text={html} />
       ) : markdown ? (
         <NotebookHtml text={markdown} markdown />
+      ) : widget && typeof widget === 'object' ? (
+        <div>
+          {notebookOutputText(output) && (
+            <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-sm text-fg-secondary">
+              {text}
+            </pre>
+          )}
+          <p className="text-xs text-fg-muted">Interactive Jupyter widgets are not supported.</p>
+        </div>
       ) : (
         <pre
           className={`overflow-x-auto whitespace-pre-wrap font-mono text-sm ${output.output_type === 'error' ? 'text-danger' : 'text-fg-secondary'}`}

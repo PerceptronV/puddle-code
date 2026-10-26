@@ -9,3 +9,8 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Fixed
+
+- Place notebook input prompts inside the executing cell's output with Enter submission, Ctrl+C interruption and fresh input state for each prompt.
+- Label unsupported interactive Jupyter widgets explicitly and preserve their plain-text fallback.
+

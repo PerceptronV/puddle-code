@@ -451,3 +451,202 @@ test('runs exact cell ranges and merges live output without replacing newer edit
     { id: 'answer', source: 'print(value + 1)' },
   ]);
 });
+
+test('answers successive prompts inside cell output and interrupts without stealing copy', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  const notebook = {
+    nbformat: 4,
+    nbformat_minor: 5,
+    metadata: {},
+    cells: [
+      {
+        id: 'widget',
+        cell_type: 'code',
+        metadata: {},
+        source: 'display(slider)',
+        execution_count: 1,
+        outputs: [
+          {
+            output_type: 'display_data',
+            metadata: {},
+            data: {
+              'application/vnd.jupyter.widget-view+json': { model_id: 'saved-widget' },
+              'text/plain': 'IntSlider(value=0)',
+            },
+          },
+        ],
+      },
+      {
+        id: 'input-heading',
+        cell_type: 'markdown',
+        metadata: {},
+        source: '# Input section',
+      },
+      {
+        id: 'input',
+        cell_type: 'code',
+        metadata: {},
+        source: 'name = input("Name: ")\npassword = getpass("Password: ")\ninput()',
+        execution_count: null,
+        outputs: [{ output_type: 'stream', name: 'stdout', text: 'Previous output\n' }],
+      },
+    ],
+  };
+  let execution: import('@puddle/shared').NotebookExecution | null = null;
+  const replies: import('@puddle/shared').NotebookInputReply[] = [];
+  let releaseReply: (() => void) | undefined;
+  let interrupts = 0;
+  await page.route(`${origin}/api/worktrees/**/file?*`, (route) =>
+    route.fulfill({ json: { content: JSON.stringify(notebook), binary: false, mtime_ms: 1 } }),
+  );
+  await page.route(`${origin}/api/version`, (route) =>
+    route.fulfill({ json: { protocol: { major: 25, minor: 2 } } }),
+  );
+  await page.route(`${origin}/api/notebooks/kernels`, (route) =>
+    route.fulfill({ json: { available: true, kernels: [] } }),
+  );
+  await page.route(`${origin}/api/notebooks/status`, (route) =>
+    route.fulfill({
+      json: { state: execution?.state === 'running' ? 'busy' : 'idle', kernel: 'python3' },
+    }),
+  );
+  await page.route(`${origin}/api/notebooks/execution`, (route) =>
+    route.fulfill({ json: { execution } }),
+  );
+  await page.route(`${origin}/api/notebooks/execute`, (route) => {
+    execution = {
+      id: crypto.randomUUID(),
+      revision: 1,
+      state: 'running',
+      cells: [
+        {
+          id: 'input',
+          source: notebook.cells[2]!.source,
+          revision: 1,
+          state: 'running',
+          execution_count: 2,
+          outputs: [],
+        },
+      ],
+      input: { id: crypto.randomUUID(), prompt: 'Name: ', password: false },
+    };
+    return route.fulfill({ json: { execution } });
+  });
+  await page.route(`${origin}/api/notebooks/input`, async (route) => {
+    replies.push(route.request().postDataJSON());
+    if (replies.length === 1)
+      return route.fulfill({
+        status: 409,
+        json: { error: { code: 'input_failed', message: 'Input was not accepted' } },
+      });
+    if (replies.length === 2)
+      await new Promise<void>((resolve) => {
+        releaseReply = resolve;
+      });
+    else {
+      execution = {
+        ...execution!,
+        revision: execution!.revision + 1,
+        input: { id: crypto.randomUUID(), prompt: '', password: false },
+      };
+    }
+    return route.fulfill({ json: { ok: true } });
+  });
+  await page.route(`${origin}/api/notebooks/kernel`, (route) => {
+    expect(route.request().postDataJSON().action).toBe('interrupt');
+    interrupts++;
+    execution = {
+      ...execution!,
+      revision: execution!.revision + 1,
+      state: 'cancelled',
+      input: undefined,
+      cells: execution!.cells.map((cell) => ({
+        ...cell,
+        state: 'cancelled',
+        revision: cell.revision + 1,
+      })),
+    };
+    return route.fulfill({ json: { state: 'idle', kernel: 'python3' } });
+  });
+  await page.goto(`${origin}/e2e/fixtures/notebook.html`);
+  const firstOutput = page.getByRole('group', { name: 'Cell 1 output', exact: true });
+  await expect(firstOutput).toContainText('Interactive Jupyter widgets are not supported.');
+  await expect(firstOutput).toContainText('IntSlider(value=0)');
+  await expect(firstOutput).not.toContainText('saved-widget');
+  const cell = page.getByRole('region', { name: 'Cell 3', exact: true });
+  await cell.getByRole('button', { name: 'Collapse output', exact: true }).click();
+  await cell.getByRole('button', { name: 'Run Cell', exact: true }).first().click();
+  const output = cell.getByRole('group', { name: 'Cell 3 output', exact: true });
+  const name = output.getByRole('textbox', { name: 'Name: ', exact: true });
+  await expect(name).toBeFocused();
+  await expect(output.getByRole('button', { name: 'Collapse output' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Send', exact: true })).toHaveCount(0);
+  await expect(output).not.toContainText('Previous output');
+  await name.fill('reader');
+  await name.press('Enter');
+  await expect(output.getByRole('alert')).toHaveText('Input was not accepted');
+  await expect(name).toHaveValue('reader');
+  await expect(name).toBeEditable();
+  await name.press('Enter');
+  await expect.poll(() => replies.length).toBe(2);
+  await expect(name).not.toBeEditable();
+  await name.press('Enter');
+  expect(replies).toHaveLength(2);
+  expect(replies[1]).toMatchObject({
+    run_id: execution!.id,
+    input_id: execution!.input!.id,
+    value: 'reader',
+    source: { path: 'analysis.ipynb', root: '/project' },
+  });
+  execution = {
+    ...execution!,
+    revision: 2,
+    input: { id: crypto.randomUUID(), prompt: 'Password: ', password: true },
+    cells: execution!.cells.map((cell) => ({
+      ...cell,
+      revision: 2,
+      outputs: [{ output_type: 'stream', name: 'stdout', text: 'Hello, reader\n' }],
+    })),
+  };
+  const password = output.getByLabel('Password: ', { exact: true });
+  await expect(password).toBeFocused();
+  await expect(password).toHaveAttribute('type', 'password');
+  await expect(password).toHaveValue('');
+  await expect(password).toBeEditable();
+  await expect(output.getByRole('alert')).toHaveCount(0);
+  await expect(output).toContainText('Hello, reader');
+  await password.fill('private value');
+  // An old reply may finish after the next prompt arrives via polling.
+  releaseReply!();
+  await expect(password).toHaveValue('private value');
+  await password.press('Enter');
+  await expect.poll(() => replies.length).toBe(3);
+  expect(replies[2]!.value).toBe('private value');
+  const emptyPrompt = output.getByRole('textbox', { name: 'Kernel input', exact: true });
+  await expect(emptyPrompt).toBeFocused();
+  await expect(emptyPrompt).toHaveValue('');
+  await expect(output).not.toContainText('Kernel input');
+  await expect(output).not.toContainText('private value');
+  await emptyPrompt.fill('copy this');
+  await emptyPrompt.selectText();
+  await emptyPrompt.press('Control+c');
+  expect(interrupts).toBe(0);
+  await emptyPrompt.press('ArrowRight');
+  await page.screenshot({ path: '/tmp/puddle-notebook-inline-input.png' });
+  await emptyPrompt.press('Control+c');
+  await expect.poll(() => interrupts).toBe(1);
+  await expect(emptyPrompt).toHaveCount(0);
+  expect(replies).toHaveLength(3);
+  const heading = page.getByRole('region', { name: 'Cell 2', exact: true });
+  await heading.getByRole('button', { name: 'Fold section', exact: true }).click();
+  await expect(cell).toHaveCount(0);
+  await page.getByRole('button', { name: 'Run All', exact: true }).click();
+  await expect(name).toBeFocused();
+  await expect(heading.getByRole('button', { name: 'Fold section', exact: true })).toBeVisible();
+  await name.press('Control+c');
+  await expect.poll(() => interrupts).toBe(2);
+  expect(errors).toEqual([]);
+});

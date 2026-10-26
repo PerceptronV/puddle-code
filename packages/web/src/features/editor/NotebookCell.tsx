@@ -5,6 +5,8 @@ import { Play, Square, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { NotebookCellEditor } from './NotebookCellEditor';
 import { NotebookLanguagePicker } from './NotebookLanguagePicker';
 import { NotebookHtml, NotebookOutputView } from './NotebookOutput';
+import { NotebookInputPrompt } from './NotebookInputPrompt';
+import type { CompilationFileTarget, NotebookExecution } from '@puddle/shared';
 import {
   notebookText,
   notebookCellLanguage,
@@ -35,6 +37,8 @@ export function NotebookCell({
   onSplit,
   onSave,
   execution,
+  inputExecution,
+  inputSource,
   match,
   onToggleSection,
   sectionCollapsed,
@@ -62,12 +66,16 @@ export function NotebookCell({
   onToggleSection?: () => void;
   sectionCollapsed?: boolean;
   execution?: { state: string; elapsed_ms?: number; source: string };
+  inputExecution?: NotebookExecution;
+  inputSource?: CompilationFileTarget;
 }) {
   const section = useRef<HTMLElement>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const input = inputSource ? inputExecution?.input : undefined;
   useEffect(() => {
-    if (match?.output) setCollapsed(false);
-  }, [match]);
+    if (match?.output || input) setCollapsed(false);
+  }, [match, input]);
+  const outputCollapsed = collapsed && !input;
   const code = cell.cell_type === 'code';
   const source = notebookText(cell.source);
   const busy = execution?.state === 'running' || execution?.state === 'queued';
@@ -239,13 +247,18 @@ export function NotebookCell({
           {source}
         </pre>
       )}
-      {!!cell.outputs?.length && (
-        <div className="mt-2">
+      {(!!cell.outputs?.length || input) && (
+        <div className="mt-2" role="group" aria-label={`Cell ${index + 1} output`}>
           <div className="flex items-center gap-2 text-xs text-fg-muted">
             {action(
-              collapsed ? 'Expand output' : 'Collapse output',
-              collapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />,
+              outputCollapsed ? 'Expand output' : 'Collapse output',
+              outputCollapsed ? (
+                <ChevronRight className="size-3" />
+              ) : (
+                <ChevronDown className="size-3" />
+              ),
               () => setCollapsed(!collapsed),
+              !!input,
             )}
             <span>Output</span>
             {editable &&
@@ -253,13 +266,21 @@ export function NotebookCell({
                 onOperation('clear'),
               )}
           </div>
-          {!collapsed && (
+          {!outputCollapsed && (
             <div className="max-h-96 overflow-auto">
-              {cell.outputs.map((output, at) => (
+              {cell.outputs?.map((output, at) => (
                 <div key={at} className="mt-2">
                   <NotebookOutputView output={output} />
                 </div>
               ))}
+              {input && inputExecution && inputSource && (
+                <NotebookInputPrompt
+                  key={`${inputExecution.id}:${input.id}`}
+                  source={inputSource}
+                  execution={inputExecution}
+                  onInterrupt={onInterrupt}
+                />
+              )}
             </div>
           )}
         </div>

@@ -93,8 +93,14 @@ and preserves the [version 4 notebook format](https://nbformat.readthedocs.io/en
     Clear output, save and reopen: completed results stay cleared.
 13. Run a failing cell followed by a mutation: display its traceback and skip the
     mutation. Interrupt a long batch: cancel queued cells and retain variables.
-    Answer input() and getpass prompts; reject stale replies after interruption
-    or restart. Reconnect during execution and confirm it is observed, never replayed.
+    Answer input() and getpass prompts directly in the running cell's output with
+    Enter, including successive and empty prompts before any stdout. A collapsed
+    output or folded heading section expands for input; passwords remain masked. Ctrl+C without a text
+    selection interrupts; copying selected input keeps its usual behaviour.
+    Failed replies retain the value for an explicit retry. Reject stale replies
+    after interruption or restart. Reconnect during execution and confirm it is
+    observed, never replayed. Saved widget output explicitly reports that interactive
+    widgets are unsupported and retains its plain-text fallback, without a model-id badge.
     Remote profile leases must deny execute, execution and input operations.
 
 14. Find across cell sources and optional text output, replace source, fold a
