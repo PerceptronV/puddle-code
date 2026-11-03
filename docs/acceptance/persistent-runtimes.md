@@ -230,6 +230,21 @@ read the first PTY prompt frame before the complete prompt arrived; both fixture
 were corrected before the passing regression run. Native supervisor/provider and
 installed-upgrade acceptance remain unverified.
 
+The terminal gateway acceptance test now starts a real loopback preview server in
+an extra runtime PTY. Two daemon lifetimes discover and forward the same server
+PID and response. A native switch invalidates the old placement's port list and
+forwarding, while the new placement keeps the listener. The fake provider's
+internal sidecar port remains excluded, and ended owners expose no ports.
+`runtime/processes.test.ts` covers live inspection, unbound/ended owners,
+disconnection, immediate event invalidation and owner loss during a pending scan.
+Network tests cover overlapping scans without stale cache replacement. Cached
+owner references are bounded to 256 placements.
+
+The final runtime/network/profile-authority run passed 63 tests in seven files.
+Typecheck, scoped lint and formatting passed. This verifies loopback forwarding
+through the production daemon; installed SSH upgrades and native provider ports
+still require their platform acceptance runs.
+
 ## Remaining release gates
 
 Record platform, Node, release and provider versions with results. Run native

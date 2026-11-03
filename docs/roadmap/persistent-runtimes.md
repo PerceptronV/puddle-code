@@ -115,7 +115,7 @@ Implementation evidence so far:
   verify separate historical output, including after owner exit. Tests cover
   snapshot/output ordering,
   authority revocation, bounded buffering, Unicode paste ordering and abandoning
-  queued input after an uncertain response. New runtime creation, resume/migration, port/notification/theme integration and
+  queued input after an uncertain response. New runtime creation, resume/migration, notification/theme integration and
   retention remain outstanding; no production launch uses this backend yet.
 
 - Adopted owners now receive serialised extra-shell creation, individual shell
@@ -131,6 +131,14 @@ Implementation evidence so far:
   whose clean exit/descendant cleanup is unconfirmed, even when forced.
   Isolated real-daemon tests cover shell controls, capture changes, purge and
   archive; deterministic tests cover queued revocation and uncertain stop outcomes.
+
+- Port discovery and local/SSH forwarding now use authenticated owner inspection
+  for main/shell and sidecar process roots, retaining provider-internal port
+  exclusions. Cached and pending scans are invalidated by owner/process/native
+  changes and never route historical placements to current ports. The real-daemon
+  terminal test now preserves a preview server PID and HTTP response through
+  daemon replacement and native switching while rejecting its old placement and
+  provider-internal ports. Native provider/network acceptance remains outstanding.
 
 These are foundations for phases 0–3, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native

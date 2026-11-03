@@ -239,6 +239,14 @@ external bindings without confirmed clean exit/descendant cleanup, even with for
 Resume and migration still reject live external ownership with
 `runtime_reconciliation_required`. Inspection alone never acknowledges events or
 treats a connection failure as permission to retire an owner.
+Port discovery now inspects authenticated owners for main/shell and provider-sidecar
+roots, excluding their advertised internal ports. The existing local/SSH proxy
+uses those results. Cached scans expire immediately on owner disconnect, terminal
+or provider-state changes and native switches; scans also recheck the committed
+placement after asynchronous process inspection. Historical, unbound or unreachable
+owners never fall through to stale recorded PIDs or legacy PTYs. Cached owner
+references are bounded across old placements. No new application/remote shape is
+needed for this integration.
 The main daemon session service does not yet create these external owners. Existing shutdown, bootstrap, upgrades and auto-resume therefore retain
 their documented interruption behaviour until the remaining integration and
 supervision gates are implemented and verified.

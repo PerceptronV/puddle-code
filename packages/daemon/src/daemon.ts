@@ -54,6 +54,7 @@ import { RuntimeConnections } from './runtime/connections.js';
 import { RuntimeReconciler } from './runtime/reconcile.js';
 import { RuntimeTerminals } from './runtime/terminals.js';
 import { RuntimeControls } from './runtime/controls.js';
+import { RuntimeProcesses } from './runtime/processes.js';
 import { WorktreeManager } from './worktrees/manager.js';
 import { WsGateway } from './ws/gateway.js';
 import { PuddlangService } from './puddlang/service.js';
@@ -174,7 +175,10 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       ptys.killAll();
       logs.closeAll();
     });
-    const scanner = new PortScanner({ ptys });
+    const scanner = new PortScanner({
+      ptys,
+      external: new RuntimeProcesses(runtimes, runtimeConnections),
+    });
     const worktrees = new WorktreeManager({
       runtimes,
       paths,

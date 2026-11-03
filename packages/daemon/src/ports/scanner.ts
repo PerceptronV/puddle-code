@@ -113,10 +113,22 @@ interface CacheEntry {
   expires: number;
   pending?: Promise<SessionPort[]>;
   settled?: SessionPort[];
+  valid?: () => boolean;
+}
+
+/** Process roots from one inspected owner; never a saved PID-only recovery record. */
+export interface PortProcessSnapshot {
+  pids: number[];
+  hidden: ReadonlySet<number>;
+  valid(): boolean;
 }
 
 export interface PortScannerOptions {
   ptys: Pick<PtyManager, 'pidsFor'> & Partial<Pick<PtyManager, 'hiddenPortsFor'>>;
+  external?: {
+    hasSession(sessionId: string): boolean;
+    snapshot(sessionId: string): Promise<PortProcessSnapshot>;
+  };
   /** Injectable for tests; defaults to `process.platform`. */
   platform?: NodeJS.Platform;
   /** Cache TTL in ms; injectable for tests, default 2000 (SPEC §9). */
@@ -136,9 +148,11 @@ export class PortScanner {
   private readonly ttlMs: number;
   private readonly lister: () => Promise<Listener[]>;
   private readonly cache = new Map<string, CacheEntry>();
+  private readonly external: PortScannerOptions['external'];
 
   constructor(opts: PortScannerOptions) {
     this.ptys = opts.ptys;
+    this.external = opts.external;
     this.ttlMs = opts.ttlMs ?? 2000;
     const platform = opts.platform ?? process.platform;
     this.lister = opts.lister ?? (platform === 'darwin' ? listListenersDarwin : listListenersLinux);
@@ -149,18 +163,26 @@ export class PortScanner {
     const cached = this.cache.get(sessionId);
     if (!opts.fresh && cached) {
       if (cached.pending) return cached.pending;
-      if (cached.settled && cached.expires > now) return cached.settled;
+      if (cached.settled && cached.expires > now && cached.valid?.()) return cached.settled;
     }
-    const pending = this.runScan(sessionId);
-    this.cache.set(sessionId, { expires: 0, pending });
-    try {
-      const ports = await pending;
-      this.cache.set(sessionId, { expires: Date.now() + this.ttlMs, settled: ports });
-      return ports;
-    } catch (err) {
-      this.cache.delete(sessionId);
-      throw err;
-    }
+    const entry: CacheEntry = { expires: 0 };
+    const pending = this.runScan(sessionId).then(
+      ({ ports, valid }) => {
+        // An older forced scan must not replace a newer in-flight scan's cache.
+        if (this.cache.get(sessionId) === entry)
+          this.cache.set(sessionId, { expires: Date.now() + this.ttlMs, settled: ports, valid });
+        return valid() ? ports : [];
+      },
+      (error: unknown) => {
+        if (this.cache.get(sessionId) === entry) this.cache.delete(sessionId);
+        throw error;
+      },
+    );
+    entry.pending = pending;
+    this.cache.set(sessionId, entry);
+    // Validity callbacks retain the inspected owner; bound retention across old placements.
+    while (this.cache.size > 256) this.cache.delete(this.cache.keys().next().value!);
+    return pending;
   }
 
   /**
@@ -177,11 +199,16 @@ export class PortScanner {
     return fresh.some((p) => p.port === port);
   }
 
-  private async runScan(sessionId: string): Promise<SessionPort[]> {
-    const pids = this.ptys.pidsFor(sessionId);
-    if (pids.length === 0) return []; // exited/interrupted session: zero execs
+  private async runScan(
+    sessionId: string,
+  ): Promise<{ ports: SessionPort[]; valid: () => boolean }> {
+    const snapshot = this.external?.hasSession(sessionId)
+      ? await this.external.snapshot(sessionId)
+      : this.legacyProcesses(sessionId);
+    const { pids, hidden, valid } = snapshot;
+    if (!valid() || pids.length === 0) return { ports: [], valid }; // no process scans
     const [tree, listeners] = await Promise.all([descendantsOf(pids), this.lister()]);
-    const hidden = this.ptys.hiddenPortsFor?.(sessionId) ?? new Set<number>();
+    if (!valid()) return { ports: [], valid };
     const seen = new Set<string>();
     const ports: SessionPort[] = [];
     for (const listener of listeners) {
@@ -198,6 +225,27 @@ export class PortScanner {
       });
     }
     ports.sort((a, b) => a.port - b.port);
-    return ports;
+    return { ports, valid };
+  }
+
+  private legacyProcesses(sessionId: string): PortProcessSnapshot {
+    const pids = this.ptys.pidsFor(sessionId);
+    const roots = new Set(pids);
+    const hidden = new Set(this.ptys.hiddenPortsFor?.(sessionId));
+    return {
+      pids,
+      hidden,
+      valid: () => {
+        if (this.external?.hasSession(sessionId)) return false;
+        const current = this.ptys.pidsFor(sessionId);
+        const excluded = this.ptys.hiddenPortsFor?.(sessionId) ?? new Set<number>();
+        return (
+          current.length === pids.length &&
+          current.every((pid) => roots.has(pid)) &&
+          excluded.size === hidden.size &&
+          [...excluded].every((port) => hidden.has(port))
+        );
+      },
+    };
   }
 }

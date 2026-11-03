@@ -182,6 +182,28 @@ describe('PortScanner cache', () => {
     expect(calls()).toBe(2);
   });
 
+  it('does not let an older overlapping scan replace the newest cached result', async () => {
+    const finish: Array<(listeners: Listener[]) => void> = [];
+    const scanner = new PortScanner({
+      ptys: stubPtys,
+      lister: () => new Promise((resolve) => finish.push(resolve)),
+    });
+    const older = scanner.scan('overlap');
+    const newer = scanner.scan('overlap', { fresh: true });
+    const listener = (port: number) => ({
+      pid: process.pid,
+      port,
+      command: 'preview',
+      address: '127.0.0.1',
+    });
+    finish[1]!([listener(4174)]);
+    expect((await newer).map((port) => port.port)).toEqual([4174]);
+    finish[0]!([listener(4173)]);
+    expect((await older).map((port) => port.port)).toEqual([4173]);
+    expect((await scanner.scan('overlap')).map((port) => port.port)).toEqual([4174]);
+    expect(finish).toHaveLength(2);
+  });
+
   it('pidsFor() returning [] short-circuits to [] with zero execs', async () => {
     const { lister, calls } = countingLister();
     const scanner = new PortScanner({

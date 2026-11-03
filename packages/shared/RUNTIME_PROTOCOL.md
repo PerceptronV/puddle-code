@@ -339,7 +339,14 @@ persists stop intent before sending it once; the daemon observes a lost response
 and requires complete clean exit before archive. Explicit stop intent suppresses
 automatic recovery. Worktrees stay protected while external ownership or descendant
 cleanup is unresolved. Production creation/resume/migration, provider-command
-routing, port/theme/notification integration and retention remain separate gates.
+routing, theme/notification integration and retention remain separate gates.
+
+Port scanning uses authenticated `inspect` results to obtain current terminal and
+provider-sidecar roots and exclude advertised hidden ports. It never trusts disk
+state for process liveness. Scans retain a committed placement/segment and owner
+connection; lifecycle/process changes invalidate both pending and cached results.
+Unbound, historical and disconnected owners expose no ports. Existing application
+port discovery and proxy routes consume these results without a wire-shape change.
 
 Confirmed loss is recorded under the runtime's own exclusive claim. A durable
 retirement marker fences any delayed launcher before releasing that lock. A

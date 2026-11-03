@@ -3,7 +3,7 @@ import { once } from 'node:events';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
-import type { WsServerMessage } from '@puddle/shared';
+import { sessionPortsResponseSchema, type WsServerMessage } from '@puddle/shared';
 import { secret } from '@puddle/shared/node';
 import { RuntimeClient } from '../../src/runtime/client.js';
 import { acquireRuntimeController, readRuntimeJson } from '../../src/runtime/storage.js';
@@ -60,6 +60,7 @@ it('routes the real daemon WebSocket to surviving PTYs and immutable native hist
     const hook = readRuntimeJson(join(f.home, `${f.session.id}.signals.json`)) as {
       url: string;
       nonce: string;
+      port: number;
     };
     const signal = async (ref: string, source: 'startup' | 'clear') => {
       const response = await fetch(hook.url, {
@@ -86,6 +87,34 @@ it('routes the real daemon WebSocket to surviving PTYs and immutable native hist
       data: "stty -echo; survivor=kept; printf 'initial-%s\\n' screen\n",
     });
     await waitForSnapshot(original, main.generation, 'initial-screen');
+    const serverFile = join(f.home, 'test-preview-server.json');
+    await original.request({
+      t: 'spawn-shell',
+      placement: placement(original),
+      term: 'shell-1',
+      command: {
+        file: process.execPath,
+        args: [
+          '-e',
+          `const server = require('node:http').createServer((req, res) => res.end('surviving-preview'));
+          server.listen(0, '127.0.0.1', () => require('node:fs').writeFileSync(
+            ${JSON.stringify(serverFile)}, JSON.stringify({ port: server.address().port, pid: process.pid }), { mode: 0o600 }));`,
+        ],
+        cwd: f.home,
+        env: {},
+        cols: 80,
+        rows: 24,
+      },
+    });
+    let preview: { port: number; pid: number } | undefined;
+    await until(() => {
+      try {
+        preview = readRuntimeJson(serverFile) as typeof preview;
+        return true;
+      } catch {
+        return false;
+      }
+    }, 'Preview server did not start');
     original.close();
     f.controller.release();
     for (let pass = 0; pass < 3; pass++) {
@@ -112,11 +141,31 @@ it('routes the real daemon WebSocket to surviving PTYs and immutable native hist
           return false;
         }
       }, 'Daemon did not start');
+      const request = (path: string) =>
+        fetch(`http://127.0.0.1:${ready!.port}${path}`, {
+          headers: { authorization: `Bearer ${ready!.token}` },
+          signal: AbortSignal.timeout(10_000),
+        });
+      const ports = async (sessionId: string) =>
+        sessionPortsResponseSchema.parse(
+          await (await request(`/api/sessions/${sessionId}/ports`)).json(),
+        ).ports;
       const liveSession = f.runtimes.get(f.binding.runtime_id)!.active_session_id;
       const live = await viewer(ready!.port, ready!.token, liveSession);
       sockets.push(live.ws);
       expect(live.text()).toContain('initial-screen');
       if (pass < 2) {
+        const detected = await ports(liveSession);
+        expect(
+          detected.some((port) => port.port === preview!.port && port.pid === preview!.pid),
+        ).toBe(true);
+        expect(detected.some((port) => port.port === hook.port)).toBe(false);
+        expect(await (await request(`/proxy/${liveSession}/${preview!.port}/`)).text()).toBe(
+          'surviving-preview',
+        );
+        const hidden = await request(`/proxy/${liveSession}/${hook.port}/`);
+        expect(hidden.status).toBe(403);
+        await hidden.arrayBuffer();
         live.input(`printf 'window-${pass}-%s\\n' "$survivor"; stty size\n`);
         await until(
           () => live.text().includes(`window-${pass}-kept`) && live.text().includes('25 90'),
@@ -131,6 +180,7 @@ it('routes the real daemon WebSocket to surviving PTYs and immutable native hist
           ).terminals[0]?.pid,
         ).toBe(main.pid);
       } else {
+        expect(await ports(liveSession)).toEqual([]);
         expect(live.text()).toContain('window-1-kept');
         expect(f.sessions.get(liveSession).status).toBe('exited');
         live.input('must-not-restart\n');
@@ -154,6 +204,15 @@ it('routes the real daemon WebSocket to surviving PTYs and immutable native hist
           ready!.token,
           f.runtimes.get(f.binding.runtime_id)!.active_session_id,
         );
+        expect(await ports(f.session.id)).toEqual([]);
+        const historicalProxy = await request(`/proxy/${f.session.id}/${preview!.port}/`);
+        expect(historicalProxy.status).toBe(403);
+        await historicalProxy.arrayBuffer();
+        expect(
+          (await ports(f.runtimes.get(f.binding.runtime_id)!.active_session_id)).some(
+            (port) => port.port === preview!.port && port.pid === preview!.pid,
+          ),
+        ).toBe(true);
         sockets.push(second.ws);
         second.input("printf 'new-%s\\n' segment\n");
         await until(
