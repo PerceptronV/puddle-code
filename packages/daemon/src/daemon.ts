@@ -53,6 +53,7 @@ import { RuntimeStore } from './db/stores/runtimes.js';
 import { RuntimeConnections } from './runtime/connections.js';
 import { RuntimeReconciler } from './runtime/reconcile.js';
 import { RuntimeTerminals } from './runtime/terminals.js';
+import { RuntimeControls } from './runtime/controls.js';
 import { WorktreeManager } from './worktrees/manager.js';
 import { WsGateway } from './ws/gateway.js';
 import { PuddlangService } from './puddlang/service.js';
@@ -120,7 +121,9 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       sessions,
       conversations,
       events,
+      captureEnabled: (profileId) => profiles.getSettings(profileId).captureSessionEnv,
     });
+    profiles.onCaptureChanged = (id) => runtimeReconciler.refreshProfile(id);
     const runtimeConnections = new RuntimeConnections(paths.home, runtimes, {
       connected: (id, client) => runtimeReconciler.attach(id, client),
       missing: (id) => runtimeReconciler.retire(id),
@@ -134,6 +137,8 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       runtimeReconciler.observations,
     );
     await runtimeConnections.connect();
+    const runtimeControls = new RuntimeControls(runtimes, runtimeConnections, runtimeReconciler);
+    failedStartup.push(() => runtimeControls.close());
     const compilationSettings = new CompilationSettingsStore(db);
 
     const storagePaths = [paths.home, paths.logsDir, paths.worktreesDir, tmpdir()];
@@ -171,6 +176,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     });
     const scanner = new PortScanner({ ptys });
     const worktrees = new WorktreeManager({
+      runtimes,
       paths,
       storage,
       mutex: new KeyedMutex(),
@@ -195,6 +201,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     });
     const service = new SessionService({
       runtimes,
+      runtimeControls,
       storage,
       storagePaths,
       profiles,
@@ -438,6 +445,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
         // Freeze session rows at their live statuses (reconcile → interrupted),
         // then wait for PTY exits so nothing touches the db after close.
         service.beginShutdown();
+        await runtimeControls.close();
         await runtimeReconciler.close();
         ptys.killAll();
         const deadline = Date.now() + 3000;

@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fakeAdapter } from '../helpers/daemon-fixtures.js';
 import { reconcilePass } from '../../src/sessions/reconcile.js';
 import { fixture, waitFor } from '../helpers/daemon-fixtures.js';
@@ -558,6 +558,42 @@ describe('kill / resume / archive lifecycle', () => {
     await f.service.archiveProject(f.ids.project, true);
     expect(f.service.get(session.id).status).toBe('archived');
   });
+
+  it('stops project archive dispatch when authority expires during the first stop', async () => {
+    const f = fixture();
+    const first = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      title: 'first',
+    });
+    const second = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      title: 'second',
+    });
+    let authorised = true;
+    const kill = f.service.kill.bind(f.service);
+    const stopped: string[] = [];
+    const spy = vi.spyOn(f.service, 'kill').mockImplementation(async (id, valid) => {
+      const result = await kill(id, valid);
+      stopped.push(id);
+      authorised = false;
+      return result;
+    });
+    try {
+      await expect(
+        f.service.archiveProject(f.ids.project, true, () => authorised),
+      ).rejects.toMatchObject({ code: 'upstream_expired' });
+      expect(stopped).toHaveLength(1);
+      const survivor = [first, second].find((session) => session.id !== stopped[0])!;
+      expect(f.ptys.has(survivor.id, 'agent')).toBe(true);
+      expect(f.service.get(survivor.id).status).not.toBe('archived');
+    } finally {
+      spy.mockRestore();
+      await kill(first.id);
+      await kill(second.id);
+    }
+  });
 });
 
 describe('shells', () => {
@@ -568,11 +604,11 @@ describe('shells', () => {
       account_id: f.ids.account,
       title: 'shells',
     });
-    const term = f.service.spawnShell(session.id);
+    const term = await f.service.spawnShell(session.id);
     expect(term).toBe('shell-1');
     f.ptys.write(session.id, term, 'pwd\n');
     await waitFor(() => f.logs.readTail(session.id, term).includes(session.worktree_path));
-    expect(f.service.spawnShell(session.id)).toBe('shell-2');
+    expect(await f.service.spawnShell(session.id)).toBe('shell-2');
     await f.service.kill(session.id);
   });
 });
@@ -632,7 +668,7 @@ describe('native conversation lifecycle', () => {
       title: 'source overlay',
     });
     await waitFor(() => f.service.get(source.id).status === 'waiting_input');
-    const shell = f.service.spawnShell(source.id);
+    const shell = await f.service.spawnShell(source.id);
     const originalPids = f.ptys.pidsFor(source.id).sort((a, b) => a - b);
     const nonce = f.service.signalNonceFor(source.id)!;
     const switched: Array<{ targetSession: string; outcome: string }> = [];
@@ -1127,7 +1163,7 @@ describe('captured env', () => {
     const f = fixture({ shellHooks: stubHooks });
     const session = await liveSession(f);
     f.stores.sessions.mergeEnv(session.id, { CAPTURED_PROBE: 'shell-sees-me' }, []);
-    const term = f.service.spawnShell(session.id);
+    const term = await f.service.spawnShell(session.id);
     expect(spawnConfigCalls).toHaveLength(1);
     expect(spawnConfigCalls[0]?.session).toMatchObject({ captureEnv: true });
     expect(spawnConfigCalls[0]?.session?.historyFile).toMatch(
@@ -1154,7 +1190,7 @@ describe('captured env', () => {
     expect(f.stores.sessions.getEnv(session.id)).toEqual({});
 
     f.stores.sessions.mergeEnv(session.id, { CAPTURED_PROBE: 'dormant' }, []);
-    f.service.spawnShell(session.id);
+    await f.service.spawnShell(session.id);
     expect(spawnConfigCalls).toHaveLength(1);
     expect(spawnConfigCalls[0]).toMatchObject({ captureEnv: false });
 

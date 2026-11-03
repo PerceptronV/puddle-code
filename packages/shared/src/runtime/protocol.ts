@@ -410,6 +410,12 @@ export type RuntimeRequest = z.infer<typeof runtimeRequestSchema>;
 export const runtimeResponseSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('state'), id, state: runtimeStateSchema }),
   z.object({ t: z.literal('ok'), id }),
+  z.object({
+    t: z.literal('env-cleared'),
+    id,
+    through: sequence,
+    cleared: z.number().int().min(0).max(RUNTIME_LIMITS.environmentVariables),
+  }),
   z.object({ t: z.literal('events'), id, page: runtimeEventPageSchema }),
   z.object({ t: z.literal('turn'), id, result: runtimeTurnResultSchema }),
   z.object({ t: z.literal('segment-snapshot'), id, checkpoint: runtimeCheckpointSchema }),

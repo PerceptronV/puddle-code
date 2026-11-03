@@ -170,8 +170,8 @@ reports through controller outages, with the existing capture gate/denylist and
 bounded values/counts. Observation coalescing preserves native lifecycle and
 control boundaries. Current captured values seed new PTYs; values stay out of
 ordinary runtime inspection and terminal logs/screens. These records and explicit
-capture/purge controls still require production settings routing; journal
-reconciliation now commits observations to the application database.
+capture/purge controls are routed for adopted owners. Reconciliation commits
+observations to the application database and converges the profile capture policy.
 
 The experimental owner tags output/snapshots with a native-lifecycle segment id,
 writes separate raw logs per segment and terminal generation, and saves immutable
@@ -226,8 +226,17 @@ require fresh attachments. Input is ordered, bounded and split at UTF-8 boundari
 an uncertain chunk abandons remaining queued input without replay. Authority is
 rechecked after snapshot work and before each mutation. Historical placements
 read their validated immutable checkpoints and reject input/resize.
-Session resume, kill, archive, migration, additional-shell controls and environment
-purge still reject unresolved external ownership with
+Adopted owners now handle extra-shell creation/termination, captured-environment
+purge and explicit session/project stop/archive. Per-runtime control queues retain
+the caller's original placement and recheck its request lease before dispatch.
+Shell creation inspects owner inventory and capture policy; captured values come
+from the owner. Purge returns the exact owner count and waits for the retained
+clear observation to commit. Migration 033 records stop intent before dispatch;
+a lost acknowledgement is observed without retransmission, and explicit stops
+suppress automatic recovery. Archive requires a complete clean owner exit,
+including shells remaining after the main PTY exits. Worktree removal refuses
+external bindings without confirmed clean exit/descendant cleanup, even with force.
+Resume and migration still reject live external ownership with
 `runtime_reconciliation_required`. Inspection alone never acknowledges events or
 treats a connection failure as permission to retire an owner.
 The main daemon session service does not yet create these external owners. Existing shutdown, bootstrap, upgrades and auto-resume therefore retain

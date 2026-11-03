@@ -94,6 +94,41 @@ export class RuntimeStore {
     );
   }
 
+  requestStop(id: string, sessionId: string, segmentId: string): void {
+    this.db.transaction(() => {
+      const current = this.get(id);
+      if (
+        !current ||
+        !['prepared', 'running'].includes(current.state) ||
+        current.active_session_id !== sessionId ||
+        current.active_segment_id !== segmentId
+      )
+        throw new Error('Runtime placement changed before stop admission');
+      this.db
+        .prepare(
+          `INSERT INTO runtime_stop_requests (runtime_id, session_id, segment_id, requested_at)
+        VALUES (?, ?, ?, ?) ON CONFLICT(runtime_id) DO UPDATE SET session_id = excluded.session_id,
+        segment_id = excluded.segment_id, requested_at = excluded.requested_at`,
+        )
+        .run(id, sessionId, segmentId, new Date().toISOString());
+    })();
+  }
+
+  stopRequested(id: string): boolean {
+    return !!this.db.prepare('SELECT 1 FROM runtime_stop_requests WHERE runtime_id = ?').get(id);
+  }
+
+  hasUnreleasedWorktree(canonicalPath: string): boolean {
+    // An interrupted/failed owner may still have provider descendants. Only a
+    // complete clean exit proves these resources can be removed automatically.
+    return !!this.db
+      .prepare(
+        `SELECT 1 FROM runtime_bindings WHERE canonical_worktree_path = ?
+      AND state != 'exited' LIMIT 1`,
+      )
+      .get(canonicalPath);
+  }
+
   useLegacyTerminals(sessionId: string): void {
     if (this.ownerOf(sessionId)) throw new Error('Cannot replace a live external runtime');
     this.setTerminalOwner(sessionId, null);

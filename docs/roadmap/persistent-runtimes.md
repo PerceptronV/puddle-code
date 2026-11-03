@@ -63,8 +63,8 @@ Implementation evidence so far:
   coalesce without crossing lifecycle/control events; policy and purge changes
   reserve retained-event capacity. Tests cover exact process continuity, denied
   names, bounded values/counts, and absence of captured values from terminal
-  logs/screens and ordinary inspection. Production adoption now consumes these records; settings routing remains
-  to be integrated.
+  logs/screens and ordinary inspection. Production adoption consumes these records and applies the profile capture policy;
+  explicit purge now waits for the owner observation to commit.
 - Output now carries native-lifecycle segment ids, with separate raw logs and
   immutable terminal checkpoints. Live emulators remain intact across switches.
   Isolated tests switch native refs twice while the controller is absent, then
@@ -76,8 +76,8 @@ Implementation evidence so far:
   effects and observation cursors. Native switches clear owner bindings; explicit
   placement addresses fence mutations until the daemon binds committed state.
   Tests exercise rollback, stale mutations and a lost binding response with an
-  isolated application database and fake provider. Production journal reconciliation now consumes this contract; SessionService
-  session lifecycle and additional-shell controls still need integration.
+  isolated application database and fake provider. Production journal reconciliation and routed shell/stop controls consume this
+  contract; creation, resume and migration still need integration.
 - Daemon boot now holds the controller claim, authenticates known owners with
   bounded concurrency, and excludes durable external placements from legacy
   interruption/auto-resume. Shutdown detaches owner connections. An isolated real
@@ -85,7 +85,6 @@ Implementation evidence so far:
   start/stop cycles, including failed owner authentication. Legacy controls reject
   unresolved external ownership. Authenticated owners now enter journal reconciliation and terminal attachment;
   complete SessionService adoption remains outstanding.
-
 
 - Migration 031 retains private terminal/capture observations and bounded turn
   results. Boot and live reconciliation commit journal pages, native switches,
@@ -95,7 +94,6 @@ Implementation evidence so far:
   native switches and a completed fake-provider turn without recreating processes.
   Private replies remain outside public audit events. Programme bindings, supervisor-registration cleanup and retention reclamation
   remain to be integrated.
-
 
 - Control connections now retry with bounded concurrency/backoff and reconcile
   before further use, without replaying commands. An unavailable owner is retired
@@ -107,8 +105,7 @@ Implementation evidence so far:
   that natural exits remain stopped and confirmed terminal boot losses honour auto-resume. Agent losses remain explicitly
   resumable until provider descendant cleanup is proven.
   Supervisor-registration collection, orphan-sidecar recovery and production
-  persistent launch/command routing remain separate integration work.
-
+  persistent launch and provider-command routing remain separate integration work.
 
 - Migration 032 records exact terminal generations per segment and explicit
   terminal-owner selection per placement. The production WebSocket gateway now
@@ -118,9 +115,22 @@ Implementation evidence so far:
   verify separate historical output, including after owner exit. Tests cover
   snapshot/output ordering,
   authority revocation, bounded buffering, Unicode paste ordering and abandoning
-  queued input after an uncertain response. New runtime creation, extra-shell and
-  session lifecycle controls, port/notification/theme integration and retention
-  remain outstanding; no production launch uses this backend yet.
+  queued input after an uncertain response. New runtime creation, resume/migration, port/notification/theme integration and
+  retention remain outstanding; no production launch uses this backend yet.
+
+- Adopted owners now receive serialised extra-shell creation, individual shell
+  termination, environment purge and explicit session/project stop/archive controls.
+  Queued mutations retain the original placement and recheck request authority.
+  Profile capture changes converge by inspecting the current owner policy; new
+  shells receive captured values from the owner rather than a stale database copy.
+  Purge returns the exact owner count and waits for its retained observation.
+- Migration 033 records stop intent before dispatch. Lost stop acknowledgements
+  are observed without retransmission; an explicit stop suppresses automatic
+  recovery. Archive waits for a complete clean owner exit, including remaining
+  shells after the main PTY exits. Worktree pruning refuses any external binding
+  whose clean exit/descendant cleanup is unconfirmed, even when forced.
+  Isolated real-daemon tests cover shell controls, capture changes, purge and
+  archive; deterministic tests cover queued revocation and uncertain stop outcomes.
 
 These are foundations for phases 0–3, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native

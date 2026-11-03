@@ -331,18 +331,39 @@ export class WsGateway {
             break;
           }
           case 'spawn-shell': {
-            const term =
+            const valid = () =>
+              !!resource?.valid() &&
+              (!resource.profile ||
+                !!this.deps.profileAccess?.session(resource.profile, msg.session));
+            const pending =
               msg.session === HOME_STREAM
-                ? this.spawnHomeShell()
-                : this.deps.service.spawnShell(msg.session);
-            this.send(ws, { t: 'shell-spawned', session: msg.session, term });
+                ? Promise.resolve(this.spawnHomeShell())
+                : this.deps.service.spawnShell(msg.session, valid);
+            void pending.then(
+              (term) => this.send(ws, { t: 'shell-spawned', session: msg.session, term }),
+              (error: unknown) =>
+                this.send(ws, {
+                  t: 'error',
+                  message:
+                    error instanceof ApiError
+                      ? error.message
+                      : 'Could not confirm shell creation; reconnect to inspect the runtime before trying again.',
+                }),
+            );
             break;
           }
           case 'kill-shell': {
-            this.assertStream(msg.session);
             if (msg.term === 'agent') {
               throw ApiError.badRequest('agent_term', 'the agent PTY is killed via its session');
             }
+            if (
+              this.externalViews.get(this.key(msg.session, msg.term))?.has(ws) ||
+              this.deps.runtimeTerminals?.hasSession(msg.session)
+            ) {
+              this.externalCommand(ws, msg.session, msg.term, (view) => view.kill());
+              break;
+            }
+            this.assertStream(msg.session);
             this.deps.service.expectExit(msg.session, msg.term); // asked for: no notice
             this.deps.ptys.kill(msg.session, msg.term);
             break;

@@ -63,7 +63,7 @@ describe('cross-agent hand-off', () => {
 
     // The fake agent echoes its prompt as PROMPT<<...>>, so the briefing is
     // observable in the new session's own PTY log.
-    await waitFor(() => f.logs.readTail(handed.id, 'agent').includes('PROMPT<<'), 10_000);
+    await waitFor(() => />>\r?\nREADY\r?\n$/.test(f.logs.readTail(handed.id, 'agent')), 10_000);
     const log = f.logs.readTail(handed.id, 'agent');
     expect(log).toContain('taking over a coding session');
     expect(log).toContain('Commits on this branch');
@@ -80,7 +80,7 @@ describe('cross-agent hand-off', () => {
     expect(f.adapters.get('fake').exportTranscript).toBeUndefined();
     const handed = await f.service.handoff(session.id, f.ids.account2!);
 
-    await waitFor(() => f.logs.readTail(handed.id, 'agent').includes('PROMPT<<'), 10_000);
+    await waitFor(() => />>\r?\nREADY\r?\n$/.test(f.logs.readTail(handed.id, 'agent')), 10_000);
     // 'LAUNCH skip=' is a line the source agent printed to its terminal.
     expect(f.logs.readTail(handed.id, 'agent')).toContain('LAUNCH skip=');
 

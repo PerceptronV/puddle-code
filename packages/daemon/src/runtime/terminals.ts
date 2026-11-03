@@ -307,6 +307,21 @@ export class RuntimeTerminalView {
     });
   }
 
+  async kill(): Promise<void> {
+    if (this.address.term === 'agent') throw unavailable();
+    await this.mutate(0, async () => {
+      await this.mutable().request({
+        t: 'kill-terminal',
+        placement: {
+          session_id: this.address.session_id,
+          segment_id: this.address.segment_id,
+        },
+        term: this.address.term,
+        generation: this.address.generation,
+      });
+    });
+  }
+
   invalidate(): void {
     if (this.closed) return;
     this.dispose();

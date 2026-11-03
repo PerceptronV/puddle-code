@@ -1,4 +1,6 @@
-import { existsSync, writeFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { RUNTIME_PROTOCOL_VERSION } from '@puddle/shared';
+import { existsSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Hono } from 'hono';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -102,6 +104,35 @@ describe('DELETE /api/repos/:id/worktrees (prune)', () => {
     // The branch survives the prune and is now an orphan (deletable).
     expect(body.orphan_branches.some((b) => b.name === 'feat/live')).toBe(true);
   });
+
+  it.each(['exited', 'interrupted'] as const)(
+    'preserves external worktrees until cleanup is confirmed (%s)',
+    async (outcome) => {
+      const { id, worktree } = await newSession(`feat/external-${outcome}`);
+      await fx.service.kill(id);
+      const runtimeId = randomUUID();
+      fx.stores.runtimes.prepare({
+        identity: {
+          runtime_id: runtimeId,
+          incarnation: randomUUID(),
+          launch_id: randomUUID(),
+          session_id: id,
+          profile_id: fx.ids.profile,
+          project_id: fx.ids.project,
+          canonical_worktree_path: realpathSync(worktree),
+        },
+        build: 'fixture',
+        protocol: RUNTIME_PROTOCOL_VERSION,
+        releasePath: fx.paths.home,
+      });
+      expect((await prune(worktree)).status).toBe(409);
+      if (outcome === 'exited') fx.stores.runtimes.finish(runtimeId, 'exited', () => {});
+      else fx.stores.runtimes.interrupt(runtimeId, () => {});
+      const result = await prune(worktree);
+      expect(result.status).toBe(outcome === 'exited' ? 200 : 409);
+      expect(existsSync(worktree)).toBe(outcome !== 'exited');
+    },
+  );
 
   it('refuses to prune a dirty worktree', async () => {
     const { id, worktree } = await newSession('feat/dirty');

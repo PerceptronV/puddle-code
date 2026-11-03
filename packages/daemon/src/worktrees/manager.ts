@@ -1,3 +1,4 @@
+import type { RuntimeStore } from '../db/stores/runtimes.js';
 import type { StorageMonitor } from '../storage/monitor.js';
 import {
   appendFileSync,
@@ -36,6 +37,7 @@ export class WorktreeManager {
       mutex: KeyedMutex;
       repos: RepoStore;
       sessions: SessionStore;
+      runtimes?: RuntimeStore;
     },
   ) {}
 
@@ -336,9 +338,17 @@ export class WorktreeManager {
   /** Removes the worktree; the branch stays in the repo (SPEC §4 archiving). */
   remove(opts: { repo: Repo; worktreePath: string; force?: boolean }): Promise<void> {
     return this.runGitMutation(opts.repo.path, async () => {
+      const assertReleased = () => {
+        if (this.deps.runtimes?.hasUnreleasedWorktree(this.realOf(opts.worktreePath)))
+          throw ApiError.conflict(
+            'worktree_runtime_owned',
+            'An independent runtime still owns this worktree or its descendant cleanup is unconfirmed.',
+          );
+      };
       // Never remove the repo's own clone — a shared session may have landed in
       // it (SPEC §4), but it is the user's checkout, not a puddle worktree.
       if (this.realOf(opts.worktreePath) === this.realOf(opts.repo.path)) return;
+      assertReleased();
       if (!existsSync(opts.worktreePath)) {
         await git(['worktree', 'prune'], { cwd: opts.repo.path }).catch(() => undefined);
         return;
@@ -349,6 +359,7 @@ export class WorktreeManager {
           'worktree has uncommitted changes; archive with force to discard them',
         );
       }
+      assertReleased();
       const args = ['worktree', 'remove', ...(opts.force ? ['--force'] : []), opts.worktreePath];
       await git(args, { cwd: opts.repo.path });
     });

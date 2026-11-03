@@ -1,7 +1,7 @@
 import { secret } from '@puddle/shared/node';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { LeaseRegistry } from './leases.js';
-import type { MiddlewareHandler } from 'hono';
+import type { Context, MiddlewareHandler } from 'hono';
 import { ApiError } from '../http/errors.js';
 
 /** WHATWG URL keeps brackets on IPv6 hostnames, hence both spellings. */
@@ -85,6 +85,7 @@ export function bearerAuth(authority: LeaseRegistry): MiddlewareHandler {
       if (!resource.valid())
         throw new ApiError(401, 'upstream_expired', 'connection authority expired');
       c.set('remoteProfile', resource.profile);
+      c.set('authorityValid', () => resource.valid());
       if (resource.profile && c.req.path.startsWith('/proxy/'))
         throw new ApiError(403, 'profile_scope', 'Forwarding is unavailable remotely');
       await next();
@@ -112,4 +113,10 @@ export function bearerAuth(authority: LeaseRegistry): MiddlewareHandler {
       throw err;
     }
   };
+}
+
+/** Recheck the admitted request lease immediately before asynchronous host dispatch. */
+export function requestAuthority(c: Context): () => boolean {
+  // Missing middleware cannot grant authority. This does not acquire or renew a lease.
+  return (c.get('authorityValid') as (() => boolean) | undefined) ?? (() => false);
 }

@@ -1,3 +1,4 @@
+import type { RuntimeControls } from '../runtime/controls.js';
 import { RuntimePersistence } from '../storage/runtime-persistence.js';
 import { storageUnavailable, type StorageMonitor } from '../storage/monitor.js';
 import { randomUUID } from 'node:crypto';
@@ -64,6 +65,7 @@ export interface SessionServiceDeps {
   sessions: SessionStore;
   /** Durable external ownership must never fall through to in-process controls. */
   runtimes?: RuntimeStore;
+  runtimeControls?: RuntimeControls;
   conversations: ConversationStore;
   events: EventStore;
   worktrees: WorktreeManager;
@@ -1087,18 +1089,25 @@ export class SessionService extends EventEmitter {
   }
 
   /** SIGTERM the session's PTYs and wait for the agent to exit. */
-  async kill(id: string): Promise<Session> {
+  async kill(id: string, authorised: () => boolean = () => true): Promise<Session> {
+    if (!authorised()) throw new ApiError(401, 'upstream_expired', 'Connection authority expired');
+    if (this.deps.runtimes?.ownerOf(id)) {
+      if (!this.deps.runtimeControls) this.assertLegacyRuntime(id);
+      await this.deps.runtimeControls!.stop(id, authorised);
+      this.deps.events.record(id, 'killed');
+      return this.get(id);
+    }
     this.assertLegacyRuntime(id);
     const session = this.deps.sessions.get(id);
     this.expectExit(id); // asked for: its non-zero exit raises no notice
     this.deps.ptys.killAll(id);
     const deadline = Date.now() + 4000;
     let escalated = false;
-    while (this.deps.ptys.has(id, 'agent')) {
+    while (this.deps.ptys.liveTerms(id).length > 0) {
       if (Date.now() > deadline + 2000)
-        throw new ApiError(500, 'kill_failed', 'agent PTY refused to die');
+        throw new ApiError(500, 'kill_failed', 'session PTYs refused to die');
       if (!escalated && Date.now() > deadline) {
-        this.deps.ptys.kill(id, 'agent', 'SIGKILL');
+        this.deps.ptys.killAll(id, 'SIGKILL');
         escalated = true;
       }
       await new Promise((r) => setTimeout(r, 25));
@@ -1120,14 +1129,24 @@ export class SessionService extends EventEmitter {
    * action in the Worktrees manager; deleting a branch is done there too
    * (git refuses while the branch is checked out in the kept worktree).
    */
-  async archive(id: string): Promise<Session> {
-    this.assertLegacyRuntime(id);
+  async archive(id: string, authorised: () => boolean = () => true): Promise<Session> {
     const session = this.deps.sessions.get(id);
     if (session.status === 'archived') return session; // an idempotent hide
     // A live session is killed as part of archiving — one gesture from the
     // UI, no kill-then-archive dance. Still nothing is destroyed: the
     // conversation stays exactly as resumable after an unarchive.
-    if (LIVE_STATUSES.includes(session.status)) await this.kill(id);
+    if (
+      LIVE_STATUSES.includes(session.status) ||
+      this.deps.runtimes?.ownerOf(id) ||
+      this.deps.ptys.liveTerms(id).length > 0
+    )
+      await this.kill(id, authorised);
+    if (!authorised()) throw new ApiError(401, 'upstream_expired', 'Connection authority expired');
+    if (this.deps.runtimes?.ownerOf(id) || this.deps.ptys.liveTerms(id).length > 0)
+      throw ApiError.conflict(
+        'session_changed',
+        'The session started again while archive was waiting.',
+      );
     this.deps.onboarding.unwatch(id);
     this.adopted.delete(id);
     this.transition(id, 'archived');
@@ -1157,25 +1176,36 @@ export class SessionService extends EventEmitter {
   }
 
   /** Archives all sessions of a project; refuses live ones unless forced (SPEC §4). */
-  async archiveProject(projectId: string, force = false): Promise<void> {
+  async archiveProject(
+    projectId: string,
+    force = false,
+    authorised: () => boolean = () => true,
+  ): Promise<void> {
+    if (!authorised()) throw new ApiError(401, 'upstream_expired', 'Connection authority expired');
     this.deps.projects.get(projectId); // 404 guard
     const sessions = this.deps.sessions.list({ project_id: projectId });
-    const live = sessions.filter((s) => LIVE_STATUSES.includes(s.status));
+    const live = sessions.filter(
+      (s) =>
+        LIVE_STATUSES.includes(s.status) ||
+        this.deps.runtimes?.ownerOf(s.id) ||
+        this.deps.ptys.liveTerms(s.id).length > 0,
+    );
     if (live.length > 0 && !force) {
       throw ApiError.conflict(
         'project_live',
         `${live.length} session(s) are running or waiting; archive with force to kill them`,
       );
     }
-    for (const s of live) await this.kill(s.id);
+    for (const s of live) await this.kill(s.id, authorised);
     for (const s of sessions) {
-      if (s.status !== 'archived') await this.archive(s.id);
+      if (s.status !== 'archived') await this.archive(s.id, authorised);
     }
   }
 
   /** Spawn a shell PTY cd'd into the worktree; returns the new term id. */
-  spawnShell(sessionId: string): string {
-    this.assertLegacyRuntime(sessionId);
+  async spawnShell(sessionId: string, authorised: () => boolean = () => true): Promise<string> {
+    const external = this.deps.runtimes?.ownerOf(sessionId);
+    if (external && !this.deps.runtimeControls) this.assertLegacyRuntime(sessionId);
     const session = this.deps.sessions.get(sessionId);
     if (session.status === 'archived') {
       throw ApiError.conflict('session_archived', 'archived sessions have no worktree');
@@ -1183,6 +1213,23 @@ export class SessionService extends EventEmitter {
     if (!existsSync(session.worktree_path)) {
       throw ApiError.conflict('worktree_missing', 'worktree is gone');
     }
+    if (external) {
+      const { shell, args, env } = this.shellSpawnParts(sessionId, false);
+      return this.deps.runtimeControls!.spawnShell(
+        sessionId,
+        {
+          file: shell,
+          args,
+          env,
+          cwd: this.startDirOf(session),
+          cols: 120,
+          rows: 32,
+        },
+        () => this.captureEnvEnabled(session.project_id),
+        authorised,
+      );
+    }
+    if (!authorised()) throw new ApiError(401, 'upstream_expired', 'Connection authority expired');
     const used = new Set([
       ...this.deps.logs.listTerms(sessionId),
       ...this.deps.ptys.liveTerms(sessionId),
@@ -1335,13 +1382,24 @@ export class SessionService extends EventEmitter {
   }
 
   /** DELETE /api/sessions/:id/env: stop injecting; returns how many vars were dropped. */
-  clearCapturedEnv(id: string): ClearSessionEnvResponse {
+  async clearCapturedEnv(
+    id: string,
+    authorised: () => boolean = () => true,
+  ): Promise<ClearSessionEnvResponse> {
+    if (this.deps.runtimes?.ownerOf(id)) {
+      if (!this.deps.runtimeControls) this.assertLegacyRuntime(id);
+      return { cleared: await this.deps.runtimeControls!.clearEnvironment(id, authorised) };
+    }
+    if (!authorised()) throw new ApiError(401, 'upstream_expired', 'Connection authority expired');
     this.assertLegacyRuntime(id);
     return { cleared: this.deps.sessions.clearEnv(id) };
   }
 
   /** Shell command, hook args, and env for a session terminal spawn (SPEC §4). */
-  private shellSpawnParts(sessionId: string): {
+  private shellSpawnParts(
+    sessionId: string,
+    includeCaptured = true,
+  ): {
     shell: string;
     args: string[];
     env: Record<string, string>;
@@ -1349,7 +1407,7 @@ export class SessionService extends EventEmitter {
     const shell = process.env.SHELL ?? 'bash';
     const session = this.deps.sessions.get(sessionId);
     const captureEnv = this.captureEnvEnabled(session.project_id);
-    const captured = this.capturedSpawnEnv(session);
+    const captured = includeCaptured ? this.capturedSpawnEnv(session) : {};
     const historyFile = this.deps.logs.historyFile(sessionId);
     const hook = this.deps.shellHooks?.spawnConfig(shell, { captureEnv, historyFile });
     // Hook control vars win over anything captured (ZDOTDIR is denylisted anyway).

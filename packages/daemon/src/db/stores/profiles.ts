@@ -25,6 +25,7 @@ function toProfile(r: Row): Profile {
 }
 
 export class ProfileStore {
+  onCaptureChanged?: (profileId: string) => void;
   constructor(private readonly db: Db) {}
 
   create(input: { name: string; branch_prefix: string }): Profile {
@@ -104,10 +105,12 @@ export class ProfileStore {
   }
 
   patchSettings(id: string, patch: Record<string, unknown>): ProfileSettings {
-    const merged = profileSettingsSchema.parse({ ...this.getSettings(id), ...patch });
+    const previous = this.getSettings(id);
+    const merged = profileSettingsSchema.parse({ ...previous, ...patch });
     this.db
       .prepare(`UPDATE profiles SET settings = ? WHERE id = ?`)
       .run(JSON.stringify(merged), id);
+    if (previous.captureSessionEnv !== merged.captureSessionEnv) this.onCaptureChanged?.(id);
     return merged;
   }
 }

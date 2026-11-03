@@ -209,6 +209,27 @@ checkpoint test also passed. Typecheck, scoped lint and formatting passed.
 Migration coverage deliberately leaves older historical generations unresolved
 when only current live terminal evidence exists.
 
+`runtime/session-controls.test.ts` exercises the real isolated daemon and a
+separate runtime owner through HTTP and WebSockets. Concurrent shell creation
+produces distinct terminal ids; profile capture changes reach the owner; new
+shells use its current gate; purge returns the exact cleared count. Individual
+shell termination leaves the owner alive. After the main terminal exits, archive
+still stops the remaining shells and requires a complete clean exit record.
+`runtime/controls.test.ts` covers a lost stop acknowledgement, stop intent before
+dispatch, queued authority revocation and refusal to confirm incomplete cleanup.
+Recovery tests suppress auto-resume after explicit stop intent; worktree tests
+refuse forced pruning until clean exit is confirmed. Project archive stops
+dispatching after request authority expires. Missing request authority fails closed.
+
+The broader runtime/database/session/PTY/host-control/security/worktree regression
+run passed 425 tests in 59 files, with the native supervisor test skipped. After
+extending project-archive authority checks, the final seven-file session, route,
+network and runtime-control run passed 110 tests. Typecheck, scoped lint and
+formatting passed. The earlier run exposed a stale security mock and a test that
+read the first PTY prompt frame before the complete prompt arrived; both fixtures
+were corrected before the passing regression run. Native supervisor/provider and
+installed-upgrade acceptance remain unverified.
+
 ## Remaining release gates
 
 Record platform, Node, release and provider versions with results. Run native

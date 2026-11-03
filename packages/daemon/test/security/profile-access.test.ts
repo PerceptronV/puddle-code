@@ -238,7 +238,8 @@ describe('profile-bound host authority', () => {
     });
     const service = Object.assign(new EventEmitter(), {
       get: (id: string) => f.sessions.get(id),
-      spawnShell: vi.fn(() => 'shell-1'),
+      assertLegacyRuntime: vi.fn(),
+      spawnShell: vi.fn(async () => 'shell-1'),
     });
     // Minimal PTY/service doubles: this test exercises the real gateway and scope checks.
     const gateway = new WsGateway({

@@ -36,6 +36,7 @@ interface ReconcileDeps {
   sessions: SessionStore;
   conversations: ConversationStore;
   events: EventStore;
+  captureEnabled?: (profileId: string) => boolean;
 }
 interface Attachment {
   client: RuntimeClient;
@@ -90,6 +91,13 @@ export class RuntimeReconciler extends EventEmitter {
       entry.failed = true;
     });
     await this.refresh(id);
+  }
+
+  refreshProfile(profileId: string): void {
+    if (this.closed) return;
+    for (const [id, entry] of this.attached)
+      if (!entry.disconnected && this.deps.runtimes.get(id)?.profile_id === profileId)
+        void this.refresh(id);
   }
 
   pendingIds(): string[] {
@@ -384,7 +392,11 @@ export class RuntimeReconciler extends EventEmitter {
     })();
     // An absent owner does not prove its provider sidecars/descendants ended.
     // Keep agent recovery explicit until supervisor cleanup provides that proof.
-    if (interrupted !== null && this.deps.runtimes.get(id)!.agent_type === null)
+    if (
+      interrupted !== null &&
+      this.deps.runtimes.get(id)!.agent_type === null &&
+      !this.deps.runtimes.stopRequested(id)
+    )
       this.resumableLosses.add(interrupted);
     this.publish(id, switches);
   }
@@ -622,6 +634,15 @@ export class RuntimeReconciler extends EventEmitter {
         throw error;
       }
       if (this.closed) return;
+      const desiredCapture = this.deps.captureEnabled?.(this.current(id).profile_id);
+      if (desiredCapture !== undefined && state.environment.enabled !== desiredCapture) {
+        await client.request({
+          t: 'capture-env',
+          placement: this.deps.runtimes.placementBinding(id),
+          enabled: desiredCapture,
+        });
+        continue; // Observe the retained setting change before acknowledgement.
+      }
       await client.request({ t: 'ack-events', through: this.current(id).event_cursor });
       this.emit('changed', this.current(id).project_id);
       return;

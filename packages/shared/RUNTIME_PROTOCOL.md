@@ -248,7 +248,12 @@ sequence admission. They reserve journal capacity before changing the gate or
 clearing the saved map, and retain the corresponding decision as an event. They
 do not edit already-running shell processes, replay uncertain requests or write
 the application database. Transactional application of these observations now precedes binding and
-acknowledgement. Production settings/purge routing remains to be integrated.
+acknowledgement. `clear-env` replies with `env-cleared`, the exact removed-variable
+count and the retained event cursor (`through`). The daemon waits for that cursor
+to commit before returning the existing application purge response. This is part
+of the initial unshipped runtime 1.0 contract; application and remote shapes do
+not change. Profile capture policy converges through inspect/change/reconcile;
+uncertain shell creation and purge requests are never retransmitted.
 
 ## Native conversation ownership
 
@@ -327,8 +332,14 @@ snapshot/input/resize, buffer only bounded output behind the snapshot cursor and
 recheck authority before dispatch. Native switches or disconnects invalidate the
 attachment; uncertain commands and queued paste suffixes are never replayed.
 Historical screens use the same validated immutable checkpoint reader when their
-owner is absent. Production runtime creation, lifecycle/additional-shell controls,
-port/theme/notification integration and retention remain separate gates.
+owner is absent. Extra-shell creation/termination, purge and explicit stop/archive
+also route through the owner. Mutations retain their original placement through
+bounded serial queues and recheck request authority at dispatch. Migration 033
+persists stop intent before sending it once; the daemon observes a lost response
+and requires complete clean exit before archive. Explicit stop intent suppresses
+automatic recovery. Worktrees stay protected while external ownership or descendant
+cleanup is unresolved. Production creation/resume/migration, provider-command
+routing, port/theme/notification integration and retention remain separate gates.
 
 Confirmed loss is recorded under the runtime's own exclusive claim. A durable
 retirement marker fences any delayed launcher before releasing that lock. A

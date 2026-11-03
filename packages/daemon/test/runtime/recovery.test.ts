@@ -135,27 +135,32 @@ it('atomically imports an offline exit and retries a failed final commit without
   }
 });
 
-it('marks a confirmed abrupt owner loss interrupted without treating stale state as a completed exit', async () => {
-  const f = runtimeDatabase();
-  try {
-    const owner = launchOwner(f.home, f.binding.runtime_id);
-    await waitForOwner(owner, f.directory);
-    const client = await RuntimeClient.open(f.home, f.launch, f.controller.record);
-    clients.push(client);
-    await f.reconciler.attach(f.binding.runtime_id, client);
-    const exited = once(owner.child, 'exit');
-    owner.child.kill('SIGKILL');
-    await exited;
-    expect(await f.reconciler.retire(f.binding.runtime_id)).toBe(true);
-    expect(f.runtimes.get(f.binding.runtime_id)?.state).toBe('interrupted');
-    expect(f.sessions.get(f.session.id).status).toBe('interrupted');
-    expect(f.events.list(f.session.id).map((event) => event.type)).toEqual(['interrupted']);
-    expect(f.reconciler.autoResumeIds()).toEqual([f.session.id]);
-  } finally {
-    await f.reconciler.close();
-    f.db.close();
-  }
-});
+it.each([false, true])(
+  'marks confirmed owner loss interrupted and honours durable stop intent (%s)',
+  async (stopRequested) => {
+    const f = runtimeDatabase();
+    try {
+      const owner = launchOwner(f.home, f.binding.runtime_id);
+      await waitForOwner(owner, f.directory);
+      const client = await RuntimeClient.open(f.home, f.launch, f.controller.record);
+      clients.push(client);
+      await f.reconciler.attach(f.binding.runtime_id, client);
+      if (stopRequested)
+        f.runtimes.requestStop(f.binding.runtime_id, f.session.id, f.binding.runtime_id);
+      const exited = once(owner.child, 'exit');
+      owner.child.kill('SIGKILL');
+      await exited;
+      expect(await f.reconciler.retire(f.binding.runtime_id)).toBe(true);
+      expect(f.runtimes.get(f.binding.runtime_id)?.state).toBe('interrupted');
+      expect(f.sessions.get(f.session.id).status).toBe('interrupted');
+      expect(f.events.list(f.session.id).map((event) => event.type)).toEqual(['interrupted']);
+      expect(f.reconciler.autoResumeIds()).toEqual(stopRequested ? [] : [f.session.id]);
+    } finally {
+      await f.reconciler.close();
+      f.db.close();
+    }
+  },
+);
 
 it('fences an unstarted launch and preserves unresolved ownership when retained history has a gap', async () => {
   const f = runtimeDatabase();

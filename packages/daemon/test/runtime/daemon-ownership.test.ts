@@ -128,7 +128,7 @@ it('protects external ownership across real daemon starts and stops, including a
       const status = await request(`/api/sessions/${session.id}`);
       expect(status.status).toBe(200);
       expect(await status.json()).toMatchObject({ status: 'running' });
-      for (const action of ['kill', 'resume', 'archive']) {
+      for (const action of mode === 'authenticated' ? ['resume'] : ['kill', 'resume', 'archive']) {
         const result = await request(`/api/sessions/${session.id}/${action}`, 'POST');
         expect(result.status).toBe(409);
         expect(await result.json()).toMatchObject({

@@ -1,3 +1,4 @@
+import { requestAuthority } from '../../security/middleware.js';
 import { existsSync } from 'node:fs';
 import { Hono } from 'hono';
 import {
@@ -64,10 +65,14 @@ export function sessionRoutes(deps: { service: SessionService; scanner: PortScan
         const body = await parseBody(c, handoffSessionRequestSchema);
         return c.json(await deps.service.handoff(c.req.param('id'), body.account_id));
       })
-      .post('/:id/kill', async (c) => c.json(await deps.service.kill(c.req.param('id'))))
+      .post('/:id/kill', async (c) =>
+        c.json(await deps.service.kill(c.req.param('id'), requestAuthority(c))),
+      )
       // Archive is now a reversible hide with no options (SPEC §4) — the worktree
       // and conversation are kept, so there is nothing to confirm or force.
-      .post('/:id/archive', async (c) => c.json(await deps.service.archive(c.req.param('id'))))
+      .post('/:id/archive', async (c) =>
+        c.json(await deps.service.archive(c.req.param('id'), requestAuthority(c))),
+      )
       .post('/:id/unarchive', async (c) => c.json(await deps.service.unarchive(c.req.param('id'))))
       .get('/:id/ports', async (c) => {
         const id = c.req.param('id');
@@ -78,8 +83,10 @@ export function sessionRoutes(deps: { service: SessionService; scanner: PortScan
       .get('/:id/env', (c) =>
         c.json<SessionEnvResponse>(deps.service.capturedEnv(c.req.param('id'))),
       )
-      .delete('/:id/env', (c) =>
-        c.json<ClearSessionEnvResponse>(deps.service.clearCapturedEnv(c.req.param('id'))),
+      .delete('/:id/env', async (c) =>
+        c.json<ClearSessionEnvResponse>(
+          await deps.service.clearCapturedEnv(c.req.param('id'), requestAuthority(c)),
+        ),
       )
   );
 }

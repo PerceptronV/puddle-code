@@ -1,3 +1,4 @@
+import { RuntimeStore } from '../../src/db/stores/runtimes.js';
 import type { StorageMonitor } from '../../src/storage/monitor.js';
 import {
   existsSync,
@@ -252,6 +253,7 @@ export function fixture(
     repos: new RepoStore(db),
     projects: new ProjectStore(db),
     sessions: new SessionStore(db),
+    runtimes: new RuntimeStore(db),
     conversations: new ConversationStore(db),
     events: new EventStore(db),
     removals: new RemovalStore(db),
@@ -267,6 +269,7 @@ export function fixture(
     mutex: new KeyedMutex(),
     repos: stores.repos,
     sessions: stores.sessions,
+    runtimes: stores.runtimes,
   });
   const onboarding = new MarkerFileSync({
     repos: stores.repos,

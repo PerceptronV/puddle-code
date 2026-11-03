@@ -545,8 +545,17 @@ export class RuntimeHost {
               reservation,
             );
           } else {
+            const cleared = this.observations.state().count;
             this.observations.clear();
             this.event({ t: 'clear-env', cursor: ++this.eventCursor }, reservation);
+            this.persistState();
+            this.reply(socket, {
+              t: 'env-cleared',
+              id: request.id,
+              cleared,
+              through: this.eventCursor,
+            });
+            return;
           }
           this.persistState();
         } finally {

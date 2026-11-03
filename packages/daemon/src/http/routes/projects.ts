@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { requestAuthority } from '../../security/middleware.js';
 import {
   archiveRequestSchema,
   createProjectRequestSchema,
@@ -73,7 +74,7 @@ export function projectRoutes(deps: ProjectRouteDeps): Hono {
     })
     .post('/:id/archive', async (c) => {
       const body = await parseBody(c, archiveRequestSchema);
-      await deps.service.archiveProject(hexIdParam(c), body.force);
+      await deps.service.archiveProject(hexIdParam(c), body.force, requestAuthority(c));
       return c.body(null, 204);
     });
 }

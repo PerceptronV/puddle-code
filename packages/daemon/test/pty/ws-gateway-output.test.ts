@@ -20,7 +20,7 @@ function fixture(snapshot: Promise<string> = Promise.resolve('restored screen'))
   const service = Object.assign(new EventEmitter(), {
     get: vi.fn(() => ({})),
     assertLegacyRuntime: vi.fn(),
-    spawnShell: vi.fn(() => 'shell-1'),
+    spawnShell: vi.fn(async () => 'shell-1'),
     expectExit: vi.fn(),
   });
   const logs = { readTail: vi.fn(() => 'replayed tail') };
