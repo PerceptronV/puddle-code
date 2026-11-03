@@ -91,6 +91,7 @@ it('protects external ownership across real daemon starts and stops, including a
     first.close();
     controller.release();
 
+    let committed = original;
     for (const mode of ['authenticated', 'wrong-secret', 'wrong-build']) {
       const expectedBuild = mode === 'wrong-build' ? 'different-build' : original.build;
       db.prepare('UPDATE runtime_bindings SET build = ? WHERE runtime_id = ?').run(
@@ -135,9 +136,16 @@ it('protects external ownership across real daemon starts and stops, including a
         });
       }
       expect(sessions.get(session.id).status).toBe('running');
-      expect(store.get(original.runtime_id)).toEqual({ ...original, build: expectedBuild });
+      if (mode === 'authenticated') {
+        committed = store.get(original.runtime_id)!;
+        expect(committed).toMatchObject({ state: 'running' });
+        expect(committed.event_cursor).toBeGreaterThan(0);
+      }
+      expect(store.get(original.runtime_id)).toEqual({ ...committed, build: expectedBuild });
       expect(new EventStore(db).list(session.id)).toEqual([]);
-      expect(readRuntimeJournal(directory, launch.identity).acknowledged).toBe(0);
+      expect(readRuntimeJournal(directory, launch.identity).acknowledged).toBe(
+        committed.event_cursor,
+      );
       const stopped = once(daemon.child, 'exit');
       daemon.child.kill('SIGTERM');
       expect((await stopped)[0]).toBe(0);
@@ -164,7 +172,7 @@ it('protects external ownership across real daemon starts and stops, including a
       data: 'printf \'continuity-%s\\n\' "$continuity"\n',
     });
     await waitForSnapshot(next, main.generation, 'continuity-kept');
-    expect(store.live()).toEqual([original]);
+    expect(store.live()).toEqual([committed]);
   } finally {
     db.close();
   }

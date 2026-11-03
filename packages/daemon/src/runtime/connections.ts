@@ -31,6 +31,7 @@ export class RuntimeConnections {
   constructor(
     private readonly home: string,
     private readonly store: RuntimeStore,
+    private readonly onConnect?: (id: string, client: RuntimeClient) => Promise<void>,
   ) {
     this.controller = acquireRuntimeController(home);
   }
@@ -84,6 +85,7 @@ export class RuntimeConnections {
             this.clients.delete(binding.runtime_id);
             if (!this.closed) this.unavailable.add(binding.runtime_id);
           });
+          await this.onConnect?.(binding.runtime_id, client);
         } catch {
           // Malformed records, a timeout and incompatible owners all preserve
           // ownership. Only exclusive retirement can establish process loss.

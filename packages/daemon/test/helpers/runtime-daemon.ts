@@ -1,10 +1,11 @@
 import { join } from 'node:path';
 import { atomicPrivateJson } from '@puddle/shared/node';
 import { startDaemon } from '../../src/daemon.js';
+import { runtimeTestAdapter } from './runtime-test-adapter.js';
 
 // Only the isolated test home and sanitised fixture environment are used.
 const home = process.argv[3]!;
-const daemon = await startDaemon({ home, port: 0, adapters: [] });
+const daemon = await startDaemon({ home, port: 0, adapters: [runtimeTestAdapter] });
 const lease = daemon.authority.create();
 atomicPrivateJson(join(home, 'test-daemon-ready.json'), { port: daemon.port, token: lease.token });
 let stopping = false;

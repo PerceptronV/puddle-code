@@ -63,28 +63,39 @@ Implementation evidence so far:
   coalesce without crossing lifecycle/control events; policy and purge changes
   reserve retained-event capacity. Tests cover exact process continuity, denied
   names, bounded values/counts, and absence of captured values from terminal
-  logs/screens and ordinary inspection. Production database/settings routing
-  still needs to consume this private contract during adoption.
+  logs/screens and ordinary inspection. Production adoption now consumes these records; settings routing remains
+  to be integrated.
 - Output now carries native-lifecycle segment ids, with separate raw logs and
   immutable terminal checkpoints. Live emulators remain intact across switches.
   Isolated tests switch native refs twice while the controller is absent, then
   verify raw-log boundaries, historical screens, mouse modes, main/shell PIDs and
   shell variables. Bounded checkpoint work reports gaps on failure. Durable
-  placement adoption and production retention/budget reclamation still need
-  integration; the current conservative lifetime budgets are temporary.
+  placement adoption now consumes the segment boundaries; terminal routing and
+  production retention/budget reclamation still need integration; the current conservative lifetime budgets are temporary.
 - Migration 030 commits immutable segment-to-placement history with application
   effects and observation cursors. Native switches clear owner bindings; explicit
   placement addresses fence mutations until the daemon binds committed state.
   Tests exercise rollback, stale mutations and a lost binding response with an
-  isolated application database and fake provider. Production SessionService
-  adoption still needs to consume this contract.
+  isolated application database and fake provider. Production journal reconciliation now consumes this contract; SessionService
+  commands and terminal routing still need integration.
 - Daemon boot now holds the controller claim, authenticates known owners with
   bounded concurrency, and excludes durable external placements from legacy
   interruption/auto-resume. Shutdown detaches owner connections. An isolated real
   daemon process preserves a separate shell's PID and variable through repeated
   start/stop cycles, including failed owner authentication. Legacy controls reject
-  unresolved external ownership. This is boot protection/inspection, not complete
-  event adoption or external terminal routing; journals remain unacknowledged.
+  unresolved external ownership. Authenticated owners now enter journal reconciliation; external terminal
+  routing and complete SessionService adoption remain outstanding.
+
+
+- Migration 031 retains private terminal/capture observations and bounded turn
+  results. Boot and live reconciliation commit journal pages, native switches,
+  segment bindings, environment changes and results atomically before binding the
+  owner and acknowledging history. Tests cover database rollback, idempotent
+  replay, bounded result retention and a real isolated daemon recovering offline
+  native switches and a completed fake-provider turn without recreating processes.
+  Private replies remain outside public audit events. Confirmed owner-loss/exit
+  retirement, reconnect recovery, programme bindings and retention reclamation
+  remain to be integrated.
 
 These are foundations for phases 0–3, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native

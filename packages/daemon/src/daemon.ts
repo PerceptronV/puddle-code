@@ -51,6 +51,7 @@ import { subscribePushNotifications } from './sessions/push-notifications.js';
 import { SessionService } from './sessions/service.js';
 import { RuntimeStore } from './db/stores/runtimes.js';
 import { RuntimeConnections } from './runtime/connections.js';
+import { RuntimeReconciler } from './runtime/reconcile.js';
 import { WorktreeManager } from './worktrees/manager.js';
 import { WsGateway } from './ws/gateway.js';
 import { PuddlangService } from './puddlang/service.js';
@@ -109,11 +110,22 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     const layouts = new LayoutStore(db);
     const sessions = new SessionStore(db);
     const runtimes = new RuntimeStore(db);
-    const runtimeConnections = new RuntimeConnections(paths.home, runtimes);
-    failedStartup.push(() => runtimeConnections.close());
-    await runtimeConnections.connect();
     const conversations = new ConversationStore(db);
     const events = new EventStore(db);
+    const runtimeReconciler = new RuntimeReconciler({
+      home: paths.home,
+      db,
+      runtimes,
+      sessions,
+      conversations,
+      events,
+    });
+    const runtimeConnections = new RuntimeConnections(paths.home, runtimes, (id, client) =>
+      runtimeReconciler.attach(id, client),
+    );
+    failedStartup.push(() => runtimeConnections.close());
+    failedStartup.push(() => runtimeReconciler.close());
+    await runtimeConnections.connect();
     const compilationSettings = new CompilationSettingsStore(db);
 
     const storagePaths = [paths.home, paths.logsDir, paths.worktreesDir, tmpdir()];
@@ -193,6 +205,10 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       shellHooks,
       statusQuietMs: opts.statusQuietMs,
     });
+    runtimeReconciler.on('changed', (projectId: string) =>
+      service.emit('sessions-changed', { projectIds: [projectId] }),
+    );
+    runtimeReconciler.on('session-switched', (event) => service.emit('session-switched', event));
     const compilation = new CompilationService(
       [
         latex,
@@ -270,7 +286,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     }
     if (reconciled.protected.length > 0) {
       console.log(
-        `reconcile: ${reconciled.protected.length} placement(s) retain independent runtime ownership; ${runtimeConnections.unavailableIds().length} owner(s) unavailable`,
+        `reconcile: ${reconciled.protected.length} placement(s) retain independent runtime ownership; ${runtimeConnections.unavailableIds().length} owner(s) unavailable; ${runtimeReconciler.pendingIds().length} reconciliation(s) pending`,
       );
     }
 
@@ -413,6 +429,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
         // Freeze session rows at their live statuses (reconcile → interrupted),
         // then wait for PTY exits so nothing touches the db after close.
         service.beginShutdown();
+        await runtimeReconciler.close();
         ptys.killAll();
         const deadline = Date.now() + 3000;
         while (ptys.liveCount() > 0) {

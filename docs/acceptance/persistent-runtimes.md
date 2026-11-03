@@ -138,16 +138,35 @@ Boot ownership protection is now wired into the production composition root.
 process with a temporary application database and an independently owned shell.
 It verifies successful inspection, rejected credentials and mismatched build
 metadata across daemon start/stop cycles; the shell retains its PID and variable,
-no interruption/resume events are invented, and retained observations remain
-unacknowledged. HTTP kill/resume/archive and legacy WebSocket controls reject
+no interruption/resume events are invented. Authenticated observations now
+commit and receive acknowledgement; rejected owners preserve the last committed
+cursor. HTTP kill/resume/archive and legacy WebSocket controls reject
 unreconciled external ownership. A snapshot-await race rechecks the same guard
-before replay/resize. This protects ownership; it is not external event adoption
-or a usable external terminal attachment yet.
+before replay/resize. This still does not provide a usable external terminal attachment.
 
 The runtime/session/PTY/host-control regression run passed 313 tests in 41 files
 with the opt-in native supervisor test skipped. The final focused ownership,
 store and gateway run passed 17 tests. Typecheck, scoped lint and formatting
 passed. Installed upgrades and native provider/platform gates remain outstanding.
+
+
+`runtime/reconcile.test.ts` injects a database failure midway through a native
+switch page and verifies complete rollback, including private environment and turn
+state. Successful replay creates each placement/audit event once. It also covers
+missing history, denied environment names, stale generations, premature owner
+acknowledgement and the private result-retention bound.
+`runtime/daemon-adoption.test.ts` completes a fake-provider turn and switches native
+conversations twice while the controller is absent, then starts the real isolated
+daemon. It checks exact recovered refs, private results, environment, committed
+acknowledgement and live switch reconciliation across two daemon lifetimes. Main
+PTY/sidecar PIDs and a shell variable survive; stale placement input is rejected
+and the provider turn executes once. This is fake-provider reconciliation evidence,
+not native provider or installed-upgrade acceptance.
+
+The runtime/database/session/PTY/host-control regression run passed 332 tests in
+44 files, with the opt-in native supervisor test skipped. Typecheck, scoped lint
+and formatting passed. Production command routing, confirmed-loss recovery,
+programme result consumption and retention reclamation remain outstanding.
 
 ## Remaining release gates
 

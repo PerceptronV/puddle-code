@@ -162,15 +162,16 @@ dispatch, retains results across controller replacement, and records cancellatio
 human takeover or runtime-exit interruption without replaying input. Runtime-owned
 helper copies, stable account dispatch and separate mutable turn records preserve
 managed hook/plugin code across account updates. Immutable executable/native
-dependency retention, production observation reconciliation, segment adoption and
-production programme reconciliation are still required before enablement.
+dependency retention, production terminal routing and
+programme reconciliation are still required before enablement.
 
 Experimental owners also retain private captured-environment and shell-directory
 reports through controller outages, with the existing capture gate/denylist and
 bounded values/counts. Observation coalescing preserves native lifecycle and
 control boundaries. Current captured values seed new PTYs; values stay out of
 ordinary runtime inspection and terminal logs/screens. These records and explicit
-capture/purge controls still require production settings and database integration.
+capture/purge controls still require production settings routing; journal
+reconciliation now commits observations to the application database.
 
 The experimental owner tags output/snapshots with a native-lifecycle segment id,
 writes separate raw logs per segment and terminal generation, and saves immutable
@@ -180,7 +181,7 @@ identity and never substitute a different segment. Native switches clear the
 owner's acknowledged placement; mutations require an explicit segment/placement
 address and remain fenced until the daemon commits and binds the new placement.
 Snapshot reads preserve the owner's grid rather than resizing it. Production
-adoption and retention must still integrate these records and replace the
+terminal routing and retention must still integrate these records and replace the
 foundation's conservative lifetime budgets before default enablement.
 
 Migration 029 adds `runtime_bindings` for immutable launch identity, active
@@ -196,12 +197,21 @@ Prepared/running runtime bindings protect their active placements from blanket
 interruption and auto-resume, including when owner authentication or connection
 fails. Shutdown closes these control streams without stopping their owners and
 releases the controller only after application writers and servers stop.
-External event reconciliation and terminal routing are not enabled yet; affected
-placements reject legacy terminal, resume, kill, archive, migration and environment
-purge controls with `runtime_reconciliation_required`. Inspection never acknowledges
-events or treats a connection failure as permission to retire an owner.
-The main daemon session service does not yet create or adopt these external
-owners. Existing shutdown, bootstrap, upgrades and auto-resume therefore retain
+Migration 031 stores private terminal/capture observations and bounded turn
+results. Boot and live journal reconciliation commit native switches, immutable
+segment mappings, environment changes, terminal inventory, results and the event
+cursor in one transaction per page. The daemon then binds the committed placement
+and acknowledges retained events. Results never enter public audit events; full
+private retention or an incomplete journal leaves reconciliation pending without
+replaying execution. Owner state is checked against committed observations before
+binding. Confirmed owner-loss/exit retirement and programme result consumption
+remain outstanding.
+External terminal routing is not enabled yet; affected placements reject legacy
+terminal, resume, kill, archive, migration and environment purge controls with
+`runtime_reconciliation_required`. Inspection alone never acknowledges events or
+treats a connection failure as permission to retire an owner.
+The main daemon session service does not yet create or route commands to these
+external owners. Existing shutdown, bootstrap, upgrades and auto-resume therefore retain
 their documented interruption behaviour until the remaining integration and
 supervision gates are implemented and verified.
 
