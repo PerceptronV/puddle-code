@@ -54,6 +54,8 @@ Reusing a shell's display id creates a new generation. A stale generation cannot
 address the replacement process. Snapshot replies carry an output cursor captured
 before awaiting the emulator's existing queue. The attaching client buffers live
 events until the snapshot arrives, then applies only events beyond that cursor.
+Snapshots use the owner's existing grid and never resize it; resizing requires
+an explicit placement-scoped mutation.
 Runtime exit records remain on disk after the owner shuts down.
 
 ## Essential event retention
@@ -106,8 +108,43 @@ current segment descriptor and the previous segment id when a boundary changed.
 Every output event and live snapshot response carries its segment id. Consumers
 must combine it with terminal generation and output cursor; they must not append
 output from a new segment to an old placement merely because its runtime id is
-unchanged. Production placement binding and mutation fencing across these
-boundaries are still required before enablement.
+unchanged. The private binding contract below fences these boundaries; production
+session adoption and retained-history routing must still integrate it.
+
+### Committed placement bindings
+
+Inspection exposes `binding: { segment_id, session_id, through } | null`. The
+initial segment is bound by the committed launch intent at cursor zero. A native
+switch to a new segment clears the binding synchronously before publishing its
+lifecycle event. The owner continues executing and retaining output while unbound.
+
+Migration 030 adds `runtime_segments` and the active segment pointer to the
+daemon's runtime bindings. New launch intent includes the initial segment. Ordered
+observations commit segment boundaries, immutable placement mappings, application
+effects and the event cursor in one SQLite transaction. A failed effect rolls back
+all of them. Old experimental rows without segment evidence remain unbound; the
+store does not fabricate their history. Confirmed owner loss closes the last known
+segment at its committed cursor without claiming an exact unobserved exit cursor.
+
+After committing, the daemon derives `bind-placement` from the store's committed
+binding. The owner requires its current segment and a cursor already offered to
+that controller connection, at or beyond the segment's start. A journal gap blocks
+binding. An acknowledged segment cannot change placement or regress its cursor.
+If another native switch races the commit, binding fails; reconcile the next
+events before trying the newly committed binding. A lost binding response is
+resolved by inspection and database comparison, never replaying application effects.
+Journal acknowledgement follows the database commit and binding reconciliation.
+
+Every input, resize, shell creation, terminal/runtime stop, provider turn admission
+or cancellation, capture-policy change and environment purge requires an explicit
+`placement: { segment_id, session_id }`. A stale or absent binding yields
+`stale_placement` before effects. Admission rechecks placement after asynchronous
+journal work as well as checking controller epoch and terminal generation. The
+client must retain the caller's resolved placement address; it must never fill it
+from whichever placement happens to be current when dispatch occurs. Inspection,
+snapshot/history reads and retained turn-result lookup remain available while
+unbound. These private contracts are still part of the unshipped runtime 1.0
+foundation; application/remote wire shapes are unchanged.
 
 At a boundary, the owner schedules a checkpoint of each live terminal's existing
 emulator queue before accepting later bytes into the new segment. It neither

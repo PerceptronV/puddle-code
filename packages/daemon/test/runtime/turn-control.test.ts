@@ -1,3 +1,4 @@
+import { placement } from '../helpers/runtime-placement.js';
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { connect } from 'node:net';
@@ -46,9 +47,16 @@ describe('runtime turn IPC', () => {
     };
     await signal('native-first');
     await expect(
-      client.request({ t: 'start-turn', turn: 1, expected_ref: 'stale', prompt: 'question' }),
+      client.request({
+        placement: placement(client),
+        t: 'start-turn',
+        turn: 1,
+        expected_ref: 'stale',
+        prompt: 'question',
+      }),
     ).rejects.toMatchObject({ code: 'invalid_request' });
     await client.request({
+      placement: placement(client),
       t: 'start-turn',
       turn: 1,
       expected_ref: 'native-first',
@@ -95,6 +103,7 @@ describe('runtime turn IPC', () => {
     });
     try {
       writeRuntimeFrame(socket, {
+        placement: placement(client),
         t: 'start-turn',
         id: randomUUID(),
         sequence: (await received) + 1,
@@ -126,7 +135,13 @@ describe('runtime turn IPC', () => {
       reply: 'reply:1:survive disconnect',
     });
     await expect(
-      next.request({ t: 'start-turn', turn: 1, expected_ref: null, prompt: 'survive disconnect' }),
+      next.request({
+        placement: placement(next),
+        t: 'start-turn',
+        turn: 1,
+        expected_ref: null,
+        prompt: 'survive disconnect',
+      }),
     ).rejects.toMatchObject({ code: 'duplicate_request' });
     expect(readRuntimeJson(join(home, `${launch.identity.session_id}.turns.json`))).toMatchObject({
       count: 1,
@@ -149,14 +164,29 @@ describe('runtime turn IPC', () => {
   it('allows exact cancellation and treats human input as takeover while preserving the agent', async () => {
     const { client } = await setup('interactive');
     const original = terminal(client.state);
-    await client.request({ t: 'start-turn', turn: 1, expected_ref: null, prompt: 'first' });
-    await client.request({ t: 'cancel-turn', turn: 1 });
+    await client.request({
+      placement: placement(client),
+      t: 'start-turn',
+      turn: 1,
+      expected_ref: null,
+      prompt: 'first',
+    });
+    await client.request({ placement: placement(client), t: 'cancel-turn', turn: 1 });
     expect(await completed(client, 1)).toMatchObject({ status: 'cancelled' });
-    await client.request({ t: 'start-turn', turn: 2, expected_ref: null, prompt: 'second' });
-    await expect(client.request({ t: 'cancel-turn', turn: 1 })).rejects.toMatchObject({
+    await client.request({
+      placement: placement(client),
+      t: 'start-turn',
+      turn: 2,
+      expected_ref: null,
+      prompt: 'second',
+    });
+    await expect(
+      client.request({ placement: placement(client), t: 'cancel-turn', turn: 1 }),
+    ).rejects.toMatchObject({
       code: 'result_unavailable',
     });
     await client.request({
+      placement: placement(client),
       t: 'input',
       term: 'agent',
       generation: original.generation,
@@ -173,9 +203,15 @@ describe('runtime turn IPC', () => {
 
   it('retains interruption when the agent exits during an accepted turn', async () => {
     const { client, owner, directory, launch } = await setup('headless');
-    await client.request({ t: 'start-turn', turn: 1, expected_ref: null, prompt: 'unfinished' });
+    await client.request({
+      placement: placement(client),
+      t: 'start-turn',
+      turn: 1,
+      expected_ref: null,
+      prompt: 'unfinished',
+    });
     const exited = once(owner.child, 'exit');
-    await client.request({ t: 'stop' });
+    await client.request({ placement: placement(client), t: 'stop' });
     await exited;
     expect(readRuntimeJournal(directory, launch.identity).events).toContainEqual(
       expect.objectContaining({

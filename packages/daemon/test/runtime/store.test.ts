@@ -79,6 +79,100 @@ function fixture() {
 }
 
 describe('durable runtime bindings', () => {
+  it('commits segment boundaries with effects and never remaps existing history', () => {
+    const { db, store, input, session, createSession, project } = fixture();
+    const original = store.prepare(input);
+    const next = createSession(project.id, session.worktree_path);
+    const event = {
+      cursor: 5,
+      sessionId: next.id,
+      conversationId: null,
+      state: 'running' as const,
+      segment: { id: randomUUID(), start_cursor: 5, agent_session_ref: 'next' },
+      previousSegmentId: original.runtime_id,
+    };
+    expect(() =>
+      store.observe(original.runtime_id, event, () => {
+        db.prepare('UPDATE sessions SET title = ? WHERE id = ?').run('partial', next.id);
+        throw new Error('Failed effect');
+      }),
+    ).toThrow('Failed effect');
+    expect(store.get(original.runtime_id)).toEqual(original);
+    expect(store.segment(original.runtime_id, original.runtime_id)?.end_cursor).toBeNull();
+    expect(store.segment(original.runtime_id, event.segment.id)).toBeNull();
+    expect(db.prepare('SELECT title FROM sessions WHERE id = ?').get(next.id)).toEqual({
+      title: null,
+    });
+    expect(() =>
+      store.observe(original.runtime_id, { ...event, previousSegmentId: randomUUID() }, () => {}),
+    ).toThrow(/predecessor/);
+    expect(() =>
+      store.observe(
+        original.runtime_id,
+        {
+          ...event,
+          segment: { id: original.runtime_id, start_cursor: 0, agent_session_ref: null },
+          previousSegmentId: undefined,
+        },
+        () => {},
+      ),
+    ).toThrow(/immutable/);
+    expect(store.observe(original.runtime_id, event, () => {})).toBe(true);
+    expect(store.segment(original.runtime_id, original.runtime_id)).toMatchObject({
+      session_id: session.id,
+      end_cursor: 4,
+    });
+    expect(store.segment(original.runtime_id, event.segment.id)).toMatchObject({
+      session_id: next.id,
+      start_cursor: 5,
+      end_cursor: null,
+    });
+    expect(store.placementBinding(original.runtime_id)).toEqual({
+      segment_id: event.segment.id,
+      session_id: next.id,
+      through: 5,
+    });
+    const duplicate = vi.fn();
+    expect(store.observe(original.runtime_id, event, duplicate)).toBe(false);
+    expect(duplicate).not.toHaveBeenCalled();
+    expect(() =>
+      store.observe(
+        original.runtime_id,
+        { ...event, cursor: 6, previousSegmentId: undefined, sessionId: session.id },
+        () => {},
+      ),
+    ).toThrow(/immutable/);
+    expect(store.interrupt(original.runtime_id, () => {})).toBe(true);
+    expect(store.segment(original.runtime_id, event.segment.id)?.end_cursor).toBe(5);
+    expect(() => store.placementBinding(original.runtime_id)).toThrow(/live committed/);
+    expect(store.removeEnded(original.runtime_id)).toBe(true);
+    expect(store.segment(original.runtime_id, event.segment.id)).toBeNull();
+  });
+
+  it('does not fabricate segment history for older experimental bindings', () => {
+    const { db, store, input, session } = fixture();
+    const binding = store.prepare(input);
+    db.prepare('DELETE FROM runtime_segments WHERE runtime_id = ?').run(binding.runtime_id);
+    db.prepare('UPDATE runtime_bindings SET active_segment_id = NULL WHERE runtime_id = ?').run(
+      binding.runtime_id,
+    );
+    expect(() => store.placementBinding(binding.runtime_id)).toThrow(/live committed/);
+    expect(() =>
+      store.observe(
+        binding.runtime_id,
+        {
+          cursor: 1,
+          sessionId: session.id,
+          conversationId: null,
+          state: 'running',
+          segment: { id: binding.runtime_id, start_cursor: 0, agent_session_ref: null },
+        },
+        () => {},
+      ),
+    ).toThrow(/no open segment/);
+    expect(store.interrupt(binding.runtime_id, () => {})).toBe(true);
+  });
+
   it('records one launch intent and rejects a changed retry or competing live placement', () => {
     const { store, input } = fixture();
     const first = store.prepare(input);
@@ -103,6 +197,7 @@ describe('durable runtime bindings', () => {
     const { db, store, input, session } = fixture();
     const binding = store.prepare(input);
     const event = {
+      segment: { id: binding.runtime_id, start_cursor: 0, agent_session_ref: null },
       cursor: 4,
       sessionId: session.id,
       conversationId: null,
@@ -127,7 +222,13 @@ describe('durable runtime bindings', () => {
     expect(() =>
       store.observe(
         binding.runtime_id,
-        { cursor: 1, sessionId: session.id, conversationId: null, state: 'running' },
+        {
+          segment: { id: input.identity.runtime_id, start_cursor: 0, agent_session_ref: null },
+          cursor: 1,
+          sessionId: session.id,
+          conversationId: null,
+          state: 'running',
+        },
         () => {
           db.prepare('UPDATE sessions SET title = ? WHERE id = ?').run('incomplete', session.id);
           throw new Error('Reconciliation failed');
@@ -144,10 +245,18 @@ describe('durable runtime bindings', () => {
     const { store, input, createSession, project } = fixture();
     const binding = store.prepare(input);
     const target = createSession(project.id, input.identity.canonical_worktree_path);
+    const next = { id: randomUUID(), start_cursor: 1, agent_session_ref: 'next' };
     expect(
       store.observe(
         binding.runtime_id,
-        { cursor: 1, sessionId: target.id, conversationId: null, state: 'running' },
+        {
+          segment: next,
+          previousSegmentId: binding.runtime_id,
+          cursor: 1,
+          sessionId: target.id,
+          conversationId: null,
+          state: 'running',
+        },
         () => {},
       ),
     ).toBe(true);
@@ -156,7 +265,13 @@ describe('durable runtime bindings', () => {
     expect(() =>
       store.observe(
         binding.runtime_id,
-        { cursor: 2, sessionId: elsewhere.id, conversationId: null, state: 'running' },
+        {
+          segment: { id: input.identity.runtime_id, start_cursor: 0, agent_session_ref: null },
+          cursor: 2,
+          sessionId: elsewhere.id,
+          conversationId: null,
+          state: 'running',
+        },
         () => {},
       ),
     ).toThrow(/ownership/);
@@ -169,14 +284,26 @@ describe('durable runtime bindings', () => {
     expect(
       store.observe(
         first.runtime_id,
-        { cursor: 10, sessionId: session.id, conversationId: null, state: 'exited' },
+        {
+          segment: { id: input.identity.runtime_id, start_cursor: 0, agent_session_ref: null },
+          cursor: 10,
+          sessionId: session.id,
+          conversationId: null,
+          state: 'exited',
+        },
         () => {},
       ),
     ).toBe(true);
     expect(() =>
       store.observe(
         first.runtime_id,
-        { cursor: 11, sessionId: session.id, conversationId: null, state: 'running' },
+        {
+          segment: { id: input.identity.runtime_id, start_cursor: 0, agent_session_ref: null },
+          cursor: 11,
+          sessionId: session.id,
+          conversationId: null,
+          state: 'running',
+        },
         () => {},
       ),
     ).toThrow(/ended/);
@@ -202,7 +329,13 @@ describe('durable runtime bindings', () => {
     const binding = store.prepare(input);
     store.observe(
       binding.runtime_id,
-      { cursor: 7, sessionId: session.id, conversationId: null, state: 'running' },
+      {
+        segment: { id: input.identity.runtime_id, start_cursor: 0, agent_session_ref: null },
+        cursor: 7,
+        sessionId: session.id,
+        conversationId: null,
+        state: 'running',
+      },
       () => {},
     );
     const apply = vi.fn();

@@ -162,7 +162,7 @@ dispatch, retains results across controller replacement, and records cancellatio
 human takeover or runtime-exit interruption without replaying input. Runtime-owned
 helper copies, stable account dispatch and separate mutable turn records preserve
 managed hook/plugin code across account updates. Immutable executable/native
-dependency retention, production observation reconciliation, durable segment bindings and
+dependency retention, production observation reconciliation, segment adoption and
 production programme reconciliation are still required before enablement.
 
 Experimental owners also retain private captured-environment and shell-directory
@@ -176,12 +176,20 @@ The experimental owner tags output/snapshots with a native-lifecycle segment id,
 writes separate raw logs per segment and terminal generation, and saves immutable
 boundary/exit checkpoints while keeping live emulators intact. Bounded asynchronous
 checkpoint writes report a history gap on failure; historical reads validate their
-identity and never substitute a different segment. Production placement binding,
-mutation fencing and retention must still integrate these records and replace the
+identity and never substitute a different segment. Native switches clear the
+owner's acknowledged placement; mutations require an explicit segment/placement
+address and remain fenced until the daemon commits and binds the new placement.
+Snapshot reads preserve the owner's grid rather than resizing it. Production
+adoption and retention must still integrate these records and replace the
 foundation's conservative lifetime budgets before default enablement.
 
 Migration 029 adds `runtime_bindings` for immutable launch identity, active
 placement/conversation, build metadata and transactional observation cursors.
+Migration 030 adds immutable segment-to-placement history and the active segment
+pointer. Launch intent includes the initial segment; each switch commits its
+boundary, placement, cursor and application effects together. Older experimental
+rows without segment evidence cannot acquire an invented binding. Runtime owners
+never open this database; their binding acknowledgement follows its commit.
 The main daemon session service does not yet create or adopt these external
 owners. Existing shutdown, bootstrap, upgrades and auto-resume therefore retain
 their documented interruption behaviour until the remaining integration and

@@ -1,3 +1,4 @@
+import { placement } from '../helpers/runtime-placement.js';
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { realpathSync } from 'node:fs';
@@ -70,6 +71,7 @@ describe('runtime-owned provider resources', () => {
     clients.push(client);
     const term = terminal(client.state);
     await client.request({
+      placement: placement(client),
       t: 'input',
       term: 'agent',
       generation: term.generation,
@@ -130,8 +132,16 @@ describe('runtime-owned provider resources', () => {
           .map((event) => event.lifecycle.agent_session_ref),
       ).toEqual(['native-first', 'native-fork']);
       expect(JSON.stringify(replay)).not.toContain(signal.nonce);
+      await next.request({
+        t: 'bind-placement',
+        binding: {
+          segment_id: next.state!.history.current.id,
+          session_id: randomUUID(),
+          through: replay.page.through,
+        },
+      });
       const exited = once(owner.child, 'exit');
-      await next.request({ t: 'stop' });
+      await next.request({ placement: placement(next), t: 'stop' });
       await exited;
       expect(() => process.kill(before.pid, 0)).toThrow();
       expect(readRuntimeJournal(directory, launch.identity).events.at(-1)).toMatchObject({
@@ -226,6 +236,7 @@ describe('runtime-owned provider resources', () => {
         expect(client.state?.agent?.native_sync).toBe('fallback');
         const term = terminal(client.state);
         await client.request({
+          placement: placement(client),
           t: 'input',
           term: 'agent',
           generation: term.generation,

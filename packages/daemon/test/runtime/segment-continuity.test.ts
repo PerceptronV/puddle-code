@@ -1,3 +1,5 @@
+import { placement } from '../helpers/runtime-placement.js';
+import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -24,7 +26,7 @@ async function until(check: () => boolean) {
 async function snapshot(client: RuntimeClient, term: string, generation: string, expected: string) {
   const deadline = Date.now() + 10_000;
   while (true) {
-    const result = await client.request({ t: 'snapshot', term, generation, cols: 80, rows: 24 });
+    const result = await client.request({ t: 'snapshot', term, generation });
     if (result.t === 'snapshot' && result.data.includes(expected)) return result;
     if (Date.now() >= deadline) throw new Error('Missing terminal fixture output');
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -57,10 +59,16 @@ describe('native lifecycle history continuity', () => {
     };
     const first = await lifecycle('native-first', 'startup');
     const main = terminal(client.state);
-    await client.request({ t: 'spawn-shell', term: 'shell-1', command: launch.main });
+    await client.request({
+      placement: placement(client),
+      t: 'spawn-shell',
+      term: 'shell-1',
+      command: launch.main,
+    });
     await client.request({ t: 'inspect' });
     const shell = client.state!.terminals.find((term) => term.term === 'shell-1')!;
     await client.request({
+      placement: placement(client),
       t: 'input',
       term: 'shell-1',
       generation: shell.generation,
@@ -69,6 +77,7 @@ describe('native lifecycle history continuity', () => {
     });
     await snapshot(client, 'shell-1', shell.generation, 'extra-ready');
     await client.request({
+      placement: placement(client),
       t: 'input',
       term: 'agent',
       generation: main.generation,
@@ -91,6 +100,7 @@ describe('native lifecycle history continuity', () => {
       { mode: 0o600 },
     );
     await client.request({
+      placement: placement(client),
       t: 'input',
       term: 'agent',
       generation: main.generation,
@@ -123,7 +133,19 @@ describe('native lifecycle history continuity', () => {
     expect(current.segment_id).toBe(third.id);
     expect(current.data).toContain('?1006h');
     expect(current.data).toContain('?1002h');
+    const observed = await next.request({ t: 'events', after: 0 });
+    if (observed.t !== 'events' || observed.page.gap) throw new Error('Incomplete history');
+    // The database transaction is exercised separately in the binding tests.
     await next.request({
+      t: 'bind-placement',
+      binding: {
+        segment_id: third.id,
+        session_id: randomUUID(),
+        through: observed.page.through,
+      },
+    });
+    await next.request({
+      placement: placement(next),
       t: 'input',
       term: 'agent',
       generation: main.generation,
@@ -132,6 +154,7 @@ describe('native lifecycle history continuity', () => {
     });
     await snapshot(next, 'agent', main.generation, 'main-retained');
     await next.request({
+      placement: placement(next),
       t: 'input',
       term: 'shell-1',
       generation: shell.generation,
@@ -185,7 +208,7 @@ describe('native lifecycle history continuity', () => {
     expect(middle.checkpoint.through).toBe(transitions[2]!.cursor - 1);
 
     const exited = once(owner.child, 'exit');
-    await next.request({ t: 'stop' });
+    await next.request({ placement: placement(next), t: 'stop' });
     await exited;
     const text = (id: string) =>
       readFileSync(join(directory, 'logs', id, `agent.${main.generation}.log`), 'utf8');

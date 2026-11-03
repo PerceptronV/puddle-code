@@ -97,6 +97,12 @@ export const runtimeSegmentSchema = z.object({
   agent_session_ref: z.string().min(1).max(200).nullable(),
 });
 export type RuntimeSegment = z.infer<typeof runtimeSegmentSchema>;
+
+/** A mutation names the placement that the caller actually resolved, never a moving alias. */
+export const runtimePlacementSchema = z.object({ segment_id: id, session_id: id });
+export type RuntimePlacement = z.infer<typeof runtimePlacementSchema>;
+export const runtimePlacementBindingSchema = runtimePlacementSchema.extend({ through: sequence });
+export type RuntimePlacementBinding = z.infer<typeof runtimePlacementBindingSchema>;
 export const runtimeCheckpointSchema = z
   .object({
     format: z.literal(1),
@@ -288,6 +294,7 @@ export const runtimeStateSchema = z.object({
   agent: runtimeAgentStateSchema.nullable(),
   turn: runtimeTurnSchema.nullable(),
   environment: runtimeEnvironmentStateSchema,
+  binding: runtimePlacementBindingSchema.nullable(),
   history: z.object({
     current: runtimeSegmentSchema,
     pending_checkpoints: z.number().int().min(0).max(RUNTIME_LIMITS.pendingCheckpoints),
@@ -308,14 +315,27 @@ export const runtimeRequestSchema = z.discriminatedUnion('t', [
     controller_epoch: sequence,
   }),
   z.object({ t: z.literal('inspect'), id, sequence }),
-  z.object({ t: z.literal('capture-env'), id, sequence, enabled: z.boolean() }),
-  z.object({ t: z.literal('clear-env'), id, sequence }),
+  z.object({
+    t: z.literal('bind-placement'),
+    id,
+    sequence,
+    binding: runtimePlacementBindingSchema,
+  }),
+  z.object({
+    t: z.literal('capture-env'),
+    id,
+    sequence,
+    placement: runtimePlacementSchema,
+    enabled: z.boolean(),
+  }),
+  z.object({ t: z.literal('clear-env'), id, sequence, placement: runtimePlacementSchema }),
   z.object({ t: z.literal('events'), id, sequence, after: sequence }),
   z.object({ t: z.literal('ack-events'), id, sequence, through: sequence }),
   z.object({
     t: z.literal('start-turn'),
     id,
     sequence,
+    placement: runtimePlacementSchema,
     turn: runtimeTurnSchema.shape.turn,
     expected_ref: runtimeTurnSchema.shape.expected_ref,
     prompt: z
@@ -332,8 +352,14 @@ export const runtimeRequestSchema = z.discriminatedUnion('t', [
       .optional(),
   }),
   z.object({ t: z.literal('turn-result'), id, sequence, turn: runtimeTurnSchema.shape.turn }),
-  z.object({ t: z.literal('cancel-turn'), id, sequence, turn: runtimeTurnSchema.shape.turn }),
-  z.object({ t: z.literal('snapshot'), id, sequence, term: terminalName, generation: id, ...size }),
+  z.object({
+    t: z.literal('cancel-turn'),
+    id,
+    sequence,
+    placement: runtimePlacementSchema,
+    turn: runtimeTurnSchema.shape.turn,
+  }),
+  z.object({ t: z.literal('snapshot'), id, sequence, term: terminalName, generation: id }),
   z.object({
     t: z.literal('segment-snapshot'),
     id,
@@ -346,21 +372,38 @@ export const runtimeRequestSchema = z.discriminatedUnion('t', [
     t: z.literal('input'),
     id,
     sequence,
+    placement: runtimePlacementSchema,
     term: terminalName,
     generation: id,
     data: z.string().max(RUNTIME_LIMITS.inputBytes),
     source: z.enum(['human', 'script']),
   }),
-  z.object({ t: z.literal('resize'), id, sequence, term: terminalName, generation: id, ...size }),
+  z.object({
+    t: z.literal('resize'),
+    id,
+    sequence,
+    placement: runtimePlacementSchema,
+    term: terminalName,
+    generation: id,
+    ...size,
+  }),
   z.object({
     t: z.literal('spawn-shell'),
     id,
     sequence,
+    placement: runtimePlacementSchema,
     term: terminalName.refine((value) => value !== 'agent'),
     command: runtimeCommandSchema,
   }),
-  z.object({ t: z.literal('kill-terminal'), id, sequence, term: terminalName, generation: id }),
-  z.object({ t: z.literal('stop'), id, sequence }),
+  z.object({
+    t: z.literal('kill-terminal'),
+    id,
+    sequence,
+    placement: runtimePlacementSchema,
+    term: terminalName,
+    generation: id,
+  }),
+  z.object({ t: z.literal('stop'), id, sequence, placement: runtimePlacementSchema }),
 ]);
 export type RuntimeRequest = z.infer<typeof runtimeRequestSchema>;
 
@@ -389,6 +432,7 @@ export const runtimeResponseSchema = z.discriminatedUnion('t', [
       'fenced',
       'busy',
       'stale_terminal',
+      'stale_placement',
       'duplicate_request',
       'result_unavailable',
       'failed',

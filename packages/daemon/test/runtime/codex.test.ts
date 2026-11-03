@@ -1,3 +1,4 @@
+import { placement } from '../helpers/runtime-placement.js';
 import { once } from 'node:events';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -38,6 +39,7 @@ describe('runtime-owned Codex adapter', () => {
     const term = terminal(client.state);
     await waitForSnapshot(client, term.generation, 'bound:native-codex-fixture');
     const input = {
+      placement: placement(client),
       t: 'input' as const,
       term: 'agent',
       generation: term.generation,
@@ -62,7 +64,7 @@ describe('runtime-owned Codex adapter', () => {
     await next.request(input);
     await waitForSnapshot(next, term.generation, `count:2 sidecar:${pid}`);
     const exited = once(owner.child, 'exit');
-    await next.request({ t: 'stop' });
+    await next.request({ placement: placement(next), t: 'stop' });
     await exited;
     // The fixture ignores SIGTERM, so this also proves disposal waits for its
     // bounded SIGKILL fallback before the owner releases its lifetime claim.

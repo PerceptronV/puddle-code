@@ -1,3 +1,4 @@
+import { placement } from '../helpers/runtime-placement.js';
 import { randomUUID } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -94,6 +95,7 @@ describe('native runtime supervision', () => {
         clients.push(client);
         const original = terminal(client.state);
         await client.request({
+          placement: placement(client),
           t: 'input',
           term: 'agent',
           generation: original.generation,
@@ -133,6 +135,7 @@ describe('native runtime supervision', () => {
         clients.push(next);
         expect(terminal(next.state).pid).toBe(original.pid);
         await next.request({
+          placement: placement(next),
           t: 'input',
           term: 'agent',
           generation: original.generation,

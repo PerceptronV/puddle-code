@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { atomicPrivateJson } from '@puddle/shared/node';
 import type {
@@ -9,6 +10,7 @@ import type {
 } from '../../src/agents/adapter.js';
 import { AdapterRegistry } from '../../src/agents/registry.js';
 import { RuntimeHost } from '../../src/runtime/host.js';
+import { RuntimeJournal } from '../../src/runtime/journal.js';
 
 class FixtureControl implements AgentControl {
   ready = true;
@@ -136,6 +138,22 @@ const host = await RuntimeHost.start(
   'runtime-test',
   new AdapterRegistry([fake]),
 );
+// Deterministically yield journal admission after the fixture controller's
+// command has entered the host. No gate exists in ordinary fixture runs.
+const flush = RuntimeJournal.prototype.flush;
+RuntimeJournal.prototype.flush = async function () {
+  const gate = join(args[1]!, 'journal-admission-gate.json');
+  if (existsSync(gate)) {
+    const wanted = JSON.parse(readFileSync(gate, 'utf8')) as { command: number };
+    if (host.state().command_cursor >= wanted.command) {
+      atomicPrivateJson(join(args[1]!, 'journal-admission-entered.json'), {
+        command: host.state().command_cursor,
+      });
+      while (existsSync(gate)) await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+  return flush.call(this);
+};
 for (const signal of ['SIGTERM', 'SIGINT'] as const)
   process.on(signal, () => {
     void host.stop().then(() => process.exit(0));

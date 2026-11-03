@@ -13,6 +13,8 @@ import {
   runtimeRetainedEventSchema,
 } from '../src/index.js';
 
+const placement = { segment_id: randomUUID(), session_id: randomUUID() };
+
 describe('private runtime protocol', () => {
   it('bounds private shell observations and keeps capture policy explicit', () => {
     expect(
@@ -36,7 +38,8 @@ describe('private runtime protocol', () => {
       runtimeRequestSchema.safeParse({ t: 'capture-env', id: randomUUID(), sequence: 1 }).success,
     ).toBe(false);
     expect(
-      runtimeRequestSchema.safeParse({ t: 'clear-env', id: randomUUID(), sequence: 1 }).success,
+      runtimeRequestSchema.safeParse({ placement, t: 'clear-env', id: randomUUID(), sequence: 1 })
+        .success,
     ).toBe(true);
     expect(
       runtimeRetainedEventSchema.safeParse({
@@ -51,6 +54,7 @@ describe('private runtime protocol', () => {
 
   it('bounds turn prompts in UTF-8 bytes and requires an explicit native identity at admission', () => {
     const request = {
+      placement,
       t: 'start-turn',
       id: randomUUID(),
       sequence: 1,
@@ -104,6 +108,7 @@ describe('private runtime protocol', () => {
 
   it('requires both terminal generation and monotonic command sequence for input', () => {
     const request = {
+      placement,
       t: 'input',
       id: randomUUID(),
       sequence: 1,
@@ -119,6 +124,13 @@ describe('private runtime protocol', () => {
       false,
     );
     expect(runtimeRequestSchema.safeParse({ ...request, sequence: undefined }).success).toBe(false);
+    expect(runtimeRequestSchema.safeParse({ ...request, placement: undefined }).success).toBe(
+      false,
+    );
+    expect(
+      runtimeRequestSchema.safeParse({ ...request, placement: { session_id: randomUUID() } })
+        .success,
+    ).toBe(false);
     expect(
       runtimeRequestSchema.safeParse({ ...request, sequence: Number.MAX_SAFE_INTEGER + 1 }).success,
     ).toBe(false);

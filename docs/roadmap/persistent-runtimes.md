@@ -70,12 +70,18 @@ Implementation evidence so far:
   Isolated tests switch native refs twice while the controller is absent, then
   verify raw-log boundaries, historical screens, mouse modes, main/shell PIDs and
   shell variables. Bounded checkpoint work reports gaps on failure. Durable
-  placement binding, mutation fencing and production retention/budget reclamation
-  still need integration; the current conservative lifetime budgets are temporary.
+  placement adoption and production retention/budget reclamation still need
+  integration; the current conservative lifetime budgets are temporary.
+- Migration 030 commits immutable segment-to-placement history with application
+  effects and observation cursors. Native switches clear owner bindings; explicit
+  placement addresses fence mutations until the daemon binds committed state.
+  Tests exercise rollback, stale mutations and a lost binding response with an
+  isolated application database and fake provider. Production SessionService
+  adoption still needs to consume this contract.
 
 These are foundations for phases 0–3, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native
-dependency retention, production session/turn adoption, durable segment bindings,
+dependency retention, production session/turn adoption and segment routing,
 packaging and the update surfaces below remain required. No production session
 is opted into the new backend yet.
 

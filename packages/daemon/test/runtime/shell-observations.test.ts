@@ -1,3 +1,4 @@
+import { placement } from '../helpers/runtime-placement.js';
 import { once } from 'node:events';
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -32,6 +33,7 @@ describe('shell observation continuity', () => {
     clients.push(client);
     const original = terminal(client.state);
     await client.request({
+      placement: placement(client),
       t: 'input',
       term: 'agent',
       generation: original.generation,
@@ -59,6 +61,7 @@ describe('shell observation continuity', () => {
       { mode: 0o600 },
     );
     await client.request({
+      placement: placement(client),
       t: 'input',
       term: 'agent',
       generation: original.generation,
@@ -100,6 +103,7 @@ describe('shell observation continuity', () => {
     // The daemon has not committed/acknowledged these reports. The owner must
     // already supply their current values to a newly opened shell.
     await next.request({
+      placement: placement(next),
       t: 'spawn-shell',
       term: 'shell-1',
       command: {
@@ -119,8 +123,6 @@ describe('shell observation continuity', () => {
         t: 'snapshot',
         term: 'shell-1',
         generation: shell.generation,
-        cols: 80,
-        rows: 24,
       });
       if (snapshot.t === 'snapshot' && snapshot.data.includes('new-shell-current')) break;
       if (Date.now() >= deadline)
@@ -129,7 +131,7 @@ describe('shell observation continuity', () => {
     }
 
     const exited = once(owner.child, 'exit');
-    await next.request({ t: 'stop' });
+    await next.request({ placement: placement(next), t: 'stop' });
     await exited;
     expect(readRuntimeJournal(directory, launch.identity).events).toContainEqual(
       expect.objectContaining({
@@ -161,6 +163,7 @@ describe('shell observation continuity', () => {
     clients.push(client);
     const term = terminal(client.state);
     await client.request({
+      placement: placement(client),
       t: 'input',
       term: 'agent',
       generation: term.generation,
@@ -170,6 +173,7 @@ describe('shell observation continuity', () => {
     await waitForSnapshot(client, term.generation, 'echo-disabled');
     const report = async (marker: string) => {
       await client.request({
+        placement: placement(client),
         t: 'input',
         term: 'agent',
         generation: term.generation,
@@ -178,12 +182,12 @@ describe('shell observation continuity', () => {
       });
       await waitForSnapshot(client, term.generation, marker);
     };
-    await client.request({ t: 'capture-env', enabled: false });
+    await client.request({ placement: placement(client), t: 'capture-env', enabled: false });
     await report('disabled-observation');
     await client.request({ t: 'inspect' });
     expect(client.state?.environment).toEqual({ enabled: false, count: 1 });
-    await client.request({ t: 'clear-env' });
-    await client.request({ t: 'capture-env', enabled: true });
+    await client.request({ placement: placement(client), t: 'clear-env' });
+    await client.request({ placement: placement(client), t: 'capture-env', enabled: true });
     await report('enabled-observation');
     await client.request({ t: 'inspect' });
     expect(client.state?.environment).toEqual({ enabled: true, count: 1 });

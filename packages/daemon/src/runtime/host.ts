@@ -18,6 +18,8 @@ import {
   type RuntimeResponse,
   type RuntimeState,
   type RuntimeTerminal,
+  type RuntimePlacement,
+  type RuntimePlacementBinding,
 } from '@puddle/shared';
 import { atomicPrivateJson, ipcPath, listenPrivate } from '@puddle/shared/node';
 import { LogStore } from '../logs/log-store.js';
@@ -60,6 +62,7 @@ export class RuntimeHost {
   private readonly turns: RuntimeTurns;
   private readonly observations: RuntimeObservations;
   private readonly segments: RuntimeSegments;
+  private binding: RuntimePlacementBinding | null;
   private agent: RuntimeAgent | null = null;
   private closingAgent: Promise<void> | null = null;
   readonly launch: RuntimeLaunch;
@@ -75,6 +78,7 @@ export class RuntimeHost {
       this.launch = runtimeLaunchSchema.parse(readRuntimeJson(join(this.directory, 'launch.json')));
       if (this.launch.identity.runtime_id !== id)
         throw new Error('Runtime launch identity mismatch');
+      this.binding = { segment_id: id, session_id: this.launch.identity.session_id, through: 0 };
       this.observations = new RuntimeObservations(this.launch.capture_env);
       this.journal = new RuntimeJournal(this.directory, this.launch.identity);
       this.turns = new RuntimeTurns(this.journal, (event, reservation) => {
@@ -152,6 +156,7 @@ export class RuntimeHost {
               [...host.terminals.values()],
               (term) => host.capture(term),
             );
+            if (binding.previous_segment_id !== null) host.binding = null;
             host.event({ t: 'native-lifecycle', cursor, lifecycle, ...binding });
             host.persistState();
           },
@@ -197,6 +202,7 @@ export class RuntimeHost {
       turn: this.turns.state(),
       environment: this.observations.state(),
       history: this.segments.state(),
+      binding: this.binding ? { ...this.binding } : null,
     };
   }
 
@@ -416,6 +422,14 @@ export class RuntimeHost {
     writeRuntimeFrame(socket, response);
   }
 
+  private currentPlacement(placement: RuntimePlacement): boolean {
+    return (
+      this.binding !== null &&
+      placement.segment_id === this.binding.segment_id &&
+      placement.session_id === this.binding.session_id
+    );
+  }
+
   private async handle(socket: Socket, request: RuntimeRequest): Promise<void> {
     const fail = (code: Extract<RuntimeResponse, { t: 'error' }>['code'], message: string) =>
       this.reply(socket, { t: 'error', id: request.id, code, message });
@@ -460,6 +474,10 @@ export class RuntimeHost {
     // Admission precedes effects, including errors: a lost acknowledgement can
     // never make an old sequence eligible again after controller reconnection.
     this.commandCursor = request.sequence;
+    if ('placement' in request && !this.currentPlacement(request.placement)) {
+      fail('stale_placement', 'Runtime placement changed or has not been committed');
+      return;
+    }
     const stream = this.launch.identity.runtime_id;
     if ('generation' in request && request.t !== 'segment-snapshot') {
       const term = this.terminals.get(request.term);
@@ -476,6 +494,30 @@ export class RuntimeHost {
       case 'inspect':
         this.reply(socket, { t: 'state', id: request.id, state: this.state() });
         return;
+      case 'bind-placement': {
+        const segment = this.segments.state().current;
+        const binding = request.binding;
+        if (
+          binding.segment_id !== segment.id ||
+          binding.through < segment.start_cursor ||
+          binding.through > owner.offeredThrough ||
+          this.journal.status().lost_through > 0
+        ) {
+          fail('stale_placement', 'Read and commit the current runtime segment before binding');
+          return;
+        }
+        if (
+          this.binding &&
+          (this.binding.session_id !== binding.session_id || binding.through < this.binding.through)
+        ) {
+          fail('stale_placement', 'A committed runtime segment cannot change placement');
+          return;
+        }
+        this.binding = { ...binding };
+        this.persistState();
+        this.reply(socket, { t: 'state', id: request.id, state: this.state() });
+        return;
+      }
       case 'capture-env':
       case 'clear-env': {
         if (this.stopPromise || !(await this.journal.flush())) {
@@ -484,6 +526,10 @@ export class RuntimeHost {
         }
         if (this.owner !== owner || !this.authorised(owner.id, owner.epoch)) {
           fail('fenced', 'Runtime controller is no longer current');
+          return;
+        }
+        if (!this.currentPlacement(request.placement)) {
+          fail('stale_placement', 'Runtime placement changed while admitting the command');
           return;
         }
         const reservation = this.stopPromise ? null : this.journal.reserve(256, 1);
@@ -515,6 +561,10 @@ export class RuntimeHost {
         }
         if (this.owner !== owner || !this.authorised(owner.id, owner.epoch)) {
           fail('fenced', 'Runtime controller is no longer current');
+          return;
+        }
+        if (!this.currentPlacement(request.placement)) {
+          fail('stale_placement', 'Runtime placement changed while admitting the command');
           return;
         }
         if (this.stopPromise || this.status !== 'running') {
@@ -566,12 +616,7 @@ export class RuntimeHost {
         // by the attaching reader until this snapshot arrives.
         const cursor = this.eventCursor;
         const segment_id = this.segments.state().current.id;
-        const data = await this.ptys.canonicalSnapshot(
-          stream,
-          request.term,
-          request.cols,
-          request.rows,
-        );
+        const data = await this.ptys.canonicalSnapshot(stream, request.term);
         this.reply(socket, {
           t: 'snapshot',
           id: request.id,

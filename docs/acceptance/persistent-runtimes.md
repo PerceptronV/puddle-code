@@ -114,6 +114,25 @@ check also scans the separate `screens/` and `segments/` directories for capture
 values and encoded payloads. This is fake-provider continuity evidence; it does
 not prove real provider hook ordering or production placement adoption.
 
+Placement-binding checks use a real isolated application database and fake provider.
+They commit ordered native switches before binding the owner, deliberately leave
+the binding response unread, reopen the database and replace the controller, then
+verify identical PTY/sidecar PIDs and the retained shell variable. Stale commands
+cannot write input, resize, create/kill shells, stop the runtime, start/cancel a
+turn or change/purge captured environment. Deterministic fixture-only journal
+gates also switch native refs while turn/capture/purge admission is awaiting
+persistence; the resumed commands must fail without effects. Store tests cover
+transaction rollback, immutable segment mappings, predecessor checks, closure,
+retention and refusal to invent history for older experimental bindings.
+
+The combined runtime/shared/database/adapter/PTY suite passed 306 tests in 42
+files on macOS with the native supervisor test skipped. After adding the final
+admission-race cases and immutable-conversation guard, the focused binding/store
+suite passed all 12 tests. Typecheck and scoped lint passed. These checks do not
+establish production SessionService adoption or installed-upgrade continuity.
+The final runtime-only rerun passed 78 tests in 16 files, with the opt-in native
+supervisor test skipped.
+
 ## Remaining release gates
 
 Record platform, Node, release and provider versions with results. Run native

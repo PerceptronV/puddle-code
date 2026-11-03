@@ -1,3 +1,4 @@
+import { placement } from '../helpers/runtime-placement.js';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
@@ -31,6 +32,7 @@ describe('isolated runtime host', () => {
     const { home, launch, controller, client } = await setup();
     const original = terminal(client.state);
     await client.request({
+      placement: placement(client),
       t: 'input',
       term: 'agent',
       generation: original.generation,
@@ -44,6 +46,7 @@ describe('isolated runtime host', () => {
     // The previous TCP/Unix stream is still connected but its epoch is fenced.
     await expect(
       client.request({
+        placement: placement(client),
         t: 'input',
         term: 'agent',
         generation: original.generation,
@@ -55,6 +58,7 @@ describe('isolated runtime host', () => {
     clients.push(next);
     expect(terminal(next.state)).toEqual(original);
     await next.request({
+      placement: placement(next),
       t: 'input',
       term: 'agent',
       generation: original.generation,
@@ -68,6 +72,7 @@ describe('isolated runtime host', () => {
     const { home, launch, controller, client } = await setup();
     const original = terminal(client.state);
     await client.request({
+      placement: placement(client),
       t: 'input',
       term: 'agent',
       generation: original.generation,
@@ -80,6 +85,7 @@ describe('isolated runtime host', () => {
     await waitForSnapshot(next, original.generation, 'unattended-output');
     await expect(
       next.request({
+        placement: placement(next),
         t: 'input',
         term: 'agent',
         generation: randomUUID(),
@@ -95,7 +101,7 @@ describe('isolated runtime host', () => {
   it('does not consume the launch twice, including after a runtime exits', async () => {
     const { home, launch, client, owner, directory } = await setup();
     const exited = once(owner.child, 'exit');
-    await client.request({ t: 'stop' });
+    await client.request({ placement: placement(client), t: 'stop' });
     await exited;
     const final = runtimeStateSchema.parse(readRuntimeJson(join(directory, 'state.json')));
     expect(final.state).toBe('exited');
@@ -116,6 +122,7 @@ describe('isolated runtime host', () => {
       code: 'invalid_request',
     });
     await client.request({
+      placement: placement(client),
       t: 'spawn-shell',
       term: 'shell-1',
       command: { ...launch.main, args: ['-c', 'sleep 0.1; exit 7'] },
@@ -171,7 +178,7 @@ describe('isolated runtime host', () => {
     expect(retired).toBe('owned');
     expect(applied).toBeNull();
     const exited = once(owner.child, 'exit');
-    await client.request({ t: 'stop' });
+    await client.request({ placement: placement(client), t: 'stop' });
     await exited;
     expect(
       retireMissingRuntime(home, launch.identity, (state, journal) => {
@@ -236,6 +243,7 @@ describe('isolated runtime host', () => {
     const { home, launch, controller, client } = await setup();
     const original = terminal(client.state);
     await client.request({
+      placement: placement(client),
       t: 'input',
       term: 'agent',
       generation: original.generation,
@@ -274,6 +282,7 @@ describe('isolated runtime host', () => {
     clients.push(next);
     expect(terminal(next.state).pid).toBe(original.pid);
     await next.request({
+      placement: placement(next),
       t: 'input',
       term: 'agent',
       generation: original.generation,

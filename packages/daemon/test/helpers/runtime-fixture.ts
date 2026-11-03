@@ -194,8 +194,6 @@ export async function waitForSnapshot(
       t: 'snapshot',
       term: 'agent',
       generation,
-      cols: 80,
-      rows: 24,
     });
     if (response.t === 'snapshot' && response.data.includes(expected)) return response.data;
     await new Promise((resolve) => setTimeout(resolve, 20));
