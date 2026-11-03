@@ -165,8 +165,25 @@ not native provider or installed-upgrade acceptance.
 
 The runtime/database/session/PTY/host-control regression run passed 332 tests in
 44 files, with the opt-in native supervisor test skipped. Typecheck, scoped lint
-and formatting passed. Production command routing, confirmed-loss recovery,
-programme result consumption and retention reclamation remain outstanding.
+and formatting passed. Production command routing, programme result consumption
+and retention reclamation remain outstanding.
+
+
+`runtime/recovery.test.ts` now exercises a dropped control stream followed by
+bounded reconnect, preserving the original shell PID and variable. Natural exit
+retires the binding once; abrupt owner loss becomes interrupted only after the
+exclusive claim is acquired. Tests fence delayed/unstarted launches, collect a
+provider launch that failed before creating a PTY, retain interrupted private turn
+outcomes and refuse incomplete journals. A failure in the second recovered page
+rolls back both pages and emits no placement-switch notification. Real isolated
+daemon boots verify natural exit with auto-resume enabled and terminal loss with
+auto-resume both disabled and enabled. The enabled case still uses the current
+legacy launch backend; it does not prove production persistent-runtime creation.
+Supervisor registration cleanup and orphan-sidecar recovery remain release gates.
+
+The expanded runtime/database/session/PTY/host-control suite passed 342 tests in
+45 files, with the native supervisor test skipped. The final focused recovery and
+daemon-adoption run passed 12 tests. Typecheck, scoped lint and formatting passed.
 
 ## Remaining release gates
 

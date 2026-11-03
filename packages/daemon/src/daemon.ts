@@ -120,9 +120,10 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       conversations,
       events,
     });
-    const runtimeConnections = new RuntimeConnections(paths.home, runtimes, (id, client) =>
-      runtimeReconciler.attach(id, client),
-    );
+    const runtimeConnections = new RuntimeConnections(paths.home, runtimes, {
+      connected: (id, client) => runtimeReconciler.attach(id, client),
+      missing: (id) => runtimeReconciler.retire(id),
+    });
     failedStartup.push(() => runtimeConnections.close());
     failedStartup.push(() => runtimeReconciler.close());
     await runtimeConnections.connect();
@@ -378,7 +379,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     // in the UI for one-click resume. Runs AFTER the bind on purpose, so
     // auto-resumed agents get the signal env too.
     if (config.autoResume) {
-      for (const id of reconciled.interrupted) {
+      for (const id of new Set([...reconciled.interrupted, ...runtimeReconciler.autoResumeIds()])) {
         await service
           .resume(id)
           .catch((e) => console.warn(`auto-resume ${id} failed: ${e.message}`));

@@ -3,9 +3,11 @@ import { EventEmitter } from 'node:events';
 import { realpathSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, sep } from 'node:path';
 import {
+  RUNTIME_LIMITS,
   runtimeEventPageSchema,
   runtimeLaunchSchema,
   type RuntimeEventPage,
+  type RuntimeJournalRecord,
   type RuntimeRetainedEvent,
   type RuntimeSegment,
   type RuntimeState,
@@ -24,6 +26,7 @@ import { isDeniedEnvName } from '../pty/shell-hooks.js';
 import type { SessionSwitchEvent } from '../sessions/service.js';
 import type { RuntimeClient } from './client.js';
 import { readRuntimeJson, runtimeDirectory } from './storage.js';
+import { retireMissingRuntime } from './discovery.js';
 import { runtimeBindingIdentity } from './connections.js';
 
 interface ReconcileDeps {
@@ -50,6 +53,7 @@ export class RuntimeReconciler extends EventEmitter {
   readonly observations: RuntimeObservationStore;
   private readonly attached = new Map<string, Attachment>();
   private closed = false;
+  private readonly resumableLosses = new Set<string>();
 
   constructor(private readonly deps: ReconcileDeps) {
     super();
@@ -57,8 +61,10 @@ export class RuntimeReconciler extends EventEmitter {
   }
 
   async attach(id: string, client: RuntimeClient): Promise<void> {
-    if (this.closed || this.attached.has(id))
-      throw new Error('Runtime is already attached or closing');
+    const previous = this.attached.get(id);
+    if (previous && !previous.disconnected) throw new Error('Runtime is already attached');
+    await previous?.active;
+    if (this.closed) throw new Error('Runtime reconciler is closing');
     const entry: Attachment = {
       client,
       active: null,
@@ -153,14 +159,22 @@ export class RuntimeReconciler extends EventEmitter {
 
   /** Public to the confirmed-owner-loss path too: no IPC or async work inside the transaction. */
   applyPage(id: string, input: RuntimeEventPage): void {
+    const switches = this.commitPage(id, input);
+    this.publish(id, switches);
+  }
+
+  private publish(id: string, switches: SessionSwitchEvent[]): void {
+    for (const event of switches) this.emit('session-switched', event);
+    this.emit('changed', this.deps.runtimes.get(id)!.project_id);
+  }
+
+  private commitPage(id: string, input: RuntimeEventPage): SessionSwitchEvent[] {
     const page = runtimeEventPageSchema.parse(input);
     if (page.gap || page.journal.lost_through !== 0)
       throw new Error('Runtime event history is incomplete');
     const switches: SessionSwitchEvent[] = [];
-    let projectId = '';
     this.deps.db.transaction(() => {
       let binding = this.current(id);
-      projectId = binding.project_id;
       if (
         page.journal.acknowledged > Math.max(0, binding.event_cursor) ||
         page.through > page.journal.cursor
@@ -269,8 +283,108 @@ export class RuntimeReconciler extends EventEmitter {
         );
       this.observations.save(id, observations);
     })();
-    for (const event of switches) this.emit('session-switched', event);
-    this.emit('changed', projectId);
+    return switches;
+  }
+
+  /** Boot policy may resume confirmed losses, never unavailable live owners. */
+  autoResumeIds(): string[] {
+    return [...this.resumableLosses];
+  }
+
+  /** Connection failure is only a reason to inspect the OS claim, never proof of death. */
+  async retire(id: string): Promise<boolean> {
+    const entry = this.attached.get(id);
+    if (entry && !entry.disconnected) return false;
+    await entry?.active;
+    if (this.closed) return false;
+    const binding = this.current(id);
+    const retired = retireMissingRuntime(
+      this.deps.home,
+      runtimeBindingIdentity(binding),
+      (state, journal) => this.commitFinal(id, state, journal),
+    );
+    if (retired !== 'retired') return false;
+    if (entry?.timer) clearTimeout(entry.timer);
+    this.attached.delete(id);
+    return true;
+  }
+
+  private commitFinal(
+    id: string,
+    state: RuntimeState | null,
+    journal: RuntimeJournalRecord | null,
+  ): void {
+    const switches: SessionSwitchEvent[] = [];
+    let interrupted: string | null = null;
+    this.deps.db.transaction(() => {
+      const original = this.current(id);
+      if (
+        state &&
+        (state.build !== original.build ||
+          state.protocol.major !== original.protocol_major ||
+          state.protocol.minor !== original.protocol_minor)
+      )
+        throw new Error('Retained runtime build does not match its launch');
+      if (journal) {
+        // A recovered journal may contain several wire pages. Commit all final
+        // effects and the ended binding together; publish only after that commit.
+        for (
+          let offset = 0;
+          offset < Math.max(1, journal.events.length);
+          offset += RUNTIME_LIMITS.eventPage
+        ) {
+          const events = journal.events.slice(offset, offset + RUNTIME_LIMITS.eventPage);
+          const more = offset + events.length < journal.events.length;
+          switches.push(
+            ...this.commitPage(id, {
+              events,
+              through: more ? events.at(-1)!.cursor : journal.cursor,
+              more,
+              gap: journal.lost_through !== 0,
+              journal: {
+                cursor: journal.cursor,
+                acknowledged: journal.acknowledged,
+                lost_through: journal.lost_through,
+                persistence_pending: false,
+              },
+            }),
+          );
+        }
+      } else if (original.event_cursor > 0 || state !== null) {
+        throw new Error('Retained runtime journal is missing');
+      }
+      const current = this.current(id);
+      const ended =
+        state &&
+        ['exited', 'failed'].includes(state.state) &&
+        state.terminals.every((term) => term.pid === null) &&
+        journal &&
+        !state.journal.persistence_pending &&
+        state.journal.cursor === journal.cursor;
+      if (ended) {
+        this.applyState(id, state);
+        this.deps.runtimes.finish(id, state.state as 'exited' | 'failed', () => {
+          this.observations.interruptRunning(current);
+          this.deps.sessions.setStatus(current.active_session_id, 'exited');
+          if (state.state === 'failed')
+            this.deps.events.record(current.active_session_id, 'runtime_failed');
+        });
+      } else {
+        this.deps.runtimes.interrupt(id, () => {
+          this.observations.interruptRunning(current);
+          this.deps.sessions.setStatus(current.active_session_id, 'interrupted');
+          this.deps.events.record(current.active_session_id, 'interrupted', {
+            reason: 'runtime_owner_lost',
+          });
+        });
+        interrupted = current.active_session_id;
+      }
+    })();
+    // An absent owner does not prove its provider sidecars/descendants ended.
+    // Keep agent recovery explicit until supervisor cleanup provides that proof.
+    if (interrupted !== null && this.deps.runtimes.get(id)!.agent_type === null)
+      this.resumableLosses.add(interrupted);
+    this.publish(id, switches);
   }
 
   private native(
@@ -437,8 +551,13 @@ export class RuntimeReconciler extends EventEmitter {
         state.journal.cursor > binding.event_cursor
       )
         throw new Error('Runtime changed during state reconciliation');
+      const failedBeforeAgent =
+        state.state === 'failed' &&
+        state.agent === null &&
+        state.terminals.length === 0 &&
+        binding.conversation_id === null;
       if (
-        state.agent?.provider !== (binding.agent_type ?? undefined) ||
+        (!failedBeforeAgent && state.agent?.provider !== (binding.agent_type ?? undefined)) ||
         (state.agent?.agent_session_ref ?? null) !== this.segment(binding).agent_session_ref
       )
         throw new Error('Runtime provider identity does not match its placement');

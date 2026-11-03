@@ -27,11 +27,16 @@ export class RuntimeConnections {
   private readonly unavailable = new Set<string>();
   private connecting: Promise<void> | null = null;
   private closed = false;
+  private retryTimer: NodeJS.Timeout | null = null;
+  private retryMs = 0;
 
   constructor(
     private readonly home: string,
     private readonly store: RuntimeStore,
-    private readonly onConnect?: (id: string, client: RuntimeClient) => Promise<void>,
+    private readonly handlers: {
+      connected?: (id: string, client: RuntimeClient) => Promise<void>;
+      missing?: (id: string) => Promise<boolean>;
+    } = {},
   ) {
     this.controller = acquireRuntimeController(home);
   }
@@ -49,8 +54,21 @@ export class RuntimeConnections {
     if (this.connecting) return this.connecting;
     this.connecting = this.inspect().finally(() => {
       this.connecting = null;
+      this.schedule();
     });
     return this.connecting;
+  }
+
+  private schedule(): void {
+    if (this.closed || this.connecting || this.retryTimer || this.unavailable.size === 0) return;
+    this.retryMs = Math.min(this.retryMs ? this.retryMs * 2 : 1000, 30_000);
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      void this.connect().catch(() => {
+        // Database inspection can fail too; the pending owners remain protected.
+      });
+    }, this.retryMs);
+    this.retryTimer.unref();
   }
 
   private async inspect(): Promise<void> {
@@ -80,16 +98,29 @@ export class RuntimeConnections {
           }
           this.clients.set(binding.runtime_id, client);
           this.unavailable.delete(binding.runtime_id);
+          this.retryMs = 0;
           client.once('disconnected', () => {
             if (this.clients.get(binding.runtime_id) !== client) return;
             this.clients.delete(binding.runtime_id);
-            if (!this.closed) this.unavailable.add(binding.runtime_id);
+            if (!this.closed) {
+              this.unavailable.add(binding.runtime_id);
+              this.schedule();
+            }
           });
-          await this.onConnect?.(binding.runtime_id, client);
+          await this.handlers.connected?.(binding.runtime_id, client);
         } catch {
+          this.clients.get(binding.runtime_id)?.close();
           // Malformed records, a timeout and incompatible owners all preserve
           // ownership. Only exclusive retirement can establish process loss.
-          if (!this.closed) this.unavailable.add(binding.runtime_id);
+          if (!this.closed) {
+            this.unavailable.add(binding.runtime_id);
+            try {
+              if (await this.handlers.missing?.(binding.runtime_id))
+                this.unavailable.delete(binding.runtime_id);
+            } catch {
+              // Incomplete history/storage errors retain ownership for a later retry.
+            }
+          }
         }
       }
     };
@@ -98,6 +129,7 @@ export class RuntimeConnections {
 
   async close(): Promise<void> {
     this.closed = true;
+    if (this.retryTimer) clearTimeout(this.retryTimer);
     for (const client of this.clients.values()) client.close();
     this.clients.clear();
     try {

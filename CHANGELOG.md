@@ -11,6 +11,7 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Reconnect experimental runtime control streams without replaying work, and recover final exits or confirmed owner loss under the exclusive ownership claim.
 - Reconcile experimental runtime journals across daemon restarts, atomically recovering native switches, captured environment and private turn results before acknowledging observations.
 - Preserve experimental independent runtime ownership during daemon boot/shutdown, and reject legacy controls that could falsely resume or stop an unreconciled runtime.
 - Honour disabled PTY recording for daemon-generated terminal notes.

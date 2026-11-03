@@ -56,6 +56,21 @@ export class RuntimeObservationStore {
     return row ? runtimeTurnResultSchema.parse(JSON.parse(row.result) as unknown) : null;
   }
 
+  interruptRunning(binding: RuntimeBinding): void {
+    const row = this.db
+      .prepare(
+        "SELECT turn FROM runtime_turns WHERE runtime_id = ? AND json_extract(result, '$.status') = 'running'",
+      )
+      .get(binding.runtime_id) as { turn: number } | undefined;
+    if (!row) return;
+    const current = this.turn(binding.runtime_id, row.turn)!;
+    this.saveTurn(binding, {
+      ...current,
+      status: 'interrupted',
+      error: 'Runtime owner ended without a retained turn outcome; execution was not replayed',
+    });
+  }
+
   saveTurn(binding: RuntimeBinding, value: RuntimeTurnResult): void {
     const result = runtimeTurnResultSchema.parse(value);
     const previous = this.turn(binding.runtime_id, result.turn);

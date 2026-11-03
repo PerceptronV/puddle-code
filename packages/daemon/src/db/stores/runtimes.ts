@@ -302,6 +302,24 @@ export class RuntimeStore {
     })();
   }
 
+  /** Finalise only under the exclusive owner claim, after retained observations commit. */
+  finish(
+    id: string,
+    state: 'exited' | 'failed',
+    apply: (binding: RuntimeBinding) => void,
+  ): boolean {
+    return this.db.transaction(() => {
+      const current = this.get(id);
+      if (!current || !['prepared', 'running'].includes(current.state)) return false;
+      this.closeSegment(id, Math.max(0, current.event_cursor));
+      this.db
+        .prepare('UPDATE runtime_bindings SET state = ?, ended_at = ? WHERE runtime_id = ?')
+        .run(state, new Date().toISOString(), id);
+      apply(current);
+      return true;
+    })();
+  }
+
   /** Removal/retention may release historical bindings, never live ownership. */
   removeEnded(id: string): boolean {
     return (

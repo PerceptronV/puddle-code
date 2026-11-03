@@ -93,9 +93,21 @@ Implementation evidence so far:
   owner and acknowledging history. Tests cover database rollback, idempotent
   replay, bounded result retention and a real isolated daemon recovering offline
   native switches and a completed fake-provider turn without recreating processes.
-  Private replies remain outside public audit events. Confirmed owner-loss/exit
-  retirement, reconnect recovery, programme bindings and retention reclamation
+  Private replies remain outside public audit events. Programme bindings, supervisor-registration cleanup and retention reclamation
   remain to be integrated.
+
+
+- Control connections now retry with bounded concurrency/backoff and reconcile
+  before further use, without replaying commands. An unavailable owner is retired
+  only after acquiring its exclusive OS claim and fencing delayed starts. Final
+  journal pages, private results and ended bindings commit atomically; a failed
+  final transaction publishes no switch notifications. Tests cover preserved shell
+  state through reconnect, natural exit, abrupt owner loss, unstarted/failed
+  launches, incomplete history and multi-page rollback. Real-daemon tests verify
+  that natural exits remain stopped and confirmed terminal boot losses honour auto-resume. Agent losses remain explicitly
+  resumable until provider descendant cleanup is proven.
+  Supervisor-registration collection, orphan-sidecar recovery and production
+  persistent launch/command routing remain separate integration work.
 
 These are foundations for phases 0–3, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native

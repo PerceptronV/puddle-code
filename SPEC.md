@@ -204,8 +204,16 @@ cursor in one transaction per page. The daemon then binds the committed placemen
 and acknowledges retained events. Results never enter public audit events; full
 private retention or an incomplete journal leaves reconciliation pending without
 replaying execution. Owner state is checked against committed observations before
-binding. Confirmed owner-loss/exit retirement and programme result consumption
-remain outstanding.
+binding. Disconnected owners reconnect with bounded backoff; no uncertain
+command is retried. After acquiring the exclusive owner claim, the daemon fences
+any delayed start, imports all final journal pages and commits the ended binding
+atomically. Complete final exit records remain exited/failed; confirmed owner loss
+becomes interrupted and unresolved accepted turns retain an interrupted outcome.
+A journal gap or failed database commit preserves unresolved ownership. Confirmed terminal boot losses follow the configured auto-resume policy; natural
+exits do not resume. Agent owner loss remains explicitly resumable until supervisor
+cleanup can prove provider sidecars and descendants have ended.
+Supervisor-registration collection, orphan-sidecar recovery and programme result
+consumption remain outstanding.
 External terminal routing is not enabled yet; affected placements reject legacy
 terminal, resume, kill, archive, migration and environment purge controls with
 `runtime_reconciliation_required`. Inspection alone never acknowledges events or
