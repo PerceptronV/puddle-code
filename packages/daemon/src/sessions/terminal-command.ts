@@ -1,6 +1,8 @@
 /** An explicit, one-shot programme before an ordinary interactive session shell. */
 export interface TerminalCommand {
   cwd: string;
+  /** Internal retention reference; never resubmit the command on resume. */
+  managedRunDirectory?: string;
   env?: Record<string, string>;
   commands: Array<{ file: string; args: string[] }>;
 }

@@ -258,15 +258,15 @@ WebSocket input establishes a shell variable and cwd. Daemon replacement preserv
 that PID and variable. Explicit kill/resume creates a different runtime and a fresh
 shell; archive confirms clean shutdown. Fake supervision only establishes the
 process and integration behaviour, not native systemd/launchd or installed upgrades.
-Code-execution terminals remain legacy until managed-run retention and external
-exit observation move together, so the existing code-provider lifecycle remains
-covered without prematurely deleting files used by independent owners.
+Code-execution terminals joined this opt-in path in the subsequent verification
+below, with durable managed-run retention and external exit observation.
 
 The broader runtime/session/PTY/host-control run passed 349 tests in 50 files,
 with the native supervisor test skipped. The final six-file launcher, supervisor,
 shell-observation and code-terminal/provider run passed 35 tests. Typecheck,
-scoped lint and formatting passed. Agent launch, default installed selection,
-code-run retention and native supervisor/provider acceptance remain release gates.
+scoped lint and formatting passed. Agent launch and code-run retention received
+subsequent coverage below; default installed selection and native supervisor/provider
+acceptance remain release gates.
 
 `runtime/agent-launch.test.ts` now exercises HTTP interactive-agent creation using
 the opt-in launcher, preserving the main PTY PID and a fake provider's sidecar
@@ -287,6 +287,23 @@ regression passed all three tests. Typecheck, scoped lint and formatting passed.
 This is fake-provider and deterministic-supervisor evidence; headless/programme
 routing, default installed selection and native platform/provider checks remain
 release gates.
+
+`runtime/code-launch.test.ts` exercises a real programme through the production
+compilation HTTP route and opt-in independent owner. Its PID and in-memory counter
+survive daemon replacement. Seven subsequent runs trigger pruning without deleting
+the surviving programme's managed directory. Explicit stop releases that exact
+owner's retention reference; later pruning removes it. Terminal resume starts a
+fresh shell without repeating the programme. Runtime-store tests inject a failure
+into retention insertion and verify that the entire launch intent rolls back;
+failed owner state keeps files protected. Supervision remains deterministic in
+these tests, with no installed daemon or native service changes.
+
+The broader runtime/session/compilation/database/host-control run passed 337 tests
+and exposed one old-schema fixture that needed to drop the new table before
+rewinding its schema version; one native supervisor test was skipped. After that
+fixture correction, all 36 database/runtime-store/migration tests in six files
+passed. The focused programme-continuity/store run passed 12 tests. Typecheck,
+scoped lint and formatting passed.
 
 ## Remaining release gates
 

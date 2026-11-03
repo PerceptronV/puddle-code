@@ -319,9 +319,13 @@ retirement and supervisor collection acquire that claim before the owner claim.
 This prevents recovery from fencing a queued launch while its initiating controller
 is still waiting. A lost supervisor acknowledgement triggers inspection only.
 Shutdown drains launcher operations before closing writers. The explicit daemon
-composition option currently routes ordinary terminal and interactive agent
-create/resume; default installed selection, headless/programme routing and
-code-execution integration remain gated.
+composition option currently routes terminal and interactive agent create/resume,
+including code-execution terminals. Their canonical managed run directory is
+referenced in application SQLite alongside launch intent, so cleanup retains it
+through controller replacement and uncertain owner outcomes. Only a confirmed
+clean owner exit releases that reference; the resumed terminal never repeats its
+programme. These application-side references add no private wire fields. Default
+installed selection and headless/programme agent routing remain gated.
 
 Provider context optionally carries `initial_ref` for a new preset-id launch or
 `prior_refs` for a provider that mints its own ids (at most 16,384 ids, each at most

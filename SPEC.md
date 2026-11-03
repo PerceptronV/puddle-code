@@ -247,7 +247,7 @@ placement after asynchronous process inspection. Historical, unbound or unreacha
 owners never fall through to stale recorded PIDs or legacy PTYs. Cached owner
 references are bounded across old placements. No new application/remote shape is
 needed for this integration.
-An explicit `DaemonOptions.runtime` composition option now routes ordinary terminal
+An explicit `DaemonOptions.runtime` composition option now routes terminal
 and interactive agent creation/resume through `RuntimeLauncher`. Default installed
 launches retain the in-process backend. The launcher writes a private validated
 launch context and SQLite intent before one supervisor dispatch, holds a launch
@@ -265,9 +265,15 @@ version checks determine `native_sync`, including after offline switches; lifecy
 events alone never promote a fallback owner. Confirmed failed launches reconcile
 their final records without another dispatch. Headless/programme agent creation
 still uses the legacy path until durable operation-to-runtime/turn routing exists.
-Code-execution terminals also remain legacy. Code execution
-must move together with durable managed-run retention and external exit observation;
-its existing cleanup is tied to in-process PTYs. Installed selectors, automatic
+Code-execution terminals use that same opt-in owner path, including their one-shot
+command followed by an interactive shell. Migration 034 stores each canonical
+managed run directory in `runtime_code_runs`, keyed by runtime id, atomically with
+launch intent. Cleanup consults these references after daemon replacement and
+retains files until that exact owner exits cleanly; failed/interrupted/unavailable
+owners remain protected. External exit observation replaces legacy PTY callbacks
+for those runs. Explicit terminal resume creates a shell and never repeats the
+programme. The usual five completed-run retention limit excludes protected runs.
+Installed selectors, automatic
 capability detection, default rollout and native supervisor acceptance remain
 required before changing the documented upgrade/interruption behaviour.
 

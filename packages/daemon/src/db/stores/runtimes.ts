@@ -129,6 +129,16 @@ export class RuntimeStore {
       .get(canonicalPath);
   }
 
+  hasUnreleasedCodeRun(directory: string): boolean {
+    // A missing reply or failed owner is not proof that its descendants ended.
+    return !!this.db
+      .prepare(
+        `SELECT 1 FROM runtime_code_runs c JOIN runtime_bindings r USING (runtime_id)
+      WHERE c.directory = ? AND r.state != 'exited'`,
+      )
+      .get(directory);
+  }
+
   useLegacyTerminals(sessionId: string): void {
     if (this.ownerOf(sessionId)) throw new Error('Cannot replace a live external runtime');
     this.setTerminalOwner(sessionId, null);
@@ -213,10 +223,16 @@ export class RuntimeStore {
     build: string;
     protocol: { major: number; minor: number };
     releasePath: string;
+    codeRunDirectory?: string;
   }): RuntimeBinding {
     const identity = runtimeIdentitySchema.parse(input.identity);
     if (!isAbsolute(input.releasePath) || input.releasePath.includes('\0'))
       throw new Error('Runtime release path must be absolute');
+    if (
+      input.codeRunDirectory !== undefined &&
+      (!isAbsolute(input.codeRunDirectory) || input.codeRunDirectory.includes('\0'))
+    )
+      throw new Error('Runtime code run directory must be absolute');
     if (
       !input.build ||
       input.build.length > 128 ||
@@ -229,6 +245,9 @@ export class RuntimeStore {
         build: input.build,
         protocol: input.protocol,
         releasePath: input.releasePath,
+        ...(input.codeRunDirectory === undefined
+          ? {}
+          : { codeRunDirectory: input.codeRunDirectory }),
       }),
     );
     return this.db.transaction(() => {
@@ -276,6 +295,10 @@ export class RuntimeStore {
         )
         .run(identity.runtime_id, identity.runtime_id, identity.session_id);
       this.setTerminalOwner(identity.session_id, identity.runtime_id);
+      if (input.codeRunDirectory !== undefined)
+        this.db
+          .prepare('INSERT INTO runtime_code_runs (runtime_id, directory) VALUES (?, ?)')
+          .run(identity.runtime_id, input.codeRunDirectory);
       return this.get(identity.runtime_id)!;
     })();
   }

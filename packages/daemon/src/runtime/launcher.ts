@@ -61,11 +61,12 @@ export class RuntimeLauncher {
     sessionId: string,
     command: (hooks: ShellHooks) => RuntimeCommand,
     provider?: RuntimeProviderLaunch,
+    codeRunDirectory?: string,
   ): Promise<void> {
     if (this.closed) return Promise.reject(new Error('Runtime launcher is closing'));
     if (this.pending.size >= RUNTIME_LIMITS.pendingRequests)
       return Promise.reject(ApiError.conflict('runtime_busy', 'Too many pending runtime launches'));
-    const pending = this.start(sessionId, command, provider);
+    const pending = this.start(sessionId, command, provider, codeRunDirectory);
     this.pending.add(pending);
     void pending.finally(() => this.pending.delete(pending)).catch(() => {});
     return pending;
@@ -75,6 +76,7 @@ export class RuntimeLauncher {
     sessionId: string,
     command: (hooks: ShellHooks) => RuntimeCommand,
     provider?: RuntimeProviderLaunch,
+    codeRunDirectory?: string,
   ): Promise<void> {
     const session = this.deps.sessions.get(sessionId);
     if (this.deps.runtimes.ownerOf(sessionId))
@@ -122,6 +124,9 @@ export class RuntimeLauncher {
         build: config.build,
         protocol: RUNTIME_PROTOCOL_VERSION,
         releasePath: config.releasePath,
+        ...(codeRunDirectory === undefined
+          ? {}
+          : { codeRunDirectory: realpathSync(codeRunDirectory) }),
       });
       // After this point an uncertain response must preserve intent and never try
       // another backend. The same launch claim also prevents premature retirement.

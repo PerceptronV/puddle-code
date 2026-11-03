@@ -626,7 +626,7 @@ export class SessionService extends EventEmitter {
       : this.deps.worktrees.attachShared({ repo, baseBranch: input.base_branch });
   }
 
-  /** Internal explicit execution; the command is never persisted or replayed on resume. */
+  /** Internal one-shot execution; resume always starts an ordinary shell. */
   async createCommandTerminal(
     input: CreateSessionRequest,
     command: TerminalCommand,
@@ -732,21 +732,24 @@ export class SessionService extends EventEmitter {
     command?: TerminalCommand,
   ): Promise<void> {
     this.assertLegacyRuntime(sessionId);
-    // Code execution still releases managed run directories through legacy PTY
-    // exits. Its launch must move together with durable run-directory retention.
-    if (this.deps.runtimeLauncher && !command) {
+    if (this.deps.runtimeLauncher) {
       try {
-        await this.deps.runtimeLauncher.launch(sessionId, (hooks) => {
-          const { shell, args, env } = this.shellSpawnParts(sessionId, false, hooks);
-          return {
-            file: shell,
-            args,
-            cwd: worktreePath,
-            env,
-            cols: 120,
-            rows: 32,
-          };
-        });
+        await this.deps.runtimeLauncher.launch(
+          sessionId,
+          (hooks) => {
+            const { shell, args, env } = this.shellSpawnParts(sessionId, false, hooks);
+            return {
+              file: command ? '/bin/sh' : shell,
+              args: command ? terminalCommandArgs(command, shell, args) : args,
+              cwd: command?.cwd ?? worktreePath,
+              env: { ...env, ...command?.env },
+              cols: 120,
+              rows: 32,
+            };
+          },
+          undefined,
+          command?.managedRunDirectory,
+        );
       } catch (error) {
         // Prepared intent may already be executing. Never erase that ownership
         // or fall back to another spawn after a missing supervisor response.

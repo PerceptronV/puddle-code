@@ -25,6 +25,7 @@ import {
 import { codeSearchDirectories, findCodeExecutable } from './discovery.js';
 import { CODE_RECIPES, recipeCommand, type CodeRecipe } from './recipes.js';
 import type { CodeTerminalLauncher } from './terminal.js';
+import type { RuntimeStore } from '../db/stores/runtimes.js';
 
 interface CodeProviderDeps extends WorktreeDeps {
   discover?: (names: readonly string[]) => string | null;
@@ -32,6 +33,7 @@ interface CodeProviderDeps extends WorktreeDeps {
   timeoutMs?: number;
   notebooks?: NotebookKernels;
   launchTerminal?: CodeTerminalLauncher;
+  runtimes?: RuntimeStore;
 }
 
 /** Manual host execution through the ordinary compilation lifecycle and authority. */
@@ -172,6 +174,7 @@ export class CodeProvider implements CompilationProvider {
         if (this.terminal && this.deps.launchTerminal) {
           const launched = await this.deps.launchTerminal(request, options, {
             cwd: context.cwd,
+            managedRunDirectory: realpathSync(runDir),
             env: { PATH: context.env.PATH },
             commands: [command, ...(this.recipe.compiled ? [{ file: binary, args: [] }] : [])],
           });
@@ -268,7 +271,10 @@ export class CodeProvider implements CompilationProvider {
     const entries = await readdir(runs, { withFileTypes: true });
     for (const entry of entries
       .filter(
-        (entry) => entry.isDirectory() && !this.activeRuns.has(join(canonicalRuns, entry.name)),
+        (entry) =>
+          entry.isDirectory() &&
+          !this.activeRuns.has(join(canonicalRuns, entry.name)) &&
+          !this.deps.runtimes?.hasUnreleasedCodeRun(join(canonicalRuns, entry.name)),
       )
       .sort((a, b) => b.name.localeCompare(a.name))
       .slice(5)) {

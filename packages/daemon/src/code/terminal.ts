@@ -8,6 +8,8 @@ import { NO_SESSION, type WorktreeDeps } from '../http/routes/worktrees/worktree
 import type { PtyExitEvent, PtyManager } from '../pty/pty-manager.js';
 import type { SessionService } from '../sessions/service.js';
 import type { TerminalCommand } from '../sessions/terminal-command.js';
+import type { RuntimeStore } from '../db/stores/runtimes.js';
+import type { RuntimeReconciler } from '../runtime/reconcile.js';
 
 export type CodeTerminalLauncher = (
   source: CompilationFileTarget,
@@ -21,9 +23,19 @@ export function createCodeTerminalLauncher(
     projects: ProjectStore;
     service: SessionService;
     ptys: PtyManager;
+    runtimes?: RuntimeStore;
+    runtimeReconciler?: RuntimeReconciler;
   },
 ): CodeTerminalLauncher {
   const pendingExits = new Map<string, () => void>();
+  const pendingRuntimeExits = new Map<string, () => void>();
+  deps.runtimeReconciler?.on('changed', () => {
+    for (const [id, resolve] of pendingRuntimeExits) {
+      if (deps.runtimes?.get(id)?.state !== 'exited') continue;
+      pendingRuntimeExits.delete(id);
+      resolve();
+    }
+  });
   deps.ptys.on('exit', (event: PtyExitEvent) => {
     if (event.term !== 'agent') return;
     pendingExits.get(event.stream)?.();
@@ -63,7 +75,9 @@ export function createCodeTerminalLauncher(
       command,
     );
     const exited = new Promise<void>((resolve) => {
-      if (deps.ptys.has(session.id, 'agent')) pendingExits.set(session.id, resolve);
+      const owner = deps.runtimes?.selectedOwner(session.id);
+      if (owner && owner.state !== 'exited') pendingRuntimeExits.set(owner.runtime_id, resolve);
+      else if (deps.ptys.has(session.id, 'agent')) pendingExits.set(session.id, resolve);
       else resolve();
     });
     return { session, exited };

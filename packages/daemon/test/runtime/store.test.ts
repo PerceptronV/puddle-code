@@ -83,6 +83,30 @@ function fixture() {
 }
 
 describe('durable runtime bindings', () => {
+  it('commits code-run retention with launch intent and releases only after clean owner exit', () => {
+    const { db, store, input } = fixture();
+    const launch = { ...input, codeRunDirectory: '/tmp/managed-code-run' };
+    db.exec(
+      "CREATE TRIGGER fail_code_run BEFORE INSERT ON runtime_code_runs BEGIN SELECT RAISE(ABORT, 'retention unavailable'); END",
+    );
+    expect(() => store.prepare(launch)).toThrow('retention unavailable');
+    expect(store.get(input.identity.runtime_id)).toBeNull();
+    db.exec('DROP TRIGGER fail_code_run');
+    const binding = store.prepare(launch);
+    expect(store.prepare(launch)).toEqual(binding);
+    expect(() => store.prepare({ ...launch, codeRunDirectory: '/tmp/other-run' })).toThrow(
+      'different inputs',
+    );
+    expect(store.hasUnreleasedCodeRun(launch.codeRunDirectory)).toBe(true);
+    store.finish(binding.runtime_id, 'failed', () => {});
+    expect(store.hasUnreleasedCodeRun(launch.codeRunDirectory)).toBe(true);
+    // Simulate later verified descendant cleanup; a failed binding alone never suffices.
+    db.prepare("UPDATE runtime_bindings SET state = 'exited' WHERE runtime_id = ?").run(
+      binding.runtime_id,
+    );
+    expect(store.hasUnreleasedCodeRun(launch.codeRunDirectory)).toBe(false);
+  });
+
   it('keeps durable owners out of legacy boot interruption even when their processes are unavailable', () => {
     const { db, store, input, session, sessions, projects, createSession } = fixture();
     const binding = store.prepare(input);

@@ -2,7 +2,7 @@
 
 Status: refactoring plan with initial implementation groundwork, 2026-11-03.
 Default launches still use daemon-owned PTYs; an explicit daemon composition
-option now launches ordinary terminals and interactive agents independently. Non-interrupting
+option now launches terminals and interactive agents independently. Non-interrupting
 installed upgrades are not yet enabled.
 This document describes the intended refactor; [SPEC.md](../../SPEC.md) continues
 to describe shipped behaviour. Update the specification, protocol documentation,
@@ -167,12 +167,13 @@ Implementation evidence so far:
   Headless/programme launches and controls still need durable operation-to-runtime/
   turn bindings. Full account migration, notification/theme/title parity and native
   provider acceptance remain required before default rollout.
-- Code-execution
-  terminals remain on the legacy launch path until managed run directories have
-  durable owner references and external exit observation: their current in-memory
-  PTY cleanup would otherwise delete files used by a surviving execution. Move
-  this path with retention before enabling the backend by default; it remains
-  part of the requested runtime model, not a scope exclusion.
+- Code-execution terminals now use the same opt-in owner path. Migration 034
+  records their canonical managed run directories atomically with launch intent;
+  cleanup after daemon replacement retains them until their exact owner exits
+  cleanly. Failed/interrupted/unavailable owners remain protected. External exit
+  observation replaces legacy PTY callbacks. An isolated real-daemon test preserves
+  a programme's PID and in-memory counter across replacement and seven subsequent
+  runs, then verifies cleanup after explicit stop and no programme replay on resume.
 
 These are foundations for phases 0–3, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native

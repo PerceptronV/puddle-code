@@ -31,6 +31,7 @@ import { migration030 } from './030-runtime-segments.js';
 import { migration031 } from './031-runtime-observations.js';
 import { migration032 } from './032-runtime-segment-terminals.js';
 import { migration033 } from './033-runtime-stop-requests.js';
+import { migration034 } from './034-runtime-code-runs.js';
 
 export interface Migration {
   version: number;
@@ -73,4 +74,5 @@ export const MIGRATIONS: Migration[] = [
   migration031,
   migration032,
   migration033,
+  migration034,
 ];
