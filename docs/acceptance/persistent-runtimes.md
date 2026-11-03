@@ -185,6 +185,30 @@ The expanded runtime/database/session/PTY/host-control suite passed 342 tests in
 45 files, with the native supervisor test skipped. The final focused recovery and
 daemon-adoption run passed 12 tests. Typecheck, scoped lint and formatting passed.
 
+
+`runtime/terminal-gateway.test.ts` now attaches real WebSockets to an isolated
+production daemon controlling the fake-provider owner. Two daemon lifetimes
+preserve the main PID, shell variable and terminal input; `stty size` verifies
+resize delivery. A native switch closes stale viewers, the new placement receives
+live output, and the old placement restores its own checkpoint without later
+output or write access. A third daemon boot after owner exit restores the final checkpoint
+without restarting the agent. `runtime/terminal-view.test.ts` checks snapshot cursor
+filtering, authority revocation during capture, native-switch/disconnect fences,
+bounded queues, exit during capture and ordered Unicode paste chunks. A lost chunk
+response abandons remaining input. Recovery tests also verify explicit selection
+of the legacy backend after a later legacy resume, preserving historical identity.
+Additional-shell/session controls, creation, notifications, ports, themes and
+production retention remain integration gates.
+
+
+The terminal integration regression run passed 348 tests, with one onboarding
+watcher timeout and the native supervisor test skipped. The watcher passed in
+isolation, then all 41 session-service tests passed together. The final focused
+terminal/migration/reconciliation run passed 11 tests; the extended owner-exit
+checkpoint test also passed. Typecheck, scoped lint and formatting passed.
+Migration coverage deliberately leaves older historical generations unresolved
+when only current live terminal evidence exists.
+
 ## Remaining release gates
 
 Record platform, Node, release and provider versions with results. Run native

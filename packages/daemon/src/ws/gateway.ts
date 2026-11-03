@@ -1,3 +1,4 @@
+import type { RuntimeTerminals, RuntimeTerminalView } from '../runtime/terminals.js';
 import type { ProfileAccess } from '../security/profile-access.js';
 import type { AuthorityResource, LeaseRegistry } from '../security/leases.js';
 import { homedir } from 'node:os';
@@ -27,6 +28,7 @@ import { ApiError } from '../http/errors.js';
 import { stripDeviceReplies } from './device-replies.js';
 
 export interface WsGatewayDeps {
+  runtimeTerminals?: RuntimeTerminals;
   authority: LeaseRegistry;
   profileAccess?: ProfileAccess;
   ptys: PtyManager;
@@ -71,6 +73,7 @@ interface PendingAttach {
  * first message — browsers cannot set WS headers.
  */
 export class WsGateway {
+  private readonly externalViews = new Map<string, Map<WSContext, RuntimeTerminalView>>();
   private readonly resources = new Map<WSContext, AuthorityResource>();
   private readonly viewers = new Map<string, Set<WSContext>>();
   private readonly statusSubs = new Set<WSContext>();
@@ -221,7 +224,9 @@ export class WsGateway {
           );
         switch (msg.t) {
           case 'attach': {
-            this.assertStream(msg.session);
+            const external = this.deps.runtimeTerminals?.hasSession(msg.session) ?? false;
+            if (external) this.deps.service.get(msg.session);
+            else this.assertStream(msg.session);
             const key = this.key(msg.session, msg.term);
             // The canonical terminal has already parsed output waiting in our
             // WS batch. Deliver that batch only to the OLD viewers first, or
@@ -233,6 +238,40 @@ export class WsGateway {
             set.add(ws);
             attached.add(key);
             this.responders.set(key, ws);
+            if (external) {
+              this.externalViews.get(key)?.get(ws)?.dispose();
+              let views = this.externalViews.get(key);
+              if (!views) this.externalViews.set(key, (views = new Map()));
+              this.pendingAttaches.get(key)?.delete(ws);
+              let view: RuntimeTerminalView;
+              try {
+                view = this.deps.runtimeTerminals!.open(msg.session, msg.term, {
+                  valid: () =>
+                    ws.readyState === 1 &&
+                    !!this.resources.get(ws)?.valid() &&
+                    (!resource?.profile ||
+                      !!this.deps.profileAccess?.session(resource.profile, msg.session)),
+                  send: (message) => this.send(ws, message),
+                  reconnect: () => ws.close(1012, 'runtime_terminal_changed'),
+                });
+              } catch (error) {
+                this.dropViewer(key, ws);
+                attached.delete(key);
+                throw error;
+              }
+              views.set(ws, view);
+              void view.start(msg.cols, msg.rows).catch(() => {
+                if (this.externalViews.get(key)?.get(ws) !== view) return;
+                this.dropViewer(key, ws);
+                attached.delete(key);
+                this.send(ws, { t: 'error', message: 'could not restore runtime terminal' });
+              });
+              break;
+            }
+            const oldExternal = this.externalViews.get(key);
+            oldExternal?.get(ws)?.dispose();
+            oldExternal?.delete(ws);
+            if (oldExternal?.size === 0) this.externalViews.delete(key);
             let pendingForKey = this.pendingAttaches.get(key);
             if (!pendingForKey) this.pendingAttaches.set(key, (pendingForKey = new Map()));
             // A duplicate attach supersedes the earlier snapshot attempt but
@@ -254,20 +293,34 @@ export class WsGateway {
             break;
           }
           case 'stdin': {
-            this.assertStream(msg.session);
+            const external =
+              this.externalViews.get(this.key(msg.session, msg.term))?.has(ws) ||
+              (this.deps.runtimeTerminals?.hasSession(msg.session) ?? false);
+            if (!external) this.assertStream(msg.session);
             const responder = this.responders.get(this.key(msg.session, msg.term));
             const data =
               responder === undefined || responder === ws ? msg.data : stripDeviceReplies(msg.data);
-            if (data !== '') this.deps.ptys.write(msg.session, msg.term, data);
+            if (data !== '') {
+              if (external)
+                this.externalCommand(ws, msg.session, msg.term, (view) => view.input(data));
+              else this.deps.ptys.write(msg.session, msg.term, data);
+            }
             break;
           }
           case 'resize': {
-            this.assertStream(msg.session);
+            const external =
+              this.externalViews.get(this.key(msg.session, msg.term))?.has(ws) ||
+              (this.deps.runtimeTerminals?.hasSession(msg.session) ?? false);
+            if (!external) this.assertStream(msg.session);
             // The resize that wins the PTY size also wins the responder role:
             // this viewer's grid is now the one the PTY believes in.
             const key = this.key(msg.session, msg.term);
             if (this.viewers.get(key)?.has(ws)) this.responders.set(key, ws);
-            this.deps.ptys.resize(msg.session, msg.term, msg.cols, msg.rows);
+            if (external)
+              this.externalCommand(ws, msg.session, msg.term, (view) =>
+                view.resize(msg.cols, msg.rows),
+              );
+            else this.deps.ptys.resize(msg.session, msg.term, msg.cols, msg.rows);
             break;
           }
           case 'detach': {
@@ -318,6 +371,27 @@ export class WsGateway {
     return { onMessage, onClose };
   }
 
+  private externalCommand(
+    ws: WSContext,
+    stream: string,
+    term: string,
+    command: (view: RuntimeTerminalView) => Promise<void>,
+  ): void {
+    const view = this.externalViews.get(this.key(stream, term))?.get(ws);
+    if (!view)
+      throw ApiError.conflict(
+        'terminal_not_attached',
+        'Attach the runtime terminal before sending input.',
+      );
+    void command(view).catch(() =>
+      this.send(ws, {
+        t: 'error',
+        message:
+          'Runtime terminal command failed; reconnect before trying again. Input was not replayed.',
+      }),
+    );
+  }
+
   /** Session uuids must exist; `login-<id>` and `home` streams attach like sessions (SPEC §6). */
   private assertStream(stream: string): void {
     if (stream === HOME_STREAM || /^login-[0-9]+$/.test(stream)) return;
@@ -365,6 +439,10 @@ export class WsGateway {
    * every output chunk of a stream nobody watches, forever.
    */
   private dropViewer(key: string, ws: WSContext): void {
+    const external = this.externalViews.get(key);
+    external?.get(ws)?.dispose();
+    external?.delete(ws);
+    if (external?.size === 0) this.externalViews.delete(key);
     const pendingForKey = this.pendingAttaches.get(key);
     pendingForKey?.delete(ws);
     if (pendingForKey?.size === 0) this.pendingAttaches.delete(key);

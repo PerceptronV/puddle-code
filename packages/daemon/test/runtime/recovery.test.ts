@@ -255,6 +255,7 @@ it.each([
       }, 'Daemon did not recover the final runtime record');
       expect(f.runtimes.get(f.binding.runtime_id)?.state).toBe(ended ? 'exited' : 'interrupted');
       expect(f.sessions.get(f.session.id).status).toBe(status);
+      expect(f.runtimes.usesExternalTerminals(f.session.id)).toBe(ended || !autoResume);
       expect(f.events.list(f.session.id).filter((event) => event.type === 'resumed')).toHaveLength(
         !ended && autoResume ? 1 : 0,
       );

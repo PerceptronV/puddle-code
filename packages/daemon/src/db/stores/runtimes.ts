@@ -94,6 +94,47 @@ export class RuntimeStore {
     );
   }
 
+  useLegacyTerminals(sessionId: string): void {
+    if (this.ownerOf(sessionId)) throw new Error('Cannot replace a live external runtime');
+    this.setTerminalOwner(sessionId, null);
+  }
+
+  private setTerminalOwner(sessionId: string, runtimeId: string | null): void {
+    this.db
+      .prepare(
+        `INSERT INTO terminal_placements (session_id, runtime_id) VALUES (?, ?)
+      ON CONFLICT(session_id) DO UPDATE SET runtime_id = excluded.runtime_id`,
+      )
+      .run(sessionId, runtimeId);
+  }
+
+  usesExternalTerminals(sessionId: string): boolean {
+    return !!this.db
+      .prepare('SELECT 1 FROM terminal_placements WHERE session_id = ? AND runtime_id IS NOT NULL')
+      .get(sessionId);
+  }
+
+  terminalForPlacement(
+    sessionId: string,
+    term: string,
+  ): (RuntimeSegmentBinding & { generation: string }) | null {
+    return (
+      (this.db
+        .prepare(
+          `
+      SELECT s.*, t.generation FROM runtime_segments s
+      JOIN runtime_bindings r USING (runtime_id)
+      JOIN runtime_segment_terminals t USING (segment_id)
+      JOIN terminal_placements p ON p.session_id = s.session_id AND p.runtime_id = s.runtime_id
+      WHERE s.session_id = ? AND t.term = ?
+      ORDER BY r.created_at DESC, s.start_cursor DESC LIMIT 1
+    `,
+        )
+        .get(sessionId, term) as (RuntimeSegmentBinding & { generation: string }) | undefined) ??
+      null
+    );
+  }
+
   /** Only committed database state can authorise a current owner placement. */
   placementBinding(id: string): RuntimePlacementBinding {
     const current = this.get(id);
@@ -180,6 +221,7 @@ export class RuntimeStore {
           'INSERT INTO runtime_segments (runtime_id, segment_id, session_id, start_cursor) VALUES (?, ?, ?, 0)',
         )
         .run(identity.runtime_id, identity.runtime_id, identity.session_id);
+      this.setTerminalOwner(identity.session_id, identity.runtime_id);
       return this.get(identity.runtime_id)!;
     })();
   }
@@ -281,6 +323,7 @@ export class RuntimeStore {
           event.state === 'running' ? null : new Date().toISOString(),
           id,
         );
+      if (current.active_session_id !== event.sessionId) this.setTerminalOwner(event.sessionId, id);
       apply(current);
       return true;
     })();

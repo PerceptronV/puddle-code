@@ -52,6 +52,7 @@ import { SessionService } from './sessions/service.js';
 import { RuntimeStore } from './db/stores/runtimes.js';
 import { RuntimeConnections } from './runtime/connections.js';
 import { RuntimeReconciler } from './runtime/reconcile.js';
+import { RuntimeTerminals } from './runtime/terminals.js';
 import { WorktreeManager } from './worktrees/manager.js';
 import { WsGateway } from './ws/gateway.js';
 import { PuddlangService } from './puddlang/service.js';
@@ -126,6 +127,12 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     });
     failedStartup.push(() => runtimeConnections.close());
     failedStartup.push(() => runtimeReconciler.close());
+    const runtimeTerminals = new RuntimeTerminals(
+      paths.home,
+      runtimes,
+      runtimeConnections,
+      runtimeReconciler.observations,
+    );
     await runtimeConnections.connect();
     const compilationSettings = new CompilationSettingsStore(db);
 
@@ -308,6 +315,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
 
     const tracker = new ProxySocketTracker();
     const gateway = new WsGateway({
+      runtimeTerminals,
       profileAccess: new ProfileAccess({ profiles, projects, sessions }),
       authority,
       ptys,

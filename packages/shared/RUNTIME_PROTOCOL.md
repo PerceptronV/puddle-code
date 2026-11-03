@@ -247,8 +247,8 @@ Explicit `capture-env` and `clear-env` commands use normal controller fencing an
 sequence admission. They reserve journal capacity before changing the gate or
 clearing the saved map, and retain the corresponding decision as an event. They
 do not edit already-running shell processes, replay uncertain requests or write
-the application database. Production settings/purge routing and transactional
-application of these observations remain part of daemon adoption integration.
+the application database. Transactional application of these observations now precedes binding and
+acknowledgement. Production settings/purge routing remains to be integrated.
 
 ## Native conversation ownership
 
@@ -314,9 +314,21 @@ connections; the exclusive controller claim serialises its replacement.
 The daemon now holds this claim for its application lifetime and opens known
 owner connections before legacy boot reconciliation. Durable live bindings are
 protected from blanket interruption and legacy controls, even after connection
-failure. These inspection connections do not acknowledge journals; production
-event adoption and external terminal routing remain required. Shutdown detaches
+failure. The reconciler commits retained observations and immutable segment
+mappings before binding the placement and acknowledging journal pages. A confirmed
+owner loss imports all final pages under the exclusive claim before closing its
+binding; incomplete history leaves reconciliation pending. Shutdown detaches
 owners and releases the controller after application writers have stopped.
+
+Application terminal viewers now use these existing private messages without a
+wire-shape change. Migration 032 retains exact segment/terminal generations and
+explicit placement-to-backend selection. Viewers hold the resolved address for
+snapshot/input/resize, buffer only bounded output behind the snapshot cursor and
+recheck authority before dispatch. Native switches or disconnects invalidate the
+attachment; uncertain commands and queued paste suffixes are never replayed.
+Historical screens use the same validated immutable checkpoint reader when their
+owner is absent. Production runtime creation, lifecycle/additional-shell controls,
+port/theme/notification integration and retention remain separate gates.
 
 Confirmed loss is recorded under the runtime's own exclusive claim. A durable
 retirement marker fences any delayed launcher before releasing that lock. A

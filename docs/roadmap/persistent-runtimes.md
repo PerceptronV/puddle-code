@@ -70,21 +70,21 @@ Implementation evidence so far:
   Isolated tests switch native refs twice while the controller is absent, then
   verify raw-log boundaries, historical screens, mouse modes, main/shell PIDs and
   shell variables. Bounded checkpoint work reports gaps on failure. Durable
-  placement adoption now consumes the segment boundaries; terminal routing and
-  production retention/budget reclamation still need integration; the current conservative lifetime budgets are temporary.
+  placement adoption and terminal views now consume segment boundaries;
+  production retention/budget reclamation still needs integration; the current conservative lifetime budgets are temporary.
 - Migration 030 commits immutable segment-to-placement history with application
   effects and observation cursors. Native switches clear owner bindings; explicit
   placement addresses fence mutations until the daemon binds committed state.
   Tests exercise rollback, stale mutations and a lost binding response with an
   isolated application database and fake provider. Production journal reconciliation now consumes this contract; SessionService
-  commands and terminal routing still need integration.
+  session lifecycle and additional-shell controls still need integration.
 - Daemon boot now holds the controller claim, authenticates known owners with
   bounded concurrency, and excludes durable external placements from legacy
   interruption/auto-resume. Shutdown detaches owner connections. An isolated real
   daemon process preserves a separate shell's PID and variable through repeated
   start/stop cycles, including failed owner authentication. Legacy controls reject
-  unresolved external ownership. Authenticated owners now enter journal reconciliation; external terminal
-  routing and complete SessionService adoption remain outstanding.
+  unresolved external ownership. Authenticated owners now enter journal reconciliation and terminal attachment;
+  complete SessionService adoption remains outstanding.
 
 
 - Migration 031 retains private terminal/capture observations and bounded turn
@@ -108,6 +108,19 @@ Implementation evidence so far:
   resumable until provider descendant cleanup is proven.
   Supervisor-registration collection, orphan-sidecar recovery and production
   persistent launch/command routing remain separate integration work.
+
+
+- Migration 032 records exact terminal generations per segment and explicit
+  terminal-owner selection per placement. The production WebSocket gateway now
+  reads live snapshots, forwards input/resize and reads immutable historical
+  checkpoints for adopted owners. Real-daemon tests preserve PTY identity and
+  shell state across window attachments/restarts, then switch native refs and
+  verify separate historical output, including after owner exit. Tests cover
+  snapshot/output ordering,
+  authority revocation, bounded buffering, Unicode paste ordering and abandoning
+  queued input after an uncertain response. New runtime creation, extra-shell and
+  session lifecycle controls, port/notification/theme integration and retention
+  remain outstanding; no production launch uses this backend yet.
 
 These are foundations for phases 0–3, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native

@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events';
 import type { RuntimeBinding, RuntimeStore } from '../db/stores/runtimes.js';
 import type { RuntimeIdentity } from '@puddle/shared';
 import { connectRuntimeOwner } from './discovery.js';
@@ -21,7 +22,7 @@ export function runtimeBindingIdentity(binding: RuntimeBinding): RuntimeIdentity
  * never permission to resume or discard retained observations. SQLite bindings
  * remain authoritative until the event reconciler commits their outcomes.
  */
-export class RuntimeConnections {
+export class RuntimeConnections extends EventEmitter {
   private readonly controller: ReturnType<typeof acquireRuntimeController>;
   private readonly clients = new Map<string, RuntimeClient>();
   private readonly unavailable = new Set<string>();
@@ -38,6 +39,7 @@ export class RuntimeConnections {
       missing?: (id: string) => Promise<boolean>;
     } = {},
   ) {
+    super();
     this.controller = acquireRuntimeController(home);
   }
 
@@ -102,12 +104,15 @@ export class RuntimeConnections {
           client.once('disconnected', () => {
             if (this.clients.get(binding.runtime_id) !== client) return;
             this.clients.delete(binding.runtime_id);
+            this.emit('disconnected', binding.runtime_id);
             if (!this.closed) {
               this.unavailable.add(binding.runtime_id);
               this.schedule();
             }
           });
           await this.handlers.connected?.(binding.runtime_id, client);
+          if (this.clients.get(binding.runtime_id) === client)
+            this.emit('connected', binding.runtime_id, client);
         } catch {
           this.clients.get(binding.runtime_id)?.close();
           // Malformed records, a timeout and incompatible owners all preserve

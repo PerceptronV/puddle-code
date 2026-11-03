@@ -49,6 +49,15 @@ export class RuntimeObservationStore {
       .run(id, Number(state.captureEnabled), JSON.stringify(terminals));
   }
 
+  bindTerminal(segmentId: string, terminal: RuntimeTerminal): void {
+    this.db
+      .prepare(
+        `INSERT INTO runtime_segment_terminals (segment_id, term, generation) VALUES (?, ?, ?)
+      ON CONFLICT(segment_id, term) DO UPDATE SET generation = excluded.generation`,
+      )
+      .run(segmentId, terminal.term, terminal.generation);
+  }
+
   turn(id: string, turn: number): RuntimeTurnResult | null {
     const row = this.db
       .prepare('SELECT result FROM runtime_turns WHERE runtime_id = ? AND turn = ?')

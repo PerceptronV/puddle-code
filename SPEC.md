@@ -162,7 +162,7 @@ dispatch, retains results across controller replacement, and records cancellatio
 human takeover or runtime-exit interruption without replaying input. Runtime-owned
 helper copies, stable account dispatch and separate mutable turn records preserve
 managed hook/plugin code across account updates. Immutable executable/native
-dependency retention, production terminal routing and
+dependency retention, production runtime creation/control and
 programme reconciliation are still required before enablement.
 
 Experimental owners also retain private captured-environment and shell-directory
@@ -181,7 +181,7 @@ identity and never substitute a different segment. Native switches clear the
 owner's acknowledged placement; mutations require an explicit segment/placement
 address and remain fenced until the daemon commits and binds the new placement.
 Snapshot reads preserve the owner's grid rather than resizing it. Production
-terminal routing and retention must still integrate these records and replace the
+retention must still integrate these records and replace the
 foundation's conservative lifetime budgets before default enablement.
 
 Migration 029 adds `runtime_bindings` for immutable launch identity, active
@@ -209,17 +209,28 @@ command is retried. After acquiring the exclusive owner claim, the daemon fences
 any delayed start, imports all final journal pages and commits the ended binding
 atomically. Complete final exit records remain exited/failed; confirmed owner loss
 becomes interrupted and unresolved accepted turns retain an interrupted outcome.
-A journal gap or failed database commit preserves unresolved ownership. Confirmed terminal boot losses follow the configured auto-resume policy; natural
+A journal gap or failed database commit preserves unresolved ownership. Confirmed terminal boot losses follow the
+configured auto-resume policy; natural
 exits do not resume. Agent owner loss remains explicitly resumable until supervisor
 cleanup can prove provider sidecars and descendants have ended.
 Supervisor-registration collection, orphan-sidecar recovery and programme result
 consumption remain outstanding.
-External terminal routing is not enabled yet; affected placements reject legacy
-terminal, resume, kill, archive, migration and environment purge controls with
+Migration 032 records terminal generations per segment and explicitly selects each
+placement's terminal owner. Runtime launches/switches update that selection in the
+same transaction; a later legacy spawn records its own ownership instead of
+mistaking old external history for its current screen. Existing application
+WebSockets now attach to adopted owners for snapshots, input and resize. Each
+viewer retains its exact placement, segment and generation. Snapshot cursors
+exclude already-rendered output; bounded queues, disconnects and native switches
+require fresh attachments. Input is ordered, bounded and split at UTF-8 boundaries;
+an uncertain chunk abandons remaining queued input without replay. Authority is
+rechecked after snapshot work and before each mutation. Historical placements
+read their validated immutable checkpoints and reject input/resize.
+Session resume, kill, archive, migration, additional-shell controls and environment
+purge still reject unresolved external ownership with
 `runtime_reconciliation_required`. Inspection alone never acknowledges events or
 treats a connection failure as permission to retire an owner.
-The main daemon session service does not yet create or route commands to these
-external owners. Existing shutdown, bootstrap, upgrades and auto-resume therefore retain
+The main daemon session service does not yet create these external owners. Existing shutdown, bootstrap, upgrades and auto-resume therefore retain
 their documented interruption behaviour until the remaining integration and
 supervision gates are implemented and verified.
 

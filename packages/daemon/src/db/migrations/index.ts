@@ -29,6 +29,7 @@ import { migration028 } from './028-project-colour.js';
 import { migration029 } from './029-runtime-bindings.js';
 import { migration030 } from './030-runtime-segments.js';
 import { migration031 } from './031-runtime-observations.js';
+import { migration032 } from './032-runtime-segment-terminals.js';
 
 export interface Migration {
   version: number;
@@ -69,4 +70,5 @@ export const MIGRATIONS: Migration[] = [
   migration029,
   migration030,
   migration031,
+  migration032,
 ];

@@ -724,6 +724,7 @@ export class SessionService extends EventEmitter {
     this.assertLegacyRuntime(sessionId);
     const { shell, args, env } = this.shellSpawnParts(sessionId);
     try {
+      this.deps.runtimes?.useLegacyTerminals(sessionId);
       this.deps.ptys.spawn(
         sessionId,
         'agent',
@@ -1455,6 +1456,7 @@ export class SessionService extends EventEmitter {
     }
     try {
       this.assertLegacyRuntime(sessionId);
+      this.deps.runtimes?.useLegacyTerminals(sessionId);
       this.deps.ptys.spawn(
         sessionId,
         'agent',

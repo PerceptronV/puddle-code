@@ -201,35 +201,46 @@ export class RuntimeSegments {
   }
 
   async read(segment: string, term: string, generation: string): Promise<RuntimeCheckpoint> {
-    runtimeSegmentSchema.shape.id.parse(segment);
-    runtimeTerminalSchema.shape.term.parse(term);
-    runtimeTerminalSchema.shape.generation.parse(generation);
-    const file = this.file(segment, term, generation);
-    privatePath(file);
-    const handle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW);
-    let record: RuntimeCheckpoint;
-    try {
-      const stat = await handle.stat();
-      if (!stat.isFile() || stat.size > RUNTIME_LIMITS.frameBytes - 1024)
-        throw new Error('Runtime checkpoint exceeds its byte limit');
-      record = runtimeCheckpointSchema.parse(JSON.parse(await handle.readFile('utf8')));
-    } finally {
-      await handle.close();
-    }
-    for (const key of Object.keys(this.identity) as Array<keyof RuntimeIdentity>)
-      if (record.identity[key] !== this.identity[key])
-        throw new Error('Runtime checkpoint identity changed');
-    if (
-      record.segment.id !== segment ||
-      record.terminal.term !== term ||
-      record.terminal.generation !== generation
-    )
-      throw new Error('Runtime checkpoint address changed');
-    return record;
+    return readRuntimeCheckpoint(this.directory, this.identity, segment, term, generation);
   }
 
   private file(segment: string, term: string, generation: string): string {
     // The private protocol validates UUIDs and terminal names before this lookup.
     return join(this.directory, 'segments', `${segment}.${term}.${generation}.json`);
   }
+}
+
+/** Read the owner's immutable checkpoint without requiring a live control socket. */
+export async function readRuntimeCheckpoint(
+  directory: string,
+  identity: RuntimeIdentity,
+  segment: string,
+  term: string,
+  generation: string,
+): Promise<RuntimeCheckpoint> {
+  runtimeSegmentSchema.shape.id.parse(segment);
+  runtimeTerminalSchema.shape.term.parse(term);
+  runtimeTerminalSchema.shape.generation.parse(generation);
+  const file = join(directory, 'segments', `${segment}.${term}.${generation}.json`);
+  privatePath(file);
+  const handle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+  let record: RuntimeCheckpoint;
+  try {
+    const stat = await handle.stat();
+    if (!stat.isFile() || stat.size > RUNTIME_LIMITS.frameBytes - 1024)
+      throw new Error('Runtime checkpoint exceeds its byte limit');
+    record = runtimeCheckpointSchema.parse(JSON.parse(await handle.readFile('utf8')));
+  } finally {
+    await handle.close();
+  }
+  for (const key of Object.keys(identity) as Array<keyof RuntimeIdentity>)
+    if (record.identity[key] !== identity[key])
+      throw new Error('Runtime checkpoint identity changed');
+  if (
+    record.segment.id !== segment ||
+    record.terminal.term !== term ||
+    record.terminal.generation !== generation
+  )
+    throw new Error('Runtime checkpoint address changed');
+  return record;
 }

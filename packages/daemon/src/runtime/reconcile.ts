@@ -235,6 +235,8 @@ export class RuntimeReconciler extends EventEmitter {
           () => {
             if (sessionId !== binding.active_session_id) {
               const source = this.deps.sessions.get(binding.active_session_id);
+              for (const term of observations.terminals)
+                if (term.pid !== null) this.observations.bindTerminal(segment.id, term);
               this.deps.sessions.adoptRuntimeState(source.id, sessionId);
               this.deps.sessions.transferBranchOwnership(source.id, sessionId);
               this.deps.sessions.setStatus(source.id, 'exited');
@@ -469,6 +471,7 @@ export class RuntimeReconciler extends EventEmitter {
     }
     switch (event.t) {
       case 'terminal-created': {
+        this.observations.bindTerminal(binding.active_segment_id!, event.terminal);
         const previous = state.terminals.find((term) => term.term === event.terminal.term);
         if (previous?.pid != null) throw new Error('Runtime terminal was replaced before exiting');
         state.terminals = state.terminals.filter((term) => term.term !== event.terminal.term);
