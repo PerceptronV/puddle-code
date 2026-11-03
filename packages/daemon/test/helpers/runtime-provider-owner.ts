@@ -4,14 +4,14 @@ import { atomicPrivateJson } from '@puddle/shared/node';
 import { AdapterRegistry } from '../../src/agents/registry.js';
 import { RuntimeHost } from '../../src/runtime/host.js';
 import { RuntimeJournal } from '../../src/runtime/journal.js';
-import { runtimeTestAdapter } from './runtime-test-adapter.js';
+import { runtimeTestAdapter, runtimePresetTestAdapter } from './runtime-test-adapter.js';
 
 const args = process.argv.slice(2);
 const host = await RuntimeHost.start(
   args[1]!,
   args[3]!,
   'runtime-test',
-  new AdapterRegistry([runtimeTestAdapter]),
+  new AdapterRegistry([runtimeTestAdapter, runtimePresetTestAdapter]),
 );
 // Deterministically yield journal admission after the fixture controller's
 // command has entered the host. No gate exists in ordinary fixture runs.

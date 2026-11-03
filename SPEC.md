@@ -248,7 +248,7 @@ owners never fall through to stale recorded PIDs or legacy PTYs. Cached owner
 references are bounded across old placements. No new application/remote shape is
 needed for this integration.
 An explicit `DaemonOptions.runtime` composition option now routes ordinary terminal
-creation and explicit terminal resume through `RuntimeLauncher`. Default installed
+and interactive agent creation/resume through `RuntimeLauncher`. Default installed
 launches retain the in-process backend. The launcher writes a private validated
 launch context and SQLite intent before one supervisor dispatch, holds a launch
 claim through adoption, and waits for authenticated, reconciled readiness. Recovery
@@ -257,7 +257,15 @@ reply is inspected without replay or fallback spawning; shutdown drains launches
 before closing application writers. New owners retain the daemon environment below
 captured values and command overrides, plus private shell-hook copies reused by
 later shells. Missing pinned copies never fall back to mutable daemon hooks.
-Agent creation and code-execution terminals still use the legacy path. Code execution
+Interactive launches retain adapter-declared preset conversation ids separately
+from resume refs. Providers that mint ids retain a bounded pre-launch snapshot in
+private context; explicit recovery excludes those ids and refuses ambiguous new
+candidates. Live rebinding uses only the owner's exact lifecycle journal. Installed
+version checks determine `native_sync`, including after offline switches; lifecycle
+events alone never promote a fallback owner. Confirmed failed launches reconcile
+their final records without another dispatch. Headless/programme agent creation
+still uses the legacy path until durable operation-to-runtime/turn routing exists.
+Code-execution terminals also remain legacy. Code execution
 must move together with durable managed-run retention and external exit observation;
 its existing cleanup is tied to in-process PTYs. Installed selectors, automatic
 capability detection, default rollout and native supervisor acceptance remain

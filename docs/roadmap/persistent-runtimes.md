@@ -2,7 +2,7 @@
 
 Status: refactoring plan with initial implementation groundwork, 2026-11-03.
 Default launches still use daemon-owned PTYs; an explicit daemon composition
-option now launches ordinary terminal placements independently. Non-interrupting
+option now launches ordinary terminals and interactive agents independently. Non-interrupting
 installed upgrades are not yet enabled.
 This document describes the intended refactor; [SPEC.md](../../SPEC.md) continues
 to describe shipped behaviour. Update the specification, protocol documentation,
@@ -155,7 +155,19 @@ Implementation evidence so far:
   terminal via HTTP, preserves its PID/cwd/variable across replacement, then
   proves explicit kill/resume creates a fresh owner. The supervisor in this test
   is deterministic; installed systemd/launchd acceptance remains outstanding.
-- Agent creation still needs exact native-ref launch integration. Code-execution
+- Interactive agent creation/resume now uses the same opt-in launcher, with exact
+  preset-id seeds and private pre-launch snapshots for providers that mint ids.
+  Recovery excludes existing ids and refuses ambiguous candidates; live native
+  switches still require exact adapter lifecycle evidence. Authoritative owner
+  version checks retain truthful fallback synchronisation after offline switches.
+  Known failed startup records permit exclusive retirement and final reconciliation,
+  never a second dispatch. An isolated real-daemon test creates a fake provider,
+  preserves its PTY and sidecar through replacement and an offline conversation
+  switch, then explicitly resumes the exact new native ref in a new owner.
+  Headless/programme launches and controls still need durable operation-to-runtime/
+  turn bindings. Full account migration, notification/theme/title parity and native
+  provider acceptance remain required before default rollout.
+- Code-execution
   terminals remain on the legacy launch path until managed run directories have
   durable owner references and external exit observation: their current in-memory
   PTY cleanup would otherwise delete files used by a surviving execution. Move

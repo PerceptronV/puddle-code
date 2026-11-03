@@ -5,6 +5,7 @@ import {
   RUNTIME_LIMITS,
   RUNTIME_PROTOCOL_VERSION,
   runtimeLaunchSchema,
+  runtimeStateSchema,
   type RuntimeCommand,
   type RuntimeLaunch,
   type RuntimeProviderLaunch,
@@ -20,7 +21,7 @@ import { ApiError } from '../http/errors.js';
 import { acquireRuntimeClaim } from './claims.js';
 import type { RuntimeConnections } from './connections.js';
 import type { RuntimeReconciler } from './reconcile.js';
-import { runtimeDirectory } from './storage.js';
+import { runtimeDirectory, readRuntimeJson } from './storage.js';
 import { startRuntimeService } from './supervisor.js';
 import { pinRuntimeShellHooks } from './shell-hooks.js';
 import type { ShellHooks } from '../pty/shell-hooks.js';
@@ -111,6 +112,8 @@ export class RuntimeLauncher {
           values: this.deps.sessions.getEnv(sessionId),
         },
       });
+      if ((provider?.resume_ref ?? provider?.initial_ref ?? null) !== session.agent_session_ref)
+        throw new Error('Runtime launch conversation does not match its placement');
       if (Buffer.byteLength(JSON.stringify(launch)) > RUNTIME_LIMITS.frameBytes)
         throw new Error('Runtime launch context exceeds its private record limit');
       atomicPrivateJson(join(directory, 'launch.json'), launch);
@@ -141,6 +144,29 @@ export class RuntimeLauncher {
           this.deps.runtimes.terminalForPlacement(binding.active_session_id, 'agent')
         )
           return;
+        if (binding?.state === 'exited') return;
+        if (binding?.state === 'failed')
+          throw ApiError.conflict(
+            'runtime_launch_failed',
+            'The runtime exited before completing launch. Its command was not replayed.',
+          );
+        if (!client) {
+          try {
+            const final = runtimeStateSchema.parse(readRuntimeJson(join(directory, 'state.json')));
+            if (
+              ['exited', 'failed'].includes(final.state) &&
+              Object.entries(identity).every(
+                ([key, value]) => final.identity[key as keyof typeof identity] === value,
+              )
+            ) {
+              // A terminal record is only a reason to attempt exclusive retirement;
+              // the owner claim still decides whether its process has really gone.
+              claim.release();
+            }
+          } catch {
+            /* Missing/incomplete records keep launch ownership protected. */
+          }
+        }
         if (Date.now() >= deadline) break;
         await new Promise((resolve) => setTimeout(resolve, delay));
         delay = Math.min(delay * 2, 1000);

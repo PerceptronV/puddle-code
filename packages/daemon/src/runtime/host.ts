@@ -92,7 +92,7 @@ export class RuntimeHost {
         this.directory,
         this.launch.identity,
         this.logs,
-        this.launch.provider?.resume_ref ?? null,
+        this.launch.provider?.resume_ref ?? this.launch.provider?.initial_ref ?? null,
       );
       this.ptys = new PtyManager(this.logs, undefined, join(this.directory, 'screens'), () => {
         this.persistencePending = true;

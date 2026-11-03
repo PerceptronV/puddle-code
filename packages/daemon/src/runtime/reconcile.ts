@@ -463,7 +463,7 @@ export class RuntimeReconciler extends EventEmitter {
         agent_mode: source.agent_mode,
         title: null,
         status: 'exited',
-        native_sync: 'full',
+        native_sync: source.native_sync ?? 'pending',
         skip_permissions: source.skip_permissions,
       });
     }
@@ -544,7 +544,6 @@ export class RuntimeReconciler extends EventEmitter {
         this.observations.saveTurn(binding, event.result);
         break;
       case 'native-lifecycle':
-        this.deps.sessions.setNativeSync(id, 'full');
         if (event.lifecycle.event === 'session_end')
           this.deps.events.record(id, 'native_session_end', {
             source: event.lifecycle.source,
@@ -570,10 +569,11 @@ export class RuntimeReconciler extends EventEmitter {
         state.state === 'failed' &&
         state.agent === null &&
         state.terminals.length === 0 &&
-        binding.conversation_id === null;
+        state.history.current.agent_session_ref === this.segment(binding).agent_session_ref;
       if (
-        (!failedBeforeAgent && state.agent?.provider !== (binding.agent_type ?? undefined)) ||
-        (state.agent?.agent_session_ref ?? null) !== this.segment(binding).agent_session_ref
+        !failedBeforeAgent &&
+        (state.agent?.provider !== (binding.agent_type ?? undefined) ||
+          (state.agent?.agent_session_ref ?? null) !== this.segment(binding).agent_session_ref)
       )
         throw new Error('Runtime provider identity does not match its placement');
       const saved = this.observations.get(id);
@@ -604,7 +604,8 @@ export class RuntimeReconciler extends EventEmitter {
         main?.pid == null ? 'exited' : (state.agent?.status ?? 'running'),
       );
       if (state.agent)
-        this.deps.sessions.setNativeSync(binding.active_session_id, state.agent.native_sync);
+        for (const sessionId of this.deps.runtimes.selectedPlacements(id))
+          this.deps.sessions.setNativeSync(sessionId, state.agent.native_sync);
     })();
   }
 

@@ -99,6 +99,8 @@ it('atomically recovers native switches, environment and private turns without r
     ]);
     const switched = vi.fn();
     f.reconciler.on('session-switched', switched);
+    // A lifecycle observation alone cannot prove installed-version support.
+    f.sessions.setNativeSync(f.session.id, 'fallback');
     f.sessions.mergeEnv(f.session.id, { BEFORE_TRANSACTION: 'unchanged' }, []);
     f.db.exec(
       "CREATE TRIGGER fail_switch BEFORE INSERT ON events WHEN NEW.type = 'native_switched_to' BEGIN SELECT RAISE(ABORT, 'fixture storage failure'); END",
@@ -121,8 +123,13 @@ it('atomically recovers native switches, environment and private turns without r
       agent_session_ref: 'second',
       parent_conversation_id: f.sessions.get(f.session.id).conversation_id,
       branch_owner: true,
+      native_sync: 'fallback',
     });
-    expect(f.sessions.get(f.session.id)).toMatchObject({ status: 'exited', branch_owner: false });
+    expect(f.sessions.get(f.session.id)).toMatchObject({
+      status: 'exited',
+      branch_owner: false,
+      native_sync: 'fallback',
+    });
     expect(f.sessions.getEnv(f.session.id)).toEqual({
       INITIAL: 'seed',
       PRIVATE_VALUE: 'before-switch',

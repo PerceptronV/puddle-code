@@ -69,6 +69,7 @@ export interface SessionServiceDeps {
   runtimeControls?: RuntimeControls;
   runtimeLauncher?: RuntimeLauncher;
   runtimeShellHooks?: (runtimeId: string) => ShellHooks | null;
+  runtimePriorRefs?: (sessionId: string) => ReadonlySet<string> | undefined;
   conversations: ConversationStore;
   events: EventStore;
   worktrees: WorktreeManager;
@@ -506,7 +507,7 @@ export class SessionService extends EventEmitter {
         'starting',
         launchOpts,
       );
-    if (agentMode === 'headless') await spawn();
+    if (agentMode === 'headless' || this.deps.runtimeLauncher) await spawn();
     else
       await this.sessionRefs.launchAndCapture(
         session,
@@ -836,7 +837,8 @@ export class SessionService extends EventEmitter {
     if (session.kind === 'terminal') {
       const wasInterrupted = session.status === 'interrupted';
       await this.spawnTerminal(session.id, this.startDirOf(session));
-      this.transition(session.id, 'running');
+      if (!this.deps.runtimes?.usesExternalTerminals(session.id))
+        this.transition(session.id, 'running');
       this.deps.events.record(id, 'resumed', { was_interrupted: wasInterrupted });
       return this.get(id);
     }
@@ -857,7 +859,12 @@ export class SessionService extends EventEmitter {
     const ref =
       session.agent_mode === 'headless' && !session.agent_session_ref
         ? undefined
-        : await this.sessionRefs.resolveForResume(session, account, adapter);
+        : await this.sessionRefs.resolveForResume(
+            session,
+            account,
+            adapter,
+            this.deps.runtimePriorRefs?.(session.id),
+          );
 
     const wasInterrupted = session.status === 'interrupted';
     const { skip } = await this.resumeSpawn(session, account, adapter, project.profile_id, ref, {
@@ -920,13 +927,22 @@ export class SessionService extends EventEmitter {
       ref,
     );
     this.bindRuntimeConversation(session.id);
-    this.transition(session.id, 'running');
+    if (!this.deps.runtimes?.usesExternalTerminals(session.id))
+      this.transition(session.id, 'running');
     if (downgraded) {
-      this.deps.ptys.note(
-        session.id,
-        'agent',
-        'skip-permissions no longer permitted; continuing with prompts on.',
-      );
+      if (this.deps.runtimes?.ownerOf(session.id))
+        this.emit('notice', {
+          level: 'warning',
+          title: 'Permission prompts enabled',
+          detail: 'skip-permissions no longer permitted; continuing with prompts on.',
+          session: session.id,
+        } satisfies NoticeEvent);
+      else
+        this.deps.ptys.note(
+          session.id,
+          'agent',
+          'skip-permissions no longer permitted; continuing with prompts on.',
+        );
     }
     return { skip, downgraded };
   }
@@ -1033,7 +1049,7 @@ export class SessionService extends EventEmitter {
       // Path (b) rolls the copied files back and reverts the account (409).
       // Path (a) leaves `account_id` on the target — the conversation is
       // shared, so a plain retry resume recovers — and surfaces the error.
-      if (rollback) {
+      if (rollback && !this.deps.runtimes?.ownerOf(id)) {
         await rollback();
         this.deps.sessions.setAccountId(id, fromAccountId);
       }
@@ -1474,6 +1490,61 @@ export class SessionService extends EventEmitter {
       account.config_dir,
     ]);
     this.assertLegacyRuntime(sessionId);
+    // Headless programmes still require durable operation-to-turn routing before
+    // moving their creation path. Interactive identity follows the owner's journal.
+    if (this.deps.runtimeLauncher && this.deps.sessions.get(sessionId).agent_mode !== 'headless') {
+      try {
+        const opts = launchOpts ?? {
+          worktreePath,
+          sessionId,
+          skipPermissions: this.deps.sessions.get(sessionId).skip_permissions,
+        };
+        const initialRef =
+          !resumeRef && adapter.capabilities.presetSessionId
+            ? await adapter.resolveSessionRef(opts, account)
+            : undefined;
+        const priorRefs =
+          !resumeRef && !adapter.capabilities.presetSessionId && adapter.existingSessionRefs
+            ? [...(await adapter.existingSessionRefs(worktreePath, account))]
+            : undefined;
+        if (initialRef !== undefined) this.deps.sessions.setAgentSessionRef(sessionId, initialRef);
+        await this.deps.runtimeLauncher.launch(
+          sessionId,
+          () => ({
+            file: adapter.binary,
+            args: [],
+            cwd: worktreePath,
+            env: {},
+            cols: 120,
+            rows: 32,
+          }),
+          {
+            id: adapter.id,
+            config_dir: account.config_dir,
+            mode: 'interactive',
+            skip_permissions: opts.skipPermissions,
+            ...(opts.prompt === undefined ? {} : { prompt: opts.prompt }),
+            ...(resumeRef === undefined ? {} : { resume_ref: resumeRef }),
+            ...(initialRef === undefined ? {} : { initial_ref: initialRef }),
+            ...(priorRefs === undefined ? {} : { prior_refs: priorRefs }),
+          },
+        );
+        if (this.deps.sessions.get(sessionId).native_sync === 'fallback')
+          this.emit('notice', {
+            level: 'warning',
+            title: 'Conversation switching is not synchronised',
+            detail: `${adapter.displayName} will keep running, but in-agent conversation switches will stay in this terminal tab.`,
+            session: sessionId,
+          } satisfies NoticeEvent);
+      } catch (error) {
+        if (!this.deps.runtimes?.ownerOf(sessionId) && !this.shuttingDown) {
+          this.transition(sessionId, 'exited');
+          this.deps.events.record(sessionId, 'spawn_failed', { message: String(error) });
+        }
+        throw error;
+      }
+      return;
+    }
     // The status-signal side-channel (SPEC §4): a per-spawn nonce plus the
     // daemon's own /agent-signal URL, injected so agent hook processes (which
     // inherit this env) can report running ⇄ waiting_input authoritatively.

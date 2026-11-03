@@ -126,3 +126,13 @@ export const runtimeTestAdapter: AgentAdapter = {
   prepareLifecycleLaunch: prepare,
   prepareHeadlessLaunch: prepare,
 };
+
+/** Preset-id interactive fallback; no native provider executable or lifecycle hook. */
+export const runtimePresetTestAdapter: AgentAdapter = {
+  ...runtimeTestAdapter,
+  id: 'runtime-preset-test',
+  capabilities: { ...runtimeTestAdapter.capabilities, presetSessionId: true },
+  prepareLifecycleLaunch: undefined,
+  prepareHeadlessLaunch: undefined,
+  resolveSessionRef: async (opts) => opts.sessionId,
+};

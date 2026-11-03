@@ -24,6 +24,7 @@ export const RUNTIME_LIMITS = {
   historySnapshotBytes: 64 * 1024 * 1024,
   pendingCheckpoints: 64,
   pendingCheckpointBytes: 16 * 1024 * 1024,
+  launchRefs: 16_384,
 } as const;
 
 const id = z.uuid();
@@ -142,17 +143,26 @@ export const runtimeCommandSchema = z.object({
 });
 export type RuntimeCommand = z.infer<typeof runtimeCommandSchema>;
 
-export const runtimeProviderLaunchSchema = z.object({
-  id: z.string().min(1).max(64),
-  config_dir: path,
-  mode: z.enum(['interactive', 'headless']),
-  skip_permissions: z.boolean(),
-  prompt: z
-    .string()
-    .max(64 * 1024)
-    .optional(),
-  resume_ref: z.string().min(1).max(200).optional(),
-});
+export const runtimeProviderLaunchSchema = z
+  .object({
+    id: z.string().min(1).max(64),
+    config_dir: path,
+    mode: z.enum(['interactive', 'headless']),
+    skip_permissions: z.boolean(),
+    prompt: z
+      .string()
+      .max(64 * 1024)
+      .optional(),
+    resume_ref: z.string().min(1).max(200).optional(),
+    /** Exact adapter-declared id passed on a new preset-id launch, not a resume. */
+    initial_ref: z.string().min(1).max(200).optional(),
+    /** Existing native ids before a minted-id launch; recovery must exclude them. */
+    prior_refs: z.array(z.string().min(1).max(200)).max(RUNTIME_LIMITS.launchRefs).optional(),
+  })
+  .refine(
+    (value) => !(value.resume_ref && (value.initial_ref || value.prior_refs)),
+    'A resume cannot carry new-launch identity evidence',
+  );
 export type RuntimeProviderLaunch = z.infer<typeof runtimeProviderLaunchSchema>;
 
 /** Exact provider observations, with no nonce or application placement object. */

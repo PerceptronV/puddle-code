@@ -8,7 +8,7 @@ import { atomicPrivateJson } from '@puddle/shared/node';
 import { startDaemon } from '../../src/daemon.js';
 import { readRuntimeJson } from '../../src/runtime/storage.js';
 import type { RuntimeLaunchConfiguration } from '../../src/runtime/launcher.js';
-import { runtimeTestAdapter } from './runtime-test-adapter.js';
+import { runtimeTestAdapter, runtimePresetTestAdapter } from './runtime-test-adapter.js';
 
 // Only the isolated test home and sanitised fixture environment are used.
 const home = process.argv[3]!;
@@ -19,7 +19,7 @@ const runtime: RuntimeLaunchConfiguration | undefined = existsSync(
   ? {
       kind: 'launchd',
       nodePath: process.execPath,
-      entryPath: join(bundle, 'puddler.mjs'),
+      entryPath: join(bundle, 'provider-owner.mjs'),
       releasePath: bundle,
       build: 'runtime-test',
       // Deterministic independent lifetime, not evidence of native supervisor behaviour.
@@ -44,7 +44,12 @@ const runtime: RuntimeLaunchConfiguration | undefined = existsSync(
       },
     }
   : undefined;
-const daemon = await startDaemon({ home, port: 0, adapters: [runtimeTestAdapter], runtime });
+const daemon = await startDaemon({
+  home,
+  port: 0,
+  adapters: [runtimeTestAdapter, runtimePresetTestAdapter],
+  runtime,
+});
 const lease = daemon.authority.create();
 atomicPrivateJson(join(home, 'test-daemon-ready.json'), { port: daemon.port, token: lease.token });
 let stopping = false;

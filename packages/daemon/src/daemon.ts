@@ -58,6 +58,7 @@ import { RuntimeProcesses } from './runtime/processes.js';
 import { RuntimeLauncher, type RuntimeLaunchConfiguration } from './runtime/launcher.js';
 import { readRuntimeShellHooks } from './runtime/shell-hooks.js';
 import { runtimeDirectory } from './runtime/storage.js';
+import { runtimePriorRefs } from './runtime/session-refs.js';
 import { WorktreeManager } from './worktrees/manager.js';
 import { WsGateway } from './ws/gateway.js';
 import { PuddlangService } from './puddlang/service.js';
@@ -233,6 +234,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       runtimeControls,
       runtimeLauncher,
       runtimeShellHooks: (id) => readRuntimeShellHooks(runtimeDirectory(paths.home, id)),
+      runtimePriorRefs: (id) => runtimePriorRefs(paths.home, runtimes, id),
       storage,
       storagePaths,
       profiles,

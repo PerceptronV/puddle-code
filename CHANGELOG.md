@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Extend opt-in independent runtimes to interactive agent creation and exact-conversation resume, preserving provider sidecars across daemon replacement and refusing ambiguous native-ref recovery.
+
 - Add opt-in independent terminal creation/resume with durable launch intent, dispatch fencing and pinned shell hooks; uncertain supervisor replies never trigger duplicate execution.
 
 - Restore port discovery and local/SSH forwarding for adopted runtimes, keeping provider-internal ports hidden and invalidating stale placement scans.

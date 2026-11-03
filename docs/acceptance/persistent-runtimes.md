@@ -268,6 +268,26 @@ shell-observation and code-terminal/provider run passed 35 tests. Typecheck,
 scoped lint and formatting passed. Agent launch, default installed selection,
 code-run retention and native supervisor/provider acceptance remain release gates.
 
+`runtime/agent-launch.test.ts` now exercises HTTP interactive-agent creation using
+the opt-in launcher, preserving the main PTY PID and a fake provider's sidecar
+through daemon replacement and an exact native switch while disconnected. An
+explicit kill/resume creates a new owner with the exact switched ref. A preset-id
+provider seeds its ref before dispatch and retains `native_sync: fallback` when
+it has no supported lifecycle channel. No installed agent is used.
+
+`runtime/session-refs.test.ts` checks private launch identity, exclusion of earlier
+native ids and refusal of ambiguous or inconsistent discovery. The launcher test
+also exercises a confirmed pre-agent failure with a preset ref: final observations
+reconcile, exclusive retirement still applies and dispatch happens once. Journal
+tests verify that native events alone cannot promote fallback synchronisation.
+
+The runtime/session/provider/puddlang/PTY/database/host-control regression run passed
+511 tests in 70 files, with one native supervisor test skipped. The final journal
+regression passed all three tests. Typecheck, scoped lint and formatting passed.
+This is fake-provider and deterministic-supervisor evidence; headless/programme
+routing, default installed selection and native platform/provider checks remain
+release gates.
+
 ## Remaining release gates
 
 Record platform, Node, release and provider versions with results. Run native

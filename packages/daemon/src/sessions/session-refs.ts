@@ -110,19 +110,38 @@ export class SessionRefs {
     session: Session,
     account: Account,
     adapter: AgentAdapter,
+    priorRefs?: ReadonlySet<string>,
   ): Promise<string> {
     let ref = session.agent_session_ref;
+    const excluded = new Set(await this.claimedByOtherSessions(session, adapter, account));
+    for (const previous of priorRefs ?? []) excluded.add(previous);
     const context: SessionRefContext = {
       ...this.contextOf(session),
-      excludeRefs: await this.claimedByOtherSessions(session, adapter, account),
+      excludeRefs: excluded,
     };
     const missing = ref === null || (await adapter.hasConversation?.(ref, account)) === false;
     const mismatched =
       ref !== null && (await adapter.sessionRefMatches?.(ref, context, account)) === false;
     if (missing || mismatched) {
+      let candidate: string | undefined;
+      if (priorRefs && adapter.existingSessionRefs) {
+        const candidates = [
+          ...(await adapter.existingSessionRefs(session.worktree_path, account)),
+        ].filter((candidate) => !excluded.has(candidate));
+        if (candidates.length !== 1)
+          throw ApiError.conflict(
+            'conversation_missing',
+            'This runtime has no uniquely recoverable native conversation; select an exact conversation instead.',
+          );
+        candidate = candidates[0];
+      }
       const recovered =
         (await adapter.discoverSessionRef?.(session.worktree_path, account, context)) ?? null;
-      if (recovered === null) {
+      if (
+        recovered === null ||
+        (candidate !== undefined && recovered !== candidate) ||
+        priorRefs?.has(recovered)
+      ) {
         throw ApiError.conflict(
           'conversation_missing',
           `${adapter.displayName} has no conversation matching this puddle session; it cannot resume`,

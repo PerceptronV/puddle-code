@@ -149,6 +149,25 @@ export class RuntimeStore {
       .get(sessionId);
   }
 
+  selectedOwner(sessionId: string): RuntimeBinding | null {
+    return (
+      (this.db
+        .prepare(
+          `SELECT r.* FROM runtime_bindings r
+      JOIN terminal_placements p ON p.runtime_id = r.runtime_id WHERE p.session_id = ?`,
+        )
+        .get(sessionId) as RuntimeBinding | undefined) ?? null
+    );
+  }
+
+  selectedPlacements(id: string): string[] {
+    return (
+      this.db
+        .prepare('SELECT session_id FROM terminal_placements WHERE runtime_id = ?')
+        .all(id) as Array<{ session_id: string }>
+    ).map((row) => row.session_id);
+  }
+
   terminalForPlacement(
     sessionId: string,
     term: string,

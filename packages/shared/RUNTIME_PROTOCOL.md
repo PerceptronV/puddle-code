@@ -319,8 +319,24 @@ retirement and supervisor collection acquire that claim before the owner claim.
 This prevents recovery from fencing a queued launch while its initiating controller
 is still waiting. A lost supervisor acknowledgement triggers inspection only.
 Shutdown drains launcher operations before closing writers. The explicit daemon
-composition option currently routes ordinary terminal create/resume; default
-installed launch selection and agent/code-execution integration remain gated.
+composition option currently routes ordinary terminal and interactive agent
+create/resume; default installed selection, headless/programme routing and
+code-execution integration remain gated.
+
+Provider context optionally carries `initial_ref` for a new preset-id launch or
+`prior_refs` for a provider that mints its own ids (at most 16,384 ids, each at most
+200 characters). Neither accompanies `resume_ref`. The declared initial/resume ref
+must match the prepared placement. The owner claims it before spawning; adapters
+still choose their own launch/resume flags. The initial unshipped runtime 1.0
+contract evolves with both peers; these private fields do not alter the application
+or remote protocols. Recovery reads the selected owner's identity-checked launch
+record, excludes pre-existing ids and refuses multiple new candidates. Catalogue
+recency never identifies a live native conversation.
+
+A failed/exited private state record allows the launcher to release its launch
+claim and attempt retirement. It does not prove process death: retirement still
+requires the exclusive owner claim and complete final journal reconciliation.
+Missing, incomplete or mismatched records retain uncertain ownership.
 
 Launch records use format 1 and are read only from private host storage. They
 contain the environment and per-runtime secret and must never be returned by

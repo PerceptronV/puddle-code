@@ -4,6 +4,8 @@ import { expect, it, vi } from 'vitest';
 import { runtimeLaunchSchema } from '@puddle/shared';
 import { RuntimeLauncher } from '../../src/runtime/launcher.js';
 import { ProjectStore } from '../../src/db/stores/projects.js';
+import { AccountStore } from '../../src/db/stores/accounts.js';
+import { once } from 'node:events';
 import { RuntimeConnections } from '../../src/runtime/connections.js';
 import { retireMissingRuntime } from '../../src/runtime/discovery.js';
 import { removeRuntimeService } from '../../src/runtime/supervisor.js';
@@ -155,6 +157,46 @@ it('leaves an uncertain launch recorded on shutdown without dispatching it again
     await f.connections.connect();
     expect(f.runtimes.ownerOf(f.session.id)).toBeNull();
     expect(run).toHaveBeenCalledTimes(1);
+  } finally {
+    await f.close();
+  }
+});
+
+it('collects a confirmed provider startup failure without replaying its launch', async () => {
+  const run = vi.fn<CompilationCommandRunner>(async (command) => {
+    const directory = dirname(command.args[2]!);
+    const launch = runtimeLaunchSchema.parse(readRuntimeJson(join(directory, 'launch.json')));
+    const owner = launchOwner(command.cwd, launch.identity.runtime_id);
+    await once(owner.child, 'exit');
+    return { exitCode: 0, stdout: '', stderr: '' };
+  });
+  const f = fixture(run);
+  try {
+    const account = new AccountStore(f.db).create({
+      profile_id: f.profile.id,
+      agent_type: 'missing-provider',
+      label: 'missing',
+      config_dir: f.home,
+      skip_permissions_default: false,
+    });
+    f.db
+      .prepare(
+        "UPDATE sessions SET kind = 'agent', agent_type = 'missing-provider', account_id = ? WHERE id = ?",
+      )
+      .run(account.id, f.session.id);
+    f.sessions.setAgentSessionRef(f.session.id, f.session.id);
+    await expect(
+      f.launcher.launch(f.session.id, () => f.launch.main, {
+        id: 'missing-provider',
+        config_dir: f.home,
+        mode: 'interactive',
+        skip_permissions: false,
+        initial_ref: f.session.id,
+      }),
+    ).rejects.toMatchObject({ code: 'runtime_launch_failed' });
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(f.runtimes.selectedOwner(f.session.id)?.state).toBe('failed');
+    expect(f.sessions.get(f.session.id).status).toBe('exited');
   } finally {
     await f.close();
   }

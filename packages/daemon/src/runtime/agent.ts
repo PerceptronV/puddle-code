@@ -62,10 +62,12 @@ export class RuntimeAgent {
       skipPermissions: provider.skip_permissions,
       ...(provider.prompt !== undefined ? { prompt: provider.prompt } : {}),
     };
-    if (provider.resume_ref) {
-      if (!this.claim.switch(provider.resume_ref))
-        throw new Error('Native conversation is already owned');
-      this.ref = provider.resume_ref;
+    if (provider.initial_ref && (!this.adapter.capabilities.presetSessionId || provider.resume_ref))
+      throw new Error('Provider cannot use this preset conversation identity');
+    const launchRef = provider.resume_ref ?? provider.initial_ref;
+    if (launchRef) {
+      this.ref = launchRef;
+      if (!this.claim.switch(launchRef)) throw new Error('Native conversation is already owned');
     }
     const signalUrl = await this.signals.listen();
     this.signalPort = Number(new URL(signalUrl).port);
