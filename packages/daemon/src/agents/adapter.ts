@@ -99,7 +99,8 @@ export interface AgentControl {
 }
 
 export interface LifecycleLaunchContext {
-  account: Account;
+  /** Live execution needs isolation configuration, not mutable application account metadata. */
+  account: Pick<Account, 'config_dir'>;
   opts: LaunchOpts;
   args: string[];
   signalUrl: string;
@@ -163,7 +164,9 @@ export interface AgentAdapter {
     migratableSessions: boolean;
   };
   /** Config-dir isolation env for a puddle-managed account. */
-  env(account: Account): Record<string, string>;
+  env(account: Pick<Account, 'config_dir'>): Record<string, string>;
+  /** Provider-owned executable helper sources copied once into an independent runtime. */
+  runtimeAssets?(): Readonly<Record<string, string>>;
   /**
    * Records the agent's one-time skip-permissions acceptance in the account's
    * config dir. Called only when the user opens the profile skip-permissions
@@ -301,7 +304,7 @@ export interface AgentAdapter {
   /** The adapter has an exact lifecycle channel over the nonce-gated signal route. */
   lifecycleSignals?: boolean;
   /** Per-launch installed-version capability probe for hook/plugin channels. */
-  checkLifecycleSupport?(account: Account): Promise<boolean>;
+  checkLifecycleSupport?(account: Pick<Account, 'config_dir'>): Promise<boolean>;
   /** Per-runtime exact lifecycle transport (Codex app-server bridge). */
   prepareLifecycleLaunch?(context: LifecycleLaunchContext): Promise<LifecycleLaunchResource>;
   /** Structured execution with a readable transcript instead of a native TUI. */

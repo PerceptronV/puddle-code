@@ -4,10 +4,7 @@ import { createAdaptorServer, upgradeWebSocket, type ServerType } from '@hono/no
 import { WebSocketServer } from 'ws';
 import type { AgentAdapter } from './agents/adapter.js';
 import { isBinaryAvailable } from './agents/binary.js';
-import { claudeCode } from './agents/claude-code/index.js';
-import { codex } from './agents/codex/index.js';
-import { geminiCli } from './agents/gemini-cli/index.js';
-import { opencode } from './agents/opencode/index.js';
+import { defaultAdapters } from './agents/defaults.js';
 import { AdapterRegistry } from './agents/registry.js';
 import { loadConfig, readConfig } from './config.js';
 import { LogRetention } from './logs/retention.js';
@@ -159,7 +156,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     failedStartup.push(() => notebooks.dispose());
     const onboarding = new MarkerFileSync({ repos, events, sessions, storage });
     failedStartup.push(() => onboarding.dispose());
-    const adapters = new AdapterRegistry(opts.adapters ?? [claudeCode, codex, opencode, geminiCli]);
+    const adapters = new AdapterRegistry(opts.adapters ?? defaultAdapters);
     // Migration 004 rewrote config-dir paths to id-keyed; rename the dirs before
     // adapters install watches or inspect any native conversation store.
     reconcileProfileDirs(profiles.list(), paths);

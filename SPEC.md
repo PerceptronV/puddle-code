@@ -135,6 +135,58 @@ Service login uses Google and/or GitHub OAuth only; at least one complete provid
 
 The daemon is the persistence layer. It is the parent of every PTY, runs under a persistent supervisor or a cockpit-owned SSH channel, and tees all output to disk. tmux would duplicate that role with a second session registry that can drift. The "attach from a raw terminal" escape hatch tmux provided is replaced by `puddle attach <session>` (CLI → daemon WebSocket).
 
+### Persistent-runtime foundation (not yet enabled)
+
+The [persistent runtimes roadmap](docs/roadmap/persistent-runtimes.md) specifies
+one independent `puddler` process per live runtime and cockpit-managed host
+updates. The experimental implementation under daemon `runtime/` provides a
+separate development entry point, private bounded IPC, process-lifetime ownership
+claims, controller fencing, single-use launches, terminal ownership and retained
+exit records. A bounded private event journal retains terminal creation/exits
+through controller outages; paginated replay and acknowledgement follow the
+daemon's committed observation cursor. Asynchronous persistence retries never
+block PTY drainage, and overflow reports incomplete history. Optional provider
+launches own adapter resources, a bounded nonce-only hook endpoint, native
+conversation claims and exact lifecycle observations independently of controller
+connections. Provider-specific flags/parsers remain in the existing adapters;
+their live context requires only the account's configuration directory. Runtime
+protocol 1.0 is independent of the application and remote protocols; its schemas
+and versioning rules live in shared `runtime/` and `RUNTIME_PROTOCOL.md`.
+
+The runtime agent state reports sidecar roots and hidden ports, and retains
+interactive fallback when installed-version checks fail. Codex lifecycle cleanup
+waits for app-server exit and escalates to SIGKILL after 1.5 seconds if needed.
+Runtime IPC admits one provider turn at a time using a monotonic runtime-local
+identity and exact native-ref check. It reserves bounded journal space before
+dispatch, retains results across controller replacement, and records cancellation,
+human takeover or runtime-exit interruption without replaying input. Runtime-owned
+helper copies, stable account dispatch and separate mutable turn records preserve
+managed hook/plugin code across account updates. Immutable executable/native
+dependency retention, production observation reconciliation, durable segment bindings and
+production programme reconciliation are still required before enablement.
+
+Experimental owners also retain private captured-environment and shell-directory
+reports through controller outages, with the existing capture gate/denylist and
+bounded values/counts. Observation coalescing preserves native lifecycle and
+control boundaries. Current captured values seed new PTYs; values stay out of
+ordinary runtime inspection and terminal logs/screens. These records and explicit
+capture/purge controls still require production settings and database integration.
+
+The experimental owner tags output/snapshots with a native-lifecycle segment id,
+writes separate raw logs per segment and terminal generation, and saves immutable
+boundary/exit checkpoints while keeping live emulators intact. Bounded asynchronous
+checkpoint writes report a history gap on failure; historical reads validate their
+identity and never substitute a different segment. Production placement binding,
+mutation fencing and retention must still integrate these records and replace the
+foundation's conservative lifetime budgets before default enablement.
+
+Migration 029 adds `runtime_bindings` for immutable launch identity, active
+placement/conversation, build metadata and transactional observation cursors.
+The main daemon session service does not yet create or adopt these external
+owners. Existing shutdown, bootstrap, upgrades and auto-resume therefore retain
+their documented interruption behaviour until the remaining integration and
+supervision gates are implemented and verified.
+
 ## 3. Data model (SQLite)
 
 ```sql

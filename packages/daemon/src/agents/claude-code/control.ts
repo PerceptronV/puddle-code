@@ -4,9 +4,14 @@ import type { LifecycleLaunchContext } from '../adapter.js';
 import { lifecycleVersionAtLeast } from '../lifecycle-version.js';
 import { interactiveResource } from '../interactive/control.js';
 import { turnHookSource } from '../interactive/hook-source.js';
+import {
+  installHookDispatcher,
+  managedHookCommand,
+  writeManagedHelper,
+} from '../managed-helpers.js';
 
 /** Native UserPromptSubmit/Stop payloads, Claude Code 2.1.300 hook contract. */
-const SOURCE = turnHookSource(`
+export const CLAUDE_TURN_SOURCE = turnHookSource(`
   if (input.agent_id) return null;
   const ref = input.session_id;
   if (mode === 'start') return { kind: 'start', ref, prompt: input.prompt };
@@ -16,7 +21,8 @@ const SOURCE = turnHookSource(`
 
 export function installClaudeTurnHooks(configDir: string): void {
   const file = join(configDir, 'puddle-turn.mjs');
-  writeFileSync(file, SOURCE, { mode: 0o700 });
+  writeManagedHelper(file, CLAUDE_TURN_SOURCE);
+  installHookDispatcher(configDir);
   const settingsFile = join(configDir, 'settings.json');
   const settings = JSON.parse(readFileSync(settingsFile, 'utf8')) as {
     hooks: Record<string, Array<{ hooks: Array<{ type: string; command: string }> }>>;
@@ -33,7 +39,7 @@ export function installClaudeTurnHooks(configDir: string): void {
         hooks: [
           {
             type: 'command',
-            command: `${JSON.stringify(process.execPath)} ${JSON.stringify(file)} ${mode}`,
+            command: managedHookCommand(configDir, 'puddle-turn.mjs', mode!),
           },
         ],
       },

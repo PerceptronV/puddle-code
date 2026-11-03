@@ -1,5 +1,10 @@
 # The puddle communication protocol
 
+The experimental private daemon/runtime contract is versioned separately in
+[`RUNTIME_PROTOCOL.md`](RUNTIME_PROTOCOL.md). Adding that contract does not change
+this application's protocol or the remote protocol. Production session creation
+still uses daemon-owned runtimes until adoption and supervision are integrated.
+
 Protocol 25.6 adds `logRetentionDays` to host configuration and its patch, defaulting
 to three days when omitted (zero disables age-based cleanup). New clients gate the
 setting on 25.6. Retention compacts inactive bulk output while preserving the entire

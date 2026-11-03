@@ -45,8 +45,13 @@ describe('opencode adapter', () => {
       join(cfg, 'config', 'opencode', 'plugins', 'puddle-sync.js'),
       'utf8',
     );
-    expect(plugin).toContain("event?.type === 'session.created'");
-    expect(plugin).toContain('info.parentID');
+    expect(plugin).toContain('PUDDLE_AGENT_HELPER_DIR');
+    const implementation = readFileSync(
+      join(cfg, 'config', 'opencode', 'puddle-managed', 'puddle-sync.mjs'),
+      'utf8',
+    );
+    expect(implementation).toContain("event?.type === 'session.created'");
+    expect(implementation).toContain('info.parentID');
   });
 
   it('skips permissions with --auto and seeds the prompt with --prompt', () => {

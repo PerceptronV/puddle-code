@@ -1,0 +1,214 @@
+import { randomUUID } from 'node:crypto';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { RUNTIME_PROTOCOL_VERSION } from '@puddle/shared';
+import { openDatabase, type Db } from '../../src/db/db.js';
+import { ProfileStore } from '../../src/db/stores/profiles.js';
+import { ProjectStore } from '../../src/db/stores/projects.js';
+import { RepoStore } from '../../src/db/stores/repos.js';
+import { SessionStore } from '../../src/db/stores/sessions.js';
+import { RuntimeStore } from '../../src/db/stores/runtimes.js';
+
+const databases: Db[] = [];
+afterEach(() => {
+  for (const db of databases.splice(0)) db.close();
+});
+function fixture() {
+  const db = openDatabase(':memory:');
+  databases.push(db);
+  const profiles = new ProfileStore(db);
+  const projects = new ProjectStore(db);
+  const sessions = new SessionStore(db);
+  const profile = profiles.create({ name: 'runtime-tests', branch_prefix: '' });
+  const repo = new RepoStore(db).create({
+    path: '/tmp/runtime-source',
+    default_base_branch: 'main',
+    onboarding_notes: null,
+    fetch_enabled: false,
+  });
+  const project = projects.create({
+    profile_id: profile.id,
+    repo_id: repo.id,
+    name: 'runtime-tests',
+  });
+  const createSession = (
+    projectId = project.id,
+    worktree = `/tmp/runtime-worktree-${randomUUID()}`,
+  ) =>
+    sessions.create({
+      id: randomUUID(),
+      project_id: projectId,
+      account_id: null,
+      worktree_path: worktree,
+      base_branch: 'main',
+      branch: 'main',
+      separate_branch: false,
+      kind: 'terminal',
+      agent_type: null,
+      title: null,
+      skip_permissions: false,
+    });
+  const session = createSession();
+  const store = new RuntimeStore(db);
+  const input = {
+    identity: {
+      runtime_id: randomUUID(),
+      incarnation: randomUUID(),
+      launch_id: randomUUID(),
+      profile_id: profile.id,
+      project_id: project.id,
+      session_id: session.id,
+      canonical_worktree_path: session.worktree_path,
+    },
+    build: 'test-1',
+    protocol: RUNTIME_PROTOCOL_VERSION,
+    releasePath: '/tmp/releases/test-1',
+  };
+  return {
+    db,
+    profiles,
+    projects,
+    sessions,
+    profile,
+    repo,
+    project,
+    session,
+    store,
+    input,
+    createSession,
+  };
+}
+
+describe('durable runtime bindings', () => {
+  it('records one launch intent and rejects a changed retry or competing live placement', () => {
+    const { store, input } = fixture();
+    const first = store.prepare(input);
+    expect(store.prepare(input)).toEqual(first);
+    expect(() => store.prepare({ ...input, build: 'different' })).toThrow(/different inputs/);
+    expect(() =>
+      store.prepare({
+        ...input,
+        identity: {
+          ...input.identity,
+          runtime_id: randomUUID(),
+          incarnation: randomUUID(),
+          launch_id: randomUUID(),
+        },
+      }),
+    ).toThrow(/UNIQUE/);
+    expect(store.live()).toEqual([first]);
+    expect(store.removeEnded(first.runtime_id)).toBe(false);
+  });
+
+  it('commits the cursor and application events together, skipping repeated observations', () => {
+    const { db, store, input, session } = fixture();
+    const binding = store.prepare(input);
+    const event = {
+      cursor: 4,
+      sessionId: session.id,
+      conversationId: null,
+      state: 'running' as const,
+    };
+    const apply = vi.fn(() =>
+      db.prepare('UPDATE sessions SET title = ? WHERE id = ?').run('adopted', session.id),
+    );
+    expect(store.observe(binding.runtime_id, event, apply)).toBe(true);
+    expect(store.observe(binding.runtime_id, event, apply)).toBe(false);
+    expect(store.observe(binding.runtime_id, { ...event, cursor: 3 }, apply)).toBe(false);
+    expect(apply).toHaveBeenCalledTimes(1);
+    expect(store.get(binding.runtime_id)?.event_cursor).toBe(4);
+    expect(db.prepare('SELECT title FROM sessions WHERE id = ?').get(session.id)).toEqual({
+      title: 'adopted',
+    });
+  });
+
+  it('rolls back both application effects and the event cursor when reconciliation fails', () => {
+    const { db, store, input, session } = fixture();
+    const binding = store.prepare(input);
+    expect(() =>
+      store.observe(
+        binding.runtime_id,
+        { cursor: 1, sessionId: session.id, conversationId: null, state: 'running' },
+        () => {
+          db.prepare('UPDATE sessions SET title = ? WHERE id = ?').run('incomplete', session.id);
+          throw new Error('Reconciliation failed');
+        },
+      ),
+    ).toThrow('Reconciliation failed');
+    expect(store.get(binding.runtime_id)).toEqual(binding);
+    expect(db.prepare('SELECT title FROM sessions WHERE id = ?').get(session.id)).toEqual({
+      title: null,
+    });
+  });
+
+  it('allows a placement switch only within the original project and canonical worktree', () => {
+    const { store, input, createSession, project } = fixture();
+    const binding = store.prepare(input);
+    const target = createSession(project.id, input.identity.canonical_worktree_path);
+    expect(
+      store.observe(
+        binding.runtime_id,
+        { cursor: 1, sessionId: target.id, conversationId: null, state: 'running' },
+        () => {},
+      ),
+    ).toBe(true);
+    expect(store.get(binding.runtime_id)?.active_session_id).toBe(target.id);
+    const elsewhere = createSession();
+    expect(() =>
+      store.observe(
+        binding.runtime_id,
+        { cursor: 2, sessionId: elsewhere.id, conversationId: null, state: 'running' },
+        () => {},
+      ),
+    ).toThrow(/ownership/);
+    expect(store.get(binding.runtime_id)?.event_cursor).toBe(1);
+  });
+
+  it('preserves terminal outcomes and creates a fresh identity only for a new launch', () => {
+    const { store, input, session } = fixture();
+    const first = store.prepare(input);
+    expect(
+      store.observe(
+        first.runtime_id,
+        { cursor: 10, sessionId: session.id, conversationId: null, state: 'exited' },
+        () => {},
+      ),
+    ).toBe(true);
+    expect(() =>
+      store.observe(
+        first.runtime_id,
+        { cursor: 11, sessionId: session.id, conversationId: null, state: 'running' },
+        () => {},
+      ),
+    ).toThrow(/ended/);
+    const apply = vi.fn();
+    expect(store.interrupt(first.runtime_id, apply)).toBe(false);
+    expect(apply).not.toHaveBeenCalled();
+    const second = store.prepare({
+      ...input,
+      identity: {
+        ...input.identity,
+        runtime_id: randomUUID(),
+        incarnation: randomUUID(),
+        launch_id: randomUUID(),
+      },
+    });
+    expect(second.runtime_id).not.toBe(first.runtime_id);
+    expect(store.live()).toEqual([second]);
+    expect(store.removeEnded(first.runtime_id)).toBe(true);
+  });
+
+  it('retains the event cursor when confirmed owner loss is recorded once', () => {
+    const { store, input, session } = fixture();
+    const binding = store.prepare(input);
+    store.observe(
+      binding.runtime_id,
+      { cursor: 7, sessionId: session.id, conversationId: null, state: 'running' },
+      () => {},
+    );
+    const apply = vi.fn();
+    expect(store.interrupt(binding.runtime_id, apply)).toBe(true);
+    expect(store.interrupt(binding.runtime_id, apply)).toBe(false);
+    expect(apply).toHaveBeenCalledTimes(1);
+    expect(store.get(binding.runtime_id)).toMatchObject({ state: 'interrupted', event_cursor: 7 });
+  });
+});

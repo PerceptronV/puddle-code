@@ -26,6 +26,7 @@ import { migration025 } from './025-agent-mode.js';
 import { migration026 } from './026-headless-mode.js';
 import { migration027 } from './027-compilation-defaults.js';
 import { migration028 } from './028-project-colour.js';
+import { migration029 } from './029-runtime-bindings.js';
 
 export interface Migration {
   version: number;
@@ -63,4 +64,5 @@ export const MIGRATIONS: Migration[] = [
   migration026,
   migration027,
   migration028,
+  migration029,
 ];

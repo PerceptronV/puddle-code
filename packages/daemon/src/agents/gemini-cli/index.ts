@@ -1,5 +1,6 @@
 import { prepareGeminiInteractive } from './control.js';
 import { prepareGeminiHeadless } from './headless.js';
+import { geminiRuntimeAssets } from './runtime-assets.js';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -52,6 +53,7 @@ const GEMINI_DIR = '.gemini';
  * files, not per-conversation directories.
  */
 export const geminiCli: AgentAdapter = {
+  runtimeAssets: geminiRuntimeAssets,
   scriptedTurns: true,
   prepareHeadlessLaunch: prepareGeminiHeadless,
   prepareLifecycleLaunch: prepareGeminiInteractive,

@@ -1,16 +1,24 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { agentTurnSignalSchema, type AgentTurnSignal } from '@puddle/shared';
-import { InteractiveControl } from '../../src/agents/interactive/control.js';
+import {
+  agentSignalRequestSchema,
+  agentTurnSignalSchema,
+  type AgentSignalRequest,
+  type AgentTurnSignal,
+} from '@puddle/shared';
+import { InteractiveControl, interactiveResource } from '../../src/agents/interactive/control.js';
 import { installStatusHooks } from '../../src/agents/claude-code/hooks.js';
 import { installClaudeTurnHooks } from '../../src/agents/claude-code/control.js';
 import { installGeminiLifecycleHooks } from '../../src/agents/gemini-cli/hooks.js';
 import { installOpenCodePlugin } from '../../src/agents/opencode/plugin.js';
+import { claudeRuntimeAssets } from '../../src/agents/claude-code/runtime-assets.js';
+import { geminiRuntimeAssets } from '../../src/agents/gemini-cli/runtime-assets.js';
+import { pinRuntimeAssets } from '../../src/runtime/assets.js';
 import { fakeAdapter, fixture, waitFor } from '../helpers/daemon-fixtures.js';
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -122,11 +130,11 @@ describe('interactive exact prompt observation', () => {
 });
 
 async function hookServer() {
-  const messages: AgentTurnSignal[] = [];
+  const messages: AgentSignalRequest[] = [];
   const server = createServer(async (request, response) => {
     let raw = '';
     for await (const chunk of request) raw += chunk;
-    messages.push(agentTurnSignalSchema.parse(JSON.parse(raw)));
+    messages.push(agentSignalRequestSchema.parse(JSON.parse(raw)));
     response.writeHead(204).end();
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -138,9 +146,15 @@ async function hookServer() {
   });
   return { messages, url: `http://127.0.0.1:${address.port}` };
 }
-async function hook(file: string, mode: string, input: unknown, url: string, nonce: string) {
-  const child = spawn(process.execPath, [file, mode], {
-    env: { PUDDLE_AGENT_SIGNAL_URL: url, PUDDLE_AGENT_SIGNAL_NONCE: nonce },
+async function hook(
+  command: string,
+  input: unknown,
+  url: string,
+  nonce: string,
+  env: Record<string, string>,
+) {
+  const child = spawn('/bin/sh', ['-c', command], {
+    env: { ...env, PUDDLE_AGENT_SIGNAL_URL: url, PUDDLE_AGENT_SIGNAL_NONCE: nonce },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   let out = '',
@@ -160,6 +174,48 @@ async function hook(file: string, mode: string, input: unknown, url: string, non
 
 describe('generated native hooks', () => {
   for (const provider of ['claude', 'gemini']) {
+    it(`${provider} keeps exact lifecycle reporting on its pinned helper after an account update`, async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'puddle-lifecycle-assets-'));
+      cleanups.push(async () => rmSync(dir, { recursive: true, force: true }));
+      if (provider === 'claude') installStatusHooks(dir);
+      else installGeminiLifecycleHooks(dir);
+      const config = provider === 'claude' ? dir : join(dir, '.gemini');
+      const owner = join(dir, 'owner');
+      mkdirSync(owner, { mode: 0o700 });
+      const env = pinRuntimeAssets(
+        owner,
+        provider === 'claude' ? claudeRuntimeAssets() : geminiRuntimeAssets(),
+      );
+      writeFileSync(
+        join(config, 'puddle-signal.mjs'),
+        'throw new Error("mutable account helper executed");',
+      );
+      const settings = JSON.parse(readFileSync(join(config, 'settings.json'), 'utf8')) as {
+        hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>;
+      };
+      const server = await hookServer();
+      const nonce = randomUUID(),
+        ref = randomUUID();
+      for (const event of ['SessionStart', 'SessionEnd']) {
+        const command = settings.hooks[event]!.flatMap((group) => group.hooks).find((h) =>
+          h.command.includes('puddle-signal.mjs'),
+        )!.command;
+        expect(
+          await hook(
+            command,
+            { session_id: ref, cwd: dir, source: 'clear' },
+            server.url,
+            nonce,
+            env,
+          ),
+        ).toBe(provider === 'gemini' ? '{}\n' : '');
+      }
+      expect(server.messages).toEqual([
+        { nonce, event: 'session_start', agent_session_ref: ref, cwd: dir, source: 'clear' },
+        { nonce, event: 'session_end', agent_session_ref: ref, cwd: dir, source: 'exit' },
+      ]);
+    });
+
     it(`${provider} reports correlated native replies and isolates runtime nonces`, async () => {
       const dir = mkdtempSync(join(tmpdir(), 'pudl-hook-'));
       cleanups.push(async () => rmSync(dir, { recursive: true, force: true }));
@@ -167,8 +223,32 @@ describe('generated native hooks', () => {
         installStatusHooks(dir);
         installClaudeTurnHooks(dir);
       } else installGeminiLifecycleHooks(dir);
-      const file =
-        provider === 'claude' ? join(dir, 'puddle-turn.mjs') : join(dir, '.gemini/puddle-turn.mjs');
+      const config = provider === 'claude' ? dir : join(dir, '.gemini');
+      const owner = join(dir, 'owner');
+      mkdirSync(owner, { mode: 0o700 });
+      const env = pinRuntimeAssets(
+        owner,
+        provider === 'claude' ? claudeRuntimeAssets() : geminiRuntimeAssets(),
+      );
+      const settings = JSON.parse(readFileSync(join(config, 'settings.json'), 'utf8')) as {
+        hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>;
+      };
+      const commands = Object.fromEntries(
+        Object.values(settings.hooks).flatMap((groups) =>
+          groups.flatMap((group) =>
+            group.hooks
+              .filter((h) => h.command.includes('puddle-turn.mjs'))
+              .map((h) => [/'(start|complete|failed)'$/.exec(h.command)![1], h.command]),
+          ),
+        ),
+      );
+      // An account update cannot redirect the owner's running observation code.
+      writeFileSync(
+        join(config, 'puddle-turn.mjs'),
+        'throw new Error("mutable account helper executed");',
+      );
+      const invoke = (mode: string, input: unknown, url: string, nonce: string) =>
+        hook(commands[mode]!, input, url, nonce, env);
       const server = await hookServer();
       const nonce = randomUUID(),
         turn = randomUUID(),
@@ -176,17 +256,15 @@ describe('generated native hooks', () => {
       const prompt = `question\n\n[puddle-turn:${turn}]`;
       const base = { session_id: ref, prompt };
       const expected = provider === 'gemini' ? '{}\n' : '';
-      expect(await hook(file, 'start', base, server.url, nonce)).toBe(expected);
-      await hook(
-        file,
+      expect(await invoke('start', base, server.url, nonce)).toBe(expected);
+      await invoke(
         'complete',
         { ...base, last_assistant_message: 'answer', prompt_response: 'answer' },
         server.url,
         randomUUID(),
       );
       expect(server.messages).toHaveLength(1);
-      await hook(
-        file,
+      await invoke(
         'complete',
         { ...base, last_assistant_message: 'answer', prompt_response: 'answer' },
         server.url,
@@ -202,17 +280,35 @@ describe('generated native hooks', () => {
         expect.objectContaining({ event: 'turn_complete', turn_id: turn, reply: 'answer' }),
       ]);
       if (provider === 'claude') {
-        await hook(
-          file,
+        await invoke(
           'complete',
           { ...base, agent_id: 'child', last_assistant_message: 'wrong' },
           server.url,
           nonce,
         );
         expect(server.messages).toHaveLength(2);
-        await hook(file, 'failed', { ...base, error: 'rate_limit' }, server.url, nonce);
+        await invoke('failed', { ...base, error: 'rate_limit' }, server.url, nonce);
         expect(server.messages.at(-1)).toMatchObject({ event: 'turn_failed', error: 'rate_limit' });
       }
+      const stateFile = `.puddle-turn-${createHash('sha256').update(nonce).digest('hex')}.json`;
+      expect(existsSync(join(config, stateFile))).toBe(false);
+      expect(existsSync(join(owner, 'helpers', stateFile))).toBe(false);
+      expect(existsSync(join(owner, 'hook-state', stateFile))).toBe(true);
+      const resource = interactiveResource(
+        {
+          account: { config_dir: dir },
+          opts: { sessionId: randomUUID(), worktreePath: dir, skipPermissions: false },
+          args: [],
+          signalUrl: server.url,
+          signalNonce: nonce,
+          env,
+          writeInput: () => {},
+        },
+        config,
+        '\x03',
+      );
+      await resource.dispose();
+      expect(existsSync(join(owner, 'hook-state', stateFile))).toBe(false);
     });
   }
   it('matches OpenCode parent messages, ignores children and fails missing final replies', async () => {

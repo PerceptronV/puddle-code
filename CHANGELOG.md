@@ -9,3 +9,9 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Fixed
+
+- Honour disabled PTY recording for daemon-generated terminal notes.
+- Install managed agent hooks atomically with literal path quoting, preserving custom status-line commands when migrating the managed dispatcher.
+- Wait for the Codex lifecycle app-server to exit during cleanup, forcing termination if it ignores the graceful stop.
+

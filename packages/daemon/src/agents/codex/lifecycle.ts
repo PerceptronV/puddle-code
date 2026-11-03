@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
 import { createServer } from 'node:net';
+import { once } from 'node:events';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import type { LifecycleLaunchContext, LifecycleLaunchResource } from '../adapter.js';
 import { CodexControl } from './control.js';
@@ -49,7 +50,7 @@ export async function prepareCodexLifecycle(
   try {
     await waitForWebSocket(appUrl, appServer, () => errorTail);
   } catch (error) {
-    stopProcess(appServer);
+    await stopProcess(appServer);
     throw error;
   }
 
@@ -61,13 +62,13 @@ export async function prepareCodexLifecycle(
     });
   } catch (error) {
     proxy.close();
-    stopProcess(appServer);
+    await stopProcess(appServer);
     throw error;
   }
   const address = proxy.address();
   if (address === null || typeof address === 'string') {
     proxy.close();
-    stopProcess(appServer);
+    await stopProcess(appServer);
     throw new Error('Codex lifecycle proxy did not bind a TCP port');
   }
   const proxyPort = address.port;
@@ -145,11 +146,11 @@ export async function prepareCodexLifecycle(
     args: codexRemoteArgs(`ws://127.0.0.1:${proxyPort}`, context),
     ...(appServer.pid !== undefined ? { sidecarPids: [appServer.pid] } : {}),
     hiddenPorts: [appPort, proxyPort],
-    dispose: () => {
+    dispose: async () => {
       control.disconnect();
       for (const socket of sockets) socket.terminate();
       proxy.close();
-      stopProcess(appServer);
+      await stopProcess(appServer);
     },
   };
 }
@@ -364,6 +365,16 @@ async function waitForWebSocket(
   }
 }
 
-function stopProcess(process: ChildProcess): void {
-  if (process.exitCode === null && !process.killed) process.kill('SIGTERM');
+async function stopProcess(process: ChildProcess): Promise<void> {
+  if (!process.pid || process.exitCode !== null || process.signalCode !== null) return;
+  const exited = once(process, 'exit');
+  process.kill('SIGTERM');
+  const force = setTimeout(() => process.kill('SIGKILL'), 1500);
+  try {
+    // The runtime must not release conversation ownership while its app-server
+    // is still executing tools. Sending a signal alone does not establish exit.
+    await exited;
+  } finally {
+    clearTimeout(force);
+  }
 }

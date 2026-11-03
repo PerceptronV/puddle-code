@@ -1,6 +1,10 @@
-import { execPath } from 'node:process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import {
+  installHookDispatcher,
+  managedHookCommand,
+  writeManagedHelper,
+} from '../managed-helpers.js';
 
 /**
  * Hook-driven status signals for claude-code (SPEC §4/§5): the reliable
@@ -29,7 +33,7 @@ import { join } from 'node:path';
  */
 const HELPER_FILE = 'puddle-signal.mjs';
 
-const HELPER_SOURCE = `// puddle agent signal (managed by puddled — safe to delete, reinstalled at boot)
+export const CLAUDE_SIGNAL_SOURCE = `// puddle agent signal (managed by puddled — safe to delete, reinstalled at boot)
 const mode = process.argv[2];
 const value = process.argv[3];
 const url = process.env.PUDDLE_AGENT_SIGNAL_URL;
@@ -100,7 +104,8 @@ interface HookGroup {
  */
 export function installStatusHooks(configDir: string): void {
   const helperPath = join(configDir, HELPER_FILE);
-  writeFileSync(helperPath, HELPER_SOURCE, { mode: 0o700 });
+  writeManagedHelper(helperPath, CLAUDE_SIGNAL_SOURCE);
+  installHookDispatcher(configDir);
 
   const settingsFile = join(configDir, 'settings.json');
   let settings: Record<string, unknown> = {};
@@ -116,10 +121,8 @@ export function installStatusHooks(configDir: string): void {
       ? (settings['hooks'] as Record<string, unknown>)
       : {};
 
-  // The daemon's pinned node runs claude on this same host, so its path is
-  // valid for the hook subprocess too (mirrors claude-statusline.ts).
   const command = (mode: string, value: string) =>
-    `${JSON.stringify(execPath)} ${JSON.stringify(helperPath)} ${mode} ${value}`;
+    managedHookCommand(configDir, HELPER_FILE, mode, value);
 
   // Collate our groups per event FIRST — an event can carry several matchers
   // (Notification), and filtering per entry would strip the sibling just added.

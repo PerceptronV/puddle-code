@@ -36,9 +36,9 @@ describe('installStatusHooks', () => {
       'permission_prompt',
     ]);
     expect(s.hooks!['Stop']![0]!.hooks[0]!.command).toContain('puddle-signal.mjs');
-    expect(s.hooks!['Stop']![0]!.hooks[0]!.command).toMatch(/status waiting_input$/);
-    expect(s.hooks!['PreToolUse']![0]!.hooks[0]!.command).toMatch(/status working$/);
-    expect(s.hooks!['SessionStart']![0]!.hooks[0]!.command).toMatch(/lifecycle session_start$/);
+    expect(s.hooks!['Stop']![0]!.hooks[0]!.command).toMatch(/'status' 'waiting_input'$/);
+    expect(s.hooks!['PreToolUse']![0]!.hooks[0]!.command).toMatch(/'status' 'working'$/);
+    expect(s.hooks!['SessionStart']![0]!.hooks[0]!.command).toMatch(/'lifecycle' 'session_start'$/);
     expect(readFileSync(join(configDir, 'puddle-signal.mjs'), 'utf8')).toContain(
       'PUDDLE_AGENT_SIGNAL_URL',
     );

@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { AgentAdapter } from '../adapter.js';
 import { matchesAgentProcess } from '../process-match.js';
-import { installOpenCodePlugin } from './plugin.js';
+import { installOpenCodePlugin, OPENCODE_PLUGIN_SOURCE } from './plugin.js';
 import { lifecycleVersionAtLeast } from '../lifecycle-version.js';
 
 const execFileAsync = promisify(execFile);
@@ -61,6 +61,7 @@ const METADATA_CONCURRENCY = 32;
  * does not apply and `migratableSessions` is false.
  */
 export const opencode: AgentAdapter = {
+  runtimeAssets: () => ({ 'puddle-sync.mjs': OPENCODE_PLUGIN_SOURCE }),
   scriptedTurns: true,
   prepareHeadlessLaunch: prepareOpenCodeHeadless,
   prepareLifecycleLaunch: prepareOpenCodeInteractive,

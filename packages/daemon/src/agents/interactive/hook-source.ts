@@ -17,7 +17,7 @@ try {
   const mode = process.argv[2];
   const event = (() => { ${normalise} })();
   if (url && nonce && event && typeof event.ref === 'string') {
-    const path = join(dirname(fileURLToPath(import.meta.url)), '.puddle-turn-' + createHash('sha256').update(nonce).digest('hex') + '.json');
+    const path = join(process.env.PUDDLE_AGENT_TURN_STATE_DIR || dirname(fileURLToPath(import.meta.url)), '.puddle-turn-' + createHash('sha256').update(nonce).digest('hex') + '.json');
     let turn;
     if (event.kind === 'start' && typeof event.prompt === 'string') {
       turn = {

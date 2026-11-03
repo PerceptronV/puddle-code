@@ -1,11 +1,13 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { writeManagedHelper } from '../managed-helpers.js';
 
 const PLUGIN_FILE = 'puddle-sync.js';
 
 // chat.message and session.message shapes checked against the published
 // @opencode-ai/plugin and @opencode-ai/sdk 1.18.10 declarations.
-const PLUGIN_SOURCE = `// Puddle native lifecycle bridge (managed by puddled).
+export const OPENCODE_PLUGIN_SOURCE = `// Puddle native lifecycle bridge (managed by puddled).
 import { createHash, randomUUID } from 'node:crypto';
 export const PuddleSync = async ({ directory, client }) => {
   const url = process.env.PUDDLE_AGENT_SIGNAL_URL;
@@ -107,5 +109,22 @@ export const PuddleSync = async ({ directory, client }) => {
 export function installOpenCodePlugin(configDir: string): void {
   const dir = join(configDir, 'config', 'opencode', 'plugins');
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, PLUGIN_FILE), PLUGIN_SOURCE, { mode: 0o600 });
+  const fallback = join(configDir, 'config', 'opencode', 'puddle-managed', 'puddle-sync.mjs');
+  writeManagedHelper(fallback, OPENCODE_PLUGIN_SOURCE);
+  // Keep this V1 loader stable: OpenCode may load shared account plugins after
+  // another daemon release has reconciled the account's configuration.
+  writeManagedHelper(
+    join(dir, PLUGIN_FILE),
+    `// Puddle runtime helper dispatch v1.
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+export const PuddleSync = async (context) => {
+  const source = process.env.PUDDLE_AGENT_HELPER_DIR
+    ? pathToFileURL(join(process.env.PUDDLE_AGENT_HELPER_DIR, 'puddle-sync.mjs')).href
+    : ${JSON.stringify(pathToFileURL(fallback).href)};
+  const plugin = await import(source);
+  return plugin.PuddleSync(context);
+};
+`,
+  );
 }

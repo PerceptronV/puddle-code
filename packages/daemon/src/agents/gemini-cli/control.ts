@@ -4,9 +4,14 @@ import type { LifecycleLaunchContext } from '../adapter.js';
 import { lifecycleVersionAtLeast } from '../lifecycle-version.js';
 import { interactiveResource } from '../interactive/control.js';
 import { turnHookSource } from '../interactive/hook-source.js';
+import {
+  installHookDispatcher,
+  managedHookCommand,
+  writeManagedHelper,
+} from '../managed-helpers.js';
 
 /** Documented BeforeAgent/AfterAgent payloads; 0.53.1 lifecycle baseline. */
-const SOURCE = turnHookSource(
+export const GEMINI_TURN_SOURCE = turnHookSource(
   `
   const ref = input.session_id;
   if (mode === 'start') return { kind: 'start', ref, prompt: input.prompt };
@@ -18,7 +23,8 @@ const SOURCE = turnHookSource(
 export function installGeminiTurnHooks(configDir: string): void {
   const dir = join(configDir, '.gemini');
   const file = join(dir, 'puddle-turn.mjs');
-  writeFileSync(file, SOURCE, { mode: 0o700 });
+  writeManagedHelper(file, GEMINI_TURN_SOURCE);
+  installHookDispatcher(dir);
   const settingsFile = join(dir, 'settings.json');
   const settings = JSON.parse(readFileSync(settingsFile, 'utf8')) as {
     hooks: Record<
@@ -38,7 +44,7 @@ export function installGeminiTurnHooks(configDir: string): void {
           {
             name: `puddle-turn-${mode}`,
             type: 'command',
-            command: `${JSON.stringify(process.execPath)} ${JSON.stringify(file)} ${mode}`,
+            command: managedHookCommand(dir, 'puddle-turn.mjs', mode!),
           },
         ],
       },

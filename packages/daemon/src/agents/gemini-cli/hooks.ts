@@ -1,11 +1,15 @@
-import { execPath } from 'node:process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { installGeminiTurnHooks } from './control.js';
+import {
+  installHookDispatcher,
+  managedHookCommand,
+  writeManagedHelper,
+} from '../managed-helpers.js';
 
 const HELPER_FILE = 'puddle-signal.mjs';
 
-const HELPER_SOURCE = `// puddle lifecycle signal (managed by puddled — safe to delete, reinstalled at boot)
+export const GEMINI_SIGNAL_SOURCE = `// puddle lifecycle signal (managed by puddled — safe to delete, reinstalled at boot)
 const event = process.argv[2];
 const url = process.env.PUDDLE_AGENT_SIGNAL_URL;
 const nonce = process.env.PUDDLE_AGENT_SIGNAL_NONCE;
@@ -49,7 +53,8 @@ export function installGeminiLifecycleHooks(configDir: string): void {
   const dir = join(configDir, '.gemini');
   mkdirSync(dir, { recursive: true });
   const helperPath = join(dir, HELPER_FILE);
-  writeFileSync(helperPath, HELPER_SOURCE, { mode: 0o700 });
+  writeManagedHelper(helperPath, GEMINI_SIGNAL_SOURCE);
+  installHookDispatcher(dir);
 
   const settingsPath = join(dir, 'settings.json');
   let settings: Record<string, unknown> = {};
@@ -79,7 +84,7 @@ export function installGeminiLifecycleHooks(configDir: string): void {
           {
             name: `puddle-${signal}`,
             type: 'command',
-            command: `${JSON.stringify(execPath)} ${JSON.stringify(helperPath)} ${signal}`,
+            command: managedHookCommand(dir, HELPER_FILE, signal),
           },
         ],
       } satisfies HookGroup,

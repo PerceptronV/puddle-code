@@ -1,14 +1,19 @@
-import { execPath } from 'node:process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import {
+  installHookDispatcher,
+  legacyHelperCommand,
+  managedHookCommand,
+  writeManagedHelper,
+} from '../managed-helpers.js';
 
 /**
  * Live per-session usage capture for claude-code, via the documented
  * statusLine mechanism (SPEC §5). Claude Code invokes a status-line command
  * on every session update, passing a JSON payload on stdin. We point that at
- * a tiny helper (run by the daemon's own pinned node) which records the
+ * a tiny helper (run by its owner's pinned Node) which records the
  * fields we surface — context-window fill and cost — into a puddle-owned file
- * beside it, and prints a compact line so the terminal still shows a status.
+ * in the managed account, and prints a compact line for the terminal.
  *
  * This is credential-free and documented: it reads no tokens, only the usage
  * numbers Claude Code already computes. The subscription rate-limit view
@@ -23,9 +28,12 @@ import { join } from 'node:path';
 const STATUS_FILE = 'puddle-status.json';
 const HELPER_FILE = 'puddle-statusline.mjs';
 
-const HELPER_SOURCE = `import { writeFileSync } from 'node:fs';
+export const CLAUDE_STATUSLINE_SOURCE = `import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-const out = fileURLToPath(new URL('./${STATUS_FILE}', import.meta.url));
+import { join } from 'node:path';
+const out = process.env.PUDDLE_AGENT_HELPER_DIR && process.env.CLAUDE_CONFIG_DIR
+  ? join(process.env.CLAUDE_CONFIG_DIR, '${STATUS_FILE}')
+  : fileURLToPath(new URL('./${STATUS_FILE}', import.meta.url));
 let raw = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (d) => (raw += d));
@@ -65,7 +73,8 @@ export interface ClaudeLiveUsage {
  * status line the user (or an imported account) already configured.
  */
 export function installStatusLine(configDir: string): void {
-  writeFileSync(join(configDir, HELPER_FILE), HELPER_SOURCE, { mode: 0o700 });
+  writeManagedHelper(join(configDir, HELPER_FILE), CLAUDE_STATUSLINE_SOURCE);
+  installHookDispatcher(configDir);
   const settingsFile = join(configDir, 'settings.json');
   let settings: Record<string, unknown> = {};
   if (existsSync(settingsFile)) {
@@ -75,12 +84,24 @@ export function installStatusLine(configDir: string): void {
       // A corrupt settings file is replaced by one carrying only our line.
     }
   }
-  if (settings['statusLine'] !== undefined) return; // respect an existing one
+  const command = managedHookCommand(configDir, HELPER_FILE);
+  const previous = settings['statusLine'];
+  if (previous !== undefined) {
+    if (
+      !previous ||
+      typeof previous !== 'object' ||
+      !('type' in previous) ||
+      previous.type !== 'command' ||
+      !('command' in previous) ||
+      (previous.command !== command &&
+        !legacyHelperCommand(previous.command, join(configDir, HELPER_FILE)))
+    )
+      return;
+  }
   settings['statusLine'] = {
+    ...(previous && typeof previous === 'object' ? previous : {}),
     type: 'command',
-    // The daemon's pinned node runs claude on this same host, so its path is
-    // valid for the status-line subprocess too.
-    command: `${JSON.stringify(execPath)} ${JSON.stringify(join(configDir, HELPER_FILE))}`,
+    command,
   };
   writeFileSync(settingsFile, `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o600 });
 }

@@ -1,12 +1,62 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { execPath } from 'node:process';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { installStatusLine, readLiveUsage } from '../../src/agents/claude-code/statusline.js';
+import { claudeRuntimeAssets } from '../../src/agents/claude-code/runtime-assets.js';
+import { pinRuntimeAssets } from '../../src/runtime/assets.js';
+
+const homes: string[] = [];
+afterEach(() => {
+  for (const home of homes.splice(0)) rmSync(home, { recursive: true, force: true });
+});
 
 describe('claude-code status line capture', () => {
+  it('migrates only the owned legacy command and keeps pinned usage in the managed account', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'puddle-sl-'));
+    homes.push(dir);
+    const owner = join(dir, 'owner');
+    mkdirSync(owner, { mode: 0o700 });
+    const env = pinRuntimeAssets(owner, claudeRuntimeAssets());
+    const legacy = `${JSON.stringify(execPath)} ${JSON.stringify(join(dir, 'puddle-statusline.mjs'))}`;
+    writeFileSync(
+      join(dir, 'settings.json'),
+      JSON.stringify({ statusLine: { type: 'command', command: legacy, padding: 2 } }),
+    );
+    installStatusLine(dir);
+    const settings = JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8')) as {
+      statusLine: { command: string; padding: number };
+    };
+    expect(settings.statusLine.command).toContain('puddle-hooks-v1.sh');
+    expect(settings.statusLine.padding).toBe(2);
+    writeFileSync(
+      join(dir, 'puddle-statusline.mjs'),
+      'throw new Error("account helper replaced");',
+    );
+    const line = execFileSync('/bin/sh', ['-c', settings.statusLine.command], {
+      env: { ...env, CLAUDE_CONFIG_DIR: dir },
+      input: JSON.stringify({ context_window: { used_percentage: 12 } }),
+      encoding: 'utf8',
+    });
+    expect(line).toContain('12%');
+    expect(readLiveUsage(dir)?.context_used_percentage).toBe(12);
+    expect(existsSync(join(owner, 'helpers/puddle-status.json'))).toBe(false);
+    for (const custom of [
+      `${legacy} --custom`,
+      `"/bin/echo" ${JSON.stringify(join(dir, 'puddle-statusline.mjs'))}`,
+    ]) {
+      writeFileSync(
+        join(dir, 'settings.json'),
+        JSON.stringify({ statusLine: { type: 'command', command: custom } }),
+      );
+      installStatusLine(dir);
+      expect(JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8')).statusLine.command).toBe(
+        custom,
+      );
+    }
+  });
   it('installs a statusLine command without clobbering an existing one', () => {
     const dir = mkdtempSync(join(tmpdir(), 'puddle-sl-'));
     installStatusLine(dir);

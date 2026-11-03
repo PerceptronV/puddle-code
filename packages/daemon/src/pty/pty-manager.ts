@@ -283,6 +283,17 @@ export class PtyManager extends EventEmitter {
     }
   }
 
+  /** Capture the existing emulator queue without resizing or importing another log segment. */
+  async canonicalSnapshot(
+    stream: string,
+    term: string,
+    cols?: number,
+    rows?: number,
+  ): Promise<string> {
+    if (cols !== undefined && rows !== undefined) this.screens.resize(stream, term, cols, rows);
+    return (await this.screens.snapshot(stream, term)) ?? '';
+  }
+
   async closeTerminalStates(): Promise<void> {
     await this.screens.closeAll();
   }
@@ -352,7 +363,8 @@ export class PtyManager extends EventEmitter {
    */
   note(stream: string, term: string, text: string): void {
     const data = `\r\n[puddle] ${text}\r\n`;
-    this.logs.append(stream, term, data);
+    if (this.live.get(this.key(stream, term))?.record !== false)
+      this.logs.append(stream, term, data);
     this.screens.write(stream, term, data);
     this.emit('data', { stream, term, data } satisfies PtyDataEvent);
   }

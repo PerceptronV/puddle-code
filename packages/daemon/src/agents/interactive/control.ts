@@ -133,7 +133,13 @@ export function interactiveResource(
     dispose: async () => {
       control.dispose();
       const hash = createHash('sha256').update(context.signalNonce).digest('hex');
-      await rm(join(configDir, `.puddle-turn-${hash}.json`), { force: true });
+      await rm(
+        join(
+          context.env?.['PUDDLE_AGENT_TURN_STATE_DIR'] ?? configDir,
+          `.puddle-turn-${hash}.json`,
+        ),
+        { force: true },
+      );
     },
   };
 }

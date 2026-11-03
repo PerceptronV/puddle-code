@@ -1,5 +1,6 @@
 import { prepareClaudeInteractive } from './control.js';
 import { prepareClaudeHeadless } from './headless.js';
+import { claudeRuntimeAssets } from './runtime-assets.js';
 import { execFile } from 'node:child_process';
 import {
   closeSync,
@@ -111,6 +112,7 @@ const EMPTY_USAGE: AgentUsage = {
  * session reads, to fix one agent's setting.
  */
 export const claudeCode: AgentAdapter = {
+  runtimeAssets: claudeRuntimeAssets,
   scriptedTurns: true,
   prepareHeadlessLaunch: prepareClaudeHeadless,
   prepareLifecycleLaunch: prepareClaudeInteractive,
