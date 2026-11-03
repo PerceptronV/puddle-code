@@ -1,0 +1,776 @@
+# Persistent runtimes and cockpit-managed host updates
+
+Status: refactoring plan with initial implementation groundwork, 2026-11-03.
+Production sessions still use daemon-owned PTYs; non-interrupting upgrades are
+not yet enabled.
+This document describes the intended refactor; [SPEC.md](../../SPEC.md) continues
+to describe shipped behaviour. Update the specification, protocol documentation,
+repository instructions and changelog alongside each implementation phase.
+
+The delivery order is process continuity first, local/SSH cockpit updates second,
+then relay maintenance and default rollout. The primary acceptance journey is:
+open a host window, receive an update offer, apply the daemon/runtime software
+update, reconnect, and observe the same running agent and shell processes. A
+second newly created runtime uses the updated build while the original runtime
+continues using its pinned build. Repeat this with a compatible cockpit on a
+different release to verify that release equality is never an upgrade condition.
+
+See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
+[implementation sequence](#implementation-sequence) for phased deliverables and
+[acceptance matrix](#acceptance-matrix) for the release gates.
+
+Implementation evidence so far:
+
+- Runtime protocol 1.0 schemas, bounded private IPC, a separate development
+  `puddler` entry point and one-owner terminal/control implementation exist.
+- OS-released ownership claims and controller epochs are tested with an isolated
+  fake controller killed by `SIGKILL`. Its independent shell retains its PID and
+  in-memory state when a new controller adopts it.
+- Single-use launches, stale terminal generations, private identity checks,
+  bounded framing and controller reconnection have automated coverage.
+- Migration 029 and `RuntimeStore` provide durable launch bindings and atomic
+  application-effects/event-cursor commits. Discovery includes exclusive
+  retirement to fence delayed launches after confirmed owner loss.
+- Supervisor registration supports separate systemd units and launchd jobs.
+  Tests cover generated definitions, and an opt-in macOS integration test exercises
+  restarting a separate controller job while its runtime remains alive.
+- Terminal creation/exit events now have bounded private retention, paginated
+  replay and controller-scoped acknowledgement. Asynchronous atomic writes retry
+  with backoff; overflow leaves an explicit, sticky gap instead of discarding
+  unacknowledged history. Confirmed-owner-loss discovery returns the retained
+  journal with final state.
+- Optional provider launches now own the existing adapters' live resources and a
+  bounded hook endpoint. Native lifecycle observations survive controller outages;
+  cross-process conversation claims stop colliding incoming runtimes. Tests use
+  deterministic providers, plus the real Codex adapter/proxy against a fake
+  app-server, to check sidecar continuity and confirmed cleanup. This is not native
+  provider acceptance or production session adoption. Commands, platform details
+  and remaining native gates are in the [acceptance script](../acceptance/persistent-runtimes.md).
+- Turn-control IPC now separates prompt admission from completion, reserves
+  bounded result retention before dispatch, and keeps accepted work running
+  through controller loss. Isolated tests cover a deliberately unread admission
+  response, one provider invocation, result recovery, stale cancellation, human
+  takeover, native switches and exit interruption. Production puddlang callers
+  still need durable operation-to-runtime/turn bindings and adoption integration.
+- Provider-owned hook/plugin sources are copied into each runtime's private
+  helper directory with bounded manifests and an exact Node path. Stable account
+  dispatchers preserve older helper code when account installations change;
+  mutable turn state is separate. Tests execute generated lifecycle/turn hooks,
+  status-line capture and the OpenCode loader against pinned assets. Immutable
+  release retention and native provider acceptance remain separate gates.
+- Runtime owners retain private shell environment/directory reports during
+  controller outages and supply current captured values to new PTYs. Reports
+  coalesce without crossing lifecycle/control events; policy and purge changes
+  reserve retained-event capacity. Tests cover exact process continuity, denied
+  names, bounded values/counts, and absence of captured values from terminal
+  logs/screens and ordinary inspection. Production database/settings routing
+  still needs to consume this private contract during adoption.
+- Output now carries native-lifecycle segment ids, with separate raw logs and
+  immutable terminal checkpoints. Live emulators remain intact across switches.
+  Isolated tests switch native refs twice while the controller is absent, then
+  verify raw-log boundaries, historical screens, mouse modes, main/shell PIDs and
+  shell variables. Bounded checkpoint work reports gaps on failure. Durable
+  placement binding, mutation fencing and production retention/budget reclamation
+  still need integration; the current conservative lifetime budgets are temporary.
+
+These are foundations for phases 0–3, not completion of those phases. Full native
+supervisor acceptance on both platforms, platform measurements, executable/native
+dependency retention, production session/turn adoption, durable segment bindings,
+packaging and the update surfaces below remain required. No production session
+is opted into the new backend yet.
+
+## Outcome and decisions
+
+Updating or restarting `puddled` must leave running agents, their terminals,
+associated shells and lifecycle sidecars alive. The cockpit disconnects briefly,
+then attaches to the same processes. Conversation resume remains recovery for a
+lost runtime; it is not the mechanism for an ordinary daemon upgrade.
+
+The agreed design is:
+
+- **One `puddler` service process per live runtime.** It owns that runtime's main
+  PTY, extra shell PTYs and agent sidecars. There is no singleton `puddler` owning
+  every agent, and no additional service per shell tab. “Per runtime” means per
+  live runtime identity, not per provider or installed software version: two
+  live Codex runtimes have two independent `puddler` services.
+- **Keep cockpit and daemon releases independent.** Preserve application protocol
+  compatibility and feature detection. Do not require matching release versions
+  or automatically update a host because a newer cockpit connects.
+- **Three independently versioned communication contracts:** application,
+  remote and runtime. Component release versions remain separate from all three.
+- **Update the target host from its cockpit.** Provide daemon and runtime software
+  updates without requiring the user to open an SSH terminal. Local and SSH
+  cockpits share the implementation; relay access requires the explicit authority
+  described below.
+- **Offer updates when a new host window opens and when a new release becomes
+  available.** Follow the existing desktop update toast's behaviour: dismissable,
+  deduplicated within a window, offered again for a newer release or a new window.
+- **Installing runtime software does not restart existing runtimes.** New
+  runtimes use the new build; existing ones retain their executable and resources
+  until they exit. Restarting a selected runtime is a separate, explicit action.
+
+This is process continuity across application restarts, not process checkpointing
+across machine reboots. A crashed `puddler`, reboot or explicit runtime restart
+still loses in-memory process state. Installing a new provider CLI is also
+separate from installing `puddler`; this refactor does not introduce an automatic
+Codex/Claude/OpenCode/Gemini package updater.
+
+For example, after installing release B over release A, `puddled` can run B,
+existing runtimes can keep running A, and newly created runtimes can use B. A
+compatible cockpit on either release continues to work. Compatibility determines
+whether this combination is supported; matching release strings do not.
+
+## Current implementation and seams
+
+| Area | Current behaviour | Required change |
+| --- | --- | --- |
+| [`daemon.ts`](../../packages/daemon/src/daemon.ts) | Shutdown kills every PTY, closes terminal states and interrupts daemon-owned execution. | Detach runtime clients on ordinary shutdown; retain explicit termination paths. |
+| [`pty-manager.ts`](../../packages/daemon/src/pty/pty-manager.ts) | Owns `node-pty` objects, OSC filtering, logs, emulators, sizes and sidecar roots in-process. | Move process ownership and terminal continuity into `puddler`; use an asynchronous client in the daemon. |
+| [`sessions/service.ts`](../../packages/daemon/src/sessions/service.ts) | Stable runtime identity exists, but its ownership, lifecycle resources and conversation index are in memory. | Persist runtime bindings and reconstruct them from authenticated live owners. |
+| [`sessions/reconcile.ts`](../../packages/daemon/src/sessions/reconcile.ts) | Previously live rows are marked interrupted on every boot. | Discover and adopt runtimes before considering interruption or auto-resume. |
+| [`agents/`](../../packages/daemon/src/agents) | Provider lifecycle resources run inside the daemon; Codex's TUI depends on its proxy and app-server. | Execute the provider's live integration in its runtime host, retaining provider-owned modules. |
+| [`scripts/install.sh`](../../scripts/install.sh) | Replaces a release tree, flips `current` and restarts the daemon and registered connector. | Stage immutable releases and restart only the selected components; retain all trees used by live runtimes. |
+| [`handshake.ts`](../../packages/cli/src/lib/connection/handshake.ts) | One local/SSH compatibility and approved-update policy, with interruption wording. | Retain that policy and share its updater with cockpit actions; calculate actual update impact. |
+| [`UpdateToast.tsx`](../../packages/web/src/features/shell/UpdateToast.tsx) | Offers a staged desktop release on mount and when the shell announces one. | Reuse the interaction for host updates while keeping desktop and target-host operations distinct. |
+| [`desktop/main.ts`](../../packages/desktop/src/main.ts) | Checks releases every 30 minutes and stages the newest desktop release. | Keep shell updates here; host checking/staging belongs on the host and shared launcher path. |
+
+The existing CLI can already upgrade a target with `puddle upgrade daemon
+user@host`; the missing experience is doing this from the connected cockpit.
+Do not build a second independent installer to add that experience.
+
+## Ownership and process topology
+
+```mermaid
+flowchart TB
+  C[Cockpit / CLI] -->|Application protocol| D[puddled]
+  R[Remote connector] -->|Authorised application requests| D
+  D --> DB[(SQLite: placements, conversations, projects)]
+  D -->|Private runtime protocol| A[puddler: runtime A]
+  D -->|Private runtime protocol| B[puddler: runtime B]
+  A --> AP[Agent PTY and shell PTYs]
+  A --> AS[Provider sidecars and hook endpoint]
+  A --> AT[Terminal state, output and runtime events]
+  B --> BP[Agent or plain terminal runtime]
+```
+
+The arrows describe communication, not a process tree. Each runtime must be
+outside the daemon's supervisor termination boundary. Killing/restarting the
+daemon service must not kill `puddler`, its PTYs or its sidecars.
+
+### Daemon responsibilities
+
+Keep SQLite, projects, accounts, immutable placements, native conversation
+catalogue, worktree/Git operations, browser authority, connection leases, remote
+profile policy, API/WS serving and user-facing notification delivery in `puddled`.
+It remains the only writer of the application database. Cross-process runtime
+records must not become a second editable project/session database.
+
+The daemon decides whether a launch, account change, archive or termination is
+authorised. It resolves the worktree under the existing Git mutex, records launch
+intent and passes a validated context to the selected runtime executable.
+
+### Runtime responsibilities
+
+Each `puddler` owns exactly one stable runtime identity, independently of its
+current Puddle placement. It owns:
+
+- The main agent or plain-shell PTY and all extra shell tabs in that runtime.
+- Child and sidecar process roots, including Codex's app-server and proxy.
+- Provider lifecycle hooks/plugins, their stable endpoint and per-runtime nonce.
+- Exact native conversation observations, activity state and turn correlation.
+- Terminal emulators, dimensions, mouse encoding, bounded output and snapshots.
+- Captured environment and shell-directory reports, filtered before public output.
+- A bounded ordered event journal and the private control socket.
+
+One terminal placement also has one runtime host. A code-execution terminal uses
+that same model, including its retained shell. Account login and temporary host
+terminals can remain explicitly transient in the first release; label their
+interruption honestly rather than pretending they are persistent placements.
+
+A service lives until its runtime is explicitly stopped or naturally completes
+according to the existing agent/shell lifecycle. Finishing one agent turn does
+not end its runtime. Do not change what happens to extra shells on main-agent
+exit incidentally during the refactor. Leave a bounded final exit record for a
+daemon that was disconnected at exit, then remove the service registration.
+
+### Service lifecycle
+
+Installing the runtime component installs the `puddler` executable and supervisor
+support; it does not start an empty resident service. With no live runtimes there
+are no `puddler` processes. A host with ten live runtimes has ten owners, even if
+all ten use the same provider and release. Service identity follows the runtime
+id and incarnation, so a native conversation switch does not replace its owner.
+
+1. **Create:** the daemon authorises the launch, commits its unique intent and
+   pins a concrete runtime build. It registers one independently supervised
+   owner with private launch context and no automatic restart policy.
+2. **Start:** the owner acquires its exclusive claim, consumes the launch once,
+   opens its control socket and creates the PTYs and provider resources. Lost
+   acknowledgements cause inspection of that same owner, never another launch.
+3. **Detach and adopt:** daemon loss leaves the owner running and draining
+   output. The replacement daemon authenticates it, fences the old controller
+   and reconciles events before exposing mutations. It neither registers a
+   replacement service nor executes the agent command again.
+4. **Install an update:** selecting a new default build affects subsequent
+   launches. Existing service definitions continue to reference their exact
+   executable, Node, native modules and helper assets.
+5. **Stop:** an authorised explicit stop or the existing natural-exit rules end
+   the runtime, reap its process tree and retain final state. A crash is recorded
+   as loss of execution; the supervisor must not replay its launch.
+6. **Retire:** remove the completed service registration only after confirming
+   ownership has ended. Retain bounded discovery/result records for daemon
+   reconciliation, then collect unreferenced assets under the retention policy.
+   Repeating cleanup is safe and cannot stop a newer runtime incarnation.
+
+Use the same lifecycle for agent runtimes and ordinary terminal runtimes. Starting
+an extra shell adds a PTY to its existing owner; resuming after confirmed owner
+loss creates a new runtime and a new service.
+
+### Platform lifetime
+
+- **Linux with systemd:** one user service instance per runtime, separate from
+  `puddled.service`, with its own process group/cgroup. No daemon stop dependency
+  and no automatic restart that could replay an agent launch.
+- **macOS with launchd:** one job per runtime, using its exact immutable build
+  path. Restarting the daemon label must not stop these jobs. Do not use an
+  unconditional keep-alive policy to restart completed or failed agent commands.
+- **Persistent hosts without either supervisor:** use a verified detached owner
+  with private discovery and explicit cleanup. `detached: true` alone is not
+  evidence that it survives the host's session teardown policy.
+- **SSH hosts that reap detached processes:** retain an explicit attached lifetime
+  fallback. Investigate a separate runtime-holding SSH channel so replacing the
+  daemon can still preserve execution while the cockpit remains connected. If
+  this cannot be guaranteed, advertise the limited lifetime and block any claim
+  of a non-interrupting update. Never start competing owners as a workaround.
+
+Prove actual supervisor restart behaviour in the first implementation phase.
+An implementation that only survives `kill(puddledPid)` is insufficient.
+
+## Versions and compatibility
+
+| Contract | Scope | Policy |
+| --- | --- | --- |
+| Application (`PROTOCOL_VERSION`) | Cockpit/CLI/connector to daemon API and host-control semantics | Retain same-major compatibility, additive minors and feature detection. Different release versions are normal. |
+| Remote (`REMOTE_PROTOCOL_VERSION`) | Remote admission, Noise framing, relay/connector semantics and authority changes | Remains independent. Review connector allowlists and host profile authority for every added operation. |
+| Runtime (`RUNTIME_PROTOCOL_VERSION`, new) | Daemon to `puddler` | Major/minor compatibility with explicit supported majors and capabilities. Begin at `1.0`; do not derive it from either existing protocol. |
+
+Release metadata must distinguish the installed/default runtime build from the
+versions actually running. A host may legitimately have a new daemon and several
+older runtime builds. Show application and protocol versions separately in
+diagnostics; users should not need protocol terminology to operate update controls.
+
+Put runtime wire schemas in `packages/shared/src/runtime/`, exported through the
+existing public entry point, with their own versioning document. Keep them
+independent of mutable REST `Session`/`Account` objects: send the bounded fields
+the runtime requires rather than serialising application models wholesale.
+Runtime-local files also need a format marker and explicit migration/read rules;
+do not treat that marker as a fourth public communication protocol.
+
+Before applying a daemon update, check that the candidate can adopt **every live
+runtime** and read their event/storage formats. Keep compatible old runtime
+protocol readers where necessary. If support is missing, defer the update and
+identify the affected runtimes; offer explicit restart/stop choices. Never
+silently terminate an older runtime or interpret an incompatible handshake as
+proof that it is dead. This preflight must run again under the update lock.
+
+The same preflight checks the initiating cockpit and bundled connector. If the
+newest release requires a newer cockpit, offer the client update first. Other
+connected clients may become incompatible after a major application upgrade;
+warn about that impact and leave them with update guidance, not a host downgrade.
+Updating the desktop must not automatically force a compatible daemon update.
+
+## Private runtime protocol and durable identity
+
+Keep the runtime surface small and bounded. These are operation families, not a
+second prose schema; implementation must define the exact Zod contracts:
+
+| Family | Responsibility |
+| --- | --- |
+| Handshake and adoption | Build/protocol/capability discovery, authenticated identity, controller generation, current state and event cursors. |
+| Terminal attachment | Snapshot plus ordered output cursor, live stream, detach, resize and explicit input. |
+| Runtime control | Create/close a shell, terminate the selected runtime, inspect exact process roots and hidden ports. |
+| Provider control | Exact ask/cancel/results where supported, lifecycle/status events and human-input takeover. |
+| Reconciliation | Acknowledge events, commit a placement binding and read retained exit/result records. |
+
+Use owner-only local IPC and the shared private-home/socket validation helpers.
+Reuse short runtime-directory socket placement to respect Unix socket path
+limits. Browser tokens, remote leases and agent hook nonces must not authenticate
+this control connection. Do not expose it through the remote connector or a new
+public TCP API. Same-OS-user execution remains trusted, not sandboxed.
+
+Add a migration for durable runtime bindings: stable runtime id, unique launch
+attempt, profile/project/account, canonical worktree, active placement, exact
+conversation when known, build/protocol metadata and last committed event cursor.
+Allocate actual migration numbers at implementation time. A resume after real
+runtime loss creates a new runtime identity; adoption preserves the old one.
+
+Private runtime manifests record the runtime incarnation, boot identity,
+supervisor registration, exact executable tree, socket locator and launch state.
+They must not put credentials in argv or public discovery records. Persist
+necessary sensitive launch/environment state privately with the same protections
+as existing session environment storage. Authenticate a responding owner; a PID
+or path match alone is never sufficient, including after PID reuse or reboot.
+
+Enforce a single daemon controller with a host ownership lock and a fenced
+controller generation at each runtime. An old connection cannot issue commands
+after a new controller adopts it. Loss of a controller connection detaches that
+controller; it does not terminate execution. Timeouts alone do not authorise
+stealing ownership from a still-live daemon.
+
+Record launch intent before dispatch. Give each launch a unique identity and
+consume it once. If acknowledgement is lost, inspect the owner/intent rather than
+spawning another agent. Do not expose a generic shell-command updater/control
+endpoint. Bound frames, outstanding requests, subscriptions, queues and timeouts.
+
+Terminal input and scripted asks are never automatically replayed after an
+uncertain acknowledgement. Mutation ids permit result lookup and duplicate
+rejection; they are not permission to repeat arbitrary agent actions. Check
+terminal generation as well as runtime id so stale input cannot reach a newly
+created shell with a reused display id.
+
+## Reattachment, lifecycle events and output
+
+### Startup order
+
+1. Acquire the daemon controller lock, open/migrate SQLite and inspect update state.
+2. Enumerate private runtime records, authenticate owners and negotiate supported
+   runtime contracts with bounded concurrency.
+3. Reconcile ordered runtime events, exact conversation identity, placements,
+   shell inventories, environment, process roots and live state.
+4. Rebuild the one-runtime-per-conversation index and attach live subscriptions.
+5. Reconcile confirmed exits and confirmed missing owners. Only these are eligible
+   for the existing interrupted/auto-resume path.
+6. Admit new launches, catalogue materialisation and mutations after ownership is
+   established. An unresolved owner blocks conflicting launches, not the entire UI.
+
+An unreachable, incompatible or ambiguously owned runtime is not automatically
+interrupted. Present a reconnect/inspection problem and prevent duplicate resume.
+For adopted runtimes, do not inject restart text, run onboarding again, change
+account, recreate shells or re-send a command. If an agent exited while the daemon
+was down, import its real exit once rather than auto-resuming a stale live row.
+
+### Native conversation switches while disconnected
+
+Keep provider lifecycle handling beside each provider and running inside
+`puddler`. The provider reports exact native identity to an ordered runtime event
+stream even while `puddled` is absent. Catalogue recency is never a substitute.
+
+The daemon remains responsible for creating placements and committing their
+conversation/branch ownership in SQLite. Runtime output is segmented by an
+immutable lifecycle event/segment id, so bytes produced between native switches
+can later be mapped to the correct placements. Use a recoverable, idempotent
+binding transaction: runtime event, database commit, binding acknowledgement.
+Crashes on either side of that sequence must neither lose nor duplicate a switch.
+
+Enforce exact conversation ownership across runtime processes, including while
+the daemon is down. Use host-local exclusive claims keyed by profile, provider
+and native ref, tied to authenticated runtime incarnation and actual process
+lifetime. Prototype the cross-process locking primitive in phase 0; never steal
+a claim using age alone. Apply the current collision rule: an incoming runtime
+that switches into a conversation already owned by another is stopped, and its
+collision event later directs the viewer to the existing owner. No new central
+always-running broker is introduced for claims.
+
+Pin hook helpers, plugins, Node/native modules and sidecar assets to each runtime's
+release. In particular, rewriting a shared account's managed hook helper during
+an upgrade must not replace code still used by an older runtime. Use an immutable
+helper path or a deliberately stable dispatch shim selecting the runtime's own
+helper. Preserve existing unsupported-provider fallback and `native_sync` truth.
+
+### Terminal continuity and bounded persistence
+
+The runtime drains PTY output independently of daemon and browser connectivity.
+It retains headless terminal state, alternate buffers, dimensions, mouse tracking
+and encoding, OSC filtering and theme-query replies. Keep secret environment OSC
+payloads out of logs and public event streams before any persistence or delivery.
+
+Attach with an atomic snapshot/cursor boundary and then stream later output.
+Use runtime/terminal incarnation plus monotonic sequence numbers to detect gaps
+and duplicates. When bounded history has rolled over, send a fresh snapshot and
+an explicit gap indication; never silently stitch incompatible terminal states.
+Slow/disconnected viewers cannot block a PTY or grow an unbounded queue.
+
+Give terminal logs/screens one writer, the runtime host. Preserve placement-based
+history through segment bindings. Retention must treat live runtime segments as
+busy even when no daemon owns an open log handle. Release binaries, hook assets,
+shell history and managed code-run directories stay pinned while referenced.
+
+Preserve storage-exhaustion behaviour: output loss is bounded and reported,
+while live execution continues. Allocate per-runtime budgets whose total respects
+a host-wide cap; copying the current daemon-wide buffer allowance into every
+process would multiply memory use. Separate lifecycle/exit records from disposable
+bulk output. Coalesce replaceable observations; retain unacknowledged identity
+transitions. If an essential journal cannot persist or reaches its cap, flag
+reconciliation as incomplete and prevent unsafe adoption/replay. Never invent
+missing transitions or stop a working PTY solely because a log write failed.
+
+Reconnect notification delivery from recorded event ids without replaying a
+backlog of historical toasts/pushes. Preserve exact session destinations and
+profile filtering. Agent-launched servers continue running; browser/SSH proxy
+connections can still drop during a daemon restart and must reconnect normally.
+
+## Target-host update transaction
+
+Implement one host-update coordinator shared by CLI, launcher handshake and
+cockpit controls. Resolve/check releases, download, verify and stage on the
+selected host. The browser supplies an offered release identifier and explicit
+component/action selection, never an arbitrary URL, install path or command.
+Use the existing configured release source and checksum trust model.
+
+The coordinator has a private durable operation record and a bounded one-shot
+worker that survives replacement of the daemon and connector. It is not another
+permanent service. Run that worker outside their supervisor termination scope,
+with a one-use authorised operation and immutable worker executable. Do not
+assume a child detached inside the old daemon's cgroup will survive its restart.
+
+The update state machine is:
+
+```text
+checking → downloading → verified/staged → preflight → applying → verifying → complete
+                          │                 │             │
+                          └─ superseded     └─ blocked    └─ failed / recovery required
+```
+
+1. Cache release checks and verified stages by host/platform/release. One host
+   operation lock serialises all cockpit/CLI attempts; concurrent windows observe
+   the same operation rather than starting competing installers.
+2. Inspect platform support, supervisor lifetime, free space/inodes, active
+   runtimes, client/connector protocols and other daemon-owned work. Recheck
+   authority and the exact approved release/impact before committing.
+3. Stage into a fresh immutable tree, verify checksums and bounded metadata, and
+   smoke-test version/capability reporting without starting a production daemon.
+   Never overwrite a tree used by any running process, including a forced repair
+   of the same release. Use a new installation generation for such repairs.
+4. Quiesce daemon mutations and checkpoint its ownership/event cursors. Let
+   runtimes keep executing. Persist the accepted update operation before replying
+   to the cockpit; subsequent connection loss does not imply failure or permission
+   to submit it again.
+5. Atomically select the candidate daemon/runtime defaults, restart only the
+   selected daemon/connector components through the recorded supervisor, and
+   verify the replacement's actual version, authority and runtime adoption.
+6. Reacquire connection leases through the normal local/SSH/Noise path. The
+   cockpit observes the operation id to completion and resumes viewing; do not
+   replay pending writes. Success requires verified adoption, not merely a live
+   HTTP port or a flipped symlink.
+7. On failure, preserve all runtimes and the diagnostic operation record. Roll
+   back only where database/config migrations and runtime formats explicitly
+   permit it. A binary rollback is not automatically a safe database rollback;
+   do not restore stale application data over continued runtime events. Otherwise
+   leave a recoverable maintenance state and provide the supported recovery path.
+
+Retain old release trees while referenced by a runtime, update worker, daemon,
+connector, hook or supported rollback target. Collect them only after verified
+release of all references. Bound unreferenced cache and journal retention; report
+space consumed by intentionally pinned old builds rather than deleting them.
+
+### What each action means
+
+| Action | Effect on active runtimes |
+| --- | --- |
+| Update daemon | Brief application disconnection; compatible `puddler` processes and agents stay alive. |
+| Install runtime update | Change the default build for new runtimes; all current runtimes continue on their existing build. |
+| Update daemon and runtime software | Perform the two operations above in one host transaction, without restarting active runtimes. |
+| Restart selected runtime on the installed build | Explicitly stop that runtime and launch a replacement using normal exact-conversation recovery; shell/process state is lost. |
+| Update desktop/CLI | Change the client application independently; preserve compatible host versions. |
+
+Do not automatically restart an idle/waiting agent: waiting for input can be a
+permission prompt or a valuable shell state, not a safe restart boundary. A
+runtime restart must list its affected agent and shell tabs and state that shell
+jobs are lost. Ordinary software installation must not be labelled “restart all”.
+
+Keep distribution simple initially: ship `puddler` and its metadata in the host
+release archive alongside `puddled` and the connector. Independent default
+selectors allow a runtime-only installation without activating that archive's
+daemon. Add `runtime` to CLI install/upgrade/inventory/removal semantics, sharing
+the coordinator. Version queries must not launch either service as a side effect.
+
+## Cockpit controls, release checks and authority
+
+### Interaction
+
+Add an Updates area to Settings → Host with the host name, current daemon build,
+default runtime build, active runtime version counts, latest offered release,
+last check/result, and explicit update actions. Show per-runtime details in the
+session/runtime inspector, with a separate restart action. Keep the ordinary
+presentation minimal and borderless, using existing tokens and setting rows.
+
+Each newly opened host window queries update status on mount. The host coalesces
+checks, uses the existing 30-minute desktop cadence for release discovery, and
+broadcasts newly available/staged versions to connected windows. Do not multiply
+GitHub polling or downloads by the number of windows or runtimes. Checking and
+staging may happen automatically; applying an update always follows a user action.
+
+Offer one dismissable toast per host/component/release per window lifetime. A
+new window offers a still-pending update again; repeated renders, reconnects and
+polls in the same window do not resurrect a dismissal. A newer release is a new
+offer. Keep host and desktop toast identities separate, and include the target
+host in host-update text. Settings always retains the action after dismissal.
+
+Only say “downloaded and ready” after verification. Distinguish checking,
+available, downloading, ready, applying, reconnecting, completed, blocked and
+failed. Offline release discovery preserves a timestamped last-known result and
+must not prevent connection or claim the host is current. Follow the existing
+latest-stable policy; do not download every intermediate release or silently
+advance an explicitly pinned installation. Explicit pins get a visible update
+offer with a deliberate action to change the pin.
+
+Older compatible daemons that lack these capabilities keep working. The local/
+SSH launcher can offer the existing bootstrap path, explaining that the first
+upgrade from daemon-owned PTYs still interrupts those legacy processes. Never
+advertise continuity before the target actually has persistent runtimes.
+
+### Local and SSH cockpits
+
+Use a capability-detected cockpit-local host-update route backed by the shared
+launcher/host-control code. Preserve exact browser authority and mutation Origin
+checks and the selected transport target. Host command arguments are fixed;
+validated request data travels through structured IPC/stdin. No extra manual SSH
+login is required, though the existing SSH connection may still need its normal
+authentication/askpass flow.
+
+The compatibility handshake remains the single policy for required daemon
+updates. Manual cockpit updates invoke the same coordinator with an explicit
+requested release. Reconnect/HTTP version verification never initiates an update.
+Keep `--no-upgrade`, cancellation and non-interactive approval behaviour intact.
+Provide version inspection/recovery through the existing host-control/bootstrap
+path when a full application API cannot connect, rather than inventing a fourth
+general-purpose maintenance protocol.
+
+### Relay-connected browsers
+
+Current remote grants are profile-scoped, while installing daemon/runtime
+software changes the whole host. Do not simply add an update endpoint to the
+connector allowlist and treat every paired browser as a host administrator.
+
+Deliver local/SSH cockpit controls first. Before exposing the same action through
+the relay, add an explicit host-approved device maintenance capability, initially
+absent from all existing grants. Bind it to the exact approved Noise device and
+participating lease; the browser cannot select a device/profile or mint the grant
+itself. Host approval can use the existing local/SSH settings/pairing experience.
+
+The daemon must independently verify that scope, and the connector must allow
+only the bounded update/status operations. Review both
+[`connector/policy.ts`](../../packages/connector/src/policy.ts) and
+[`security/profile-access.ts`](../../packages/daemon/src/security/profile-access.ts).
+An authority-semantic change requires the relevant application and remote major
+bumps; a capability field alone does not make it an additive permission change.
+The relay remains opaque and stores no host update credentials or inventory.
+
+Maintenance status may expose component versions and aggregate update impact,
+but not other profiles' session names, paths, environments or conversations.
+Restarting an individual runtime still needs its existing profile/session scope;
+a maintenance grant is not blanket permission to terminate all profiles' work.
+Revocation before commit cancels dispatch; an already committed update completes
+as the recorded host operation and never creates or renews a browser lease.
+Reconnecting an old or incompatible remote app must not trigger a host downgrade.
+
+## Migration, shutdown and adjacent execution
+
+The first upgrade from the current architecture cannot promise seamless PTY
+transfer: its terminal descriptors and provider resources belong to the old
+daemon. Report that one-time interruption and recover through existing native
+resume. New runtime ids are then hosted by `puddler`; subsequent compatible
+daemon upgrades adopt them. Do not attempt live descriptor migration in this
+project.
+
+During rollout, support explicit ownership metadata for both legacy in-process
+and external runtimes. Shutdown distinguishes them: detach external owners and
+apply existing interruption behaviour only to legacy/transient processes. A
+feature flag rollback must not kill or overlook already externalised runtimes.
+
+Separate operations that currently share shutdown code:
+
+- Stopping/restarting the daemon detaches persistent runtimes.
+- Closing a cockpit only closes its connection, subject to an advertised attached
+  SSH lifetime limitation.
+- Killing/archiving a placement deliberately stops its owning live runtime using
+  the existing lifecycle rules.
+- Removing the daemon/runtime installation inventories surviving runtimes and
+  requires an explicit stop-or-retain decision. Retained runtimes keep their
+  executable trees and discovery records. Purge cannot delete live resources.
+- Machine reboot or confirmed runtime failure marks lost execution interrupted;
+  the daemon's configured auto-resume policy controls new launches, never the
+  runtime supervisor blindly restarting an old command.
+
+Do not overstate the first release's survival guarantee. Jupyter kernels,
+compilation/watch workers and puddlang programme runners currently have separate
+daemon-owned lifecycles. Their migration is outside the agent-runtime split.
+Update preflight must enumerate affected active work and offer postponement or
+explicitly accepted interruption. Puddlang programmes remain interrupted without
+replay; preserve their independently hosted agents as current shutdown semantics
+intend, and resolve pending asks as interrupted/unknown without resubmission.
+An accepted provider turn may finish in its runtime while the programme that
+requested it is gone; retain its bounded result without restarting the programme.
+
+## Implementation sequence
+
+Each phase must leave the current product usable. The default remains the current
+backend until persistent ownership has passed the adoption and failure gates.
+
+Deliver this in three reviewable milestones:
+
+1. **Runtime continuity (phases 0–3):** independently supervised owners, provider
+   resources and safe adoption. Prove continuity before changing upgrade promises.
+2. **Host updates from local/SSH cockpits (phases 4–5):** immutable packaging,
+   transactional updates and release offers. This delivers the primary user flow
+   without waiting for relay maintenance permissions.
+3. **Relay maintenance and rollout (phases 6–7):** explicit device authority,
+   complete platform/provider acceptance and default enablement.
+
+Each implementation change updates the evidence above and its relevant exit
+criteria. A passing prototype is evidence for a phase, not a substitute for the
+production integration and acceptance work listed in that phase.
+
+### 0. Prove independent process lifetime
+
+- Build an isolated fake-agent harness with one owner process per runtime.
+- Prove daemon termination, real systemd/launchd restart, SSH disconnect/fallback,
+  provider sidecar continuity, process exit collection and explicit cleanup.
+- Prototype exclusive runtime/controller/conversation claims with crash and PID
+  reuse cases; confirm the solution works without a singleton runtime broker.
+- Measure idle memory, CPU/wakeups, descriptors and restart/adoption latency at
+  representative counts such as 1, 10 and 50 runtimes. Set concrete regression
+  budgets before enabling the backend; avoid account-wide polling in each owner.
+
+Exit criterion: an agent and its shell job retain their PIDs and observable
+in-memory state through the supported daemon supervisor restarts. Unsupported
+host lifetimes are detected and reported rather than silently approximated.
+
+### 1. Define contracts, records and code boundaries
+
+- Add runtime protocol schemas, bounds, version/capability negotiation and
+  runtime format documentation under `packages/shared/src/runtime/`.
+- Add durable runtime bindings, launch attempts and committed event cursors via
+  a numbered SQLite migration; keep placements/conversations distinct.
+- Introduce `packages/daemon/src/runtime/` for the host entry point, private
+  server/client, ownership/discovery, supervisor integration and event storage.
+  Build a separate `puddler` executable from the same source package initially.
+- Keep provider implementations in `agents/<id>/`; split live execution from
+  catalogue/configuration responsibilities without copying adapters or placing
+  provider logic in the generic runtime client.
+- Define an asynchronous runtime interface and adapt callers that currently
+  assume synchronous in-process PTY access. Do not disguise socket operations
+  behind methods that falsely report synchronous success.
+
+Exit criterion: schema compatibility, identity, admission and ownership tests
+pass while the existing in-process backend still serves production sessions.
+
+### 2. Host terminals and provider resources in `puddler`
+
+- Move PTY ownership, OSC filtering, emulators, logs, snapshots, shell state,
+  process roots and provider sidecars behind the runtime interface.
+- Move hook endpoints, native status and exact interactive/headless controls to
+  the runtime owner. Pin managed helper/plugin assets to immutable build paths.
+- Implement bounded output/events, snapshot cursors, private launch context and
+  explicit process-tree termination. Avoid duplicated logging or polling.
+- Test all four providers with deterministic adapters, then verify native
+  integrations manually; keep version-supported fallback behaviour.
+
+Exit criterion: provider work and terminal jobs continue with the daemon absent,
+including Codex's proxy/app-server, shell environment and foreground process state.
+
+### 3. Adopt live runtimes and recover safely
+
+- Replace boot's blanket interruption pass with discovery/adoption before
+  auto-resume and catalogue materialisation.
+- Implement controller fencing, exact conversation claims, offline lifecycle
+  segments, binding acknowledgements and retained exit records.
+- Restore runtime indexes, shell inventory, ports, notifications and provider
+  control without re-running setup or input. Update retention/storage accounting.
+- Distinguish daemon stop from runtime stop throughout archive, migration,
+  account deletion, worktree removal and installation removal paths.
+
+Exit criterion: repeated graceful restarts and daemon crashes retain identical
+live process identities and correct placements, without duplicate launches,
+events, writes or mixed terminal history.
+
+### 4. Package runtimes and implement transactional host updates
+
+- Extend `scripts/build-tarball.mjs`, metadata, installer, release workflow,
+  component inventory and `--version` reporting for `puddler`.
+- Extract/shared-use the host installer/coordinator rather than duplicating
+  `installation/upgrade.ts`, bootstrap and handshake update paths.
+- Add immutable installation generations, independent component selectors,
+  reference-aware collection, the host operation lock and the surviving updater.
+- Implement compatibility/impact preflight, progress inspection, post-restart
+  adoption verification and migration-aware recovery.
+- Add runtime CLI component management and update shutdown/removal wording.
+
+Exit criterion: a built host release upgrades through the real installer while
+fake agents continue, and failure at every transaction boundary leaves a known,
+inspectable state with live runtime resources preserved.
+
+### 5. Add cockpit-managed updates and offers
+
+- Add shared application schemas/capabilities and bump the application protocol
+  according to the actual wire and authority changes.
+- Add local/SSH host-update controls in `cli/src/lib/host/` and `lib/serve/`,
+  using the existing authority and Origin boundary.
+- Add Settings → Host controls and a host-update toast beside the desktop toast.
+  Keep update query/mutation logic with its feature, and reuse existing tokens.
+- Add coalesced release discovery, new-window checks, newer-release events,
+  per-window dismissal, current-operation recovery and explicit runtime restart.
+- Update handshake messaging to report legacy interruptions, unaffected runtimes
+  and adjacent daemon-owned work accurately.
+
+Exit criterion: a user can update a local or SSH target entirely from its
+cockpit, reconnect after losing the response, and verify that agents never
+restarted. Both new-window and newly published-release offers behave as specified.
+
+### 6. Add explicitly authorised relay maintenance
+
+- Extend host-approved device grants and private lease propagation; do not
+  inherit maintenance authority for existing paired devices.
+- Add the narrow connector and daemon allowlist changes, version bumps and
+  compatibility guidance together with the capability-detected UI.
+- Verify grant revocation, profile filtering, opaque relay behaviour, connector
+  replacement and operation recovery without autonomous lease renewal.
+
+Exit criterion: an explicitly permitted remote browser can perform the same host
+update; an ordinary paired profile browser cannot. No shell/host secret reaches
+the remote service or browser, and no other profile's runtime details leak.
+
+### 7. Enable by default and document the transition
+
+- Run the full automated and real-provider acceptance matrix below.
+- Enable persistent runtimes on proven host lifetimes, retaining truthful fallback
+  capability reporting. Preserve legacy recovery until the supported upgrade
+  path no longer needs it.
+- Update SPEC §§2, 4, 5, 6, 9 and 10; the repo map/conventions in CLAUDE.md;
+  shared protocol documents; CLI help; the deployed guide; mobile documentation;
+  and relevant acceptance scripts and release notes.
+- Rewrite SPEC's “Why no tmux” rationale around Puddle-owned runtime services
+  instead of assuming that the application daemon is the durable PTY owner.
+
+## Acceptance matrix
+
+| Scenario | Required evidence |
+| --- | --- |
+| Graceful daemon restart and actual host upgrade | Same `puddler`, agent, sidecar and shell PIDs; unchanged shell variable/cwd/job; no resume/onboarding text. |
+| Daemon crash during an agent turn | Turn and output continue; new daemon adopts exact native ref and current placement once. |
+| Codex with daemon absent | TUI/proxy/app-server connection survives and its tool process continues; internal ports stay hidden after adoption. |
+| Native clear/resume/fork and collision during outage | Exact ordered identities, correctly segmented logs, one owner per native conversation and existing collision behaviour. |
+| Owner exits while disconnected | One retained exit/result; no false auto-resume from a stale database row. |
+| Lost launch or input acknowledgement | Owner is inspected; neither duplicate process nor replayed input/ask occurs. |
+| Snapshot plus concurrent output/resize | No missing/duplicated output boundary; alternate buffer, mouse encoding, theme and scrollback remain correct. |
+| Slow consumer, long outage and disk exhaustion | Bounded per-runtime and total resources; PTY keeps draining; explicit gaps/persistence warnings and safe reconciliation. |
+| Two daemons or a stale controller | Only the valid controller can mutate; an ambiguous live owner never becomes a duplicate launch. |
+| Mixed runtime builds/protocols | Supported old owners are adopted; unsupported ones block activation without being killed; new launches use the installed default. |
+| Runtime software install and selected restart | Install changes no existing PID; explicit restart affects only that runtime and reports lost shell jobs. |
+| Installer failure, checksum failure, full disk, failed replacement | Old live owners and pinned files survive; failure is inspectable; rollback respects migration compatibility. |
+| Two windows submit an update; connection drops after acceptance | One durable operation; reconnect observes its result and never resubmits implicitly. |
+| New window, dismissal, repeated polls and newer release | One offer per host/component/release/window; dismissal sticks there; new windows and releases get an offer. |
+| Compatible release skew and incompatible major | Compatible cockpit/daemon releases stay usable; incompatible peers get correct update guidance with no silent downgrade. |
+| Browser authority and remote maintenance | Exact Origin and target checks; expired/revoked grants cannot dispatch; ordinary profile grants cannot update the host. |
+| Reboot, dead runtime, stale socket and reused PID | Lost runtime is recognised without trusting a PID; auto-resume creates a new identity only when configured and safe. |
+| Archive, account migration, removal and purge | Correct explicit runtime termination; no abandoned sidecars, deleted live binaries or worktree destruction. |
+| Active notebook/compilation/puddlang work | Preflight reports actual interruption; programmes and uncertain commands are never replayed. |
+
+Use isolated temporary homes, sanitised subprocess environments and fake agents
+for automated process tests. Never launch the user's production daemon or desktop
+from a coding-agent session. Add meaningful tests under the existing feature test
+directories and run typecheck, relevant package tests, build and lint. Extend the
+built CLI process, loopback SSH and remote/mobile suites for the paths they cover;
+real systemd/launchd and provider checks belong in a dedicated acceptance script
+with recorded platform/provider versions. Do not infer native continuity from
+fake agents alone or mark the refactor complete after only a graceful-stop test.
