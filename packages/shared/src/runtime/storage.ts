@@ -49,6 +49,10 @@ export const runtimeLaunchSchema = z.object({
   identity: runtimeIdentitySchema,
   secret: z.string().regex(/^[a-f0-9]{64}$/),
   main: runtimeCommandSchema,
+  /** Daemon launch environment, below captured values and command-specific overrides. */
+  environment: runtimeCommandSchema.shape.env.optional(),
+  /** Absence is supported only for older experimental launch records. */
+  shell_hooks: z.literal(true).optional(),
   provider: runtimeProviderLaunchSchema.optional(),
   capture_env: runtimeCaptureSchema.optional(),
 });

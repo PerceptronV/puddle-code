@@ -305,6 +305,23 @@ That production caller integration is not enabled by this private IPC foundation
 
 ## Private records and ownership
 
+The initial unshipped format-1 launch context now optionally carries `environment`
+(the daemon's baseline, below captured values and command overrides) and
+`shell_hooks: true` (private pinned shell scripts are required). New launcher
+records set both. Earlier experimental records omit them. The shell-hook layout
+and control-variable semantics must remain readable for live older owners; missing
+pinned files are an error rather than permission to load mutable replacement code.
+These private record additions do not change the application or remote contract.
+
+The daemon's bounded launcher records context and SQLite intent before dispatch.
+It holds a separate OS `runtime-launch` claim until adoption or an uncertain result;
+retirement and supervisor collection acquire that claim before the owner claim.
+This prevents recovery from fencing a queued launch while its initiating controller
+is still waiting. A lost supervisor acknowledgement triggers inspection only.
+Shutdown drains launcher operations before closing writers. The explicit daemon
+composition option currently routes ordinary terminal create/resume; default
+installed launch selection and agent/code-execution integration remain gated.
+
 Launch records use format 1 and are read only from private host storage. They
 contain the environment and per-runtime secret and must never be returned by
 application discovery. Before starting a command, the owner consumes that launch

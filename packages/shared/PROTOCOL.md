@@ -2,8 +2,10 @@
 
 The experimental private daemon/runtime contract is versioned separately in
 [`RUNTIME_PROTOCOL.md`](RUNTIME_PROTOCOL.md). Adding that contract does not change
-this application's protocol or the remote protocol. Production session creation
-still uses daemon-owned runtimes until adoption and supervision are integrated.
+this application's protocol or the remote protocol. Default session creation still uses daemon-owned runtimes. An explicit daemon
+composition option can launch ordinary terminal owners; installed/default rollout
+and agent/code-execution integration remain gated. Existing REST/WS shapes are
+unchanged.
 
 Protocol 25.6 adds `logRetentionDays` to host configuration and its patch, defaulting
 to three days when omitted (zero disables age-based cleanup). New clients gate the

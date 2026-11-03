@@ -1,4 +1,5 @@
 import type { RuntimeControls } from '../runtime/controls.js';
+import type { RuntimeLauncher } from '../runtime/launcher.js';
 import { RuntimePersistence } from '../storage/runtime-persistence.js';
 import { storageUnavailable, type StorageMonitor } from '../storage/monitor.js';
 import { randomUUID } from 'node:crypto';
@@ -66,6 +67,8 @@ export interface SessionServiceDeps {
   /** Durable external ownership must never fall through to in-process controls. */
   runtimes?: RuntimeStore;
   runtimeControls?: RuntimeControls;
+  runtimeLauncher?: RuntimeLauncher;
+  runtimeShellHooks?: (runtimeId: string) => ShellHooks | null;
   conversations: ConversationStore;
   events: EventStore;
   worktrees: WorktreeManager;
@@ -672,7 +675,7 @@ export class SessionService extends EventEmitter {
       // Validated before the row exists, so a bad cwd leaves no half-made session.
       cwd: this.validateCwd(worktree.worktreePath, input.cwd),
     });
-    this.spawnTerminal(sessionId, this.startDirOf(session), command);
+    await this.spawnTerminal(sessionId, this.startDirOf(session), command);
     this.deps.events.record(sessionId, 'created', {
       branch: worktree.branch,
       base_ref: worktree.baseRef,
@@ -722,8 +725,38 @@ export class SessionService extends EventEmitter {
       : session.worktree_path;
   }
 
-  private spawnTerminal(sessionId: string, worktreePath: string, command?: TerminalCommand): void {
+  private async spawnTerminal(
+    sessionId: string,
+    worktreePath: string,
+    command?: TerminalCommand,
+  ): Promise<void> {
     this.assertLegacyRuntime(sessionId);
+    // Code execution still releases managed run directories through legacy PTY
+    // exits. Its launch must move together with durable run-directory retention.
+    if (this.deps.runtimeLauncher && !command) {
+      try {
+        await this.deps.runtimeLauncher.launch(sessionId, (hooks) => {
+          const { shell, args, env } = this.shellSpawnParts(sessionId, false, hooks);
+          return {
+            file: shell,
+            args,
+            cwd: worktreePath,
+            env,
+            cols: 120,
+            rows: 32,
+          };
+        });
+      } catch (error) {
+        // Prepared intent may already be executing. Never erase that ownership
+        // or fall back to another spawn after a missing supervisor response.
+        if (!this.deps.runtimes?.ownerOf(sessionId) && !this.shuttingDown) {
+          this.transition(sessionId, 'exited');
+          this.deps.events.record(sessionId, 'spawn_failed', { message: String(error) });
+        }
+        throw error;
+      }
+      return;
+    }
     const { shell, args, env } = this.shellSpawnParts(sessionId);
     try {
       this.deps.runtimes?.useLegacyTerminals(sessionId);
@@ -802,7 +835,7 @@ export class SessionService extends EventEmitter {
     // shell, in the SAME directory it was opened in (`cwd`, SPEC §4).
     if (session.kind === 'terminal') {
       const wasInterrupted = session.status === 'interrupted';
-      this.spawnTerminal(session.id, this.startDirOf(session));
+      await this.spawnTerminal(session.id, this.startDirOf(session));
       this.transition(session.id, 'running');
       this.deps.events.record(id, 'resumed', { was_interrupted: wasInterrupted });
       return this.get(id);
@@ -1399,6 +1432,7 @@ export class SessionService extends EventEmitter {
   private shellSpawnParts(
     sessionId: string,
     includeCaptured = true,
+    pinnedHooks?: ShellHooks,
   ): {
     shell: string;
     args: string[];
@@ -1409,7 +1443,12 @@ export class SessionService extends EventEmitter {
     const captureEnv = this.captureEnvEnabled(session.project_id);
     const captured = includeCaptured ? this.capturedSpawnEnv(session) : {};
     const historyFile = this.deps.logs.historyFile(sessionId);
-    const hook = this.deps.shellHooks?.spawnConfig(shell, { captureEnv, historyFile });
+    const owner = this.deps.runtimes?.ownerOf(sessionId);
+    const hooks =
+      pinnedHooks ??
+      (owner ? this.deps.runtimeShellHooks?.(owner.runtime_id) : null) ??
+      this.deps.shellHooks;
+    const hook = hooks?.spawnConfig(shell, { captureEnv, historyFile });
     // Hook control vars win over anything captured (ZDOTDIR is denylisted anyway).
     return {
       shell,

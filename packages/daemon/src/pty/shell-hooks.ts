@@ -351,7 +351,7 @@ export class ShellHooks {
  * so upgrades refresh them). Files are sourced, never executed: 0600 in 0700
  * dirs.
  */
-export function installShellHooks(paths: PuddlePaths): ShellHooks {
+export function installShellHooks(paths: Pick<PuddlePaths, 'shellHooksDir'>): ShellHooks {
   const zshDir = join(paths.shellHooksDir, 'zsh');
   const bashDir = join(paths.shellHooksDir, 'bash');
   mkdirSync(zshDir, { recursive: true, mode: 0o700 });

@@ -142,7 +142,11 @@ export class RuntimeHost {
           ...host.launch,
           main: {
             ...host.launch.main,
-            env: { ...host.observations.environment(), ...host.launch.main.env },
+            env: {
+              ...host.launch.environment,
+              ...host.observations.environment(),
+              ...host.launch.main.env,
+            },
           },
         };
         host.agent = new RuntimeAgent(home, providerLaunch, adapters.get(host.launch.provider.id), {
@@ -235,8 +239,9 @@ export class RuntimeHost {
     this.ptys.spawn(stream, term, command.file, command.args, {
       cwd: command.cwd,
       // Command env contains adapter/hook overrides, not a stale captured map.
-      // PtyManager supplies process.env underneath both layers.
-      env: { ...this.observations.environment(), ...command.env },
+      // Captured values override the recorded daemon baseline; PtyManager adds
+      // the owner's process environment underneath these explicit layers.
+      env: { ...this.launch.environment, ...this.observations.environment(), ...command.env },
       record: false,
     });
     terminal.pid = this.ptys.pidFor(stream, term);

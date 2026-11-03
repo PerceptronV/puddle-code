@@ -1,8 +1,9 @@
 # Persistent runtimes and cockpit-managed host updates
 
 Status: refactoring plan with initial implementation groundwork, 2026-11-03.
-Production sessions still use daemon-owned PTYs; non-interrupting upgrades are
-not yet enabled.
+Default launches still use daemon-owned PTYs; an explicit daemon composition
+option now launches ordinary terminal placements independently. Non-interrupting
+installed upgrades are not yet enabled.
 This document describes the intended refactor; [SPEC.md](../../SPEC.md) continues
 to describe shipped behaviour. Update the specification, protocol documentation,
 repository instructions and changelog alongside each implementation phase.
@@ -116,7 +117,7 @@ Implementation evidence so far:
   snapshot/output ordering,
   authority revocation, bounded buffering, Unicode paste ordering and abandoning
   queued input after an uncertain response. New runtime creation, resume/migration, notification/theme integration and
-  retention remain outstanding; no production launch uses this backend yet.
+  retention remain outstanding; default launches still use the existing backend.
 
 - Adopted owners now receive serialised extra-shell creation, individual shell
   termination, environment purge and explicit session/project stop/archive controls.
@@ -140,11 +141,32 @@ Implementation evidence so far:
   daemon replacement and native switching while rejecting its old placement and
   provider-internal ports. Native provider/network acceptance remains outstanding.
 
+- The daemon composition now accepts an explicit runtime launch configuration for
+  ordinary terminal creation and explicit resume. A bounded launcher pins executable
+  selectors, writes private context and SQLite intent, dispatches one independent
+  service and waits for authenticated, reconciled readiness. A process-lifetime
+  launch claim prevents recovery or service collection from retiring a pending
+  dispatch. Lost supervisor replies are inspected without another dispatch or
+  fallback spawn; shutdown drains launch work before closing application writers.
+- New terminal owners preserve the daemon launch environment beneath captured
+  values and explicit command overrides. Each new owner gets private shell-hook
+  copies before dispatch; subsequent shells use those copies after daemon restart.
+  Missing pinned hooks fail explicitly. A real isolated daemon test creates a
+  terminal via HTTP, preserves its PID/cwd/variable across replacement, then
+  proves explicit kill/resume creates a fresh owner. The supervisor in this test
+  is deterministic; installed systemd/launchd acceptance remains outstanding.
+- Agent creation still needs exact native-ref launch integration. Code-execution
+  terminals remain on the legacy launch path until managed run directories have
+  durable owner references and external exit observation: their current in-memory
+  PTY cleanup would otherwise delete files used by a surviving execution. Move
+  this path with retention before enabling the backend by default; it remains
+  part of the requested runtime model, not a scope exclusion.
+
 These are foundations for phases 0–3, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native
 dependency retention, production session/turn adoption and segment routing,
 packaging and the update surfaces below remain required. No production session
-is opted into the new backend yet.
+is opted into the new backend by default.
 
 ## Outcome and decisions
 

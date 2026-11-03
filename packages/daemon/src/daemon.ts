@@ -55,6 +55,9 @@ import { RuntimeReconciler } from './runtime/reconcile.js';
 import { RuntimeTerminals } from './runtime/terminals.js';
 import { RuntimeControls } from './runtime/controls.js';
 import { RuntimeProcesses } from './runtime/processes.js';
+import { RuntimeLauncher, type RuntimeLaunchConfiguration } from './runtime/launcher.js';
+import { readRuntimeShellHooks } from './runtime/shell-hooks.js';
+import { runtimeDirectory } from './runtime/storage.js';
 import { WorktreeManager } from './worktrees/manager.js';
 import { WsGateway } from './ws/gateway.js';
 import { PuddlangService } from './puddlang/service.js';
@@ -70,6 +73,8 @@ export interface DaemonOptions {
   version?: string;
   /** Quiet window for waiting_input detection (tests shrink it). */
   statusQuietMs?: number;
+  /** Experimental terminal launch configuration; installed default rollout remains gated. */
+  runtime?: RuntimeLaunchConfiguration;
 }
 
 export interface RunningDaemon {
@@ -140,6 +145,26 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     await runtimeConnections.connect();
     const runtimeControls = new RuntimeControls(runtimes, runtimeConnections, runtimeReconciler);
     failedStartup.push(() => runtimeControls.close());
+    const runtimeLauncher = opts.runtime
+      ? new RuntimeLauncher(
+          {
+            home: paths.home,
+            environment: Object.fromEntries(
+              Object.entries(process.env).filter(
+                (entry): entry is [string, string] => entry[1] !== undefined,
+              ),
+            ),
+            runtimes,
+            sessions,
+            projects,
+            profiles,
+            connections: runtimeConnections,
+            reconciler: runtimeReconciler,
+          },
+          opts.runtime,
+        )
+      : undefined;
+    if (runtimeLauncher) failedStartup.push(() => runtimeLauncher.close());
     const compilationSettings = new CompilationSettingsStore(db);
 
     const storagePaths = [paths.home, paths.logsDir, paths.worktreesDir, tmpdir()];
@@ -206,6 +231,8 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     const service = new SessionService({
       runtimes,
       runtimeControls,
+      runtimeLauncher,
+      runtimeShellHooks: (id) => readRuntimeShellHooks(runtimeDirectory(paths.home, id)),
       storage,
       storagePaths,
       profiles,
@@ -449,6 +476,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
         // Freeze session rows at their live statuses (reconcile → interrupted),
         // then wait for PTY exits so nothing touches the db after close.
         service.beginShutdown();
+        await runtimeLauncher?.close();
         await runtimeControls.close();
         await runtimeReconciler.close();
         ptys.killAll();

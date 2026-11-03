@@ -247,9 +247,21 @@ placement after asynchronous process inspection. Historical, unbound or unreacha
 owners never fall through to stale recorded PIDs or legacy PTYs. Cached owner
 references are bounded across old placements. No new application/remote shape is
 needed for this integration.
-The main daemon session service does not yet create these external owners. Existing shutdown, bootstrap, upgrades and auto-resume therefore retain
-their documented interruption behaviour until the remaining integration and
-supervision gates are implemented and verified.
+An explicit `DaemonOptions.runtime` composition option now routes ordinary terminal
+creation and explicit terminal resume through `RuntimeLauncher`. Default installed
+launches retain the in-process backend. The launcher writes a private validated
+launch context and SQLite intent before one supervisor dispatch, holds a launch
+claim through adoption, and waits for authenticated, reconciled readiness. Recovery
+and service removal cannot retire a launch while that claim is held. A lost dispatch
+reply is inspected without replay or fallback spawning; shutdown drains launches
+before closing application writers. New owners retain the daemon environment below
+captured values and command overrides, plus private shell-hook copies reused by
+later shells. Missing pinned copies never fall back to mutable daemon hooks.
+Agent creation and code-execution terminals still use the legacy path. Code execution
+must move together with durable managed-run retention and external exit observation;
+its existing cleanup is tied to in-process PTYs. Installed selectors, automatic
+capability detection, default rollout and native supervisor acceptance remain
+required before changing the documented upgrade/interruption behaviour.
 
 ## 3. Data model (SQLite)
 

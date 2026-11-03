@@ -245,6 +245,29 @@ Typecheck, scoped lint and formatting passed. This verifies loopback forwarding
 through the production daemon; installed SSH upgrades and native provider ports
 still require their platform acceptance runs.
 
+`runtime/launcher.test.ts` now dispatches an owner through a deterministic fake
+supervisor after asserting that launch context and SQLite intent already exist.
+Retirement and supervisor collection refuse the held launch claim. A deliberately
+lost supervisor reply still produces one owner, with the expected baseline/captured
+environment precedence and pinned shell hooks. Shutdown preserves an unconfirmed
+launch for reconciliation without another dispatch; missing pinned hooks fail.
+
+`runtime/terminal-launch.test.ts` starts the real isolated daemon with the explicit
+runtime composition option. HTTP terminal creation produces an independent owner;
+WebSocket input establishes a shell variable and cwd. Daemon replacement preserves
+that PID and variable. Explicit kill/resume creates a different runtime and a fresh
+shell; archive confirms clean shutdown. Fake supervision only establishes the
+process and integration behaviour, not native systemd/launchd or installed upgrades.
+Code-execution terminals remain legacy until managed-run retention and external
+exit observation move together, so the existing code-provider lifecycle remains
+covered without prematurely deleting files used by independent owners.
+
+The broader runtime/session/PTY/host-control run passed 349 tests in 50 files,
+with the native supervisor test skipped. The final six-file launcher, supervisor,
+shell-observation and code-terminal/provider run passed 35 tests. Typecheck,
+scoped lint and formatting passed. Agent launch, default installed selection,
+code-run retention and native supervisor/provider acceptance remain release gates.
+
 ## Remaining release gates
 
 Record platform, Node, release and provider versions with results. Run native

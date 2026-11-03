@@ -53,9 +53,12 @@ export function retireMissingRuntime(
 ): 'retired' | 'owned' {
   const directory = runtimeDirectory(home, identity.runtime_id);
   let claim: ReturnType<typeof acquireRuntimeClaim>;
+  let launchClaim: ReturnType<typeof acquireRuntimeClaim> | undefined;
   try {
+    launchClaim = acquireRuntimeClaim(home, `runtime-launch:${identity.runtime_id}`);
     claim = acquireRuntimeClaim(home, `runtime:${identity.runtime_id}`);
   } catch (error) {
+    launchClaim?.release();
     if (error instanceof RuntimeClaimBusy) return 'owned';
     throw error;
   }
@@ -86,5 +89,6 @@ export function retireMissingRuntime(
     return 'retired';
   } finally {
     claim.release();
+    launchClaim.release();
   }
 }
