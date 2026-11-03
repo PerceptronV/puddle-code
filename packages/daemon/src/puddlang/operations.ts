@@ -16,6 +16,9 @@ export type PuddlangDeps = Pick<
   'profiles' | 'accounts' | 'projects' | 'repos' | 'adapters' | 'service' | 'worktrees'
 >;
 
+/** Daemon replacement interrupts the programme while preserving accepted owner work. */
+export class PuddlangDaemonStopped extends Error {}
+
 /** One run's handles, limits and cleanup; profiles remain host-owned identities. */
 export class PuddlangOperations {
   private readonly handles = new Map<string, PuddlangHandle>();
@@ -29,7 +32,7 @@ export class PuddlangOperations {
     private readonly signal: AbortSignal,
   ) {}
 
-  async execute(operation: PuddlangOperation): Promise<unknown> {
+  async execute(operation: PuddlangOperation, operationId?: number): Promise<unknown> {
     this.signal.throwIfAborted();
     if (operation.op === 'spawn') return this.spawn(operation.options);
     if (operation.op === 'attach') {
@@ -41,15 +44,20 @@ export class PuddlangOperations {
       throw new Error('Attach this agent before using its handle');
     const runtime = this.checked(operation.handle.runtime_id);
     if (operation.op === 'stop') {
-      await this.deps.service.kill(runtime.handle.session_id);
+      await this.stopPlacement(runtime.handle.session_id);
       this.handles.delete(runtime.handle.runtime_id);
       return null;
     }
     if (++this.turns > this.input.max_turns) throw new Error('Puddlang turn limit reached');
-    return runtime.control.ask(
+    return this.deps.service.scriptAsk(
+      runtime.handle.runtime_id,
       operation.request.prompt,
       this.signal,
       operation.request.output_schema,
+      operationId === undefined
+        ? undefined
+        : { runId: this.input.id, operationId, profileId: this.profile },
+      () => this.signal.reason instanceof PuddlangDaemonStopped,
     );
   }
 
@@ -57,7 +65,7 @@ export class PuddlangOperations {
     await Promise.allSettled(
       [...this.owned].map(async (id) => {
         const runtime = this.checked(id);
-        await this.deps.service.kill(runtime.handle.session_id);
+        await this.stopPlacement(runtime.handle.session_id);
       }),
     );
   }
@@ -67,6 +75,18 @@ export class PuddlangOperations {
     if (this.deps.projects.get(runtime.session.project_id).profile_id !== this.profile)
       throw new ApiError(403, 'profile_scope', 'This agent belongs to another profile');
     return runtime;
+  }
+
+  private stopPlacement(id: string) {
+    return this.deps.service.kill(id, () => {
+      try {
+        return (
+          this.deps.projects.get(this.deps.service.get(id).project_id).profile_id === this.profile
+        );
+      } catch {
+        return false;
+      }
+    });
   }
 
   private async spawn(options: PuddlangSpawn): Promise<PuddlangHandle> {
@@ -121,7 +141,7 @@ export class PuddlangOperations {
           const runtime = this.checked(session.id);
           handle = runtime.handle;
           this.owned.add(handle.runtime_id);
-          if (runtime.control.ready) break;
+          if (runtime.ready) break;
         } catch (error) {
           if (!(error instanceof ApiError) || error.code !== 'agent_not_live') throw error;
         }
@@ -133,8 +153,9 @@ export class PuddlangOperations {
       this.handles.set(handle.runtime_id, handle);
       return handle;
     } catch (error) {
+      if (this.signal.reason instanceof PuddlangDaemonStopped) throw error;
       try {
-        await this.deps.service.kill(
+        await this.stopPlacement(
           handle ? this.checked(handle.runtime_id).handle.session_id : session.id,
         );
       } catch {

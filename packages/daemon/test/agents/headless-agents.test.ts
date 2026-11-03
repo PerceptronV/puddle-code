@@ -355,18 +355,16 @@ describe('headless terminal ownership', () => {
     );
     expect(session.agent_mode).toBe('headless');
     expect(session.agent_session_ref).toBeNull();
-    await waitFor(() => f.service.scriptRuntime(session.id).control.ready);
+    await waitFor(() => f.service.scriptRuntime(session.id).ready);
     await f.service.kill(session.id);
     await waitFor(() => !f.ptys.has(session.id, 'agent'));
     await f.service.resume(session.id);
-    await waitFor(() => f.service.scriptRuntime(session.id).control.ready);
+    await waitFor(() => f.service.scriptRuntime(session.id).ready);
     expect(resumed).toBeUndefined();
     expect(f.stores.sessions.get(session.id).agent_session_ref).toBeNull();
-    expect(
-      await f.service
-        .scriptRuntime(session.id)
-        .control.ask('question', new AbortController().signal),
-    ).toBe('answer');
+    expect(await f.service.scriptAsk(session.id, 'question', new AbortController().signal)).toBe(
+      'answer',
+    );
     expect(f.stores.sessions.get(session.id).agent_session_ref).toBe(ref);
     await f.service.kill(session.id);
     await waitFor(() => !f.ptys.has(session.id, 'agent'));

@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Route opt-in headless agents and programme asks through independent runtimes, persisting exact turn identities before dispatch and preserving accepted turns across daemon replacement without replaying programmes.
+
 - Preserve opt-in independent code-execution terminals and their managed run directories across daemon replacement; explicit terminal resume never repeats the programme.
 
 - Extend opt-in independent runtimes to interactive agent creation and exact-conversation resume, preserving provider sidecars across daemon replacement and refusing ambiguous native-ref recovery.

@@ -2,7 +2,7 @@
 
 Status: refactoring plan with initial implementation groundwork, 2026-11-03.
 Default launches still use daemon-owned PTYs; an explicit daemon composition
-option now launches terminals and interactive agents independently. Non-interrupting
+option now launches terminals and interactive/headless agents independently. Non-interrupting
 installed upgrades are not yet enabled.
 This document describes the intended refactor; [SPEC.md](../../SPEC.md) continues
 to describe shipped behaviour. Update the specification, protocol documentation,
@@ -164,8 +164,7 @@ Implementation evidence so far:
   never a second dispatch. An isolated real-daemon test creates a fake provider,
   preserves its PTY and sidecar through replacement and an offline conversation
   switch, then explicitly resumes the exact new native ref in a new owner.
-  Headless/programme launches and controls still need durable operation-to-runtime/
-  turn bindings. Full account migration, notification/theme/title parity and native
+  Full account migration, notification/theme/title parity and native
   provider acceptance remain required before default rollout.
 - Code-execution terminals now use the same opt-in owner path. Migration 034
   records their canonical managed run directories atomically with launch intent;
@@ -174,6 +173,16 @@ Implementation evidence so far:
   observation replaces legacy PTY callbacks. An isolated real-daemon test preserves
   a programme's PID and in-memory counter across replacement and seven subsequent
   runs, then verifies cleanup after explicit stop and no programme replay on resume.
+- Headless creation/resume and programme asks now use the opt-in owners too.
+  Migration 035 reserves a private run/operation-to-runtime/turn mapping with the
+  original placement, segment and expected native ref before dispatch. Duplicate
+  operations, foreign profiles and failed intent writes cannot reach the provider.
+  Lost admission replies are observed without resubmission. Real-daemon tests in
+  both modes preserve accepted turns through replacement, recover their results
+  while leaving programmes interrupted, and verify exact explicit cancellation.
+  Tests also discard an accepted response and prove one provider invocation.
+  Durable spawn-operation ownership and private result reclamation remain
+  programme failure-handling gates before default rollout.
 
 These are foundations for phases 0–3, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native

@@ -432,7 +432,7 @@ describe('generated native hooks', () => {
       source: 'startup',
     });
     const runtime = f.service.scriptRuntime(session.id);
-    expect(runtime.control.ready).toBe(true);
+    expect(runtime.ready).toBe(true);
     expect(
       f.service.signalAgentTurn({
         nonce: randomUUID(),
@@ -441,7 +441,11 @@ describe('generated native hooks', () => {
         turn_id: 'foreign',
       }),
     ).toBe(false);
-    const pending = runtime.control.ask('question', new AbortController().signal);
+    const pending = f.service.scriptAsk(
+      runtime.handle.runtime_id,
+      'question',
+      new AbortController().signal,
+    );
     const rejected = expect(pending).rejects.toThrow('Human input');
     f.ptys.write(session.id, 'agent', 'typing');
     await rejected;

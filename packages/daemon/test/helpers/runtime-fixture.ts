@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -75,6 +75,21 @@ beforeAll(async () => {
     define: { __PUDDLER_VERSION__: JSON.stringify('runtime-test') },
     banner: {
       js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);",
+    },
+  });
+  writeFileSync(join(bundleDir, 'package.json'), JSON.stringify({ type: 'module' }));
+  await build({
+    entryPoints: ['runner', 'runtime-api', 'zod'].map((name) =>
+      join(packageRoot, `src/puddlang/${name}.ts`),
+    ),
+    outdir: bundleDir,
+    bundle: true,
+    splitting: true,
+    platform: 'node',
+    format: 'esm',
+    target: 'node22',
+    alias: {
+      '@puddle/shared': fileURLToPath(new URL('../../../shared/src/index.ts', import.meta.url)),
     },
   });
 });

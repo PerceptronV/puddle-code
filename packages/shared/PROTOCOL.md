@@ -3,9 +3,9 @@
 The experimental private daemon/runtime contract is versioned separately in
 [`RUNTIME_PROTOCOL.md`](RUNTIME_PROTOCOL.md). Adding that contract does not change
 this application's protocol or the remote protocol. Default session creation still uses daemon-owned runtimes. An explicit daemon
-composition option can launch terminal (including code execution) and interactive agent owners;
-installed/default rollout and headless/programme agent routing
-remain gated. Existing REST/WS shapes are
+composition option can launch terminal (including code execution) and interactive/headless
+agent owners, with durable private programme-turn mappings. Installed/default rollout
+remains gated. Existing REST/WS shapes are
 unchanged.
 
 Protocol 25.6 adds `logRetentionDays` to host configuration and its patch, defaulting

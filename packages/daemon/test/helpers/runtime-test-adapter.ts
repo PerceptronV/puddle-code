@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { atomicPrivateJson } from '@puddle/shared/node';
 import type {
@@ -33,7 +34,10 @@ class FixtureControl implements AgentControl {
         if (error) reject(error);
         else resolve(`reply:${count}:${prompt}`);
       };
-      const timer = setTimeout(finish, 300);
+      const timer = setTimeout(
+        finish,
+        existsSync(join(this.context.account.config_dir, 'test-slow-turn')) ? 3000 : 300,
+      );
       this.pending = { finish };
       signal.addEventListener('abort', abort, { once: true });
     });
@@ -108,6 +112,7 @@ export const runtimeTestAdapter: AgentAdapter = {
   id: 'runtime-test',
   displayName: 'Runtime test',
   binary: '/bin/sh',
+  scriptedTurns: true,
   capabilities: {
     resume: true,
     presetSessionId: false,

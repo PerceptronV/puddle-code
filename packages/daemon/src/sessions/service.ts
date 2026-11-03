@@ -46,6 +46,8 @@ import type { CreateWorktreeResult, WorktreeManager } from '../worktrees/manager
 import type { ConversationShare } from './conversation-share.js';
 import { buildHandoffPrompt } from './handoff.js';
 import { terminalCommandArgs, type TerminalCommand } from './terminal-command.js';
+import type { RuntimeProgrammeTurns } from '../runtime/programme-turns.js';
+import type { ProgrammeOperation } from '../puddlang/runtime-turn-store.js';
 import {
   buildConcurrentWorktreeNote,
   buildInterruptedResumeNote,
@@ -70,6 +72,7 @@ export interface SessionServiceDeps {
   runtimeLauncher?: RuntimeLauncher;
   runtimeShellHooks?: (runtimeId: string) => ShellHooks | null;
   runtimePriorRefs?: (sessionId: string) => ReadonlySet<string> | undefined;
+  runtimeProgrammeTurns?: RuntimeProgrammeTurns;
   conversations: ConversationStore;
   events: EventStore;
   worktrees: WorktreeManager;
@@ -189,6 +192,8 @@ const MAX_ENV_VARS = 128;
 export class SessionService extends EventEmitter {
   /** Resolve current placement through stable runtime ownership for puddlang. */
   scriptRuntime(reference: string) {
+    const external = this.deps.runtimeProgrammeTurns?.inspect(reference);
+    if (external) return { ...external, session: this.get(external.handle.session_id) };
     const live = this.runtimes.get(reference) ?? this.liveAgents.get(reference);
     if (!live) throw ApiError.conflict('agent_not_live', 'The agent has no live runtime');
     const control = live.lifecycleResource?.control;
@@ -200,8 +205,32 @@ export class SessionService extends EventEmitter {
     return {
       handle: { runtime_id: live.runtimeId, session_id: live.activeSessionId },
       session: this.get(live.activeSessionId),
-      control,
+      ready: control.ready,
     };
+  }
+
+  scriptAsk(
+    reference: string,
+    prompt: string,
+    signal: AbortSignal,
+    schema?: Record<string, unknown>,
+    scope?: ProgrammeOperation,
+    preserveOnAbort?: () => boolean,
+  ): Promise<string> {
+    const runtime = this.scriptRuntime(reference);
+    const live = this.runtimes.get(runtime.handle.runtime_id);
+    if (live?.lifecycleResource?.control)
+      return live.lifecycleResource.control.ask(prompt, signal, schema);
+    if (!scope || !this.deps.runtimeProgrammeTurns)
+      throw new Error('An independent runtime ask requires durable programme identity');
+    return this.deps.runtimeProgrammeTurns.ask(
+      runtime.handle.runtime_id,
+      scope,
+      prompt,
+      signal,
+      schema,
+      preserveOnAbort,
+    );
   }
   private readonly liveAgents = new Map<string, LiveAgent>();
   /** nonce → session id for /agent-signal lookups; entries die with the PTY. */
@@ -1493,17 +1522,16 @@ export class SessionService extends EventEmitter {
       account.config_dir,
     ]);
     this.assertLegacyRuntime(sessionId);
-    // Headless programmes still require durable operation-to-turn routing before
-    // moving their creation path. Interactive identity follows the owner's journal.
-    if (this.deps.runtimeLauncher && this.deps.sessions.get(sessionId).agent_mode !== 'headless') {
+    if (this.deps.runtimeLauncher) {
       try {
+        const mode = this.deps.sessions.get(sessionId).agent_mode ?? 'interactive';
         const opts = launchOpts ?? {
           worktreePath,
           sessionId,
           skipPermissions: this.deps.sessions.get(sessionId).skip_permissions,
         };
         const initialRef =
-          !resumeRef && adapter.capabilities.presetSessionId
+          !resumeRef && mode === 'interactive' && adapter.capabilities.presetSessionId
             ? await adapter.resolveSessionRef(opts, account)
             : undefined;
         const priorRefs =
@@ -1524,7 +1552,7 @@ export class SessionService extends EventEmitter {
           {
             id: adapter.id,
             config_dir: account.config_dir,
-            mode: 'interactive',
+            mode,
             skip_permissions: opts.skipPermissions,
             ...(opts.prompt === undefined ? {} : { prompt: opts.prompt }),
             ...(resumeRef === undefined ? {} : { resume_ref: resumeRef }),

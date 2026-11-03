@@ -59,6 +59,8 @@ import { RuntimeLauncher, type RuntimeLaunchConfiguration } from './runtime/laun
 import { readRuntimeShellHooks } from './runtime/shell-hooks.js';
 import { runtimeDirectory } from './runtime/storage.js';
 import { runtimePriorRefs } from './runtime/session-refs.js';
+import { RuntimeProgrammeTurns } from './runtime/programme-turns.js';
+import { ProgrammeTurnStore } from './puddlang/runtime-turn-store.js';
 import { WorktreeManager } from './worktrees/manager.js';
 import { WsGateway } from './ws/gateway.js';
 import { PuddlangService } from './puddlang/service.js';
@@ -235,6 +237,12 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       runtimeLauncher,
       runtimeShellHooks: (id) => readRuntimeShellHooks(runtimeDirectory(paths.home, id)),
       runtimePriorRefs: (id) => runtimePriorRefs(paths.home, runtimes, id),
+      runtimeProgrammeTurns: new RuntimeProgrammeTurns(
+        runtimes,
+        runtimeConnections,
+        runtimeReconciler,
+        new ProgrammeTurnStore(db),
+      ),
       storage,
       storagePaths,
       profiles,

@@ -2,7 +2,7 @@ import { fork, type ChildProcess } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { puddlangRunnerMessageSchema, type PuddlangStart } from '@puddle/shared';
 import { PuddlangStore } from './store.js';
-import { PuddlangOperations, type PuddlangDeps } from './operations.js';
+import { PuddlangOperations, PuddlangDaemonStopped, type PuddlangDeps } from './operations.js';
 import { ApiError } from '../http/errors.js';
 
 interface ActiveRun {
@@ -13,6 +13,7 @@ interface ActiveRun {
   timer: ReturnType<typeof setTimeout>;
   logged: number;
   operationCount: number;
+  operationIds: Set<number>;
   finishing?: Promise<void>;
 }
 
@@ -83,6 +84,7 @@ export class PuddlangService {
       pending: new Set(),
       logged: 0,
       operationCount: 0,
+      operationIds: new Set(),
       timer: setTimeout(() => {
         void this.cancel(profile, run.id, 'Run deadline exceeded');
       }, input.timeout_ms),
@@ -124,12 +126,17 @@ export class PuddlangService {
         this.release(run.id, active);
         return;
       }
-      if (active.pending.size >= 64 || ++active.operationCount > 4096) {
+      if (
+        active.pending.size >= 64 ||
+        ++active.operationCount > 4096 ||
+        active.operationIds.has(message.id)
+      ) {
         void this.cancel(profile, run.id, 'Run operation limit exceeded');
         return;
       }
+      active.operationIds.add(message.id);
       const task = operations
-        .execute(message.operation)
+        .execute(message.operation, message.id)
         .then(
           (value) => {
             if (!abort.signal.aborted && child.connected)
@@ -192,7 +199,7 @@ export class PuddlangService {
     error: string,
   ): Promise<void> {
     if (active.finishing) return active.finishing;
-    active.abort.abort();
+    active.abort.abort(status === 'interrupted' ? new PuddlangDaemonStopped(error) : undefined);
     const exited =
       active.child.exitCode !== null ||
       active.child.signalCode !== null ||

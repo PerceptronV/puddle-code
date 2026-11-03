@@ -248,7 +248,7 @@ owners never fall through to stale recorded PIDs or legacy PTYs. Cached owner
 references are bounded across old placements. No new application/remote shape is
 needed for this integration.
 An explicit `DaemonOptions.runtime` composition option now routes terminal
-and interactive agent creation/resume through `RuntimeLauncher`. Default installed
+and interactive/headless agent creation/resume through `RuntimeLauncher`. Default installed
 launches retain the in-process backend. The launcher writes a private validated
 launch context and SQLite intent before one supervisor dispatch, holds a launch
 claim through adoption, and waits for authenticated, reconciled readiness. Recovery
@@ -263,8 +263,18 @@ private context; explicit recovery excludes those ids and refuses ambiguous new
 candidates. Live rebinding uses only the owner's exact lifecycle journal. Installed
 version checks determine `native_sync`, including after offline switches; lifecycle
 events alone never promote a fallback owner. Confirmed failed launches reconcile
-their final records without another dispatch. Headless/programme agent creation
-still uses the legacy path until durable operation-to-runtime/turn routing exists.
+their final records without another dispatch. Headless launches leave new native
+identity unset until the first structured provider turn binds it.
+Migration 035 stores private `puddlang_runtime_turns` mappings from run/operation
+to exact runtime, turn, placement, segment and expected native ref before dispatch.
+Profile and active-run checks precede dispatch and outcome consumption. Turn ids
+increase across both owner observations and reserved operations; duplicate runner
+operations are rejected. Lost admission replies trigger observation without prompt
+replay. Callers consume committed private results. Daemon shutdown interrupts the
+programme while preserving accepted owner turns; explicit cancellation targets only
+the original turn/placement. Restart recovers the outcome without resuming the
+programme. Result retention reclamation and durable spawn-operation ownership
+remain required for complete programme failure handling before default rollout.
 Code-execution terminals use that same opt-in owner path, including their one-shot
 command followed by an interactive shell. Migration 034 stores each canonical
 managed run directory in `runtime_code_runs`, keyed by runtime id, atomically with

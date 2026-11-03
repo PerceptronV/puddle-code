@@ -301,7 +301,14 @@ The journal records `turn-started` and `turn-finished` exactly once for an admit
 operation. The daemon must persist its mapping from programme/run operation to
 runtime/turn identity before dispatch. Reconnection inspects that identity and
 never restarts an interrupted puddlang programme or submits its prompt again.
-That production caller integration is not enabled by this private IPC foundation.
+The opt-in runtime backend now routes programme asks through this contract.
+Migration 035 reserves the exact run/operation/runtime/turn/placement/segment/ref
+mapping before one dispatch. Admission loss observes committed private outcomes;
+it never resends the prompt. Daemon shutdown interrupts the programme without
+cancelling accepted external turns. Explicit user cancellation addresses only its
+original turn and placement, and is never retargeted after a native switch.
+Private result reclamation and complete spawn-operation ownership remain rollout
+gates. These application-side mappings change neither public wire contract.
 
 ## Private records and ownership
 
@@ -319,13 +326,13 @@ retirement and supervisor collection acquire that claim before the owner claim.
 This prevents recovery from fencing a queued launch while its initiating controller
 is still waiting. A lost supervisor acknowledgement triggers inspection only.
 Shutdown drains launcher operations before closing writers. The explicit daemon
-composition option currently routes terminal and interactive agent create/resume,
+composition option currently routes terminal and interactive/headless agent create/resume,
 including code-execution terminals. Their canonical managed run directory is
 referenced in application SQLite alongside launch intent, so cleanup retains it
 through controller replacement and uncertain owner outcomes. Only a confirmed
 clean owner exit releases that reference; the resumed terminal never repeats its
 programme. These application-side references add no private wire fields. Default
-installed selection and headless/programme agent routing remain gated.
+installed selection remains gated.
 
 Provider context optionally carries `initial_ref` for a new preset-id launch or
 `prior_refs` for a provider that mints its own ids (at most 16,384 ids, each at most

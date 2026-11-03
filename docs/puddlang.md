@@ -199,6 +199,14 @@ are not replayed. Existing session recovery is independent. Supervised daemons
 can outlive clients; an SSH-attached fallback daemon still ends with its cockpit.
 Profile removal requires runs to finish.
 
+With the experimental independent-runtime backend, interactive and headless
+agents can outlive daemon replacement. Each ask records its exact runtime/turn
+identity before dispatch; a lost response never resubmits the prompt. Daemon
+shutdown leaves accepted external turns running and retains their private outcomes,
+while the requesting programme remains interrupted. Explicit cancellation still
+targets its exact pending turn. This backend is opt-in; installed defaults and
+the upgrade experience retain their existing behaviour.
+
 `--id <UUID>` supplies an idempotent submission id. Repeating identical work
 returns the existing run, including its terminal outcome. Different work with
 the same id is a conflict. Uncertain turn deliveries are never retried implicitly.

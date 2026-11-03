@@ -305,6 +305,27 @@ fixture correction, all 36 database/runtime-store/migration tests in six files
 passed. The focused programme-continuity/store run passed 12 tests. Typecheck,
 scoped lint and formatting passed.
 
+`runtime/programme-launch.test.ts` now runs actual puddlang runners against real
+isolated daemons with fake interactive/headless providers. Each admitted ask has
+a durable operation mapping before the provider sees it. Daemon replacement
+leaves the accepted turn running; the replacement recovers its private result
+while the programme stays interrupted. Explicit cancellation cancels only the
+selected turn and leaves an attached runtime alive; a later programme attaches,
+completes another ask and explicitly stops it. Provider and terminal PIDs persist.
+
+`runtime/programme-turns.test.ts` discards a real owner's accepted reply, then
+verifies committed-result recovery and one provider invocation. Duplicate
+operation delivery, foreign profile scope and failed intent insertion cannot
+dispatch a prompt. These tests cover deterministic providers, not native CLIs.
+
+The broad runtime/programme/session/provider/database/host-control run passed 427
+tests and found two tests still using the old internal control accessor; one
+native supervisor test was skipped. Both tests now use the service readiness/ask
+interface. The final programme/headless run passed 35 tests in four files and the
+interactive control run passed 12 tests. Typecheck, scoped lint and formatting
+passed. Durable spawn-operation ownership, private result reclamation, native
+provider/platform verification and installed/default rollout remain gates.
+
 ## Remaining release gates
 
 Record platform, Node, release and provider versions with results. Run native
