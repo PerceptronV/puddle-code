@@ -190,6 +190,16 @@ pointer. Launch intent includes the initial segment; each switch commits its
 boundary, placement, cursor and application effects together. Older experimental
 rows without segment evidence cannot acquire an invented binding. Runtime owners
 never open this database; their binding acknowledgement follows its commit.
+The daemon now acquires the runtime controller claim and inspects known external
+owners with bounded concurrency before its legacy boot-reconciliation pass.
+Prepared/running runtime bindings protect their active placements from blanket
+interruption and auto-resume, including when owner authentication or connection
+fails. Shutdown closes these control streams without stopping their owners and
+releases the controller only after application writers and servers stop.
+External event reconciliation and terminal routing are not enabled yet; affected
+placements reject legacy terminal, resume, kill, archive, migration and environment
+purge controls with `runtime_reconciliation_required`. Inspection never acknowledges
+events or treats a connection failure as permission to retire an owner.
 The main daemon session service does not yet create or adopt these external
 owners. Existing shutdown, bootstrap, upgrades and auto-resume therefore retain
 their documented interruption behaviour until the remaining integration and

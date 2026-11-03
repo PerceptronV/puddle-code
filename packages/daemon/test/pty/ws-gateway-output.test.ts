@@ -9,6 +9,7 @@ import type { TerminalTheme } from '../../src/pty/terminal-theme.js';
 import type { SessionService } from '../../src/sessions/service.js';
 import type { ConversationCatalogue } from '../../src/sessions/conversation-catalogue.js';
 import { WsGateway } from '../../src/ws/gateway.js';
+import { ApiError } from '../../src/http/errors.js';
 
 function fixture(snapshot: Promise<string> = Promise.resolve('restored screen')) {
   const ptys = Object.assign(new EventEmitter(), {
@@ -18,6 +19,7 @@ function fixture(snapshot: Promise<string> = Promise.resolve('restored screen'))
   });
   const service = Object.assign(new EventEmitter(), {
     get: vi.fn(() => ({})),
+    assertLegacyRuntime: vi.fn(),
     spawnShell: vi.fn(() => 'shell-1'),
     expectExit: vi.fn(),
   });
@@ -57,6 +59,44 @@ afterEach(() => {
 });
 
 describe('WebSocket terminal output batching', () => {
+  it('rejects legacy input and resize when a durable external owner needs reconciliation', async () => {
+    const { ptys, service, send, receive, attached } = fixture();
+    await attached;
+    send.mockClear();
+    ptys.resize.mockClear();
+    service.assertLegacyRuntime.mockImplementation(() => {
+      throw ApiError.conflict('runtime_reconciliation_required', 'Runtime requires reconciliation');
+    });
+    receive({ t: 'stdin', session: 'session-1', term: 'agent', data: 'must not write' });
+    receive({ t: 'resize', session: 'session-1', term: 'agent', cols: 20, rows: 5 });
+    expect(ptys.write).not.toHaveBeenCalled();
+    expect(ptys.resize).not.toHaveBeenCalled();
+    expect(messages(send)).toEqual([
+      { t: 'error', message: 'Runtime requires reconciliation' },
+      { t: 'error', message: 'Runtime requires reconciliation' },
+    ]);
+  });
+
+  it('rechecks ownership after snapshot work before replaying or resizing a terminal', async () => {
+    let complete!: (value: string) => void;
+    const snapshot = new Promise<string>((resolve) => {
+      complete = resolve;
+    });
+    const { ptys, service, send, attached } = fixture(snapshot);
+    service.assertLegacyRuntime.mockImplementation(() => {
+      throw new Error('Ownership changed');
+    });
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      complete('stale screen');
+      await attached;
+      expect(ptys.resize).not.toHaveBeenCalled();
+      expect(messages(send)).toEqual([{ t: 'error', message: 'could not restore terminal' }]);
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
   it('coalesces PTY chunks into one ordered frame message', async () => {
     vi.useFakeTimers();
     const { ptys, send, attached } = fixture();

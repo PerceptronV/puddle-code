@@ -25,6 +25,7 @@ import type { ProfileStore } from '../db/stores/profiles.js';
 import type { ProjectStore } from '../db/stores/projects.js';
 import type { RepoStore } from '../db/stores/repos.js';
 import type { SessionStore } from '../db/stores/sessions.js';
+import type { RuntimeStore } from '../db/stores/runtimes.js';
 import { KeyedMutex } from '../git/mutex.js';
 import { ApiError } from '../http/errors.js';
 import { containedPath } from '../http/routes/worktrees/worktree-shared.js';
@@ -61,6 +62,8 @@ export interface SessionServiceDeps {
   repos: RepoStore;
   projects: ProjectStore;
   sessions: SessionStore;
+  /** Durable external ownership must never fall through to in-process controls. */
+  runtimes?: RuntimeStore;
   conversations: ConversationStore;
   events: EventStore;
   worktrees: WorktreeManager;
@@ -280,6 +283,16 @@ export class SessionService extends EventEmitter {
 
   get(id: string): Session {
     return this.withComputed(this.deps.sessions.get(id));
+  }
+
+  /** Removed as each control is routed through the adopted external backend. */
+  assertLegacyRuntime(id: string): void {
+    if (this.deps.runtimes?.ownerOf(id)) {
+      throw ApiError.conflict(
+        'runtime_reconciliation_required',
+        'This placement has an independent runtime awaiting reconciliation; its work has not been stopped.',
+      );
+    }
   }
 
   list(
@@ -708,6 +721,7 @@ export class SessionService extends EventEmitter {
   }
 
   private spawnTerminal(sessionId: string, worktreePath: string, command?: TerminalCommand): void {
+    this.assertLegacyRuntime(sessionId);
     const { shell, args, env } = this.shellSpawnParts(sessionId);
     try {
       this.deps.ptys.spawn(
@@ -745,6 +759,7 @@ export class SessionService extends EventEmitter {
   }
 
   private async resumeCore(id: string): Promise<Session> {
+    this.assertLegacyRuntime(id);
     const session = this.deps.sessions.get(id);
     await this.deps.storage?.assertAdmission([
       ...(this.deps.storagePaths ?? []),
@@ -888,6 +903,7 @@ export class SessionService extends EventEmitter {
    * "stop the process, repoint `account_id`, resume under B's env".
    */
   async migrate(id: string, targetAccountId: number): Promise<Session> {
+    this.assertLegacyRuntime(id);
     const session = this.deps.sessions.get(id);
     if (session.kind === 'terminal' || session.account_id === null || session.agent_type === null) {
       throw ApiError.badRequest('not_migratable', 'a terminal session has no account to migrate');
@@ -1071,6 +1087,7 @@ export class SessionService extends EventEmitter {
 
   /** SIGTERM the session's PTYs and wait for the agent to exit. */
   async kill(id: string): Promise<Session> {
+    this.assertLegacyRuntime(id);
     const session = this.deps.sessions.get(id);
     this.expectExit(id); // asked for: its non-zero exit raises no notice
     this.deps.ptys.killAll(id);
@@ -1103,6 +1120,7 @@ export class SessionService extends EventEmitter {
    * (git refuses while the branch is checked out in the kept worktree).
    */
   async archive(id: string): Promise<Session> {
+    this.assertLegacyRuntime(id);
     const session = this.deps.sessions.get(id);
     if (session.status === 'archived') return session; // an idempotent hide
     // A live session is killed as part of archiving — one gesture from the
@@ -1156,6 +1174,7 @@ export class SessionService extends EventEmitter {
 
   /** Spawn a shell PTY cd'd into the worktree; returns the new term id. */
   spawnShell(sessionId: string): string {
+    this.assertLegacyRuntime(sessionId);
     const session = this.deps.sessions.get(sessionId);
     if (session.status === 'archived') {
       throw ApiError.conflict('session_archived', 'archived sessions have no worktree');
@@ -1316,6 +1335,7 @@ export class SessionService extends EventEmitter {
 
   /** DELETE /api/sessions/:id/env: stop injecting; returns how many vars were dropped. */
   clearCapturedEnv(id: string): ClearSessionEnvResponse {
+    this.assertLegacyRuntime(id);
     return { cleared: this.deps.sessions.clearEnv(id) };
   }
 
@@ -1349,11 +1369,13 @@ export class SessionService extends EventEmitter {
     launchOpts?: LaunchOpts,
     resumeRef?: string,
   ): Promise<void> {
+    this.assertLegacyRuntime(sessionId);
     await this.deps.storage?.assertAdmission([
       ...(this.deps.storagePaths ?? []),
       worktreePath,
       account.config_dir,
     ]);
+    this.assertLegacyRuntime(sessionId);
     // The status-signal side-channel (SPEC §4): a per-spawn nonce plus the
     // daemon's own /agent-signal URL, injected so agent hook processes (which
     // inherit this env) can report running ⇄ waiting_input authoritatively.
@@ -1432,6 +1454,7 @@ export class SessionService extends EventEmitter {
       }
     }
     try {
+      this.assertLegacyRuntime(sessionId);
       this.deps.ptys.spawn(
         sessionId,
         'agent',
@@ -1455,6 +1478,7 @@ export class SessionService extends EventEmitter {
       );
     } catch (e) {
       await lifecycleResource?.dispose();
+      if (e instanceof ApiError && e.code === 'runtime_reconciliation_required') throw e;
       this.transition(sessionId, 'exited');
       this.deps.events.record(sessionId, 'spawn_failed', { message: (e as Error).message });
       throw new ApiError(

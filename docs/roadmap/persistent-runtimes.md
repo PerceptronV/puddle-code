@@ -78,6 +78,13 @@ Implementation evidence so far:
   Tests exercise rollback, stale mutations and a lost binding response with an
   isolated application database and fake provider. Production SessionService
   adoption still needs to consume this contract.
+- Daemon boot now holds the controller claim, authenticates known owners with
+  bounded concurrency, and excludes durable external placements from legacy
+  interruption/auto-resume. Shutdown detaches owner connections. An isolated real
+  daemon process preserves a separate shell's PID and variable through repeated
+  start/stop cycles, including failed owner authentication. Legacy controls reject
+  unresolved external ownership. This is boot protection/inspection, not complete
+  event adoption or external terminal routing; journals remain unacknowledged.
 
 These are foundations for phases 0–3, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native

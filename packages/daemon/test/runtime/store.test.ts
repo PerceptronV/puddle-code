@@ -7,6 +7,10 @@ import { ProjectStore } from '../../src/db/stores/projects.js';
 import { RepoStore } from '../../src/db/stores/repos.js';
 import { SessionStore } from '../../src/db/stores/sessions.js';
 import { RuntimeStore } from '../../src/db/stores/runtimes.js';
+import { EventStore } from '../../src/db/stores/events.js';
+import { ConversationStore } from '../../src/db/stores/conversations.js';
+import { reconcilePass } from '../../src/sessions/reconcile.js';
+import type { MarkerFileSync } from '../../src/sessions/onboarding.js';
 
 const databases: Db[] = [];
 afterEach(() => {
@@ -79,6 +83,44 @@ function fixture() {
 }
 
 describe('durable runtime bindings', () => {
+  it('keeps durable owners out of legacy boot interruption even when their processes are unavailable', () => {
+    const { db, store, input, session, sessions, projects, createSession } = fixture();
+    const binding = store.prepare(input);
+    const legacy = createSession();
+    const events = new EventStore(db);
+    const onboarding = { watch: vi.fn() } as unknown as MarkerFileSync;
+    const result = reconcilePass({ sessions, events, projects, onboarding, runtimes: store });
+    expect(result).toEqual({ interrupted: [legacy.id], protected: [session.id] });
+    expect(sessions.get(session.id).status).toBe('starting');
+    expect(events.list(session.id)).toEqual([]);
+    expect(store.ownerOf(session.id)).toEqual(binding);
+    expect(store.ownerOf(legacy.id)).toBeNull();
+    // A stale application status must not authorise resume either.
+    sessions.setStatus(session.id, 'interrupted');
+    expect(store.ownerOf(session.id)).toEqual(binding);
+    expect(store.interrupt(binding.runtime_id, () => {})).toBe(true);
+    expect(store.ownerOf(session.id)).toBeNull();
+  });
+
+  it('protects another placement of the exact live native conversation without blocking unrelated conversations', () => {
+    const { db, store, input, session, sessions, profile, project, createSession } = fixture();
+    const conversation = new ConversationStore(db).upsert(profile.id, 'fixture', null, {
+      ref: 'owned',
+      cwd: session.worktree_path,
+    });
+    db.prepare("UPDATE sessions SET kind = 'agent', agent_type = 'fixture' WHERE id = ?").run(
+      session.id,
+    );
+    sessions.setConversation(session.id, conversation.id);
+    const binding = store.prepare(input);
+    const alias = createSession(project.id, '/tmp/another-placement');
+    sessions.setConversation(alias.id, conversation.id);
+    expect(store.ownerOf(alias.id)).toEqual(binding);
+    expect(store.ownerOf(createSession().id)).toBeNull();
+    store.interrupt(binding.runtime_id, () => {});
+    expect(store.ownerOf(alias.id)).toBeNull();
+  });
+
   it('commits segment boundaries with effects and never remaps existing history', () => {
     const { db, store, input, session, createSession, project } = fixture();
     const original = store.prepare(input);

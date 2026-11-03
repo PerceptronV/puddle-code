@@ -2,15 +2,20 @@ import { existsSync } from 'node:fs';
 import type { EventStore } from '../db/stores/events.js';
 import type { ProjectStore } from '../db/stores/projects.js';
 import type { SessionStore } from '../db/stores/sessions.js';
+import type { RuntimeStore } from '../db/stores/runtimes.js';
 import type { MarkerFileSync } from './onboarding.js';
 
 export interface ReconcileResult {
   interrupted: string[];
+  /** External ownership must be reconciled before these placements can resume. */
+  protected: string[];
 }
 
 /**
  * Boot reconcile pass (SPEC §4): any session that claims to be live but has
- * no PTY (the daemon just started — nothing has) becomes `interrupted`.
+ * no durable external owner becomes `interrupted`. An external binding remains
+ * protected until authenticated adoption or confirmed-loss reconciliation ends
+ * it; an absent in-process PTY is not evidence of external process death.
  * Orphan worktrees are computed on demand by the repos route; worktree-missing
  * badges are computed on session reads. Nothing is ever auto-deleted.
  */
@@ -19,9 +24,14 @@ export function reconcilePass(deps: {
   events: EventStore;
   projects: ProjectStore;
   onboarding: MarkerFileSync;
+  runtimes?: RuntimeStore;
 }): ReconcileResult {
+  const protectedIds = new Set(
+    (deps.runtimes?.live() ?? []).map((binding) => binding.active_session_id),
+  );
   const stuck = deps.sessions.listByStatus(['starting', 'running', 'waiting_input']);
-  for (const s of stuck) {
+  const interrupted = stuck.filter((s) => !protectedIds.has(s.id));
+  for (const s of interrupted) {
     deps.sessions.setStatus(s.id, 'interrupted');
     deps.events.record(s.id, 'interrupted', { reason: 'daemon_restart' });
   }
@@ -31,5 +41,5 @@ export function reconcilePass(deps: {
       deps.onboarding.watch(s.id, deps.projects.get(s.project_id).repo_id, s.worktree_path);
     }
   }
-  return { interrupted: stuck.map((s) => s.id) };
+  return { interrupted: interrupted.map((s) => s.id), protected: [...protectedIds] };
 }

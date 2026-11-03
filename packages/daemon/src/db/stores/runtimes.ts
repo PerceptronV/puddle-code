@@ -69,6 +69,23 @@ export class RuntimeStore {
       .all() as RuntimeBinding[];
   }
 
+  /** Protect exact placement/conversation ownership independently of saved session status. */
+  ownerOf(sessionId: string): RuntimeBinding | null {
+    return (
+      (this.db
+        .prepare(
+          `
+      SELECT r.* FROM runtime_bindings r JOIN sessions s ON s.id = ?
+      WHERE r.state IN ('prepared', 'running') AND (
+        r.active_session_id = s.id OR
+        (s.conversation_id IS NOT NULL AND r.conversation_id = s.conversation_id)
+      ) LIMIT 1
+    `,
+        )
+        .get(sessionId) as RuntimeBinding | undefined) ?? null
+    );
+  }
+
   segment(id: string, segmentId: string): RuntimeSegmentBinding | null {
     return (
       (this.db

@@ -254,6 +254,7 @@ export class WsGateway {
             break;
           }
           case 'stdin': {
+            this.assertStream(msg.session);
             const responder = this.responders.get(this.key(msg.session, msg.term));
             const data =
               responder === undefined || responder === ws ? msg.data : stripDeviceReplies(msg.data);
@@ -261,6 +262,7 @@ export class WsGateway {
             break;
           }
           case 'resize': {
+            this.assertStream(msg.session);
             // The resize that wins the PTY size also wins the responder role:
             // this viewer's grid is now the one the PTY believes in.
             const key = this.key(msg.session, msg.term);
@@ -320,6 +322,7 @@ export class WsGateway {
   private assertStream(stream: string): void {
     if (stream === HOME_STREAM || /^login-[0-9]+$/.test(stream)) return;
     this.deps.service.get(stream); // throws 404 for unknown sessions
+    this.deps.service.assertLegacyRuntime(stream);
   }
 
   /**
@@ -416,6 +419,7 @@ export class WsGateway {
       const snapshot = await this.deps.ptys.snapshot(stream, term, cols, rows);
       if (this.pendingAttaches.get(key)?.get(ws) !== pending) return;
       if (!this.viewers.get(key)?.has(ws) || !this.resources.get(ws)?.valid()) return;
+      this.assertStream(stream);
       this.send(ws, { t: 'replay', session: stream, term, data: snapshot });
       this.pendingAttaches.get(key)?.delete(ws);
       if (this.pendingAttaches.get(key)?.size === 0) this.pendingAttaches.delete(key);

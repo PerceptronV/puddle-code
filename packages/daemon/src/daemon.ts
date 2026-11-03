@@ -49,6 +49,8 @@ import { MarkerFileSync } from './sessions/onboarding.js';
 import { reconcilePass } from './sessions/reconcile.js';
 import { subscribePushNotifications } from './sessions/push-notifications.js';
 import { SessionService } from './sessions/service.js';
+import { RuntimeStore } from './db/stores/runtimes.js';
+import { RuntimeConnections } from './runtime/connections.js';
 import { WorktreeManager } from './worktrees/manager.js';
 import { WsGateway } from './ws/gateway.js';
 import { PuddlangService } from './puddlang/service.js';
@@ -106,6 +108,10 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     const scratchpad = new ScratchpadStore(db);
     const layouts = new LayoutStore(db);
     const sessions = new SessionStore(db);
+    const runtimes = new RuntimeStore(db);
+    const runtimeConnections = new RuntimeConnections(paths.home, runtimes);
+    failedStartup.push(() => runtimeConnections.close());
+    await runtimeConnections.connect();
     const conversations = new ConversationStore(db);
     const events = new EventStore(db);
     const compilationSettings = new CompilationSettingsStore(db);
@@ -168,6 +174,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       events,
     });
     const service = new SessionService({
+      runtimes,
       storage,
       storagePaths,
       profiles,
@@ -257,9 +264,14 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     const sweptStates = profileStates.gc(config.uiStateRetentionDays);
     if (sweptStates > 0) console.log(`ui-state gc: ${sweptStates} stale row(s) removed`);
 
-    const reconciled = reconcilePass({ sessions, events, projects, onboarding });
+    const reconciled = reconcilePass({ sessions, events, projects, onboarding, runtimes });
     if (reconciled.interrupted.length > 0) {
       console.log(`reconcile: ${reconciled.interrupted.length} session(s) marked interrupted`);
+    }
+    if (reconciled.protected.length > 0) {
+      console.log(
+        `reconcile: ${reconciled.protected.length} placement(s) retain independent runtime ownership; ${runtimeConnections.unavailableIds().length} owner(s) unavailable`,
+      );
     }
 
     // Periodic fetch for repos with at least one non-archived session (SPEC §4).
@@ -430,7 +442,13 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
         // so a reader mid-shutdown probes a dead port (→ restart), never a live
         // one it then mis-trusts.
         clearRuntime(paths);
-        db.close();
+        // Release control only after application writers and servers have
+        // stopped. External owners, PTYs and journals survive this detach.
+        try {
+          await runtimeConnections.close();
+        } finally {
+          db.close();
+        }
       },
     };
   } catch (err) {

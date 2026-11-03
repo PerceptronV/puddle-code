@@ -311,6 +311,12 @@ and controller ownership without heartbeat expiry or PID assumptions. They
 contain no session data. Never unlink or replace a claim file while any process
 can own it. The controller record's monotonically increasing epoch fences old
 connections; the exclusive controller claim serialises its replacement.
+The daemon now holds this claim for its application lifetime and opens known
+owner connections before legacy boot reconciliation. Durable live bindings are
+protected from blanket interruption and legacy controls, even after connection
+failure. These inspection connections do not acknowledge journals; production
+event adoption and external terminal routing remain required. Shutdown detaches
+owners and releases the controller after application writers have stopped.
 
 Confirmed loss is recorded under the runtime's own exclusive claim. A durable
 retirement marker fences any delayed launcher before releasing that lock. A

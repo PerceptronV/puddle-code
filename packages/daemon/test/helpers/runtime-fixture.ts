@@ -58,6 +58,7 @@ beforeAll(async () => {
       controller: join(packageRoot, 'test/helpers/runtime-controller.ts'),
       'provider-owner': join(packageRoot, 'test/helpers/runtime-provider-owner.ts'),
       'fake-codex': join(packageRoot, 'test/helpers/runtime-codex.ts'),
+      'daemon-owner': join(packageRoot, 'test/helpers/runtime-daemon.ts'),
     },
     outdir: bundleDir,
     outExtension: { '.js': '.mjs' },

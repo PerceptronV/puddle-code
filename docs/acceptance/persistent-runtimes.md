@@ -133,6 +133,22 @@ establish production SessionService adoption or installed-upgrade continuity.
 The final runtime-only rerun passed 78 tests in 16 files, with the opt-in native
 supervisor test skipped.
 
+Boot ownership protection is now wired into the production composition root.
+`runtime/daemon-ownership.test.ts` starts that daemon in a separate sanitised
+process with a temporary application database and an independently owned shell.
+It verifies successful inspection, rejected credentials and mismatched build
+metadata across daemon start/stop cycles; the shell retains its PID and variable,
+no interruption/resume events are invented, and retained observations remain
+unacknowledged. HTTP kill/resume/archive and legacy WebSocket controls reject
+unreconciled external ownership. A snapshot-await race rechecks the same guard
+before replay/resize. This protects ownership; it is not external event adoption
+or a usable external terminal attachment yet.
+
+The runtime/session/PTY/host-control regression run passed 313 tests in 41 files
+with the opt-in native supervisor test skipped. The final focused ownership,
+store and gateway run passed 17 tests. Typecheck, scoped lint and formatting
+passed. Installed upgrades and native provider/platform gates remain outstanding.
+
 ## Remaining release gates
 
 Record platform, Node, release and provider versions with results. Run native
