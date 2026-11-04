@@ -273,8 +273,16 @@ operations are rejected. Lost admission replies trigger observation without prom
 replay. Callers consume committed private results. Daemon shutdown interrupts the
 programme while preserving accepted owner turns; explicit cancellation targets only
 the original turn/placement. Restart recovers the outcome without resuming the
-programme. Result retention reclamation and durable spawn-operation ownership
-remain required for complete programme failure handling before default rollout.
+programme. Migration 036 records `puddlang_runtime_spawns` in the same transaction
+as its placement, then binds the exact runtime alongside launch intent. Durable
+`puddlang_stop_requests` fence future spawns even if cancellation arrives before
+placement creation. Undispatched programme placements become interrupted on boot
+without automatic resume. Explicit manual resume remains available and does not
+transfer programme ownership to the replacement. Cancellation and failed-spawn
+cleanup target the recorded owner, including after a lost launch response;
+`runtime_cleanup` programme events list unconfirmed runtime ids. Explicit repeated
+cancellation retries those recorded stops; boot never replays uncertain stops.
+Result retention reclamation remains required before default rollout.
 Code-execution terminals use that same opt-in owner path, including their one-shot
 command followed by an interactive shell. Migration 034 stores each canonical
 managed run directory in `runtime_code_runs`, keyed by runtime id, atomically with

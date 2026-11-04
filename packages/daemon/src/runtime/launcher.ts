@@ -25,6 +25,13 @@ import { runtimeDirectory, readRuntimeJson } from './storage.js';
 import { startRuntimeService } from './supervisor.js';
 import { pinRuntimeShellHooks } from './shell-hooks.js';
 import type { ShellHooks } from '../pty/shell-hooks.js';
+import type { ProgrammeOperation } from '../puddlang/runtime-turn-store.js';
+
+interface LaunchOptions {
+  provider?: RuntimeProviderLaunch;
+  codeRunDirectory?: string;
+  programme?: ProgrammeOperation;
+}
 
 /** Explicit composition option until installed release selection and rollout gates exist. */
 export interface RuntimeLaunchConfiguration {
@@ -60,13 +67,12 @@ export class RuntimeLauncher {
   launch(
     sessionId: string,
     command: (hooks: ShellHooks) => RuntimeCommand,
-    provider?: RuntimeProviderLaunch,
-    codeRunDirectory?: string,
+    options: LaunchOptions = {},
   ): Promise<void> {
     if (this.closed) return Promise.reject(new Error('Runtime launcher is closing'));
     if (this.pending.size >= RUNTIME_LIMITS.pendingRequests)
       return Promise.reject(ApiError.conflict('runtime_busy', 'Too many pending runtime launches'));
-    const pending = this.start(sessionId, command, provider, codeRunDirectory);
+    const pending = this.start(sessionId, command, options);
     this.pending.add(pending);
     void pending.finally(() => this.pending.delete(pending)).catch(() => {});
     return pending;
@@ -75,8 +81,7 @@ export class RuntimeLauncher {
   private async start(
     sessionId: string,
     command: (hooks: ShellHooks) => RuntimeCommand,
-    provider?: RuntimeProviderLaunch,
-    codeRunDirectory?: string,
+    { provider, codeRunDirectory, programme }: LaunchOptions,
   ): Promise<void> {
     const session = this.deps.sessions.get(sessionId);
     if (this.deps.runtimes.ownerOf(sessionId))
@@ -124,6 +129,7 @@ export class RuntimeLauncher {
         build: config.build,
         protocol: RUNTIME_PROTOCOL_VERSION,
         releasePath: config.releasePath,
+        programme,
         ...(codeRunDirectory === undefined
           ? {}
           : { codeRunDirectory: realpathSync(codeRunDirectory) }),

@@ -3,6 +3,8 @@ import { realpathSync } from 'node:fs';
 import type { Session, SessionStatus } from '@puddle/shared';
 import { ApiError } from '../../http/errors.js';
 import type { Db } from '../db.js';
+import { ProgrammeSpawnStore } from './programme-spawns.js';
+import type { ProgrammeOperation } from '../../puddlang/runtime-turn-store.js';
 
 interface Row {
   id: string;
@@ -107,39 +109,42 @@ const ACTIVE = `('starting', 'running', 'waiting_input', 'exited', 'interrupted'
 export class SessionStore {
   constructor(private readonly db: Db) {}
 
-  create(row: NewSessionRow): Session {
-    const now = new Date().toISOString();
-    this.db
-      .prepare(
-        `INSERT INTO sessions (id, project_id, account_id, conversation_id,
+  create(row: NewSessionRow, programme?: ProgrammeOperation): Session {
+    return this.db.transaction(() => {
+      const now = new Date().toISOString();
+      this.db
+        .prepare(
+          `INSERT INTO sessions (id, project_id, account_id, conversation_id,
            worktree_path, canonical_worktree_path, base_branch, branch,
            separate_branch, branch_owned, kind, agent_type, title, status,
            native_sync, skip_permissions, created_at, updated_at, cwd, agent_mode)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        row.id,
-        row.project_id,
-        row.account_id,
-        row.conversation_id ?? null,
-        row.worktree_path,
-        this.canonicalPath(row.worktree_path),
-        row.base_branch,
-        row.branch,
-        row.separate_branch ? 1 : 0,
-        row.branch_owned ? 1 : 0,
-        row.kind,
-        row.agent_type,
-        row.title,
-        row.status ?? 'starting',
-        row.native_sync ?? (row.kind === 'agent' ? 'pending' : null),
-        row.skip_permissions ? 1 : 0,
-        now,
-        now,
-        row.cwd ?? null,
-        row.agent_mode ?? 'interactive',
-      );
-    return this.get(row.id);
+        )
+        .run(
+          row.id,
+          row.project_id,
+          row.account_id,
+          row.conversation_id ?? null,
+          row.worktree_path,
+          this.canonicalPath(row.worktree_path),
+          row.base_branch,
+          row.branch,
+          row.separate_branch ? 1 : 0,
+          row.branch_owned ? 1 : 0,
+          row.kind,
+          row.agent_type,
+          row.title,
+          row.status ?? 'starting',
+          row.native_sync ?? (row.kind === 'agent' ? 'pending' : null),
+          row.skip_permissions ? 1 : 0,
+          now,
+          now,
+          row.cwd ?? null,
+          row.agent_mode ?? 'interactive',
+        );
+      if (programme) new ProgrammeSpawnStore(this.db).record(programme, row.id);
+      return this.get(row.id);
+    })();
   }
 
   get(id: string): Session {

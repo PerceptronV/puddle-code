@@ -326,6 +326,24 @@ interactive control run passed 12 tests. Typecheck, scoped lint and formatting
 passed. Durable spawn-operation ownership, private result reclamation, native
 provider/platform verification and installed/default rollout remain gates.
 
+`runtime/programme-spawn.test.ts` holds a fake supervisor dispatch after durable
+launch intent, then cancels the programme before allowing the dispatch to finish.
+The recorded owner exits cleanly and receives no ask. A manual resume creates a
+replacement; after daemon replacement, retrying the old programme cancellation
+leaves that replacement running. The ownership record still names the old runtime.
+
+`runtime/programme-spawn-store.test.ts` injects an ownership-write failure and
+proves placement insertion rolls back. Duplicate/cancelled admissions cannot leave
+a new placement or runtime intent. Undispatched spawns are excluded from boot
+auto-resume, while explicit later resume remains ordinary session recovery.
+The first store run exposed fixtures reusing incarnation ids; unique incarnations
+corrected the fixtures and both store tests passed. The held-dispatch integration
+passed, as did the earlier 59-test programme/launcher/session/migration run.
+The broader runtime/programme/session/database/provider-control/host-control run
+passed 343 tests in 55 files, with one native supervisor test skipped. Typecheck,
+scoped lint and formatting passed. Native platform/provider verification and
+installed/default rollout remain outstanding.
+
 ## Remaining release gates
 
 Record platform, Node, release and provider versions with results. Run native

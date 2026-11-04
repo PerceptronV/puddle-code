@@ -31,9 +31,12 @@ export function reconcilePass(deps: {
   );
   const stuck = deps.sessions.listByStatus(['starting', 'running', 'waiting_input']);
   const interrupted = stuck.filter((s) => !protectedIds.has(s.id));
+  const unstarted = deps.runtimes?.unstartedProgrammeSessions() ?? new Set<string>();
   for (const s of interrupted) {
     deps.sessions.setStatus(s.id, 'interrupted');
-    deps.events.record(s.id, 'interrupted', { reason: 'daemon_restart' });
+    deps.events.record(s.id, 'interrupted', {
+      reason: unstarted.has(s.id) ? 'programme_spawn_not_dispatched' : 'daemon_restart',
+    });
   }
   // Re-register notes watchers for every session that can still teach rules.
   for (const s of deps.sessions.listByStatus(['exited', 'interrupted'])) {
@@ -41,5 +44,8 @@ export function reconcilePass(deps: {
       deps.onboarding.watch(s.id, deps.projects.get(s.project_id).repo_id, s.worktree_path);
     }
   }
-  return { interrupted: interrupted.map((s) => s.id), protected: [...protectedIds] };
+  return {
+    interrupted: interrupted.filter((s) => !unstarted.has(s.id)).map((s) => s.id),
+    protected: [...protectedIds],
+  };
 }

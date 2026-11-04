@@ -65,7 +65,13 @@ export class PuddlangService {
     const { run, fresh } = this.store.create(profile, input);
     if (!fresh) return run;
     const abort = new AbortController();
-    const operations = new PuddlangOperations(this.deps, profile, input, abort.signal);
+    const operations = new PuddlangOperations(
+      this.deps,
+      profile,
+      input,
+      abort.signal,
+      this.store.spawns,
+    );
     let child: ChildProcess;
     try {
       child = fork(this.runner, [], {
@@ -182,6 +188,26 @@ export class PuddlangService {
     const run = this.store.get(profile, id);
     const active = this.active.get(id);
     if (active) await this.stop(id, active, error ? 'failed' : 'cancelled', error ?? 'Cancelled');
+    else if (!error) {
+      // An explicit retry can inspect/stop recorded owners after the runner is gone.
+      // Ordinary daemon boot never repeats an uncertain termination request.
+      const owned = this.store.spawns
+        .list(profile, id)
+        .filter((row) => row.stop_requested && row.runtime_id);
+      if (owned.length) {
+        const unconfirmed: string[] = [];
+        await Promise.all(
+          owned.map(async (row) => {
+            try {
+              await this.deps.service.stopScriptRuntime(row.runtime_id!, profile);
+            } catch {
+              unconfirmed.push(row.runtime_id!);
+            }
+          }),
+        );
+        this.store.event(id, 'runtime_cleanup', { unconfirmed });
+      }
+    }
     return active ? this.store.get(profile, id) : run;
   }
 
@@ -199,6 +225,8 @@ export class PuddlangService {
     error: string,
   ): Promise<void> {
     if (active.finishing) return active.finishing;
+    const profile = this.store.getRunProfile(id);
+    if (status !== 'interrupted') this.store.spawns.requestStop(profile, id);
     active.abort.abort(status === 'interrupted' ? new PuddlangDaemonStopped(error) : undefined);
     const exited =
       active.child.exitCode !== null ||
@@ -213,7 +241,10 @@ export class PuddlangService {
     active.child.kill('SIGKILL');
     active.finishing = (async () => {
       await Promise.allSettled([...active.pending]);
-      if (status !== 'interrupted') await active.operations.stopOwned();
+      if (status !== 'interrupted') {
+        const unconfirmed = await active.operations.stopOwned();
+        this.store.event(id, 'runtime_cleanup', { unconfirmed });
+      }
       await exited;
       this.store.finish(id, status, null, error);
       this.store.event(id, 'finished', { error });

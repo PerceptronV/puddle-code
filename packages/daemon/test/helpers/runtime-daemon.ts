@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { once } from 'node:events';
+import { setTimeout as delay } from 'node:timers/promises';
 import { runtimeSupervisorSchema } from '@puddle/shared';
 import { atomicPrivateJson } from '@puddle/shared/node';
 import { startDaemon } from '../../src/daemon.js';
@@ -28,6 +29,14 @@ const runtime: RuntimeLaunchConfiguration | undefined = existsSync(
         const record = runtimeSupervisorSchema.parse(
           readRuntimeJson(join(directory, 'supervisor.json')),
         );
+        if (existsSync(join(home, 'test-hold-runtime-dispatch'))) {
+          atomicPrivateJson(join(home, 'test-runtime-dispatch-pending.json'), {
+            runtime_id: record.identity.runtime_id,
+          });
+          const deadline = Date.now() + 10_000;
+          while (existsSync(join(home, 'test-hold-runtime-dispatch')) && Date.now() < deadline)
+            await delay(25);
+        }
         const child = spawn(
           record.node_path,
           [record.entry_path, '--home', home, '--runtime', record.identity.runtime_id],

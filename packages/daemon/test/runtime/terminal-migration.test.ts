@@ -54,7 +54,7 @@ it('backfills only proven live terminal generations when upgrading older runtime
   const current = f.runtimes.get(f.binding.runtime_id)!;
   expect(f.runtimes.terminalForPlacement(f.session.id, 'shell-1')).toMatchObject({ generation });
   f.db.exec(
-    'DROP TABLE puddlang_runtime_turns; DROP TABLE runtime_code_runs; DROP TABLE runtime_stop_requests; DROP TABLE runtime_segment_terminals; DROP TABLE terminal_placements; PRAGMA user_version = 31',
+    'DROP TABLE puddlang_runtime_spawns; DROP TABLE puddlang_stop_requests; DROP TABLE puddlang_runtime_turns; DROP TABLE runtime_code_runs; DROP TABLE runtime_stop_requests; DROP TABLE runtime_segment_terminals; DROP TABLE terminal_placements; PRAGMA user_version = 31',
   );
   await f.reconciler.close();
   f.db.close();

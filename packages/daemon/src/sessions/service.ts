@@ -232,6 +232,39 @@ export class SessionService extends EventEmitter {
       preserveOnAbort,
     );
   }
+
+  /** Stop only the programme's recorded owner, never a replacement in its old placement. */
+  async stopScriptRuntime(id: string, profile: string): Promise<void> {
+    const owner = this.deps.runtimes?.get(id);
+    if (owner) {
+      if (owner.profile_id !== profile)
+        throw new ApiError(403, 'profile_scope', 'Runtime belongs to another profile');
+      if (owner.state === 'exited') return;
+      if (!['prepared', 'running'].includes(owner.state) || !this.deps.runtimeControls)
+        throw ApiError.conflict(
+          'runtime_stop_unconfirmed',
+          'Runtime descendant cleanup is unconfirmed',
+        );
+      const sessionId = owner.active_session_id;
+      await this.deps.runtimeControls.stop(
+        sessionId,
+        () =>
+          this.deps.runtimes?.ownerOf(sessionId)?.runtime_id === id &&
+          this.deps.runtimes.get(id)?.profile_id === profile,
+      );
+      return;
+    }
+    const live = this.runtimes.get(id);
+    if (!live) return;
+    const sessionId = live.activeSessionId;
+    await this.kill(
+      sessionId,
+      () =>
+        this.runtimes.get(id) === live &&
+        live.activeSessionId === sessionId &&
+        this.deps.projects.get(this.get(sessionId).project_id).profile_id === profile,
+    );
+  }
   private readonly liveAgents = new Map<string, LiveAgent>();
   /** nonce → session id for /agent-signal lookups; entries die with the PTY. */
   private readonly signalNonces = new Map<string, LiveAgent>();
@@ -432,6 +465,7 @@ export class SessionService extends EventEmitter {
   async create(
     input: CreateSessionRequest,
     agentMode: NonNullable<Session['agent_mode']> = 'interactive',
+    programme?: ProgrammeOperation,
   ): Promise<Session> {
     const project = this.deps.projects.get(input.project_id);
     const profile = this.deps.profiles.get(project.profile_id);
@@ -489,21 +523,24 @@ export class SessionService extends EventEmitter {
       separateWorktree,
     });
     await this.deps.storage?.assertAdmission([worktree.worktreePath]);
-    const session = this.deps.sessions.create({
-      id: sessionId,
-      project_id: project.id,
-      account_id: account.id,
-      worktree_path: worktree.worktreePath,
-      base_branch: worktree.baseBranch,
-      branch: worktree.branch,
-      separate_branch: separateBranch,
-      branch_owned: worktree.created,
-      kind: 'agent',
-      agent_type: account.agent_type,
-      agent_mode: agentMode,
-      title: input.title ?? null,
-      skip_permissions: skip,
-    });
+    const session = this.deps.sessions.create(
+      {
+        id: sessionId,
+        project_id: project.id,
+        account_id: account.id,
+        worktree_path: worktree.worktreePath,
+        base_branch: worktree.baseBranch,
+        branch: worktree.branch,
+        separate_branch: separateBranch,
+        branch_owned: worktree.created,
+        kind: 'agent',
+        agent_type: account.agent_type,
+        agent_mode: agentMode,
+        title: input.title ?? null,
+        skip_permissions: skip,
+      },
+      this.deps.runtimeLauncher ? programme : undefined,
+    );
 
     // Every freshly created worktree onboards — and only those (SPEC §4).
     // Attaching to an existing shared worktree is a reuse, like a hand-off:
@@ -535,6 +572,8 @@ export class SessionService extends EventEmitter {
         adapter.launchArgs(launchOpts),
         'starting',
         launchOpts,
+        undefined,
+        programme,
       );
     if (agentMode === 'headless' || this.deps.runtimeLauncher) await spawn();
     else
@@ -776,8 +815,7 @@ export class SessionService extends EventEmitter {
               rows: 32,
             };
           },
-          undefined,
-          command?.managedRunDirectory,
+          { codeRunDirectory: command?.managedRunDirectory },
         );
       } catch (error) {
         // Prepared intent may already be executing. Never erase that ownership
@@ -1514,6 +1552,7 @@ export class SessionService extends EventEmitter {
     initial: LiveAgent['status'],
     launchOpts?: LaunchOpts,
     resumeRef?: string,
+    programme?: ProgrammeOperation,
   ): Promise<void> {
     this.assertLegacyRuntime(sessionId);
     await this.deps.storage?.assertAdmission([
@@ -1550,14 +1589,17 @@ export class SessionService extends EventEmitter {
             rows: 32,
           }),
           {
-            id: adapter.id,
-            config_dir: account.config_dir,
-            mode,
-            skip_permissions: opts.skipPermissions,
-            ...(opts.prompt === undefined ? {} : { prompt: opts.prompt }),
-            ...(resumeRef === undefined ? {} : { resume_ref: resumeRef }),
-            ...(initialRef === undefined ? {} : { initial_ref: initialRef }),
-            ...(priorRefs === undefined ? {} : { prior_refs: priorRefs }),
+            programme,
+            provider: {
+              id: adapter.id,
+              config_dir: account.config_dir,
+              mode,
+              skip_permissions: opts.skipPermissions,
+              ...(opts.prompt === undefined ? {} : { prompt: opts.prompt }),
+              ...(resumeRef === undefined ? {} : { resume_ref: resumeRef }),
+              ...(initialRef === undefined ? {} : { initial_ref: initialRef }),
+              ...(priorRefs === undefined ? {} : { prior_refs: priorRefs }),
+            },
           },
         );
         if (this.deps.sessions.get(sessionId).native_sync === 'fallback')

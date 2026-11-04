@@ -181,8 +181,17 @@ Implementation evidence so far:
   both modes preserve accepted turns through replacement, recover their results
   while leaving programmes interrupted, and verify exact explicit cancellation.
   Tests also discard an accepted response and prove one provider invocation.
-  Durable spawn-operation ownership and private result reclamation remain
-  programme failure-handling gates before default rollout.
+  Private result reclamation remains a programme failure-handling gate before
+  default rollout.
+- Migration 036 records programme spawn ownership atomically with placement
+  creation, then binds its exact runtime with launch intent. Durable cancellation
+  fences future dispatch, including cancellation before the placement exists.
+  Boot leaves undispatched programme spawns interrupted without automatic resume.
+  Cleanup and explicit cancellation retries target the original runtime; a later
+  manual resume does not transfer ownership. Unconfirmed stops are recorded in
+  programme events, and boot never replays them. An isolated daemon test holds a
+  supervisor dispatch, cancels the programme, verifies clean owner exit without
+  an ask, then proves an old cancellation cannot stop a resumed replacement.
 
 These are foundations for phases 0–3, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native

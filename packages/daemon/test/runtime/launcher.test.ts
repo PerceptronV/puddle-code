@@ -187,11 +187,13 @@ it('collects a confirmed provider startup failure without replaying its launch',
     f.sessions.setAgentSessionRef(f.session.id, f.session.id);
     await expect(
       f.launcher.launch(f.session.id, () => f.launch.main, {
-        id: 'missing-provider',
-        config_dir: f.home,
-        mode: 'interactive',
-        skip_permissions: false,
-        initial_ref: f.session.id,
+        provider: {
+          id: 'missing-provider',
+          config_dir: f.home,
+          mode: 'interactive',
+          skip_permissions: false,
+          initial_ref: f.session.id,
+        },
       }),
     ).rejects.toMatchObject({ code: 'runtime_launch_failed' });
     expect(run).toHaveBeenCalledTimes(1);

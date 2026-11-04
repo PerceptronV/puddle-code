@@ -8,6 +8,8 @@ import {
 } from '@puddle/shared';
 import { digest } from '@puddle/shared/node';
 import type { Db } from '../db.js';
+import { ProgrammeSpawnStore } from './programme-spawns.js';
+import type { ProgrammeOperation } from '../../puddlang/runtime-turn-store.js';
 
 export interface RuntimeBinding {
   runtime_id: string;
@@ -67,6 +69,19 @@ export class RuntimeStore {
         "SELECT * FROM runtime_bindings WHERE state IN ('prepared', 'running') ORDER BY created_at, runtime_id",
       )
       .all() as RuntimeBinding[];
+  }
+
+  unstartedProgrammeSessions(): Set<string> {
+    return new Set(
+      (
+        this.db
+          .prepare(
+            `SELECT s.session_id FROM puddlang_runtime_spawns s WHERE s.runtime_id IS NULL
+      AND NOT EXISTS (SELECT 1 FROM terminal_placements p WHERE p.session_id = s.session_id)`,
+          )
+          .all() as Array<{ session_id: string }>
+      ).map((row) => row.session_id),
+    );
   }
 
   /** Protect exact placement/conversation ownership independently of saved session status. */
@@ -224,6 +239,7 @@ export class RuntimeStore {
     protocol: { major: number; minor: number };
     releasePath: string;
     codeRunDirectory?: string;
+    programme?: ProgrammeOperation;
   }): RuntimeBinding {
     const identity = runtimeIdentitySchema.parse(input.identity);
     if (!isAbsolute(input.releasePath) || input.releasePath.includes('\0'))
@@ -245,6 +261,7 @@ export class RuntimeStore {
         build: input.build,
         protocol: input.protocol,
         releasePath: input.releasePath,
+        ...(input.programme ? { programme: input.programme } : {}),
         ...(input.codeRunDirectory === undefined
           ? {}
           : { codeRunDirectory: input.codeRunDirectory }),
@@ -295,6 +312,12 @@ export class RuntimeStore {
         )
         .run(identity.runtime_id, identity.runtime_id, identity.session_id);
       this.setTerminalOwner(identity.session_id, identity.runtime_id);
+      if (input.programme)
+        new ProgrammeSpawnStore(this.db).bind(
+          input.programme,
+          identity.session_id,
+          identity.runtime_id,
+        );
       if (input.codeRunDirectory !== undefined)
         this.db
           .prepare('INSERT INTO runtime_code_runs (runtime_id, directory) VALUES (?, ?)')

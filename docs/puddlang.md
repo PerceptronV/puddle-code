@@ -207,6 +207,13 @@ while the requesting programme remains interrupted. Explicit cancellation still
 targets its exact pending turn. This backend is opt-in; installed defaults and
 the upgrade experience retain their existing behaviour.
 
+Programme-created independent runtimes have durable ownership records before
+dispatch. Cancellation fences pending spawns and stops those exact owners; it
+cannot stop a replacement that you later resume in the same placement. Programme
+events named `runtime_cleanup` list any unconfirmed stops. Repeat cancellation
+explicitly to retry those recorded stops after a lost response or daemon restart.
+An undispatched spawn is never started automatically when the daemon returns.
+
 `--id <UUID>` supplies an idempotent submission id. Repeating identical work
 returns the existing run, including its terminal outcome. Different work with
 the same id is a conflict. Uncertain turn deliveries are never retried implicitly.

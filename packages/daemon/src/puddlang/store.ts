@@ -7,11 +7,21 @@ import {
 } from '@puddle/shared';
 import type { Db } from '../db/db.js';
 import { ApiError } from '../http/errors.js';
+import { ProgrammeSpawnStore } from '../db/stores/programme-spawns.js';
 
 export class PuddlangStore {
-  constructor(private readonly db: Db) {}
+  readonly spawns: ProgrammeSpawnStore;
+  constructor(private readonly db: Db) {
+    this.spawns = new ProgrammeSpawnStore(db);
+  }
   has(id: string): boolean {
     return Boolean(this.db.prepare('SELECT 1 FROM puddlang_runs WHERE id = ?').get(id));
+  }
+  getRunProfile(id: string): string {
+    const row = this.db.prepare('SELECT profile_id FROM puddlang_runs WHERE id = ?').get(id) as
+      { profile_id: string } | undefined;
+    if (!row) throw ApiError.notFound('puddlang run', id);
+    return row.profile_id;
   }
   reconcile(): void {
     this.db

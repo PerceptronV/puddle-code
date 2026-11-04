@@ -307,8 +307,13 @@ mapping before one dispatch. Admission loss observes committed private outcomes;
 it never resends the prompt. Daemon shutdown interrupts the programme without
 cancelling accepted external turns. Explicit user cancellation addresses only its
 original turn and placement, and is never retargeted after a native switch.
-Private result reclamation and complete spawn-operation ownership remain rollout
-gates. These application-side mappings change neither public wire contract.
+Migration 036 records programme spawn ownership with placement creation and binds
+the exact owner with launch intent. Durable cancellation fences undispatched
+spawns; boot never auto-resumes an unstarted programme spawn. Cleanup targets the
+recorded runtime even if its former placement has a replacement, and programme
+events report unconfirmed stops. Explicit cancellation can retry those stops after
+runner loss; daemon boot does not replay them. Private result reclamation remains
+a rollout gate. These application-side mappings change neither public wire contract.
 
 ## Private records and ownership
 

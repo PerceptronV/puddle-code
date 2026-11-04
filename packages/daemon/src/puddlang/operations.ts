@@ -10,6 +10,7 @@ import type {
 import type { AppDeps } from '../http/app.js';
 import { ApiError } from '../http/errors.js';
 import { expandTilde } from '../http/tilde.js';
+import type { ProgrammeSpawnStore } from '../db/stores/programme-spawns.js';
 
 export type PuddlangDeps = Pick<
   NonNullable<AppDeps['api']>,
@@ -30,11 +31,12 @@ export class PuddlangOperations {
     private readonly profile: string,
     private readonly input: PuddlangStart,
     private readonly signal: AbortSignal,
+    private readonly spawnStore?: ProgrammeSpawnStore,
   ) {}
 
   async execute(operation: PuddlangOperation, operationId?: number): Promise<unknown> {
     this.signal.throwIfAborted();
-    if (operation.op === 'spawn') return this.spawn(operation.options);
+    if (operation.op === 'spawn') return this.spawn(operation.options, operationId);
     if (operation.op === 'attach') {
       const runtime = this.checked(operation.reference);
       this.handles.set(runtime.handle.runtime_id, runtime.handle);
@@ -61,13 +63,24 @@ export class PuddlangOperations {
     );
   }
 
-  async stopOwned(): Promise<void> {
-    await Promise.allSettled(
-      [...this.owned].map(async (id) => {
-        const runtime = this.checked(id);
-        await this.stopPlacement(runtime.handle.session_id);
+  async stopOwned(): Promise<string[]> {
+    const ids = new Set([
+      ...this.owned,
+      ...(this.spawnStore?.list(this.profile, this.input.id) ?? []).flatMap((row) =>
+        row.runtime_id ? [row.runtime_id] : [],
+      ),
+    ]);
+    const unconfirmed: string[] = [];
+    await Promise.all(
+      [...ids].map(async (id) => {
+        try {
+          await this.deps.service.stopScriptRuntime(id, this.profile);
+        } catch {
+          unconfirmed.push(id);
+        }
       }),
     );
+    return unconfirmed;
   }
 
   private checked(reference: string) {
@@ -89,7 +102,7 @@ export class PuddlangOperations {
     });
   }
 
-  private async spawn(options: PuddlangSpawn): Promise<PuddlangHandle> {
+  private async spawn(options: PuddlangSpawn, operationId?: number): Promise<PuddlangHandle> {
     if (++this.spawns > this.input.max_agents) throw new Error('Puddlang agent limit reached');
     if (!this.deps.adapters.get(options.agent).scriptedTurns)
       throw ApiError.badRequest(
@@ -118,19 +131,24 @@ export class PuddlangOperations {
       );
     const location = await this.location(options);
     this.signal.throwIfAborted();
-    const session = await this.deps.service.create(
-      {
-        project_id: location.project,
-        account_id: account.id,
-        separate_branch: false,
-        separate_worktree: false,
-        join_worktree: location.path,
-        title: options.title ?? 'puddlang agent',
-      },
-      options.mode ?? 'interactive',
-    );
+    let sessionId: string | undefined;
     let handle: PuddlangHandle | undefined;
     try {
+      const session = await this.deps.service.create(
+        {
+          project_id: location.project,
+          account_id: account.id,
+          separate_branch: false,
+          separate_worktree: false,
+          join_worktree: location.path,
+          title: options.title ?? 'puddlang agent',
+        },
+        options.mode ?? 'interactive',
+        operationId === undefined
+          ? undefined
+          : { runId: this.input.id, operationId, profileId: this.profile },
+      );
+      sessionId = session.id;
       const deadline = Date.now() + 120_000;
       // Initial native setup/onboarding may be a turn of its own. Admission is
       // checked by the adapter again atomically when the first ask is sent.
@@ -154,12 +172,18 @@ export class PuddlangOperations {
       return handle;
     } catch (error) {
       if (this.signal.reason instanceof PuddlangDaemonStopped) throw error;
+      if (operationId !== undefined)
+        this.spawnStore?.requestSpawnStop(this.profile, this.input.id, operationId);
+      const recorded = this.spawnStore
+        ?.list(this.profile, this.input.id)
+        .find((row) => row.operation_id === operationId);
       try {
-        await this.stopPlacement(
-          handle ? this.checked(handle.runtime_id).handle.session_id : session.id,
-        );
+        if (recorded?.runtime_id)
+          await this.deps.service.stopScriptRuntime(recorded.runtime_id, this.profile);
+        else if (handle) await this.deps.service.stopScriptRuntime(handle.runtime_id, this.profile);
+        else if (sessionId && !recorded) await this.stopPlacement(sessionId);
       } catch {
-        /* Already stopped or moved. */
+        // The durable owner remains recorded for explicit cancellation/inspection.
       }
       throw error;
     }
