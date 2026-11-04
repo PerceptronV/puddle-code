@@ -12,7 +12,7 @@ import { NotebookKernels } from '../../src/notebooks/kernels.js';
 import { CodeProvider } from '../../src/code/provider.js';
 import { findCodeExecutable } from '../../src/code/discovery.js';
 import { CODE_RECIPES } from '../../src/code/recipes.js';
-import { runCompilationCommand } from '../../src/compilation/process.js';
+import { notebookPythonEnvironment } from '../helpers/notebooks/python.js';
 
 // Integration with installed Jupyter, without starting puddled or a server.
 // Minimal CI hosts skip it; the ordinary provider suite uses deterministic runners.
@@ -30,11 +30,7 @@ it.skipIf(!findCodeExecutable(['jupyter-nbconvert']))(
       await kernels.dispose();
       rmSync(root, { recursive: true, force: true });
     });
-    await runCompilationCommand({
-      file: python,
-      args: ['-m', 'venv', '--without-pip', '--system-site-packages', join(root, 'custom env')],
-      cwd: root,
-    });
+    await notebookPythonEnvironment(python, join(root, 'custom env'));
     const source = { session: NO_SESSION, root, path: 'environment.ipynb' };
     writeFileSync(
       join(root, source.path),
