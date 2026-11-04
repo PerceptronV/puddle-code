@@ -7,6 +7,9 @@ allows roughly five percentage points of aggregate uncertainty at this count and
 sample length. This establishes a repeatable fixture baseline, not completion of
 the production resource acceptance gates.
 
+All measurements below predate the verified-TTY cache optimisation described
+under “Subsequent scan optimisation”; they remain historical baseline evidence.
+
 ## Environment and method
 
 - macOS 26.5.2, Darwin 25.5.0, Apple M4 arm64; Node 22.21.1; ten logical CPUs;
@@ -131,6 +134,28 @@ Before treating these fixture thresholds as CI or cross-platform release gates, 
 on a controlled runner and establish the expected variation. No memory or CPU
 ceiling should be extrapolated from this fixture into a supported host session
 count.
+
+## Subsequent scan optimisation
+
+Each runtime monitor now retains its last verified TTY. A steady refresh uses one
+bounded `ps -t` scan, instead of a root lookup followed by a TTY scan. Every result
+must still contain the exact root on that TTY. PID/generation changes, missing or
+moved roots, failed inspections and disposal invalidate the cache. The
+three-second polling interval and child-exit notification behaviour are unchanged.
+
+The focused suites passed **44 tests**, including real foreground-agent recognition
+and notifications across daemon replacement. Run them with:
+
+```sh
+node node_modules/vitest/vitest.mjs run \
+  packages/daemon/test/pty/foreground-process.test.ts \
+  packages/daemon/test/sessions/terminal-agent-monitor.test.ts \
+  packages/daemon/test/runtime/controller/terminal-agent.test.ts
+```
+
+This verifies the reduced steady subprocess count and preserved behaviour. The
+resource benchmark has not been rerun after this change; no CPU, memory or wakeup
+savings are claimed.
 
 ## Remaining resource gates
 

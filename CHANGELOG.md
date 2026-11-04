@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Reduce steady terminal-agent polling to one scoped process scan per runtime by caching its verified TTY. Keep the detection cadence and background-child exit handling; invalidate the cache on terminal replacement, failed inspection or shutdown.
+
 - Initialise the mandatory runtime default during a fresh daemon install or legacy daemon-only upgrade. Validate the runtime before selecting the daemon, retain independently pinned runtime versions on later upgrades and preserve selected generations after interrupted bootstrap.
 
 - Preserve host update, recovery, removal and runtime inspection controls when a compatible application protocol advances to a new major. Keep unknown and incompatible hosts refused independently of feature availability.

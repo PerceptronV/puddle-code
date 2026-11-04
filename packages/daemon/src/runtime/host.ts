@@ -43,7 +43,7 @@ import { RuntimeSegments } from './state/segments.js';
 import { TerminalTheme } from '../pty/terminal-theme.js';
 import { RuntimeAttentionState } from './state/attention.js';
 import { TerminalAgentMonitor } from '../sessions/terminal-agent-monitor.js';
-import { readTerminalProcessSnapshot } from '../pty/foreground-process.js';
+import { TerminalProcessReader } from '../pty/foreground-process.js';
 import { RuntimeTitles } from './state/titles.js';
 import { prepareRuntimeLifetime } from './lifecycle/lifetime.js';
 
@@ -74,6 +74,7 @@ export class RuntimeHost {
   );
   private expectedExit = false;
   private terminalAgents: TerminalAgentMonitor | null = null;
+  private terminalProcesses: TerminalProcessReader | null = null;
   private readonly titles = new RuntimeTitles();
   private binding: RuntimePlacementBinding | null;
   private agent: RuntimeAgent | null = null;
@@ -395,7 +396,7 @@ export class RuntimeHost {
       this.attention.exited(this.segments.state().current.id);
     if (event.term === 'agent' && this.terminalAgents) {
       if (!this.expectedExit) this.terminalAgents.exited(this.launch.identity.runtime_id);
-      this.terminalAgents.dispose();
+      this.disposeTerminalMonitor();
     }
     if (event.term === 'agent') void this.closeAgent();
     this.event({
@@ -435,6 +436,8 @@ export class RuntimeHost {
 
   private monitorTerminal(adapters: AdapterRegistry): void {
     const id = this.launch.identity.runtime_id;
+    const reader = new TerminalProcessReader();
+    this.terminalProcesses = reader;
     this.terminalAgents = new TerminalAgentMonitor({
       adapters: adapters.list(),
       targets: () => {
@@ -442,8 +445,12 @@ export class RuntimeHost {
         return pid == null ? [] : [{ session: id, runtime: id, pid }];
       },
       snapshot: async () => {
-        const pid = this.terminals.get('agent')?.pid;
-        return pid == null ? new Map() : readTerminalProcessSnapshot(pid);
+        const terminal = this.terminals.get('agent');
+        if (terminal?.pid == null) return new Map();
+        const { pid, generation } = terminal;
+        const entries = await reader.read(pid, generation);
+        const current = this.terminals.get('agent');
+        return current?.pid === pid && current.generation === generation ? entries : new Map();
       },
       changed: () => {
         if (this.terminals.get('agent')?.pid != null) this.attention.clear();
@@ -462,6 +469,13 @@ export class RuntimeHost {
       },
     });
     void this.terminalAgents.refresh();
+  }
+
+  private disposeTerminalMonitor(): void {
+    this.terminalAgents?.dispose();
+    this.terminalAgents = null;
+    this.terminalProcesses?.dispose();
+    this.terminalProcesses = null;
   }
 
   private authorised(id: string, epoch: number): boolean {
@@ -857,7 +871,7 @@ export class RuntimeHost {
 
   private async close(): Promise<void> {
     try {
-      this.terminalAgents?.dispose();
+      this.disposeTerminalMonitor();
       this.ptys.killAll();
       const deadline = Date.now() + 3000;
       while (this.ptys.liveCount() && Date.now() < deadline)

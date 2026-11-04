@@ -50,6 +50,14 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Independent terminal monitors now reuse their verified TTY for one bounded
+  process scan per steady refresh, preserving the three-second cadence and
+  background-child exit observation. PID/generation replacement, moved/missing
+  roots, failed inspection and disposal invalidate that cache. All 44 focused
+  reader/monitor/real-process tests passed. The recorded resource baseline predates
+  this optimisation; CPU/wakeup savings and production resource budgets remain
+  unmeasured.
+
 - Ordinary daemon bootstrap now initialises an absent runtime default from the same
   validated archive before selecting the daemon. This closes the fresh-install and
   legacy daemon-only upgrade gap without overwriting an existing runtime pin or

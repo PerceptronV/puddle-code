@@ -37,18 +37,53 @@ export function readProcessSnapshot(): Promise<Map<number, ProcessEntry>> {
 
 const PROCESS_COLUMNS = 'pid=,ppid=,pgid=,tpgid=,tty=,stat=,args=';
 
-/** An independent owner inspects only its main PTY, never every process on the host. */
-export async function readTerminalProcessSnapshot(
-  rootPid: number,
-): Promise<Map<number, ProcessEntry>> {
-  if (!Number.isSafeInteger(rootPid) || rootPid <= 0) throw new Error('Invalid terminal root PID');
-  const root = (
-    await processSnapshot(['-p', String(rootPid), '-o', PROCESS_COLUMNS], 64 * 1024)
-  ).get(rootPid);
-  if (!root || !/^[a-zA-Z0-9][a-zA-Z0-9/_-]{0,127}$/.test(root.tty)) return new Map();
-  const entries = await processSnapshot(['-t', root.tty, '-o', PROCESS_COLUMNS], 512 * 1024);
-  if (entries.get(rootPid)?.tty !== root.tty) return new Map();
-  return new Map([...entries].filter(([, entry]) => entry.tty === root.tty));
+/** One monitor's serialised inspections; every result must still contain its exact PTY root. */
+export class TerminalProcessReader {
+  private cached: { pid: number; generation: string; tty: string } | null = null;
+  private disposed = false;
+
+  dispose(): void {
+    this.disposed = true;
+    this.cached = null;
+  }
+
+  async read(rootPid: number, generation: string): Promise<Map<number, ProcessEntry>> {
+    if (!Number.isSafeInteger(rootPid) || rootPid <= 0)
+      throw new Error('Invalid terminal root PID');
+    if (this.disposed) return new Map();
+    try {
+      // A verified tty normally needs one scoped scan. Retain the three-second
+      // cadence: backgrounded agents still need timely child-exit observation.
+      const cached = this.cached;
+      this.cached = null;
+      if (cached?.pid === rootPid && cached.generation === generation) {
+        const entries = await processSnapshot(
+          ['-t', cached.tty, '-o', PROCESS_COLUMNS],
+          512 * 1024,
+        );
+        if (this.disposed) return new Map();
+        if (entries.get(rootPid)?.tty === cached.tty) {
+          this.cached = cached;
+          return new Map([...entries].filter(([, entry]) => entry.tty === cached.tty));
+        }
+      }
+      // A missing/moved root invalidates the cached tty. Re-establish it before
+      // accepting any process set, including after a terminal generation change.
+      const root = (
+        await processSnapshot(['-p', String(rootPid), '-o', PROCESS_COLUMNS], 64 * 1024)
+      ).get(rootPid);
+      if (this.disposed || !root || !/^[a-zA-Z0-9][a-zA-Z0-9/_-]{0,127}$/.test(root.tty))
+        return new Map();
+      const entries = await processSnapshot(['-t', root.tty, '-o', PROCESS_COLUMNS], 512 * 1024);
+      if (this.disposed || entries.get(rootPid)?.tty !== root.tty) return new Map();
+      this.cached = { pid: rootPid, generation, tty: root.tty };
+      return new Map([...entries].filter(([, entry]) => entry.tty === root.tty));
+    } catch (error) {
+      this.cached = null;
+      // Propagate failure; an empty successful snapshot could imply child exit.
+      throw error;
+    }
+  }
 }
 
 function processSnapshot(args: string[], maxBuffer: number): Promise<Map<number, ProcessEntry>> {
