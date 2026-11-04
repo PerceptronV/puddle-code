@@ -29,6 +29,16 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far:
 
+- Application 25.10 adds an interruption fingerprint for supporting host-update
+  clients, retaining `can_apply: false` until separate explicit consent. Apply
+  rechecks the release/impact fingerprint under maintenance and requires matching
+  interruption approval before consuming dispatch. Missing consent keeps the stage
+  available; changed inventory or authority refuses dispatch and releases the hold.
+  The pinned worker preserves matching consent. Older clients receive the original
+  blocked shape, and newer clients refuse this field on older hosts. Production
+  pause composition, client confirmation and recovery integration remain required;
+  remote 4 and runtime 1.0 are unchanged.
+
 - Programme and notebook maintenance reuse host admission. Independent programme
   prompts release admission after their single dispatch, while result observation
   continues; later runner RPCs wait within the existing operation bounds and are

@@ -94,6 +94,13 @@ export async function startUpdateWorker(
         'Daemon updates require final quiescence and adoption hand-off before dispatch',
       );
     const daemon = options.daemon && {
+      ...(options.daemon.interruption_approval !== undefined
+        ? {
+            interruption_approval: hostUpdateWorkerSchema.shape.interruption_approval.parse(
+              options.daemon.interruption_approval,
+            ),
+          }
+        : {}),
       connector: hostUpdateWorkerSchema.shape.connector.unwrap().parse(options.daemon.connector),
       outgoing: hostUpdateWorkerSchema.shape.outgoing.unwrap().parse(options.daemon.outgoing),
       daemon_service: hostUpdateWorkerSchema.shape.daemon_service
@@ -101,6 +108,11 @@ export async function startUpdateWorker(
         .parse(options.daemon.daemon_service),
     };
     if (daemon) {
+      if (
+        daemon.interruption_approval !== undefined &&
+        daemon.interruption_approval !== candidate.approved
+      )
+        throw new Error('Interruption approval changed before update dispatch');
       const controller = readRuntimeController(home);
       if (
         !controller.active ||

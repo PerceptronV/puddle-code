@@ -32,8 +32,8 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 25.9 for private connector manager inspection', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 25, minor: 9 });
+  it('declares protocol 25.10 for exact host interruption approval', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 25, minor: 10 });
   });
 
   it('accepts headless mode and rejects the previous scripted name', () => {
@@ -82,7 +82,7 @@ describe('shared API schemas', () => {
         { name: 'lib', type: 'dir', size: null },
       ],
     });
-    expect(tree.entries[1].size).toBeNull();
+    expect(tree.entries[1]?.size).toBeNull();
 
     const file = fileResponseSchema.parse({
       path: 'src/index.ts',

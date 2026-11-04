@@ -168,6 +168,7 @@ it('persists the exact outgoing controller and inspected daemon service before i
   const controller = acquireRuntimeController(f.home);
   const { id, epoch } = controller.record;
   const daemon: HostUpdateDaemonHandoff = {
+    interruption_approval: f.operation.preflight!,
     connector: { state: 'absent' },
     outgoing: { pid: process.pid, controller: { id, epoch } },
     daemon_service: {
@@ -183,6 +184,16 @@ it('persists the exact outgoing controller and inspected daemon service before i
   };
   let observed = false;
   try {
+    await expect(
+      startUpdateWorker(f.home, f.operation, {
+        kind: 'systemd',
+        releasePath: f.release,
+        run: f.run,
+        daemon: { ...daemon, interruption_approval: digest('stale interruption consent') },
+      }),
+    ).rejects.toThrow('Interruption approval changed');
+    expect(f.store.read()?.dispatch_id).toBeNull();
+    expect(f.commands).toHaveLength(0);
     const job = await startUpdateWorker(f.home, f.operation, {
       kind: 'systemd',
       releasePath: f.release,

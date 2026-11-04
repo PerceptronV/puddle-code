@@ -103,8 +103,13 @@ export class HostUpdateCoordinator {
         this.deps.installedRuntime(),
       );
       requireAuthority();
-      const review = this.review(inspection, runtimeOnly || !!this.deps.pauseDaemon);
-      if (!review.fingerprint) {
+      const review = this.review(
+        inspection,
+        runtimeOnly || !!this.deps.pauseDaemon,
+        command.cockpit.major > 25 || (command.cockpit.major === 25 && command.cockpit.minor >= 10),
+      );
+      const fingerprint = review.fingerprint ?? review.interruption_fingerprint;
+      if (!fingerprint) {
         operation = store.stopBeforeDispatch(
           operation,
           'blocked',
@@ -112,7 +117,6 @@ export class HostUpdateCoordinator {
         );
         return { ok: true, operation, review };
       }
-      const fingerprint = review.fingerprint;
       if (command.action === 'inspect') {
         operation = store.preflight(operation, fingerprint);
         return { ok: true, operation, review };
@@ -121,8 +125,16 @@ export class HostUpdateCoordinator {
         operation = store.preflight(operation, fingerprint);
         return { ok: false, code: 'conflict', operation };
       }
+      if (inspection.impact.requiresInterruption && command.interruption_approval !== fingerprint) {
+        // Observation alone never approves termination. Preserve the stage for a
+        // separately confirmed request and invalidate this attempted revision.
+        operation = store.preflight(operation, fingerprint);
+        return command.interruption_approval === undefined
+          ? { ok: true, operation, review }
+          : { ok: false, code: 'conflict', operation };
+      }
       const supervisor = inspection.supervision.worker;
-      if (!supervisor || inspection.impact.requiresInterruption) throw new Unsupported();
+      if (!supervisor) throw new Unsupported();
       const connector = hostConnectorReplacementSchema.safeParse(
         inspection.connector.state === 'absent'
           ? { state: 'absent' }
@@ -138,6 +150,9 @@ export class HostUpdateCoordinator {
               outgoing: pause.outgoing,
               daemon_service: inspection.supervision.daemon,
               connector: connector.data,
+              ...(inspection.impact.requiresInterruption
+                ? { interruption_approval: fingerprint }
+                : {}),
             }
           : undefined;
       if (!runtimeOnly && (!daemon || daemon.outgoing.pid !== daemon.daemon_service.pid))
@@ -217,7 +232,7 @@ export class HostUpdateCoordinator {
     }
   }
 
-  private review(inspection: UpdateInspection, available: boolean) {
+  private review(inspection: UpdateInspection, available: boolean, interruptionSupported: boolean) {
     const affected = inspection.impact.affected;
     const eligible = available && !inspection.impact.requiresInterruption;
     const blockers = available
@@ -228,6 +243,12 @@ export class HostUpdateCoordinator {
     return hostUpdateReviewSchema.parse({
       fingerprint: eligible ? inspection.fingerprint : null,
       can_apply: eligible && inspection.fingerprint !== null,
+      ...(available &&
+      interruptionSupported &&
+      inspection.impact.requiresInterruption &&
+      inspection.fingerprint
+        ? { interruption_fingerprint: inspection.fingerprint }
+        : {}),
       blockers: blockers.slice(0, 32),
       more_blockers: Math.max(0, blockers.length - 32),
       affected: {

@@ -89,12 +89,15 @@ function fixture(component: 'runtime' | 'daemon' = 'runtime', daemonAdmission = 
       cockpit: f.capabilities.application,
     });
   };
-  const apply = (reply: HostUpdateReply) => {
-    if (!reply.ok || !reply.operation || !reply.review?.fingerprint) throw new Error('no review');
+  const apply = (reply: HostUpdateReply, interruption_approval?: string) => {
+    const fingerprint =
+      reply.ok && (reply.review?.fingerprint ?? reply.review?.interruption_fingerprint);
+    if (!reply.ok || !reply.operation || !fingerprint) throw new Error('no review');
     return execute({
       action: 'apply',
       reference: reply.operation,
-      fingerprint: reply.review.fingerprint,
+      fingerprint,
+      ...(interruption_approval !== undefined ? { interruption_approval } : {}),
       cockpit: f.capabilities.application,
     });
   };
@@ -314,14 +317,107 @@ it('holds daemon admission after a lost dispatch reply until recovery fences the
 it('does not imply permission to interrupt adjacent work from an update fingerprint', async () => {
   const f = fixture('daemon', true);
   f.observed.impact.requiresInterruption = true;
-  expect(await f.review()).toMatchObject({
+  const review = await f.review();
+  expect(review).toMatchObject({
     ok: true,
+    operation: { phase: 'preflight', approved: null },
     review: {
       can_apply: false,
       fingerprint: null,
+      interruption_fingerprint: f.observed.fingerprint,
       blockers: [{ code: 'interruption_approval_required', target: 'daemon' }],
     },
   });
   expect(f.pauseDaemon).not.toHaveBeenCalled();
+  expect(await f.apply(review)).toMatchObject({
+    ok: true,
+    operation: { phase: 'preflight', approved: null, dispatch_id: null },
+    review: { can_apply: false, interruption_fingerprint: f.observed.fingerprint },
+  });
+  f.admission.assertOpen();
+  expect(f.dispatch).not.toHaveBeenCalled();
+});
+
+it('dispatches interruption only with exact consent after drainage and final inspection', async () => {
+  const f = fixture('daemon', true);
+  f.observed.impact.requiresInterruption = true;
+  f.observed.impact.affected.notebooks = [
+    {
+      instance: randomUUID(),
+      revision: 1,
+      path: '/project/example.ipynb',
+      kernel: 'python3',
+      state: 'idle',
+      busy: false,
+      changing: false,
+    },
+  ];
+  const review = await f.apply(await f.review());
+  expect(review).toMatchObject({
+    ok: true,
+    operation: { phase: 'preflight', approved: null },
+    review: { can_apply: false, affected: { notebooks: 1 } },
+  });
+  expect(f.dispatch).not.toHaveBeenCalled();
+  expect(await f.apply(review, f.observed.fingerprint!)).toMatchObject({
+    ok: true,
+    operation: { phase: 'dispatching' },
+  });
+  expect(f.dispatch).toHaveBeenCalledOnce();
+  expect(f.dispatch.mock.calls[0]?.[3]).toMatchObject({
+    interruption_approval: f.observed.fingerprint,
+  });
+  expect(() => f.admission.assertOpen()).toThrow();
+});
+
+it('does not offer interruption consent as a way around other preflight blockers', async () => {
+  const f = fixture('daemon', true);
+  f.observed.impact.requiresInterruption = true;
+  f.observed.fingerprint = null;
+  f.observed.blockers.push({ code: 'connector_inventory_changed', target: 'connector' });
+  const reply = await f.review();
+  expect(reply).toMatchObject({ ok: true, operation: { phase: 'blocked' } });
+  expect(reply.ok && reply.review).not.toHaveProperty('interruption_fingerprint');
+  expect(f.dispatch).not.toHaveBeenCalled();
+});
+
+it.each(['consent', 'inventory', 'authority'] as const)(
+  'refuses interruption after changed %s and releases maintenance',
+  async (change) => {
+    const f = fixture('daemon', true);
+    f.observed.impact.requiresInterruption = true;
+    const review = await f.review();
+    const approval = change === 'consent' ? digest('another approval') : f.observed.fingerprint!;
+    if (change === 'inventory') f.observed.fingerprint = digest('another notebook instance');
+    if (change === 'authority')
+      f.inspect.mockImplementationOnce(async () => {
+        f.revoke();
+        return f.observed;
+      });
+    expect(await f.apply(review, approval)).toMatchObject({
+      ok: false,
+      code: change === 'authority' ? 'rejected' : 'conflict',
+    });
+    expect(f.dispatch).not.toHaveBeenCalled();
+    expect(f.store.read()?.approved).toBeNull();
+    f.admission.assertOpen();
+  },
+);
+
+it('retains the old blocked review shape for clients without interruption support', async () => {
+  const f = fixture('daemon', true);
+  f.observed.impact.requiresInterruption = true;
+  const operation = await f.prepare();
+  const reply = await f.execute({
+    action: 'inspect',
+    reference: operation,
+    cockpit: { major: 25, minor: 9 },
+  });
+  expect(reply).toMatchObject({
+    ok: true,
+    operation: { phase: 'blocked' },
+    review: { can_apply: false },
+  });
+  expect(reply.ok && reply.review).not.toHaveProperty('interruption_fingerprint');
   expect(f.dispatch).not.toHaveBeenCalled();
 });

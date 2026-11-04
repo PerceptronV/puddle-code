@@ -27,6 +27,18 @@ transaction evidence, not client commands or new IPC messages; they do not chang
 the application, remote or runtime protocol. Daemon transactions without explicit
 connector evidence cannot execute.
 
+Protocol 25.10 adds optional exact `interruption_approval` to host-update apply
+requests and `interruption_fingerprint` to reviews. Reviews still report
+`can_apply: false` and a null ordinary fingerprint when daemon-owned work needs
+confirmation. Only clients advertising 25.10 receive the additional fingerprint;
+older clients retain the blocked review shape. A separate apply must match both
+its ordinary fingerprint and explicit interruption approval against final inspection
+under maintenance. Missing consent leaves the staged operation available for review;
+changed evidence invalidates approval. The client refuses this request field on older
+hosts. Existing host-wide lease authority is unchanged, and no remote permission is
+added. Remote 4 and runtime 1.0 remain unchanged. The private pinned worker records
+the exact interruption approval alongside its preflight evidence.
+
 Protocol 25.9 adds nonce-correlated, read-only process inspection on the connector
 manager's existing exclusive private host socket. Replies contain bounded process,
 release and protocol metadata only; profile configuration, grants and registration

@@ -95,6 +95,15 @@ export class HostControlClient implements ConnectionAuthority {
       return Promise.reject(
         new Error('Host adoption inspection is unavailable on this connection'),
       );
+    if (
+      command.action === 'apply' &&
+      command.interruption_approval &&
+      protocol.major === 25 &&
+      protocol.minor < 10
+    )
+      return Promise.reject(
+        new Error('Host interruption approval is unavailable on this connection'),
+      );
     if (this.state !== 'ready' || !this.updates)
       return Promise.reject(new Error('Host control is unavailable'));
     return this.updates.request(command);

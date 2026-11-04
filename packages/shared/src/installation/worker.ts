@@ -24,6 +24,11 @@ export const hostUpdateWorkerSchema = z
     state: z.enum(['dispatching', 'dispatched']),
     daemon_service: hostServiceReplacementSchema.optional(),
     connector: hostConnectorReplacementSchema.optional(),
+    /** Explicit consent, bound to the same release and impact as preflight. */
+    interruption_approval: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/)
+      .optional(),
     /** Only this outgoing daemon may publish the worker's shutdown checkpoint. */
     outgoing: z
       .object({
@@ -33,10 +38,19 @@ export const hostUpdateWorkerSchema = z
       .strict()
       .optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (record) =>
+      !record.interruption_approval ||
+      (!!record.outgoing &&
+        !!record.daemon_service &&
+        record.interruption_approval === record.preflight),
+    'Interruption approval does not match the daemon update',
+  );
 export type HostUpdateWorker = z.infer<typeof hostUpdateWorkerSchema>;
 
 /** In-process final approval evidence copied into the private pinned job. */
 export type HostUpdateDaemonHandoff = Required<
   Pick<HostUpdateWorker, 'outgoing' | 'daemon_service' | 'connector'>
->;
+> &
+  Pick<HostUpdateWorker, 'interruption_approval'>;

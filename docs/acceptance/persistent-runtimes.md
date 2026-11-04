@@ -10,6 +10,18 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+Host-update coordinator tests separate review from explicit interruption consent,
+retain stages after missing approval, and reject changed inventory, mismatched
+consent, revoked authority and independent preflight blockers. They verify older
+client reviews omit the new field. Shared control tests bound the approval to
+apply requests and refuse transmission to hosts below 25.10. Worker dispatch
+checks matching consent before consuming approval and records it before supervisor
+commands. These are contract/transaction fixtures; production confirmation and
+complete packaged update acceptance remain outstanding.
+The initial approval/worker regression run passed 61 tests in six files; the final
+approval/impact run passed 52 tests in five files. Source and strict changed-test
+typechecks, lint and formatting passed.
+
 `notebooks/notebook-maintenance.test.ts` delays bridge discovery and execution
 independently: startup must drain, submitted cells may continue, new controls fail,
 and shutdown discards unsent work without reopening admission. The live Jupyter

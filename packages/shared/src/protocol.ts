@@ -316,4 +316,5 @@
 // 25.7: bounded local/SSH host-update requests on the existing private control channel.
 // 25.8: optional fresh adoption observation on exact private host-update status requests.
 // 25.9: bounded read-only connector manager inspection on existing private host IPC.
-export const PROTOCOL_VERSION = { major: 25, minor: 9 } as const;
+// 25.10: explicit daemon-owned interruption approval tied to exact update inspection.
+export const PROTOCOL_VERSION = { major: 25, minor: 10 } as const;

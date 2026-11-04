@@ -7,6 +7,51 @@ import { HostControlClient } from '../src/node/host-control.js';
 
 afterEach(() => vi.useRealTimers());
 
+it('does not send interruption approval to an older host', async () => {
+  const client = new HostControlClient(async () => {
+    throw new Error('No connection expected');
+  }, false);
+  client.version = { version: '0.3.14', protocol: { major: 25, minor: 9 } };
+  try {
+    await expect(
+      client.hostUpdate({
+        action: 'apply',
+        reference: { id: randomUUID(), revision: 1 },
+        cockpit: { major: 25, minor: 10 },
+        fingerprint: 'a'.repeat(64),
+        interruption_approval: 'a'.repeat(64),
+      }),
+    ).rejects.toThrow('interruption approval is unavailable');
+  } finally {
+    client.close();
+  }
+});
+
+it('accepts only bounded exact interruption consent on apply commands', () => {
+  const command = {
+    action: 'apply',
+    reference: { id: randomUUID(), revision: 1 },
+    cockpit: { major: 25, minor: 10 },
+    fingerprint: 'a'.repeat(64),
+  };
+  expect(hostUpdateCommandSchema.parse(command)).toEqual(command);
+  expect(
+    hostUpdateCommandSchema.parse({ ...command, interruption_approval: command.fingerprint }),
+  ).toMatchObject({ interruption_approval: command.fingerprint });
+  for (const value of [true, 'anything', 'a'.repeat(65)]) {
+    expect(
+      hostUpdateCommandSchema.safeParse({ ...command, interruption_approval: value }).success,
+    ).toBe(false);
+  }
+  expect(
+    hostUpdateCommandSchema.safeParse({
+      ...command,
+      action: 'inspect',
+      interruption_approval: command.fingerprint,
+    }).success,
+  ).toBe(false);
+});
+
 it('does not send adoption nonces to an older host', async () => {
   const client = new HostControlClient(async () => {
     throw new Error('No connection expected');

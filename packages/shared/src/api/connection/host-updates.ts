@@ -39,6 +39,8 @@ export const hostUpdateCommandSchema = z.discriminatedUnion('action', [
       reference,
       cockpit: hostStageRecordSchema.shape.protocol,
       fingerprint,
+      /** Explicit consent to the exact reviewed daemon-owned interruption inventory (25.10). */
+      interruption_approval: fingerprint.optional(),
     })
     .strict(),
   z
@@ -50,11 +52,13 @@ export const hostUpdateCommandSchema = z.discriminatedUnion('action', [
     .strict(),
 ]);
 
-/** Bounded review summary; daemon interruption needs its own detailed approval flow. */
+/** A blocked interruption review may offer exact evidence for a separate confirmation. */
 export const hostUpdateReviewSchema = z
   .object({
     fingerprint: fingerprint.nullable(),
     can_apply: z.boolean(),
+    /** Never makes can_apply true; only a matching explicit apply approval permits interruption. */
+    interruption_fingerprint: fingerprint.optional(),
     blockers: z
       .array(z.object({ code: z.string().min(1).max(64), target: z.string().max(4096) }).strict())
       .max(32),

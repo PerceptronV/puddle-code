@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Add application protocol 25.10 exact interruption approval for daemon-owned work during host updates. Preserve staged work for separate confirmation, invalidate consent when release or impact changes, and retain matching evidence in the private updater; cockpit integration remains in progress.
+
 - Hold later programme requests during maintenance while accepted independent agent turns continue. Drain notebook startup through cell dispatch, preserve submitted execution until an update is accepted, and discard unsent programme requests on shutdown without replay.
 
 - Extend reversible maintenance drains to runtime controls, native conversation capture, marker synchronisation and compilation. Finish admitted work without cancellation, reject new commands without replay, and recover current watched state when a pause is released.

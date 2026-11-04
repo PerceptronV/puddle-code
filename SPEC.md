@@ -224,14 +224,26 @@ evidence into the private worker job. Rejected attempts release the pause; accep
 or uncertain dispatch retains it until shutdown or a terminal/recovery-fenced
 operation with no executing worker. The launcher pause lets admitted launches finish
 before pausing discovery/reconciliation. Production still lacks the complete pause
-composition and explicit adjacent-work interruption approval;
+composition and the adjacent-work interruption confirmation UI;
 there is no user-selectable switch. Accepted work survives caller loss; reconnect only
 observes it. The coordinator currently refuses daemon activation pending complete quiescence,
-adjacent-work approval and recovery integration. Runtime install/upgrade commands now
+adjacent-work confirmation and recovery integration. Runtime install/upgrade commands now
 consume this coordinator, including bounded observation after lost apply responses;
 cockpit routes and approval UI remain to be integrated. `puddle updates` inspects
 durable operation state and supports exact pre-dispatch cancellation. No remote
 connector permission is added.
+
+Application 25.10 adds exact interruption consent to private local/SSH update
+control. When other checks pass but daemon-owned work would stop, a supporting
+client receives a separate interruption fingerprint with affected counts; ordinary
+`can_apply` remains false. Apply must explicitly repeat that fingerprint as
+interruption approval, matching the release and impact inspected again under the
+maintenance hold. Missing consent retains the stage for confirmation, changed
+evidence invalidates approval, and the worker persists matching consent before
+dispatch. Clients below 25.10 retain the blocked response without extra fields;
+new clients never send interruption approval to an older host. This adds no lease
+authority or remote permission. Production composition and confirmation UI remain
+unfinished, so this contract alone does not enable daemon activation.
 
 Maintenance participants also cover queued runtime controls, asynchronous native-ref
 capture/resume repair, marker-file synchronisation and compilation providers. They
@@ -250,7 +262,7 @@ turns. Programme cancellation waits for admission too. Notebook admission drains
 startup through request dispatch, retaining submitted cells and idle kernel state
 in the interruption inventory; new execution and kernel controls fail during the
 hold. These are participants in final update quiescence; complete production
-composition and adjacent-work interruption approval remain unfinished. Long admitted
+composition and adjacent-work interruption confirmation remain unfinished. Long admitted
 compilation or programme startup can still exceed the bounded pause deadline,
 causing pre-dispatch rejection and release without cancelling that work.
 
