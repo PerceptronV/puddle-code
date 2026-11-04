@@ -2,6 +2,7 @@ import type { RuntimeControls } from '../runtime/controller/controls.js';
 import type { RuntimeLauncher } from '../runtime/lifecycle/launcher.js';
 import { RuntimePersistence } from '../storage/runtime-persistence.js';
 import { HostBackgroundTasks } from '../host/lifecycle/background.js';
+import { HostAdmission } from '../host/lifecycle/admission.js';
 import { storageUnavailable, type StorageMonitor } from '../storage/monitor.js';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
@@ -274,6 +275,7 @@ export class SessionService extends EventEmitter {
   private readonly runtimes = new Map<string, LiveAgent>();
   private readonly conversationRuntimes = new Map<number, LiveAgent>();
   private readonly lifecycleMutex = new KeyedMutex();
+  private readonly lifecycleAdmission = new HostAdmission();
   /** The daemon's bound port, once known — enables the signal env injection. */
   private signalPort: number | null = null;
   /** Sessions whose conversation is already adopted — stops the retry loop. */
@@ -348,15 +350,21 @@ export class SessionService extends EventEmitter {
    */
   beginShutdown(): void {
     this.shuttingDown = true;
+    this.lifecycleAdmission.close();
     this.sessionRefs.beginShutdown();
     this.adoptions.beginShutdown();
     clearInterval(this.titleTimer);
     this.terminalAgents.dispose();
   }
 
-  /** Await native-ref and shared-store observations admitted before shutdown. */
+  /** Await native identity/switch and shared-store observations admitted before shutdown. */
   async drainObservations(): Promise<void> {
-    await Promise.all([this.sessionRefs.close(), this.adoptions.close()]);
+    this.beginShutdown();
+    await Promise.all([
+      this.sessionRefs.close(),
+      this.adoptions.close(),
+      this.lifecycleAdmission.drain(),
+    ]);
   }
 
   get(id: string): Session {
@@ -1878,6 +1886,7 @@ export class SessionService extends EventEmitter {
    * flips the session to hooks-are-authoritative (see LiveAgent.signalled).
    */
   signalAgentStatus(nonce: string, state: 'working' | 'waiting_input'): boolean {
+    if (this.shuttingDown) return false;
     const live = this.signalNonces.get(nonce);
     if (!live || !this.runtimes.has(live.runtimeId)) return false;
     const sessionId = live.activeSessionId;
@@ -1887,6 +1896,7 @@ export class SessionService extends EventEmitter {
   }
 
   signalAgentTurn(signal: AgentTurnSignal): boolean {
+    if (this.shuttingDown) return false;
     const live = this.signalNonces.get(signal.nonce);
     if (!live || !this.runtimes.has(live.runtimeId) || !live.lifecycleResource?.control?.signal)
       return false;
@@ -1901,9 +1911,10 @@ export class SessionService extends EventEmitter {
    * stable runtime to another immutable Puddle placement.
    */
   async signalAgentLifecycle(signal: LifecycleSignal): Promise<boolean> {
+    if (this.shuttingDown) return false;
     const runtime = this.signalNonces.get(signal.nonce);
     if (!runtime || !this.runtimes.has(runtime.runtimeId)) return false;
-    return this.lifecycleMutex.run('native-conversation-switch', async () => {
+    const apply = async () => {
       if (!this.runtimes.has(runtime.runtimeId)) return false;
       if (this.deps.storage?.status().database_degraded) throw storageUnavailable();
       const sourceId = runtime.activeSessionId;
@@ -2063,7 +2074,10 @@ export class SessionService extends EventEmitter {
         outcome: 'rebound',
       } satisfies SessionSwitchEvent);
       return true;
-    });
+    };
+    return this.lifecycleAdmission.run(() =>
+      this.lifecycleMutex.run('native-conversation-switch', apply),
+    );
   }
 
   private bindRuntimeConversation(sessionId: string): void {

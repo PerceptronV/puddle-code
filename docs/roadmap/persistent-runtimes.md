@@ -27,6 +27,13 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far:
 
+- Direct provider native-lifecycle callbacks now enter the session drain as well
+  as HTTP signals. Shutdown lets an admitted clear/fork finish its exact placement
+  rebind, records its result before SQLite closes, and rejects later lifecycle,
+  status and turn callbacks. A fake-agent test holds the PTY rebind across shutdown
+  and verifies the preserved PID, exact native ref and durable switch event.
+  This closes a route-bypass gap; it does not establish full update quiescence.
+
 - Native catalogue scans and watchers now pause reversibly. A bounded drain
   fences late discovery/Git results; release reinstalls eligible watchers and
   schedules one fresh scan per account, including when an earlier scan is still

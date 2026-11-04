@@ -58,6 +58,10 @@ pending pre-spawn snapshot cannot start a child afterwards, and that coalesced l
 recovery drains without admitting another scan. It uses fake adapters and real
 temporary stores; no provider executable is launched or native conversation guessed.
 
+The session-service suite also holds a direct native clear callback at its PTY
+rebind boundary while shutdown begins. The drain must wait for its durable switch
+event and preserve the PID/ref, while later provider callbacks are refused.
+
 Run from the repository root with dependencies installed:
 
 ```sh

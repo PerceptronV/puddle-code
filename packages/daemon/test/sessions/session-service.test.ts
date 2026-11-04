@@ -792,6 +792,73 @@ describe('native conversation lifecycle', () => {
     await f.service.kill(target.id);
   });
 
+  it('drains an admitted native switch and rejects later provider callbacks during shutdown', async () => {
+    const f = fixture({ adapter: { ...fakeAdapter(), lifecycleSignals: true } });
+    f.service.setSignalPort(65432);
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const original = f.ptys.rebindStream.bind(f.ptys);
+    const rebind = vi.spyOn(f.ptys, 'rebindStream').mockImplementation(async (source, target) => {
+      await pending;
+      return original(source, target);
+    });
+    let switching: Promise<boolean> | undefined;
+    try {
+      const source = await f.service.create({
+        project_id: f.ids.project,
+        account_id: f.ids.account,
+      });
+      await waitFor(() => f.service.get(source.id).status === 'waiting_input');
+      const nonce = f.service.signalNonceFor(source.id)!;
+      const pids = f.ptys.pidsFor(source.id);
+      const signal = {
+        nonce,
+        event: 'session_start' as const,
+        agent_session_ref: 'shutdown-switch',
+        cwd: source.worktree_path,
+        source: 'clear' as const,
+      };
+      switching = f.service.signalAgentLifecycle(signal);
+      await waitFor(() => rebind.mock.calls.length === 1);
+      f.service.beginShutdown();
+      const drained = vi.fn();
+      const drain = f.service.drainObservations().then(drained);
+      await Promise.resolve();
+      expect(drained).not.toHaveBeenCalled();
+      expect(
+        await f.service.signalAgentLifecycle({ ...signal, agent_session_ref: 'too-late' }),
+      ).toBe(false);
+      expect(f.service.signalAgentStatus(nonce, 'working')).toBe(false);
+      release();
+      await expect(switching).resolves.toBe(true);
+      await drain;
+      const target = f.service
+        .list()
+        .find((session) => session.agent_session_ref === 'shutdown-switch')!;
+      expect(f.ptys.pidsFor(target.id)).toEqual(pids);
+      expect(f.stores.events.list(target.id).map((event) => event.type)).toContain(
+        'native_switched_to',
+      );
+      expect(f.service.list().some((session) => session.agent_session_ref === 'too-late')).toBe(
+        false,
+      );
+      expect(rebind).toHaveBeenCalledOnce();
+    } finally {
+      release();
+      await switching;
+      await f.service.drainObservations();
+      f.ptys.beginShutdown();
+      f.ptys.killAll();
+      await waitFor(() => f.ptys.liveCount() === 0);
+      await f.ptys.closeTerminalStates();
+      f.onboarding.dispose();
+      f.logs.closeAll();
+      rebind.mockRestore();
+    }
+  });
+
   it('serialises simultaneous switches and leaves one live placement', async () => {
     const f = fixture({ adapter: { ...fakeAdapter(), lifecycleSignals: true } });
     f.service.setSignalPort(65432);
