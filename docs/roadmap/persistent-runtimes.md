@@ -5,6 +5,13 @@ and cockpit-managed host updates are required release functionality. There is no
 enable/disable setting or user-selectable legacy backend. Host lifetime limitations
 must be reported honestly; internal fixture configuration is not a product toggle.
 
+Verification decision, 4 November 2026: no Linux test machine is available. At the
+user's direction, native Linux systemd/SSH and resource measurements are deferred
+and do not block completion of this refactor for 0.4.0. Retain automated coverage
+of the reused Linux supervisor and transport paths, and do not describe them as
+verified on a real Linux host. This supersedes earlier Linux release-gate wording
+in the milestone evidence below; available local acceptance checks still apply.
+
 Implementation status, 2026-11-04:
 Default daemon launches now use independent runtimes, resolving the installed
 runtime selector and checking the host service manager before launch intent. The
