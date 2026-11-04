@@ -3,9 +3,10 @@
 The [roadmap](../roadmap/persistent-runtimes.md) defines the complete acceptance
 matrix. Persistent ownership is required standard behaviour for every user in
 0.4.0, without an enable/disable option. Implementation remains in progress:
-daemon composition now defaults to installed independent runtimes. Hosts without
-a usable service manager currently refuse new launches; their detached/attached
-lifetimes remain a release blocker.
+daemon composition now defaults to installed independent runtimes. Explicitly
+unsupervised hosts can use a labelled host-session owner; daemon updates refuse
+limited or unknown lifetimes. Proven detached/attached persistence remains a
+release blocker.
 Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
@@ -26,6 +27,18 @@ then run normally. Both tests passed together on macOS 26.5.2 / Node 22.21.1 on
 2026-11-04. Cleanup confirmed removed jobs and ended fixture processes. Installed
 daemon-label preflight, Linux supervision, historical migration and real providers
 remain separate release gates.
+
+`legacy-transition.test.ts` reconstructs the exact schema 28 shipped in v0.3.14
+from the retained migrations, pinning their complete version/name/SQL manifest
+with SHA256 rather than requiring Git history at test runtime. It runs the
+canonical daemon-only installer and current daemon with the production default
+runtime backend, a fake provider and a simulated service manager. Both automatic
+resume and disabled-auto-resume/manual-resume paths preserve placement ids,
+worktrees, account/native references, captured environment, layouts and history.
+Missing native references remain interrupted. A second daemon adopts the same
+runtime PID without relaunching the provider. Both cases passed on macOS/Node
+22.21.1; this proves historical database migration with current execution code,
+not live PTY transfer from a released daemon or real provider CLI database sync.
 
 Runtime lifetime checks under `test/runtime/lifecycle/lifetime.test.ts` exercise
 explicit unsupervised selection, bounded process-group inspection, refusal before
@@ -58,8 +71,8 @@ The built CLI/helper fixture removes and reinstalls through fake systemd command
 real isolated authenticated readiness endpoint. A separate real runtime/PTY fixture
 preserves its PID and shell variable through coordinator removal/restoration, then stops
 through fresh explicit review. These establish the integrated paths with deterministic
-supervision, not actual Linux/macOS service or native-provider acceptance. Purge still
-refuses before mutation; partial remote disable/unregistration and reference-aware collection remain open.
+supervision, not actual Linux/macOS service or native-provider acceptance. Actual
+platform purge and production reference-aware collection remain open.
 The integrated removal/startup/update/installation/connector regression run passed
 387 tests in 50 files, with one platform-gated file skipped, on macOS 26.5.2 and
 Node 22.21.1. Source and strict changed-test typechecks, lint and web/CLI/desktop

@@ -29,7 +29,12 @@ export const installer = join(repo, 'scripts/install.sh');
  * Both synthetic versions use current source: this proves upgrade composition,
  * not migration from an historical released daemon or native systemd behaviour.
  */
-export async function continuityRelease(home: string, version: string, native = false) {
+export async function continuityRelease(
+  home: string,
+  version: string,
+  native = false,
+  entries?: { puddled: string; puddler: string },
+) {
   const root = join(home, 'test-archives', version);
   const release = join(root, `puddled-v${version}`);
   mkdirSync(join(release, 'bin'), { recursive: true });
@@ -37,8 +42,8 @@ export async function continuityRelease(home: string, version: string, native = 
   cpSync(join(bundleDir, 'node_modules'), join(release, 'node_modules'), { recursive: true });
   await build({
     entryPoints: {
-      puddled: join(repo, 'packages/daemon/src/index.ts'),
-      puddler: join(repo, 'packages/daemon/src/runtime/index.ts'),
+      puddled: entries?.puddled ?? join(repo, 'packages/daemon/src/index.ts'),
+      puddler: entries?.puddler ?? join(repo, 'packages/daemon/src/runtime/index.ts'),
       'host-update': join(repo, 'packages/daemon/src/updates/worker/index.ts'),
     },
     outdir: join(release, 'daemon'),

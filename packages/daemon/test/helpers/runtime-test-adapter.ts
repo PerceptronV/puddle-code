@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { atomicPrivateJson } from '@puddle/shared/node';
+import { atomicPrivateJson, privateDirectory } from '@puddle/shared/node';
 import type {
   AgentAdapter,
   AgentControl,
@@ -58,6 +58,9 @@ class FixtureControl implements AgentControl {
 /** No installed provider CLI is used: this sidecar exposes an in-memory counter. */
 async function prepare(context: LifecycleLaunchContext) {
   if (context.env?.['PUDDLE_TEST_UNSUPPORTED'] === '1') throw new Error('Unsupported test version');
+  // Reject an unusable fixture record directory before creating a sidecar that
+  // cannot be recorded and returned to the owner's cleanup path.
+  privateDirectory(context.account.config_dir);
   const child = spawn(
     process.execPath,
     [

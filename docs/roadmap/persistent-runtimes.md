@@ -50,6 +50,15 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Historical schema-28 migration is now exercised through the canonical daemon-only
+  installer and default runtime backend. The fixture reuses the exact v0.3.14
+  migrations under a pinned manifest, preserving placement/worktree/account/native
+  refs, captured environment, layouts and history for both automatic and explicit
+  resume. Missing refs remain interrupted; a subsequent daemon adopts the same
+  owner without relaunching. Both process tests passed with a fake provider and
+  simulated service manager. Released-daemon live transition, actual CLI database
+  synchronisation and the legacy cockpit upgrade offer remain required acceptance.
+
 - Ordinary bootstrap now shares the bounded staging receipt writer for newly
   extracted releases and uses one private archive snapshot for checksum verification,
   extraction and hashing. Existing receipts and reused legacy trees remain untouched;
