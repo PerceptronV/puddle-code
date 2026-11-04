@@ -45,8 +45,17 @@ export function hostInstallationFixture(homeName = 'home') {
   writeFileSync(join(staged, 'PROTOCOL'), '25.20\n');
   symlinkSync(process.execPath, join(staged, 'bin', 'node'));
   writeFileSync(join(staged, 'VERSION'), '1.2.3\n');
-  const pack = () =>
-    execFileSync('tar', ['-czf', tarball, '-C', join(temp, 'stage'), 'puddled-v1.2.3']);
+  const pack = (compression: 'default' | 'fast' = 'default') => {
+    if (compression === 'fast') {
+      // Large executable fixtures still exercise real tar/gzip extraction and
+      // checksums. Avoid spending the transaction deadline on gzip's default
+      // compression level; separate commands also preserve either failure.
+      const archive = tarball.slice(0, -3);
+      execFileSync('tar', ['-cf', archive, '-C', join(temp, 'stage'), 'puddled-v1.2.3']);
+      return execFileSync('gzip', ['-1', '-n', '-f', archive]);
+    }
+    return execFileSync('tar', ['-czf', tarball, '-C', join(temp, 'stage'), 'puddled-v1.2.3']);
+  };
   pack();
   const env = { HOME: home, PUDDLE_HOME: puddleHome, PATH: '/usr/bin:/bin:/usr/sbin:/sbin' };
   const args = [

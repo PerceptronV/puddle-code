@@ -26,7 +26,8 @@ export async function updateInstallation(components: Array<'daemon' | 'runtime'>
     f.stagedBinary,
     `#!/bin/sh\nprintf 'puddled 1.2.3 (protocol ${PROTOCOL_VERSION.major}.${PROTOCOL_VERSION.minor})\\n'\n`,
   );
-  f.pack();
+  // Fast compression keeps real receipt-fixture setup within the transaction deadline.
+  f.pack('fast');
   writeFileSync(
     `${f.tarball}.sha256`,
     `${createHash('sha256').update(readFileSync(f.tarball)).digest('hex')}  ${f.tarball.split('/').pop()}\n`,
