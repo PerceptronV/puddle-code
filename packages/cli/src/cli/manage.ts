@@ -1,3 +1,4 @@
+import { hostUpdateInterruptionMessage } from '../lib/installation/host/approval.js';
 import { upgradeCli, removeCli } from './manage-cli.js';
 import { acquireAuthority } from '../lib/auth/connection-authority.js';
 import { spawn } from 'node:child_process';
@@ -152,19 +153,14 @@ async function installDaemonAt(
     ...(version !== undefined ? { version } : {}),
     ...(tarball !== undefined ? { tarball } : {}),
     logger,
-    confirmInterruption: async ({ review }) => {
-      const affected = review.affected;
+    confirmInterruption: async (request) => {
       if (!process.stdin.isTTY || !process.stdout.isTTY)
         throw new CliError(
           'upgrade_failed',
           'Daemon-owned work needs explicit interruption approval',
           'Run this update in an interactive terminal after reviewing the affected work',
         );
-      return confirm(
-        `Updating puddled on ${transport.label} will interrupt ${affected.terminals} daemon-owned terminal(s), ` +
-          `${affected.notebooks} notebook kernel(s), ${affected.compilation} compilation task(s) and ` +
-          `${affected.programmes} programme(s). Independently hosted agents keep running. Continue?`,
-      );
+      return confirm(`${hostUpdateInterruptionMessage(transport.label, request)}\n\nContinue?`);
     },
   });
   logger.info(`puddled ${result.from ?? '(fresh install)'} → ${result.to} on ${transport.label}`);

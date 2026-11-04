@@ -1,3 +1,4 @@
+import type { ConfirmHostUpdateInterruption } from '../installation/host/apply.js';
 import { join } from 'node:path';
 import { DaemonClient } from './daemon-client.js';
 import { ensureDaemon, type RunningCockpit } from './cockpit.js';
@@ -23,6 +24,7 @@ export interface StartOptions {
   assetsDir: string;
   noUpgrade?: boolean;
   confirmDaemonUpgrade?: ConfirmDaemonUpgrade;
+  confirmInterruption?: ConfirmHostUpdateInterruption;
   logger?: Logger;
   /** POST /cockpit/refresh (the UI's refresh button) invokes this — the CLI
    *  layer supplies the process-spawning behaviour; lib stays process-free. */
@@ -43,6 +45,7 @@ export async function startLocal(opts: StartOptions): Promise<RunningCockpit> {
     logger,
     noUpgrade: opts.noUpgrade,
     confirmDaemonUpgrade: opts.confirmDaemonUpgrade,
+    confirmInterruption: opts.confirmInterruption,
   };
 
   let endpoint: Awaited<ReturnType<typeof ensureDaemon>> | undefined;

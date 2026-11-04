@@ -28,13 +28,23 @@ export interface DaemonUpgradeRequest {
 /** Shell-owned UI; absent callbacks never authorise an upgrade. */
 export type ConfirmDaemonUpgrade = (request: DaemonUpgradeRequest) => Promise<boolean>;
 
+/** Older daemon-owned sessions need migration; modern hosts inspect exact impact. */
+export function daemonUpgradeImpact(daemon: VersionResponse, liveSessions: number): string {
+  const { major, minor } = daemon.protocol;
+  return major > 25 || (major === 25 && minor >= 7)
+    ? 'The host will check runtime continuity and update impact before applying. ' +
+        'Independent runtimes keep running when those checks pass. ' +
+        'Any daemon-owned work that must stop requires a separate exact interruption review.'
+    : `Updating the host daemon will interrupt ${liveSessions} live session(s). ` +
+        'Their saved state remains and they can resume after the update.';
+}
+
 export function daemonUpgradeMessage(request: DaemonUpgradeRequest): string {
   const { host, daemon, clientProtocol, liveSessions } = request;
   return (
     `${host} runs puddled ${daemon.version} (protocol ${daemon.protocol.major}.${daemon.protocol.minor}). ` +
     `This client uses protocol ${clientProtocol.major}.${clientProtocol.minor} and needs the same protocol major.\n\n` +
-    `Updating the host daemon will interrupt ${liveSessions} live session(s). ` +
-    'Their saved state remains and they can resume after the update.'
+    daemonUpgradeImpact(daemon, liveSessions)
   );
 }
 
@@ -78,7 +88,7 @@ export async function runHandshake(opts: RunHandshakeOptions): Promise<VersionRe
     throw new CliError(
       'upgrade_failed',
       `the daemon speaks protocol ${daemon.protocol.major} (client: ${PROTOCOL_VERSION.major}) and --no-upgrade is set`,
-      `re-run without --no-upgrade to update it (${liveSessions} live session(s) would be interrupted and can be resumed)`,
+      `re-run without --no-upgrade to review the update. ${daemonUpgradeImpact(daemon, liveSessions)}`,
     );
   }
   const request: DaemonUpgradeRequest = {
@@ -104,7 +114,7 @@ export async function runHandshake(opts: RunHandshakeOptions): Promise<VersionRe
   const logger = opts.logger ?? silentLogger;
   logger.info(
     `updating puddled on ${opts.host} (protocol ${daemon.protocol.major} → ${PROTOCOL_VERSION.major}) — ` +
-      `${liveSessions} live session(s) will be interrupted and can be resumed`,
+      daemonUpgradeImpact(daemon, liveSessions),
   );
   try {
     return verifyDaemonVersion(await opts.upgradeDaemon());

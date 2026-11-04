@@ -44,7 +44,9 @@ async function fixture(
   kind: 'local' | 'ssh' = 'local',
   minor: number = PROTOCOL_VERSION.minor,
   component: 'runtime' | 'daemon' = 'runtime',
+  major: number = PROTOCOL_VERSION.major,
 ) {
+  let hostProtocol = { major, minor };
   const f = candidateFixture(component);
   f.store.stopBeforeDispatch(f.operation, 'cancelled', 'fixture preparation');
   vi.stubEnv('PUDDLE_HOME', f.home);
@@ -115,7 +117,7 @@ async function fixture(
       registry,
       () => ({
         port: 7434,
-        version: { version: '0.4.0', protocol: { ...PROTOCOL_VERSION, minor } },
+        version: { version: '0.4.0', protocol: hostProtocol },
       }),
       (command, authorised) => {
         commands.push(command);
@@ -157,6 +159,9 @@ async function fixture(
     inspection,
     setInstalled(value: string | null) {
       installed = value;
+    },
+    setProtocol(protocol: { major: number; minor: number }) {
+      hostProtocol = protocol;
     },
     requireRecovery() {
       recover = true;
@@ -475,25 +480,26 @@ it.each(['local', 'ssh'] as const)(
   },
 );
 
-it('does not send recovery to an older host or repeat an incomplete installation', async () => {
-  const f = await fixture('local', 10);
+it('does not send recovery to an incompatible older host or repeat an incomplete installation', async () => {
+  const f = await fixture('local');
   f.requireRecovery();
   await expect(upgradeHostComponent(f.transport, 'runtime', { version: '0.4.0' })).rejects.toThrow(
     'requires inspection',
   );
   const operation = f.store.read()!;
+  f.setProtocol({ major: 25, minor: 10 });
   await expect(
     runUpdates({ cmd: 'updates', operation: operation.id, cancel: false, recover: true }, f.logger),
-  ).rejects.toThrow('recovery verification is unavailable');
+  ).rejects.toThrow('does not match');
   expect(f.commands.some((command) => command.action === 'recover')).toBe(false);
   expect(f.store.read()).toEqual(operation);
   expect(f.dispatch).toHaveBeenCalledOnce();
 });
 
 it('rejects older hosts before staging and never falls back to immediate installation', async () => {
-  const f = await fixture('local', 6);
+  const f = await fixture('local', 6, 'runtime', 25);
   await expect(upgradeHostComponent(f.transport, 'runtime', { version: '0.4.0' })).rejects.toThrow(
-    'unavailable',
+    'does not match',
   );
   expect(mock.stage).not.toHaveBeenCalled();
   expect(mock.daemon).not.toHaveBeenCalled();
@@ -545,3 +551,52 @@ it('refuses ambiguous local archives before changing either host component', asy
   expect(mock.stage).not.toHaveBeenCalled();
   expect(f.commands).toEqual([]);
 });
+
+it.each(['approve', 'decline', 'missing', 'changed-impact'] as const)(
+  'updates an inspected older application major only after exact interruption consent (%s)',
+  async (answer) => {
+    const f = await fixture('ssh', 20, 'daemon', 25);
+    f.inspection.impact.requiresInterruption = true;
+    f.inspection.impact.affected.notebooks = [
+      {
+        instance: randomUUID(),
+        revision: 1,
+        path: '/fixture.ipynb',
+        kernel: 'python3',
+        state: 'idle',
+        busy: false,
+        changing: false,
+      },
+    ];
+    const confirmInterruption = vi.fn(
+      async ({ review }: { review: import('@puddle/shared').HostUpdateReview }) => {
+        expect(review.affected.notebooks).toBe(1);
+        expect(f.dispatch).not.toHaveBeenCalled();
+        if (answer === 'changed-impact')
+          f.inspection.fingerprint = digest('changed after old-major review');
+        return answer === 'approve' || answer === 'changed-impact';
+      },
+    );
+    const pending = upgradeHostComponent(f.transport, 'daemon', {
+      version: '0.4.0',
+      outgoing: { version: '0.4.0', protocol: { major: 25, minor: 20 } },
+      confirmInterruption: answer === 'missing' ? undefined : confirmInterruption,
+    });
+    if (answer === 'approve') {
+      expect((await pending).operation.phase).toBe('complete');
+      expect(f.dispatch).toHaveBeenCalledOnce();
+      expect(f.commands.at(-1)).toMatchObject({
+        action: 'apply',
+        interruption_approval: f.inspection.fingerprint,
+      });
+    } else {
+      await expect(pending).rejects.toThrow();
+      expect(f.dispatch).not.toHaveBeenCalled();
+      expect(f.store.read()?.phase).toBe('preflight');
+    }
+    expect(mock.stage).toHaveBeenCalledOnce();
+    expect(f.commands.filter(({ action }) => action === 'apply')).toHaveLength(
+      answer === 'approve' || answer === 'changed-impact' ? 1 : 0,
+    );
+  },
+);

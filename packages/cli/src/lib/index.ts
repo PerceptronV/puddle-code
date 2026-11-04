@@ -39,3 +39,6 @@ export {
   type DesktopUpdate,
   type StagedDesktopUpdate,
 } from './installation/desktop-update.js';
+
+export { hostUpdateInterruptionMessage } from './installation/host/approval.js';
+export type { ConfirmHostUpdateInterruption } from './installation/host/apply.js';

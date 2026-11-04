@@ -1,10 +1,11 @@
+import { PROTOCOL_VERSION } from '@puddle/shared';
 import { installDaemon, installedVersion, type BootstrapOptions } from './bootstrap.js';
 import { inspectHost } from '../auth/control-channel.js';
 import type { Transport } from '../transport/transport.js';
 import { CliError, type Logger, silentLogger } from '../types.js';
 import { pinnedDaemonVersion } from '../version.js';
 import { hasPersistentHostInstallation } from './host/presence.js';
-import { startInstalledDaemon } from './host/start.js';
+import { startInstalledDaemonForInspection } from './host/start.js';
 import { upgradeHostComponent } from './host/upgrade.js';
 import type { ConfirmHostUpdateInterruption } from './host/apply.js';
 
@@ -41,14 +42,7 @@ export async function upgradeDaemon(
   });
   if (!inspection && (await hasPersistentHostInstallation(transport))) {
     logger.info(`starting the selected puddled service on ${transport.label} before updating`);
-    const started = await startInstalledDaemon(transport);
-    try {
-      inspection = await inspectHost(transport);
-      if (!inspection)
-        throw new CliError('daemon_unreachable', 'The started daemon could not be inspected');
-    } finally {
-      started.authority.close();
-    }
+    inspection = await startInstalledDaemonForInspection(transport);
   }
   const protocol = inspection?.version.protocol;
   if (
@@ -59,6 +53,7 @@ export async function upgradeDaemon(
     const result = await upgradeHostComponent(transport, 'daemon', {
       ...opts,
       version: opts.version ?? pinnedDaemonVersion(),
+      ...(protocol.major < PROTOCOL_VERSION.major ? { outgoing: inspection.version } : {}),
     });
     return { from: result.from, to: result.to, liveSessions: inspection.liveSessions };
   }

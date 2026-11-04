@@ -1,3 +1,4 @@
+import type { ConfirmHostUpdateInterruption } from '../installation/host/apply.js';
 import { waitForStartedDaemon } from '../auth/readiness.js';
 import type { VersionResponse } from '@puddle/shared';
 import {
@@ -12,7 +13,7 @@ import { hostPaths } from '../paths.js';
 import type { Transport } from '../transport/transport.js';
 import { CliError, type CliEvent, type Logger, silentLogger } from '../types.js';
 import { hasPersistentHostInstallation } from '../installation/host/presence.js';
-import { startInstalledDaemon } from '../installation/host/start.js';
+import { startInstalledDaemonForInspection } from '../installation/host/start.js';
 import { upgradeDaemon } from '../installation/upgrade.js';
 
 /**
@@ -69,6 +70,7 @@ export async function ensureDaemon(
     startTimeoutMs?: number;
     noUpgrade?: boolean;
     confirmDaemonUpgrade?: ConfirmDaemonUpgrade;
+    confirmInterruption?: ConfirmHostUpdateInterruption;
   },
 ): Promise<DaemonEndpoint> {
   const logger = opts.logger ?? silentLogger;
@@ -81,12 +83,18 @@ export async function ensureDaemon(
   } catch (err) {
     if (err instanceof CliError && err.code === 'protocol_mismatch') mismatch = err;
   }
-  const inspection = await inspectHost(transport).catch((err: unknown) => {
+  let inspection = await inspectHost(transport).catch((err: unknown) => {
     // A known, live mismatch must never become a blind bootstrap when inspection fails.
     if (err instanceof CliError || mismatch) throw err;
     return null;
   });
   if (!inspection && mismatch) throw mismatch;
+  let selectedStarted = false;
+  if (!inspection && (await hasPersistentHostInstallation(transport))) {
+    logger.info(`starting the selected puddled service on ${transport.label}`);
+    inspection = await startInstalledDaemonForInspection(transport, startTimeoutMs);
+    selectedStarted = true;
+  }
   const install = async () => {
     await installDaemon(transport, opts);
     return waitAfterInstall(transport, opts, logger, true, startTimeoutMs);
@@ -110,17 +118,17 @@ export async function ensureDaemon(
       if (replacement) return replacement;
       // Inspection found a compatible host. Retry its authority, without reinstalling it.
       const authority = await acquireAuthority(transport);
-      return { port: authority.port, authority, bootstrapped: false, daemonLifetime: 'persistent' };
+      return {
+        port: authority.port,
+        authority,
+        bootstrapped: selectedStarted,
+        daemonLifetime: 'persistent',
+      };
     } catch (err) {
       replacement?.authority.close();
       await replacement?.lease?.stop();
       throw err;
     }
-  }
-  if (await hasPersistentHostInstallation(transport)) {
-    logger.info(`starting the selected puddled service on ${transport.label}`);
-    const started = await startInstalledDaemon(transport, startTimeoutMs);
-    return { ...started, bootstrapped: true, daemonLifetime: 'persistent' };
   }
 
   if ((await installedVersion(transport)) !== null) {

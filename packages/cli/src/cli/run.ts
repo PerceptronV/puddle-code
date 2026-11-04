@@ -1,4 +1,5 @@
-import { confirmDaemonUpgrade } from './daemon-upgrade-prompt.js';
+import { confirmDaemonUpgrade, confirmHostUpdateInterruption } from './daemon-upgrade-prompt.js';
+import type { ConfirmHostUpdateInterruption } from '../lib/installation/host/apply.js';
 import { acquireAuthority } from '../lib/auth/connection-authority.js';
 import { runRemote } from './remote.js';
 import { existsSync } from 'node:fs';
@@ -432,6 +433,11 @@ async function runCockpit(
       ...command,
       assetsDir: assetsDir(),
       confirmDaemonUpgrade,
+      confirmInterruption: ((request) =>
+        confirmHostUpdateInterruption(
+          command.target,
+          request,
+        )) satisfies ConfirmHostUpdateInterruption,
       logger,
       onRefreshRequest,
       refreshId: process.env.PUDDLE_REFRESH_ID,

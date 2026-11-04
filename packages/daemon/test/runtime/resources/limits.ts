@@ -12,7 +12,7 @@ export const resourceBaselineLimits = {
   wakeups: null,
 };
 
-/** Missing descriptor probes remain explicit gaps; CPU precision does not support a budget. */
+/** Missing probes remain explicit; partial native samples do not establish CPU/wakeup budgets. */
 export function resourceBaselineRegressions(observed: {
   count: number;
   owner_rss_mib: { total: number; max: number };

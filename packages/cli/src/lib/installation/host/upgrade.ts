@@ -1,5 +1,5 @@
-import type { HostUpdateOperation } from '@puddle/shared';
-import { acquireAuthority } from '../../auth/connection-authority.js';
+import type { HostUpdateOperation, VersionResponse } from '@puddle/shared';
+import { acquireAuthority, acquireHostUpdateAuthority } from '../../auth/connection-authority.js';
 import type { Transport } from '../../transport/transport.js';
 import { silentLogger } from '../../types.js';
 import { installedVersion, type BootstrapOptions, type HostComponent } from '../bootstrap.js';
@@ -13,11 +13,18 @@ export async function upgradeHostComponent(
   options: BootstrapOptions & {
     version: string;
     confirmInterruption?: ConfirmHostUpdateInterruption;
+    /** Supplied only after trusted inspection of a coordinated older application major. */
+    outgoing?: VersionResponse;
   },
 ): Promise<{ from: string | null; to: string; operation: HostUpdateOperation }> {
   const logger = options.logger ?? silentLogger;
   const from = await installedVersion(transport, component);
-  const authority = await acquireAuthority(transport);
+  const authority = options.outgoing
+    ? await acquireHostUpdateAuthority(transport, {
+        outgoing: options.outgoing,
+        targetVersion: options.version,
+      })
+    : await acquireAuthority(transport);
   let lastPhase: HostUpdateOperation['phase'] | undefined;
   const onProgress: (operation: HostUpdateOperation) => void = (operation) => {
     if (lastPhase === undefined) logger.info(`host update ${operation.id} on ${transport.label}`);

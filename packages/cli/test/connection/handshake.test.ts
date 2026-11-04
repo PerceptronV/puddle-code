@@ -4,6 +4,7 @@ import { PROTOCOL_VERSION } from '@puddle/shared';
 import {
   CLI_UPGRADE_COMMAND,
   decideHandshake,
+  daemonUpgradeMessage,
   runHandshake,
 } from '../../src/lib/connection/handshake.js';
 import { CliError } from '../../src/lib/types.js';
@@ -143,4 +144,19 @@ describe('runHandshake', () => {
     expect(confirmDaemonUpgrade).not.toHaveBeenCalled();
     expect(upgradeDaemon).not.toHaveBeenCalled();
   });
+});
+
+it('distinguishes legacy interruption from modern exact impact review without release equality', () => {
+  const request = { host: 'fixture', clientProtocol: PROTOCOL_VERSION, liveSessions: 4 };
+  expect(
+    daemonUpgradeMessage({
+      ...request,
+      daemon: { version: '0.3.14', protocol: { major: 25, minor: 6 } },
+    }),
+  ).toContain('will interrupt 4 live session(s)');
+  for (const protocol of [{ major: 25, minor: 7 }, { major: 25, minor: 20 }, PROTOCOL_VERSION]) {
+    const message = daemonUpgradeMessage({ ...request, daemon: { version: '0.3.14', protocol } });
+    expect(message).toContain('separate exact interruption review');
+    expect(message).not.toContain('will interrupt 4');
+  }
 });

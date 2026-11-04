@@ -1,3 +1,5 @@
+import type { ConfirmHostUpdateInterruption } from '../lib/installation/host/apply.js';
+import { hostUpdateInterruptionMessage } from '../lib/installation/host/approval.js';
 import { randomUUID } from 'node:crypto';
 import type { ChildProcess } from 'node:child_process';
 import { daemonUpgradeMessage, type ConfirmDaemonUpgrade } from '../lib/connection/handshake.js';
@@ -17,6 +19,16 @@ export const confirmDaemonUpgrade: ConfirmDaemonUpgrade = async (request) => {
   if (!process.send || !process.connected) return askToUpgrade(message);
   return requestDaemonUpgradeApproval(message, process);
 };
+
+/** The second prompt is a fresh decision; first-stage upgrade consent cannot approve impact. */
+export async function confirmHostUpdateInterruption(
+  host: string,
+  request: Parameters<ConfirmHostUpdateInterruption>[0],
+): Promise<boolean> {
+  const message = hostUpdateInterruptionMessage(host, request);
+  if (!process.send || !process.connected) return askToUpgrade(message);
+  return requestDaemonUpgradeApproval(message, process);
+}
 
 /** Kept separate so cancellation and reply correlation can be tested without a terminal. */
 export function requestDaemonUpgradeApproval(

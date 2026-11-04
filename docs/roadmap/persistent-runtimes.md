@@ -68,6 +68,20 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Launch-time upgrades now carry the coordinator's exact interruption review
+  through CLI/background IPC and desktop approval. Modern prompts describe
+  independent runtime continuity; legacy prompts retain the one-time interruption
+  warning. A restricted update-only connection pins the inspected older-major
+  host and exact staged replacement, supplies no application credentials/resources,
+  and only observes after apply admission. Stopped modern services start once for
+  trusted inspection before ordinary compatibility negotiation. Independent review
+  found no blockers; 119 focused checks, source typechecking and lint passed.
+  Local/encrypted combined updates plus legacy and actual historical-source
+  transitions passed all six cases in 89.59 seconds on application 26.1/schema 40.
+  Selected-start tests use isolated real control/HTTP with simulated SSH and
+  injected activation; native desktop/SSH and installed-service acceptance remain
+  separate gates. No extra protocol or browser upgrader was introduced.
+
 - Application 26.1 and migration 040 add explicit local/SSH CLI/MCP inspection
   and read/discard of retained programme outcomes. The exact fingerprint, profile,
   operation, runtime and turn bind a transactional audit and consumption record;

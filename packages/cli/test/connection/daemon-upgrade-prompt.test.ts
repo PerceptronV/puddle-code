@@ -1,3 +1,5 @@
+import { reviewedHostUpdate } from '../../../shared/test/helpers/host-update.js';
+import { confirmHostUpdateInterruption } from '../../src/cli/daemon-upgrade-prompt.js';
 import { EventEmitter } from 'node:events';
 import type { ChildProcess } from 'node:child_process';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -97,4 +99,34 @@ it('declines if the launching terminal disconnects before replying', async () =>
   child.emit('disconnect');
   expect(await pending).toBe(false);
   expect(child.listenerCount('message')).toBe(0);
+});
+
+it('uses a fresh correlated parent decision for exact interruption after initial approval', async () => {
+  const send = vi.fn();
+  vi.stubGlobal('process', Object.assign(Object.create(process), { send, connected: true }));
+  try {
+    const pending = confirmHostUpdateInterruption('fixture', reviewedHostUpdate());
+    const sent = send.mock.calls[0]![0] as { id: string; message: string };
+    expect(sent.message).toContain('2 daemon-owned terminal(s), 1 notebook kernel(s)');
+    expect(sent.message).toContain('daemon 0.4.0 on fixture');
+    (process as EventEmitter).emit('message', {
+      t: 'puddle:daemon-upgrade-answer',
+      id: 'earlier-approval',
+      approved: true,
+    });
+    let settled = false;
+    void pending.then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    (process as EventEmitter).emit('message', {
+      t: 'puddle:daemon-upgrade-answer',
+      id: sent.id,
+      approved: false,
+    });
+    expect(await pending).toBe(false);
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

@@ -1,3 +1,4 @@
+import type { ConfirmHostUpdateInterruption } from '../installation/host/apply.js';
 import { join } from 'node:path';
 import { AttachedDaemon } from './attached-daemon.js';
 import { DaemonClient, readDaemonPort } from './daemon-client.js';
@@ -39,6 +40,7 @@ export interface ConnectOptions {
   assetsDir: string;
   noUpgrade?: boolean;
   confirmDaemonUpgrade?: ConfirmDaemonUpgrade;
+  confirmInterruption?: ConfirmHostUpdateInterruption;
   logger?: Logger;
   /** POST /cockpit/refresh (the UI's refresh button) invokes this — the CLI
    *  layer supplies the process-spawning behaviour; lib stays process-free. */
@@ -87,6 +89,7 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
       logger,
       noUpgrade: opts.noUpgrade,
       confirmDaemonUpgrade: opts.confirmDaemonUpgrade,
+      confirmInterruption: opts.confirmInterruption,
     };
     const attachedDaemon = new AttachedDaemon(ssh, logger);
     const endpoint = await ensureDaemon(ssh, {

@@ -2,8 +2,8 @@
 
 Status: implementation for the standard runtime backend in **0.4.0**. Daemon
 composition defaults to installed independent runtimes without a user-facing
-enable/disable option. Detached/attached lifetimes and seamless daemon upgrades
-remain release blockers; the legacy backend is an internal fixture override.
+enable/disable option. Native platform, provider, reboot and resource acceptance
+remain release gates; the legacy backend is an internal fixture override.
 The full delivery scope is tracked in
 [the persistent runtimes roadmap](../../docs/roadmap/persistent-runtimes.md).
 
@@ -20,8 +20,8 @@ endpoint and native conversation claims through controller outages. Runtime IPC
 also admits exact provider turns and retains their outcomes independently of the
 controller. Runtime-owned helper copies and stable account dispatch preserve
 managed hook/plugin code across account updates. Immutable release retention,
-placement switching and production programme reconciliation are still required
-before enablement.
+placement switching and programme reconciliation use these same owner identities;
+the roadmap records their implementation and remaining acceptance evidence.
 
 ## Compatibility
 
@@ -42,7 +42,8 @@ Detached owners must prove their own process group and ignore terminal hangup;
 neither establishes survival of host session teardown. Authenticated runtime state
 reports that lifetime, or `unknown` for earlier records. Daemon replacement requires
 `service`; limited/unknown owners remain running and block that update. Changing
-only the installed runtime default remains possible. Detached registration cleanup
+only the installed runtime default does not restart owners, but managed software
+updates still require a usable host service manager. Detached registration cleanup
 uses existing launch/dispatch/owner claims and retirement fencing; it never signals
 a recorded PID or claims provider descendants have ended. These additions develop
 the initial unshipped 1.0 contract alongside its first implementation.
@@ -113,9 +114,9 @@ observations. Never replay user input while retrying journal persistence.
 
 When the journal fills, retain existing unacknowledged observations and a sticky
 `lost_through` marker. Stop ordinary acknowledgement/adoption of that incomplete
-history, while continuing to drain PTYs. Production segment-to-placement binding
-and a deliberate recovery flow for incomplete history remain required before enabling
-the production backend. Normal shutdown reaps terminal exits and flushes the
+history, while continuing to drain PTYs. Segment-to-placement binding commits
+through the daemon; incomplete history remains an explicit reconciliation problem.
+Normal shutdown reaps terminal exits and flushes the
 journal before releasing runtime ownership. Confirmed-owner-loss discovery reads
 the private journal alongside final state so exits during an outage can be
 reconciled after the owner has gone; missing/corrupt history must not be treated
@@ -419,8 +420,11 @@ reply bytes before sending a prompt; a full unread store refuses dispatch.
 Reclamation shares the intent/observation transaction, so failed commits retain
 old results. A separate monotonic watermark prevents identity reuse after pruning;
 existing results migrate as unread. There is no expiry or automatic disposal of
-unread outcomes, even after their programme ends. Their explicit disposition and
-host-wide accounting remain rollout gates. No runtime wire fields change.
+unread outcomes, even after their programme ends. Application 26.1/migration 040
+adds exact explicit local/SSH read/discard dispositions for finished programmes,
+with transactional consumption and metadata-only audit. It does not assert reply
+delivery or replay execution. Host-wide accounting remains a rollout gate.
+No runtime wire fields change.
 
 ## Private records and ownership
 
@@ -437,14 +441,14 @@ It holds a separate OS `runtime-launch` claim until adoption or an uncertain res
 retirement and supervisor collection acquire that claim before the owner claim.
 This prevents recovery from fencing a queued launch while its initiating controller
 is still waiting. A lost supervisor acknowledgement triggers inspection only.
-Shutdown drains launcher operations before closing writers. The explicit daemon
-composition option currently routes terminal and interactive/headless agent create/resume,
+Shutdown drains launcher operations before closing writers. Standard daemon
+composition routes terminal and interactive/headless agent create/resume,
 including code-execution terminals. Their canonical managed run directory is
 referenced in application SQLite alongside launch intent, so cleanup retains it
 through controller replacement and uncertain owner outcomes. Only a confirmed
 clean owner exit releases that reference; the resumed terminal never repeats its
 programme. These application-side references add no private wire fields. Default
-installed selection remains gated.
+launches resolve the installed runtime selector; no product backend toggle exists.
 
 Provider context optionally carries `initial_ref` for a new preset-id launch or
 `prior_refs` for a provider that mints its own ids (at most 16,384 ids, each at most
@@ -495,7 +499,8 @@ persists stop intent before sending it once; the daemon observes a lost response
 and requires complete clean exit before archive. Explicit stop intent suppresses
 automatic recovery. Worktrees stay protected while external ownership or descendant
 cleanup is unresolved. Production creation/resume/migration, provider-command
-routing, theme/notification integration and retention remain separate gates.
+routing and theme/notification integration now use these owner controls. Native
+provider acceptance and host-wide retained-storage accounting remain separate gates.
 
 Port scanning uses authenticated `inspect` results to obtain current terminal and
 provider-sidecar roots and exclude advertised hidden ports. It never trusts disk

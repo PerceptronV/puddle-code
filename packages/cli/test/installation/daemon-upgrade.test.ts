@@ -1,3 +1,4 @@
+import { reviewedHostUpdate } from '../../../shared/test/helpers/host-update.js';
 import { createServer, type Server } from 'node:http';
 import { connect } from 'node:net';
 import { mkdtempSync, writeFileSync } from 'node:fs';
@@ -18,11 +19,16 @@ vi.mock('../../src/lib/installation/bootstrap.js', () => ({
   installDaemon: install,
   installedVersion: async () => '0.2.3',
 }));
+const hostUpgrade = vi.hoisted(() => vi.fn());
+vi.mock('../../src/lib/installation/host/upgrade.js', () => ({
+  upgradeHostComponent: hostUpgrade,
+}));
 import { ensureDaemon } from '../../src/lib/connection/cockpit.js';
 import { startLocal } from '../../src/lib/connection/start.js';
 
 let home: string;
 let major: number;
+let minor: number;
 let server: Server;
 let stopControl: () => Promise<void>;
 let registry: LeaseRegistry;
@@ -33,11 +39,13 @@ beforeEach(async () => {
   home = mkdtempSync(join(tmpdir(), 'puddle-upgrade-'));
   process.env.PUDDLE_HOME = home;
   major = PROTOCOL_VERSION.major - 1;
+  minor = 0;
+  hostUpgrade.mockReset();
   rejectInspection = false;
   registry = new LeaseRegistry();
   const version = () => ({
     version: major === PROTOCOL_VERSION.major ? '0.2.4' : '0.2.3',
-    protocol: { major, minor: 0 },
+    protocol: { major, minor: major === PROTOCOL_VERSION.major ? PROTOCOL_VERSION.minor : minor },
   });
   server = createServer((req, res) => {
     const token = req.headers.authorization?.slice('Bearer '.length) ?? '';
@@ -191,3 +199,31 @@ it.each([0, 1])('rechecks a host changed during the prompt (major offset %i)', a
   expect(confirmDaemonUpgrade).toHaveBeenCalledOnce();
   expect(install).not.toHaveBeenCalled();
 });
+
+it.each([true, false])(
+  'carries a separate exact impact decision through local launch (%s)',
+  async (approved) => {
+    minor = 20;
+    const request = reviewedHostUpdate();
+    const confirmDaemonUpgrade = vi.fn(async () => true);
+    const confirmInterruption = vi.fn(async () => approved);
+    hostUpgrade.mockImplementation(async (_transport, _component, options) => {
+      expect(confirmDaemonUpgrade).toHaveBeenCalledOnce();
+      if (!(await options.confirmInterruption?.(request)))
+        throw new Error('Exact interruption declined');
+      major = PROTOCOL_VERSION.major;
+      return { from: '0.2.3', to: '0.2.4', operation: request.operation };
+    });
+    const pending = startLocal({ assetsDir: home, confirmDaemonUpgrade, confirmInterruption });
+    if (approved) {
+      const cockpit = await pending;
+      cleanup.push(() => cockpit.stop());
+      expect(cockpit.daemon.protocol.major).toBe(PROTOCOL_VERSION.major);
+    } else {
+      await expect(pending).rejects.toThrow('Exact interruption declined');
+      expect(major).toBe(PROTOCOL_VERSION.major - 1);
+    }
+    expect(confirmInterruption).toHaveBeenCalledExactlyOnceWith(request);
+    expect(install).not.toHaveBeenCalled();
+  },
+);

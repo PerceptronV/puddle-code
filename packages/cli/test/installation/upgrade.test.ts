@@ -22,7 +22,9 @@ vi.mock('../../src/lib/auth/control-channel.js', () => ({ inspectHost: mock.insp
 vi.mock('../../src/lib/installation/host/upgrade.js', () => ({
   upgradeHostComponent: mock.update,
 }));
-vi.mock('../../src/lib/installation/host/start.js', () => ({ startInstalledDaemon: mock.start }));
+vi.mock('../../src/lib/installation/host/start.js', () => ({
+  startInstalledDaemonForInspection: mock.start,
+}));
 const homes: string[] = [];
 afterEach(() => {
   vi.resetAllMocks();
@@ -85,14 +87,17 @@ it('refuses a disconnected modern installation instead of bypassing its update r
 
 it('starts the selected stopped daemon before staging an explicitly requested update', async () => {
   const f = fixture();
-  const close = vi.fn();
   mock.inspect.mockResolvedValueOnce(null);
-  mock.start.mockResolvedValueOnce({ authority: { close } });
+  mock.start.mockResolvedValueOnce({
+    t: 'inspection',
+    port: 7434,
+    liveSessions: 3,
+    version: { version: '0.4.0', protocol: PROTOCOL_VERSION },
+  });
   f.exec.mockResolvedValueOnce({ code: 0, stdout: '', stderr: '' });
   const result = await upgradeDaemon(f.transport, { version: '0.4.1' });
   expect(result.to).toBe('0.4.1');
   expect(mock.start).toHaveBeenCalledExactlyOnceWith(f.transport);
-  expect(close).toHaveBeenCalledOnce();
   expect(mock.update).toHaveBeenCalledExactlyOnceWith(f.transport, 'daemon', { version: '0.4.1' });
   expect(mock.install).not.toHaveBeenCalled();
 });
@@ -141,4 +146,35 @@ it.each([
   } finally {
     transport.dispose();
   }
+});
+
+it('pins trusted older-major inspection to the private update-only connection and forwards exact consent', async () => {
+  const f = fixture({ major: 25, minor: 20 });
+  const confirmInterruption = vi.fn(async () => true);
+  await upgradeDaemon(f.transport, { version: '0.4.1', confirmInterruption });
+  expect(mock.update).toHaveBeenCalledExactlyOnceWith(f.transport, 'daemon', {
+    version: '0.4.1',
+    confirmInterruption,
+    outgoing: { version: '0.4.0', protocol: { major: 25, minor: 20 } },
+  });
+  expect(mock.install).not.toHaveBeenCalled();
+});
+
+it('starts an older-major selected daemon through inspection before opening scoped update authority', async () => {
+  const f = fixture({ major: 25, minor: 20 });
+  mock.inspect.mockResolvedValueOnce(null);
+  mock.start.mockResolvedValueOnce({
+    t: 'inspection',
+    port: 7434,
+    liveSessions: 3,
+    version: { version: '0.4.0', protocol: { major: 25, minor: 20 } },
+  });
+  f.exec.mockResolvedValueOnce({ code: 0, stdout: '', stderr: '' });
+  await upgradeDaemon(f.transport, { version: '0.4.1' });
+  expect(mock.start).toHaveBeenCalledOnce();
+  expect(mock.update).toHaveBeenCalledExactlyOnceWith(f.transport, 'daemon', {
+    version: '0.4.1',
+    outgoing: { version: '0.4.0', protocol: { major: 25, minor: 20 } },
+  });
+  expect(mock.install).not.toHaveBeenCalled();
 });

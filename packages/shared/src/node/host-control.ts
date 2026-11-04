@@ -1,3 +1,5 @@
+import { HostUpdateOnlyScope, type HostUpdateConnectionScope } from './control/update-authority.js';
+export type { HostUpdateConnectionScope } from './control/update-authority.js';
 export { readStageCapabilities, readInstalledCapabilities } from './installation/capabilities.js';
 export { readHostBootIdentity } from './installation/boot.js';
 export {
@@ -90,6 +92,8 @@ export class HostControlClient implements ConnectionAuthority {
     HostMaintenanceReply
   > | null = null;
 
+  private readonly updateOnly: HostUpdateOnlyScope | null;
+
   private renewControl: ((resources: string[], sentAt: number) => boolean) | null = null;
 
   constructor(
@@ -101,7 +105,11 @@ export class HostControlClient implements ConnectionAuthority {
     ) => Error = (_code, message) => new Error(message),
     private readonly profile?: string,
     private readonly maintenance?: RemoteMaintenanceClaim,
+    updateScope?: HostUpdateConnectionScope,
   ) {
+    if (updateScope && (profile || maintenance))
+      throw new Error('Host update migration cannot carry profile or remote authority');
+    this.updateOnly = updateScope ? new HostUpdateOnlyScope(updateScope) : null;
     if (maintenance) {
       if (!profile) throw new Error('Remote maintenance requires a profile');
       this.maintenance = remoteMaintenanceClaimSchema.parse(maintenance);
@@ -121,9 +129,12 @@ export class HostControlClient implements ConnectionAuthority {
   }
   /** Run after every replacement control generation before reopening the gateway. */
   setVerifier(verifier: () => Promise<void>): void {
+    if (this.updateOnly)
+      throw new Error('Host update migration cannot open an application gateway');
     this.verifier = verifier;
   }
   credential(): string {
+    if (this.updateOnly) throw new Error('Host update migration has no application credential');
     if (!this.token || performance.now() >= this.until)
       throw this.error('daemon_unreachable', 'connection authority is unavailable');
     return this.token;
@@ -178,7 +189,15 @@ export class HostControlClient implements ConnectionAuthority {
       );
     if (this.state !== 'ready' || !this.updates)
       return Promise.reject(new Error('Host control is unavailable'));
-    return this.updates.request(command);
+    try {
+      this.updateOnly?.before(command);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    return this.updates.request(command).then((reply) => {
+      this.updateOnly?.observed(reply);
+      return reply;
+    });
   }
   /** A separate manually participating profile channel; never grants host-wide update access. */
   hostMaintenance(command: HostMaintenanceCommand): Promise<HostMaintenanceReply> {
@@ -270,15 +289,22 @@ export class HostControlClient implements ConnectionAuthority {
               channel.destroy();
               return;
             }
-            if (message.version.protocol.major !== PROTOCOL_VERSION.major) {
+            if (
+              this.updateOnly
+                ? !this.updateOnly.accepts(message.version)
+                : message.version.protocol.major !== PROTOCOL_VERSION.major
+            ) {
               this.status = 'protocol_mismatch';
               reject(
                 this.error(
                   'protocol_mismatch',
-                  `Host protocol ${message.version.protocol.major} does not match client protocol ${PROTOCOL_VERSION.major}`,
+                  this.updateOnly
+                    ? 'Host identity changed outside the approved update migration'
+                    : `Host protocol ${message.version.protocol.major} does not match client protocol ${PROTOCOL_VERSION.major}`,
                 ),
               );
-              channel.destroy();
+              if (this.updateOnly) this.close();
+              else channel.destroy();
               return;
             }
             if (!initial && message.generation !== this.generation) return channel.destroy();

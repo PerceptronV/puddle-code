@@ -1,10 +1,19 @@
 import { hostPaths } from '../../paths.js';
 import type { Transport } from '../../transport/transport.js';
-import { waitForStartedDaemon } from '../../auth/readiness.js';
+import { waitForStartedDaemon, waitForInspectedDaemon } from '../../auth/readiness.js';
 import { CliError } from '../../types.js';
 
 /** Trusted OS/SSH request only; readiness, not an exit code, establishes a usable daemon. */
-export async function startInstalledDaemon(transport: Transport, timeoutMs = 20_000) {
+export function startInstalledDaemon(transport: Transport, timeoutMs = 20_000) {
+  return startSelectedDaemon(transport, () => waitForStartedDaemon(transport, timeoutMs));
+}
+
+/** Starting an older selected service is separate from approving its replacement. */
+export function startInstalledDaemonForInspection(transport: Transport, timeoutMs = 20_000) {
+  return startSelectedDaemon(transport, () => waitForInspectedDaemon(transport, timeoutMs));
+}
+
+async function startSelectedDaemon<T>(transport: Transport, observe: () => Promise<T>): Promise<T> {
   try {
     await transport.exec(
       `${hostPaths.current}/bin/node ${hostPaths.current}/daemon/host-update.mjs ` +
@@ -16,7 +25,7 @@ export async function startInstalledDaemon(transport: Transport, timeoutMs = 20_
     // through authenticated readiness; never retry startup or fall back to install.
   }
   try {
-    return await waitForStartedDaemon(transport, timeoutMs);
+    return await observe();
   } catch (error) {
     if (!(error instanceof CliError) || error.code !== 'daemon_start_timeout') throw error;
     throw new CliError(
