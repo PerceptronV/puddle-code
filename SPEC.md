@@ -876,8 +876,7 @@ unchanged, and a durable action recreates the supervisor marker. Configuration
 restoration never restores deleted user data. Repeated install observes an existing
 hand-off/readiness without starting the daemon again; historical purge evidence does
 not override a later removal or completed restoration.
-Public collection scheduling, obsolete-reference retirement and complete platform/
-provider/reboot acceptance remain required. Successful runtime disposition or service unregistration
+Complete platform/provider/reboot acceptance remains required. Successful runtime disposition or service unregistration
 alone never authorises deleting a release, runtime record or home.
 The internal collection review under `host/installation/collection/` reads bounded
 release/reference inventories while retaining installer/update/controller exclusion
@@ -894,9 +893,25 @@ following links. Lost intent/rename/completion writes reconcile source/quarantin
 evidence; unknown or replaced trees remain untouched. The collecting helper pins its
 own build. Only the current and previous completed collection journals are retained.
 Tests include killing the helper after quarantine and continuing under fresh process
-claims. Public invocation/scheduling and obsolete-reference retirement remain
-unfinished; collection never retires runtime/update references itself. Coordinated
-purge shares its bounded no-follow tree deletion helper.
+claims. Mandatory daemon maintenance now invokes this executor outside the upkeep
+it pauses, borrowing the current controller and retaining update/installer exclusion.
+It starts after 30 seconds, coalesces terminal-update observations with a five-minute
+minimum between attempts and runs every 30 minutes when idle. Each pass has a
+five-second deadline and an aggregate reference-inventory budget of 16 MiB,
+16,384 entries and 8,192 references; separate control/journal/proof reads retain
+their existing per-record/action limits. Shutdown fences scheduling and drains the
+pass before releasing runtime control or SQLite.
+
+Reference retirement remains separate from deletion. A runtime's unchanged durable
+launch fence must span different verified kernel boots before its executable
+references retire; bindings, native conversations and replay history stay intact.
+Completed updater/recovery jobs require ended-group and exact service-removal proof.
+Terminal operation evidence is retained before bounded ledger eviction. Rollback
+pins protect at least two successful operations per component; ambiguous archived
+ordering retains all unretired candidates, rather than guessing from wall-clock
+timestamps. Unknown evidence stays pinned. Isolated tests verify these paths and
+live runtime/shell continuity; native service/reboot/provider acceptance remains
+outstanding. Coordinated purge shares the bounded no-follow tree deletion helper.
 
 Migration 032 records terminal generations per segment and explicitly selects each
 placement's terminal owner. Runtime launches/switches update that selection in the

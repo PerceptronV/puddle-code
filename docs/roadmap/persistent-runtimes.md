@@ -37,8 +37,9 @@ replacement now passes with actual bundles and scripted supervision; native-mana
 and real-provider acceptance remain outstanding.
 Public local/SSH removal now coordinates remote disablement, service teardown and
 reviewed runtime retention/stops; deliberate install restores retained service definitions.
-Durable reference-aware collection is implemented internally; public scheduling and
-obsolete-reference retirement remain unfinished. Coordinated purge is integrated
+Durable reference-aware collection now runs through mandatory bounded maintenance,
+with separate runtime/update reference retirement and conservative rollback pins.
+Native service-retirement and reboot acceptance remain outstanding. Coordinated purge is integrated
 with a cross-boot descendant barrier and retained control/recovery anchors; actual
 platform reboot acceptance remains outstanding.
 This document describes the intended refactor; [SPEC.md](../../SPEC.md) continues
@@ -58,6 +59,19 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 [acceptance matrix](#acceptance-matrix) for the release gates.
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
+
+- Mandatory release maintenance now reuses the current daemon controller, update/
+  installer exclusion and the shared pause. Startup, coalesced terminal-operation
+  observations and a slow cadence drive bounded passes; it runs outside the upkeep
+  it pauses and drains before daemon shutdown. Runtime retirement requires the same
+  durable fence across verified kernel boots; update retirement checks ended groups
+  and exact service removal. Terminal operation evidence survives history eviction,
+  and rollback protection retains at least two successful operations per component,
+  keeping ambiguous older ordering pinned. The 85 focused checks include a live
+  isolated owner whose PID, PTY and shell state survive unused-build collection.
+  Local and encrypted actual-bundle upgrades also passed with scheduling enabled.
+  Source/test typechecks and lint passed. Native service removal, actual reboot and
+  real-provider acceptance remain separate gates.
 
 - Labelled host-session fallback now has isolated actual-owner/shell close and
   reconnect coverage: surviving owners retain their identity and in-memory state;
@@ -1678,13 +1692,22 @@ for seven days. Unverified/legacy trees remain retained until ownership can be
 established. Collection reviews include the candidate set in their fingerprint;
 ageing into eligibility cannot silently enlarge an earlier accepted deletion plan.
 
-### Production release collection — pending for 0.4.0
+### Production release collection
 
-Collection remains required default functionality, with no user opt-in. The
-durable executor exists; production invocation and retirement of obsolete
-references are not delivered. Adding a startup call alone would miss ordinary
-updates: the replacement starts while the updater still owns execution and its
-operation is nonterminal, so the current collection guard must refuse that pass.
+Collection is required default functionality, with no user opt-in. The durable
+executor runs through coalesced daemon maintenance, with separate retirement of
+obsolete executable references. The replacement can start while the updater still
+owns execution, so a busy or unresolved operation skips collection before pausing
+application work; later observations and the slow cadence retry it.
+
+The initial pass waits 30 seconds. Terminal-operation observations request a pass
+with a five-minute minimum between attempts; idle maintenance runs every 30 minutes.
+Each pass has a five-second deadline, at most eight runtime and eight update
+retirement attempts, and the existing 32-generation/512-object deletion limits.
+The aggregate reference-inventory budget is 16 MiB, 16,384 entries and 8,192
+references, including repeated inspections within that pass. Control/journal and
+ended-worker proof reads retain separate per-record/action bounds and the shared
+deadline; this is not an absolute limit on all filesystem I/O.
 
 Use one coalesced daemon maintenance pass after completed updates and on a slow
 host-wide cadence. Reuse the existing installation/update claims and
@@ -1723,9 +1746,9 @@ and complete tree digest provide collection evidence; unchecked archives and leg
 trees remain unverified. Do not manufacture verification for reused trees.
 
 Keep the existing seven-day retention, 32-generation plans and 512-object deletion
-budget, and add a smaller maintenance deadline plus aggregate metadata byte/reference
-budgets. The current 4,096-entry directory limits and 8 MiB checkpoint limit are
-per record/directory, not an aggregate scan budget. Resume only the recorded batch
+budget, alongside the maintenance deadline and aggregate inventory limits above.
+The 4,096-entry directory limits and 8 MiB checkpoint limit also remain per
+record/directory. Resume only the recorded batch
 on later passes; do not loop to exhaustion or expand it when more trees become old.
 
 Acceptance must cover a live agent's unchanged PID/shell state, contention with
@@ -1734,7 +1757,9 @@ interrupted quarantine resumed by the next scheduled pass, and bounded work at
 1/10/50 runtimes. Retirement tests must preserve replay/native conversation data,
 retain same-boot orphans and unknown evidence, fence delayed services, survive lost
 writes and history eviction, and prove reclamation only after the final reference
-has retired. These remain release gates, not completed acceptance evidence.
+has retired. Isolated scheduling, retirement and live-owner checks now provide
+automated evidence; native service/reboot/provider acceptance and scaled workload
+measurements remain separate release gates.
 
 ### What each action means
 

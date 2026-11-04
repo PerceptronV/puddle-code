@@ -42,7 +42,12 @@ import { PtyManager } from './pty/pty-manager.js';
 import { TerminalTheme } from './pty/terminal-theme.js';
 import { installShellHooks } from './pty/shell-hooks.js';
 import { clearRuntime, writeRuntime } from './runtime-file.js';
-import { PROTOCOL_VERSION } from '@puddle/shared';
+import {
+  PROTOCOL_VERSION,
+  hostUpdateTerminal,
+  type HostUpdateCommand,
+  type HostUpdateReply,
+} from '@puddle/shared';
 import { LeaseRegistry } from './security/leases.js';
 import { ProfileAccess } from './security/profile-access.js';
 import { startHostControl } from './security/control.js';
@@ -72,6 +77,7 @@ import { DATABASE_SCHEMA_VERSION } from './db/migrations/index.js';
 import { HostUpdateOperations } from './updates/operations/store.js';
 import { HostAdmission } from './host/lifecycle/admission.js';
 import { HostBackgroundTasks } from './host/lifecycle/background.js';
+import { ReleaseCollectionMaintenance } from './host/installation/collection/maintenance.js';
 import { startUpdateWorker } from './updates/worker/supervisor.js';
 import { startUpdateRecoveryWorker } from './updates/recovery/worker/supervisor.js';
 import { resolveInstalledRuntimeRelease } from './runtime/lifecycle/release.js';
@@ -138,7 +144,26 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   const upkeep = new HostBackgroundTasks();
   let updateCoordinator: HostUpdateCoordinator | null = null;
   let remoteUpdates: RemoteHostUpdates | null = null;
+  let releaseCollection: ReleaseCollectionMaintenance | null = null;
+  let observedTerminalUpdate = '';
   let announceHostUpdates = () => {};
+  const executeHostUpdate = async (
+    command: HostUpdateCommand,
+    authorised: () => boolean,
+  ): Promise<HostUpdateReply> => {
+    const result = await (updateCoordinator?.execute(command, authorised) ??
+      Promise.resolve({ ok: false as const, code: 'unavailable' as const, operation: null }));
+    if (command.action !== 'status') announceHostUpdates();
+    const operation = result.operation;
+    if (operation && hostUpdateTerminal(operation.phase)) {
+      const identity = `${operation.id}:${operation.revision}`;
+      if (identity !== observedTerminalUpdate) {
+        observedTerminalUpdate = identity;
+        releaseCollection?.request();
+      }
+    }
+    return result;
+  };
   let controlInfo: {
     port: number;
     version: { version: string; protocol: typeof PROTOCOL_VERSION };
@@ -150,12 +175,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       paths.home,
       authority,
       () => controlInfo,
-      async (command, authorised) => {
-        const result = await (updateCoordinator?.execute(command, authorised) ??
-          Promise.resolve({ ok: false as const, code: 'unavailable' as const, operation: null }));
-        if (command.action !== 'status') announceHostUpdates();
-        return result;
-      },
+      executeHostUpdate,
       {
         check: (profile, claim) => remoteMaintenanceAuthority(paths.home, profile, claim),
         execute: (command, authorised) => {
@@ -594,6 +614,24 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     announceHostUpdates = () => gateway.hostUpdatesChanged();
     const releaseChecks = new HostReleaseChecks({ home: paths.home, changed: announceHostUpdates });
     failedStartup.push(() => releaseChecks.close());
+    const pauseDaemon = daemonUpdatePause({
+      clients: admission,
+      upkeep,
+      retention,
+      programmes: puddlang,
+      compilation,
+      catalogue,
+      markers: onboarding,
+      launcher: runtimeLauncher,
+      sessions: service,
+      controls: runtimeControls,
+      notebooks,
+      notifications: runtimeNotifications,
+      cleanup: runtimeServiceCleanup,
+      connections: runtimeConnections,
+      reconciler: runtimeReconciler,
+      refreshAccounts: () => accountObservations.refresh(),
+    });
     updateCoordinator = new HostUpdateCoordinator({
       home: paths.home,
       operations: new HostUpdateOperations(paths.home),
@@ -606,24 +644,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
           releases: releaseChecks,
         }),
       inspection: updateInspection,
-      pauseDaemon: daemonUpdatePause({
-        clients: admission,
-        upkeep,
-        retention,
-        programmes: puddlang,
-        compilation,
-        catalogue,
-        markers: onboarding,
-        launcher: runtimeLauncher,
-        sessions: service,
-        controls: runtimeControls,
-        notebooks,
-        notifications: runtimeNotifications,
-        cleanup: runtimeServiceCleanup,
-        connections: runtimeConnections,
-        reconciler: runtimeReconciler,
-        refreshAccounts: () => accountObservations.refresh(),
-      }),
+      pauseDaemon,
       observeAdoption: (operation, nonce) => {
         updateAdoption.observe(operation, nonce);
       },
@@ -652,11 +673,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     failedStartup.push(() => updateCoordinator?.close());
     remoteUpdates = new RemoteHostUpdates({
       version: opts.version ?? '0.0.0',
-      execute: async (command, authorised) => {
-        const result = await updateCoordinator!.execute(command, authorised);
-        if (command.action !== 'status') announceHostUpdates();
-        return result;
-      },
+      execute: executeHostUpdate,
       stage: (repository, target, authorised) =>
         stageRemoteHostUpdate(
           paths.home,
@@ -666,6 +683,14 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
           authorised,
         ),
     });
+    // This task pauses upkeep, so it must own its schedule outside that admission.
+    releaseCollection = new ReleaseCollectionMaintenance({
+      home: paths.home,
+      runtimes,
+      pause: pauseDaemon,
+      controller: () => runtimeConnections.controllerIdentity(),
+    });
+    failedStartup.push(() => releaseCollection!.close());
 
     let stopping: Promise<void> | null = null;
     let shutdownUpdate: string | undefined;
@@ -706,11 +731,13 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
         clearInterval(fetchTimer);
         updateCoordinator?.close();
         releaseChecks.close();
+        const collectionClosed = releaseCollection!.close();
         // A request already preparing a launch must not create another child
         // after cleanup has taken its inventory of daemon-owned terminals.
         ptys.beginShutdown();
         service.beginShutdown();
         stopping = (async () => {
+          await collectionClosed;
           await runtimeLauncher?.close();
           runtimeNotifications.close();
           await runtimeServiceCleanup.close();

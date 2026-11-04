@@ -1,9 +1,9 @@
 import { acquireHostClaim } from '../../../security/claims.js';
-import type { HostRemovalGuard } from '../../removal/guard.js';
+import type { ReleaseCollectionGuard } from './guard.js';
 
 /** One writer claim spans reference inspection and every resulting filesystem effect. */
 export async function withReleaseCollectionExclusion<T>(
-  guard: HostRemovalGuard,
+  guard: ReleaseCollectionGuard,
   authorised: () => boolean,
   work: (requireCurrent: () => void) => Promise<T>,
 ): Promise<T> {

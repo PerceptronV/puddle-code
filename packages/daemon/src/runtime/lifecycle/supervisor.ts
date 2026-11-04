@@ -51,7 +51,7 @@ export function runtimeServiceDefinition(home: string, record: RuntimeSupervisor
   });
 }
 
-function registrationName(
+export function runtimeServiceName(
   home: string,
   identity: RuntimeIdentity,
   kind: RuntimeSupervisor['kind'],
@@ -85,7 +85,7 @@ export async function startRuntimeService(
     format: 1,
     identity,
     kind: opts.kind,
-    name: registrationName(home, identity, opts.kind),
+    name: runtimeServiceName(home, identity, opts.kind),
     domain: opts.kind === 'launchd' ? `gui/${uid}` : null,
     node_path: nodePath,
     entry_path: entryPath,
@@ -166,7 +166,7 @@ export async function removeRuntimeService(
     }
     if (JSON.stringify(record.identity) !== JSON.stringify(identity))
       throw new Error('Runtime supervisor identity mismatch');
-    const expectedName = registrationName(home, identity, record.kind);
+    const expectedName = runtimeServiceName(home, identity, record.kind);
     if (
       record.name !== expectedName ||
       record.domain !== (record.kind === 'launchd' ? `gui/${process.getuid?.()}` : null)

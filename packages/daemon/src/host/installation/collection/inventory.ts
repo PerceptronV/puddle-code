@@ -3,6 +3,7 @@ import { opendir } from 'node:fs/promises';
 import { dirname, isAbsolute, join } from 'node:path';
 import { hostStageRecordSchema, parseHostReleaseVersion } from '@puddle/shared';
 import { digest, privatePath, readPrivateJson } from '@puddle/shared/node';
+import { CollectionBudget } from './budget.js';
 
 export const RELEASE_INVENTORY_LIMIT = 4096;
 export const UNREFERENCED_RELEASE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
@@ -24,6 +25,7 @@ export class ReleaseReferenceInventory {
   constructor(
     readonly home: string,
     readonly requireCurrent: () => void,
+    readonly budget = new CollectionBudget(),
   ) {
     requireCurrent();
     privatePath(join(home, 'bin'), true);
@@ -32,7 +34,12 @@ export class ReleaseReferenceInventory {
   }
 
   async inspect(): Promise<void> {
-    for (const generation of await boundedDirectories(this.versions, this.requireCurrent, false)) {
+    for (const generation of await boundedDirectories(
+      this.versions,
+      this.requireCurrent,
+      false,
+      this.budget,
+    )) {
       if (
         !hostStageRecordSchema.shape.generation.safeParse(generation).success &&
         parseHostReleaseVersion(generation) !== generation
@@ -40,7 +47,7 @@ export class ReleaseReferenceInventory {
         throw new Error('Unknown installed release generation');
       const path = join(this.versions, generation);
       const info = lstatSync(path);
-      const value = optionalRecord(join(path, '.puddle-stage.json'), 4096);
+      const value = optionalRecord(join(path, '.puddle-stage.json'), 4096, this.budget);
       const record = value === null ? null : hostStageRecordSchema.parse(value);
       if (record && record.generation !== generation)
         throw new Error('Release receipt belongs to another generation');
@@ -58,6 +65,7 @@ export class ReleaseReferenceInventory {
 
   add(path: string, reference: string): void {
     this.requireCurrent();
+    this.budget.reference();
     if (!isAbsolute(path)) throw new Error('Release reference is not absolute');
     const canonical = realpathSync(path);
     if (dirname(canonical) !== this.versions || !this.releases.has(canonical))
@@ -96,7 +104,12 @@ function ownedDirectory(path: string): void {
     throw new Error('Unsafe installed release directory');
 }
 
-export function optionalRecord(path: string, limit: number): unknown | null {
+export function optionalRecord(
+  path: string,
+  limit: number,
+  budget?: CollectionBudget,
+): unknown | null {
+  budget?.record(path);
   try {
     return readPrivateJson(path, limit);
   } catch (error) {
@@ -110,12 +123,17 @@ export async function boundedDirectories(
   path: string,
   requireCurrent: () => void,
   privateStorage = true,
+  budget?: CollectionBudget,
 ): Promise<string[]> {
-  return boundedEntries(path, requireCurrent, 'directory', privateStorage);
+  return boundedEntries(path, requireCurrent, 'directory', privateStorage, budget);
 }
 
-export async function boundedFiles(path: string, requireCurrent: () => void): Promise<string[]> {
-  return boundedEntries(path, requireCurrent, 'file', true);
+export async function boundedFiles(
+  path: string,
+  requireCurrent: () => void,
+  budget?: CollectionBudget,
+): Promise<string[]> {
+  return boundedEntries(path, requireCurrent, 'file', true, budget);
 }
 
 async function boundedEntries(
@@ -123,6 +141,7 @@ async function boundedEntries(
   requireCurrent: () => void,
   kind: 'directory' | 'file',
   privateStorage: boolean,
+  budget?: CollectionBudget,
 ): Promise<string[]> {
   try {
     if (privateStorage) privatePath(path, true);
@@ -134,6 +153,7 @@ async function boundedEntries(
   const result: string[] = [];
   for await (const entry of await opendir(path)) {
     requireCurrent();
+    budget?.entry();
     if (
       !(kind === 'directory' ? entry.isDirectory() : entry.isFile()) ||
       result.length === RELEASE_INVENTORY_LIMIT

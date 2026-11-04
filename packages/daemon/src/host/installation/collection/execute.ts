@@ -14,7 +14,8 @@ import {
   syncPrivateDirectory,
 } from '@puddle/shared/node';
 import type { RuntimeStore } from '../../../db/stores/runtimes.js';
-import type { HostRemovalGuard } from '../../removal/guard.js';
+import type { ReleaseCollectionGuard } from './guard.js';
+import type { CollectionBudget } from './budget.js';
 import { HostActionWriter } from '../action-writer.js';
 import { withReleaseCollectionExclusion } from './exclusion.js';
 import { boundedDirectories, optionalRecord, type RetainedRelease } from './inventory.js';
@@ -23,7 +24,7 @@ import { pruneOwnedTree, OWNED_TREE_FILE_BUDGET, syncOwnedDirectory } from '../t
 
 type RuntimeReferences = Pick<RuntimeStore, 'releaseReferences' | 'get'>;
 type Release = HostReleaseCollection['releases'][number];
-type Persistence = { write?: typeof atomicPrivateJson };
+type Persistence = { write?: typeof atomicPrivateJson; budget?: CollectionBudget };
 
 function paths(home: string) {
   const directory = join(home, 'installation/collection');
@@ -35,7 +36,9 @@ function paths(home: string) {
 }
 
 /** Recorded progress only, never proof that a release remains unreferenced. */
-export function inspectReleaseCollection(guard: HostRemovalGuard): HostReleaseCollection | null {
+export function inspectReleaseCollection(
+  guard: ReleaseCollectionGuard,
+): HostReleaseCollection | null {
   guard.requireController();
   const { directory, journal } = paths(guard.home);
   try {
@@ -55,20 +58,31 @@ export function inspectReleaseCollection(guard: HostRemovalGuard): HostReleaseCo
 
 /** Accept only the reviewed candidates, capped to one bounded batch. No release files change. */
 export async function prepareReleaseCollection(
-  guard: HostRemovalGuard,
+  guard: ReleaseCollectionGuard,
   runtimes: RuntimeReferences,
   fingerprint: string,
   authorised: () => boolean,
   persistence: Persistence = {},
 ): Promise<HostReleaseCollection | null> {
   return withReleaseCollectionExclusion(guard, authorised, async (requireCurrent) => {
-    const review = await inspectReleaseReferences(guard.home, runtimes, requireCurrent);
+    const review = await inspectReleaseReferences(
+      guard.home,
+      runtimes,
+      requireCurrent,
+      Date.now(),
+      persistence.budget,
+    );
     if (review.fingerprint !== fingerprint) throw new Error('Release collection review changed');
     const previous = inspectReleaseCollection(guard);
     if (previous?.actions.some(({ state }) => state !== 'finished'))
       throw new Error('Continue the existing release collection first');
     const locations = paths(guard.home);
-    for (const id of await boundedDirectories(locations.quarantine, requireCurrent)) {
+    for (const id of await boundedDirectories(
+      locations.quarantine,
+      requireCurrent,
+      true,
+      persistence.budget,
+    )) {
       if (id !== previous?.id) throw new Error('Unknown release collection quarantine');
       // A completed batch can leave its empty container after losing the last reply.
       rmdirSync(join(locations.quarantine, id));
@@ -119,7 +133,7 @@ export async function prepareReleaseCollection(
 
 /** Explicit, bounded reconciliation of filesystem intent, including an interrupted rename/deletion. */
 export async function executeReleaseCollection(
-  guard: HostRemovalGuard,
+  guard: ReleaseCollectionGuard,
   runtimes: RuntimeReferences,
   id: string,
   authorised: () => boolean,
@@ -131,11 +145,21 @@ export async function executeReleaseCollection(
     const locations = paths(guard.home);
     privatePath(join(guard.home, 'bin'), true);
     privateDirectory(locations.quarantine);
-    for (const entry of await boundedDirectories(locations.quarantine, requireCurrent))
+    for (const entry of await boundedDirectories(
+      locations.quarantine,
+      requireCurrent,
+      true,
+      persistence.budget,
+    ))
       if (entry !== id) throw new Error('Unknown release collection quarantine');
     const quarantine = join(locations.quarantine, id);
     privateDirectory(quarantine);
-    for (const generation of await boundedDirectories(quarantine, requireCurrent, false))
+    for (const generation of await boundedDirectories(
+      quarantine,
+      requireCurrent,
+      false,
+      persistence.budget,
+    ))
       if (!initial.releases.some((release) => release.generation === generation))
         throw new Error('Unknown quarantined release');
     const writer = new HostActionWriter({
@@ -158,7 +182,13 @@ export async function executeReleaseCollection(
       }
       if (!budget.remaining) break;
       const reconcile = async () => {
-        const review = await inspectReleaseReferences(guard.home, runtimes, requireCurrent);
+        const review = await inspectReleaseReferences(
+          guard.home,
+          runtimes,
+          requireCurrent,
+          Date.now(),
+          persistence.budget,
+        );
         requireCurrent();
         const original = stat(source);
         const detached = stat(target);

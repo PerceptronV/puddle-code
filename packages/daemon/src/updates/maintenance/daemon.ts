@@ -33,10 +33,12 @@ export function daemonUpdatePause(deps: {
     [deps.connections],
     [deps.reconciler],
   ]);
-  return async (): Promise<{ release(): void; outgoing: HostUpdateDaemonHandoff['outgoing'] }> => {
+  return async (
+    timeoutMs?: number,
+  ): Promise<{ release(): void; outgoing: HostUpdateDaemonHandoff['outgoing'] }> => {
     let held: Awaited<ReturnType<HostUpdatePause['acquire']>>;
     try {
-      held = await pause.acquire();
+      held = await pause.acquire(timeoutMs);
     } catch (error) {
       // acquire() already unwound any partial pause before rejecting.
       deps.refreshAccounts();

@@ -5,21 +5,23 @@ import { HOST_REMOVAL_SERVICES_BYTES } from '@puddle/shared';
 import { privatePath } from '@puddle/shared/node';
 import { inspectHostRemoval, validateHostRemovalServices } from '@puddle/shared/node/host-control';
 import type { RuntimeStore } from '../../../db/stores/runtimes.js';
-import type { HostRemovalGuard } from '../../removal/guard.js';
+import type { ReleaseCollectionGuard } from './guard.js';
 import { optionalRecord, ReleaseReferenceInventory } from './inventory.js';
 import { retainRuntimeReleases } from './runtimes.js';
 import { retainUpdateReleases } from './updates.js';
+import { CollectionBudget } from './budget.js';
 import { withReleaseCollectionExclusion } from './exclusion.js';
 
 /** Offline collection review under retained installer/update/controller exclusion. No deletions. */
 export async function reviewReleaseCollection(
-  guard: HostRemovalGuard,
+  guard: ReleaseCollectionGuard,
   runtimes: Pick<RuntimeStore, 'releaseReferences' | 'get'>,
   authorised: () => boolean,
   now = Date.now(),
+  budget = new CollectionBudget(),
 ) {
   return withReleaseCollectionExclusion(guard, authorised, (requireCurrent) =>
-    inspectReleaseReferences(guard.home, runtimes, requireCurrent, now),
+    inspectReleaseReferences(guard.home, runtimes, requireCurrent, now, budget),
   );
 }
 
@@ -29,8 +31,9 @@ export async function inspectReleaseReferences(
   runtimes: Pick<RuntimeStore, 'releaseReferences' | 'get'>,
   requireCurrent: () => void,
   now = Date.now(),
+  budget = new CollectionBudget(),
 ) {
-  const index = new ReleaseReferenceInventory(home, requireCurrent);
+  const index = new ReleaseReferenceInventory(home, requireCurrent, budget);
   await index.inspect();
   // The collecting helper may itself be running from an older immutable generation.
   for (const executable of [process.execPath, fileURLToPath(import.meta.url)]) {
@@ -52,6 +55,18 @@ export async function inspectReleaseReferences(
   }
   await retainRuntimeReleases(index, runtimes);
   await retainUpdateReleases(index);
+  // The shared passive inspector can revisit restoration/purge evidence. Reserve
+  // its bounded reads too, before parsing any of those records.
+  for (const name of [
+    'services.json',
+    'restore.json',
+    'restored-services.json',
+    'purged-services.json',
+    'result.json',
+    'purge.json',
+    'purged.json',
+  ])
+    for (let read = 0; read < 4; read++) budget.record(join(home, 'installation/removal', name));
   inspectHostRemoval(home);
   try {
     privatePath(join(home, 'installation'), true);
@@ -68,6 +83,7 @@ export async function inspectReleaseReferences(
     const value = optionalRecord(
       join(home, 'installation/removal', name),
       HOST_REMOVAL_SERVICES_BYTES,
+      budget,
     );
     if (value) {
       const record = validateHostRemovalServices(value);

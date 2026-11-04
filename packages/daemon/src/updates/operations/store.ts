@@ -24,6 +24,7 @@ import {
   requireNoHostRemoval,
 } from '@puddle/shared/node/host-control';
 import { acquireHostClaim } from '../../security/claims.js';
+import { retainTerminalUpdate } from './retained.js';
 
 type Reference = Pick<HostUpdateOperation, 'id' | 'revision'>;
 type Phase = HostUpdateOperation['phase'];
@@ -104,6 +105,8 @@ export class HostUpdateOperations {
           message: null,
         });
         if (ledger.current) ledger.history.push(ledger.current);
+        for (const previous of ledger.history.slice(0, -HOST_UPDATE_HISTORY_LIMIT))
+          retainTerminalUpdate(this.home, previous, this.write);
         ledger.history = ledger.history.slice(-HOST_UPDATE_HISTORY_LIMIT);
         ledger.current = operation;
         this.save(ledger);

@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Collect verified unused release builds automatically through bounded maintenance. Preserve live and rollback builds, retire obsolete runtime references only after verified reboot evidence, and retire completed update jobs only after process/service checks. Retain session history and observe interrupted cleanup without repeating service actions.
+
 - Bound aggregate runtime IPC and terminal-view buffering across connections. Keep separate snapshot, output and input capacity; close only the affected connection on exhaustion, retain pending-operation charges until completion and never replay input or stop the runtime's PTY.
 
 - Add explicit host-approved remote-browser maintenance grants, separate from ordinary pairing. Approved devices can review and apply host daemon/runtime updates through the existing coordinator, with independent daemon permission checks and aggregate status. Application protocol 26.0 and remote protocol 5 require matching protocol generations across clients, daemon, connector and relay; runtime protocol remains 1.0.

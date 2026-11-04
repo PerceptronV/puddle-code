@@ -115,11 +115,21 @@ real isolated authenticated readiness endpoint. A separate real runtime/PTY fixt
 preserves its PID and shell variable through coordinator removal/restoration, then stops
 through fresh explicit review. These establish the integrated paths with deterministic
 supervision, not actual Linux/macOS service or native-provider acceptance. Actual
-platform purge and production reference-aware collection remain open.
+platform purge and native service/reboot collection acceptance remain open.
 The integrated removal/startup/update/installation/connector regression run passed
 387 tests in 50 files, with one platform-gated file skipped, on macOS 26.5.2 and
 Node 22.21.1. Source and strict changed-test typechecks, lint and web/CLI/desktop
 builds passed.
+
+Production collection now runs automatically through the existing exclusion and
+daemon pause, outside admitted upkeep. The 85 focused checks cover scheduler
+coalescing/shutdown, bounded continuation, runtime cross-boot retirement records,
+ended updater/recovery service proof, history eviction and conservative per-component
+rollback protection despite clock changes. An isolated real owner keeps its PID,
+PTY generation and shell variable while an unrelated verified release is deleted.
+Both local and encrypted packaged-upgrade fixtures also pass with the scheduler
+enabled. These fixtures do not establish native systemd/launchd retirement or an
+actual reboot; those remain required platform evidence.
 
 Public install tests cover restoration before the already-installed shortcut, local and
 simulated SSH control, passive capability detection, explicit continuation, lost replies,
