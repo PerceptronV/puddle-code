@@ -33,3 +33,8 @@ export const hostUpdateWorkerSchema = z
   })
   .strict();
 export type HostUpdateWorker = z.infer<typeof hostUpdateWorkerSchema>;
+
+/** In-process final approval evidence copied into the private pinned job. */
+export type HostUpdateDaemonHandoff = Required<
+  Pick<HostUpdateWorker, 'outgoing' | 'daemon_service'>
+>;

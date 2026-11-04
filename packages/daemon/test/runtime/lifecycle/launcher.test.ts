@@ -2,6 +2,7 @@ import { dirname, join } from 'node:path';
 import { readFileSync, rmSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
 import { runtimeLaunchSchema } from '@puddle/shared';
+import { HostUpdatePause } from '../../../src/updates/maintenance/pause.js';
 import { RuntimeLauncher } from '../../../src/runtime/lifecycle/launcher.js';
 import { ProjectStore } from '../../../src/db/stores/projects.js';
 import { AccountStore } from '../../../src/db/stores/accounts.js';
@@ -253,6 +254,85 @@ it('collects a confirmed provider startup failure without replaying its launch',
     expect(f.runtimes.selectedOwner(f.session.id)?.state).toBe('failed');
     expect(f.sessions.get(f.session.id).status).toBe('exited');
   } finally {
+    await f.close();
+  }
+});
+
+it('lets an admitted launch finish before pausing runtime observation and resumes without replay', async () => {
+  let allow!: () => void;
+  const waiting = new Promise<void>((resolve) => {
+    allow = resolve;
+  });
+  const run = vi.fn<CompilationCommandRunner>(async (command) => {
+    await waiting;
+    const directory = dirname(command.args[2]!);
+    const launch = runtimeLaunchSchema.parse(readRuntimeJson(join(directory, 'launch.json')));
+    const owner = launchOwner(command.cwd, launch.identity.runtime_id);
+    await waitForOwner(owner, directory);
+    return { exitCode: 0, stdout: '', stderr: '' };
+  });
+  const f = fixture(run);
+  const pause = new HostUpdatePause([[f.launcher], [f.connections], [f.reconciler]]);
+  let hold: Awaited<ReturnType<HostUpdatePause['acquire']>> | undefined;
+  let pausing: ReturnType<HostUpdatePause['acquire']> | undefined;
+  try {
+    const launching = f.launcher.launch(f.session.id, () => f.launch.main);
+    await vi.waitFor(() => expect(run).toHaveBeenCalledOnce());
+    pausing = pause.acquire();
+    await expect(f.launcher.launch(f.session.id, () => f.launch.main)).rejects.toMatchObject({
+      code: 'host_maintenance',
+    });
+    let drained = false;
+    const draining = pausing.then((held) => {
+      hold = held;
+      drained = true;
+    });
+    await Promise.resolve();
+    expect(drained).toBe(false);
+    allow();
+    await launching;
+    await draining;
+    const owner = f.runtimes.ownerOf(f.session.id)!;
+    const client = f.connections.get(owner.runtime_id)!;
+    const pid = terminal(client.state).pid!;
+    process.kill(pid, 0);
+    const cursor = f.runtimes.get(owner.runtime_id)!.event_cursor;
+    const main = terminal(client.state);
+    await client.request({
+      t: 'input',
+      placement: placement(client),
+      term: 'agent',
+      generation: main.generation,
+      source: 'human',
+      data: 'stty -echo; printf "\\033]0;maintenance-title\\007maintenance-live\\n"\n',
+    });
+    await waitForSnapshot(client, main.generation, 'maintenance-live');
+    expect(f.runtimes.get(owner.runtime_id)!.event_cursor).toBe(cursor);
+    expect(f.sessions.get(f.session.id).osc_title).not.toBe('maintenance-title');
+    hold!.release();
+    await vi.waitFor(() =>
+      expect(f.sessions.get(f.session.id).osc_title).toBe('maintenance-title'),
+    );
+    expect(run).toHaveBeenCalledOnce();
+    await expect(f.launcher.launch(f.session.id, () => f.launch.main)).rejects.toMatchObject({
+      code: 'runtime_owned',
+    });
+    hold = await pause.acquire();
+    await f.launcher.close();
+    hold.release();
+    await expect(f.launcher.launch(f.session.id, () => f.launch.main)).rejects.toMatchObject({
+      code: 'host_maintenance',
+    });
+    process.kill(pid, 0);
+    await client.request({ t: 'stop', placement: placement(client) });
+  } finally {
+    allow();
+    hold?.release();
+    if (pausing && !hold)
+      await pausing.then(
+        (held) => held.release(),
+        () => {},
+      );
     await f.close();
   }
 });

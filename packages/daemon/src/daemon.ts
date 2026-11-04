@@ -395,10 +395,11 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
           return null;
         }
       },
-      dispatch: async (operation, kind, authorised) => {
+      dispatch: async (operation, kind, authorised, daemon) => {
         await startUpdateWorker(paths.home, operation, {
           kind,
           authorised,
+          daemon,
           releasePath: dirname(dirname(fileURLToPath(import.meta.url))),
         });
       },

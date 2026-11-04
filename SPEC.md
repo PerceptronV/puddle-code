@@ -196,7 +196,14 @@ renew authority. The daemon coordinator serialises mutations, coalesces competin
 preparations and corroborates stage receipts against host files. The winning CLI
 caller stages through the existing transport and embedded installer. Runtime-default
 apply repeats inspection, matches exact approval evidence and rechecks authority
-before consuming dispatch. Accepted work survives caller loss; reconnect only
+before consuming dispatch. The coordinator's daemon path additionally drains an
+ordered pause before reinspection and passes exact outgoing controller/service
+evidence into the private worker job. Rejected attempts release the pause; accepted
+or uncertain dispatch retains it until shutdown or a terminal/recovery-fenced
+operation with no executing worker. The launcher pause lets admitted launches finish
+before pausing discovery/reconciliation. Production still lacks the complete pause
+composition, connector inventory and explicit adjacent-work interruption approval;
+there is no user-selectable switch. Accepted work survives caller loss; reconnect only
 observes it. The coordinator currently refuses daemon activation pending quiescence,
 connector inventory and adoption verification. Runtime install/upgrade commands now
 consume this coordinator, including bounded observation after lost apply responses;

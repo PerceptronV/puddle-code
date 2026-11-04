@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto';
+import { HostAdmission } from '../../src/host/lifecycle/admission.js';
+import { HostUpdatePause } from '../../src/updates/maintenance/pause.js';
 import { expect, it, vi } from 'vitest';
 import { digest } from '@puddle/shared/node';
 import type { HostUpdateCommand, HostUpdateReply, HostUpdateOperation } from '@puddle/shared';
@@ -5,7 +8,7 @@ import { HostUpdateCoordinator } from '../../src/updates/coordinator.js';
 import type { UpdateInspection } from '../../src/updates/preflight/inspection.js';
 import { candidateFixture } from './preflight/helpers.js';
 
-function fixture(component: 'runtime' | 'daemon' = 'runtime') {
+function fixture(component: 'runtime' | 'daemon' = 'runtime', daemonAdmission = false) {
   const f = candidateFixture(component);
   f.store.stopBeforeDispatch(f.operation, 'cancelled', 'reset fixture');
   let allowed = true;
@@ -23,16 +26,37 @@ function fixture(component: 'runtime' | 'daemon' = 'runtime') {
   };
   const inspect = vi.fn(async () => observed);
   const dispatch = vi.fn(
-    async (operation: HostUpdateOperation, _kind: string, authorised: () => boolean) => {
+    async (
+      operation: HostUpdateOperation,
+      _kind: string,
+      authorised: () => boolean,
+      _daemon?: import('@puddle/shared').HostUpdateDaemonHandoff,
+    ) => {
       if (!authorised()) throw new Error('expired');
       f.store.dispatch(operation); // Simulated supervisor dispatch; actual workers have their own suite.
     },
   );
+  const admission = new HostAdmission();
+  const pause = new HostUpdatePause([[admission]]);
+  const outgoing = { pid: process.pid, controller: { id: randomUUID(), epoch: 1 } };
+  const pauseDaemon = vi.fn(async () => ({ ...(await pause.acquire()), outgoing }));
+  if (daemonAdmission)
+    observed.supervision.daemon = {
+      kind: 'systemd',
+      name: 'puddled.service',
+      domain: null,
+      pid: process.pid,
+      invocation: 'a'.repeat(32),
+      controlGroup: '/user.slice/puddled.service',
+      definition_path: null,
+      definition_digest: digest('existing service configuration'),
+    };
   const coordinator = new HostUpdateCoordinator({
     home: f.home,
     operations: f.store,
     inspection: { inspect },
     installedRuntime: () => f.capabilities.runtime,
+    ...(daemonAdmission ? { pauseDaemon } : {}),
     dispatch,
   });
   const execute = (command: HostUpdateCommand) =>
@@ -76,6 +100,9 @@ function fixture(component: 'runtime' | 'daemon' = 'runtime') {
     review,
     apply,
     observed,
+    admission,
+    outgoing,
+    pauseDaemon,
     inspect,
     dispatch,
     coordinator,
@@ -213,4 +240,82 @@ it('does not accept an unverified receipt or continue after daemon shutdown', as
   expect(
     await f.execute({ action: 'stage', reference: begun.operation, receipt: f.stage }),
   ).toMatchObject({ ok: false, code: 'rejected' });
+});
+
+it('drains daemon admissions before final inspection and retains the hold after accepted dispatch', async () => {
+  const f = fixture('daemon', true);
+  const review = await f.review();
+  expect(f.pauseDaemon).not.toHaveBeenCalled();
+  const end = f.admission.enter();
+  const applying = f.apply(review);
+  expect(() => f.admission.enter()).toThrow();
+  expect(f.inspect).toHaveBeenCalledOnce();
+  end();
+  expect(await applying).toMatchObject({ ok: true, operation: { phase: 'dispatching' } });
+  expect(f.inspect).toHaveBeenCalledTimes(2);
+  expect(f.dispatch.mock.calls[0]?.[3]).toEqual({
+    outgoing: f.outgoing,
+    daemon_service: f.observed.supervision.daemon,
+  });
+  expect(() => f.admission.enter()).toThrow();
+  const accepted = f.store.read()!;
+  const worker = f.store.claimExecution(accepted, accepted.dispatch_id!, accepted.approved!);
+  try {
+    worker.failed('Replacement requires inspection');
+    await f.execute({ action: 'status' });
+    expect(() => f.admission.enter()).toThrow(); // Failed phase alone is not proof the worker stopped.
+  } finally {
+    worker.release();
+  }
+  await f.execute({ action: 'status' });
+  f.admission.assertOpen();
+});
+
+it.each(['authority', 'impact', 'dispatch'] as const)(
+  'releases daemon admission after a pre-dispatch %s failure',
+  async (failure) => {
+    const f = fixture('daemon', true);
+    const review = await f.review();
+    if (failure === 'authority')
+      f.inspect.mockImplementationOnce(async () => {
+        f.revoke();
+        return f.observed;
+      });
+    else if (failure === 'impact') f.observed.fingerprint = digest('new runtime appeared');
+    else f.dispatch.mockRejectedValueOnce(new Error('Worker could not be prepared'));
+    expect(await f.apply(review)).toMatchObject({ ok: false });
+    f.admission.assertOpen();
+    expect(f.store.read()?.dispatch_id).toBeNull();
+  },
+);
+
+it('holds daemon admission after a lost dispatch reply until recovery fences the unstarted worker', async () => {
+  const f = fixture('daemon', true);
+  const review = await f.review();
+  f.dispatch.mockImplementationOnce(async (operation) => {
+    f.store.dispatch(operation);
+    throw new Error('reply lost');
+  });
+  expect(await f.apply(review)).toMatchObject({ ok: false, code: 'failed' });
+  expect(() => f.admission.enter()).toThrow();
+  await f.execute({ action: 'status' });
+  expect(() => f.admission.enter()).toThrow();
+  f.store.requireRecovery(f.store.read()!, 'Confirmed dispatch outcome requires recovery');
+  await f.execute({ action: 'status' });
+  f.admission.assertOpen();
+});
+
+it('does not imply permission to interrupt adjacent work from an update fingerprint', async () => {
+  const f = fixture('daemon', true);
+  f.observed.impact.requiresInterruption = true;
+  expect(await f.review()).toMatchObject({
+    ok: true,
+    review: {
+      can_apply: false,
+      fingerprint: null,
+      blockers: [{ code: 'interruption_approval_required', target: 'daemon' }],
+    },
+  });
+  expect(f.pauseDaemon).not.toHaveBeenCalled();
+  expect(f.dispatch).not.toHaveBeenCalled();
 });

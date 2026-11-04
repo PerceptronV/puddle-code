@@ -29,6 +29,20 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far:
 
+- The coordinator now has an ordered final-inspection pause boundary. It drains
+  admitted client/launch work before inspecting the exact approved fingerprint,
+  carries the outgoing controller/service evidence into durable worker dispatch,
+  and retains the hold after accepted or uncertain dispatch. It resumes a rejected
+  pre-dispatch attempt, or a terminal/recovery-fenced operation only after the
+  execution claim is free. A runtime launcher pause drains accepted launches before
+  discovery/reconciliation pause; a real isolated owner keeps executing and its
+  queued title/cursor observations catch up on release. The shared phase composer
+  unwinds in reverse order with one bounded deadline. Production does not yet
+  supply the complete daemon pause composition: remaining background/execution
+  admissions, connector inventory and explicit adjacent-work interruption approval
+  must be connected before the public path is enabled. This is an internal
+  composition boundary, with no user toggle or experimental backend.
+
 - The one-shot worker now composes daemon-only and combined transactions: verify
   its independent supervisor scope, stop the exact daemon service, await the
   accepted shutdown checkpoint and released controller, hold that claim across
@@ -50,9 +64,9 @@ Implementation evidence so far:
   stale dispatch/revision/approval, missing or damaged metadata produces no update
   checkpoint and leaves ordinary shutdown available. An isolated daemon test now
   exercises this implicit hand-off, holds admitted work through drainage and proves
-  the same owner survives replacement. Worker dispatch still refuses daemon targets:
-  writing this evidence in production, final preflight and recovery must be connected
-  before enabling daemon activation.
+  the same owner survives replacement. Worker dispatch now accepts this evidence after the coordinator
+  has drained and checked its final inspection. Production pause composition and
+  remaining approval/recovery integration still gate public daemon activation.
 
 - Replacement adoption observation is now wired into authorised exact-operation
   status requests. Application 25.8 adds an optional fresh nonce; the coordinator

@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Add ordered final-update admission drains, retaining maintenance after uncertain dispatch and passing exact outgoing controller/service evidence to the worker. Let admitted runtime launches finish before pausing observation; production daemon-update composition remains in progress.
+
 - Compose daemon and combined update-worker transactions around exact supervisor shutdown, drained runtime checkpoints, shared installer selection and fresh adoption verification. Preserve existing service configuration and retain uncertain partial updates without replay; public daemon dispatch remains gated on final approval and recovery integration.
 
 - Bind signal-driven update checkpoints to the outgoing daemon PID and controller, rejecting stale worker instructions while keeping ordinary shutdown available when update metadata is missing or damaged.

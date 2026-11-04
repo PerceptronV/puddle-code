@@ -10,6 +10,18 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+`updates/maintenance/pause.test.ts` checks ordered admission drains, reverse release,
+shared deadlines, failed phases and irreversible shutdown. The launcher suite uses
+an actual isolated shell: an admitted launch finishes before discovery/reconciliation
+pause, the same owner executes while its database cursor is held, and observations
+catch up after release without another launch. Coordinator tests verify final
+inspection occurs after drainage, changed authority/impact aborts before dispatch,
+lost dispatch replies retain maintenance, and recovery releases admission only after
+the execution claim is free. The worker supervisor suite verifies outgoing evidence
+is durable before dispatch and a stale controller cannot consume approval. These
+use explicit internal composition; production still needs all daemon participants,
+connector inventory and adjacent-work interruption approval before enablement.
+
 `updates/worker/daemon/execute.test.ts` uses the actual installer, SQLite checkpoint
 and controller claims with simulated supervisor commands and a mocked adoption
 verifier. Daemon-only and combined selection follow stop/select/start/verify; lost

@@ -19,6 +19,7 @@ import type { SessionStore } from '../../db/stores/sessions.js';
 import type { ProjectStore } from '../../db/stores/projects.js';
 import type { ProfileStore } from '../../db/stores/profiles.js';
 import { ApiError } from '../../http/errors.js';
+import { HostAdmission } from '../../host/lifecycle/admission.js';
 import { acquireHostClaim } from '../../security/claims.js';
 import type { RuntimeConnections } from '../transport/connections.js';
 import type { RuntimeReconciler } from '../controller/reconcile.js';
@@ -70,6 +71,7 @@ interface Dependencies {
 /** Persist one launch intent, dispatch once, then observe authenticated adoption. */
 export class RuntimeLauncher {
   private closed = false;
+  private readonly admission = new HostAdmission();
   private readonly pending = new Set<Promise<void>>();
   constructor(
     private readonly deps: Dependencies,
@@ -85,7 +87,13 @@ export class RuntimeLauncher {
       return Promise.reject(new ApiError(503, 'host_maintenance', 'Runtime launcher is closing'));
     if (this.pending.size >= RUNTIME_LIMITS.pendingRequests)
       return Promise.reject(ApiError.conflict('runtime_busy', 'Too many pending runtime launches'));
-    const pending = this.start(sessionId, command, options);
+    let release: () => void;
+    try {
+      release = this.admission.enter();
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    const pending = this.start(sessionId, command, options).finally(release);
     this.pending.add(pending);
     void pending.finally(() => this.pending.delete(pending)).catch(() => {});
     return pending;
@@ -225,8 +233,14 @@ export class RuntimeLauncher {
     }
   }
 
+  /** Let admitted launches settle before observation is paused; never replay rejected launches. */
+  pause(): ReturnType<HostAdmission['pause']> {
+    return this.admission.pause();
+  }
+
   async close(): Promise<void> {
     this.closed = true;
+    this.admission.close();
     await Promise.allSettled([...this.pending]);
   }
 }

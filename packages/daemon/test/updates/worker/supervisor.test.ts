@@ -10,7 +10,8 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
-import { hostStageRecordSchema } from '@puddle/shared';
+import { hostStageRecordSchema, type HostUpdateDaemonHandoff } from '@puddle/shared';
+import { acquireRuntimeController } from '../../../src/runtime/ownership/storage.js';
 import { digest } from '@puddle/shared/node';
 import { HostUpdateOperations } from '../../../src/updates/operations/store.js';
 import { readUpdateWorker, startUpdateWorker } from '../../../src/updates/worker/supervisor.js';
@@ -160,4 +161,83 @@ it('rechecks authority immediately before durable dispatch and leaves expired ap
   expect(f.store.read()).toEqual(f.operation);
   expect(f.commands).toHaveLength(0);
   expect(() => readUpdateWorker(f.home, f.operation.id)).toThrow();
+});
+
+it('persists the exact outgoing controller and inspected daemon service before independent worker dispatch', async () => {
+  const f = fixture('daemon');
+  const controller = acquireRuntimeController(f.home);
+  const { id, epoch } = controller.record;
+  const daemon: HostUpdateDaemonHandoff = {
+    outgoing: { pid: process.pid, controller: { id, epoch } },
+    daemon_service: {
+      kind: 'systemd',
+      name: 'puddled.service',
+      domain: null,
+      pid: process.pid,
+      invocation: 'a'.repeat(32),
+      controlGroup: '/user.slice/puddled.service',
+      definition_path: null,
+      definition_digest: digest('unchanged configuration'),
+    },
+  };
+  let observed = false;
+  try {
+    const job = await startUpdateWorker(f.home, f.operation, {
+      kind: 'systemd',
+      releasePath: f.release,
+      daemon,
+      run: async (command) => {
+        const recorded = readUpdateWorker(f.home, f.operation.id);
+        expect(recorded).toMatchObject(daemon);
+        expect(recorded.state).toBe('dispatching');
+        expect(f.store.read()?.dispatch_id).toBe(recorded.dispatch_id);
+        observed = true;
+        return f.run(command);
+      },
+    });
+    expect(observed).toBe(true);
+    expect(job).toMatchObject({ ...daemon, state: 'dispatched' });
+    expect(f.commands.map((command) => command.args[1])).toEqual([
+      'link',
+      'daemon-reload',
+      'start',
+    ]);
+    expect(f.commands.at(-1)?.args.at(-1)).toBe(job.name);
+    expect(job.name).not.toBe(daemon.daemon_service.name);
+  } finally {
+    controller.release();
+  }
+});
+
+it('does not consume daemon approval when its outgoing controller is stale', async () => {
+  const f = fixture('daemon');
+  const controller = acquireRuntimeController(f.home);
+  const { id, epoch } = controller.record;
+  try {
+    await expect(
+      startUpdateWorker(f.home, f.operation, {
+        kind: 'systemd',
+        releasePath: f.release,
+        run: f.run,
+        daemon: {
+          outgoing: { pid: process.pid, controller: { id, epoch: epoch + 1 } },
+          daemon_service: {
+            kind: 'systemd',
+            name: 'puddled.service',
+            domain: null,
+            pid: process.pid,
+            invocation: 'a'.repeat(32),
+            controlGroup: '/user.slice/puddled.service',
+            definition_path: null,
+            definition_digest: digest('configuration'),
+          },
+        },
+      }),
+    ).rejects.toThrow('changed before update dispatch');
+    expect(f.store.read()?.phase).toBe('approved');
+    expect(f.commands).toHaveLength(0);
+    expect(() => readUpdateWorker(f.home, f.operation.id)).toThrow('ENOENT');
+  } finally {
+    controller.release();
+  }
 });

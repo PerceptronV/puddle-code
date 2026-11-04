@@ -5,6 +5,7 @@ import {
   hostUpdateWorkerSchema,
   type HostUpdateOperation,
   type HostUpdateWorker,
+  type HostUpdateDaemonHandoff,
 } from '@puddle/shared';
 import {
   atomicPrivateJson,
@@ -22,6 +23,7 @@ import {
 } from '../../host/services.js';
 import { acquireHostClaim } from '../../security/claims.js';
 import { HostUpdateOperations } from '../operations/store.js';
+import { readRuntimeController } from '../../runtime/ownership/storage.js';
 
 export function updateWorkerDirectory(home: string, id: string): string {
   hostUpdateOperationSchema.shape.id.parse(id);
@@ -64,6 +66,7 @@ export async function startUpdateWorker(
   reference: Pick<HostUpdateOperation, 'id' | 'revision'>,
   options: {
     kind: HostUpdateWorker['kind'];
+    daemon?: HostUpdateDaemonHandoff;
     releasePath: string;
     uid?: number;
     run?: CompilationCommandRunner;
@@ -84,14 +87,39 @@ export async function startUpdateWorker(
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     }
     const candidate = store.read(reference.id);
-    if (candidate?.targets.length !== 1 || candidate.targets[0]?.component !== 'runtime')
+    if (!candidate) throw new Error('Missing approved host update');
+    const replacesDaemon = candidate.targets.some((target) => target.component === 'daemon');
+    if (replacesDaemon !== !!options.daemon)
       throw new Error(
-        'Daemon updates require quiescence and adoption verification before dispatch',
+        'Daemon updates require final quiescence and adoption hand-off before dispatch',
       );
+    const daemon = options.daemon && {
+      outgoing: hostUpdateWorkerSchema.shape.outgoing.unwrap().parse(options.daemon.outgoing),
+      daemon_service: hostUpdateWorkerSchema.shape.daemon_service
+        .unwrap()
+        .parse(options.daemon.daemon_service),
+    };
+    if (daemon) {
+      const controller = readRuntimeController(home);
+      if (
+        !controller.active ||
+        controller.id !== daemon.outgoing.controller.id ||
+        controller.epoch !== daemon.outgoing.controller.epoch ||
+        daemon.outgoing.pid !== process.pid ||
+        daemon.daemon_service.pid !== process.pid ||
+        daemon.daemon_service.kind !== options.kind
+      )
+        throw new Error('Outgoing daemon changed before update dispatch');
+    }
     const paths = executables(home, options.releasePath);
     const uid = options.uid ?? process.getuid?.();
     if (uid === undefined || !Number.isSafeInteger(uid) || uid < 0)
       throw new Error('Host update supervision requires a host user');
+    if (
+      daemon &&
+      daemon.daemon_service.domain !== (options.kind === 'launchd' ? `gui/${uid}` : null)
+    )
+      throw new Error('Outgoing daemon belongs to another supervisor domain');
     privateDirectory(join(home, 'updates', 'jobs'));
     privateDirectory(directory);
     syncPrivateDirectory(join(home, 'updates'));
@@ -114,6 +142,7 @@ export async function startUpdateWorker(
       domain: options.kind === 'launchd' ? `gui/${uid}` : null,
       ...paths,
       state: 'dispatching',
+      ...daemon,
     });
     const definition = join(directory, record.kind === 'systemd' ? record.name : 'update.plist');
     writeServiceDefinition(
