@@ -170,6 +170,24 @@ case "$OS" in
 esac
 STAGE=""
 WORK=""
+# Keep the same passive removal fence as shared/node/installation/removal.ts.
+# A malformed record is still evidence of an unresolved removal, never permission
+# to overwrite the selected release or recreate a service.
+for REMOVAL_DIR in "$HOME_DIR/installation" "$HOME_DIR/installation/removal"; do
+  [ ! -L "$REMOVAL_DIR" ] || die "unsafe host removal directory"
+  if [ -e "$REMOVAL_DIR" ]; then
+    [ -d "$REMOVAL_DIR" ] || die "unsafe host removal directory"
+    case "$OS" in
+      darwin) REMOVAL_INFO=$(stat -f '%u %Lp' "$REMOVAL_DIR") ;;
+      linux) REMOVAL_INFO=$(stat -c '%u %a' "$REMOVAL_DIR") ;;
+    esac
+    set -- $REMOVAL_INFO
+    [ "$1" = "$(id -u)" ] && [ "$((0$2 & 0077))" -eq 0 ] || die "unsafe host removal directory"
+  fi
+done
+if [ -e "$HOME_DIR/installation/removal/services.json" ] || [ -L "$HOME_DIR/installation/removal/services.json" ]; then
+  die "resolve the recorded host removal before installing or updating this host"
+fi
 cleanup() {
   if [ -n "$STAGE" ] && [ "$(readlink "$BIN_DIR/$SELECTOR" 2>/dev/null || true)" != "versions/$(basename "$STAGE")" ]; then
     rm -rf "$STAGE"

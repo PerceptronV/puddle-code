@@ -6,6 +6,9 @@ storage, with no browser/connector request or new transport. They do not change
 application 25.17, runtime 1.0 or remote 4, and are not authority to remove runtime
 files or restart a service. CLI removal and reinstallation orchestration remain
 in progress.
+The shared Node helper also supplies passive removal fencing for host startup and
+updates. Active records block mutation regardless of whether their contents parse;
+cancelled reviews are kept separately. This adds no wire shape or permission.
 
 Protocol 25.17 adds the explicit `continue-offline` cockpit update action and optional
 `offline_continuation` capability. The action carries only an exact operation id/revision;

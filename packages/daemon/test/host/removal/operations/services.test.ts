@@ -10,6 +10,8 @@ import {
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { atomicPrivateJson } from '@puddle/shared/node';
+import { requireNoHostRemoval } from '@puddle/shared/node/host-control';
+import { HostUpdateOperations } from '../../../../src/updates/operations/store.js';
 import { HostRemovalServiceOperation } from '../../../../src/host/removal/operations/services.js';
 import { HostRemovalGuard } from '../../../../src/host/removal/guard.js';
 import { reviewRemovalService } from '../../../../src/host/removal/services.js';
@@ -29,6 +31,42 @@ function fixture(kind: 'systemd' | 'launchd' = 'launchd') {
       reviewRemovalService(f.guard, f.target, 'daemon', f.pid, { userHome: f.home, run: f.run }),
   };
 }
+
+it('cancels only an unattempted removal and preserves the latest cancelled private review', async () => {
+  const f = fixture();
+  try {
+    const review = await f.review();
+    const updates = new HostUpdateOperations(f.home);
+    const first = await HostRemovalServiceOperation.prepare(f.guard, [review], f.options);
+    expect(() => updates.begin([{ component: 'runtime', version: '0.4.0' }])).toThrow(
+      /recorded host removal/,
+    );
+    expect(updates.read()).toBeNull();
+    expect(() => requireNoHostRemoval(f.home)).toThrow(/recorded host removal/);
+    first.cancel();
+    requireNoHostRemoval(f.home);
+    expect(f.state.running).toBe(true);
+    expect(existsSync(f.file)).toBe(true);
+    expect(f.commands.some(({ args }) => args[0] === 'bootout')).toBe(false);
+    expect(() => first.read()).toThrow();
+    const second = await HostRemovalServiceOperation.prepare(f.guard, [review], f.options);
+    const cancelled = second.read();
+    expect(() => first.cancel()).toThrow(/accepted operation/);
+    expect(second.read()).toEqual(cancelled);
+    second.cancel();
+    expect(
+      JSON.parse(
+        readFileSync(join(f.home, 'installation/removal/cancelled-services.json'), 'utf8'),
+      ),
+    ).toEqual(cancelled);
+    const third = await HostRemovalServiceOperation.prepare(f.guard, [review], f.options);
+    await third.stop('daemon');
+    expect(() => third.cancel()).toThrow(/requires recovery/);
+    expect(() => requireNoHostRemoval(f.home)).toThrow(/recorded host removal/);
+  } finally {
+    f.close();
+  }
+});
 
 it('retains reviewed private sources and resumes only unstarted work under a new guard', async () => {
   const f = fixture();

@@ -2,7 +2,11 @@ import { realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { hostUpdateTerminal } from '@puddle/shared';
-import { readHostUpdateLedger, updateWorkerExecutables } from '@puddle/shared/node/host-control';
+import {
+  readHostUpdateLedger,
+  updateWorkerExecutables,
+  requireNoHostRemoval,
+} from '@puddle/shared/node/host-control';
 import { runCompilationCommand, type CompilationCommandRunner } from '../../compilation/process.js';
 import { acquireInstallationLock } from '../installation/lock.js';
 import { acquireHostClaim } from '../../security/claims.js';
@@ -47,6 +51,7 @@ export async function startSelectedDaemon(
       (options.run ?? runCompilationCommand)({ ...command, inheritedFds: [descriptor] });
     const paths = updateWorkerExecutables(home, releasePath);
     const check = () => {
+      requireNoHostRemoval(home);
       if (realpathSync(join(home, 'bin/current')) !== paths.release_path)
         throw new Error('Selected daemon changed before startup');
       const { current } = readHostUpdateLedger(home);

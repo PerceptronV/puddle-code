@@ -1,4 +1,4 @@
-import { realpathSync } from 'node:fs';
+import { realpathSync, renameSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
@@ -120,6 +120,25 @@ export class HostRemovalServiceOperation {
   read(): ServiceJournal {
     this.requireCurrent();
     return this.writer.read();
+  }
+
+  /** Before any intent only. Keep one private cancelled review without weakening active evidence. */
+  cancel(): void {
+    const journal = this.read();
+    if (journal.actions.some(({ state }) => state !== 'planned'))
+      throw new Error('An attempted host removal requires recovery, not cancellation');
+    const cancelled = join(dirname(file(this.guard.home)), 'cancelled-services.json');
+    try {
+      const previous = validate(readPrivateJson(cancelled, HOST_REMOVAL_SERVICES_BYTES));
+      if (previous.actions.some(({ state }) => state !== 'planned'))
+        throw new Error('Cancelled removal record contains attempted work');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+    this.requireCurrent();
+    // Same-directory rename clears the active fence atomically; no service has been touched.
+    renameSync(file(this.guard.home), cancelled);
+    syncPrivateDirectory(dirname(cancelled));
   }
 
   private requireCurrent(): void {

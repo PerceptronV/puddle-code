@@ -16,6 +16,7 @@ import { createCodeProviders } from './code/provider.js';
 import { createCodeTerminalLauncher } from './code/terminal.js';
 import { CompilationService } from './compilation/service.js';
 import { openDatabase } from './db/db.js';
+import { requireNoHostRemoval } from '@puddle/shared/node/host-control';
 import { AccountStore } from './db/stores/accounts.js';
 import { EventStore } from './db/stores/events.js';
 import { ProfileStore } from './db/stores/profiles.js';
@@ -127,6 +128,7 @@ export interface RunningDaemon {
 export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaemon> {
   const paths = resolvePaths(opts.home);
   ensureHome(paths);
+  requireNoHostRemoval(paths.home);
   const config = loadConfig(paths);
   const authority = new LeaseRegistry();
   const admission = new HostAdmission();
@@ -152,6 +154,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       },
     );
     failedStartup.push(closeControl);
+    requireNoHostRemoval(paths.home);
     ensureToken(paths);
     const db = openDatabase(paths.dbFile);
     failedStartup.push(async () => {

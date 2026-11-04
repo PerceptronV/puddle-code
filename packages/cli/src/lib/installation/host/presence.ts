@@ -10,6 +10,7 @@ export async function hasPersistentHostInstallation(transport: Transport): Promi
     `${hostPaths.home}/updates/operations.json`,
     `${hostPaths.home}/runtime-controller.json`,
     `${hostPaths.home}/runtimes`,
+    `${hostPaths.home}/installation/removal/services.json`,
   ];
   const result = await transport.exec(
     `if ${markers.map((path) => `[ -e ${path} ] || [ -L ${path} ]`).join(' || ')}; then exit 0; else exit 3; fi`,

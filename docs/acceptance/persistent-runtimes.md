@@ -10,6 +10,22 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+Removal fencing tests cover absent storage without creating state, malformed records,
+dangling links and shared/linked parent directories. Direct daemon startup refuses before
+authority creation or database access; selected startup refuses before supervisor probes
+and rechecks after asynchronous inspection. Update writes refuse active removal while
+read-only status remains usable. Cancellation requires an entirely unattempted plan,
+retains the latest private review, changes no service/process and cannot cancel a later
+operation through a stale object. Real embedded-installer tests refuse daemon and runtime
+installation while preserving selectors/releases, then allow installation after the active
+record is retired. A removal-only host still blocks legacy bootstrap. These checks do not
+complete the CLI removal/reinstallation workflow or permit purge.
+The shared/daemon/CLI removal, startup, update-operation and host-installation regression
+run passed 207 tests in 20 files, with one native test skipped. The isolated native
+launchd removal/recovery case passed separately. Source and strict changed-test
+typechecks, lint, formatting and CLI/desktop builds passed on macOS 26.5.2 with Node
+22.21.1. Both shells were rebuilt to embed the changed installer.
+
 The recorded removal service phase shares the updater's durable action writer. Tests
 cover storage failure before/after intent and completion, new-guard continuation,
 lost systemd reload after source deletion, changed source/selector/authority, malformed

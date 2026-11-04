@@ -734,7 +734,18 @@ a consumed stop or unregistration only from fresh service/process/definition evi
 Missing or malformed journals are never recreated by continuation. Original definitions
 may contain environment values and remain private host data. These records support
 future removal/reinstallation orchestration; they do not themselves disable remote
-registrations, decide runtime disposition, fence later startup or restore an installation.
+registrations, decide runtime disposition or restore an installation.
+An active removal record fences direct daemon startup before authority/database access,
+selected-service startup, update ledger mutations and the embedded installer. Passive
+update inspection remains available. Missing selectors cannot turn a removal-only host
+into a legacy bootstrap candidate. Malformed or linked active records remain blocking;
+unavailable inspection is never permission to start or overwrite the installation.
+An unattempted service plan can be cancelled under removal exclusion: every action must
+still be planned, then a same-directory rename retains one private cancelled review and
+clears the active fence. Old operation objects cannot cancel a later plan. Once any
+intent has been recorded, explicit recovery is required; complete service unregistration
+also retains the fence until deliberate reinstallation exists. This does not terminate
+the already-running daemon or independently hosted runtimes during review/cancellation.
 This is not yet wired to CLI removal: stop-or-retain prompting, connector disable,
 durable removal/reinstallation orchestration, reference-aware file collection and purge
 coordination remain required. Successful runtime disposition or service unregistration

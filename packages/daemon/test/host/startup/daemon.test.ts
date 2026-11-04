@@ -143,6 +143,22 @@ it.each(['systemd', 'launchd'] as const)(
   },
 );
 
+it('refuses a recorded removal before any service probe and rechecks after asynchronous inspection', async () => {
+  const f = fixture();
+  const directory = join(f.home, 'installation/removal');
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const record = join(directory, 'services.json');
+  writeFileSync(record, '{', { mode: 0o600 });
+  await expect(f.start()).rejects.toThrow(/recorded host removal/);
+  expect(f.commands).toHaveLength(0);
+  rmSync(record);
+  f.state.probe = () => writeFileSync(record, '{', { mode: 0o600 });
+  await expect(f.start()).rejects.toThrow(/recorded host removal/);
+  expect(f.mutations()).toHaveLength(0);
+  expect(readFileSync(record, 'utf8')).toBe('{');
+  acquireInstallationLock(f.home).release();
+});
+
 it.each([
   'live-controller',
   'update-execution',

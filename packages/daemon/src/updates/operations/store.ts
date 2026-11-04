@@ -18,7 +18,11 @@ import {
   privateDirectory,
   syncPrivateDirectory,
 } from '@puddle/shared/node';
-import { readHostUpdateLedger, validateHostUpdateLedger } from '@puddle/shared/node/host-control';
+import {
+  readHostUpdateLedger,
+  validateHostUpdateLedger,
+  requireNoHostRemoval,
+} from '@puddle/shared/node/host-control';
 import { acquireHostClaim } from '../../security/claims.js';
 
 type Reference = Pick<HostUpdateOperation, 'id' | 'revision'>;
@@ -322,6 +326,7 @@ export class HostUpdateOperations {
   private locked<T>(action: () => T): T {
     const claim = acquireHostClaim(this.home, controlScope);
     try {
+      requireNoHostRemoval(this.home);
       return action();
     } finally {
       claim.release();

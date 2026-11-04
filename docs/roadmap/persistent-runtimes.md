@@ -43,6 +43,17 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Active removal evidence now fences direct daemon startup before database/authority
+  access, selected-service startup, update ledger mutations and the embedded installer.
+  Read-only update status remains available; the CLI recognises removal-only hosts as
+  modern even when selectors are missing. Malformed/linked active records and unsafe
+  parent directories cannot permit bootstrap. Before any action intent, explicit
+  cancellation atomically retains one private cancelled review and clears the fence;
+  attempted removals require recovery. Tests exercise the actual embedded installer,
+  unchanged selectors/releases, direct startup, late evidence during startup inspection,
+  stale cancellation and continued update observation. CLI removal dispatch, deliberate
+  reinstall, connector disable, runtime consent, release collection and purge remain open.
+
 - The internal removal service phase now records exact service reviews and original
   definitions in a bounded private journal, pinned to the selected release. It shares
   the updater's durable serial action writer instead of duplicating step persistence.
