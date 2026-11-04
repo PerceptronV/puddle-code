@@ -3,7 +3,8 @@ import { inspectHost } from '../auth/control-channel.js';
 import type { Transport } from '../transport/transport.js';
 import { CliError, type Logger, silentLogger } from '../types.js';
 import { pinnedDaemonVersion } from '../version.js';
-import { hostPaths } from '../paths.js';
+import { hasPersistentHostInstallation } from './host/presence.js';
+import { startInstalledDaemon } from './host/start.js';
 import { upgradeHostComponent } from './host/upgrade.js';
 import type { ConfirmHostUpdateInterruption } from './host/apply.js';
 
@@ -27,9 +28,34 @@ export async function upgradeDaemon(
   const logger = opts.logger ?? silentLogger;
   const from = await installedVersion(transport);
 
-  const inspection = await inspectHost(transport);
+  let inspection = await inspectHost(transport).catch(async (error: unknown) => {
+    // A fresh SSH target has no bundled Node with which to stage the inspection
+    // helper. Only a genuinely absent installation may bootstrap after that failure.
+    if (
+      from !== null ||
+      error instanceof CliError ||
+      (await hasPersistentHostInstallation(transport))
+    )
+      throw error;
+    return null;
+  });
+  if (!inspection && (await hasPersistentHostInstallation(transport))) {
+    logger.info(`starting the selected puddled service on ${transport.label} before updating`);
+    const started = await startInstalledDaemon(transport);
+    try {
+      inspection = await inspectHost(transport);
+      if (!inspection)
+        throw new CliError('daemon_unreachable', 'The started daemon could not be inspected');
+    } finally {
+      started.authority.close();
+    }
+  }
   const protocol = inspection?.version.protocol;
-  if (protocol && (protocol.major > 25 || (protocol.major === 25 && protocol.minor >= 7))) {
+  if (
+    inspection &&
+    protocol &&
+    (protocol.major > 25 || (protocol.major === 25 && protocol.minor >= 7))
+  ) {
     const result = await upgradeHostComponent(transport, 'daemon', {
       ...opts,
       version: opts.version ?? pinnedDaemonVersion(),
@@ -38,15 +64,7 @@ export async function upgradeDaemon(
   }
   // An absent connection is not permission to bypass a modern host's coordinator.
   // Passive file presence is sufficient to refuse bootstrap, never to permit activation.
-  const metadata = await transport.exec(
-    `if [ -e ${hostPaths.current}/HOST_CAPABILITIES.json ] || ` +
-      `[ -L ${hostPaths.current}/HOST_CAPABILITIES.json ] || ` +
-      `[ -e ${hostPaths.home}/bin/runtime-current ] || [ -L ${hostPaths.home}/bin/runtime-current ] || ` +
-      `[ -e ${hostPaths.home}/updates/operations.json ] || [ -L ${hostPaths.home}/updates/operations.json ]; ` +
-      `then exit 0; else exit 3; fi`,
-    { timeoutMs: 15_000 },
-  );
-  if (metadata.code !== 3)
+  if (await hasPersistentHostInstallation(transport))
     throw new CliError(
       'daemon_unreachable',
       'The installed host update coordinator is unavailable',

@@ -1,97 +1,18 @@
-import { constants } from 'node:fs';
-import { open } from 'node:fs/promises';
+import { serviceDefinitionDigest } from './definition.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { hostServiceReplacementSchema, type HostServiceReplacement } from '@puddle/shared';
-import { digest } from '@puddle/shared/node';
 import {
   CompilationCommandError,
   type CompilationCommandRunner,
 } from '../../compilation/process.js';
-import { supervisorCommand, validServicePath } from '../services.js';
+import { supervisorCommand } from '../services.js';
 import {
   inspectRunningService,
   validServiceTarget,
   type ServiceObservation,
   type ServiceTarget,
 } from './inspection.js';
-
-async function plistBytes(path: string): Promise<string> {
-  validServicePath(path);
-  const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
-  try {
-    const stat = await file.stat();
-    if (
-      !stat.isFile() ||
-      stat.uid !== process.getuid?.() ||
-      (stat.mode & 0o022) !== 0 ||
-      stat.size > 64 * 1024
-    )
-      throw new Error('Unsafe launchd definition');
-    const bytes = Buffer.alloc(64 * 1024 + 1);
-    const read = await file.read(bytes, 0, bytes.length, 0);
-    if (read.bytesRead !== stat.size || read.bytesRead > 64 * 1024)
-      throw new Error('Launchd definition changed during inspection');
-    // Base64 also preserves binary plists exactly for the fingerprint.
-    return bytes.subarray(0, read.bytesRead).toString('base64');
-  } finally {
-    await file.close();
-  }
-}
-
-async function definitionDigest(
-  home: string,
-  service: ServiceTarget,
-  path: string | null,
-  run?: CompilationCommandRunner,
-  component: 'daemon' | 'connector' = 'daemon',
-) {
-  validServiceTarget(service);
-  const execute = supervisorCommand(home, run);
-  const output = async (file: string, args: string[]) => {
-    try {
-      return (await execute(file, args)).stdout;
-    } catch {
-      throw new Error('Host service configuration is unavailable');
-    }
-  };
-  if (service.kind === 'systemd') {
-    // cat includes the unit and every drop-in; retain only its digest, never its environment.
-    const definition = await output('systemctl', ['--user', 'cat', '--no-pager', service.name]);
-    if (!definition.trim()) throw new Error('Missing systemd definition');
-    return digest(definition);
-  }
-  if (!path) throw new Error('Missing launchd definition');
-  const before = await plistBytes(path);
-  // plutil's JSON conversion is machine-readable; launchctl print is not.
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(
-      await output('/usr/bin/plutil', ['-convert', 'json', '-o', '-', '--', path]),
-    );
-  } catch {
-    // Supervisor/conversion errors can contain configuration environment values.
-    throw new Error('Launchd definition could not be inspected');
-  }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
-    throw new Error('Invalid launchd definition');
-  const plist = parsed as Record<string, unknown>;
-  const args =
-    component === 'connector'
-      ? [join(home, 'bin/current/bin/node'), join(home, 'bin/current/daemon/connector.mjs')]
-      : [join(home, 'bin/current/puddled')];
-  const argumentsList = plist.ProgramArguments;
-  if (
-    plist.Label !== service.name ||
-    !Array.isArray(argumentsList) ||
-    args.some((arg, index) => argumentsList[index] !== arg) ||
-    (plist.Program !== undefined && plist.Program !== args[0])
-  )
-    throw new Error('Launchd definition does not start the selected component');
-  if ((await plistBytes(path)) !== before)
-    throw new Error('Launchd definition changed during inspection');
-  return digest(before);
-}
 
 /** Capture the existing configuration; do not regenerate or rewrite users' service settings. */
 export async function prepareServiceReplacement(
@@ -108,7 +29,7 @@ export async function prepareServiceReplacement(
       ? (options.definitionPath ??
         join(homedir(), 'Library', 'LaunchAgents', `${observed.name}.plist`))
       : null;
-  const definition_digest = await definitionDigest(
+  const definition_digest = await serviceDefinitionDigest(
     home,
     observed,
     definition_path,
@@ -132,8 +53,13 @@ export async function requireUnchangedServiceDefinition(
   run?: CompilationCommandRunner,
 ) {
   if (
-    (await definitionDigest(home, service, service.definition_path, run, service.component)) !==
-    service.definition_digest
+    (await serviceDefinitionDigest(
+      home,
+      service,
+      service.definition_path,
+      run,
+      service.component,
+    )) !== service.definition_digest
   )
     throw new Error('Host service configuration changed');
 }

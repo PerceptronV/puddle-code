@@ -10,6 +10,24 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+Selected-start fixtures cover systemd and unloaded launchd services, unchanged
+configuration/controller records, selected executable validation, controller/update/
+installer exclusion and lost replies. An undispatched preparation survives startup;
+dispatched incomplete updates and missing completed-worker lifetime evidence block it.
+CLI local/SSH fixtures obtain actual private authority on a different compatible
+release, avoid reinstalling after refused/uncertain startup, and restore the selected
+coordinator before an explicit stopped-host upgrade. A bundled pinned updater uses
+a scripted systemd command in an isolated home to check the real executable entry,
+refusals and SIGHUP cleanup; the scripted command starts no daemon or service.
+The ExecStart property shape was checked against
+[systemd v254's property printer](https://github.com/systemd/systemd/blob/v254/src/systemctl/systemctl-show.c),
+but actual Linux service parsing/startup still needs platform acceptance. Also verify
+loaded-idle launchd jobs, systemd start limits and SIGKILL/stale installer-lock repair
+before release. None of these fixtures proves real-provider continuity through startup.
+The final startup, shared supervision and CLI upgrade regression run passed 67 tests
+in nine files. Source and strict changed-test typechecks, lint, formatting and both
+CLI/desktop builds passed.
+
 The latest CLI host-upgrade fixtures exercise both runtime and daemon commands
 through shared staging/application code and actual isolated private control. Daemon
 cases cover local/SSH transport, exact notebook interruption counts, missing/declined

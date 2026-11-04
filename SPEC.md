@@ -332,8 +332,9 @@ interruption approval and bounded observation after lost apply responses. Declin
 interruption leaves the staged operation available; changed authority or impact
 prevents dispatch. An unavailable modern host or failed inspection cannot fall back
 to the legacy installer. First installs and legacy transitions retain the embedded
-bootstrap. Launcher integration, stopped modern-host startup, cockpit routes and
-approval UI remain unfinished. `puddle updates` inspects
+bootstrap. Launchers start the selected installed daemon service before considering
+an update, and approved legacy handshake updates use the shared upgrade entry.
+Cockpit routes and approval UI remain unfinished. `puddle updates` inspects
 durable operation state and supports exact pre-dispatch cancellation. No remote
 connector permission is added.
 
@@ -347,6 +348,25 @@ evidence invalidates approval, and the worker persists matching consent before
 dispatch. Clients below 25.10 retain the blocked response without extra fields;
 new clients never send interruption approval to an older host. This adds no lease
 authority or remote permission. The cockpit confirmation UI remains unfinished.
+
+Local/SSH startup of an installed independent-runtime host uses the selected pinned
+host updater's trusted `--start-daemon` entry, not the installer. It holds update
+coordination/execution and controller claims plus the existing installer lock while
+checking selected executables, the supervisor marker and unchanged service definition.
+The loaded systemd command must point to the selected daemon wrapper; launchd's plist
+must match its exact label and arguments. Only positively stopped services can start
+(including systemd failed with no main process). The helper releases the controller
+claim immediately before one start/bootstrap, retaining update/installer exclusion;
+normal daemon startup creates the new controller and adopts surviving runtimes.
+The helper changes no selector, definition or controller record. Dispatched incomplete
+updates require explicit recovery; undispatched preparations do not prevent startup.
+Prior completed workers must have ended. SIGINT/SIGTERM/SIGHUP stop helper commands
+and release claims/installer exclusion; abrupt SIGKILL lock repair remains outstanding.
+Authenticated readiness is shared by launchers, SSH attachment and stopped-host explicit
+upgrades. Lost startup replies cause observation without another start or bootstrap
+fallback. Different compatible release versions remain valid. Loaded-idle launchd jobs,
+systemd start-limit recovery and packaged platform acceptance remain unfinished. This
+host-only executable mode adds no REST/WS, remote or runtime protocol change.
 
 Maintenance participants also cover queued runtime controls, asynchronous native-ref
 capture/resume repair, marker-file synchronisation and compilation providers. They
@@ -488,8 +508,9 @@ literal supervisor definitions and bounded dispatch commands.
 The private host-control dispatcher now composes daemon and combined updates with
 final quiescence and exact compatibility/impact approval. Stopped or unmanaged
 connector installations remain blocked, and migration-aware recovery remains
-unfinished. Runtime and ordinary daemon CLI updates use the coordinator; launcher and
-cockpit updates still need integration. Completed job registrations and pinned release trees remain retained
+unfinished. Runtime and ordinary daemon CLI updates use the coordinator; launcher
+handshake updates share the same upgrade entry, while cockpit updates still need
+integration. Completed job registrations and pinned release trees remain retained
 until verified service cleanup and reference-aware collection are implemented.
 
 The runtime agent state reports sidecar roots and hidden ports, and retains

@@ -14,8 +14,10 @@ lifetimes remain a release blocker. The daemon coordinator now composes maintena
 for private host-control daemon updates. Explicit CLI recovery continuation now works
 through private authority or the trusted offline local/SSH helper. Ordinary CLI daemon
 upgrades now share runtime updates' staging, review and observation path, with explicit
-interruption approval for daemon-owned work. Launcher integration, cockpit controls,
-remaining failure recovery and complete packaged upgrade acceptance remain unfinished.
+interruption approval for daemon-owned work. Launchers now start the selected installed
+service without reinstalling it; explicit upgrades on stopped hosts restore that
+coordinator first. Cockpit controls, remaining failure recovery and complete packaged
+upgrade acceptance remain unfinished.
 This document describes the intended refactor; [SPEC.md](../../SPEC.md) continues
 to describe shipped behaviour. Update the specification, protocol documentation,
 repository instructions and changelog alongside each implementation phase.
@@ -33,6 +35,22 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 [acceptance matrix](#acceptance-matrix) for the release gates.
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
+
+- Launcher startup now invokes a fixed trusted `--start-daemon` mode in the selected
+  pinned host updater. `host/startup/` shares supervisor inspection/configuration checks
+  with updates, retains controller/update/installer exclusion, verifies the selected
+  release and loaded systemd executable, and issues one start/bootstrap without rewriting
+  services, selectors or controller identity. A dispatched incomplete update requires
+  explicit recovery; an undispatched preparation remains available after normal startup.
+  Completed workers still require ended-lifetime evidence. Local/SSH launch and explicit
+  stopped-host upgrades share authenticated readiness, observing lost replies without
+  retry or legacy/attached fallback. Approved legacy launcher upgrades now use the shared
+  upgrade entry. Fixtures cover release skew, exclusion, changed configuration, wrong
+  executables and lost replies. A real bundled helper with a scripted systemd command
+  proves pinned invocation and SIGHUP cleanup; native supervisor/provider continuity is
+  not established by these tests. Loaded-idle launchd jobs, systemd start-limit recovery,
+  abrupt SIGKILL/stale installer-lock repair and complete packaged startup/upgrade
+  acceptance remain required. All three protocols are unchanged.
 
 - Ordinary daemon install/upgrade commands now use the existing host coordinator
   on hosts advertising private updates. Runtime and daemon application share

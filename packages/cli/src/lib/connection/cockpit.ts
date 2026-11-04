@@ -1,3 +1,4 @@
+import { waitForStartedDaemon } from '../auth/readiness.js';
 import type { VersionResponse } from '@puddle/shared';
 import {
   installDaemon,
@@ -7,10 +8,12 @@ import {
 import { runHandshake, type ConfirmDaemonUpgrade } from './handshake.js';
 import { acquireAuthority, type HostConnection } from '../auth/connection-authority.js';
 import { inspectHost } from '../auth/control-channel.js';
-import { sleep } from '../transport/net.js';
 import { hostPaths } from '../paths.js';
 import type { Transport } from '../transport/transport.js';
 import { CliError, type CliEvent, type Logger, silentLogger } from '../types.js';
+import { hasPersistentHostInstallation } from '../installation/host/presence.js';
+import { startInstalledDaemon } from '../installation/host/start.js';
+import { upgradeDaemon } from '../installation/upgrade.js';
 
 /**
  * A running cockpit: the UI server (and tunnel, in SSH mode) behind one
@@ -51,9 +54,9 @@ export interface DaemonEndpoint {
 }
 
 /**
- * Make sure a daemon is installed and answering on its host, installing or
- * restarting via the embedded install.sh when needed; returns its port and
- * connection authority. Legacy inspection stays on the host because the
+ * Make sure a daemon is answering on its host by starting its selected service
+ * or bootstrapping a legacy/fresh host; return its port and connection authority.
+ * Legacy inspection stays on the host because the
  * tunnel may not exist and the master credential must never leave it.
  */
 export async function ensureDaemon(
@@ -99,7 +102,8 @@ export async function ensureDaemon(
         reinspect: () => inspectHost(transport),
         logger,
         upgradeDaemon: async () => {
-          replacement = await install();
+          await upgradeDaemon(transport, opts);
+          replacement = await waitAfterInstall(transport, opts, logger, true, startTimeoutMs);
           return replacement.authority.version!;
         },
       });
@@ -113,6 +117,12 @@ export async function ensureDaemon(
       throw err;
     }
   }
+  if (await hasPersistentHostInstallation(transport)) {
+    logger.info(`starting the selected puddled service on ${transport.label}`);
+    const started = await startInstalledDaemon(transport, startTimeoutMs);
+    return { ...started, bootstrapped: true, daemonLifetime: 'persistent' };
+  }
+
   if ((await installedVersion(transport)) !== null) {
     logger.info(`restarting puddled on ${transport.label}`);
   }
@@ -159,37 +169,4 @@ async function detachedNohupWasReaped(transport: Transport): Promise<boolean> {
   if (!/^[1-9][0-9]*$/.test(rawPid)) return true;
   const probe = await transport.exec(`kill -0 ${rawPid}`, { timeoutMs: 5000 });
   return probe.code !== 0;
-}
-
-/** Wait for authenticated host control readiness, never a TCP/401 probe. */
-export async function waitForStartedDaemon(
-  transport: Transport,
-  timeoutMs: number,
-  signal?: AbortSignal,
-): Promise<{ port: number; authority: HostConnection }> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline && !signal?.aborted) {
-    try {
-      const authority = await acquireAuthority(transport);
-      if (signal?.aborted) {
-        authority.close();
-        throw startTimeout(transport);
-      }
-      return { port: authority.port, authority };
-    } catch (err) {
-      if (err instanceof CliError && err.code === 'protocol_mismatch') throw err;
-    }
-    await sleep(500);
-  }
-  throw startTimeout(transport);
-}
-
-function startTimeout(transport: Transport): CliError {
-  return new CliError(
-    'daemon_start_timeout',
-    `puddled did not come up on ${transport.label}`,
-    transport.kind === 'ssh'
-      ? `inspect it with: puddle logs ${transport.label}`
-      : 'inspect it with: puddle logs',
-  );
 }

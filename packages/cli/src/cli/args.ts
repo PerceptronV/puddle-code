@@ -139,6 +139,8 @@ cockpit (even a wedged one) and runs the full launch flow again — tunnel,
 daemon restart if needed — keeping the old UI port so open tabs survive.
 An older host protocol prompts before updating its daemon; --no-upgrade
 aborts before prompting. Without a terminal, upgrade the daemon explicitly first.
+An installed independent-runtime host starts its selected service without
+reinstalling. Interrupted activation requires explicit update recovery.
 list shows running cockpits; kill stops one. Sessions keep running under a
 persistent supervisor; an SSH-attached daemon keeps their state for the next launch.
 

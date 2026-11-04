@@ -191,7 +191,18 @@ and `apply.ts`, including exact interruption approval through a shell-owned call
 Recheck participating authority after prompts; missing consent leaves staged work intact.
 Observe lost activation replies without retry, and never fall back to bootstrap after
 a coordinator/inspection failure. Passive modern metadata also blocks blind installation
-when the daemon cannot connect. Launcher integration and cockpit confirmation remain pending.
+when the daemon cannot connect. `installation/host/start.ts` and `auth/readiness.ts`
+share selected-service startup and authenticated observation between launch and explicit
+stopped-host upgrades. The selected pinned updater's `--start-daemon` mode uses
+`daemon/src/host/startup/` with existing claims and installer exclusion, requiring
+unchanged supervision and the selected executable. Release only the controller before
+one start; never rewrite configuration, selectors or controller records. A dispatched
+unfinished update requires recovery, while undispatched preparation may survive startup.
+Retain ended-worker checks for completed operations. Lost startup replies never cause
+another start, legacy installation or attached fallback. Share supervisor marker and
+definition readers under `host/supervision/`. The helper handles graceful disconnect
+signals; abrupt-kill lock repair and further platform acceptance remain unfinished.
+Cockpit confirmation remains pending.
 Read-only `puddle updates` falls back to the existing local/SSH bootstrap helper
 when authority cannot connect. Share bounded ledger validation through
 `shared/src/node/installation/updates.ts`; label recorded evidence and never use

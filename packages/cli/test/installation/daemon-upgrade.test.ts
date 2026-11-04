@@ -11,6 +11,7 @@ import { LeaseRegistry } from '../../../daemon/src/security/leases.js';
 import { inspectHostLocally } from '../../src/lib/auth/host-inspection.js';
 import { LocalTransport } from '../../src/lib/transport/local.js';
 import type { Transport } from '../../src/lib/transport/transport.js';
+import type { ConfirmDaemonUpgrade } from '../../src/lib/connection/handshake.js';
 
 const install = vi.hoisted(() => vi.fn<() => Promise<void>>());
 vi.mock('../../src/lib/installation/bootstrap.js', () => ({
@@ -77,13 +78,14 @@ function transport(kind: 'local' | 'ssh'): Transport {
     kind: 'ssh',
     label: 'devbox',
     async exec(command) {
+      if (command.includes('HOST_CAPABILITIES.json')) return { code: 3, stdout: '', stderr: '' };
       return {
         code: 0,
         stderr: '',
         stdout: command.endsWith('--inspect') ? JSON.stringify(await inspectHostLocally(home)) : '',
       };
     },
-    async openChannel() {
+    openChannel() {
       return connect(ipcPath(home, 'host'));
     },
     async readFile() {
@@ -98,7 +100,7 @@ it.each(['local', 'ssh'] as const)(
   'negotiates a modern older host through %s control before installing',
   async (kind) => {
     let approve!: (answer: boolean) => void;
-    const confirmDaemonUpgrade = vi.fn(
+    const confirmDaemonUpgrade = vi.fn<ConfirmDaemonUpgrade>(
       () =>
         new Promise<boolean>((resolve) => {
           approve = resolve;

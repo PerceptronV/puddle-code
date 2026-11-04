@@ -95,6 +95,7 @@ describe('SSH daemon lifetime fallback', () => {
       kind: 'ssh',
       label: 'alice@devbox',
       async exec(command) {
+        if (command.includes('HOST_CAPABILITIES.json')) return { code: 3, stdout: '', stderr: '' };
         if (command.startsWith('kill -0 ')) return { code: 1, stdout: '', stderr: '' };
         return ok(); // install.sh is deliberately not executed by this test seam
       },
@@ -140,6 +141,7 @@ describe('SSH daemon lifetime fallback', () => {
       kind: 'ssh',
       label: 'alice@devbox',
       async exec(command) {
+        if (command.includes('HOST_CAPABILITIES.json')) return { code: 3, stdout: '', stderr: '' };
         if (command.startsWith('kill -0 ')) {
           return { code: scenario.pidAlive ? 0 : 1, stdout: '', stderr: '' };
         }

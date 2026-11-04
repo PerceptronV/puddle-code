@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Start an installed daemon's selected service during local/SSH launch without reinstalling or replacing its build. Share authenticated readiness with stopped-host upgrades and route approved legacy launcher updates through the common upgrade entry. Preserve update/controller exclusion, require explicit recovery for interrupted activation and observe lost startup replies without retry or fallback; packaged platform and abrupt-kill recovery acceptance remain in progress.
+
 - Route ordinary daemon upgrades on supporting hosts through the existing runtime-update coordinator, sharing staging, impact review and observation after lost replies. Ask for exact interruption consent for daemon-owned work, preserve independently hosted agents, and refuse legacy installer fallback after uncertain modern updates or unavailable modern coordination. Launcher/cockpit integration and packaged platform acceptance remain in progress.
 
 - Add `puddle updates [user@host] --operation <id> --continue` (application 25.12) for explicit continuation of interrupted daemon updates, including through trusted local/SSH access while the daemon is unavailable. Reuse the pinned recovery worker and shared metadata readers; report durable acceptance separately from verified completion and never automatically repeat an uncertain dispatch. Cockpit integration and remaining failure/platform acceptance are still in progress.

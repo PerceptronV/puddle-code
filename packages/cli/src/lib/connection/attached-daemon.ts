@@ -1,6 +1,7 @@
 import type { HostConnection } from '../auth/connection-authority.js';
 import { randomUUID } from 'node:crypto';
-import { waitForStartedDaemon, type DaemonEndpoint, type DaemonLease } from './cockpit.js';
+import type { DaemonEndpoint, DaemonLease } from './cockpit.js';
+import { waitForStartedDaemon } from '../auth/readiness.js';
 import { sleep } from '../transport/net.js';
 import { hostPaths } from '../paths.js';
 import type { RunningSshCommand, SshTransport } from '../transport/ssh.js';

@@ -12,6 +12,7 @@ const mock = vi.hoisted(() => ({
   install: vi.fn(),
   inspect: vi.fn(),
   update: vi.fn(),
+  start: vi.fn(),
 }));
 vi.mock('../../src/lib/installation/bootstrap.js', () => ({
   installedVersion: mock.installed,
@@ -21,6 +22,7 @@ vi.mock('../../src/lib/auth/control-channel.js', () => ({ inspectHost: mock.insp
 vi.mock('../../src/lib/installation/host/upgrade.js', () => ({
   upgradeHostComponent: mock.update,
 }));
+vi.mock('../../src/lib/installation/host/start.js', () => ({ startInstalledDaemon: mock.start }));
 const homes: string[] = [];
 afterEach(() => {
   vi.resetAllMocks();
@@ -38,6 +40,7 @@ function fixture(protocol: { major: number; minor: number } = PROTOCOL_VERSION) 
   mock.installed.mockResolvedValue('0.4.0');
   mock.inspect.mockResolvedValue(inspection);
   mock.update.mockResolvedValue({ from: '0.4.0', to: '0.4.1' });
+  mock.start.mockRejectedValue(new Error('coordinator is unavailable'));
   const exec = vi.fn(async () => ({ code: 3, stdout: '', stderr: '' }));
   // Only passive metadata inspection is allowed here; activation uses the injected coordinator.
   const transport = { kind: 'ssh', label: 'fixture-host', exec } as unknown as Transport;
@@ -77,6 +80,21 @@ it('refuses a disconnected modern installation instead of bypassing its update r
   await expect(upgradeDaemon(f.transport)).rejects.toThrow('coordinator is unavailable');
   expect(mock.install).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.start).toHaveBeenCalledOnce();
+});
+
+it('starts the selected stopped daemon before staging an explicitly requested update', async () => {
+  const f = fixture();
+  const close = vi.fn();
+  mock.inspect.mockResolvedValueOnce(null);
+  mock.start.mockResolvedValueOnce({ authority: { close } });
+  f.exec.mockResolvedValueOnce({ code: 0, stdout: '', stderr: '' });
+  const result = await upgradeDaemon(f.transport, { version: '0.4.1' });
+  expect(result.to).toBe('0.4.1');
+  expect(mock.start).toHaveBeenCalledExactlyOnceWith(f.transport);
+  expect(close).toHaveBeenCalledOnce();
+  expect(mock.update).toHaveBeenCalledExactlyOnceWith(f.transport, 'daemon', { version: '0.4.1' });
+  expect(mock.install).not.toHaveBeenCalled();
 });
 
 it('retains the embedded installer and interruption message for a legacy transition', async () => {
@@ -89,24 +107,38 @@ it('retains the embedded installer and interruption message for a legacy transit
   );
 });
 
-it.each(['bin/current/HOST_CAPABILITIES.json', 'bin/runtime-current', 'updates/operations.json'])(
-  'preserves modern host evidence at %s when its daemon cannot connect',
-  async (path) => {
-    fixture();
-    const home = mkdtempSync(join(tmpdir(), 'puddle-upgrade-marker-'));
-    homes.push(home);
-    vi.stubEnv('PUDDLE_HOME', home);
-    const file = join(home, path);
-    mkdirSync(dirname(file), { recursive: true });
-    if (path === 'bin/runtime-current') symlinkSync('missing-generation', file);
-    else writeFileSync(file, '{}');
-    mock.inspect.mockResolvedValueOnce(null);
-    const transport = new LocalTransport();
-    try {
-      await expect(upgradeDaemon(transport)).rejects.toThrow('coordinator is unavailable');
-      expect(mock.install).not.toHaveBeenCalled();
-    } finally {
-      transport.dispose();
-    }
-  },
-);
+it('bootstraps a fresh SSH target when no installed Node can run the inspection helper', async () => {
+  const f = fixture();
+  mock.installed.mockResolvedValueOnce(null);
+  mock.inspect.mockRejectedValueOnce(new Error('Could not stage the host control helper'));
+  const result = await upgradeDaemon(f.transport, { version: '0.4.1' });
+  expect(result.from).toBeNull();
+  expect(mock.install).toHaveBeenCalledOnce();
+  expect(mock.start).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it.each([
+  'bin/current/HOST_CAPABILITIES.json',
+  'bin/runtime-current',
+  'updates/operations.json',
+  'runtime-controller.json',
+  'runtimes',
+])('preserves modern host evidence at %s when its daemon cannot connect', async (path) => {
+  fixture();
+  const home = mkdtempSync(join(tmpdir(), 'puddle-upgrade-marker-'));
+  homes.push(home);
+  vi.stubEnv('PUDDLE_HOME', home);
+  const file = join(home, path);
+  mkdirSync(dirname(file), { recursive: true });
+  if (path === 'bin/runtime-current') symlinkSync('missing-generation', file);
+  else writeFileSync(file, '{}');
+  mock.inspect.mockResolvedValueOnce(null);
+  const transport = new LocalTransport();
+  try {
+    await expect(upgradeDaemon(transport)).rejects.toThrow('coordinator is unavailable');
+    expect(mock.install).not.toHaveBeenCalled();
+  } finally {
+    transport.dispose();
+  }
+});
