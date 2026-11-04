@@ -73,6 +73,20 @@ undispatched requests are discarded. A slow controller is disconnected without
 blocking PTY drainage. No unbounded replay queue is maintained for disconnected
 controllers; terminal attachment obtains a new snapshot.
 
+The initial unshipped runtime 1.0 sender also limits JSON encoding to nesting depth
+128 (root depth zero) and 65,536 traversal visits, counting object keys and values,
+including omitted properties and array holes. Exceeding either produces an explicit
+`Runtime JSON depth capacity exceeded` or `Runtime JSON traversal capacity exceeded`
+error before serialisation. These are additional encoding limits: an otherwise
+schema-valid deeply nested `output_schema` below its 64 KiB bound can still be refused.
+Senders accept plain schema JSON, including sparse arrays and shared acyclic children,
+but reject accessors, proxies, custom `toJSON` functions and non-plain objects without
+executing them. They count exact UTF-8 JSON bytes, including escapes and lone
+surrogates, before reserving queued-frame capacity and serialising. Preflight bounds
+visited work and avoids an explicit full key array; it does not promise allocation-free
+JavaScript property enumeration. A separate transient encoding allowance is released
+before socket completion; queued small frames retain only their exact encoded charge.
+
 Canonical emulators share an owner-local 128 MiB retained allowance (96 MiB
 geometry, 24 MiB variable text/link state and 8 MiB control state), plus a 16 MiB
 parse/reflow working allowance. Geometry admission trims old scrollback before

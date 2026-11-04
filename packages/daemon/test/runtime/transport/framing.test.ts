@@ -184,4 +184,72 @@ describe('runtime framing', () => {
       failed.destroy();
     }
   });
+
+  it.each(['aggregate', 'socket'] as const)(
+    'refuses %s capacity before serialising or allocating a frame',
+    (scope) => {
+      const socket = new Socket();
+      const budget = new RuntimeBufferBudget({ bytes: scope === 'aggregate' ? 0 : 1024, count: 2 });
+      if (scope === 'socket')
+        Object.defineProperty(socket, 'writableLength', { value: RUNTIME_LIMITS.queuedBytes });
+      const stringify = vi.spyOn(JSON, 'stringify');
+      const allocate = vi.spyOn(Buffer, 'allocUnsafe');
+      try {
+        expect(writeRuntimeFrame(socket, { text: 'no room' }, budget)).toBe(false);
+        expect(stringify).not.toHaveBeenCalled();
+        expect(allocate).not.toHaveBeenCalled();
+        expect(budget.usedBytes).toBe(0);
+        expect(socket.destroyed).toBe(true);
+      } finally {
+        stringify.mockRestore();
+        allocate.mockRestore();
+        socket.destroy();
+      }
+    },
+  );
+
+  it('holds exact small-frame charges across a healthy burst rather than maximum encoding allowances', async () => {
+    const value = { text: 'small 🦆 burst' };
+    const bytes = encodeRuntimeFrame(value).length;
+    const budget = new RuntimeBufferBudget({ bytes: bytes * 64, count: 64 });
+    const socket = new SlowSocket();
+    try {
+      for (let index = 0; index < 64; index++)
+        expect(writeRuntimeFrame(socket, value, budget)).toBe(true);
+      expect(socket.destroyed).toBe(false);
+      expect(socket.writableLength).toBe(bytes * 64);
+      expect(budget.usedBytes).toBe(bytes * 64);
+      for (let index = 0; index < 64; index++) {
+        socket.drainOne();
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+      expect(budget.usedBytes).toBe(0);
+      expect(budget.usedCount).toBe(0);
+    } finally {
+      socket.destroy();
+    }
+  });
+
+  it('releases exact frame and transient capacity after an encoder failure', () => {
+    const socket = new SlowSocket();
+    const bytes = encodeRuntimeFrame({}).length;
+    const budget = new RuntimeBufferBudget({ bytes, count: 1 });
+    const allocate = vi.spyOn(Buffer, 'allocUnsafe').mockImplementationOnce(() => {
+      throw new Error('allocation failed');
+    });
+    try {
+      expect(() => writeRuntimeFrame(socket, {}, budget)).toThrow('allocation failed');
+      expect(budget.usedBytes).toBe(0);
+      expect(budget.usedCount).toBe(0);
+    } finally {
+      allocate.mockRestore();
+    }
+    try {
+      expect(writeRuntimeFrame(socket, {}, budget)).toBe(true);
+      socket.drainOne();
+      expect(budget.usedBytes).toBe(0);
+    } finally {
+      socket.destroy();
+    }
+  });
 });

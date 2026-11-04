@@ -68,6 +68,16 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Runtime writes now count bounded plain JSON before reserving their exact frame
+  size, then encode into one final buffer under a separate transient allowance.
+  Refused queued writes allocate no serialised body. Unicode, escapes, sparse
+  arrays and shared children retain their JSON representation; the initial
+  runtime contract documents depth/traversal limits and rejects executable
+  serialisers. Thirty-seven framing, request, actual-owner and turn-control checks,
+  strict TypeScript and lint passed. Small local timing comparisons found roughly
+  1.5 times the old encoding cost after optimisation, with substantial host
+  variation; these are smoke timings, not the resource acceptance gate.
+
 - Canonical terminal emulators now share owner-local retained allowances for
   geometry, combined characters, hyperlinks and control sequences. REP expansion
   and resize reflow reserve bounded working capacity before upstream allocation;
