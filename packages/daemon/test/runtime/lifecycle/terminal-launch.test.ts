@@ -1,13 +1,18 @@
 import { once } from 'node:events';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import WebSocket from 'ws';
 import { expect, it } from 'vitest';
-import { sessionSchema, type WsServerMessage } from '@puddle/shared';
+import {
+  sessionSchema,
+  sessionRuntimeInspectionSchema,
+  type WsServerMessage,
+} from '@puddle/shared';
 import { secret } from '@puddle/shared/node';
 import { readRuntimeJson, runtimeDirectory } from '../../../src/runtime/ownership/storage.js';
 import { runtimeDatabase } from '../../helpers/runtime-database.js';
-import { launchOwner } from '../../helpers/runtime-fixture.js';
+import { bundleDir, launchOwner } from '../../helpers/runtime-fixture.js';
+import { runtimeRelease } from '../../helpers/runtime-release.js';
 import { sh } from '../../helpers/git-fixtures.js';
 import { waitFor } from '../../helpers/daemon-fixtures.js';
 
@@ -17,6 +22,18 @@ it('creates and resumes terminal owners through the real daemon while ordinary r
   let ready: { port: number; token: string } | undefined;
   let ws: WebSocket | undefined;
   const runtimeIds = new Set<string>();
+  const installRuntime = (version: string) => {
+    const release = runtimeRelease(f.home, version);
+    copyFileSync(process.execPath, join(release.release, 'bin', 'node'));
+    copyFileSync(
+      join(bundleDir, 'provider-owner.mjs'),
+      join(release.release, 'daemon', 'puddler.mjs'),
+    );
+    cpSync(join(bundleDir, 'node_modules'), join(release.release, 'node_modules'), {
+      recursive: true,
+    });
+    release.select();
+  };
   const request = (path: string, body?: object) =>
     fetch(`http://127.0.0.1:${ready!.port}${path}`, {
       method: 'POST',
@@ -66,6 +83,8 @@ it('creates and resumes terminal owners through the real daemon while ordinary r
     sh(f.home, 'init', '-b', 'main');
     mkdirSync(join(f.home, 'source'));
     writeFileSync(join(f.home, 'test-enable-runtime-launcher'), '');
+    writeFileSync(join(f.home, 'test-installed-runtime-launcher'), '');
+    installRuntime('0.4.0');
     f.controller.release();
     await start();
     const created = await request('/api/sessions', {
@@ -131,6 +150,71 @@ it('creates and resumes terminal owners through the real daemon while ordinary r
       data: 'stty -echo; printf "resumed-%s\\n" "${survivor-unset}"\n',
     });
     await waitFor(() => third.text().includes('resumed-unset'));
+    const inspect = async () => {
+      const response = await fetch(
+        `http://127.0.0.1:${ready!.port}/api/sessions/${session.id}/runtime`,
+        {
+          headers: { authorization: `Bearer ${ready!.token}` },
+        },
+      );
+      expect(response.status).toBe(200);
+      return sessionRuntimeInspectionSchema.parse(await response.json());
+    };
+    const beforeShell = await inspect();
+    expect(beforeShell.restart.available).toBe(true);
+    third.send({ t: 'spawn-shell' });
+    await waitFor(() => f.runtimes.terminalForPlacement(session.id, 'shell-1') !== null);
+    const stale = await request(`/api/sessions/${session.id}/runtime/restart`, {
+      fingerprint: beforeShell.restart.available ? beforeShell.restart.fingerprint : '',
+    });
+    expect(stale.status).toBe(409);
+    await stale.arrayBuffer();
+    expect(f.runtimes.get(replacement.runtime_id)?.state).toBe('running');
+    const neighbour = sessionSchema.parse(
+      await (
+        await request('/api/sessions', {
+          project_id: f.project.id,
+          kind: 'terminal',
+          separate_branch: false,
+          separate_worktree: false,
+        })
+      ).json(),
+    );
+    const neighbourOwner = f.runtimes.ownerOf(neighbour.id)!;
+    runtimeIds.add(neighbourOwner.runtime_id);
+    const neighbourPid = () =>
+      (
+        readRuntimeJson(
+          join(runtimeDirectory(f.home, neighbourOwner.runtime_id), 'state.json'),
+        ) as { terminals: Array<{ pid: number }> }
+      ).terminals[0]!.pid;
+    const survivingPid = neighbourPid();
+    installRuntime('0.4.1');
+    expect(f.runtimes.ownerOf(session.id)?.build).toBe('0.4.0');
+    const reviewed = await inspect();
+    expect(reviewed.installed?.version).toBe('0.4.1');
+    expect(reviewed.runtime?.version).toBe('0.4.0');
+    expect(reviewed.runtime?.terminals?.map(({ term }) => term)).toEqual(['agent', 'shell-1']);
+    const fingerprint = reviewed.restart.available ? reviewed.restart.fingerprint : '';
+    const restarted = await request(`/api/sessions/${session.id}/runtime/restart`, { fingerprint });
+    expect(restarted.status, await restarted.text()).toBe(200);
+    const selected = f.runtimes.ownerOf(session.id)!;
+    runtimeIds.add(selected.runtime_id);
+    expect(selected.build).toBe('0.4.1');
+    expect(selected.runtime_id).not.toBe(replacement.runtime_id);
+    expect(f.runtimes.get(replacement.runtime_id)?.state).toBe('exited');
+    expect(f.runtimes.ownerOf(neighbour.id)?.runtime_id).toBe(neighbourOwner.runtime_id);
+    expect(f.runtimes.get(neighbourOwner.runtime_id)?.state).toBe('running');
+    expect(neighbourPid()).toBe(survivingPid);
+    process.kill(survivingPid, 0);
+    expect(f.runtimes.terminalForPlacement(session.id, 'shell-1')).toBeNull();
+    const replay = await request(`/api/sessions/${session.id}/runtime/restart`, { fingerprint });
+    expect(replay.status).toBe(409);
+    await replay.arrayBuffer();
+    expect(f.runtimes.ownerOf(session.id)?.runtime_id).toBe(selected.runtime_id);
+    const neighbourStopped = await request(`/api/sessions/${neighbour.id}/kill`);
+    expect(neighbourStopped.status).toBe(200);
+    await neighbourStopped.arrayBuffer();
     const archived = await request(`/api/sessions/${session.id}/archive`);
     expect(archived.status).toBe(200);
     await archived.arrayBuffer();

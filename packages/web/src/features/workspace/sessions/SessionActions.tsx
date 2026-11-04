@@ -13,6 +13,7 @@ import {
   Square,
   SquareTerminal,
   UserRoundCog,
+  Info,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { liveConversationTarget, toastError } from '../../../lib/transport/errors';
@@ -60,7 +61,10 @@ import {
   useRenameSession,
   useSessionAction,
   useUnarchiveSession,
+  useDaemonVersion,
 } from '../../../lib/queries/queries';
+import { browserTransport } from '../../../lib/transport/browser-transport';
+import { RuntimeDialog } from './runtime/RuntimeDialog';
 import { useCurrentProfileId } from '../../profile/profile-store';
 
 const LIVE: Session['status'][] = ['starting', 'running', 'waiting_input'];
@@ -86,6 +90,7 @@ export interface SessionMenu {
   /** Kill straight away — no confirmation (the conversation stays resumable). */
   kill: () => void;
   openRename: () => void;
+  inspectRuntime?: () => void;
   /** Confirm-then-clear the session's captured env (SPEC §4). */
   openClearEnv: () => void;
   /** Spawn a terminal session sharing this session's worktree directory. */
@@ -156,6 +161,9 @@ export function useSessionMenu(
   const [newTitle, setNewTitle] = useState(session.title ?? '');
   const [migrateTo, setMigrateTo] = useState<Account | null>(null);
   const [handoffTo, setHandoffTo] = useState<Account | null>(null);
+  const [runtimeOpen, setRuntimeOpen] = useState(false);
+  const protocol = useDaemonVersion().data?.protocol;
+  const runtimeInspection = !browserTransport() && protocol?.major === 25 && protocol.minor >= 15;
 
   // Migration targets: accounts of the same agent on this profile (SPEC §5).
   // The current account is shown but disabled; a session with no other same-
@@ -189,6 +197,7 @@ export function useSessionMenu(
 
   const menu: SessionMenu = {
     session,
+    ...(runtimeInspection ? { inspectRuntime: () => setRuntimeOpen(true) } : {}),
     resumable: RESUMABLE.includes(session.status) && !session.conversation_missing,
     live: LIVE.includes(session.status),
     archived: session.status === 'archived',
@@ -267,6 +276,7 @@ export function useSessionMenu(
 
   const dialogs = (
     <>
+      {runtimeOpen && <RuntimeDialog session={session} onClose={() => setRuntimeOpen(false)} />}
       <Dialog
         open={confirm === 'clear-env'}
         onOpenChange={(open) => {
@@ -452,6 +462,11 @@ function SessionMenuItems({ kit, menu }: { kit: MenuKit; menu: SessionMenu }) {
       {menu.live && (
         <Item onSelect={menu.kill}>
           <Square /> Kill
+        </Item>
+      )}
+      {menu.inspectRuntime && (
+        <Item onSelect={menu.inspectRuntime}>
+          <Info /> Runtime…
         </Item>
       )}
       <Item onSelect={menu.openRename}>

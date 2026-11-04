@@ -1,8 +1,14 @@
 import { once } from 'node:events';
 import { writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, it } from 'vitest';
-import { runtimeLaunchSchema, runtimeStateSchema, sessionSchema } from '@puddle/shared';
+import { expect, it, vi } from 'vitest';
+import {
+  runtimeLaunchSchema,
+  runtimeStateSchema,
+  sessionSchema,
+  sessionRuntimeInspectionSchema,
+  type SessionRuntimeInspection,
+} from '@puddle/shared';
 import { AccountStore } from '../../../src/db/stores/accounts.js';
 import { readRuntimeJson, runtimeDirectory } from '../../../src/runtime/ownership/storage.js';
 import { runtimeDatabase } from '../../helpers/runtime-database.js';
@@ -129,6 +135,35 @@ it('launches interactive providers, adopts offline native switches and resumes t
         readRuntimeJson(join(runtimeDirectory(f.home, replacement.runtime_id), 'launch.json')),
       ).provider?.resume_ref,
     ).toBe('launch-second');
+    let review: SessionRuntimeInspection | undefined;
+    // Launch readiness can precede the provider's final startup checkpoint.
+    // Repeat reads only; the destructive action is still sent exactly once.
+    await vi.waitFor(
+      async () => {
+        const inspection = await fetch(
+          `http://127.0.0.1:${ready!.port}/api/sessions/${active}/runtime`,
+          {
+            headers: { authorization: `Bearer ${ready!.token}` },
+          },
+        );
+        expect(inspection.status).toBe(200);
+        review = sessionRuntimeInspectionSchema.parse(await inspection.json());
+        expect(review.restart.available, JSON.stringify(review)).toBe(true);
+      },
+      { timeout: 10_000, interval: 100 },
+    );
+    const restarted = await request(`/api/sessions/${active}/runtime/restart`, {
+      fingerprint: review!.restart.available ? review!.restart.fingerprint : '',
+    });
+    expect(restarted.status, await restarted.text()).toBe(200);
+    const restartedOwner = f.runtimes.ownerOf(active)!;
+    runtimeIds.add(restartedOwner.runtime_id);
+    expect(restartedOwner.runtime_id).not.toBe(replacement.runtime_id);
+    const restartedLaunch = runtimeLaunchSchema.parse(
+      readRuntimeJson(join(runtimeDirectory(f.home, restartedOwner.runtime_id), 'launch.json')),
+    );
+    expect(restartedLaunch.provider?.resume_ref).toBe('launch-second');
+    expect(restartedLaunch.provider?.prompt).toBeUndefined();
     const archived = await request(`/api/sessions/${active}/archive`);
     expect(archived.status).toBe(200);
     await archived.arrayBuffer();

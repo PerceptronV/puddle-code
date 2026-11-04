@@ -35,7 +35,11 @@ interface LaunchOptions {
   provider?: RuntimeProviderLaunch;
   codeRunDirectory?: string;
   programme?: ProgrammeOperation;
+  beforeLaunch?: (release: RuntimeSelectedRelease) => void;
 }
+
+export type RuntimeSelectedRelease = ReturnType<typeof resolveInstalledRuntimeRelease>;
+export type RuntimeLaunchGuard = NonNullable<LaunchOptions['beforeLaunch']>;
 
 /** Production uses the installed selector and discovers the host's service manager. */
 export type RuntimeLaunchConfiguration = {
@@ -78,6 +82,38 @@ export class RuntimeLauncher {
     private readonly configuration: RuntimeLaunchConfiguration,
   ) {}
 
+  selectedRelease(): RuntimeSelectedRelease {
+    if ('installed' in this.configuration) return resolveInstalledRuntimeRelease(this.deps.home);
+    return {
+      nodePath: realpathSync(this.configuration.nodePath),
+      entryPath: realpathSync(this.configuration.entryPath),
+      releasePath: realpathSync(this.configuration.releasePath),
+      build: this.configuration.build,
+      protocol: RUNTIME_PROTOCOL_VERSION,
+    };
+  }
+
+  private async supervisor(): Promise<RuntimeSupervisor['kind']> {
+    if (this.configuration.kind !== undefined) return this.configuration.kind;
+    try {
+      return (await inspectHostServiceManager(this.deps.home, { run: this.configuration.run }))
+        .kind;
+    } catch {
+      throw new ApiError(
+        503,
+        'runtime_supervisor_unavailable',
+        'This host has no available independent runtime service manager.',
+      );
+    }
+  }
+
+  async checkAvailable(): Promise<void> {
+    this.admission.assertOpen();
+    await this.supervisor();
+    this.selectedRelease();
+    this.admission.assertOpen();
+  }
+
   launch(
     sessionId: string,
     command: (hooks: ShellHooks) => RuntimeCommand,
@@ -102,39 +138,20 @@ export class RuntimeLauncher {
   private async start(
     sessionId: string,
     command: (hooks: ShellHooks) => RuntimeCommand,
-    { provider, codeRunDirectory, programme }: LaunchOptions,
+    { provider, codeRunDirectory, programme, beforeLaunch }: LaunchOptions,
   ): Promise<void> {
     // Establish lifetime support before recording any launch intent. An unavailable
     // manager must not leave a prepared owner or select the old in-process backend.
-    let kind = this.configuration.kind;
-    if (kind === undefined) {
-      try {
-        kind = (await inspectHostServiceManager(this.deps.home, { run: this.configuration.run }))
-          .kind;
-      } catch {
-        throw new ApiError(
-          503,
-          'runtime_supervisor_unavailable',
-          'This host has no available independent runtime service manager.',
-        );
-      }
-    }
+    const kind = await this.supervisor();
     if (this.closed) throw new ApiError(503, 'host_maintenance', 'Runtime launcher is closing');
     const session = this.deps.sessions.get(sessionId);
     if (this.deps.runtimes.ownerOf(sessionId))
       throw ApiError.conflict('runtime_owned', 'This placement already has an independent owner');
     const project = this.deps.projects.get(session.project_id);
     // Pin selectors before writing intent. Updating a default cannot change this launch.
-    const config =
-      'installed' in this.configuration
-        ? { ...this.configuration, ...resolveInstalledRuntimeRelease(this.deps.home) }
-        : {
-            ...this.configuration,
-            nodePath: realpathSync(this.configuration.nodePath),
-            entryPath: realpathSync(this.configuration.entryPath),
-            releasePath: realpathSync(this.configuration.releasePath),
-            protocol: RUNTIME_PROTOCOL_VERSION,
-          };
+    const selected = this.selectedRelease();
+    const config = { ...this.configuration, ...selected };
+    beforeLaunch?.(selected);
     const identity = {
       runtime_id: randomUUID(),
       incarnation: randomUUID(),

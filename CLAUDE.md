@@ -229,7 +229,15 @@ refresh on host invalidations/reconnect, never retry or queue a mutation for rec
 Keep preparation, impact review and apply separate; match the current operation revision
 and exact interruption fingerprint before exposing approval. Preserve dismissal across
 React remounts in the same window. Compatible release skew must not become an update
-condition. Per-runtime inspection/restart and offline/legacy cockpit recovery remain open.
+condition. Offline/legacy cockpit recovery remains open.
+Application 25.15 adds local/SSH session runtime inspection/restart. Keep orchestration
+in `sessions/runtime/`, reusing RuntimeControls' queue/clean-exit observation and normal
+SessionService resume. Fingerprints bind the exact owner, placement, native ref, shell
+generations and selected release. Recheck authority and selection before replacement
+intent; stale/lost replies never authorise another restart. The inspector lives beside
+workspace session actions under `sessions/runtime/`; it lists affected terminals and
+lost process state. Remote profile leases/connector operations remain excluded pending
+their explicit integration. Never restart existing runtimes as part of installation.
 Read-only `puddle updates` falls back to the existing local/SSH bootstrap helper
 when authority cannot connect. Share bounded ledger validation through
 `shared/src/node/installation/updates.ts`; label recorded evidence and never use

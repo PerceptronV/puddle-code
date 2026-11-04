@@ -20,7 +20,8 @@ coordinator first. Local/SSH cockpit routes now share preparation, review and ex
 activation/recovery through the existing host coordinator. Host version inventory and
 coalesced, cached release discovery now feed that gateway. Settings → Host now exposes
 preparation, exact impact approval and live recovery, with per-window release offers.
-Individual runtime inspection/restart, offline/legacy cockpit recovery,
+Individual runtime inspection/restart is available in local/SSH session menus.
+Offline/legacy cockpit recovery,
 remaining failure recovery and complete packaged
 upgrade acceptance remain unfinished.
 This document describes the intended refactor; [SPEC.md](../../SPEC.md) continues
@@ -40,6 +41,19 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 [acceptance matrix](#acceptance-matrix) for the release gates.
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
+
+- Application 25.15 adds placement-scoped inspection and explicit selected-runtime
+  restart, with controls beside session actions. `sessions/runtime/` composes existing
+  control queues, clean-exit observation and exact conversation resume. Review binds
+  owner/placement/native ref, shell generations and selected immutable release; authority
+  and selection are checked again before launch intent. Isolated real-owner tests reject
+  changed shell inventories and repeated approvals, replace only the selected runtime
+  with an installed 0.4.1 build, and preserve a neighbour's 0.4.0 process. A fake-agent
+  test resumes the exact post-switch native ref without an onboarding prompt. Failure
+  fixtures cover revoked authority, changed selections and archive races. The browser
+  inspector lists the affected terminals and observes a lost reply without repeating
+  restart. Native providers, actual platform services and remote access remain separate
+  acceptance/integration gates; no runtime or remote protocol changes were made.
 
 - Local/SSH Settings → Host and shell offers now share a status query and host WS
   invalidations. The borderless controls show current/default builds, grouped existing

@@ -7,6 +7,7 @@ import {
   migrateSessionRequestSchema,
   patchSessionRequestSchema,
   sessionStatusSchema,
+  restartSessionRuntimeRequestSchema,
   type ClearSessionEnvResponse,
   type Session,
   type SessionEnvResponse,
@@ -56,6 +57,15 @@ export function sessionRoutes(deps: { service: SessionService; scanner: PortScan
         return c.json(deps.service.rename(c.req.param('id'), body.title));
       })
       .post('/:id/resume', async (c) => c.json(await deps.service.resume(c.req.param('id'))))
+      .get('/:id/runtime', async (c) =>
+        c.json(await deps.service.inspectRuntime(c.req.param('id'), requestAuthority(c))),
+      )
+      .post('/:id/runtime/restart', async (c) => {
+        const body = await parseBody(c, restartSessionRuntimeRequestSchema);
+        return c.json(
+          await deps.service.restartRuntime(c.req.param('id'), body, requestAuthority(c)),
+        );
+      })
       .post('/:id/migrate', async (c) => {
         const body = await parseBody(c, migrateSessionRequestSchema);
         return c.json(await deps.service.migrate(c.req.param('id'), body.account_id));

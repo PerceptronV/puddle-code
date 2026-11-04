@@ -392,7 +392,15 @@ retry nor wait in an offline queue. Each window offers each host/component/relea
 retaining dismissal across React remounts and reconnects. Offers open Host settings and
 never activate software. Compatible cockpit/daemon release skew remains supported.
 These controls are local/SSH-only until explicit remote maintenance authority is delivered.
-Individual runtime inspection/restart and offline/legacy cockpit recovery remain unfinished.
+The session menu's Runtime inspector (25.15, local/SSH) shows its current build,
+installed default and live agent/shell tabs. Restart requires explicit acknowledgement
+that shell jobs and process state are lost and extra shells close. An opaque review
+fingerprint binds the current runtime, placement, exact native ref, terminal generations
+and selected immutable release. The existing control queue re-inspects before stop;
+normal resume follows only confirmed clean exit, with authority and selection checked
+again before launch intent. Unknown conversations, unavailable owners, unsaved history
+or changed reviews refuse restart. Software installation never invokes this action.
+Offline/legacy cockpit recovery and remote integration remain unfinished.
 
 Application 25.10 adds exact interruption consent to private local/SSH update
 control. When other checks pass but daemon-owned work would stop, a supporting

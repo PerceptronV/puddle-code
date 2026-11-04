@@ -1,5 +1,19 @@
 # The puddle communication protocol
 
+Protocol 25.15 adds local/SSH `GET /api/sessions/:id/runtime` and
+`POST /api/sessions/:id/runtime/restart`. Inspection reports the placement's current
+runtime build/protocol, connected live terminal ids, installed default and either a
+bounded restart blocker or an exact approval fingerprint. It omits private paths,
+owner credentials, process ids and environment values. Restart carries only that
+fingerprint and returns the usual Session response. It rechecks runtime identity,
+placement/conversation, shell generations, selected release and request authority
+before stopping, then requires confirmed clean exit before normal exact resume.
+The launch path rechecks authority, placement and the selected release before
+replacement intent. Lost replies are inspected, never retried; boot does not replay
+an interrupted restart. New clients capability-detect this surface. Remote profile
+leases and connector routes still exclude it pending explicit remote integration.
+Application 25.15 is additive; runtime 1.0 and remote 4 are unchanged.
+
 Protocol 25.14 adds optional `include_catalogue: true` to private host-update status.
 Only requesting clients receive the bounded `catalogue`: running daemon version,
 selected runtime default, grouped committed runtime builds (running, starting and
@@ -17,7 +31,7 @@ Cockpit status optionally carries the catalogue after capability detection.
 `host-updates-changed` invalidates host-wide status viewers after release discovery
 or control mutations. Profile-scoped remote leases receive neither the catalogue
 nor this event, and no remote maintenance permission is added. Older status requests
-retain their exact reply shape. The Settings UI and offers remain in progress;
+retain their exact reply shape. Settings controls and window offers consume these reads;
 remote 4 and runtime 1.0 are unchanged.
 
 Protocol 25.13 adds capability-detected local/SSH `GET/POST /cockpit/updates`.
@@ -33,8 +47,8 @@ client, bounded by the original cockpit connection and browser request lifetime;
 revocation before host dispatch closes that lease without revoking other viewers.
 Accepted host dispatch remains durable. Lost replies are observed, never retried or
 sent through an offline fallback. Older compatible daemons remain usable and expose
-only supported actions; old cockpits return 404. Settings UI, release offers and
-offline cockpit recovery remain unfinished. This is an additive application route,
+only supported actions; old cockpits return 404. Offline cockpit recovery remains
+unfinished. This is an additive application route,
 not a new maintenance protocol; remote 4 and runtime 1.0 are unchanged.
 Concurrent reads are bounded separately from mutations. Short-lived status channels
 avoid consuming the long-lived viewing connection's bounded request-id history.

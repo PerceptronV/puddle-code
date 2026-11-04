@@ -33,7 +33,7 @@ import {
 
 describe('shared API schemas', () => {
   it('declares protocol 25.14 for host update discovery', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 25, minor: 14 });
+    expect(PROTOCOL_VERSION).toEqual({ major: 25, minor: 15 });
   });
 
   it('accepts headless mode and rejects the previous scripted name', () => {

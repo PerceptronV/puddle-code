@@ -1,4 +1,9 @@
-import { RUNTIME_LIMITS, type RuntimeCommand, type RuntimePlacement } from '@puddle/shared';
+import {
+  RUNTIME_LIMITS,
+  type RuntimeCommand,
+  type RuntimePlacement,
+  type RuntimeState,
+} from '@puddle/shared';
 import type { RuntimeStore } from '../../db/stores/runtimes.js';
 import { HostAdmission } from '../../host/lifecycle/admission.js';
 import { ApiError } from '../../http/errors.js';
@@ -156,8 +161,34 @@ export class RuntimeControls {
     });
   }
 
-  async stop(sessionId: string, authorised: Authorised): Promise<void> {
+  private async inspectTarget(target: Target, authorised: Authorised): Promise<RuntimeState> {
+    const response = await target.client.request({ t: 'inspect' });
+    if (response.t !== 'state') throw unavailable();
+    await this.observe(target.id, response.state.journal.cursor);
+    this.check(target, authorised);
+    if (
+      response.state.binding?.session_id !== target.placement.session_id ||
+      response.state.binding.segment_id !== target.placement.segment_id ||
+      response.state.history.current.id !== target.placement.segment_id
+    )
+      throw unavailable();
+    return response.state;
+  }
+
+  inspect(sessionId: string, authorised: Authorised): Promise<RuntimeState> {
+    return this.run(sessionId, authorised, (target) => this.inspectTarget(target, authorised));
+  }
+
+  async stop(
+    sessionId: string,
+    authorised: Authorised,
+    review?: (state: RuntimeState) => void,
+  ): Promise<void> {
     await this.run(sessionId, authorised, async (target) => {
+      // Shell admission shares this queue. Native switches remain fenced by the
+      // placement on the stop request, including a switch after this inspection.
+      if (review) review(await this.inspectTarget(target, authorised));
+      this.check(target, authorised);
       this.runtimes.requestStop(
         target.id,
         target.placement.session_id,

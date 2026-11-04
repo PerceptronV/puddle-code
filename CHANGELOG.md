@@ -11,7 +11,9 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
-- Add Settings → Host update controls for local/SSH targets: inspect versions, prepare daemon/runtime software, review exact interruption impact, explicitly apply and observe supported live recovery. Offer newer releases once per component and window, retaining dismissal across reconnects. Lost replies refresh status without repeating activation. Offline/legacy cockpit recovery and individual runtime controls remain in progress.
+- Add a session Runtime inspector and explicit restart on the installed build (application 25.15, local/SSH). Show affected agent/shell tabs and warn about lost shell jobs. Bind approval to the exact runtime, conversation and installed release, require clean exit before normal resume, and reject stale approvals or changed authority without replaying uncertain work. Installing runtime software continues to leave existing processes running.
+
+- Add Settings → Host update controls for local/SSH targets: inspect versions, prepare daemon/runtime software, review exact interruption impact, explicitly apply and observe supported live recovery. Offer newer releases once per component and window, retaining dismissal across reconnects. Lost replies refresh status without repeating activation. Offline/legacy cockpit recovery remains in progress.
 
 - Add host-owned version inventory and coalesced latest-release discovery (application 25.14), reusing CLI/desktop lookup code. Preserve the 30-minute cadence and timestamped last-known results across daemon restarts, report runtime builds without private session details, and stage from the target host's release source. Discovery does not install or restart anything.
 

@@ -10,6 +10,27 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+Selected-runtime restart (25.15) reuses the existing lifecycle fixtures. The real
+isolated daemon/owners reject a stale review after another shell appears, require
+explicit fresh approval, close the old runtime, and launch only the selected
+replacement from an installed 0.4.1 tree. A neighbouring 0.4.0 runtime retains its
+recorded PID and build. Reusing the consumed review cannot stop that replacement.
+The fake-agent fixture resumes the exact post-switch native ref without adding an
+onboarding prompt. These run with sanitised temporary homes and deterministic fake
+supervision; they are not installed systemd/launchd or native-provider acceptance.
+
+Additional tests bind review to immutable release paths even when versions match,
+reject unknown conversations/pending persistence, and prevent replacement after
+authority, selector or archive changes. Profile leases cannot reach the new routes.
+An isolated Chromium rendering of the real Runtime dialogue showed the running and
+target builds, main agent and extra shell, and the process-state warning; an aborted
+restart response refreshed to the replacement without repeating its POST. The normal
+session menu is capability-detected at application 25.15; remote integration is pending.
+Focused lifecycle, approval, authority, launch and programme regressions passed, as
+did source/strict changed-test typechecks, lint, formatting and web/CLI/desktop builds.
+The agent fixture waits for its persisted startup checkpoint using inspection reads;
+it never repeats the restart mutation to work around startup timing.
+
 Cockpit UI checks cover independent component release comparison, window-lifetime
 offer deduplication, exact operation/revision approval, supported interruption consent,
 live recovery controls and exclusion from relay transports. Query tests use the real

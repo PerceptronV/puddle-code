@@ -1,5 +1,6 @@
 import type { RuntimeControls } from '../runtime/controller/controls.js';
-import type { RuntimeLauncher } from '../runtime/lifecycle/launcher.js';
+import type { RuntimeLauncher, RuntimeLaunchGuard } from '../runtime/lifecycle/launcher.js';
+import { SessionRuntimeService } from './runtime/service.js';
 import { RuntimePersistence } from '../storage/runtime-persistence.js';
 import { HostBackgroundTasks } from '../host/lifecycle/background.js';
 import { HostAdmission } from '../host/lifecycle/admission.js';
@@ -18,6 +19,8 @@ import type {
   Session,
   SessionEnvResponse,
   SessionStatus,
+  SessionRuntimeInspection,
+  RestartSessionRuntimeRequest,
 } from '@puddle/shared';
 import type { AgentAdapter, LaunchOpts, LifecycleLaunchResource } from '../agents/adapter.js';
 import { assertBinaryAvailable } from '../agents/binary.js';
@@ -298,8 +301,15 @@ export class SessionService extends EventEmitter {
   private readonly persistence: RuntimePersistence;
   private lastPersistenceRetry = 0;
 
+  private readonly runtimeMaintenance: SessionRuntimeService;
+
   constructor(private readonly deps: SessionServiceDeps) {
     super();
+    this.runtimeMaintenance = new SessionRuntimeService(
+      deps,
+      (id, guard) => this.resumeCore(id, guard),
+      (account, adapter) => this.assertLoggedIn(account, adapter),
+    );
     this.persistence = new RuntimePersistence(deps.sessions, deps.events, deps.storage);
     this.sessionRefs = new SessionRefs(deps);
     this.terminalAgents = new TerminalAgentMonitor({
@@ -864,6 +874,7 @@ export class SessionService extends EventEmitter {
     sessionId: string,
     worktreePath: string,
     command?: TerminalCommand,
+    beforeLaunch?: RuntimeLaunchGuard,
   ): Promise<void> {
     this.assertLegacyRuntime(sessionId);
     if (this.deps.runtimeLauncher) {
@@ -881,12 +892,16 @@ export class SessionService extends EventEmitter {
               rows: 32,
             };
           },
-          { codeRunDirectory: command?.managedRunDirectory },
+          { codeRunDirectory: command?.managedRunDirectory, beforeLaunch },
         );
       } catch (error) {
         // Prepared intent may already be executing. Never erase that ownership
         // or fall back to another spawn after a missing supervisor response.
-        if (!this.deps.runtimes?.ownerOf(sessionId) && !this.shuttingDown) {
+        if (
+          !this.deps.runtimes?.ownerOf(sessionId) &&
+          !this.shuttingDown &&
+          this.deps.sessions.get(sessionId).status !== 'archived'
+        ) {
           this.transition(sessionId, 'exited');
           this.deps.events.record(sessionId, 'spawn_failed', { message: String(error) });
         }
@@ -931,7 +946,7 @@ export class SessionService extends EventEmitter {
     return this.lifecycleMutex.run('native-conversation-switch', () => this.resumeCore(id));
   }
 
-  private async resumeCore(id: string): Promise<Session> {
+  private async resumeCore(id: string, beforeLaunch?: RuntimeLaunchGuard): Promise<Session> {
     this.assertLegacyRuntime(id);
     const session = this.deps.sessions.get(id);
     await this.deps.storage?.assertAdmission([
@@ -972,7 +987,7 @@ export class SessionService extends EventEmitter {
     // shell, in the SAME directory it was opened in (`cwd`, SPEC §4).
     if (session.kind === 'terminal') {
       const wasInterrupted = session.status === 'interrupted';
-      await this.spawnTerminal(session.id, this.startDirOf(session));
+      await this.spawnTerminal(session.id, this.startDirOf(session), undefined, beforeLaunch);
       if (!this.deps.runtimes?.usesExternalTerminals(session.id))
         this.transition(session.id, 'running');
       this.deps.events.record(id, 'resumed', { was_interrupted: wasInterrupted });
@@ -1005,6 +1020,7 @@ export class SessionService extends EventEmitter {
     const wasInterrupted = session.status === 'interrupted';
     const { skip } = await this.resumeSpawn(session, account, adapter, project.profile_id, ref, {
       interruptedNote: wasInterrupted,
+      beforeLaunch,
     });
     this.deps.events.record(id, 'resumed', {
       was_interrupted: wasInterrupted,
@@ -1030,7 +1046,7 @@ export class SessionService extends EventEmitter {
     adapter: AgentAdapter,
     profileId: string,
     ref: string | undefined,
-    opts: { interruptedNote: boolean },
+    opts: { interruptedNote: boolean; beforeLaunch?: RuntimeLaunchGuard },
   ): Promise<{ skip: boolean; downgraded: boolean }> {
     const skip = this.evaluateSkip(profileId, account, adapter, session.skip_permissions);
     const downgraded = session.skip_permissions && !skip;
@@ -1061,6 +1077,8 @@ export class SessionService extends EventEmitter {
       'running',
       launchOpts,
       ref,
+      undefined,
+      opts.beforeLaunch,
     );
     this.bindRuntimeConversation(session.id);
     if (!this.deps.runtimes?.usesExternalTerminals(session.id))
@@ -1271,6 +1289,20 @@ export class SessionService extends EventEmitter {
       from_agent: session.agent_type,
     });
     return created;
+  }
+
+  inspectRuntime(id: string, authorised: () => boolean): Promise<SessionRuntimeInspection> {
+    return this.runtimeMaintenance.inspect(id, authorised);
+  }
+
+  restartRuntime(
+    id: string,
+    request: RestartSessionRuntimeRequest,
+    authorised: () => boolean,
+  ): Promise<Session> {
+    return this.lifecycleMutex.run('native-conversation-switch', () =>
+      this.runtimeMaintenance.restart(id, request, authorised),
+    );
   }
 
   /** SIGTERM the session's PTYs and wait for the agent to exit. */
@@ -1619,6 +1651,7 @@ export class SessionService extends EventEmitter {
     launchOpts?: LaunchOpts,
     resumeRef?: string,
     programme?: ProgrammeOperation,
+    beforeLaunch?: RuntimeLaunchGuard,
   ): Promise<void> {
     this.assertLegacyRuntime(sessionId);
     await this.deps.storage?.assertAdmission([
@@ -1656,6 +1689,7 @@ export class SessionService extends EventEmitter {
           }),
           {
             programme,
+            beforeLaunch,
             provider: {
               id: adapter.id,
               config_dir: account.config_dir,
@@ -1676,7 +1710,11 @@ export class SessionService extends EventEmitter {
             session: sessionId,
           } satisfies NoticeEvent);
       } catch (error) {
-        if (!this.deps.runtimes?.ownerOf(sessionId) && !this.shuttingDown) {
+        if (
+          !this.deps.runtimes?.ownerOf(sessionId) &&
+          !this.shuttingDown &&
+          this.deps.sessions.get(sessionId).status !== 'archived'
+        ) {
           this.transition(sessionId, 'exited');
           this.deps.events.record(sessionId, 'spawn_failed', { message: String(error) });
         }

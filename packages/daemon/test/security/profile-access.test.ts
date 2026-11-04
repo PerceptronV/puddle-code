@@ -96,6 +96,18 @@ function fixture() {
 }
 
 describe('profile-bound host authority', () => {
+  it('excludes runtime inspection and restart until the remote surface is explicitly extended', async () => {
+    const f = fixture();
+    expect((await f.req(`/api/sessions/${f.one.session.id}/runtime`)).status).toBe(403);
+    expect(
+      (
+        await f.req(`/api/sessions/${f.one.session.id}/runtime/restart`, 'POST', {
+          fingerprint: 'a'.repeat(64),
+        })
+      ).status,
+    ).toBe(403);
+    expect(f.dispatch).not.toHaveBeenCalled();
+  });
   it('denies host-wide storage diagnostics to remote profile leases', async () => {
     const f = fixture();
     expect((await f.req('/api/storage')).status).toBe(403);

@@ -46,6 +46,7 @@ export * from './api/notebooks/notebook-intelligence.js';
 export * from './api/notebooks/notebook-widgets.js';
 export * from './notebook-widget-state.js';
 export * from './api/storage.js';
+export * from './api/agents/runtime.js';
 export * from './runtime/protocol.js';
 export * from './runtime/storage.js';
 export * from './installation/stage.js';

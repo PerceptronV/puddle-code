@@ -68,6 +68,26 @@ function fixture(run: CompilationCommandRunner, installed = false) {
   };
 }
 
+it('checks the reviewed release and authority before writing replacement intent', async () => {
+  const run = vi.fn<CompilationCommandRunner>();
+  const f = fixture(run, true);
+  const release = runtimeRelease(f.home);
+  release.select();
+  try {
+    const guard = vi.fn(() => {
+      throw new Error('Review or authority changed');
+    });
+    await expect(
+      f.launcher.launch(f.session.id, () => f.launch.main, { beforeLaunch: guard }),
+    ).rejects.toThrow('Review or authority changed');
+    expect(guard).toHaveBeenCalledWith(f.launcher.selectedRelease());
+    expect(f.runtimes.ownerOf(f.session.id)).toBeNull();
+    expect(run).not.toHaveBeenCalled();
+  } finally {
+    await f.close();
+  }
+});
+
 it('pins the installed build before command construction can change the default', async () => {
   const run = vi.fn<CompilationCommandRunner>(async (command) => {
     const directory = dirname(command.args[2]!);

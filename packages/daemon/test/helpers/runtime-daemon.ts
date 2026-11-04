@@ -23,10 +23,14 @@ const runtime: RuntimeLaunchConfiguration | false | undefined = existsSync(
 )
   ? {
       kind: 'launchd',
-      nodePath: process.execPath,
-      entryPath: join(bundle, 'provider-owner.mjs'),
-      releasePath: bundle,
-      build: 'runtime-test',
+      ...(existsSync(join(home, 'test-installed-runtime-launcher'))
+        ? { installed: true as const }
+        : {
+            nodePath: process.execPath,
+            entryPath: join(bundle, 'provider-owner.mjs'),
+            releasePath: bundle,
+            build: 'runtime-test',
+          }),
       // Deterministic independent lifetime, not evidence of native supervisor behaviour.
       run: async (command) => {
         const directory = dirname(command.args[2]!);

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { expect, it, vi } from 'vitest';
-import type { RuntimeResponse } from '@puddle/shared';
+import type { RuntimeResponse, RuntimeState } from '@puddle/shared';
 import { RuntimeControls } from '../../../src/runtime/controller/controls.js';
 import { RuntimeConnectionLost } from '../../../src/runtime/transport/client.js';
 import type { RuntimeConnections } from '../../../src/runtime/transport/connections.js';
@@ -25,6 +25,53 @@ function fixture() {
     },
   };
 }
+
+it('checks reviewed state under the shell-control queue before recording stop intent', async () => {
+  const f = fixture();
+  f.runtimes.observe(
+    f.binding.runtime_id,
+    {
+      cursor: 0,
+      sessionId: f.session.id,
+      conversationId: null,
+      state: 'running',
+      segment: { id: f.binding.runtime_id, start_cursor: 0, agent_session_ref: null },
+    },
+    () => {},
+  );
+  // Only fields consumed by inspection; the transport decoder validates complete owner replies.
+  const state = {
+    journal: { cursor: 0 },
+    binding: { session_id: f.session.id, segment_id: f.binding.runtime_id },
+    history: { current: { id: f.binding.runtime_id } },
+  } as RuntimeState;
+  try {
+    f.client.request.mockResolvedValue({ t: 'state', id: randomUUID(), state });
+    await expect(
+      f.controls.stop(
+        f.session.id,
+        () => true,
+        () => {
+          throw new Error('Review changed');
+        },
+      ),
+    ).rejects.toThrow('Review changed');
+    expect(f.client.request.mock.calls.map(([request]) => request.t)).toEqual(['inspect']);
+    expect(f.runtimes.stopRequested(f.binding.runtime_id)).toBe(false);
+    f.client.request.mockImplementation(async () => {
+      state.history.current.id = randomUUID();
+      return { t: 'state', id: randomUUID(), state };
+    });
+    const review = vi.fn();
+    await expect(f.controls.stop(f.session.id, () => true, review)).rejects.toMatchObject({
+      code: 'runtime_reconciliation_required',
+    });
+    expect(review).not.toHaveBeenCalled();
+    expect(f.runtimes.stopRequested(f.binding.runtime_id)).toBe(false);
+  } finally {
+    await f.close();
+  }
+});
 
 it('records stop intent before dispatch and observes a lost acknowledgement without retransmission', async () => {
   const f = fixture();
