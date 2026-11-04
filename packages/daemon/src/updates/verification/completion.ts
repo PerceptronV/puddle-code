@@ -4,6 +4,7 @@ import {
   type HostUpdateOperation,
   type HostUpdateWorker,
 } from '@puddle/shared';
+import { setTimeout as delay } from 'node:timers/promises';
 import { digest } from '@puddle/shared/node';
 import type { CompilationCommandRunner } from '../../compilation/process.js';
 import { inspectRunningService } from '../../host/supervision/inspection.js';
@@ -12,6 +13,25 @@ import { verifyUpdateSelection } from '../worker/selection.js';
 import { requireCurrentAdoption, verifyHostUpdateAdoption } from './adoption.js';
 import { inspectReplacementConnector } from './connector.js';
 import { requireVerificationOperation } from './operation.js';
+
+/** Retry observations only while replacement services establish readiness. */
+export async function awaitHostUpdateCompletion(
+  home: string,
+  job: HostUpdateWorker,
+  operation: HostUpdateOperation,
+  run?: CompilationCommandRunner,
+): Promise<string> {
+  const daemon = operation.targets.some(({ component }) => component === 'daemon');
+  const deadline = Date.now() + 30_000;
+  for (;;) {
+    try {
+      return await verifyHostUpdateCompletion(home, job, operation, run);
+    } catch (error) {
+      if (!daemon || Date.now() >= deadline) throw error;
+      await delay(100);
+    }
+  }
+}
 
 /** Shared by execution and recovery: observe completion without repeating component mutations. */
 export async function verifyHostUpdateCompletion(

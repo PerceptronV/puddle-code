@@ -6,6 +6,8 @@ import { expect, it, vi } from 'vitest';
 import { atomicPrivateJson, digest } from '@puddle/shared/node';
 import { checkpointWorker } from '../helpers/update-checkpoint.js';
 import { updateWorkerDirectory } from '../../src/updates/worker/supervisor.js';
+import { HostUpdateRecoveryAttempts } from '../../src/updates/recovery/worker/records.js';
+import { hostUpdateRecoveryJobSchema } from '@puddle/shared';
 import type { HostUpdateCommand, HostUpdateReply, HostUpdateOperation } from '@puddle/shared';
 import { HostUpdateCoordinator } from '../../src/updates/coordinator.js';
 import type { UpdateInspection } from '../../src/updates/preflight/inspection.js';
@@ -315,6 +317,52 @@ it('drains daemon admissions before final inspection and retains the hold after 
   expect(() => process.kill(-lifetime.process_group, 0)).toThrowError(
     expect.objectContaining({ code: 'ESRCH' }),
   );
+  const pending = f.store.claimRecovery(operation);
+  const job = hostUpdateRecoveryJobSchema.parse({
+    format: 1,
+    id: randomUUID(),
+    operation_id: operation.id,
+    requested_revision: operation.revision,
+    revision: pending.operation.revision,
+    original_dispatch_id: operation.dispatch_id,
+    original_worker_id: operation.worker_id,
+    preflight: operation.approved,
+    original_worker_digest: digest('worker'),
+    actions_digest: digest('actions'),
+    service: {
+      kind: 'systemd',
+      domain: null,
+      name: 'puddle-recovery-fixture.service',
+      release_path: '/unused/release',
+      node_path: '/unused/release/bin/node',
+      entry_path: '/unused/release/daemon/host-update.mjs',
+      installer_path: '/unused/release/daemon/install.sh',
+    },
+  });
+  const attempts = new HostUpdateRecoveryAttempts(f.home, operation.id);
+  try {
+    attempts.append(job, () => {});
+  } finally {
+    pending.release();
+  }
+  await f.execute({ action: 'status' });
+  expect(() => f.admission.enter()).toThrow(); // The pending recovery job can still consume its revision.
+  const executing = f.store.claimRecovery(f.store.read()!);
+  try {
+    attempts.claim(job, 2147483646, () => {});
+  } finally {
+    executing.release();
+  }
+  const signal = process.kill.bind(process);
+  const recoveryGroup = vi
+    .spyOn(process, 'kill')
+    .mockImplementation((pid, value) => (pid === -2147483646 ? true : signal(pid, value)));
+  try {
+    await f.execute({ action: 'status' });
+    expect(() => f.admission.enter()).toThrow(); // Recovery-command descendants retain maintenance too.
+  } finally {
+    recoveryGroup.mockRestore();
+  }
   await f.execute({ action: 'status' });
   f.admission.assertOpen();
 });

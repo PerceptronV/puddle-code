@@ -31,6 +31,22 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- The host updater now has a pinned, independently supervised recovery-worker
+  entry for the stopped-daemon path. Trusted host invocation can dispatch an exact
+  operation revision once; accepted replies are inspectable after connection loss.
+  A bounded ledger retains all attempts and their pre-command process groups, with
+  pending-job fencing and descendant checks shared by completion recovery and
+  maintenance release. The worker reuses shutdown claims, journal writing, the
+  canonical installer, service startup and fresh completion verification. It can
+  execute unattempted selections after shutdown, verify attempted selections without
+  replay, then start the recorded daemon/connector services. Unit fixtures cover
+  consumed dispatch, ordering and lost replies; a real process test retains exclusion
+  while a command child outlives its recovery worker. Supervisor/installation and
+  fresh adoption are simulated in the new composition fixtures, so packaged upgrade
+  acceptance is still required. Public CLI/cockpit integration, recovery after an
+  attempted daemon start, and further continuation after an executed recovery attempt
+  remain unfinished. None of the three protocols changes.
+
 - Shutdown observation now shares one hand-off verifier between ordinary updates
   and internal stopped-daemon recovery. It rechecks the original service definition,
   exact checkpoint and released controller without minting another epoch or sending

@@ -16,6 +16,7 @@ import type { HostUpdateInspection, UpdateInspection } from './preflight/inspect
 import { readStageCapabilities } from './preflight/candidate.js';
 import { recoverCompletedHostUpdate } from './recovery/completion.js';
 import { requireEndedUpdateWorker } from './worker/lifetime.js';
+import { requireEndedUpdateRecoveryWorkers } from './recovery/worker/records.js';
 import { readUpdateWorker } from './worker/supervisor.js';
 
 class Rejected extends Error {}
@@ -244,6 +245,7 @@ export class HostUpdateCoordinator {
             readUpdateWorker(this.deps.home, operation.id),
             operation,
           );
+          requireEndedUpdateRecoveryWorkers(this.deps.home, operation);
         } catch {
           // A released lock can leave installer children alive. Unknown evidence
           // retains maintenance while status remains available for recovery.

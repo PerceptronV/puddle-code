@@ -4,6 +4,7 @@ import { HostUpdateOperations } from '../operations/store.js';
 import { requireVerificationOperation } from '../verification/operation.js';
 import { requireEndedUpdateWorker } from '../worker/lifetime.js';
 import { readUpdateWorker } from '../worker/supervisor.js';
+import { requireEndedUpdateRecoveryWorkers } from './worker/records.js';
 
 /** Fence original dispatch/execution and retain exclusion throughout explicit recovery. */
 export function claimHostUpdateRecovery(
@@ -19,11 +20,17 @@ export function claimHostUpdateRecovery(
   const dispatch = acquireHostClaim(home, `host-update-dispatch:${reference.id}`);
   let recovery: ReturnType<HostUpdateOperations['claimRecovery']> | undefined;
   let released = false;
+  let executionReleased = false;
+  const releaseExecution = () => {
+    if (executionReleased) return;
+    executionReleased = true;
+    recovery?.release();
+  };
   const release = () => {
     if (released) return;
     released = true;
     try {
-      recovery?.release();
+      releaseExecution();
     } finally {
       dispatch.release();
     }
@@ -34,10 +41,11 @@ export function claimHostUpdateRecovery(
     const operation = recovery.operation;
     const job = readUpdateWorker(home, operation.id);
     const check = () => {
-      if (released) throw new Error('Host recovery claim is released');
+      if (released || executionReleased) throw new Error('Host recovery claim is released');
       requireAuthority();
       requireVerificationOperation(home, operation, job);
       requireEndedUpdateWorker(home, job, operation);
+      requireEndedUpdateRecoveryWorkers(home, operation);
     };
     check();
     return {
@@ -45,6 +53,9 @@ export function claimHostUpdateRecovery(
       job,
       check,
       release,
+      // The accepted independent job must be able to acquire execution while
+      // the dispatcher still holds its claim across the supervisor command.
+      releaseExecution,
       complete: (verification: string) => {
         check();
         return recovery!.complete(verification);

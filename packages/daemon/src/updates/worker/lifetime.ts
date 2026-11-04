@@ -34,17 +34,7 @@ export async function recordUpdateWorkerLifetime(
       throw new Error('Worker lifetime does not match the executing update');
   };
   requireClaim();
-  await verifyUpdateWorkerIsolation(home, job, run, pid);
-  const observed = await run({
-    file: '/bin/ps',
-    args: ['-o', 'pgid=', '-p', String(pid)],
-    cwd: home,
-    detached: false,
-    timeoutMs: 5000,
-    maxOutputBytes: 1024,
-  });
-  if (observed.exitCode !== 0 || observed.stdout.trim() !== String(pid))
-    throw new Error('Update worker does not lead its process group');
+  await inspectUpdateWorkerProcessGroup(home, job, run, pid);
   requireClaim();
   const record = hostUpdateWorkerLifetimeSchema.parse({
     format: 1,
@@ -82,8 +72,35 @@ export function requireEndedUpdateWorker(
     job.preflight !== operation.approved
   )
     throw new Error('Worker lifetime does not match recovery');
+  requireEndedUpdateProcessGroup(record.process_group);
+}
+
+/** Both original and recovery workers must lead their independently supervised group. */
+export async function inspectUpdateWorkerProcessGroup(
+  home: string,
+  job: HostUpdateWorker,
+  run: CompilationCommandRunner = runCompilationCommand,
+  pid = process.pid,
+): Promise<number> {
+  await verifyUpdateWorkerIsolation(home, job, run, pid);
+  const observed = await run({
+    file: '/bin/ps',
+    args: ['-o', 'pgid=', '-p', String(pid)],
+    cwd: home,
+    detached: false,
+    timeoutMs: 5000,
+    maxOutputBytes: 1024,
+  });
+  if (observed.exitCode !== 0 || observed.stdout.trim() !== String(pid))
+    throw new Error('Update worker does not lead its process group');
+  return pid;
+}
+
+/** Unknown/reused groups remain live evidence. Never terminate a recorded group. */
+export function requireEndedUpdateProcessGroup(group: number): void {
+  hostUpdateWorkerLifetimeSchema.shape.process_group.parse(group);
   try {
-    process.kill(-record.process_group, 0);
+    process.kill(-group, 0);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ESRCH') return;
     throw error;

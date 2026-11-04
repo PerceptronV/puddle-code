@@ -233,7 +233,21 @@ Recovery also fences dispatch/execution, checks ended-worker evidence and record
 shutdown intent, and validates the candidate against checkpointed database/runtime
 support. Authority and lifetime are rechecked after asynchronous probes. This
 hand-off issues no service command and opens no application database. Public forward
-recovery still requires an independently supervised recovery worker and CLI integration.
+recovery still requires CLI integration and complete continuation coverage.
+
+The host updater's internal `--dispatch-recovery <revision>` mode now dispatches a
+pinned independent worker for an update whose original daemon stopped before startup
+was attempted. It uses trusted local/SSH OS access, requires its own immutable release
+and retains a bounded private attempt ledger before supervisor dispatch. Repeating
+the same requested revision returns its recorded job without another dispatch. The
+worker rechecks the original operation, shutdown checkpoint and action journal, proves
+its independent service/process group, and records one execution before component
+commands. Unattempted selections use the canonical installer; attempted selections
+must already verify. It then starts the recorded services once and requires fresh
+completion verification. Maintenance and later recovery retain exclusion while any
+recorded worker group may still have descendants. Public CLI/cockpit wiring, recovery
+after an attempted daemon start, and continuation after an executed recovery attempt
+remain incomplete; the existing public `--recover` still verifies completion only.
 
 Before any activation command, the updater confirms its independent service,
 requires that it leads its own process group and durably records that group against

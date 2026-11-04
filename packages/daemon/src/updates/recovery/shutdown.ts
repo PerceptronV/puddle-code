@@ -13,7 +13,22 @@ export async function claimStoppedHostUpdateRecovery(
   authorised: () => boolean,
   run?: CompilationCommandRunner,
 ) {
-  const recovery = claimHostUpdateRecovery(home, reference, authorised);
+  return retainStoppedUpdateRecovery(
+    home,
+    claimHostUpdateRecovery(home, reference, authorised),
+    run,
+  );
+}
+
+/** The independent recovery worker already holds execution and its accepted authority. */
+export async function retainStoppedUpdateRecovery(
+  home: string,
+  recovery: Pick<
+    ReturnType<typeof claimHostUpdateRecovery>,
+    'operation' | 'job' | 'check' | 'release' | 'releaseExecution'
+  >,
+  run?: CompilationCommandRunner,
+) {
   let handoff: Awaited<ReturnType<typeof claimStoppedDaemonUpdate>> = null;
   try {
     const { operation, job } = recovery;
@@ -31,6 +46,12 @@ export async function claimStoppedHostUpdateRecovery(
     requireCheckpointCompatibility(candidate, handoff.checkpoint);
     recovery.check();
     let released = false;
+    let controllerReleased = false;
+    const releaseController = () => {
+      if (controllerReleased) return;
+      controllerReleased = true;
+      handoff!.release();
+    };
     return {
       operation,
       job,
@@ -38,14 +59,16 @@ export async function claimStoppedHostUpdateRecovery(
       checkpoint: handoff.checkpoint,
       checkpointDigest: handoff.digest,
       check: () => {
-        if (released) throw new Error('Stopped recovery claim is released');
+        if (released || controllerReleased) throw new Error('Stopped recovery claim is released');
         recovery.check();
       },
+      releaseController,
+      releaseExecution: recovery.releaseExecution,
       release: () => {
         if (released) return;
         released = true;
         try {
-          handoff!.release();
+          releaseController();
         } finally {
           recovery.release();
         }

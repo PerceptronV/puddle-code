@@ -39,7 +39,7 @@ export function readUpdateWorker(home: string, id: string): HostUpdateWorker {
 }
 
 /** Pinned files must remain in one immutable installation generation. */
-function executables(home: string, release: string) {
+export function updateWorkerExecutables(home: string, release: string) {
   validServicePath(release);
   const versions = realpathSync(join(home, 'bin', 'versions'));
   const root = realpathSync(release);
@@ -125,7 +125,7 @@ export async function startUpdateWorker(
       )
         throw new Error('Outgoing daemon changed before update dispatch');
     }
-    const paths = executables(home, options.releasePath);
+    const paths = updateWorkerExecutables(home, options.releasePath);
     const uid = options.uid ?? process.getuid?.();
     if (uid === undefined || !Number.isSafeInteger(uid) || uid < 0)
       throw new Error('Host update supervision requires a host user');

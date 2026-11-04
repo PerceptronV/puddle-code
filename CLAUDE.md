@@ -205,6 +205,14 @@ dispatch/execution exclusion lives in `updates/recovery/claim.ts`. Recheck autho
 and ended-worker evidence after asynchronous probes; never mint a new controller
 epoch or issue another stop to recover a lost reply. Candidate compatibility uses
 the same checkpoint gate as ordinary execution. Public forward recovery remains pending.
+Recovery worker dispatch/execution lives under `updates/recovery/worker/`, sharing
+the original updater's pinned executable checks, service definitions, journal writer
+and completion verifier. Persist each accepted attempt before dispatch and its process
+group before component commands. Fence pending attempts and check every consumed
+group before completion recovery or maintenance release. The internal trusted-host
+dispatcher supports the stopped-before-start path; do not expose broader recovery
+or replay an executed attempt through the CLI/cockpit until its continuation checks
+are implemented. These private records add no network protocol.
 Runtime owners and update workers share `host/services.ts`; neither service may
 inherit puddled's restart or termination boundary. The packaged one-shot updater
 composes runtime-default and daemon/combined selection using its pinned copy of the

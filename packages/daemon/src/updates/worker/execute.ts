@@ -1,4 +1,3 @@
-import { setTimeout as delay } from 'node:timers/promises';
 import {
   compatibleRuntimeProtocol,
   hostUpdateWorkerSchema,
@@ -11,7 +10,7 @@ import { readStageCapabilities } from '../preflight/candidate.js';
 import { stopConnectorForUpdate, startConnectorAfterUpdate } from './connector.js';
 import { stopDaemonForUpdate } from './daemon/stop.js';
 import { selectUpdateStage, verifyUpdateSelection } from './selection.js';
-import { verifyHostUpdateCompletion } from '../verification/completion.js';
+import { awaitHostUpdateCompletion } from '../verification/completion.js';
 import { recordUpdateWorkerLifetime } from './lifetime.js';
 import { HostUpdateActions } from './actions.js';
 import { requireCheckpointCompatibility } from '../checkpoints/compatibility.js';
@@ -73,18 +72,7 @@ export async function executeHostUpdate(
         await startConnectorAfterUpdate(home, job, daemon, execute);
       });
     }
-    const deadline = Date.now() + 30_000;
-    let verification: string;
-    for (;;) {
-      try {
-        verification = await verifyHostUpdateCompletion(home, job, verifying, execute);
-        break;
-      } catch (error) {
-        if (!daemon || Date.now() >= deadline) throw error;
-        // Retry observation only; never repeat stop, activation, startup or input.
-        await delay(100);
-      }
-    }
+    const verification = await awaitHostUpdateCompletion(home, job, verifying, execute);
     worker.complete(verification);
   } catch (error) {
     try {

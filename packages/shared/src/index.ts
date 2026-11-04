@@ -51,6 +51,7 @@ export * from './installation/stage.js';
 export * from './installation/update.js';
 export * from './installation/worker.js';
 export * from './installation/actions.js';
+export * from './installation/recovery.js';
 export * from './installation/supervision.js';
 export * from './installation/connector.js';
 export * from './installation/checkpoint.js';

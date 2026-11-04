@@ -67,6 +67,14 @@ Readers bind the exact plan to operation, dispatch, worker and approval identiti
 Missing journals from older workers cannot prove that a step was never attempted.
 This evidence is internal to host updates and changes none of the three protocols.
 
+`installation/recovery.ts` records at most eight private recovery dispatches per
+operation. Each pins its own service/executable, fences an exact operation revision
+and binds the original worker and action journal. Its nullable execution record is
+atomically replaced with a unique execution id and process group before component
+commands. A later recovery must fence pending jobs and establish that every consumed
+group has ended; ordinary maintenance release uses the same check. These records
+are host-only worker evidence, not new application, remote or runtime messages.
+
 Protocol 25.9 adds nonce-correlated, read-only process inspection on the connector
 manager's existing exclusive private host socket. Replies contain bounded process,
 release and protocol metadata only; profile configuration, grants and registration
