@@ -1,5 +1,6 @@
 import { CliError } from '../types.js';
 import { repoSlug } from '../version.js';
+import { latestGitHubRelease } from '@puddle/shared/node/host-control';
 
 /**
  * Release-version resolution for `puddle install`/`upgrade` (SPEC §10):
@@ -17,19 +18,13 @@ export async function latestReleaseVersion(opts: { fetchFn?: typeof fetch } = {}
       'name a version and pass --tarball, or set PUDDLE_REPO=owner/repo',
     );
   }
-  const fetchFn = opts.fetchFn ?? fetch;
-  const res = await fetchFn(`https://api.github.com/repos/${slug}/releases/latest`, {
-    headers: { accept: 'application/vnd.github+json', 'user-agent': 'puddle-cli' },
-  });
-  if (!res.ok) {
+  try {
+    return (await latestGitHubRelease(slug, opts)).version;
+  } catch (error) {
     throw new CliError(
       'not_installed',
-      `release lookup failed (HTTP ${res.status})`,
+      error instanceof Error ? error.message : 'Release lookup failed',
       'name a version explicitly, e.g. puddle install daemon@v0.0.32',
     );
   }
-  const tag = ((await res.json()) as { tag_name?: string }).tag_name ?? '';
-  const version = tag.replace(/^v/, '');
-  if (version === '') throw new CliError('not_installed', `${slug} has no published releases`);
-  return version;
 }

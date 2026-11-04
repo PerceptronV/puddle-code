@@ -58,8 +58,10 @@ export * from './installation/connector.js';
 export * from './installation/checkpoint.js';
 export * from './installation/adoption.js';
 export * from './installation/capabilities.js';
+export * from './installation/catalogue.js';
 export {
   parseHostReleaseVersion,
   parseLegacyHostVersion,
   parseReleaseProtocol,
+  isNewerVersion,
 } from './installation/version.js';

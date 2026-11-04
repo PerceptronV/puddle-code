@@ -212,8 +212,18 @@ Require exact Origin/browser authority. Give each mutation a cancellable existin
 host-control channel tied to the parent cockpit lease and browser request lifetime,
 so pre-dispatch revocation reaches the coordinator without revoking other windows.
 Do not retry an uncertain mutation or fall back to offline dispatch. Public replies
-omit private stage/worker evidence and blocker paths. Settings UI, release discovery
+omit private stage/worker evidence and blocker paths. Settings UI, release offers
 and offline cockpit recovery remain outstanding; remote maintenance is still excluded.
+Application 25.14 adds optional host-update catalogue reads. `daemon/updates/catalogue/`
+owns bounded runtime-build presentation and one lazy 30-minute release poller, retaining
+timestamped last-known results and cadence across daemon replacements. Share latest-stable
+lookup/source parsing in `shared/node/releases/` with CLI/desktop; do not add per-window
+GitHub polling or native-store scans. Publish the repository in host archive builds too.
+Cockpit staging takes its source from private host catalogue metadata, never browser data
+or an unrelated client override. Availability is not checksum verification or admission;
+discovery must never activate, restart or silently advance a pinned version. Keep
+`host-updates-changed` host-wide and excluded from profile leases, and send catalogue
+fields only to callers requesting them. Browser controls/offers remain in progress.
 Read-only `puddle updates` falls back to the existing local/SSH bootstrap helper
 when authority cannot connect. Share bounded ledger validation through
 `shared/src/node/installation/updates.ts`; label recorded evidence and never use

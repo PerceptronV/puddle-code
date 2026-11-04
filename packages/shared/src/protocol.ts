@@ -320,4 +320,5 @@
 // 25.11: explicit local/SSH recovery verification without replaying component commands.
 // 25.12: explicit host-update continuation and recorded recovery inspection.
 // 25.13: authenticated cockpit-local host-update preparation, review and explicit actions.
-export const PROTOCOL_VERSION = { major: 25, minor: 13 } as const;
+// 25.14: optional host version/release catalogue and host-only update invalidations.
+export const PROTOCOL_VERSION = { major: 25, minor: 14 } as const;

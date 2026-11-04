@@ -61,6 +61,8 @@ import { HostUpdateConnector } from './updates/preflight/connector.js';
 import { HostUpdateInspection } from './updates/preflight/inspection.js';
 import { HostUpdateSupervision } from './updates/preflight/supervision.js';
 import { HostUpdateCoordinator } from './updates/coordinator.js';
+import { HostReleaseChecks } from './updates/catalogue/releases.js';
+import { hostUpdateCatalogue } from './updates/catalogue/inventory.js';
 import { daemonUpdatePause } from './updates/maintenance/daemon.js';
 import { DATABASE_SCHEMA_VERSION } from './db/migrations/index.js';
 import { HostUpdateOperations } from './updates/operations/store.js';
@@ -130,6 +132,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   const admission = new HostAdmission();
   const upkeep = new HostBackgroundTasks();
   let updateCoordinator: HostUpdateCoordinator | null = null;
+  let announceHostUpdates = () => {};
   let controlInfo: {
     port: number;
     version: { version: string; protocol: typeof PROTOCOL_VERSION };
@@ -141,9 +144,12 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       paths.home,
       authority,
       () => controlInfo,
-      (command, authorised) =>
-        updateCoordinator?.execute(command, authorised) ??
-        Promise.resolve({ ok: false, code: 'unavailable', operation: null }),
+      async (command, authorised) => {
+        const result = await (updateCoordinator?.execute(command, authorised) ??
+          Promise.resolve({ ok: false as const, code: 'unavailable' as const, operation: null }));
+        if (command.action !== 'status') announceHostUpdates();
+        return result;
+      },
     );
     failedStartup.push(closeControl);
     ensureToken(paths);
@@ -571,9 +577,20 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     retention.start();
     failedStartup.push(() => retention.dispose());
 
+    announceHostUpdates = () => gateway.hostUpdatesChanged();
+    const releaseChecks = new HostReleaseChecks({ home: paths.home, changed: announceHostUpdates });
+    failedStartup.push(() => releaseChecks.close());
     updateCoordinator = new HostUpdateCoordinator({
       home: paths.home,
       operations: new HostUpdateOperations(paths.home),
+      catalogue: () =>
+        hostUpdateCatalogue({
+          home: paths.home,
+          version: opts.version ?? '0.0.0',
+          runtimes,
+          connections: runtimeConnections,
+          releases: releaseChecks,
+        }),
       inspection: updateInspection,
       pauseDaemon: daemonUpdatePause({
         clients: admission,
@@ -658,6 +675,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
         accountObservations.close();
         clearInterval(fetchTimer);
         updateCoordinator?.close();
+        releaseChecks.close();
         // A request already preparing a launch must not create another child
         // after cleanup has taken its inventory of daemon-owned terminals.
         ptys.beginShutdown();

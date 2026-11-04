@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { hostUpdateOperationSchema, hostUpdateTargetsSchema } from '../../installation/update.js';
+import { hostUpdateCatalogueSchema } from '../../installation/catalogue.js';
 import {
   hostUpdateFingerprintSchema,
   hostUpdateRecoveryStatusSchema,
@@ -81,6 +82,7 @@ export const cockpitHostUpdateStatusSchema = z
       })
       .strict(),
     result: cockpitHostUpdateReplySchema.nullable(),
+    catalogue: hostUpdateCatalogueSchema.optional(),
   })
   .strict();
 

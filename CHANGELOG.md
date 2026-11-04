@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Add host-owned version inventory and coalesced latest-release discovery (application 25.14), reusing CLI/desktop lookup code. Preserve the 30-minute cadence and timestamped last-known results across daemon restarts, report runtime builds without private session details, and stage from the target host's release source. Discovery does not install or restart anything; cockpit Settings controls and release offers remain in progress.
+
 - Add the local/SSH cockpit host-update gateway (application 25.13), reusing existing staging, exact impact approval and live recovery. Bind update actions to browser and cockpit authority, preserve other windows when one is revoked, and observe lost replies without replay. Settings controls, release offers and offline cockpit recovery remain in progress; remote/runtime protocols are unchanged.
 
 - Start an installed daemon's selected service during local/SSH launch without reinstalling or replacing its build. Share authenticated readiness with stopped-host upgrades and route approved legacy launcher updates through the common upgrade entry. Preserve update/controller exclusion, require explicit recovery for interrupted activation and observe lost startup replies without retry or fallback; packaged platform and abrupt-kill recovery acceptance remain in progress.

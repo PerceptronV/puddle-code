@@ -124,6 +124,9 @@ async function bundleHostProcesses() {
     define: {
       __PUDDLED_VERSION__: JSON.stringify(version),
       __PUDDLER_VERSION__: JSON.stringify(version),
+      ...(process.env.PUDDLE_REPO_SLUG
+        ? { __PUDDLE_REPO_SLUG__: JSON.stringify(process.env.PUDDLE_REPO_SLUG) }
+        : {}),
     },
     // Bundled CJS deps keep guarded `require(...)` calls (ws's optional
     // natives); in an ESM bundle `require` must exist for them to fail softly.

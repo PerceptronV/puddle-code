@@ -9,6 +9,9 @@ import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
 import { clientHome } from '../paths.js';
 import { CliError, type Logger, silentLogger } from '../types.js';
 import { repoSlug } from '../version.js';
+import { latestGitHubRelease, type ReleaseAsset } from '@puddle/shared/node/host-control';
+import { isNewerVersion } from '@puddle/shared';
+export { isNewerVersion } from '@puddle/shared';
 
 /**
  * Self-update for the DESKTOP APP — the CLI-style alternative to Squirrel
@@ -41,32 +44,12 @@ export interface StagedDesktopUpdate {
   dir: string;
 }
 
-interface ReleaseAsset {
-  name: string;
-  browser_download_url: string;
-}
-
 export interface CheckOptions {
   platform?: NodeJS.Platform;
   arch?: string;
   /** Injectable for tests; defaults to global fetch. */
   fetchFn?: typeof fetch;
   logger?: Logger;
-}
-
-/** Strictly-newer x.y.z comparison; anything unparseable is never newer. */
-export function isNewerVersion(candidate: string, current: string): boolean {
-  const parse = (v: string): number[] | null => {
-    const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(v.trim());
-    return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
-  };
-  const a = parse(candidate);
-  const b = parse(current);
-  if (a === null || b === null) return false;
-  for (let i = 0; i < 3; i++) {
-    if (a[i]! !== b[i]!) return a[i]! > b[i]!;
-  }
-  return false;
 }
 
 /**
@@ -113,17 +96,18 @@ export async function checkForDesktopUpdate(
 ): Promise<DesktopUpdate | null> {
   const slug = repoSlug();
   if (slug === undefined) return null; // dev build: no release source, nothing to offer
-  const fetchFn = opts.fetchFn ?? fetch;
-  const response = await fetchFn(`https://api.github.com/repos/${slug}/releases/latest`, {
-    headers: { accept: 'application/vnd.github+json', 'user-agent': 'puddle-desktop' },
-  });
-  if (!response.ok) {
-    throw new CliError('not_installed', `release lookup failed (HTTP ${response.status})`);
+  let release;
+  try {
+    release = await latestGitHubRelease(slug, opts);
+  } catch (error) {
+    throw new CliError(
+      'not_installed',
+      error instanceof Error ? error.message : 'Release lookup failed',
+    );
   }
-  const release = (await response.json()) as { tag_name?: string; assets?: ReleaseAsset[] };
-  const version = (release.tag_name ?? '').replace(/^v/, '');
+  const { version } = release;
   if (!isNewerVersion(version, currentVersion)) return null;
-  return updateFromRelease(version, release.assets ?? [], opts);
+  return updateFromRelease(version, release.assets, opts);
 }
 
 /**

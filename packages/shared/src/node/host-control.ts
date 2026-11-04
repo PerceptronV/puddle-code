@@ -1,4 +1,10 @@
 export { readStageCapabilities, readInstalledCapabilities } from './installation/capabilities.js';
+export {
+  latestGitHubRelease,
+  releaseRepositorySchema,
+  type ReleaseAsset,
+} from './releases/github.js';
+export { releaseRepository } from './releases/source.js';
 export { updateWorkerExecutables } from './installation/workers.js';
 import type { Duplex } from 'node:stream';
 import {
@@ -94,6 +100,13 @@ export class HostControlClient implements ConnectionAuthority {
       (protocol.major === 25 && protocol.minor < 7)
     )
       return Promise.reject(new Error('Host updates are unavailable on this connection'));
+    if (
+      command.action === 'status' &&
+      command.include_catalogue &&
+      protocol.major === 25 &&
+      protocol.minor < 14
+    )
+      return Promise.reject(new Error('Host update catalogue is unavailable on this connection'));
     if (
       command.action === 'status' &&
       command.adoption_nonce &&

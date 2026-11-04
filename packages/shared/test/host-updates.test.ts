@@ -7,6 +7,20 @@ import { HostControlClient } from '../src/node/host-control.js';
 
 afterEach(() => vi.useRealTimers());
 
+it('does not request the optional release catalogue from an older host', async () => {
+  const client = new HostControlClient(async () => {
+    throw new Error('No connection expected');
+  }, false);
+  client.version = { version: '0.4.0', protocol: { major: 25, minor: 13 } };
+  try {
+    await expect(client.hostUpdate({ action: 'status', include_catalogue: true })).rejects.toThrow(
+      'catalogue is unavailable',
+    );
+  } finally {
+    client.close();
+  }
+});
+
 it('requires 25.12 before sending continuation or requesting recorded recovery details', async () => {
   const client = new HostControlClient(async () => {
     throw new Error('No connection expected');

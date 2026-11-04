@@ -1,5 +1,25 @@
 # The puddle communication protocol
 
+Protocol 25.14 adds optional `include_catalogue: true` to private host-update status.
+Only requesting clients receive the bounded `catalogue`: running daemon version,
+selected runtime default, grouped committed runtime builds (running, starting and
+unavailable), read completeness and timestamped latest-stable release discovery.
+This is display metadata, never compatibility, liveness or update-admission proof.
+The daemon lazily starts one 30-minute poller, persisting its last attempt/result
+across replacement and retaining last-known success after failed checks. Lookup
+uses the shared bounded CLI/desktop GitHub helper, never downloads or activates,
+and reports host archive/checksum availability separately from verified staging.
+An unconfigured build performs no lookup. Host archives now embed the publishing
+repository in both platform release jobs; cockpit preparation obtains that source
+from private host status rather than a browser field or client-side override.
+
+Cockpit status optionally carries the catalogue after capability detection.
+`host-updates-changed` invalidates host-wide status viewers after release discovery
+or control mutations. Profile-scoped remote leases receive neither the catalogue
+nor this event, and no remote maintenance permission is added. Older status requests
+retain their exact reply shape. The Settings UI and offers remain in progress;
+remote 4 and runtime 1.0 are unchanged.
+
 Protocol 25.13 adds capability-detected local/SSH `GET/POST /cockpit/updates`.
 GET returns daemon availability/version, supported approval/recovery actions and a
 bounded public operation summary. POST accepts preparation of exact release targets,

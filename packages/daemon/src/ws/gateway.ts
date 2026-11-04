@@ -75,6 +75,15 @@ interface PendingAttach {
  * first message — browsers cannot set WS headers.
  */
 export class WsGateway {
+  hostUpdatesChanged(): void {
+    for (const ws of this.statusSubs) {
+      try {
+        this.send(ws, { t: 'host-updates-changed' });
+      } catch {
+        /* A lost viewer must not change the result of a committed host operation. */
+      }
+    }
+  }
   private readonly admission: HostAdmission;
   private readonly externalViews = new Map<string, Map<WSContext, RuntimeTerminalView>>();
   private readonly resources = new Map<WSContext, AuthorityResource>();

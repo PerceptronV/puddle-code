@@ -17,7 +17,8 @@ upgrades now share runtime updates' staging, review and observation path, with e
 interruption approval for daemon-owned work. Launchers now start the selected installed
 service without reinstalling it; explicit upgrades on stopped hosts restore that
 coordinator first. Local/SSH cockpit routes now share preparation, review and explicit
-activation/recovery through the existing host coordinator. Cockpit UI/release offers,
+activation/recovery through the existing host coordinator. Host version inventory and
+coalesced, cached release discovery now feed that gateway. Cockpit UI/release offers,
 offline cockpit recovery, remaining failure recovery and complete packaged
 upgrade acceptance remain unfinished.
 This document describes the intended refactor; [SPEC.md](../../SPEC.md) continues
@@ -37,6 +38,22 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 [acceptance matrix](#acceptance-matrix) for the release gates.
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
+
+- Application 25.14 adds opt-in catalogue metadata to private status and the cockpit
+  gateway: running daemon, selected runtime default, bounded build counts and cached
+  latest-stable discovery. One lazy host poller retains the 30-minute cadence and
+  timestamped last-known results across daemon replacement, using shared CLI/desktop
+  lookup/version helpers. Host archives embed their publishing repository; cockpit
+  staging uses that host source through the existing installer. Discovery checks asset
+  availability but performs no download, activation or runtime restart. Host-only
+  invalidations notify status subscribers while profile leases remain excluded. Tests
+  cover concurrent readers, replacement/offline cache behaviour, source changes, bounded
+  metadata/inventory, shutdown and failed persistence. An isolated empty daemon proves
+  the production control path and cache reuse after restart; HTTP release responses are
+  mocked, not evidence of published-archive/provider continuity. Settings UI, per-window
+  offers, offline cockpit recovery and remaining release gates are still required.
+  The actual release script also built and smoke-tested an isolated 0.4.0 host package
+  with the publishing repository embedded; this verifies packaging, not an upgrade.
 
 - Application 25.13 adds the local/SSH cockpit update gateway, wired into CLI,
   desktop and Vite composition. Preparation reuses the CLI staging helper; review,

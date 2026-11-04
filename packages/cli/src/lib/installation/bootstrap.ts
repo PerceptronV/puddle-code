@@ -5,7 +5,11 @@ import { hostPaths } from '../paths.js';
 import type { Transport } from '../transport/transport.js';
 import { CliError, type Logger, silentLogger } from '../types.js';
 import { pinnedDaemonVersion, repoSlug } from '../version.js';
-import { parseHostReleaseVersion, parseLegacyHostVersion } from '@puddle/shared';
+import {
+  parseHostReleaseVersion,
+  parseLegacyHostVersion,
+  releaseRepositorySchema,
+} from '@puddle/shared';
 
 export type HostComponent = 'daemon' | 'runtime';
 
@@ -14,6 +18,8 @@ export interface BootstrapOptions {
   version?: string;
   /** Local tarball path or URL (dev override / air-gapped hosts). */
   tarball?: string;
+  /** Trusted host catalogue source; browser input must never supply this field. */
+  repository?: string;
   logger?: Logger;
 }
 
@@ -99,7 +105,8 @@ export async function bootstrapHostComponent(
       }
     }
   } else {
-    const slug = repoSlug();
+    const slug =
+      opts.repository === undefined ? repoSlug() : releaseRepositorySchema.parse(opts.repository);
     if (opts.tarball !== undefined) {
       // A URL tarball is fetched host-side by curl via --tarball? No: the
       // installer's --tarball takes a file path, so fetch-by-URL rides the

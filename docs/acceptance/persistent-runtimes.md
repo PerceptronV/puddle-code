@@ -10,6 +10,24 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+Release catalogue fixtures cover one lazy check across concurrent windows, the
+30-minute cadence across daemon replacement, timestamped last-known results after
+network failure, repository changes, unsupported host assets, bounded metadata,
+shutdown and failed cache writes. Runtime presentation reuses committed records and
+existing connections, groups running/starting/unavailable builds and marks truncation
+or failed reads. A real isolated empty daemon and private client exercise optional
+catalogue replies and cache reuse after restart, with mocked HTTP and no agent or
+service launch. Gateway tests retain target-host source selection despite a different
+client repository. Actual WS scope tests exclude profile viewers from host invalidations.
+These are discovery checks, not packaged update/provider acceptance or a finished UI.
+Selected catalogue, cockpit, coordinator, maintenance, scope and desktop/CLI release
+tests passed, along with source/strict changed-test typechecks, lint and formatting.
+CLI/desktop builds passed. A temporary 0.4.0 host package built from the actual release
+script passed its passive daemon/runtime/connector and puddlang smoke checks, carried
+application 25.14, runtime 1.0 and remote 4, and embedded the configured repository.
+It used cached Node and a sanitised temporary home; no installed service or agent was
+started. Actual upgrade continuity still requires the full acceptance matrix.
+
 Cockpit update fixtures use actual isolated HTTP gateways, private host-control
 channels, leases, SQLite coordination and the shared staging orchestration. They
 check local/SSH targets, exact Origin/browser authentication, bounded commands,

@@ -279,6 +279,24 @@ describe('profile-bound host authority', () => {
       last_activity_at: null,
     });
     expect(send).toHaveBeenCalledOnce();
+    send.mockClear();
+    const localSend = vi.fn();
+    const localWs = { readyState: 1, send: localSend, close: vi.fn() } as unknown as WSContext;
+    const local = gateway.connection();
+    local.onMessage(
+      {
+        data: JSON.stringify({ t: 'auth', token: f.authority.create().token, resource: secret() }),
+      },
+      localWs,
+    );
+    local.onMessage({ data: JSON.stringify({ t: 'subscribe-status' }) }, localWs);
+    localSend.mockClear();
+    gateway.hostUpdatesChanged();
+    expect(localSend).toHaveBeenCalledExactlyOnceWith(
+      JSON.stringify({ t: 'host-updates-changed' }),
+    );
+    expect(send).not.toHaveBeenCalled();
+    local.onClose({}, localWs);
     connection.onClose({}, ws);
   });
 });

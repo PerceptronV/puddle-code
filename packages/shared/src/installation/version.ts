@@ -1,3 +1,17 @@
+/** Strictly newer stable x.y.z; use integer comparison without floating-point precision loss. */
+export function isNewerVersion(candidate: string, current: string): boolean {
+  const parse = (value: string) => {
+    if (value.length > 129) return null;
+    const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(value.trim());
+    return match ? match.slice(1).map((part) => BigInt(part)) : null;
+  };
+  const a = parse(candidate);
+  const b = parse(current);
+  if (!a || !b) return false;
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i]! > b[i]!;
+  return false;
+}
+
 /** Release metadata is independent of its immutable installation generation. */
 export function parseHostReleaseVersion(value: string): string | undefined {
   const version = value.trim();

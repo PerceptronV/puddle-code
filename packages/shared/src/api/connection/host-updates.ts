@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { hostUpdateOperationSchema, hostUpdateTargetsSchema } from '../../installation/update.js';
 import { hostStageReceiptSchema, hostStageRecordSchema } from '../../installation/stage.js';
+import { hostUpdateCatalogueSchema } from '../../installation/catalogue.js';
 
 export const hostUpdateReferenceSchema = z
   .object({
@@ -22,6 +23,8 @@ export const hostUpdateCommandSchema = z.discriminatedUnion('action', [
       adoption_nonce: z.uuid().optional(),
       /** Recorded continuation metadata, capability-detected from application 25.12. */
       include_recovery: z.literal(true).optional(),
+      /** Host-wide versions and coalesced release discovery (25.14), never admission evidence. */
+      include_catalogue: z.literal(true).optional(),
     })
     .strict()
     .refine(
@@ -103,6 +106,7 @@ export const hostUpdateReplySchema = z.discriminatedUnion('ok', [
       created: z.boolean().optional(),
       review: hostUpdateReviewSchema.optional(),
       recovery: hostUpdateRecoveryStatusSchema.optional(),
+      catalogue: hostUpdateCatalogueSchema.optional(),
     })
     .strict(),
   z

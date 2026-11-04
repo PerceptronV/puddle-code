@@ -69,16 +69,15 @@ export class CockpitHostUpdates {
       verify_completion: this.supports(11),
       continue_recovery: this.supports(12),
     };
-    const result =
+    const reply =
       availability === 'ready'
         ? await this.withAuthority(authorised, signal, async (authority) =>
-            presentHostUpdate(
-              await authority.hostUpdate({
-                action: 'status',
-                ...(id ? { id } : {}),
-                ...(capabilities.continue_recovery ? { include_recovery: true } : {}),
-              }),
-            ),
+            authority.hostUpdate({
+              action: 'status',
+              ...(id ? { id } : {}),
+              ...(capabilities.continue_recovery ? { include_recovery: true } : {}),
+              ...(this.supports(14) ? { include_catalogue: true } : {}),
+            }),
           )
         : null;
     if (!authorised()) throw new Error('Browser authorisation expired');
@@ -86,7 +85,8 @@ export class CockpitHostUpdates {
       availability,
       daemon_version: this.authority.version?.version ?? null,
       capabilities,
-      result,
+      result: reply ? presentHostUpdate(reply) : null,
+      ...(reply?.ok && reply.catalogue ? { catalogue: reply.catalogue } : {}),
     });
   }
 
@@ -103,7 +103,19 @@ export class CockpitHostUpdates {
       throw new Error('This host does not support the requested recovery action');
     return this.withAuthority(authorised, signal, async (authority) => {
       if (request.action === 'prepare') {
-        const operation = await prepareHostUpdate(this.transport, authority, request.targets);
+        let repository: string | undefined;
+        if (this.supports(14)) {
+          const status = await authority.hostUpdate({ action: 'status', include_catalogue: true });
+          if (!status.ok || !status.catalogue?.releases.repository)
+            throw new Error('No release source is configured on this host');
+          repository = status.catalogue.releases.repository;
+        }
+        const operation = await prepareHostUpdate(
+          this.transport,
+          authority,
+          request.targets,
+          repository ? { repository } : {},
+        );
         if (!authorised()) throw new Error('Browser authorisation expired');
         return presentHostUpdate({ ok: true, operation });
       }

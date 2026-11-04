@@ -25,13 +25,17 @@ it.each(['local', 'ssh'] as const)(
   'prepares, reviews and separately applies through %s host control',
   async (kind) => {
     const f = await cockpitUpdatesFixture(kind);
+    vi.stubEnv('PUDDLE_REPO', 'example/client-releases');
     f.store.stopBeforeDispatch(f.operation, 'cancelled', 'fixture preparation');
     stage.mockReset().mockResolvedValue(f.stage);
     const prepared = await f.request({ action: 'prepare', targets: f.operation.targets });
     expect(prepared.operation).toMatchObject({ phase: 'staged', staged: true, dispatched: false });
-    expect(stage).toHaveBeenCalledExactlyOnceWith(f.transport, 'daemon', { version: '0.4.0' });
+    expect(stage).toHaveBeenCalledExactlyOnceWith(f.transport, 'daemon', {
+      version: '0.4.0',
+      repository: 'example/puddle',
+    });
     expect(f.dispatch).not.toHaveBeenCalled();
-    expect(f.commands.map(({ action }) => action)).toEqual(['begin', 'stage']);
+    expect(f.commands.map(({ action }) => action)).toEqual(['status', 'begin', 'stage']);
     expect(await f.request({ action: 'prepare', targets: f.operation.targets })).toEqual(prepared);
     expect(stage).toHaveBeenCalledOnce();
     const inspected = await f.request({
@@ -80,7 +84,7 @@ it('does not record a staged receipt after browser revocation during download', 
     return f.stage;
   });
   await expect(f.request({ action: 'prepare', targets: f.operation.targets })).rejects.toThrow();
-  expect(f.commands.map(({ action }) => action)).toEqual(['begin']);
+  expect(f.commands.map(({ action }) => action)).toEqual(['status', 'begin']);
   expect(f.store.read()?.phase).toBe('downloading');
   expect(f.dispatch).not.toHaveBeenCalled();
 });
@@ -225,7 +229,7 @@ it('observes a committed update after a lost apply reply without another dispatc
   expect(f.dispatch).toHaveBeenCalledOnce();
 });
 
-it.each([6, 7, 10, 11, 12])(
+it.each([6, 7, 10, 11, 12, 13])(
   'capability-detects host application 25.%i without requiring release equality',
   async (minor) => {
     const f = await cockpitUpdatesFixture('local', minor);

@@ -68,6 +68,19 @@ export async function cockpitUpdatesFixture(
     operations: f.store,
     inspection: { inspect },
     installedRuntime: () => f.capabilities.runtime,
+    catalogue: () => ({
+      observed_at: 1,
+      daemon_version: '0.4.37',
+      runtime_default: null,
+      runtimes: { complete: true, versions: [] },
+      releases: {
+        repository: 'example/puddle',
+        state: 'ready',
+        checked_at: 1,
+        succeeded_at: 1,
+        latest: { version: '0.4.0', host_asset: true },
+      },
+    }),
     pauseDaemon: async () => ({
       release() {},
       outgoing: { pid: process.pid, controller: { id: randomUUID(), epoch: 1 } },

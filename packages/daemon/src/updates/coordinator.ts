@@ -9,6 +9,7 @@ import {
   type HostUpdateOperation,
   type HostReleaseCapabilities,
   type HostUpdateDaemonHandoff,
+  type HostUpdateCatalogue,
 } from '@puddle/shared';
 import { acquireHostClaim, HostClaimBusy } from '../security/claims.js';
 import { HostUpdateConflict, HostUpdateOperations } from './operations/store.js';
@@ -33,6 +34,7 @@ export class HostUpdateCoordinator {
       operations: HostUpdateOperations;
       inspection: Pick<HostUpdateInspection, 'inspect'>;
       installedRuntime(): HostReleaseCapabilities['runtime'] | null;
+      catalogue?(): HostUpdateCatalogue;
       /** Supplied when all daemon-update admission and recovery participants are composed. */
       pauseDaemon?(): Promise<{ release(): void; outgoing: HostUpdateDaemonHandoff['outgoing'] }>;
       observeAdoption?(operation: HostUpdateOperation, nonce: string): void;
@@ -70,6 +72,9 @@ export class HostUpdateCoordinator {
         return {
           ok: true,
           operation,
+          ...(command.include_catalogue && this.deps.catalogue
+            ? { catalogue: this.deps.catalogue() }
+            : {}),
           ...(operation && command.include_recovery
             ? { recovery: inspectRecordedRecovery(this.deps.home, operation) }
             : {}),

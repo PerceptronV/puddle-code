@@ -58,6 +58,8 @@ export type WsClientMessage = z.infer<typeof wsClientMessageSchema>;
 
 /** Server messages are validated before crossing the encrypted remote boundary. */
 export const wsServerMessageSchema = z.discriminatedUnion('t', [
+  /** Host-wide invalidation only; profile-scoped remote leases never receive it. */
+  z.object({ t: z.literal('host-updates-changed') }),
   agentNotificationSchema,
   z.object({ t: z.literal('authenticated') }),
   z.object({ t: z.literal('shell-spawned'), session: z.string(), term: z.string() }),

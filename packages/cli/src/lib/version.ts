@@ -1,11 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+export { releaseRepository as repoSlug } from '@puddle/shared/node/host-control';
 
 // Inlined by esbuild at build time (packages/cli/scripts/build.mjs); dev runs
 // (vitest over src) fall back to reading package.json / the environment.
 declare const __PUDDLE_CLI_VERSION__: string | undefined;
-declare const __PUDDLE_REPO_SLUG__: string | undefined;
 
 export function cliVersion(): string {
   if (typeof __PUDDLE_CLI_VERSION__ !== 'undefined') return __PUDDLE_CLI_VERSION__;
@@ -30,18 +30,4 @@ export function cliVersion(): string {
  */
 export function pinnedDaemonVersion(): string {
   return cliVersion();
-}
-
-/**
- * GitHub `owner/repo` to fetch daemon tarballs from. Baked in by the release
- * build (from the publishing repository); development overrides with
- * PUDDLE_REPO. Undefined means releases are unreachable — bootstrap then
- * requires --tarball.
- */
-export function repoSlug(
-  env: Record<string, string | undefined> = process.env,
-): string | undefined {
-  if (env.PUDDLE_REPO !== undefined && env.PUDDLE_REPO !== '') return env.PUDDLE_REPO;
-  if (typeof __PUDDLE_REPO_SLUG__ !== 'undefined') return __PUDDLE_REPO_SLUG__;
-  return undefined;
 }

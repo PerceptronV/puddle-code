@@ -353,8 +353,34 @@ closes the child lease; other windows retain their connection and accepted host
 operations remain durable. Reads remain available during preparation; mutations
 are serialised per cockpit and coalesced by the host coordinator. Lost replies
 never trigger replay or offline fallback. Older compatible hosts advertise only
-their supported actions. The Settings interface, release discovery/offers and
+their supported actions. The Settings interface, release offers and
 offline cockpit recovery remain unfinished. Remote 4 and runtime 1.0 are unchanged.
+
+Application 25.14 adds optional `include_catalogue` to private update status and
+an optional catalogue in cockpit status. `updates/catalogue/` reads bounded committed
+runtime bindings and existing connections to group running, starting and unavailable
+builds, reports the selected runtime default and running daemon version, and marks
+truncated/failed inventory. It never scans native conversations, contacts every owner,
+or substitutes these counts for update preflight/adoption proof. No runtime ids,
+profile data, paths or process details leave this presentation boundary.
+
+The first catalogue read starts one host-owned latest-stable release poller, using
+the desktop's 30-minute cadence and a bounded shared GitHub lookup. Attempts and the
+last successful result persist under `updates/release-check.json`; daemon replacement
+honours the remaining cadence and network failures retain timestamped last-known
+information. Persistence failures preserve in-memory discovery and do not block
+connections. Shutdown aborts outstanding lookup and ignores late replies. Published
+host archives embed their release repository, with a host environment override for
+development; unconfigured builds perform no lookup. Only the matching host archive
+plus SHA256SUMS establishes asset availability, not download/integrity completion.
+Discovery never stages, changes a pin, activates or restarts anything. Cockpit
+preparation obtains its repository through private host status and reuses the normal
+installer; the browser cannot provide a repository or tarball. Host-wide status
+subscribers receive `host-updates-changed` after discovery changes and update controls;
+profile-scoped viewers receive neither the event nor private catalogue access. CLI,
+desktop and host share latest-release parsing and stable version comparison. Settings
+controls, per-window offers, offline cockpit recovery and full packaged acceptance
+remain unfinished. Remote 4 and runtime 1.0 are unchanged.
 
 Application 25.10 adds exact interruption consent to private local/SSH update
 control. When other checks pass but daemon-owned work would stop, a supporting
