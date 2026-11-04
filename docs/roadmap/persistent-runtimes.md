@@ -50,6 +50,15 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- The opt-in 1/10/50-owner plain-shell resource fixture now measures RSS,
+  descriptors and production controller re-adoption with bounded launches and
+  verified cleanup. The settled macOS baseline measured 3,355 MiB summed owner
+  RSS and 402 ms median adoption at 50 owners. Fixture-only RSS/descriptor/adoption
+  ceilings are enforced; CPU/wakeup budgets, provider/controller overhead and
+  production host-wide buffering remain open. See the
+  [measurement report](../reports/2026-11-04-persistent-runtime-resources.md) for
+  method, precision limits and reproducible commands.
+
 - Application 25.20 integrates local/SSH purge after separate runtime-stop consent.
   Every retained runtime is retired under existing launch/dispatch/owner claims
   before recording a kernel boot barrier. A different boot and fresh dirty/unpushed
