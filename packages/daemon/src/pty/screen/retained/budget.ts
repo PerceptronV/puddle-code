@@ -44,6 +44,8 @@ interface Geometry {
   scrollback: number;
 }
 
+const GROWTH_ROWS = 64;
+
 /** One store, including every terminal: no per-terminal copy of the allowance. */
 export class ScreenRetainedBudget {
   private readonly screens = new Set<ScreenRetainedLease>();
@@ -64,7 +66,8 @@ export class ScreenRetainedBudget {
     return this.variables;
   }
   get geometryBytes(): number {
-    // Reserved future capacity, including scrollback: not measured live backing.
+    // Viewports plus bounded admitted history chunks, not maximum future history
+    // or a measurement of resident backing/GC timing.
     return [...this.screens].reduce((total, lease) => total + lease.geometryBytes, 0);
   }
   get burstBytes(): number {
@@ -98,15 +101,44 @@ export class ScreenRetainedBudget {
     );
     if (minimum > this.limits.geometryBytes)
       throw new Error('Canonical terminal viewports exceed retained capacity');
-    const share = Math.floor((this.limits.geometryBytes - minimum) / entries.length);
     const plans = dimensions.map((entry) => ({
       ...entry,
-      scrollback: Math.min(this.limits.scrollback, Math.floor(share / this.line(entry.cols))),
+      // New/idle screens reserve no speculative scrollback. Existing history
+      // may shrink for another viewport, but grows only on actual scrolling.
+      scrollback: Math.min(entry.lease.scrollback, this.limits.scrollback),
     }));
+    let excess = plans.reduce(
+      (total, plan) => total + this.geometry(plan.cols, plan.rows, plan.scrollback),
+      -this.limits.geometryBytes,
+    );
+    // Reclaim only what the new viewport/peak width actually needs. Largest
+    // history first, with stable creation-order ties, avoids idle peers wasting
+    // capacity or trimming healthy history just to create equal future shares.
+    const donors = [...plans].sort(
+      (a, b) => b.scrollback * this.line(b.cols) - a.scrollback * this.line(a.cols),
+    );
+    for (const plan of donors) {
+      if (excess <= 0) break;
+      const rows = Math.min(plan.scrollback, Math.ceil(excess / this.line(plan.cols)));
+      plan.scrollback -= rows;
+      excess -= rows * this.line(plan.cols);
+    }
     // Shrink before growing. A failed trim leaves the previous allocation charged.
     for (const plan of plans)
       if (plan.scrollback < plan.lease.scrollback) plan.lease.trim(plan.scrollback);
     for (const plan of plans) plan.lease.setGeometry(plan.cols, plan.rows, plan.scrollback);
+  }
+
+  /** Admit a small block before xterm raises backing capacity or clones a row. */
+  grow(lease: ScreenRetainedLease): boolean {
+    if (!this.screens.has(lease)) return false;
+    const available = Math.floor(
+      (this.limits.geometryBytes - this.geometryBytes) / this.line(lease.cols),
+    );
+    const rows = Math.min(GROWTH_ROWS, this.limits.scrollback - lease.scrollback, available);
+    if (rows <= 0) return false;
+    lease.setGeometry(lease.cols, lease.rows, lease.scrollback + rows);
+    return true;
   }
 
   geometry(cols: number, rows: number, scrollback: number): number {
@@ -178,8 +210,10 @@ export class ScreenRetainedLease {
     this.dimensions.scrollback = scrollback;
   }
   setGeometry(cols: number, rows: number, scrollback: number): void {
-    this.trimScreen?.(scrollback);
+    // Growth is charged before the callback can allocate backing. An unexpected
+    // callback failure keeps that conservative charge until owner disposal.
     this.dimensions = { cols, rows, scrollback };
+    this.trimScreen?.(scrollback);
   }
   charge(bytes: number, inspect: () => number): boolean {
     if (this.closed || !Number.isSafeInteger(bytes) || bytes < 0) return false;

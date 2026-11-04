@@ -1,6 +1,7 @@
 import type { Terminal } from '@xterm/headless';
 import type { ScreenRetainedLease } from './budget.js';
 import { coreOf, type Core, type BufferState, type SequenceParser } from './internals.js';
+import { guardGeometryGrowth, setHistoryCapacity } from './geometry.js';
 
 /**
  * Instance-only guards for the exact-pinned headless emulator. Ordinary runs stay
@@ -20,15 +21,19 @@ export class XtermRetainedState {
     private readonly unavailable: (error: Error) => void,
   ) {
     this.core = coreOf(terminal);
-    lease.attach((scrollback) => {
-      terminal.options.scrollback = scrollback;
-    });
-    terminal.options.scrollback = lease.scrollback;
+    lease.attach((scrollback) => setHistoryCapacity(terminal, this.core, scrollback));
+    setHistoryCapacity(terminal, this.core, lease.scrollback);
     this.guardPrint();
     this.guardRepeat();
     this.guardSequences();
     this.guardLinks();
     this.guardTitles();
+    guardGeometryGrowth(
+      this.core,
+      lease,
+      () => this.failure !== null,
+      (message) => this.fail(message),
+    );
     const input = this.core._inputHandler;
     const parse = input.parse.bind(input);
     input.parse = (data, result) => (this.failure ? undefined : parse(data, result));
@@ -38,6 +43,9 @@ export class XtermRetainedState {
       // Buffer children and their idle cleanup queues are not disposed by xterm.
       this.clearBuffers();
       reset();
+      // Reset positively replaced the old buffers after cancelling their idle
+      // tasks/markers. The new viewport needs no prepaid historical rows.
+      lease.trim(0);
     };
   }
 

@@ -68,6 +68,15 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Terminal geometry now reserves viewports first and grows history in admitted
+  64-row blocks. Thirty-two fresh 120-by-32 terminals charge 15.74 MiB of geometry
+  instead of reserving nearly the entire 96 MiB allowance. New viewports trim only
+  necessary old history; full optional history rolls over normally. Cursor wrap,
+  scroll regions, reset, alternate screens and long saved-history restoration are
+  covered by 64 focused checks, plus 14 actual-owner/segment/theme/gateway checks.
+  Source/test TypeScript and lint passed. This removes speculative owner-local
+  reservations before aggregate host admission; it does not yet enforce that cap.
+
 - Runtime writes now count bounded plain JSON before reserving their exact frame
   size, then encode into one final buffer under a separate transient allowance.
   Refused queued writes allocate no serialised body. Unicode, escapes, sparse

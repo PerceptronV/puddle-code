@@ -15,7 +15,15 @@ export interface BufferState {
   x: number;
   y: number;
   ybase: number;
-  lines: { length: number; _array: Array<Line | undefined>; get(index: number): Line | undefined };
+  scrollTop: number;
+  scrollBottom: number;
+  savedX: number;
+  lines: {
+    length: number;
+    readonly isFull: boolean;
+    _array: Array<Line | undefined>;
+    get(index: number): Line | undefined;
+  };
   markers: Marker[];
   _memoryCleanupQueue: { clear(): void };
 }
@@ -50,7 +58,8 @@ export interface InputHandler {
 export interface Core {
   _inputHandler: InputHandler;
   _bufferService: {
-    buffers: { normal: BufferState; alt: BufferState; reset(): void };
+    scroll(attributes: unknown, isWrapped?: boolean): void;
+    buffers: { normal: BufferState; alt: BufferState; active: BufferState; reset(): void };
   };
   _oscLinkService: {
     _dataByLinkId: Map<number, LinkEntry>;
@@ -68,6 +77,7 @@ export function coreOf(terminal: Terminal): Core {
     !core ||
     !input ||
     !buffers ||
+    typeof core._bufferService.scroll !== 'function' ||
     typeof input.print !== 'function' ||
     typeof input.parse !== 'function' ||
     typeof input.repeatPrecedingCharacter !== 'function' ||
@@ -90,6 +100,10 @@ export function coreOf(terminal: Terminal): Core {
       (buffer) =>
         !buffer ||
         typeof buffer.lines?.get !== 'function' ||
+        typeof buffer.lines.isFull !== 'boolean' ||
+        !Number.isInteger(buffer.scrollTop) ||
+        !Number.isInteger(buffer.scrollBottom) ||
+        !Number.isInteger(buffer.savedX) ||
         !Array.isArray(buffer.lines._array) ||
         !Array.isArray(buffer.markers) ||
         typeof buffer._memoryCleanupQueue?.clear !== 'function',

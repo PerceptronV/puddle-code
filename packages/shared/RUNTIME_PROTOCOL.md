@@ -89,8 +89,12 @@ before socket completion; queued small frames retain only their exact encoded ch
 
 Canonical emulators share an owner-local 128 MiB retained allowance (96 MiB
 geometry, 24 MiB variable text/link state and 8 MiB control state), plus a 16 MiB
-parse/reflow working allowance. Geometry admission trims old scrollback before
-growth; combined cells, hyperlinks and partial collected control sequences have
+parse/reflow working allowance. Initial geometry reserves viewports and a cached
+blank row; history grows in precharged blocks of at most 64 rows up to the existing
+20,000-line ceiling. Admission trims only necessary old scrollback for new
+viewports; unavailable optional growth uses normal whole-line rollover. History
+capacity changes preserve cursor wrap and scroll regions. Combined cells,
+hyperlinks and partial collected control sequences have
 explicit limits. REP expansion is admitted before upstream allocation. Bounded
 write batches retain working capacity until their actual callbacks settle.
 Exhaustion leaves live PTY delivery running and marks the canonical screen
