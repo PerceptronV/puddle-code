@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Verify host-update supervision against the actual daemon PID and user service manager, binding service identity to inspection evidence and refusing stale or unknown supervisor markers.
+
 - Combine host-update compatibility, interruption and fresh capacity checks into one inspection, withholding approval evidence for blocked or changing work and sharing the existing bounded storage probes.
 
 - Inventory daemon-update interruption impact through existing terminal, notebook, compilation and puddlang managers, retaining idle kernels and watchers in the review and distinguishing replacement execution from previously observed work.

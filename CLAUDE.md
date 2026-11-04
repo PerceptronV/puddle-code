@@ -15,8 +15,8 @@ packages/
 │   ├── src/security/     # private host control, process claims, connection leases and resource revocation
 │   ├── src/updates/operations/ # durable host-update state, exact approval/dispatch and bounded history
 │   ├── src/updates/worker/ # pinned one-shot updater, exact activation and verification
-│   ├── src/updates/preflight/ # passive staged capabilities and live-owner compatibility
-│   ├── src/host/         # shared independent service definitions and bounded supervisor commands
+│   ├── src/updates/preflight/ # compatibility, interruption, capacity and supervision inspection
+│   ├── src/host/         # shared service definitions/commands plus supervision/ identity inspection
 │   ├── src/agents/       # adapters own flags, cached native catalogue discovery, and exact lifecycle integration
 │   ├── src/puddlang/     # trusted TypeScript runner, bounded operations and durable run/event records
 │   ├── src/compilation/  # provider-neutral compile modes, scheduling, dependency observation, and artefacts
@@ -165,6 +165,10 @@ currently handles runtime-default selection only, using its pinned copy of the
 canonical installer. Exact `--select-only` activation preserves supervisor metadata;
 `--no-supervisor` remains the bootstrap choice that records `none`. Do not enable
 daemon/combined updates until quiescence, preflight and adoption verification exist.
+Service identity inspection lives under `host/supervision/`, sharing the bounded
+command runner. An installer marker is not live supervision evidence. Do not parse
+launchctl diagnostic output as an API; preserve exact PID/service checks and verify
+the updater's own independent service scope before enabling daemon replacement.
 The remote app and new GitHub releases publish only the CLI installer at
 `/install.sh`. Install daemon/desktop components through the CLI; the embedded
 daemon bootstrap still fetches GitHub archives automatically on first local/SSH

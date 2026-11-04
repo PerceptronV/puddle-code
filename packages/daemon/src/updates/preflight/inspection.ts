@@ -7,26 +7,30 @@ import { digest } from '@puddle/shared/node';
 import type { HostUpdateCompatibility, UpdateCompatibility } from './compatibility.js';
 import type { HostUpdateCapacity, UpdateCapacity } from './capacity.js';
 import type { HostUpdateImpact, UpdateImpact } from './impact.js';
+import type { HostUpdateSupervision, UpdateSupervision } from './supervision.js';
 
 export interface UpdateInspection {
   compatibility: UpdateCompatibility;
   capacity: UpdateCapacity;
   impact: UpdateImpact;
+  supervision: UpdateSupervision;
   blockers: Array<
     | UpdateCompatibility['blockers'][number]
     | UpdateCapacity['blockers'][number]
+    | UpdateSupervision['blockers'][number]
     | { code: 'interruption_inventory_changed'; target: 'daemon' }
   >;
   fingerprint: string | null;
 }
 
-/** Observations for the coordinator; authority, supervisor lifetime and quiescence are separate. */
+/** Observations for the coordinator; authority, worker isolation and quiescence are separate. */
 export class HostUpdateInspection {
   constructor(
     private readonly deps: {
       compatibility: Pick<HostUpdateCompatibility, 'inspect'>;
       capacity: Pick<HostUpdateCapacity, 'inspect'>;
       impact: Pick<HostUpdateImpact, 'inspect'>;
+      supervision: Pick<HostUpdateSupervision, 'inspect'>;
     },
   ) {}
 
@@ -38,6 +42,7 @@ export class HostUpdateInspection {
   ): Promise<UpdateInspection> {
     const operation = hostUpdateOperationSchema.parse(input);
     const before = this.deps.impact.inspect(operation);
+    const supervision = await this.deps.supervision.inspect(operation);
     // Inspect owners last so a slow filesystem probe cannot outlive the owner
     // inventory comparison. The final coordinator still rechecks under its barrier.
     const capacity = await this.deps.capacity.inspect(operation);
@@ -51,6 +56,7 @@ export class HostUpdateInspection {
     const blockers: UpdateInspection['blockers'] = [
       ...compatibility.blockers,
       ...capacity.blockers,
+      ...supervision.blockers,
     ];
     if (before.fingerprint !== impact.fingerprint)
       blockers.push({ code: 'interruption_inventory_changed', target: 'daemon' });
@@ -68,8 +74,9 @@ export class HostUpdateInspection {
             owners: compatibility.owners,
             inventory: compatibility.inventory,
             impact: impact.fingerprint,
+            supervision: { worker: supervision.worker, daemon: supervision.daemon },
           }),
         );
-    return { compatibility, capacity, impact, blockers, fingerprint };
+    return { compatibility, capacity, impact, supervision, blockers, fingerprint };
   }
 }

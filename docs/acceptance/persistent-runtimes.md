@@ -1,9 +1,10 @@
 # Persistent-runtime acceptance
 
 The [roadmap](../roadmap/persistent-runtimes.md) defines the complete acceptance
-matrix. The current implementation is an experimental owner/client foundation;
-production `SessionService` still uses daemon-owned PTYs. Passing this document's
-foundation checks does not establish seamless production upgrades.
+matrix. Persistent ownership is required standard behaviour for every user in
+0.4.0, without an enable/disable option. Implementation remains in progress:
+production `SessionService` still defaults to daemon-owned PTYs in development.
+Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
@@ -556,6 +557,28 @@ normal journal progress and changing healthy free space retain stable evidence.
 TypeScript, scoped lint and formatting checks passed. Capacity checks neither
 reserve space nor prove migration size, and these tests do not exercise staging
 admission, host-authority approval or a quiescence barrier.
+
+Supervisor inspection is included in the combined preflight. The host/preflight,
+worker-dispatch and daemon-ownership regression run passed 65 tests across nine
+files on macOS 26.5.2/Node v22.21.1. Fixtures cover invalid/shared/symlinked markers,
+absent managers, stale PIDs, pending systemd reloads and changed invocation identity.
+The separate native macOS test passed against a uniquely named temporary launchd
+job, detecting its changed PID after restart and removing its registration:
+
+```sh
+PUDDLE_TEST_RUNTIME_SUPERVISOR=1 node node_modules/vitest/vitest.mjs run packages/daemon/test/host/supervision/inspection-live.test.ts
+```
+
+This test never starts the installed daemon. The inspection uses documented
+`launchctl list` columns after verifying the caller's GUI manager and user, and
+only exit status from `print`; it does not parse
+diagnostic output. Systemd inspection uses the current `MainPID`, invocation and
+control group ([property reference](https://www.freedesktop.org/software/systemd/man/latest/org.freedesktop.systemd1.html)).
+The final targeted checks passed 31 deterministic tests plus the native test,
+including refusal of same-labelled jobs in a different manager context and an
+explicit absence check before removing the temporary job's files.
+Native Linux inspection, the dispatched updater's own service isolation, recorded
+restart targets and full daemon-upgrade verification remain unproven.
 
 ## Remaining release gates
 

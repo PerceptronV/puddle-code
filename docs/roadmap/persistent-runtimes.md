@@ -64,6 +64,18 @@ Implementation evidence so far:
   migration will fit; authority, supervisor lifetime, staging admission and final
   quiescence/dispatch integration remain required.
 
+- Preflight now checks the available user service manager and corroborates the
+  installer's bounded owned marker against the actual daemon PID. Systemd uses
+  current service properties, including invocation identity and control group;
+  launchd uses exact registration exit status and documented job-list columns in
+  the verified GUI/user context,
+  never parsed diagnostic `print` output. Unknown/stale supervision blocks daemon
+  replacement; runtime-default selection only needs an available independent
+  manager. Service observations join the approval fingerprint. A temporary native
+  launchd job passed restart/PID-change inspection on macOS; Linux native checks,
+  the updater's own service-isolation proof, recorded restart execution and
+  quiescence/adoption verification remain required before daemon activation.
+
 - Runtime code and tests are grouped by ownership, transport, execution, retained
   state, daemon control and service lifecycle. The `puddler` entry point and owner
   composition stay at the runtime root; implementation imports use their actual

@@ -160,6 +160,11 @@ The combined inspection uses fresh bounded storage probes and reports unsaved st
 binding its fingerprint to the exact operation/stages and runtime/impact identities.
 Blocked or changing observations yield no fingerprint. Available-space measurements
 remain advisory headroom, without a reservation or migration-size guarantee.
+Supervision inspection corroborates the installer marker with the current daemon
+PID and service identity, and includes that evidence in the fingerprint. It probes
+the user manager without starting services, rejects stale/unknown supervision and
+leaves manual daemons untouched during runtime-default changes. The worker must
+still establish its own independent service scope before daemon activation.
 
 The [persistent runtimes roadmap](docs/roadmap/persistent-runtimes.md) specifies
 one independent `puddler` process per live runtime and cockpit-managed host

@@ -56,6 +56,7 @@ import { HostUpdateCompatibility } from './updates/preflight/compatibility.js';
 import { HostUpdateImpact } from './updates/preflight/impact.js';
 import { HostUpdateCapacity } from './updates/preflight/capacity.js';
 import { HostUpdateInspection } from './updates/preflight/inspection.js';
+import { HostUpdateSupervision } from './updates/preflight/supervision.js';
 import { RuntimeConnections } from './runtime/transport/connections.js';
 import { RuntimeReconciler } from './runtime/controller/reconcile.js';
 import { RuntimeNotifications } from './runtime/controller/notifications.js';
@@ -538,6 +539,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
           puddlang,
         }),
         capacity: new HostUpdateCapacity(paths, storage),
+        supervision: new HostUpdateSupervision({ home: paths.home, pid: process.pid }),
       }),
       async stop() {
         runtimeNotifications.close();

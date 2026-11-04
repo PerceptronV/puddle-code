@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { hostReleaseCapabilities, type StorageStatus } from '@puddle/shared';
@@ -6,6 +7,8 @@ import { HostUpdateCompatibility } from '../../../src/updates/preflight/compatib
 import { HostUpdateCapacity } from '../../../src/updates/preflight/capacity.js';
 import { HostUpdateImpact } from '../../../src/updates/preflight/impact.js';
 import { HostUpdateInspection } from '../../../src/updates/preflight/inspection.js';
+import { HostUpdateSupervision } from '../../../src/updates/preflight/supervision.js';
+import { systemdObservation } from '../../helpers/host-supervision.js';
 import { StorageMonitor } from '../../../src/storage/monitor.js';
 import { candidateFixture } from './helpers.js';
 
@@ -20,6 +23,12 @@ function setup() {
     level: 'ok',
   }));
   const storage = new StorageMonitor(() => [], probe);
+  writeFileSync(join(f.home, 'supervisor'), 'systemd');
+  const supervisor = vi.fn(async () => ({
+    exitCode: 0,
+    stdout: systemdObservation(123),
+    stderr: '',
+  }));
   const inspection = new HostUpdateInspection({
     compatibility: new HostUpdateCompatibility({
       home: f.home,
@@ -28,6 +37,12 @@ function setup() {
       connections: { get: () => null },
     }),
     capacity: new HostUpdateCapacity({ home: f.home, dbFile: join(f.home, 'puddle.db') }, storage),
+    supervision: new HostUpdateSupervision({
+      home: f.home,
+      pid: 123,
+      platform: 'linux',
+      run: supervisor,
+    }),
     impact: new HostUpdateImpact({
       controller: randomUUID(),
       ptys: { interruptionInventory: () => [] },
@@ -38,7 +53,7 @@ function setup() {
   });
   const inspect = (operation = f.operation) =>
     inspection.inspect(operation, current.application, current.runtime, null);
-  return { ...f, current, programmes, probe, storage, inspection, inspect };
+  return { ...f, current, programmes, probe, storage, inspection, inspect, supervisor };
 }
 
 it('binds stable inspection to its operation and stages without treating changing free bytes as new impact', async () => {
@@ -108,4 +123,23 @@ it('collects protocol and capacity blockers without producing approval evidence'
   );
   expect(result.fingerprint).toBeNull();
   expect(f.store.read()?.phase).toBe('staged');
+});
+
+it('binds approval to the observed service invocation and withholds it for unknown supervision', async () => {
+  const f = setup();
+  const first = await f.inspect();
+  f.supervisor.mockImplementation(async () => ({
+    exitCode: 0,
+    stdout: systemdObservation(123).replace('a'.repeat(32), 'b'.repeat(32)),
+    stderr: '',
+  }));
+  expect((await f.inspect()).fingerprint).not.toBe(first.fingerprint);
+  f.supervisor.mockImplementation(async () => ({
+    exitCode: 0,
+    stdout: systemdObservation(456),
+    stderr: '',
+  }));
+  const unknown = await f.inspect();
+  expect(unknown.fingerprint).toBeNull();
+  expect(unknown.blockers).toContainEqual({ code: 'daemon_supervision_unknown', target: 'daemon' });
 });
