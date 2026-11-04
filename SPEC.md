@@ -156,6 +156,15 @@ graceful execution shutdown alone cannot release that claim. These limits accoun
 for Puddle-managed capacity, not native-agent allocations, total process RSS or a
 physical filesystem quota.
 
+The Codex native bridge pauses unsent traffic when its shared allowance is
+unavailable, preserving the native CLI and sidecar. Raw fragments, parsed metadata
+and deferred forwards retain their charges through delivery; control-frame replies
+own only their small copied payloads. Native messages retain their existing 100 MiB
+ceiling independently of runtime IPC traversal limits. Scripted turns separately
+admit retained early events and bound diagnostic/turn identifiers. Accepted writes
+are never replayed, and uncertain lifecycle delivery disables full synchronisation
+and scripted control rather than inventing a successful observation.
+
 Persistent runtimes and cockpit-managed host updates are required standard behaviour
 from 0.4.0, without an enable/disable setting or selectable legacy backend. The
 implementation described below is incomplete. Daemon composition now defaults to

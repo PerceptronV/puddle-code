@@ -32,6 +32,7 @@ Persistent runtimes and cockpit-managed host updates are mandatory standard beha
 ### Fixed
 
 - Share managed memory capacity across independent runtimes. Admit new owners before dispatch, bound log/checkpoint/message buffers, return idle spare capacity and reclaim grants only after the owning process exits.
+- Pause unsent Codex bridge traffic under shared memory pressure without terminating the native CLI. Retain fragmented-message and scripted-turn accounting through delivery, bound diagnostics and preserve exact lifecycle observations.
 - Keep terminal screen parsing responsive during slow snapshot writes. Bound queued work and serialised screens, preserve replay ordering and complete visible terminal modes, and report a canonical-screen gap instead of silently presenting dropped input as complete.
 - Bound raw runtime history by both bytes and file count. Repeated terminal generations cannot create unlimited tiny log files; reaching the cap preserves live output, checkpoints and recording for already admitted streams.
 - Compact old raw logs after verified runtime retirement, preserving their exact replay tails and all native/session metadata. Reuse bounded directory traversal for legacy logs, defer slow copies without blocking later files, and retain history whenever ownership or retirement evidence is uncertain.

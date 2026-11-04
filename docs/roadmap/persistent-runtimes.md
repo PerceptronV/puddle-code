@@ -68,6 +68,19 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Codex bridge buffers now share the owner grant. Unsent traffic pauses under
+  pressure without closing the native CLI; fragmented receive charges transfer
+  through sender callbacks, compact JSON admits node metadata before parsing, and
+  small pong payloads cannot multiply references to unrelated fragments. Scripted
+  early events retain independent leases; diagnostics and turn identifiers are
+  bounded before they outlive inspection. Forty focused owner/receiver/control
+  checks passed, with subsequent targeted identifier/diagnostic checks also passing.
+  The real-process fixture uses a fake Codex endpoint: 1,100 requests reuse one
+  connection, a 2 MiB native response pauses under exhausted host capacity, then
+  arrives once without changing owner/PTY/sidecar identities across adoption.
+  Independent review, strict TypeScript and lint passed. Separately, all 1,345
+  non-daemon workspace tests passed. Real-provider acceptance remains open.
+
 - Production startup now initialises a sealed host memory ceiling once, admits
   essential runtime state before process dispatch, and retains exact process-memory
   ownership through OS exit. Owner transport, decoded requests, logs, screens,

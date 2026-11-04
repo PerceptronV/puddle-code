@@ -1,7 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import type { AgentControl } from '../adapter.js';
+import { RuntimeBufferBudget, type RuntimeByteAllowance } from '../../runtime/resources/budget.js';
+import { runtimeJsonBytes, runtimeJsonRetainedBytes } from '../../runtime/transport/encoding.js';
 
 type RecordValue = Record<string, unknown>;
+const validTurnId = (value: unknown): value is string =>
+  typeof value === 'string' && value.length > 0 && value.length <= 4096;
+const diagnostic = (value: unknown, fallback: string) =>
+  // Copy the bounded prefix: a sliced diagnostic must not pin its native source.
+  typeof value === 'string' ? Buffer.from(value.slice(0, 4096)).toString('utf8') : fallback;
 const record = (v: unknown): RecordValue =>
   v !== null && typeof v === 'object' && !Array.isArray(v) ? (v as RecordValue) : {};
 
@@ -10,13 +17,21 @@ export class CodexControl implements AgentControl {
   private send: ((message: RecordValue) => void) | null = null;
   private thread: string | null = null;
   private busy = false;
-  private readonly abandoned = new Map<string, string>();
+  private readonly abandoned = new Map<string, { thread: string; release(): void }>();
+  private readonly turns: RuntimeBufferBudget;
+  private readonly requests: RuntimeBufferBudget;
+  private readonly earlyEvents: RuntimeBufferBudget;
+  constructor(allowance?: RuntimeByteAllowance) {
+    this.earlyEvents = new RuntimeBufferBudget({ bytes: 32 * 1024 * 1024, count: 256 }, allowance);
+    this.turns = new RuntimeBufferBudget({ bytes: 8 * 1024 * 1024, count: 1 }, allowance);
+    this.requests = new RuntimeBufferBudget({ bytes: 1024 * 1024, count: 256 }, allowance);
+  }
   private pending: {
     id: string;
     thread: string;
     turn: string | null;
     reply: string;
-    early: RecordValue[];
+    early: Array<{ value: RecordValue; release(): void }>;
     earlyBytes: number;
     finish(error?: Error, reply?: string): void;
   } | null = null;
@@ -43,6 +58,7 @@ export class CodexControl implements AgentControl {
     this.send = null;
     this.thread = null;
     this.busy = false;
+    for (const entry of this.abandoned.values()) entry.release();
     this.abandoned.clear();
   }
 
@@ -68,22 +84,42 @@ export class CodexControl implements AgentControl {
     signal.throwIfAborted();
     const id = `puddlang:${randomUUID()}`;
     const thread = this.thread;
+    const turnRelease = this.turns.reserve(8 * 1024 * 1024);
+    if (!turnRelease) return Promise.reject(new Error('Agent turn buffer capacity exhausted'));
+    let requestRelease = this.requests.reserve(2 * thread.length + 512);
+    if (!requestRelease) {
+      turnRelease();
+      return Promise.reject(new Error('Agent unanswered request capacity exhausted'));
+    }
     return new Promise((resolve, reject) => {
       const abort = () => {
         const turn = this.pending?.turn;
-        if (turn)
-          this.send?.({
-            id: `${id}:interrupt`,
-            method: 'turn/interrupt',
-            params: { threadId: thread, turnId: turn },
-          });
-        else this.abandoned.set(id, thread);
-        finish(new Error('Automated turn cancelled'));
+        try {
+          if (turn)
+            this.send?.({
+              id: `${id}:interrupt`,
+              method: 'turn/interrupt',
+              params: { threadId: thread, turnId: turn },
+            });
+          else if (requestRelease) {
+            this.abandoned.set(id, { thread, release: requestRelease });
+            requestRelease = null;
+          }
+        } catch {
+          // A failed send is uncertain; never retry it from the abort listener.
+        } finally {
+          finish(new Error('Automated turn cancelled'));
+        }
       };
       const finish = (error?: Error, reply?: string) => {
         if (this.pending?.id !== id) return;
+        for (const entry of this.pending.early) entry.release();
+        this.pending.early = [];
         this.pending = null;
         signal.removeEventListener('abort', abort);
+        turnRelease();
+        requestRelease?.();
+        requestRelease = null;
         if (error) reject(error);
         else resolve(reply ?? '');
       };
@@ -112,30 +148,47 @@ export class CodexControl implements AgentControl {
     const id = message['id'];
     const pending = this.pending;
     if (typeof id === 'string' && id.startsWith('puddlang:')) {
-      const abandonedThread = this.abandoned.get(id);
-      if (abandonedThread) {
+      const abandoned = this.abandoned.get(id);
+      if (abandoned) {
         this.abandoned.delete(id);
+        abandoned.release();
+        const abandonedThread = abandoned.thread;
         const turn = record(record(message['result'])['turn']);
-        if (typeof turn['id'] === 'string')
-          this.send?.({
-            id: `${id}:interrupt`,
-            method: 'turn/interrupt',
-            params: { threadId: abandonedThread, turnId: turn['id'] },
-          });
+        if (validTurnId(turn['id'])) {
+          try {
+            this.send?.({
+              id: `${id}:interrupt`,
+              method: 'turn/interrupt',
+              params: { threadId: abandonedThread, turnId: turn['id'] },
+            });
+          } catch {
+            // The ask already failed. Keep native transport alive; never replay
+            // an uncertain control command or claim that interruption succeeded.
+            this.disconnect();
+          }
+        } else if (typeof turn['id'] === 'string') this.disconnect();
         else if (abandonedThread === this.thread) this.busy = false;
       }
       if (pending?.id === id) {
         const turn = record(record(message['result'])['turn']);
-        if (message['error'] || typeof turn['id'] !== 'string') {
+        if (message['error'] || !validTurnId(turn['id'])) {
           this.busy = false;
           pending.finish(
-            new Error(String(record(message['error'])['message'] ?? 'Agent rejected the turn')),
+            new Error(diagnostic(record(message['error'])['message'], 'Agent rejected the turn')),
           );
         } else {
           pending.turn = turn['id'];
           this.busy = turn['status'] === 'inProgress';
-          for (const event of pending.early) this.observe(event);
+          const early = pending.early;
           pending.early = [];
+          try {
+            for (const entry of early) {
+              if (this.pending !== pending) break;
+              this.observe(entry.value);
+            }
+          } finally {
+            for (const entry of early) entry.release();
+          }
         }
       }
       return true;
@@ -149,10 +202,24 @@ export class CodexControl implements AgentControl {
       pending.turn === null &&
       (message['method'] === 'item/completed' || message['method'] === 'turn/completed')
     ) {
-      pending.earlyBytes += Buffer.byteLength(JSON.stringify(message));
+      try {
+        pending.earlyBytes += runtimeJsonBytes(message);
+      } catch {
+        pending.finish(new Error('Agent reply exceeded the bounded event buffer'));
+        return false;
+      }
       if (pending.early.length >= 256 || pending.earlyBytes > 1024 * 1024)
         pending.finish(new Error('Agent reply exceeded the bounded event buffer'));
-      else pending.early.push(message);
+      else {
+        let release: (() => void) | null;
+        try {
+          release = this.earlyEvents.reserve(runtimeJsonRetainedBytes(message));
+        } catch {
+          release = null;
+        }
+        if (!release) pending.finish(new Error('Agent reply metadata capacity exhausted'));
+        else pending.early.push({ value: message, release });
+      }
     } else this.observe(message);
     return false;
   }
@@ -185,7 +252,7 @@ export class CodexControl implements AgentControl {
     if (turn['status'] !== 'completed')
       p.finish(
         new Error(
-          `Agent turn ${String(turn['status'])}: ${String(record(turn['error'])['message'] ?? '')}`,
+          `Agent turn ${diagnostic(turn['status'], 'failed')}: ${diagnostic(record(turn['error'])['message'], '')}`,
         ),
       );
     else if (!p.reply || Buffer.byteLength(p.reply) > 256 * 1024)

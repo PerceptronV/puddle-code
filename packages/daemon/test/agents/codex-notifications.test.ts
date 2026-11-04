@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { inspectResponse, type CodexSignalState } from '../../src/agents/codex/lifecycle.js';
+import {
+  inspectResponse,
+  type CodexSignalState,
+} from '../../src/agents/codex/lifecycle/observations.js';
 import type { LifecycleLaunchContext } from '../../src/agents/adapter.js';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -36,7 +39,7 @@ describe('Codex native turn notifications', () => {
     ]);
   });
 
-  it('posts placement rebinding before turn signals and survives a failed delivery', async () => {
+  it('retains placement ordering and stops status delivery after uncertain identity synchronisation', async () => {
     const bodies: unknown[] = [];
     let release!: () => void;
     const gate = new Promise<void>((resolve) => {
@@ -81,7 +84,6 @@ describe('Codex native turn notifications', () => {
         cwd: '/repo',
         source: 'startup',
       },
-      { nonce: context.signalNonce, state: 'waiting_input' },
     ]);
   });
 });

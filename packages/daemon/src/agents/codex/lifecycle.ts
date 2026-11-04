@@ -1,29 +1,26 @@
 import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
 import { createServer } from 'node:net';
 import { once } from 'node:events';
-import { WebSocket, WebSocketServer, type RawData } from 'ws';
+import { WebSocket, WebSocketServer } from 'ws';
 import type { LifecycleLaunchContext, LifecycleLaunchResource } from '../adapter.js';
 import { CodexControl } from './control.js';
 import { lifecycleVersionAtLeast } from '../lifecycle-version.js';
-
-interface PendingRequest {
-  method: 'thread/start' | 'thread/resume' | 'thread/fork';
-  cwd: string;
-  parentRef?: string;
-  requestedRef?: string;
-  ephemeral: boolean;
-}
-
-interface JsonRpcMessage {
-  id?: string | number;
-  method?: string;
-  params?: Record<string, unknown>;
-  result?: Record<string, unknown>;
-  error?: unknown;
-}
+import { CodexBridgeBudgets, CODEX_BRIDGE_LIMITS } from './lifecycle/limits.js';
+import { guardCodexReceiver, type CodexReceiverFlow } from './lifecycle/receiver.js';
+import { CodexSocketWrites, type CodexPacket } from './lifecycle/writes.js';
+import { CodexMessageInspection } from './lifecycle/messages.js';
+import { CodexSignalQueue } from './lifecycle/signals.js';
+import {
+  clearPending,
+  inspectRequest,
+  inspectMessages,
+  rawBuffer,
+  type PendingRequest,
+  type CodexSignalState,
+} from './lifecycle/observations.js';
 
 /**
- * Daemon-owned Codex app-server proxy. Verified against codex-cli 0.147.0:
+ * Runtime-owned Codex app-server proxy. Verified against codex-cli 0.147.0:
  * `codex --remote ws://…` uses JSON-RPC thread/start, thread/resume and
  * thread/fork; successful responses carry the exact thread id. Reviews and
  * side threads are ignored through the app-server's `ephemeral` bit.
@@ -54,7 +51,16 @@ export async function prepareCodexLifecycle(
     throw error;
   }
 
-  const proxy = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+  const budgets = new CodexBridgeBudgets(context.bufferAllowance);
+  const writes = new CodexSocketWrites(budgets.send);
+  const proxy = new WebSocketServer({
+    host: '127.0.0.1',
+    port: 0,
+    perMessageDeflate: false,
+    autoPong: false,
+    allowSynchronousEvents: true,
+    maxPayload: CODEX_BRIDGE_LIMITS.payloadBytes,
+  });
   try {
     await new Promise<void>((resolve, reject) => {
       proxy.once('listening', resolve);
@@ -73,61 +79,72 @@ export async function prepareCodexLifecycle(
   }
   const proxyPort = address.port;
   const sockets = new Set<WebSocket>();
-  const control = new CodexControl();
+  const control = new CodexControl(context.bufferAllowance);
   let owner: WebSocket | null = null;
+  let disposed = false;
+  const deliveries = new Set<CodexSignalQueue>();
   proxy.on('connection', (client) => {
     if (owner && owner.readyState < WebSocket.CLOSING) {
-      client.close(1008, 'One TUI per runtime');
+      client.terminate();
       return;
     }
     owner = client;
     sockets.add(client);
-    const upstream = new WebSocket(appUrl);
+    const upstream = new WebSocket(appUrl, {
+      perMessageDeflate: false,
+      autoPong: false,
+      allowSynchronousEvents: true,
+      maxPayload: CODEX_BRIDGE_LIMITS.payloadBytes,
+    });
     sockets.add(upstream);
-    const queue: Array<{ data: Buffer; binary: boolean }> = [];
+    const queue: CodexPacket[] = [];
     const pending = new Map<string, PendingRequest>();
-    const state: CodexSignalState = { activeRef: null, queue: Promise.resolve() };
-
-    client.on('message', (data, binary) => {
-      if (owner !== client) return;
-      for (const message of parseMessages(data)) control.client(message as Record<string, unknown>);
-      inspectRequest(data, pending, context.opts.worktreePath);
-      const packet = { data: rawBuffer(data), binary };
-      if (upstream.readyState === WebSocket.OPEN) upstream.send(packet.data, { binary });
-      else queue.push(packet);
-    });
-    upstream.on('open', () => {
-      if (owner !== client) {
-        upstream.close();
-        return;
-      }
-      control.connect((message) => upstream.send(JSON.stringify(message)));
-      for (const packet of queue) upstream.send(packet.data, { binary: packet.binary });
-      queue.length = 0;
-    });
-    upstream.on('message', (data, binary) => {
-      if (owner !== client) return;
-      inspectResponse(data, pending, context, state);
-      if (state.activeRef) control.bind(state.activeRef);
-      const messages = parseMessages(data);
-      const injected = messages.map((message) =>
-        control.server(message as Record<string, unknown>),
-      );
-      if (injected.some(Boolean)) {
-        const visible = messages.filter((_, index) => !injected[index]);
-        if (visible.length && client.readyState === WebSocket.OPEN)
-          client.send(JSON.stringify(visible.length === 1 ? visible[0] : visible));
-        return;
-      }
-      if (client.readyState === WebSocket.OPEN) client.send(data, { binary });
-    });
+    const inspections = new Set<CodexMessageInspection>();
+    const delivery = new CodexSignalQueue(
+      {
+        ...context,
+        reportLifecycleUnavailable: () => {
+          // An outstanding scripted turn cannot outlive uncertain native identity.
+          control.disconnect();
+          context.reportLifecycleUnavailable?.();
+        },
+      },
+      budgets.signals,
+    );
+    deliveries.add(delivery);
+    const state: CodexSignalState = { activeRef: null, queue: Promise.resolve(), delivery };
+    let closing = false;
     const closePair = () => {
+      if (closing) return;
+      closing = true;
+      if (!disposed) context.reportLifecycleUnavailable?.();
       if (owner === client) {
         owner = null;
         control.disconnect();
       }
-      if (client.readyState < WebSocket.CLOSING) client.close();
-      if (upstream.readyState < WebSocket.CLOSING) upstream.close();
+      clearPending(pending);
+      for (const inspection of inspections) inspection.close();
+      inspections.clear();
+      for (const packet of queue.splice(0)) packet.release();
+      void delivery.close().finally(() => deliveries.delete(delivery));
+      client.terminate();
+      upstream.terminate();
+    };
+    let clientFlow: CodexReceiverFlow;
+    let upstreamFlow: CodexReceiverFlow;
+    const heartbeat = (socket: WebSocket, data: Buffer, flow: CodexReceiverFlow) => {
+      const send = (payload: Buffer) => {
+        const packet = writes.pong(payload);
+        if (!packet) return false;
+        if (!writes.send(socket, packet, closePair, true)) closePair();
+        return true;
+      };
+      if (!send(data)) {
+        // One <=125-byte essential pending control copy per paused leg. Pongs
+        // must not snapshot thousands of unrelated fragmented-message records.
+        const pending = Buffer.from(data);
+        flow.defer(() => send(pending), false);
+      }
     };
     client.on('close', closePair);
     upstream.on('close', closePair);
@@ -135,6 +152,113 @@ export async function prepareCodexLifecycle(
     upstream.on('error', closePair);
     client.once('close', () => sockets.delete(client));
     upstream.once('close', () => sockets.delete(upstream));
+    client.on('ping', (data) => heartbeat(client, data, clientFlow));
+    upstream.on('ping', (data) => heartbeat(upstream, data, upstreamFlow));
+    try {
+      clientFlow = guardCodexReceiver(client, budgets.receive, closePair);
+    } catch {
+      closePair();
+      return;
+    }
+
+    client.on('message', (data, binary) => {
+      if (owner !== client || closing) return;
+      try {
+        const body = rawBuffer(data);
+        const inspection = new CodexMessageInspection(body, budgets.metadata);
+        inspections.add(inspection);
+        const forward = () => {
+          if (closing || owner !== client) return true;
+          const messages = inspection.read();
+          if (messages === null) return false;
+          const packet = writes.forward(body, binary, clientFlow);
+          if (!packet) return false;
+          try {
+            if (!inspectRequest(messages, pending, context.opts.worktreePath, budgets.pending)) {
+              packet.release();
+              return false;
+            }
+            for (const message of messages) control.client(message as Record<string, unknown>);
+            if (upstream.readyState === WebSocket.OPEN) {
+              if (!writes.send(upstream, packet, closePair)) closePair();
+            } else queue.push(packet);
+            inspection.close();
+            inspections.delete(inspection);
+            return true;
+          } catch (error) {
+            packet.release();
+            throw error;
+          }
+        };
+        if (!forward()) clientFlow.defer(forward);
+      } catch {
+        closePair();
+      }
+    });
+    upstream.on('open', () => {
+      if (owner !== client || closing) {
+        closePair();
+        return;
+      }
+      try {
+        upstreamFlow = guardCodexReceiver(upstream, budgets.receive, closePair);
+      } catch {
+        closePair();
+        return;
+      }
+      control.connect((message) => {
+        const packet = writes.json(message);
+        if (!packet) throw new Error('Codex native send capacity exhausted before dispatch');
+        if (!writes.send(upstream, packet, closePair)) throw new Error('Codex native send failed');
+      });
+      for (const packet of queue.splice(0))
+        if (!writes.send(upstream, packet, closePair)) closePair();
+    });
+    upstream.on('message', (data, binary) => {
+      if (owner !== client || closing) return;
+      try {
+        const raw = rawBuffer(data);
+        const inspection = new CodexMessageInspection(raw, budgets.metadata);
+        inspections.add(inspection);
+        const forward = () => {
+          if (closing || owner !== client) return true;
+          const messages = inspection.read();
+          if (messages === null) return false;
+          const visible = messages.filter(
+            (message) => !(typeof message.id === 'string' && message.id.startsWith('puddlang:')),
+          );
+          const filtered = visible.length !== messages.length;
+          // Strings/forwarding copies remain covered by admitted receive bytes.
+          const body = filtered
+            ? visible.length
+              ? Buffer.from(JSON.stringify(visible.length === 1 ? visible[0] : visible))
+              : null
+            : raw;
+          const packet = body
+            ? writes.forward(body, filtered ? false : binary, upstreamFlow)
+            : null;
+          if (body && !packet) return false;
+          try {
+            if (!inspectMessages(messages, pending, context, state)) {
+              packet?.release();
+              return false;
+            }
+            if (state.activeRef) control.bind(state.activeRef);
+            for (const message of messages) control.server(message as Record<string, unknown>);
+            if (packet && !writes.send(client, packet, closePair)) closePair();
+            inspection.close();
+            inspections.delete(inspection);
+            return true;
+          } catch (error) {
+            packet?.release();
+            throw error;
+          }
+        };
+        if (!forward()) upstreamFlow.defer(forward);
+      } catch {
+        closePair();
+      }
+    });
   });
 
   return {
@@ -147,8 +271,10 @@ export async function prepareCodexLifecycle(
     ...(appServer.pid !== undefined ? { sidecarPids: [appServer.pid] } : {}),
     hiddenPorts: [appPort, proxyPort],
     dispose: async () => {
+      disposed = true;
       control.disconnect();
       for (const socket of sockets) socket.terminate();
+      await Promise.all([...deliveries].map((delivery) => delivery.close()));
       proxy.close();
       await stopProcess(appServer);
     },
@@ -171,150 +297,6 @@ export function codexAppServerSpawnOptions(
     env: { ...process.env, CODEX_HOME: context.account.config_dir },
     stdio: ['ignore', 'ignore', 'pipe'],
   };
-}
-
-function inspectRequest(
-  data: RawData,
-  pending: Map<string, PendingRequest>,
-  defaultCwd: string,
-): void {
-  for (const message of parseMessages(data)) {
-    if (
-      message.id === undefined ||
-      !['thread/start', 'thread/resume', 'thread/fork'].includes(message.method ?? '')
-    ) {
-      continue;
-    }
-    const params = message.params ?? {};
-    const method = message.method as PendingRequest['method'];
-    pending.set(String(message.id), {
-      method,
-      cwd: typeof params['cwd'] === 'string' ? params['cwd'] : defaultCwd,
-      ...(typeof params['threadId'] === 'string'
-        ? method === 'thread/fork'
-          ? { parentRef: params['threadId'] }
-          : { requestedRef: params['threadId'] }
-        : {}),
-      ephemeral: params['ephemeral'] === true,
-    });
-  }
-}
-
-export interface CodexSignalState {
-  activeRef: string | null;
-  queue: Promise<void>;
-}
-
-async function postStatus(
-  context: LifecycleLaunchContext,
-  state: 'working' | 'waiting_input',
-): Promise<void> {
-  try {
-    await fetch(context.signalUrl, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ nonce: context.signalNonce, state }),
-      signal: AbortSignal.timeout(1500),
-    });
-  } catch {
-    /* Status reporting must never interrupt the native stream. */
-  }
-}
-
-export function inspectResponse(
-  data: RawData,
-  pending: Map<string, PendingRequest>,
-  context: LifecycleLaunchContext,
-  state: CodexSignalState,
-): void {
-  for (const message of parseMessages(data)) {
-    if (message.id === undefined) {
-      // Codex 0.157.1 app-server's exact turn notifications avoid relying on
-      // a footer redraw to discover completion. Side threads are never ours.
-      if (!state.activeRef || message.params?.['threadId'] !== state.activeRef) continue;
-      const status =
-        message.method === 'turn/started'
-          ? 'working'
-          : message.method === 'turn/completed'
-            ? 'waiting_input'
-            : null;
-      if (status) state.queue = state.queue.then(() => postStatus(context, status));
-      continue;
-    }
-    const request = pending.get(String(message.id));
-    if (!request) continue;
-    pending.delete(String(message.id));
-    if (message.error !== undefined || request.ephemeral) continue;
-    const thread = message.result?.['thread'];
-    const record = thread && typeof thread === 'object' ? (thread as Record<string, unknown>) : {};
-    if (record['ephemeral'] === true) continue;
-    const ref = typeof record['id'] === 'string' ? record['id'] : request.requestedRef;
-    if (!ref) continue;
-    const source =
-      request.method === 'thread/fork'
-        ? 'fork'
-        : request.method === 'thread/resume'
-          ? 'resume'
-          : state.activeRef === null
-            ? 'startup'
-            : 'clear';
-    state.activeRef = ref;
-    state.queue = state.queue.then(() =>
-      postLifecycle(context, {
-        ref,
-        cwd: request.cwd,
-        source,
-        ...(request.parentRef !== undefined ? { parentRef: request.parentRef } : {}),
-      }),
-    );
-  }
-}
-
-async function postLifecycle(
-  context: LifecycleLaunchContext,
-  event: {
-    ref: string;
-    cwd: string;
-    source: 'startup' | 'clear' | 'resume' | 'fork';
-    parentRef?: string;
-  },
-): Promise<void> {
-  try {
-    await fetch(context.signalUrl, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        nonce: context.signalNonce,
-        event: 'session_start',
-        agent_session_ref: event.ref,
-        cwd: event.cwd,
-        source: event.source,
-        ...(event.parentRef !== undefined ? { parent_agent_session_ref: event.parentRef } : {}),
-      }),
-      signal: AbortSignal.timeout(1500),
-    });
-  } catch {
-    // A bridge signal must never interrupt the native protocol stream.
-  }
-}
-
-function parseMessages(data: RawData): JsonRpcMessage[] {
-  try {
-    const parsed = JSON.parse(rawBuffer(data).toString('utf8')) as unknown;
-    return Array.isArray(parsed) ? parsed.filter(isRecord) : isRecord(parsed) ? [parsed] : [];
-  } catch {
-    return [];
-  }
-}
-
-function rawBuffer(data: RawData): Buffer {
-  if (Buffer.isBuffer(data)) return data;
-  if (Array.isArray(data)) return Buffer.concat(data);
-  return Buffer.from(data);
-}
-
-function isRecord(value: unknown): value is JsonRpcMessage {
-  return value !== null && typeof value === 'object';
 }
 
 function freePort(): Promise<number> {
@@ -342,7 +324,7 @@ async function waitForWebSocket(
       );
     }
     const ready = await new Promise<boolean>((resolve) => {
-      const socket = new WebSocket(url);
+      const socket = new WebSocket(url, { perMessageDeflate: false });
       const timer = setTimeout(() => {
         socket.terminate();
         resolve(false);
