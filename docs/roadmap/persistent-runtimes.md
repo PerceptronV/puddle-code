@@ -39,7 +39,7 @@ Public local/SSH removal now coordinates remote disablement, service teardown an
 reviewed runtime retention/stops; deliberate install restores retained service definitions.
 Durable reference-aware collection now runs through mandatory bounded maintenance,
 with separate runtime/update reference retirement and conservative rollback pins.
-Native service-retirement and reboot acceptance remain outstanding. Coordinated purge is integrated
+Full native service-retirement and reboot acceptance remain outstanding. Coordinated purge is integrated
 with a cross-boot descendant barrier and retained control/recovery anchors; actual
 platform reboot acceptance remains outstanding.
 This document describes the intended refactor; [SPEC.md](../../SPEC.md) continues
@@ -59,6 +59,20 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 [acceptance matrix](#acceptance-matrix) for the release gates.
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
+
+- Opt-in native launchd acceptance now covers ordinary completion and a real
+  accepted recovery worker after losing a successful runtime-selection reply.
+  Production recovery verifies the selection without repeating it and completes
+  daemon adoption. Actual updater/recovery registrations retire despite separately
+  lost successful unload replies; continuation observes absence without another
+  unload. Runtime/shell PIDs, generation, variable, cwd and background job survive.
+  Both native cases and the three attached-host regressions passed together in
+  92.52 seconds after scoping native-job environment sanitisation to its fixture.
+  These use exact uniquely named fixture jobs and current-source release labels;
+  the original preflight is fixture-supplied to avoid installed daemon labels.
+  Retirement is invoked under production exclusion separately from scheduler
+  eligibility. Real reboot, Linux, native providers and installed-label acceptance
+  remain separate gates.
 
 - Mandatory release maintenance now reuses the current daemon controller, update/
   installer exclusion and the shared pause. Startup, coalesced terminal-operation

@@ -22,6 +22,7 @@ import {
 import { DATABASE_SCHEMA_VERSION } from '../../../src/db/migrations/index.js';
 import { bundleDir } from '../runtime-fixture.js';
 import { fixtureStagingInstaller } from './remote/installer.js';
+import { loseRuntimeSelectionReply } from './selection-failure.js';
 
 const repo = fileURLToPath(new URL('../../../../../', import.meta.url));
 export const installer = join(repo, 'scripts/install.sh');
@@ -36,7 +37,12 @@ export async function continuityRelease(
   version: string,
   native = false,
   entries?: { puddled: string; puddler: string },
-  options: { connector?: boolean; stagingArchive?: { version: string; path: string } } = {},
+  options: {
+    connector?: boolean;
+    stagingArchive?: { version: string; path: string };
+    loseRuntimeSelectionReply?: boolean;
+    sanitiseNativeJobs?: boolean;
+  } = {},
 ) {
   const root = join(home, 'test-archives', version);
   const release = join(root, `puddled-v${version}`);
@@ -72,11 +78,18 @@ export async function continuityRelease(
       ...(native ? {} : { 'process.platform': '"linux"' }),
     },
     banner: {
-      js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);",
+      // Native one-shot jobs use their exact production service definition, so
+      // sanitise here as well as in the daemon/runtime shell wrappers below.
+      js:
+        "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);" +
+        (options.sanitiseNativeJobs
+          ? `for (const key of Object.keys(process.env)) delete process.env[key]; Object.assign(process.env, ${JSON.stringify({ HOME: home, PUDDLE_HOME: home, PATH: '/usr/bin:/bin:/usr/sbin:/sbin', LANG: 'en_US.UTF-8', SHELL: '/bin/sh' })});`
+          : ''),
     },
     logLevel: 'warning',
   });
   copyFileSync(installer, join(release, 'daemon/install.sh'));
+  if (options.loseRuntimeSelectionReply) loseRuntimeSelectionReply(release);
   if (options.stagingArchive) fixtureStagingInstaller(release, options.stagingArchive);
   const quote = (value: string) => "'" + value.replace(/'/g, "'\\''") + "'";
   const environment = native

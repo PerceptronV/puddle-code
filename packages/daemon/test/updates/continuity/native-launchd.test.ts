@@ -15,7 +15,11 @@ import {
   sessionSchema,
 } from '@puddle/shared';
 import { atomicPrivateJson, digest, ipcPath, privateDirectory } from '@puddle/shared/node';
-import { HostControlClient, updateWorkerExecutables } from '@puddle/shared/node/host-control';
+import {
+  HostControlClient,
+  readUpdateRecoveryAttempts,
+  updateWorkerExecutables,
+} from '@puddle/shared/node/host-control';
 import {
   independentServiceDefinition,
   writeServiceDefinition,
@@ -23,6 +27,13 @@ import {
 import { prepareServiceReplacement } from '../../../src/host/supervision/replacement.js';
 import { inspectRunningService } from '../../../src/host/supervision/inspection.js';
 import { serviceIsStopped } from '../../../src/host/supervision/stopped.js';
+import { serviceIsRemoved } from '../../../src/host/supervision/removed.js';
+import { CollectionBudget } from '../../../src/host/installation/collection/budget.js';
+import { OnlineCollectionGuard } from '../../../src/host/installation/collection/guard.js';
+import {
+  retireUpdateRelease,
+  updateReleaseRetired,
+} from '../../../src/host/installation/collection/retirement/updates.js';
 import {
   readRuntimeController,
   readRuntimeJson,
@@ -32,6 +43,9 @@ import { HostUpdateOperations } from '../../../src/updates/operations/store.js';
 import { readHostUpdateAdoption } from '../../../src/updates/checkpoints/adoption.js';
 import { readHostUpdateCheckpoint } from '../../../src/updates/checkpoints/store.js';
 import { readUpdateActions } from '../../../src/updates/worker/actions.js';
+import { readRecoveryActions } from '../../../src/updates/recovery/actions.js';
+import { startUpdateRecoveryWorker } from '../../../src/updates/recovery/worker/supervisor.js';
+import { requireEndedUpdateRecoveryWorkers } from '../../../src/updates/recovery/worker/records.js';
 import { updateWorkerDirectory } from '../../../src/updates/worker/supervisor.js';
 import { requireEndedUpdateWorker } from '../../../src/updates/worker/lifetime.js';
 import { readRuntime } from '../../../src/runtime-file.js';
@@ -46,9 +60,11 @@ import {
 } from '../../helpers/update-continuity/native.js';
 import { sh } from '../../helpers/git-fixtures.js';
 
-it.runIf(process.platform === 'darwin' && process.env.PUDDLE_TEST_RUNTIME_SUPERVISOR === '1')(
-  'replaces a bundled daemon through native launchd while its independent runtime keeps shell state',
-  async () => {
+it
+  .runIf(process.platform === 'darwin' && process.env.PUDDLE_TEST_RUNTIME_SUPERVISOR === '1')
+  .each(['ordinary', 'recovery'] as const)(
+  'replaces a native launchd daemon through %s execution and retires its jobs without replay while shell state survives',
+  async (mode) => {
     const f = runtimeDatabase();
     const home = realpathSync(f.home);
     const env = { ...environment(home), PUDDLE_HOME: home };
@@ -136,7 +152,10 @@ it.runIf(process.platform === 'darwin' && process.env.PUDDLE_TEST_RUNTIME_SUPERV
       await f.reconciler.close();
       f.controller.release();
       sh(home, 'init', '-b', 'main');
-      const previousArchive = await continuityRelease(home, '0.3.14', true);
+      const previousArchive = await continuityRelease(home, '0.3.14', true, undefined, {
+        loseRuntimeSelectionReply: mode === 'recovery',
+        sanitiseNativeJobs: true,
+      });
       await install(previousArchive, '0.3.14', 'daemon');
       await install(previousArchive, '0.3.14', 'runtime');
       writeFileSync(join(home, 'supervisor'), 'launchd\n', { mode: 0o600 });
@@ -176,7 +195,9 @@ it.runIf(process.platform === 'darwin' && process.env.PUDDLE_TEST_RUNTIME_SUPERV
       // dev.puddle.puddled. Never register that installed-service name. Prepare
       // approval/dispatch here; the deterministic sibling covers the coordinator.
       // Every subsequent worker, native service, installer and adoption step is real.
-      const archive = await continuityRelease(home, '0.4.0', true);
+      const archive = await continuityRelease(home, '0.4.0', true, undefined, {
+        sanitiseNativeJobs: true,
+      });
       const store = new HostUpdateOperations(home);
       let operation = store.begin([
         { component: 'daemon', version: '0.4.0' },
@@ -211,7 +232,7 @@ it.runIf(process.platform === 'darwin' && process.env.PUDDLE_TEST_RUNTIME_SUPERV
         dispatch_revision: operation.revision,
         preflight: operation.preflight,
         kind: 'launchd',
-        name: `dev.puddle.test.update.${operation.id}`,
+        name: `dev.puddle.update.${digest(home).slice(0, 8)}.${operation.id}`,
         domain,
         ...updateWorkerExecutables(home, release),
         state: 'dispatched',
@@ -226,27 +247,14 @@ it.runIf(process.platform === 'darwin' && process.env.PUDDLE_TEST_RUNTIME_SUPERV
       const workerPlist = join(directory, 'update.plist');
       writeServiceDefinition(
         workerPlist,
-        withLog(
-          independentServiceDefinition({
-            home,
-            kind: 'launchd',
-            name: worker.name,
-            description: 'Isolated native update worker',
-            args: [
-              '/usr/bin/env',
-              '-i',
-              ...Object.entries(env).map(([key, value]) => `${key}=${value}`),
-              worker.node_path,
-              worker.entry_path,
-              '--home',
-              home,
-              '--operation',
-              operation.id,
-            ],
-            timeoutSeconds: 180,
-          }),
-          worker.name,
-        ),
+        independentServiceDefinition({
+          home,
+          kind: 'launchd',
+          name: worker.name,
+          description: `Puddle host update ${operation.id}`,
+          args: [worker.node_path, worker.entry_path, '--home', home, '--operation', operation.id],
+          timeoutSeconds: 180,
+        }),
       );
       await jobs.execute(['bootstrap', domain, workerPlist]);
       first.close();
@@ -255,6 +263,41 @@ it.runIf(process.platform === 'darwin' && process.env.PUDDLE_TEST_RUNTIME_SUPERV
         'Native update did not finish',
         60_000,
       );
+      if (mode === 'recovery') {
+        const interrupted = store.read(operation.id)!;
+        expect(interrupted.phase).toBe('recovery_required');
+        await nativeWait(() => {
+          try {
+            requireEndedUpdateWorker(home, worker!, interrupted);
+            return true;
+          } catch {
+            return false;
+          }
+        }, 'Interrupted native updater process group did not end');
+        expect(readUpdateActions(home, worker, interrupted).actions).toContainEqual({
+          action: 'select-runtime',
+          state: 'started',
+        });
+        expect(await serviceIsStopped(home, daemonTarget, jobs.run)).toBe(true);
+        expect(await jobs.observe(original.target)).toBe(original.pid);
+        // Actual production acceptance, native dispatch, execution and completion.
+        // Only the original archive's installer reply was deliberately lost.
+        const recovery = await startUpdateRecoveryWorker(home, interrupted, {
+          releasePath: release,
+          authorised: () => true,
+          run: jobs.run,
+        });
+        jobs.add(recovery.service);
+        await nativeWait(
+          () => store.read(operation.id)!.phase === 'complete',
+          'Native recovery did not complete',
+          60_000,
+        );
+        expect(readFileSync(join(home, 'test-selection-dispatches'), 'utf8')).toBe('selected\n');
+        const attempt = readUpdateRecoveryAttempts(home, operation.id).attempts[0]!;
+        expect(attempt.job).toEqual(recovery);
+        expect(attempt.execution?.process_group).toBeGreaterThan(0);
+      }
       const completed = store.read(operation.id)!;
       const log = existsSync(nativeJobLog(home, worker.name))
         ? readFileSync(nativeJobLog(home, worker.name), 'utf8')
@@ -276,18 +319,70 @@ it.runIf(process.platform === 'darwin' && process.env.PUDDLE_TEST_RUNTIME_SUPERV
         expect.objectContaining({ runtime_id: original.owner.runtime_id, state: 'running' }),
       );
       expect(
-        readUpdateActions(home, worker, completed).actions.every(
+        readRecoveryActions(home, worker, completed).actions.every(
           (action) => action.state === 'finished',
         ),
       ).toBe(true);
       await nativeWait(() => {
         try {
           requireEndedUpdateWorker(home, worker!, completed);
+          requireEndedUpdateRecoveryWorkers(home, completed);
           return true;
         } catch {
           return false;
         }
       }, 'Native updater process group did not end');
+      const retiredJobs = [
+        worker,
+        ...readUpdateRecoveryAttempts(home, operation.id).attempts.map(({ job }) => job.service),
+      ];
+      expect(retiredJobs).toHaveLength(mode === 'recovery' ? 2 : 1);
+      for (const job of retiredJobs)
+        expect(await serviceIsRemoved(home, job, jobs.run)).toBe(false);
+      // Exercise retirement directly under its real exclusion boundary. The
+      // scheduler separately retains current/rollback operations; this fixture
+      // proves native job removal, not eligibility or release-tree deletion.
+      const guard = new OnlineCollectionGuard(
+        home,
+        () => readRuntimeController(home),
+        () => {},
+      );
+      const bootouts: string[] = [];
+      const retire = () =>
+        retireUpdateRelease(
+          home,
+          completed,
+          () => guard.requireController(),
+          guard.commands(async (command) => {
+            const removes = command.file === '/bin/launchctl' && command.args[0] === 'bootout';
+            if (removes)
+              expect(command.args).toEqual([
+                'bootout',
+                `${domain}/${retiredJobs[bootouts.length]!.name}`,
+              ]);
+            const result = await jobs.run(command);
+            if (removes) {
+              bootouts.push(command.args[1]!);
+              throw new Error('Native bootout reply lost after success');
+            }
+            return result;
+          }),
+          new CollectionBudget(),
+        );
+      try {
+        for (const [index, job] of retiredJobs.entries()) {
+          await expect(retire()).rejects.toThrow('Native bootout reply lost after success');
+          expect(bootouts).toHaveLength(index + 1);
+          expect(await serviceIsRemoved(home, job, jobs.run)).toBe(true);
+          expect(updateReleaseRetired(home, completed, new CollectionBudget())).toBe(false);
+        }
+        await retire();
+        expect(updateReleaseRetired(home, completed, new CollectionBudget())).toBe(true);
+        await retire();
+        expect(bootouts).toEqual(retiredJobs.map((job) => `${domain}/${job.name}`));
+      } finally {
+        guard.release();
+      }
       expect(readFileSync(plist, 'utf8')).toBe(definition);
       expect(await jobs.observe(original.target)).toBe(original.pid);
       expect(terminal(state(original.owner.runtime_id))).toMatchObject({
@@ -332,6 +427,12 @@ it.runIf(process.platform === 'darwin' && process.env.PUDDLE_TEST_RUNTIME_SUPERV
               worker,
               hostUpdateWorkerLifetimeSchema.parse(readRuntimeJson(path)).process_group,
             );
+          // Include a recovery dispatch whose supervisor reply was lost.
+          for (const attempt of readUpdateRecoveryAttempts(home, worker.operation_id).attempts) {
+            jobs.add(attempt.job.service);
+            if (attempt.execution)
+              jobs.rememberGroup(attempt.job.service, attempt.execution.process_group);
+          }
         }
         await jobs.cleanup();
       } catch (error) {

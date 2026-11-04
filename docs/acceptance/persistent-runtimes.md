@@ -39,6 +39,20 @@ then run normally. Both tests passed together on macOS 26.5.2 / Node 22.21.1 on
 daemon-label preflight, Linux supervision, historical migration and real providers
 remain separate release gates.
 
+The native launchd matrix additionally covers an accepted recovery worker after a
+fixture installer delegates runtime selection to the canonical installer but loses
+its successful reply. The production recovery path consumes its real process group,
+observes that selection without repeating it and completes daemon adoption. Both
+ordinary and recovery cases retire the actual updater/recovery registrations through
+production retirement functions, deliberately lose successful unload replies and
+verify continuation observes absence without another unload. Runtime/shell PIDs,
+terminal generation, variable, cwd and background job survive; cleanup confirms all
+unique fixture jobs and processes ended. This verifies native registration removal,
+not scheduler eligibility or actual reboot, and retains the original fixture-supplied
+preflight for the unique daemon label. Real providers and Linux remain separate.
+Both native scenarios and all three attached-host regressions passed together in
+92.52 seconds; strict test TypeScript, lint and formatting also passed.
+
 `legacy-transition.test.ts` reconstructs the exact schema 28 shipped in v0.3.14
 from the retained migrations, pinning their complete version/name/SQL manifest
 with SHA256 rather than requiring Git history at test runtime. It runs the

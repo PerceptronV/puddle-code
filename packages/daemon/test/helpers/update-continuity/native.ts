@@ -62,10 +62,10 @@ export function nativeJobs(home: string) {
     },
     async cleanup() {
       try {
+        const oneShot = (name: string) =>
+          /^(?:dev\.puddle\.test\.update\.|dev\.puddle\.(?:update|recovery)\.)/.test(name);
         const ordered = [...targets.values()].sort(
-          (a, b) =>
-            Number(b.target.name.startsWith('dev.puddle.test.update.')) -
-            Number(a.target.name.startsWith('dev.puddle.test.update.')),
+          (a, b) => Number(oneShot(b.target.name)) - Number(oneShot(a.target.name)),
         );
         for (const { target, pids, groups } of ordered) {
           if (!(await serviceIsStopped(home, target, run))) {
