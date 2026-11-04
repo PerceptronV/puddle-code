@@ -8,6 +8,18 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+Client admission and shutdown checks:
+
+```sh
+node node_modules/vitest/vitest.mjs run packages/daemon/test/host/lifecycle packages/daemon/test/http/app.test.ts packages/daemon/test/pty/ws-gateway-output.test.ts packages/daemon/test/pty/shutdown.test.ts
+```
+
+These cover refused writes without replay, continued terminal output/status,
+authenticated version inspection, bounded drains, stale pause releases and an
+isolated temporary daemon retaining SQLite until admitted work settles. The PTY
+spawn test uses a fake child; the daemon shutdown test starts no agents. They
+establish client admission, not background-writer quiescence or upgrade adoption.
+
 Run from the repository root with dependencies installed:
 
 ```sh

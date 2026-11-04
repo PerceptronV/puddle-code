@@ -25,9 +25,11 @@ import type {
   SessionsChangedEvent,
 } from '../sessions/conversation-catalogue.js';
 import { ApiError } from '../http/errors.js';
+import { HostAdmission } from '../host/lifecycle/admission.js';
 import { stripDeviceReplies } from './device-replies.js';
 
 export interface WsGatewayDeps {
+  admission?: HostAdmission;
   runtimeTerminals?: RuntimeTerminals;
   authority: LeaseRegistry;
   profileAccess?: ProfileAccess;
@@ -73,6 +75,7 @@ interface PendingAttach {
  * first message — browsers cannot set WS headers.
  */
 export class WsGateway {
+  private readonly admission: HostAdmission;
   private readonly externalViews = new Map<string, Map<WSContext, RuntimeTerminalView>>();
   private readonly resources = new Map<WSContext, AuthorityResource>();
   private readonly viewers = new Map<string, Set<WSContext>>();
@@ -90,6 +93,7 @@ export class WsGateway {
   private readonly responders = new Map<string, WSContext>();
 
   constructor(private readonly deps: WsGatewayDeps) {
+    this.admission = deps.admission ?? new HostAdmission();
     deps.ptys.on('data', (e: PtyDataEvent) => {
       this.queueOutput(e.stream, e.term, e.data);
     });
@@ -222,6 +226,7 @@ export class WsGateway {
             'profile_scope',
             'This session is outside the registered profile',
           );
+        if (msg.t !== 'detach' && msg.t !== 'subscribe-status') this.admission.assertOpen();
         switch (msg.t) {
           case 'attach': {
             const external = this.deps.runtimeTerminals?.hasSession(msg.session) ?? false;
@@ -260,12 +265,14 @@ export class WsGateway {
                 throw error;
               }
               views.set(ws, view);
-              void view.start(msg.cols, msg.rows).catch(() => {
-                if (this.externalViews.get(key)?.get(ws) !== view) return;
-                this.dropViewer(key, ws);
-                attached.delete(key);
-                this.send(ws, { t: 'error', message: 'could not restore runtime terminal' });
-              });
+              void this.admission
+                .run(() => view.start(msg.cols, msg.rows))
+                .catch(() => {
+                  if (this.externalViews.get(key)?.get(ws) !== view) return;
+                  this.dropViewer(key, ws);
+                  attached.delete(key);
+                  this.send(ws, { t: 'error', message: 'could not restore runtime terminal' });
+                });
               break;
             }
             const oldExternal = this.externalViews.get(key);
@@ -280,16 +287,23 @@ export class WsGateway {
               messages: pendingForKey.get(ws)?.messages ?? [],
             };
             pendingForKey.set(ws, pending);
-            void this.finishAttach(
-              key,
-              msg.session,
-              msg.term,
-              msg.cols,
-              msg.rows,
-              ws,
-              pending,
-              attached,
-            );
+            void this.admission
+              .run(() =>
+                this.finishAttach(
+                  key,
+                  msg.session,
+                  msg.term,
+                  msg.cols,
+                  msg.rows,
+                  ws,
+                  pending,
+                  attached,
+                ),
+              )
+              .catch(() => {
+                this.dropViewer(key, ws);
+                attached.delete(key);
+              });
             break;
           }
           case 'stdin': {
@@ -335,10 +349,11 @@ export class WsGateway {
               !!resource?.valid() &&
               (!resource.profile ||
                 !!this.deps.profileAccess?.session(resource.profile, msg.session));
-            const pending =
+            const pending = this.admission.run(() =>
               msg.session === HOME_STREAM
                 ? Promise.resolve(this.spawnHomeShell())
-                : this.deps.service.spawnShell(msg.session, valid);
+                : this.deps.service.spawnShell(msg.session, valid),
+            );
             void pending.then(
               (term) => this.send(ws, { t: 'shell-spawned', session: msg.session, term }),
               (error: unknown) =>
@@ -404,13 +419,15 @@ export class WsGateway {
         'terminal_not_attached',
         'Attach the runtime terminal before sending input.',
       );
-    void command(view).catch(() =>
-      this.send(ws, {
-        t: 'error',
-        message:
-          'Runtime terminal command failed; reconnect before trying again. Input was not replayed.',
-      }),
-    );
+    void this.admission
+      .run(() => command(view))
+      .catch(() =>
+        this.send(ws, {
+          t: 'error',
+          message:
+            'Runtime terminal command failed; reconnect before trying again. Input was not replayed.',
+        }),
+      );
   }
 
   /** Session uuids must exist; `login-<id>` and `home` streams attach like sessions (SPEC §6). */

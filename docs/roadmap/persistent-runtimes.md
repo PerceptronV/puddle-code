@@ -27,6 +27,16 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far:
 
+- A shared client-admission barrier now tracks HTTP handlers, native signal
+  requests and asynchronous WebSocket commands. Reversible pauses reject new
+  commands while existing terminal output and status remain available. Shutdown
+  closes admission synchronously, fences delayed daemon-owned PTY launches and
+  drains admitted work before closing terminal state or SQLite. Repeated shutdown
+  calls share one completion. Isolated tests cover pause release/deadlines, HTTP
+  authority, terminal output and a real temporary daemon's database lifetime.
+  This is not full update quiescence: background writers, ownership checkpoints
+  and the final approval/dispatch boundary remain required before daemon activation.
+
 - Runtime install/upgrade commands now drive the private coordinator over local
   or SSH control. They reuse version resolution, transport delivery and the embedded
   installer, inspect before one apply, and observe accepted work after a lost reply

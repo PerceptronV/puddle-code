@@ -61,6 +61,7 @@ import { HostUpdateInspection } from './updates/preflight/inspection.js';
 import { HostUpdateSupervision } from './updates/preflight/supervision.js';
 import { HostUpdateCoordinator } from './updates/coordinator.js';
 import { HostUpdateOperations } from './updates/operations/store.js';
+import { HostAdmission } from './host/lifecycle/admission.js';
 import { startUpdateWorker } from './updates/worker/supervisor.js';
 import { resolveInstalledRuntimeRelease } from './runtime/lifecycle/release.js';
 import { RuntimeConnections } from './runtime/transport/connections.js';
@@ -103,6 +104,7 @@ export interface RunningDaemon {
   paths: ReturnType<typeof resolvePaths>;
   service: SessionService;
   updateInspection: HostUpdateInspection;
+  admission: HostAdmission;
   stop(): Promise<void>;
 }
 
@@ -115,6 +117,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   ensureHome(paths);
   const config = loadConfig(paths);
   const authority = new LeaseRegistry();
+  const admission = new HostAdmission();
   let updateCoordinator: HostUpdateCoordinator | null = null;
   let controlInfo: {
     port: number;
@@ -443,6 +446,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
 
     const tracker = new ProxySocketTracker();
     const gateway = new WsGateway({
+      admission,
       runtimeTerminals,
       profileAccess: new ProfileAccess({ profiles, projects, sessions }),
       authority,
@@ -458,6 +462,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     const app = buildApp({
       version: opts.version ?? '0.0.0',
       authority,
+      admission,
       api: {
         storage,
         paths,
@@ -570,73 +575,87 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     retention.start();
     failedStartup.push(() => retention.dispose());
 
+    let stopping: Promise<void> | null = null;
     return {
       port,
       authority,
       paths,
       service,
       updateInspection,
-      async stop() {
+      admission,
+      stop() {
+        if (stopping) return stopping;
+        // Close admission synchronously, before any asynchronous cleanup yields.
+        admission.close();
         updateCoordinator?.close();
-        runtimeNotifications.close();
-        await runtimeServiceCleanup.close();
-        await retention.dispose();
-        storage.dispose();
-        await puddlang.dispose();
-        stopPush();
-        controlInfo = null;
-        authority.dispose();
-        await closeControl();
-        clearInterval(fetchTimer);
-        catalogue.dispose();
-        compilation.dispose();
-        await notebooks.dispose();
-        onboarding.dispose();
-        // Freeze session rows at their live statuses (reconcile → interrupted),
-        // then wait for PTY exits so nothing touches the db after close.
+        // A request already preparing a launch must not create another child
+        // after cleanup has taken its inventory of daemon-owned terminals.
+        ptys.beginShutdown();
         service.beginShutdown();
-        await runtimeLauncher?.close();
-        await runtimeControls.close();
-        await runtimeReconciler.close();
-        ptys.killAll();
-        const deadline = Date.now() + 3000;
-        while (ptys.liveCount() > 0) {
-          if (Date.now() > deadline) {
-            ptys.killAll(undefined, 'SIGKILL');
-            await new Promise((r) => setTimeout(r, 200));
-            break;
+        stopping = (async () => {
+          await runtimeLauncher?.close();
+          runtimeNotifications.close();
+          await runtimeServiceCleanup.close();
+          await retention.dispose();
+          storage.dispose();
+          await puddlang.dispose();
+          stopPush();
+          controlInfo = null;
+          authority.dispose();
+          await closeControl();
+          clearInterval(fetchTimer);
+          catalogue.dispose();
+          compilation.dispose();
+          await notebooks.dispose();
+          onboarding.dispose();
+          await runtimeControls.close();
+          await runtimeReconciler.close();
+          // Disposing execution managers settles their outstanding HTTP calls.
+          // Finish admitted handlers before closing terminal state or SQLite;
+          // closing a socket alone does not cancel its asynchronous handler.
+          await admission.drain();
+          ptys.killAll();
+          const deadline = Date.now() + 3000;
+          while (ptys.liveCount() > 0) {
+            if (Date.now() > deadline) {
+              ptys.killAll(undefined, 'SIGKILL');
+              await new Promise((r) => setTimeout(r, 200));
+              break;
+            }
+            await new Promise((r) => setTimeout(r, 25));
           }
-          await new Promise((r) => setTimeout(r, 25));
-        }
-        await ptys.closeTerminalStates();
-        logs.closeAll();
-        // Proxied WebSocket sockets (client + outbound upstream) are not covered
-        // by closeAllConnections and would hold the process open — detach the
-        // listener and tear the pairs down before closing the server.
-        detachProxy();
-        tracker.destroyAll();
-        await new Promise<void>((resolve) => {
-          wss.close();
-          server.close(() => resolve());
-          // Idle keep-alive and WS sockets would hold close() open forever.
-          if ('closeAllConnections' in server) {
-            (server as import('node:http').Server).closeAllConnections();
+          await ptys.closeTerminalStates();
+          logs.closeAll();
+          // Proxied WebSocket sockets (client + outbound upstream) are not covered
+          // by closeAllConnections and would hold the process open — detach the
+          // listener and tear the pairs down before closing the server.
+          detachProxy();
+          tracker.destroyAll();
+          await new Promise<void>((resolve) => {
+            wss.close();
+            server.close(() => resolve());
+            // Idle keep-alive and WS sockets would hold close() open forever.
+            if ('closeAllConnections' in server) {
+              (server as import('node:http').Server).closeAllConnections();
+            }
+          });
+          // After the socket is closed, not before: the file's presence means "up",
+          // so a reader mid-shutdown probes a dead port (→ restart), never a live
+          // one it then mis-trusts.
+          clearRuntime(paths);
+          // Release control only after application writers and servers have
+          // stopped. External owners, PTYs and journals survive this detach.
+          try {
+            await runtimeConnections.close();
+          } finally {
+            db.close();
           }
-        });
-        // After the socket is closed, not before: the file's presence means "up",
-        // so a reader mid-shutdown probes a dead port (→ restart), never a live
-        // one it then mis-trusts.
-        clearRuntime(paths);
-        // Release control only after application writers and servers have
-        // stopped. External owners, PTYs and journals survive this detach.
-        try {
-          await runtimeConnections.close();
-        } finally {
-          db.close();
-        }
+        })();
+        return stopping;
       },
     };
   } catch (err) {
+    admission.close();
     controlInfo = null;
     authority.dispose();
     for (const cleanup of failedStartup.reverse()) {

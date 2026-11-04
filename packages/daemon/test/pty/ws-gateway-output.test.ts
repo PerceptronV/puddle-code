@@ -10,6 +10,7 @@ import type { SessionService } from '../../src/sessions/service.js';
 import type { ConversationCatalogue } from '../../src/sessions/conversation-catalogue.js';
 import { WsGateway } from '../../src/ws/gateway.js';
 import { ApiError } from '../../src/http/errors.js';
+import { HostAdmission } from '../../src/host/lifecycle/admission.js';
 
 function fixture(snapshot: Promise<string> = Promise.resolve('restored screen')) {
   const ptys = Object.assign(new EventEmitter(), {
@@ -27,8 +28,10 @@ function fixture(snapshot: Promise<string> = Promise.resolve('restored screen'))
   const catalogue = new EventEmitter();
   const theme = { set: vi.fn() };
   const authority = new LeaseRegistry();
+  const admission = new HostAdmission();
   const token = authority.create().token;
   const gateway = new WsGateway({
+    admission,
     authority,
     ptys: ptys as unknown as PtyManager,
     logs: logs as unknown as LogStore,
@@ -45,7 +48,7 @@ function fixture(snapshot: Promise<string> = Promise.resolve('restored screen'))
   receive({ t: 'attach', session: 'session-1', term: 'agent', cols: 120, rows: 40 });
   // finishAttach's await continuation was registered by receive() first.
   const attached = snapshot.then(() => Promise.resolve());
-  return { ptys, service, catalogue, send, receive, attached };
+  return { ptys, service, catalogue, send, receive, attached, admission };
 }
 
 function messages(send: ReturnType<typeof vi.fn>) {
@@ -59,6 +62,62 @@ afterEach(() => {
 });
 
 describe('WebSocket terminal output batching', () => {
+  it('pauses input and new shells while output, status and detach remain available', async () => {
+    vi.useFakeTimers();
+    const { ptys, service, send, receive, attached, admission } = fixture();
+    await attached;
+    send.mockClear();
+    ptys.resize.mockClear();
+    const hold = admission.pause();
+    receive({ t: 'stdin', session: 'session-1', term: 'agent', data: 'no replay' });
+    receive({ t: 'resize', session: 'session-1', term: 'agent', cols: 20, rows: 5 });
+    receive({ t: 'spawn-shell', session: 'session-1' });
+    expect(ptys.write).not.toHaveBeenCalled();
+    expect(ptys.resize).not.toHaveBeenCalled();
+    expect(service.spawnShell).not.toHaveBeenCalled();
+    expect(messages(send)).toEqual(
+      Array.from({ length: 3 }, () => ({
+        t: 'error',
+        message: expect.stringContaining('maintenance'),
+      })),
+    );
+    send.mockClear();
+    receive({ t: 'subscribe-status' });
+    service.emit('sessions-changed', { projectIds: ['0123456789'] });
+    ptys.emit('data', { stream: 'session-1', term: 'agent', data: 'still running' });
+    vi.advanceTimersByTime(16);
+    expect(messages(send)).toEqual([
+      { t: 'sessions-changed', project_ids: ['0123456789'] },
+      { t: 'output', session: 'session-1', term: 'agent', data: 'still running' },
+    ]);
+    send.mockClear();
+    receive({ t: 'detach', session: 'session-1', term: 'agent' });
+    ptys.emit('data', { stream: 'session-1', term: 'agent', data: 'detached' });
+    vi.advanceTimersByTime(16);
+    expect(send).not.toHaveBeenCalled();
+    await hold.drain();
+    hold.release();
+    expect(ptys.write).not.toHaveBeenCalled();
+  });
+
+  it('drains an admitted screen restore before declaring the host idle', async () => {
+    let finish!: (screen: string) => void;
+    const snapshot = new Promise<string>((resolve) => {
+      finish = resolve;
+    });
+    const { attached, admission } = fixture(snapshot);
+    const hold = admission.pause();
+    const drained = vi.fn();
+    const drain = hold.drain().then(drained);
+    await Promise.resolve();
+    expect(drained).not.toHaveBeenCalled();
+    finish('restored screen');
+    await attached;
+    await drain;
+    expect(drained).toHaveBeenCalledOnce();
+    hold.release();
+  });
+
   it('rejects legacy input and resize when a durable external owner needs reconciliation', async () => {
     const { ptys, service, send, receive, attached } = fixture();
     await attached;

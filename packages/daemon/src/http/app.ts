@@ -30,6 +30,7 @@ import type { LatexProvider } from '../latex/provider.js';
 import type { WorktreeManager } from '../worktrees/manager.js';
 import type { WsGateway } from '../ws/gateway.js';
 import { ApiError } from './errors.js';
+import type { HostAdmission } from '../host/lifecycle/admission.js';
 import { parseBody } from './validate.js';
 import { accountRoutes } from './routes/accounts.js';
 import { agentRoutes } from './routes/agents.js';
@@ -55,6 +56,7 @@ import type { PuddlangService } from '../puddlang/service.js';
 export interface AppDeps {
   version: string;
   authority: LeaseRegistry;
+  admission?: HostAdmission;
   api?: {
     paths: PuddlePaths;
     storage?: StorageMonitor;
@@ -114,6 +116,11 @@ export function buildApp(deps: AppDeps): Hono {
   app.use('/api/*', hostOriginGuard());
   app.use('/api/*', bearerAuth(deps.authority));
   if (deps.api) app.use('/api/*', profileAccessMiddleware(deps.api));
+  app.use('/api/*', async (c, next) => {
+    // Version remains inspectable; private update control has its own authority.
+    if (c.req.path === '/api/version' || !deps.admission) return next();
+    return deps.admission.run(next);
+  });
   app.route('/api/version', versionRoutes(deps.version));
 
   if (deps.api) {
@@ -144,17 +151,22 @@ export function buildApp(deps: AppDeps): Hono {
     // Allow JSON escaping of a 256 KiB reply without unbounded hook bodies.
     app.use('/agent-signal', bodyLimit({ maxSize: 2 * 1024 * 1024 }));
     app.post('/agent-signal', async (c) => {
-      const body = await parseBody(c, agentSignalRequestSchema);
-      const accepted =
-        'state' in body
-          ? api.service.signalAgentStatus(body.nonce, body.state)
-          : 'turn_id' in body
-            ? api.service.signalAgentTurn(body)
-            : await api.service.signalAgentLifecycle(body);
-      if (!accepted) {
-        throw ApiError.notFound('signal', 'nonce');
+      const release = deps.admission?.enter();
+      try {
+        const body = await parseBody(c, agentSignalRequestSchema);
+        const accepted =
+          'state' in body
+            ? api.service.signalAgentStatus(body.nonce, body.state)
+            : 'turn_id' in body
+              ? api.service.signalAgentTurn(body)
+              : await api.service.signalAgentLifecycle(body);
+        if (!accepted) {
+          throw ApiError.notFound('signal', 'nonce');
+        }
+        return c.body(null, 204);
+      } finally {
+        release?.();
       }
-      return c.body(null, 204);
     });
 
     // Tier-2 reverse proxy (SPEC §2/§9). Host/Origin guard, then the /proxy auth

@@ -62,6 +62,7 @@ const DEFAULT_SIZE = { cols: 120, rows: 32 } as const;
  * stripped before any log write or 'data' emit.
  */
 export class PtyManager extends EventEmitter {
+  private closing = false;
   private readonly live = new Map<string, Live>();
   private readonly sidecars = new Map<string, { pids: Set<number>; hiddenPorts: Set<number> }>();
   private readonly screens: TerminalScreenStateStore;
@@ -98,6 +99,7 @@ export class PtyManager extends EventEmitter {
     args: string[],
     opts: { cwd: string; env?: Record<string, string>; record?: boolean },
   ): void {
+    if (this.closing) throw new Error('Terminal manager is shutting down');
     const key = this.key(stream, term);
     if (this.live.has(key)) throw new Error(`pty ${key} already live`);
     const record = opts.record ?? true;
@@ -295,6 +297,11 @@ export class PtyManager extends EventEmitter {
   ): Promise<string> {
     if (cols !== undefined && rows !== undefined) this.screens.resize(stream, term, cols, rows);
     return (await this.screens.snapshot(stream, term)) ?? '';
+  }
+
+  /** Fence delayed launch preparation before shutdown starts stopping children. */
+  beginShutdown(): void {
+    this.closing = true;
   }
 
   async closeTerminalStates(): Promise<void> {

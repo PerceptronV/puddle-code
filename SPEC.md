@@ -181,6 +181,13 @@ cockpit routes and approval UI remain to be integrated. `puddle updates` inspect
 durable operation state and supports exact pre-dispatch cancellation. No remote
 connector permission is added.
 
+Client admission is shared by HTTP and WebSocket handlers. A maintenance pause
+refuses new commands while allowing existing terminal output/status delivery and
+version inspection. Shutdown closes admission irreversibly, fences delayed local
+PTY launches and waits for admitted handlers before closing terminal state and
+SQLite. This does not yet checkpoint background writers or enable daemon-update
+activation; the coordinator continues to refuse that operation.
+
 The [persistent runtimes roadmap](docs/roadmap/persistent-runtimes.md) specifies
 one independent `puddler` process per live runtime and cockpit-managed host
 updates. The implementation under daemon `runtime/` provides a
