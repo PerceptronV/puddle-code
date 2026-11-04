@@ -12,7 +12,10 @@ import { SshTransport, shellQuote } from '../src/lib/transport/ssh.js';
 import { openTunnel } from '../src/lib/transport/tunnel.js';
 import { DaemonClient } from '../src/lib/connection/daemon-client.js';
 
-const temporary = mkdtempSync(join(tmpdir(), 'puddle-loopback-ssh-'));
+// Leave room for OpenSSH's temporary suffix within macOS's Unix ControlPath limit.
+const temporary = mkdtempSync(
+  join(process.platform === 'darwin' ? '/private/tmp' : tmpdir(), 'puddle-ssh-'),
+);
 const hostHome = join(temporary, 'host');
 const clientHome = join(temporary, 'client');
 let daemon: RunningDaemon | undefined;
