@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Compose daemon-update maintenance through private host control, draining application writers before pausing runtime observation while independent agents keep running. Preserve maintenance after uncertain dispatch, resume observations after fenced recovery, and drain log-retention copies before replacement.
+
 - Add application protocol 25.10 exact interruption approval for daemon-owned work during host updates. Preserve staged work for separate confirmation, invalidate consent when release or impact changes, and retain matching evidence in the private updater; cockpit integration remains in progress.
 
 - Hold later programme requests during maintenance while accepted independent agent turns continue. Drain notebook startup through cell dispatch, preserve submitted execution until an update is accepted, and discard unsent programme requests on shutdown without replay.

@@ -61,6 +61,7 @@ import { HostUpdateConnector } from './updates/preflight/connector.js';
 import { HostUpdateInspection } from './updates/preflight/inspection.js';
 import { HostUpdateSupervision } from './updates/preflight/supervision.js';
 import { HostUpdateCoordinator } from './updates/coordinator.js';
+import { daemonUpdatePause } from './updates/maintenance/daemon.js';
 import { HostUpdateOperations } from './updates/operations/store.js';
 import { HostAdmission } from './host/lifecycle/admission.js';
 import { HostBackgroundTasks } from './host/lifecycle/background.js';
@@ -383,30 +384,6 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       entryPath: fileURLToPath(import.meta.url),
       port: () => controlInfo?.port ?? null,
     });
-    updateCoordinator = new HostUpdateCoordinator({
-      home: paths.home,
-      operations: new HostUpdateOperations(paths.home),
-      inspection: updateInspection,
-      observeAdoption: (operation, nonce) => {
-        updateAdoption.observe(operation, nonce);
-      },
-      installedRuntime: () => {
-        try {
-          return resolveInstalledRuntimeRelease(paths.home).protocol;
-        } catch {
-          return null;
-        }
-      },
-      dispatch: async (operation, kind, authorised, daemon) => {
-        await startUpdateWorker(paths.home, operation, {
-          kind,
-          authorised,
-          daemon,
-          releasePath: dirname(dirname(fileURLToPath(import.meta.url))),
-        });
-      },
-    });
-    failedStartup.push(() => updateCoordinator?.close());
     const stopPush = subscribePushNotifications(paths.home, service, {
       profiles,
       projects,
@@ -590,6 +567,49 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     });
     retention.start();
     failedStartup.push(() => retention.dispose());
+
+    updateCoordinator = new HostUpdateCoordinator({
+      home: paths.home,
+      operations: new HostUpdateOperations(paths.home),
+      inspection: updateInspection,
+      pauseDaemon: daemonUpdatePause({
+        clients: admission,
+        upkeep,
+        retention,
+        programmes: puddlang,
+        compilation,
+        catalogue,
+        markers: onboarding,
+        launcher: runtimeLauncher,
+        sessions: service,
+        controls: runtimeControls,
+        notebooks,
+        notifications: runtimeNotifications,
+        cleanup: runtimeServiceCleanup,
+        connections: runtimeConnections,
+        reconciler: runtimeReconciler,
+        refreshAccounts: () => accountObservations.refresh(),
+      }),
+      observeAdoption: (operation, nonce) => {
+        updateAdoption.observe(operation, nonce);
+      },
+      installedRuntime: () => {
+        try {
+          return resolveInstalledRuntimeRelease(paths.home).protocol;
+        } catch {
+          return null;
+        }
+      },
+      dispatch: async (operation, kind, authorised, daemon) => {
+        await startUpdateWorker(paths.home, operation, {
+          kind,
+          authorised,
+          daemon,
+          releasePath: dirname(dirname(fileURLToPath(import.meta.url))),
+        });
+      },
+    });
+    failedStartup.push(() => updateCoordinator?.close());
 
     let stopping: Promise<void> | null = null;
     let shutdownUpdate: string | undefined;

@@ -2,6 +2,7 @@ import { constants, lstatSync, renameSync, type Stats } from 'node:fs';
 import { lstat, open, readdir, unlink } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
+import { HostAdmission } from '../host/lifecycle/admission.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const COPY_BYTES = 64 * 1024;
@@ -173,9 +174,11 @@ export class LogRetention {
   private timer: NodeJS.Timeout | null = null;
   private running: Promise<LogRetentionResult> | null = null;
   private stopped = false;
+  private paused = false;
+  private readonly admission = new HostAdmission();
   constructor(private readonly options: () => Omit<LogRetentionOptions, 'stopped'>) {}
   start(): void {
-    this.stopped = false;
+    this.admission.assertOpen();
     const sweep = () => {
       void this.sweep().catch((error: unknown) =>
         console.warn('Terminal log retention failed:', error),
@@ -186,23 +189,43 @@ export class LogRetention {
     sweep();
   }
   sweep(): Promise<LogRetentionResult> {
+    if (this.stopped || this.paused)
+      return Promise.resolve({ compacted: 0, reclaimedBytes: 0, skipped: 0, failed: 0 });
     if (!this.running)
-      this.running = Promise.resolve()
-        .then(() =>
-          compactTerminalLogs({
-            ...this.options(),
-            stopped: () => this.stopped,
+      this.running = this.admission.run(() =>
+        Promise.resolve()
+          .then(() =>
+            compactTerminalLogs({
+              ...this.options(),
+              stopped: () => this.stopped || this.paused,
+            }),
+          )
+          .finally(() => {
+            this.running = null;
           }),
-        )
-        .finally(() => {
-          this.running = null;
-        });
+      );
     return this.running;
+  }
+  pause(): ReturnType<HostAdmission['pause']> {
+    const hold = this.admission.pause();
+    this.paused = true;
+    let released = false;
+    return {
+      drain: hold.drain,
+      release: () => {
+        if (released) return;
+        released = true;
+        this.paused = false;
+        hold.release();
+      },
+    };
   }
   async dispose(): Promise<void> {
     this.stopped = true;
+    this.admission.close();
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     await this.running?.catch(() => {});
+    await this.admission.drain();
   }
 }

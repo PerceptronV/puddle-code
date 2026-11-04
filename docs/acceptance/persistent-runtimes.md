@@ -10,6 +10,23 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+`updates/maintenance/daemon.test.ts` uses a real isolated daemon, private host-control
+client, SQLite and independent shell. An admitted request holds final inspection;
+ordinary HTTP is refused while version inspection remains available. The shell's
+in-memory counter continues while runtime observations are paused. A rejected
+dispatch releases maintenance; an accepted lost reply retains it until recovery
+fences the unstarted worker, then native title observations catch up with the same
+shell PID. Host inspection and worker dispatch are simulated; this does not prove
+a complete packaged supervisor upgrade. Log-retention tests hold a real temporary
+copy before sync, verify no replacement during maintenance, and reject revival
+after shutdown. Production composition is now wired; cockpit confirmation and
+supported recovery remain release gates.
+The final maintenance/programme/checkpoint run passed nine tests in three files.
+The remaining selected authority, coordinator, adoption, shutdown, notebook and
+retention suites passed; source and strict changed-test typechecks, lint and
+formatting passed. The shell fixture now waits for its first instruction rather
+than assuming that owner readiness already created its counter file.
+
 Host-update coordinator tests separate review from explicit interruption consent,
 retain stages after missing approval, and reject changed inventory, mismatched
 consent, revoked authority and independent preflight blockers. They verify older

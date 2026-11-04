@@ -173,16 +173,18 @@ existing transport and installer, and only the caller that created the operation
 stages its files. Runtime-default apply reinspects exact approval evidence. Application
 25.10 adds separate interruption consent bound to the exact release/impact fingerprint;
 missing consent never permits daemon-owned work to be stopped. Older clients retain
-the blocked review shape. Production daemon activation still awaits complete pause
-composition, confirmation UI and recovery integration. Cockpit and launcher-handshake
-integration are pending.
+the blocked review shape. Production daemon activation uses
+`updates/maintenance/daemon.ts` to drain writers before pausing discovery/reconciliation.
+Retain the hold after accepted or uncertain
+dispatch; release only after an unaccepted attempt or positively fenced recovery.
+Cockpit confirmation, CLI/launcher daemon upgrades and recovery integration are pending.
 Runtime owners and update workers share `host/services.ts`; neither service may
 inherit puddled's restart or termination boundary. The packaged one-shot updater
 composes runtime-default and daemon/combined selection using its pinned copy of the
 canonical installer, exact connector/service replacement, shutdown checkpoints and
 fresh adoption verification. Exact `--select-only` activation preserves supervisor metadata;
-`--no-supervisor` remains the bootstrap choice that records `none`. Do not enable
-production daemon/combined updates until the complete composition and recovery paths pass acceptance.
+`--no-supervisor` remains the bootstrap choice that records `none`. Release continuity
+promises still require packaged upgrades and recovery paths to pass acceptance.
 Service identity inspection lives under `host/supervision/`, sharing the bounded
 command runner. An installer marker is not live supervision evidence. Do not parse
 launchctl diagnostic output as an API; preserve exact PID/service checks and verify

@@ -10,7 +10,9 @@ Default daemon launches now use independent runtimes, resolving the installed
 runtime selector and checking the host service manager before launch intent. The
 legacy composition is restricted to internal migration fixtures. Hosts without a
 usable systemd/launchd manager currently refuse new launches; detached/attached
-lifetimes remain a release blocker. Non-interrupting installed upgrades are not yet enabled.
+lifetimes remain a release blocker. The daemon coordinator now composes maintenance
+for private host-control daemon updates; cockpit/CLI integration, supported recovery
+and complete packaged upgrade acceptance remain unfinished.
 This document describes the intended refactor; [SPEC.md](../../SPEC.md) continues
 to describe shipped behaviour. Update the specification, protocol documentation,
 repository instructions and changelog alongside each implementation phase.
@@ -27,7 +29,21 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 [implementation sequence](#implementation-sequence) for phased deliverables and
 [acceptance matrix](#acceptance-matrix) for the release gates.
 
-Implementation evidence so far:
+Implementation evidence so far (newest first; earlier entries record their milestone limitations):
+
+- Production host control now supplies the full ordered maintenance composition,
+  after boot reconciliation and auto-resume. Clients/upkeep/log retention drain
+  before programme/compilation/catalogue/marker work, then launches, native
+  observations/controls/notebook dispatch, notifications/service cleanup, discovery
+  and finally reconciliation. Release reverses the order and refreshes account
+  checks; accepted or uncertain dispatch retains the hold. Retention abandons
+  temporary copies before replacement during the hold and cannot restart after
+  shutdown. An isolated real daemon/control channel and independent shell verify
+  admitted-request drainage, continuing in-memory execution, held database cursors
+  and recovery catch-up. Service inspection/dispatch are simulated in this test;
+  full packaged supervisor upgrades and supported recovery remain release gates.
+  Long admitted builds/startup can still reject the bounded pause rather than be
+  interrupted before approval. This adds no protocol change or user toggle.
 
 - Application 25.10 adds an interruption fingerprint for supporting host-update
   clients, retaining `can_apply: false` until separate explicit consent. Apply

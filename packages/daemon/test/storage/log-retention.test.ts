@@ -170,6 +170,57 @@ describe('three-day bulk terminal log retention', () => {
     await expect(first).rejects.toThrow('Cannot read configuration');
     await retention.dispose();
   });
+  it('drains an in-flight copy without replacement and cannot restart after shutdown', async () => {
+    const file = log();
+    const before = readFileSync(file);
+    const real = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
+    let finish!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    let copying = false;
+    vi.mocked(fsPromises.open).mockImplementation(async (...args) => {
+      const handle = await real.open(...args);
+      if (String(args[0]).includes('.retention-')) {
+        const sync = handle.sync.bind(handle);
+        vi.spyOn(handle, 'sync').mockImplementationOnce(async () => {
+          copying = true;
+          await gate;
+          return sync();
+        });
+      }
+      return handle;
+    });
+    const retention = new LogRetention(() => ({
+      logsDir: home,
+      retentionDays: 3,
+      replayBytes: 1024,
+      isBusy: () => false,
+      now: NOW,
+    }));
+    try {
+      const sweep = retention.sweep();
+      await expect.poll(() => copying).toBe(true);
+      const held = retention.pause();
+      await expect(held.drain(20)).rejects.toThrow('did not drain');
+      finish();
+      await held.drain();
+      expect((await sweep).compacted).toBe(0);
+      expect(readFileSync(file)).toEqual(before);
+      expect(readdirSync(join(home, 'archived'))).toEqual(['agent.log']);
+      expect((await retention.sweep()).compacted).toBe(0);
+      held.release();
+      expect((await retention.sweep()).compacted).toBe(1);
+      const closing = retention.pause();
+      await retention.dispose();
+      closing.release();
+      expect(() => retention.start()).toThrow('maintenance');
+      expect((await retention.sweep()).compacted).toBe(0);
+    } finally {
+      finish();
+      await retention.dispose();
+    }
+  });
   it('does not follow symlinked files or directories', async () => {
     const outside = mkdtempSync(join(tmpdir(), 'puddle-retention-outside-'));
     try {

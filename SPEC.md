@@ -163,12 +163,12 @@ connections, checks supported majors and exact owner identity, and refuses unkno
 records or an inventory changed during inspection. Runtime-only default selection
 checks the current daemon's support without requiring adoption of existing owners.
 This inspection does not authorise dispatch or replace impact, capacity and
-quiescence checks; those coordinator integrations are still in progress.
+quiescence checks; the coordinator composes those checks before dispatch.
 The daemon also composes an interruption inventory from its existing PTY, notebook,
 compilation and puddlang managers, including idle kernels and watchers. Runtime-only
 default selection has no interruption impact. Controller-scoped fingerprints and
 execution identities detect replacement work; they do not freeze new admissions
-or authorise interruption. Final quiescence and approval integration remain required.
+or authorise interruption. Final quiescence and explicit approval are separate coordinator steps.
 The combined inspection uses fresh bounded storage probes and reports unsaved state,
 binding its fingerprint to the exact operation/stages and runtime/impact identities.
 Blocked or changing observations yield no fingerprint. Available-space measurements
@@ -186,8 +186,9 @@ checkpoint and released controller. It holds the controller claim across selecto
 changes, releases it before starting the unchanged service, and requires fresh
 adoption proof. Daemon and combined transactions share runtime-default selection's
 canonical installer. Partial changes or lost replies remain recoverable without
-automatic rollback or replay. Production daemon dispatch and complete installed
-upgrade acceptance remain outstanding.
+automatic rollback or replay. Production composition now supplies final maintenance
+to private host-control daemon dispatch; complete installed upgrade acceptance and
+supported recovery remain outstanding.
 
 Application protocol 25.9 adds bounded read-only inspection on the connector
 manager's existing exclusive private socket. Fresh nonce-correlated replies expose
@@ -206,8 +207,8 @@ absence. It starts the same definition after daemon selection/start and requires
 fresh manager identity in the selected generation before final daemon adoption
 verification. Worker, daemon and connector termination scopes must be separate.
 Uncertain stop/start replies retain recovery state without replay. Stopped or
-unmanaged connector installations, migration-aware recovery and complete production
-admission/approval composition remain required before daemon activation.
+unmanaged connector installations still block daemon activation. Migration-aware
+recovery remains a release requirement.
 No profile data, remote operation or maintenance permission is added; remote and
 runtime protocols remain unchanged.
 
@@ -223,11 +224,11 @@ ordered pause before reinspection and passes exact outgoing controller/service
 evidence into the private worker job. Rejected attempts release the pause; accepted
 or uncertain dispatch retains it until shutdown or a terminal/recovery-fenced
 operation with no executing worker. The launcher pause lets admitted launches finish
-before pausing discovery/reconciliation. Production still lacks the complete pause
-composition and the adjacent-work interruption confirmation UI;
-there is no user-selectable switch. Accepted work survives caller loss; reconnect only
-observes it. The coordinator currently refuses daemon activation pending complete quiescence,
-adjacent-work confirmation and recovery integration. Runtime install/upgrade commands now
+before pausing discovery/reconciliation. Production uses this composition after boot
+reconciliation and auto-resume finish; there is no user-selectable switch. Accepted
+work survives caller loss; reconnect only observes it. Supported supervised daemon
+updates can now dispatch through private host control. Cockpit confirmation,
+CLI/launcher daemon upgrades and recovery integration remain unfinished. Runtime install/upgrade commands now
 consume this coordinator, including bounded observation after lost apply responses;
 cockpit routes and approval UI remain to be integrated. `puddle updates` inspects
 durable operation state and supports exact pre-dispatch cancellation. No remote
@@ -242,8 +243,7 @@ maintenance hold. Missing consent retains the stage for confirmation, changed
 evidence invalidates approval, and the worker persists matching consent before
 dispatch. Clients below 25.10 retain the blocked response without extra fields;
 new clients never send interruption approval to an older host. This adds no lease
-authority or remote permission. Production composition and confirmation UI remain
-unfinished, so this contract alone does not enable daemon activation.
+authority or remote permission. The cockpit confirmation UI remains unfinished.
 
 Maintenance participants also cover queued runtime controls, asynchronous native-ref
 capture/resume repair, marker-file synchronisation and compilation providers. They
@@ -261,8 +261,13 @@ discards unsent requests, interrupts all runners and preserves accepted independ
 turns. Programme cancellation waits for admission too. Notebook admission drains
 startup through request dispatch, retaining submitted cells and idle kernel state
 in the interruption inventory; new execution and kernel controls fail during the
-hold. These are participants in final update quiescence; complete production
-composition and adjacent-work interruption confirmation remain unfinished. Long admitted
+hold. Production final inspection drains clients, upkeep and log retention first;
+then programmes, compilation, catalogue and marker watchers; then launches; then
+native observations, runtime controls and notebook dispatch; then notification and
+service cleanup; finally discovery followed by reconciliation. Owner connections
+remain open throughout. Release restores those participants in reverse order and
+refreshes account observations. Log retention abandons an in-flight temporary copy
+before replacing its original file, and shutdown cannot reopen retention. Long admitted
 compilation or programme startup can still exceed the bounded pause deadline,
 causing pre-dispatch rejection and release without cancelling that work.
 
@@ -270,16 +275,15 @@ Client admission is shared by HTTP and WebSocket handlers. A maintenance pause
 refuses new commands while allowing existing terminal output/status delivery and
 version inspection. Shutdown closes admission irreversibly, fences delayed local
 PTY launches and waits for admitted handlers before closing terminal state and
-SQLite. This does not yet checkpoint background writers or enable daemon-update
-activation; the coordinator continues to refuse that operation.
+SQLite. Admission drainage is distinct from the accepted update's shutdown
+checkpoint, which records ownership and committed cursors before controller release.
 If runtime connection drainage fails, shutdown retains SQLite and controller
 ownership until process exit; a deadline does not establish that callbacks stopped.
 The internal shutdown path can now accept an exact already-dispatched daemon update
 reference. Signal-driven shutdown also selects that reference from an accepted
 private worker record addressed to its exact PID and controller id/epoch. A later
 controller cannot reuse the instruction; missing, damaged or mismatched job evidence
-leaves ordinary shutdown available without an update checkpoint. Production daemon
-worker dispatch remains disabled until the complete transaction is integrated.
+leaves ordinary shutdown available without an update checkpoint.
 After all writers and runtime discovery drain, it flushes the SQLite WAL
 and writes a private checkpoint under `updates/checkpoints/<operation>.json` before
 releasing controller ownership. It records the outgoing controller, schema version,
@@ -288,7 +292,7 @@ owners which ended during drainage. The record is bounded to 4,096 owners and 8 
 contains no provider environment or credentials, and cannot overwrite an existing
 checkpoint. Invalidated dispatch or failed persistence leaves shutdown incomplete
 and retains the controller and database. This supplies shutdown evidence only;
-public daemon dispatch remains disabled. Application protocol 25.8 adds an optional
+replacement adoption requires separate verification. Application protocol 25.8 adds an optional
 fresh nonce to exact-operation private status requests. The replacement coordinator
 can publish a private adoption receipt only for the executing operation, its exact
 staged generation/Node/entry point and a newer controller epoch. Every checkpointed
@@ -357,7 +361,7 @@ crash. Uncertain application/verification keeps the operation nonterminal until
 explicit verified recovery, fencing delayed starts. The record is file-and-directory
 synced through the existing private JSON writer; bounded reads fail closed. Runtime
 and update claims share `security/claims.ts`, preserving the existing `runtime-claims`
-inodes for owners launched by older builds. The runtime-default updater
+inodes for owners launched by older builds. The host updater
 connects that store to an independent one-shot systemd/launchd job. Its immutable
 release supplies the exact Node binary, worker bundle and canonical `install.sh`;
 the private job record is synced before supervisor dispatch and retained after an
@@ -369,9 +373,10 @@ synced. Worker children remain in the service process group, and worker lifetime
 bounded to three minutes. Runtime owners and workers share `host/services.ts` for
 literal supervisor definitions and bounded dispatch commands.
 
-The public dispatcher still refuses daemon or combined updates: final quiescence,
-compatibility/impact approval, stopped connector handling and migration-aware recovery
-remain required. Runtime CLI updates use the coordinator; daemon CLI/launcher and
+The private host-control dispatcher now composes daemon and combined updates with
+final quiescence and exact compatibility/impact approval. Stopped or unmanaged
+connector installations remain blocked, and migration-aware recovery remains
+unfinished. Runtime CLI updates use the coordinator; daemon CLI/launcher and
 cockpit updates still need integration. Completed job registrations and pinned release trees remain retained
 until verified service cleanup and reference-aware collection are implemented.
 
