@@ -20,6 +20,12 @@ isolated temporary daemon retaining SQLite until admitted work settles. The PTY
 spawn test uses a fake child; the daemon shutdown test starts no agents. They
 establish client admission, not background-writer quiescence or upgrade adoption.
 
+`packages/daemon/test/sessions/conversation-catalogue.test.ts` additionally holds
+adapter discovery and Git mapping across catalogue disposal, verifies that late
+results cannot create placements or mark conversations missing, and checks that
+disposal waits for in-flight helper reads without reinstalling watchers. Other
+background writers and reversible update checkpoints remain separate gates.
+
 Run from the repository root with dependencies installed:
 
 ```sh

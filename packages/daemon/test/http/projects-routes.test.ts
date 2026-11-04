@@ -26,8 +26,8 @@ beforeAll(() => {
   app.route('/api/projects', projectRoutes({ ...fx.stores, ...fx, catalogue }));
 });
 
-afterAll(() => {
-  catalogue.dispose();
+afterAll(async () => {
+  await catalogue.dispose();
 });
 
 function request(method: string, path: string, body: unknown) {

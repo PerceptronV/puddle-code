@@ -7,8 +7,8 @@ import { ConversationCatalogue } from '../../src/sessions/conversation-catalogue
 import { fakeAdapter, fixture, waitFor } from '../helpers/daemon-fixtures.js';
 
 const catalogues: ConversationCatalogue[] = [];
-afterEach(() => {
-  for (const catalogue of catalogues.splice(0)) catalogue.dispose();
+afterEach(async () => {
+  await Promise.all(catalogues.splice(0).map((catalogue) => catalogue.dispose()));
   vi.useRealTimers();
 });
 
@@ -95,6 +95,92 @@ function setup(
 }
 
 describe('ConversationCatalogue', () => {
+  it('drains discovery on disposal without writing late results or reinstalling watchers', async () => {
+    const { f, catalogue, discover, setNative, blockNext, triggerWatch, watchRoots } = setup({
+      fakeWatch: 'healthy',
+    });
+    setNative([
+      {
+        ref: 'late-discovery',
+        cwd: f.repoPath,
+        title: 'Late',
+        parentRef: null,
+        createdAt: null,
+        updatedAt: null,
+      },
+    ]);
+    const release = blockNext();
+    catalogue.refreshProject(f.ids.project);
+    expect(discover).toHaveBeenCalledOnce();
+    const upsert = vi.spyOn(f.stores.conversations, 'upsert');
+    const complete = vi.spyOn(f.stores.conversations, 'completeSuccessfulScan');
+    const changed = vi.fn();
+    catalogue.on('sessions-changed', changed);
+    const disposed = vi.fn();
+    const pending = catalogue.dispose().then(disposed);
+    try {
+      await Promise.resolve();
+      expect(disposed).not.toHaveBeenCalled();
+      watchRoots.mockClear();
+      // Even an invalid id must not touch the store once disposed.
+      catalogue.refreshProject('absent');
+      catalogue.reconcileWatchers();
+      triggerWatch();
+      release();
+      await pending;
+      await catalogue.dispose();
+      expect(upsert).not.toHaveBeenCalled();
+      expect(complete).not.toHaveBeenCalled();
+      expect(changed).not.toHaveBeenCalled();
+      expect(watchRoots).not.toHaveBeenCalled();
+      expect(discover).toHaveBeenCalledOnce();
+    } finally {
+      release();
+      await pending;
+    }
+  });
+
+  it('waits for Git mapping but never materialises a placement or marks missing after disposal', async () => {
+    const { f, catalogue, setNative } = setup({ fakeWatch: 'healthy' });
+    const rows = await f.worktrees.listWorktrees(f.stores.repos.get(f.ids.repo));
+    let release!: () => void;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const listing = vi.spyOn(f.worktrees, 'listWorktrees').mockImplementation(async () => {
+      await blocked;
+      return rows;
+    });
+    setNative([
+      {
+        ref: 'late-mapping',
+        cwd: f.repoPath,
+        title: 'Late',
+        parentRef: null,
+        createdAt: null,
+        updatedAt: null,
+      },
+    ]);
+    const create = vi.spyOn(f.stores.sessions, 'create');
+    const complete = vi.spyOn(f.stores.conversations, 'completeSuccessfulScan');
+    catalogue.refreshProject(f.ids.project);
+    try {
+      await waitFor(() => listing.mock.calls.length === 1);
+      const disposed = vi.fn();
+      const pending = catalogue.dispose().then(disposed);
+      await Promise.resolve();
+      expect(disposed).not.toHaveBeenCalled();
+      release();
+      await pending;
+      expect(create).not.toHaveBeenCalled();
+      expect(complete).not.toHaveBeenCalled();
+    } finally {
+      release();
+      listing.mockRestore();
+      await catalogue.dispose();
+    }
+  });
+
   it('materialises eligible project placements without crossing profile or archive boundaries', async () => {
     const { f, catalogue, setNative } = setup();
     const second = f.stores.projects.create({
@@ -242,7 +328,7 @@ describe('ConversationCatalogue', () => {
     expect(healthy.discover).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
     expect(healthy.discover).toHaveBeenCalledTimes(1);
-    healthy.catalogue.dispose();
+    await healthy.catalogue.dispose();
 
     const fallback = setup({
       fakeClock: true,

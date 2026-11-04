@@ -387,9 +387,9 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       worktrees,
     });
 
-    failedStartup.push(() => {
+    failedStartup.push(async () => {
       service.beginShutdown();
-      catalogue.dispose();
+      await catalogue.dispose();
     });
 
     // Stored logged-in flags can lie (keychain-bound creds die with a path
@@ -604,7 +604,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
           authority.dispose();
           await closeControl();
           clearInterval(fetchTimer);
-          catalogue.dispose();
+          await catalogue.dispose();
           compilation.dispose();
           await notebooks.dispose();
           onboarding.dispose();

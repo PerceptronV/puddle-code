@@ -37,6 +37,13 @@ Implementation evidence so far:
   This is not full update quiescence: background writers, ownership checkpoints
   and the final approval/dispatch boundary remain required before daemon activation.
 
+- Native catalogue disposal now fences late discovery/Git continuations and drains
+  existing scans before SQLite can close. Disposed catalogues cannot reinstall
+  watchers, materialise placements or advance missing-conversation observations.
+  Tests hold discovery and Git mapping across disposal to verify those boundaries.
+  This closes one background-writer gap; native-ref capture, other host upkeep and
+  a reversible update checkpoint still need integration.
+
 - Runtime install/upgrade commands now drive the private coordinator over local
   or SSH control. They reuse version resolution, transport delivery and the embedded
   installer, inspect before one apply, and observe accepted work after a lost reply
