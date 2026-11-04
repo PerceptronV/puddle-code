@@ -32,8 +32,8 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 25.8 for fresh private update adoption observations', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 25, minor: 8 });
+  it('declares protocol 25.9 for private connector manager inspection', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 25, minor: 9 });
   });
 
   it('accepts headless mode and rejects the previous scripted name', () => {

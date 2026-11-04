@@ -6,6 +6,7 @@ import { hostReleaseCapabilities, type StorageStatus } from '@puddle/shared';
 import { HostUpdateCompatibility } from '../../../src/updates/preflight/compatibility.js';
 import { HostUpdateCapacity } from '../../../src/updates/preflight/capacity.js';
 import { HostUpdateImpact } from '../../../src/updates/preflight/impact.js';
+import { HostUpdateConnector } from '../../../src/updates/preflight/connector.js';
 import { HostUpdateInspection } from '../../../src/updates/preflight/inspection.js';
 import { HostUpdateSupervision } from '../../../src/updates/preflight/supervision.js';
 import { systemdObservation } from '../../helpers/host-supervision.js';
@@ -29,7 +30,9 @@ function setup() {
     stdout: systemdObservation(123),
     stderr: '',
   }));
+  const connector = new HostUpdateConnector(f.home, f.home);
   const inspection = new HostUpdateInspection({
+    connector,
     compatibility: new HostUpdateCompatibility({
       home: f.home,
       current,
@@ -52,8 +55,8 @@ function setup() {
     }),
   });
   const inspect = (operation = f.operation) =>
-    inspection.inspect(operation, current.application, current.runtime, null);
-  return { ...f, current, programmes, probe, storage, inspection, inspect, supervisor };
+    inspection.inspect(operation, current.application, current.runtime);
+  return { ...f, current, programmes, probe, storage, inspection, inspect, supervisor, connector };
 }
 
 it('binds stable inspection to its operation and stages without treating changing free bytes as new impact', async () => {
@@ -113,7 +116,6 @@ it('collects protocol and capacity blockers without producing approval evidence'
     f.operation,
     { major: f.current.application.major + 1, minor: 0 },
     f.current.runtime,
-    null,
   );
   expect(result.blockers).toEqual(
     expect.arrayContaining([
@@ -142,4 +144,46 @@ it('binds approval to the observed service invocation and withholds it for unkno
   const unknown = await f.inspect();
   expect(unknown.fingerprint).toBeNull();
   expect(unknown.blockers).toContainEqual({ code: 'daemon_supervision_unknown', target: 'daemon' });
+});
+
+it('withholds approval when a connector starts or changes during inspection', async () => {
+  const f = setup();
+  const probe = vi.spyOn(f.connector, 'inspect');
+  probe.mockResolvedValueOnce({ state: 'absent', identity: null, blockers: [] });
+  probe.mockResolvedValueOnce({
+    state: 'unknown',
+    identity: null,
+    blockers: [{ code: 'connector_inventory_unknown', target: 'connector' }],
+  });
+  const observed = await f.inspect();
+  expect(observed.fingerprint).toBeNull();
+  expect(observed.blockers).toContainEqual({
+    code: 'connector_inventory_changed',
+    target: 'connector',
+  });
+  expect(observed.blockers).toContainEqual({
+    code: 'connector_inventory_unknown',
+    target: 'connector',
+  });
+});
+
+it('rechecks the owner inventory after the final connector probe', async () => {
+  const f = setup();
+  const changed = vi.spyOn(HostUpdateCompatibility.prototype, 'inventoryMatches');
+  const probe = vi.spyOn(f.connector, 'inspect');
+  const absent = { state: 'absent' as const, identity: null, blockers: [] };
+  probe.mockResolvedValueOnce(absent).mockImplementationOnce(async () => {
+    changed.mockReturnValueOnce(false);
+    return absent;
+  });
+  try {
+    const observed = await f.inspect();
+    expect(observed.fingerprint).toBeNull();
+    expect(observed.blockers).toContainEqual({
+      code: 'runtime_inventory_unknown',
+      target: 'inventory',
+    });
+  } finally {
+    changed.mockRestore();
+  }
 });

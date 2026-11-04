@@ -189,6 +189,19 @@ canonical installer. Partial changes or lost replies remain recoverable without
 automatic rollback or replay. Production daemon dispatch and complete installed
 upgrade acceptance remain outstanding.
 
+Application protocol 25.9 adds bounded read-only inspection on the connector
+manager's existing exclusive private socket. Fresh nonce-correlated replies expose
+only the ready process identity, release/protocols and executable paths. Preflight
+corroborates the exact immutable generation and public release metadata, includes
+the stable manager identity in approval and compares it again after other probes.
+It rechecks runtime inventory synchronously after that final asynchronous probe.
+Old managers, unavailable/malformed replies, unpinned paths and offline/ambiguous
+installations cannot establish absence or approval. Runtime-default updates do not
+need connector inspection. Supervisor identity, coordinated connector replacement
+and stopped-installation handling still need integration before daemon activation.
+No profile data, remote operation or maintenance permission is added; remote and
+runtime protocols remain unchanged.
+
 Application protocol 25.7 adds bounded, correlated maintenance requests to the
 existing private host-control connection. Only a live host-wide local/SSH lease
 can begin, stage, inspect, apply, cancel or observe an update; these requests do not
@@ -202,7 +215,7 @@ evidence into the private worker job. Rejected attempts release the pause; accep
 or uncertain dispatch retains it until shutdown or a terminal/recovery-fenced
 operation with no executing worker. The launcher pause lets admitted launches finish
 before pausing discovery/reconciliation. Production still lacks the complete pause
-composition, connector inventory and explicit adjacent-work interruption approval;
+composition, connector replacement and explicit adjacent-work interruption approval;
 there is no user-selectable switch. Accepted work survives caller loss; reconnect only
 observes it. The coordinator currently refuses daemon activation pending quiescence,
 connector inventory and adoption verification. Runtime install/upgrade commands now

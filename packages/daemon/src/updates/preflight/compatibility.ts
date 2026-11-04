@@ -33,6 +33,26 @@ export interface UpdateCompatibility {
   inventory: string | null;
 }
 
+const inventory = (rows: RuntimeBinding[]) =>
+  JSON.stringify(
+    [...rows]
+      .sort((a, b) => a.runtime_id.localeCompare(b.runtime_id))
+      .map((binding) => [
+        runtimeBindingIdentity(binding),
+        binding.active_session_id,
+        binding.active_segment_id,
+        binding.conversation_id,
+        binding.account_id,
+        binding.agent_type,
+        binding.build,
+        binding.protocol_major,
+        binding.protocol_minor,
+        binding.launch_fingerprint,
+        binding.release_path,
+        binding.state,
+      ]),
+  );
+
 /** Compatibility inspection only; authority, impact, capacity and quiescence remain separate checks. */
 export class HostUpdateCompatibility {
   constructor(
@@ -87,25 +107,6 @@ export class HostUpdateCompatibility {
       result.blockers.push({ code: 'runtime_inventory_unknown', target: 'inventory' });
       return result;
     }
-    const inventory = (rows: RuntimeBinding[]) =>
-      JSON.stringify(
-        [...rows]
-          .sort((a, b) => a.runtime_id.localeCompare(b.runtime_id))
-          .map((binding) => [
-            runtimeBindingIdentity(binding),
-            binding.active_session_id,
-            binding.active_segment_id,
-            binding.conversation_id,
-            binding.account_id,
-            binding.agent_type,
-            binding.build,
-            binding.protocol_major,
-            binding.protocol_minor,
-            binding.launch_fingerprint,
-            binding.release_path,
-            binding.state,
-          ]),
-      );
     const before = inventory(bindings);
     result.inventory = digest(before);
     const known = new Set(bindings.map((binding) => binding.runtime_id));
@@ -157,6 +158,13 @@ export class HostUpdateCompatibility {
     result.owners.sort((a, b) => a.id.localeCompare(b.id));
     result.blockers.sort((a, b) => `${a.code}:${a.target}`.localeCompare(`${b.code}:${b.target}`));
     return result;
+  }
+
+  /** Recheck without yielding after other asynchronous preflight probes have finished. */
+  inventoryMatches(observed: UpdateCompatibility): boolean {
+    if (observed.inventory === null) return true; // Runtime-default changes inspect no owners.
+    const current = this.deps.runtimes.live(4097);
+    return current.length <= 4096 && digest(inventory(current)) === observed.inventory;
   }
 
   private async inspectInventory(known: Set<string>, blockers: Blocker[]): Promise<void> {

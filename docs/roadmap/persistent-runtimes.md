@@ -29,6 +29,19 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far:
 
+- Application 25.9 reuses the connector manager's existing exclusive private socket
+  for bounded read-only process inspection. Preflight checks a fresh nonce, ready
+  manager identity, exact immutable Node/entry paths and public release capabilities,
+  compares connector observations across the other probes, then rechecks runtime
+  inventory synchronously. Nonces are excluded from stable approval fingerprints.
+  Old/malformed managers, mismatched metadata and offline/ambiguous installations
+  block approval; only a host with no connector configuration/service evidence can
+  be classified absent. Runtime-default updates need no connector inspection. Tests
+  include an actual bundled connector running its pinned Node in an isolated home;
+  no profiles or remote service are involved. Connector supervisor identity,
+  coordinated replacement and stopped-installation handling remain required before
+  public daemon activation. Remote 4 and runtime 1.0 are unchanged.
+
 - The coordinator now has an ordered final-inspection pause boundary. It drains
   admitted client/launch work before inspecting the exact approved fingerprint,
   carries the outgoing controller/service evidence into durable worker dispatch,
@@ -39,7 +52,7 @@ Implementation evidence so far:
   queued title/cursor observations catch up on release. The shared phase composer
   unwinds in reverse order with one bounded deadline. Production does not yet
   supply the complete daemon pause composition: remaining background/execution
-  admissions, connector inventory and explicit adjacent-work interruption approval
+  admissions, connector replacement and explicit adjacent-work interruption approval
   must be connected before the public path is enabled. This is an internal
   composition boundary, with no user toggle or experimental backend.
 

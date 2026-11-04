@@ -15,6 +15,7 @@ function fixture(component: 'runtime' | 'daemon' = 'runtime', daemonAdmission = 
   const observed: UpdateInspection = {
     fingerprint: digest('inspected exact release and ownership'),
     blockers: [],
+    connector: { state: 'not-required', identity: null, blockers: [] },
     compatibility: { blockers: [], candidates: [], owners: [], inventory: null },
     capacity: { blockers: [], volumes: [] },
     impact: {

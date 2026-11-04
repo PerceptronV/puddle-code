@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Add application protocol 25.9 private connector process inspection, binding daemon-update preflight to fresh pinned release metadata and refusing unknown or changing connector inventory without exposing profile configuration.
+
 - Add ordered final-update admission drains, retaining maintenance after uncertain dispatch and passing exact outgoing controller/service evidence to the worker. Let admitted runtime launches finish before pausing observation; production daemon-update composition remains in progress.
 
 - Compose daemon and combined update-worker transactions around exact supervisor shutdown, drained runtime checkpoints, shared installer selection and fresh adoption verification. Preserve existing service configuration and retain uncertain partial updates without replay; public daemon dispatch remains gated on final approval and recovery integration.

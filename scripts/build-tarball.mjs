@@ -310,6 +310,7 @@ await build({
 await build({
   entryPoints: [join(repoRoot, 'packages/connector/src/index.ts')],
   outfile: join(stage, 'daemon/connector.mjs'),
+  define: { __CONNECTOR_VERSION__: JSON.stringify(version) },
   bundle: true,
   platform: 'node',
   target: 'node22',

@@ -27,6 +27,20 @@ export async function readStageCapabilities(
   const receipt = readPrivateJson(join(root, '.puddle-stage.json'), 4096);
   if (digest(`${JSON.stringify(receipt)}\n`) !== stage.digest)
     throw new Error('Host stage receipt changed');
+  const capabilities = await readInstalledCapabilities(root);
+  const protocol =
+    stage.record.component === 'daemon' ? capabilities.application : capabilities.runtime;
+  if (
+    capabilities.version !== stage.record.version ||
+    protocol.major !== stage.record.protocol.major ||
+    protocol.minor !== stage.record.protocol.minor
+  )
+    throw new Error('Host capabilities do not match the staged component');
+  return capabilities;
+}
+
+/** Bounded public release metadata, shared by staged and running-component inspection. */
+export async function readInstalledCapabilities(root: string): Promise<HostReleaseCapabilities> {
   const file = await open(
     join(root, 'HOST_CAPABILITIES.json'),
     constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
@@ -46,14 +60,6 @@ export async function readStageCapabilities(
     const capabilities = hostReleaseCapabilitiesSchema.parse(
       JSON.parse(buffer.subarray(0, size).toString('utf8')),
     );
-    const protocol =
-      stage.record.component === 'daemon' ? capabilities.application : capabilities.runtime;
-    if (
-      capabilities.version !== stage.record.version ||
-      protocol.major !== stage.record.protocol.major ||
-      protocol.minor !== stage.record.protocol.minor
-    )
-      throw new Error('Host capabilities do not match the staged component');
     return capabilities;
   } finally {
     await file.close();

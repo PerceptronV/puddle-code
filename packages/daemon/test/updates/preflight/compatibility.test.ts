@@ -62,7 +62,7 @@ function fixture(
   });
   const inspect = (connector: number | null = null) =>
     inspector.inspect(f.operation, current.application, current.runtime, connector);
-  return { ...f, binding, bindings, clients, request, state, inspect, current };
+  return { ...f, binding, bindings, clients, request, state, inspect, current, inspector };
 }
 
 it('accepts different release versions and additive runtime minors, using supported majors alone', async () => {
@@ -181,4 +181,14 @@ it('changes only the future runtime default without requiring adoption of curren
     code: 'runtime_default_incompatible',
     target: 'runtime',
   });
+});
+
+it('rechecks ownership after subsequent probes without treating event progress as changed ownership', async () => {
+  const f = fixture();
+  const observed = await f.inspect();
+  expect(f.inspector.inventoryMatches(observed)).toBe(true);
+  f.binding.event_cursor++;
+  expect(f.inspector.inventoryMatches(observed)).toBe(true);
+  f.binding.active_session_id = randomUUID();
+  expect(f.inspector.inventoryMatches(observed)).toBe(false);
 });

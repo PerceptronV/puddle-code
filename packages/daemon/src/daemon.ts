@@ -57,6 +57,7 @@ import { hostReleaseCapabilities } from '@puddle/shared';
 import { HostUpdateCompatibility } from './updates/preflight/compatibility.js';
 import { HostUpdateImpact } from './updates/preflight/impact.js';
 import { HostUpdateCapacity } from './updates/preflight/capacity.js';
+import { HostUpdateConnector } from './updates/preflight/connector.js';
 import { HostUpdateInspection } from './updates/preflight/inspection.js';
 import { HostUpdateSupervision } from './updates/preflight/supervision.js';
 import { HostUpdateCoordinator } from './updates/coordinator.js';
@@ -354,6 +355,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     });
     failedStartup.push(() => puddlang.dispose());
     const updateInspection = new HostUpdateInspection({
+      connector: new HostUpdateConnector(paths.home),
       compatibility: new HostUpdateCompatibility({
         home: paths.home,
         current: hostReleaseCapabilities(opts.version ?? '0.0.0'),

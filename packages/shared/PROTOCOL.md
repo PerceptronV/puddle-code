@@ -19,6 +19,15 @@ identity and definition digest (plus launchd's existing plist path). Configurati
 contents and environment values are not copied into the update record. These fields
 are internal worker state, with no application, remote or runtime wire-shape change.
 
+Protocol 25.9 adds nonce-correlated, read-only process inspection on the connector
+manager's existing exclusive private host socket. Replies contain bounded process,
+release and protocol metadata only; profile configuration, grants and registration
+secrets are excluded. Old managers which close the socket remain unknown, never
+proof of absence. Preflight corroborates exact immutable executable paths and public
+release metadata, and binds stable manager identity to update approval. This adds
+no encrypted remote operation or maintenance permission; remote protocol 4 and
+runtime protocol 1.0 are unchanged.
+
 Protocol 25.8 adds an optional `adoption_nonce` to exact-operation host-update
 status requests. It requests a fresh private replacement observation, without
 authorising activation or returning runtime details to the caller. Older status

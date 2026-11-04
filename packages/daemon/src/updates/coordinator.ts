@@ -100,7 +100,6 @@ export class HostUpdateCoordinator {
         operation,
         command.cockpit,
         this.deps.installedRuntime(),
-        null,
       );
       requireAuthority();
       const review = this.review(inspection, runtimeOnly || !!this.deps.pauseDaemon);

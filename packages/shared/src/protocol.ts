@@ -315,4 +315,5 @@
 // 25.6: configurable bulk terminal-log retention, preserving restoration tails.
 // 25.7: bounded local/SSH host-update requests on the existing private control channel.
 // 25.8: optional fresh adoption observation on exact private host-update status requests.
-export const PROTOCOL_VERSION = { major: 25, minor: 8 } as const;
+// 25.9: bounded read-only connector manager inspection on existing private host IPC.
+export const PROTOCOL_VERSION = { major: 25, minor: 9 } as const;

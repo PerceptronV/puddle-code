@@ -7,10 +7,12 @@ import { digest } from '@puddle/shared/node';
 import type { HostUpdateCompatibility, UpdateCompatibility } from './compatibility.js';
 import type { HostUpdateCapacity, UpdateCapacity } from './capacity.js';
 import type { HostUpdateImpact, UpdateImpact } from './impact.js';
+import type { HostUpdateConnector, UpdateConnector } from './connector.js';
 import type { HostUpdateSupervision, UpdateSupervision } from './supervision.js';
 
 export interface UpdateInspection {
   compatibility: UpdateCompatibility;
+  connector: UpdateConnector;
   capacity: UpdateCapacity;
   impact: UpdateImpact;
   supervision: UpdateSupervision;
@@ -18,6 +20,8 @@ export interface UpdateInspection {
     | UpdateCompatibility['blockers'][number]
     | UpdateCapacity['blockers'][number]
     | UpdateSupervision['blockers'][number]
+    | UpdateConnector['blockers'][number]
+    | { code: 'connector_inventory_changed'; target: 'connector' }
     | { code: 'interruption_inventory_changed'; target: 'daemon' }
   >;
   fingerprint: string | null;
@@ -27,7 +31,8 @@ export interface UpdateInspection {
 export class HostUpdateInspection {
   constructor(
     private readonly deps: {
-      compatibility: Pick<HostUpdateCompatibility, 'inspect'>;
+      compatibility: Pick<HostUpdateCompatibility, 'inspect' | 'inventoryMatches'>;
+      connector: Pick<HostUpdateConnector, 'inspect'>;
       capacity: Pick<HostUpdateCapacity, 'inspect'>;
       impact: Pick<HostUpdateImpact, 'inspect'>;
       supervision: Pick<HostUpdateSupervision, 'inspect'>;
@@ -38,26 +43,34 @@ export class HostUpdateInspection {
     input: HostUpdateOperation,
     cockpit: HostReleaseCapabilities['application'],
     installedRuntime: HostReleaseCapabilities['runtime'] | null,
-    connectorRemote: number | null,
   ): Promise<UpdateInspection> {
     const operation = hostUpdateOperationSchema.parse(input);
     const before = this.deps.impact.inspect(operation);
+    const connector = await this.deps.connector.inspect(operation);
     const supervision = await this.deps.supervision.inspect(operation);
-    // Inspect owners last so a slow filesystem probe cannot outlive the owner
-    // inventory comparison. The final coordinator still rechecks under its barrier.
+    // Inspect owners after slow filesystem probes, then recheck their inventory
+    // synchronously after the final connector probe. Dispatch also holds admissions.
     const capacity = await this.deps.capacity.inspect(operation);
     const compatibility = await this.deps.compatibility.inspect(
       operation,
       cockpit,
       installedRuntime,
-      connectorRemote,
+      connector.identity?.remote ?? null,
     );
+    const connectorAfter = await this.deps.connector.inspect(operation);
     const impact = this.deps.impact.inspect(operation);
     const blockers: UpdateInspection['blockers'] = [
       ...compatibility.blockers,
       ...capacity.blockers,
       ...supervision.blockers,
+      ...connector.blockers,
     ];
+    if (!this.deps.compatibility.inventoryMatches(compatibility))
+      blockers.push({ code: 'runtime_inventory_unknown', target: 'inventory' });
+    if (JSON.stringify(connector) !== JSON.stringify(connectorAfter)) {
+      blockers.push(...connectorAfter.blockers);
+      blockers.push({ code: 'connector_inventory_changed', target: 'connector' });
+    }
     if (before.fingerprint !== impact.fingerprint)
       blockers.push({ code: 'interruption_inventory_changed', target: 'daemon' });
     // Free bytes vary continuously: admission is rechecked, not approved as an
@@ -69,7 +82,8 @@ export class HostUpdateInspection {
             operation: operation.id,
             targets: operation.targets,
             stages: operation.stages.map((stage) => stage.digest),
-            protocols: { cockpit, installedRuntime, connectorRemote },
+            protocols: { cockpit, installedRuntime },
+            connector,
             candidates: compatibility.candidates,
             owners: compatibility.owners,
             inventory: compatibility.inventory,
@@ -77,6 +91,6 @@ export class HostUpdateInspection {
             supervision: { worker: supervision.worker, daemon: supervision.daemon },
           }),
         );
-    return { compatibility, capacity, impact, supervision, blockers, fingerprint };
+    return { compatibility, connector, capacity, impact, supervision, blockers, fingerprint };
   }
 }

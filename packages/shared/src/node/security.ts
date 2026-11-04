@@ -181,13 +181,16 @@ export function jsonLines(
   stream: NodeJS.ReadableStream,
   receive: (value: unknown) => void,
   fail: () => void,
+  maxBytes = CONTROL_MAX_BYTES,
 ): () => void {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > CONTROL_MAX_BYTES)
+    throw new Error('Invalid private message bound');
   let buffer = '';
   let failed = false;
   const onData = (chunk: Buffer | string) => {
     if (failed) return;
     buffer += chunk.toString();
-    if (Buffer.byteLength(buffer) > CONTROL_MAX_BYTES) {
+    if (Buffer.byteLength(buffer) > maxBytes) {
       failed = true;
       fail();
       return;

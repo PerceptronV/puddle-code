@@ -1,16 +1,33 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { connectorConfigSchema } from '@puddle/shared';
-import { ipcPath, listenPrivate, readPrivateJson } from '@puddle/shared/node';
+import { readPrivateJson } from '@puddle/shared/node';
+import { startConnectorInspection } from './host/inspection.js';
 import { startConnector } from './runtime.js';
 import { profileDirectory, registeredProfiles } from './profile-state.js';
 import { deleteRegistration } from './delete-registration.js';
 import { startRegistrationCleanup } from './registration-cleanup.js';
 
+declare const __CONNECTOR_VERSION__: string | undefined;
+const version =
+  typeof __CONNECTOR_VERSION__ !== 'undefined'
+    ? __CONNECTOR_VERSION__
+    : (
+        JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
+          version: string;
+        }
+      ).version;
+
 /** One supervised process, independent runtimes and private stores for each profile. */
 export async function startConnectorManager(home: string) {
   // Also excludes the old single-registration process before migration touches its files.
-  const lock = await listenPrivate(ipcPath(home, 'remote'), (socket) => socket.destroy());
+  let ready = false;
+  const lock = await startConnectorInspection(
+    home,
+    { version, entryPath: fileURLToPath(import.meta.url) },
+    () => ready,
+  );
   const live = new Map<
     string,
     { fingerprint: string; runtime: Awaited<ReturnType<typeof startConnector>> }
@@ -80,18 +97,20 @@ export async function startConnectorManager(home: string) {
   } catch (error) {
     for (const { runtime } of live.values()) await runtime.close();
     for (const cleanup of cleanups.values()) await cleanup.close();
-    await new Promise<void>((resolve) => lock.close(() => resolve()));
+    await lock.close();
     throw error;
   }
+  ready = true;
   const timer = setInterval(tick, 500);
   return {
     async close() {
       stopped = true;
+      ready = false;
       clearInterval(timer);
       await pending;
       for (const { runtime } of live.values()) await runtime.close();
       for (const cleanup of cleanups.values()) await cleanup.close();
-      await new Promise<void>((resolve) => lock.close(() => resolve()));
+      await lock.close();
     },
   };
 }
