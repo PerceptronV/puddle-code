@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { randomUUID } from 'node:crypto';
 import pty from 'node-pty';
 import type { LogStore } from '../logs/log-store.js';
 import { EnvOscFilter, type EnvDelta } from './env-osc.js';
@@ -32,6 +33,7 @@ export interface PtyCwdEvent {
 }
 
 interface Live {
+  instance: string;
   proc: pty.IPty;
   record: boolean;
   filter: EnvOscFilter;
@@ -110,6 +112,7 @@ export class PtyManager extends EventEmitter {
     });
     const filter = new EnvOscFilter();
     const live: Live = {
+      instance: randomUUID(),
       proc,
       record,
       filter,
@@ -322,6 +325,16 @@ export class PtyManager extends EventEmitter {
 
   liveCount(): number {
     return this.live.size;
+  }
+
+  /** Daemon-owned terminals, including login prompts; external owners are absent. */
+  interruptionInventory() {
+    return [...this.live.values()].map(({ instance, stream, term, proc }) => ({
+      instance,
+      stream,
+      term,
+      pid: proc.pid,
+    }));
   }
 
   liveTerms(stream: string): string[] {

@@ -40,6 +40,17 @@ Implementation evidence so far:
   existing owners. This is the compatibility part of preflight, not authority,
   interruption-impact approval, capacity checks, quiescence or permission to dispatch.
 
+- The daemon now composes an interruption-impact inspector from its existing PTY,
+  notebook, compilation and puddlang managers. It includes login terminals, idle
+  kernels retaining variables, eager watchers (including failed builds) and active
+  programme runners; completed code launches remain in their terminal inventory.
+  Runtime-default changes do not interrupt or inspect this work. Bounded snapshots
+  include instance/revision identities and a controller-scoped fingerprint so
+  replacement execution cannot inherit stale approval. Actual PTY replacement,
+  Jupyter restart/shutdown, watcher and programme tests cover these observations.
+  This is internal inventory only: authority, approval UI, admission quiescence,
+  checkpointing and the final atomic recheck still require coordinator integration.
+
 - Runtime code and tests are grouped by ownership, transport, execution, retained
   state, daemon control and service lifecycle. The `puddler` entry point and owner
   composition stay at the runtime root; implementation imports use their actual

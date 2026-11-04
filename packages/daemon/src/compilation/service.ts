@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   compilationFailureDetailsSchema,
   type CompilationFailure,
@@ -37,6 +38,7 @@ export type CompilationEvent =
   | { type: 'failed'; key: string; status: CompilationStatusResponse };
 
 interface TargetState {
+  instance: string;
   key: string;
   provider: CompilationProvider;
   source: CompilationFileTarget;
@@ -222,6 +224,25 @@ export class CompilationService {
     return () => this.listeners.delete(listener);
   }
 
+  /** Idle eager watchers also disappear on daemon replacement. */
+  interruptionInventory() {
+    return [...this.targets.values()]
+      .filter(
+        (state) =>
+          state.running || state.status.state === 'running' || state.status.mode === 'eager',
+      )
+      .map((state) => ({
+        instance: state.instance,
+        source: { ...state.source },
+        provider: state.provider.id,
+        revision: state.status.revision,
+        running: state.running !== null || state.status.state === 'running',
+        watching: state.status.mode === 'eager',
+        // Once launched, code terminals belong to their PTY/runtime inventory.
+        terminal_launch: state.provider.terminal === true,
+      }));
+  }
+
   dispose(): void {
     this.disposed = true;
     clearInterval(this.sweepTimer);
@@ -247,6 +268,7 @@ export class CompilationService {
       void this.execute(current, 'eager').catch(() => undefined);
     });
     const state: TargetState = {
+      instance: randomUUID(),
       key,
       provider,
       source: request.source,

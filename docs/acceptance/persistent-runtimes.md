@@ -538,6 +538,15 @@ intact. CLI and desktop builds passed. This establishes compatibility inspection
 and runtime-default continuity; it does not establish full update preflight,
 installed daemon replacement or the required standard backend rollout for 0.4.0.
 
+The interruption inventory uses the existing managers rather than scanning for
+process names or inferring live execution from session rows. The preflight,
+compilation, puddlang, notebook and daemon-ownership/gateway checks passed 48 tests
+on macOS 26.5.2/Node v22.21.1. Real temporary PTYs verify stable observations and
+replacement under the same stream; installed Jupyter verifies idle state, new runs,
+kernel restart and shutdown. Compilation tests include in-flight builds and failed
+eager watchers; programme shutdown clears its runner inventory without replay.
+These observations do not prove a quiescence barrier or authorise an interruption.
+
 ## Remaining release gates
 
 

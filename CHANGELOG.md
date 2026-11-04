@@ -11,9 +11,11 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Inventory daemon-update interruption impact through existing terminal, notebook, compilation and puddlang managers, retaining idle kernels and watchers in the review and distinguishing replacement execution from previously observed work.
+
 - Declare supported runtime majors in passive host-release metadata and inspect staged update compatibility against existing owners; runtime compatibility covers both IPC and retained state without requiring matching release versions.
 
-- Package an one-shot runtime updater that shares runtime supervision and the canonical installer, preserves service configuration during exact activation and verifies the selected generation before reporting completion.
+- Package a one-shot runtime updater that shares runtime supervision and the canonical installer, preserves service configuration during exact activation and verifies the selected generation before reporting completion.
 
 - Add durable host-update operation bookkeeping with exact approval/dispatch identities, bounded history and worker fencing that preserves uncertain outcomes after crashes; reuse shared host claims and private record storage.
 

@@ -1,4 +1,5 @@
 import { open, realpath, stat } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import {
   type CompilationFileTarget,
@@ -33,6 +34,8 @@ import type {
 } from '@puddle/shared';
 
 interface KernelEntry {
+  instance: string;
+  revision: number;
   source: string;
   executable: string;
   bridge: KernelBridge | null;
@@ -113,6 +116,21 @@ export class NotebookKernels {
       : { state: 'stopped', kernel: null };
   }
 
+  /** Idle kernels retain variables; pending startup/change work also needs approval. */
+  interruptionInventory() {
+    return [...this.entries.values()]
+      .filter((entry) => (entry.bridge && !entry.bridge.closed) || entry.busy || entry.changing)
+      .map((entry) => ({
+        instance: entry.instance,
+        revision: entry.revision,
+        path: entry.source,
+        kernel: entry.status.kernel,
+        state: entry.status.state,
+        busy: entry.busy,
+        changing: entry.changing,
+      }));
+  }
+
   async action(request: NotebookKernelAction): Promise<NotebookKernelStatus> {
     const path = await this.path(request.source);
     return this.lifecycle.run(path, async () => {
@@ -159,6 +177,7 @@ export class NotebookKernels {
         throw ApiError.badRequest('invalid_python_environment', environment.error);
       if (this.disposed) throw new Error('Notebook kernels are closed');
       entry = this.entry(path, python);
+      entry.revision += 1;
       entry.changing = true;
       try {
         await this.stop(entry);
@@ -189,6 +208,7 @@ export class NotebookKernels {
       if (entry?.bridge) await entry.bridge.request({ op: 'interrupt' }, 10_000);
     } else if (request.action === 'shutdown') {
       if (entry) {
+        entry.revision += 1;
         entry.changing = true;
         await this.stop(entry);
       }
@@ -217,6 +237,7 @@ export class NotebookKernels {
         path,
         entry?.executable ?? findCodeExecutable(['jupyter-nbconvert']) ?? 'jupyter-nbconvert',
       );
+      entry.revision += 1;
       entry.changing = true;
       await this.stop(entry);
       entry.bridge = null;
@@ -325,6 +346,7 @@ export class NotebookKernels {
         'Install the missing notebook packages first',
       );
     const execution = entry.execution.begin(request.cells);
+    entry.revision += 1;
     entry.busy = true;
     entry.cancelled = false;
     entry.status = { state: entry.bridge ? 'busy' : 'starting', kernel: entry.selected ?? null };
@@ -409,6 +431,7 @@ export class NotebookKernels {
         'Install the missing packages for the selected Python environment before running',
       );
     if (!entry.environment) entry.executable = file;
+    entry.revision += 1;
     entry.busy = true;
     entry.cancelled = false;
     let finish!: () => void;
@@ -475,6 +498,8 @@ export class NotebookKernels {
           'Shut down a notebook kernel before opening another (32 maximum)',
         );
       entry = {
+        instance: randomUUID(),
+        revision: 0,
         source,
         executable,
         bridge: null,

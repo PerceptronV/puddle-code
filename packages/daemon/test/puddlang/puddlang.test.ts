@@ -196,7 +196,9 @@ describe('puddlang host execution', () => {
   it('interrupts on shutdown, reconciles crashes and never resumes automatically', async () => {
     const s = setup();
     const run = s.start(`await new Promise(() => {});`);
+    expect(s.service.interruptionInventory()).toEqual([{ id: run.id }]);
     await s.service.dispose();
+    expect(s.service.interruptionInventory()).toEqual([]);
     expect(s.store.get(s.f.ids.profile, run.id).status).toBe('interrupted');
     const orphan = s.store.create(
       s.f.ids.profile,

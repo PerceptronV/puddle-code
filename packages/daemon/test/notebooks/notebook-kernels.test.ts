@@ -90,7 +90,7 @@ it.skipIf(!findCodeExecutable(['jupyter-nbconvert']))(
 it.skipIf(!findCodeExecutable(['jupyter-nbconvert']))(
   'retains kernel state across runs, interrupts, restarts and shuts down cleanly',
   async () => {
-    const root = mkdtempSync(join(tmpdir(), 'puddle-notebook-kernel-'));
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'puddle-notebook-kernel-')));
     const deps = { sessions: {} as SessionStore, repos: {} as RepoStore };
     const kernels = new NotebookKernels(deps);
     onTestFinished(async () => {
@@ -143,7 +143,15 @@ it.skipIf(!findCodeExecutable(['jupyter-nbconvert']))(
     setCode('counter = globals().get("counter", 0) + 1\nprint(counter)');
     expect((await run()).cells[0].outputs[0].text).toEqual(['1\n']);
     expect((await kernels.status(source)).state).toBe('idle');
+    const initialInventory = kernels.interruptionInventory();
+    expect(initialInventory).toEqual([
+      expect.objectContaining({ path: join(root, source.path), state: 'idle', busy: false }),
+    ]);
     const second = await run();
+    expect(kernels.interruptionInventory()[0]!.instance).toBe(initialInventory[0]!.instance);
+    expect(kernels.interruptionInventory()[0]!.revision).toBeGreaterThan(
+      initialInventory[0]!.revision,
+    );
     expect(second.cells[0].outputs[0].text).toEqual(['2\n']);
     expect(second.cells[0].execution_count).toBe(2);
     setCode('print(globals().get("counter", 0))', 'other.ipynb');
@@ -152,6 +160,9 @@ it.skipIf(!findCodeExecutable(['jupyter-nbconvert']))(
     setCode('while True:\n    pass');
     const running = run().catch((error: unknown) => error);
     await waitFor('busy');
+    expect(kernels.interruptionInventory()).toContainEqual(
+      expect.objectContaining({ path: join(root, source.path), busy: true }),
+    );
     await kernels.action({ source, action: 'interrupt' });
     expect(await running).toBeInstanceOf(Error);
     await waitFor('idle');
@@ -163,11 +174,20 @@ it.skipIf(!findCodeExecutable(['jupyter-nbconvert']))(
     setCode('print(counter)');
     expect((await run()).cells[0].outputs[0].text).toEqual(['2\n']);
 
+    const beforeRestart = kernels
+      .interruptionInventory()
+      .find((item) => item.path === join(root, source.path))!;
     await kernels.action({ source, action: 'restart' });
+    expect(
+      kernels.interruptionInventory().find((item) => item.path === beforeRestart.path)!.revision,
+    ).toBeGreaterThan(beforeRestart.revision);
     setCode('print(globals().get("counter", 0))');
     expect((await run()).cells[0].outputs[0].text).toEqual(['0\n']);
     await kernels.action({ source, action: 'shutdown' });
     expect((await kernels.status(source)).state).toBe('stopped');
+    expect(
+      kernels.interruptionInventory().some((item) => item.path === join(root, source.path)),
+    ).toBe(false);
     expect((await run()).cells[0].outputs[0].text).toEqual(['0\n']);
     setCode('import os\nos._exit(0)');
     await expect(run()).rejects.toThrow();
@@ -185,6 +205,7 @@ it.skipIf(!findCodeExecutable(['jupyter-nbconvert']))(
     const starting = run().catch((error: unknown) => error);
     await waitFor('starting');
     await kernels.dispose();
+    expect(kernels.interruptionInventory()).toEqual([]);
     expect(await starting).toBeInstanceOf(Error);
     expect((await kernels.status(source)).state).toBe('stopped');
   },

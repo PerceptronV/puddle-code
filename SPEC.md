@@ -151,6 +151,11 @@ records or an inventory changed during inspection. Runtime-only default selectio
 checks the current daemon's support without requiring adoption of existing owners.
 This inspection does not authorise dispatch or replace impact, capacity and
 quiescence checks; those coordinator integrations are still in progress.
+The daemon also composes an interruption inventory from its existing PTY, notebook,
+compilation and puddlang managers, including idle kernels and watchers. Runtime-only
+default selection has no interruption impact. Controller-scoped fingerprints and
+execution identities detect replacement work; they do not freeze new admissions
+or authorise interruption. Final quiescence and approval integration remain required.
 
 The [persistent runtimes roadmap](docs/roadmap/persistent-runtimes.md) specifies
 one independent `puddler` process per live runtime and cockpit-managed host

@@ -29,6 +29,11 @@ export class PuddlangService {
     store.reconcile();
   }
 
+  /** Live runners stop on daemon replacement; their independently owned agents do not. */
+  interruptionInventory() {
+    return [...this.active.keys()].map((id) => ({ id }));
+  }
+
   context(profile: string) {
     const owner = this.deps.profiles.get(profile);
     return {

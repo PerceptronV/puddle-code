@@ -61,6 +61,7 @@ describe('CompilationService', () => {
       revision: 1,
       artifacts: [{ file: { path: 'input.demo.out' } }],
     });
+    expect(service.interruptionInventory()).toEqual([]);
     await expect(
       service.run({ source: { ...source, path: 'input.unknown' } }),
     ).rejects.toMatchObject({
@@ -102,6 +103,10 @@ describe('CompilationService', () => {
     };
     await service.setMode({ source, mode: 'eager' });
     expect(runs).toBe(1);
+    const initial = service.interruptionInventory();
+    expect(initial).toEqual([
+      expect.objectContaining({ source, revision: 1, running: false, watching: true }),
+    ]);
 
     // Atomic replacement is what many editors/agents use; watching the parent
     // directory (plus the stat fallback) must see it as a source change.
@@ -109,11 +114,17 @@ describe('CompilationService', () => {
     writeFileSync(replacement, 'two\n');
     renameSync(replacement, sourcePath);
     await waitFor(() => runs === 2);
+    expect(service.interruptionInventory()[0]).toMatchObject({
+      instance: initial[0]!.instance,
+      revision: 2,
+      watching: true,
+    });
     expect(
       events.some((event) => event.type === 'completed' && event.status.mode === 'eager'),
     ).toBe(true);
 
     await service.setMode({ source, mode: 'on_demand' });
+    expect(service.interruptionInventory()).toEqual([]);
     const stoppedAt = runs;
     writeFileSync(sourcePath, 'four\n');
     await new Promise((resolve) => setTimeout(resolve, 1_000));
@@ -151,6 +162,9 @@ describe('CompilationService', () => {
     await service.setMode({ source, mode: 'eager' });
     writeFileSync(sourcePath, 'two\n');
     await waitFor(() => runs === 2);
+    expect(service.interruptionInventory()).toEqual([
+      expect.objectContaining({ running: true, watching: true, revision: 2 }),
+    ]);
     writeFileSync(sourcePath, 'three\n');
     writeFileSync(sourcePath, 'four-and-longer\n');
     // Let both fs.watch and polling callbacks reach the in-flight run.
@@ -201,6 +215,9 @@ describe('CompilationService', () => {
       path: 'input.demo',
     };
     await expect(service.setMode({ source, mode: 'eager' })).rejects.toThrow('source is broken');
+    expect(service.interruptionInventory()).toEqual([
+      expect.objectContaining({ running: false, watching: true }),
+    ]);
     expect(service.status({ source })).toMatchObject({
       mode: 'eager',
       state: 'failed',

@@ -1,4 +1,5 @@
 import { tmpdir } from 'node:os';
+import { randomUUID } from 'node:crypto';
 import { StorageMonitor } from './storage/monitor.js';
 import { createAdaptorServer, upgradeWebSocket, type ServerType } from '@hono/node-server';
 import { WebSocketServer } from 'ws';
@@ -52,6 +53,7 @@ import { SessionService } from './sessions/service.js';
 import { RuntimeStore } from './db/stores/runtimes.js';
 import { hostReleaseCapabilities } from '@puddle/shared';
 import { HostUpdateCompatibility } from './updates/preflight/compatibility.js';
+import { HostUpdateImpact } from './updates/preflight/impact.js';
 import { RuntimeConnections } from './runtime/transport/connections.js';
 import { RuntimeReconciler } from './runtime/controller/reconcile.js';
 import { RuntimeNotifications } from './runtime/controller/notifications.js';
@@ -92,6 +94,7 @@ export interface RunningDaemon {
   paths: ReturnType<typeof resolvePaths>;
   service: SessionService;
   updateCompatibility: HostUpdateCompatibility;
+  updateImpact: HostUpdateImpact;
   stop(): Promise<void>;
 }
 
@@ -524,6 +527,13 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
         current: hostReleaseCapabilities(opts.version ?? '0.0.0'),
         runtimes,
         connections: runtimeConnections,
+      }),
+      updateImpact: new HostUpdateImpact({
+        controller: randomUUID(),
+        ptys,
+        notebooks,
+        compilation,
+        puddlang,
       }),
       async stop() {
         runtimeNotifications.close();
