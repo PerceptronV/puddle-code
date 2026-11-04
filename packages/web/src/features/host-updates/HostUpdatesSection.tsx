@@ -1,17 +1,17 @@
 import { Button } from '../../components/ui/button';
 import { hostLabel, useHostInfo } from '../../lib/queries/queries';
-import { browserTransport } from '../../lib/transport/browser-transport';
 import { ApiError } from '../../lib/transport/api';
 import { SectionTitle, SettingRow } from '../settings/parts';
 import { availableHostUpdates, updateInProgress } from './model';
-import { useHostUpdateAction, useHostUpdates } from './queries';
+import { useHostUpdateAccess, useHostUpdateAction, useHostUpdates } from './queries';
 import { OperationReview } from './OperationReview';
 
 export function HostUpdatesSection() {
   const status = useHostUpdates();
+  const allowed = useHostUpdateAccess();
   const action = useHostUpdateAction();
   const name = hostLabel(useHostInfo().data) ?? 'this host';
-  if (browserTransport()) return null;
+  if (!allowed) return null;
   const data = status.data;
   const catalogue = data?.catalogue;
   const releases = catalogue?.releases;

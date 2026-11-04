@@ -96,6 +96,15 @@ function fixture() {
 }
 
 describe('profile-bound host authority', () => {
+  it('keeps GET and POST host updates outside direct daemon profile HTTP authority', async () => {
+    const f = fixture();
+    // Maintenance claims belong only to a private control socket. Admission still
+    // creates this identical profile lease; no maintenance bit can attach to its
+    // HTTP token, even while that separate socket has a valid host grant.
+    expect((await f.req('/api/host/updates')).status).toBe(403);
+    expect((await f.req('/api/host/updates', 'POST', { action: 'status' })).status).toBe(403);
+    expect(f.dispatch).not.toHaveBeenCalled();
+  });
   it('excludes runtime inspection and restart until the remote surface is explicitly extended', async () => {
     const f = fixture();
     expect((await f.req(`/api/sessions/${f.one.session.id}/runtime`)).status).toBe(403);

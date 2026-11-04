@@ -1,11 +1,14 @@
+import type { HostUpdateReply } from '../api/connection/host-updates.js';
 import {
   cockpitHostUpdateReplySchema,
   type CockpitHostUpdateReply,
-  type HostUpdateReply,
-} from '@puddle/shared';
+} from '../api/connection/cockpit-updates.js';
 
 /** Browser presentation contains no stage receipts, worker identities or private target paths. */
-export function presentHostUpdate(reply: HostUpdateReply): CockpitHostUpdateReply {
+export function presentHostUpdate(
+  reply: HostUpdateReply,
+  options: { redactMessage?: boolean } = {},
+): CockpitHostUpdateReply {
   const source = reply.operation;
   const operation = source
     ? {
@@ -19,7 +22,7 @@ export function presentHostUpdate(reply: HostUpdateReply): CockpitHostUpdateRepl
           source.stages.length === source.targets.length &&
           source.stages.every((stage) => stage.record.checksum_verified),
         dispatched: source.dispatch_id !== null,
-        message: source.message,
+        message: options.redactMessage ? null : source.message,
       }
     : null;
   return cockpitHostUpdateReplySchema.parse(

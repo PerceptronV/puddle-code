@@ -9,12 +9,17 @@ import {
   type ImageUploadRequest,
   wsClientMessageSchema,
   type RemoteMessage,
+  hostMaintenanceCommandSchema,
+  onlineHostUpdateRequestSchema,
+  type HostMaintenanceCommand,
   type WsClientMessage,
 } from '@puddle/shared';
 
 const hex = '[a-f0-9]{10}';
 const uuid = '[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}';
 const routes: ReadonlyArray<readonly [string, RegExp, readonly string[]]> = [
+  ['GET', /^\/api\/host\/updates$/, ['id']],
+  ['POST', /^\/api\/host\/updates$/, []],
   ['POST', /^\/api\/notifications\/(push|test)$/, []],
   ['GET', /^\/api\/(version|host|config|agents|profiles|repos)$/, []],
   ['GET', /^\/api\/accounts$/, ['profile']],
@@ -51,12 +56,16 @@ const routes: ReadonlyArray<readonly [string, RegExp, readonly string[]]> = [
 ];
 
 /** This table is the entire remote HTTP surface. No prefix-based forwarding. */
-export function permittedRequest(message: Extract<RemoteMessage, { t: 'request' }>): {
+export function permittedRequest(
+  message: Extract<RemoteMessage, { t: 'request' }>,
+  maintenanceAllowed = false,
+): {
   method: string;
   path: string;
   body?: string;
   upload?: ImageUploadRequest;
   notification?: PushPreference | 'test';
+  maintenance?: HostMaintenanceCommand;
 } {
   // eslint-disable-next-line no-control-regex -- Reject control characters at the trust boundary.
   if (!message.path.startsWith('/api/') || /[\\#\u0000-\u0020]/.test(message.path))
@@ -75,7 +84,20 @@ export function permittedRequest(message: Extract<RemoteMessage, { t: 'request' 
   let body: unknown;
   let notification: PushPreference | 'test' | undefined;
   let upload: ImageUploadRequest | undefined;
-  if (url.pathname === '/api/notifications/push') {
+  let maintenance: HostMaintenanceCommand | undefined;
+  if (url.pathname === '/api/host/updates') {
+    if (!maintenanceAllowed) throw new Error('Host updates require host-approved device access');
+    if (message.method === 'GET') {
+      if (message.body !== undefined) throw new Error('This operation has no request body');
+      maintenance = hostMaintenanceCommandSchema.parse({
+        action: 'status',
+        ...(url.searchParams.has('id') ? { id: url.searchParams.get('id') } : {}),
+      });
+    } else {
+      maintenance = onlineHostUpdateRequestSchema.parse(message.body);
+      body = maintenance;
+    }
+  } else if (url.pathname === '/api/notifications/push') {
     notification = pushPreferenceSchema.parse(message.body);
     body = notification;
   } else if (url.pathname === '/api/notifications/test') {
@@ -101,6 +123,7 @@ export function permittedRequest(message: Extract<RemoteMessage, { t: 'request' 
     body: encoded,
     ...(upload ? { upload } : {}),
     ...(notification ? { notification } : {}),
+    ...(maintenance ? { maintenance } : {}),
   };
 }
 

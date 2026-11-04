@@ -25,6 +25,7 @@ export async function inspectConnector(
   }
   const result: CockpitRemoteStatus = {
     availability: 'ready',
+    canManageMaintenance: true,
     configured: false,
     enabled: false,
     connected: false,
@@ -46,7 +47,7 @@ export async function inspectConnector(
   if (existsSync(join(directory, 'devices.db'))) {
     const devices = new DeviceStore(directory);
     try {
-      result.devices = devices.list();
+      result.devices = devices.list(config.host);
     } finally {
       devices.close();
     }

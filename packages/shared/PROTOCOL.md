@@ -1,5 +1,36 @@
 # The puddle communication protocol
 
+Application **26.0** and remote **5** introduce explicit host-approved device
+maintenance authority. Existing approved devices receive no maintenance grant.
+Only local/SSH host controls can grant or revoke it; the encrypted remote
+administration union cannot. A grant binds an approved Noise device and host
+registration to a fresh grant identity. Revocation and re-grant cannot revive an
+older participating lease.
+
+The connector derives the private claim from the admitted device and host state.
+The daemon independently reads the enabled registration, device approval, expiry
+and exact grant on admission and maintenance checks. New bounded
+`host-maintenance` private control messages expose status, host-owned preparation,
+inspection, exact interruption approval/application, cancellation and online
+recovery through the existing coordinator. They accept no stage receipts, host
+paths, credentials or caller-selected identity. Ordinary profile HTTP/WS authority
+is unchanged; connector-local `/api/host/updates` bridges to private control, and
+the daemon's profile HTTP allowlist still denies that path. Offline recovery
+continues to require local/SSH authority.
+
+Remote presentation contains aggregate component versions and interruption counts,
+with private stage/worker evidence, blocker paths, operation messages and release
+repository configuration removed. Dedicated manual-participation child channels
+bind cancellation and grant revocation to uncommitted work. Already accepted
+operations survive viewer/connector loss; reconnect only observes them. Combined
+preparation has a bounded five-minute request window while every host installer
+stage retains its two-minute limit; this never extends the participating lease.
+Release offers use the existing per-window state and a bounded remote status poll.
+
+Update daemon, connector, remote service and browser application together across
+the authority boundary. Compatible application release skew remains supported;
+reconnection never upgrades or downgrades the host. Runtime protocol remains 1.0.
+
 Application 25.20 adds optional runtime lifetime presentation (`service`,
 `host_session`, `unknown`) to placement-scoped runtime inspection. Authenticated
 runtime lifetime also gates daemon-update preflight; limited or unknown owners

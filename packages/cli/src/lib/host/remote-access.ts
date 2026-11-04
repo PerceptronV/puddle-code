@@ -19,17 +19,24 @@ export class RemoteAccessControl {
   private async capabilities(): Promise<{
     availability: CockpitRemoteStatus['availability'];
     canDeleteRegistration: boolean;
+    canManageMaintenance: boolean;
   }> {
     const result = await this.transport.exec(
       `if test -f ${hostPaths.current}/daemon/connector.mjs; then ${binary} --version; else exit 44; fi`,
       { timeoutMs: 10_000 },
     );
-    if (result.code === 44) return { availability: 'not_installed', canDeleteRegistration: false };
+    if (result.code === 44)
+      return {
+        availability: 'not_installed',
+        canDeleteRegistration: false,
+        canManageMaintenance: false,
+      };
     if (result.code !== 0)
       throw new Error('Host control is unavailable. Check the host connection.');
     return {
       availability: result.stdout.includes('cockpit controls 2') ? 'ready' : 'upgrade_required',
       canDeleteRegistration: result.stdout.includes('delete registration 1'),
+      canManageMaintenance: result.stdout.includes('maintenance grants 1'),
     };
   }
 
@@ -65,6 +72,8 @@ export class RemoteAccessControl {
       throw new Error('Upgrade the daemon on this host to manage remote access here.');
     if (request.t === 'delete_registration' && !capabilities.canDeleteRegistration)
       throw new Error('Upgrade the daemon on this host to delete its remote registration.');
+    if (request.t === 'maintenance' && !capabilities.canManageMaintenance)
+      throw new Error('Upgrade the daemon on this host to manage browser maintenance permissions.');
     if (!authorised()) throw new Error('Browser authorisation expired before dispatch.');
     const flag =
       request.t === 'enable' ? '--configure' : request.t === 'reset' ? '--reset' : '--admin';

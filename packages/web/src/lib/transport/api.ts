@@ -19,11 +19,16 @@ export class ApiError extends Error {
  * Authenticated JSON request through the cockpit. Only browser rejection
  * clears login; upstream recovery has an independent lifetime.
  */
-export async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
+export async function api<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  signal?: AbortSignal,
+): Promise<T> {
   const token = tokenStore.get();
   const remote = browserTransport();
   const res = remote
-    ? await remote.request(method, path, body)
+    ? await remote.request(method, path, body, signal)
     : await fetch(path, {
         method,
         headers: {
@@ -31,6 +36,7 @@ export async function api<T>(method: string, path: string, body?: unknown): Prom
           ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
         },
         body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal,
       });
   if (res.status === 204) return undefined as T;
   if (!res.ok) {

@@ -75,6 +75,10 @@ export function RemoteAccessSection() {
             status: 'Status refreshed.',
             devices: 'Browsers refreshed.',
             pair: 'Invitation created.',
+            maintenance:
+              request.t === 'maintenance' && request.enabled
+                ? 'Host maintenance allowed for this browser.'
+                : 'Host maintenance revoked for this browser.',
           }[request.t],
         );
         if (
@@ -254,6 +258,7 @@ export function RemoteAccessSection() {
                 now={status.dataUpdatedAt}
                 busy={disabled}
                 act={act}
+                canManageMaintenance={data.canManageMaintenance === true}
               />
               <Disclosure
                 className="text-sm"

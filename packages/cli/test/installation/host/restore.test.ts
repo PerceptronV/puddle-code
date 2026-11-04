@@ -186,7 +186,9 @@ it.each(['legacy', 'older', 'incompatible'] as const)(
     const f = fixture();
     f.state.legacy = kind === 'legacy';
     f.state.capabilities.application =
-      kind === 'incompatible' ? { major: 26, minor: 0 } : { major: 25, minor: 17 };
+      kind === 'incompatible'
+        ? { major: PROTOCOL_VERSION.major + 1, minor: 0 }
+        : { major: 25, minor: 17 };
     expect(await restoreInstalledDaemon(f.transport)).toBe(false);
     f.state.active = true;
     await expect(restoreInstalledDaemon(f.transport)).rejects.toMatchObject({

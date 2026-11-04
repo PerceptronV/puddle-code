@@ -8,8 +8,8 @@ import {
   hostUpdateReviewSchema,
 } from './host-updates.js';
 
-/** Local/SSH cockpit only. Private receipts, commands and executable paths are never inputs. */
-export const cockpitHostUpdateRequestSchema = z.discriminatedUnion('action', [
+/** Bounded online controls shared by cockpits and explicitly authorised maintenance devices. */
+export const onlineHostUpdateRequestSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('prepare'), targets: hostUpdateTargetsSchema }).strict(),
   z.object({ action: z.literal('inspect'), reference: hostUpdateReferenceSchema }).strict(),
   z
@@ -22,14 +22,19 @@ export const cockpitHostUpdateRequestSchema = z.discriminatedUnion('action', [
     .strict(),
   z.object({ action: z.literal('cancel'), reference: hostUpdateReferenceSchema }).strict(),
   z
-    .object({ action: z.literal('continue-offline'), reference: hostUpdateReferenceSchema })
-    .strict(),
-  z
     .object({
       action: z.literal('recover'),
       reference: hostUpdateReferenceSchema,
       strategy: z.enum(['verify-completion', 'continue']),
     })
+    .strict(),
+]);
+
+/** Offline continuation requires the local/SSH cockpit's host authority. */
+export const cockpitHostUpdateRequestSchema = z.discriminatedUnion('action', [
+  ...onlineHostUpdateRequestSchema.options,
+  z
+    .object({ action: z.literal('continue-offline'), reference: hostUpdateReferenceSchema })
     .strict(),
 ]);
 

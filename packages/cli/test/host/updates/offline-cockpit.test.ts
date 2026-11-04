@@ -7,7 +7,7 @@ import { HostConnection } from '../../../src/lib/auth/connection-authority.js';
 import * as controlChannel from '../../../src/lib/auth/control-channel.js';
 import { CockpitHostUpdates } from '../../../src/lib/host/updates/cockpit.js';
 import { LocalTransport } from '../../../src/lib/transport/local.js';
-import { presentHostUpdate } from '../../../src/lib/host/updates/presentation.js';
+import { presentHostUpdate } from '@puddle/shared';
 import { inspectStoredHostUpdate } from '../../../src/lib/host/updates/inspection.js';
 
 const homes: string[] = [];

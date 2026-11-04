@@ -1,7 +1,7 @@
 import { PassThrough } from 'node:stream';
 import { randomUUID } from 'node:crypto';
 import { afterEach, expect, it, vi } from 'vitest';
-import { HostUpdateRequests } from '../src/node/host-updates.js';
+import { HostUpdateRequests } from '../src/node/control/updates.js';
 import { hostUpdateCommandSchema } from '../src/api/connection/host-updates.js';
 import { HostControlClient } from '../src/node/host-control.js';
 

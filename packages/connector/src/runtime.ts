@@ -66,7 +66,7 @@ export async function startConnector(home: string, profile: string) {
       case 'status':
         return { enabled: config.enabled, connected, host: config.host, peer };
       case 'devices':
-        return { devices: devices.list() };
+        return { devices: devices.list(config.host) };
       case 'pair': {
         if (!config.enabled) throw new Error('Remote access is disabled');
         const invitation: RemoteInvitation = {
@@ -83,10 +83,10 @@ export async function startConnector(home: string, profile: string) {
       }
       case 'approve':
         devices.approve(request.id);
-        return { devices: devices.list() };
+        return { devices: devices.list(config.host) };
       case 'revoke':
         devices.revoke(request.id);
-        return { devices: devices.list() };
+        return { devices: devices.list(config.host) };
       case 'disable': {
         config.enabled = false;
         atomicPrivateJson(configPath, config, { syncDirectory: true });
@@ -127,6 +127,17 @@ export async function startConnector(home: string, profile: string) {
             deleteRegistration(directory, devices);
             registrationDeleted = true;
             result = { enabled: false, connected: false };
+          } else if (request.t === 'maintenance') {
+            if (registrationDeleted) throw new Error('Remote registration has been deleted');
+            const stored = connectorConfigSchema.parse(readPrivateJson(configPath));
+            if (
+              stored.host !== config.host ||
+              stored.account !== config.account ||
+              stored.credential !== config.credential
+            )
+              throw new Error('Remote registration has changed');
+            devices.setMaintenance(request.id, request.enabled, config.account, config.host);
+            result = { devices: devices.list(config.host) };
           } else result = admin(request);
         } catch {
           result = { error: 'Remote administrative operation failed or expired' };
@@ -177,6 +188,7 @@ export async function startConnector(home: string, profile: string) {
             home,
             profile,
             account: config.account,
+            host: config.host,
             devices,
             notifications,
             enabled: () => config.enabled && !stopped,

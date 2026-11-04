@@ -6,12 +6,14 @@ import {
   wsServerMessageSchema,
   type RemoteMessage,
   type PushPreference,
+  type RemoteMaintenanceClaim,
 } from '@puddle/shared';
 import { ipcPath, privatePath } from '@puddle/shared/node';
 import { HostControlClient } from '@puddle/shared/node/host-control';
 import type { EncryptedChannel } from '@puddle/remote-transport';
 import { permittedRequest, permittedTerminal } from './policy.js';
 import { ImageUploads, ImageUploadError } from './image-uploads.js';
+import { RemoteMaintenance } from './updates/maintenance.js';
 
 /** The only code which constructs daemon requests. Destinations and credentials are host-owned. */
 export class RemoteUpstream {
@@ -22,6 +24,7 @@ export class RemoteUpstream {
   private readonly requests = new Map<string, AbortController>();
   private readonly used = new Set<string>();
   private readonly uploads = new ImageUploads();
+  private readonly maintenance?: RemoteMaintenance;
   constructor(
     home: string,
     private readonly channel: Pick<EncryptedChannel, 'send'>,
@@ -32,6 +35,7 @@ export class RemoteUpstream {
       update(value: PushPreference, signal: AbortSignal, current: () => boolean): Promise<unknown>;
       test(signal: AbortSignal): Promise<unknown>;
     },
+    maintenanceClaim?: RemoteMaintenanceClaim,
   ) {
     this.authority = new HostControlClient(
       async () => {
@@ -42,19 +46,24 @@ export class RemoteUpstream {
       false,
       undefined,
       profile,
+      maintenanceClaim,
     );
+    if (maintenanceClaim)
+      this.maintenance = new RemoteMaintenance(home, profile, maintenanceClaim, valid);
     this.authority.onChange(() => {
       if (this.authority.state !== 'ready') close();
     });
   }
   participate(ids: string[], at: number): boolean {
-    return this.authority.participate(
+    const renewed = this.authority.participate(
       ids.flatMap((id) => {
         const resource = this.resources.get(id);
         return resource ? [resource.id] : [];
       }),
       at,
     );
+    if (renewed) this.maintenance?.participate(ids, at);
+    return renewed;
   }
   reserve(id: string): void {
     if (this.used.has(id) || this.used.size >= 100_000)
@@ -119,7 +128,7 @@ export class RemoteUpstream {
   }
   async request(message: Extract<RemoteMessage, { t: 'request' }>): Promise<void> {
     this.reserve(message.id);
-    const request = permittedRequest(message);
+    const request = permittedRequest(message, this.supportsMaintenance());
     if (!this.valid() || this.requests.size >= REMOTE_POLICY.requests)
       throw new Error('Request capacity is unavailable');
     const abort = new AbortController();
@@ -129,6 +138,14 @@ export class RemoteUpstream {
     let releaseUpload: (() => void) | undefined;
     try {
       if (!this.valid() || !resource.valid() || abort.signal.aborted) return;
+      if (request.maintenance) {
+        const body = await this.maintenance!.request(message.id, request.maintenance, abort.signal);
+        if (Buffer.byteLength(JSON.stringify(body)) > REMOTE_POLICY.responseBytes)
+          throw new Error('Host update response is too large');
+        if (this.valid() && resource.valid() && !abort.signal.aborted)
+          await this.channel.send({ t: 'response', id: message.id, status: 200, body });
+        return;
+      }
       if (request.notification) {
         if (!this.notifications) throw new Error('Background notifications are unavailable');
         const current = () => this.valid() && resource.valid() && !abort.signal.aborted;
@@ -188,6 +205,8 @@ export class RemoteUpstream {
       }
       if (request.path === '/api/version' && response.ok) {
         const version = versionResponseSchema.parse(body);
+        // Only this connector's admitted device can establish the capability.
+        delete version.remote_host_updates;
         const push =
           this.notifications &&
           (version.protocol.major > 22 ||
@@ -195,6 +214,9 @@ export class RemoteUpstream {
         body = {
           ...version,
           remote_image_uploads: true,
+          ...(this.supportsMaintenance() && version.protocol.major >= 26
+            ? { remote_host_updates: true }
+            : {}),
           ...(push
             ? {
                 remote_notifications: true,
@@ -235,7 +257,13 @@ export class RemoteUpstream {
     this.requests.get(id)?.abort();
     this.requests.delete(id);
   }
+  private supportsMaintenance(): boolean {
+    return (
+      !!this.maintenance && this.valid() && (this.authority.version?.protocol.major ?? 0) >= 26
+    );
+  }
   dispose(): void {
+    this.maintenance?.dispose();
     this.uploads.dispose();
     for (const request of this.requests.values()) request.abort();
     this.requests.clear();

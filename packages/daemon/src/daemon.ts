@@ -62,6 +62,9 @@ import { HostUpdateConnector } from './updates/preflight/connector.js';
 import { HostUpdateInspection } from './updates/preflight/inspection.js';
 import { HostUpdateSupervision } from './updates/preflight/supervision.js';
 import { HostUpdateCoordinator } from './updates/coordinator.js';
+import { RemoteHostUpdates } from './updates/remote/control.js';
+import { stageRemoteHostUpdate } from './updates/remote/staging.js';
+import { remoteMaintenanceAuthority } from './security/remote/maintenance.js';
 import { HostReleaseChecks } from './updates/catalogue/releases.js';
 import { hostUpdateCatalogue } from './updates/catalogue/inventory.js';
 import { daemonUpdatePause } from './updates/maintenance/daemon.js';
@@ -134,6 +137,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   const admission = new HostAdmission();
   const upkeep = new HostBackgroundTasks();
   let updateCoordinator: HostUpdateCoordinator | null = null;
+  let remoteUpdates: RemoteHostUpdates | null = null;
   let announceHostUpdates = () => {};
   let controlInfo: {
     port: number;
@@ -151,6 +155,13 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
           Promise.resolve({ ok: false as const, code: 'unavailable' as const, operation: null }));
         if (command.action !== 'status') announceHostUpdates();
         return result;
+      },
+      {
+        check: (profile, claim) => remoteMaintenanceAuthority(paths.home, profile, claim),
+        execute: (command, authorised) => {
+          if (!remoteUpdates) throw new Error('Host maintenance is unavailable');
+          return remoteUpdates.execute(command, authorised);
+        },
       },
     );
     failedStartup.push(closeControl);
@@ -639,6 +650,22 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       },
     });
     failedStartup.push(() => updateCoordinator?.close());
+    remoteUpdates = new RemoteHostUpdates({
+      version: opts.version ?? '0.0.0',
+      execute: async (command, authorised) => {
+        const result = await updateCoordinator!.execute(command, authorised);
+        if (command.action !== 'status') announceHostUpdates();
+        return result;
+      },
+      stage: (repository, target, authorised) =>
+        stageRemoteHostUpdate(
+          paths.home,
+          dirname(dirname(fileURLToPath(import.meta.url))),
+          repository,
+          target,
+          authorised,
+        ),
+    });
 
     let stopping: Promise<void> | null = null;
     let shutdownUpdate: string | undefined;

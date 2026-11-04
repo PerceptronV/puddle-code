@@ -16,6 +16,7 @@ import { DeviceAccess } from './DeviceAccess';
 import { PhoneWorkspace } from '../mobile/PhoneWorkspace';
 import { watchPushNotifications } from './push-notifications';
 import type { RemoteClient } from './client';
+import { RemoteHostUpdates } from '../host-updates/RemoteHostUpdates';
 
 export function ConnectedHost({
   client,
@@ -109,6 +110,7 @@ export function ConnectedHost({
             <Button variant="ghost" size="icon" aria-label="Settings" onClick={settings}>
               <Settings2 />
             </Button>
+            {admitted && <RemoteHostUpdates hostName={hostName} />}
           </header>
           {!admitted && (
             <div className="flex min-h-0 flex-1 items-center justify-center p-6">

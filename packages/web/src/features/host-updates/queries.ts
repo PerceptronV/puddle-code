@@ -10,28 +10,45 @@ import {
 import {
   cockpitHostUpdateReplySchema,
   cockpitHostUpdateStatusSchema,
+  versionResponseSchema,
   type CockpitHostUpdateRequest,
   type CockpitHostUpdateStatus,
 } from '@puddle/shared';
 import { api, ApiError } from '../../lib/transport/api';
 import { browserTransport } from '../../lib/transport/browser-transport';
 import { wsManager } from '../../lib/transport/ws';
+import { hostUpdateScope, hostUpdateTransport } from './transport';
 
-const key = ['cockpit-host-updates'] as const;
-const mutationKey = ['cockpit-host-update-action'] as const;
-
-function requireLocalCockpit() {
-  if (browserTransport()) throw new Error('Host updates require a local or SSH cockpit.');
+function queryKey() {
+  return ['cockpit-host-updates', hostUpdateScope()] as const;
 }
 
-export function hostUpdateQuery() {
-  return queryOptions({
-    queryKey: key,
-    queryFn: async () => {
-      requireLocalCockpit();
-      return cockpitHostUpdateStatusSchema.parse(await api('GET', '/cockpit/updates'));
+/** Capability comes from the connector's current admitted device, never a browser preference. */
+export function useHostUpdateAccess() {
+  const remote = browserTransport();
+  const access = useQuery({
+    queryKey: ['host-update-access', hostUpdateScope(), remote?.generation],
+    queryFn: async ({ signal }) => {
+      const version = versionResponseSchema.parse(
+        await api('GET', '/api/version', undefined, signal),
+      );
+      return version.protocol.major >= 26 && version.remote_host_updates === true;
     },
-    enabled: !browserTransport(),
+    enabled: !!remote,
+    staleTime: Infinity,
+    retry: false,
+  });
+  return !remote || access.data === true;
+}
+
+export function hostUpdateQuery(allowed = !browserTransport()) {
+  const request = hostUpdateTransport(allowed);
+  return queryOptions({
+    queryKey: queryKey(),
+    queryFn: async ({ signal }) => {
+      return cockpitHostUpdateStatusSchema.parse(await request(undefined, signal));
+    },
+    enabled: allowed,
     retry: false,
     // A single shared query serves Settings and offers; these are host reads, not GitHub polls.
     staleTime: 5000,
@@ -46,15 +63,16 @@ export function hostUpdateQuery() {
   });
 }
 
-export function hostUpdateMutation(client: QueryClient) {
+export function hostUpdateMutation(client: QueryClient, allowed = !browserTransport()) {
+  const key = queryKey();
+  const requestUpdate = hostUpdateTransport(allowed);
   return {
-    mutationKey,
+    mutationKey: ['cockpit-host-update-action', hostUpdateScope()],
     // Never inherit an application's mutation retries or queue writes for later reconnect.
     retry: false as const,
     networkMode: 'always' as const,
     mutationFn: async (request: CockpitHostUpdateRequest) => {
-      requireLocalCockpit();
-      return cockpitHostUpdateReplySchema.parse(await api('POST', '/cockpit/updates', request));
+      return cockpitHostUpdateReplySchema.parse(await requestUpdate(request));
     },
     onMutate: async () => {
       await client.cancelQueries({ queryKey: key });
@@ -72,13 +90,16 @@ export function hostUpdateMutation(client: QueryClient) {
 }
 
 export function useHostUpdates() {
-  return useQuery(hostUpdateQuery());
+  return useQuery(hostUpdateQuery(useHostUpdateAccess()));
 }
 
 export function useHostUpdateAction() {
   const client = useQueryClient();
+  const allowed = useHostUpdateAccess();
+  const mutationKey = ['cockpit-host-update-action', hostUpdateScope()];
   const pending = useIsMutating({ mutationKey });
-  const mutation = useMutation(hostUpdateMutation(client));
+  // Settings may remount while a request runs. The transport owns its browser/host lifetime.
+  const mutation = useMutation(hostUpdateMutation(client, allowed));
   return {
     ...mutation,
     busy: pending > 0,
@@ -92,8 +113,9 @@ export function useHostUpdateAction() {
 /** Mounted once with the window's offer component. Reconnection only refreshes status. */
 export function useHostUpdateEvents() {
   const client = useQueryClient();
+  const scope = hostUpdateScope();
   useEffect(() => {
-    if (browserTransport()) return;
+    const key = ['cockpit-host-updates', scope];
     const refresh = () => {
       void client.invalidateQueries({ queryKey: key });
     };
@@ -105,5 +127,5 @@ export function useHostUpdateEvents() {
       changed();
       connected();
     };
-  }, [client]);
+  }, [client, scope]);
 }

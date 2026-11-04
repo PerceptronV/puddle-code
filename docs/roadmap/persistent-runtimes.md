@@ -26,6 +26,11 @@ Cockpit status now reads and labels recorded operations while the daemon is unav
 Explicit offline continuation now uses a participating trusted helper and pinned
 recovery dispatcher. Legacy cockpit transition, remaining failure recovery and
 complete packaged upgrade acceptance remain unfinished.
+Application 26.0 and remote 5 now add explicitly host-approved browser maintenance,
+with independent daemon grant checks and the same host update coordinator. Remote
+windows share preparation, interruption review, application, recovery and release
+offers; ordinary pairing grants no maintenance. Full encrypted daemon/connector
+replacement acceptance remains in progress.
 Public local/SSH removal now coordinates remote disablement, service teardown and
 reviewed runtime retention/stops; deliberate install restores retained service definitions.
 Durable reference-aware collection is implemented internally; public scheduling and
@@ -49,6 +54,22 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 [acceptance matrix](#acceptance-matrix) for the release gates.
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
+
+- Application 26.0/remote 5 adds exact approved-device maintenance grants, initially
+  absent for existing paired browsers. Local/SSH controls manage the grant; the
+  connector derives its claim from Noise admission and the daemon independently
+  rechecks registration, device approval, expiry and grant identity. Revocation
+  permanently invalidates that participating control lease. Bounded connector
+  requests use dedicated manual private channels; direct profile HTTP remains
+  denied. Host preparation and public presentation now reuse extracted CLI logic,
+  the canonical installer and existing coordinator, retaining exact interruption
+  consent and online recovery while redacting private evidence. Remote windows
+  use the shared controls and host-scoped offers with 60-second idle polling.
+  The full relay/connector/Noise suite passed 115 tests, and 99 focused protocol,
+  cockpit, preparation/removal/recovery tests passed. Separate authority and
+  coordinator tests cover cancellation/revocation and lost replies. These do not
+  yet establish full encrypted replacement of a running daemon and connector;
+  that process fixture and real-provider/platform acceptance remain required.
 
 - Historical schema-28 migration is now exercised through the canonical daemon-only
   installer and default runtime backend. The fixture reuses the exact v0.3.14

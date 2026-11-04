@@ -3,14 +3,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { RemoteAccessControl } from '../../src/lib/host/remote-access.js';
 import type { ExecOptions, Transport } from '../../src/lib/transport/transport.js';
 
-function fixture() {
+function fixture(kind: 'local' | 'ssh' = 'ssh') {
   const exec = vi.fn(async (_command: string, _options?: ExecOptions) => ({
     code: 0,
     stdout: 'cockpit controls 2',
     stderr: '',
   }));
   const transport: Transport = {
-    kind: 'ssh',
+    kind,
     label: 'owner@example.test',
     exec,
     readFile: async () => null,
@@ -21,6 +21,58 @@ function fixture() {
 }
 
 describe('desktop remote control boundary', () => {
+  it.each(['local', 'ssh'] as const)(
+    'gates host maintenance on the %s connector capability and current browser authority',
+    async (kind) => {
+      const { exec, control } = fixture(kind);
+      const request = { t: 'maintenance', id: crypto.randomUUID(), enabled: true } as const;
+      await expect(control.request(request, () => true, profile)).rejects.toThrow(
+        'Upgrade the daemon',
+      );
+      expect(exec).toHaveBeenCalledTimes(1);
+      exec.mockResolvedValue({
+        code: 0,
+        stdout: 'cockpit controls 2; maintenance grants 1',
+        stderr: '',
+      });
+      await expect(control.request(request, () => false, profile)).rejects.toThrow(
+        'expired before dispatch',
+      );
+      expect(exec).toHaveBeenCalledTimes(2);
+      exec.mockResolvedValueOnce({
+        code: 0,
+        stdout: 'cockpit controls 2; maintenance grants 1',
+        stderr: '',
+      });
+      exec.mockResolvedValueOnce({ code: 0, stdout: '{"devices":[]}', stderr: '' });
+      await control.request(request, () => true, profile);
+      const [command, options] = exec.mock.calls.at(-1)!;
+      expect(command).toMatch(/--admin$/);
+      expect(command).not.toContain(request.id);
+      expect(JSON.parse(options!.stdin!)).toEqual({ profile, request });
+    },
+  );
+
+  it('reports maintenance management only when the selected host connector advertises it', async () => {
+    const { exec, control } = fixture();
+    const status = {
+      availability: 'ready',
+      configured: false,
+      enabled: false,
+      connected: false,
+      supervisor: null,
+      devices: [],
+    };
+    for (const supported of [false, true]) {
+      exec.mockResolvedValueOnce({
+        code: 0,
+        stdout: `cockpit controls 2${supported ? '; maintenance grants 1' : ''}`,
+        stderr: '',
+      });
+      exec.mockResolvedValueOnce({ code: 0, stdout: JSON.stringify(status), stderr: '' });
+      expect((await control.status(profile)).canManageMaintenance).toBe(supported);
+    }
+  });
   it('gates deletion by host capability and rechecks browser authority', async () => {
     const { exec, control } = fixture();
     await expect(

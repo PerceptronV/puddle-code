@@ -16,10 +16,11 @@ import { DeviceStore } from '../src/devices.js';
 it('disables and revokes offline; identity recovery cannot be invoked remotely', async () => {
   const home = mkdtempSync(join(tmpdir(), 'puddle-offline-recovery-'));
   const directory = join(home, 'remote', 'profiles', profile);
+  const host = crypto.randomUUID();
   try {
     atomicPrivateJson(join(directory, 'config.json'), {
       enabled: true,
-      host: crypto.randomUUID(),
+      host,
       account: 'owner',
       credential: 'a'.repeat(64),
       service: 'https://relay.example.test',
@@ -35,6 +36,7 @@ it('disables and revokes offline; identity recovery cannot be invoked remotely',
       'Phone',
     );
     devices.approve(device.id);
+    devices.setMaintenance(device.id, true, 'owner', host);
     const unused = devices.invite();
     devices.close();
     await administrativeRequest(home, { t: 'disable' }, profile);
@@ -51,6 +53,7 @@ it('disables and revokes offline; identity recovery cannot be invoked remotely',
     ).not.toBe(identityPeer(identity));
     devices = new DeviceStore(directory);
     expect(devices.valid(device.id, device.peer, 'owner')).toBe(false);
+    expect(devices.maintenanceClaim(device.id, device.peer, 'owner', host)).toBeNull();
     expect(() =>
       devices.enrol(unused.invitation, device.peer, 'owner', 'Old invitation'),
     ).toThrow();
@@ -105,6 +108,7 @@ it('requires fresh device approval after registering the host in a new service c
   const home = mkdtempSync(join(tmpdir(), 'puddle-reregister-'));
   const directory = join(home, 'remote', 'profiles', profile);
   const devices = new DeviceStore(directory);
+  const host = crypto.randomUUID();
   vi.stubGlobal(
     'fetch',
     vi.fn(async () =>
@@ -119,6 +123,7 @@ it('requires fresh device approval after registering the host in a new service c
     const peer = identityPeer(await createIdentity());
     const device = devices.enrol(devices.invite().invitation, peer, 'owner', 'Phone');
     devices.approve(device.id);
+    devices.setMaintenance(device.id, true, 'owner', host);
     const unused = devices.invite();
     await configureConnector(
       home,
@@ -131,6 +136,7 @@ it('requires fresh device approval after registering the host in a new service c
       profile,
     );
     expect(devices.valid(device.id, peer, 'owner')).toBe(false);
+    expect(devices.maintenanceClaim(device.id, peer, 'owner', host)).toBeNull();
     expect(() => devices.enrol(unused.invitation, peer, 'owner', 'Old invitation')).toThrow();
   } finally {
     vi.unstubAllGlobals();

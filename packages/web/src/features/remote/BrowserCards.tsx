@@ -8,6 +8,7 @@ type BrowserActions = {
   busy: boolean;
   approve(id: string): void;
   revoke(id: string): void;
+  maintenance?(id: string, enabled: boolean): void;
 };
 
 /** The same compact account-style cards in desktop settings and remote access. */
@@ -51,6 +52,7 @@ function BrowserCard({
   busy,
   approve,
   revoke,
+  maintenance,
 }: BrowserActions & {
   device: RemoteDevice;
   now: number;
@@ -125,6 +127,18 @@ function BrowserCard({
         </Button>
       </div>
       {pending && details}
+      {!pending && !expired && maintenance && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-2"
+          disabled={busy}
+          onClick={() => maintenance(device.id, !device.maintenance)}
+          aria-label={`${device.maintenance ? 'Revoke' : 'Allow'} host maintenance for ${device.label}`}
+        >
+          {device.maintenance ? 'Revoke host maintenance' : 'Allow host maintenance'}
+        </Button>
+      )}
     </article>
   );
 }

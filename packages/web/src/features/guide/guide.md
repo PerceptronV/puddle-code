@@ -4,6 +4,7 @@
 
 - [CLI installation](#cli-installation)
 - [Installing and managing Puddle components](#installing-and-managing-puddle-components)
+- [Updating a host from a paired browser](#updating-a-host-from-a-paired-browser)
 - [What are the CLI, daemon and desktop app?](#what-are-the-cli-daemon-and-desktop-app)
 - [How do I remove the CLI?](#how-do-i-remove-the-cli)
 - [Pedantic details](#pedantic-details)
@@ -96,7 +97,7 @@ For example:
   puddle remove daemon user@host
   ```
 
-  Omit `user@host` to manage the local daemon. Upgrade and removal restart or stop the daemon, interrupting its live processes. Removal asks for confirmation and keeps host data by default; only agree to the separate data-deletion prompt, or use `--purge`, if you want to delete it too.
+  Omit `user@host` to manage the local daemon. Upgrade and removal restart or stop the daemon. Independent runtimes can keep running; review any separately listed daemon-owned work before agreeing to interruption. Removal asks for confirmation and keeps host data by default; only agree to the separate data-deletion prompt, or use `--purge`, if you want to delete it too.
 
 - In order to remove the desktop app on macOS, quit it and run:
 
@@ -125,7 +126,9 @@ For example:
 
   On supporting hosts, `puddle install daemon user@host` also restores a recorded, completed service removal using its retained release and configuration. An unfinished removal must be resolved first. Repeating install observes a completed restoration and reconnects without restarting an already-running daemon.
 
-  On persistent-runtime hosts, `puddle remove daemon user@host` disables remote access and stops daemon-owned work, then offers a choice to retain or stop independent runtimes. `--yes` retains them by default; add `--stop-runtimes` to explicitly stop the reviewed runtimes and their shell jobs. Data and pinned releases remain for reinstallation. Coordinated `--purge` is still being implemented and currently refuses before making changes.
+  On persistent-runtime hosts, `puddle remove daemon user@host` disables remote access and stops daemon-owned work, then offers a choice to retain or stop independent runtimes. `--yes` retains them by default; add `--stop-runtimes` to explicitly stop the reviewed runtimes and their shell jobs. Data and pinned releases remain for reinstallation.
+
+  `--purge` separately requests deletion of managed host data and requires runtime-stop consent (`--yes --purge --stop-runtimes` for non-interactive use). After removal, reboot the target and rerun the explicit purge command. Puddle checks for uncommitted or unpushed work before deleting the reviewed data in resumable batches. Permanent installation locks, pinned recovery software and private service recovery records remain. After an interrupted reply, inspect the result before continuing; ordinary removal and upgrades do not require a reboot.
 
   If a connection is lost, inspect the printed operation id with `puddle updates user@host --operation <id>`. To abandon a preparation before dispatch, add `--cancel` with that complete id. An accepted update cannot be cancelled or replayed. A `recovery_required` result remains visible for inspection; it is not reported as a successful installation.
 
@@ -139,11 +142,40 @@ For example:
 
 `install` keeps an existing installation unless you name a version. `upgrade` selects the newest release or the named version; explicit daemon upgrades and macOS desktop upgrades also install a missing component. For example, `puddle upgrade cli@X.Y.Z` selects a published CLI version, including an older one. Keep CLI and daemon protocol versions compatible when pinning versions.
 
+## Updating a host from a paired browser
+
+Remote host updates require application protocol 26.0 and remote protocol 5.
+Upgrade the target daemon/connector, cockpit and deployed service/application
+through local/SSH access first. Existing per-profile browser approvals are kept,
+but pairing alone never grants maintenance access.
+
+In a local or SSH cockpit for that host, open **Settings → Remote & Sync →
+Connected browsers**, expand the exact approved browser and choose **Allow host
+maintenance**. Reconnect that browser. Only local/SSH access can grant or revoke
+maintenance; a paired browser cannot grant it to itself or another device.
+
+In the remote workspace, open **Host updates**, or choose **Review update** when
+an available-release offer appears. Each new window can offer updates; idle
+windows refresh host status every 60 seconds. Choose **Prepare daemon**,
+**Prepare runtime software** or **Prepare both**, then **Review impact** and apply.
+The review covers aggregate impact across every profile on this host. Stopping
+daemon-owned work requires the separate **Interrupt listed work and apply** action.
+Updating the runtime default never restarts existing agents or their shell jobs.
+Session runtime inspection and restart remain available through local/SSH cockpits.
+
+Keep the window connected until the host accepts the request. Revoking maintenance
+blocks unaccepted work; an accepted update continues independently. After a lost
+response or reconnect, inspect status before taking another action. Nothing is
+automatically reapplied. **Verify completion** and **Continue recovery** are
+explicit online actions. If the daemon or connector stays offline, use local/SSH
+recovery; the remote browser cannot perform offline continuation.
+
 ## What are the CLI, daemon and desktop app?
 
 - **CLI (`puddle`):** the frontend. It installs and manages Puddle components, opens the browser UI, and launches connections to local or SSH hosts.
 - **Desktop app:** provides the same workspace UI in a native application window, with local and SSH connections. Component-management commands live in the CLI.
-- **Daemon (`puddled`):** the backend. It runs on the host machine, communicates with the CLI/desktop frontends, owns live terminal and agent processes, and saves session state and Git worktrees on disk. Saved state survives restarts; live processes do not.
+- **Daemon (`puddled`):** the backend. It runs on the host machine, communicates with the frontends, and manages session state and Git worktrees.
+- **Runtime (`puddler`):** an independent owner for each runtime's agent and terminal processes. From 0.4.0, this is the standard backend. Independently supervised runtimes keep running across daemon upgrades; changing their runtime build requires a separate explicit restart.
 
 The daemon and desktop can run standalone without the CLI, but the CLI makes it easy to manage upgrades and installations.
 

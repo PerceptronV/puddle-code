@@ -8,6 +8,9 @@ import {
   notificationPreviewKeySchema,
   type NotificationPreviewKey,
   type RemoteDevice,
+  type RemoteMaintenanceClaim,
+  remoteIdSchema,
+  remoteMaintenanceClaimSchema,
 } from '@puddle/shared';
 import { digest, privateDirectory, privatePath, secret } from '@puddle/shared/node';
 
@@ -27,7 +30,7 @@ export class DeviceStore {
     const file = join(directory, 'devices.db');
     if (existsSync(file)) privatePath(file);
     this.db = new Database(file);
-    if (Number(this.db.pragma('user_version', { simple: true })) > 3) {
+    if (Number(this.db.pragma('user_version', { simple: true })) > 4) {
       this.db.close();
       throw new Error('Remote state requires a newer Puddle version');
     }
@@ -45,7 +48,10 @@ export class DeviceStore {
       );
       CREATE TABLE IF NOT EXISTS notification_devices(device TEXT PRIMARY KEY REFERENCES devices(id));
       CREATE TABLE IF NOT EXISTS notification_keys(device TEXT PRIMARY KEY REFERENCES devices(id), value TEXT NOT NULL);
-      PRAGMA user_version = 3;
+      CREATE TABLE IF NOT EXISTS maintenance_grants(
+        device TEXT PRIMARY KEY REFERENCES devices(id), host TEXT NOT NULL, grant TEXT NOT NULL UNIQUE
+      );
+      PRAGMA user_version = 4;
     `);
   }
   invite(): { invitation: string; expires: number } {
@@ -87,11 +93,58 @@ export class DeviceStore {
       return device;
     })();
   }
-  list(): RemoteDevice[] {
+  list(host?: string): RemoteDevice[] {
     return this.db
-      .prepare('SELECT * FROM devices ORDER BY created DESC')
-      .all()
-      .map((row) => remoteDeviceSchema.parse(row));
+      .prepare(
+        `SELECT d.*, CASE WHEN g.device IS NOT NULL AND d.status = 'approved'
+        AND d.expires > ? AND d.lastUsed + ? > ? AND (? IS NULL OR g.host = ?)
+        THEN 1 ELSE 0 END AS maintenance
+        FROM devices d LEFT JOIN maintenance_grants g ON g.device = d.id ORDER BY d.created DESC`,
+      )
+      .all(this.now(), REMOTE_POLICY.idleMs, this.now(), host ?? null, host ?? null)
+      .map((row) => {
+        const value = row as Record<string, unknown>;
+        return remoteDeviceSchema.parse({ ...value, maintenance: value.maintenance === 1 });
+      });
+  }
+  /** Only the local/SSH administrative channel may call this method. */
+  setMaintenance(id: string, enabled: boolean, account: string, host: string): void {
+    remoteIdSchema.parse(host);
+    const changed = this.db.transaction(() => {
+      if (!enabled)
+        return (
+          this.db.prepare('DELETE FROM maintenance_grants WHERE device = ?').run(id).changes > 0
+        );
+      const row = this.db.prepare('SELECT * FROM devices WHERE id = ?').get(id);
+      const device = remoteDeviceSchema.safeParse(row);
+      if (!device.success || !this.valid(id, device.data.peer, account))
+        throw new Error('Maintenance requires a currently approved browser for this registration');
+      const current = this.db
+        .prepare('SELECT host FROM maintenance_grants WHERE device = ?')
+        .get(id) as { host: string } | undefined;
+      if (current?.host === host) return false;
+      this.db
+        .prepare(
+          'INSERT INTO maintenance_grants(device,host,grant) VALUES (?,?,?) ON CONFLICT(device) DO UPDATE SET host=excluded.host, grant=excluded.grant',
+        )
+        .run(id, host, randomUUID());
+      return true;
+    })();
+    if (changed) for (const listener of this.listeners) listener();
+  }
+  maintenanceClaim(
+    id: string,
+    peer: string,
+    account: string,
+    host: string,
+  ): RemoteMaintenanceClaim | null {
+    if (!this.valid(id, peer, account)) return null;
+    const row = this.db
+      .prepare('SELECT grant FROM maintenance_grants WHERE device = ? AND host = ?')
+      .get(id, host) as { grant: string } | undefined;
+    return row
+      ? remoteMaintenanceClaimSchema.parse({ device: id, peer, account, host, grant: row.grant })
+      : null;
   }
   find(peer: string, account: string): RemoteDevice | undefined {
     return this.list().find(
@@ -158,6 +211,11 @@ export class DeviceStore {
         throw new Error('Pairing request has expired');
       this.db
         .prepare(
+          'DELETE FROM maintenance_grants WHERE device IN (SELECT id FROM devices WHERE peer = ? AND account = ?)',
+        )
+        .run(device.data.peer, device.data.account);
+      this.db
+        .prepare(
           "UPDATE devices SET status = 'revoked' WHERE peer = ? AND account = ? AND status = 'approved'",
         )
         .run(device.data.peer, device.data.account);
@@ -171,6 +229,7 @@ export class DeviceStore {
     for (const listener of this.listeners) listener();
   }
   revoke(id: string): void {
+    this.db.prepare('DELETE FROM maintenance_grants WHERE device = ?').run(id);
     this.setNotifications(id, false);
     this.db.prepare("UPDATE devices SET status = 'revoked' WHERE id = ?").run(id);
     for (const listener of this.listeners) listener();
@@ -178,6 +237,7 @@ export class DeviceStore {
   revokeAll(): void {
     this.db.transaction(() => {
       this.db.prepare('DELETE FROM notification_keys').run();
+      this.db.prepare('DELETE FROM maintenance_grants').run();
       this.db.prepare('DELETE FROM notification_devices').run();
       this.db.prepare("UPDATE devices SET status = 'revoked'").run();
       this.db.prepare('DELETE FROM invitations').run();

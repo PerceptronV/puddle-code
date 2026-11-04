@@ -415,7 +415,7 @@ Discovery never stages, changes a pin, activates or restarts anything. Cockpit
 preparation obtains its repository through private host status and reuses the normal
 installer; the browser cannot provide a repository or tarball. Host-wide status
 subscribers receive `host-updates-changed` after discovery changes and update controls;
-profile-scoped viewers receive neither the event nor private catalogue access. CLI,
+ordinary profile-scoped viewers receive neither the event nor private catalogue access. CLI,
 desktop and host share latest-release parsing and stable version comparison. Offline
 cockpit recovery and full packaged acceptance remain unfinished. Remote 4 and runtime
 1.0 are unchanged.
@@ -429,7 +429,27 @@ and shell offers. Host invalidations/reconnection refresh reads only; mutations 
 retry nor wait in an offline queue. Each window offers each host/component/release once,
 retaining dismissal across React remounts and reconnects. Offers open Host settings and
 never activate software. Compatible cockpit/daemon release skew remains supported.
-These controls are local/SSH-only until explicit remote maintenance authority is delivered.
+Remote browsers require an explicit host-approved maintenance grant, separate
+from pairing. Application 26.0/remote 5 carries the exact admitted Noise device,
+host registration and grant identity on a manually participating private control
+lease. The daemon independently checks private host state on admission and every
+maintenance authority check; revocation invalidates that lease permanently.
+Local/SSH Settings grants or revokes this permission. Existing paired devices
+receive none, and remote administration cannot grant it to itself.
+
+The connector's bounded `/api/host/updates` bridge uses private host control,
+avoiding a request waiting on its own API admission pause. Ordinary profile HTTP
+and WebSocket permissions remain unchanged, including direct HTTP denial of that
+path. Host-owned preparation reuses the canonical installer and winning-caller
+staging sequence; inspection, interruption approval, activation and online recovery
+reuse the coordinator. Browser input contains no executable path, repository,
+stage receipt or identity. Remote results remove private evidence, blocker paths,
+free-form operation messages and repository configuration, retaining aggregate
+component versions and interruption counts. Offline continuation remains local/SSH.
+Dedicated child control channels close on cancellation, parent loss or revocation;
+only explicit browser participation renews them. Accepted updates survive connection
+loss and reconnect is observation-only. Remote windows poll status every 60 seconds
+and on reconnect/open for release offers; local windows retain host invalidations.
 Their feature gates compare the fixed introduction version separately from the
 current application major, so resetting the minor in a later compatible major
 does not hide existing controls. Unknown or incompatible hosts remain refused.

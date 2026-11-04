@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { PROTOCOL_VERSION } from '@puddle/shared';
 import { HostConnection } from '../../../src/lib/auth/connection-authority.js';
 import { cockpitUpdatesFixture } from '../../helpers/cockpit-updates.js';
-import { presentHostUpdate } from '../../../src/lib/host/updates/presentation.js';
+import { presentHostUpdate } from '@puddle/shared';
 
 const stage = vi.hoisted(() => vi.fn());
 vi.mock('../../../src/lib/installation/host/staging.js', () => ({ stageHostComponent: stage }));
@@ -229,30 +229,20 @@ it('observes a committed update after a lost apply reply without another dispatc
   expect(f.dispatch).toHaveBeenCalledOnce();
 });
 
-it.each([6, 7, 10, 11, 12, 13])(
-  'capability-detects host application 25.%i without requiring release equality',
+it.each([0, 1, 20])(
+  'retains existing maintenance controls at current-major minor %i without release equality',
   async (minor) => {
     const f = await cockpitUpdatesFixture('local', minor);
     const status = await f.control.status(undefined, () => true, f.signal.signal);
-    expect(status.availability).toBe(minor < 7 ? 'upgrade_required' : 'ready');
+    expect(status.availability).toBe('ready');
     expect(status.capabilities).toEqual({
-      interruption_approval: minor >= 10,
-      verify_completion: minor >= 11,
-      continue_recovery: minor >= 12,
+      interruption_approval: true,
+      verify_completion: true,
+      continue_recovery: true,
     });
-    expect(f.commands).toEqual(
-      minor < 7 ? [] : [{ action: 'status', ...(minor >= 12 ? { include_recovery: true } : {}) }],
-    );
-    if (minor < 12) {
-      await expect(
-        f.request({
-          action: 'recover',
-          strategy: 'continue',
-          reference: { id: f.operation.id, revision: 1 },
-        }),
-      ).rejects.toThrow();
-      expect(f.commands.every(({ action }) => action === 'status')).toBe(true);
-    }
+    expect(f.commands).toEqual([
+      { action: 'status', include_recovery: true, include_catalogue: true },
+    ]);
   },
 );
 

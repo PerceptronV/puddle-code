@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Add explicit host-approved remote-browser maintenance grants, separate from ordinary pairing. Approved devices can review and apply host daemon/runtime updates through the existing coordinator, with independent daemon permission checks and aggregate status. Application protocol 26.0 and remote protocol 5 require matching protocol generations across clients, daemon, connector and relay; runtime protocol remains 1.0.
+
 - Record immutable release receipts during ordinary bootstrap using the existing staging verifier. Verify, extract and hash one private archive snapshot, preserve prior receipts on reuse, and retain completed release evidence after publication failures so verified unreferenced builds can later be collected safely.
 
 - Reduce steady terminal-agent polling to one scoped process scan per runtime by caching its verified TTY. Keep the detection cadence and background-child exit handling; invalidate the cache on terminal replacement, failed inspection or shutdown.

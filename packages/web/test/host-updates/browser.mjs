@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 
 // Manual browser acceptance after pnpm build; no daemon, agent or installed service is started.
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
+const remote = process.argv.includes('--remote');
 const { build } = await import(pathToFileURL(join(root, 'node_modules/esbuild/lib/main.js')));
 const { chromium, expect } = await import(
   pathToFileURL(join(root, 'packages/web/node_modules/@playwright/test/index.mjs'))
@@ -23,15 +24,26 @@ await build({
     import { Toaster } from 'sonner';
     import { HostUpdatesSection } from './src/features/host-updates/HostUpdatesSection';
     import { HostUpdateToast } from './src/features/host-updates/HostUpdateToast';
+    import { RemoteHostUpdates } from './src/features/host-updates/RemoteHostUpdates';
+    import { installBrowserTransport } from './src/lib/transport/browser-transport';
     import { tokenStore } from './src/lib/transport/auth';
     tokenStore.set('fixture-browser-authority');
     const client = new QueryClient();
+    if (${remote}) installBrowserTransport({
+      scope: 'fixture-remote-host', generation: 'fixture-admission',
+      request: (method, path, body, signal) => fetch(path, {
+        method, body: body === undefined ? undefined : JSON.stringify(body), signal,
+      }),
+      socket: () => new WebSocket(location.origin.replace('http', 'ws') + '/ws'),
+      input: async () => {},
+    });
     function App() {
       const [open, setOpen] = useState(true);
       return <QueryClientProvider client={client}>
+        {${remote} ? <RemoteHostUpdates hostName="fixture-host" /> : <>
         <button onClick={() => setOpen(!open)}>Toggle settings</button>
         <main className="mx-auto max-w-2xl p-6">{open && <HostUpdatesSection />}</main>
-        <HostUpdateToast /><Toaster closeButton />
+        <HostUpdateToast /></>}<Toaster closeButton />
       </QueryClientProvider>;
     }
     createRoot(document.getElementById('root')).render(<App />);`,
@@ -71,6 +83,16 @@ const server = createServer((req, res) => {
   if (req.url === '/api/host') {
     res.setHeader('content-type', 'application/json');
     return res.end(JSON.stringify({ hostname: 'fixture-host', displayName: '' }));
+  }
+  if (req.url === '/api/version') {
+    res.setHeader('content-type', 'application/json');
+    return res.end(
+      JSON.stringify({
+        version: '0.4.0',
+        protocol: { major: 26, minor: 0 },
+        remote_host_updates: remote,
+      }),
+    );
   }
   res.setHeader('content-type', 'text/html');
   res.end(
@@ -118,11 +140,13 @@ try {
   const sockets = [];
   await context.routeWebSocket('**/ws', (ws) => {
     sockets.push(ws);
+    if (remote) ws.send(JSON.stringify({ t: 'authenticated' }));
     ws.onMessage((message) => {
       if (JSON.parse(message).t === 'auth') ws.send(JSON.stringify({ t: 'authenticated' }));
     });
   });
-  await context.route('**/cockpit/updates', async (route) => {
+  if (remote) status.catalogue.releases.repository = null;
+  await context.route(remote ? '**/api/host/updates' : '**/cockpit/updates', async (route) => {
     const request = route.request();
     if (request.method() === 'GET') return route.fulfill({ json: status });
     const input = request.postDataJSON();
@@ -168,6 +192,11 @@ try {
       status.result.operation.revision++;
       status.result.operation.dispatched = true;
       return route.abort('connectionreset');
+    } else if (input.action === 'recover' && remote) {
+      assert.equal(input.strategy, 'continue');
+      status.result.operation.phase = 'verifying';
+      status.result.operation.revision++;
+      return route.abort('connectionreset');
     } else if (input.action === 'continue-offline') {
       assert.equal(status.availability, 'unavailable');
       assert.equal(input.reference.revision, status.result.operation.revision);
@@ -193,12 +222,18 @@ try {
   await expect(page.locator('[data-sonner-toast]')).toHaveCount(1);
   await closes.first().click();
   await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
+  if (remote) await page.getByRole('button', { name: 'Host updates', exact: true }).click();
   await page.getByRole('button', { name: 'Refresh status', exact: true }).click();
   await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Prepare daemon 0.4.1', exact: true }).click();
   await expect(page.getByText('Preparing update…', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Toggle settings' }).click();
-  await page.getByRole('button', { name: 'Toggle settings' }).click();
+  if (remote) {
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.getByRole('button', { name: 'Host updates', exact: true }).click();
+  } else {
+    await page.getByRole('button', { name: 'Toggle settings' }).click();
+    await page.getByRole('button', { name: 'Toggle settings' }).click();
+  }
   await expect(page.getByRole('button', { name: 'Prepare both', exact: true })).toBeDisabled();
   releasePreparation();
   await expect(page.getByRole('button', { name: 'Review impact', exact: true })).toBeEnabled();
@@ -215,45 +250,62 @@ try {
   ).toHaveCount(0);
   assert.equal(writes.filter((input) => input.action === 'apply').length, 1);
   assert.equal(writes.at(-1).interruption_approval, 'b'.repeat(64));
-  status.availability = 'unavailable';
-  status.observation = 'recorded';
-  status.capabilities = {
-    interruption_approval: false,
-    verify_completion: false,
-    continue_recovery: false,
-  };
-  const catalogue = status.catalogue;
-  delete status.catalogue;
-  await page.getByRole('button', { name: 'Refresh status', exact: true }).click();
-  await expect(page.getByText('Recorded status: Applying update', { exact: true })).toBeVisible();
-  await expect(page.getByText('Last connected version: 0.4.0', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Verify completion', exact: true })).toHaveCount(0);
-  status.result.operation.phase = 'recovery_required';
-  status.capabilities.offline_continuation = true;
-  await page.getByRole('button', { name: 'Refresh status', exact: true }).click();
-  await expect(
-    page.getByRole('button', { name: 'Continue recovery on host', exact: true }),
-  ).toBeEnabled();
-  if (process.env.PUDDLE_HOST_UPDATE_OFFLINE_SCREENSHOT)
-    await page.screenshot({
-      path: process.env.PUDDLE_HOST_UPDATE_OFFLINE_SCREENSHOT,
-      fullPage: true,
-    });
-  await page.getByRole('button', { name: 'Continue recovery on host', exact: true }).click();
-  await expect(page.getByText('Recorded status: Verifying update', { exact: true })).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: 'Continue recovery on host', exact: true }),
-  ).toHaveCount(0);
-  assert.equal(writes.filter((input) => input.action === 'continue-offline').length, 1);
+  if (remote) {
+    status.result.operation.phase = 'recovery_required';
+    await page.getByRole('button', { name: 'Refresh status', exact: true }).click();
+    await page.getByRole('button', { name: 'Continue recovery', exact: true }).click();
+    await expect(page.getByText('Verifying update', { exact: true })).toBeVisible();
+    assert.equal(writes.filter((input) => input.action === 'recover').length, 1);
+    await expect(
+      page.getByRole('button', { name: 'Continue recovery on host', exact: true }),
+    ).toHaveCount(0);
+  } else {
+    status.availability = 'unavailable';
+    status.observation = 'recorded';
+    status.capabilities = {
+      interruption_approval: false,
+      verify_completion: false,
+      continue_recovery: false,
+    };
+    const catalogue = status.catalogue;
+    delete status.catalogue;
+    await page.getByRole('button', { name: 'Refresh status', exact: true }).click();
+    await expect(page.getByText('Recorded status: Applying update', { exact: true })).toBeVisible();
+    await expect(page.getByText('Last connected version: 0.4.0', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Verify completion', exact: true })).toHaveCount(
+      0,
+    );
+    status.result.operation.phase = 'recovery_required';
+    status.capabilities.offline_continuation = true;
+    await page.getByRole('button', { name: 'Refresh status', exact: true }).click();
+    await expect(
+      page.getByRole('button', { name: 'Continue recovery on host', exact: true }),
+    ).toBeEnabled();
+    if (process.env.PUDDLE_HOST_UPDATE_OFFLINE_SCREENSHOT)
+      await page.screenshot({
+        path: process.env.PUDDLE_HOST_UPDATE_OFFLINE_SCREENSHOT,
+        fullPage: true,
+      });
+    await page.getByRole('button', { name: 'Continue recovery on host', exact: true }).click();
+    await expect(
+      page.getByText('Recorded status: Verifying update', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Continue recovery on host', exact: true }),
+    ).toHaveCount(0);
+    assert.equal(writes.filter((input) => input.action === 'continue-offline').length, 1);
+    status.result.operation.phase = 'complete';
+    status.result.operation.revision++;
+    await page.getByRole('button', { name: 'Refresh status', exact: true }).click();
+    await expect(page.getByText('Recorded status: Update complete', { exact: true })).toBeVisible();
+    await expect(page.getByText('Update complete', { exact: true })).toHaveCount(0);
+    await expect(
+      page.getByText(/does not confirm current service health or runtime adoption/),
+    ).toBeVisible();
+    assert.equal(writes.length, 4);
+    status.catalogue = catalogue;
+  }
   status.result.operation.phase = 'complete';
-  status.result.operation.revision++;
-  await page.getByRole('button', { name: 'Refresh status', exact: true }).click();
-  await expect(page.getByText('Recorded status: Update complete', { exact: true })).toBeVisible();
-  await expect(page.getByText('Update complete', { exact: true })).toHaveCount(0);
-  await expect(
-    page.getByText(/does not confirm current service health or runtime adoption/),
-  ).toBeVisible();
-  assert.equal(writes.length, 4);
   status.availability = 'ready';
   status.observation = 'live';
   status.capabilities = {
@@ -261,12 +313,15 @@ try {
     verify_completion: true,
     continue_recovery: true,
   };
-  status.catalogue = catalogue;
   status.catalogue.daemon_version = '0.4.1';
   status.catalogue.runtime_default.version = '0.4.1';
   status.catalogue.releases.latest.version = '0.4.2';
   assert.ok(sockets.length > 0, 'the fixture must have an authenticated status socket');
-  for (const socket of sockets) socket.send(JSON.stringify({ t: 'host-updates-changed' }));
+  if (remote) {
+    // Remote grants do not broaden ordinary WS scope. Polling discovers release arrivals.
+    await page.clock.install();
+    await page.clock.fastForward(60_000);
+  } else for (const socket of sockets) socket.send(JSON.stringify({ t: 'host-updates-changed' }));
   await expect(
     page.getByText('fixture-host: Daemon 0.4.2 is available.', { exact: true }),
   ).toBeVisible();
@@ -276,9 +331,42 @@ try {
   await expect(
     second.getByText('fixture-host: Daemon 0.4.2 is available.', { exact: true }),
   ).toBeVisible();
+  if (remote) {
+    const ordinary = await browser.newContext();
+    let inventoryReads = 0;
+    await ordinary.route('**/api/version', (route) =>
+      route.fulfill({
+        json: {
+          version: '0.4.0',
+          protocol: { major: 26, minor: 0 },
+        },
+      }),
+    );
+    await ordinary.route('**/api/host/updates', (route) => {
+      inventoryReads++;
+      return route.fulfill({ status: 403 });
+    });
+    const unprivileged = await ordinary.newPage();
+    const versionRead = unprivileged.waitForResponse('**/api/version');
+    await unprivileged.goto(origin);
+    await versionRead;
+    await unprivileged.evaluate(
+      () =>
+        new Promise((resolve) =>
+          globalThis.requestAnimationFrame(() => globalThis.requestAnimationFrame(resolve)),
+        ),
+    );
+    await expect(
+      unprivileged.getByRole('button', { name: 'Host updates', exact: true }),
+    ).toHaveCount(0);
+    assert.equal(inventoryReads, 0);
+    await ordinary.close();
+  }
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: explicit prepare/review/interruption approval, remount during preparation, recorded offline status and explicit continuation, lost apply/recovery replies without replay, dismissed/repeated/new-release/new-window offers',
+    remote
+      ? 'PASS: remote grant-gated dialog, redacted source preparation, exact interruption approval, remount during preparation, online recovery, lost replies without replay, periodic/new-window release offers (mock browser transport)'
+      : 'PASS: explicit prepare/review/interruption approval, remount during preparation, recorded offline status and explicit continuation, lost apply/recovery replies without replay, dismissed/repeated/new-release/new-window offers',
   );
 } finally {
   await browser?.close();

@@ -12,10 +12,14 @@ Choose two HTTPS origins under the same site, such as `app.example.com` and
 `relay.example.com`, and point their DNS records at your ingress. Ports 80 and
 443 must reach that ingress. Keep daemon ports 7433/7434 private.
 
-Daemon protocol 24.0 and remote protocol 4 rename the session mode `scripted` to
-`headless`. Upgrade the daemon/connector, service and application together;
-previous remote clients cannot connect across this version boundary. Existing
-registrations and device grants are retained.
+This release uses application protocol 26.0 and remote protocol 5. Upgrade the
+CLI/desktop cockpit, target daemon/connector and deployed service/application to
+support those protocols before using remote maintenance. Older remote clients
+cannot connect across the remote version boundary; use local/SSH access for the
+initial host upgrade. Compatible components need not have identical release versions.
+Existing per-profile registrations and browser approvals survive this upgrade,
+but none receives maintenance permission automatically. New browser approvals
+also start without it.
 
 From a checkout of the version you intend to run:
 
@@ -186,9 +190,10 @@ docker compose --env-file deploy/remote/.env -f deploy/remote/compose.yaml up -d
 
 ### Upgrade an earlier email-login deployment
 
-Rebuild the service/application and update host connectors together for remote
-protocol 3 (daemon/cockpit protocol 22.0). Register each profile and create fresh
-pairing invitations; earlier host-wide registrations and approvals are removed.
+Deploy the current service/application and host connectors together. The earlier
+remote protocol 3 migration (application 22.0) introduced per-profile registration;
+host-wide registrations from before that migration are removed. Register each
+profile and create fresh pairing invitations when migrating those older hosts.
 
 Startup deletes legacy password credentials and, when any are found, invalidates
 all service sessions, pending authentication challenges and MFA confirmations.
@@ -264,11 +269,12 @@ the **Remove host registration** trash icon beside the obsolete entry, and confi
 This works for offline hosts too; it removes only the selected registration.
 Machines with identical names are kept separate.
 
-Upgrade the service/application, desktop and host daemon/connector together for
-remote protocol 3 and daemon/cockpit protocol 22.0. On connector startup, existing
-host-wide registrations are deleted and their browser approvals revoked. Register
-each profile again and pair its browsers afresh. Old relay entries are removed
-immediately when reachable, or queued privately for retry. Agents keep running.
+When upgrading a host from before the per-profile registration migration
+(remote protocol 3/application 22.0), connector startup removes its legacy
+host-wide registration and revokes those browser approvals. Register each profile
+and pair its browsers afresh. Old relay entries are removed immediately when
+reachable, or queued privately for retry. Agents keep running. This migration is
+separate from the current protocol 5 upgrade, which retains per-profile approvals.
 
 For CLI management, first register the host through desktop Settings → Remote &
 Sync (local or SSH). Use the profile’s id from the desktop profile data. Re-enable
@@ -317,6 +323,55 @@ The host must approve that exact browser. A copied invitation or successful
 service login alone grants no terminal access. An already paired browser can
 approve the new browser under Paired browsers instead of using SSH. Invitations expire
 in five minutes and can enrol only one identity.
+
+## Manage host updates from a paired browser
+
+Host updates are standard functionality in 0.4.0. A paired browser needs a separate
+host maintenance grant because an update can affect every profile on the machine.
+Pairing, account sign-in and approval by another paired browser never grant it.
+
+From a local or SSH cockpit for the target host, open **Settings → Remote & Sync →
+Connected browsers**. Expand the approved browser, compare its full identity with
+the intended device, then choose **Allow host maintenance**. This binds permission
+to that browser, profile registration and account on this host. Grant management
+is available only through local/SSH Settings; the remote app cannot grant itself
+or another browser maintenance access. Reconnect the browser after granting access.
+
+On the connected host's remote workspace, the **Host updates** button opens the
+same update review used by local/SSH cockpits. Available releases also offer
+**Review update** in each new window. Dismissing an offer leaves the button
+available. The remote window reads host status every 60 seconds while idle and
+more often while an operation runs, and refreshes on reconnect; it does not poll
+GitHub independently. The host retains the shared release catalogue.
+
+Choose **Prepare daemon**, **Prepare runtime software** or **Prepare both**, then
+**Review impact**. Preparation downloads and verifies the release on the target
+machine. The review shows aggregate host-wide impact, including daemon-owned
+terminals, notebooks, compilation jobs and programmes across profiles. It does
+not grant access to another profile's conversations or files. Apply is a separate
+action; affected daemon-owned work requires **Interrupt listed work and apply**.
+Changed state requires a fresh review. Updating the runtime default changes the
+build for future launches; it never restarts existing runtime owners. Independently
+supervised runtimes retain their pinned builds and running agents during a daemon
+update. A limited or unverified runtime lifetime blocks daemon replacement until
+resolved explicitly. Session runtime inspection and restart remain local/SSH-only;
+this grant does not enable remote placement restarts.
+
+Use **Revoke host maintenance** in local/SSH Settings to remove this permission
+while keeping ordinary browser approval. Browser revocation, expiry, disabling
+remote access or replacing/resetting the registration also invalidates maintenance
+access. Pending work rechecks the grant and the browser's participation before
+acceptance; a later regrant cannot revive the old request. Once an update is
+accepted, revocation or closing the window does not cancel its independent worker.
+
+A daemon/connector replacement can disconnect the remote window. Reconnect and
+inspect status: a lost response is never permission to apply again automatically.
+**Verify completion** and **Continue recovery** are explicit online actions when
+the live host supports them. If the daemon or connector cannot reconnect, use
+local/SSH cockpit or CLI recovery; offline continuation is not available through
+the relay. These controls are implemented, but full encrypted acceptance involving
+an actual connector replacement and real providers remains pending in the
+[acceptance checklist](acceptance/mobile-access.md#remote-host-maintenance).
 
 ## Use, revoke and recover
 

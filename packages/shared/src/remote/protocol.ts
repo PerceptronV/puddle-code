@@ -3,8 +3,11 @@ import { wsClientMessageSchema, wsServerMessageSchema } from '../ws/messages.js'
 
 /** Independent transport contract; host authority uses the daemon's protocol-18 leases. */
 // 4: Session.agent_mode now uses headless, including remote session responses.
-export const REMOTE_PROTOCOL_VERSION = 4;
+// 5: host-approved device maintenance is a separate, explicitly granted authority.
+export const REMOTE_PROTOCOL_VERSION = 5;
 export const REMOTE_POLICY = {
+  /** Two sequential bounded host stages; participation remains required throughout. */
+  maintenanceRequestMs: 300_000,
   chunkBytes: 32 * 1024,
   frameBytes: 48 * 1024,
   requestBytes: 256 * 1024,
@@ -71,6 +74,7 @@ export const relayMessageSchema = z.discriminatedUnion('t', [
 export type RelayMessage = z.infer<typeof relayMessageSchema>;
 
 export const remoteDeviceSchema = z.object({
+  maintenance: z.boolean().optional(),
   id: remoteIdSchema,
   peer: remotePeerSchema,
   account: remoteAccountSchema,

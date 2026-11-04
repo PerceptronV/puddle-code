@@ -1,5 +1,5 @@
-import { hostStageReceiptSchema, type HostStageReceipt } from '@puddle/shared';
-import { createHash } from 'node:crypto';
+import type { HostStageReceipt } from '@puddle/shared';
+import { validateHostStageReceipt, parseHostStageOutput } from '@puddle/shared/node/host-control';
 import {
   bootstrapHostComponent,
   runHostInstaller,
@@ -11,13 +11,14 @@ import { CliError, type Logger } from '../../types.js';
 import { pinnedDaemonVersion } from '../../version.js';
 
 function validatedReceipt(value: unknown): HostStageReceipt {
-  const receipt = hostStageReceiptSchema.parse(value);
-  const digest = createHash('sha256')
-    .update(`${JSON.stringify(receipt.record)}\n`)
-    .digest('hex');
-  if (digest !== receipt.digest)
-    throw new CliError('not_installed', 'The host stage receipt digest does not match its record');
-  return receipt;
+  try {
+    return validateHostStageReceipt(value);
+  } catch (error) {
+    throw new CliError(
+      'not_installed',
+      error instanceof Error ? error.message : 'Invalid host stage receipt',
+    );
+  }
 }
 
 /** Stage a concrete release without changing selectors, wrappers or services. */
@@ -27,20 +28,14 @@ export async function stageHostComponent(
   options: BootstrapOptions = {},
 ): Promise<HostStageReceipt> {
   const output = await bootstrapHostComponent(transport, component, options, 'stage');
-  const prefix = 'PUDDLE_HOST_STAGE ';
-  const lines = output.split('\n').filter((line) => line.startsWith(prefix));
-  if (lines.length !== 1 || lines[0]!.length > 4096)
+  try {
+    return parseHostStageOutput(output, component, options.version ?? pinnedDaemonVersion());
+  } catch (error) {
     throw new CliError(
       'not_installed',
-      'The host installer did not return one bounded stage receipt',
+      error instanceof Error ? error.message : 'Invalid host stage receipt',
     );
-  const receipt = validatedReceipt(JSON.parse(lines[0]!.slice(prefix.length)));
-  if (
-    receipt.record.component !== component ||
-    receipt.record.version !== (options.version ?? pinnedDaemonVersion())
-  )
-    throw new CliError('not_installed', 'The host staged a different component or release');
-  return receipt;
+  }
 }
 
 /** Host-authorised activation primitive; the update coordinator supplies preflight. */

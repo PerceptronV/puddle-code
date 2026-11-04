@@ -8,12 +8,12 @@ import {
   remoteMessageSchema,
 } from '../src/index.js';
 
-it('requires remote protocol 4 for headless session responses', () => {
-  expect(REMOTE_PROTOCOL_VERSION).toBe(4);
-  expect(remoteServiceInfoSchema.safeParse({ providers: ['github'], protocol: 4 }).success).toBe(
+it('requires remote protocol 5 for explicit device maintenance authority', () => {
+  expect(REMOTE_PROTOCOL_VERSION).toBe(5);
+  expect(remoteServiceInfoSchema.safeParse({ providers: ['github'], protocol: 5 }).success).toBe(
     true,
   );
-  expect(remoteServiceInfoSchema.safeParse({ providers: ['github'], protocol: 3 }).success).toBe(
+  expect(remoteServiceInfoSchema.safeParse({ providers: ['github'], protocol: 4 }).success).toBe(
     false,
   );
 });

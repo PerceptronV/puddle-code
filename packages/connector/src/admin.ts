@@ -100,11 +100,17 @@ async function requestUnlocked(
       return { enabled: false, connected: false };
     }
     // Revocation can be made durable with the connector stopped.
-    if (request.t === 'revoke' || request.t === 'devices') {
+    if (request.t === 'revoke' || request.t === 'devices' || request.t === 'maintenance') {
+      if (request.t === 'maintenance') {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code !== 'ENOENT' && code !== 'ECONNREFUSED') throw error;
+      }
       const devices = new DeviceStore(directory);
       try {
         if (request.t === 'revoke') devices.revoke(request.id);
-        return { devices: devices.list() };
+        if (request.t === 'maintenance')
+          devices.setMaintenance(request.id, request.enabled, config.account, config.host);
+        return { devices: devices.list(config.host) };
       } finally {
         devices.close();
       }

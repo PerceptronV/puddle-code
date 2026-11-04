@@ -67,8 +67,7 @@ function fixture(kind: 'local' | 'ssh' = 'local') {
         return { code: 0, stdout: '', stderr: '' };
       if (command.includes('HOST_CAPABILITIES')) {
         const capabilities = hostReleaseCapabilities('0.4.0');
-        capabilities.application.minor = 20;
-        if (state.old) capabilities.application.minor = 18;
+        if (state.old) capabilities.application = { major: 25, minor: 18 };
         output = capabilities;
       } else if (command.includes('--inspect-purge')) output = state.purge;
       else if (command.includes('--prepare-purge')) {

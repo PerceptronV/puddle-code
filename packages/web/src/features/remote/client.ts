@@ -224,7 +224,12 @@ export class RemoteClient implements BrowserTransport {
         void this.channel?.send({ t: 'cancel', id: message.id }).catch(() => {});
         reject(new Error('Operation interrupted; delivery may have occurred'));
       };
-      const timer = setTimeout(cancel, 30_000);
+      // Timeout cancels pending authority; a lost reply never permits command replay.
+      const maintenance =
+        message.t === 'request' &&
+        (message.method === 'GET' || message.method === 'POST') &&
+        message.path.split('?')[0] === '/api/host/updates';
+      const timer = setTimeout(cancel, maintenance ? REMOTE_POLICY.maintenanceRequestMs : 30_000);
       const cleanup = () => signal?.removeEventListener('abort', cancel);
       this.pending.set(message.id, { resolve, reject, timer, cleanup });
       signal?.addEventListener('abort', cancel, { once: true });

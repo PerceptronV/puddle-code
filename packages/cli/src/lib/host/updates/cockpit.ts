@@ -13,7 +13,7 @@ import type { Transport } from '../../transport/transport.js';
 import { prepareHostUpdate } from '../../installation/host/updates.js';
 import { HostConnection } from '../../auth/connection-authority.js';
 import { inspectHostUpdate, continueHostUpdate } from '../../auth/control-channel.js';
-import { presentHostUpdate } from './presentation.js';
+import { presentHostUpdate } from '@puddle/shared';
 import { offersOfflineContinuation } from './continuation.js';
 
 type Authority = Pick<

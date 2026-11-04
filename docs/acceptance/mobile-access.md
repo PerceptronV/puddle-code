@@ -1,6 +1,6 @@
 # Mobile access acceptance
 
-Remote protocol 3; daemon/cockpit protocol 22.0. Run in isolated homes with fake agents.
+Remote protocol 5; application protocol 26.0. Run automated checks in isolated homes with fake agents.
 Never launch an installed daemon from a coding-agent environment. Deployment and
 recovery instructions: [self-hosted mobile access](../mobile-access.md).
 
@@ -59,6 +59,18 @@ recovery instructions: [self-hosted mobile access](../mobile-access.md).
   then starts the built connector under fixture-owned supervision; no OS service is installed.
   Verify that the URL contains only the hash, the private verifier is not persisted,
   redemption is single-use and no browser grant is created by account registration.
+- Focused maintenance tests under `packages/connector/test/maintenance/`,
+  `packages/daemon/test/security/remote/`, `packages/daemon/test/updates/remote/`
+  and `packages/shared/test/host-maintenance.test.ts` cover separate grant migration,
+  exact device/peer/account/host binding, fresh private grant checks, expiry,
+  revoke/regrant, request bounds, explicit participation, interruption approval,
+  redacted public reviews and observation after a lost dispatch reply. Connector
+  bridge tests exercise real Noise admission and private child control channels;
+  their update executor is a fixture. Profile-access tests keep direct daemon
+  `GET/POST /api/host/updates` denied even for the unchanged profile lease issued
+  by a maintenance channel. UI tests cover local-only grant controls and shared
+  remote update transport. These checks do not establish an encrypted update
+  through actual daemon/connector replacement or real-provider continuity.
 - `pnpm test:e2e` and `pnpm test:ssh`: preserve local/SSH foundation behaviour,
   cockpit replacement, connection leases and isolated loopback SSH integration.
 - The isolated mobile pairing fixture decodes actual QR frames, checks separate
@@ -122,6 +134,70 @@ review, production OAuth-provider acceptance or physical-phone acceptance.
   approvals. Verify logs/registry records do not contain credentials/invitations.
 - Saturate handshake, connection, request and output limits with slow peers;
   memory remains bounded and local cockpit operations remain available.
+
+## Remote host maintenance
+
+The controls are implemented for the standard 0.4.0 release. Full encrypted
+acceptance through actual connector replacement and real-provider continuity is
+**pending**. Complete and record the following on disposable hosts; unit/bridge
+fixtures and local/SSH packaged-upgrade results do not complete this gate.
+
+1. Deploy application 26.0/remote 5 across the cockpit, daemon/connector, service
+   and app. Upgrade an existing per-profile registration from remote 4: its
+   approved browser must retain ordinary access and have no maintenance grant.
+   Pair a new browser and confirm it also has no grant. Incompatible older clients
+   must fail visibly; do the initial host upgrade through local/SSH access.
+2. In local and SSH **Settings → Remote & Sync → Connected browsers**, expand
+   the exact approved browser and choose **Allow host maintenance**. Check the
+   full identity. Another browser, another profile registration and another host
+   must receive no access. Remote paired-browser management must have no grant
+   control. Reconnect the granted browser and confirm **Host updates** appears;
+   ordinary profile sessions/files remain scoped as before.
+3. Open **Host updates** and check daemon/default-runtime versions and aggregate
+   running builds. Verify new-window and new-release offers, dismissal within the
+   current window, idle status polling every 60 seconds, and status refresh on
+   reconnect. Multiple windows must share the host's release catalogue rather
+   than create independent GitHub polls.
+4. **Prepare runtime software**, **Review impact**, then **Apply update** through
+   the encrypted connection. Verify the exact reviewed build becomes the default
+   and a newly launched runtime uses it. Existing runtime owners, native refs,
+   PTYs and shell jobs must remain unchanged. Runtime inspection/restart remains
+   local/SSH-only; this grant must not enable remote restart of a placement.
+5. Prepare daemon and combined updates with daemon-owned work in two profiles.
+   The remote review must show aggregate impact without exposing other profiles'
+   paths, conversations or private receipts. Verify **Interrupt listed work and
+   apply** is required and bound to the current review; changed state requires
+   another review. A limited or unverified runtime lifetime must block replacement
+   without being stopped automatically.
+6. Apply through the real connector and actual systemd/launchd updater. Record
+   outgoing/replacement daemon and connector identities, selection and adoption.
+   Confirm the remote connection drops and reconnects with fresh authority, then
+   observes the same operation without replaying it. Verify independently owned
+   agents and shell jobs stay alive throughout. Repeat with real supported agent
+   providers from a plain-shell, isolated test setup, checking native continuation
+   and provider-supported `/clear` and `/fork` flows after reconnection. Record
+   provider and platform versions.
+7. Revoke maintenance during preparation, review and an asynchronous pre-dispatch
+   check. Repeat with device expiry, registration disablement, browser suspension
+   beyond the lease deadline and request cancellation. No unaccepted work may
+   dispatch. Regranting, including to the same browser, must not revive an old
+   request. Ordinary approved browser access may remain after maintenance-only
+   revocation. Revocation after accepted dispatch must not kill or replay the
+   independent update worker.
+8. Lose the response immediately after acceptance, then reconnect. Read status and
+   explicitly use **Verify completion** or **Continue recovery** only when offered.
+   Test real connector replacement while an operation is pending, not only a
+   socket disconnection. No mutation may queue for reconnect or repeat implicitly.
+   If the daemon/connector cannot return, verify the remote app offers no offline
+   execution path and complete recovery explicitly through local/SSH access.
+9. Repeat the grant/revoke lifecycle over a relay outage. Local/SSH revocation must
+   remain available. Registration replacement, reset and device reapproval must
+   not inherit an old maintenance grant. Inspect the encrypted and public reply
+   boundaries for private installer paths, receipts, worker evidence and secrets.
+
+Record results separately for encrypted fixture coverage, actual supervisor and
+connector replacement, real providers, and physical-phone use. Leave each category
+pending until that exact path has been exercised.
 
 ## Physical phones (manual; not established by browser emulation)
 
@@ -190,8 +266,9 @@ do not convert an automated test result into a claim that either review occurred
 5. Start the new connector with a legacy `remote/config.json` and approved devices.
    Its registration disappears, grants become revoked, and the relay record is
    retired (or queued while offline). Neither profile inherits it.
-6. Check `puddle --version`: the daemon line includes `c3` when its archive has
-   connector metadata. CLI/desktop compatibility still compares daemon major/minor.
+6. Check `puddle --version`: the daemon line includes `c5` when its archive has
+   current connector metadata. CLI/desktop compatibility still compares application
+   major/minor; compatible release versions need not match.
 
 ### Conversation notification previews
 

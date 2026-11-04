@@ -20,19 +20,32 @@ export {
   requireArchivedHostPurge,
 } from './installation/purge.js';
 export { watchUpdateParticipation } from './installation/participation.js';
-export { HostUpdateRequests } from './host-updates.js';
+export { HostUpdateRequests } from './control/updates.js';
+export { HOST_CONTROL_REQUEST_LIMITS } from './control/requests.js';
+export {
+  prepareHostUpdateOperation,
+  HostUpdatePreparationError,
+} from './installation/preparation.js';
+export { validateHostStageReceipt, parseHostStageOutput } from './installation/stage-receipt.js';
 import type { Duplex } from 'node:stream';
 import {
   CONNECTION_POLICY,
+  REMOTE_POLICY,
   PROTOCOL_VERSION,
   controlResponseSchema,
   type ControlRequest,
   type VersionResponse,
   type HostUpdateCommand,
   type HostUpdateReply,
+  hostMaintenanceCommandSchema,
+  remoteMaintenanceClaimSchema,
+  type HostMaintenanceCommand,
+  type HostMaintenanceReply,
+  type RemoteMaintenanceClaim,
 } from '../index.js';
 import { jsonLines, secret } from './security.js';
-import { HostUpdateRequests } from './host-updates.js';
+import { HostUpdateRequests } from './control/updates.js';
+import { HostControlRequests } from './control/requests.js';
 export {
   readUpdateRecoveryAttempts,
   updateRecoveryDirectory,
@@ -72,6 +85,10 @@ export class HostControlClient implements ConnectionAuthority {
   private readonly timer: ReturnType<typeof setInterval>;
   private verifier: (() => Promise<void>) | null = null;
   private updates: HostUpdateRequests | null = null;
+  private maintenanceRequests: HostControlRequests<
+    HostMaintenanceCommand,
+    HostMaintenanceReply
+  > | null = null;
 
   private renewControl: ((resources: string[], sentAt: number) => boolean) | null = null;
 
@@ -83,7 +100,13 @@ export class HostControlClient implements ConnectionAuthority {
       message: string,
     ) => Error = (_code, message) => new Error(message),
     private readonly profile?: string,
+    private readonly maintenance?: RemoteMaintenanceClaim,
   ) {
+    if (maintenance) {
+      if (!profile) throw new Error('Remote maintenance requires a profile');
+      this.maintenance = remoteMaintenanceClaimSchema.parse(maintenance);
+      this.automatic = false;
+    }
     this.timer = setInterval(() => {
       if (this.channel && performance.now() >= this.until)
         this.lose(this.channel, 'upstream_expired');
@@ -157,6 +180,14 @@ export class HostControlClient implements ConnectionAuthority {
       return Promise.reject(new Error('Host control is unavailable'));
     return this.updates.request(command);
   }
+  /** A separate manually participating profile channel; never grants host-wide update access. */
+  hostMaintenance(command: HostMaintenanceCommand): Promise<HostMaintenanceReply> {
+    if (!this.profile || !this.maintenance || !this.version || this.version.protocol.major < 26)
+      return Promise.reject(new Error('Host maintenance is unavailable on this connection'));
+    if (this.state !== 'ready' || !this.maintenanceRequests)
+      return Promise.reject(new Error('Host control is unavailable'));
+    return this.maintenanceRequests.request(command);
+  }
   resource(close: () => void) {
     this.credential();
     const generation = this.generation;
@@ -193,6 +224,15 @@ export class HostControlClient implements ConnectionAuthority {
       this.channel = channel;
       const updates = new HostUpdateRequests(channel);
       this.updates = updates;
+      const maintenance = new HostControlRequests<HostMaintenanceCommand, HostMaintenanceReply>(
+        channel,
+        {
+          type: 'host-maintenance',
+          parse: hostMaintenanceCommandSchema.parse,
+          timeoutMs: REMOTE_POLICY.maintenanceRequestMs,
+        },
+      );
+      this.maintenanceRequests = maintenance;
       this.until = performance.now() + CONNECTION_POLICY.leaseMs;
       await new Promise<void>((resolve, reject) => {
         let pendingAt: number | null = null;
@@ -219,6 +259,10 @@ export class HostControlClient implements ConnectionAuthority {
             const message = controlResponseSchema.parse(value);
             if (message.t === 'host-update-result') {
               if (!updates.receive(message)) channel.destroy();
+              return;
+            }
+            if (message.t === 'host-maintenance-result') {
+              if (!maintenance.receive(message)) channel.destroy();
               return;
             }
             if (pendingAt === null) return channel.destroy();
@@ -269,7 +313,11 @@ export class HostControlClient implements ConnectionAuthority {
         channel.once('error', closed);
         channel.once('close', closed);
         channel.once('end', closed);
-        send({ t: 'open', ...(this.profile ? { profile: this.profile } : {}) });
+        send({
+          t: 'open',
+          ...(this.profile ? { profile: this.profile } : {}),
+          ...(this.maintenance ? { maintenance: this.maintenance } : {}),
+        });
       });
     } finally {
       this.connecting = false;
@@ -298,6 +346,8 @@ export class HostControlClient implements ConnectionAuthority {
     this.renewControl = null;
     this.updates?.close();
     this.updates = null;
+    this.maintenanceRequests?.close();
+    this.maintenanceRequests = null;
     this.token = null;
     this.generation = null;
     if (this.status !== 'protocol_mismatch') this.status = state;

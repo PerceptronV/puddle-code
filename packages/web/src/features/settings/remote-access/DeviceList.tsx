@@ -7,10 +7,12 @@ export function DeviceList({
   now,
   busy,
   act,
+  canManageMaintenance,
 }: {
   devices: RemoteDevice[];
   now: number;
   busy: boolean;
+  canManageMaintenance: boolean;
   act(request: CockpitRemoteRequest): Promise<boolean>;
 }) {
   return (
@@ -26,11 +28,23 @@ export function DeviceList({
           busy={busy}
           approve={(id) => void act({ t: 'approve', id })}
           revoke={(id) => void act({ t: 'revoke', id })}
+          maintenance={
+            canManageMaintenance
+              ? (id, enabled) => void act({ t: 'maintenance', id, enabled })
+              : undefined
+          }
         />
         <p className="text-xs text-fg-muted">
           Revocation detaches viewers; agents continue running. Browsers expire after 30 days of
           inactivity or 90 days overall.
         </p>
+        {canManageMaintenance && (
+          <p className="text-xs text-fg-muted">
+            Host maintenance separately allows daemon and runtime software updates. Updates can
+            affect every profile on this host. Pairing alone does not grant it or permission to
+            restart other profiles' runtimes.
+          </p>
+        )}
       </section>
     </Disclosure>
   );

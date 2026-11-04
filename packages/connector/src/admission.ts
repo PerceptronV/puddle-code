@@ -3,6 +3,7 @@ import {
   REMOTE_POLICY,
   type RemoteAdminRequest,
   type RemoteAdminResponse,
+  type RemoteMaintenanceClaim,
 } from '@puddle/shared';
 import type { EncryptedChannel } from '@puddle/remote-transport';
 import type { DeviceStore } from './devices.js';
@@ -14,6 +15,7 @@ export interface AdmissionHost {
   home: string;
   profile: string;
   account: string;
+  host: string;
   devices: DeviceStore;
   notifications?: ConnectorNotifications;
   enabled(): boolean;
@@ -26,12 +28,26 @@ export async function admit(channel: EncryptedChannel, host: AdmissionHost): Pro
   let upstream: RemoteUpstream | null = null;
   let participation: Participation | null = null;
   let deviceId: string | null = null;
+  let maintenance: RemoteMaintenanceClaim | null = null;
+  const currentMaintenance = () =>
+    deviceId === null
+      ? null
+      : host.devices.maintenanceClaim(deviceId, channel.peer, host.account, host.host);
+  // A new grant requires a new admission, even when the same browser remains approved.
+  const sameMaintenance = () => {
+    try {
+      return JSON.stringify(currentMaintenance()) === JSON.stringify(maintenance);
+    } catch {
+      return false;
+    }
+  };
   const valid = () =>
     !stopped &&
     host.enabled() &&
     participation?.valid() === true &&
     deviceId !== null &&
     host.devices.valid(deviceId, channel.peer, host.account) &&
+    sameMaintenance() &&
     upstream?.authority.state === 'ready';
   const close = () => {
     if (stopped) return;
@@ -81,6 +97,7 @@ export async function admit(channel: EncryptedChannel, host: AdmissionHost): Pro
         throw new Error('Browser pairing was not approved');
     }
     deviceId = device.id;
+    maintenance = currentMaintenance();
     participation = new Participation();
     upstream = new RemoteUpstream(
       host.home,
@@ -95,6 +112,7 @@ export async function admit(channel: EncryptedChannel, host: AdmissionHost): Pro
             test: (signal) => host.notifications!.test(deviceId!, signal),
           }
         : undefined,
+      maintenance ?? undefined,
     );
     await upstream.authority.establish();
     // Pairing may take five minutes. Participation starts with admission, not with the invitation.
@@ -105,10 +123,12 @@ export async function admit(channel: EncryptedChannel, host: AdmissionHost): Pro
       host.enabled() &&
       active.valid() &&
       host.devices.valid(device!.id, channel.peer, host.account) &&
+      sameMaintenance() &&
       lease.authority.state === 'ready';
     offDevices = host.devices.onChange(() => {
       if (!authorised()) close();
     });
+    if (!authorised()) throw new Error('Browser authority changed during admission');
     await channel.send({
       t: 'admitted',
       generation: lease.authority.generation!,

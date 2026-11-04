@@ -327,7 +327,8 @@
 // 25.18: trusted local/SSH removal inspection and explicit service restoration.
 // 25.19: trusted host removal with exact offline runtime disposition and remote disablement.
 // 25.20: bounded host purge and explicit runtime lifetime presentation/update checks.
-export const PROTOCOL_VERSION = { major: 25, minor: 20 } as const;
+// 26.0: exact host-approved remote-device maintenance authority and bounded update controls.
+export const PROTOCOL_VERSION = { major: 26, minor: 0 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(
