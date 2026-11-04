@@ -206,8 +206,10 @@ they never fall back to a different segment's screen. Normal shutdown drains
 pending checkpoint writes before releasing ownership.
 
 The foundation bounds in-flight checkpoints to 64 captures and 16 MiB of encoded
-writes. It conservatively budgets 256 segments, 64 MiB of raw output and 64 MiB of
-encoded checkpoints over an owner's lifetime. Exceeding those budgets or failing
+writes. It conservatively budgets 256 segments, 1,024 distinct raw-log files,
+64 MiB of raw output and 64 MiB of encoded checkpoints over an owner's lifetime.
+Empty output consumes no file slot; existing streams may keep recording when
+new streams are refused. Exceeding those budgets or failing
 a checkpoint write sets sticky `history.gap`; PTY drainage, current snapshots,
 native events and process continuity remain independent. These are temporary
 foundation bounds, not the completed retention policy. Production acknowledgement,

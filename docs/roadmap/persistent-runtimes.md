@@ -68,6 +68,14 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Raw history now also bounds lifetime file identities to 1,024 exact
+  segment/terminal/generation streams per owner. Empty writes consume no slot;
+  reaching the limit reports a history gap while admitted streams, checkpoints
+  and live terminal output continue. Twenty-seven focused segment, owner and
+  protocol checks, TypeScript and lint passed. This closes generation churn's
+  unbounded file-count path; retained-file inventory, compaction and aggregate
+  storage admission remain outstanding.
+
 - Owner screen parsing now has separate byte/action capacity from captures and
   atomic disk saves. Slow writes coalesce without holding the parser; captures
   queue synchronously at their replay cursor boundary. Bounded whole-line
@@ -78,7 +86,8 @@ Implementation evidence so far (newest first; earlier entries record their miles
   partial-parser ordering, mouse encoding, slow writes, real PTYs, native-switch
   segments and viewer replay. TypeScript/lint passed. These are owner-local
   charged buffers/file limits, not RSS or aggregate host storage guarantees;
-  historical temporary-file inventory and raw-log generation counts remain open.
+  historical temporary-file inventory remains open. The subsequent lifetime
+  raw-log file cap is recorded above.
 
 - Launch-time upgrades now carry the coordinator's exact interruption review
   through CLI/background IPC and desktop approval. Modern prompts describe

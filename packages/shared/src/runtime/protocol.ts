@@ -21,6 +21,7 @@ export const RUNTIME_LIMITS = {
   environmentValueBytes: 32 * 1024,
   historySegments: 256,
   historyLogBytes: 64 * 1024 * 1024,
+  historyLogFiles: 1024,
   historySnapshotBytes: 64 * 1024 * 1024,
   pendingCheckpoints: 64,
   pendingCheckpointBytes: 16 * 1024 * 1024,

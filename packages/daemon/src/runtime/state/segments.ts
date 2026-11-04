@@ -41,6 +41,7 @@ async function saveCheckpoint(file: string, json: string): Promise<void> {
 interface SegmentOptions {
   maxSegments?: number;
   logBytes?: number;
+  logFiles?: number;
   snapshotBytes?: number;
   pendingBytes?: number;
   pendingCount?: number;
@@ -52,6 +53,7 @@ export class RuntimeSegments {
   private current: RuntimeSegment;
   private count = 1;
   private rawBytes = 0;
+  private readonly rawStreams = new Set<string>();
   private snapshotBytes = 0;
   private pendingBytes = 0;
   private gap = false;
@@ -59,6 +61,7 @@ export class RuntimeSegments {
   private readonly limits: {
     segments: number;
     logs: number;
+    logFiles: number;
     snapshots: number;
     pendingBytes: number;
     pendingCount: number;
@@ -81,6 +84,10 @@ export class RuntimeSegments {
       logs: Math.min(
         options.logBytes ?? RUNTIME_LIMITS.historyLogBytes,
         RUNTIME_LIMITS.historyLogBytes,
+      ),
+      logFiles: Math.min(
+        options.logFiles ?? RUNTIME_LIMITS.historyLogFiles,
+        RUNTIME_LIMITS.historyLogFiles,
       ),
       snapshots: Math.min(
         options.snapshotBytes ?? RUNTIME_LIMITS.historySnapshotBytes,
@@ -105,9 +112,20 @@ export class RuntimeSegments {
 
   append(term: RuntimeTerminal, data: string): void {
     const bytes = Buffer.byteLength(data);
+    if (bytes === 0) return;
     if (this.count > this.limits.segments || this.rawBytes + bytes > this.limits.logs) {
       this.gap = true;
       return;
+    }
+    const stream = `${this.current.id}/${term.term}.${term.generation}`;
+    if (!this.rawStreams.has(stream)) {
+      // Terminal slots can be reused indefinitely. Bound lifetime file identities,
+      // while admitted streams keep recording after later generations are refused.
+      if (this.rawStreams.size >= this.limits.logFiles) {
+        this.gap = true;
+        return;
+      }
+      this.rawStreams.add(stream);
     }
     this.rawBytes += bytes;
     this.logs.append(this.current.id, `${term.term}.${term.generation}`, data);

@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync, statSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { RuntimeTerminal } from '@puddle/shared';
+import { RUNTIME_LIMITS, type RuntimeTerminal } from '@puddle/shared';
 import { atomicPrivateJson } from '@puddle/shared/node';
 import { LogStore } from '../../../src/logs/log-store.js';
 import { RuntimeSegments } from '../../../src/runtime/state/segments.js';
@@ -157,4 +157,69 @@ describe('runtime history segments', () => {
       'boundary-screen',
     );
   });
+});
+
+describe('runtime raw log stream limits', () => {
+  it('bounds generation churn without stopping admitted streams or boundary checkpoints', async () => {
+    const f = fixture({ logFiles: 2, logBytes: 12 });
+    const first = f.lifecycle('one', 1);
+    f.history.append(f.terminal, 'first');
+    const second = { ...f.terminal, generation: randomUUID() };
+    f.history.append(second, 'next');
+    for (let index = 0; index < 50; index++) {
+      f.history.append({ ...f.terminal, generation: randomUUID() }, 'refused-output');
+    }
+    // Rejected new streams do not consume the remaining raw-byte allowance.
+    f.history.append(f.terminal, '+ok');
+    expect(f.logs.readTail(first.segment.id, `agent.${f.terminal.generation}`)).toBe('first+ok');
+    expect(f.logs.readTail(first.segment.id, `agent.${second.generation}`)).toBe('next');
+    expect(readdirSync(join(f.directory, 'logs', first.segment.id))).toHaveLength(2);
+    const next = f.lifecycle('two', 2);
+    expect(next.previous_segment_id).toBe(first.segment.id);
+    await f.history.drain();
+    expect((await f.history.read(first.segment.id, 'agent', f.terminal.generation)).data).toBe(
+      'boundary-screen',
+    );
+    expect(f.history.state()).toMatchObject({
+      current: next.segment,
+      gap: true,
+      pending_checkpoints: 0,
+    });
+  });
+
+  it('counts exact segment, terminal and generation identities and ignores empty output', async () => {
+    const f = fixture({ logFiles: 3 });
+    const first = f.lifecycle('one', 1);
+    for (let index = 0; index < 10; index++)
+      f.history.append({ ...f.terminal, generation: randomUUID() }, '');
+    f.history.append(f.terminal, 'agent');
+    f.history.append({ ...f.terminal, term: 'shell-1' }, 'shell');
+    const next = f.lifecycle('two', 2);
+    f.history.append(f.terminal, 'next');
+    const refused = { ...f.terminal, generation: randomUUID() };
+    f.history.append(refused, 'refused');
+    f.history.append(f.terminal, '-continued');
+    expect(f.logs.readTail(first.segment.id, `agent.${f.terminal.generation}`)).toBe('agent');
+    expect(f.logs.readTail(first.segment.id, `shell-1.${f.terminal.generation}`)).toBe('shell');
+    expect(f.logs.readTail(next.segment.id, `agent.${f.terminal.generation}`)).toBe(
+      'next-continued',
+    );
+    expect(f.logs.readTail(next.segment.id, `agent.${refused.generation}`)).toBe('');
+    expect(readdirSync(join(f.directory, 'logs', first.segment.id))).toHaveLength(2);
+    expect(readdirSync(join(f.directory, 'logs', next.segment.id))).toHaveLength(1);
+    expect(f.history.state().gap).toBe(true);
+  });
+
+  it.each([undefined, RUNTIME_LIMITS.historyLogFiles + 1])(
+    'enforces the production ceiling even with an excessive fixture limit (%s)',
+    (logFiles) => {
+      const f = fixture({ logFiles });
+      const append = vi.spyOn(f.logs, 'append').mockImplementation(() => {});
+      for (let index = 0; index < RUNTIME_LIMITS.historyLogFiles + 1; index++) {
+        f.history.append({ ...f.terminal, generation: randomUUID() }, 'x');
+      }
+      expect(append).toHaveBeenCalledTimes(RUNTIME_LIMITS.historyLogFiles);
+      expect(f.history.state().gap).toBe(true);
+    },
+  );
 });
