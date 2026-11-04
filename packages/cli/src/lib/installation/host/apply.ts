@@ -4,19 +4,22 @@ import {
   hostUpdateTerminal,
   type HostUpdateOperation,
   type HostUpdateReply,
+  type HostUpdateReview,
 } from '@puddle/shared';
 import type { HostControlClient } from '@puddle/shared/node/host-control';
-import { acquireAuthority } from '../../auth/connection-authority.js';
-import type { Transport } from '../../transport/transport.js';
-import { CliError, silentLogger } from '../../types.js';
-import { installedVersion, type BootstrapOptions } from '../bootstrap.js';
-import { prepareHostUpdate } from './updates.js';
+import { CliError } from '../../types.js';
+
+/** Shell/cockpit-owned UI; absence never grants interruption consent. */
+export type ConfirmHostUpdateInterruption = (request: {
+  operation: HostUpdateOperation;
+  review: HostUpdateReview;
+}) => Promise<boolean>;
 
 type Authority = Pick<HostControlClient, 'generation' | 'state' | 'hostUpdate'>;
 type Progress = (operation: HostUpdateOperation) => void;
 const reference = ({ id, revision }: HostUpdateOperation) => ({ id, revision });
 
-function failure(operation: HostUpdateOperation, message: string): CliError {
+export function hostUpdateFailure(operation: HostUpdateOperation, message: string): CliError {
   return new CliError(
     'upgrade_failed',
     message,
@@ -26,7 +29,7 @@ function failure(operation: HostUpdateOperation, message: string): CliError {
 
 function accepted(reply: HostUpdateReply, operation: HostUpdateOperation): HostUpdateOperation {
   if (!reply.ok || !reply.operation || reply.operation.id !== operation.id)
-    throw failure(
+    throw hostUpdateFailure(
       operation,
       `Host update response requires inspection${reply.ok ? '' : ` (${reply.code})`}`,
     );
@@ -45,10 +48,10 @@ async function observe(
   let operation = initial;
   while (!ready(operation)) {
     if (performance.now() >= deadline)
-      throw failure(operation, 'Host update is still unresolved; no action was repeated');
+      throw hostUpdateFailure(operation, 'Host update is still unresolved; no action was repeated');
     await delay(1000);
     if (authority.state === 'protocol_mismatch')
-      throw failure(operation, 'The replacement host protocol is incompatible');
+      throw hostUpdateFailure(operation, 'The replacement host protocol is incompatible');
     if (authority.state !== 'ready') continue;
     let reply: HostUpdateReply;
     try {
@@ -64,18 +67,17 @@ async function observe(
   return operation;
 }
 
-/** An explicit runtime update approves only a newly inspected, non-interrupting selection. */
-export async function applyRuntimeUpdate(
+/** Inspect once, approve the exact impact, then observe without repeating activation. */
+export async function applyHostUpdate(
   authority: Authority,
   initial: HostUpdateOperation,
   onProgress: Progress = () => {},
+  confirmInterruption?: ConfirmHostUpdateInterruption,
 ): Promise<HostUpdateOperation> {
-  if (initial.targets.length !== 1 || initial.targets[0]?.component !== 'runtime')
-    throw failure(initial, 'This action requires a runtime-only update');
   const generation = authority.generation;
   const requireConnection = () => {
     if (!generation || authority.generation !== generation || authority.state !== 'ready')
-      throw failure(initial, 'Host update connection changed before approval');
+      throw hostUpdateFailure(initial, 'Host update connection changed before approval');
   };
   requireConnection();
   let operation = await observe(
@@ -94,18 +96,30 @@ export async function applyRuntimeUpdate(
     });
     operation = accepted(review, operation);
     onProgress(operation);
-    if (!review.ok || !review.review?.can_apply || !review.review.fingerprint) {
+    const inspection = review.ok ? review.review : undefined;
+    const interruption = inspection?.interruption_fingerprint;
+    const fingerprint = inspection?.fingerprint ?? interruption;
+    if (!inspection || !fingerprint || (!inspection.can_apply && !interruption)) {
       const blockers = review.ok ? review.review?.blockers.map((item) => item.code).join(', ') : '';
-      throw failure(operation, `Host update checks did not pass${blockers ? `: ${blockers}` : ''}`);
+      throw hostUpdateFailure(
+        operation,
+        `Host update checks did not pass${blockers ? `: ${blockers}` : ''}`,
+      );
     }
     requireConnection();
+    if (interruption) {
+      if (!(await confirmInterruption?.({ operation, review: inspection })))
+        throw hostUpdateFailure(operation, 'Host update interruption was not approved');
+      requireConnection();
+    }
     let applied: HostUpdateReply | undefined;
     try {
       applied = await authority.hostUpdate({
         action: 'apply',
         reference: reference(operation),
         cockpit: PROTOCOL_VERSION,
-        fingerprint: review.review.fingerprint,
+        fingerprint,
+        ...(interruption ? { interruption_approval: interruption } : {}),
       });
     } catch {
       // The host may have consumed dispatch. Observe this id, even if still in preflight.
@@ -133,40 +147,6 @@ export async function applyRuntimeUpdate(
     3 * 60_000,
   );
   if (operation.phase !== 'complete')
-    throw failure(operation, operation.message ?? `Host update ${operation.phase}`);
+    throw hostUpdateFailure(operation, operation.message ?? `Host update ${operation.phase}`);
   return operation;
-}
-
-/** Shared local/SSH entry point; the CLI process participates throughout preparation. */
-export async function upgradeRuntime(
-  transport: Transport,
-  options: BootstrapOptions & { version: string },
-): Promise<{ from: string | null; to: string; operation: HostUpdateOperation }> {
-  const logger = options.logger ?? silentLogger;
-  const from = await installedVersion(transport, 'runtime');
-  const authority = await acquireAuthority(transport);
-  let lastPhase: HostUpdateOperation['phase'] | undefined;
-  const onProgress: Progress = (operation) => {
-    if (lastPhase === undefined) logger.info(`host update ${operation.id} on ${transport.label}`);
-    if (lastPhase !== operation.phase) logger.info(`runtime update: ${operation.phase}`);
-    lastPhase = operation.phase;
-  };
-  try {
-    const generation = authority.generation;
-    const operation = await prepareHostUpdate(
-      transport,
-      authority,
-      [{ component: 'runtime', version: options.version }],
-      { tarball: options.tarball, logger, onProgress },
-    );
-    if (authority.generation !== generation || authority.state !== 'ready')
-      throw failure(operation, 'Host update connection changed before approval');
-    return {
-      from,
-      to: options.version,
-      operation: await applyRuntimeUpdate(authority, operation, onProgress),
-    };
-  } finally {
-    authority.close();
-  }
 }

@@ -159,7 +159,11 @@ It records one independent continuation of an interrupted daemon update, includi
 when the daemon cannot connect. Inspect the recorded attempt; acceptance is not completion.
 upgrade moves components to the newest release (or the named @version),
 installing any that are missing; with no component it covers everything
-installed on the target — the CLI last, using its installation channel. cli and desktop are
+installed on the target — the CLI last, using its installation channel.
+Daemon upgrades use the host coordinator when supported, preserving independent
+runtimes and asking before interrupting daemon-owned work. Legacy transitions
+report their session interruptions. An unavailable modern coordinator is not bypassed.
+cli and desktop are
 client-machine artefacts: user@host targets daemon and runtime components. remove
 uninstalls a component after confirmation; 'daemon' stops it (interrupting
 its sessions), unregisters the supervisor, and keeps ~/.puddle's data —

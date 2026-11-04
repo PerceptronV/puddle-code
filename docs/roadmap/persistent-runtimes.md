@@ -12,9 +12,10 @@ legacy composition is restricted to internal migration fixtures. Hosts without a
 usable systemd/launchd manager currently refuse new launches; detached/attached
 lifetimes remain a release blocker. The daemon coordinator now composes maintenance
 for private host-control daemon updates. Explicit CLI recovery continuation now works
-through private authority or the trusted offline local/SSH helper; ordinary CLI/launcher
-upgrades, cockpit integration, remaining failure recovery and complete packaged upgrade
-acceptance remain unfinished.
+through private authority or the trusted offline local/SSH helper. Ordinary CLI daemon
+upgrades now share runtime updates' staging, review and observation path, with explicit
+interruption approval for daemon-owned work. Launcher integration, cockpit controls,
+remaining failure recovery and complete packaged upgrade acceptance remain unfinished.
 This document describes the intended refactor; [SPEC.md](../../SPEC.md) continues
 to describe shipped behaviour. Update the specification, protocol documentation,
 repository instructions and changelog alongside each implementation phase.
@@ -32,6 +33,20 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 [acceptance matrix](#acceptance-matrix) for the release gates.
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
+
+- Ordinary daemon install/upgrade commands now use the existing host coordinator
+  on hosts advertising private updates. Runtime and daemon application share
+  `cli/src/lib/installation/host/apply.ts` and `upgrade.ts`; no separate installer or
+  polling loop was added. Exact interruption consent comes from a shell-owned callback,
+  rechecking participating authority after the prompt and retaining host-side final
+  impact checks. Missing/declined consent leaves the stage unactivated. Lost apply
+  replies cause observation only. An unavailable modern installation or failed inspection
+  cannot fall back to the legacy installer; first installs and legacy transitions keep
+  the embedded bootstrap. CLI/private-control fixtures cover local/SSH daemon updates,
+  changed impact/authority, missing consent and lost replies alongside existing runtime
+  and legacy launcher tests. Supervisors and activation outcomes are simulated here;
+  packaged upgrade acceptance, stopped modern-host startup, launcher integration and
+  cockpit controls remain required. All three protocols are unchanged.
 
 - Application 25.12 adds `puddle updates [user@host] --operation <id> --continue`,
   reusing the independent recovery dispatcher online and the existing OS/SSH bootstrap

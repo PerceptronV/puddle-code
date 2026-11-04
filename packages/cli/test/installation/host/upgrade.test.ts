@@ -8,7 +8,7 @@ import { atomicPrivateJson, digest, ipcPath } from '@puddle/shared/node';
 import { checkpointWorker } from '../../../../daemon/test/helpers/update-checkpoint.js';
 import { updateWorkerDirectory } from '../../../../daemon/src/updates/worker/supervisor.js';
 import { HostConnection } from '../../../src/lib/auth/connection-authority.js';
-import { upgradeRuntime } from '../../../src/lib/installation/host/runtime.js';
+import { upgradeHostComponent } from '../../../src/lib/installation/host/upgrade.js';
 import type { Transport } from '../../../src/lib/transport/transport.js';
 import type { UpdateInspection } from '../../../../daemon/src/updates/preflight/inspection.js';
 import { HostUpdateCoordinator } from '../../../../daemon/src/updates/coordinator.js';
@@ -40,8 +40,12 @@ afterEach(async () => {
   vi.clearAllMocks();
 });
 
-async function fixture(kind: 'local' | 'ssh' = 'local', minor: number = PROTOCOL_VERSION.minor) {
-  const f = candidateFixture('runtime');
+async function fixture(
+  kind: 'local' | 'ssh' = 'local',
+  minor: number = PROTOCOL_VERSION.minor,
+  component: 'runtime' | 'daemon' = 'runtime',
+) {
+  const f = candidateFixture(component);
   f.store.stopBeforeDispatch(f.operation, 'cancelled', 'fixture preparation');
   vi.stubEnv('PUDDLE_HOME', f.home);
   const inspection: UpdateInspection = {
@@ -57,6 +61,19 @@ async function fixture(kind: 'local' | 'ssh' = 'local', minor: number = PROTOCOL
     },
     supervision: { worker: { kind: 'systemd', domain: null }, daemon: null, blockers: [] },
   };
+  if (component === 'daemon') {
+    inspection.connector = { state: 'absent', identity: null, blockers: [] };
+    inspection.supervision.daemon = {
+      kind: 'systemd',
+      name: 'puddled.service',
+      domain: null,
+      pid: process.pid,
+      invocation: 'a'.repeat(32),
+      controlGroup: '/fixture/puddled.service',
+      definition_path: null,
+      definition_digest: digest('fixture service'),
+    };
+  }
   const inspect = vi.fn(async () => inspection);
   let recover = false;
   const dispatch = vi.fn(async (operation: HostUpdateOperation) => {
@@ -78,6 +95,14 @@ async function fixture(kind: 'local' | 'ssh' = 'local', minor: number = PROTOCOL
     operations: f.store,
     inspection: { inspect },
     installedRuntime: () => f.capabilities.runtime,
+    ...(component === 'daemon'
+      ? {
+          pauseDaemon: async () => ({
+            release() {},
+            outgoing: { pid: process.pid, controller: { id: randomUUID(), epoch: 1 } },
+          }),
+        }
+      : {}),
     dispatch,
   });
   const registry = new LeaseRegistry();
@@ -138,6 +163,106 @@ async function fixture(kind: 'local' | 'ssh' = 'local', minor: number = PROTOCOL
     },
   };
 }
+
+it.each(['local', 'ssh'] as const)(
+  'updates a daemon through %s private control using the existing staging and observation path',
+  async (kind) => {
+    const f = await fixture(kind, PROTOCOL_VERSION.minor, 'daemon');
+    const confirmInterruption = vi.fn(async () => true);
+    const result = await upgradeHostComponent(f.transport, 'daemon', {
+      version: '0.4.0',
+      confirmInterruption,
+    });
+    expect(result.operation.phase).toBe('complete');
+    expect(f.commands.map(({ action }) => action)).toEqual(['begin', 'stage', 'inspect', 'apply']);
+    expect(mock.stage).toHaveBeenCalledExactlyOnceWith(
+      f.transport,
+      'daemon',
+      expect.objectContaining({ version: '0.4.0' }),
+    );
+    expect(confirmInterruption).not.toHaveBeenCalled();
+    expect(f.dispatch).toHaveBeenCalledOnce();
+  },
+);
+
+it.each(['approve', 'decline', 'missing', 'changed-impact', 'changed-authority'] as const)(
+  'binds daemon interruption approval to reviewed work and participating authority (%s)',
+  async (answer) => {
+    const f = await fixture('local', PROTOCOL_VERSION.minor, 'daemon');
+    f.inspection.impact.requiresInterruption = true;
+    f.inspection.impact.affected.notebooks = [
+      {
+        instance: randomUUID(),
+        revision: 1,
+        path: '/project/example.ipynb',
+        kernel: 'python3',
+        state: 'idle',
+        busy: false,
+        changing: false,
+      },
+    ];
+    let loseAuthority: (() => void) | undefined;
+    const original = HostConnection.prototype.hostUpdate;
+    vi.spyOn(HostConnection.prototype, 'hostUpdate').mockImplementation(function (
+      this: HostConnection,
+      command,
+    ) {
+      loseAuthority = () => this.setTransportAvailable(false);
+      return original.call(this, command);
+    });
+    const confirmInterruption = vi.fn(
+      async ({ review }: { review: import('@puddle/shared').HostUpdateReview }) => {
+        expect(f.dispatch).not.toHaveBeenCalled();
+        expect(review.affected.notebooks).toBe(1);
+        if (answer === 'changed-impact') f.inspection.fingerprint = digest('new kernel');
+        if (answer === 'changed-authority') loseAuthority!();
+        return answer !== 'decline';
+      },
+    );
+    const pending = upgradeHostComponent(f.transport, 'daemon', {
+      version: '0.4.0',
+      confirmInterruption: answer === 'missing' ? undefined : confirmInterruption,
+    });
+    if (answer === 'approve') {
+      expect((await pending).operation.phase).toBe('complete');
+      expect(f.dispatch).toHaveBeenCalledOnce();
+      expect(f.commands.at(-1)).toMatchObject({
+        action: 'apply',
+        fingerprint: f.inspection.fingerprint,
+        interruption_approval: f.inspection.fingerprint,
+      });
+    } else {
+      await expect(pending).rejects.toThrow();
+      expect(f.dispatch).not.toHaveBeenCalled();
+      expect(f.store.read()?.phase).toBe('preflight');
+      expect(f.commands.filter(({ action }) => action === 'apply')).toHaveLength(
+        answer === 'changed-impact' ? 1 : 0,
+      );
+    }
+  },
+);
+
+it('observes a daemon update after a lost activation reply without repeating approval', async () => {
+  const f = await fixture('ssh', PROTOCOL_VERSION.minor, 'daemon');
+  const original = HostConnection.prototype.hostUpdate;
+  vi.spyOn(HostConnection.prototype, 'hostUpdate').mockImplementation(async function (
+    this: HostConnection,
+    command,
+  ) {
+    const result = await original.call(this, command);
+    if (command.action === 'apply') {
+      this.setTransportAvailable(false);
+      throw new Error('Daemon activation reply lost');
+    }
+    return result;
+  });
+  expect(
+    (await upgradeHostComponent(f.transport, 'daemon', { version: '0.4.0' })).operation.phase,
+  ).toBe('complete');
+  expect(f.commands.filter(({ action }) => action === 'apply')).toHaveLength(1);
+  expect(f.commands.some(({ action }) => action === 'status')).toBe(true);
+  expect(f.dispatch).toHaveBeenCalledOnce();
+});
 
 it.each(['local', 'ssh'] as const)(
   'upgrades the runtime through %s private control without installing a daemon',
@@ -204,7 +329,7 @@ it('observes completion after a lost apply response and replacement lease withou
     }
     return result;
   });
-  const result = await upgradeRuntime(f.transport, { version: '0.4.0' });
+  const result = await upgradeHostComponent(f.transport, 'runtime', { version: '0.4.0' });
   expect(result.operation.phase).toBe('complete');
   expect(f.commands.filter((command) => command.action === 'apply')).toHaveLength(1);
   expect(f.commands.some((command) => command.action === 'status')).toBe(true);
@@ -222,7 +347,7 @@ it('does not approve after the participating connection changes during inspectio
     if (command.action === 'inspect') this.setTransportAvailable(false);
     return result;
   });
-  await expect(upgradeRuntime(f.transport, { version: '0.4.0' })).rejects.toThrow(
+  await expect(upgradeHostComponent(f.transport, 'runtime', { version: '0.4.0' })).rejects.toThrow(
     'connection changed',
   );
   expect(f.store.read()?.phase).toBe('preflight');
@@ -238,9 +363,9 @@ it('coalesces two callers while one stages and lets the other observe the same c
     });
     return f.stage;
   });
-  const first = upgradeRuntime(f.transport, { version: '0.4.0' });
+  const first = upgradeHostComponent(f.transport, 'runtime', { version: '0.4.0' });
   await expect.poll(() => mock.stage.mock.calls.length).toBe(1);
-  const second = upgradeRuntime(f.transport, { version: '0.4.0' });
+  const second = upgradeHostComponent(f.transport, 'runtime', { version: '0.4.0' });
   await expect
     .poll(() => f.commands.filter((command) => command.action === 'begin').length)
     .toBe(2);
@@ -255,7 +380,7 @@ it('coalesces two callers while one stages and lets the other observe the same c
 it('reports recoverable worker failure and refuses cancellation after dispatch', async () => {
   const f = await fixture();
   f.requireRecovery();
-  await expect(upgradeRuntime(f.transport, { version: '0.4.0' })).rejects.toThrow(
+  await expect(upgradeHostComponent(f.transport, 'runtime', { version: '0.4.0' })).rejects.toThrow(
     'requires inspection',
   );
   const operation = f.store.read()!;
@@ -297,9 +422,9 @@ it.each(['local', 'ssh'] as const)(
   async (kind) => {
     const f = await fixture(kind);
     f.requireRecovery();
-    await expect(upgradeRuntime(f.transport, { version: '0.4.0' })).rejects.toThrow(
-      'requires inspection',
-    );
+    await expect(
+      upgradeHostComponent(f.transport, 'runtime', { version: '0.4.0' }),
+    ).rejects.toThrow('requires inspection');
     const operation = f.store.read()!;
     // Selected-release and ended-worker metadata only; this suite never starts a supervisor.
     mkdirSync(join(f.root, 'bin'));
@@ -353,7 +478,7 @@ it.each(['local', 'ssh'] as const)(
 it('does not send recovery to an older host or repeat an incomplete installation', async () => {
   const f = await fixture('local', 10);
   f.requireRecovery();
-  await expect(upgradeRuntime(f.transport, { version: '0.4.0' })).rejects.toThrow(
+  await expect(upgradeHostComponent(f.transport, 'runtime', { version: '0.4.0' })).rejects.toThrow(
     'requires inspection',
   );
   const operation = f.store.read()!;
@@ -367,7 +492,9 @@ it('does not send recovery to an older host or repeat an incomplete installation
 
 it('rejects older hosts before staging and never falls back to immediate installation', async () => {
   const f = await fixture('local', 6);
-  await expect(upgradeRuntime(f.transport, { version: '0.4.0' })).rejects.toThrow('unavailable');
+  await expect(upgradeHostComponent(f.transport, 'runtime', { version: '0.4.0' })).rejects.toThrow(
+    'unavailable',
+  );
   expect(mock.stage).not.toHaveBeenCalled();
   expect(mock.daemon).not.toHaveBeenCalled();
   expect(f.commands).toEqual([]);
@@ -380,7 +507,9 @@ it('requires a new user action when inspection changes before apply', async () =
     ...f.inspection,
     fingerprint: digest('changed evidence'),
   }));
-  await expect(upgradeRuntime(f.transport, { version: '0.4.0' })).rejects.toThrow('conflict');
+  await expect(upgradeHostComponent(f.transport, 'runtime', { version: '0.4.0' })).rejects.toThrow(
+    'conflict',
+  );
   expect(f.commands.filter((command) => command.action === 'apply')).toHaveLength(1);
   expect(f.store.read()?.phase).toBe('preflight');
   expect(f.dispatch).not.toHaveBeenCalled();

@@ -10,6 +10,26 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+The latest CLI host-upgrade fixtures exercise both runtime and daemon commands
+through shared staging/application code and actual isolated private control. Daemon
+cases cover local/SSH transport, exact notebook interruption counts, missing/declined
+consent, changed impact or authority during approval and lost activation replies.
+Routing tests refuse legacy fallback after coordinator/inspection failure or offline
+modern metadata, retaining the legacy transition path. The focused upgrade/launcher
+run passed 57 tests in five files. Supervisor actions and activation completion are
+simulated; this does not prove packaged upgrades preserve real provider processes.
+
+Built local/SSH recovery-helper tests exercise `--continue` without a daemon,
+record acceptance before a lost dispatcher reply, deduplicate an identical request
+and reject unverified stages, old metadata and unpinned executables. Separate helper
+actions reject verification/cancellation/inspection where continuation is required.
+Private-control recovery tests check authority loss and bounded, explicitly requested
+attempt metadata; CLI tests prevent offline fallback after an uncertain online action.
+The built helper suites passed ten tests. These fixtures use deterministic dispatchers
+or simulated supervisors; packaged forward recovery remains a separate release gate.
+
+The following entries record earlier foundation milestones and their limits at that time.
+
 `updates/worker/lifetime.test.ts` records an actual isolated process group, then
 exits its leader while a child remains alive: recovery refuses until that child
 exits too. Tests also reject missing/mismatched lifetime records, non-leading workers,

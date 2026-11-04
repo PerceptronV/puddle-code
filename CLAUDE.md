@@ -186,7 +186,12 @@ worker's own group durably before any activation; its commands must not detach.
 Maintenance release after worker execution requires ended-group evidence too. Missing
 records, permission errors or reused groups retain the hold; never signal a stored
 group to recover it. Completion verification never continues an incomplete installation.
-Cockpit confirmation and CLI/launcher daemon upgrades remain pending.
+Ordinary daemon upgrades share runtime updates' `cli/src/lib/installation/host/upgrade.ts`
+and `apply.ts`, including exact interruption approval through a shell-owned callback.
+Recheck participating authority after prompts; missing consent leaves staged work intact.
+Observe lost activation replies without retry, and never fall back to bootstrap after
+a coordinator/inspection failure. Passive modern metadata also blocks blind installation
+when the daemon cannot connect. Launcher integration and cockpit confirmation remain pending.
 Read-only `puddle updates` falls back to the existing local/SSH bootstrap helper
 when authority cannot connect. Share bounded ledger validation through
 `shared/src/node/installation/updates.ts`; label recorded evidence and never use

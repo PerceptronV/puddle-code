@@ -34,7 +34,7 @@ import type { Transport } from '../lib/transport/transport.js';
 import { openHostTransport } from '../lib/transport/open.js';
 import { CliError, type Logger } from '../lib/types.js';
 import { upgradeDaemon } from '../lib/installation/upgrade.js';
-import { upgradeRuntime } from '../lib/installation/host/runtime.js';
+import { upgradeHostComponent } from '../lib/installation/host/upgrade.js';
 import { cliVersion, pinnedDaemonVersion } from '../lib/version.js';
 import type { Command, Component } from './args.js';
 import { terminateCockpit } from './detach.js';
@@ -148,6 +148,20 @@ async function installDaemonAt(
     ...(version !== undefined ? { version } : {}),
     ...(tarball !== undefined ? { tarball } : {}),
     logger,
+    confirmInterruption: async ({ review }) => {
+      const affected = review.affected;
+      if (!process.stdin.isTTY || !process.stdout.isTTY)
+        throw new CliError(
+          'upgrade_failed',
+          'Daemon-owned work needs explicit interruption approval',
+          'Run this update in an interactive terminal after reviewing the affected work',
+        );
+      return confirm(
+        `Updating puddled on ${transport.label} will interrupt ${affected.terminals} daemon-owned terminal(s), ` +
+          `${affected.notebooks} notebook kernel(s), ${affected.compilation} compilation task(s) and ` +
+          `${affected.programmes} programme(s). Independently hosted agents keep running. Continue?`,
+      );
+    },
   });
   logger.info(`puddled ${result.from ?? '(fresh install)'} → ${result.to} on ${transport.label}`);
   return 0;
@@ -162,7 +176,7 @@ async function installRuntimeAt(
   if (tarball !== undefined && explicit === undefined)
     throw new CliError('bad_arguments', 'A runtime --tarball requires an explicit @version');
   const version = explicit ?? (await resolveHostVersion(logger));
-  const result = await upgradeRuntime(transport, { version, tarball, logger });
+  const result = await upgradeHostComponent(transport, 'runtime', { version, tarball, logger });
   logger.info(
     `puddler default ${result.from ?? '(not installed)'} → ${result.to} on ${transport.label}; running runtimes keep their pinned build`,
   );

@@ -326,10 +326,14 @@ operation with no executing worker. The launcher pause lets admitted launches fi
 before pausing discovery/reconciliation. Production uses this composition after boot
 reconciliation and auto-resume finish; there is no user-selectable switch. Accepted
 work survives caller loss; reconnect only observes it. Supported supervised daemon
-updates can now dispatch through private host control. Cockpit confirmation,
-CLI/launcher daemon upgrades and recovery integration remain unfinished. Runtime install/upgrade commands now
-consume this coordinator, including bounded observation after lost apply responses;
-cockpit routes and approval UI remain to be integrated. `puddle updates` inspects
+updates can now dispatch through private host control. Runtime and ordinary daemon
+install/upgrade commands consume this coordinator, sharing staging, review, exact
+interruption approval and bounded observation after lost apply responses. Declining
+interruption leaves the staged operation available; changed authority or impact
+prevents dispatch. An unavailable modern host or failed inspection cannot fall back
+to the legacy installer. First installs and legacy transitions retain the embedded
+bootstrap. Launcher integration, stopped modern-host startup, cockpit routes and
+approval UI remain unfinished. `puddle updates` inspects
 durable operation state and supports exact pre-dispatch cancellation. No remote
 connector permission is added.
 
@@ -484,7 +488,7 @@ literal supervisor definitions and bounded dispatch commands.
 The private host-control dispatcher now composes daemon and combined updates with
 final quiescence and exact compatibility/impact approval. Stopped or unmanaged
 connector installations remain blocked, and migration-aware recovery remains
-unfinished. Runtime CLI updates use the coordinator; daemon CLI/launcher and
+unfinished. Runtime and ordinary daemon CLI updates use the coordinator; launcher and
 cockpit updates still need integration. Completed job registrations and pinned release trees remain retained
 until verified service cleanup and reference-aware collection are implemented.
 
