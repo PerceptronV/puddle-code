@@ -267,9 +267,21 @@ Implementation evidence so far:
   owner. A release test reuses the runtime fixtures to verify the packaged shell's
   PID and variable across controller replacement, and runs in both host release
   CI jobs. Local verification also exercises an extracted archive. Independent
-  selectors, installation coordination and pinned-build retention remain pending.
+  selectors, durable update coordination and reference-aware collection remain pending.
 
-These are foundations for phases 0–3, not completion of those phases. Full native
+- The embedded host installer now follows the standalone CLI installer's lock,
+  fresh-generation and atomic activation pattern. Forced repairs and failed
+  validation preserve published trees; staging failures preserve the selector.
+  Local/SSH discovery and offline inventory read `VERSION`, retaining a legacy
+  fixed-version fallback. Deterministic tests cover competing installers, failure
+  preservation and legacy metadata. The packaged-owner test can install a checked
+  archive into its temporary home, force a same-version repair while disconnected,
+  and verify the original owner, shell PID and variable survive on its pinned tree.
+  This bootstrap lock is not yet the durable operation/admission coordinator;
+  independent selectors, bounded reference-aware collection, adoption verification
+  and migration-aware recovery remain required.
+
+These are foundations for phases 0–4, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native
 dependency retention, production session/turn adoption and segment routing,
 packaging and the update surfaces below remain required. No production session
@@ -325,7 +337,7 @@ whether this combination is supported; matching release strings do not.
 | [`sessions/service.ts`](../../packages/daemon/src/sessions/service.ts) | Stable runtime identity exists, but its ownership, lifecycle resources and conversation index are in memory. | Persist runtime bindings and reconstruct them from authenticated live owners. |
 | [`sessions/reconcile.ts`](../../packages/daemon/src/sessions/reconcile.ts) | Previously live rows are marked interrupted on every boot. | Discover and adopt runtimes before considering interruption or auto-resume. |
 | [`agents/`](../../packages/daemon/src/agents) | Provider lifecycle resources run inside the daemon; Codex's TUI depends on its proxy and app-server. | Execute the provider's live integration in its runtime host, retaining provider-owned modules. |
-| [`scripts/install.sh`](../../scripts/install.sh) | Replaces a release tree, flips `current` and restarts the daemon and registered connector. | Stage immutable releases and restart only the selected components; retain all trees used by live runtimes. |
+| [`scripts/install.sh`](../../scripts/install.sh) | Stages immutable generations under an installer lock, atomically replaces `current` and restarts the daemon and registered connector. | Add independent component selection and the durable coordinator; collect trees only after all references are released. |
 | [`handshake.ts`](../../packages/cli/src/lib/connection/handshake.ts) | One local/SSH compatibility and approved-update policy, with interruption wording. | Retain that policy and share its updater with cockpit actions; calculate actual update impact. |
 | [`UpdateToast.tsx`](../../packages/web/src/features/shell/UpdateToast.tsx) | Offers a staged desktop release on mount and when the shell announces one. | Reuse the interaction for host updates while keeping desktop and target-host operations distinct. |
 | [`desktop/main.ts`](../../packages/desktop/src/main.ts) | Checks releases every 30 minutes and stages the newest desktop release. | Keep shell updates here; host checking/staging belongs on the host and shared launcher path. |

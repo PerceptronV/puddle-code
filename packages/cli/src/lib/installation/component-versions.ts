@@ -11,6 +11,7 @@ import { PROTOCOL_VERSION } from '@puddle/shared';
 import { findInstalledDesktopApp } from './desktop-update.js';
 import { clientHome } from '../paths.js';
 import { cliVersion } from '../version.js';
+import { parseHostReleaseVersion, parseLegacyHostVersion } from './host/version.js';
 
 export interface SpeakingProtocol {
   major: number;
@@ -213,9 +214,11 @@ export function recordDesktopInstallation(
 }
 
 function daemonVersion(home: string): string | undefined {
+  const metadata = join(home, 'bin', 'current', 'VERSION');
   try {
+    if (existsSync(metadata)) return parseHostReleaseVersion(readFileSync(metadata, 'utf8'));
     const target = readlinkSync(join(home, 'bin', 'current'));
-    return /(?:^|\/)versions\/([^/\s]+)$/.exec(target)?.[1];
+    return parseLegacyHostVersion(target);
   } catch {
     return undefined;
   }

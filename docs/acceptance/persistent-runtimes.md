@@ -454,10 +454,15 @@ and run the packaged-owner test without launching the installed daemon:
 
 ```sh
 node scripts/build-tarball.mjs --out-dir /tmp/puddle-host-release
-PUDDLE_TEST_RUNTIME_RELEASE=/tmp/puddle-host-release/stage/puddled-v0.3.14 node node_modules/vitest/vitest.mjs run packages/daemon/test/runtime/lifecycle/release.test.ts
+PUDDLE_TEST_RUNTIME_RELEASE=/tmp/puddle-host-release/stage/puddled-v0.3.14 PUDDLE_TEST_RUNTIME_ARCHIVE=/tmp/puddle-host-release/puddled-v0.3.14-darwin-arm64.tar.gz node node_modules/vitest/vitest.mjs run packages/daemon/test/runtime/lifecycle/release.test.ts
 ```
 
-Adjust the stage version to the release being tested. The test uses the archive's
+Adjust the version and archive platform to the release being tested. Supplying
+`PUDDLE_TEST_RUNTIME_ARCHIVE` exercises the real embedded installer with checksum
+verification and `--no-supervisor` inside the isolated home. It forces a same-version
+repair while the owner has no controller, checks the old bundle is intact and
+verifies shell continuity after adopting again. Omitting that variable tests the
+staged/extracted tree directly. The test uses the archive's
 `puddler` wrapper, pinned Node and native modules, checks version/protocol metadata
 and a side-effect-free version probe, then preserves the shell PID and variable
 through controller replacement before explicit stop. It reuses existing isolated
@@ -468,8 +473,12 @@ Local verification on macOS 26.5.2/Node v22.21.1 built the complete darwin-arm64
 archive, verified its SHA256 and runtime entries, extracted it, and passed the
 packaged-owner test from that extracted tree. Existing daemon/connector version
 and puddlang smoke checks passed too. This verifies packaging and private owner
-continuity; installed upgrade transactions and native provider/platform gates
-remain outstanding.
+continuity. The archive-install variant also passed on that macOS/Node combination,
+preserving the original owner and shell through a same-version repair. Deterministic
+CLI installation tests cover fresh/private homes, legacy permission migration,
+healthy generation reuse, failed smoke/metadata/activation, competing installers,
+legacy inventory and literal wrapper paths. Full supervised upgrade transactions,
+reference-aware collection and native provider/platform gates remain outstanding.
 
 ## Remaining release gates
 

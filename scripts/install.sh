@@ -86,9 +86,33 @@ esac
 [ "$DIR_OWNER" = "$(id -u)" ] || die "Puddle home must be owned by the current user: $HOME_DIR"
 [ "$((0$DIR_MODE & 0022))" -eq 0 ] || die "Puddle home must not be writable by other users: $HOME_DIR"
 chmod 700 "$HOME_DIR"
+HOME_DIR=$(CDPATH= cd -- "$HOME_DIR" && pwd -P)
+umask 077
 BIN_DIR="$HOME_DIR/bin"
 CACHE_DIR="$HOME_DIR/cache"
+for DIRECTORY in "$BIN_DIR" "$BIN_DIR/versions" "$CACHE_DIR"; do
+  [ ! -L "$DIRECTORY" ] || die "installation directory must not be a symlink: $DIRECTORY"
+done
 mkdir -p "$BIN_DIR/versions" "$CACHE_DIR" "$HOME_DIR/logs"
+# Match the standalone CLI installer's fail-closed lock and fresh-tree pattern.
+# This serialises bootstrap scripts; the durable host-update coordinator will
+# additionally fence runtime admission and track replacement/adoption.
+mkdir "$BIN_DIR/.install-lock" 2>/dev/null \
+  || die "another installer is running (if interrupted, remove $BIN_DIR/.install-lock and retry)"
+STAGE=""
+cleanup() {
+  if [ -n "$STAGE" ] && [ "$(readlink "$BIN_DIR/current" 2>/dev/null || true)" != "versions/$(basename "$STAGE")" ]; then
+    rm -rf "$STAGE"
+  fi
+  rmdir "$BIN_DIR/.install-lock"
+}
+trap cleanup 0
+trap 'exit 1' 1 2 3 15
+valid_version() {
+  case "$VERSION" in ''|*[!0-9A-Za-z.+-]*) die "invalid release version: $VERSION" ;; esac
+  [ "${#VERSION}" -le 128 ] && printf '%s\n' "$VERSION" | LC_ALL=C grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([+-][A-Za-z0-9.-]+)?$' \
+    || die "invalid release version: $VERSION"
+}
 
 # --- resolve version / fetch -------------------------------------------------
 sha_tool() {
@@ -123,6 +147,7 @@ else
     VERSION=$(printf '%s' "$LATEST" | sed -n 's#.*/tag/v\{0,1\}##p')
     [ -n "$VERSION" ] || die "could not resolve the latest release of $REPO; pass --version"
   fi
+  valid_version
   FILE="puddled-v$VERSION-$OS-$ARCH.tar.gz"
   BASE="https://github.com/$REPO/releases/download/v$VERSION"
   TARBALL="$CACHE_DIR/$FILE"
@@ -136,37 +161,75 @@ else
     die "checksum mismatch — deleted the download"
   }
 fi
+valid_version
 
 # --- unpack + symlink flip ---------------------------------------------------
-DEST="$BIN_DIR/versions/$VERSION"
+DEST=""
 SMOKE_LOG="$HOME_DIR/logs/install-smoke.log"
 NEED_INSTALL=1
-if [ -d "$DEST" ] && [ "$FORCE" -eq 0 ] && [ -x "$DEST/puddled" ]; then
+# Reuse the selected generation, or a legacy fixed-version tree. Never repair
+# either in place: a runtime, helper, daemon or connector may still pin it.
+CURRENT=$(readlink "$BIN_DIR/current" 2>/dev/null || true)
+case "$CURRENT" in
+  versions/*)
+    NAME=${CURRENT#versions/}
+    case "$NAME" in
+      ''|.|..|*/*) ;;
+      *)
+        if [ -f "$BIN_DIR/$CURRENT/VERSION" ] && [ "$(head -c 130 "$BIN_DIR/$CURRENT/VERSION")" = "$VERSION" ]; then
+          DEST="$BIN_DIR/$CURRENT"
+        fi ;;
+    esac ;;
+esac
+if [ -z "$DEST" ]; then DEST="$BIN_DIR/versions/$VERSION"; fi
+if [ -d "$DEST" ] && [ ! -L "$DEST" ] && [ "$FORCE" -eq 0 ] && [ -x "$DEST/puddled" ] \
+  && { [ ! -e "$DEST/VERSION" ] || [ "$(head -c 130 "$DEST/VERSION")" = "$VERSION" ]; }; then
   if "$DEST/puddled" --version >/dev/null 2>"$SMOKE_LOG"; then
     NEED_INSTALL=0
     rm -f "$SMOKE_LOG"
     say "version $VERSION already installed"
   else
-    say "existing version $VERSION failed validation — reinstalling"
-    rm -rf "$DEST"
+    say "existing version $VERSION failed validation — staging a new generation"
   fi
 fi
 if [ "$NEED_INSTALL" -eq 1 ]; then
-  rm -rf "$DEST"
-  mkdir -p "$DEST"
+  # '~' cannot be mistaken for part of a legacy release/prerelease version.
+  STAGE=$(mktemp -d "$BIN_DIR/versions/$VERSION~XXXXXX")
+  DEST="$STAGE"
   tar -xzf "$TARBALL" --strip-components=1 -C "$DEST" || die "extraction failed"
+  [ -f "$DEST/VERSION" ] && [ "$(head -c 130 "$DEST/VERSION")" = "$VERSION" ] \
+    || die "archive version metadata mismatch"
   if ! "$DEST/puddled" --version >/dev/null 2>"$SMOKE_LOG"; then
-    rm -rf "$DEST"
     die "installed tree fails its own --version smoke test (details: $SMOKE_LOG)"
   fi
   rm -f "$SMOKE_LOG"
 fi
-ln -sfn "versions/$VERSION" "$BIN_DIR/current"
-
-# ~/.puddle/bin/puddled must be an exec wrapper, NOT a symlink: the launcher
-# locates bin/node via dirname $0, which must land inside current/.
-printf '#!/bin/sh\nexec "%s/current/puddled" "$@"\n' "$BIN_DIR" > "$BIN_DIR/puddled"
-chmod 0755 "$BIN_DIR/puddled"
+# Use the archive's Node as the standalone CLI installer does: rename replaces
+# the symlink itself atomically on both platforms, without following it as mv
+# can. Publish the wrapper first; an unsuccessful activation retains current.
+"$DEST/bin/node" --input-type=commonjs - "$BIN_DIR" "$DEST" <<'NODE'
+const fs = require('node:fs'), path = require('node:path');
+const [root, destination] = process.argv.slice(2);
+const current = path.join(root, 'current');
+try {
+  if (!fs.lstatSync(current).isSymbolicLink()) throw Error('current must be a symlink');
+} catch (error) { if (error.code !== 'ENOENT') throw error; }
+const launcher = path.join(root, 'puddled');
+const quote = (s) => "'" + s.replaceAll("'", "'\\''") + "'";
+// The archive launcher resolves its own directory; retain an exec wrapper.
+const wrapper = '#!/bin/sh\nexec ' + quote(path.join(current, 'puddled')) + ' "$@"\n';
+const suffix = '.new-' + process.pid;
+try {
+  fs.writeFileSync(launcher + suffix, wrapper, { flag: 'wx', mode: 0o755 });
+  fs.symlinkSync(path.relative(root, destination), current + suffix);
+  fs.renameSync(launcher + suffix, launcher);
+  fs.renameSync(current + suffix, current);
+} finally {
+  fs.rmSync(launcher + suffix, { force: true });
+  fs.rmSync(current + suffix, { force: true });
+}
+NODE
+STAGE="" # Published generations are retained until reference-aware collection.
 
 # Keep the cache small: current download + one previous.
 ls -1t "$CACHE_DIR"/puddled-v*.tar.gz 2>/dev/null | tail -n +3 | while read -r old; do rm -f "$old"; done

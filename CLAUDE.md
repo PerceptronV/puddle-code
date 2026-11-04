@@ -133,6 +133,12 @@ Standalone CLI installs live under `~/.local/share/puddle/cli` (XDG/`--prefix`
 overrides supported), with a `~/.local/bin/puddle` wrapper. CLI upgrade/removal
 uses the actual installation channel; daemon removal cannot delete the CLI.
 Keep old standalone release trees during upgrades: live cockpits serve their assets.
+Host bootstrap stages immutable `bin/versions/<release>~<generation>` trees and
+atomically selects `bin/current`; never overwrite a published tree, including a
+same-version repair. Keep old trees until reference-aware collection exists.
+Read release identity from `VERSION`, with fixed-version symlink fallback only
+for legacy installations. The bootstrap lock serialises installers; the durable
+runtime-aware update coordinator remains a separate rollout gate.
 The remote app and new GitHub releases publish only the CLI installer at
 `/install.sh`. Install daemon/desktop components through the CLI; the embedded
 daemon bootstrap still fetches GitHub archives automatically on first local/SSH

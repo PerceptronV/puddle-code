@@ -5,6 +5,7 @@ import { hostPaths } from '../paths.js';
 import type { Transport } from '../transport/transport.js';
 import { CliError, type Logger, silentLogger } from '../types.js';
 import { pinnedDaemonVersion, repoSlug } from '../version.js';
+import { parseHostReleaseVersion, parseLegacyHostVersion } from './host/version.js';
 
 export interface BootstrapOptions {
   /** Daemon release to install; defaults to the CLI's own version train. */
@@ -15,16 +16,21 @@ export interface BootstrapOptions {
 }
 
 /**
- * The daemon version installed under ~/.puddle/bin, read from the `current`
- * symlink's target (versions/<X.Y.Z>) — never by executing an unknown
+ * The daemon version installed under ~/.puddle/bin, read from release metadata
+ * (or a legacy fixed-version selector) — never by executing an unknown
  * `puddled` (a pre-Phase-6 binary would START a daemon on --version).
  * Null when nothing bootstrap-managed is installed.
  */
 export async function installedVersion(transport: Transport): Promise<string | null> {
+  const metadata = await transport.exec(
+    `if [ -e ${hostPaths.current}/VERSION ]; then head -c 130 ${hostPaths.current}/VERSION; else exit 3; fi`,
+    { timeoutMs: 15_000 },
+  );
+  if (metadata.code === 0) return parseHostReleaseVersion(metadata.stdout) ?? null;
+  if (metadata.code !== 3) return null;
   const result = await transport.exec(`readlink ${hostPaths.current}`, { timeoutMs: 15_000 });
   if (result.code !== 0) return null;
-  const match = /versions\/([^/\s]+)\s*$/.exec(result.stdout.trim());
-  return match?.[1] ?? null;
+  return parseLegacyHostVersion(result.stdout) ?? null;
 }
 
 /**
