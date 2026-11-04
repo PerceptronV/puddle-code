@@ -10,6 +10,18 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+The runtime controller `controls.test.ts` holds an admitted environment control,
+rejects later controls, drains its committed result and verifies release does not
+replay the rejection. `sessions/session-refs.test.ts` holds native discovery through
+a pause and checks exact capture plus irreversible shutdown; `session-service.test.ts`
+refuses pausing a live legacy fake agent without interrupting it.
+`onboarding-pause.test.ts` uses real temporary marker files to verify current-content
+resynchronisation and no watcher revival after disposal. The compilation service
+suite keeps an admitted provider alive during maintenance and coalesces watched file
+changes after release, while rejecting manual runs. These tests cover individual
+pause participants; production composition and active programme/kernel handling remain
+separate release gates.
+
 `updates/worker/connector.test.ts` checks exact approved identity, stale controller
 rejection, confirmed process exit, fresh replacement identity and lost mutation
 replies, with simulated supervisor/inspection boundaries. The daemon worker suite

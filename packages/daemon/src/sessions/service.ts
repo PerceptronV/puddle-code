@@ -290,6 +290,7 @@ export class SessionService extends EventEmitter {
   private readonly sessionRefs: SessionRefs;
   private readonly adoptions = new HostBackgroundTasks();
   private shuttingDown = false;
+  private observationsPaused = false;
   private readonly titleTimer: ReturnType<typeof setInterval>;
   private readonly terminalAgents: TerminalAgentMonitor;
   private readonly persistence: RuntimePersistence;
@@ -328,6 +329,7 @@ export class SessionService extends EventEmitter {
     // Catch in-agent renames that emit no signal (see TITLE_REFRESH_MS). Unref'd
     // so it never keeps the process (or a test run) alive.
     this.titleTimer = setInterval(() => {
+      if (this.observationsPaused) return;
       if (Date.now() - this.lastPersistenceRetry >= 30_000) {
         this.lastPersistenceRetry = Date.now();
         const saved = this.persistence.retry();
@@ -355,6 +357,48 @@ export class SessionService extends EventEmitter {
     this.adoptions.beginShutdown();
     clearInterval(this.titleTimer);
     this.terminalAgents.dispose();
+  }
+
+  /** Drain native capture before pausing the shared-store adoption it can trigger. */
+  pause(): ReturnType<HostAdmission['pause']> {
+    // Legacy agents have no independent journal for identity events during a pause.
+    // Their first upgrade still uses the explicitly interrupting migration path.
+    if (this.liveAgents.size)
+      throw new ApiError(
+        503,
+        'host_maintenance',
+        'Daemon-owned agents require an interrupting upgrade.',
+      );
+    const refs = this.sessionRefs.pause();
+    let lifecycle: ReturnType<HostAdmission['pause']>;
+    try {
+      lifecycle = this.lifecycleAdmission.pause();
+    } catch (error) {
+      refs.release();
+      throw error;
+    }
+    this.observationsPaused = true;
+    let adoption: ReturnType<HostAdmission['pause']> | undefined;
+    let released = false;
+    return {
+      drain: async (timeoutMs = 30_000) => {
+        const deadline = performance.now() + timeoutMs;
+        await refs.drain(timeoutMs);
+        await lifecycle.drain(deadline - performance.now());
+        if (released || this.shuttingDown)
+          throw new Error('Native observation pause ended before drainage');
+        adoption ??= this.adoptions.pause();
+        await adoption.drain(deadline - performance.now());
+      },
+      release: () => {
+        if (released) return;
+        released = true;
+        adoption?.release();
+        lifecycle.release();
+        refs.release();
+        this.observationsPaused = false;
+      },
+    };
   }
 
   /** Await native identity/switch and shared-store observations admitted before shutdown. */

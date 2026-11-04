@@ -1270,3 +1270,27 @@ describe('captured env', () => {
     await f.service.kill(session.id);
   });
 });
+
+it('pauses idle native observations reversibly and refuses to freeze unjournalled legacy agents', async () => {
+  const f = fixture();
+  const hold = f.service.pause();
+  await hold.drain();
+  hold.release();
+  const session = await f.service.create({
+    project_id: f.ids.project,
+    account_id: f.ids.account,
+    title: 'pause fixture',
+  });
+  try {
+    expect(() => f.service.pause()).toThrow('interrupting upgrade');
+    expect(f.ptys.has(session.id, 'agent')).toBe(true);
+  } finally {
+    await f.service.kill(session.id);
+    await waitFor(() => !f.ptys.has(session.id, 'agent'));
+    f.service.beginShutdown();
+    await f.service.drainObservations();
+    f.onboarding.dispose();
+    f.logs.closeAll();
+  }
+  expect(() => f.service.pause()).toThrow();
+});

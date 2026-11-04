@@ -20,6 +20,7 @@ import {
 import type { CompilationSettingsStore } from '../db/stores/compilation-settings.js';
 import type { ProfileStore } from '../db/stores/profiles.js';
 import type { ProjectStore } from '../db/stores/projects.js';
+import { HostAdmission } from '../host/lifecycle/admission.js';
 import { ApiError } from '../http/errors.js';
 import {
   descriptorOf,
@@ -68,6 +69,8 @@ export class CompilationService {
   private readonly listeners = new Set<(event: CompilationEvent) => void>();
   private readonly sweepTimer: ReturnType<typeof setInterval>;
   private disposed = false;
+  private paused = false;
+  private readonly admission = new HostAdmission();
 
   constructor(
     providers: readonly CompilationProvider[],
@@ -87,12 +90,14 @@ export class CompilationService {
   }
 
   async run(request: CompilationRunRequest): Promise<CompilationRunResponse> {
+    this.admission.assertOpen();
     const state = this.target(request);
     state.lastTouched = Date.now();
     return this.execute(state, 'on_demand');
   }
 
   async setMode(request: CompilationModeRequest): Promise<CompilationStatusResponse> {
+    this.admission.assertOpen();
     const state = this.target(request);
     state.lastTouched = Date.now();
     if (request.mode === 'on_demand') {
@@ -135,6 +140,7 @@ export class CompilationService {
   }
 
   updateDefaults(request: UpdateCompilationDefaultsRequest): CompilationDefaultsResponse {
+    this.admission.assertOpen();
     this.requireDeps().profiles.get(request.profile_id);
     const provider = this.defaultProvider(request.provider);
     if (request.mode === 'eager' && !provider.eager) {
@@ -189,6 +195,7 @@ export class CompilationService {
   }
 
   updateSettings(request: UpdateCompilationSettingsRequest): CompilationSettingsResponse {
+    this.admission.assertOpen();
     const provider = this.selectProvider(request.source, request.provider);
     if (request.mode === 'eager' && !provider.eager) {
       throw ApiError.badRequest(
@@ -243,8 +250,31 @@ export class CompilationService {
       }));
   }
 
+  /** Hold new compilations while already admitted providers finish without cancellation. */
+  pause(): ReturnType<HostAdmission['pause']> {
+    const hold = this.admission.pause();
+    this.paused = true;
+    let released = false;
+    return {
+      drain: (timeoutMs) => hold.drain(timeoutMs),
+      release: () => {
+        if (released) return;
+        released = true;
+        hold.release();
+        this.paused = false;
+        if (this.disposed) return;
+        for (const state of this.targets.values()) {
+          if (!state.dirty || state.running || state.status.mode !== 'eager') continue;
+          state.dirty = false;
+          void this.execute(state, 'eager').catch(() => undefined);
+        }
+      },
+    };
+  }
+
   dispose(): void {
     this.disposed = true;
+    this.admission.close();
     clearInterval(this.sweepTimer);
     for (const state of this.targets.values()) {
       state.status = { ...state.status, mode: 'on_demand' };
@@ -264,6 +294,10 @@ export class CompilationService {
     const watcher = new DependencyWatcher(() => {
       const current = this.targets.get(key);
       if (!current) return;
+      if (this.paused) {
+        current.dirty = true;
+        return;
+      }
       current.lastTouched = Date.now();
       void this.execute(current, 'eager').catch(() => undefined);
     });
@@ -309,72 +343,76 @@ export class CompilationService {
   private execute(state: TargetState, mode: CompilationMode): Promise<CompilationRunResponse> {
     if (this.disposed)
       throw ApiError.conflict('compiler_disposed', 'Compilation service is closed');
+    this.admission.assertOpen();
     if (state.running) {
       if (state.status.mode === 'eager') state.dirty = true;
       return state.running;
     }
-    if (!state.provider.capability().available) {
-      throw new ApiError(
-        424,
-        'compiler_not_installed',
-        `${state.provider.displayName} is not available on the daemon host`,
-      );
-    }
-    const revision = state.status.revision + 1;
-    state.status = {
-      ...state.status,
-      state: 'running',
-      revision,
-      error: null,
-    };
-    this.emit({ type: 'started', key: state.key, status: state.status });
-    const command = this.commandOverride(state, mode);
-    state.running = state.provider
-      .run(state.source, {
-        mode,
-        command,
-        ...(state.provider.terminal
-          ? {
-              ...(state.projectId ? { projectId: state.projectId } : {}),
-              ...(state.profileId ? { profileId: state.profileId } : {}),
-            }
-          : {}),
-      })
-      .then((product) => {
-        const result = responseOf(state.provider, product, revision);
-        state.status = {
-          ...state.status,
-          state: 'succeeded',
-          revision,
-          result,
-          error: null,
-        };
-        if (state.status.mode === 'eager') state.watcher.replace(product.dependencies);
-        this.emit({ type: 'completed', key: state.key, status: state.status });
-        return result;
-      })
-      .catch((error: unknown) => {
-        const failure = failureOf(error);
-        state.status = {
-          ...state.status,
-          state: 'failed',
-          revision,
-          error: failure,
-        };
-        this.emit({ type: 'failed', key: state.key, status: state.status });
-        throw error;
-      })
-      .finally(() => {
-        state.running = null;
-        if (state.dirty && state.status.mode === 'eager') {
-          state.dirty = false;
-          void this.execute(state, 'eager').catch(() => undefined);
-        }
-      });
-    return state.running;
+    return this.admission.run(async () => {
+      if (!state.provider.capability().available) {
+        throw new ApiError(
+          424,
+          'compiler_not_installed',
+          `${state.provider.displayName} is not available on the daemon host`,
+        );
+      }
+      const revision = state.status.revision + 1;
+      state.status = {
+        ...state.status,
+        state: 'running',
+        revision,
+        error: null,
+      };
+      this.emit({ type: 'started', key: state.key, status: state.status });
+      const command = this.commandOverride(state, mode);
+      state.running = state.provider
+        .run(state.source, {
+          mode,
+          command,
+          ...(state.provider.terminal
+            ? {
+                ...(state.projectId ? { projectId: state.projectId } : {}),
+                ...(state.profileId ? { profileId: state.profileId } : {}),
+              }
+            : {}),
+        })
+        .then((product) => {
+          const result = responseOf(state.provider, product, revision);
+          state.status = {
+            ...state.status,
+            state: 'succeeded',
+            revision,
+            result,
+            error: null,
+          };
+          if (state.status.mode === 'eager') state.watcher.replace(product.dependencies);
+          this.emit({ type: 'completed', key: state.key, status: state.status });
+          return result;
+        })
+        .catch((error: unknown) => {
+          const failure = failureOf(error);
+          state.status = {
+            ...state.status,
+            state: 'failed',
+            revision,
+            error: failure,
+          };
+          this.emit({ type: 'failed', key: state.key, status: state.status });
+          throw error;
+        })
+        .finally(() => {
+          state.running = null;
+          if (!this.paused && !this.disposed && state.dirty && state.status.mode === 'eager') {
+            state.dirty = false;
+            void this.execute(state, 'eager').catch(() => undefined);
+          }
+        });
+      return state.running;
+    });
   }
 
   private sweepIdleWatches(): void {
+    if (this.paused || this.disposed) return;
     const cutoff = Date.now() - WATCH_IDLE_TTL_MS;
     for (const [key, state] of this.targets) {
       if (state.running || state.lastTouched >= cutoff) continue;

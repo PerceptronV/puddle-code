@@ -233,6 +233,18 @@ cockpit routes and approval UI remain to be integrated. `puddle updates` inspect
 durable operation state and supports exact pre-dispatch cancellation. No remote
 connector permission is added.
 
+Maintenance participants also cover queued runtime controls, asynchronous native-ref
+capture/resume repair, marker-file synchronisation and compilation providers. They
+reuse host admission: admitted work may finish, new commands fail without queuing,
+and shutdown remains irreversible after a pause release. Native observation drainage
+finishes ref capture before closing shared-store adoption, preserving work triggered
+by the capture callback. A daemon-owned legacy agent cannot use this observation
+pause because it lacks a retained independent identity journal. Marker watchers close
+and rescan current file contents on release. Compilation retains admitted builds and
+coalesces observed eager changes until release; rejected manual runs are never
+replayed. These are participants in final update quiescence; complete production
+composition, programme/kernel handling and adjacent-work approval remain unfinished.
+
 Client admission is shared by HTTP and WebSocket handlers. A maintenance pause
 refuses new commands while allowing existing terminal output/status delivery and
 version inspection. Shutdown closes admission irreversibly, fences delayed local

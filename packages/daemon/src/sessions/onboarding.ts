@@ -1,3 +1,4 @@
+import { HostAdmission } from '../host/lifecycle/admission.js';
 import type { StorageMonitor } from '../storage/monitor.js';
 import { isStorageFull } from '../storage/errors.js';
 import { existsSync, readFileSync, watch, type FSWatcher } from 'node:fs';
@@ -75,6 +76,9 @@ export function buildInterruptedResumeNote(template: string | undefined): string
  */
 export class MarkerFileSync {
   private disposed = false;
+  private paused = false;
+  private readonly admission = new HostAdmission();
+  private readonly sources = new Map<string, { repoId: number; dir: string }>();
   private readonly watchers = new Map<string, FSWatcher>();
   private readonly timers = new Map<string, NodeJS.Timeout>();
 
@@ -89,19 +93,32 @@ export class MarkerFileSync {
 
   watch(sessionId: string, repoId: number, worktreePath: string): void {
     if (this.disposed) return;
-    if (this.watchers.has(sessionId)) return;
+    if (this.sources.has(sessionId)) return;
     const dir = join(worktreePath, '.puddle');
     if (!existsSync(dir)) return;
+    this.sources.set(sessionId, { repoId, dir });
+    if (!this.paused) this.installWatcher(sessionId, repoId, dir);
+  }
+
+  private installWatcher(sessionId: string, repoId: number, dir: string): void {
     try {
       const watcher = watch(dir, () => this.schedule(sessionId, repoId, dir));
-      watcher.on('error', () => this.unwatch(sessionId));
+      watcher.on('error', () => {
+        if (this.watchers.get(sessionId) === watcher) this.unwatch(sessionId);
+      });
       this.watchers.set(sessionId, watcher);
     } catch {
       // A vanished dir between the check and the watch is not fatal.
+      this.sources.delete(sessionId);
     }
   }
 
   unwatch(sessionId: string): void {
+    this.sources.delete(sessionId);
+    this.stopWatcher(sessionId);
+  }
+
+  private stopWatcher(sessionId: string): void {
     this.watchers.get(sessionId)?.close();
     this.watchers.delete(sessionId);
     const timer = this.timers.get(sessionId);
@@ -109,13 +126,36 @@ export class MarkerFileSync {
     this.timers.delete(sessionId);
   }
 
+  /** Recover current marker contents after release, never replay an earlier write. */
+  pause(): ReturnType<HostAdmission['pause']> {
+    const hold = this.admission.pause();
+    this.paused = true;
+    for (const id of this.sources.keys()) this.stopWatcher(id);
+    let released = false;
+    return {
+      drain: (timeoutMs) => hold.drain(timeoutMs),
+      release: () => {
+        if (released) return;
+        released = true;
+        hold.release();
+        this.paused = false;
+        if (this.disposed) return;
+        for (const [sessionId, { repoId, dir }] of this.sources) {
+          this.installWatcher(sessionId, repoId, dir);
+          this.schedule(sessionId, repoId, dir);
+        }
+      },
+    };
+  }
+
   dispose(): void {
     this.disposed = true;
-    for (const id of [...this.watchers.keys()]) this.unwatch(id);
+    this.admission.close();
+    for (const id of [...this.sources.keys()]) this.unwatch(id);
   }
 
   private schedule(sessionId: string, repoId: number, dir: string): void {
-    if (this.disposed) return;
+    if (this.disposed || this.paused || !this.sources.has(sessionId)) return;
     const existing = this.timers.get(sessionId);
     if (existing) clearTimeout(existing);
     this.timers.set(

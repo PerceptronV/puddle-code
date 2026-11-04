@@ -4,6 +4,7 @@ import type { ConversationStore } from '../db/stores/conversations.js';
 import type { EventStore } from '../db/stores/events.js';
 import type { SessionStore } from '../db/stores/sessions.js';
 import { KeyedMutex } from '../git/mutex.js';
+import { HostAdmission } from '../host/lifecycle/admission.js';
 import { ApiError } from '../http/errors.js';
 
 export interface SessionRefDeps {
@@ -19,7 +20,7 @@ export interface SessionRefDeps {
  */
 export class SessionRefs {
   private closing = false;
-  private readonly pending = new Set<Promise<unknown>>();
+  private readonly admission = new HostAdmission();
   /** Minted refs must be captured one launch at a time per account/cwd. */
   private readonly launchMutex = new KeyedMutex();
   /** Status/title ticks may ask for the same unresolved ref concurrently. */
@@ -29,21 +30,17 @@ export class SessionRefs {
 
   beginShutdown(): void {
     this.closing = true;
+    this.admission.close();
   }
 
   /** Preserve refs discovered by admitted work before application storage closes. */
   async close(): Promise<void> {
     this.beginShutdown();
-    await Promise.allSettled([...this.pending]);
+    await this.admission.drain();
   }
 
-  private async track<T>(work: Promise<T>): Promise<T> {
-    this.pending.add(work);
-    try {
-      return await work;
-    } finally {
-      this.pending.delete(work);
-    }
+  pause(): ReturnType<HostAdmission['pause']> {
+    return this.admission.pause();
   }
 
   private assertOpen(): void {
@@ -67,14 +64,13 @@ export class SessionRefs {
     onError: (error: unknown, phase: 'spawn' | 'capture') => void,
   ): Promise<void> {
     this.assertOpen();
+    this.admission.assertOpen();
     if (adapter.capabilities.presetSessionId) {
-      await this.track(
-        (async () => {
-          await spawn();
-          const ref = await adapter.resolveSessionRef(launchOpts, account);
-          this.deps.sessions.setAgentSessionRef(session.id, ref);
-        })(),
-      );
+      await this.admission.run(async () => {
+        await spawn();
+        const ref = await adapter.resolveSessionRef(launchOpts, account);
+        this.deps.sessions.setAgentSessionRef(session.id, ref);
+      });
       return;
     }
 
@@ -93,15 +89,22 @@ export class SessionRefs {
       if (ref === session.id) return;
       if (await this.capture(session, account, adapter, ref, 'launch')) onCaptured();
     };
-    const pending = adapter.existingSessionRefs
-      ? this.launchMutex.run(
-          `session-ref:${adapter.id}:${account.id}:${session.worktree_path}`,
-          launch,
-        )
-      : launch();
-    void this.track(pending.catch((error) => onError(error, spawned ? 'capture' : 'spawn'))).catch(
-      (error: unknown) => console.warn('Native conversation capture callback failed:', error),
-    );
+    void this.admission
+      .run(async () => {
+        try {
+          if (adapter.existingSessionRefs)
+            await this.launchMutex.run(
+              `session-ref:${adapter.id}:${account.id}:${session.worktree_path}`,
+              launch,
+            );
+          else await launch();
+        } catch (error) {
+          onError(error, spawned ? 'capture' : 'spawn');
+        }
+      })
+      .catch((error: unknown) =>
+        console.warn('Native conversation capture callback failed:', error),
+      );
   }
 
   /**
@@ -117,11 +120,18 @@ export class SessionRefs {
     ) {
       return Promise.resolve(false);
     }
+    try {
+      this.admission.assertOpen();
+    } catch {
+      return Promise.resolve(false);
+    }
     const active = this.refreshes.get(session.id);
     if (active) return active;
-    const pending = this.track(this.refresh(session, account, adapter)).finally(() => {
-      if (this.refreshes.get(session.id) === pending) this.refreshes.delete(session.id);
-    });
+    const pending = this.admission
+      .run(() => this.refresh(session, account, adapter))
+      .finally(() => {
+        if (this.refreshes.get(session.id) === pending) this.refreshes.delete(session.id);
+      });
     this.refreshes.set(session.id, pending);
     return pending;
   }
@@ -145,61 +155,63 @@ export class SessionRefs {
    * or mismatched legacy mappings first. Failure is explicit: opening the
    * wrong conversation is more damaging than refusing an ambiguous resume.
    */
-  async resolveForResume(
+  resolveForResume(
     session: Session,
     account: Account,
     adapter: AgentAdapter,
     priorRefs?: ReadonlySet<string>,
   ): Promise<string> {
-    let ref = session.agent_session_ref;
-    const excluded = new Set(await this.claimedByOtherSessions(session, adapter, account));
-    for (const previous of priorRefs ?? []) excluded.add(previous);
-    const context: SessionRefContext = {
-      ...this.contextOf(session),
-      excludeRefs: excluded,
-    };
-    const missing = ref === null || (await adapter.hasConversation?.(ref, account)) === false;
-    const mismatched =
-      ref !== null && (await adapter.sessionRefMatches?.(ref, context, account)) === false;
-    if (missing || mismatched) {
-      let candidate: string | undefined;
-      if (priorRefs && adapter.existingSessionRefs) {
-        const candidates = [
-          ...(await adapter.existingSessionRefs(session.worktree_path, account)),
-        ].filter((candidate) => !excluded.has(candidate));
-        if (candidates.length !== 1)
+    return this.admission.run(async () => {
+      let ref = session.agent_session_ref;
+      const excluded = new Set(await this.claimedByOtherSessions(session, adapter, account));
+      for (const previous of priorRefs ?? []) excluded.add(previous);
+      const context: SessionRefContext = {
+        ...this.contextOf(session),
+        excludeRefs: excluded,
+      };
+      const missing = ref === null || (await adapter.hasConversation?.(ref, account)) === false;
+      const mismatched =
+        ref !== null && (await adapter.sessionRefMatches?.(ref, context, account)) === false;
+      if (missing || mismatched) {
+        let candidate: string | undefined;
+        if (priorRefs && adapter.existingSessionRefs) {
+          const candidates = [
+            ...(await adapter.existingSessionRefs(session.worktree_path, account)),
+          ].filter((candidate) => !excluded.has(candidate));
+          if (candidates.length !== 1)
+            throw ApiError.conflict(
+              'conversation_missing',
+              'This runtime has no uniquely recoverable native conversation; select an exact conversation instead.',
+            );
+          candidate = candidates[0];
+        }
+        const recovered =
+          (await adapter.discoverSessionRef?.(session.worktree_path, account, context)) ?? null;
+        if (
+          recovered === null ||
+          (candidate !== undefined && recovered !== candidate) ||
+          priorRefs?.has(recovered)
+        ) {
           throw ApiError.conflict(
             'conversation_missing',
-            'This runtime has no uniquely recoverable native conversation; select an exact conversation instead.',
+            `${adapter.displayName} has no conversation matching this puddle session; it cannot resume`,
           );
-        candidate = candidates[0];
+        }
+        const previousRef = ref;
+        ref = recovered;
+        await this.releaseInvalidOwners(session, adapter, account, ref);
+        this.deps.sessions.setAgentSessionRef(session.id, ref);
+        this.deps.events.record(session.id, 'session_ref_recovered', {
+          ref,
+          previous_ref: previousRef,
+          reason: missing ? 'missing' : 'mismatched',
+        });
       }
-      const recovered =
-        (await adapter.discoverSessionRef?.(session.worktree_path, account, context)) ?? null;
-      if (
-        recovered === null ||
-        (candidate !== undefined && recovered !== candidate) ||
-        priorRefs?.has(recovered)
-      ) {
-        throw ApiError.conflict(
-          'conversation_missing',
-          `${adapter.displayName} has no conversation matching this puddle session; it cannot resume`,
-        );
+      if (ref === null) {
+        throw ApiError.conflict('no_session_ref', 'no agent session ref recorded');
       }
-      const previousRef = ref;
-      ref = recovered;
-      await this.releaseInvalidOwners(session, adapter, account, ref);
-      this.deps.sessions.setAgentSessionRef(session.id, ref);
-      this.deps.events.record(session.id, 'session_ref_recovered', {
-        ref,
-        previous_ref: previousRef,
-        reason: missing ? 'missing' : 'mismatched',
-      });
-    }
-    if (ref === null) {
-      throw ApiError.conflict('no_session_ref', 'no agent session ref recorded');
-    }
-    return ref;
+      return ref;
+    });
   }
 
   private async claimedByOtherSessions(

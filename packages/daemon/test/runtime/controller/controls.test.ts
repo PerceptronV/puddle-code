@@ -68,11 +68,12 @@ it('does not dispatch queued controls after authority expires or ownership chang
     const completed = Promise.allSettled([shell, stop]);
     await Promise.resolve();
     authorised = false;
+    // This transport double supplies only the state fields consumed before authority rejection.
     inspected({
       t: 'state',
       id: randomUUID(),
       state: { terminals: [], environment: { enabled: false } },
-    } as RuntimeResponse);
+    } as unknown as RuntimeResponse);
     expect((await completed).map((result) => result.status)).toEqual(['rejected', 'rejected']);
     expect(f.client.request.mock.calls.map(([request]) => request.t)).toEqual(['inspect']);
     expect(f.runtimes.stopRequested(f.binding.runtime_id)).toBe(false);
@@ -95,6 +96,60 @@ it('refuses cleanup after an acknowledged stop whose owner ended without a compl
       code: 'runtime_stop_unconfirmed',
     });
     expect(f.runtimes.stopRequested(f.binding.runtime_id)).toBe(true);
+  } finally {
+    await f.close();
+  }
+});
+
+it('drains accepted controls during maintenance, rejects new controls and does not replay them on release', async () => {
+  const f = fixture();
+  let respond!: (value: RuntimeResponse) => void;
+  f.client.request.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        respond = resolve;
+      }),
+  );
+  f.runtimes.observe(
+    f.binding.runtime_id,
+    {
+      cursor: 0,
+      sessionId: f.session.id,
+      conversationId: null,
+      state: 'running',
+      segment: { id: f.binding.runtime_id, start_cursor: 0, agent_session_ref: null },
+    },
+    () => {},
+  );
+  const accepted = f.controls.clearEnvironment(f.session.id, () => true);
+  try {
+    await vi.waitFor(() => expect(respond).toBeDefined());
+    const hold = f.controls.pause();
+    const drained = vi.fn();
+    const drain = hold.drain().then(drained);
+    await expect(f.controls.clearEnvironment(f.session.id, () => true)).rejects.toMatchObject({
+      code: 'host_maintenance',
+    });
+    expect(drained).not.toHaveBeenCalled();
+    respond({ t: 'env-cleared', id: randomUUID(), cleared: 2, through: 0 });
+    expect(await accepted).toBe(2);
+    await drain;
+    expect(f.client.request).toHaveBeenCalledOnce();
+    hold.release();
+    expect(f.client.request).toHaveBeenCalledOnce();
+    f.client.request.mockResolvedValue({
+      t: 'env-cleared',
+      id: randomUUID(),
+      cleared: 0,
+      through: 0,
+    });
+    expect(await f.controls.clearEnvironment(f.session.id, () => true)).toBe(0);
+    const shutdown = f.controls.pause();
+    await f.controls.close();
+    shutdown.release();
+    await expect(f.controls.clearEnvironment(f.session.id, () => true)).rejects.toMatchObject({
+      code: 'host_maintenance',
+    });
   } finally {
     await f.close();
   }

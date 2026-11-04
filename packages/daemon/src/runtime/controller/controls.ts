@@ -1,5 +1,6 @@
 import { RUNTIME_LIMITS, type RuntimeCommand, type RuntimePlacement } from '@puddle/shared';
 import type { RuntimeStore } from '../../db/stores/runtimes.js';
+import { HostAdmission } from '../../host/lifecycle/admission.js';
 import { ApiError } from '../../http/errors.js';
 import { RuntimeConnectionLost, type RuntimeClient } from '../transport/client.js';
 import type { RuntimeConnections } from '../transport/connections.js';
@@ -21,6 +22,7 @@ const unavailable = () =>
 export class RuntimeControls {
   private readonly queues = new Map<string, { tail: Promise<unknown>; count: number }>();
   private closed = false;
+  private readonly admission = new HostAdmission();
   constructor(
     private readonly runtimes: RuntimeStore,
     private readonly connections: RuntimeConnections,
@@ -60,36 +62,38 @@ export class RuntimeControls {
     authorised: Authorised,
     action: (target: Target) => Promise<T>,
   ): Promise<T> {
-    const target = this.target(sessionId);
-    let queue = this.queues.get(target.id);
-    if (!queue) {
-      queue = { tail: Promise.resolve(), count: 0 };
-      this.queues.set(target.id, queue);
-    }
-    if (queue.count >= RUNTIME_LIMITS.pendingRequests)
-      throw ApiError.conflict('runtime_busy', 'Too many pending runtime controls');
-    queue.count++;
-    const entry = queue;
-    const pending = queue.tail
-      .then(async () => {
-        this.check(target, authorised);
-        return action(target);
-      })
-      .catch((error: unknown) => {
-        if (error instanceof RuntimeConnectionLost)
-          throw ApiError.conflict(
-            'runtime_outcome_unknown',
-            'The runtime control response was lost. Reconnect to inspect its outcome; the command was not replayed.',
-          );
-        throw error;
-      });
-    queue.tail = pending
-      .catch(() => {})
-      .finally(() => {
-        entry.count--;
-        if (entry.count === 0) this.queues.delete(target.id);
-      });
-    return pending;
+    return this.admission.run(async () => {
+      const target = this.target(sessionId);
+      let queue = this.queues.get(target.id);
+      if (!queue) {
+        queue = { tail: Promise.resolve(), count: 0 };
+        this.queues.set(target.id, queue);
+      }
+      if (queue.count >= RUNTIME_LIMITS.pendingRequests)
+        throw ApiError.conflict('runtime_busy', 'Too many pending runtime controls');
+      queue.count++;
+      const entry = queue;
+      const pending = queue.tail
+        .then(async () => {
+          this.check(target, authorised);
+          return action(target);
+        })
+        .catch((error: unknown) => {
+          if (error instanceof RuntimeConnectionLost)
+            throw ApiError.conflict(
+              'runtime_outcome_unknown',
+              'The runtime control response was lost. Reconnect to inspect its outcome; the command was not replayed.',
+            );
+          throw error;
+        });
+      queue.tail = pending
+        .catch(() => {})
+        .finally(() => {
+          entry.count--;
+          if (entry.count === 0) this.queues.delete(target.id);
+        });
+      return pending;
+    });
   }
 
   private async observe(id: string, through: number): Promise<void> {
@@ -185,8 +189,13 @@ export class RuntimeControls {
     });
   }
 
+  pause(): ReturnType<HostAdmission['pause']> {
+    return this.admission.pause();
+  }
+
   async close(): Promise<void> {
     this.closed = true;
-    await Promise.all([...this.queues.values()].map((queue) => queue.tail));
+    this.admission.close();
+    await this.admission.drain();
   }
 }

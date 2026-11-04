@@ -146,3 +146,60 @@ describe('native-ref shutdown', () => {
     }
   });
 });
+
+it('finishes an admitted native capture through a reversible pause and never queues a rejected launch', async () => {
+  const f = runtimeDatabase('interactive');
+  const refs = new SessionRefs(f);
+  let resolve!: (value: string) => void;
+  const native = new Promise<string>((done) => {
+    resolve = done;
+  });
+  const adapter = {
+    ...runtimeTestAdapter,
+    capabilities: { ...runtimeTestAdapter.capabilities, presetSessionId: false },
+    existingSessionRefs: async () => new Set<string>(),
+    resolveSessionRef: vi.fn(() => native),
+  };
+  const spawn = vi.fn(async () => {});
+  const captured = vi.fn();
+  const failed = vi.fn();
+  const launch = () =>
+    refs.launchAndCapture(
+      f.session,
+      f.account!,
+      adapter,
+      { sessionId: f.session.id, worktreePath: f.home, skipPermissions: false },
+      spawn,
+      captured,
+      failed,
+    );
+  try {
+    await launch();
+    await vi.waitFor(() => expect(adapter.resolveSessionRef).toHaveBeenCalledOnce());
+    const hold = refs.pause();
+    const drained = vi.fn();
+    const drain = hold.drain().then(drained);
+    await expect(launch()).rejects.toMatchObject({ code: 'host_maintenance' });
+    expect(await refs.refreshAvailable(f.session, f.account!, adapter)).toBe(false);
+    expect(drained).not.toHaveBeenCalled();
+    resolve('paused-native-ref');
+    await drain;
+    expect(f.sessions.get(f.session.id).agent_session_ref).toBe('paused-native-ref');
+    expect(captured).toHaveBeenCalledOnce();
+    expect(failed).not.toHaveBeenCalled();
+    hold.release();
+    expect(spawn).toHaveBeenCalledOnce();
+    await expect(
+      refs.resolveForResume(f.sessions.get(f.session.id), f.account!, adapter),
+    ).resolves.toBe('paused-native-ref');
+    const shutdown = refs.pause();
+    await refs.close();
+    shutdown.release();
+    await expect(launch()).rejects.toMatchObject({ code: 'host_maintenance' });
+  } finally {
+    resolve('paused-native-ref');
+    await refs.close();
+    await f.reconciler.close();
+    f.db.close();
+  }
+});

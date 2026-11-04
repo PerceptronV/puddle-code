@@ -29,6 +29,19 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far:
 
+- Reversible maintenance now covers runtime-control queues, native-ref capture and
+  resume repair, native/shared-store observations, marker watchers and compilation.
+  These reuse `HostAdmission` rather than independent pending-work mechanisms.
+  Admitted work finishes; rejected controls/manual runs never become a retry queue.
+  Ref capture drains before the adoption it can trigger. Marker release reads current
+  contents; observed eager changes coalesce until compilation release. Shutdown
+  cannot be undone by releasing a hold. Legacy live agents explicitly refuse the
+  native observation pause because they have no independent identity journal.
+  Tests exercise delayed native capture, committed control cursors, real marker
+  watches, delayed compilation and the legacy refusal. Complete production pause
+  composition and programme/kernel interruption approval still need integration;
+  these participants alone do not enable public daemon activation.
+
 - Connector replacement now participates in the one-shot daemon transaction. Fresh
   inspection corroborates its process with systemd/launchd and fingerprints the
   existing definition through shared service replacement helpers. Approval/dispatch

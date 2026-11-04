@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Extend reversible maintenance drains to runtime controls, native conversation capture, marker synchronisation and compilation. Finish admitted work without cancellation, reject new commands without replay, and recover current watched state when a pause is released.
+
 - Carry exact connector process and service evidence into daemon updates, preserve its existing supervisor configuration, and verify replacement before final daemon adoption. Keep uncertain connector changes recoverable without replay; production upgrade integration remains in progress.
 
 - Add application protocol 25.9 private connector process inspection, binding daemon-update preflight to fresh pinned release metadata and refusing unknown or changing connector inventory without exposing profile configuration.

@@ -1,7 +1,7 @@
-import { mkdtempSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { CompilationService, type CompilationEvent } from '../../src/compilation/service.js';
 import type { CompilationProvider } from '../../src/compilation/provider.js';
 import { ApiError } from '../../src/http/errors.js';
@@ -233,4 +233,65 @@ describe('CompilationService', () => {
     await waitFor(() => service.status({ source }).state === 'succeeded');
     service.dispose();
   });
+});
+
+it('drains compilation without cancelling it and coalesces observed eager changes across a maintenance pause', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'puddle-compile-pause-'));
+  const path = join(directory, 'input.demo');
+  writeFileSync(path, 'first');
+  let complete!: () => void;
+  const running = new Promise<void>((resolve) => {
+    complete = resolve;
+  });
+  const contents: string[] = [];
+  let block = false;
+  const provider: CompilationProvider = {
+    id: 'example',
+    displayName: 'Example',
+    extensions: ['demo'],
+    inputExtensions: ['demo'],
+    eager: true,
+    capability: () => ({ available: true, executor: 'examplec' }),
+    ...commandSupport,
+    watchInputs: () => [path],
+    run: async (source) => {
+      contents.push(readFileSync(path, 'utf8'));
+      if (block) await running;
+      return { executor: 'examplec', source, artifacts: [], dependencies: [path] };
+    },
+  };
+  const service = new CompilationService([provider]);
+  const source = { session: '00000000-0000-0000-0000-000000000000', path: 'input.demo' };
+  try {
+    await service.setMode({ source, mode: 'eager' });
+    block = true;
+    const accepted = service.run({ source });
+    const hold = service.pause();
+    const drained = vi.fn();
+    const drain = hold.drain().then(drained);
+    await expect(service.run({ source })).rejects.toMatchObject({ code: 'host_maintenance' });
+    await expect(service.setMode({ source, mode: 'on_demand' })).rejects.toMatchObject({
+      code: 'host_maintenance',
+    });
+    writeFileSync(path, 'latest');
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    expect(contents).toEqual(['first', 'first']);
+    expect(drained).not.toHaveBeenCalled();
+    complete();
+    await accepted;
+    await drain;
+    expect(contents).toEqual(['first', 'first']);
+    hold.release();
+    await waitFor(() => contents.length === 3);
+    expect(contents).toEqual(['first', 'first', 'latest']);
+    const shutdown = service.pause();
+    await shutdown.drain();
+    service.dispose();
+    shutdown.release();
+    await expect(service.run({ source })).rejects.toMatchObject({ code: 'host_maintenance' });
+  } finally {
+    complete();
+    service.dispose();
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
