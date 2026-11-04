@@ -30,6 +30,7 @@ import { readRuntimeJson, runtimeDirectory } from '../ownership/storage.js';
 import { retireMissingRuntime } from '../ownership/discovery.js';
 import { runtimeBindingIdentity } from '../transport/connections.js';
 import { RuntimeAttentionStore } from '../../db/stores/runtime-attention.js';
+import { HostAdmission } from '../../host/lifecycle/admission.js';
 
 interface ReconcileDeps {
   home: string;
@@ -58,6 +59,8 @@ export class RuntimeReconciler extends EventEmitter {
   readonly attention: RuntimeAttentionStore;
   private readonly attached = new Map<string, Attachment>();
   private closed = false;
+  private paused = false;
+  private readonly admission = new HostAdmission();
   private readonly resumableLosses = new Set<string>();
 
   constructor(private readonly deps: ReconcileDeps) {
@@ -70,7 +73,7 @@ export class RuntimeReconciler extends EventEmitter {
     const previous = this.attached.get(id);
     if (previous && !previous.disconnected) throw new Error('Runtime is already attached');
     await previous?.active;
-    if (this.closed) throw new Error('Runtime reconciler is closing');
+    this.admission.assertOpen();
     const entry: Attachment = {
       client,
       active: null,
@@ -99,7 +102,7 @@ export class RuntimeReconciler extends EventEmitter {
   }
 
   refreshProfile(profileId: string): void {
-    if (this.closed) return;
+    if (this.closed || this.paused) return;
     for (const [id, entry] of this.attached)
       if (!entry.disconnected && this.deps.runtimes.get(id)?.profile_id === profileId)
         void this.refresh(id);
@@ -120,6 +123,7 @@ export class RuntimeReconciler extends EventEmitter {
     const entry = this.attached.get(id);
     return (
       !this.closed &&
+      !this.paused &&
       (!entry || !(entry.active || entry.dirty || entry.failed || entry.disconnected))
     );
   }
@@ -127,34 +131,41 @@ export class RuntimeReconciler extends EventEmitter {
   refresh(id: string): Promise<void> {
     const entry = this.attached.get(id);
     if (!entry || this.closed) return Promise.reject(new Error('Runtime is not attached'));
+    if (this.paused) return Promise.reject(new Error('Runtime reconciliation is paused'));
     if (entry.active) {
       entry.dirty = true;
       return entry.active;
     }
     entry.dirty = false;
-    entry.active = this.reconcile(id, entry.client)
-      .then(
-        () => {
-          entry.failed = entry.disconnected;
-          entry.retryMs = 0;
-        },
-        () => {
-          // Keep the committed cursor, private journal and protected ownership. A
-          // storage failure or uncertain response never causes a prompt/launch retry.
-          entry.failed = true;
-          entry.dirty = true;
-          entry.retryMs = Math.min(entry.retryMs ? entry.retryMs * 2 : 1000, 30_000);
-        },
-      )
-      .finally(() => {
-        entry.active = null;
-        if (entry.dirty) this.schedule(id, entry);
-      });
+    entry.active = this.admission.run(() =>
+      this.reconcile(id, entry.client)
+        .then(
+          () => {
+            if (this.paused) {
+              entry.dirty = true;
+              return;
+            }
+            entry.failed = entry.disconnected;
+            entry.retryMs = 0;
+          },
+          () => {
+            // Keep the committed cursor, private journal and protected ownership. A
+            // storage failure or uncertain response never causes a prompt/launch retry.
+            entry.failed = true;
+            entry.dirty = true;
+            entry.retryMs = Math.min(entry.retryMs ? entry.retryMs * 2 : 1000, 30_000);
+          },
+        )
+        .finally(() => {
+          entry.active = null;
+          if (entry.dirty) this.schedule(id, entry);
+        }),
+    );
     return entry.active;
   }
 
   private schedule(id: string, entry: Attachment): void {
-    if (this.closed || entry.disconnected || entry.active || entry.timer) return;
+    if (this.closed || this.paused || entry.disconnected || entry.active || entry.timer) return;
     entry.timer = setTimeout(() => {
       entry.timer = null;
       void this.refresh(id);
@@ -187,6 +198,7 @@ export class RuntimeReconciler extends EventEmitter {
 
   /** Public to the confirmed-owner-loss path too: no IPC or async work inside the transaction. */
   applyPage(id: string, input: RuntimeEventPage): void {
+    this.admission.assertOpen();
     const switches = this.commitPage(id, input);
     this.publish(id, switches);
   }
@@ -326,7 +338,7 @@ export class RuntimeReconciler extends EventEmitter {
     const entry = this.attached.get(id);
     if (entry && !entry.disconnected) return false;
     await entry?.active;
-    if (this.closed) return false;
+    if (this.closed || this.paused) return false;
     const binding = this.current(id);
     const retired = retireMissingRuntime(
       this.deps.home,
@@ -649,17 +661,17 @@ export class RuntimeReconciler extends EventEmitter {
   }
 
   private async reconcile(id: string, client: RuntimeClient): Promise<void> {
-    for (let pass = 0; pass < 32 && !this.closed; pass++) {
+    for (let pass = 0; pass < 32 && !this.closed && !this.paused; pass++) {
       const response = await client.request({
         t: 'events',
         after: Math.max(0, this.current(id).event_cursor),
       });
-      if (this.closed) return;
+      if (this.closed || this.paused) return;
       if (response.t !== 'events') throw new Error('Runtime omitted its event page');
       this.applyPage(id, response.page);
       if (response.page.more) continue;
       const inspected = await client.request({ t: 'inspect' });
-      if (this.closed) return;
+      if (this.closed || this.paused) return;
       if (inspected.t !== 'state') throw new Error('Runtime omitted its state');
       const state = inspected.state;
       if (state.journal.cursor > this.current(id).event_cursor) continue;
@@ -673,7 +685,7 @@ export class RuntimeReconciler extends EventEmitter {
         if ((error as { code?: string }).code === 'stale_placement') continue;
         throw error;
       }
-      if (this.closed) return;
+      if (this.closed || this.paused) return;
       const colours = this.deps.theme?.();
       if (
         colours &&
@@ -697,19 +709,44 @@ export class RuntimeReconciler extends EventEmitter {
         continue; // Observe the retained setting change before acknowledgement.
       }
       await client.request({ t: 'ack-events', through: this.current(id).event_cursor });
+      if (this.closed || this.paused) return;
       this.emit('changed', this.current(id).project_id);
       return;
     }
-    if (!this.closed) throw new Error('Runtime reconciliation yielded to ongoing observations');
+    if (!this.closed && !this.paused)
+      throw new Error('Runtime reconciliation yielded to ongoing observations');
+  }
+
+  /** Freeze committed cursors without closing owner connections or stopping execution. */
+  pause(): ReturnType<HostAdmission['pause']> {
+    const hold = this.admission.pause();
+    this.paused = true;
+    for (const entry of this.attached.values()) {
+      if (entry.timer) clearTimeout(entry.timer);
+      entry.timer = null;
+      entry.dirty = true;
+    }
+    let released = false;
+    return {
+      drain: (timeoutMs) => hold.drain(timeoutMs),
+      release: () => {
+        if (released) return;
+        released = true;
+        hold.release();
+        this.paused = false;
+        for (const [id, entry] of this.attached) this.schedule(id, entry);
+      },
+    };
   }
 
   async close(): Promise<void> {
     this.closed = true;
+    this.admission.close();
     for (const entry of this.attached.values()) {
       if (entry.timer) clearTimeout(entry.timer);
       entry.client.off('event', entry.listen);
     }
-    await Promise.all([...this.attached.values()].map((entry) => entry.active));
+    await this.admission.drain();
     this.attached.clear();
   }
 }

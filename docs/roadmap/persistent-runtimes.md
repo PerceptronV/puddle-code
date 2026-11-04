@@ -27,6 +27,16 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far:
 
+- Runtime reconciliation now supports a reversible pause that freezes committed
+  observation cursors while owners keep running and retaining events. It drains
+  admitted requests, fences late replies and direct page/retirement writes, and
+  resumes observation recovery after release. Closing the reconciler remains
+  irreversible. An isolated owner test verifies unchanged PTY PID, preserved shell
+  state, a frozen SQLite cursor and later journal catch-up without command replay.
+  This is one participant in the future host checkpoint; it does not yet freeze
+  connection discovery, notification bookkeeping or every daemon-owned producer,
+  and daemon activation remains disabled.
+
 - Host upkeep now shares the admission/drain primitive: startup account checks,
   shared-store repair and periodic fetch sweeps are tracked through shutdown.
   Sweeps coalesce and use four workers, processing all items without an unbounded

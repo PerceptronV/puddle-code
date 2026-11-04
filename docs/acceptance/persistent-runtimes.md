@@ -33,6 +33,13 @@ results cannot create placements or mark conversations missing, and checks that
 disposal waits for in-flight helper reads without reinstalling watchers. Other
 background writers and reversible update checkpoints remain separate gates.
 
+`packages/daemon/test/runtime/controller/checkpoint.test.ts` exercises reversible
+reconciliation pauses against an isolated owner. A shell increments its in-memory
+counter while the daemon's committed cursor remains fixed, then retains the same
+PID/counter after journal catch-up. A delayed event response cannot commit after
+the pause, and releasing a hold cannot undo closure. This proves the reconciler's
+checkpoint boundary, not the complete host update transaction.
+
 `packages/daemon/test/sessions/session-refs.test.ts` verifies that preset and minted
 native-ref captures already in progress commit before shutdown finishes, that a
 pending pre-spawn snapshot cannot start a child afterwards, and that coalesced late
