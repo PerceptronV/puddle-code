@@ -87,6 +87,15 @@ for the store's lifetime. Last-good disk screens remain intact. These limits
 bound managed buffers/files, not total RSS, all owner processes or accumulated
 temporary files from earlier crashes. No runtime wire shape changes.
 
+New persistence attempts use finite exclusive scratch names, shared across all
+destinations in each pool: one journal slot, one state slot, 64 checkpoint slots
+and two screen slots. An existing file, changed inode, failed cleanup or uncertain
+descriptor close retains capacity; retries cannot create another scratch identity
+to bypass that debt. Byte limits are checked before creation, and checkpoint
+attempts retain their existing cumulative lifetime charge. Exhaustion degrades
+persistence while live PTYs continue. Historical orphan files are neither assumed
+absent nor automatically removed by these writers.
+
 Every admitted post-handshake request carries a monotonic command sequence.
 The runtime remembers its high-water mark through controller disconnects and
 reports it on adoption. Old sequences are rejected, including commands whose

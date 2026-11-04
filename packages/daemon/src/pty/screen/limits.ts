@@ -1,6 +1,7 @@
 /** Finite buffer/file allowances, not a promise about total process memory. */
 export const SCREEN_LIMITS = Object.freeze({
   fileBytes: 4 * 1024 * 1024,
+  scratchFiles: 2,
   snapshotBytes: 4 * 1024 * 1024 - 4096,
   parserBytes: 16 * 1024 * 1024,
   parserActions: 2048,

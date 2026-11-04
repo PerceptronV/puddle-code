@@ -1,5 +1,5 @@
 import { isStorageFull } from '../storage/errors.js';
-import { mkdir, readdir, rename, unlink, writeFile } from 'node:fs/promises';
+import { readdir, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import headless, {
   type ITerminalAddon as HeadlessTerminalAddon,
@@ -11,6 +11,7 @@ import { SCREEN_LIMITS, screenActionBytes } from './screen/limits.js';
 import { ScreenParserQueue } from './screen/queue.js';
 import { ScreenSnapshotWork } from './screen/work.js';
 import { readScreenFile } from './screen/files.js';
+import { ScreenSnapshotFiles } from './screen/persistence.js';
 import { serialiseScreen } from './screen/serialise.js';
 import { preserveXtermScrollUp } from './xterm-scrollback.js';
 
@@ -62,7 +63,7 @@ interface ScreenState {
 export class TerminalScreenStateStore {
   private readonly states = new Map<string, ScreenState>();
   private readonly gaps = new Set<string>();
-  private tempSequence = 0;
+  private readonly files?: ScreenSnapshotFiles;
   private closing = false;
   private closePromise: Promise<void> | null = null;
 
@@ -88,6 +89,7 @@ export class TerminalScreenStateStore {
         count: SCREEN_LIMITS.parserActions,
       });
     this.work = new ScreenSnapshotWork(options.transientBudget);
+    if (stateDir) this.files = new ScreenSnapshotFiles(stateDir);
   }
 
   write(stream: string, term: string, data: string): void {
@@ -335,7 +337,6 @@ export class TerminalScreenStateStore {
       const file = this.file(stream, term);
       if (!file) return;
       let release: (() => void) | undefined;
-      let temp: string | undefined;
       try {
         // No output strings are retained while waiting for a bounded work slot.
         release = await this.work.acquire();
@@ -352,13 +353,10 @@ export class TerminalScreenStateStore {
             throw new Error('Terminal snapshot file exceeds its capacity');
           return { revision: state.revision, json };
         });
-        temp = `${file}.tmp-${process.pid}-${this.tempSequence++}`;
-        await mkdir(join(stateDir, stream), { recursive: true });
-        await writeFile(temp, json, { encoding: 'utf8', mode: 0o600 });
         // An overflow or permanent removal while IO was pending must not publish
         // an incomplete/newly invalid screen over the last known-good snapshot.
-        if (state.unavailable || state.forgotten) return;
-        await rename(temp, file);
+        if (!(await this.files!.save(file, json, () => !state.unavailable && !state.forgotten)))
+          return;
         state.dirty = state.revision !== revision;
         this.retryAt = 0;
         this.retryMs = 1000;
@@ -369,7 +367,6 @@ export class TerminalScreenStateStore {
         this.retryMs = Math.min(30_000, this.retryMs * 2);
         if (!isStorageFull(error)) console.warn('Could not save terminal snapshot:', error);
       } finally {
-        if (temp) await unlink(temp).catch(() => {});
         release?.();
       }
     })();

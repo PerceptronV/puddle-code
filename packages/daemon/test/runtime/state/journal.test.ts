@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -316,4 +316,25 @@ describe('runtime event journal', () => {
     atomicPrivateJson(join(directory, 'events.json'), { ...record, events: [event(5)] });
     expect(() => readRuntimeJournal(directory, identity)).toThrow(/ordered/);
   });
+});
+
+it('retains one uncertain journal slot and pending in-memory events without creating retry files', async () => {
+  const f = fixture();
+  f.journal.append(event(1));
+  expect(await f.journal.flush()).toBe(true);
+  const slot = join(f.directory, '.journal-0.tmp');
+  writeFileSync(slot, 'uncertain-old-write', { mode: 0o600, flag: 'wx' });
+  f.journal.append(event(2));
+  expect(await f.journal.flush()).toBe(false);
+  for (let attempt = 0; attempt < 8; attempt++) expect(await f.journal.close()).toBe(false);
+  expect(f.journal.read(0)).toMatchObject({
+    gap: false,
+    through: 2,
+    journal: { persistence_pending: true },
+  });
+  expect(readRuntimeJournal(f.directory, f.identity).events.map((value) => value.cursor)).toEqual([
+    1,
+  ]);
+  expect(readFileSync(slot, 'utf8')).toBe('uncertain-old-write');
+  expect(readdirSync(f.directory).sort()).toEqual(['.journal-0.tmp', 'events.json']);
 });

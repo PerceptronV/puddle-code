@@ -68,6 +68,18 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Runtime persistence now uses shared fixed-slot atomic writers: one journal
+  scratch, one state scratch, 64 checkpoint scratches and two screen scratches
+  across all screen keys. Byte ceilings precede creation; exclusive opens and
+  inode checks preserve unknown files. Failed cleanup and uncertain file/directory
+  closes retain the slot and descriptor rather than allocating another identity.
+  Sixty-seven unit/inventory checks, three actual-owner continuity cases and the
+  screen regressions passed, alongside source/test TypeScript and lint. Occupied
+  journal/state slots preserve the original shell PID, generation, variable and
+  continued input through controller replacement while reporting pending
+  persistence. Historical orphan files remain untouched. These are finite managed
+  writer allowances, not physical-disk or total-RSS guarantees.
+
 - Owner request admission now shares one 16 MiB/64-request budget across every
   connection, closing the previous sixteen-fold multiplication of per-socket
   queues. Connection ordering remains independent; closed queued work retains

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
-import { open, rename, rm } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { open } from 'node:fs/promises';
+import { join } from 'node:path';
 import {
   RUNTIME_LIMITS,
   runtimeCheckpointSchema,
@@ -16,27 +16,9 @@ import {
 import { privateDirectory, privatePath } from '@puddle/shared/node';
 import type { LogStore } from '../../logs/log-store.js';
 
-async function saveCheckpoint(file: string, json: string): Promise<void> {
-  const temporary = `${file}.${randomUUID()}.tmp`;
-  try {
-    const handle = await open(temporary, 'wx', 0o600);
-    try {
-      await handle.writeFile(json);
-      await handle.sync();
-    } finally {
-      await handle.close();
-    }
-    await rename(temporary, file);
-    const directory = await open(dirname(file), 'r');
-    try {
-      await directory.sync();
-    } finally {
-      await directory.close();
-    }
-  } finally {
-    await rm(temporary, { force: true });
-  }
-}
+import { RuntimeStateWriter } from './persistence.js';
+
+type CheckpointWriter = (file: string, json: string) => Promise<void>;
 
 interface SegmentOptions {
   maxSegments?: number;
@@ -45,7 +27,7 @@ interface SegmentOptions {
   snapshotBytes?: number;
   pendingBytes?: number;
   pendingCount?: number;
-  write?: typeof saveCheckpoint;
+  write?: CheckpointWriter;
 }
 
 /** Stable live emulators, immutable historical checkpoints, and separately addressed raw output. */
@@ -66,7 +48,7 @@ export class RuntimeSegments {
     pendingBytes: number;
     pendingCount: number;
   };
-  private readonly write: typeof saveCheckpoint;
+  private readonly write: CheckpointWriter;
 
   constructor(
     private readonly directory: string,
@@ -102,7 +84,8 @@ export class RuntimeSegments {
         RUNTIME_LIMITS.pendingCheckpoints,
       ),
     };
-    this.write = options.write ?? saveCheckpoint;
+    const writer = new RuntimeStateWriter(join(directory, 'segments'), 'checkpoint');
+    this.write = options.write ?? ((file, json) => writer.write(file, json));
     privateDirectory(join(directory, 'segments'));
   }
 

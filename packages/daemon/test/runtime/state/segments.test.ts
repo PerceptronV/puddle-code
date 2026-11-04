@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -222,4 +222,36 @@ describe('runtime raw log stream limits', () => {
       expect(f.history.state().gap).toBe(true);
     },
   );
+});
+
+it('bounds occupied checkpoint slots across native switches while raw output and exact lifecycle identities continue', async () => {
+  const f = fixture();
+  const first = f.lifecycle('first', 1);
+  f.lifecycle('second', 2);
+  await f.history.drain();
+  const checkpoint = await f.history.read(first.segment.id, 'agent', f.terminal.generation);
+  const directory = join(f.directory, 'segments');
+  for (let slot = 0; slot < RUNTIME_LIMITS.pendingCheckpoints; slot++)
+    writeFileSync(join(directory, `.checkpoint-${slot}.tmp`), 'uncertain', {
+      mode: 0o600,
+      flag: 'wx',
+    });
+  for (let index = 0; index < RUNTIME_LIMITS.pendingCheckpoints + 5; index++) {
+    f.lifecycle(`later-${index}`, index + 3);
+    await f.history.drain();
+    f.history.append(f.terminal, `output-${index}`);
+  }
+  const current = f.history.state();
+  expect(current).toMatchObject({
+    gap: true,
+    pending_checkpoints: 0,
+    current: { agent_session_ref: `later-${RUNTIME_LIMITS.pendingCheckpoints + 4}` },
+  });
+  expect(f.logs.readTail(current.current.id, `agent.${f.terminal.generation}`)).toBe(
+    `output-${RUNTIME_LIMITS.pendingCheckpoints + 4}`,
+  );
+  expect(await f.history.read(first.segment.id, 'agent', f.terminal.generation)).toEqual(
+    checkpoint,
+  );
+  expect(readdirSync(directory)).toHaveLength(RUNTIME_LIMITS.pendingCheckpoints + 1);
 });

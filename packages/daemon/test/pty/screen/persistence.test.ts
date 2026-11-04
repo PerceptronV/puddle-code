@@ -17,7 +17,17 @@ import { SCREEN_LIMITS } from '../../../src/pty/screen/limits.js';
 
 vi.mock('node:fs/promises', async (original) => {
   const real = await original<typeof import('node:fs/promises')>();
-  return { ...real, writeFile: vi.fn(real.writeFile) };
+  const writes = vi.fn(real.writeFile);
+  return {
+    ...real,
+    writeFile: writes,
+    open: async (...args: Parameters<typeof real.open>) => {
+      const handle = await real.open(...args);
+      // Keep slow-disk controls at the shared atomic writer's opened descriptor.
+      handle.writeFile = (data, options) => writes(handle, data, options);
+      return handle;
+    },
+  };
 });
 afterEach(async () => {
   vi.restoreAllMocks();

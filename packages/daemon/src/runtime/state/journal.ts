@@ -1,6 +1,4 @@
-import { randomUUID } from 'node:crypto';
-import { open, rename, rm } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import {
   RUNTIME_LIMITS,
   runtimeJournalSchema,
@@ -10,32 +8,11 @@ import {
   type RuntimeJournalRecord,
   type RuntimeRetainedEvent,
 } from '@puddle/shared';
-import { privatePath } from '@puddle/shared/node';
 import { readRuntimeJson } from '../ownership/storage.js';
 
-/** Async, atomic and fsynced: journal IO must never stop the owner draining its PTYs. */
-async function writeJournal(file: string, record: RuntimeJournalRecord): Promise<void> {
-  privatePath(dirname(file), true);
-  const temporary = `${file}.${randomUUID()}.tmp`;
-  try {
-    const handle = await open(temporary, 'wx', 0o600);
-    try {
-      await handle.writeFile(JSON.stringify(record) + '\n');
-      await handle.sync();
-    } finally {
-      await handle.close();
-    }
-    await rename(temporary, file);
-    const directory = await open(dirname(file), 'r');
-    try {
-      await directory.sync();
-    } finally {
-      await directory.close();
-    }
-  } finally {
-    await rm(temporary, { force: true });
-  }
-}
+import { RuntimeStateWriter } from './persistence.js';
+
+type JournalWriter = (file: string, record: RuntimeJournalRecord) => Promise<void>;
 
 export function readRuntimeJournal(
   directory: string,
@@ -54,7 +31,7 @@ interface JournalOptions {
   /** Smaller limits and a controllable writer allow deterministic pressure/crash tests. */
   maxEvents?: number;
   maxBytes?: number;
-  write?: typeof writeJournal;
+  write?: JournalWriter;
 }
 
 export interface RuntimeJournalReservation {
@@ -84,7 +61,7 @@ export class RuntimeJournal {
   private closed = false;
   private readonly maxEvents: number;
   private readonly maxBytes: number;
-  private readonly write: typeof writeJournal;
+  private readonly write: JournalWriter;
 
   constructor(
     private readonly directory: string,
@@ -99,7 +76,9 @@ export class RuntimeJournal {
       options.maxBytes ?? RUNTIME_LIMITS.journalBytes,
       RUNTIME_LIMITS.journalBytes,
     );
-    this.write = options.write ?? writeJournal;
+    const writer = new RuntimeStateWriter(directory, 'journal', { maxBytes: this.maxBytes });
+    this.write =
+      options.write ?? (async (file, record) => writer.write(file, JSON.stringify(record) + '\n'));
     // Reserve the bounded identity/header and numeric counters, including future
     // growth to MAX_SAFE_INTEGER. The remaining budget is encoded event bytes.
     this.bytes = Buffer.byteLength(JSON.stringify(this.record())) + 128;

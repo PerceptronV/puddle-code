@@ -260,3 +260,27 @@ it('accepts actual pinned helper and shell-hook modes as protected accounting', 
     bytes: { protected: 16 },
   });
 });
+
+it('accounts only the fixed bounded runtime persistence slot names as temporary', async () => {
+  const f = fixture();
+  f.put('.journal-0.tmp', 'pending');
+  f.put('.state-0.tmp', 'state');
+  f.put('segments/.checkpoint-0.tmp', 'first');
+  f.put('segments/.checkpoint-63.tmp', 'last');
+  f.put('screens/.screen-write-0.tmp', 'screen');
+  f.put('screens/.screen-write-1.tmp', 'screen');
+  expect((await finish(f.inventory)).result).toMatchObject({
+    state: 'complete',
+    files: 6,
+    bytes: { temporary: 33 },
+  });
+  for (const path of [
+    '.journal-1.tmp',
+    '.state-1.tmp',
+    'screens/.screen-write-2.tmp',
+    'screens/.screen-write-00.tmp',
+    'segments/.checkpoint-64.tmp',
+    'segments/.checkpoint-00.tmp',
+  ])
+    expect(runtimeStorageCategory(path, false)).toBe('unknown');
+});

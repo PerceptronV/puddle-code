@@ -1,4 +1,5 @@
-import { runtimeIdentitySchema, runtimeTerminalSchema } from '@puddle/shared';
+import { RUNTIME_LIMITS, runtimeIdentitySchema, runtimeTerminalSchema } from '@puddle/shared';
+import { SCREEN_LIMITS } from '../../pty/screen/limits.js';
 
 export type RuntimeStorageCategory =
   'rawLogs' | 'checkpoints' | 'screens' | 'metadata' | 'protected' | 'temporary' | 'unknown';
@@ -30,6 +31,25 @@ export function runtimeStorageCategory(
   }
   const parts = relative.split('/');
   const [root, stream, name] = parts;
+  if (!directory && ['.journal-0.tmp', '.state-0.tmp'].includes(relative)) return 'temporary';
+  const slot = /^\.checkpoint-(0|[1-9][0-9]{0,2})\.tmp$/.exec(stream ?? '');
+  if (
+    !directory &&
+    root === 'segments' &&
+    parts.length === 2 &&
+    slot &&
+    Number(slot[1]) < RUNTIME_LIMITS.pendingCheckpoints
+  )
+    return 'temporary';
+  const screenSlot = /^\.screen-write-(0|[1-9][0-9]{0,2})\.tmp$/.exec(stream ?? '');
+  if (
+    !directory &&
+    root === 'screens' &&
+    parts.length === 2 &&
+    screenSlot &&
+    Number(screenSlot[1]) < SCREEN_LIMITS.scratchFiles
+  )
+    return 'temporary';
   if (parts.length === 1) {
     if (directory && ['logs', 'segments', 'screens'].includes(root!)) return 'metadata';
     if (

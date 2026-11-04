@@ -21,7 +21,7 @@ import {
   type RuntimePlacement,
   type RuntimePlacementBinding,
 } from '@puddle/shared';
-import { atomicPrivateJson, ipcPath, listenPrivate } from '@puddle/shared/node';
+import { ipcPath, listenPrivate } from '@puddle/shared/node';
 import { LogStore } from '../logs/log-store.js';
 import {
   PtyManager,
@@ -36,6 +36,7 @@ import { RuntimeRequestQueue } from './transport/requests.js';
 import { RuntimeBufferBudget } from './resources/budget.js';
 import { readRuntimeController, readRuntimeJson, runtimeDirectory } from './ownership/storage.js';
 import { RuntimeJournal, type RuntimeJournalReservation } from './state/journal.js';
+import { RuntimeStateFile } from './state/snapshot.js';
 import { RuntimeTurns, RuntimeTurnError } from './execution/turns.js';
 import { RuntimeAgent } from './execution/agent.js';
 import { AdapterRegistry } from '../agents/registry.js';
@@ -71,6 +72,7 @@ export class RuntimeHost {
   private readonly claim: { release(): void };
   private readonly directory: string;
   private readonly journal: RuntimeJournal;
+  private readonly stateFile: RuntimeStateFile;
   private readonly turns: RuntimeTurns;
   private readonly observations: RuntimeObservations;
   private readonly segments: RuntimeSegments;
@@ -102,6 +104,7 @@ export class RuntimeHost {
       this.binding = { segment_id: id, session_id: this.launch.identity.session_id, through: 0 };
       this.observations = new RuntimeObservations(this.launch.capture_env);
       if (this.launch.theme) this.theme.set(this.launch.theme.fg, this.launch.theme.bg);
+      this.stateFile = new RuntimeStateFile(this.directory);
       this.journal = new RuntimeJournal(this.directory, this.launch.identity);
       this.turns = new RuntimeTurns(this.journal, (event, reservation) => {
         this.event({ ...event, cursor: ++this.eventCursor }, reservation);
@@ -270,7 +273,7 @@ export class RuntimeHost {
     // A refused relaunch must not replace the original owner's final record.
     if (!this.consumed) return;
     try {
-      atomicPrivateJson(join(this.directory, 'state.json'), this.state());
+      this.stateFile.write(this.state());
     } catch {
       this.persistencePending = true;
     }
