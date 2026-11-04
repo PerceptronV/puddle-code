@@ -374,6 +374,27 @@ The runtime/PTY/protocol/profile-authority regression run passed 242 tests in
 formatting passed. The first probe run timed out because its report file was not
 private; setting the fixture's mode to `0600` corrected the test.
 
+`runtime/notifications.test.ts` uses a real owner and replacement daemons, with a
+private connector sink that records notifications without sending real pushes.
+Offline transitions and a native switch produce one current alert with the exact
+new placement; a second daemon does not repeat it. A subsequent live completion
+produces a fresh id, deliberate stop stays silent, and a normally exiting child
+retains its final alert through owner retirement. Exact-condition preview reads
+reject a superseded attention id. The initial exit fixture stalled because its
+interactive shell ignored SIGTERM; a file gate now makes the shell exit zero.
+
+`runtime/notification-delivery.test.ts` covers coalescing 100 conditions to one,
+failed delivery-claim writes, daemon replacement, five-minute expiry, explicit
+stops, replacement owners, previews racing resumed work/newer attention/shutdown,
+and waiting for reconciliation. Private metadata stores no preview bodies. The
+runtime/protocol/profile-authority regression run passed 172 tests in 41 files,
+with one native supervisor test skipped. Eight existing agent-preview/connector
+tests also passed. The final focused run passed 12 tests, including a 35-owner
+case proving an unavailable first page cannot starve ready owners. Typecheck,
+scoped lint and formatting passed.
+These tests do not prove native provider hooks, operating-system notification
+delivery or terminal-launched-agent monitoring; those remain release gates.
+
 ## Remaining release gates
 
 Record platform, Node, release and provider versions with results. Run native

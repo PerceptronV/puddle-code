@@ -65,6 +65,21 @@ export class RuntimeTerminals {
     this.views.delete(view);
   }
 
+  async notificationOutput(sessionId: string, attentionId: string): Promise<string> {
+    const owner = this.runtimes.selectedOwner(sessionId);
+    if (!owner || owner.active_session_id !== sessionId || !owner.active_segment_id) return '';
+    const client = this.connections.get(owner.runtime_id);
+    if (!client) return '';
+    const response = await client.request({
+      t: 'attention-preview',
+      attention_id: attentionId,
+      placement: { session_id: sessionId, segment_id: owner.active_segment_id },
+    });
+    return response.t === 'attention-preview' && response.attention_id === attentionId
+      ? response.text
+      : '';
+  }
+
   async checkpoint(address: Address): Promise<string> {
     const binding = this.runtimes.get(address.runtime_id);
     if (!binding) throw unavailable();

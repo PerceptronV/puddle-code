@@ -29,6 +29,7 @@ import type { RuntimeClient } from './client.js';
 import { readRuntimeJson, runtimeDirectory } from './storage.js';
 import { retireMissingRuntime } from './discovery.js';
 import { runtimeBindingIdentity } from './connections.js';
+import { RuntimeAttentionStore } from '../db/stores/runtime-attention.js';
 
 interface ReconcileDeps {
   home: string;
@@ -54,6 +55,7 @@ interface Attachment {
 /** Commit observations, never replay execution. One serial reconciler per owner. */
 export class RuntimeReconciler extends EventEmitter {
   readonly observations: RuntimeObservationStore;
+  readonly attention: RuntimeAttentionStore;
   private readonly attached = new Map<string, Attachment>();
   private closed = false;
   private readonly resumableLosses = new Set<string>();
@@ -61,6 +63,7 @@ export class RuntimeReconciler extends EventEmitter {
   constructor(private readonly deps: ReconcileDeps) {
     super();
     this.observations = new RuntimeObservationStore(deps.db);
+    this.attention = new RuntimeAttentionStore(deps.db);
   }
 
   async attach(id: string, client: RuntimeClient): Promise<void> {
@@ -111,6 +114,14 @@ export class RuntimeReconciler extends EventEmitter {
 
   pendingIds(): string[] {
     return [...this.attached].filter(([, entry]) => entry.failed).map(([id]) => id);
+  }
+
+  settled(id: string): boolean {
+    const entry = this.attached.get(id);
+    return (
+      !this.closed &&
+      (!entry || !(entry.active || entry.dirty || entry.failed || entry.disconnected))
+    );
   }
 
   refresh(id: string): Promise<void> {
@@ -615,6 +626,18 @@ export class RuntimeReconciler extends EventEmitter {
       if (state.agent)
         for (const sessionId of this.deps.runtimes.selectedPlacements(id))
           this.deps.sessions.setNativeSync(sessionId, state.agent.native_sync);
+      if (state.attention !== undefined) {
+        if (
+          state.attention &&
+          (!binding.agent_type ||
+            state.attention.segment_id !== binding.active_segment_id ||
+            (state.attention.reason === 'waiting_input'
+              ? main?.pid == null || state.agent?.status !== 'waiting_input'
+              : main?.pid != null))
+        )
+          throw new Error('Runtime attention does not match its observed placement');
+        this.attention.observe(id, state.event_cursor, binding.active_session_id, state.attention);
+      }
     })();
   }
 

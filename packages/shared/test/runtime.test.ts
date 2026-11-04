@@ -11,11 +11,36 @@ import {
   runtimeCaptureSchema,
   runtimeEnvDeltaSchema,
   runtimeRetainedEventSchema,
+  runtimeAttentionSchema,
 } from '../src/index.js';
 
 const placement = { segment_id: randomUUID(), session_id: randomUUID() };
 
 describe('private runtime protocol', () => {
+  it('bounds current attention identity and fences preview reads to a placement', () => {
+    const attention = {
+      id: randomUUID(),
+      segment_id: randomUUID(),
+      reason: 'waiting_input',
+      created_at: new Date().toISOString(),
+    };
+    expect(runtimeAttentionSchema.safeParse(attention).success).toBe(true);
+    expect(
+      runtimeAttentionSchema.safeParse({ ...attention, created_at: 'yesterday' }).success,
+    ).toBe(false);
+    const request = {
+      t: 'attention-preview',
+      id: randomUUID(),
+      sequence: 1,
+      placement,
+      attention_id: attention.id,
+    };
+    expect(runtimeRequestSchema.safeParse(request).success).toBe(true);
+    expect(runtimeRequestSchema.safeParse({ ...request, placement: undefined }).success).toBe(
+      false,
+    );
+    expect(runtimeRequestSchema.safeParse({ ...request, attention_id: 'any' }).success).toBe(false);
+  });
   it('bounds colour reports and requires the exact placement for changes', () => {
     const request = {
       t: 'theme',

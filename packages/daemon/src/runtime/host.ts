@@ -41,6 +41,7 @@ import { defaultAdapters } from '../agents/defaults.js';
 import { RuntimeObservations } from './observations.js';
 import { RuntimeSegments } from './segments.js';
 import { TerminalTheme } from '../pty/terminal-theme.js';
+import { RuntimeAttentionState } from './attention.js';
 
 /** One process owns one runtime. No application database or public HTTP server. */
 export class RuntimeHost {
@@ -64,6 +65,10 @@ export class RuntimeHost {
   private readonly observations: RuntimeObservations;
   private readonly segments: RuntimeSegments;
   private readonly theme = new TerminalTheme();
+  private readonly attention = new RuntimeAttentionState((attention) =>
+    this.event({ t: 'attention-state', cursor: ++this.eventCursor, attention }),
+  );
+  private expectedExit = false;
   private binding: RuntimePlacementBinding | null;
   private agent: RuntimeAgent | null = null;
   private closingAgent: Promise<void> | null = null;
@@ -141,6 +146,7 @@ export class RuntimeHost {
         throw new Error('Could not initialise runtime event journal');
       let command = host.launch.main;
       if (host.launch.provider) {
+        let lastStatus: string | undefined;
         const providerLaunch = {
           ...host.launch,
           main: {
@@ -165,9 +171,18 @@ export class RuntimeHost {
             );
             if (binding.previous_segment_id !== null) host.binding = null;
             host.event({ t: 'native-lifecycle', cursor, lifecycle, ...binding });
+            if (binding.previous_segment_id !== null) host.attention.clear();
             host.persistState();
           },
-          state: (agent) => host.event({ t: 'agent-state', cursor: ++host.eventCursor, agent }),
+          state: (agent) => {
+            host.event({ t: 'agent-state', cursor: ++host.eventCursor, agent });
+            if (agent.status !== lastStatus) {
+              lastStatus = agent.status;
+              if (agent.status === 'waiting_input' && !host.expectedExit)
+                host.attention.waiting(host.segments.state().current.id);
+              else host.attention.clear();
+            }
+          },
           collision: (ref) => {
             host.event({
               t: 'native-collision',
@@ -209,6 +224,7 @@ export class RuntimeHost {
       turn: this.turns.state(),
       environment: this.observations.state(),
       theme: this.theme.colours(),
+      attention: this.attention.get(),
       history: this.segments.state(),
       binding: this.binding ? { ...this.binding } : null,
     };
@@ -331,6 +347,8 @@ export class RuntimeHost {
     if (!terminal) return;
     terminal.pid = null;
     terminal.exit_code = event.exitCode;
+    if (event.term === 'agent' && this.agent && !this.expectedExit)
+      this.attention.exited(this.segments.state().current.id);
     if (event.term === 'agent') void this.closeAgent();
     this.event({
       t: 'exit',
@@ -342,11 +360,11 @@ export class RuntimeHost {
     this.segments.seal(this.eventCursor, [terminal], (term) => this.capture(term));
     if (this.ptys.liveCount() === 0 && this.status !== 'failed') this.status = 'exited';
     this.persistState();
-    if (this.ptys.liveCount() === 0) void this.stop();
+    if (this.ptys.liveCount() === 0) void this.stop(false);
   }
 
   private event(event: RuntimeEvent, reservation?: RuntimeJournalReservation): void {
-    if (event.t !== 'output' && event.t !== 'agent-state') {
+    if (event.t !== 'output' && event.t !== 'agent-state' && event.t !== 'attention-state') {
       if (reservation) reservation.append(event);
       else if (!this.journal.append(event)) return;
     }
@@ -503,6 +521,31 @@ export class RuntimeHost {
       case 'inspect':
         this.reply(socket, { t: 'state', id: request.id, state: this.state() });
         return;
+      case 'attention-preview': {
+        if (this.attention.get()?.id !== request.attention_id) {
+          fail('result_unavailable', 'Runtime attention has changed');
+          return;
+        }
+        const text = (await this.ptys.notificationOutput(stream)).slice(-4096);
+        if (this.owner !== owner || !this.authorised(owner.id, owner.epoch)) {
+          fail('fenced', 'Runtime controller is no longer current');
+          return;
+        }
+        if (
+          !this.currentPlacement(request.placement) ||
+          this.attention.get()?.id !== request.attention_id
+        ) {
+          fail('result_unavailable', 'Runtime attention has changed');
+          return;
+        }
+        this.reply(socket, {
+          t: 'attention-preview',
+          id: request.id,
+          attention_id: request.attention_id,
+          text,
+        });
+        return;
+      }
       case 'theme':
         this.theme.set(request.colours.fg, request.colours.bg);
         this.persistState();
@@ -692,6 +735,10 @@ export class RuntimeHost {
         this.persistState();
         break;
       case 'kill-terminal':
+        if (request.term === 'agent') {
+          this.expectedExit = true;
+          this.attention.clear();
+        }
         this.ptys.kill(stream, request.term);
         break;
       case 'stop':
@@ -702,8 +749,12 @@ export class RuntimeHost {
     this.reply(socket, { t: 'ok', id: request.id });
   }
 
-  stop(): Promise<void> {
+  stop(expected = true): Promise<void> {
     if (this.stopPromise) return this.stopPromise;
+    if (expected) {
+      this.expectedExit = true;
+      this.attention.clear();
+    }
     this.stopPromise = this.close();
     return this.stopPromise;
   }

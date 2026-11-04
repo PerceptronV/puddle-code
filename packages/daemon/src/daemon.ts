@@ -52,6 +52,8 @@ import { SessionService } from './sessions/service.js';
 import { RuntimeStore } from './db/stores/runtimes.js';
 import { RuntimeConnections } from './runtime/connections.js';
 import { RuntimeReconciler } from './runtime/reconcile.js';
+import { RuntimeNotifications } from './runtime/notifications.js';
+import { notificationContent } from './sessions/notification-content.js';
 import { RuntimeTerminals } from './runtime/terminals.js';
 import { RuntimeControls } from './runtime/controls.js';
 import { RuntimeProcesses } from './runtime/processes.js';
@@ -441,6 +443,25 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     writeRuntime(paths, { port, pid: process.pid });
     // Agent spawns from here on carry the /agent-signal env pair (SPEC §4).
     service.setSignalPort(port);
+    const runtimeNotifications = new RuntimeNotifications({
+      store: runtimeReconciler.attention,
+      runtimes,
+      sessions,
+      reconciler: runtimeReconciler,
+      ready: (id) =>
+        runtimeReconciler.settled(id) &&
+        (!!runtimeConnections.get(id) ||
+          !['prepared', 'running'].includes(runtimes.get(id)?.state ?? '')),
+      content: (session, row) =>
+        notificationContent(
+          session,
+          row.attention.reason,
+          { ptys, adapters, accounts },
+          runtimeTerminals.notificationOutput(session.id, row.attention.id),
+        ),
+      emit: (event) => service.emit('agent-notification', event),
+    });
+    failedStartup.push(() => runtimeNotifications.close());
 
     // Auto-resume is ON by default (SPEC §4; flipped 2026-08-09) — a daemon
     // restart brings interrupted sessions straight back; any that fail surface
@@ -483,6 +504,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       paths,
       service,
       async stop() {
+        runtimeNotifications.close();
         await retention.dispose();
         storage.dispose();
         await puddlang.dispose();

@@ -254,6 +254,20 @@ and a daemon with no new report does not clear them. Extra shells share the same
 owner colours. Reconciliation inspects after a lost acknowledgement and skips
 older owners whose state omits theme support. The existing application WebSocket
 theme message and its last-report-wins policy are unchanged.
+Provider owners retain one current attention condition with a stable UUID, native
+segment and timestamp. Working again, a native switch or deliberate stop clears
+it; unexpected main-agent exit replaces it with an exit condition. This is
+replaceable owner state, not a historical notification journal. Migration 038
+commits the inspected condition and a durable delivery claim per runtime, with
+monotonic observation cursors. After reconciliation settles, the daemon delivers
+only a current condition at most five minutes old through the existing
+profile-filtered notification and connector paths. It rechecks placement, stop
+intent and status after bounded preview work; claims precede emission, so restart
+does not duplicate alerts. A crash after the claim can lose a notification; no
+delivery acknowledgement or automatic resend is implied. Native previews remain
+adapter-owned, with an exact-condition private terminal preview as fallback.
+No preview body enters runtime metadata or public audit events. Terminal-launched
+agent monitoring and abnormal-exit notices still require external-owner parity.
 An explicit `DaemonOptions.runtime` composition option now routes terminal
 and interactive/headless agent creation/resume through `RuntimeLauncher`. Default installed
 launches retain the in-process backend. The launcher writes a private validated

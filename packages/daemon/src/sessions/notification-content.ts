@@ -30,10 +30,11 @@ export function notificationSnippet(text: string, patterns?: StatusPatterns): st
 export async function notificationContent(
   session: Session,
   reason: AgentNotification['reason'],
-  deps: SessionServiceDeps,
+  deps: Pick<SessionServiceDeps, 'ptys' | 'adapters' | 'accounts'>,
+  capturedScreen?: Promise<string>,
 ): Promise<NotificationContent> {
   // Capture before yielding: exit releases the screen and native rebinding moves it.
-  const screen = deps.ptys.notificationOutput(session.id).catch(() => '');
+  const screen = (capturedScreen ?? deps.ptys.notificationOutput(session.id)).catch(() => '');
   const adapter = session.agent_type ? deps.adapters.get(session.agent_type) : undefined;
   let reply: string | null = null;
   if (adapter?.notificationOutput && session.account_id && session.agent_session_ref) {

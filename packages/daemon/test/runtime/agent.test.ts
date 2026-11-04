@@ -123,6 +123,7 @@ describe('runtime-owned provider resources', () => {
         status: 'waiting_input',
         agent_session_ref: 'native-fork',
       });
+      expect(next.state?.attention).toBeNull(); // A native switch is not a fresh completion.
       expect(await sidecar(signal.port)).toEqual({ pid: before.pid, counter: before.counter + 1 });
       const replay = await next.request({ t: 'events', after: 0 });
       if (replay.t !== 'events') throw new Error('Expected retained lifecycle events');

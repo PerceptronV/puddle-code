@@ -98,6 +98,15 @@ export const runtimeThemeSchema = z.object({
 });
 export type RuntimeTheme = z.infer<typeof runtimeThemeSchema>;
 
+/** One current attention condition, not a replayable history of alerts. */
+export const runtimeAttentionSchema = z.object({
+  id,
+  segment_id: id,
+  reason: z.enum(['waiting_input', 'exited']),
+  created_at: z.iso.datetime().max(32),
+});
+export type RuntimeAttention = z.infer<typeof runtimeAttentionSchema>;
+
 export const runtimeSegmentSchema = z.object({
   id,
   start_cursor: sequence,
@@ -312,6 +321,7 @@ export const runtimeStateSchema = z.object({
   environment: runtimeEnvironmentStateSchema,
   /** Omitted by older experimental owners; null means no cockpit report yet. */
   theme: runtimeThemeSchema.nullable().optional(),
+  attention: runtimeAttentionSchema.nullable().optional(),
   binding: runtimePlacementBindingSchema.nullable(),
   history: z.object({
     current: runtimeSegmentSchema,
@@ -333,6 +343,13 @@ export const runtimeRequestSchema = z.discriminatedUnion('t', [
     controller_epoch: sequence,
   }),
   z.object({ t: z.literal('inspect'), id, sequence }),
+  z.object({
+    t: z.literal('attention-preview'),
+    id,
+    sequence,
+    placement: runtimePlacementSchema,
+    attention_id: id,
+  }),
   z.object({
     t: z.literal('theme'),
     id,
@@ -433,6 +450,7 @@ export const runtimeRequestSchema = z.discriminatedUnion('t', [
 export type RuntimeRequest = z.infer<typeof runtimeRequestSchema>;
 
 export const runtimeResponseSchema = z.discriminatedUnion('t', [
+  z.object({ t: z.literal('attention-preview'), id, attention_id: id, text: z.string().max(4096) }),
   z.object({ t: z.literal('state'), id, state: runtimeStateSchema }),
   z.object({ t: z.literal('ok'), id }),
   z.object({
@@ -475,6 +493,11 @@ export type RuntimeResponse = z.infer<typeof runtimeResponseSchema>;
 
 export const runtimeEventSchema = z.discriminatedUnion('t', [
   ...runtimeRetainedEventSchema.options,
+  z.object({
+    t: z.literal('attention-state'),
+    cursor: sequence,
+    attention: runtimeAttentionSchema.nullable(),
+  }),
   z.object({ t: z.literal('agent-state'), cursor: sequence, agent: runtimeAgentStateSchema }),
   z.object({
     t: z.literal('output'),

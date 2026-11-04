@@ -190,6 +190,32 @@ Colours are replaceable state, not essential lifecycle journal entries. The new
 private fields are part of the unshipped runtime 1.0 contract; the existing public
 theme message and application/remote protocol versions are unchanged.
 
+## Current attention
+
+Owner state optionally exposes `attention`, null or one bounded condition with
+UUID, exact segment, reason (`waiting_input`/`exited`) and timestamp. Older owners
+omit it. `attention-state` is a disposable change signal that prompts inspection;
+it is not retained in the essential event journal. Providers entering idle create
+a fresh condition; resumed work, a native switch and deliberate termination clear
+it. Natural main-agent exit replaces it. The final owner state retains the last
+condition for exclusive retirement/reconciliation after exit.
+
+Private `attention-preview` reads require the exact attention UUID and committed
+placement. The owner returns at most 4,096 characters of terminal text, rechecking
+controller, placement and attention after the asynchronous capture. No snapshot
+from a replacement condition is substituted.
+
+Migration 038 stores only current attention metadata, its observed cursor and a
+delivery claim per owner. Older inspections cannot regress it. The daemon waits
+for settled reconciliation, checks current placement/status and explicit stop
+intent, and coalesces outages to the latest condition, expiring delivery after
+five minutes. Four bounded preview reads may run concurrently. Claiming before
+emission prevents repeat alerts after restart; a crash between claim and emission
+can lose an alert. There is no historical backlog, exactly-once delivery promise
+or automatic resend. Existing provider-owned native previews and public
+profile-filtered notification paths remain in use. These initial private 1.0
+fields change neither application nor remote wire shapes.
+
 ## Provider execution
 
 The private launch may select a provider, its config directory, execution mode,

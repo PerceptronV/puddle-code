@@ -164,7 +164,7 @@ Implementation evidence so far:
   never a second dispatch. An isolated real-daemon test creates a fake provider,
   preserves its PTY and sidecar through replacement and an offline conversation
   switch, then explicitly resumes the exact new native ref in a new owner.
-  Full account migration, notification/title parity and native
+  Full account migration, terminal-agent notification/title parity and native
   provider acceptance remain required before default rollout.
 - Code-execution terminals now use the same opt-in owner path. Migration 034
   records their canonical managed run directories atomically with launch intent;
@@ -211,6 +211,18 @@ Implementation evidence so far:
   acknowledgements are inspected without redundant changes, and older owners
   without theme support remain adoptable. Native provider theme acceptance remains
   part of the provider/platform gate.
+- Provider owners now keep one current attention condition, clearing it on
+  resumed work, native switches and deliberate stop, and retaining natural exit
+  attention in final state. Migration 038 commits current metadata and delivery
+  claims; settled reconciliation delivers only the latest condition within five
+  minutes, with exact placement/status/stop checks and existing profile filtering.
+  Claims precede emission to prevent duplicates; a crash in that gap can lose an
+  alert. Preview reads are bounded and exact-condition; native preview parsers
+  stay provider-owned. Tests use real daemon replacements and an isolated private
+  connector sink to verify offline waiting/exit delivery, duplicate suppression
+  and deliberate-stop silence. Storage failures and pending preview races are
+  covered separately. Terminal-launched agent monitoring, abnormal-exit notices
+  and native provider notification acceptance remain open.
 
 These are foundations for phases 0–3, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native
