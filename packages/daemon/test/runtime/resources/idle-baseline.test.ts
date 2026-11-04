@@ -83,6 +83,8 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
           'owner reaped-child counters exclude live children; shell self counters reported separately; these do not establish a complete process-tree total',
         native_wakeups:
           'interrupt and package-idle wakeup counters only; not total scheduler wakeups or energy consumption',
+        native_regression_scope:
+          'macOS requires calibrated native owner self/reaped-child CPU and owner interrupt-wakeup upper rates; Linux/native-unavailable results do not establish those ceilings',
       },
       native_calibration: null as Record<string, unknown> | null,
       native_unavailable: null as string | null,
@@ -331,7 +333,10 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
           shell_descriptors: shellDescriptors,
           adoption_ms: { samples: adoption, median: median(adoption), max: Math.max(...adoption) },
         };
-        const regressions = resourceBaselineRegressions(result);
+        const regressions = resourceBaselineRegressions(result, {
+          platform: process.platform,
+          nativeCalibrated: report.native_calibration !== null,
+        });
         report.results.push({ ...result, regressions });
         expect(regressions).toEqual([]);
       }

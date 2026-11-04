@@ -1318,9 +1318,15 @@ records explicitly invoked 1/10/50-owner plain-shell measurements and fixture re
 ceilings. It covers production controller re-adoption, not complete daemon startup.
 Production limits now cover aggregate runtime IPC frames and daemon terminal-view
 snapshots/output/input; the resource report records their ceilings and failure
-behaviour. Provider overhead, reliable CPU/wakeup budgets, remaining host memory
-and native-platform workload measurements are still required; these limits do not
-close the resource gate below.
+behaviour. The macOS plain-shell fixture now also enforces calibrated owner self
+CPU/reaped-child CPU/interrupt-wakeup ceilings at 1, 10 and 50 owners: respectively
+1%/1%/6 per second, 3%/3%/60 per second and 15%/15%/350 per second. CPU is a
+percentage of one core. Independent upper-bracket comparisons require valid
+calibrated native data; missing macOS evidence fails rather than falling back to
+coarse `ps` CPU or zero. These are fixture investigation thresholds, with explicit
+twofold/threefold margins in the report, not provider performance guarantees.
+Linux, provider, active-output and slow-consumer workload measurements remain
+required; these limits do not close every resource gate below.
 
 The latest calibrated native run completed the 1-, 10- and 50-owner samples with
 the unchanged memory guard. At 50, summed owner RSS was 2,669 MiB and median
@@ -1354,8 +1360,10 @@ agent session. Retain logs and before/after identities for each result.
   app-server, shell environment, mouse modes, snapshots and port ownership.
 - Verify SSH persistent and attached-lifetime hosts, truthful capability reporting,
   lost replies, incompatible runtime versions and two competing controllers.
-- Measure memory, CPU/wakeups, descriptors and adoption latency at 1, 10 and 50
-  runtimes; set and enforce budgets before the mandatory 0.4.0 release.
+- Repeat the calibrated 1/10/50-owner fixture on controlled runners, retaining
+  its enforced memory/CPU/wakeup/descriptor/adoption ceilings. Establish matching
+  Linux and native-provider workload evidence; macOS plain-shell ceilings do not
+  substitute for those mandatory 0.4.0 release checks.
 - Run real packaging/update failure, cockpit notification, relay authority,
   retention/removal and adjacent-execution cases from the roadmap's full matrix.
 

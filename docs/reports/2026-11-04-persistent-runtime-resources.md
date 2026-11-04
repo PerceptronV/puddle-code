@@ -130,9 +130,10 @@ after measurement; replaying all three runs through the limit checker passed.
 - RSS ceilings round up approximately 1.5 times the largest observed total,
   including the exploratory runs. A separate **192 MiB per-owner** threshold
   would expose a concentrated increase hidden by the aggregate.
-- **CPU and wakeup budgets remain unapproved and unenforced.** The current short
-  quantised CPU observation does not support a defensible low-overhead ceiling;
-  collect longer or higher-resolution samples before approving one.
+- CPU and wakeup ceilings were initially unenforced: the short quantised CPU
+  observation could not support them. The later calibrated native observations
+  now support the separate fixture thresholds below; coarse `ps` readings still
+  do not substitute for calibrated counters.
 - Adoption thresholds exceed twice the largest observed sample, rounded upward
   to permit ordinary scheduling variation. Only nine measurements per scale exist;
   they do not establish a reliable tail percentile.
@@ -262,8 +263,8 @@ also be run independently with `PUDDLE_TEST_RUNTIME_NATIVE_METRICS=1` and
 report native counters unavailable. The baseline now records completion/failure
 metadata as well; the captured report above predates that reporting-only addition.
 One partial run does not establish variation at fifty runtimes, cross-platform
-behaviour or production budgets. CPU/wakeup ceilings remain unset pending that
-evidence.
+behaviour or production budgets. At this stage, CPU/wakeup ceilings remained
+unset pending further evidence.
 
 ## Subsequent owner screen bounds
 
@@ -348,7 +349,7 @@ exact grant observation, the existing four-owner concurrency and memory guard;
 returned processes and readiness checks are never retried. A resample is still
 required. This single
 partial observation does not establish a memory, CPU or wakeup improvement over
-the historical samples. CPU/wakeup ceilings remain unset.
+the historical samples. CPU/wakeup ceilings were not yet enforced during this run.
 
 ### Controller-acquisition resample
 
@@ -426,7 +427,7 @@ the report records no fixture regressions. The lower median RSS at fifty is not
 a measured saving from the host allowance: shared pages, compression/reclamation,
 garbage collection and workstation activity prevent that attribution. The run
 establishes a complete calibrated macOS plain-shell baseline, not a statistical
-tail bound or an approved CPU/wakeup ceiling.
+tail bound. CPU/wakeup ceilings had not yet been set when this run was recorded.
 
 The harness verified every tracked owner exited and every known shell was absent
 before writing the report. An independent post-run check found **all 101 sampled
@@ -434,16 +435,67 @@ PIDs absent**: fifty owners, fifty shells and the controller/test process. The
 temporary bundle was removed. No installed service, real provider home or
 production daemon was modified.
 
+## Enforced calibrated macOS fixture ceilings
+
+The opt-in harness now enforces the following **plain-shell investigation
+thresholds** after fifteen seconds of settling and a thirty-second calibrated
+sample. CPU columns are separate sums across owners, expressed as percentages
+of **one core**, not percentages of the whole machine. These thresholds supplement
+the existing RSS, descriptor and adoption ceilings; they are not product capacity
+guarantees or limits on real provider workloads.
+
+| Owners | Owner self CPU ceiling | Owner reaped-child CPU ceiling | Owner interrupt-wakeup ceiling, per second |
+| --- | ---: | ---: | ---: |
+| 1 | 1% | 1% | 6 |
+| 10 | 3% | 3% | 60 |
+| 50 | 15% | 15% | 350 |
+
+All four calibrated reports above contributed to the choice, including completed
+rows from both partial runs. They contain four observations each at one and ten
+owners, and one at fifty. Their maxima were:
+
+| Owners | Observed maximum self CPU | Observed maximum reaped-child CPU | Observed maximum owner interrupt wakeups/s |
+| --- | ---: | ---: | ---: |
+| 1 | 0.267782% | 0.135464% | 2.865988 |
+| 10 | 1.460237% | 1.231446% | 25.397053 |
+| 50 | 3.699740% | 4.907679% | 109.753206 |
+
+For one and ten owners, each maximum receives a twofold margin. CPU ceilings
+round upwards to whole percentage points; wakeup ceilings round upwards to one
+and ten wakeups/s respectively. Fifty owners receives a threefold margin because
+only one calibrated observation exists, rounded upwards to five percentage points
+and fifty wakeups/s. These are engineering tripwires for material idle regressions,
+not statistical confidence or tail bounds. Repeated controlled-runner observations
+can refine them without changing the standard runtime feature's availability.
+
+Each comparison uses its **native upper timing-bracket rate independently**.
+Lower owner CPU cannot offset excessive reaped-child CPU, and neither can offset
+excessive interrupt wakeups. Missing calibration, missing native rates, negative
+or non-finite values, and reversed self-CPU brackets fail the macOS gate explicitly.
+Coarse `ps` CPU readings and missing values are never substituted as zero.
+Linux continues to evaluate the existing RSS/descriptor/adoption checks and
+reports native measurements unavailable; these macOS CPU/wakeup thresholds are
+not applied to Linux. Package-idle and reaped-child wakeups remain recorded but
+do not receive inferred thresholds from this mostly zero-valued corpus.
+
+The focused **52-test** suite replays all nine recorded calibrated rows, verifies
+equality and just-over-boundary behaviour for every metric/scale, checks independent
+failures, and rejects missing/malformed macOS evidence. Every recorded row passes.
+The raw artifacts retain the limits active when they were measured; this replay
+does not claim that the new CPU/wakeup checks ran during those historical tests.
+No additional native measurement was performed to select or test these thresholds.
+
 ## Remaining resource gates
 
 Native macOS interrupt/package-idle wakeups are now measured at one, ten and fifty
-plain-shell runtimes. Repeatability on controlled runners, equivalent Linux
-measurements and approved CPU/wakeup ceilings remain open. Provider CLI/sidecar
+plain-shell runtimes, with concrete fixture CPU/wakeup regression checks.
+Repeatability on controlled runners and equivalent Linux measurements remain
+open. Provider CLI/sidecar
 overhead, isolated controller/daemon RSS and CPU,
 service-manager overhead, active output and slow
 consumers, host-wide retained storage and native-provider workloads remain open.
-This report supplies a repeatable baseline and proposed
-monitoring limits; it does not claim all resource acceptance gates are met. Its
+This report supplies a repeatable baseline and enforced fixture investigation
+limits; it does not claim all resource acceptance gates are met. Its
 RSS limits are distinct from the implemented transport/viewer buffer capacities.
 The shared host allowance bounds charged managed capacity; it does not bound
 total RSS, provider memory or operating-system caches, or replace workload
