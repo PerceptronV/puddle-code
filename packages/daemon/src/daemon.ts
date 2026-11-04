@@ -123,6 +123,8 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     const runtimes = new RuntimeStore(db);
     const conversations = new ConversationStore(db);
     const events = new EventStore(db);
+    // The last cockpit report seeds new owners and converges adopted ones.
+    const terminalTheme = new TerminalTheme(() => runtimeReconciler.refreshThemes());
     const runtimeReconciler = new RuntimeReconciler({
       home: paths.home,
       db,
@@ -131,6 +133,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       conversations,
       events,
       captureEnabled: (profileId) => profiles.getSettings(profileId).captureSessionEnv,
+      theme: () => terminalTheme.colours(),
     });
     profiles.onCaptureChanged = (id) => runtimeReconciler.refreshProfile(id);
     const runtimeConnections = new RuntimeConnections(paths.home, runtimes, {
@@ -163,6 +166,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
             profiles,
             connections: runtimeConnections,
             reconciler: runtimeReconciler,
+            theme: () => terminalTheme.colours(),
           },
           opts.runtime,
         )
@@ -194,7 +198,6 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     );
     // Clients report their resolved terminal colours over the WS (14.1); the
     // PTY layer answers agents' OSC 10/11 colour queries from the last report.
-    const terminalTheme = new TerminalTheme();
     const ptys = new PtyManager(logs, terminalTheme, paths.logsDir, (degraded) =>
       storage.setLogsDegraded(degraded, 'screens'),
     );

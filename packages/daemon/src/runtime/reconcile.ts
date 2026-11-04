@@ -12,6 +12,7 @@ import {
   type RuntimeSegment,
   type RuntimeState,
   type RuntimeEvent,
+  type RuntimeTheme,
 } from '@puddle/shared';
 import type { Db } from '../db/db.js';
 import type { RuntimeBinding, RuntimeStore } from '../db/stores/runtimes.js';
@@ -37,6 +38,7 @@ interface ReconcileDeps {
   conversations: ConversationStore;
   events: EventStore;
   captureEnabled?: (profileId: string) => boolean;
+  theme?: () => RuntimeTheme | null;
 }
 interface Attachment {
   client: RuntimeClient;
@@ -98,6 +100,13 @@ export class RuntimeReconciler extends EventEmitter {
     for (const [id, entry] of this.attached)
       if (!entry.disconnected && this.deps.runtimes.get(id)?.profile_id === profileId)
         void this.refresh(id);
+  }
+
+  refreshThemes(): void {
+    for (const [id, entry] of this.attached) {
+      entry.dirty = true;
+      this.schedule(id, entry);
+    }
   }
 
   pendingIds(): string[] {
@@ -635,6 +644,19 @@ export class RuntimeReconciler extends EventEmitter {
         throw error;
       }
       if (this.closed) return;
+      const colours = this.deps.theme?.();
+      if (
+        colours &&
+        state.theme !== undefined &&
+        (colours.fg !== state.theme?.fg || colours.bg !== state.theme?.bg)
+      ) {
+        await client.request({
+          t: 'theme',
+          placement: this.deps.runtimes.placementBinding(id),
+          colours,
+        });
+        continue; // Inspect again after a replaceable setting change or native switch.
+      }
       const desiredCapture = this.deps.captureEnabled?.(this.current(id).profile_id);
       if (desiredCapture !== undefined && state.environment.enabled !== desiredCapture) {
         await client.request({

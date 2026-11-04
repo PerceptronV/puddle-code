@@ -1,16 +1,20 @@
+import type { RuntimeTheme } from '@puddle/shared';
+
 /**
- * Daemon-side answers to the terminal dynamic-colour queries (OSC 10
+ * PTY-owner answers to the terminal dynamic-colour queries (OSC 10
  * foreground, OSC 11 background — protocol 14.1). An auto-theming agent
  * (Claude Code's theme: auto) queries the terminal background AT SPAWN to
  * pick light or dark — which is usually before any browser viewer has
  * attached to the PTY, so the viewer-side answer the web terminal used to
  * give arrived for nobody and the agent fell back to dark whatever the app's
- * theme. The daemon sees every output byte from the moment the process
- * starts, so it is the one party positioned to answer; clients report their
+ * theme. The PTY owner sees every output byte from the moment the process
+ * starts, so it is positioned to answer; clients report their
  * resolved colours over the WS (`theme`, on connect and on theme switches)
  * and the LAST report wins — a deliberate simplification for what is in
  * practice one person's cockpit, matching the stdin rule ("accepted from
  * any viewer, last-writer-wins").
+ * Independent owners receive the last report in launch context and subsequent
+ * private state reconciliation, retaining it while the daemon is absent.
  *
  * The web terminal stops answering these queries against a >=14.1 daemon
  * (Terminal.tsx feature-gates), so an agent never receives two replies.
@@ -58,9 +62,20 @@ export class TerminalTheme {
   private fg: string | null = null;
   private bg: string | null = null;
 
+  constructor(private readonly changed?: () => void) {}
+
   set(fg: string, bg: string): void {
-    this.fg = fg;
-    this.bg = bg;
+    if (!hexToXtermRgb(fg) || !hexToXtermRgb(bg)) return;
+    const foreground = `#${fg.trim().replace(/^#/, '').toLowerCase()}`;
+    const background = `#${bg.trim().replace(/^#/, '').toLowerCase()}`;
+    if (this.fg === foreground && this.bg === background) return;
+    this.fg = foreground;
+    this.bg = background;
+    this.changed?.();
+  }
+
+  colours(): RuntimeTheme | null {
+    return this.fg === null || this.bg === null ? null : { fg: this.fg, bg: this.bg };
   }
 
   /** The full OSC report for a query, or null when no client has reported yet. */

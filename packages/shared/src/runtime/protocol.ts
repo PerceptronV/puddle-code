@@ -92,6 +92,12 @@ export const runtimeTerminalSchema = z.object({
 });
 export type RuntimeTerminal = z.infer<typeof runtimeTerminalSchema>;
 
+export const runtimeThemeSchema = z.object({
+  fg: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  bg: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+});
+export type RuntimeTheme = z.infer<typeof runtimeThemeSchema>;
+
 export const runtimeSegmentSchema = z.object({
   id,
   start_cursor: sequence,
@@ -304,6 +310,8 @@ export const runtimeStateSchema = z.object({
   agent: runtimeAgentStateSchema.nullable(),
   turn: runtimeTurnSchema.nullable(),
   environment: runtimeEnvironmentStateSchema,
+  /** Omitted by older experimental owners; null means no cockpit report yet. */
+  theme: runtimeThemeSchema.nullable().optional(),
   binding: runtimePlacementBindingSchema.nullable(),
   history: z.object({
     current: runtimeSegmentSchema,
@@ -325,6 +333,13 @@ export const runtimeRequestSchema = z.discriminatedUnion('t', [
     controller_epoch: sequence,
   }),
   z.object({ t: z.literal('inspect'), id, sequence }),
+  z.object({
+    t: z.literal('theme'),
+    id,
+    sequence,
+    placement: runtimePlacementSchema,
+    colours: runtimeThemeSchema,
+  }),
   z.object({
     t: z.literal('bind-placement'),
     id,

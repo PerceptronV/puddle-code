@@ -16,6 +16,27 @@ import {
 const placement = { segment_id: randomUUID(), session_id: randomUUID() };
 
 describe('private runtime protocol', () => {
+  it('bounds colour reports and requires the exact placement for changes', () => {
+    const request = {
+      t: 'theme',
+      id: randomUUID(),
+      sequence: 1,
+      placement,
+      colours: { fg: '#123456', bg: '#abcdef' },
+    };
+    expect(runtimeRequestSchema.safeParse(request).success).toBe(true);
+    expect(runtimeRequestSchema.safeParse({ ...request, placement: undefined }).success).toBe(
+      false,
+    );
+    expect(
+      runtimeRequestSchema.safeParse({ ...request, colours: { fg: '#fff', bg: '#000000' } })
+        .success,
+    ).toBe(false);
+    expect(
+      runtimeRequestSchema.safeParse({ ...request, colours: { fg: '\x1b]10;?', bg: '#000000' } })
+        .success,
+    ).toBe(false);
+  });
   it('bounds private shell observations and keeps capture policy explicit', () => {
     expect(
       runtimeCaptureSchema.safeParse({ enabled: true, values: { 'BAD=NAME': 'x' } }).success,

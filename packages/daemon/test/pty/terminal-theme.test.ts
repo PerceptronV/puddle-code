@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   findColourQueries,
   hexToXtermRgb,
@@ -41,6 +41,18 @@ describe('findColourQueries', () => {
 });
 
 describe('TerminalTheme', () => {
+  it('publishes only changed valid colour pairs and returns independent snapshots', () => {
+    const changed = vi.fn();
+    const theme = new TerminalTheme(changed);
+    expect(theme.colours()).toBeNull();
+    theme.set('#ABCDEF', '#123456');
+    theme.set('abcdef', '123456');
+    theme.set('#fff', '#000000');
+    expect(changed).toHaveBeenCalledTimes(1);
+    const snapshot = theme.colours()!;
+    snapshot.bg = '#000000';
+    expect(theme.colours()).toEqual({ fg: '#abcdef', bg: '#123456' });
+  });
   it('answers nothing before a report, then the last-reported colours', () => {
     const theme = new TerminalTheme();
     expect(theme.report(11)).toBeNull();

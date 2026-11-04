@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Preserve cockpit terminal colours in opt-in independent owners, answering agent colour queries during daemon outages and synchronising new reports after reconnection.
+
 - Reclaim consumed private results in opt-in independent runtimes, preserving unread outcomes and monotonic turn identities; refuse new asks before dispatch when protected results fill retention.
 
 - Persist programme spawn ownership before dispatch, fence cancelled launches and keep cleanup from stopping a later runtime in the same placement.

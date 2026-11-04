@@ -164,7 +164,7 @@ Implementation evidence so far:
   never a second dispatch. An isolated real-daemon test creates a fake provider,
   preserves its PTY and sidecar through replacement and an offline conversation
   switch, then explicitly resumes the exact new native ref in a new owner.
-  Full account migration, notification/theme/title parity and native
+  Full account migration, notification/title parity and native
   provider acceptance remain required before default rollout.
 - Code-execution terminals now use the same opt-in owner path. Migration 034
   records their canonical managed run directories atomically with launch intent;
@@ -202,6 +202,15 @@ Implementation evidence so far:
   unread-result protection, byte pressure, storage failures and migration.
   Explicit unread-result disposition and host-wide storage accounting remain
   rollout gates; no automatic expiry or programme replay has been introduced.
+- Independent owners now answer terminal OSC 10/11 colour queries from the latest
+  cockpit report. New launches seed colours before spawning; adopted owners
+  converge placement-fenced updates and retain colours across daemon replacement.
+  Main and extra PTYs share the owner responder. Real-PTY tests cover startup,
+  controller absence, colour changes and extra shells; real-daemon tests cover
+  existing cockpit reports across replacement and seeding resumed owners. Lost
+  acknowledgements are inspected without redundant changes, and older owners
+  without theme support remain adoptable. Native provider theme acceptance remains
+  part of the provider/platform gate.
 
 These are foundations for phases 0–3, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native

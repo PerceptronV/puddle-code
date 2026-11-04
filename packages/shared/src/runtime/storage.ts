@@ -7,6 +7,7 @@ import {
   runtimeJournalStatusSchema,
   runtimeProviderLaunchSchema,
   runtimeRetainedEventSchema,
+  runtimeThemeSchema,
 } from './protocol.js';
 
 /** Immutable helper inventory; release collection must retain its exact Node executable. */
@@ -55,6 +56,7 @@ export const runtimeLaunchSchema = z.object({
   shell_hooks: z.literal(true).optional(),
   provider: runtimeProviderLaunchSchema.optional(),
   capture_env: runtimeCaptureSchema.optional(),
+  theme: runtimeThemeSchema.optional(),
 });
 export type RuntimeLaunch = z.infer<typeof runtimeLaunchSchema>;
 

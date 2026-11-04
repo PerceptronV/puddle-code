@@ -173,6 +173,23 @@ archive retention and host-wide storage accounting must reclaim history budgets
 without deleting live resources. Essential journal gaps still block safe event
 reconciliation independently of missing bulk history.
 
+## Terminal colours
+
+Optional launch `theme` seeds the latest cockpit foreground/background before
+the main PTY starts. Owner state exposes `theme: null` until a report exists, then
+the bounded `#RRGGBB` pair. Omission identifies older experimental owners without
+this support. Private `theme` requests require the current controller sequence and
+exact placement, and replace the owner's colours without sending unsolicited
+terminal input. The PTY manager answers OSC 10/11 queries from that state for the
+main terminal and extra shells, including while puddled is absent.
+
+The daemon coalesces current cockpit reports into ordinary owner reconciliation.
+It inspects after uncertain acknowledgements; a matching state requires no resend.
+A replacement daemon with no report leaves retained owner colours untouched.
+Colours are replaceable state, not essential lifecycle journal entries. The new
+private fields are part of the unshipped runtime 1.0 contract; the existing public
+theme message and application/remote protocol versions are unchanged.
+
 ## Provider execution
 
 The private launch may select a provider, its config directory, execution mode,

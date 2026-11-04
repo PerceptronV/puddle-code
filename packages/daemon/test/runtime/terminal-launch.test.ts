@@ -81,6 +81,7 @@ it('creates and resumes terminal owners through the real daemon while ordinary r
     const state = () =>
       readRuntimeJson(join(runtimeDirectory(f.home, owner.runtime_id), 'state.json')) as {
         terminals: Array<{ pid: number }>;
+        theme: { fg: string; bg: string } | null;
       };
     const pid = state().terminals[0]!.pid;
     const hookPath = join(
@@ -89,6 +90,9 @@ it('creates and resumes terminal owners through the real daemon while ordinary r
     );
     const hook = readFileSync(hookPath, 'utf8');
     const first = await attach(session.id);
+    const colours = { fg: '#123456', bg: '#abcdef' };
+    first.send({ t: 'theme', ...colours });
+    await waitFor(() => state().theme?.bg === colours.bg);
     first.send({
       t: 'stdin',
       term: 'agent',
@@ -99,6 +103,10 @@ it('creates and resumes terminal owners through the real daemon while ordinary r
     expect(state().terminals[0]!.pid).toBe(pid);
     await start();
     const second = await attach(session.id);
+    expect(state().theme).toEqual(colours); // No new report must not clear the owner's colours.
+    const replacementColours = { fg: '#fedcba', bg: '#654321' };
+    second.send({ t: 'theme', ...replacementColours });
+    await waitFor(() => state().theme?.bg === replacementColours.bg);
     second.send({ t: 'stdin', term: 'agent', data: 'printf "second-%s\\n" "$survivor"\n' });
     await waitFor(() => second.text().includes('second-kept'));
     expect(state().terminals[0]!.pid).toBe(pid);
@@ -112,6 +120,9 @@ it('creates and resumes terminal owners through the real daemon while ordinary r
     await resumed.arrayBuffer();
     const replacement = f.runtimes.ownerOf(session.id)!;
     runtimeIds.add(replacement.runtime_id);
+    expect(
+      readRuntimeJson(join(runtimeDirectory(f.home, replacement.runtime_id), 'launch.json')),
+    ).toMatchObject({ theme: replacementColours });
     expect(replacement.runtime_id).not.toBe(owner.runtime_id);
     const third = await attach(session.id);
     third.send({

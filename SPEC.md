@@ -246,6 +246,14 @@ placement after asynchronous process inspection. Historical, unbound or unreacha
 owners never fall through to stale recorded PIDs or legacy PTYs. Cached owner
 references are bounded across old placements. No new application/remote shape is
 needed for this integration.
+Independent owners also answer OSC 10/11 colour queries directly through their
+PTY manager. Launch context seeds the last cockpit-reported foreground/background
+before spawning; adopted owners converge newer reports through private,
+placement-fenced theme changes. Owners keep their colours through controller loss,
+and a daemon with no new report does not clear them. Extra shells share the same
+owner colours. Reconciliation inspects after a lost acknowledgement and skips
+older owners whose state omits theme support. The existing application WebSocket
+theme message and its last-report-wins policy are unchanged.
 An explicit `DaemonOptions.runtime` composition option now routes terminal
 and interactive/headless agent creation/resume through `RuntimeLauncher`. Default installed
 launches retain the in-process backend. The launcher writes a private validated

@@ -10,6 +10,7 @@ import {
   type RuntimeLaunch,
   type RuntimeProviderLaunch,
   type RuntimeSupervisor,
+  type RuntimeTheme,
 } from '@puddle/shared';
 import { atomicPrivateJson } from '@puddle/shared/node';
 import type { CompilationCommandRunner } from '../compilation/process.js';
@@ -53,6 +54,7 @@ interface Dependencies {
   profiles: ProfileStore;
   connections: RuntimeConnections;
   reconciler: RuntimeReconciler;
+  theme?: () => RuntimeTheme | null;
 }
 
 /** Persist one launch intent, dispatch once, then observe authenticated adoption. */
@@ -114,6 +116,7 @@ export class RuntimeLauncher {
         environment: this.deps.environment,
         shell_hooks: true,
         provider,
+        theme: this.deps.theme?.() ?? undefined,
         capture_env: {
           enabled: this.deps.profiles.getSettings(project.profile_id).captureSessionEnv,
           values: this.deps.sessions.getEnv(sessionId),

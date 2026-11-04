@@ -40,6 +40,7 @@ import { AdapterRegistry } from '../agents/registry.js';
 import { defaultAdapters } from '../agents/defaults.js';
 import { RuntimeObservations } from './observations.js';
 import { RuntimeSegments } from './segments.js';
+import { TerminalTheme } from '../pty/terminal-theme.js';
 
 /** One process owns one runtime. No application database or public HTTP server. */
 export class RuntimeHost {
@@ -62,6 +63,7 @@ export class RuntimeHost {
   private readonly turns: RuntimeTurns;
   private readonly observations: RuntimeObservations;
   private readonly segments: RuntimeSegments;
+  private readonly theme = new TerminalTheme();
   private binding: RuntimePlacementBinding | null;
   private agent: RuntimeAgent | null = null;
   private closingAgent: Promise<void> | null = null;
@@ -80,6 +82,7 @@ export class RuntimeHost {
         throw new Error('Runtime launch identity mismatch');
       this.binding = { segment_id: id, session_id: this.launch.identity.session_id, through: 0 };
       this.observations = new RuntimeObservations(this.launch.capture_env);
+      if (this.launch.theme) this.theme.set(this.launch.theme.fg, this.launch.theme.bg);
       this.journal = new RuntimeJournal(this.directory, this.launch.identity);
       this.turns = new RuntimeTurns(this.journal, (event, reservation) => {
         this.event({ ...event, cursor: ++this.eventCursor }, reservation);
@@ -94,7 +97,7 @@ export class RuntimeHost {
         this.logs,
         this.launch.provider?.resume_ref ?? this.launch.provider?.initial_ref ?? null,
       );
-      this.ptys = new PtyManager(this.logs, undefined, join(this.directory, 'screens'), () => {
+      this.ptys = new PtyManager(this.logs, this.theme, join(this.directory, 'screens'), () => {
         this.persistencePending = true;
       });
       this.ptys.on('data', (event: PtyDataEvent) => this.output(event));
@@ -205,6 +208,7 @@ export class RuntimeHost {
       agent: this.agent?.state() ?? null,
       turn: this.turns.state(),
       environment: this.observations.state(),
+      theme: this.theme.colours(),
       history: this.segments.state(),
       binding: this.binding ? { ...this.binding } : null,
     };
@@ -497,6 +501,11 @@ export class RuntimeHost {
     }
     switch (request.t) {
       case 'inspect':
+        this.reply(socket, { t: 'state', id: request.id, state: this.state() });
+        return;
+      case 'theme':
+        this.theme.set(request.colours.fg, request.colours.bg);
+        this.persistState();
         this.reply(socket, { t: 'state', id: request.id, state: this.state() });
         return;
       case 'bind-placement': {

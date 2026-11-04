@@ -358,6 +358,22 @@ The runtime/programme/database/session regression run passed 318 tests in 54 fil
 with one native supervisor test skipped. The final six-test retention run,
 typecheck, scoped lint and formatting passed.
 
+`runtime/theme.test.ts` runs a real PTY child that repeatedly issues OSC 10/11
+queries and records the returned colours. It verifies launch-time answers,
+continued answers without a controller, retained PID/colours on adoption,
+placement-fenced changes and the same responder in extra shells. Reconciliation
+tests discard an applied colour-update acknowledgement and prove inspection
+avoids another change; simulated older state without theme support is skipped.
+`runtime/terminal-launch.test.ts` sends existing cockpit WebSocket theme reports
+through a real isolated daemon, replaces the daemon and checks that colours stay
+intact until a new report, then verifies the latest pair seeds a resumed owner.
+The focused colour/protocol/daemon run passed 18 tests. This proves PTY response
+and routing behaviour, not installed providers' automatic theme selection.
+The runtime/PTY/protocol/profile-authority regression run passed 242 tests in
+47 files, with one native supervisor test skipped. Typecheck, scoped lint and
+formatting passed. The first probe run timed out because its report file was not
+private; setting the fixture's mode to `0600` corrected the test.
+
 ## Remaining release gates
 
 Record platform, Node, release and provider versions with results. Run native
