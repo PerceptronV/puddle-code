@@ -153,6 +153,13 @@ their live context requires only the account's configuration directory. Runtime
 protocol 1.0 is independent of the application and remote protocols; its schemas
 and versioning rules live in shared `runtime/` and `RUNTIME_PROTOCOL.md`.
 
+Implementation lives in `packages/daemon/src/runtime/`: `index.ts` and `host.ts`
+compose the owner, while `ownership/`, `transport/`, `execution/`, `state/`,
+`controller/` and `lifecycle/` group their supporting responsibilities. Tests use
+the corresponding groups under `test/runtime/`, with shared fixtures in
+`test/helpers/`. The executable entry point stays stable and consumers import
+implementation modules directly.
+
 The runtime agent state reports sidecar roots and hidden ports, and retains
 interactive fallback when installed-version checks fail. Codex lifecycle cleanup
 waits for app-server exit and escalates to SIGKILL after 1.5 seconds if needed.

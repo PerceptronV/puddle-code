@@ -7,8 +7,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { runtimeSupervisorSchema } from '@puddle/shared';
 import { atomicPrivateJson } from '@puddle/shared/node';
 import { startDaemon } from '../../src/daemon.js';
-import { readRuntimeJson } from '../../src/runtime/storage.js';
-import type { RuntimeLaunchConfiguration } from '../../src/runtime/launcher.js';
+import { readRuntimeJson } from '../../src/runtime/ownership/storage.js';
+import type { RuntimeLaunchConfiguration } from '../../src/runtime/lifecycle/launcher.js';
 import {
   runtimeTestAdapter,
   runtimePresetTestAdapter,

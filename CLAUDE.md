@@ -20,7 +20,13 @@ packages/
 │   ├── src/latex/        # local TeX discovery/recipes, managed outputs, and inverse SyncTeX
 │   ├── src/notebooks/    # daemon-owned Jupyter kernels, bounded bridge and explicit lifecycle
 │   ├── src/sessions/     # immutable placement service + stable live runtimes + watched conversation catalogue
-│   ├── src/runtime/      # experimental puddler owner, provider resources, private IPC, claims and bounded journal; opt-in terminal/interactive-agent launch backend
+│   ├── src/runtime/      # experimental puddler entry point and owner composition
+│   │   ├── ownership/   # claims, private records and owner discovery/retirement
+│   │   ├── transport/   # bounded IPC framing, client and controller connections
+│   │   ├── execution/   # provider resources, turns, signals and pinned helpers
+│   │   ├── state/       # retained journal/segments, shell observations, titles and attention
+│   │   ├── controller/  # daemon reconciliation, placement controls, viewers and notifications
+│   │   └── lifecycle/   # launch, supervision and ended-service cleanup
 │   └── src/worktrees/    # worktree lifecycle plus repository-aware Git inspection/mutations
 ├── web/       # React UI: Tailwind v4 + owned shadcn-style components (src/components/ui/)
 │   ├── src/styles/tokens.css   # THE colour source; scripts/check-tokens.mjs guards it in lint/CI

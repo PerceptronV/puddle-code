@@ -1,12 +1,12 @@
 import { join } from 'node:path';
 import { runtimeLaunchSchema } from '@puddle/shared';
 import { atomicPrivateJson } from '@puddle/shared/node';
-import { RuntimeClient } from '../../src/runtime/client.js';
+import { RuntimeClient } from '../../src/runtime/transport/client.js';
 import {
   acquireRuntimeController,
   readRuntimeJson,
   runtimeDirectory,
-} from '../../src/runtime/storage.js';
+} from '../../src/runtime/ownership/storage.js';
 
 // Isolated process fixture: never starts puddled or loads provider accounts.
 const home = process.argv[2]!;

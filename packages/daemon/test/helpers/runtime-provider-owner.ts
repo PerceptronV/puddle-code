@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { atomicPrivateJson } from '@puddle/shared/node';
 import { AdapterRegistry } from '../../src/agents/registry.js';
 import { RuntimeHost } from '../../src/runtime/host.js';
-import { RuntimeJournal } from '../../src/runtime/journal.js';
+import { RuntimeJournal } from '../../src/runtime/state/journal.js';
 import {
   runtimeTestAdapter,
   runtimePresetTestAdapter,

@@ -9,7 +9,7 @@ import type { PtyExitEvent, PtyManager } from '../pty/pty-manager.js';
 import type { SessionService } from '../sessions/service.js';
 import type { TerminalCommand } from '../sessions/terminal-command.js';
 import type { RuntimeStore } from '../db/stores/runtimes.js';
-import type { RuntimeReconciler } from '../runtime/reconcile.js';
+import type { RuntimeReconciler } from '../runtime/controller/reconcile.js';
 
 export type CodeTerminalLauncher = (
   source: CompilationFileTarget,

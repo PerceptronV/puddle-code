@@ -6,15 +6,18 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { runtimeStateSchema, type RuntimeState } from '@puddle/shared';
 import { atomicPrivateJson } from '@puddle/shared/node';
-import { RuntimeClient } from '../../src/runtime/client.js';
-import { connectRuntimeOwner, retireMissingRuntime } from '../../src/runtime/discovery.js';
-import { acquireRuntimeClaim, RuntimeClaimBusy } from '../../src/runtime/claims.js';
-import { readRuntimeJournal } from '../../src/runtime/journal.js';
+import { RuntimeClient } from '../../src/runtime/transport/client.js';
+import {
+  connectRuntimeOwner,
+  retireMissingRuntime,
+} from '../../src/runtime/ownership/discovery.js';
+import { acquireRuntimeClaim, RuntimeClaimBusy } from '../../src/runtime/ownership/claims.js';
+import { readRuntimeJournal } from '../../src/runtime/state/journal.js';
 import {
   acquireRuntimeController,
   readRuntimeJson,
   runtimeDirectory,
-} from '../../src/runtime/storage.js';
+} from '../../src/runtime/ownership/storage.js';
 import {
   setup,
   terminal,

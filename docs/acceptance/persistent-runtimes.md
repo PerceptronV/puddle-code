@@ -77,7 +77,7 @@ From a logged-in macOS GUI user account with a working `launchctl gui/<uid>`
 domain, enable the additional integration test:
 
 ```sh
-PUDDLE_TEST_RUNTIME_SUPERVISOR=1 node node_modules/vitest/vitest.mjs run --project daemon packages/daemon/test/runtime/supervisor-live.test.ts
+PUDDLE_TEST_RUNTIME_SUPERVISOR=1 node node_modules/vitest/vitest.mjs run --project daemon packages/daemon/test/runtime/lifecycle/supervisor-live.test.ts
 ```
 
 This creates two uniquely labelled temporary jobs: a runtime owner and a mock
@@ -150,7 +150,7 @@ store and gateway run passed 17 tests. Typecheck, scoped lint and formatting
 passed. Installed upgrades and native provider/platform gates remain outstanding.
 
 
-`runtime/reconcile.test.ts` injects a database failure midway through a native
+`runtime/controller/reconcile.test.ts` injects a database failure midway through a native
 switch page and verifies complete rollback, including private environment and turn
 state. Successful replay creates each placement/audit event once. It also covers
 missing history, denied environment names, stale generations, premature owner
@@ -169,7 +169,7 @@ and formatting passed. Production command routing, programme result consumption
 and retention reclamation remain outstanding.
 
 
-`runtime/recovery.test.ts` now exercises a dropped control stream followed by
+`runtime/controller/recovery.test.ts` now exercises a dropped control stream followed by
 bounded reconnect, preserving the original shell PID and variable. Natural exit
 retires the binding once; abrupt owner loss becomes interrupted only after the
 exclusive claim is acquired. Tests fence delayed/unstarted launches, collect a
@@ -186,13 +186,13 @@ The expanded runtime/database/session/PTY/host-control suite passed 342 tests in
 daemon-adoption run passed 12 tests. Typecheck, scoped lint and formatting passed.
 
 
-`runtime/terminal-gateway.test.ts` now attaches real WebSockets to an isolated
+`runtime/controller/terminal-gateway.test.ts` now attaches real WebSockets to an isolated
 production daemon controlling the fake-provider owner. Two daemon lifetimes
 preserve the main PID, shell variable and terminal input; `stty size` verifies
 resize delivery. A native switch closes stale viewers, the new placement receives
 live output, and the old placement restores its own checkpoint without later
 output or write access. A third daemon boot after owner exit restores the final checkpoint
-without restarting the agent. `runtime/terminal-view.test.ts` checks snapshot cursor
+without restarting the agent. `runtime/controller/terminal-view.test.ts` checks snapshot cursor
 filtering, authority revocation during capture, native-switch/disconnect fences,
 bounded queues, exit during capture and ordered Unicode paste chunks. A lost chunk
 response abandons remaining input. Recovery tests also verify explicit selection
@@ -209,13 +209,13 @@ checkpoint test also passed. Typecheck, scoped lint and formatting passed.
 Migration coverage deliberately leaves older historical generations unresolved
 when only current live terminal evidence exists.
 
-`runtime/session-controls.test.ts` exercises the real isolated daemon and a
+`runtime/controller/session-controls.test.ts` exercises the real isolated daemon and a
 separate runtime owner through HTTP and WebSockets. Concurrent shell creation
 produces distinct terminal ids; profile capture changes reach the owner; new
 shells use its current gate; purge returns the exact cleared count. Individual
 shell termination leaves the owner alive. After the main terminal exits, archive
 still stops the remaining shells and requires a complete clean exit record.
-`runtime/controls.test.ts` covers a lost stop acknowledgement, stop intent before
+`runtime/controller/controls.test.ts` covers a lost stop acknowledgement, stop intent before
 dispatch, queued authority revocation and refusal to confirm incomplete cleanup.
 Recovery tests suppress auto-resume after explicit stop intent; worktree tests
 refuse forced pruning until clean exit is confirmed. Project archive stops
@@ -235,7 +235,7 @@ an extra runtime PTY. Two daemon lifetimes discover and forward the same server
 PID and response. A native switch invalidates the old placement's port list and
 forwarding, while the new placement keeps the listener. The fake provider's
 internal sidecar port remains excluded, and ended owners expose no ports.
-`runtime/processes.test.ts` covers live inspection, unbound/ended owners,
+`runtime/controller/processes.test.ts` covers live inspection, unbound/ended owners,
 disconnection, immediate event invalidation and owner loss during a pending scan.
 Network tests cover overlapping scans without stale cache replacement. Cached
 owner references are bounded to 256 placements.
@@ -245,14 +245,14 @@ Typecheck, scoped lint and formatting passed. This verifies loopback forwarding
 through the production daemon; installed SSH upgrades and native provider ports
 still require their platform acceptance runs.
 
-`runtime/launcher.test.ts` now dispatches an owner through a deterministic fake
+`runtime/lifecycle/launcher.test.ts` now dispatches an owner through a deterministic fake
 supervisor after asserting that launch context and SQLite intent already exist.
 Retirement and supervisor collection refuse the held launch claim. A deliberately
 lost supervisor reply still produces one owner, with the expected baseline/captured
 environment precedence and pinned shell hooks. Shutdown preserves an unconfirmed
 launch for reconciliation without another dispatch; missing pinned hooks fail.
 
-`runtime/terminal-launch.test.ts` starts the real isolated daemon with the explicit
+`runtime/lifecycle/terminal-launch.test.ts` starts the real isolated daemon with the explicit
 runtime composition option. HTTP terminal creation produces an independent owner;
 WebSocket input establishes a shell variable and cwd. Daemon replacement preserves
 that PID and variable. Explicit kill/resume creates a different runtime and a fresh
@@ -268,14 +268,14 @@ scoped lint and formatting passed. Agent launch and code-run retention received
 subsequent coverage below; default installed selection and native supervisor/provider
 acceptance remain release gates.
 
-`runtime/agent-launch.test.ts` now exercises HTTP interactive-agent creation using
+`runtime/lifecycle/agent-launch.test.ts` now exercises HTTP interactive-agent creation using
 the opt-in launcher, preserving the main PTY PID and a fake provider's sidecar
 through daemon replacement and an exact native switch while disconnected. An
 explicit kill/resume creates a new owner with the exact switched ref. A preset-id
 provider seeds its ref before dispatch and retains `native_sync: fallback` when
 it has no supported lifecycle channel. No installed agent is used.
 
-`runtime/session-refs.test.ts` checks private launch identity, exclusion of earlier
+`runtime/controller/session-refs.test.ts` checks private launch identity, exclusion of earlier
 native ids and refusal of ambiguous or inconsistent discovery. The launcher test
 also exercises a confirmed pre-agent failure with a preset ref: final observations
 reconcile, exclusive retirement still applies and dispatch happens once. Journal
@@ -288,7 +288,7 @@ This is fake-provider and deterministic-supervisor evidence; headless/programme
 routing, default installed selection and native platform/provider checks remain
 release gates.
 
-`runtime/code-launch.test.ts` exercises a real programme through the production
+`runtime/lifecycle/code-launch.test.ts` exercises a real programme through the production
 compilation HTTP route and opt-in independent owner. Its PID and in-memory counter
 survive daemon replacement. Seven subsequent runs trigger pruning without deleting
 the surviving programme's managed directory. Explicit stop releases that exact
@@ -305,7 +305,7 @@ fixture correction, all 36 database/runtime-store/migration tests in six files
 passed. The focused programme-continuity/store run passed 12 tests. Typecheck,
 scoped lint and formatting passed.
 
-`runtime/programme-launch.test.ts` now runs actual puddlang runners against real
+`runtime/lifecycle/programme-launch.test.ts` now runs actual puddlang runners against real
 isolated daemons with fake interactive/headless providers. Each admitted ask has
 a durable operation mapping before the provider sees it. Daemon replacement
 leaves the accepted turn running; the replacement recovers its private result
@@ -313,7 +313,7 @@ while the programme stays interrupted. Explicit cancellation cancels only the
 selected turn and leaves an attached runtime alive; a later programme attaches,
 completes another ask and explicitly stops it. Provider and terminal PIDs persist.
 
-`runtime/programme-turns.test.ts` discards a real owner's accepted reply, then
+`runtime/controller/programmes/programme-turns.test.ts` discards a real owner's accepted reply, then
 verifies committed-result recovery and one provider invocation. Duplicate
 operation delivery, foreign profile scope and failed intent insertion cannot
 dispatch a prompt. These tests cover deterministic providers, not native CLIs.
@@ -326,13 +326,13 @@ interactive control run passed 12 tests. Typecheck, scoped lint and formatting
 passed. Durable spawn-operation ownership, private result reclamation, native
 provider/platform verification and installed/default rollout remain gates.
 
-`runtime/programme-spawn.test.ts` holds a fake supervisor dispatch after durable
+`runtime/lifecycle/programme-spawn.test.ts` holds a fake supervisor dispatch after durable
 launch intent, then cancels the programme before allowing the dispatch to finish.
 The recorded owner exits cleanly and receives no ask. A manual resume creates a
 replacement; after daemon replacement, retrying the old programme cancellation
 leaves that replacement running. The ownership record still names the old runtime.
 
-`runtime/programme-spawn-store.test.ts` injects an ownership-write failure and
+`runtime/controller/programmes/programme-spawn-store.test.ts` injects an ownership-write failure and
 proves placement insertion rolls back. Duplicate/cancelled admissions cannot leave
 a new placement or runtime intent. Undispatched spawns are excluded from boot
 auto-resume, while explicit later resume remains ordinary session recovery.
@@ -344,7 +344,7 @@ passed 343 tests in 55 files, with one native supervisor test skipped. Typecheck
 scoped lint and formatting passed. Native platform/provider verification and
 installed/default rollout remain outstanding.
 
-`runtime/turn-retention.test.ts` exercises 300 sequential turns through durable
+`runtime/controller/programmes/turn-retention.test.ts` exercises 300 sequential turns through durable
 programme admission and consumption. It verifies unread/running protection,
 worst-case escaped reply bytes, rollback after failed intent/observation writes,
 conservative migration and monotonic identities even when the newest consumed
@@ -358,13 +358,13 @@ The runtime/programme/database/session regression run passed 318 tests in 54 fil
 with one native supervisor test skipped. The final six-test retention run,
 typecheck, scoped lint and formatting passed.
 
-`runtime/theme.test.ts` runs a real PTY child that repeatedly issues OSC 10/11
+`runtime/state/theme.test.ts` runs a real PTY child that repeatedly issues OSC 10/11
 queries and records the returned colours. It verifies launch-time answers,
 continued answers without a controller, retained PID/colours on adoption,
 placement-fenced changes and the same responder in extra shells. Reconciliation
 tests discard an applied colour-update acknowledgement and prove inspection
 avoids another change; simulated older state without theme support is skipped.
-`runtime/terminal-launch.test.ts` sends existing cockpit WebSocket theme reports
+`runtime/lifecycle/terminal-launch.test.ts` sends existing cockpit WebSocket theme reports
 through a real isolated daemon, replaces the daemon and checks that colours stay
 intact until a new report, then verifies the latest pair seeds a resumed owner.
 The focused colour/protocol/daemon run passed 18 tests. This proves PTY response
@@ -374,7 +374,7 @@ The runtime/PTY/protocol/profile-authority regression run passed 242 tests in
 formatting passed. The first probe run timed out because its report file was not
 private; setting the fixture's mode to `0600` corrected the test.
 
-`runtime/notifications.test.ts` uses a real owner and replacement daemons, with a
+`runtime/controller/notifications.test.ts` uses a real owner and replacement daemons, with a
 private connector sink that records notifications without sending real pushes.
 Offline transitions and a native switch produce one current alert with the exact
 new placement; a second daemon does not repeat it. A subsequent live completion
@@ -383,7 +383,7 @@ retains its final alert through owner retirement. Exact-condition preview reads
 reject a superseded attention id. The initial exit fixture stalled because its
 interactive shell ignored SIGTERM; a file gate now makes the shell exit zero.
 
-`runtime/notification-delivery.test.ts` covers coalescing 100 conditions to one,
+`runtime/controller/notification-delivery.test.ts` covers coalescing 100 conditions to one,
 failed delivery-claim writes, daemon replacement, five-minute expiry, explicit
 stops, replacement owners, previews racing resumed work/newer attention/shutdown,
 and waiting for reconciliation. Private metadata stores no preview bodies. The
@@ -395,7 +395,7 @@ scoped lint and formatting passed.
 These tests do not prove native provider hooks or operating-system notification
 delivery; those remain release gates.
 
-`runtime/terminal-agent.test.ts` starts a fake recognised agent inside an
+`runtime/controller/terminal-agent.test.ts` starts a fake recognised agent inside an
 independent shell and another in an extra terminal tab. Real daemon replacement
 retains the main shell/child PIDs, foreground hint and busy evidence; one idle
 condition produced offline is delivered once to a private sink. Confirmed child
@@ -409,9 +409,9 @@ one native supervisor test skipped; typecheck, scoped lint and formatting passed
 Native provider process
 recognition and Linux terminal selection still require platform acceptance.
 
-`runtime/terminal-agent.test.ts` also verifies main-terminal title recovery before
+`runtime/controller/terminal-agent.test.ts` also verifies main-terminal title recovery before
 adoption and after an offline title change, excluding an extra tab's title.
-`runtime/titles.test.ts` splits OSC 0/1/2 at every character boundary, including ST,
+`runtime/state/titles.test.ts` splits OSC 0/1/2 at every character boundary, including ST,
 and checks de-animation, bounded partial state and reset across a native switch.
 Journal tests coalesce 199 title changes without crossing the native boundary or
 mutating an offered page. Reconciliation tests inject a stale-segment title and
@@ -420,7 +420,7 @@ and native names. The focused run passed 19 tests in four files.
 The broader runtime/PTY/session/protocol run passed 299 tests in 52 files, with
 one native supervisor test skipped. Typecheck, scoped lint and formatting passed.
 
-`runtime/service-cleanup.test.ts` covers atomic queue admission/rollback,
+`runtime/lifecycle/service-cleanup.test.ts` covers atomic queue admission/rollback,
 migration from schema 38, failed receipt writes, protected owner claims, four
 concurrent removals, a 32-owner unavailable page and shutdown during removal.
 The real-daemon terminal test waits for automatic cleanup after explicit stop.
@@ -442,6 +442,12 @@ Linux supervisor execution remains a platform acceptance gate.
 The final runtime/database regression run passed 197 tests in 46 files, with
 the native supervisor test skipped there and passed separately. Typecheck,
 scoped lint and formatting passed.
+
+After grouping runtime source and tests by responsibility, the runtime/provider/
+session regression run passed 437 tests in 68 files, with one native supervisor
+test skipped. Typecheck, scoped lint and formatting passed. Fixture imports and
+the acceptance commands above use the new paths; the `puddler` entry point is
+unchanged.
 
 ## Remaining release gates
 

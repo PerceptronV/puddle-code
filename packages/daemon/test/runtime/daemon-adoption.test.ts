@@ -2,10 +2,10 @@ import { once } from 'node:events';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
-import { RuntimeClient } from '../../src/runtime/client.js';
+import { RuntimeClient } from '../../src/runtime/transport/client.js';
 import { RuntimeObservationStore } from '../../src/db/stores/runtime-observations.js';
-import { acquireRuntimeController, readRuntimeJson } from '../../src/runtime/storage.js';
-import { readRuntimeJournal } from '../../src/runtime/journal.js';
+import { acquireRuntimeController, readRuntimeJson } from '../../src/runtime/ownership/storage.js';
+import { readRuntimeJournal } from '../../src/runtime/state/journal.js';
 import { runtimeDatabase } from '../helpers/runtime-database.js';
 import {
   clients,

@@ -12,7 +12,7 @@ import { SessionStore } from '../../src/db/stores/sessions.js';
 import { ConversationStore } from '../../src/db/stores/conversations.js';
 import { EventStore } from '../../src/db/stores/events.js';
 import { RuntimeStore } from '../../src/db/stores/runtimes.js';
-import { RuntimeReconciler } from '../../src/runtime/reconcile.js';
+import { RuntimeReconciler } from '../../src/runtime/controller/reconcile.js';
 import { ensureHome, resolvePaths } from '../../src/paths.js';
 import { prepare } from './runtime-fixture.js';
 

@@ -22,6 +22,11 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far:
 
+- Runtime code and tests are grouped by ownership, transport, execution, retained
+  state, daemon control and service lifecycle. The `puddler` entry point and owner
+  composition stay at the runtime root; implementation imports use their actual
+  paths without forwarding modules. Build fixtures and acceptance paths follow
+  the same hierarchy.
 - Runtime protocol 1.0 schemas, bounded private IPC, a separate development
   `puddler` entry point and one-owner terminal/control implementation exist.
 - OS-released ownership claims and controller epochs are tested with an isolated

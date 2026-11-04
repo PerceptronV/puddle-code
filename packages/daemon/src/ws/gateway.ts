@@ -1,4 +1,4 @@
-import type { RuntimeTerminals, RuntimeTerminalView } from '../runtime/terminals.js';
+import type { RuntimeTerminals, RuntimeTerminalView } from '../runtime/controller/terminals.js';
 import type { ProfileAccess } from '../security/profile-access.js';
 import type { AuthorityResource, LeaseRegistry } from '../security/leases.js';
 import { homedir } from 'node:os';

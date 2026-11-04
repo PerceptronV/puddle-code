@@ -12,9 +12,9 @@ import { RepoStore } from '../../src/db/stores/repos.js';
 import { SessionStore } from '../../src/db/stores/sessions.js';
 import { RuntimeStore } from '../../src/db/stores/runtimes.js';
 import { EventStore } from '../../src/db/stores/events.js';
-import { RuntimeClient } from '../../src/runtime/client.js';
-import { acquireRuntimeController, readRuntimeJson } from '../../src/runtime/storage.js';
-import { readRuntimeJournal } from '../../src/runtime/journal.js';
+import { RuntimeClient } from '../../src/runtime/transport/client.js';
+import { acquireRuntimeController, readRuntimeJson } from '../../src/runtime/ownership/storage.js';
+import { readRuntimeJournal } from '../../src/runtime/state/journal.js';
 import { ensureHome, resolvePaths } from '../../src/paths.js';
 import {
   clients,

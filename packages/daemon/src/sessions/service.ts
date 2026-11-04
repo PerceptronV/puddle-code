@@ -1,5 +1,5 @@
-import type { RuntimeControls } from '../runtime/controls.js';
-import type { RuntimeLauncher } from '../runtime/launcher.js';
+import type { RuntimeControls } from '../runtime/controller/controls.js';
+import type { RuntimeLauncher } from '../runtime/lifecycle/launcher.js';
 import { RuntimePersistence } from '../storage/runtime-persistence.js';
 import { storageUnavailable, type StorageMonitor } from '../storage/monitor.js';
 import { randomUUID } from 'node:crypto';
@@ -46,7 +46,7 @@ import type { CreateWorktreeResult, WorktreeManager } from '../worktrees/manager
 import type { ConversationShare } from './conversation-share.js';
 import { buildHandoffPrompt } from './handoff.js';
 import { terminalCommandArgs, type TerminalCommand } from './terminal-command.js';
-import type { RuntimeProgrammeTurns } from '../runtime/programme-turns.js';
+import type { RuntimeProgrammeTurns } from '../runtime/controller/programme-turns.js';
 import type { ProgrammeOperation } from '../puddlang/runtime-turn-store.js';
 import {
   buildConcurrentWorktreeNote,

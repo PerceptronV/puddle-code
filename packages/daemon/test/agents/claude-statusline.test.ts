@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { installStatusLine, readLiveUsage } from '../../src/agents/claude-code/statusline.js';
 import { claudeRuntimeAssets } from '../../src/agents/claude-code/runtime-assets.js';
-import { pinRuntimeAssets } from '../../src/runtime/assets.js';
+import { pinRuntimeAssets } from '../../src/runtime/execution/assets.js';
 
 const homes: string[] = [];
 afterEach(() => {

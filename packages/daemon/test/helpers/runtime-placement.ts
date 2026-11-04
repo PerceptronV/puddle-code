@@ -1,5 +1,5 @@
 import type { RuntimePlacement } from '@puddle/shared';
-import type { RuntimeClient } from '../../src/runtime/client.js';
+import type { RuntimeClient } from '../../src/runtime/transport/client.js';
 
 /** Tests capture the explicit placement address; the production client never fills it in. */
 export function placement(client: RuntimeClient): RuntimePlacement {

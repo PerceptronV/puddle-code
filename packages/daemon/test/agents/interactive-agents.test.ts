@@ -18,7 +18,7 @@ import { installGeminiLifecycleHooks } from '../../src/agents/gemini-cli/hooks.j
 import { installOpenCodePlugin } from '../../src/agents/opencode/plugin.js';
 import { claudeRuntimeAssets } from '../../src/agents/claude-code/runtime-assets.js';
 import { geminiRuntimeAssets } from '../../src/agents/gemini-cli/runtime-assets.js';
-import { pinRuntimeAssets } from '../../src/runtime/assets.js';
+import { pinRuntimeAssets } from '../../src/runtime/execution/assets.js';
 import { fakeAdapter, fixture, waitFor } from '../helpers/daemon-fixtures.js';
 
 const cleanups: Array<() => Promise<void>> = [];

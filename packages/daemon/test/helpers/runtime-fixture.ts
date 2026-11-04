@@ -10,12 +10,12 @@ import { build } from 'esbuild';
 import { afterAll, afterEach, beforeAll } from 'vitest';
 import { runtimeStateSchema, type RuntimeLaunch, type RuntimeState } from '@puddle/shared';
 import { atomicPrivateJson, ipcPath } from '@puddle/shared/node';
-import { RuntimeClient } from '../../src/runtime/client.js';
+import { RuntimeClient } from '../../src/runtime/transport/client.js';
 import {
   acquireRuntimeController,
   readRuntimeJson,
   runtimeDirectory,
-} from '../../src/runtime/storage.js';
+} from '../../src/runtime/ownership/storage.js';
 
 const packageRoot = fileURLToPath(new URL('../../', import.meta.url));
 export let bundleDir: string;

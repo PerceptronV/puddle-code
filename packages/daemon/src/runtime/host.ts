@@ -30,21 +30,21 @@ import {
   type PtyEnvDeltaEvent,
   type PtyCwdEvent,
 } from '../pty/pty-manager.js';
-import { acquireRuntimeClaim } from './claims.js';
-import { readRuntimeFrames, writeRuntimeFrame } from './framing.js';
-import { readRuntimeController, readRuntimeJson, runtimeDirectory } from './storage.js';
-import { RuntimeJournal, type RuntimeJournalReservation } from './journal.js';
-import { RuntimeTurns, RuntimeTurnError } from './turns.js';
-import { RuntimeAgent } from './agent.js';
+import { acquireRuntimeClaim } from './ownership/claims.js';
+import { readRuntimeFrames, writeRuntimeFrame } from './transport/framing.js';
+import { readRuntimeController, readRuntimeJson, runtimeDirectory } from './ownership/storage.js';
+import { RuntimeJournal, type RuntimeJournalReservation } from './state/journal.js';
+import { RuntimeTurns, RuntimeTurnError } from './execution/turns.js';
+import { RuntimeAgent } from './execution/agent.js';
 import { AdapterRegistry } from '../agents/registry.js';
 import { defaultAdapters } from '../agents/defaults.js';
-import { RuntimeObservations } from './observations.js';
-import { RuntimeSegments } from './segments.js';
+import { RuntimeObservations } from './state/observations.js';
+import { RuntimeSegments } from './state/segments.js';
 import { TerminalTheme } from '../pty/terminal-theme.js';
-import { RuntimeAttentionState } from './attention.js';
+import { RuntimeAttentionState } from './state/attention.js';
 import { TerminalAgentMonitor } from '../sessions/terminal-agent-monitor.js';
 import { readTerminalProcessSnapshot } from '../pty/foreground-process.js';
-import { RuntimeTitles } from './titles.js';
+import { RuntimeTitles } from './state/titles.js';
 
 /** One process owns one runtime. No application database or public HTTP server. */
 export class RuntimeHost {
