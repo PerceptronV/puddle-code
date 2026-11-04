@@ -68,6 +68,14 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- The shared atomic private-JSON writer now attempts temporary-file cleanup for
+  serialisation, partial-write, fsync, close and rename failures. It preserves the
+  first storage error and never deletes a file it failed to create or a successfully
+  replaced destination. Nineteen atomic/private-home checks, TypeScript, lint and
+  formatting passed. This fixes an ordinary failed-write leak; process crashes and
+  failed unlinks still require retained temporary-file accounting and do not establish
+  a complete physical disk quota.
+
 - Migration 041 adds transactional host-wide programme-result accounting:
   8,192 retained/reserved outcomes and 256 MiB of charged JSON/reservations,
   alongside the existing per-owner limits. Pending turns reserve their worst-case

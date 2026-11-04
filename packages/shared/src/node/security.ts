@@ -77,19 +77,41 @@ export function atomicPrivateJson(
 ): void {
   privateDirectory(dirname(path));
   const tmp = `${path}.${secret()}.tmp`;
+  // A failed exclusive open owns nothing and must not unlink another writer's file.
   const fd = openSync(tmp, 'wx', 0o600);
+  let temporary = true;
+  let failure: { error: unknown } | undefined;
   try {
-    writeFileSync(fd, JSON.stringify(value) + '\n');
-    fsyncSync(fd);
+    try {
+      writeFileSync(fd, JSON.stringify(value) + '\n');
+      fsyncSync(fd);
+    } catch (error) {
+      failure = { error };
+    } finally {
+      try {
+        closeSync(fd);
+      } catch (error) {
+        failure ??= { error };
+      }
+    }
+    if (!failure) {
+      renameSync(tmp, path);
+      temporary = false;
+      if (options.syncDirectory) syncPrivateDirectory(dirname(path));
+    }
+  } catch (error) {
+    failure ??= { error };
   } finally {
-    closeSync(fd);
+    if (temporary) {
+      try {
+        rmSync(tmp, { force: true });
+      } catch (error) {
+        // Preserve ENOSPC/EDQUOT and other original failures for storage recovery.
+        failure ??= { error };
+      }
+    }
   }
-  try {
-    renameSync(tmp, path);
-    if (options.syncDirectory) syncPrivateDirectory(dirname(path));
-  } finally {
-    rmSync(tmp, { force: true });
-  }
+  if (failure) throw failure.error;
 }
 
 /** Persist newly created child entries before dispatching an independent process. */
