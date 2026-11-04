@@ -142,7 +142,7 @@ Service login uses Google and/or GitHub OAuth only; at least one complete provid
 
 Each live runtime has one independent `puddler` owner for its PTYs, output and provider sidecars. The daemon owns application state and adopts those owners after replacement. tmux would duplicate that role with a second session registry that can drift. The "attach from a raw terminal" escape hatch tmux provided is replaced by `puddle attach <session>` (CLI → daemon WebSocket).
 
-### Persistent runtimes (0.4.0 implementation in progress)
+### Persistent runtimes (0.4.0)
 
 Managed runtime memory has one durable host ceiling, initialised to a quarter of
 physical memory (or a lower reported process constraint), capped at 8 GiB. Its
@@ -174,7 +174,11 @@ and scripted control rather than inventing a successful observation.
 
 Persistent runtimes and cockpit-managed host updates are required standard behaviour
 from 0.4.0, without an enable/disable setting or selectable legacy backend. The
-implementation described below is incomplete. Daemon composition now defaults to
+production paths described below are implemented; native provider, platform,
+reboot and remaining acceptance evidence is tracked in the
+[persistent-runtime acceptance script](docs/acceptance/persistent-runtimes.md).
+Native Linux execution is deferred for 0.4.0 by the user's explicit verification
+decision; that does not waive the other acceptance gates. Daemon composition uses
 the installed independent runtime for terminals and interactive/headless agents.
 Only internal fixtures can select the legacy in-process backend. Each launch probes
 the host user service manager through the same inspection used by update preflight,
@@ -237,8 +241,9 @@ changes, releases it before starting the unchanged service, and requires fresh
 adoption proof. Daemon and combined transactions share runtime-default selection's
 canonical installer. Partial changes or lost replies remain recoverable without
 automatic rollback or replay. Production composition now supplies final maintenance
-to private host-control daemon dispatch; complete installed upgrade acceptance and
-recovery of incomplete installations remain outstanding.
+to private host-control daemon dispatch. Supported incomplete installations use
+explicit continuation; complete installed upgrade and native failure-recovery
+acceptance remain outstanding.
 
 Application 25.11 adds explicit local/SSH completion recovery through
 `puddle updates [user@host] --operation <id> --recover`. It holds the dispatch and
@@ -619,18 +624,20 @@ probes. The worker uses this same verifier after activation. Recovery-phase insp
 can produce fresh evidence without repeating installation or service mutations, but
 does not itself resolve the operation or authorise another dispatch. The explicit
 25.11 recovery action adds worker-lifetime exclusion and the final authorised
-transition. Recovery of incomplete installations and recovery with the daemon
-stopped still require integration. No remote authority is added.
+transition. Explicit continuation handles supported incomplete installations,
+including through the trusted local/SSH helper when the daemon is stopped. Lost
+replies remain observation-only. Relay maintenance uses its separate host-approved
+device authority and does not expose offline continuation.
 
 The [persistent runtimes roadmap](docs/roadmap/persistent-runtimes.md) specifies
 one independent `puddler` process per live runtime and cockpit-managed host
-updates. The implementation under daemon `runtime/` provides a
-separate development entry point, private bounded IPC, process-lifetime ownership
+updates. The production implementation under daemon `runtime/` provides the
+independent `puddler` entry point, private bounded IPC, process-lifetime ownership
 claims, controller fencing, single-use launches, terminal ownership and retained
 exit records. A bounded private event journal retains terminal creation/exits
 through controller outages; paginated replay and acknowledgement follow the
 daemon's committed observation cursor. Asynchronous persistence retries never
-block PTY drainage, and overflow reports incomplete history. Optional provider
+block PTY drainage, and overflow reports incomplete history. Agent runtime
 launches own adapter resources, a bounded nonce-only hook endpoint, native
 conversation claims and exact lifecycle observations independently of controller
 connections. Provider-specific flags/parsers remain in the existing adapters;
@@ -678,8 +685,11 @@ Activation rechecks receipt identity, tree contents and smoke output, then selec
 that generation without another release lookup or download. Failed activation keeps
 the diagnostic stage and previous selection. This private local record is neither
 an update approval nor another connection protocol. Runtime install/upgrade now uses
-the durable coordinator and surviving updater. Runtime removal, reference-aware
-collection and daemon transactional recovery remain required before default rollout.
+the durable coordinator and surviving updater. Daemon and combined updates share
+transactional recovery. Runtime removal uses coordinated daemon removal with
+reviewed retention/stop choices; reference-aware maintenance keeps live builds
+pinned and collects only eligible unreferenced generations. There is no standalone
+runtime-uninstall command or selectable backend to disable.
 
 The update coordinator's private operation store lives under `updates/operations/`,
 with a bounded `updates/operations.json` ledger in the host home. A current operation
@@ -720,11 +730,12 @@ identity and exact native-ref check. It reserves bounded journal space before
 dispatch, retains results across controller replacement, and records cancellation,
 human takeover or runtime-exit interruption without replaying input. Runtime-owned
 helper copies, stable account dispatch and separate mutable turn records preserve
-managed hook/plugin code across account updates. Immutable executable/native
-dependency retention, production runtime creation/control and
-programme reconciliation are still required before enablement.
+managed hook/plugin code across account updates. Launches pin immutable executable,
+native dependency and helper trees. Production session and programme controls use
+these owners; reconciliation retains accepted results across controller replacement
+without restarting programmes or replaying prompts.
 
-Experimental owners also retain private captured-environment and shell-directory
+Runtime owners also retain private captured-environment and shell-directory
 reports through controller outages, with the existing capture gate/denylist and
 bounded values/counts. Observation coalescing preserves native lifecycle and
 control boundaries. Current captured values seed new PTYs; values stay out of
@@ -732,16 +743,19 @@ ordinary runtime inspection and terminal logs/screens. These records and explici
 capture/purge controls are routed for adopted owners. Reconciliation commits
 observations to the application database and converges the profile capture policy.
 
-The experimental owner tags output/snapshots with a native-lifecycle segment id,
+The runtime owner tags output/snapshots with a native-lifecycle segment id,
 writes separate raw logs per segment and terminal generation, and saves immutable
 boundary/exit checkpoints while keeping live emulators intact. Bounded asynchronous
 checkpoint writes report a history gap on failure; historical reads validate their
 identity and never substitute a different segment. Native switches clear the
 owner's acknowledged placement; mutations require an explicit segment/placement
 address and remain fenced until the daemon commits and binds the new placement.
-Snapshot reads preserve the owner's grid rather than resizing it. Production
-retention must still integrate these records and replace the
-foundation's conservative lifetime budgets before the 0.4.0 release.
+Snapshot reads preserve the owner's grid rather than resizing it. Bounded raw-log
+compaction requires exact retired-writer evidence and preserves replay tails;
+unread or unresolved programme results remain protected by retained-result
+accounting. Owner-local buffer limits share the sealed host memory allowance,
+including persistence scratch/work capacity. These bounds do not claim a physical
+filesystem quota or a limit on arbitrary native-provider memory.
 
 Migration 029 adds `runtime_bindings` for immutable launch identity, active
 placement/conversation, build metadata and transactional observation cursors.
@@ -796,8 +810,10 @@ background collection after daemon replacement; it is not current service or rel
 collection evidence. Shutdown drains pending
 commands before closing the database and releasing controller authority.
 Registration cleanup preserves journals, checkpoints, results and pinned assets;
-it is not proof that unmanaged provider descendants have ended. Orphan-sidecar
-recovery and reference-aware asset collection remain rollout gates.
+it is not proof that unmanaged provider descendants have ended. Reference-aware
+collection requires separate retirement evidence, including the verified reboot
+barrier for unresolved descendants. Actual provider-descendant and reboot
+acceptance remains open.
 
 The internal host removal runtime phase now lives in `host/removal/`. Its offline
 controller acquires update, controller and installation exclusion before opening the
@@ -1017,8 +1033,9 @@ exposes it only from the selected, connected owner. Explicit busy evidence arms
 one idle alert, while a successful process scan can prove child exit even when
 the shell remains running. Suspension, backgrounding and failed inspection clear
 the hint without claiming exit. Extra shells cannot own the hint, and monitoring
-never changes placement kind/status or adopts a native conversation. Abnormal-exit
-notices still require external-owner parity.
+never changes placement kind/status or adopts a native conversation. Foreground
+agent exit conditions use the same retained attention and fenced delivery path;
+deliberate stops remain silent.
 Main-terminal OSC 0/1/2 titles now enter the owner's retained observation journal
 with exact segment and terminal generation. The parser retains at most 4 KiB of
 an unfinished sequence and resets at native switches; existing de-animation and
@@ -1075,8 +1092,15 @@ Admission reserves worst-case encoded reply space before provider dispatch. Fail
 intent or observation commits roll back reclamation. A separate durable turn
 watermark prevents reuse after result or programme-history removal. Consumption
 does not assert delivery to the runner, resume a programme or expose its reply in
-public events. Full unread retention refuses new asks before dispatch; an explicit
-unread-result disposition policy and host-wide accounting remain rollout gates.
+public events. Full unread retention refuses new asks before dispatch. Migration
+040 adds explicit, fingerprint-bound read/discard dispositions for finished runs.
+Migration 041 adds host-wide accounting for 8,192 retained/reserved outcomes and
+256 MiB of charged result JSON/reservations, alongside the per-owner limits.
+Only confirmed unused reservations or outcomes proved absent by complete fenced
+retirement evidence can release unused charges; uncertain work stays protected.
+Bounded maintenance reclaims consumed outcomes without deleting their mappings,
+watermarks or disposition audit. These are managed result capacities, not a bound
+on physical SQLite storage.
 Code-execution terminals use that same independent owner path, including their one-shot
 command followed by an interactive shell. Migration 034 stores each canonical
 managed run directory in `runtime_code_runs`, keyed by runtime id, atomically with
@@ -1085,8 +1109,10 @@ retains files until that exact owner exits cleanly; failed/interrupted/unavailab
 owners remain protected. External exit observation replaces legacy PTY callbacks
 for those runs. Explicit terminal resume creates a shell and never repeats the
 programme. The usual five completed-run retention limit excludes protected runs.
-Detached/attached host lifetimes, complete native supervisor acceptance and the
-transactional daemon updater remain required before claiming seamless upgrades.
+The transactional daemon updater preserves independent owners on supported
+supervised hosts. Host-session fallback retains its explicit lifetime limitation;
+native supervisor/provider and SSH/logout/reaper acceptance still govern the
+continuity claims for those environments.
 
 ## 3. Data model (SQLite)
 
@@ -1921,15 +1947,21 @@ puddle attach  [user@host] <session>   # raw-terminal attach over the WS
 puddle install <daemon|runtime|desktop>[@version] [user@host] [--tarball <path>]
 puddle upgrade [cli|daemon|runtime|desktop][@version] [user@host] [--tarball <path>]   # no component: everything installed, CLI last
 puddle updates [user@host] [--operation <id>] [--cancel] # cancellation requires an exact id before dispatch
-puddle remove  <cli|daemon|desktop> [user@host] [--yes] [--purge]              # confirmations default to no
+puddle remove  <cli|daemon|desktop> [user@host] [--yes] [--purge] [--stop-runtimes] # confirmations default to no
 puddle logs    [user@host] [session]
 ```
 
 `launch` with no target (local mode; decision 2026-07-28 unifying the former `start`/`connect` verbs): install/upgrade the daemon under `~/.puddle/bin`, ensure the systemd user unit (same as remote), run the protocol handshake (§6), serve the UI at `http://localhost:7433` with `/api` + `/ws` proxied to the daemon on `127.0.0.1:7434`, open the browser. No SSH, no tunnel — but the same serve/proxy path as remote mode. `status`/`attach`/`logs`/`upgrade daemon` default to the local daemon when no host is given.
 
-**Component management** (`install` / `upgrade` / `remove`, decision 2026-08-07, superseding 2026-07-28's subject-only `upgrade`): the components are `cli` (standalone or npm-distributed), `daemon` (the ~/.puddle host bootstrap), `runtime` (the default `puddler` build on that host), and `desktop` (the macOS app bundle; on Linux `install desktop` ASKS where the AppImage should live — default `~/puddle`, `ask()` taking the default without a TTY — placing it under the stable name `Puddle.AppImage` so launchers and the in-app updater keep a fixed path, then opens the directory in the file manager (best-effort `xdg-open`); upgrades stay in-app — the running app knows its own `$APPIMAGE` — and remove declines, naming the default location). Every verb takes an optional `@version` (`daemon@v0.0.32`, the `v` optional) and an optional `user@host` — `cli` and `desktop` refuse a remote target rather than half-support package-manager or app-bundle surgery over non-interactive ssh. **install** ensures presence: already installed with no `@version` → a no-op that says so; a named version installs exactly that (downgrades included — naming a version is the point). **upgrade** moves to the newest release (daemon/desktop lookup uses the GitHub API, standalone CLI uses the GitHub latest-release redirect, and npm CLI uses the npm registry; daemon lookup falls back to the CLI's own version train when unreachable) or the named one, installing a missing component — `upgrade desktop` ≡ `install desktop` when absent; with **no component it covers everything installed on the target** (a remote target ⇒ its daemon and installed runtime default), the **CLI strictly last** since it replaces its own installation; standalone `cli` runs its embedded `install-cli.sh` with the existing prefix and launcher directory, while npm installations use `npm install -g @puddle-code/cli@<version|latest>` under the hood. An explicit daemon `@version` that differs from the CLI's own prints the **pin warning**: across an older daemon protocol major the next `launch` offers to upgrade the daemon back after confirmation (§6), so the version must be pinned as a set (`upgrade cli@vX` too) or launched `--no-upgrade`. **remove** uninstalls after a y/N confirmation that defaults to NO (`--yes` for non-interactive use): `cli` removes its recognised standalone installation and exact owned launcher, or an npm global install (a repo checkout is removed the way it arrived); standalone removal advises closing cockpits first and leaves daemon installations/data untouched; `desktop` deletes the closed app bundle plus the staged-update cache (recent-hosts kept); `daemon` first inventories what dies with it — its version, the RUNNING sessions it will interrupt, its profiles — then stops and unregisters the supervisor (systemd user unit / launchd agent / nohup pidfile, whichever exists) and removes only the bootstrap-managed pieces (`bin/`, `cache/`, `runtime.json`): **the data survives by default** — puddle.db, agent config dirs, worktrees, PTY logs, the token — so a later `launch` reinstalls and resumes. Deleting `~/.puddle` wholesale is a SECOND question (or `--purge`), and before honouring it the CLI sweeps the worktrees for **uncommitted or unpushed work** and, listing any it finds, asks once more — declining downgrades to the data-keeping removal. The removal runs as a POSIX script piped over the transport, exactly like install.sh, so local and SSH share one implementation and none of it needs sudo.
+**Component management** (`install` / `upgrade` / `remove`, decision 2026-08-07, superseding 2026-07-28's subject-only `upgrade`): the components are `cli` (standalone or npm-distributed), `daemon` (the ~/.puddle host bootstrap), `runtime` (the default `puddler` build on that host), and `desktop` (the macOS app bundle; on Linux `install desktop` ASKS where the AppImage should live — default `~/puddle`, `ask()` taking the default without a TTY — placing it under the stable name `Puddle.AppImage` so launchers and the in-app updater keep a fixed path, then opens the directory in the file manager (best-effort `xdg-open`); upgrades stay in-app — the running app knows its own `$APPIMAGE` — and remove declines, naming the default location). Every verb takes an optional `@version` (`daemon@v0.0.32`, the `v` optional) and an optional `user@host` — `cli` and `desktop` refuse a remote target rather than half-support package-manager or app-bundle surgery over non-interactive ssh. **install** ensures presence: already installed with no `@version` → a no-op that says so; a named version installs exactly that (downgrades included — naming a version is the point). **upgrade** moves to the newest release (daemon/desktop lookup uses the GitHub API, standalone CLI uses the GitHub latest-release redirect, and npm CLI uses the npm registry; daemon lookup falls back to the CLI's own version train when unreachable) or the named one, installing a missing component — `upgrade desktop` ≡ `install desktop` when absent; with **no component it covers everything installed on the target** (a remote target ⇒ its daemon and installed runtime default), the **CLI strictly last** since it replaces its own installation; standalone `cli` runs its embedded `install-cli.sh` with the existing prefix and launcher directory, while npm installations use `npm install -g @puddle-code/cli@<version|latest>` under the hood. An explicit daemon `@version` that differs from the CLI's own prints the **pin warning**: across an older daemon protocol major the next `launch` offers to upgrade the daemon back after confirmation (§6), so the version must be pinned as a set (`upgrade cli@vX` too) or launched `--no-upgrade`. **remove** uninstalls after a y/N confirmation that defaults to NO (`--yes` for non-interactive use): `cli` removes its recognised standalone installation and exact owned launcher, or an npm global install (a repo checkout is removed the way it arrived); standalone removal advises closing cockpits first and leaves daemon installations/data untouched; `desktop` deletes the closed app bundle plus the staged-update cache (recent-hosts kept); `daemon` uses coordinated host removal on persistent-runtime installations. It disables remote access, stops daemon-owned work and reviews whether to retain or stop independent runtimes. Retention is the default; stopping requires separate interactive approval or `--stop-runtimes`. Data, referenced builds and saved service definitions survive, and deliberate `install daemon` restores a completed removal. An unfinished removal or purge must be resolved first. `--purge` separately authorises reviewed managed-data deletion with runtime-stop consent, fresh dirty/unpushed worktree checks and the verified reboot barrier; permanent control/recovery anchors remain. Legacy installations retain their existing data-preserving removal path. Local and SSH targets share these helpers without requiring sudo.
 
-`puddle --version` inventories the local component slots without contacting a release service: the running CLI's compiled version/protocol, the bootstrap-managed daemon's plain `VERSION`/`PROTOCOL` release metadata (with a legacy fixed-version symlink fallback), the desktop installation record, and the runtime default selected by `runtime-current` with its separate `RUNTIME_PROTOCOL`. Runtime install/upgrade requires a running 25.7+ host and an available user service manager; local archives require an explicit version and verified checksum. Bare upgrades currently select host components sequentially; the combined daemon/runtime transaction remains pending. The desktop installer records a chosen AppImage path immediately, while every packaged desktop refreshes that record with its exact self-reported version/protocol at launch; macOS also falls back to its conventional Applications locations. Missing components say `not installed`, and legacy official releases fall back to the immutable version-to-protocol ledger rather than executing a possibly pre-Phase-6 daemon whose `--version` flag could start it.
+Runtime removal is part of coordinated daemon removal, followed by reference-aware
+collection of eligible software. There is no standalone `remove runtime` command
+or backend-disable option. Retaining a runtime retains its launch records and
+pinned executable/helper trees; stopping it does not authorise deleting other
+runtime references or native conversation data.
+
+`puddle --version` inventories the local component slots without contacting a release service: the running CLI's compiled version/protocol, the bootstrap-managed daemon's plain `VERSION`/`PROTOCOL` release metadata (with a legacy fixed-version symlink fallback), the desktop installation record, and the runtime default selected by `runtime-current` with its separate `RUNTIME_PROTOCOL`. Runtime install/upgrade requires a running 25.7+ host and an available user service manager; local archives require an explicit version and verified checksum. Bare CLI upgrades select host components sequentially; cockpit preparation can select daemon and runtime software together through the combined host transaction. The desktop installer records a chosen AppImage path immediately, while every packaged desktop refreshes that record with its exact self-reported version/protocol at launch; macOS also falls back to its conventional Applications locations. Missing components say `not installed`, and legacy official releases fall back to the immutable version-to-protocol ledger rather than executing a possibly pre-Phase-6 daemon whose `--version` flag could start it.
 
 The UI server picks `7433` by default and auto-picks the next free port when it is taken (e.g. a second `puddle launch` to a different host); the chosen origin is printed and opened. Whether one CLI process can multiplex several hosts behind a single origin is an open question (§15) — v1 is one CLI process, one host, one origin.
 

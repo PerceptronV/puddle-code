@@ -156,7 +156,9 @@ recording intent. Runtime install/upgrade uses the coordinator through a running
 Local runtime archives require an explicit `@version` and verified checksums.
 `puddle updates [user@host] [--operation <id>]` observes durable state;
 `--cancel` requires the exact id and only cancels before dispatch. Runtime removal
-still requires reference-aware ownership checks. Host staging and exact activation
+uses coordinated daemon removal with reviewed retain/stop choices and reference-aware
+collection; there is no standalone `remove runtime` command or backend-disable option.
+Retain live owners' records and pinned software. Host staging and exact activation
 reuse the embedded installer: a private receipt fingerprints the complete candidate;
 activation rechecks it and never re-downloads a substitute. Keep stage receipts
 separate from update approval and single-use operation state. Retain failed/unselected

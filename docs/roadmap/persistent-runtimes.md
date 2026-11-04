@@ -1655,21 +1655,26 @@ whether this combination is supported; matching release strings do not.
 
 ## Current implementation and seams
 
-| Area | Current behaviour | Required change |
-| --- | --- | --- |
-| [`daemon.ts`](../../packages/daemon/src/daemon.ts) | Shutdown kills every PTY, closes terminal states and interrupts daemon-owned execution. | Detach runtime clients on ordinary shutdown; retain explicit termination paths. |
-| [`pty-manager.ts`](../../packages/daemon/src/pty/pty-manager.ts) | Owns `node-pty` objects, OSC filtering, logs, emulators, sizes and sidecar roots in-process. | Move process ownership and terminal continuity into `puddler`; use an asynchronous client in the daemon. |
-| [`sessions/service.ts`](../../packages/daemon/src/sessions/service.ts) | Stable runtime identity exists, but its ownership, lifecycle resources and conversation index are in memory. | Persist runtime bindings and reconstruct them from authenticated live owners. |
-| [`sessions/reconcile.ts`](../../packages/daemon/src/sessions/reconcile.ts) | Previously live rows are marked interrupted on every boot. | Discover and adopt runtimes before considering interruption or auto-resume. |
-| [`agents/`](../../packages/daemon/src/agents) | Provider lifecycle resources run inside the daemon; Codex's TUI depends on its proxy and app-server. | Execute the provider's live integration in its runtime host, retaining provider-owned modules. |
-| [`scripts/install.sh`](../../scripts/install.sh) | Stages immutable generations under an installer lock, atomically replaces `current` and restarts the daemon and registered connector. | Integrate component selection with the durable coordinator; collect trees only after all references are released. |
-| [`handshake.ts`](../../packages/cli/src/lib/connection/handshake.ts) | One local/SSH compatibility and approved-update policy, with interruption wording. | Retain that policy and share its updater with cockpit actions; calculate actual update impact. |
-| [`UpdateToast.tsx`](../../packages/web/src/features/shell/UpdateToast.tsx) | Offers a staged desktop release on mount and when the shell announces one. | Reuse the interaction for host updates while keeping desktop and target-host operations distinct. |
-| [`desktop/main.ts`](../../packages/desktop/src/main.ts) | Checks releases every 30 minutes and stages the newest desktop release. | Keep shell updates here; host checking/staging belongs on the host and shared launcher path. |
+The production paths below implement mandatory independent ownership for 0.4.0.
+The earlier milestone entries preserve their original evidence and limitations;
+they are not a list of current implementation gaps. Native acceptance still follows
+the gates at the top of this document and in the acceptance matrix.
 
-The existing CLI can already upgrade a target with `puddle upgrade daemon
-user@host`; the missing experience is doing this from the connected cockpit.
-Do not build a second independent installer to add that experience.
+| Area | Current responsibility |
+| --- | --- |
+| [`daemon.ts`](../../packages/daemon/src/daemon.ts) | Initialises host memory admission, acquires the controller and adopts independent owners. Ordinary shutdown drains application writers and detaches owners; daemon-owned execution retains its separate interruption rules. |
+| [`runtime/host.ts`](../../packages/daemon/src/runtime/host.ts) and [`pty-manager.ts`](../../packages/daemon/src/pty/pty-manager.ts) | Compose one owner per runtime, reusing PTY, screen, log and provider implementations under shared resource allowances. Daemon callers use asynchronous runtime controls. |
+| [`sessions/`](../../packages/daemon/src/sessions) and [`runtime/controller/`](../../packages/daemon/src/runtime/controller) | Persist exact runtime bindings, reconcile ordered observations and adopt live owners before legacy interruption/auto-resume. Uncertain owners stay protected against duplicate launches. |
+| [`agents/`](../../packages/daemon/src/agents) | Keep provider flags, parsers and native catalogue integration provider-owned. Runtime execution owns live hooks, control endpoints and sidecars. |
+| [`scripts/install.sh`](../../scripts/install.sh) and [`updates/`](../../packages/daemon/src/updates) | Share immutable staging, verified receipts, independent selectors, exact approval and surviving update/recovery workers. Reference-aware maintenance collects only proved-unused generations. |
+| [`handshake.ts`](../../packages/cli/src/lib/connection/handshake.ts) and [`host/updates/`](../../packages/cli/src/lib/host/updates) | Share approved compatibility upgrades and local/SSH cockpit update control, including exact interruption consent, recorded inspection and explicit recovery. |
+| [`host-updates/`](../../packages/web/src/features/host-updates) | Provide Settings controls and per-window host release offers, sharing host-owned discovery and keeping client/host updates separate. |
+| [`connector/`](../../packages/connector/src) and [`updates/remote/`](../../packages/daemon/src/updates/remote) | Admit narrowly scoped maintenance for explicitly host-approved devices, with independent daemon grant checks and redacted status. |
+| [`host/removal/`](../../packages/daemon/src/host/removal) and [`host/installation/collection/`](../../packages/daemon/src/host/installation/collection) | Coordinate daemon removal, reviewed runtime retention/stops, restoration and explicit purge; retain live references and collect eligible unreferenced releases. |
+| [`desktop/main.ts`](../../packages/desktop/src/main.ts) | Own desktop release checks and native shell concerns; host installation and update control remain in the shared launcher/host paths. |
+
+CLI and cockpit actions reach the same target-host coordinator and canonical
+installer. Compatible release skew does not require an update.
 
 ## Ownership and process topology
 
@@ -2089,8 +2094,12 @@ jobs are lost. Ordinary software installation must not be labelled “restart al
 Keep distribution simple initially: ship `puddler` and its metadata in the host
 release archive alongside `puddled` and the connector. Independent default
 selectors allow a runtime-only installation without activating that archive's
-daemon. Add `runtime` to CLI install/upgrade/inventory/removal semantics, sharing
-the coordinator. Version queries must not launch either service as a side effect.
+daemon. CLI runtime install/upgrade and inventory use the same component model.
+Removal is coordinated through `puddle remove daemon`: review whether to retain
+or stop independent runtimes, then retain their referenced software until safe
+reference-aware collection. There is no standalone `remove runtime` command or
+backend-disable setting; runtime ownership is mandatory. Version queries must not
+launch either service as a side effect.
 
 ## Cockpit controls, release checks and authority
 
@@ -2306,7 +2315,8 @@ events, writes or mixed terminal history.
   reference-aware collection, the host operation lock and the surviving updater.
 - Implement compatibility/impact preflight, progress inspection, post-restart
   adoption verification and migration-aware recovery.
-- Add runtime CLI component management and update shutdown/removal wording.
+- Add runtime CLI install/upgrade/inventory and coordinated daemon removal with
+  reviewed runtime retention/stops and reference-aware release collection.
 
 Exit criterion: a built host release upgrades through the real installer while
 fake agents continue, and failure at every transaction boundary leaves a known,

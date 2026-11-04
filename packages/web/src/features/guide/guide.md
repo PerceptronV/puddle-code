@@ -128,7 +128,7 @@ For example:
 
   On supporting hosts, `puddle install daemon user@host` also restores a recorded, completed service removal using its retained release and configuration. An unfinished removal must be resolved first. Repeating install observes a completed restoration and reconnects without restarting an already-running daemon.
 
-  On persistent-runtime hosts, `puddle remove daemon user@host` disables remote access and stops daemon-owned work, then offers a choice to retain or stop independent runtimes. `--yes` retains them by default; add `--stop-runtimes` to explicitly stop the reviewed runtimes and their shell jobs. Data and pinned releases remain for reinstallation.
+  On persistent-runtime hosts, `puddle remove daemon user@host` disables remote access and stops daemon-owned work, then offers a choice to retain or stop independent runtimes. `--yes` retains them by default; add `--stop-runtimes` to explicitly stop the reviewed runtimes and their shell jobs. Data and pinned releases remain for reinstallation. There is no separate `remove runtime` command: runtime ownership is standard functionality, and eligible unused software is collected only after its references are retired.
 
   `--purge` separately requests deletion of managed host data and requires runtime-stop consent (`--yes --purge --stop-runtimes` for non-interactive use). After removal, reboot the target and rerun the explicit purge command. Puddle checks for uncommitted or unpushed work before deleting the reviewed data in resumable batches. Permanent installation locks, pinned recovery software and private service recovery records remain. After an interrupted reply, inspect the result before continuing; ordinary removal and upgrades do not require a reboot.
 
