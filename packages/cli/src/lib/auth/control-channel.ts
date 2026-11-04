@@ -14,12 +14,15 @@ import {
   hostUpdateControlResponseSchema,
   type HostInspection,
   type HostUpdateReply,
+  type HostUpdateCommand,
+  type HostUpdateOperation,
 } from '@puddle/shared';
 import type { Duplex } from 'node:stream';
 import { clientHome, hostPaths } from '../paths.js';
 import type { Transport } from '../transport/transport.js';
 import { inspectHostLocally } from './host-inspection.js';
 import { inspectStoredHostUpdate } from '../host/updates/inspection.js';
+import { continueStoredHostUpdate } from '../host/updates/continuation.js';
 
 const staged = new WeakMap<Transport, Promise<string>>();
 async function helper(transport: Transport): Promise<string> {
@@ -87,19 +90,49 @@ export async function inspectHost(transport: Transport): Promise<HostInspection 
 export async function inspectHostUpdate(
   transport: Transport,
   id?: string,
+  includeRecovery = false,
+): Promise<HostUpdateReply> {
+  return requestHostUpdate(transport, {
+    action: 'status',
+    id,
+    ...(includeRecovery ? { include_recovery: true } : {}),
+  });
+}
+
+/** Explicit trusted-host continuation; never a fallback after an uncertain live mutation. */
+export async function continueHostUpdate(
+  transport: Transport,
+  reference: Pick<HostUpdateOperation, 'id' | 'revision'>,
+): Promise<HostUpdateReply> {
+  return requestHostUpdate(transport, { action: 'recover', strategy: 'continue', reference });
+}
+
+async function requestHostUpdate(
+  transport: Transport,
+  command: HostUpdateCommand,
 ): Promise<HostUpdateReply> {
   const request = hostUpdateControlRequestSchema.parse({
     t: 'host-update',
     request_id: randomUUID(),
-    command: { action: 'status', id },
+    command,
   });
-  if (transport.kind === 'local') return inspectStoredHostUpdate(clientHome(), request.command);
-  const result = await transport.exec(`${await helper(transport)} --updates`, {
-    stdin: JSON.stringify(request) + '\n',
-    timeoutMs: 10_000,
-  });
+  const continuing = command.action === 'recover' && command.strategy === 'continue';
+  if (transport.kind === 'local')
+    return continuing
+      ? continueStoredHostUpdate(clientHome(), request.command)
+      : inspectStoredHostUpdate(clientHome(), request.command);
+  const result = await transport.exec(
+    `${await helper(transport)} ${continuing ? '--continue-update' : '--updates'}`,
+    {
+      stdin: JSON.stringify(request) + '\n',
+      timeoutMs: continuing ? 135_000 : 10_000,
+    },
+  );
   if (result.code !== 0 || Buffer.byteLength(result.stdout) > CONTROL_MAX_BYTES)
-    throw new CliError('upgrade_failed', 'Could not inspect recorded host updates');
+    throw new CliError(
+      'upgrade_failed',
+      'Host update reply unavailable; inspect the exact operation before another action',
+    );
   try {
     const reply = hostUpdateControlResponseSchema.parse(JSON.parse(result.stdout));
     if (reply.request_id !== request.request_id) throw new Error('Mismatched inspection reply');

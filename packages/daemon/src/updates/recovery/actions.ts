@@ -1,3 +1,7 @@
+import {
+  readUpdateRecoveryAttempts,
+  updateRecoveryDirectory,
+} from '@puddle/shared/node/host-control';
 import { join } from 'node:path';
 import {
   hostUpdateActionsSchema,
@@ -6,7 +10,6 @@ import {
 } from '@puddle/shared';
 import { digest, readPrivateJson } from '@puddle/shared/node';
 import { readUpdateActions } from '../worker/actions.js';
-import { readUpdateRecoveryAttempts, updateRecoveryDirectory } from './worker/records.js';
 
 /** Merge all retained intent: a newer journal must never turn attempted work back into planned work. */
 export function readRecoveryActions(

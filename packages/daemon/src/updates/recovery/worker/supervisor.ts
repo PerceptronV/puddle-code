@@ -1,3 +1,8 @@
+import { updateWorkerExecutables } from '@puddle/shared/node/host-control';
+import {
+  readUpdateRecoveryAttempts,
+  updateRecoveryDirectory,
+} from '@puddle/shared/node/host-control';
 import { randomUUID } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
@@ -9,13 +14,9 @@ import {
   independentServiceDefinition,
   writeServiceDefinition,
 } from '../../../host/services.js';
-import { updateWorkerExecutables } from '../../worker/supervisor.js';
+
 import { claimUpdateContinuation } from '../continuation.js';
-import {
-  HostUpdateRecoveryAttempts,
-  readUpdateRecoveryAttempts,
-  updateRecoveryDirectory,
-} from './records.js';
+import { HostUpdateRecoveryAttempts } from './records.js';
 
 /** Explicit continuation only. Recorded attempts are observed, never re-dispatched. */
 export async function startUpdateRecoveryWorker(

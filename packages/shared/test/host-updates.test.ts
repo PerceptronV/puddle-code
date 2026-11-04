@@ -7,6 +7,27 @@ import { HostControlClient } from '../src/node/host-control.js';
 
 afterEach(() => vi.useRealTimers());
 
+it('requires 25.12 before sending continuation or requesting recorded recovery details', async () => {
+  const client = new HostControlClient(async () => {
+    throw new Error('No connection expected');
+  }, false);
+  client.version = { version: '0.4.0', protocol: { major: 25, minor: 11 } };
+  try {
+    await expect(
+      client.hostUpdate({
+        action: 'recover',
+        strategy: 'continue',
+        reference: { id: randomUUID(), revision: 1 },
+      }),
+    ).rejects.toThrow('continuation is unavailable');
+    await expect(client.hostUpdate({ action: 'status', include_recovery: true })).rejects.toThrow(
+      'continuation is unavailable',
+    );
+  } finally {
+    client.close();
+  }
+});
+
 it('gates exact recovery verification on 25.11 and rejects arbitrary recovery commands', async () => {
   const command = {
     action: 'recover' as const,

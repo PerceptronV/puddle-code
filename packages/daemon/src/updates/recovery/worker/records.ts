@@ -1,9 +1,12 @@
+import {
+  readUpdateRecoveryAttempts,
+  updateRecoveryDirectory,
+} from '@puddle/shared/node/host-control';
 import { randomUUID } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import {
   HOST_UPDATE_RECOVERY_ATTEMPTS,
   HOST_UPDATE_RECOVERY_BYTES,
-  hostUpdateOperationSchema,
   hostUpdateRecoveryAttemptSchema,
   hostUpdateRecoveryJobSchema,
   hostUpdateRecoveryLedgerSchema,
@@ -11,40 +14,9 @@ import {
   type HostUpdateRecoveryJob,
   type HostUpdateRecoveryLedger,
 } from '@puddle/shared';
-import {
-  atomicPrivateJson,
-  privateDirectory,
-  privatePath,
-  readPrivateJson,
-  syncPrivateDirectory,
-} from '@puddle/shared/node';
+import { atomicPrivateJson, privateDirectory, syncPrivateDirectory } from '@puddle/shared/node';
 import { acquireHostClaim } from '../../../security/claims.js';
 import { requireEndedUpdateProcessGroup } from '../../worker/lifetime.js';
-
-export function updateRecoveryDirectory(home: string, operationId: string): string {
-  hostUpdateOperationSchema.shape.id.parse(operationId);
-  return join(home, 'updates/jobs', operationId, 'recovery');
-}
-
-/** An absent ledger precedes any recovery dispatch; every accepted attempt is retained. */
-export function readUpdateRecoveryAttempts(
-  home: string,
-  operationId: string,
-): HostUpdateRecoveryLedger {
-  const directory = updateRecoveryDirectory(home, operationId);
-  try {
-    privatePath(directory, true);
-    const ledger = hostUpdateRecoveryLedgerSchema.parse(
-      readPrivateJson(join(directory, 'attempts.json'), HOST_UPDATE_RECOVERY_BYTES),
-    );
-    if (ledger.attempts.some(({ job }) => job.operation_id !== operationId))
-      throw new Error('Recovery ledger belongs to another update');
-    return ledger;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { format: 1, attempts: [] };
-    throw error;
-  }
-}
 
 /** Caller holds update execution; this short claim also serialises dispatch acknowledgement. */
 export class HostUpdateRecoveryAttempts {

@@ -8,9 +8,10 @@ import { ipcPath, jsonLines, privatePath } from '@puddle/shared/node';
 import { clientHome } from './lib/paths.js';
 import { inspectHostLocally } from './lib/auth/host-inspection.js';
 import { inspectStoredHostUpdate } from './lib/host/updates/inspection.js';
+import { continueStoredHostUpdate } from './lib/host/updates/continuation.js';
 
 // stdout is exclusively the bounded control protocol; diagnostics never contain credentials.
-if (process.argv.length === 3 && process.argv[2] === '--updates') {
+if (process.argv.length === 3 && ['--updates', '--continue-update'].includes(process.argv[2]!)) {
   try {
     let input = '';
     for await (const chunk of process.stdin) {
@@ -19,7 +20,10 @@ if (process.argv.length === 3 && process.argv[2] === '--updates') {
         throw new Error('Inspection input exceeds its limit');
     }
     const request = hostUpdateControlRequestSchema.parse(JSON.parse(input));
-    const result = inspectStoredHostUpdate(clientHome(), request.command);
+    const result =
+      process.argv[2] === '--continue-update'
+        ? await continueStoredHostUpdate(clientHome(), request.command)
+        : inspectStoredHostUpdate(clientHome(), request.command);
     process.stdout.write(
       JSON.stringify({ t: 'host-update-result', request_id: request.request_id, result }) + '\n',
     );

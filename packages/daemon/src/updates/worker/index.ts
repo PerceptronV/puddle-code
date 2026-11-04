@@ -1,11 +1,13 @@
 #!/usr/bin/env node
+import { updateWorkerExecutables } from '@puddle/shared/node/host-control';
+import { readUpdateRecoveryAttempts } from '@puddle/shared/node/host-control';
 import { readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 import { hostUpdateOperationSchema } from '@puddle/shared';
 import { executeHostUpdate } from './execute.js';
-import { readUpdateWorker, updateWorkerExecutables } from './supervisor.js';
-import { readUpdateRecoveryAttempts } from '../recovery/worker/records.js';
+import { readUpdateWorker } from './supervisor.js';
+
 import { executeUpdateRecovery } from '../recovery/worker/execute.js';
 import { startUpdateRecoveryWorker } from '../recovery/worker/supervisor.js';
 

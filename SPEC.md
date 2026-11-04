@@ -208,15 +208,26 @@ rechecks the participating authority before committing. An already-complete
 operation returns its recorded result. The action does not repeat installation,
 stop or start commands and does not restore old application data; incomplete
 selection, unavailable adoption and unknown worker lifetime leave recovery pending.
-The command currently requires a running daemon with protocol 25.11 or newer;
-forward recovery and recovery with the daemon stopped remain unfinished.
+This verification-only command requires a running daemon with protocol 25.11 or newer.
+
+Application 25.12 adds `puddle updates [user@host] --operation <id> --continue`.
+With a live daemon it uses private host authority; when authority cannot connect,
+the trusted OS/SSH helper invokes the verified staged daemon's pinned recovery worker.
+That staged build must support 25.12. The helper passes only the exact operation
+revision and returns recorded acceptance, including after a lost worker reply;
+neither client path automatically resubmits an uncertain mutation. Repeating an
+identical accepted helper request observes its recorded attempt. Acceptance and
+worker consumption do not prove liveness or completion: inspect the operation again
+to observe its verified result. Status includes bounded recovery metadata only when
+requested, preserving older clients. Cockpit integration remains unfinished.
 
 Read-only `puddle updates [user@host] [--operation <id>]` can inspect recorded
 status when daemon authority cannot connect. The existing local/SSH bootstrap
 helper reads the private bounded operation ledger with shared schema and stage
 receipt validation. The CLI labels this as recorded state, without opening SQLite,
-starting services, issuing a lease or repeating installation. Cancellation,
-recovery and fresh adoption verification still require the live control channel.
+starting services, issuing a lease or repeating installation. Cancellation and fresh
+adoption verification still require the live control channel. Explicit continuation
+uses the separate trusted helper action described above.
 
 The worker also writes a private bounded step journal before activation. Its exact
 stop/select/start plan is bound to the operation, dispatch, worker and approval;
@@ -232,8 +243,8 @@ and released controller, then retain the controller claim without changing its e
 Recovery also fences dispatch/execution, checks ended-worker evidence and recorded
 shutdown intent, and validates the candidate against checkpointed database/runtime
 support. Authority and lifetime are rechecked after asynchronous probes. This
-hand-off issues no service command and opens no application database. Public forward
-recovery still requires CLI integration and complete continuation coverage.
+hand-off issues no service command and opens no application database. Public
+continuation reuses this gate before dispatching its independent recovery worker.
 
 The host updater's internal `--dispatch-recovery <revision>` mode now dispatches a
 pinned independent worker for an interrupted daemon update. It uses trusted local/SSH
@@ -263,7 +274,7 @@ evidence binds those observations and is checked again by execution and immediat
 before startup. Stale controller flags alone never prove absence. Owners observed
 during recovery are retained in the adoption requirements alongside the original
 checkpoint; completion must prove all of them through fresh authority. No database
-is restored and no selection is repeated. Public CLI/cockpit wiring, packaged
+is restored and no selection is repeated. Cockpit wiring, packaged
 crash/start-limit acceptance, failed connector starts and stopped/unmanaged
 installations remain incomplete; the existing public `--recover` still verifies
 completion only.

@@ -11,8 +11,10 @@ runtime selector and checking the host service manager before launch intent. The
 legacy composition is restricted to internal migration fixtures. Hosts without a
 usable systemd/launchd manager currently refuse new launches; detached/attached
 lifetimes remain a release blocker. The daemon coordinator now composes maintenance
-for private host-control daemon updates; cockpit/CLI integration, supported recovery
-and complete packaged upgrade acceptance remain unfinished.
+for private host-control daemon updates. Explicit CLI recovery continuation now works
+through private authority or the trusted offline local/SSH helper; ordinary CLI/launcher
+upgrades, cockpit integration, remaining failure recovery and complete packaged upgrade
+acceptance remain unfinished.
 This document describes the intended refactor; [SPEC.md](../../SPEC.md) continues
 to describe shipped behaviour. Update the specification, protocol documentation,
 repository instructions and changelog alongside each implementation phase.
@@ -30,6 +32,21 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 [acceptance matrix](#acceptance-matrix) for the release gates.
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
+
+- Application 25.12 adds `puddle updates [user@host] --operation <id> --continue`,
+  reusing the independent recovery dispatcher online and the existing OS/SSH bootstrap
+  helper offline. The offline helper validates passive staged metadata and pinned
+  executables, invokes the exact operation revision once and inspects durable acceptance
+  even if the worker reply is lost. Shared readers now live under
+  `shared/src/node/installation/`, with mutation/recovery logic retained in the daemon.
+  Opted-in status replies expose only recovery ids, revisions and consumption; these
+  are recorded evidence, not proof of current liveness or completion. Older status
+  clients retain their reply shape. Private-control fixtures cover authority loss and
+  lost dispatch replies; built local/SSH helper fixtures cover offline acceptance,
+  exact-request deduplication and invalid staged executables/metadata. These tests use
+  simulated supervisors or deterministic workers, not packaged service upgrades.
+  Cockpit continuation, ordinary CLI/launcher activation, remaining connector recovery
+  and complete platform acceptance remain required. Remote 4 and runtime 1.0 are unchanged.
 
 - Internal recovery can now authorise a fresh daemon start after confirmed service
   loss, including inactive or failed systemd services with no main process. It holds

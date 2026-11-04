@@ -1,3 +1,7 @@
+import {
+  readUpdateRecoveryAttempts,
+  updateRecoveryDirectory,
+} from '@puddle/shared/node/host-control';
 import { join } from 'node:path';
 import {
   hostUpdateActionsSchema,
@@ -23,12 +27,7 @@ import {
 import { selectUpdateStage, verifyUpdateSelection } from '../../worker/selection.js';
 import { readUpdateWorker } from '../../worker/supervisor.js';
 import { retainUpdateContinuation } from '../continuation.js';
-import {
-  HostUpdateRecoveryAttempts,
-  readUpdateRecoveryAttempts,
-  requireEndedUpdateRecoveryWorkers,
-  updateRecoveryDirectory,
-} from './records.js';
+import { HostUpdateRecoveryAttempts, requireEndedUpdateRecoveryWorkers } from './records.js';
 
 /** One accepted continuation; a replacement start after confirmed loss needs its own evidence. */
 export async function executeUpdateRecovery(

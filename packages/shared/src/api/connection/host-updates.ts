@@ -18,6 +18,8 @@ export const hostUpdateCommandSchema = z.discriminatedUnion('action', [
       id: z.uuid().optional(),
       /** Fresh private worker observation; never authorises activation. */
       adoption_nonce: z.uuid().optional(),
+      /** Recorded continuation metadata, capability-detected from application 25.12. */
+      include_recovery: z.literal(true).optional(),
     })
     .strict()
     .refine(
@@ -27,7 +29,11 @@ export const hostUpdateCommandSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('begin'), targets: hostUpdateTargetsSchema }).strict(),
   z.object({ action: z.literal('stage'), reference, receipt: hostStageReceiptSchema }).strict(),
   z
-    .object({ action: z.literal('recover'), reference, strategy: z.literal('verify-completion') })
+    .object({
+      action: z.literal('recover'),
+      reference,
+      strategy: z.enum(['verify-completion', 'continue']),
+    })
     .strict(),
   z
     .object({
@@ -77,6 +83,16 @@ export const hostUpdateReviewSchema = z
   })
   .strict();
 
+export const hostUpdateRecoveryStatusSchema = z
+  .object({
+    id: z.uuid(),
+    requested_revision: hostUpdateOperationSchema.shape.revision,
+    revision: hostUpdateOperationSchema.shape.revision,
+    /** Durable consumption, not a claim that the worker is still running or completed. */
+    consumed: z.boolean(),
+  })
+  .strict();
+
 export const hostUpdateReplySchema = z.discriminatedUnion('ok', [
   z
     .object({
@@ -84,6 +100,7 @@ export const hostUpdateReplySchema = z.discriminatedUnion('ok', [
       operation: hostUpdateOperationSchema.nullable(),
       created: z.boolean().optional(),
       review: hostUpdateReviewSchema.optional(),
+      recovery: hostUpdateRecoveryStatusSchema.optional(),
     })
     .strict(),
   z

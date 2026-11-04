@@ -6,7 +6,7 @@ import {
 import { runCompilationCommand, type CompilationCommandRunner } from '../../compilation/process.js';
 import { startReplacementService } from '../../host/supervision/replacement.js';
 import { HostUpdateOperations } from '../operations/store.js';
-import { readStageCapabilities } from '../preflight/candidate.js';
+import { readStageCapabilities } from '@puddle/shared/node/host-control';
 import { stopConnectorForUpdate, startConnectorAfterUpdate } from './connector.js';
 import { stopDaemonForUpdate } from './daemon/stop.js';
 import { selectUpdateStage, verifyUpdateSelection } from './selection.js';

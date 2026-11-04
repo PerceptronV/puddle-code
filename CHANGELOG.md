@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Add `puddle updates [user@host] --operation <id> --continue` (application 25.12) for explicit continuation of interrupted daemon updates, including through trusted local/SSH access while the daemon is unavailable. Reuse the pinned recovery worker and shared metadata readers; report durable acceptance separately from verified completion and never automatically repeat an uncertain dispatch. Cockpit integration and remaining failure/platform acceptance are still in progress.
+
 - Add internal recovery after confirmed replacement-daemon loss, checking current SQLite/WAL schema and runtime ownership before a separately recorded start. Preserve later runtime launches in fresh adoption proof; never restore old application data or repeat a start from a failed connection alone. Public CLI/cockpit continuation remains in progress.
 
 - Continue internal host-update recovery across partial attempts without losing earlier step intent. Verify an already-running replacement daemon and finish pending connector startup without repeating successful selections or service starts; public CLI/cockpit continuation remains in progress.

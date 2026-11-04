@@ -185,13 +185,22 @@ group has ended before completing from fresh adoption/selection evidence. Record
 worker's own group durably before any activation; its commands must not detach.
 Maintenance release after worker execution requires ended-group evidence too. Missing
 records, permission errors or reused groups retain the hold; never signal a stored
-group to recover it. Incomplete installations and daemon-offline recovery remain
-pending, alongside cockpit confirmation and CLI/launcher daemon upgrades.
+group to recover it. Completion verification never continues an incomplete installation.
+Cockpit confirmation and CLI/launcher daemon upgrades remain pending.
 Read-only `puddle updates` falls back to the existing local/SSH bootstrap helper
 when authority cannot connect. Share bounded ledger validation through
 `shared/src/node/installation/updates.ts`; label recorded evidence and never use
-it for fresh adoption, cancellation or recovery. Inspection must not open SQLite
+it for fresh adoption, cancellation or dispatch. Inspection must not open SQLite
 or start a service.
+Application 25.12 adds explicit `--continue`, using private authority online and the
+separate `--continue-update` OS/SSH helper offline. `cli/src/lib/host/updates/continuation.ts`
+validates the staged daemon's capabilities and pinned worker before invoking its
+exact revision once. Share passive metadata, executable and attempt readers under
+`shared/src/node/installation/`; never copy daemon mutation logic into the CLI.
+Inspect recorded acceptance after a lost reply without redispatch. Status includes
+public recovery ids/revisions/consumption only when `include_recovery` is requested;
+consumption is not proof of liveness or completion. Never fall back to offline
+dispatch after an uncertain live mutation. Remote maintenance is still excluded.
 Worker step intent lives in `updates/worker/actions.ts` with private shared schemas
 under `installation/actions.ts`. Persist intent before any stop/select/start step;
 never overwrite an existing journal or infer replay permission from started steps. Finished entries do
@@ -204,7 +213,7 @@ and released original controller before retaining its claim. Recovery's common
 dispatch/execution exclusion lives in `updates/recovery/claim.ts`. Recheck authority
 and ended-worker evidence after asynchronous probes; never mint a new controller
 epoch or issue another stop to recover a lost reply. Candidate compatibility uses
-the same checkpoint gate as ordinary execution. Public forward recovery remains pending.
+the same checkpoint gate as ordinary execution. Public continuation reuses this gate.
 Recovery worker dispatch/execution lives under `updates/recovery/worker/`, sharing
 the original updater's pinned executable checks, service definitions, journal writer
 and completion verifier. Persist each accepted attempt before dispatch and its process
@@ -223,7 +232,7 @@ the accepted attempt. Reinspect before releasing the controller for startup; nev
 infer absence from an active flag, failed HTTP probe or stale PID. Share bounded
 inventory inspection with preflight. `checkpoints/requirements.ts` retains original
 and restart-observed owners for fresh adoption, including later launches. Packaged
-crash/start-limit acceptance, failed connector starts and public CLI/cockpit
+crash/start-limit acceptance, failed connector starts and cockpit
 continuation remain unfinished. These private records add no network protocol.
 Runtime owners and update workers share `host/services.ts`; neither service may
 inherit puddled's restart or termination boundary. The packaged one-shot updater

@@ -36,7 +36,14 @@ export type Command =
   | { cmd: 'list' }
   | { cmd: 'kill'; target?: string; all: boolean }
   | { cmd: 'status'; host?: string }
-  | { cmd: 'updates'; host?: string; operation?: string; cancel: boolean; recover: boolean }
+  | {
+      cmd: 'updates';
+      host?: string;
+      operation?: string;
+      cancel: boolean;
+      recover: boolean;
+      continue?: boolean;
+    }
   | { cmd: 'attach'; host?: string; session: string; term?: string }
   | { cmd: 'logs'; host?: string; session?: string; term?: string; follow: boolean }
   | {
@@ -107,7 +114,7 @@ usage:
   puddle list
   puddle kill    [local | user@host | --all]
   puddle status  [user@host]
-  puddle updates [user@host] [--operation <id>] [--cancel | --recover]
+  puddle updates [user@host] [--operation <id>] [--cancel | --recover | --continue]
   puddle attach  [user@host] <session> [--term <id>]
   puddle logs    [user@host] [session] [--term <id>] [-f|--follow]
   puddle install <daemon|runtime|desktop>[@version] [user@host] [--tarball <path>]
@@ -147,6 +154,9 @@ requires that id and only cancels an operation before dispatch.
 --recover also requires the exact id and application protocol 25.11+; it verifies
 a completed installation after a lost reply, without repeating installation or
 service commands. An incomplete installation stays pending for recovery.
+--continue requires the exact id and a staged daemon supporting application 25.12+.
+It records one independent continuation of an interrupted daemon update, including
+when the daemon cannot connect. Inspect the recorded attempt; acceptance is not completion.
 upgrade moves components to the newest release (or the named @version),
 installing any that are missing; with no component it covers everything
 installed on the target — the CLI last, using its installation channel. cli and desktop are
@@ -306,10 +316,11 @@ export function parseArgs(argv: string[]): Command {
     case 'updates': {
       if (positionals.length > 1)
         throw new CliError('bad_arguments', 'updates takes at most a host');
-      expect('--operation', '--cancel', '--recover');
+      expect('--operation', '--cancel', '--recover', '--continue');
       const operation = strFlag('--operation');
       const cancel = flags.has('--cancel');
       const recover = flags.has('--recover');
+      const continuing = flags.has('--continue');
       if (
         operation !== undefined &&
         !hostUpdateOperationSchema.shape.id.safeParse(operation).success
@@ -319,9 +330,18 @@ export function parseArgs(argv: string[]): Command {
         throw new CliError('bad_arguments', '--cancel requires an exact --operation id');
       if (recover && operation === undefined)
         throw new CliError('bad_arguments', '--recover requires an exact --operation id');
-      if (recover && cancel)
-        throw new CliError('bad_arguments', 'Choose either --cancel or --recover');
-      return { cmd, host: positionals[0], operation, cancel, recover };
+      if (continuing && operation === undefined)
+        throw new CliError('bad_arguments', '--continue requires an exact --operation id');
+      if ([recover, cancel, continuing].filter(Boolean).length > 1)
+        throw new CliError('bad_arguments', 'Choose one of --cancel, --recover or --continue');
+      return {
+        cmd,
+        host: positionals[0],
+        operation,
+        cancel,
+        recover,
+        ...(continuing ? { continue: true } : {}),
+      };
     }
     case 'attach': {
       // Two positionals → host + session; one → session on the local daemon.

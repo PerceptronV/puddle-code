@@ -318,4 +318,5 @@
 // 25.9: bounded read-only connector manager inspection on existing private host IPC.
 // 25.10: explicit daemon-owned interruption approval tied to exact update inspection.
 // 25.11: explicit local/SSH recovery verification without replaying component commands.
-export const PROTOCOL_VERSION = { major: 25, minor: 11 } as const;
+// 25.12: explicit host-update continuation and recorded recovery inspection.
+export const PROTOCOL_VERSION = { major: 25, minor: 12 } as const;

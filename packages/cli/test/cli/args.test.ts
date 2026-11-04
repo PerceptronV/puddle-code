@@ -197,13 +197,23 @@ describe('argument parsing', () => {
     expect(() => parseArgs(['updates', '--cancel'])).toThrow('exact --operation');
     expect(() => parseArgs(['updates', '--recover'])).toThrow('exact --operation');
     expect(() => parseArgs(['updates', '--operation', id, '--recover', '--cancel'])).toThrow(
-      'either',
+      'Choose one',
     );
     expect(parseArgs(['updates', '--operation', id, '--recover'])).toMatchObject({
       operation: id,
       cancel: false,
       recover: true,
     });
+    expect(() => parseArgs(['updates', '--continue'])).toThrow('exact --operation');
+    expect(parseArgs(['updates', '--operation', id, '--continue'])).toMatchObject({
+      operation: id,
+      continue: true,
+      recover: false,
+      cancel: false,
+    });
+    expect(() => parseArgs(['updates', '--operation', id, '--continue', '--recover'])).toThrow(
+      'Choose one',
+    );
     expect(() => parseArgs(['updates', '--operation', id.slice(0, 8)])).toThrow(
       'complete update id',
     );

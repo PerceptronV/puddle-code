@@ -1,6 +1,7 @@
+import { readUpdateRecoveryAttempts } from '@puddle/shared/node/host-control';
 import type { HostUpdateOperation } from '@puddle/shared';
 import { digest } from '@puddle/shared/node';
-import { readUpdateRecoveryAttempts } from '../recovery/worker/records.js';
+
 import { readHostUpdateCheckpointEvidence } from './store.js';
 
 /** Recovery can encounter owners created after the original checkpoint; never drop their proof. */

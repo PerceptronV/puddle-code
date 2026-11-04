@@ -1,3 +1,5 @@
+export { readStageCapabilities, readInstalledCapabilities } from './installation/capabilities.js';
+export { updateWorkerExecutables } from './installation/workers.js';
 import type { Duplex } from 'node:stream';
 import {
   CONNECTION_POLICY,
@@ -10,6 +12,11 @@ import {
 } from '../index.js';
 import { jsonLines, secret } from './security.js';
 import { HostUpdateRequests } from './host-updates.js';
+export {
+  readUpdateRecoveryAttempts,
+  updateRecoveryDirectory,
+  inspectRecordedRecovery,
+} from './installation/recovery.js';
 export { readHostUpdateLedger, validateHostUpdateLedger } from './installation/updates.js';
 
 export type AuthorityState =
@@ -108,6 +115,15 @@ export class HostControlClient implements ConnectionAuthority {
     if (command.action === 'recover' && protocol.major === 25 && protocol.minor < 11)
       return Promise.reject(
         new Error('Host recovery verification is unavailable on this connection'),
+      );
+    if (
+      ((command.action === 'recover' && command.strategy === 'continue') ||
+        (command.action === 'status' && command.include_recovery)) &&
+      protocol.major === 25 &&
+      protocol.minor < 12
+    )
+      return Promise.reject(
+        new Error('Host update continuation is unavailable on this connection'),
       );
     if (this.state !== 'ready' || !this.updates)
       return Promise.reject(new Error('Host control is unavailable'));

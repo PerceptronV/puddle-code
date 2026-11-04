@@ -7,7 +7,7 @@ import {
 import { readRuntimeController } from '../../../runtime/ownership/storage.js';
 import { resolveInstalledRuntimeRelease } from '../../../runtime/lifecycle/release.js';
 import { acquireHostClaim } from '../../../security/claims.js';
-import { readStageCapabilities } from '../../preflight/candidate.js';
+import { readStageCapabilities } from '@puddle/shared/node/host-control';
 import { readDaemonUpdateCheckpoint } from '../../verification/shutdown.js';
 import { verifyUpdateSelection } from '../../worker/selection.js';
 import type { claimHostUpdateRecovery } from '../claim.js';

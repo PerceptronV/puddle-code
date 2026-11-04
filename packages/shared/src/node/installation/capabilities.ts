@@ -6,8 +6,8 @@ import {
   hostStageReceiptSchema,
   type HostReleaseCapabilities,
   type HostStageReceipt,
-} from '@puddle/shared';
-import { digest, readPrivateJson } from '@puddle/shared/node';
+} from '../../index.js';
+import { digest, readPrivateJson } from '../security.js';
 
 /** Inspect data only. Older executables may start a daemon for an unknown flag. */
 export async function readStageCapabilities(

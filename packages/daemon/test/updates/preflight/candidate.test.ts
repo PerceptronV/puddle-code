@@ -2,7 +2,7 @@ import { mkdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { hostReleaseCapabilities } from '@puddle/shared';
-import { readStageCapabilities } from '../../../src/updates/preflight/candidate.js';
+import { readStageCapabilities } from '@puddle/shared/node/host-control';
 import { candidateFixture } from './helpers.js';
 
 it('reads a verified candidate without executing its daemon', async () => {

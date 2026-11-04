@@ -47,8 +47,21 @@ hosts. Existing host-wide lease authority is unchanged, and no remote permission
 added. Remote 4 and runtime 1.0 remain unchanged. The private pinned worker records
 the exact interruption approval alongside its preflight evidence.
 
+Protocol 25.12 adds the explicit local/SSH recovery strategy `continue` and optional
+`include_recovery: true` on status requests. Continuation dispatches an independently
+supervised worker against the exact operation revision, using the existing recovery
+claims and journals. Replies may expose a bounded `recovery` record containing the
+attempt id, requested/accepted revisions and whether a worker consumed the attempt.
+Consumption proves neither current liveness nor completion. Status replies include
+this record only when explicitly requested, preserving older strict reply readers;
+clients refuse both new request forms on hosts older than 25.12. The CLI can also
+use its trusted OS/SSH helper when the daemon is unavailable, invoking only the
+verified staged worker and inspecting durable acceptance after a lost reply.
+Neither path retries uncertain dispatch. No remote maintenance permission is added;
+remote 4 and runtime 1.0 remain unchanged.
+
 Protocol 25.11 adds private local/SSH `recover` with an exact operation revision
-and the sole strategy `verify-completion`. The coordinator fences the old dispatch,
+and the strategy `verify-completion`. The coordinator fences the old dispatch,
 holds execution exclusion, confirms the recorded worker process group has ended,
 then uses fresh completion evidence before marking the operation complete. Authority
 is checked again before that transition. Unknown lifetime evidence, live/reused groups,

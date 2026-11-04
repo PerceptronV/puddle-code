@@ -13,11 +13,12 @@ import {
 import { acquireHostClaim, HostClaimBusy } from '../security/claims.js';
 import { HostUpdateConflict, HostUpdateOperations } from './operations/store.js';
 import type { HostUpdateInspection, UpdateInspection } from './preflight/inspection.js';
-import { readStageCapabilities } from './preflight/candidate.js';
+import { readStageCapabilities } from '@puddle/shared/node/host-control';
 import { recoverCompletedHostUpdate } from './recovery/completion.js';
 import { requireEndedUpdateWorker } from './worker/lifetime.js';
 import { requireEndedUpdateRecoveryWorkers } from './recovery/worker/records.js';
 import { readUpdateWorker } from './worker/supervisor.js';
+import { inspectRecordedRecovery } from '@puddle/shared/node/host-control';
 
 class Rejected extends Error {}
 class Unsupported extends Error {}
@@ -35,6 +36,7 @@ export class HostUpdateCoordinator {
       /** Supplied when all daemon-update admission and recovery participants are composed. */
       pauseDaemon?(): Promise<{ release(): void; outgoing: HostUpdateDaemonHandoff['outgoing'] }>;
       observeAdoption?(operation: HostUpdateOperation, nonce: string): void;
+      continueRecovery?(operation: HostUpdateOperation, authorised: () => boolean): Promise<void>;
       dispatch(
         operation: HostUpdateOperation,
         kind: 'systemd' | 'launchd',
@@ -65,7 +67,13 @@ export class HostUpdateCoordinator {
         if (operation && command.adoption_nonce)
           this.deps.observeAdoption?.(operation, command.adoption_nonce);
         requireAuthority();
-        return { ok: true, operation };
+        return {
+          ok: true,
+          operation,
+          ...(operation && command.include_recovery
+            ? { recovery: inspectRecordedRecovery(this.deps.home, operation) }
+            : {}),
+        };
       }
       claim = acquireHostClaim(this.deps.home, 'host-update-coordinator');
       requireAuthority();
@@ -79,6 +87,29 @@ export class HostUpdateCoordinator {
         throw new HostUpdateConflict('Host update changed', operation);
       if (command.action === 'recover') {
         if (operation.phase === 'complete') return { ok: true, operation };
+        if (command.strategy === 'continue') {
+          if (!this.deps.continueRecovery) throw new Unsupported();
+          try {
+            await this.deps.continueRecovery(operation, () => !this.closed && authorised());
+          } catch (error) {
+            // A supervisor reply can fail after durable acceptance. Observe; never dispatch twice.
+            requireAuthority();
+            const current = store.read(operation.id);
+            if (
+              !current ||
+              inspectRecordedRecovery(this.deps.home, current)?.requested_revision !==
+                command.reference.revision
+            )
+              throw error;
+          }
+          requireAuthority();
+          const current = store.read(operation.id);
+          return {
+            ok: true,
+            operation: current,
+            ...(current ? { recovery: inspectRecordedRecovery(this.deps.home, current) } : {}),
+          };
+        }
         operation = await recoverCompletedHostUpdate(
           this.deps.home,
           operation,

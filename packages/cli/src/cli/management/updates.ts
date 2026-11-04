@@ -1,11 +1,11 @@
 import type { Command } from '../args.js';
 import { acquireAuthority } from '../../lib/auth/connection-authority.js';
-import { inspectHostUpdate } from '../../lib/auth/control-channel.js';
+import { continueHostUpdate, inspectHostUpdate } from '../../lib/auth/control-channel.js';
 import type { HostUpdateReply } from '@puddle/shared';
 import { openHostTransport } from '../../lib/transport/open.js';
 import { CliError, type Logger } from '../../lib/types.js';
 
-/** Observe durable state, cancel before dispatch, or explicitly verify completed recovery. */
+/** Observe durable state, cancel preparation, verify completion or explicitly continue once. */
 export async function runUpdates(
   command: Extract<Command, { cmd: 'updates' }>,
   logger: Logger,
@@ -17,16 +17,24 @@ export async function runUpdates(
     try {
       authority = await acquireAuthority(transport);
     } catch (error) {
-      // Shell-backed inspection can read the ledger, but cannot bypass authority
-      // for cancellation, activation or fresh adoption verification.
+      // Only explicit continuation uses OS/SSH authority while disconnected.
+      // Never turn a failed live mutation into another dispatch through this path.
       if (command.cancel || command.recover) throw error;
-      recorded = await inspectHostUpdate(transport, command.operation);
+      recorded = await inspectHostUpdate(transport, command.operation, true);
       logger.info('Daemon connection unavailable; showing recorded update state');
     }
     try {
       const generation = authority?.generation;
+      const protocol = authority?.version?.protocol;
+      const recoverySupported =
+        protocol && (protocol.major > 25 || (protocol.major === 25 && protocol.minor >= 12));
       let result =
-        recorded ?? (await authority!.hostUpdate({ action: 'status', id: command.operation }));
+        recorded ??
+        (await authority!.hostUpdate({
+          action: 'status',
+          id: command.operation,
+          ...(recoverySupported ? { include_recovery: true } : {}),
+        }));
       if (!result.ok)
         throw new CliError('upgrade_failed', `Could not inspect host updates (${result.code})`);
       if (!result.operation) {
@@ -38,36 +46,45 @@ export async function runUpdates(
         logger.info(`no host update recorded on ${transport.label}`);
         return 0;
       }
-      if (command.cancel || command.recover) {
-        if (!authority)
+      if (command.cancel || command.recover || command.continue) {
+        if (!authority && !command.continue)
           throw new CliError('daemon_unreachable', 'Update actions require live host authority');
         if (!command.operation || command.operation !== result.operation.id)
           throw new CliError('bad_arguments', 'Update actions require the exact update id');
-        if (authority.generation !== generation || authority.state !== 'ready')
+        if (authority && (authority.generation !== generation || authority.state !== 'ready'))
           throw new CliError(
             'daemon_unreachable',
             'Host connection changed before the update action',
           );
         const reference = { id: result.operation.id, revision: result.operation.revision };
-        result = await authority.hostUpdate(
-          command.recover
-            ? {
-                action: 'recover',
-                reference,
-                strategy: 'verify-completion',
-              }
-            : {
-                action: 'cancel',
-                reference,
-                reason: 'cancelled',
-              },
-        );
+        if (command.continue && authority && !recoverySupported)
+          throw new CliError(
+            'protocol_mismatch',
+            'Host update continuation requires application protocol 25.12 or newer',
+          );
+        result = !authority
+          ? await continueHostUpdate(transport, reference)
+          : await authority.hostUpdate(
+              command.recover || command.continue
+                ? {
+                    action: 'recover',
+                    reference,
+                    strategy: command.continue ? 'continue' : 'verify-completion',
+                  }
+                : {
+                    action: 'cancel',
+                    reference,
+                    reason: 'cancelled',
+                  },
+            );
         if (!result.ok || !result.operation)
           throw new CliError(
             'upgrade_failed',
-            command.recover
-              ? 'Update completion was not verified; inspect its current state before another recovery action'
-              : 'Update was not cancelled; inspect its current state before another action',
+            command.continue
+              ? 'Update continuation was not confirmed; inspect its recorded state before another action'
+              : command.recover
+                ? 'Update completion was not verified; inspect its current state before another recovery action'
+                : 'Update was not cancelled; inspect its current state before another action',
           );
       }
       const operation = result.operation;
@@ -75,6 +92,15 @@ export async function runUpdates(
       for (const target of operation.targets)
         logger.info(`  ${target.component} v${target.version}`);
       if (operation.message) logger.info(operation.message);
+      if (result.recovery) {
+        logger.info(
+          `recorded recovery ${result.recovery.id}: ${result.recovery.consumed ? 'worker consumed the attempt' : 'accepted for dispatch'}`,
+        );
+        if (operation.phase !== 'complete')
+          logger.info(
+            `Recovery is not yet verified complete; inspect with puddle updates${command.host ? ` ${command.host}` : ''} --operation ${operation.id}`,
+          );
+      }
       return 0;
     } finally {
       authority?.close();

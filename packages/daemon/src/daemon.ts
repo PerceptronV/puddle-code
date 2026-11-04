@@ -67,6 +67,7 @@ import { HostUpdateOperations } from './updates/operations/store.js';
 import { HostAdmission } from './host/lifecycle/admission.js';
 import { HostBackgroundTasks } from './host/lifecycle/background.js';
 import { startUpdateWorker } from './updates/worker/supervisor.js';
+import { startUpdateRecoveryWorker } from './updates/recovery/worker/supervisor.js';
 import { resolveInstalledRuntimeRelease } from './runtime/lifecycle/release.js';
 import { RuntimeConnections } from './runtime/transport/connections.js';
 import { RuntimeReconciler } from './runtime/controller/reconcile.js';
@@ -594,6 +595,12 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       }),
       observeAdoption: (operation, nonce) => {
         updateAdoption.observe(operation, nonce);
+      },
+      continueRecovery: async (operation, authorised) => {
+        await startUpdateRecoveryWorker(paths.home, operation, {
+          authorised,
+          releasePath: dirname(dirname(fileURLToPath(import.meta.url))),
+        });
       },
       installedRuntime: () => {
         try {

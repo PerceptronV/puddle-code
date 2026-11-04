@@ -3,7 +3,7 @@ import {
   type HostUpdateCommand,
   type HostUpdateReply,
 } from '@puddle/shared';
-import { readHostUpdateLedger } from '@puddle/shared/node/host-control';
+import { inspectRecordedRecovery, readHostUpdateLedger } from '@puddle/shared/node/host-control';
 
 /** Host OS/SSH authority only; never substitutes stored evidence for a live adoption receipt. */
 export function inspectStoredHostUpdate(home: string, input: HostUpdateCommand): HostUpdateReply {
@@ -16,7 +16,13 @@ export function inspectStoredHostUpdate(home: string, input: HostUpdateCommand):
       command.id === undefined || ledger.current?.id === command.id
         ? ledger.current
         : (ledger.history.find((item) => item.id === command.id) ?? null);
-    return { ok: true, operation };
+    return {
+      ok: true,
+      operation,
+      ...(operation && command.include_recovery
+        ? { recovery: inspectRecordedRecovery(home, operation) }
+        : {}),
+    };
   } catch {
     return { ok: false, code: 'failed', operation: null };
   }

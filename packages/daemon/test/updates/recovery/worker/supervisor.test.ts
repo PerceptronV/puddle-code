@@ -1,3 +1,4 @@
+import { readUpdateRecoveryAttempts } from '@puddle/shared/node/host-control';
 import { readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
@@ -5,10 +6,7 @@ import { HOST_UPDATE_RECOVERY_ATTEMPTS } from '@puddle/shared';
 import { acquireHostClaim, HostClaimBusy } from '../../../../src/security/claims.js';
 import { readRuntimeController } from '../../../../src/runtime/ownership/storage.js';
 import { startUpdateRecoveryWorker } from '../../../../src/updates/recovery/worker/supervisor.js';
-import {
-  readUpdateRecoveryAttempts,
-  requireEndedUpdateRecoveryWorkers,
-} from '../../../../src/updates/recovery/worker/records.js';
+import { requireEndedUpdateRecoveryWorkers } from '../../../../src/updates/recovery/worker/records.js';
 import { executeUpdateRecovery } from '../../../../src/updates/recovery/worker/execute.js';
 import { recoveryWorkerFixture } from '../../../helpers/update-recovery.js';
 

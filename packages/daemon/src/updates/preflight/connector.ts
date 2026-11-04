@@ -16,7 +16,7 @@ import {
   inspectRunningService,
 } from '../../host/supervision/inspection.js';
 import { prepareServiceReplacement } from '../../host/supervision/replacement.js';
-import { readInstalledCapabilities } from './candidate.js';
+import { readInstalledCapabilities } from '@puddle/shared/node/host-control';
 
 type Identity = Omit<ConnectorInspectionResponse, 't' | 'nonce'>;
 export interface UpdateConnector {

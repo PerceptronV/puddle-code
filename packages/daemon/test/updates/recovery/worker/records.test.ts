@@ -1,3 +1,7 @@
+import {
+  readUpdateRecoveryAttempts,
+  updateRecoveryDirectory,
+} from '@puddle/shared/node/host-control';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -7,9 +11,7 @@ import { atomicPrivateJson } from '@puddle/shared/node';
 import { HOST_UPDATE_RECOVERY_BYTES } from '@puddle/shared';
 import {
   HostUpdateRecoveryAttempts,
-  readUpdateRecoveryAttempts,
   requireEndedUpdateRecoveryWorkers,
-  updateRecoveryDirectory,
 } from '../../../../src/updates/recovery/worker/records.js';
 import { startUpdateRecoveryWorker } from '../../../../src/updates/recovery/worker/supervisor.js';
 import { recoveryWorkerFixture } from '../../../helpers/update-recovery.js';

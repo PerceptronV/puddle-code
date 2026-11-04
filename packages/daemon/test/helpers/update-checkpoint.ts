@@ -5,7 +5,11 @@ import { join } from 'node:path';
 import { HostUpdateOperations } from '../../src/updates/operations/store.js';
 import { updateWorkerDirectory } from '../../src/updates/worker/supervisor.js';
 
-export function acceptedCheckpointUpdate(home: string, component: 'daemon' | 'runtime' = 'daemon') {
+export function acceptedCheckpointUpdate(
+  home: string,
+  component: 'daemon' | 'runtime' = 'daemon',
+  protocol = { major: 25, minor: 7 },
+) {
   const store = new HostUpdateOperations(home);
   let operation = store.begin([{ component, version: '0.4.0' }]).operation;
   // This is operation-state evidence only; no installer or worker is dispatched.
@@ -14,7 +18,7 @@ export function acceptedCheckpointUpdate(home: string, component: 'daemon' | 'ru
     component,
     generation: '0.4.0~ABC123',
     version: '0.4.0',
-    protocol: { major: 25, minor: 7 },
+    protocol,
     archive_sha256: digest('archive'),
     tree_sha256: digest('tree'),
     checksum_verified: true,

@@ -1,3 +1,7 @@
+import {
+  readUpdateRecoveryAttempts,
+  updateRecoveryDirectory,
+} from '@puddle/shared/node/host-control';
 import { readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
@@ -11,11 +15,7 @@ import * as selection from '../../../../src/updates/worker/selection.js';
 import * as verification from '../../../../src/updates/verification/completion.js';
 import { startUpdateRecoveryWorker } from '../../../../src/updates/recovery/worker/supervisor.js';
 import { executeUpdateRecovery } from '../../../../src/updates/recovery/worker/execute.js';
-import {
-  readUpdateRecoveryAttempts,
-  requireEndedUpdateRecoveryWorkers,
-  updateRecoveryDirectory,
-} from '../../../../src/updates/recovery/worker/records.js';
+import { requireEndedUpdateRecoveryWorkers } from '../../../../src/updates/recovery/worker/records.js';
 import { recoveryWorkerFixture } from '../../../helpers/update-recovery.js';
 
 async function fixture(selectionAttempted = false) {

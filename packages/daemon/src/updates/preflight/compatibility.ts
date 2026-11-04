@@ -11,7 +11,7 @@ import type { RuntimeStore, RuntimeBinding } from '../../db/stores/runtimes.js';
 import type { RuntimeConnections } from '../../runtime/transport/connections.js';
 import { runtimeBindingIdentity } from '../../runtime/transport/connections.js';
 import { acquireHostClaim, HostClaimBusy } from '../../security/claims.js';
-import { readStageCapabilities } from './candidate.js';
+import { readStageCapabilities } from '@puddle/shared/node/host-control';
 
 type Protocol = HostReleaseCapabilities['application'];
 type Blocker = {

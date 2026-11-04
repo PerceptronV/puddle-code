@@ -1,6 +1,6 @@
 import type { HostUpdateOperation } from '@puddle/shared';
 import type { CompilationCommandRunner } from '../../compilation/process.js';
-import { readStageCapabilities } from '../preflight/candidate.js';
+import { readStageCapabilities } from '@puddle/shared/node/host-control';
 import { requireCheckpointCompatibility } from '../checkpoints/compatibility.js';
 import { claimStoppedDaemonUpdate } from '../verification/shutdown.js';
 import { readRecoveryActions } from './actions.js';
