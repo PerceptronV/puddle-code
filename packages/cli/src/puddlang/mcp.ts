@@ -7,12 +7,17 @@ import {
   puddlangMcpIdSchema,
   puddlangMcpEventsSchema,
   puddlangMcpEmptySchema,
+  puddlangMcpOutcomesSchema,
+  puddlangMcpOutcomeSchema,
 } from '@puddle/shared';
 import type { PuddlangClient } from './client.js';
 
 /** MCP 2025-06-18 stdio: bounded newline-delimited JSON-RPC, no stdout logging. */
 export async function serveMcp(
-  client: Pick<PuddlangClient, 'context' | 'start' | 'status' | 'events' | 'cancel'>,
+  client: Pick<
+    PuddlangClient,
+    'context' | 'start' | 'status' | 'events' | 'cancel' | 'outcomes' | 'disposeOutcome'
+  >,
   input: Readable,
   output: Writable,
 ): Promise<void> {
@@ -95,6 +100,16 @@ export async function serveMcp(
         case 'puddlang_cancel':
           result = await client.cancel(puddlangMcpIdSchema.parse(args).id);
           break;
+        case 'puddlang_outcomes': {
+          const a = puddlangMcpOutcomesSchema.parse(args);
+          result = await client.outcomes(a.id, a.after);
+          break;
+        }
+        case 'puddlang_outcome': {
+          const { id, operation, ...request } = puddlangMcpOutcomeSchema.parse(args);
+          result = await client.disposeOutcome(id, operation, request);
+          break;
+        }
         default:
           fail(-32602, 'Unknown tool');
           return;

@@ -744,6 +744,15 @@ A journal gap or failed database commit preserves unresolved ownership. Confirme
 configured auto-resume policy; natural
 exits do not resume. Agent owner loss remains explicitly resumable until supervisor
 cleanup can prove provider sidecars and descendants have ended.
+Migration 040 records explicit read/discard dispositions for retained terminal
+programme outcomes. Application 26.1 exposes bounded metadata inspection and
+exact fingerprint-bound actions to local/SSH users and their CLI/MCP clients.
+The run must have finished; profile, operation, runtime and turn ownership remain
+checked. Audit and consumption commit atomically without replaying execution.
+Only explicit reads return retained reply text. Both choices allow ordinary
+capacity reclamation, even if a read response is lost; repeated requests observe
+the same disposition and return text only while retained. No audit asserts
+delivery, and running/unknown outcomes never expire automatically.
 Migration 039 queues ended runtime registrations atomically with their final
 binding state and seeds previously ended owners. An indexed pending queue supplies
 at most 32 owners per pass, with four removals in flight; unavailable owners cannot
@@ -1497,6 +1506,8 @@ Puddlang   GET  /api/puddlang/:profile/context
            GET  /api/puddlang/:profile/runs/:id/events?after=0   # pages of up to 100 events
            POST /api/puddlang/:profile/runs/:id/cancel
                 # protocol 24.0; local/SSH only, excluded from remote leases and relay allowlist
+           GET  /api/puddlang/:profile/runs/:id/outcomes?after=<operation-id>  # 26.1; bounded metadata
+           POST /api/puddlang/:profile/runs/:id/outcomes/:operation          # 26.1; exact read/discard fingerprint
 Signal     POST /agent-signal {nonce, state} | {nonce,event,agent_session_ref?,cwd,source,parent_agent_session_ref?,native_title?,native_created_at?,native_updated_at?}
                 | {nonce,event,agent_session_ref,turn_id,prompt_hash?,reply?,error?}
                 # status, lifecycle or bounded turn side-channel (§4), OUTSIDE /api: no bearer;
@@ -1858,8 +1869,10 @@ Each env/ports value list is one non-wrapping line. When it exceeds the pane wid
 ## 10. `puddle` CLI (client)
 
 The same npm package and standalone archives ship `pudl` for puddlang: run, context,
-status, logs, cancel and mcp commands. They reuse local/SSH authority and require
-an existing daemon at protocol 24.0+. One selected profile binds each connection.
+status, logs, cancel, outcomes, outcome and mcp commands. They reuse local/SSH
+authority and require an existing daemon with the current application major
+(26.x); outcome inspection/disposition requires 26.1. One selected profile binds
+each connection.
 Run waits by default (`--detach` returns after submission); observer exit does
 not cancel work. Stdio MCP exposes the same service. HTTP MCP, automatic agent
 binding and inherited descendant budgets are deferred. Both launchers upgrade

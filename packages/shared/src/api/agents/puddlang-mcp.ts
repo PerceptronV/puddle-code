@@ -1,5 +1,9 @@
 import { z } from 'zod';
 import { puddlangStartSchema } from './puddlang.js';
+import {
+  puddlangOutcomeOperationSchema,
+  puddlangOutcomeRequestSchema,
+} from './puddlang-outcomes.js';
 
 export const puddlangMcpRequestSchema = z.object({
   jsonrpc: z.literal('2.0'),
@@ -17,6 +21,17 @@ export const puddlangMcpEventsSchema = puddlangMcpIdSchema.extend({
   after: z.number().int().nonnegative().default(0),
 });
 export const puddlangMcpEmptySchema = z.object({}).strict();
+export const puddlangMcpOutcomesSchema = puddlangMcpIdSchema
+  .extend({
+    after: puddlangOutcomeOperationSchema.optional(),
+  })
+  .strict();
+export const puddlangMcpOutcomeSchema = puddlangOutcomeRequestSchema
+  .extend({
+    id: z.uuid(),
+    operation: puddlangOutcomeOperationSchema,
+  })
+  .strict();
 const definitions = [
   [
     'puddlang_context',
@@ -46,6 +61,18 @@ const definitions = [
     'puddlang_cancel',
     'Cancel a run, interrupt its pending asks, and stop agents it created. Attached agents are retained.',
     puddlangMcpIdSchema,
+    false,
+  ],
+  [
+    'puddlang_outcomes',
+    'Inspect up to 50 retained outcome identities for a run without reading reply text or releasing retention. Use next_after to paginate. Requires application 26.1+.',
+    puddlangMcpOutcomesSchema,
+    true,
+  ],
+  [
+    'puddlang_outcome',
+    'Explicitly read or discard one unchanged terminal outcome of a finished programme, using its inspected fingerprint. Both actions release retention for later reclamation and create a metadata-only audit. No programme or prompt is replayed. Repeating the same disposition observes it; a reclaimed reply is unavailable. Requires application 26.1+.',
+    puddlangMcpOutcomeSchema,
     false,
   ],
 ] as const;

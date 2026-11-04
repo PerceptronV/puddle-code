@@ -1,5 +1,21 @@
 # The puddle communication protocol
 
+Application **26.1** adds local/SSH programme outcome inspection and exact explicit
+read/discard actions under `/api/puddlang/:profile/runs/:id/outcomes`. Bounded
+metadata lists contain no replies or native references. A disposition binds the
+inspected immutable result fingerprint and exact admitted programme operation,
+requires a finished run and current profile authority, and atomically records an
+immutable audit while marking its terminal result consumed. Explicit reads alone
+return retained reply/error text; discards and public audit events never do.
+The disposition commits before response delivery and can allow reclamation even
+when a read reply is lost. Repeated identical dispositions observe the same audit,
+including after result reclamation; an unavailable reply is never reconstructed or
+replayed. The audit does not assert delivery. Running or
+unknown outcomes remain protected. Migration 040 retains one disposition per
+existing operation mapping. Existing runner consumption stays running-programme
+only. There is no automatic expiry, programme resume, provider dispatch or remote
+connector expansion. Remote protocol 5 and runtime protocol 1.0 are unchanged.
+
 Application **26.0** and remote **5** introduce explicit host-approved device
 maintenance authority. Existing approved devices receive no maintenance grant.
 Only local/SSH host controls can grant or revoke it; the encrypted remote

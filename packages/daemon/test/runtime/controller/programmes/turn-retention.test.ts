@@ -1,57 +1,8 @@
-import { randomUUID } from 'node:crypto';
 import { expect, it } from 'vitest';
-import { puddlangStartSchema, RUNTIME_LIMITS } from '@puddle/shared';
+import { RUNTIME_LIMITS } from '@puddle/shared';
 import { openDatabase } from '../../../../src/db/db.js';
 import { RuntimeObservationStore } from '../../../../src/db/stores/runtime-observations.js';
-import { ProgrammeTurnStore } from '../../../../src/puddlang/runtime-turn-store.js';
-import { PuddlangStore } from '../../../../src/puddlang/store.js';
-import { runtimeDatabase } from '../../../helpers/runtime-database.js';
-
-function fixture() {
-  const f = runtimeDatabase('headless');
-  f.db
-    .prepare("UPDATE runtime_bindings SET state = 'running' WHERE runtime_id = ?")
-    .run(f.binding.runtime_id);
-  const runs = new PuddlangStore(f.db);
-  const run = runs.create(
-    f.profile.id,
-    puddlangStartSchema.parse({
-      id: randomUUID(),
-      source: 'export default null;',
-    }),
-  ).run;
-  const operations = new ProgrammeTurnStore(f.db);
-  const observations = f.reconciler.observations;
-  const scope = (operationId: number) => ({ runId: run.id, operationId, profileId: f.profile.id });
-  const reserve = (operationId: number) =>
-    operations.reserve(
-      scope(operationId),
-      f.binding.runtime_id,
-      { session_id: f.session.id, segment_id: f.binding.active_segment_id! },
-      null,
-      0,
-    );
-  const save = (turn: number, reply = `reply-${turn}`) => {
-    observations.saveTurn(f.binding, { turn, expected_ref: null, status: 'running' });
-    observations.saveTurn(f.binding, { turn, expected_ref: null, status: 'completed', reply });
-  };
-  const consume = (turn: number) => operations.consume(scope(turn), f.binding.runtime_id, turn);
-  return {
-    ...f,
-    operations,
-    observations,
-    runs,
-    run,
-    scope,
-    reserve,
-    save,
-    consume,
-    async close() {
-      await f.reconciler.close();
-      f.db.close();
-    },
-  };
-}
+import { programmeTurnFixture as fixture } from '../../../helpers/runtime/programme-turns.js';
 
 it('serves hundreds of turns while retaining unread outcomes and rejecting reclaimed identities', async () => {
   const f = fixture();
@@ -181,7 +132,7 @@ it('upgrades existing private results conservatively and restores their monotoni
   const f = fixture();
   f.save(41);
   f.db.exec(
-    'DROP TRIGGER runtime_service_cleanup_insert; DROP TRIGGER runtime_service_cleanup_end; DROP TABLE runtime_service_cleanup; DROP TABLE runtime_attention; ALTER TABLE runtime_turns DROP COLUMN consumed; DROP TABLE runtime_turn_watermarks; PRAGMA user_version = 36',
+    'DROP TABLE puddlang_outcome_dispositions; DROP TRIGGER runtime_service_cleanup_insert; DROP TRIGGER runtime_service_cleanup_end; DROP TABLE runtime_service_cleanup; DROP TABLE runtime_attention; ALTER TABLE runtime_turns DROP COLUMN consumed; DROP TABLE runtime_turn_watermarks; PRAGMA user_version = 36',
   );
   await f.close();
   const db = openDatabase(f.paths.dbFile);

@@ -37,6 +37,7 @@ import { migration036 } from './036-puddlang-runtime-spawns.js';
 import { migration037 } from './037-runtime-turn-retention.js';
 import { migration038 } from './038-runtime-attention.js';
 import { migration039 } from './039-runtime-service-cleanup.js';
+import { migration040 } from './040-programme-outcome-dispositions.js';
 
 export interface Migration {
   version: number;
@@ -85,6 +86,7 @@ export const MIGRATIONS: Migration[] = [
   migration037,
   migration038,
   migration039,
+  migration040,
 ];
 
 /** Highest application database migration understood by this daemon build. */

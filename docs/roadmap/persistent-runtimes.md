@@ -68,6 +68,16 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Application 26.1 and migration 040 add explicit local/SSH CLI/MCP inspection
+  and read/discard of retained programme outcomes. The exact fingerprint, profile,
+  operation, runtime and turn bind a transactional audit and consumption record;
+  only explicit reads return retained text. Lost read replies may be reclaimed,
+  and inspection never claims delivery. Running/unknown outcomes remain protected;
+  no programme or prompt is replayed. The obsolete hard-coded `pudl` major-24 check
+  now reuses the ordinary compatibility verifier. Sixty-three focused tests,
+  source/test TypeScript, lint and formatting passed. Runtime/remote protocols
+  are unchanged; host-wide retained-storage accounting remains outstanding.
+
 - Live account migration now uses the existing provider-owned shared-store/copy
   flow with independent runtime controls. It validates the target before stopping
   the exact owner, requires committed clean exit, and rechecks account, placement,

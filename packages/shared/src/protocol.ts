@@ -328,7 +328,8 @@
 // 25.19: trusted host removal with exact offline runtime disposition and remote disablement.
 // 25.20: bounded host purge and explicit runtime lifetime presentation/update checks.
 // 26.0: exact host-approved remote-device maintenance authority and bounded update controls.
-export const PROTOCOL_VERSION = { major: 26, minor: 0 } as const;
+// 26.1: explicit profile-authorised read/discard of retained programme outcomes.
+export const PROTOCOL_VERSION = { major: 26, minor: 1 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

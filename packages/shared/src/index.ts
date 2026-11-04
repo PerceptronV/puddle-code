@@ -42,6 +42,7 @@ export * from './remote/service.js';
 
 export * from './remote/notifications.js';
 export * from './api/agents/puddlang.js';
+export * from './api/agents/puddlang-outcomes.js';
 export * from './api/agents/puddlang-mcp.js';
 
 export * from './api/notebooks/notebook-execution.js';

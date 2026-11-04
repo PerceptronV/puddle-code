@@ -19,6 +19,8 @@ function fixture() {
     status: vi.fn<PuddlangClient['status']>(),
     events: vi.fn<PuddlangClient['events']>(),
     cancel: vi.fn<PuddlangClient['cancel']>(),
+    outcomes: vi.fn<PuddlangClient['outcomes']>(),
+    disposeOutcome: vi.fn<PuddlangClient['disposeOutcome']>(),
   };
   const send = (method: string, id?: number, params?: unknown) =>
     input.write(JSON.stringify({ jsonrpc: '2.0', method, id, params }) + '\n');
@@ -66,5 +68,30 @@ describe('puddlang MCP stdio', () => {
     const server = serveMcp(f.client, f.input, f.output);
     f.input.end('x'.repeat(1024 * 1024 + 1));
     await expect(server).rejects.toThrow('1 MiB');
+  });
+  it('requires an explicit exact read/discard request and forwards inspection separately', async () => {
+    const f = fixture();
+    f.client.outcomes.mockResolvedValue({ outcomes: [], next_after: null });
+    const server = serveMcp(f.client, f.input, f.output);
+    const id = '00000000-0000-4000-8000-000000000001';
+    f.send('initialize', 1);
+    f.send('notifications/initialized');
+    f.send('tools/call', 2, { name: 'puddlang_outcomes', arguments: { id, after: 7 } });
+    f.send('tools/call', 3, {
+      name: 'puddlang_outcome',
+      arguments: { id, operation: 8, action: 'discard' },
+    });
+    f.send('tools/call', 4, {
+      name: 'puddlang_outcome',
+      arguments: { id, operation: 8, action: 'discard', fingerprint: 'a'.repeat(64) },
+    });
+    f.input.end();
+    await server;
+    expect(f.client.outcomes).toHaveBeenCalledWith(id, 7);
+    expect(f.client.disposeOutcome).toHaveBeenCalledExactlyOnceWith(id, 8, {
+      action: 'discard',
+      fingerprint: 'a'.repeat(64),
+    });
+    expect(f.replies.find((reply) => reply.id === 3)).toMatchObject({ result: { isError: true } });
   });
 });

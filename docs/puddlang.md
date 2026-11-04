@@ -21,7 +21,7 @@ public CLI installer once to add its launcher: older embedded installers may
 only install `puddle` or the former `puddlang` command. Subsequent upgrades manage
 both commands together.
 
-The host needs daemon protocol **24.0+ within major 24**, **Node 22.21.1+**, and
+The host needs daemon application protocol **26.x**, **Node 22.21.1+**, and
 the selected agent installed and logged in through Puddle. Bundled releases supply Node.
 Upgrade an older daemon with `puddle upgrade daemon [user@host]`. Start Puddle
 from a plain shell: `pudl` connects to an existing daemon and never bootstraps
@@ -199,13 +199,13 @@ are not replayed. Existing session recovery is independent. Supervised daemons
 can outlive clients; an SSH-attached fallback daemon still ends with its cockpit.
 Profile removal requires runs to finish.
 
-With the experimental independent-runtime backend, interactive and headless
-agents can outlive daemon replacement. Each ask records its exact runtime/turn
+From 0.4.0, independent runtimes are the standard backend. Interactive and headless
+agents with service lifetime can outlive daemon replacement. Each ask records its exact runtime/turn
 identity before dispatch; a lost response never resubmits the prompt. Daemon
 shutdown leaves accepted external turns running and retains their private outcomes,
 while the requesting programme remains interrupted. Explicit cancellation still
-targets its exact pending turn. This backend is opt-in; installed defaults and
-the upgrade experience retain their existing behaviour.
+targets its exact pending turn. Hosts with limited or unknown runtime lifetime
+refuse daemon replacement until continuity can be proved.
 
 Private turn retention is bounded per runtime. Recent outcomes already read by
 their authorised programme caller yield space to newer turns. Unread outcomes,
@@ -213,6 +213,31 @@ including turns completed after daemon replacement, remain protected. If unread
 results fill the store, new asks fail before sending a prompt. Reading an outcome
 does not guarantee delivery to the programme runner, and neither a lost response
 nor result reclamation restarts the programme.
+
+On application protocol 26.1+, local/SSH users can inspect a finished programme's
+retained outcomes and explicitly read or discard one exact outcome:
+
+```sh
+pudl outcomes <run-id> --profile personal
+pudl outcome <run-id> <operation-id> --read --fingerprint <inspected-fingerprint> --profile personal
+pudl outcome <run-id> <operation-id> --discard --fingerprint <inspected-fingerprint> --profile personal
+```
+
+Inspection returns at most 50 metadata records and `next_after` for the next
+`--after` page. It does not return reply text or release retention. Read and discard
+both mark the exact terminal outcome eligible for ordinary capacity reclamation,
+with one durable metadata-only audit event. Read returns the reply while retained;
+discard does not. Neither action stops an agent, resumes a programme, sends a prompt
+or changes the programme's status. Running programmes, running turns and unknown
+outcomes cannot be disposed of. There is no automatic expiry.
+
+The disposition commits before the response is delivered. A lost read reply may
+therefore be reclaimed before you receive it; inspection records the action, not
+proof of delivery. Repeating the same action and fingerprint returns its existing
+audit and, for read, the reply only if it is still retained. A reclaimed reply is
+reported as no longer retained and never recreated. Changing an accepted read to discard or
+discard to read is rejected. Outcome lists and disposition audit events never copy
+private reply text. These controls are unavailable through remote connector access.
 
 Programme-created independent runtimes have durable ownership records before
 dispatch. Cancellation fences pending spawns and stops those exact owners; it
@@ -246,7 +271,8 @@ for SSH. Authentication uses existing CLI host control; no pasted tokens.
 
 The server implements [MCP 2025-06-18 stdio](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)
 with `puddlang_context`, `puddlang_run`, `puddlang_status`, `puddlang_events`,
-`puddlang_cancel`. Run takes inline source, a caller-chosen UUID, optional input,
+`puddlang_cancel`, `puddlang_outcomes` and `puddlang_outcome`. The outcome tools
+require 26.1+ and the same explicit fingerprint/action as the CLI. Run takes inline source, a caller-chosen UUID, optional input,
 account defaults and limits, returning promptly. An agent can submit a reviewer
 programme and poll its result, or write a file and invoke the CLI. Source uses
 the same spawn/attach/ask API.

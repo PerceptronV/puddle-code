@@ -2,6 +2,10 @@ import {
   puddlangContextSchema,
   puddlangRunSchema,
   puddlangEventsSchema,
+  puddlangOutcomesSchema,
+  puddlangOutcomeResponseSchema,
+  supportsApplicationFeature,
+  type PuddlangOutcomeRequest,
   type PuddlangStart,
 } from '@puddle/shared';
 import { acquireAuthority, type ConnectionAuthority } from '../lib/auth/connection-authority.js';
@@ -9,6 +13,7 @@ import { DaemonClient } from '../lib/connection/daemon-client.js';
 import { LocalTransport } from '../lib/transport/local.js';
 import { SshTransport } from '../lib/transport/ssh.js';
 import { openTunnel, type Tunnel } from '../lib/transport/tunnel.js';
+import { verifyDaemonVersion } from '../lib/connection/handshake.js';
 
 /** A profile is selected once, on the execution host; no credentials enter programmes. */
 export class PuddlangClient {
@@ -16,6 +21,7 @@ export class PuddlangClient {
     private readonly port: () => number,
     private readonly authority: ConnectionAuthority,
     readonly profile: string,
+    private readonly protocol?: { major: number; minor: number },
   ) {}
 
   private async request(path: string, body?: unknown): Promise<unknown> {
@@ -56,6 +62,26 @@ export class PuddlangClient {
       await this.request(`/runs/${encodeURIComponent(id)}/cancel`, {}),
     );
   }
+  private requireOutcomes(): void {
+    if (!supportsApplicationFeature(this.protocol, { major: 26, minor: 1 }))
+      throw new Error(
+        'Programme outcome controls require daemon protocol 26.1 or newer within the current application major',
+      );
+  }
+  async outcomes(id: string, after?: number) {
+    this.requireOutcomes();
+    return puddlangOutcomesSchema.parse(
+      await this.request(
+        `/runs/${encodeURIComponent(id)}/outcomes${after === undefined ? '' : `?after=${after}`}`,
+      ),
+    );
+  }
+  async disposeOutcome(id: string, operation: number, request: PuddlangOutcomeRequest) {
+    this.requireOutcomes();
+    return puddlangOutcomeResponseSchema.parse(
+      await this.request(`/runs/${encodeURIComponent(id)}/outcomes/${operation}`, request),
+    );
+  }
 }
 
 export async function connectPuddlang(host?: string, selector?: string) {
@@ -73,11 +99,7 @@ export async function connectPuddlang(host?: string, selector?: string) {
     if (transport instanceof SshTransport) tunnel = await openTunnel(transport, authority.port);
     const port = () => tunnel?.localPort ?? authority!.port;
     const daemon = new DaemonClient(port(), authority);
-    const { protocol } = await daemon.version();
-    if (protocol.major !== 24)
-      throw new Error(
-        'This pudl version requires daemon protocol 24.0+ within major 24 for headless mode. Upgrade the daemon with puddle upgrade daemon.',
-      );
+    const { protocol } = verifyDaemonVersion(await daemon.version());
     const profiles = await daemon.profiles();
     const matches = selector
       ? profiles.filter((p) => p.id === selector || p.name === selector)
@@ -86,7 +108,7 @@ export async function connectPuddlang(host?: string, selector?: string) {
       throw new Error(
         `Select --profile on the execution host: ${profiles.map((p) => `${p.name} (${p.id})`).join(', ')}`,
       );
-    return { client: new PuddlangClient(port, authority, matches[0]!.id), close };
+    return { client: new PuddlangClient(port, authority, matches[0]!.id, protocol), close };
   } catch (error) {
     await close();
     throw error;

@@ -3,7 +3,13 @@ import { readFile, stat } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { parseArgs } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
-import { puddlangStartSchema, PUDDLANG_MAX_SOURCE } from '@puddle/shared';
+import {
+  puddlangStartSchema,
+  PUDDLANG_MAX_SOURCE,
+  puddlangOutcomeRequestSchema,
+  puddlangOutcomeOperationSchema,
+  PROTOCOL_VERSION,
+} from '@puddle/shared';
 import { connectPuddlang } from './puddlang/client.js';
 import { serveMcp } from './puddlang/mcp.js';
 
@@ -14,13 +20,17 @@ const help = `pudl — Puddle's Ultimate Domain Language (puddlang)
   pudl status <run-id>
   pudl logs <run-id> [--after sequence]
   pudl cancel <run-id>
+  pudl outcomes <run-id> [--after operation-id]
+  pudl outcome <run-id> <operation-id> --read|--discard --fingerprint fingerprint
   pudl mcp
 
 Connection: --host user@host --profile name-or-id
 Run options: --id UUID --account agent=label-or-id (repeatable)
              --max-turns 50 --max-agents 8 --timeout-ms 3600000
 
-Requires a running daemon (protocol 24.0+) and a supported agent on that host.
+Requires a running daemon with application protocol major ${PROTOCOL_VERSION.major} and a supported agent on that host.
+Outcome controls require protocol 26.1+. Read/discard explicitly releases retained
+outcomes for later reclamation; it never resumes the programme or replays a prompt.
 Claude Code, Codex, OpenCode and Gemini CLI support interactive and headless modes.
 Profiles/accounts/projects are selected on the execution host. Programs are
 trusted host code. Closing the CLI detaches; use cancel to stop a run.
@@ -41,6 +51,9 @@ async function main(): Promise<void> {
       'max-turns': { type: 'string' },
       'max-agents': { type: 'string' },
       'timeout-ms': { type: 'string' },
+      read: { type: 'boolean' },
+      discard: { type: 'boolean' },
+      fingerprint: { type: 'string' },
     },
   });
   if (values.help || !positionals.length) {
@@ -48,10 +61,29 @@ async function main(): Promise<void> {
     return;
   }
   const [command, argument] = positionals;
-  if (!['run', 'context', 'status', 'logs', 'cancel', 'mcp'].includes(command!))
+  if (
+    !['run', 'context', 'status', 'logs', 'cancel', 'mcp', 'outcomes', 'outcome'].includes(command!)
+  )
     throw new Error(help);
-  const needsArgument = ['run', 'status', 'logs', 'cancel'].includes(command!);
-  if (positionals.length !== (needsArgument ? 2 : 1)) throw new Error(help);
+  const needsArgument = ['run', 'status', 'logs', 'cancel', 'outcomes'].includes(command!);
+  if (positionals.length !== (command === 'outcome' ? 3 : needsArgument ? 2 : 1))
+    throw new Error(help);
+  if (command !== 'outcome' && (values.read || values.discard || values.fingerprint))
+    throw new Error(help);
+  const disposition =
+    command === 'outcome'
+      ? (() => {
+          if (Boolean(values.read) === Boolean(values.discard))
+            throw new Error('Choose exactly one of --read or --discard');
+          return {
+            operation: puddlangOutcomeOperationSchema.parse(Number(positionals[2])),
+            request: puddlangOutcomeRequestSchema.parse({
+              action: values.read ? 'read' : 'discard',
+              fingerprint: values.fingerprint,
+            }),
+          };
+        })()
+      : null;
   let submission;
   if (command === 'run') {
     if ((await stat(argument!)).size > PUDDLANG_MAX_SOURCE)
@@ -98,6 +130,18 @@ async function main(): Promise<void> {
     }
     if (command === 'cancel') {
       print(await client.cancel(argument!));
+      return;
+    }
+    if (command === 'outcomes') {
+      const after =
+        values.after === undefined
+          ? undefined
+          : puddlangOutcomeOperationSchema.parse(Number(values.after));
+      print(await client.outcomes(argument!, after));
+      return;
+    }
+    if (disposition) {
+      print(await client.disposeOutcome(argument!, disposition.operation, disposition.request));
       return;
     }
     if (command === 'logs') {

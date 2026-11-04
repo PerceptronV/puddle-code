@@ -155,7 +155,7 @@ it('queues previously ended owners when upgrading without claiming cleanup alrea
   const f = runtimeDatabase();
   f.runtimes.finish(f.binding.runtime_id, 'exited', () => {});
   f.db.exec(
-    'DROP TRIGGER runtime_service_cleanup_insert; DROP TRIGGER runtime_service_cleanup_end; DROP TABLE runtime_service_cleanup; PRAGMA user_version = 38',
+    'DROP TABLE puddlang_outcome_dispositions; DROP TRIGGER runtime_service_cleanup_insert; DROP TRIGGER runtime_service_cleanup_end; DROP TABLE runtime_service_cleanup; PRAGMA user_version = 38',
   );
   await f.reconciler.close();
   f.db.close();

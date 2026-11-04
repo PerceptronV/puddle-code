@@ -8,11 +8,14 @@ import {
 import type { Db } from '../db/db.js';
 import { ApiError } from '../http/errors.js';
 import { ProgrammeSpawnStore } from '../db/stores/programme-spawns.js';
+import { ProgrammeOutcomeStore } from './outcomes/store.js';
 
 export class PuddlangStore {
   readonly spawns: ProgrammeSpawnStore;
+  readonly outcomes: ProgrammeOutcomeStore;
   constructor(private readonly db: Db) {
     this.spawns = new ProgrammeSpawnStore(db);
+    this.outcomes = new ProgrammeOutcomeStore(db, (id, type, data) => this.event(id, type, data));
   }
   has(id: string): boolean {
     return Boolean(this.db.prepare('SELECT 1 FROM puddlang_runs WHERE id = ?').get(id));

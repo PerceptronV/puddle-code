@@ -5,10 +5,15 @@ import {
   puddlangContextSchema,
   puddlangRunSchema,
   puddlangEventsSchema,
+  puddlangOutcomesSchema,
+  puddlangOutcomeOperationSchema,
+  puddlangOutcomeRequestSchema,
+  puddlangOutcomeResponseSchema,
 } from '@puddle/shared';
 import type { PuddlangService } from '../../../puddlang/service.js';
 import { hexIdParam, parseBody } from '../../validate.js';
 import { ApiError } from '../../errors.js';
+import { requestAuthority } from '../../../security/middleware.js';
 
 /** Initially local/SSH only; remote profile middleware rejects this namespace. */
 export function puddlangRoutes(service: PuddlangService): Hono {
@@ -33,6 +38,34 @@ export function puddlangRoutes(service: PuddlangService): Hono {
       return c.json(
         puddlangEventsSchema.parse(
           service.store.events(hexIdParam(c, 'profile'), c.req.param('id'), after),
+        ),
+      );
+    })
+    .get('/:profile/runs/:id/outcomes', (c) => {
+      const raw = c.req.query('after');
+      const after = raw === undefined ? undefined : Number(raw);
+      if (after !== undefined && !puddlangOutcomeOperationSchema.safeParse(after).success)
+        throw ApiError.badRequest('invalid_cursor', 'after must be a safe integer operation id');
+      return c.json(
+        puddlangOutcomesSchema.parse(
+          service.store.outcomes.list(hexIdParam(c, 'profile'), c.req.param('id'), after),
+        ),
+      );
+    })
+    .post('/:profile/runs/:id/outcomes/:operation', async (c) => {
+      const operation = Number(c.req.param('operation'));
+      if (!puddlangOutcomeOperationSchema.safeParse(operation).success)
+        throw ApiError.badRequest('invalid_operation', 'operation must be a safe integer');
+      const input = await parseBody(c, puddlangOutcomeRequestSchema);
+      return c.json(
+        puddlangOutcomeResponseSchema.parse(
+          service.store.outcomes.dispose(
+            hexIdParam(c, 'profile'),
+            c.req.param('id'),
+            operation,
+            input,
+            requestAuthority(c),
+          ),
         ),
       );
     })
