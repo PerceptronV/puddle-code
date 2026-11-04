@@ -50,6 +50,13 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Ordinary daemon bootstrap now initialises an absent runtime default from the same
+  validated archive before selecting the daemon. This closes the fresh-install and
+  legacy daemon-only upgrade gap without overwriting an existing runtime pin or
+  changing the component set of a staged transaction. Cleanup retains a generation
+  referenced by either selector after interrupted publication. Historical live-agent
+  migration and the legacy cockpit upgrade offer remain separate release gates.
+
 - Host update, recovery, removal and runtime inspection now share fixed application
   feature floors with a separate current-major compatibility check. Regression
   coverage verifies the existing 25.x controls remain supported at a compatible
@@ -1577,6 +1584,64 @@ The initial release-tree retention policy keeps verified unreferenced generation
 for seven days. Unverified/legacy trees remain retained until ownership can be
 established. Collection reviews include the candidate set in their fingerprint;
 ageing into eligibility cannot silently enlarge an earlier accepted deletion plan.
+
+### Production release collection — pending for 0.4.0
+
+Collection remains required default functionality, with no user opt-in. The
+durable executor exists; production invocation and retirement of obsolete
+references are not delivered. Adding a startup call alone would miss ordinary
+updates: the replacement starts while the updater still owns execution and its
+operation is nonterminal, so the current collection guard must refuse that pass.
+
+Use one coalesced daemon maintenance pass after completed updates and on a slow
+host-wide cadence. Reuse the existing installation/update claims and
+`daemonUpdatePause`; keep the daemon's controller claim throughout, validating its
+exact identity through a narrow collection guard instead of acquiring a competing
+controller or minting another epoch. Acquire exclusion before pausing, skip busy
+or unresolved updates, and release the pause on every exit. Schedule outside
+`HostBackgroundTasks`: pausing upkeep from an admitted upkeep task would wait for
+itself. Never collect inside an executing updater, restart a runtime for cleanup,
+or make readiness/update completion depend on optional reclamation.
+
+Retire references separately from release deletion:
+
+- Runtime service cleanup proves registration removal, not provider-descendant
+  absence. Reuse launch/dispatch/owner claims and the durable retirement fence;
+  require positive descendant lifetime evidence or a recorded fence followed by
+  a different verified kernel boot. Keep unknown and older unfenced records pinned.
+  Record a host-only release-retirement receipt bound to the binding, helper and
+  supervisor identities. Preserve bindings, segments, terminal history and native
+  conversations; deleting a binding cascades into retained segments and is not a
+  substitute for retiring its executable reference.
+- Update jobs remain registered after their worker exits. Retire the original and
+  every recovery job under dispatch/execution exclusion, prove ended command
+  groups and service absence, then record exact retirement before releasing their
+  executable/checkpoint references. Preserve recovery evidence while any operation
+  can still consume it. Save terminal operation evidence before bounded history
+  eviction; an orphan job or a missing ledger entry is not retirement proof.
+- Keep current selectors, active operations, supported rollback targets and
+  restoration/purge evidence pinned. Historical records can retain release names
+  for audit, but only a validated retirement receipt may make those names cease
+  to be executable references. Unknown evidence always retains the tree.
+
+Ordinary bootstrap currently omits the stage receipt even when its archive checksum
+was verified. Reuse the existing receipt writer for new verified bootstrap
+generations before publication; otherwise those initial trees remain unverified
+forever. Do not manufacture verification for existing legacy trees.
+
+Keep the existing seven-day retention, 32-generation plans and 512-object deletion
+budget, and add a smaller maintenance deadline plus aggregate metadata byte/reference
+budgets. The current 4,096-entry directory limits and 8 MiB checkpoint limit are
+per record/directory, not an aggregate scan budget. Resume only the recorded batch
+on later passes; do not loop to exhaustion or expand it when more trees become old.
+
+Acceptance must cover a live agent's unchanged PID/shell state, contention with
+install/update/recovery, pause cancellation and shutdown without leaked claims,
+interrupted quarantine resumed by the next scheduled pass, and bounded work at
+1/10/50 runtimes. Retirement tests must preserve replay/native conversation data,
+retain same-boot orphans and unknown evidence, fence delayed services, survive lost
+writes and history eviction, and prove reclamation only after the final reference
+has retired. These remain release gates, not completed acceptance evidence.
 
 ### What each action means
 

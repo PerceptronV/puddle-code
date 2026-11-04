@@ -190,7 +190,9 @@ if [ -e "$HOME_DIR/installation/removal/services.json" ] || [ -L "$HOME_DIR/inst
   die "resolve the recorded host removal before installing or updating this host"
 fi
 cleanup() {
-  if [ -n "$STAGE" ] && [ "$(readlink "$BIN_DIR/$SELECTOR" 2>/dev/null || true)" != "versions/$(basename "$STAGE")" ]; then
+  if [ -n "$STAGE" ] &&
+     [ "$(readlink "$BIN_DIR/current" 2>/dev/null || true)" != "versions/$(basename "$STAGE")" ] &&
+     [ "$(readlink "$BIN_DIR/runtime-current" 2>/dev/null || true)" != "versions/$(basename "$STAGE")" ]; then
     rm -rf "$STAGE"
   fi
   if [ -n "$WORK" ]; then rm -rf "$WORK"; fi
@@ -272,7 +274,7 @@ fi
 
 # --- unpack + symlink flip ---------------------------------------------------
 smoke() {
-  "$1/bin/node" --input-type=commonjs - "$1" "$EXECUTABLE" "$VERSION" "$STAGE_ONLY" "$ACTIVATE" <<'NODE'
+  "$1/bin/node" --input-type=commonjs - "$1" "${2:-$EXECUTABLE}" "$VERSION" "$STAGE_ONLY" "$ACTIVATE" <<'NODE'
 const fs = require('node:fs'), path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const [root, executable, version, stageOnly, activate] = process.argv.slice(2);
@@ -450,33 +452,58 @@ NODE
   fi
   rm -f "$SMOKE_LOG"
 fi
+# Fresh installs and legacy upgrades need the mandatory runtime default before
+# starting the daemon. Existing pins remain independent; staged transactions
+# select only their explicitly reviewed components.
+INITIAL_RUNTIME=0
+if [ "$COMPONENT" = daemon ] && [ -z "$ACTIVATE" ] &&
+   [ ! -e "$BIN_DIR/runtime-current" ] && [ ! -L "$BIN_DIR/runtime-current" ] &&
+   { [ -e "$DEST/HOST_CAPABILITIES.json" ] || [ -L "$DEST/HOST_CAPABILITIES.json" ] ||
+     [ -e "$DEST/RUNTIME_PROTOCOL" ] || [ -L "$DEST/RUNTIME_PROTOCOL" ] ||
+     [ -e "$DEST/puddler" ] || [ -L "$DEST/puddler" ]; }; then
+  if ! smoke "$DEST" puddler >/dev/null 2>"$SMOKE_LOG"; then
+    die "initial runtime fails its own --version smoke test (details: $SMOKE_LOG)"
+  fi
+  rm -f "$SMOKE_LOG"
+  INITIAL_RUNTIME=1
+fi
 # Use the archive's Node as the standalone CLI installer does: rename replaces
 # the symlink itself atomically on both platforms, without following it as mv
 # can. Publish the wrapper first; an unsuccessful activation retains current.
-"$DEST/bin/node" --input-type=commonjs - "$BIN_DIR" "$DEST" "$SELECTOR" "$EXECUTABLE" <<'NODE'
+"$DEST/bin/node" --input-type=commonjs - "$BIN_DIR" "$DEST" "$SELECTOR" "$EXECUTABLE" "$INITIAL_RUNTIME" <<'NODE'
 const fs = require('node:fs'), path = require('node:path');
-const [root, destination, selector, executable] = process.argv.slice(2);
-const current = path.join(root, selector);
-try {
-  if (!fs.lstatSync(current).isSymbolicLink()) throw Error(selector + ' must be a symlink');
-} catch (error) { if (error.code !== 'ENOENT') throw error; }
-const launcher = path.join(root, executable);
-const quote = (s) => "'" + s.replaceAll("'", "'\\''") + "'";
-// The archive launcher resolves its own directory; retain an exec wrapper.
-const wrapper = '#!/bin/sh\nexec ' + quote(path.join(current, executable)) + ' "$@"\n';
-const suffix = '.new-' + process.pid;
-try {
-  const fd = fs.openSync(launcher + suffix, 'wx', 0o755);
-  try { fs.writeFileSync(fd, wrapper); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
-  fs.symlinkSync(path.relative(root, destination), current + suffix);
-  fs.renameSync(launcher + suffix, launcher);
-  fs.renameSync(current + suffix, current);
+const [root, destination, selector, executable, initialRuntime] = process.argv.slice(2);
+const syncDirectory = () => {
   const directory = fs.openSync(root, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW);
   try { fs.fsyncSync(directory); } finally { fs.closeSync(directory); }
-} finally {
-  fs.rmSync(launcher + suffix, { force: true });
-  fs.rmSync(current + suffix, { force: true });
+};
+function publish(selector, executable, initial = false) {
+  const current = path.join(root, selector);
+  try {
+    if (initial) { fs.lstatSync(current); throw Error('Initial runtime selection changed'); }
+    if (!fs.lstatSync(current).isSymbolicLink()) throw Error(selector + ' must be a symlink');
+  } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  const launcher = path.join(root, executable);
+  const quote = (s) => "'" + s.replaceAll("'", "'\\''") + "'";
+  // The archive launcher resolves its own directory; retain an exec wrapper.
+  const wrapper = '#!/bin/sh\nexec ' + quote(path.join(current, executable)) + ' "$@"\n';
+  const suffix = '.new-' + process.pid;
+  try {
+    const fd = fs.openSync(launcher + suffix, 'wx', 0o755);
+    try { fs.writeFileSync(fd, wrapper); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+    fs.symlinkSync(path.relative(root, destination), current + suffix);
+    fs.renameSync(launcher + suffix, launcher);
+    fs.renameSync(current + suffix, current);
+    syncDirectory();
+  } finally {
+    fs.rmSync(launcher + suffix, { force: true });
+    fs.rmSync(current + suffix, { force: true });
+  }
 }
+// Publish and sync this first: an interrupted bootstrap must not start the new
+// daemon with no runtime default. Cleanup retains either selected generation.
+if (initialRuntime === '1') publish('runtime-current', 'puddler', true);
+publish(selector, executable);
 NODE
 STAGE="" # Published generations are retained until reference-aware collection.
 

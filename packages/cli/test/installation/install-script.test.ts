@@ -20,6 +20,117 @@ import {
 import { hostInstallationFixture as fixture } from '../helpers/host-installation.js';
 
 describe('install.sh tree validation', () => {
+  it('initialises the mandatory runtime default during a daemon-only first install', () => {
+    const f = fixture();
+    f.install();
+    expect(f.selected('runtime')).toBe(f.selected());
+    expect(
+      execFileSync(join(f.puddleHome, 'bin/puddler'), ['--version'], {
+        env: f.env,
+        encoding: 'utf8',
+      }),
+    ).toContain('puddler 1.2.3 (runtime protocol 1.0)');
+  });
+
+  it('upgrades a legacy daemon-only layout with a first runtime default and retains its old tree', () => {
+    const f = fixture();
+    const legacy = join(f.puddleHome, 'bin/versions/0.3.14');
+    mkdirSync(legacy, { recursive: true });
+    writeFileSync(join(legacy, 'puddled'), '#!/bin/sh\nprintf "puddled 0.3.14\\n"\n', {
+      mode: 0o755,
+    });
+    symlinkSync('versions/0.3.14', join(f.puddleHome, 'bin/current'));
+    expect(existsSync(join(f.puddleHome, 'bin/runtime-current'))).toBe(false);
+    f.install();
+    expect(f.selected()).not.toBe(legacy);
+    expect(f.selected('runtime')).toBe(f.selected());
+    expect(existsSync(join(legacy, 'puddled'))).toBe(true);
+    expect(
+      execFileSync(join(f.puddleHome, 'bin/puddler'), ['--version'], {
+        env: f.env,
+        encoding: 'utf8',
+      }),
+    ).toContain('runtime protocol 1.0');
+  });
+
+  it('preserves an independently selected runtime when repairing the daemon generation', () => {
+    const f = fixture();
+    f.install();
+    const runtime = f.selected('runtime');
+    const wrapper = readFileSync(join(f.puddleHome, 'bin/puddler'), 'utf8');
+    f.install('--force');
+    expect(f.selected()).not.toBe(runtime);
+    expect(f.selected('runtime')).toBe(runtime);
+    expect(readFileSync(join(f.puddleHome, 'bin/puddler'), 'utf8')).toBe(wrapper);
+    expect(existsSync(join(runtime, 'puddler'))).toBe(true);
+  });
+
+  it.each(['missing', 'broken'] as const)(
+    'rejects a %s initial runtime before changing the daemon selector',
+    (kind) => {
+      const f = fixture();
+      f.install();
+      const daemon = f.selected();
+      rmSync(join(f.puddleHome, 'bin/runtime-current'));
+      rmSync(join(f.puddleHome, 'bin/puddler'));
+      if (kind === 'missing') rmSync(join(f.staged, 'puddler'));
+      else writeFileSync(join(f.staged, 'puddler'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+      f.pack();
+      expect(() => f.install('--force')).toThrow('initial runtime fails');
+      expect(f.selected()).toBe(daemon);
+      expect(existsSync(join(f.puddleHome, 'bin/runtime-current'))).toBe(false);
+      expect(existsSync(join(daemon, 'puddler'))).toBe(true);
+    },
+  );
+
+  it('retains and reuses the runtime-selected generation when daemon selector publication fails', () => {
+    const f = fixture();
+    const current = join(f.puddleHome, 'bin/current');
+    mkdirSync(current, { recursive: true });
+    writeFileSync(join(current, 'do-not-overwrite'), 'retained');
+    const data = join(f.puddleHome, 'fixture-data');
+    writeFileSync(data, 'untouched user data');
+    expect(() => f.install()).toThrow('current must be a symlink');
+    const runtime = f.selected('runtime');
+    expect(existsSync(join(runtime, 'puddler'))).toBe(true);
+    expect(readFileSync(join(current, 'do-not-overwrite'), 'utf8')).toBe('retained');
+    expect(
+      execFileSync(join(f.puddleHome, 'bin/puddler'), ['--version'], {
+        env: f.env,
+        encoding: 'utf8',
+      }),
+    ).toContain('runtime protocol 1.0');
+    rmSync(current, { recursive: true });
+    f.install();
+    expect(f.selected()).toBe(runtime);
+    expect(f.selected('runtime')).toBe(runtime);
+    expect(f.generations()).toHaveLength(1);
+    expect(readFileSync(data, 'utf8')).toBe('untouched user data');
+  });
+
+  it('rejects a modern archive with capabilities but no initial runtime files', () => {
+    const f = fixture();
+    rmSync(join(f.staged, 'puddler'));
+    rmSync(join(f.staged, 'RUNTIME_PROTOCOL'));
+    writeFileSync(join(f.staged, 'HOST_CAPABILITIES.json'), '{}\n');
+    f.pack();
+    expect(() => f.install()).toThrow('initial runtime fails');
+    expect(existsSync(join(f.puddleHome, 'bin/current'))).toBe(false);
+    expect(existsSync(join(f.puddleHome, 'bin/runtime-current'))).toBe(false);
+  });
+
+  it('retains bootstrap support for historical daemon archives without runtime metadata', () => {
+    const f = fixture();
+    for (const name of ['puddler', 'RUNTIME_PROTOCOL', 'HOST_CAPABILITIES.json']) {
+      rmSync(join(f.staged, name), { force: true });
+    }
+    f.pack();
+    f.install();
+    expect(existsSync(join(f.selected(), 'puddled'))).toBe(true);
+    expect(existsSync(join(f.puddleHome, 'bin/runtime-current'))).toBe(false);
+    expect(existsSync(join(f.puddleHome, 'bin/puddler'))).toBe(false);
+  });
+
   it('creates a private home with an ordinary caller umask', () => {
     const { puddleHome, install } = fixture();
     install();
@@ -223,7 +334,8 @@ describe('install.sh tree validation', () => {
     writeFileSync(join(current, 'keep'), 'existing files');
     expect(f.install).toThrow('current must be a symlink');
     expect(readFileSync(join(current, 'keep'), 'utf8')).toBe('existing files');
-    expect(f.generations()).toEqual([]);
+    expect(f.generations()).toHaveLength(1);
+    expect(existsSync(join(f.selected('runtime'), 'puddler'))).toBe(true);
   });
 
   it('reads legacy selectors without starting a daemon and rejects corrupt generation metadata', async () => {

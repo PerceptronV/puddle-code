@@ -595,6 +595,13 @@ an owner. Release CI verifies the packaged executable with an isolated shell and
 controller replacement. The embedded bootstrap accepts an explicit daemon or runtime
 component, independently selecting `bin/current` or `bin/runtime-current` through
 the same immutable staging path. Both selectors can share a verified tree. Runtime
+bootstrap is mandatory for a fresh daemon install or a legacy daemon-only upgrade:
+when the archive includes runtime support and no runtime selector exists, the
+installer validates and durably publishes its first runtime default before selecting
+the daemon. Existing runtime pins remain independent, including during daemon
+repair. Staging and exact activation never add an unreviewed component. An interrupted
+bootstrap retains any generation already referenced by either selector.
+Runtime
 installation validates its exact version/protocol report with bounded smoke output
 and time, changes no supervisor registration and starts/restarts no service.
 `puddle --version` includes the selected runtime build and its private protocol.

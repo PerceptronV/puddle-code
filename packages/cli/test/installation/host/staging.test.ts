@@ -66,6 +66,8 @@ it.each(['daemon', 'runtime'] as const)(
     const f = fixture();
     f.install();
     const previous = f.selected();
+    const previousRuntime = f.selected('runtime');
+    const runtimeWrapper = readFileSync(join(f.puddleHome, 'bin/puddler'), 'utf8');
     const supervisor = readFileSync(join(f.puddleHome, 'supervisor'), 'utf8');
     const receipt = await stageHostComponent(f.transport, component, f.options);
     expect(receipt.record).toMatchObject({
@@ -76,7 +78,8 @@ it.each(['daemon', 'runtime'] as const)(
     });
     expect(f.selected()).toBe(previous);
     expect(readFileSync(join(f.puddleHome, 'supervisor'), 'utf8')).toBe(supervisor);
-    expect(existsSync(join(f.puddleHome, 'bin', 'puddler'))).toBe(false);
+    expect(f.selected('runtime')).toBe(previousRuntime);
+    expect(readFileSync(join(f.puddleHome, 'bin/puddler'), 'utf8')).toBe(runtimeWrapper);
     const directory = join(f.puddleHome, 'bin', 'versions', receipt.record.generation);
     expect(directory).not.toBe(previous);
     expect(existsSync(join(directory, '.puddle-stage.json'))).toBe(true);
@@ -95,6 +98,7 @@ it.each(['receipt', 'dependency', 'mode', 'symlink', 'extra', 'missing'])(
     const f = fixture();
     f.install();
     const previous = f.selected();
+    const previousRuntime = f.selected('runtime');
     const receipt = await stageHostComponent(f.transport, 'runtime', f.options);
     const directory = join(f.puddleHome, 'bin', 'versions', receipt.record.generation);
     const dependency = join(directory, 'daemon', 'node_modules', 'native.node');
@@ -110,7 +114,7 @@ it.each(['receipt', 'dependency', 'mode', 'symlink', 'extra', 'missing'])(
     await expect(activateHostStage(f.transport, receipt)).rejects.toThrow('installer failed');
     expect(f.selected()).toBe(previous);
     expect(existsSync(directory)).toBe(true);
-    expect(existsSync(join(f.puddleHome, 'bin', 'runtime-current'))).toBe(false);
+    expect(f.selected('runtime')).toBe(previousRuntime);
     expect(statSync(join(f.puddleHome, 'bin', '.install-lock')).isFile()).toBe(true);
   },
 );

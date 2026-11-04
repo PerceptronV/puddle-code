@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Initialise the mandatory runtime default during a fresh daemon install or legacy daemon-only upgrade. Validate the runtime before selecting the daemon, retain independently pinned runtime versions on later upgrades and preserve selected generations after interrupted bootstrap.
+
 - Preserve host update, recovery, removal and runtime inspection controls when a compatible application protocol advances to a new major. Keep unknown and incompatible hosts refused independently of feature availability.
 
 - Integrate explicit local/SSH data purge with separate runtime-stop consent, a kernel reboot barrier for unresolved provider descendants, fresh dirty/unpushed worktree review and bounded resumable deletion. Preserve permanent locks, pinned releases and private recovery records; fence installation until purge completion, and stop automatic continuation after uncertain replies.
