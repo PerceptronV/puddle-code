@@ -1,9 +1,13 @@
 import { setTimeout as delay } from 'node:timers/promises';
-import type { RuntimePlacement } from '@puddle/shared';
+import { runtimeRequestSchema, type RuntimePlacement } from '@puddle/shared';
 import type { RuntimeStore } from '../../db/stores/runtimes.js';
 import { ApiError } from '../../http/errors.js';
 import { ProgrammeTurnStore, type ProgrammeOperation } from '../../puddlang/runtime-turn-store.js';
-import { RuntimeConnectionLost, type RuntimeClient } from '../transport/client.js';
+import {
+  RuntimeConnectionLost,
+  RuntimeRequestRejected,
+  type RuntimeClient,
+} from '../transport/client.js';
 import type { RuntimeConnections } from '../transport/connections.js';
 import type { RuntimeReconciler } from './reconcile.js';
 
@@ -79,7 +83,9 @@ export class RuntimeProgrammeTurns {
       throw ApiError.conflict('runtime_busy', 'The runtime already has a pending programme turn');
     this.pending.add(target.id);
     let turn: number | undefined;
+    let expectedRef: string | null = null;
     let sent = false;
+    let rejected = false;
     try {
       this.operations.check(scope, target.id);
       const inspected = await target.client.request({ t: 'inspect' });
@@ -94,7 +100,20 @@ export class RuntimeProgrammeTurns {
         throw new Error('Runtime changed before programme dispatch');
       if (inspected.t !== 'state' || !inspected.state.agent?.control_ready)
         throw ApiError.conflict('runtime_busy', 'Agent is not ready for an automated turn');
-      const expectedRef = inspected.state.agent.agent_session_ref;
+      expectedRef = inspected.state.agent.agent_session_ref;
+      // Validate provider input before durable capacity admission. These local
+      // identity placeholders are never sent or persisted; the real ordered
+      // turn/command identities are allocated below and by RuntimeClient.
+      runtimeRequestSchema.parse({
+        t: 'start-turn',
+        id: target.id,
+        sequence: 1,
+        turn: 1,
+        placement: target.placement,
+        expected_ref: expectedRef,
+        prompt,
+        ...(schema ? { output_schema: schema } : {}),
+      });
       turn = this.operations.reserve(
         scope,
         target.id,
@@ -117,6 +136,12 @@ export class RuntimeProgrammeTurns {
           ...(schema ? { output_schema: schema } : {}),
         });
       } catch (error) {
+        // These correlated errors occur before RuntimeTurns admits provider work.
+        // Generic failures and duplicate identities can follow accepted work.
+        rejected =
+          error instanceof RuntimeRequestRejected &&
+          error.request === 'start-turn' &&
+          ['busy', 'fenced', 'stale_placement', 'invalid_request'].includes(error.code);
         if (!(error instanceof RuntimeConnectionLost)) throw error;
         uncertain = true; // Observe this identity; never resend its prompt.
       }
@@ -141,7 +166,14 @@ export class RuntimeProgrammeTurns {
         await delay(100, undefined, { signal });
       }
     } finally {
-      if (sent && turn !== undefined && signal.aborted && !preserveOnAbort()) {
+      if (turn !== undefined && (!sent || rejected)) {
+        try {
+          this.operations.releaseUnused(scope, target.id, target.placement, expectedRef, turn);
+        } catch {
+          // Lost storage access retains conservative debt; never replay the request.
+        }
+      }
+      if (sent && !rejected && turn !== undefined && signal.aborted && !preserveOnAbort()) {
         // Cancellation addresses only the admitted identity and original placement.
         // A stale/lost cancellation is never retargeted or retried.
         try {

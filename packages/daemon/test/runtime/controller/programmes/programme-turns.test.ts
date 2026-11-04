@@ -7,7 +7,10 @@ import { PuddlangStore } from '../../../../src/puddlang/store.js';
 import { ProgrammeTurnStore } from '../../../../src/puddlang/runtime-turn-store.js';
 import { RuntimeProgrammeTurns } from '../../../../src/runtime/controller/programme-turns.js';
 import { RuntimeConnections } from '../../../../src/runtime/transport/connections.js';
-import { RuntimeConnectionLost } from '../../../../src/runtime/transport/client.js';
+import {
+  RuntimeConnectionLost,
+  RuntimeRequestRejected,
+} from '../../../../src/runtime/transport/client.js';
 import { readRuntimeJson } from '../../../../src/runtime/ownership/storage.js';
 import { runtimeDatabase } from '../../../helpers/runtime-database.js';
 import { launchOwner, waitForOwner } from '../../../helpers/runtime-fixture.js';
@@ -26,12 +29,8 @@ async function fixture() {
   const input = puddlangStartSchema.parse({ id: randomUUID(), source: 'export default null;' });
   runs.create(f.profile.id, input);
   const scope = { runId: input.id, operationId: 1, profileId: f.profile.id };
-  const turns = new RuntimeProgrammeTurns(
-    f.runtimes,
-    connections,
-    f.reconciler,
-    new ProgrammeTurnStore(f.db),
-  );
+  const operations = new ProgrammeTurnStore(f.db);
+  const turns = new RuntimeProgrammeTurns(f.runtimes, connections, f.reconciler, operations);
   const client = connections.get(f.binding.runtime_id)!;
   return {
     ...f,
@@ -40,6 +39,7 @@ async function fixture() {
     runs,
     scope,
     turns,
+    operations,
     async close() {
       await f.reconciler.close();
       await connections.close();
@@ -78,6 +78,128 @@ it('records turn identity before dispatch, recovers a lost acknowledgement and r
     await f.close();
   }
 });
+
+it('releases repeated correlated pre-admission rejections without reusing operation identities', async () => {
+  const f = await fixture();
+  try {
+    const request = f.client.request.bind(f.client);
+    const changed = vi
+      .spyOn(f.client, 'request')
+      .mockImplementation((value) =>
+        request(
+          value.t === 'start-turn' ? { ...value, expected_ref: 'changed-before-admission' } : value,
+        ),
+      );
+    for (let operationId = 1; operationId <= 20; operationId++) {
+      await expect(
+        f.turns.ask(
+          f.binding.runtime_id,
+          { ...f.scope, operationId },
+          'refuse',
+          new AbortController().signal,
+        ),
+      ).rejects.toBeInstanceOf(RuntimeRequestRejected);
+      expect(f.db.prepare('SELECT turns, bytes FROM host_result_usage').get()).toEqual({
+        turns: 0,
+        bytes: 0,
+      });
+    }
+    expect(f.db.prepare('SELECT COUNT(*) AS n FROM puddlang_runtime_turns').get()).toEqual({
+      n: 20,
+    });
+    expect(existsSync(join(f.home, `${f.session.id}.turns.json`))).toBe(false);
+    changed.mockRestore();
+    await expect(
+      f.turns.ask(
+        f.binding.runtime_id,
+        { ...f.scope, operationId: 21 },
+        'first accepted',
+        new AbortController().signal,
+      ),
+    ).resolves.toBe('reply:1:first accepted');
+  } finally {
+    await f.close();
+  }
+});
+
+it('releases a proven undispatched reservation even after its programme is cancelled', async () => {
+  const f = await fixture();
+  try {
+    const reserve = f.operations.reserve.bind(f.operations);
+    vi.spyOn(f.operations, 'reserve').mockImplementation((...args) => {
+      const turn = reserve(...args);
+      f.runs.finish(f.scope.runId, 'cancelled');
+      return turn;
+    });
+    await expect(
+      f.turns.ask(f.binding.runtime_id, f.scope, 'not sent', new AbortController().signal),
+    ).rejects.toMatchObject({ code: 'profile_scope' });
+    expect(f.db.prepare('SELECT turns, bytes FROM host_result_usage').get()).toEqual({
+      turns: 0,
+      bytes: 0,
+    });
+    expect(f.db.prepare('SELECT COUNT(*) AS n FROM puddlang_runtime_turns').get()).toEqual({
+      n: 1,
+    });
+    expect(existsSync(join(f.home, `${f.session.id}.turns.json`))).toBe(false);
+  } finally {
+    await f.close();
+  }
+});
+
+it('rejects unsupported provider input before recording reservation or operation identity', async () => {
+  const f = await fixture();
+  try {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const schema =
+        attempt % 2 ? { ['x'.repeat(257)]: 'oversized key' } : { value: 'x'.repeat(64 * 1024) };
+      await expect(
+        f.turns.ask(
+          f.binding.runtime_id,
+          f.scope,
+          'invalid schema',
+          new AbortController().signal,
+          schema,
+        ),
+      ).rejects.toThrow();
+    }
+    expect(f.db.prepare('SELECT turns, bytes FROM host_result_usage').get()).toEqual({
+      turns: 0,
+      bytes: 0,
+    });
+    expect(f.db.prepare('SELECT * FROM puddlang_runtime_turns').all()).toEqual([]);
+    await expect(
+      f.turns.ask(f.binding.runtime_id, f.scope, 'valid', new AbortController().signal),
+    ).resolves.toBe('reply:1:valid');
+  } finally {
+    await f.close();
+  }
+});
+
+it.each(['generic', 'failed', 'duplicate_request'] as const)(
+  'retains uncertain reservations after a %s error',
+  async (kind) => {
+    const f = await fixture();
+    try {
+      const request = f.client.request.bind(f.client);
+      vi.spyOn(f.client, 'request').mockImplementation((value) =>
+        value.t === 'start-turn'
+          ? Promise.reject(
+              kind === 'generic'
+                ? Object.assign(new Error('unknown'), { code: 'busy' })
+                : new RuntimeRequestRejected(kind, 'unknown', 'start-turn'),
+            )
+          : request(value),
+      );
+      await expect(
+        f.turns.ask(f.binding.runtime_id, f.scope, 'uncertain', new AbortController().signal),
+      ).rejects.toThrow('unknown');
+      expect(f.db.prepare('SELECT turns FROM host_result_usage').get()).toEqual({ turns: 1 });
+    } finally {
+      await f.close();
+    }
+  },
+);
 
 it('rejects a full unread result store before dispatching another provider prompt', async () => {
   const f = await fixture();

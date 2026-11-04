@@ -32,6 +32,10 @@ interface Dependencies {
   runtimes: Runtimes;
   pause(timeoutMs?: number): Promise<{ release(): void }>;
   controller(): Pick<RuntimeControllerRecord, 'id' | 'epoch'> | null;
+  /** One bounded committed result-reclamation batch; true requests another slow pass. */
+  reclaimResults?(): boolean;
+  /** Reinspect already-ended owners using their original final journal and retirement claims. */
+  retireRuntimeResults?(id: string): boolean;
   run?: CompilationCommandRunner;
   onError?(error: unknown): void;
   /** Isolated tests supply kernel observations; production always reads the kernel. */
@@ -135,6 +139,8 @@ export class ReleaseCollectionMaintenance {
         guard,
         () => !this.closed,
         async (requireCurrent) => {
+          requireCurrent();
+          if (this.deps.reclaimResults?.()) this.requested = true;
           let rows = this.deps.runtimes.releaseReferences(
             this.runtimeAfter,
             RELEASE_COLLECTION_MAINTENANCE.retirements,
@@ -150,6 +156,11 @@ export class ReleaseCollectionMaintenance {
             requireCurrent();
             this.runtimeAfter = row.runtime_id;
             budget.entry();
+            try {
+              if (this.deps.retireRuntimeResults?.(row.runtime_id)) this.requested = true;
+            } catch (error) {
+              this.deps.onError?.(error);
+            }
             if (!boot) continue;
             try {
               await retireRuntimeRelease(

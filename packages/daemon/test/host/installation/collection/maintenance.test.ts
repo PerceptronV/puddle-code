@@ -22,7 +22,10 @@ afterEach(async () => {
   for (const close of cleanups.splice(0).reverse()) await close();
   vi.useRealTimers();
 });
-function fixture(pauseOverride?: () => Promise<{ release(): void }>) {
+function fixture(
+  pauseOverride?: () => Promise<{ release(): void }>,
+  reclaimResults?: () => boolean,
+) {
   const f = removalInstallationFixture();
   f.guard.release();
   const controller = acquireRuntimeController(f.home);
@@ -39,6 +42,7 @@ function fixture(pauseOverride?: () => Promise<{ release(): void }>) {
     home: f.home,
     runtimes: { releaseReferences: () => [], get: () => null },
     pause,
+    reclaimResults,
     controller: () => ({ id: controller.record.id, epoch: controller.record.epoch }),
     boot: async () => randomUUID(),
     run: async () => {
@@ -63,6 +67,27 @@ it('reclaims one bounded batch without advancing the live controller or touching
   expect(() => acquireHostClaim(f.home, 'daemon-controller')).toThrow();
   acquireHostClaim(f.home, 'host-update-coordinator').release();
   acquireHostClaim(f.home, 'host-update-execution').release();
+});
+
+it('commits result upkeep only under the existing pause/exclusion and coalesces further bounded work', async () => {
+  const reclaim = vi.fn(() => {
+    expect(f.pause).toHaveBeenCalled();
+    expect(() => acquireHostClaim(f.home, 'host-update-coordinator')).toThrow();
+    return true;
+  });
+  const f = fixture(undefined, reclaim);
+  const claim = acquireHostClaim(f.home, 'host-update-coordinator');
+  await f.collector.flush();
+  expect(reclaim).not.toHaveBeenCalled();
+  claim.release();
+  vi.useFakeTimers();
+  await f.collector.flush();
+  expect(reclaim).toHaveBeenCalledOnce();
+  const flush = vi.spyOn(f.collector, 'flush').mockResolvedValue();
+  await vi.advanceTimersByTimeAsync(RELEASE_COLLECTION_MAINTENANCE.minimumMs - 1);
+  expect(flush).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(1);
+  expect(flush).toHaveBeenCalledOnce();
 });
 
 it.each(['host-update-coordinator', 'host-update-execution'])(

@@ -689,6 +689,8 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       runtimes,
       pause: pauseDaemon,
       controller: () => runtimeConnections.controllerIdentity(),
+      reclaimResults: () => runtimeReconciler.observations.reclaimResults(),
+      retireRuntimeResults: (id) => runtimeReconciler.retireResultReservations(id),
     });
     failedStartup.push(() => releaseCollection!.close());
 

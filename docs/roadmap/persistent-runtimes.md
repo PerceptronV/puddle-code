@@ -68,6 +68,19 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Migration 041 adds transactional host-wide programme-result accounting:
+  8,192 retained/reserved outcomes and 256 MiB of charged JSON/reservations,
+  alongside the existing per-owner limits. Pending turns reserve their worst-case
+  result before dispatch. Only a confirmed pre-dispatch refusal or complete fenced
+  final journal releases absent outcomes; lost replies remain charged. Consumed
+  terminal outcomes can be reclaimed in bounded, separately committed maintenance
+  passes, including migration debt too large for one admission attempt. Exact
+  mappings, watermarks and disposition audit remain. All 65 focused checks,
+  source/test TypeScript, lint and formatting passed; independent review found no
+  blockers. The broad run before the final liveness fixes had 3,181 passes and two
+  outdated fixtures, both subsequently corrected and verified. This ledger measures
+  retained result charges, not SQLite pages/WAL, filesystem history or native stores.
+
 - A reusable per-owner filesystem inventory now traverses incrementally with
   bounded entries, names, directories and cooperative work deadlines. It classifies
   managed history, screens, metadata, protected helpers and temporary files without

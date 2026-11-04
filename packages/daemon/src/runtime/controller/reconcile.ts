@@ -351,6 +351,48 @@ export class RuntimeReconciler extends EventEmitter {
     return true;
   }
 
+  /** Bounded host maintenance may revisit old ended bindings without replaying their effects. */
+  retireResultReservations(id: string): boolean {
+    if (this.closed) return false;
+    const binding = this.deps.runtimes.get(id);
+    if (!binding || !['exited', 'failed'].includes(binding.state)) return false;
+    if (
+      !this.deps.db
+        .prepare(
+          `SELECT 1 FROM runtime_result_usage u JOIN runtime_result_charges c USING(runtime_id)
+      WHERE u.runtime_id = ? AND u.retired = 0
+      AND NOT EXISTS (SELECT 1 FROM runtime_turns t WHERE t.runtime_id = c.runtime_id AND t.turn = c.turn) LIMIT 1`,
+        )
+        .get(id)
+    )
+      return false;
+    retireMissingRuntime(this.deps.home, runtimeBindingIdentity(binding), (state, journal) => {
+      this.deps.db.transaction(() => {
+        const current = this.deps.runtimes.get(id);
+        if (
+          !current ||
+          !state ||
+          !journal ||
+          !['exited', 'failed'].includes(current.state) ||
+          state.build !== current.build ||
+          state.protocol.major !== current.protocol_major ||
+          state.protocol.minor !== current.protocol_minor ||
+          state.state !== current.state ||
+          state.terminals.some((term) => term.pid !== null) ||
+          state.journal.persistence_pending ||
+          state.journal.cursor !== journal.cursor ||
+          journal.lost_through !== 0 ||
+          current.event_cursor !== journal.cursor
+        )
+          return;
+        this.observations.retireResults(id);
+      })();
+    });
+    return !!this.deps.db
+      .prepare('SELECT 1 FROM runtime_result_usage WHERE runtime_id = ? AND pending_cleanup = 1')
+      .get(id);
+  }
+
   private commitFinal(
     id: string,
     state: RuntimeState | null,
@@ -411,6 +453,7 @@ export class RuntimeReconciler extends EventEmitter {
           if (state.state === 'failed')
             this.deps.events.record(current.active_session_id, 'runtime_failed');
         });
+        if (journal.lost_through === 0) this.observations.retireResults(id);
       } else {
         this.deps.runtimes.interrupt(id, () => {
           this.observations.interruptRunning(current);

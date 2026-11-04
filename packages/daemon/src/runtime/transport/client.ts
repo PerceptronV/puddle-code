@@ -23,12 +23,24 @@ export class RuntimeConnectionLost extends Error {
   }
 }
 
+/** Only a correlated response from the authenticated owner constructs this evidence. */
+export class RuntimeRequestRejected extends Error {
+  constructor(
+    readonly code: Extract<RuntimeResponse, { t: 'error' }>['code'],
+    message: string,
+    readonly request: RuntimeRequest['t'],
+  ) {
+    super(message);
+  }
+}
+
 type Request = RuntimeRequest extends infer R
   ? R extends RuntimeRequest
     ? Omit<R, 'id' | 'sequence'>
     : never
   : never;
 interface Pending {
+  request: RuntimeRequest['t'];
   resolve(response: RuntimeResponse): void;
   reject(error: Error): void;
   timer: NodeJS.Timeout;
@@ -58,7 +70,9 @@ export class RuntimeClient extends EventEmitter {
         this.pending.delete(message.id);
         clearTimeout(pending.timer);
         if (message.t === 'error') {
-          pending.reject(Object.assign(new Error(message.message), { code: message.code }));
+          pending.reject(
+            new RuntimeRequestRejected(message.code, message.message, pending.request),
+          );
         } else {
           if (message.t === 'state') {
             this.state = message.state;
@@ -129,7 +143,7 @@ export class RuntimeClient extends EventEmitter {
         // A timeout invalidates the stream; callers inspect state after reconnecting.
         this.close();
       }, RUNTIME_LIMITS.requestMs);
-      this.pending.set(request.id, { resolve, reject, timer });
+      this.pending.set(request.id, { resolve, reject, timer, request: request.t });
       try {
         if (!writeRuntimeFrame(this.socket, request)) this.close();
       } catch (error) {

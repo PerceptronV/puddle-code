@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { expect, it } from 'vitest';
 import { puddlangOutcomeResponseSchema, puddlangOutcomesSchema } from '@puddle/shared';
 import { programmeTurnFixture } from '../helpers/runtime/programme-turns.js';
+import { dropResultCapacity } from '../helpers/runtime/result-capacity.js';
 import { puddlangRoutes } from '../../src/http/routes/execution/puddlang.js';
 import type { PuddlangService } from '../../src/puddlang/service.js';
 import { ApiError } from '../../src/http/errors.js';
@@ -296,6 +297,7 @@ it('adds disposition audit storage to schema39 without releasing existing unread
   f.save(1);
   f.runs.finish(f.run.id, 'interrupted');
   f.db.exec('DROP TABLE puddlang_outcome_dispositions; PRAGMA user_version = 39');
+  dropResultCapacity(f.db);
   await f.close();
   const db = openDatabase(f.paths.dbFile);
   try {

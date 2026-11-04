@@ -105,6 +105,7 @@ it('reconnects a lost control stream without replaying work, then retires the ow
 it('atomically imports an offline exit and retries a failed final commit without duplicate events', async () => {
   const f = runtimeDatabase();
   try {
+    f.reconciler.observations.reserveTurnCapacity(f.binding.runtime_id, 5);
     const owner = launchOwner(f.home, f.binding.runtime_id);
     await waitForOwner(owner, f.directory);
     const client = await RuntimeClient.open(f.home, f.launch, f.controller.record);
@@ -116,6 +117,7 @@ it('atomically imports an offline exit and retries a failed final commit without
       "CREATE TRIGGER fail_final BEFORE UPDATE OF state ON runtime_bindings WHEN NEW.state = 'exited' BEGIN SELECT RAISE(ABORT, 'final commit failed'); END",
     );
     await expect(f.reconciler.retire(f.binding.runtime_id)).rejects.toThrow('final commit failed');
+    expect(f.db.prepare('SELECT turns FROM host_result_usage').get()).toEqual({ turns: 1 });
     expect(f.runtimes.get(f.binding.runtime_id)).toEqual(f.binding);
     expect(f.events.list(f.session.id)).toEqual([]);
     expect(f.reconciler.observations.get(f.binding.runtime_id)).toBeNull();
@@ -124,6 +126,18 @@ it('atomically imports an offline exit and retries a failed final commit without
     });
     f.db.exec('DROP TRIGGER fail_final');
     expect(await f.reconciler.retire(f.binding.runtime_id)).toBe(true);
+    expect(f.db.prepare('SELECT turns FROM host_result_usage').get()).toEqual({ turns: 0 });
+    expect(f.db.prepare('SELECT retired FROM runtime_result_usage').get()).toEqual({ retired: 1 });
+    // An old schema may already have committed this final journal without the
+    // new reservation ledger. Maintenance must re-prove it, without events replay.
+    f.db.prepare('UPDATE runtime_result_usage SET retired = 0').run();
+    f.db
+      .prepare('INSERT INTO runtime_result_charges VALUES (?, ?, ?)')
+      .run(f.binding.runtime_id, 6, 1605632);
+    const beforeMaintenance = f.events.list(f.session.id);
+    expect(f.reconciler.retireResultReservations(f.binding.runtime_id)).toBe(false);
+    expect(f.db.prepare('SELECT turns FROM host_result_usage').get()).toEqual({ turns: 0 });
+    expect(f.events.list(f.session.id)).toEqual(beforeMaintenance);
     expect(f.runtimes.get(f.binding.runtime_id)?.state).toBe('exited');
     expect(f.events.list(f.session.id).map((event) => event.type)).toEqual(['exited']);
     const late = launchOwner(f.home, f.binding.runtime_id);
@@ -140,6 +154,7 @@ it.each([false, true])(
   async (stopRequested) => {
     const f = runtimeDatabase();
     try {
+      f.reconciler.observations.reserveTurnCapacity(f.binding.runtime_id, 5);
       const owner = launchOwner(f.home, f.binding.runtime_id);
       await waitForOwner(owner, f.directory);
       const client = await RuntimeClient.open(f.home, f.launch, f.controller.record);
@@ -151,6 +166,10 @@ it.each([false, true])(
       owner.child.kill('SIGKILL');
       await exited;
       expect(await f.reconciler.retire(f.binding.runtime_id)).toBe(true);
+      expect(f.db.prepare('SELECT turns FROM host_result_usage').get()).toEqual({ turns: 1 });
+      expect(f.db.prepare('SELECT retired FROM runtime_result_usage').get()).toEqual({
+        retired: 0,
+      });
       expect(f.runtimes.get(f.binding.runtime_id)?.state).toBe('interrupted');
       expect(f.sessions.get(f.session.id).status).toBe('interrupted');
       expect(f.events.list(f.session.id).map((event) => event.type)).toEqual(['interrupted']);

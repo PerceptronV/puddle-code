@@ -3,6 +3,7 @@ import { RUNTIME_LIMITS } from '@puddle/shared';
 import { openDatabase } from '../../../../src/db/db.js';
 import { RuntimeObservationStore } from '../../../../src/db/stores/runtime-observations.js';
 import { programmeTurnFixture as fixture } from '../../../helpers/runtime/programme-turns.js';
+import { dropResultCapacity } from '../../../helpers/runtime/result-capacity.js';
 
 it('serves hundreds of turns while retaining unread outcomes and rejecting reclaimed identities', async () => {
   const f = fixture();
@@ -131,6 +132,7 @@ it('rolls back result reclamation and its watermark when the replacement observa
 it('upgrades existing private results conservatively and restores their monotonic watermark', async () => {
   const f = fixture();
   f.save(41);
+  dropResultCapacity(f.db);
   f.db.exec(
     'DROP TABLE puddlang_outcome_dispositions; DROP TRIGGER runtime_service_cleanup_insert; DROP TRIGGER runtime_service_cleanup_end; DROP TABLE runtime_service_cleanup; DROP TABLE runtime_attention; ALTER TABLE runtime_turns DROP COLUMN consumed; DROP TABLE runtime_turn_watermarks; PRAGMA user_version = 36',
   );

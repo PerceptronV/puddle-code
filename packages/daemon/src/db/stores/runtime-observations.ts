@@ -7,20 +7,22 @@ import {
 } from '@puddle/shared';
 import type { Db } from '../db.js';
 import type { RuntimeBinding } from './runtimes.js';
+import { RuntimeResultCapacity } from './runtime-results/capacity.js';
+import { RESULT_RESERVATION_BYTES, type ResultCapacityLimits } from './runtime-results/limits.js';
 
 export interface RuntimeObservationState {
   captureEnabled: boolean;
   terminals: RuntimeTerminal[];
 }
 
-/** Only outcomes explicitly consumed by a programme may yield space to newer turns. */
-export const RUNTIME_RESULT_LIMITS = { turns: 128, bytes: 16 * 1024 * 1024 } as const;
-// Worst-case JSON escaping, matching the owner's journal reservation. Keep room
-// for the final outcome before admitting its much smaller running observation.
-const RESULT_RESERVATION_BYTES = 6 * RUNTIME_LIMITS.turnReplyBytes + 32 * 1024;
-
 export class RuntimeObservationStore {
-  constructor(private readonly db: Db) {}
+  private readonly capacity: RuntimeResultCapacity;
+  constructor(
+    private readonly db: Db,
+    limits?: ResultCapacityLimits,
+  ) {
+    this.capacity = new RuntimeResultCapacity(db, limits);
+  }
 
   get(id: string): RuntimeObservationState | null {
     const row = this.db
@@ -88,11 +90,26 @@ export class RuntimeObservationStore {
   }
 
   /** Called inside programme admission's transaction, before provider dispatch. */
-  reserveTurnCapacity(id: string): void {
-    this.db.transaction(() => this.makeRoom(id, -1, RESULT_RESERVATION_BYTES))();
+  reserveTurnCapacity(id: string, turn?: number): void {
+    this.db.transaction(() => {
+      if (turn === undefined) this.capacity.makeRoom(id, -1, RESULT_RESERVATION_BYTES);
+      else this.capacity.reserve(id, turn, RESULT_RESERVATION_BYTES);
+    })();
+  }
+
+  /** Runs inside the already fenced final-journal transaction, never from disconnected status. */
+  retireResults(id: string): void {
+    if (!this.db.inTransaction) throw new Error('Runtime result retirement requires final commit');
+    this.capacity.retire(id);
+  }
+
+  /** Existing host maintenance owns scheduling and exclusion from daemon update checkpoints. */
+  reclaimResults(): boolean {
+    return this.capacity.maintain();
   }
 
   private writeTurn(binding: RuntimeBinding, value: RuntimeTurnResult): void {
+    this.capacity.requireOpen(binding.runtime_id);
     const result = runtimeTurnResultSchema.parse(value);
     const previous = this.turn(binding.runtime_id, result.turn);
     if (previous) {
@@ -117,7 +134,14 @@ export class RuntimeObservationStore {
     }
     const json = JSON.stringify(result);
     const bytes = Buffer.byteLength(json);
-    this.makeRoom(
+    this.db
+      .prepare(
+        `INSERT INTO runtime_turn_watermarks (runtime_id, turn) VALUES (?, ?)
+      ON CONFLICT(runtime_id) DO UPDATE SET turn = MAX(turn, excluded.turn)`,
+      )
+      .run(binding.runtime_id, result.turn);
+    this.capacity.retireUncreatable(binding.runtime_id, result.turn - 1);
+    this.capacity.makeRoom(
       binding.runtime_id,
       result.turn,
       result.status === 'running' ? RESULT_RESERVATION_BYTES : bytes,
@@ -135,33 +159,5 @@ export class RuntimeObservationStore {
         json,
         bytes,
       );
-    this.db
-      .prepare(
-        `INSERT INTO runtime_turn_watermarks (runtime_id, turn) VALUES (?, ?)
-      ON CONFLICT(runtime_id) DO UPDATE SET turn = MAX(turn, excluded.turn)`,
-      )
-      .run(binding.runtime_id, result.turn);
-  }
-
-  private makeRoom(id: string, turn: number, bytes: number): void {
-    const rows = this.db
-      .prepare(
-        `SELECT turn, bytes, consumed, json_extract(result, '$.status') AS status
-      FROM runtime_turns WHERE runtime_id = ? AND turn != ? ORDER BY turn`,
-      )
-      .all(id, turn) as Array<{ turn: number; bytes: number; consumed: number; status: string }>;
-    let count = rows.length;
-    let retainedBytes = rows.reduce((total, row) => total + row.bytes, 0);
-    const fits = () =>
-      count < RUNTIME_RESULT_LIMITS.turns && retainedBytes + bytes <= RUNTIME_RESULT_LIMITS.bytes;
-    const remove = this.db.prepare('DELETE FROM runtime_turns WHERE runtime_id = ? AND turn = ?');
-    for (const row of rows) {
-      if (fits()) return;
-      if (!row.consumed || row.status === 'running') continue;
-      remove.run(id, row.turn);
-      count--;
-      retainedBytes -= row.bytes;
-    }
-    if (!fits()) throw new Error('Private runtime result retention is full');
   }
 }
