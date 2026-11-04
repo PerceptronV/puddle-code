@@ -173,6 +173,19 @@ archive retention and host-wide storage accounting must reclaim history budgets
 without deleting live resources. Essential journal gaps still block safe event
 reconciliation independently of missing bulk history.
 
+## Terminal titles
+
+Retained `osc-title` observations carry an exact segment id, main-terminal
+generation and the existing normalised 80-character title. The owner parses only
+the main PTY, retains at most 4 KiB of a partial sequence and resets parsing and
+deduplication at native switches. Title observations coalesce within the trailing
+observation run; lifecycle/control events preserve earlier placement titles.
+The daemon validates segment and generation before committing `osc_title` with
+the observation cursor. User overrides and native conversation names are untouched.
+Existing session invalidation refreshes cockpit labels; extra-shell titles are
+excluded. This addition is part of the initial unshipped private 1.0 contract and
+changes neither public protocol.
+
 ## Terminal colours
 
 Optional launch `theme` seeds the latest cockpit foreground/background before

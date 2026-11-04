@@ -34,6 +34,7 @@ it('keeps terminal agent recognition and busy-to-idle evidence in the owner acro
 const fs = require('node:fs');
 const file = process.argv[2];
 fs.writeFileSync(file + '.pid', JSON.stringify({ pid: process.pid }), { mode: 0o600 });
+process.stdout.write('\\u001b]0;' + (file.includes('extra') ? 'extra title' : 'main title') + '\\u0007');
 process.stdout.write('RUNTIME_IDLE\\n');
 let seen = 0;
 setInterval(() => {
@@ -122,6 +123,7 @@ setInterval(() => {
       detected_agent_type: 'runtime-terminal-test',
       agent_type: null,
       agent_session_ref: null,
+      osc_title: 'main title',
     });
     expect(deliveries).toEqual([]); // Initial idle is never a completed turn.
     await output(1, 'RUNTIME_BUSY');
@@ -137,7 +139,7 @@ setInterval(() => {
         )?.attention === null,
     );
     await stop();
-    await output(4, 'RUNTIME_IDLE');
+    await output(4, '\u001b]0;⠋ offline title\u0007RUNTIME_IDLE');
     await start();
     await waitFor(() => deliveries.length === 2);
     expect(new Set(deliveries.map((event) => event.id)).size).toBe(2);
@@ -147,6 +149,7 @@ setInterval(() => {
       status: 'running',
       detected_agent_type: 'runtime-terminal-test',
       agent_session_ref: null,
+      osc_title: 'offline title',
     });
     expect(f.reconciler.observations.get(f.binding.runtime_id)?.terminals[0]?.pid).toBe(root.pid);
     process.kill(child.pid, 0);

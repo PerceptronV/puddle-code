@@ -551,6 +551,11 @@ export class RuntimeReconciler extends EventEmitter {
         }
         break;
       }
+      case 'osc-title':
+        if (event.segment_id !== binding.active_segment_id)
+          throw new Error('Runtime title does not match its observed placement');
+        this.deps.sessions.setOscTitle(id, event.title);
+        break;
       case 'capture-env':
         state.captureEnabled = event.enabled;
         break;

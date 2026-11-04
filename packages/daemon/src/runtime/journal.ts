@@ -164,6 +164,7 @@ export class RuntimeJournal {
     // Captured env is shared by the runtime's shell tabs; cwd remains terminal-specific.
     if (event.t === 'env-delta') return `env:${event.delta.name}`;
     if (event.t === 'cwd') return `cwd:${event.term}:${event.generation}`;
+    if (event.t === 'osc-title') return `title:${event.segment_id}:${event.generation}`;
     return null;
   }
 

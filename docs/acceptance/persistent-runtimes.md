@@ -409,6 +409,17 @@ one native supervisor test skipped; typecheck, scoped lint and formatting passed
 Native provider process
 recognition and Linux terminal selection still require platform acceptance.
 
+`runtime/terminal-agent.test.ts` also verifies main-terminal title recovery before
+adoption and after an offline title change, excluding an extra tab's title.
+`runtime/titles.test.ts` splits OSC 0/1/2 at every character boundary, including ST,
+and checks de-animation, bounded partial state and reset across a native switch.
+Journal tests coalesce 199 title changes without crossing the native boundary or
+mutating an offered page. Reconciliation tests inject a stale-segment title and
+verify atomic rollback, then recover both placements' titles while preserving user
+and native names. The focused run passed 19 tests in four files.
+The broader runtime/PTY/session/protocol run passed 299 tests in 52 files, with
+one native supervisor test skipped. Typecheck, scoped lint and formatting passed.
+
 ## Remaining release gates
 
 Record platform, Node, release and provider versions with results. Run native

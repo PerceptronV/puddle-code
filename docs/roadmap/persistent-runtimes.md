@@ -164,7 +164,7 @@ Implementation evidence so far:
   never a second dispatch. An isolated real-daemon test creates a fake provider,
   preserves its PTY and sidecar through replacement and an offline conversation
   switch, then explicitly resumes the exact new native ref in a new owner.
-  Full account migration, title parity and native
+  Full account migration and native
   provider acceptance remain required before default rollout.
 - Code-execution terminals now use the same opt-in owner path. Migration 034
   records their canonical managed run directories atomically with launch intent;
@@ -233,6 +233,14 @@ Implementation evidence so far:
   shell/child PIDs, one offline idle alert, child exit while the shell stays live,
   extra-tab exclusion and deliberate-stop silence. Native provider/process
   acceptance on both platforms remains required.
+- Independent owners now retain main-terminal OSC titles in ordered observations,
+  preserving each placement's title across native switches during daemon absence.
+  Partial sequences are bounded and reset at switches; extra-shell titles are
+  ignored. Titles coalesce without crossing lifecycle/control events and commit
+  with the database observation cursor. Tests cover offline real-daemon recovery,
+  split sequences, repeated titles, rollback, exact historical placement names,
+  and preservation of user/native names. Native provider title acceptance remains
+  part of the platform/provider gate.
 
 These are foundations for phases 0–3, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native

@@ -22,6 +22,80 @@ function page(events: RuntimeRetainedEvent[]): RuntimeEventPage {
   };
 }
 
+it('commits offline titles to their exact native placements without overwriting user or native names', async () => {
+  const f = runtimeDatabase('interactive');
+  try {
+    const main = terminal();
+    const initial = { id: f.binding.runtime_id, start_cursor: 0, agent_session_ref: 'first' };
+    const next = { id: randomUUID(), start_cursor: 4, agent_session_ref: 'second' };
+    const title = (cursor: number, segment_id: string, value: string): RuntimeRetainedEvent => ({
+      t: 'osc-title',
+      cursor,
+      term: 'agent',
+      generation: main.generation,
+      segment_id,
+      title: value,
+    });
+    const events: RuntimeRetainedEvent[] = [
+      { t: 'terminal-created', cursor: 1, terminal: main },
+      {
+        t: 'native-lifecycle',
+        cursor: 2,
+        segment: initial,
+        previous_segment_id: null,
+        lifecycle: {
+          event: 'session_start',
+          agent_session_ref: 'first',
+          cwd: f.home,
+          source: 'startup',
+          native_title: 'native first',
+        },
+      },
+      title(3, initial.id, 'terminal first'),
+      {
+        t: 'native-lifecycle',
+        cursor: 4,
+        segment: next,
+        previous_segment_id: initial.id,
+        lifecycle: {
+          event: 'session_start',
+          agent_session_ref: 'second',
+          cwd: f.home,
+          source: 'clear',
+          native_title: 'native second',
+        },
+      },
+      title(5, next.id, 'terminal second'),
+    ];
+    f.sessions.setTitle(f.session.id, 'user name');
+    expect(() =>
+      f.reconciler.applyPage(
+        f.binding.runtime_id,
+        page([...events.slice(0, 4), title(5, initial.id, 'wrong placement')]),
+      ),
+    ).toThrow(/title/);
+    expect(f.sessions.get(f.session.id)).toMatchObject({ osc_title: null, title: 'user name' });
+    expect(f.runtimes.get(f.binding.runtime_id)).toEqual(f.binding);
+    f.reconciler.applyPage(f.binding.runtime_id, page(events));
+    const current = f.runtimes.get(f.binding.runtime_id)!.active_session_id;
+    expect(f.sessions.get(f.session.id)).toMatchObject({
+      osc_title: 'terminal first',
+      title: 'user name',
+      agent_title: 'native first',
+    });
+    expect(f.sessions.get(current)).toMatchObject({
+      osc_title: 'terminal second',
+      agent_title: 'native second',
+    });
+    f.reconciler.applyPage(f.binding.runtime_id, page(events));
+    expect(f.sessions.get(f.session.id).osc_title).toBe('terminal first');
+    expect(f.sessions.get(current).osc_title).toBe('terminal second');
+  } finally {
+    await f.reconciler.close();
+    f.db.close();
+  }
+});
+
 it('atomically recovers native switches, environment and private turns without replaying effects', async () => {
   const f = runtimeDatabase('interactive');
   try {

@@ -275,6 +275,14 @@ the shell remains running. Suspension, backgrounding and failed inspection clear
 the hint without claiming exit. Extra shells cannot own the hint, and monitoring
 never changes placement kind/status or adopts a native conversation. Abnormal-exit
 notices still require external-owner parity.
+Main-terminal OSC 0/1/2 titles now enter the owner's retained observation journal
+with exact segment and terminal generation. The parser retains at most 4 KiB of
+an unfinished sequence and resets at native switches; existing de-animation and
+80-character display normalisation apply. Repeated titles coalesce only within
+observation runs, never across lifecycle/control boundaries. Reconciliation
+commits each title to its own placement with the observation cursor, preserving
+user overrides and native conversation titles. Extra shells cannot rename the
+placement. Existing session invalidation updates connected cockpits.
 An explicit `DaemonOptions.runtime` composition option now routes terminal
 and interactive/headless agent creation/resume through `RuntimeLauncher`. Default installed
 launches retain the in-process backend. The launcher writes a private validated

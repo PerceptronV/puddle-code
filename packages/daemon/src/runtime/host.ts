@@ -44,6 +44,7 @@ import { TerminalTheme } from '../pty/terminal-theme.js';
 import { RuntimeAttentionState } from './attention.js';
 import { TerminalAgentMonitor } from '../sessions/terminal-agent-monitor.js';
 import { readTerminalProcessSnapshot } from '../pty/foreground-process.js';
+import { RuntimeTitles } from './titles.js';
 
 /** One process owns one runtime. No application database or public HTTP server. */
 export class RuntimeHost {
@@ -72,6 +73,7 @@ export class RuntimeHost {
   );
   private expectedExit = false;
   private terminalAgents: TerminalAgentMonitor | null = null;
+  private readonly titles = new RuntimeTitles();
   private binding: RuntimePlacementBinding | null;
   private agent: RuntimeAgent | null = null;
   private closingAgent: Promise<void> | null = null;
@@ -172,7 +174,10 @@ export class RuntimeHost {
               [...host.terminals.values()],
               (term) => host.capture(term),
             );
-            if (binding.previous_segment_id !== null) host.binding = null;
+            if (binding.previous_segment_id !== null) {
+              host.binding = null;
+              host.titles.reset();
+            }
             host.event({ t: 'native-lifecycle', cursor, lifecycle, ...binding });
             if (binding.previous_segment_id !== null) host.attention.clear();
             host.persistState();
@@ -284,6 +289,18 @@ export class RuntimeHost {
     }
     const terminal = this.terminals.get(event.term);
     if (!terminal) return;
+    if (event.term === 'agent') {
+      const title = this.titles.read(event.data);
+      if (title !== null)
+        this.event({
+          t: 'osc-title',
+          cursor: ++this.eventCursor,
+          term: 'agent',
+          generation: terminal.generation,
+          segment_id: this.segments.state().current.id,
+          title,
+        });
+    }
     this.segments.append(terminal, event.data);
     const segment_id = this.segments.state().current.id;
     if (Buffer.byteLength(event.data) <= RUNTIME_LIMITS.outputBytes) {

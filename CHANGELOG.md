@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Retain main-terminal titles in opt-in independent owners across daemon replacement, keeping offline native-switch titles on their exact placements and preserving user overrides.
+
 - Preserve foreground-agent hints and completion alerts for opt-in independent terminal runtimes across daemon replacement, without changing terminal placement identity or adopting native conversations.
 
 - Recover current agent attention alerts from opt-in independent runtimes across daemon replacement, retaining exact destinations and suppressing duplicate, stale and deliberately stopped alerts.

@@ -281,6 +281,14 @@ export const runtimeRetainedEventSchema = z.discriminatedUnion('t', [
   }),
   z.object({ t: z.literal('terminal-created'), cursor: sequence, terminal: runtimeTerminalSchema }),
   z.object({
+    t: z.literal('osc-title'),
+    cursor: sequence,
+    term: z.literal('agent'),
+    generation: id,
+    segment_id: id,
+    title: z.string().min(1).max(80),
+  }),
+  z.object({
     t: z.literal('exit'),
     cursor: sequence,
     term: terminalName,

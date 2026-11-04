@@ -44,6 +44,40 @@ afterEach(async () => {
 });
 
 describe('runtime event journal', () => {
+  it('coalesces title animation without crossing native segments or mutating an offered page', () => {
+    const { journal, directory } = fixture({ maxEvents: 4 });
+    const generation = randomUUID();
+    const first = randomUUID();
+    const next = randomUUID();
+    const title = (cursor: number, segment_id: string): RuntimeRetainedEvent => ({
+      t: 'osc-title',
+      cursor,
+      term: 'agent',
+      generation,
+      segment_id,
+      title: `title ${cursor}`,
+    });
+    journal.append(title(1, first));
+    const offered = journal.read(0);
+    for (let cursor = 2; cursor < 100; cursor++) journal.append(title(cursor, first));
+    journal.append({
+      t: 'native-lifecycle',
+      cursor: 100,
+      segment: { id: next, start_cursor: 100, agent_session_ref: 'next' },
+      previous_segment_id: first,
+      lifecycle: {
+        event: 'session_start',
+        agent_session_ref: 'next',
+        cwd: directory,
+        source: 'clear',
+      },
+    });
+    for (let cursor = 101; cursor <= 200; cursor++) journal.append(title(cursor, next));
+    expect(journal.read(0).events.map((event) => event.cursor)).toEqual([99, 100, 200]);
+    expect(journal.read(0).gap).toBe(false);
+    expect(offered.events).toEqual([title(1, first)]);
+  });
+
   it('coalesces private observations without changing offered pages or crossing lifecycle boundaries', async () => {
     const { journal, directory, identity } = fixture();
     const generation = randomUUID();
