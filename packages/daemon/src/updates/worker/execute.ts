@@ -3,9 +3,7 @@ import {
   compatibleRuntimeProtocol,
   hostUpdateWorkerSchema,
   type HostUpdateWorker,
-  type HostUpdateAdoption,
 } from '@puddle/shared';
-import { digest } from '@puddle/shared/node';
 import { runCompilationCommand, type CompilationCommandRunner } from '../../compilation/process.js';
 import { startReplacementService } from '../../host/supervision/replacement.js';
 import { HostUpdateOperations } from '../operations/store.js';
@@ -13,7 +11,7 @@ import { readStageCapabilities } from '../preflight/candidate.js';
 import { stopConnectorForUpdate, startConnectorAfterUpdate } from './connector.js';
 import { stopDaemonForUpdate } from './daemon/stop.js';
 import { selectUpdateStage, verifyUpdateSelection } from './selection.js';
-import { verifyHostUpdateAdoption } from './verify-adoption.js';
+import { verifyHostUpdateCompletion } from '../verification/completion.js';
 
 /** One consumed worker transaction; uncertainty always retains its operation for inspection. */
 export async function executeHostUpdate(
@@ -66,25 +64,23 @@ export async function executeHostUpdate(
     const verifying = worker.verifying();
     handoff?.release();
     handoff = undefined;
-    let adoption: HostUpdateAdoption | undefined;
-    let connector: Awaited<ReturnType<typeof startConnectorAfterUpdate>> | undefined;
     if (daemon) {
       await startReplacementService(home, job.daemon_service!, execute);
-      connector = await startConnectorAfterUpdate(home, job, daemon, execute);
-      const deadline = Date.now() + 30_000;
-      for (;;) {
-        try {
-          adoption = await verifyHostUpdateAdoption(home, verifying);
-          break;
-        } catch (error) {
-          if (Date.now() >= deadline) throw error;
-          // Retry observation only; never repeat stop, activation, startup or input.
-          await delay(100);
-        }
+      await startConnectorAfterUpdate(home, job, daemon, execute);
+    }
+    const deadline = Date.now() + 30_000;
+    let verification: string;
+    for (;;) {
+      try {
+        verification = await verifyHostUpdateCompletion(home, job, verifying, execute);
+        break;
+      } catch (error) {
+        if (!daemon || Date.now() >= deadline) throw error;
+        // Retry observation only; never repeat stop, activation, startup or input.
+        await delay(100);
       }
     }
-    const selected = pending.stages.map((stage) => verifyUpdateSelection(home, stage));
-    worker.complete(digest(JSON.stringify({ selected, adoption, connector })));
+    worker.complete(verification);
   } catch (error) {
     try {
       worker.failed('Host activation or verification requires inspection');

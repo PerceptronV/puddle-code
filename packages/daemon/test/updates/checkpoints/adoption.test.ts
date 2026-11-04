@@ -18,7 +18,7 @@ import {
   HostUpdateAdoptionWriter,
   readHostUpdateAdoption,
 } from '../../../src/updates/checkpoints/adoption.js';
-import { verifyHostUpdateAdoption } from '../../../src/updates/worker/verify-adoption.js';
+import { verifyHostUpdateAdoption } from '../../../src/updates/verification/adoption.js';
 import { HostUpdateCoordinator } from '../../../src/updates/coordinator.js';
 import { LeaseRegistry } from '../../../src/security/leases.js';
 import { startHostControl } from '../../../src/security/control.js';
@@ -98,6 +98,7 @@ async function fixture() {
     owner: child,
     deps,
     writer,
+    worker,
     operation,
     connections,
     reconciler,
@@ -206,75 +207,86 @@ it('accepts a confirmed final exit without pretending that it is a running owner
   }
 });
 
-it('verifies a fresh receipt through host authority and refuses stale receipts after a failed observation', async () => {
-  const f = await fixture();
-  const authority = new LeaseRegistry();
-  let healthy = true;
-  const server = createServer((request, response) => {
-    const token = request.headers.authorization?.replace(/^Bearer /, '') ?? '';
-    if (!healthy || request.url !== '/api/version' || !authority.valid(token)) {
-      response.writeHead(503).end();
-      return;
+it.each(['verifying', 'recovery_required'] as const)(
+  'verifies fresh adoption in %s and refuses stale receipts after a failed observation',
+  async (phase) => {
+    const f = await fixture();
+    if (phase === 'recovery_required') {
+      f.operation = f.worker.failed('Success acknowledgement was lost');
+      f.worker.release();
     }
-    response.end(JSON.stringify({ version: '0.4.0', protocol: PROTOCOL_VERSION }));
-  });
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const address = server.address();
-  if (!address || typeof address === 'string') throw new Error('Fixture did not bind');
-  const port = address.port;
-  f.deps.port = () => port;
-  const observe = vi.fn((operation, nonce) => {
-    f.writer.observe(operation, nonce);
-  });
-  const coordinator = new HostUpdateCoordinator({
-    home: f.home,
-    operations: new HostUpdateOperations(f.home),
-    inspection: {
-      inspect: async () => {
-        throw new Error('No inspection in this fixture');
-      },
-    },
-    installedRuntime: () => null,
-    dispatch: async () => {
-      throw new Error('No dispatch in this fixture');
-    },
-    observeAdoption: observe,
-  });
-  writeRuntime(f.paths, { pid: process.pid, port });
-  const closeControl = await startHostControl(
-    f.home,
-    authority,
-    () => ({ port, version: { version: '0.4.0', protocol: PROTOCOL_VERSION } }),
-    (command, authorised) => coordinator.execute(command, authorised),
-  );
-  try {
-    // Simulate additive metadata from a compatible newer outgoing daemon.
-    const stored = { ...readHostUpdateCheckpoint(f.home, f.operation.id), future_capability: true };
-    writeFileSync(
-      join(f.home, 'updates', 'checkpoints', `${f.operation.id}.json`),
-      JSON.stringify(stored),
-    );
-    const proof = await verifyHostUpdateAdoption(f.home, f.operation);
-    expect(proof.checkpoint).toBe(digest(`${JSON.stringify(stored)}\n`));
-    expect(proof.owners[0]?.runtime_id).toBe(f.binding.runtime_id);
-    expect(observe).toHaveBeenCalledOnce();
-    observe.mockImplementation(() => {});
-    await expect(verifyHostUpdateAdoption(f.home, f.operation)).rejects.toThrow(/not proved/);
-    observe.mockImplementation((operation, nonce) => {
+    const authority = new LeaseRegistry();
+    let healthy = true;
+    const server = createServer((request, response) => {
+      const token = request.headers.authorization?.replace(/^Bearer /, '') ?? '';
+      if (!healthy || request.url !== '/api/version' || !authority.valid(token)) {
+        response.writeHead(503).end();
+        return;
+      }
+      response.end(JSON.stringify({ version: '0.4.0', protocol: PROTOCOL_VERSION }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Fixture did not bind');
+    const port = address.port;
+    f.deps.port = () => port;
+    const observe = vi.fn((operation, nonce) => {
       f.writer.observe(operation, nonce);
-      writeRuntime(f.paths, { pid: process.pid + 1, port });
     });
-    await expect(verifyHostUpdateAdoption(f.home, f.operation)).rejects.toThrow(/not proved/);
-    healthy = false;
-    await expect(verifyHostUpdateAdoption(f.home, f.operation)).rejects.toThrow(/HTTP authority/);
-  } finally {
-    coordinator.close();
-    authority.dispose();
-    await closeControl();
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-      server.closeAllConnections();
+    const coordinator = new HostUpdateCoordinator({
+      home: f.home,
+      operations: new HostUpdateOperations(f.home),
+      inspection: {
+        inspect: async () => {
+          throw new Error('No inspection in this fixture');
+        },
+      },
+      installedRuntime: () => null,
+      dispatch: async () => {
+        throw new Error('No dispatch in this fixture');
+      },
+      observeAdoption: observe,
     });
-    await f.close();
-  }
-});
+    writeRuntime(f.paths, { pid: process.pid, port });
+    const closeControl = await startHostControl(
+      f.home,
+      authority,
+      () => ({ port, version: { version: '0.4.0', protocol: PROTOCOL_VERSION } }),
+      (command, authorised) => coordinator.execute(command, authorised),
+    );
+    try {
+      // Simulate additive metadata from a compatible newer outgoing daemon.
+      const stored = {
+        ...readHostUpdateCheckpoint(f.home, f.operation.id),
+        future_capability: true,
+      };
+      writeFileSync(
+        join(f.home, 'updates', 'checkpoints', `${f.operation.id}.json`),
+        JSON.stringify(stored),
+      );
+      const proof = await verifyHostUpdateAdoption(f.home, f.operation);
+      expect(proof.checkpoint).toBe(digest(`${JSON.stringify(stored)}\n`));
+      expect(proof.owners[0]?.runtime_id).toBe(f.binding.runtime_id);
+      expect(new HostUpdateOperations(f.home).read()?.phase).toBe(phase);
+      expect(observe).toHaveBeenCalledOnce();
+      observe.mockImplementation(() => {});
+      await expect(verifyHostUpdateAdoption(f.home, f.operation)).rejects.toThrow(/not proved/);
+      observe.mockImplementation((operation, nonce) => {
+        f.writer.observe(operation, nonce);
+        writeRuntime(f.paths, { pid: process.pid + 1, port });
+      });
+      await expect(verifyHostUpdateAdoption(f.home, f.operation)).rejects.toThrow(/not proved/);
+      healthy = false;
+      await expect(verifyHostUpdateAdoption(f.home, f.operation)).rejects.toThrow(/HTTP authority/);
+    } finally {
+      coordinator.close();
+      authority.dispose();
+      await closeControl();
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+        server.closeAllConnections();
+      });
+      await f.close();
+    }
+  },
+);

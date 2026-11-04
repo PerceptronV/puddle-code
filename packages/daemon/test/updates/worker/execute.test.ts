@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { runCompilationCommand } from '../../../src/compilation/process.js';
 import { executeHostUpdate } from '../../../src/updates/worker/execute.js';
+import { verifyHostUpdateCompletion } from '../../../src/updates/verification/completion.js';
 import { updateInstallation as fixture } from '../../helpers/update-installation.js';
 
 it('uses the canonical installer, verifies exact selection and consumes the operation once', async () => {
@@ -68,4 +69,21 @@ it('keeps a successful selection after a lost reply and never repeats activation
   expect(f.store.read()?.phase).toBe('recovery_required');
   await expect(executeHostUpdate(f.puddleHome, f.job)).rejects.toThrow();
   expect(f.store.begin(f.operation.targets).created).toBe(false);
+  const recovery = f.store.read()!;
+  const run = async () => {
+    throw new Error('Recovery verification must not run installation commands');
+  };
+  expect(await verifyHostUpdateCompletion(f.puddleHome, f.job, recovery, run)).toMatch(
+    /^[a-f0-9]{64}$/,
+  );
+  // Evidence alone neither resolves recovery nor grants a new dispatch.
+  expect(f.store.read()).toEqual(recovery);
+  await expect(
+    verifyHostUpdateCompletion(
+      f.puddleHome,
+      { ...f.job, preflight: '0'.repeat(64) },
+      recovery,
+      run,
+    ),
+  ).rejects.toThrow('changed');
 }, 30_000);

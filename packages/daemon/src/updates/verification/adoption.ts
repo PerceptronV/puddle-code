@@ -4,7 +4,6 @@ import { realpathSync } from 'node:fs';
 import { connect } from 'node:net';
 import { dirname, join } from 'node:path';
 import {
-  hostUpdateOperationSchema,
   versionResponseSchema,
   type HostUpdateAdoption,
   type HostUpdateOperation,
@@ -16,16 +15,30 @@ import { readRuntime } from '../../runtime-file.js';
 import { resolvePaths } from '../../paths.js';
 import { readHostUpdateCheckpointEvidence } from '../checkpoints/store.js';
 import { readHostUpdateAdoption } from '../checkpoints/adoption.js';
+import { requireVerificationOperation } from './operation.js';
+
+/** Recheck after other completion probes yield; an earlier receipt cannot certify a new controller. */
+export function requireCurrentAdoption(home: string, observed: HostUpdateAdoption): void {
+  const controller = readRuntimeController(home);
+  const runtime = readRuntime(resolvePaths(home));
+  if (
+    !controller.active ||
+    controller.id !== observed.daemon.controller.id ||
+    controller.epoch !== observed.daemon.controller.epoch ||
+    runtime?.pid !== observed.daemon.pid ||
+    runtime.port !== observed.daemon.port
+  )
+    throw new Error('Replacement daemon has not proved the current adoption');
+}
 
 /** Fresh host authority and exact adoption evidence; never restarts or retries a command. */
 export async function verifyHostUpdateAdoption(
   home: string,
   input: HostUpdateOperation,
 ): Promise<HostUpdateAdoption> {
-  const operation = hostUpdateOperationSchema.parse(input);
+  const operation = requireVerificationOperation(home, input);
   const stage = operation.stages.find((item) => item.record.component === 'daemon');
-  if (operation.phase !== 'verifying' || !operation.worker_id || !stage)
-    throw new Error('Daemon adoption requires an executing verification operation');
+  if (!stage) throw new Error('Daemon adoption requires an executing verification operation');
   const authority = new HostControlClient(async () => {
     const path = ipcPath(home, 'host');
     privatePath(path);
@@ -52,7 +65,7 @@ export async function verifyHostUpdateAdoption(
     if (
       !reply.ok ||
       reply.operation?.id !== operation.id ||
-      reply.operation.phase !== 'verifying' ||
+      reply.operation.phase !== operation.phase ||
       reply.operation?.revision !== operation.revision ||
       reply.operation.dispatch_id !== operation.dispatch_id ||
       reply.operation.worker_id !== operation.worker_id
@@ -91,8 +104,6 @@ export async function verifyHostUpdateAdoption(
     const observed = readHostUpdateAdoption(home, operation.id);
     const versions = realpathSync(join(home, 'bin', 'versions'));
     const release = realpathSync(join(versions, stage.record.generation));
-    const controller = readRuntimeController(home);
-    const runtime = readRuntime(resolvePaths(home));
     if (
       dirname(release) !== versions ||
       release !== join(versions, stage.record.generation) ||
@@ -110,11 +121,6 @@ export async function verifyHostUpdateAdoption(
       observed.daemon.schema_version < checkpoint.daemon.schema_version ||
       observed.daemon.controller.id === checkpoint.daemon.controller.id ||
       observed.daemon.controller.epoch <= checkpoint.daemon.controller.epoch ||
-      !controller.active ||
-      controller.id !== observed.daemon.controller.id ||
-      controller.epoch !== observed.daemon.controller.epoch ||
-      runtime?.pid !== observed.daemon.pid ||
-      runtime.port !== observed.daemon.port ||
       authority.state !== 'ready' ||
       authority.port !== observed.daemon.port ||
       authority.version?.version !== observed.daemon.version ||
@@ -139,6 +145,8 @@ export async function verifyHostUpdateAdoption(
       )
         throw new Error('Checkpointed runtime adoption is incomplete');
     }
+    requireVerificationOperation(home, operation);
+    requireCurrentAdoption(home, observed);
     return observed;
   } finally {
     authority.close();

@@ -10,6 +10,16 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+Completion verification is shared between normal execution and recovery inspection.
+Installer tests retain recovery after a lost runtime-selection or daemon-start reply,
+then verify selected generations without replaying mutations. Changed daemon service
+configuration or controller identity refuses completion evidence. Connector tests
+inspect a replacement in recovery without starting it and reject an operation changed
+during the probe. Private-authority adoption tests exercise both executing and
+recovery-required operations with a real isolated owner, rejecting stale receipts.
+These checks leave recovery unresolved: they do not yet test a supported recovery
+command, original-worker lifetime fencing or recovery with the daemon stopped.
+
 Database tests reject a newer `user_version` while preserving bytes, journal mode
 and application rows. Compatibility tests reject absent/older candidate migration
 ceilings, admit forward migrations, preserve runtime-only independence and reject

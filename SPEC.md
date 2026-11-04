@@ -304,17 +304,25 @@ checkpoint. Invalidated dispatch or failed persistence leaves shutdown incomplet
 and retains the controller and database. This supplies shutdown evidence only;
 replacement adoption requires separate verification. Application protocol 25.8 adds an optional
 fresh nonce to exact-operation private status requests. The replacement coordinator
-can publish a private adoption receipt only for the executing operation, its exact
+can publish a private adoption receipt only for an executing or recovery-required
+operation with a recorded worker identity, its exact
 staged generation/Node/entry point and a newer controller epoch. Every checkpointed
 owner must retain its launch identity/build and committed cursor, with settled
 authenticated placement binding or a confirmed final exit; interrupted or unknown
 ownership cannot prove success. Failed observations do not refresh old receipts.
 Publication flushes SQLite first; compatible readers ignore additive metadata
 while the checkpoint digest still covers all stored fields.
-The worker verification helper checks the exact nonce/checkpoint/stage, live controller
+The shared completion verifier under `updates/verification/` checks the exact
+nonce/checkpoint/stage, live controller
 and daemon port/PID records, a new private host lease and a bounded authenticated
-HTTP version response. This is verification plumbing; activation, final impact
-approval and recovery still require integration. No remote authority is added.
+HTTP version response. It also corroborates the replacement daemon's service and
+unchanged configuration, freshly inspects the approved absent/running connector,
+and rechecks selected generations, operation revision and controller after asynchronous
+probes. The worker uses this same verifier after activation. Recovery-phase inspection
+can produce fresh evidence without repeating installation or service mutations, but
+does not itself resolve the operation or authorise another dispatch. User-facing
+recovery, worker-lifetime fencing and recovery with the daemon stopped still require
+integration. No remote authority or new protocol shape is added.
 
 The [persistent runtimes roadmap](docs/roadmap/persistent-runtimes.md) specifies
 one independent `puddler` process per live runtime and cockpit-managed host

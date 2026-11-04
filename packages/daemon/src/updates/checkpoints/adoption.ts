@@ -54,7 +54,11 @@ export class HostUpdateAdoptionWriter {
 
   observe(operation: HostUpdateOperation, nonce: string): boolean {
     hostUpdateAdoptionSchema.shape.nonce.parse(nonce);
-    if (!['applying', 'verifying'].includes(operation.phase) || !operation.worker_id) return false;
+    if (
+      !['applying', 'verifying', 'recovery_required'].includes(operation.phase) ||
+      !operation.worker_id
+    )
+      return false;
     const stage = operation.stages.find((item) => item.record.component === 'daemon');
     const controller = this.deps.connections.controllerIdentity();
     const port = this.deps.port();

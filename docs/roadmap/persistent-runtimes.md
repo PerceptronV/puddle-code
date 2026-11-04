@@ -31,6 +31,16 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Completion verification now lives under `updates/verification/` and is shared by
+  ordinary worker execution and recovery-phase inspection. It reuses exact selector,
+  host-authority/adoption and connector checks, adds replacement daemon service/configuration
+  corroboration, and rechecks operation/controller identity after asynchronous probes.
+  Recovery inspection produces evidence without repeating installation, stop or start
+  commands and leaves the operation unresolved. Tests cover lost replies, changed
+  configuration, stale evidence and an independently running owner observed through
+  private authority in recovery. Supported recovery commands, original-worker lifetime
+  fencing and recovery with the daemon stopped remain required.
+
 - Daemon builds now declare their existing SQLite migration ceiling in passive
   release metadata. Preflight rejects unknown/older schema support, includes the
   actual database version in approval and rechecks it after asynchronous probes.

@@ -8,6 +8,8 @@ import {
   type CompilationCommandRunner,
 } from '../../../../src/compilation/process.js';
 import { openDatabase } from '../../../../src/db/db.js';
+import { resolvePaths } from '../../../../src/paths.js';
+import { writeRuntime } from '../../../../src/runtime-file.js';
 import { RuntimeStore } from '../../../../src/db/stores/runtimes.js';
 import { acquireRuntimeController } from '../../../../src/runtime/ownership/storage.js';
 import { HostClaimBusy } from '../../../../src/security/claims.js';
@@ -17,7 +19,8 @@ import { HostUpdateCheckpointWriter } from '../../../../src/updates/checkpoints/
 import { HostUpdateConnector } from '../../../../src/updates/preflight/connector.js';
 import { executeHostUpdate } from '../../../../src/updates/worker/execute.js';
 import * as connectorReplacement from '../../../../src/updates/worker/connector.js';
-import * as adoptionVerification from '../../../../src/updates/worker/verify-adoption.js';
+import * as adoptionVerification from '../../../../src/updates/verification/adoption.js';
+import { verifyHostUpdateCompletion } from '../../../../src/updates/verification/completion.js';
 import { updateInstallation } from '../../../helpers/update-installation.js';
 import { systemdObservation } from '../../../helpers/host-supervision.js';
 
@@ -103,9 +106,10 @@ async function fixture(combined = false, connector = false) {
   const verify = vi
     .spyOn(adoptionVerification, 'verifyHostUpdateAdoption')
     .mockImplementation(async (_home, operation) => {
-      expect(operation.phase).toBe('verifying');
-      expect(state.changes.at(-1)).toBe(connector ? 'start-connector' : 'start');
+      expect(['verifying', 'recovery_required']).toContain(operation.phase);
+      expect([connector ? 'start-connector' : 'start', 'verify']).toContain(state.changes.at(-1));
       state.changes.push('verify');
+      writeRuntime(resolvePaths(f.puddleHome), { pid: process.pid, port: 7434 });
       const release = f.selected('daemon');
       const result: HostUpdateAdoption = {
         ...reference,
@@ -134,6 +138,10 @@ async function fixture(combined = false, connector = false) {
     run,
     state,
     verify,
+    replaceController() {
+      controller.release();
+      controller = acquireRuntimeController(f.puddleHome);
+    },
     close() {
       controller.release();
       db.close();
@@ -204,6 +212,39 @@ it.each(['stop', 'select', 'start', 'configuration'])(
   },
   30_000,
 );
+
+it('verifies a recovered replacement without replay and refuses changed configuration', async () => {
+  const f = await fixture();
+  try {
+    f.state.fail = 'start';
+    await expect(executeHostUpdate(f.puddleHome, f.job, f.run)).rejects.toThrow('Start reply lost');
+    const operation = f.store.read()!;
+    expect(operation.phase).toBe('recovery_required');
+    const commands = [...f.state.changes];
+    expect(await verifyHostUpdateCompletion(f.puddleHome, f.job, operation, f.run)).toMatch(
+      /^[a-f0-9]{64}$/,
+    );
+    expect(f.state.changes).toEqual([...commands, 'verify']);
+    expect(f.store.read()).toEqual(operation);
+    const definition = f.state.definition;
+    f.state.definition = 'configuration changed during recovery';
+    await expect(verifyHostUpdateCompletion(f.puddleHome, f.job, operation, f.run)).rejects.toThrow(
+      'configuration changed',
+    );
+    expect(f.state.changes).toEqual([...commands, 'verify', 'verify']);
+    f.state.definition = definition;
+    vi.mocked(HostUpdateConnector.prototype.inspect).mockImplementationOnce(async () => {
+      f.replaceController();
+      return { state: 'absent', identity: null, blockers: [] };
+    });
+    await expect(verifyHostUpdateCompletion(f.puddleHome, f.job, operation, f.run)).rejects.toThrow(
+      'current adoption',
+    );
+    expect(f.state.changes).toEqual([...commands, 'verify', 'verify', 'verify']);
+  } finally {
+    f.close();
+  }
+}, 30_000);
 
 it.each(['', 'stop-connector', 'start-connector'])(
   'includes connector replacement in the consumed transaction (failure=%s)',

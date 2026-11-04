@@ -67,6 +67,12 @@ stored fields, including those the reader does not interpret. Receipt publicatio
 flushes SQLite before promising committed cursors. Remote and runtime
 protocols are unchanged.
 
+The same nonce request may observe an exact `recovery_required` operation with a
+recorded worker identity. It refreshes private adoption evidence only; it neither resolves
+recovery nor authorises execution. Older daemons which cannot make this observation
+produce no matching fresh receipt and cannot establish recovery completion. There
+is no new wire shape or authority; application 25.10, remote 4 and runtime 1.0 are unchanged.
+
 Protocol 25.7 adds bounded local/SSH host-update requests and correlated replies on
 the existing private host-control connection. Existing open/renew/token semantics
 are unchanged. Profile-scoped connections cannot use this host-wide surface; no

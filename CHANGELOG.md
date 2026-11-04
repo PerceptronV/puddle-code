@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Share host-update completion checks with recovery inspection, verifying exact selected releases, fresh runtime adoption and replacement service configuration without replaying installation or service commands. Keep recovery unresolved until an explicit supported recovery action supplies the remaining worker-lifetime checks.
+
 - Reject daemon updates whose declared database migration ceiling cannot read the current host schema, and recheck the shutdown checkpoint before selection. Refuse opening a newer database before changing journal mode or application data; keep runtime-only updates independent of daemon storage.
 
 - Compose daemon-update maintenance through private host control, draining application writers before pausing runtime observation while independent agents keep running. Preserve maintenance after uncertain dispatch, resume observations after fenced recovery, and drain log-retention copies before replacement.

@@ -7,6 +7,7 @@ import { digest, ipcPath } from '@puddle/shared/node';
 import type { CompilationCommandRunner } from '../../../src/compilation/process.js';
 import { acquireRuntimeController } from '../../../src/runtime/ownership/storage.js';
 import { HostUpdateConnector } from '../../../src/updates/preflight/connector.js';
+import { inspectReplacementConnector } from '../../../src/updates/verification/connector.js';
 import {
   stopConnectorForUpdate,
   startConnectorAfterUpdate,
@@ -152,5 +153,26 @@ it('refuses a connector which appeared after approval said it was absent', async
   const f = fixture();
   f.job.connector = { state: 'absent' };
   await expect(stopConnectorForUpdate(f.home, f.job, f.run)).rejects.toThrow('changed');
+  expect(f.state.mutations).toEqual([]);
+});
+
+it('observes a recovered connector without restarting it and refuses changed operation evidence', async () => {
+  const f = fixture();
+  f.worker.verifying();
+  const operation = f.worker.failed('Completion reply lost');
+  f.worker.release();
+  f.state.observation.identity.instance = randomUUID();
+  expect(await inspectReplacementConnector(f.home, f.job, operation, f.stage, f.run)).toMatchObject(
+    { state: 'running' },
+  );
+  expect(f.state.mutations).toEqual([]);
+  expect(f.store.read()).toEqual(operation);
+  f.inspect.mockImplementationOnce(async () => {
+    f.store.resolveRecovery(operation, 'complete', digest('another observer'));
+    return { ...f.state.observation, blockers: [] };
+  });
+  await expect(
+    inspectReplacementConnector(f.home, f.job, operation, f.stage, f.run),
+  ).rejects.toThrow('changed');
   expect(f.state.mutations).toEqual([]);
 });

@@ -14,7 +14,8 @@ packages/
 │   ├── src/storage/      # capacity monitoring, admission checks and bounded runtime persistence recovery
 │   ├── src/security/     # private host control, process claims, connection leases and resource revocation
 │   ├── src/updates/operations/ # durable host-update state, exact approval/dispatch and bounded history
-│   ├── src/updates/worker/ # pinned one-shot updater, exact activation and verification
+│   ├── src/updates/worker/ # pinned one-shot updater and exact component activation
+│   ├── src/updates/verification/ # shared execution/recovery adoption, service and selection evidence
 │   ├── src/updates/preflight/ # compatibility, interruption, capacity and supervision inspection
 │   ├── src/updates/coordinator.ts # private host-authorised preparation, review and dispatch
 │   ├── src/host/         # shared service definitions/commands plus supervision/ identity inspection

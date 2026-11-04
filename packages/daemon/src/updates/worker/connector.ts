@@ -1,6 +1,4 @@
 import { homedir } from 'node:os';
-import { join } from 'node:path';
-import { realpath as resolvePath } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { HostUpdateWorker, HostStageReceipt } from '@puddle/shared';
 import type { CompilationCommandRunner } from '../../compilation/process.js';
@@ -11,6 +9,7 @@ import {
 } from '../../host/supervision/replacement.js';
 import { HostUpdateConnector, inspectConnectorManager } from '../preflight/connector.js';
 import { requireExecutingUpdate, requireOutgoingController } from './operation.js';
+import { inspectReplacementConnector } from '../verification/connector.js';
 
 function inspection(home: string, job: HostUpdateWorker, run?: CompilationCommandRunner) {
   return new HostUpdateConnector(home, homedir(), {
@@ -76,32 +75,13 @@ export async function startConnectorAfterUpdate(
 ) {
   const approved = job.connector;
   if (!approved) throw new Error('Missing approved connector inventory');
-  const operation = requireExecutingUpdate(home, job, 'verifying');
-  const inspector = inspection(home, job, run);
-  if (approved.state === 'absent') {
-    if ((await inspector.inspect(operation)).state !== 'absent')
-      throw new Error('Unexpected connector installation after update');
-    return { state: 'absent' as const };
-  }
-  await startReplacementService(home, approved.service, run);
-  const root = await resolvePath(join(home, 'bin/versions', stage.record.generation));
+  requireExecutingUpdate(home, job, 'verifying');
+  if (approved.state === 'running') await startReplacementService(home, approved.service, run);
   const deadline = Date.now() + 30_000;
   for (;;) {
     const current = requireExecutingUpdate(home, job, 'verifying');
-    const observed = await inspector.inspect(current);
-    if (observed.state === 'running' && observed.identity && observed.service) {
-      if (
-        observed.identity.instance === approved.identity.instance ||
-        observed.identity.release_path !== root ||
-        observed.identity.version !== stage.record.version ||
-        observed.service.definition_digest !== approved.service.definition_digest ||
-        observed.service.name !== approved.service.name ||
-        observed.service.kind !== approved.service.kind ||
-        observed.service.domain !== approved.service.domain
-      )
-        throw new Error('Replacement connector does not match the selected generation and service');
-      return { state: 'running' as const, identity: observed.identity, service: observed.service };
-    }
+    const observed = await inspectReplacementConnector(home, job, current, stage, run);
+    if (observed) return observed;
     if (Date.now() >= deadline) throw new Error('Replacement connector is unconfirmed');
     await delay(100);
   }
