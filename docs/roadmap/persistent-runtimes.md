@@ -68,6 +68,16 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- A reusable per-owner filesystem inventory now traverses incrementally with
+  bounded entries, names, directories and cooperative work deadlines. It classifies
+  managed history, screens, metadata, protected helpers and temporary files without
+  reading contents or following links. Unknown, changed, unsafe or oversized trees
+  remain explicitly incomplete; cached observations grant no deletion or admission
+  authority. Nineteen focused tests, TypeScript, lint and formatting passed. This
+  is the tested inventory prerequisite; production accounting and reservation
+  admission are not yet wired, and failed-write temporary files still require
+  their own bounded lifecycle before a full disk envelope can be claimed.
+
 - Raw history now also bounds lifetime file identities to 1,024 exact
   segment/terminal/generation streams per owner. Empty writes consume no slot;
   reaching the limit reports a history gap while admitted streams, checkpoints
