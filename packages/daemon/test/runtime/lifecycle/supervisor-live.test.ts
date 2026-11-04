@@ -9,7 +9,7 @@ import {
   runtimeSupervisorSchema,
 } from '@puddle/shared';
 import { RuntimeClient } from '../../../src/runtime/transport/client.js';
-import { acquireRuntimeClaim } from '../../../src/runtime/ownership/claims.js';
+import { acquireHostClaim } from '../../../src/security/claims.js';
 import {
   startRuntimeService,
   removeRuntimeService,
@@ -151,7 +151,7 @@ describe('native runtime supervision', () => {
         await waitForSnapshot(next, original.generation, 'restart-launchd');
         await next.request({ t: 'stop', placement: placement(next) });
         await waitFor(() => {
-          const claim = acquireRuntimeClaim(home, `runtime:${launch.identity.runtime_id}`);
+          const claim = acquireHostClaim(home, `runtime:${launch.identity.runtime_id}`);
           claim.release();
           return true;
         });
@@ -177,7 +177,7 @@ describe('native runtime supervision', () => {
           await execute(['bootout', `${record.domain}/${record.name}`]).catch(() => {});
         } finally {
           await waitFor(() => {
-            const claim = acquireRuntimeClaim(home, `runtime:${launch.identity.runtime_id}`);
+            const claim = acquireHostClaim(home, `runtime:${launch.identity.runtime_id}`);
             claim.release();
             return true;
           });

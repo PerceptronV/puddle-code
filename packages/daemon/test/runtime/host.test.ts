@@ -11,7 +11,7 @@ import {
   connectRuntimeOwner,
   retireMissingRuntime,
 } from '../../src/runtime/ownership/discovery.js';
-import { acquireRuntimeClaim, RuntimeClaimBusy } from '../../src/runtime/ownership/claims.js';
+import { acquireHostClaim, HostClaimBusy } from '../../src/security/claims.js';
 import { readRuntimeJournal } from '../../src/runtime/state/journal.js';
 import {
   acquireRuntimeController,
@@ -272,9 +272,9 @@ describe('isolated runtime host', () => {
       }),
     ]);
     expect(ready.t).toBe('ready');
-    expect(() => acquireRuntimeController(home)).toThrow(RuntimeClaimBusy);
-    expect(() => acquireRuntimeClaim(home, `runtime:${launch.identity.runtime_id}`)).toThrow(
-      RuntimeClaimBusy,
+    expect(() => acquireRuntimeController(home)).toThrow(HostClaimBusy);
+    expect(() => acquireHostClaim(home, `runtime:${launch.identity.runtime_id}`)).toThrow(
+      HostClaimBusy,
     );
     const exited = once(peer, 'exit');
     peer.kill('SIGKILL');

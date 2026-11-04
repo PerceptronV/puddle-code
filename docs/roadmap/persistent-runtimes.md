@@ -307,9 +307,27 @@ Implementation evidence so far:
   changes, component/digest mismatch, missing source archives and checksum failures;
   the packaged-owner test uses staged activation for both components while retaining
   its original shell. These are installer primitives, not operation authorisation
-  or a complete update transaction: durable operation records, all-owner preflight,
+  or a complete update transaction: coordinator integration, all-owner preflight,
   the independently supervised worker, adoption verification, migration-aware
   recovery and reference-aware stage collection still remain.
+
+- `updates/operations/` now provides a bounded private operation ledger. One current
+  operation coalesces matching requests and rejects competing targets; 32 historical
+  terminal records remain inspectable. Revisions fence stale callers. Exact verified
+  stage receipts, preflight/approval fingerprints, a single dispatch identity and
+  positive verification evidence are persisted separately. Changed preflight clears
+  approval; dispatch cannot be repeated. An OS-held execution claim excludes a
+  second worker and is released on process death without resetting durable dispatch
+  consumption. Uncertain execution remains `recovery_required`, blocks another
+  update and requires explicit verified recovery. A delayed unstarted worker is
+  fenced by that state. Existing SQLite claims were moved into host security while
+  preserving every historical lock pathname; private JSON storage now supplies
+  bounded reads and optional directory fsync, reused by runtime records. Tests cover
+  multi-controller observation, stale revisions, partial staging, approval changes,
+  lost persistence replies, bounded history, corrupt storage and real child-process
+  death. The ledger does not itself inspect host impact, authorise callers, dispatch
+  a supervisor, run the installer or verify adoption; those coordinator/worker
+  integrations remain required before any production update path uses it.
 
 These are foundations for phases 0–4, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native

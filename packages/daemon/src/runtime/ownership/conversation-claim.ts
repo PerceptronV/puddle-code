@@ -1,4 +1,4 @@
-import { acquireRuntimeClaim, RuntimeClaimBusy } from './claims.js';
+import { acquireHostClaim, HostClaimBusy } from '../../security/claims.js';
 
 /** Runtime-owned exclusion remains effective without a daemon/controller. */
 export class RuntimeConversationClaim {
@@ -12,16 +12,16 @@ export class RuntimeConversationClaim {
 
   switch(ref: string): boolean {
     if (this.current?.ref === ref) return true;
-    let next: ReturnType<typeof acquireRuntimeClaim>;
+    let next: ReturnType<typeof acquireHostClaim>;
     try {
       // Tuple encoding avoids delimiter ambiguity; account is intentionally not
       // part of conversation identity because profiles can share native stores.
-      next = acquireRuntimeClaim(
+      next = acquireHostClaim(
         this.home,
         `conversation:${JSON.stringify([this.profile, this.provider, ref])}`,
       );
     } catch (error) {
-      if (error instanceof RuntimeClaimBusy) return false;
+      if (error instanceof HostClaimBusy) return false;
       throw error;
     }
     const previous = this.current;

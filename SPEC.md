@@ -183,6 +183,19 @@ commands, durable operations/preflight, the surviving updater, reference-aware
 collection and transactional recovery remain required before installed/default
 enablement.
 
+The update coordinator's private operation store lives under `updates/operations/`,
+with a bounded `updates/operations.json` ledger in the host home. A current operation
+and 32 historical terminal operations retain exact stage receipts and separate
+preflight, approval, dispatch and verification identities. Revisions fence stale
+writers; matching in-progress requests observe the same operation. A single-use
+dispatch and OS-held worker claim prevent concurrent execution or replay after a
+crash. Uncertain application/verification keeps the operation nonterminal until
+explicit verified recovery, fencing delayed starts. The record is file-and-directory
+synced through the existing private JSON writer; bounded reads fail closed. Runtime
+and update claims share `security/claims.ts`, preserving the existing `runtime-claims`
+inodes for owners launched by older builds. This store is not yet connected to host
+preflight, authority checks, supervisor dispatch, installation or adoption verification.
+
 The runtime agent state reports sidecar roots and hidden ports, and retains
 interactive fallback when installed-version checks fail. Codex lifecycle cleanup
 waits for app-server exit and escalates to SIGKILL after 1.5 seconds if needed.

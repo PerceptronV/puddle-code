@@ -30,7 +30,7 @@ import {
   type PtyEnvDeltaEvent,
   type PtyCwdEvent,
 } from '../pty/pty-manager.js';
-import { acquireRuntimeClaim } from './ownership/claims.js';
+import { acquireHostClaim } from '../security/claims.js';
 import { readRuntimeFrames, writeRuntimeFrame } from './transport/framing.js';
 import { readRuntimeController, readRuntimeJson, runtimeDirectory } from './ownership/storage.js';
 import { RuntimeJournal, type RuntimeJournalReservation } from './state/journal.js';
@@ -85,7 +85,7 @@ export class RuntimeHost {
     private readonly build: string,
   ) {
     this.directory = runtimeDirectory(home, id);
-    this.claim = acquireRuntimeClaim(home, `runtime:${id}`);
+    this.claim = acquireHostClaim(home, `runtime:${id}`);
     try {
       this.launch = runtimeLaunchSchema.parse(readRuntimeJson(join(this.directory, 'launch.json')));
       if (this.launch.identity.runtime_id !== id)

@@ -12,7 +12,8 @@ packages/
 │              # truth for API shapes) + PROTOCOL_VERSION — read its PROTOCOL.md before schema changes
 ├── daemon/    # puddled: Hono HTTP/WS server, PTY manager, worktree manager, SQLite
 │   ├── src/storage/      # capacity monitoring, admission checks and bounded runtime persistence recovery
-│   ├── src/security/     # private host control, monotonic connection leases and resource revocation
+│   ├── src/security/     # private host control, process claims, connection leases and resource revocation
+│   ├── src/updates/operations/ # durable host-update state, exact approval/dispatch and bounded history
 │   ├── src/agents/       # adapters own flags, cached native catalogue discovery, and exact lifecycle integration
 │   ├── src/puddlang/     # trusted TypeScript runner, bounded operations and durable run/event records
 │   ├── src/compilation/  # provider-neutral compile modes, scheduling, dependency observation, and artefacts
@@ -149,6 +150,12 @@ reuse the embedded installer: a private receipt fingerprints the complete candid
 activation rechecks it and never re-downloads a substitute. Keep stage receipts
 separate from update approval and single-use operation state. Retain failed/unselected
 stages until reference-aware collection can prove they are unused.
+Host-update operation state lives under daemon `updates/operations/`; do not equate
+its private ledger with host authority, preflight or completed adoption. Keep unknown
+execution nonterminal until positively verified recovery. Claim release after a crash
+never resets dispatch consumption. Shared host claims live in `security/claims.ts`;
+retain the historical `runtime-claims` directory and hashed lock filenames so older
+live owners keep excluding newer controllers.
 The remote app and new GitHub releases publish only the CLI installer at
 `/install.sh`. Install daemon/desktop components through the CLI; the embedded
 daemon bootstrap still fetches GitHub archives automatically on first local/SSH

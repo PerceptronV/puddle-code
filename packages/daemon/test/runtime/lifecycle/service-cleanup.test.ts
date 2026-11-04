@@ -3,7 +3,7 @@ import { expect, it, vi } from 'vitest';
 import { RUNTIME_PROTOCOL_VERSION } from '@puddle/shared';
 import { RuntimeServiceCleanupStore } from '../../../src/db/stores/runtime-service-cleanup.js';
 import { RuntimeServiceCleanup } from '../../../src/runtime/lifecycle/service-cleanup.js';
-import { acquireRuntimeClaim } from '../../../src/runtime/ownership/claims.js';
+import { acquireHostClaim } from '../../../src/security/claims.js';
 import { runtimeDatabase } from '../../helpers/runtime-database.js';
 import { openDatabase } from '../../../src/db/db.js';
 
@@ -24,7 +24,7 @@ it('collects only ended bindings, preserves live claims and retries failed compl
     ).toThrow('rollback');
     expect(store.pending()).toEqual([]);
     f.runtimes.finish(f.binding.runtime_id, 'exited', () => {});
-    const claim = acquireRuntimeClaim(f.home, `runtime:${f.binding.runtime_id}`);
+    const claim = acquireHostClaim(f.home, `runtime:${f.binding.runtime_id}`);
     try {
       await cleanup.flush();
       expect(store.pending()).toHaveLength(1);

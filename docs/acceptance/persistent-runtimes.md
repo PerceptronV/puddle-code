@@ -493,6 +493,24 @@ with relative copied archive/checksum paths. The staged packaged-owner variant p
 on macOS 26.5.2/Node v22.21.1. Full supervised upgrade transactions,
 reference-aware collection and native provider/platform gates remain outstanding.
 
+The private operation-store tests run with the normal daemon suite:
+
+```sh
+node node_modules/vitest/vitest.mjs run packages/daemon/test/updates/operations
+```
+
+They verify exact component stages, revision fencing, approval invalidation,
+single-use dispatch, mutually exclusive workers, retained uncertainty, positive
+recovery requirements, bounded history and fail-closed storage. Injected write
+failures before/after rename prove that a replacement controller inspects the
+persisted state rather than repeating dispatch. An isolated bundled child process
+holds an actual SQLite OS claim; a competing worker is refused, SIGKILL releases
+the lock, and a replacement still refuses to replay the consumed operation. This
+child executes no installer or daemon. The runtime/operation regression run passed
+200 tests on macOS 26.5.2/Node v22.21.1, with the packaged-owner and native-supervisor
+opt-in tests skipped in that run. These tests establish bookkeeping and fencing,
+not supervisor lifetime, host-impact authorisation or successful installed updates.
+
 ## Remaining release gates
 
 

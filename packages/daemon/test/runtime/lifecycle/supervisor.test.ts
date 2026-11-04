@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { RuntimeIdentity } from '@puddle/shared';
 import { atomicPrivateJson } from '@puddle/shared/node';
 import { readRuntimeJson, runtimeDirectory } from '../../../src/runtime/ownership/storage.js';
-import { acquireRuntimeClaim } from '../../../src/runtime/ownership/claims.js';
+import { acquireHostClaim } from '../../../src/security/claims.js';
 import {
   runtimeServiceDefinition,
   startRuntimeService,
@@ -103,7 +103,7 @@ describe('independent runtime supervision', () => {
       entryPath,
       run,
     });
-    const owner = acquireRuntimeClaim(home, `runtime:${identity.runtime_id}`);
+    const owner = acquireHostClaim(home, `runtime:${identity.runtime_id}`);
     try {
       expect(await removeRuntimeService(home, identity, run)).toBe('owned');
     } finally {
@@ -125,7 +125,7 @@ describe('independent runtime supervision', () => {
     'keeps an in-flight %s claim protected',
     async (key) => {
       const f = fixture();
-      const claim = acquireRuntimeClaim(f.home, `${key}:${f.identity.runtime_id}`);
+      const claim = acquireHostClaim(f.home, `${key}:${f.identity.runtime_id}`);
       try {
         expect(await removeRuntimeService(f.home, f.identity, f.run)).toBe('owned');
         expect(f.commands).toHaveLength(0);

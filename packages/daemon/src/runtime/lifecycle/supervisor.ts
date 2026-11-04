@@ -12,7 +12,7 @@ import {
   runCompilationCommand,
   type CompilationCommandRunner,
 } from '../../compilation/process.js';
-import { acquireRuntimeClaim, RuntimeClaimBusy } from '../ownership/claims.js';
+import { acquireHostClaim, HostClaimBusy } from '../../security/claims.js';
 import { readRuntimeJson, runtimeDirectory } from '../ownership/storage.js';
 
 const xml = (value: string) =>
@@ -113,7 +113,7 @@ export async function startRuntimeService(
     entry_path: entryPath,
     state: 'dispatching',
   });
-  const claim = acquireRuntimeClaim(home, `runtime-dispatch:${identity.runtime_id}`);
+  const claim = acquireHostClaim(home, `runtime-dispatch:${identity.runtime_id}`);
   try {
     try {
       readRuntimeJson(join(directory, 'retired.json'));
@@ -158,17 +158,17 @@ export async function removeRuntimeService(
   run: CompilationCommandRunner = runCompilationCommand,
 ): Promise<'removed' | 'absent' | 'owned'> {
   const directory = runtimeDirectory(home, identity.runtime_id);
-  let claim: ReturnType<typeof acquireRuntimeClaim>;
-  let launchClaim: ReturnType<typeof acquireRuntimeClaim> | undefined;
-  let dispatchClaim: ReturnType<typeof acquireRuntimeClaim> | undefined;
+  let claim: ReturnType<typeof acquireHostClaim>;
+  let launchClaim: ReturnType<typeof acquireHostClaim> | undefined;
+  let dispatchClaim: ReturnType<typeof acquireHostClaim> | undefined;
   try {
-    launchClaim = acquireRuntimeClaim(home, `runtime-launch:${identity.runtime_id}`);
-    dispatchClaim = acquireRuntimeClaim(home, `runtime-dispatch:${identity.runtime_id}`);
-    claim = acquireRuntimeClaim(home, `runtime:${identity.runtime_id}`);
+    launchClaim = acquireHostClaim(home, `runtime-launch:${identity.runtime_id}`);
+    dispatchClaim = acquireHostClaim(home, `runtime-dispatch:${identity.runtime_id}`);
+    claim = acquireHostClaim(home, `runtime:${identity.runtime_id}`);
   } catch (error) {
     dispatchClaim?.release();
     launchClaim?.release();
-    if (error instanceof RuntimeClaimBusy) return 'owned';
+    if (error instanceof HostClaimBusy) return 'owned';
     throw error;
   }
   try {

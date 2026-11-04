@@ -10,6 +10,7 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  readSync,
   realpathSync,
   renameSync,
   rmSync,
@@ -69,7 +70,11 @@ export function initialisePrivateHome(home: string): void {
   privatePath(path, true);
 }
 
-export function atomicPrivateJson(path: string, value: unknown): void {
+export function atomicPrivateJson(
+  path: string,
+  value: unknown,
+  options: { syncDirectory?: boolean } = {},
+): void {
   privateDirectory(dirname(path));
   const tmp = `${path}.${secret()}.tmp`;
   const fd = openSync(tmp, 'wx', 0o600);
@@ -81,13 +86,42 @@ export function atomicPrivateJson(path: string, value: unknown): void {
   }
   try {
     renameSync(tmp, path);
+    if (options.syncDirectory) {
+      const directory = openSync(
+        dirname(path),
+        constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+      );
+      try {
+        fsyncSync(directory);
+      } finally {
+        closeSync(directory);
+      }
+    }
   } finally {
     rmSync(tmp, { force: true });
   }
 }
 
-export function readPrivateJson(path: string): unknown {
+export function readPrivateJson(path: string, maxBytes?: number): unknown {
   privatePath(path);
+  if (maxBytes !== undefined) {
+    const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    try {
+      const stat = fstatSync(fd);
+      if (!stat.isFile() || stat.size > maxBytes) throw new Error('Invalid private record size');
+      const buffer = Buffer.alloc(stat.size + 1);
+      let size = 0;
+      while (size < buffer.length) {
+        const count = readSync(fd, buffer, size, buffer.length - size, size);
+        if (count === 0) break;
+        size += count;
+      }
+      if (size > stat.size) throw new Error('Private record grew while reading');
+      return JSON.parse(buffer.subarray(0, size).toString('utf8')) as unknown;
+    } finally {
+      closeSync(fd);
+    }
+  }
   return JSON.parse(readFileSync(path, 'utf8')) as unknown;
 }
 

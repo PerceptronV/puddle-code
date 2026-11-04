@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
 import { digest } from '@puddle/shared/node';
-import { acquireRuntimeClaim, RuntimeClaimBusy } from '../../../src/runtime/ownership/claims.js';
+import { acquireHostClaim, HostClaimBusy } from '../../../src/security/claims.js';
 import {
   acquireRuntimeController,
   readRuntimeController,
@@ -22,23 +22,23 @@ afterEach(() => {
 describe('runtime ownership', () => {
   it('excludes a second owner, keeps distinct claims independent and releases idempotently', () => {
     const path = home();
-    const first = acquireRuntimeClaim(path, 'runtime:a');
-    const other = acquireRuntimeClaim(path, 'runtime:b');
+    const first = acquireHostClaim(path, 'runtime:a');
+    const other = acquireHostClaim(path, 'runtime:b');
     try {
-      expect(() => acquireRuntimeClaim(path, 'runtime:a')).toThrow(RuntimeClaimBusy);
+      expect(() => acquireHostClaim(path, 'runtime:a')).toThrow(HostClaimBusy);
     } finally {
       first.release();
       other.release();
     }
     first.release();
-    acquireRuntimeClaim(path, 'runtime:a').release();
+    acquireHostClaim(path, 'runtime:a').release();
   });
 
   it('advances the controller epoch only under exclusive ownership', () => {
     const path = home();
     const first = acquireRuntimeController(path);
     try {
-      expect(() => acquireRuntimeController(path)).toThrow(RuntimeClaimBusy);
+      expect(() => acquireRuntimeController(path)).toThrow(HostClaimBusy);
       expect(readRuntimeController(path)).toEqual(first.record);
     } finally {
       first.release();
@@ -55,10 +55,10 @@ describe('runtime ownership', () => {
 
   it('rejects a symlink in the lock namespace', () => {
     const path = home();
-    acquireRuntimeClaim(path, 'initialise').release();
+    acquireHostClaim(path, 'initialise').release();
     const target = join(path, 'target');
     writeFileSync(target, '', { mode: 0o600 });
     symlinkSync(target, join(path, 'runtime-claims', `${digest('replacement')}.sqlite`));
-    expect(() => acquireRuntimeClaim(path, 'replacement')).toThrow(/private/);
+    expect(() => acquireHostClaim(path, 'replacement')).toThrow(/private/);
   });
 });

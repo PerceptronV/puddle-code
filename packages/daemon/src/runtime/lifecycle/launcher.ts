@@ -19,7 +19,7 @@ import type { SessionStore } from '../../db/stores/sessions.js';
 import type { ProjectStore } from '../../db/stores/projects.js';
 import type { ProfileStore } from '../../db/stores/profiles.js';
 import { ApiError } from '../../http/errors.js';
-import { acquireRuntimeClaim } from '../ownership/claims.js';
+import { acquireHostClaim } from '../../security/claims.js';
 import type { RuntimeConnections } from '../transport/connections.js';
 import type { RuntimeReconciler } from '../controller/reconcile.js';
 import { runtimeDirectory, readRuntimeJson } from '../ownership/storage.js';
@@ -117,7 +117,7 @@ export class RuntimeLauncher {
       session_id: sessionId,
       canonical_worktree_path: realpathSync(session.worktree_path),
     };
-    const claim = acquireRuntimeClaim(this.deps.home, `runtime-launch:${identity.runtime_id}`);
+    const claim = acquireHostClaim(this.deps.home, `runtime-launch:${identity.runtime_id}`);
     try {
       const directory = runtimeDirectory(this.deps.home, identity.runtime_id);
       const launch: RuntimeLaunch = runtimeLaunchSchema.parse({

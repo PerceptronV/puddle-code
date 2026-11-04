@@ -3,10 +3,10 @@ import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { digest, initialisePrivateHome, privateDirectory, privatePath } from '@puddle/shared/node';
 
-export class RuntimeClaimBusy extends Error {
+export class HostClaimBusy extends Error {
   constructor() {
-    super('Another live process owns this runtime claim');
-    this.name = 'RuntimeClaimBusy';
+    super('Another live process owns this host claim');
+    this.name = 'HostClaimBusy';
   }
 }
 
@@ -16,8 +16,9 @@ export class RuntimeClaimBusy extends Error {
  * databases contain no application state and are never unlinked: replacing a
  * locked inode would let two owners hold different locks for the same claim.
  */
-export function acquireRuntimeClaim(home: string, scope: string): { release(): void } {
+export function acquireHostClaim(home: string, scope: string): { release(): void } {
   initialisePrivateHome(home);
+  // Preserve the historical namespace: already-running owners use these inodes.
   const directory = join(home, 'runtime-claims');
   privateDirectory(directory);
   const file = join(directory, `${digest(scope)}.sqlite`);
@@ -38,7 +39,7 @@ export function acquireRuntimeClaim(home: string, scope: string): { release(): v
     db.exec('BEGIN EXCLUSIVE');
   } catch (error) {
     db.close();
-    if ((error as { code?: string }).code === 'SQLITE_BUSY') throw new RuntimeClaimBusy();
+    if ((error as { code?: string }).code === 'SQLITE_BUSY') throw new HostClaimBusy();
     throw error;
   }
   let released = false;

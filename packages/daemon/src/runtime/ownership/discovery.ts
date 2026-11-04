@@ -9,7 +9,7 @@ import {
   type RuntimeState,
 } from '@puddle/shared';
 import { atomicPrivateJson } from '@puddle/shared/node';
-import { acquireRuntimeClaim, RuntimeClaimBusy } from './claims.js';
+import { acquireHostClaim, HostClaimBusy } from '../../security/claims.js';
 import { RuntimeClient } from '../transport/client.js';
 import { readRuntimeJson, runtimeDirectory } from './storage.js';
 import { readRuntimeJournal } from '../state/journal.js';
@@ -52,14 +52,14 @@ export function retireMissingRuntime(
   apply: (finalState: RuntimeState | null, journal: RuntimeJournalRecord | null) => void,
 ): 'retired' | 'owned' {
   const directory = runtimeDirectory(home, identity.runtime_id);
-  let claim: ReturnType<typeof acquireRuntimeClaim>;
-  let launchClaim: ReturnType<typeof acquireRuntimeClaim> | undefined;
+  let claim: ReturnType<typeof acquireHostClaim>;
+  let launchClaim: ReturnType<typeof acquireHostClaim> | undefined;
   try {
-    launchClaim = acquireRuntimeClaim(home, `runtime-launch:${identity.runtime_id}`);
-    claim = acquireRuntimeClaim(home, `runtime:${identity.runtime_id}`);
+    launchClaim = acquireHostClaim(home, `runtime-launch:${identity.runtime_id}`);
+    claim = acquireHostClaim(home, `runtime:${identity.runtime_id}`);
   } catch (error) {
     launchClaim?.release();
-    if (error instanceof RuntimeClaimBusy) return 'owned';
+    if (error instanceof HostClaimBusy) return 'owned';
     throw error;
   }
   try {
