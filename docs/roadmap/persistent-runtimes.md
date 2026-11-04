@@ -56,6 +56,16 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Runtime IPC now shares separate process-wide incoming/outgoing frame budgets,
+  and daemon terminal views share separate snapshot, replay/output and input
+  budgets. Pending reads and mutations retain their reservations after viewer
+  disposal until settlement; zero-byte actions count too. Overflow disconnects
+  only the affected connection without stopping the PTY or replaying input.
+  The 38 focused tests include partial frames, independently slow sockets,
+  concurrent views, reentrant disposal and actual owner/controller/WebSocket
+  continuity. These bound charged buffers, not total host memory. Provider,
+  CPU/wakeup and native-platform resource acceptance remain outstanding.
+
 - `updates/continuity/remote-update.test.ts` exercises actual bundled daemon,
   connector and update worker over a local TLS relay and real Noise, with a
   persisted host-approved maintenance grant. A discarded apply acknowledgement

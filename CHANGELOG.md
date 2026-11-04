@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Bound aggregate runtime IPC and terminal-view buffering across connections. Keep separate snapshot, output and input capacity; close only the affected connection on exhaustion, retain pending-operation charges until completion and never replay input or stop the runtime's PTY.
+
 - Add explicit host-approved remote-browser maintenance grants, separate from ordinary pairing. Approved devices can review and apply host daemon/runtime updates through the existing coordinator, with independent daemon permission checks and aggregate status. Application protocol 26.0 and remote protocol 5 require matching protocol generations across clients, daemon, connector and relay; runtime protocol remains 1.0.
 
 - Record immutable release receipts during ordinary bootstrap using the existing staging verifier. Verify, extract and hash one private archive snapshot, preserve prior receipts on reuse, and retain completed release evidence after publication failures so verified unreferenced builds can later be collected safely.

@@ -157,13 +157,57 @@ This verifies the reduced steady subprocess count and preserved behaviour. The
 resource benchmark has not been rerun after this change; no CPU, memory or wakeup
 savings are claimed.
 
+## Subsequent aggregate buffer limits
+
+Runtime transport now shares independent **64 MiB / 256-frame** budgets for
+incoming partial frames and queued outgoing frames across every runtime socket
+in one process. An incoming body reserves capacity before allocation. Completion,
+failure and close release it; queued writes release on their callback or close,
+including late callbacks without double release. Existing per-frame and
+per-connection limits still apply. Capacity exhaustion closes only that connection;
+it does not stop the runtime or prevent its PTY from draining.
+
+Daemon terminal views share three independent pools:
+
+| Pool | Charged capacity | Behaviour |
+| --- | --- | --- |
+| Snapshots/checkpoint reads | Eight simultaneous reads, each reserved at six times the 8 MiB frame limit plus 256 bytes | Reserves before reading; additional viewers reconnect. |
+| Replay and batched output | 32 MiB and 16,384 retained entries | Accounts for retained text and output-copy space; disconnects the overflowing viewer. |
+| Input and terminal actions | 64 MiB and 256 actions | Accounts for retained text/paste buffers; even zero-byte resize actions consume capacity. |
+
+Input and pending-read reservations remain held after viewer disposal until their
+promises settle. Discarded input is never dispatched on reconnect. Output exhaustion
+does not consume input capacity. These are conservative charged-buffer ceilings,
+not preallocated memory or guarantees about total RSS, garbage collection, provider
+memory, WebSocket buffers or the sum across independent owner processes.
+
+The **38 focused tests** passed, covering aggregate reservations, partial frames,
+slow writes, concurrent viewers, snapshot races and reentrant disposal, plus real
+isolated owner/controller replacement and daemon WebSocket continuity. Run:
+
+```sh
+node node_modules/vitest/vitest.mjs run \
+  packages/daemon/test/runtime/resources/budget.test.ts \
+  packages/daemon/test/runtime/controller/terminal-buffers.test.ts \
+  packages/daemon/test/runtime/controller/terminal-view.test.ts \
+  packages/daemon/test/runtime/controller/terminal-gateway.test.ts \
+  packages/daemon/test/runtime/transport/framing.test.ts \
+  packages/daemon/test/runtime/transport/connections.test.ts \
+  packages/daemon/test/runtime/host.test.ts \
+  packages/daemon/test/runtime/daemon-adoption.test.ts
+```
+
+The scale benchmark above predates these limits. It has not been rerun to measure
+their overhead or behaviour under a sustained many-runtime workload.
+
 ## Remaining resource gates
 
 Wakeups were **not measured**. CPU time and the known polling interval do not
 substitute for wakeup or energy measurements. Provider CLI/sidecar overhead,
 controller/daemon RSS and CPU, service-manager overhead, active output and slow
-consumers, host-wide buffering, native-provider workloads, and equivalent Linux
+consumers, remaining host-wide buffering, native-provider workloads, and equivalent Linux
 measurements remain open. This report supplies a repeatable baseline and proposed
 monitoring limits; it does not claim all resource acceptance gates are met. Its
-RSS limits also do not enforce production host-wide buffer or memory allocation
-limits; those require separate implementation and workload evidence.
+RSS limits are distinct from the implemented transport/viewer buffer capacities.
+Those capacities do not establish a total host memory ceiling or replace workload
+measurements.

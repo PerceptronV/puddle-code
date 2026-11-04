@@ -1250,8 +1250,11 @@ ownership rollout. Runtime removal and combined host transactions remain pending
 The [resource baseline report](../reports/2026-11-04-persistent-runtime-resources.md)
 records the opt-in 1/10/50-owner plain-shell measurements and fixture regression
 ceilings. It covers production controller re-adoption, not complete daemon startup.
-Provider overhead, reliable CPU/wakeup budgets and production host-wide buffering
-are still required; the baseline does not close the resource gate below.
+Production limits now cover aggregate runtime IPC frames and daemon terminal-view
+snapshots/output/input; the resource report records their ceilings and failure
+behaviour. Provider overhead, reliable CPU/wakeup budgets, remaining host memory
+and native-platform workload measurements are still required; these limits do not
+close the resource gate below.
 
 Record platform, Node, release and provider versions with results. Run native
 provider checks from a plain shell; never launch the production daemon from an

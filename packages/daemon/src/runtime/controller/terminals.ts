@@ -6,6 +6,12 @@ import type { RuntimeClient } from '../transport/client.js';
 import { RuntimeConnections, runtimeBindingIdentity } from '../transport/connections.js';
 import { readRuntimeCheckpoint } from '../state/segments.js';
 import { runtimeDirectory } from '../ownership/storage.js';
+import {
+  RuntimeTerminalBuffers,
+  TERMINAL_SNAPSHOT_BYTES,
+  terminalInputBytes,
+  terminalOutputBytes,
+} from './terminals/buffers.js';
 
 type Address = RuntimeSegmentBinding & { generation: string; term: string };
 interface Viewer {
@@ -27,6 +33,7 @@ export class RuntimeTerminals {
     readonly runtimes: RuntimeStore,
     readonly connections: RuntimeConnections,
     readonly observations: RuntimeObservationStore,
+    readonly buffers = new RuntimeTerminalBuffers(),
   ) {
     connections.on('connected', (id: string, client: RuntimeClient) => {
       const listen = (event: RuntimeEvent) => {
@@ -120,14 +127,18 @@ export class RuntimeTerminals {
 export class RuntimeTerminalView {
   private closed = false;
   private ready = false;
+  private started = false;
   private ended = false;
   private mutationTail: Promise<void> = Promise.resolve();
   private pendingMutations = 0;
   private inputBytes = 0;
   private through = -1;
-  private queued: Array<Extract<RuntimeEvent, { t: 'output' | 'exit' }>> = [];
+  private queued: Array<{
+    event: Extract<RuntimeEvent, { t: 'output' | 'exit' }>;
+    release(): void;
+  }> = [];
   private queuedBytes = 0;
-  private output: string[] = [];
+  private output: Array<{ data: string; release(): void }> = [];
   private outputChars = 0;
   private timer: NodeJS.Timeout | null = null;
 
@@ -150,6 +161,43 @@ export class RuntimeTerminalView {
   }
 
   async start(cols: number, rows: number): Promise<void> {
+    if (!this.valid()) {
+      this.dispose();
+      return;
+    }
+    if (this.started) return;
+    this.started = true;
+    const release = this.owner.buffers.snapshots.reserve(TERMINAL_SNAPSHOT_BYTES);
+    if (!release) {
+      this.invalidate();
+      return;
+    }
+    try {
+      await this.replay();
+    } catch (error) {
+      this.invalidate();
+      throw error;
+    } finally {
+      // A disposed view still owns its pending read until it settles.
+      release();
+    }
+    if (!this.valid()) return;
+    if (
+      this.client &&
+      !this.ended &&
+      this.owner.observations
+        .get(this.address.runtime_id)
+        ?.terminals.some(
+          (term) =>
+            term.term === this.address.term &&
+            term.generation === this.address.generation &&
+            term.pid !== null,
+        )
+    )
+      await this.resize(cols, rows);
+  }
+
+  private async replay(): Promise<void> {
     let data: string;
     if (this.client) {
       const response = await this.client.request({
@@ -168,30 +216,33 @@ export class RuntimeTerminalView {
       this.through = response.cursor;
       data = response.data;
     } else data = await this.owner.checkpoint(this.address);
-    if (!this.valid()) return;
+    if (!this.valid()) {
+      this.dispose();
+      return;
+    }
     this.viewer.send({
       t: 'replay',
       session: this.address.session_id,
       term: this.address.term,
       data,
     });
+    if (!this.valid()) {
+      this.dispose();
+      return;
+    }
     this.ready = true;
-    for (const event of this.queued) if (event.cursor > this.through) this.deliver(event);
+    // Keep reservations until this local array is no longer retained, including reentrant disposal.
+    const queued = this.queued;
     this.queued = [];
     this.queuedBytes = 0;
-    if (
-      this.client &&
-      !this.ended &&
-      this.owner.observations
-        .get(this.address.runtime_id)
-        ?.terminals.some(
-          (term) =>
-            term.term === this.address.term &&
-            term.generation === this.address.generation &&
-            term.pid !== null,
-        )
-    )
-      await this.resize(cols, rows);
+    try {
+      for (const { event } of queued) {
+        if (!this.valid()) break;
+        if (event.cursor > this.through) this.deliver(event);
+      }
+    } finally {
+      for (const item of queued) item.release();
+    }
   }
 
   event(event: RuntimeEvent): void {
@@ -222,7 +273,14 @@ export class RuntimeTerminalView {
         this.invalidate();
         return;
       }
-      this.queued.push(event);
+      const release = this.owner.buffers.output.reserve(
+        event.t === 'output' ? terminalOutputBytes(event.data) : 256,
+      );
+      if (!release) {
+        this.invalidate();
+        return;
+      }
+      this.queued.push({ event, release });
     } else if (event.cursor > this.through) this.deliver(event);
   }
 
@@ -239,7 +297,12 @@ export class RuntimeTerminalView {
         });
       return;
     }
-    this.output.push(event.data);
+    const release = this.owner.buffers.output.reserve(terminalOutputBytes(event.data));
+    if (!release) {
+      this.invalidate();
+      return;
+    }
+    this.output.push({ data: event.data, release });
     this.outputChars += event.data.length;
     if (this.outputChars >= 64 * 1024) this.flush();
     else if (!this.timer) {
@@ -251,15 +314,22 @@ export class RuntimeTerminalView {
   private flush(): void {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
-    if (this.output.length && this.valid())
-      this.viewer.send({
-        t: 'output',
-        session: this.address.session_id,
-        term: this.address.term,
-        data: this.output.join(''),
-      });
+    const output = this.output;
     this.output = [];
     this.outputChars = 0;
+    try {
+      if (output.length && this.valid())
+        this.viewer.send({
+          t: 'output',
+          session: this.address.session_id,
+          term: this.address.term,
+          data: output.map((item) => item.data).join(''),
+        });
+    } catch {
+      this.invalidate();
+    } finally {
+      for (const item of output) item.release();
+    }
   }
 
   private mutable(): RuntimeClient {
@@ -278,12 +348,17 @@ export class RuntimeTerminalView {
     return this.client;
   }
 
-  private mutate(bytes: number, action: () => Promise<void>): Promise<void> {
+  private mutate(bytes: number, retainedBytes: number, action: () => Promise<void>): Promise<void> {
     this.mutable();
     if (
       this.pendingMutations >= RUNTIME_LIMITS.pendingRequests ||
       this.inputBytes + bytes > RUNTIME_LIMITS.queuedBytes
     ) {
+      this.invalidate();
+      return Promise.reject(unavailable());
+    }
+    const release = this.owner.buffers.input.reserve(retainedBytes);
+    if (!release) {
       this.invalidate();
       return Promise.reject(unavailable());
     }
@@ -301,13 +376,14 @@ export class RuntimeTerminalView {
       .finally(() => {
         this.pendingMutations--;
         this.inputBytes -= bytes;
+        release();
       });
     this.mutationTail = pending.catch(() => {});
     return pending;
   }
 
   async input(data: string): Promise<void> {
-    await this.mutate(Buffer.byteLength(data), async () => {
+    await this.mutate(Buffer.byteLength(data), terminalInputBytes(data), async () => {
       const bytes = Buffer.from(data);
       for (let offset = 0; offset < bytes.length;) {
         let end = Math.min(offset + RUNTIME_LIMITS.inputBytes, bytes.length);
@@ -327,7 +403,7 @@ export class RuntimeTerminalView {
   }
 
   async resize(cols: number, rows: number): Promise<void> {
-    await this.mutate(0, async () => {
+    await this.mutate(0, 256, async () => {
       await this.mutable().request({
         t: 'resize',
         placement: { session_id: this.address.session_id, segment_id: this.address.segment_id },
@@ -341,7 +417,7 @@ export class RuntimeTerminalView {
 
   async kill(): Promise<void> {
     if (this.address.term === 'agent') throw unavailable();
-    await this.mutate(0, async () => {
+    await this.mutate(0, 256, async () => {
       await this.mutable().request({
         t: 'kill-terminal',
         placement: {
@@ -364,8 +440,12 @@ export class RuntimeTerminalView {
     this.closed = true;
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
+    for (const item of this.output) item.release();
+    for (const item of this.queued) item.release();
     this.output = [];
     this.queued = [];
+    this.outputChars = 0;
+    this.queuedBytes = 0;
     this.owner.remove(this);
   }
 }

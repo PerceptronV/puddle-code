@@ -1,11 +1,27 @@
 import { Socket } from 'node:net';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { RUNTIME_LIMITS } from '@puddle/shared';
 import {
   encodeRuntimeFrame,
   readRuntimeFrames,
   writeRuntimeFrame,
 } from '../../../src/runtime/transport/framing.js';
+import { RuntimeBufferBudget } from '../../../src/runtime/resources/budget.js';
+
+/** A genuinely backpressured Writable: writes complete only when the test drains them. */
+class SlowSocket extends Socket {
+  callbacks: Array<(error?: Error | null) => void> = [];
+  override _write(
+    _chunk: Buffer,
+    _encoding: BufferEncoding,
+    callback: (error?: Error | null) => void,
+  ) {
+    this.callbacks.push(callback);
+  }
+  drainOne() {
+    this.callbacks.shift()?.();
+  }
+}
 
 describe('runtime framing', () => {
   it('retains Unicode when every byte arrives separately and handles coalesced frames', () => {
@@ -79,5 +95,93 @@ describe('runtime framing', () => {
     Object.defineProperty(socket, 'writableLength', { value: RUNTIME_LIMITS.queuedBytes });
     expect(writeRuntimeFrame(socket, { text: 'next' })).toBe(false);
     expect(socket.destroyed).toBe(true);
+  });
+
+  it('bounds partial frame allocations across sockets and releases on completion, failure and close', async () => {
+    const budget = new RuntimeBufferBudget({ bytes: 64, count: 2 });
+    const sockets = Array.from({ length: 4 }, () => new Socket());
+    const failures = sockets.map(() => vi.fn());
+    const received = vi.fn();
+    const stops = sockets.map((socket, index) =>
+      readRuntimeFrames(socket, received, failures[index]!, budget),
+    );
+    const frame = encodeRuntimeFrame({ text: 'x'.repeat(20) });
+    try {
+      sockets[0]!.emit('data', frame.subarray(0, 4));
+      sockets[1]!.emit('data', frame.subarray(0, 4));
+      expect(budget.usedBytes).toBe(2 * (frame.length - 4));
+      sockets[2]!.emit('data', frame.subarray(0, 4));
+      expect(failures[2]).toHaveBeenCalledWith(
+        expect.objectContaining({ message: expect.stringMatching(/capacity/) }),
+      );
+      expect(budget.usedCount).toBe(2);
+      sockets[0]!.emit('data', frame.subarray(4));
+      expect(received).toHaveBeenCalledOnce();
+      expect(budget.usedCount).toBe(1);
+      // A failed stream does not recover or accept a later command implicitly.
+      sockets[2]!.emit('data', frame);
+      expect(received).toHaveBeenCalledOnce();
+      sockets[3]!.emit('data', Buffer.from([0, 0, 0, 3, 0x22, 0xff, 0x22]));
+      expect(failures[3]).toHaveBeenCalledOnce();
+      expect(budget.usedCount).toBe(1);
+      sockets[1]!.destroy();
+      await vi.waitFor(() => expect(budget.usedBytes).toBe(0));
+      stops[1]!();
+      expect(budget.usedCount).toBe(0);
+    } finally {
+      for (const stop of stops) stop();
+      for (const socket of sockets) socket.destroy();
+    }
+  });
+
+  it('bounds aggregate queued writes without disconnecting other owners and reclaims drained capacity', async () => {
+    const frame = { text: 'held output' };
+    const bytes = encodeRuntimeFrame(frame).length;
+    const budget = new RuntimeBufferBudget({ bytes: 2 * bytes, count: 8 });
+    const sockets = Array.from({ length: 4 }, () => new SlowSocket());
+    try {
+      expect(writeRuntimeFrame(sockets[0]!, frame, budget)).toBe(true);
+      expect(writeRuntimeFrame(sockets[1]!, frame, budget)).toBe(true);
+      expect(budget.usedBytes).toBe(2 * bytes);
+      expect(writeRuntimeFrame(sockets[2]!, frame, budget)).toBe(false);
+      expect(sockets[2]!.destroyed).toBe(true);
+      expect(sockets[0]!.destroyed).toBe(false);
+      expect(sockets[1]!.destroyed).toBe(false);
+      sockets[0]!.drainOne();
+      expect(budget.usedBytes).toBe(bytes);
+      expect(writeRuntimeFrame(sockets[3]!, frame, budget)).toBe(true);
+      sockets[1]!.destroy();
+      await vi.waitFor(() => expect(budget.usedBytes).toBe(bytes));
+      // A late write callback after close must not release another frame's charge.
+      sockets[1]!.drainOne();
+      expect(budget.usedBytes).toBe(bytes);
+      sockets[3]!.drainOne();
+      expect(budget.usedCount).toBe(0);
+    } finally {
+      for (const socket of sockets) socket.destroy();
+    }
+  });
+
+  it('bounds the count of small queued frames and releases a synchronous write failure', async () => {
+    const budget = new RuntimeBufferBudget({ bytes: 1024, count: 2 });
+    const socket = new SlowSocket();
+    const failed = new Socket();
+    try {
+      vi.spyOn(failed, 'write').mockImplementation(() => {
+        throw new Error('write failed');
+      });
+      expect(() => writeRuntimeFrame(failed, {}, budget)).toThrow('write failed');
+      expect(budget.usedCount).toBe(0);
+      expect(writeRuntimeFrame(socket, {}, budget)).toBe(true);
+      expect(writeRuntimeFrame(socket, {}, budget)).toBe(true);
+      expect(socket.listenerCount('close')).toBe(1);
+      expect(writeRuntimeFrame(socket, {}, budget)).toBe(false);
+      await vi.waitFor(() => expect(budget.usedCount).toBe(0));
+      socket.drainOne();
+      expect(budget.usedBytes).toBe(0);
+    } finally {
+      socket.destroy();
+      failed.destroy();
+    }
   });
 });
