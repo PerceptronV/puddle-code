@@ -24,8 +24,10 @@ preparation, exact impact approval and live recovery, with per-window release of
 Individual runtime inspection/restart is available in local/SSH session menus.
 Cockpit status now reads and labels recorded operations while the daemon is unavailable.
 Explicit offline continuation now uses a participating trusted helper and pinned
-recovery dispatcher. Legacy cockpit transition, remaining failure recovery and
-complete packaged upgrade acceptance remain unfinished.
+recovery dispatcher. The first launcher upgrade from reconstructed 0.3.14 source
+now passes with declined/approved consent and automatic/manual resume. Native
+desktop-dialog, remaining failure recovery and complete packaged upgrade acceptance
+remain unfinished.
 Application 26.0 and remote 5 now add explicitly host-approved browser maintenance,
 with independent daemon grant checks and the same host update coordinator. Remote
 windows share preparation, interruption review, application, recovery and release
@@ -55,6 +57,17 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 [acceptance matrix](#acceptance-matrix) for the release gates.
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
+
+- The opt-in `historical-first-upgrade.test.ts` reconstructs exact v0.3.14 commit
+  `c33cdeef3a5df58badf73c3dd74cee8dca23bdbe`, protocol 25.6/schema 28, with pinned
+  lockfile/native dependencies and historical-only application imports. Declined
+  launcher approval preserves the original daemon, shell state and background job.
+  Approved current `ensureDaemon` plus the canonical installer initialises
+  `runtime-current`, migrates data and preserves the placement; automatic and
+  explicit resume each create one runtime. A second connection neither reinstalls
+  nor resumes again. Both variants passed in 34.58 seconds with verified fixture
+  cleanup. This is actual historical-source transition evidence, not identity with
+  the published archive, native-manager/SSH/desktop-dialog or real-provider evidence.
 
 - Runtime IPC now shares separate process-wide incoming/outgoing frame budgets,
   and daemon terminal views share separate snapshot, replay/output and input

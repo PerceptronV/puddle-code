@@ -50,6 +50,27 @@ runtime PID without relaunching the provider. Both cases passed on macOS/Node
 22.21.1; this proves historical database migration with current execution code,
 not live PTY transfer from a released daemon or real provider CLI database sync.
 
+The separate opt-in `historical-first-upgrade.test.ts` starts actual v0.3.14 source
+from pinned commit `c33cdeef3a5df58badf73c3dd74cee8dca23bdbe`, using the matching
+dependency lock and historical-only shared imports. Current `ensureDaemon` must
+preserve the old daemon and shell state when approval is declined, then run the
+canonical installer and recover the same placement after approval. Both automatic
+and explicit resume produce exactly one runtime; reopening does not reinstall or
+resume again. Both variants passed in 34.58 seconds on macOS 26.5.2 / Node 22.21.1
+with scripted supervision and complete fixture cleanup. Run it with:
+
+```sh
+PUDDLE_TEST_HISTORICAL_UPGRADE=1 node node_modules/vitest/vitest.mjs run \
+  packages/daemon/test/updates/continuity/historical-first-upgrade.test.ts
+```
+
+The [fixture prerequisites and provenance](../../packages/daemon/test/helpers/legacy-transition/historical/README.md)
+explain its retained-Git-object requirement and explicit limits. This reconstructs
+released source; it does not prove byte-identical published packaging, native
+supervision, SSH transport, desktop approval rendering or real provider database sync.
+The approved first upgrade intentionally ends old daemon-owned shells; process
+continuity applies to independent runtimes created after that migration.
+
 Runtime lifetime checks under `test/runtime/lifecycle/lifetime.test.ts` exercise
 explicit unsupervised selection, bounded process-group inspection, refusal before
 command consumption on a different boot, controller replacement with the same live
