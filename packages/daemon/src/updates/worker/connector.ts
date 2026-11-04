@@ -3,10 +3,10 @@ import { setTimeout as delay } from 'node:timers/promises';
 import type { HostUpdateWorker, HostStageReceipt } from '@puddle/shared';
 import type { CompilationCommandRunner } from '../../compilation/process.js';
 import {
-  serviceIsStopped,
   startReplacementService,
   stopServiceForReplacement,
 } from '../../host/supervision/replacement.js';
+import { serviceIsStopped } from '../../host/supervision/stopped.js';
 import { HostUpdateConnector, inspectConnectorManager } from '../preflight/connector.js';
 import { requireExecutingUpdate, requireOutgoingController } from './operation.js';
 import { inspectReplacementConnector } from '../verification/connector.js';

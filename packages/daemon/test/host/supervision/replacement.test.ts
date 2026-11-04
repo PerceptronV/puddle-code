@@ -9,10 +9,10 @@ import type {
 import { inspectRunningService } from '../../../src/host/supervision/inspection.js';
 import {
   prepareServiceReplacement,
-  serviceIsStopped,
   startReplacementService,
   stopServiceForReplacement,
 } from '../../../src/host/supervision/replacement.js';
+import { serviceIsStopped } from '../../../src/host/supervision/stopped.js';
 import { systemdObservation, launchdObservation } from '../../helpers/host-supervision.js';
 
 const homes: string[] = [];

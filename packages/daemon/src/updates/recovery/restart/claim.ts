@@ -1,9 +1,7 @@
 import { digest } from '@puddle/shared/node';
 import type { CompilationCommandRunner } from '../../../compilation/process.js';
-import {
-  requireUnchangedServiceDefinition,
-  serviceIsStopped,
-} from '../../../host/supervision/replacement.js';
+import { requireUnchangedServiceDefinition } from '../../../host/supervision/replacement.js';
+import { serviceIsStopped } from '../../../host/supervision/stopped.js';
 import { readRuntimeController } from '../../../runtime/ownership/storage.js';
 import { resolveInstalledRuntimeRelease } from '../../../runtime/lifecycle/release.js';
 import { acquireHostClaim } from '../../../security/claims.js';

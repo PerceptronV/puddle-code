@@ -1,9 +1,7 @@
 import { hostUpdateWorkerSchema, type HostUpdateWorker } from '@puddle/shared';
 import type { CompilationCommandRunner } from '../../compilation/process.js';
-import {
-  requireUnchangedServiceDefinition,
-  serviceIsStopped,
-} from '../../host/supervision/replacement.js';
+import { requireUnchangedServiceDefinition } from '../../host/supervision/replacement.js';
+import { serviceIsStopped } from '../../host/supervision/stopped.js';
 import { readRuntimeController } from '../../runtime/ownership/storage.js';
 import { acquireHostClaim, HostClaimBusy } from '../../security/claims.js';
 import { readHostUpdateCheckpointEvidence } from '../checkpoints/store.js';

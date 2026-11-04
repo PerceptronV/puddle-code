@@ -200,7 +200,11 @@ one start; never rewrite configuration, selectors or controller records. A dispa
 unfinished update requires recovery, while undispatched preparation may survive startup.
 Retain ended-worker checks for completed operations. Lost startup replies never cause
 another start, legacy installation or attached fallback. Share supervisor marker and
-definition readers under `host/supervision/`. The helper handles graceful disconnect
+definition readers under `host/supervision/`. Explicit startup/recovery may reset only
+the exact positively stopped systemd unit's `start-limit-hit` result. Keep controller
+exclusion through reset and repeat current configuration/database/runtime checks before
+start; lost reset replies must not dispatch a start. Share stopped-service parsing in
+`host/supervision/stopped.ts`. The helper handles graceful disconnect
 signals; abrupt-kill lock repair and further platform acceptance remain unfinished.
 Cockpit confirmation remains pending.
 Application 25.13 exposes local/SSH `GET/POST /cockpit/updates` through the existing

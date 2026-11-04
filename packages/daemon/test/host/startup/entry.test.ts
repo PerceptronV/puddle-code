@@ -99,6 +99,7 @@ if (args[1] === 'cat') {
   console.log('{ path=' + wrapper + ' ; argv[]=' + wrapper + ' ; ignore_errors=no ; pid=0 }');
 } else if (args[1] === 'show' && args.at(-1) === 'puddled.service') {
   console.log('Id=puddled.service\\nLoadState=loaded\\nActiveState=inactive\\nSubState=dead\\nMainPID=0\\nNeedDaemonReload=no');
+  if (args.some(arg => arg.includes(',Result'))) console.log('Result=success');
 } else if (args[1] === 'start') fs.appendFileSync(path.join(home, 'starts'), 'start\\n');
 else if (args[1] !== 'show') process.exit(2);
 `,

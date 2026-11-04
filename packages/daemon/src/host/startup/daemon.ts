@@ -16,7 +16,7 @@ import {
 } from '../supervision/definition.js';
 import { inspectHostServiceManager } from '../supervision/inspection.js';
 import { readSupervisorMarker } from '../supervision/marker.js';
-import { serviceIsStopped } from '../supervision/replacement.js';
+import { serviceIsStopped, resetServiceStartLimit } from '../supervision/stopped.js';
 
 /** Start the selected service once. Installation, update recovery and owner restart are separate. */
 export async function startSelectedDaemon(
@@ -69,10 +69,15 @@ export async function startSelectedDaemon(
     const definition = await serviceDefinitionDigest(home, target, definitionPath, options.run);
     if (!(await serviceIsStopped(home, target, options.run, true)))
       throw new Error('Installed daemon service is not positively stopped');
-    if ((await serviceDefinitionDigest(home, target, definitionPath, options.run)) !== definition)
-      throw new Error('Daemon service configuration changed before startup');
-    await requireSelectedDaemonExecutable(home, target, options.run);
-    check();
+    const requireCurrent = async () => {
+      if ((await serviceDefinitionDigest(home, target, definitionPath, options.run)) !== definition)
+        throw new Error('Daemon service configuration changed before startup');
+      await requireSelectedDaemonExecutable(home, target, options.run);
+      check();
+    };
+    await requireCurrent();
+    await resetServiceStartLimit(home, target, requireCurrent, options.run);
+    await requireCurrent();
     // Startup will acquire the same controller claim. Keep update/installer exclusion
     // through dispatch, but do not mint an epoch or rewrite the previous controller record.
     controller.release();

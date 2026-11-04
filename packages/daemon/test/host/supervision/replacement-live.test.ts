@@ -11,10 +11,10 @@ import {
 import { inspectRunningService } from '../../../src/host/supervision/inspection.js';
 import {
   prepareServiceReplacement,
-  serviceIsStopped,
   startReplacementService,
   stopServiceForReplacement,
 } from '../../../src/host/supervision/replacement.js';
+import { serviceIsStopped } from '../../../src/host/supervision/stopped.js';
 
 it
   .runIf(process.platform === 'darwin' && process.env.PUDDLE_TEST_RUNTIME_SUPERVISOR === '1')

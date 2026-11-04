@@ -448,8 +448,14 @@ Prior completed workers must have ended. SIGINT/SIGTERM/SIGHUP stop helper comma
 and release claims/installer exclusion; abrupt SIGKILL lock repair remains outstanding.
 Authenticated readiness is shared by launchers, SSH attachment and stopped-host explicit
 upgrades. Lost startup replies cause observation without another start or bootstrap
-fallback. Different compatible release versions remain valid. Loaded-idle launchd jobs,
-systemd start-limit recovery and packaged platform acceptance remain unfinished. This
+fallback. Different compatible release versions remain valid. Explicit startup and
+accepted replacement recovery can clear a systemd `start-limit-hit` result on the exact
+stopped unit once, retaining controller exclusion through the reset. They recheck the
+unchanged service definition and confirm an inactive successful result before starting;
+recovery also revalidates current database/runtime evidence immediately before releasing
+the controller. Lost reset replies stop the attempt without starting or retrying. Other
+failed results do not trigger a reset. Loaded-idle launchd jobs and packaged platform
+acceptance remain unfinished. This
 host-only executable mode adds no REST/WS, remote or runtime protocol change.
 
 Maintenance participants also cover queued runtime controls, asynchronous native-ref

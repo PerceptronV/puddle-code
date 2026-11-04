@@ -5,6 +5,10 @@ import { expect, it, vi } from 'vitest';
 import { hostUpdateActionsSchema, runtimeControllerSchema } from '@puddle/shared';
 import { atomicPrivateJson, digest } from '@puddle/shared/node';
 import {
+  readUpdateRecoveryAttempts,
+  updateRecoveryDirectory,
+} from '@puddle/shared/node/host-control';
+import {
   acquireRuntimeController,
   readRuntimeController,
 } from '../../../../src/runtime/ownership/storage.js';
@@ -19,7 +23,7 @@ import { claimUpdateContinuation } from '../../../../src/updates/recovery/contin
 import { recoveryWorkerFixture } from '../../../helpers/update-recovery.js';
 import { runtimeRelease } from '../../../helpers/runtime-release.js';
 
-async function fixture(failed = false) {
+async function fixture(failed = false, rateLimited = false) {
   const f = await recoveryWorkerFixture();
   const file = join(f.directory, 'actions.json');
   const journal = hostUpdateActionsSchema.parse(JSON.parse(readFileSync(file, 'utf8')));
@@ -48,7 +52,33 @@ async function fixture(failed = false) {
     digest('fresh adoption fixture'),
   );
   const starts: string[] = [];
+  const reset = { limited: rateLimited, failed, lost: false, after: () => {} };
   const run: typeof f.run = vi.fn(async (command) => {
+    if (command.args[1] === 'reset-failed') {
+      expect(() => acquireHostClaim(f.home, 'daemon-controller')).toThrow('owns this host claim');
+      const attempt = readUpdateRecoveryAttempts(f.home, f.job.operation_id).attempts.at(-1)!;
+      const actions = hostUpdateActionsSchema.parse(
+        JSON.parse(
+          readFileSync(
+            join(
+              updateRecoveryDirectory(f.home, f.job.operation_id),
+              attempt.job.id,
+              'actions.json',
+            ),
+            'utf8',
+          ),
+        ),
+      );
+      expect(actions.actions.find(({ action }) => action === 'start-daemon')?.state).toBe(
+        'started',
+      );
+      starts.push('reset-failed');
+      reset.limited = false;
+      reset.failed = false;
+      reset.after();
+      if (reset.lost) throw new Error('Reset reply lost');
+      return { exitCode: 0, stdout: '', stderr: '' };
+    }
     if (command.args[1] === 'start') {
       acquireRuntimeController(f.home).release();
       starts.push('start');
@@ -56,7 +86,11 @@ async function fixture(failed = false) {
       return { exitCode: 0, stdout: '', stderr: '' };
     }
     const result = await f.run(command);
-    return failed
+    result.stdout = result.stdout.replace(
+      'Result=success',
+      `Result=${reset.limited ? 'start-limit-hit' : reset.failed ? 'exit-code' : 'success'}`,
+    );
+    return reset.failed
       ? {
           ...result,
           stdout: result.stdout.replace(
@@ -71,8 +105,41 @@ async function fixture(failed = false) {
     run: async (command: Parameters<typeof f.run>[0]) =>
       ['cat', 'show'].includes(command.args[1]!) ? run(command) : f.supervisor(command),
   };
-  return { ...f, run, options, starts };
+  return { ...f, run, options, starts, reset };
 }
+
+it('resets a start-limited replacement under durable start intent and retained controller exclusion', async () => {
+  const f = await fixture(true, true);
+  const reference = f.store.read()!;
+  const job = await startUpdateRecoveryWorker(f.home, reference, f.options);
+  expect(f.starts).toEqual([]);
+  await executeUpdateRecovery(f.home, job, f.run);
+  expect(f.starts).toEqual(['reset-failed', 'start']);
+  expect(f.store.read()?.phase).toBe('complete');
+  await expect(executeUpdateRecovery(f.home, job, f.run)).rejects.toThrow('already consumed');
+  expect(f.starts).toEqual(['reset-failed', 'start']);
+});
+
+it.each(['lost-reply', 'new-schema'] as const)(
+  'does not start after reset with %s',
+  async (failure) => {
+    const f = await fixture(true, true);
+    f.reset.lost = failure === 'lost-reply';
+    f.reset.after = () => {
+      if (failure === 'new-schema') {
+        const db = new Database(f.dbFile);
+        db.pragma(`user_version = ${DATABASE_SCHEMA_VERSION + 1}`);
+        db.close();
+      }
+    };
+    const job = await startUpdateRecoveryWorker(f.home, f.store.read()!, f.options);
+    await expect(executeUpdateRecovery(f.home, job, f.run)).rejects.toThrow(
+      failure === 'lost-reply' ? 'Reset reply lost' : 'Current database schema',
+    );
+    expect(f.starts).toEqual(['reset-failed']);
+    expect(f.store.read()?.phase).toBe('recovery_required');
+  },
+);
 
 it.each([false, true])(
   'starts a confirmed ended replacement once with current database evidence (failed=%s)',

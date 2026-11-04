@@ -43,6 +43,16 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Explicit selected-service startup and accepted replacement recovery now handle
+  systemd start limits through the shared stopped-service inspector. Only a confirmed
+  stopped exact unit with `Result=start-limit-hit` is reset; changed definitions,
+  ambiguous state and lost reset replies prevent startup. Recovery records start intent
+  before reset, retains controller exclusion and repeats current database/runtime checks
+  immediately before dispatch. Fixtures cover failed/inactive limits, changed evidence,
+  lost replies and consumed recovery attempts. No protocol changes are required. Actual
+  Linux service acceptance, loaded-idle launchd recovery, connector-start recovery and
+  abrupt-kill installer-lock repair remain open.
+
 - Application 25.17 adds explicit disconnected-cockpit continuation through the
   selected local/SSH helper, reusing the existing private envelope, correlated
   requests and pinned recovery worker. Supporting staged metadata is required;

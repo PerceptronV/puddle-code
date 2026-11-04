@@ -1,18 +1,11 @@
+import { serviceIsStopped, resetServiceStartLimit } from './stopped.js';
 import { serviceDefinitionDigest } from './definition.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { hostServiceReplacementSchema, type HostServiceReplacement } from '@puddle/shared';
-import {
-  CompilationCommandError,
-  type CompilationCommandRunner,
-} from '../../compilation/process.js';
+import type { CompilationCommandRunner } from '../../compilation/process.js';
 import { supervisorCommand } from '../services.js';
-import {
-  inspectRunningService,
-  validServiceTarget,
-  type ServiceObservation,
-  type ServiceTarget,
-} from './inspection.js';
+import { inspectRunningService, type ServiceObservation } from './inspection.js';
 
 /** Capture the existing configuration; do not regenerate or rewrite users' service settings. */
 export async function prepareServiceReplacement(
@@ -64,54 +57,6 @@ export async function requireUnchangedServiceDefinition(
     throw new Error('Host service configuration changed');
 }
 
-/** A stopped supervisor must not be able to restart the outgoing process automatically. */
-export async function serviceIsStopped(
-  home: string,
-  target: ServiceTarget,
-  run?: CompilationCommandRunner,
-  allowFailed = false,
-): Promise<boolean> {
-  validServiceTarget(target);
-  const execute = supervisorCommand(home, run);
-  if (target.kind === 'systemd') {
-    const response = await execute('systemctl', [
-      '--user',
-      'show',
-      '--property=Id,LoadState,ActiveState,SubState,MainPID,NeedDaemonReload',
-      target.name,
-    ]);
-    const failed = allowFailed && response.stdout.split('\n').includes('ActiveState=failed');
-    const expected = new Map([
-      ['Id', target.name],
-      ['LoadState', 'loaded'],
-      ['ActiveState', failed ? 'failed' : 'inactive'],
-      ['SubState', failed ? 'failed' : 'dead'],
-      ['MainPID', '0'],
-      ['NeedDaemonReload', 'no'],
-    ]);
-    const lines = response.stdout.trim().split('\n');
-    return (
-      lines.length === expected.size &&
-      lines.every((line) => {
-        const split = line.indexOf('=');
-        const key = line.slice(0, split);
-        if (split < 1 || expected.get(key) !== line.slice(split + 1)) return false;
-        expected.delete(key);
-        return true;
-      })
-    );
-  }
-  // Confirm the domain is available; a missing manager is not proof of job removal.
-  await execute('/bin/launchctl', ['print-disabled', target.domain!]);
-  try {
-    await execute('/bin/launchctl', ['print', `${target.domain}/${target.name}`]);
-    return false;
-  } catch (error) {
-    if (error instanceof CompilationCommandError && error.result?.exitCode === 113) return true;
-    throw error;
-  }
-}
-
 /** Issue exactly one stop; a lost reply is uncertain and must never cause a second mutation. */
 export async function stopServiceForReplacement(
   home: string,
@@ -136,11 +81,22 @@ export async function startReplacementService(
   input: HostServiceReplacement,
   run?: CompilationCommandRunner,
   allowFailed = false,
+  beforeStart?: () => void | Promise<void>,
 ): Promise<void> {
   const service = hostServiceReplacementSchema.parse(input);
   await requireUnchangedServiceDefinition(home, service, run);
   if (!(await serviceIsStopped(home, service, run, allowFailed)))
     throw new Error('Host service is not stopped');
+  if (allowFailed) {
+    await resetServiceStartLimit(
+      home,
+      service,
+      () => requireUnchangedServiceDefinition(home, service, run),
+      run,
+    );
+    await requireUnchangedServiceDefinition(home, service, run);
+  }
+  await beforeStart?.();
   const execute = supervisorCommand(home, run);
   if (service.kind === 'systemd') await execute('systemctl', ['--user', 'start', service.name]);
   else await execute('/bin/launchctl', ['bootstrap', service.domain!, service.definition_path!]);

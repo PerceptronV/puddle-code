@@ -7,7 +7,7 @@ import { readRecoveryActions } from './actions.js';
 import { claimHostUpdateRecovery } from './claim.js';
 import { retainStoppedUpdateRecovery } from './shutdown.js';
 import { retainEndedUpdateRecovery } from './restart/claim.js';
-import { serviceIsStopped } from '../../host/supervision/replacement.js';
+import { serviceIsStopped } from '../../host/supervision/stopped.js';
 
 export async function claimUpdateContinuation(
   home: string,

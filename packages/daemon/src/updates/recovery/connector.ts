@@ -5,10 +5,8 @@ import type {
   HostUpdateActionJournal,
 } from '@puddle/shared';
 import type { CompilationCommandRunner } from '../../compilation/process.js';
-import {
-  requireUnchangedServiceDefinition,
-  serviceIsStopped,
-} from '../../host/supervision/replacement.js';
+import { requireUnchangedServiceDefinition } from '../../host/supervision/replacement.js';
+import { serviceIsStopped } from '../../host/supervision/stopped.js';
 import { HostUpdateConnector, inspectConnectorManager } from '../preflight/connector.js';
 import { inspectReplacementConnector } from '../verification/connector.js';
 

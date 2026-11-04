@@ -130,8 +130,6 @@ export async function executeUpdateRecovery(
         verifyUpdateSelection(home, stage);
       });
     }
-    if (handoff.mode === 'restart') await handoff.beforeStart();
-    handoff.releaseController();
     await actions.run('start-daemon', async () => {
       if (handoff!.mode === 'stopped' || handoff!.mode === 'restart')
         await startReplacementService(
@@ -139,6 +137,13 @@ export async function executeUpdateRecovery(
           original.daemon_service!,
           execute,
           handoff!.mode === 'restart',
+          async () => {
+            // Retain controller exclusion through any failure-state reset. Repeat
+            // current database/owner evidence after it, immediately before start.
+            if (handoff!.mode === 'restart') await handoff!.beforeStart();
+            else handoff!.check();
+            handoff!.releaseController();
+          },
         );
       else handoff!.check();
     });

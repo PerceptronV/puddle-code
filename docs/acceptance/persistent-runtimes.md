@@ -122,11 +122,22 @@ refusals and SIGHUP cleanup; the scripted command starts no daemon or service.
 The ExecStart property shape was checked against
 [systemd v254's property printer](https://github.com/systemd/systemd/blob/v254/src/systemctl/systemctl-show.c),
 but actual Linux service parsing/startup still needs platform acceptance. Also verify
-loaded-idle launchd jobs, systemd start limits and SIGKILL/stale installer-lock repair
+loaded-idle launchd jobs, actual systemd start limits and SIGKILL/stale installer-lock repair
 before release. None of these fixtures proves real-provider continuity through startup.
 The final startup, shared supervision and CLI upgrade regression run passed 67 tests
 in nine files. Source and strict changed-test typechecks, lint, formatting and both
 CLI/desktop builds passed.
+
+Start-limit fixtures now exercise failed and inactive exact systemd units through the
+shared stopped-service inspector. They reject duplicate/missing properties, live PIDs,
+pending reloads and changed results; reset only `start-limit-hit`, and refuse start
+after lost reset replies or changed service definitions. Accepted recovery tests verify
+durable start intent and controller exclusion during reset, a fresh schema check after
+reset and no replay of consumed attempts. These scripted supervisor responses establish
+command ordering and admission behaviour, not actual Linux service acceptance.
+The supervision/recovery/worker regression run passed 186 tests in 26 files, with
+three native supervisor tests skipped. Source and strict changed-test typechecks,
+lint, formatting and the CLI build passed.
 
 The latest CLI host-upgrade fixtures exercise both runtime and daemon commands
 through shared staging/application code and actual isolated private control. Daemon

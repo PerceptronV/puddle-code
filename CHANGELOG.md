@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Recover a stopped daemon's systemd start limit during explicit startup or accepted update recovery. Reset only the exact unit, retain controller exclusion and repeat current service/database/runtime checks before starting; leave lost reset replies inspectable without retrying or starting.
+
 - Add explicit recovery continuation from a disconnected local/SSH cockpit (application 25.17), reusing the trusted helper and pinned recovery worker. Cancel uncommitted dispatch when browser participation ends, preserve accepted independent work, reject older staged dispatchers and inspect lost replies without repeating an update.
 
 - Show recorded host-update status in local/SSH cockpits while the daemon is unavailable (application 25.16), reusing the trusted helper and preserving browser authority checks. Label recorded completion and the last connected version explicitly, disable offline mutations, and discard replies after cancellation or reconnection. Explicit offline cockpit continuation remains in progress.

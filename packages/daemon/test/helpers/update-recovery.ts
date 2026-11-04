@@ -53,7 +53,8 @@ export async function stoppedUpdateRecovery() {
         command.args[1] === 'cat'
           ? state.definition
           : state.stopped
-            ? 'Id=puddled.service\nLoadState=loaded\nActiveState=inactive\nSubState=dead\nMainPID=0\nNeedDaemonReload=no\n'
+            ? 'Id=puddled.service\nLoadState=loaded\nActiveState=inactive\nSubState=dead\nMainPID=0\nNeedDaemonReload=no\n' +
+              (command.args.some((arg) => arg.includes(',Result')) ? 'Result=success\n' : '')
             : systemdObservation(process.pid),
     };
   });

@@ -47,6 +47,9 @@ function fixture(kind: 'systemd' | 'launchd' = 'systemd') {
   writeFileSync(definitionPath, JSON.stringify(plist), { mode: 0o600 });
   const state = {
     failed: false,
+    rateLimited: false,
+    resetLost: false,
+    afterReset: () => {},
     stopped: true,
     changed: false,
     lost: false,
@@ -66,8 +69,15 @@ function fixture(kind: 'systemd' | 'launchd' = 'systemd') {
     } else if (action === 'show' && command.args.at(-1) === 'puddled.service') {
       state.probe();
       stdout = `Id=puddled.service\nLoadState=loaded\nActiveState=${state.stopped ? (state.failed ? 'failed' : 'inactive') : 'active'}\nSubState=${state.failed ? 'failed' : 'dead'}\nMainPID=${state.stopped ? 0 : process.pid}\nNeedDaemonReload=no\n`;
+      if (command.args.some((arg) => arg.includes(',Result')))
+        stdout += `Result=${state.rateLimited ? 'start-limit-hit' : state.failed ? 'exit-code' : 'success'}\n`;
     } else if (action === 'print' && state.stopped) return { exitCode: 113, stdout, stderr: '' };
-    else if (action === 'start' || action === 'bootstrap') {
+    else if (action === 'reset-failed') {
+      state.failed = false;
+      state.rateLimited = false;
+      state.afterReset();
+      if (state.resetLost) throw new Error('Reset reply lost');
+    } else if (action === 'start' || action === 'bootstrap') {
       // Startup can acquire the released controller, while update/installer exclusion remains.
       const controller = acquireHostClaim(home, 'daemon-controller');
       controller.release();
@@ -147,13 +157,52 @@ it.each([
   expect(existsSync(join(f.home, 'bin/.install-lock'))).toBe(failure === 'installer');
 });
 
-it('permits a failed systemd service only with no current main process and never resets its failure state', async () => {
+it('starts a non-rate-limited failed service without resetting its failure evidence', async () => {
   const f = fixture();
   f.state.failed = true;
   await f.start();
   expect(f.mutations()).toHaveLength(1);
   expect(f.commands.some(({ args }) => args.includes('reset-failed'))).toBe(false);
 });
+
+it.each([true, false])(
+  'resets only the selected start-limited unit before one start (failed=%s)',
+  async (failed) => {
+    const f = fixture();
+    f.state.failed = failed;
+    f.state.rateLimited = true;
+    await f.start();
+    expect(
+      f.commands
+        .filter(({ args }) => ['reset-failed', 'start'].includes(args[1]!))
+        .map(({ args }) => args),
+    ).toEqual([
+      ['--user', 'reset-failed', 'puddled.service'],
+      ['--user', 'start', 'puddled.service'],
+    ]);
+    expect(JSON.parse(readFileSync(join(f.home, 'runtime-controller.json'), 'utf8'))).toEqual(
+      f.controller,
+    );
+  },
+);
+
+it.each(['lost-reply', 'definition', 'process'] as const)(
+  'does not start after a reset with %s uncertainty',
+  async (failure) => {
+    const f = fixture();
+    f.state.failed = true;
+    f.state.rateLimited = true;
+    f.state.resetLost = failure === 'lost-reply';
+    f.state.afterReset = () => {
+      if (failure === 'definition') f.state.changed = true;
+      if (failure === 'process') f.state.stopped = false;
+    };
+    await expect(f.start()).rejects.toThrow();
+    expect(f.commands.filter(({ args }) => args[1] === 'reset-failed')).toHaveLength(1);
+    expect(f.mutations()).toHaveLength(0);
+    expect(existsSync(join(f.home, 'bin/.install-lock'))).toBe(false);
+  },
+);
 
 it('retains an undispatched preparation while starting the selected daemon for fresh review', async () => {
   const f = fixture();
