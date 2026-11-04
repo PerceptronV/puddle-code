@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Bind signal-driven update checkpoints to the outgoing daemon PID and controller, rejecting stale worker instructions while keeping ordinary shutdown available when update metadata is missing or damaged.
+
 - Add application protocol 25.8 fresh private adoption observations for daemon updates, verifying exact staged executables, controller replacement and checkpointed runtime continuity through host control and authenticated HTTP authority.
 
 - Persist bounded runtime ownership checkpoints for accepted daemon updates after shutdown drains and SQLite flush, retaining controller ownership on publication failure and preserving exact runtime builds and committed cursors.

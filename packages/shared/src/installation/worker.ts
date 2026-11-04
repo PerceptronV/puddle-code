@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { runtimeControllerSchema } from '../runtime/storage.js';
 
 /** Private pinned one-shot job; never accepted from a browser as a command. */
 export const hostUpdateWorkerSchema = z
@@ -19,6 +20,14 @@ export const hostUpdateWorkerSchema = z
     entry_path: z.string().min(1).max(4096),
     installer_path: z.string().min(1).max(4096),
     state: z.enum(['dispatching', 'dispatched']),
+    /** Only this outgoing daemon may publish the worker's shutdown checkpoint. */
+    outgoing: z
+      .object({
+        pid: z.number().int().positive().safe(),
+        controller: runtimeControllerSchema.pick({ id: true, epoch: true }).strict(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 export type HostUpdateWorker = z.infer<typeof hostUpdateWorkerSchema>;

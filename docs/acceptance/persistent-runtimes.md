@@ -26,7 +26,12 @@ identity, bounded inventories, immutable private checkpoint files, cursor/schema
 evidence and final exits during drainage. A real SQLite reader blocks the WAL
 flush and must prevent checkpoint publication until released. A failed checkpoint callback retains
 the controller claim. An isolated daemon holds client work across shutdown,
-publishes only after drainage and preserves a shell owner for replacement adoption.
+selects an accepted worker hand-off through ordinary `stop()`, publishes only after
+drainage and preserves a shell owner for replacement adoption. The replacement's
+ordinary shutdown does not reuse or overwrite that checkpoint. The separate
+`updates/worker/shutdown.test.ts` covers exact controller/PID and dispatch/revision
+binding, execution phases, runtime-only exclusion, recovery fencing and missing or
+damaged metadata. These private metadata fixtures never dispatch an installed worker.
 This is shutdown evidence; it does not establish update activation or verified
 replacement receipt handling.
 

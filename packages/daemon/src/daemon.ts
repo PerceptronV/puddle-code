@@ -87,6 +87,7 @@ import { PuddlangStore } from './puddlang/store.js';
 import type { HostUpdateCheckpointReference } from '@puddle/shared';
 import { HostUpdateCheckpointWriter } from './updates/checkpoints/store.js';
 import { HostUpdateAdoptionWriter } from './updates/checkpoints/adoption.js';
+import { pendingDaemonUpdateShutdown } from './updates/worker/shutdown.js';
 
 export interface DaemonOptions {
   /** Overrides PUDDLE_HOME / ~/.puddle (tests). */
@@ -597,7 +598,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       updateInspection,
       admission,
       stop(update) {
-        const updateKey =
+        let updateKey =
           update && `${update.operation_id}:${update.dispatch_id}:${update.preflight}`;
         if (stopping) {
           if (update && updateKey !== shutdownUpdate)
@@ -606,6 +607,10 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
         }
         let checkpoint: HostUpdateCheckpointWriter | undefined;
         try {
+          update ??=
+            pendingDaemonUpdateShutdown(paths.home, runtimeConnections.controllerIdentity()) ??
+            undefined;
+          updateKey = update && `${update.operation_id}:${update.dispatch_id}:${update.preflight}`;
           if (update)
             checkpoint = new HostUpdateCheckpointWriter(
               { home: paths.home, db, runtimes, version: opts.version ?? '0.0.0' },

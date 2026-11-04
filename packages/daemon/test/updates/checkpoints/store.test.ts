@@ -2,13 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
-import {
-  HOST_UPDATE_CHECKPOINT_OWNERS,
-  runtimeStateSchema,
-  type HostUpdateCheckpointReference,
-} from '@puddle/shared';
-import { digest } from '@puddle/shared/node';
-import { HostUpdateOperations } from '../../../src/updates/operations/store.js';
+import { HOST_UPDATE_CHECKPOINT_OWNERS, runtimeStateSchema } from '@puddle/shared';
 import {
   HostUpdateCheckpointWriter,
   readHostUpdateCheckpoint,
@@ -17,43 +11,19 @@ import { RuntimeConnections } from '../../../src/runtime/transport/connections.j
 import {
   acquireRuntimeController,
   readRuntimeJson,
+  readRuntimeController,
 } from '../../../src/runtime/ownership/storage.js';
 import { HostClaimBusy } from '../../../src/security/claims.js';
 import { startDaemon } from '../../../src/daemon.js';
 import { openDatabase } from '../../../src/db/db.js';
 import { runtimeDatabase } from '../../helpers/runtime-database.js';
 import { launchOwner, terminal, waitForOwner } from '../../helpers/runtime-fixture.js';
-
-function accepted(home: string) {
-  const store = new HostUpdateOperations(home);
-  let operation = store.begin([{ component: 'daemon', version: '0.4.0' }]).operation;
-  // This is operation-state evidence only; no installer or worker is dispatched.
-  const record = {
-    format: 1 as const,
-    component: 'daemon' as const,
-    generation: '0.4.0~ABC123',
-    version: '0.4.0',
-    protocol: { major: 25, minor: 7 },
-    archive_sha256: digest('archive'),
-    tree_sha256: digest('tree'),
-    checksum_verified: true,
-  };
-  operation = store.staged(operation, { record, digest: digest(`${JSON.stringify(record)}\n`) });
-  operation = store.preflight(operation, digest('inspected impact'));
-  operation = store.approve(operation, operation.preflight!);
-  operation = store.dispatch(operation);
-  const reference: HostUpdateCheckpointReference = {
-    operation_id: operation.id,
-    dispatch_id: operation.dispatch_id!,
-    preflight: operation.preflight!,
-  };
-  return { store, operation, reference };
-}
+import { acceptedCheckpointUpdate, checkpointWorker } from '../../helpers/update-checkpoint.js';
 
 it('retains exact owners, final exits and cursors without copying private launch context', async () => {
   const f = runtimeDatabase();
   try {
-    const { reference } = accepted(f.home);
+    const { reference } = acceptedCheckpointUpdate(f.home);
     const writer = new HostUpdateCheckpointWriter({ ...f, version: '0.3.14' }, reference);
     f.runtimes.finish(f.binding.runtime_id, 'exited', () =>
       f.sessions.setStatus(f.session.id, 'exited'),
@@ -97,7 +67,7 @@ it('retains exact owners, final exits and cursors without copying private launch
 it('rechecks accepted dispatch at commit and bounds the inventory before serialisation', async () => {
   const f = runtimeDatabase();
   try {
-    const { store, operation, reference } = accepted(f.home);
+    const { store, operation, reference } = acceptedCheckpointUpdate(f.home);
     expect(
       () =>
         new HostUpdateCheckpointWriter(
@@ -148,7 +118,7 @@ it('does not publish a receipt when an application WAL checkpoint is blocked', a
   const f = runtimeDatabase();
   const reader = openDatabase(f.paths.dbFile);
   try {
-    const { reference } = accepted(f.home);
+    const { reference } = acceptedCheckpointUpdate(f.home);
     const writer = new HostUpdateCheckpointWriter({ ...f, version: '0.3.14' }, reference);
     f.db.pragma('busy_timeout = 1');
     reader.exec('BEGIN');
@@ -174,7 +144,13 @@ it('publishes shutdown evidence only after admitted work drains and preserves th
   const pid = terminal(state).pid;
   f.controller.release();
   const daemon = await startDaemon({ home: f.home, adapters: [], port: 0, version: '0.3.14' });
-  const { reference } = accepted(f.home);
+  const accepted = acceptedCheckpointUpdate(f.home);
+  const { reference } = accepted;
+  const { id, epoch } = readRuntimeController(f.home);
+  checkpointWorker(f.home, accepted, {
+    pid: process.pid,
+    controller: { id, epoch },
+  });
   const release = daemon.admission.enter();
   const drain = vi.spyOn(daemon.admission, 'drain');
   let stopping: Promise<void> | undefined;
@@ -183,7 +159,7 @@ it('publishes shutdown evidence only after admitted work drains and preserves th
       /accepted/,
     );
     daemon.admission.assertOpen();
-    stopping = daemon.stop(reference);
+    stopping = daemon.stop();
     expect(daemon.stop(reference)).toBe(stopping);
     await vi.waitFor(() => expect(drain).toHaveBeenCalledOnce());
     expect(() => readHostUpdateCheckpoint(f.home, reference.operation_id)).toThrow(/ENOENT/);

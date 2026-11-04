@@ -203,7 +203,12 @@ activation; the coordinator continues to refuse that operation.
 If runtime connection drainage fails, shutdown retains SQLite and controller
 ownership until process exit; a deadline does not establish that callbacks stopped.
 The internal shutdown path can now accept an exact already-dispatched daemon update
-reference. After all writers and runtime discovery drain, it flushes the SQLite WAL
+reference. Signal-driven shutdown also selects that reference from an accepted
+private worker record addressed to its exact PID and controller id/epoch. A later
+controller cannot reuse the instruction; missing, damaged or mismatched job evidence
+leaves ordinary shutdown available without an update checkpoint. Production daemon
+worker dispatch remains disabled until the complete transaction is integrated.
+After all writers and runtime discovery drain, it flushes the SQLite WAL
 and writes a private checkpoint under `updates/checkpoints/<operation>.json` before
 releasing controller ownership. It records the outgoing controller, schema version,
 exact runtime launch identities, pinned builds and committed event cursors, including

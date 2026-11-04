@@ -11,6 +11,9 @@ Private host-update shutdown checkpoints live in `installation/checkpoint.ts`. T
 record accepted dispatch identity, the outgoing controller and database schema, and
 bounded runtime identities/builds/committed cursors. They are internal update evidence,
 not a new network protocol, client approval or a replacement-adoption receipt.
+The private pinned worker record may carry an outgoing PID/controller identity for
+signal-driven checkpoint selection. It never crosses a client request/response or
+runtime IPC boundary and adds no authority; the accepted operation remains required.
 
 Protocol 25.8 adds an optional `adoption_nonce` to exact-operation host-update
 status requests. It requests a fresh private replacement observation, without

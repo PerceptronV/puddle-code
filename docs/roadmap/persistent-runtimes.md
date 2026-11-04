@@ -29,6 +29,16 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far:
 
+- Signal-driven daemon shutdown can select its checkpoint reference from an
+  accepted private worker record, bound to the outgoing PID and exact controller
+  id/epoch. Replacement controllers cannot inherit it, even with a reused PID;
+  stale dispatch/revision/approval, missing or damaged metadata produces no update
+  checkpoint and leaves ordinary shutdown available. An isolated daemon test now
+  exercises this implicit hand-off, holds admitted work through drainage and proves
+  the same owner survives replacement. Worker dispatch still refuses daemon targets:
+  writing this evidence in production, supervisor stop/start, final preflight and
+  recovery must be connected before enabling daemon activation.
+
 - Replacement adoption observation is now wired into authorised exact-operation
   status requests. Application 25.8 adds an optional fresh nonce; the coordinator
   writes private evidence only for the staged generation, a newer controller and
