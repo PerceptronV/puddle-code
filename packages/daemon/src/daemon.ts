@@ -95,8 +95,8 @@ export interface DaemonOptions {
   version?: string;
   /** Quiet window for waiting_input detection (tests shrink it). */
   statusQuietMs?: number;
-  /** Temporary development composition seam; 0.4.0 requires the installed backend by default. */
-  runtime?: RuntimeLaunchConfiguration;
+  /** Override launch dependencies in tests; false isolates legacy migration fixtures only. */
+  runtime?: RuntimeLaunchConfiguration | false;
 }
 
 export interface RunningDaemon {
@@ -186,26 +186,27 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     await runtimeConnections.connect();
     const runtimeControls = new RuntimeControls(runtimes, runtimeConnections, runtimeReconciler);
     failedStartup.push(() => runtimeControls.close());
-    const runtimeLauncher = opts.runtime
-      ? new RuntimeLauncher(
-          {
-            home: paths.home,
-            environment: Object.fromEntries(
-              Object.entries(process.env).filter(
-                (entry): entry is [string, string] => entry[1] !== undefined,
+    const runtimeLauncher =
+      opts.runtime !== false
+        ? new RuntimeLauncher(
+            {
+              home: paths.home,
+              environment: Object.fromEntries(
+                Object.entries(process.env).filter(
+                  (entry): entry is [string, string] => entry[1] !== undefined,
+                ),
               ),
-            ),
-            runtimes,
-            sessions,
-            projects,
-            profiles,
-            connections: runtimeConnections,
-            reconciler: runtimeReconciler,
-            theme: () => terminalTheme.colours(),
-          },
-          opts.runtime,
-        )
-      : undefined;
+              runtimes,
+              sessions,
+              projects,
+              profiles,
+              connections: runtimeConnections,
+              reconciler: runtimeReconciler,
+              theme: () => terminalTheme.colours(),
+            },
+            opts.runtime ?? { installed: true },
+          )
+        : undefined;
     if (runtimeLauncher) failedStartup.push(() => runtimeLauncher.close());
     const compilationSettings = new CompilationSettingsStore(db);
 

@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Make independent runtimes the daemon launch default, sharing service-manager discovery with update preflight and refusing unavailable supervision without falling back to daemon-owned sessions. Keep the legacy backend only as an internal test override.
+
 - Add local/SSH `install runtime` and `upgrade runtime` through the shared host-update coordinator, plus `updates` inspection and exact pre-dispatch cancellation. Runtime software changes preserve running builds; bare upgrades include an installed runtime default. Keep component transports open until installation finishes.
 
 - Add application protocol 25.7 private host-update control with bounded correlated requests, host-wide lease checks, durable operation coalescing and freshly inspected runtime-default dispatch. Reuse the existing local/SSH installer for preparation; lost replies never replay updates.

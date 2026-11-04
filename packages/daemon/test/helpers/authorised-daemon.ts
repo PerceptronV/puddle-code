@@ -5,7 +5,8 @@ import type { ConnectionAuthority } from '../../../cli/src/lib/auth/connection-a
 
 /** Functional daemon tests own a host-side lease; production exposes no static token. */
 export async function startDaemon(opts: DaemonOptions = {}) {
-  const daemon = await start(opts);
+  // These fixtures exercise the original in-process lifecycle and migration paths.
+  const daemon = await start({ runtime: false, ...opts });
   const issued = daemon.authority.create();
   let token = issued.token;
   const resources = new Set<string>();

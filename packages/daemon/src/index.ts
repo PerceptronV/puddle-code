@@ -51,7 +51,7 @@ console.log(`puddled ${version} listening on http://127.0.0.1:${daemon.port}`);
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
-    console.log(`${signal} received — shutting down (sessions become interrupted)`);
+    console.log(`${signal} received — shutting down (independent runtimes remain running)`);
     void daemon.stop().then(() => process.exit(0));
   });
 }

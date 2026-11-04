@@ -6,9 +6,11 @@ enable/disable setting or user-selectable legacy backend. Host lifetime limitati
 must be reported honestly; internal fixture configuration is not a product toggle.
 
 Implementation status, 2026-11-03:
-Default launches still use daemon-owned PTYs; an explicit daemon composition
-option now launches terminals and interactive/headless agents independently. Non-interrupting
-installed upgrades are not yet enabled.
+Default daemon launches now use independent runtimes, resolving the installed
+runtime selector and checking the host service manager before launch intent. The
+legacy composition is restricted to internal migration fixtures. Hosts without a
+usable systemd/launchd manager currently refuse new launches; detached/attached
+lifetimes remain a release blocker. Non-interrupting installed upgrades are not yet enabled.
 This document describes the intended refactor; [SPEC.md](../../SPEC.md) continues
 to describe shipped behaviour. Update the specification, protocol documentation,
 repository instructions and changelog alongside each implementation phase.
@@ -26,6 +28,18 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 [acceptance matrix](#acceptance-matrix) for the release gates.
 
 Implementation evidence so far:
+
+- Production daemon composition now selects the installed independent runtime by
+  default, without an environment flag or browser setting. Launches and update
+  preflight reuse the same host service-manager inspection. A missing manager or
+  runtime installation cannot fall back to daemon PTYs or leave a prepared owner;
+  shutdown fences a launch waiting on inspection. Legacy functional fixtures
+  explicitly request their in-process backend. Default refusal tests and existing
+  independent terminal/provider continuity tests cover this composition change.
+  A native macOS default-path test also passes: the daemon resolves an installed
+  fixture release, launches one launchd owner and adopts the same live shell PID
+  after replacement, then verifies removal of its test registration. Linux default
+  acceptance, unsupported-host lifetimes and transactional upgrades remain required.
 
 - Account login-exit observation now belongs to daemon lifecycle management under
   `agents/accounts/`, using the existing bounded host background drain. Startup
@@ -511,8 +525,9 @@ Implementation evidence so far:
 These are foundations for phases 0–4, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native
 dependency retention, production session/turn adoption and segment routing,
-packaging and the update surfaces below remain required. No production session
-is opted into the new backend by default.
+packaging and the update surfaces below remain required. Independent ownership is
+now the production default; unsupported-host lifetimes and seamless daemon upgrades
+remain incomplete and block the 0.4.0 release.
 
 ## Outcome and decisions
 

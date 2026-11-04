@@ -33,11 +33,17 @@ Non-goals (v1):
 ┌──────────────────────────────┐                 ┌───────────────────────────────────┐
 │ browser ── localhost:7433    │                 │  puddled  (supervised/SSH-held)   │
 │               │              │  local: direct  │   ├─ REST + WS API (Hono)         │
-│  puddle CLI ◄─┘              │  remote: ssh -L │   ├─ PTY manager (node-pty)       │
+│  puddle CLI ◄─┘              │  remote: ssh -L │   ├─ runtime controller          │
 │   ├─ static web UI assets    │────────────────►│   ├─ worktree manager (git CLI)   │
 │   └─ /api + /ws proxy        │    HTTP + WS    │   ├─ agent adapters (per agent)   │
 └──────────────────────────────┘                 │   ├─ SQLite (source of truth)     │
-                                                 │   └─ append-only session logs     │
+                                                 │   └─ daemon-owned execution       │
+                                                 └───────────────────────────────────┘
+                                                               │ private runtime IPC
+                                                 ┌───────────────────────────────────┐
+                                                 │ puddler (one service per runtime) │
+                                                 │  PTYs, provider sidecars, journals│
+                                                 │  output, screens and environment  │
                                                  └───────────────────────────────────┘
 ```
 
@@ -45,6 +51,7 @@ Non-goals (v1):
 
 - **`puddled`** (daemon): Node 22 LTS — pinned, and shipped inside the release tarball, so the choice never depends on the host. Hono for HTTP, `node-pty` for terminals, `better-sqlite3` for state; both are native modules and ship prebuilt in the tarball. API only — no web assets. Binds `127.0.0.1:7434` by default (installs that predate the serving switch are migrated off the old 7433 default once, via a file-only `configVersion` marker in `config.json`). If that preferred port is already in use the daemon **falls back to an OS-assigned free port instead of crashing**, and records wherever it actually bound in `~/.puddle/runtime.json` so clients can still find it (§10); every start prefers `config.json`'s port, so the daemon returns to it as soon as the conflict clears. (Bun is fine as dev tooling; the daemon itself runs on the pinned Node.)
 - **Web UI**: React + TypeScript, xterm.js (+ fit, web-links addons), Monaco (`@monaco-editor/react`). Built to static assets shipped inside both the standalone CLI archive and npm package (`@puddle-code/cli`).
+- **`puddler`** (runtime owner): one independent process per live agent or terminal runtime, pinned to its launch release. Its PTYs, provider sidecars and retained observations survive daemon replacement. Login terminals, notebooks and other daemon-owned execution retain their separate lifecycles.
 - **`puddle` CLI** (client machine): standalone archive with a pinned Node runtime, or optional npm package; bootstraps/updates the daemon (locally or over SSH), serves the web UI and proxies `/api` + `/ws` to the daemon, opens the tunnel when remote, launches the browser, and performs the protocol handshake (§6) on every start/connect.
 - **State layout on the host**, all under `~/.puddle/`:
 
@@ -133,14 +140,20 @@ Service login uses Google and/or GitHub OAuth only; at least one complete provid
 
 ### Why no tmux
 
-The daemon is the persistence layer. It is the parent of every PTY, runs under a persistent supervisor or a cockpit-owned SSH channel, and tees all output to disk. tmux would duplicate that role with a second session registry that can drift. The "attach from a raw terminal" escape hatch tmux provided is replaced by `puddle attach <session>` (CLI → daemon WebSocket).
+Each live runtime has one independent `puddler` owner for its PTYs, output and provider sidecars. The daemon owns application state and adopts those owners after replacement. tmux would duplicate that role with a second session registry that can drift. The "attach from a raw terminal" escape hatch tmux provided is replaced by `puddle attach <session>` (CLI → daemon WebSocket).
 
 ### Persistent runtimes (0.4.0 implementation in progress)
 
 Persistent runtimes and cockpit-managed host updates are required standard behaviour
 from 0.4.0, without an enable/disable setting or selectable legacy backend. The
-implementation described below is incomplete; existing development switches do not
-define the release behaviour. Runtime protocol compatibility covers both live IPC
+implementation described below is incomplete. Daemon composition now defaults to
+the installed independent runtime for terminals and interactive/headless agents.
+Only internal fixtures can select the legacy in-process backend. Each launch probes
+the host user service manager through the same inspection used by update preflight,
+then pins the runtime selector before recording intent. Missing supervision or an
+invalid installation never falls back to daemon-owned PTYs. Detached/attached host
+lifetimes remain unfinished, so hosts without usable systemd/launchd supervision
+currently refuse new launches; this remains a 0.4.0 release blocker. Runtime protocol compatibility covers both live IPC
 and retained state, with supported majors advertised by each candidate daemon.
 Host archives carry `HOST_CAPABILITIES.json`, generated through the built daemon's
 passive `--host-capabilities` command. Update preflight reads bounded metadata from
@@ -292,7 +305,7 @@ owner's acknowledged placement; mutations require an explicit segment/placement
 address and remain fenced until the daemon commits and binds the new placement.
 Snapshot reads preserve the owner's grid rather than resizing it. Production
 retention must still integrate these records and replace the
-foundation's conservative lifetime budgets before default enablement.
+foundation's conservative lifetime budgets before the 0.4.0 release.
 
 Migration 029 adds `runtime_bindings` for immutable launch identity, active
 placement/conversation, build metadata and transactional observation cursors.
@@ -404,10 +417,10 @@ observation runs, never across lifecycle/control boundaries. Reconciliation
 commits each title to its own placement with the observation cursor, preserving
 user overrides and native conversation titles. Extra shells cannot rename the
 placement. Existing session invalidation updates connected cockpits.
-An explicit `DaemonOptions.runtime` composition option now routes terminal
-and interactive/headless agent creation/resume through `RuntimeLauncher`. Default installed
-launches retain the in-process backend. The option can specify `installed: true`
-to resolve `runtime-current` anew on each launch. Resolve the release directory once,
+Default daemon composition routes terminal and interactive/headless agent
+creation/resume through `RuntimeLauncher`, using `installed: true` to resolve
+`runtime-current` anew on each launch. Explicit dependency overrides support
+isolated tests; `runtime: false` is reserved for legacy migration fixtures. Resolve the release directory once,
 read bounded version/protocol metadata and pin Node plus the entry point inside that
 same tree. Incompatible majors and incomplete selections fail before intent or
 command construction. Persist the selected build's actual protocol, including a
@@ -454,7 +467,7 @@ watermark prevents reuse after result or programme-history removal. Consumption
 does not assert delivery to the runner, resume a programme or expose its reply in
 public events. Full unread retention refuses new asks before dispatch; an explicit
 unread-result disposition policy and host-wide accounting remain rollout gates.
-Code-execution terminals use that same opt-in owner path, including their one-shot
+Code-execution terminals use that same independent owner path, including their one-shot
 command followed by an interactive shell. Migration 034 stores each canonical
 managed run directory in `runtime_code_runs`, keyed by runtime id, atomically with
 launch intent. Cleanup consults these references after daemon replacement and
@@ -462,9 +475,8 @@ retains files until that exact owner exits cleanly; failed/interrupted/unavailab
 owners remain protected. External exit observation replaces legacy PTY callbacks
 for those runs. Explicit terminal resume creates a shell and never repeats the
 programme. The usual five completed-run retention limit excludes protected runs.
-Installed selectors, automatic
-capability detection, default rollout and native supervisor acceptance remain
-required before changing the documented upgrade/interruption behaviour.
+Detached/attached host lifetimes, complete native supervisor acceptance and the
+transactional daemon updater remain required before claiming seamless upgrades.
 
 ## 3. Data model (SQLite)
 

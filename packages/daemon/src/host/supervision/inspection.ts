@@ -13,6 +13,22 @@ export interface ServiceObservation extends ServiceTarget {
   controlGroup: string | null;
 }
 
+/** Select an available user manager without relying on the daemon installer marker. */
+export async function inspectHostServiceManager(
+  home: string,
+  options: {
+    platform?: NodeJS.Platform;
+    uid?: number;
+    run?: CompilationCommandRunner;
+  } = {},
+): Promise<Pick<ServiceTarget, 'kind' | 'domain'>> {
+  const platform = options.platform ?? process.platform;
+  const kind = platform === 'linux' ? 'systemd' : platform === 'darwin' ? 'launchd' : null;
+  const uid = options.uid ?? process.getuid?.();
+  if (!kind || uid === undefined) throw new Error('No supported independent supervisor');
+  return inspectServiceManager(home, kind, uid, options.run);
+}
+
 function validTarget(target: ServiceTarget): void {
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(target.name))
     throw new Error('Invalid host service name');

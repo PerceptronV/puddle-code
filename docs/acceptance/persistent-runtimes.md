@@ -3,10 +3,23 @@
 The [roadmap](../roadmap/persistent-runtimes.md) defines the complete acceptance
 matrix. Persistent ownership is required standard behaviour for every user in
 0.4.0, without an enable/disable option. Implementation remains in progress:
-production `SessionService` still defaults to daemon-owned PTYs in development.
+daemon composition now defaults to installed independent runtimes. Hosts without
+a usable service manager currently refuse new launches; their detached/attached
+lifetimes remain a release blocker.
 Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
+
+`packages/daemon/test/runtime/lifecycle/default-launch.test.ts` starts isolated
+daemons without a runtime override. Missing supervision and missing installation
+must refuse launch without a daemon PTY or prepared owner. A held service-manager
+probe cannot dispatch after shutdown begins. These checks use fake probes and no
+installed service. The separate `default-launch-live.test.ts`, gated by
+`PUDDLE_TEST_RUNTIME_SUPERVISOR=1`, passed on macOS 26.5.2: a sanitised temporary
+daemon with no runtime override resolves an installed fixture release, launches
+one native launchd owner, and adopts the same live shell PID after daemon
+replacement. It then stops the runtime and verifies its exact test registration
+is absent. This does not prove transactional daemon upgrades or Linux lifetimes.
 
 Client admission and shutdown checks:
 

@@ -1,8 +1,9 @@
 # Private runtime protocol
 
-Status: implementation for the standard runtime backend in **0.4.0**; the current
-development build still uses the in-process backend by default. Release requires
-switching to persistent ownership without a user-facing enable/disable option.
+Status: implementation for the standard runtime backend in **0.4.0**. Daemon
+composition defaults to installed independent runtimes without a user-facing
+enable/disable option. Detached/attached lifetimes and seamless daemon upgrades
+remain release blockers; the legacy backend is an internal fixture override.
 The full delivery scope is tracked in
 [the persistent runtimes roadmap](../../docs/roadmap/persistent-runtimes.md).
 
@@ -45,7 +46,7 @@ protocol exactly; a later selector change cannot affect its executable paths.
 Unsupported majors fail before launch, while owner adoption still authenticates
 and verifies the actual reported build/protocol. Installer smoke checks do not
 replace adoption or all-owner update preflight. Runtime-only installation changes
-the default for future opt-in launches without restarting existing owners.
+the default for future launches without restarting existing owners.
 
 ## Framing and bounds
 
@@ -384,7 +385,7 @@ The journal records `turn-started` and `turn-finished` exactly once for an admit
 operation. The daemon must persist its mapping from programme/run operation to
 runtime/turn identity before dispatch. Reconnection inspects that identity and
 never restarts an interrupted puddlang programme or submits its prompt again.
-The opt-in runtime backend now routes programme asks through this contract.
+The runtime backend routes programme asks through this contract.
 Migration 035 reserves the exact run/operation/runtime/turn/placement/segment/ref
 mapping before one dispatch. Admission loss observes committed private outcomes;
 it never resends the prompt. Daemon shutdown interrupts the programme without

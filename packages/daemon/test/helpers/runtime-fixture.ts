@@ -21,6 +21,11 @@ const packageRoot = fileURLToPath(new URL('../../', import.meta.url));
 export let bundleDir: string;
 export const children: ChildProcess[] = [];
 const homes: string[] = [];
+/** Native job cleanup must establish absence before removing its executable tree. */
+export function retainRuntimeHome(home: string): void {
+  const index = homes.indexOf(home);
+  if (index !== -1) homes.splice(index, 1);
+}
 export const clients: RuntimeClient[] = [];
 export const controllers: ReturnType<typeof acquireRuntimeController>[] = [];
 const socketDirectories = new Set<string>();

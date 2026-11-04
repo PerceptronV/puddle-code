@@ -5,7 +5,7 @@ import { hostUpdateOperationSchema, type HostUpdateOperation } from '@puddle/sha
 import type { CompilationCommandRunner } from '../../compilation/process.js';
 import {
   inspectRunningService,
-  inspectServiceManager,
+  inspectHostServiceManager,
   type ServiceObservation,
   type ServiceTarget,
 } from '../../host/supervision/inspection.js';
@@ -52,12 +52,9 @@ export class HostUpdateSupervision {
   async inspect(input: HostUpdateOperation): Promise<UpdateSupervision> {
     const operation = hostUpdateOperationSchema.parse(input);
     const result: UpdateSupervision = { worker: null, daemon: null, blockers: [] };
-    const platform = this.deps.platform ?? process.platform;
-    const kind = platform === 'linux' ? 'systemd' : platform === 'darwin' ? 'launchd' : null;
     const uid = this.deps.uid ?? process.getuid?.();
     try {
-      if (!kind || uid === undefined) throw new Error('No supported independent supervisor');
-      result.worker = await inspectServiceManager(this.deps.home, kind, uid, this.deps.run);
+      result.worker = await inspectHostServiceManager(this.deps.home, this.deps);
     } catch {
       result.blockers.push({ code: 'supervisor_unavailable', target: 'updater' });
       return result;
@@ -65,6 +62,7 @@ export class HostUpdateSupervision {
     // A default-runtime update replaces no daemon; a manually started daemon need
     // not masquerade as a supervised one to select future runtime software.
     if (!operation.targets.some((target) => target.component === 'daemon')) return result;
+    const kind = result.worker.kind;
     try {
       if ((await readMarker(this.deps.home, uid!)) !== kind)
         throw new Error('Unknown daemon supervision');

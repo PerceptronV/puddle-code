@@ -24,6 +24,7 @@ const fake = {
   statusPatterns: { waitingInput: [/READY/], busy: [/BUSY/] },
 };
 const daemon = await startDaemon({
+  runtime: false, // This fixture exercises legacy interruption and authority recovery.
   home: process.env.PUDDLE_HOME,
   port: 0,
   adapters: [fake],

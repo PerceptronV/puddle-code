@@ -28,6 +28,7 @@ import { resolveInstalledRuntimeRelease } from './release.js';
 import { pinRuntimeShellHooks } from '../execution/shell-hooks.js';
 import type { ShellHooks } from '../../pty/shell-hooks.js';
 import type { ProgrammeOperation } from '../../puddlang/runtime-turn-store.js';
+import { inspectHostServiceManager } from '../../host/supervision/inspection.js';
 
 interface LaunchOptions {
   provider?: RuntimeProviderLaunch;
@@ -35,9 +36,10 @@ interface LaunchOptions {
   programme?: ProgrammeOperation;
 }
 
-/** Explicit composition option until production rollout gates are satisfied. */
+/** Production uses the installed selector and discovers the host's service manager. */
 export type RuntimeLaunchConfiguration = {
-  kind: RuntimeSupervisor['kind'];
+  /** Explicit supervisor override for isolated fixtures. */
+  kind?: RuntimeSupervisor['kind'];
   /** Supervisor command runner; isolated integration tests supply a fake supervisor. */
   run?: CompilationCommandRunner;
 } & (
@@ -79,7 +81,8 @@ export class RuntimeLauncher {
     command: (hooks: ShellHooks) => RuntimeCommand,
     options: LaunchOptions = {},
   ): Promise<void> {
-    if (this.closed) return Promise.reject(new Error('Runtime launcher is closing'));
+    if (this.closed)
+      return Promise.reject(new ApiError(503, 'host_maintenance', 'Runtime launcher is closing'));
     if (this.pending.size >= RUNTIME_LIMITS.pendingRequests)
       return Promise.reject(ApiError.conflict('runtime_busy', 'Too many pending runtime launches'));
     const pending = this.start(sessionId, command, options);
@@ -93,6 +96,22 @@ export class RuntimeLauncher {
     command: (hooks: ShellHooks) => RuntimeCommand,
     { provider, codeRunDirectory, programme }: LaunchOptions,
   ): Promise<void> {
+    // Establish lifetime support before recording any launch intent. An unavailable
+    // manager must not leave a prepared owner or select the old in-process backend.
+    let kind = this.configuration.kind;
+    if (kind === undefined) {
+      try {
+        kind = (await inspectHostServiceManager(this.deps.home, { run: this.configuration.run }))
+          .kind;
+      } catch {
+        throw new ApiError(
+          503,
+          'runtime_supervisor_unavailable',
+          'This host has no available independent runtime service manager.',
+        );
+      }
+    }
+    if (this.closed) throw new ApiError(503, 'host_maintenance', 'Runtime launcher is closing');
     const session = this.deps.sessions.get(sessionId);
     if (this.deps.runtimes.ownerOf(sessionId))
       throw ApiError.conflict('runtime_owned', 'This placement already has an independent owner');
@@ -152,7 +171,7 @@ export class RuntimeLauncher {
       // After this point an uncertain response must preserve intent and never try
       // another backend. The same launch claim also prevents premature retirement.
       try {
-        await startRuntimeService(this.deps.home, identity, config);
+        await startRuntimeService(this.deps.home, identity, { ...config, kind });
       } catch {
         // A supervisor may have accepted the job before its reply was lost.
       }

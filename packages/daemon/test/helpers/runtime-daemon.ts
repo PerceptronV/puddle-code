@@ -18,7 +18,7 @@ import {
 // Only the isolated test home and sanitised fixture environment are used.
 const home = process.argv[3]!;
 const bundle = dirname(fileURLToPath(import.meta.url));
-const runtime: RuntimeLaunchConfiguration | undefined = existsSync(
+const runtime: RuntimeLaunchConfiguration | false | undefined = existsSync(
   join(home, 'test-enable-runtime-launcher'),
 )
   ? {
@@ -56,7 +56,9 @@ const runtime: RuntimeLaunchConfiguration | undefined = existsSync(
         return { exitCode: 0, stdout: '', stderr: '' };
       },
     }
-  : undefined;
+  : existsSync(join(home, 'test-default-runtime-launcher'))
+    ? undefined
+    : false;
 const daemon = await startDaemon({
   home,
   port: 0,

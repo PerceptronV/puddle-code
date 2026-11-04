@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { atomicPrivateJson } from '@puddle/shared/node';
 import { AdapterRegistry } from '../../src/agents/registry.js';
 import { RuntimeHost } from '../../src/runtime/host.js';
@@ -11,10 +12,12 @@ import {
 } from './runtime-test-adapter.js';
 
 const args = process.argv.slice(2);
+// Installed-default tests stage this fixture inside an immutable release tree.
+const versionFile = join(dirname(fileURLToPath(import.meta.url)), '..', 'VERSION');
 const host = await RuntimeHost.start(
   args[1]!,
   args[3]!,
-  'runtime-test',
+  existsSync(versionFile) ? readFileSync(versionFile, 'utf8').trim() : 'runtime-test',
   new AdapterRegistry([runtimeTestAdapter, runtimePresetTestAdapter, runtimeTerminalTestAdapter]),
 );
 // Deterministically yield journal admission after the fixture controller's
