@@ -1,0 +1,45 @@
+{
+  "sample_started_at": "2026-11-04T20:34:14.273Z",
+  "head_at_bundle": "70f6cfdccb5da2326515997192bf69c728263e5d",
+  "worktree_clean_at_bundle": true,
+  "source_tree_sha256": "a1515d01fd94d5e891812aff3c5a45f4249d2667f54826d8d880f556d2d579d7",
+  "source_file_count": 549,
+  "source_roots": [
+    "packages/daemon/src",
+    "packages/shared/src",
+    "packages/daemon/test/helpers",
+    "packages/daemon/test/runtime/resources"
+  ],
+  "source_hash_definition": "SHA-256 over lexicographically sorted relative paths from rg --files across source_roots, each followed by NUL, exact file bytes, NUL",
+  "bundled_files": [
+    {
+      "name": "puddler.mjs",
+      "sha256": "91dc3d6c3855b0b21d8ea5c0592d8cd72a1e10db74f5707dcb3f69647f3962e7"
+    },
+    {
+      "name": "controller.mjs",
+      "sha256": "67c21cd0ce1865b8d114d0b452ce39227ad7c84d10072efe238db8123b8943aa"
+    }
+  ],
+  "cleanup": {
+    "harness_confirmed_all_tracked_owner_exits": true,
+    "harness_confirmed_known_shell_absence": true,
+    "independently_checked_sampled_pids": 21,
+    "independent_pid_check": "All sampled owners, shells and controller returned ESRCH after completion",
+    "temporary_bundle_removed": true
+  },
+  "test": {
+    "duration_ms": 99422,
+    "outcome": "failed",
+    "failure": "SQLITE_BUSY: database is locked",
+    "stack": [
+      "HostMemoryLedger.openKnown: cache_size pragma",
+      "initialiseRuntimeMemory",
+      "acquireRuntimeController",
+      "RuntimeConnections constructor"
+    ],
+    "stage": "Initial controller attachment after the fifty-owner launch/readiness loop; before fifty-owner sampling",
+    "memory_guard_changed": false,
+    "production_boundary": "Production daemon composition already uses acquireRuntimeControllerWhenAvailable; this harness still used RuntimeConnections synchronous default acquisition."
+  }
+}

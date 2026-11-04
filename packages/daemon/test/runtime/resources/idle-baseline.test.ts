@@ -11,7 +11,10 @@ import { nativeDeltas, nativeResourceProbe } from './native/probe.js';
 import { atomicPrivateJson } from '@puddle/shared/node';
 import { RuntimeConnections } from '../../../src/runtime/transport/connections.js';
 import { RuntimeReconciler } from '../../../src/runtime/controller/reconcile.js';
-import { runtimeDirectory } from '../../../src/runtime/ownership/storage.js';
+import {
+  acquireRuntimeControllerWhenAvailable,
+  runtimeDirectory,
+} from '../../../src/runtime/ownership/storage.js';
 import { runtimeDatabase } from '../../helpers/runtime-database.js';
 import {
   launchOwner,
@@ -92,10 +95,15 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
       await connections?.close();
       const start = performance.now();
       reconciler = new RuntimeReconciler(f);
-      connections = new RuntimeConnections(f.home, f.runtimes, {
-        connected: (id, client) => reconciler!.attach(id, client),
-        missing: (id) => reconciler!.retire(id),
-      });
+      connections = new RuntimeConnections(
+        f.home,
+        f.runtimes,
+        {
+          connected: (id, client) => reconciler!.attach(id, client),
+          missing: (id) => reconciler!.retire(id),
+        },
+        await acquireRuntimeControllerWhenAvailable(f.home),
+      );
       await connections.connect();
       expect(connections.unavailableIds()).toEqual([]);
       for (const owner of owners) {
@@ -190,10 +198,15 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
         await reconciler?.close();
         await connections?.close();
         reconciler = new RuntimeReconciler(f);
-        connections = new RuntimeConnections(f.home, f.runtimes, {
-          connected: (id, client) => reconciler!.attach(id, client),
-          missing: (id) => reconciler!.retire(id),
-        });
+        connections = new RuntimeConnections(
+          f.home,
+          f.runtimes,
+          {
+            connected: (id, client) => reconciler!.attach(id, client),
+            missing: (id) => reconciler!.retire(id),
+          },
+          await acquireRuntimeControllerWhenAvailable(f.home),
+        );
         await connections.connect();
         expect(connections.unavailableIds()).toEqual([]);
         for (const owner of owners) {

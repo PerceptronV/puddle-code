@@ -2,9 +2,10 @@
 
 The latest calibrated macOS sample completed at **one and ten idle shell
 runtimes** with the production host memory allowance wired in. At ten, summed
-owner RSS was **778.25 MiB**, self CPU was **0.815% of one core**, and reaped-child
-CPU was **0.649%**. Owners recorded **23.70 interrupt wakeups per second** in total.
-Scaling towards fifty stopped on SQLite contention in fixture launch admission;
+owner RSS was **712.48 MiB**, self CPU was **1.460% of one core**, and reaped-child
+CPU was **0.848%**. Owners recorded **25.40 interrupt wakeups per second** in total.
+Fifty owners passed launch/readiness, but fixture controller acquisition then
+stopped on SQLite contention before the fifty-owner measurement;
 the memory guard did not refuse this run. No fifty-runtime native measurement
 exists yet. See “Current host-allowance composition” for this partial result and
 “Calibrated native counters” for the earlier memory-guard refusal.
@@ -349,6 +350,44 @@ returned processes and readiness checks are never retried. A resample is still
 required. This single
 partial observation does not establish a memory, CPU or wakeup improvement over
 the historical samples. CPU/wakeup ceilings remain unset.
+
+### Controller-acquisition resample
+
+The second host-allowance run began at **2026-11-04 20:34 UTC** from clean commit
+`70f6cfd`, with the bounded fixture admission retry above. The
+[second raw report](persistent-runtimes/resources/2026-11-04-host-allowance-native-resample.json)
+and [source/bundle provenance](persistent-runtimes/resources/2026-11-04-host-allowance-native-resample-provenance.json)
+are separate artifacts; the first partial run remains unchanged.
+
+| Runtimes | Summed owner RSS, MiB | Owner RSS median / max, MiB | Owner self CPU, % of one core | Owner reaped-child CPU, % of one core | Owner interrupt wakeups/s | Median / maximum re-adoption, ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 78.45 | 78.45 / 78.45 | 0.030 | 0.088 | 2.07 | 25.70 / 31.13 |
+| 10 | 712.48 | 69.94 / 77.67 | 1.460 | 0.848 | 25.40 | 96.41 / 110.75 |
+
+Owners had 25–26 numeric descriptors, shells four; both completed scales passed
+every existing fixture ceiling. Shell RSS totals were 2.25 and 17.42 MiB, with
+zero sampled shell CPU/wakeups. Controller-plus-harness self CPU was 0.028% and
+0.021% of one core, with 1.27 interrupt wakeups/s. All sampled groups again
+recorded zero package-idle wakeups. Calibration passed at timebase 125/3:
+50.021 ms converted self CPU versus 50.015 ms/50.011 ms from the two independent
+clocks, and 50.236 ms reaped-child CPU versus 50.234 ms. Controlled sleeps again
+recorded five interrupt and zero package-idle wakeups.
+
+The harness failed after **99.42 seconds**. All fifty owners had passed the
+launch/readiness loop, but the subsequent initial controller attachment raised
+`SQLITE_BUSY` in the host ledger's `cache_size` pragma. No fifty-owner sample or
+adoption timing was recorded. The fixture called `RuntimeConnections` without
+the asynchronous controller acquisition that production already supplies;
+production uses `acquireRuntimeControllerWhenAvailable` to bound this exact
+pre-publication contention. The harness now passes that existing helper at both
+initial attachment and timed re-adoption; it adds no product fallback or retry
+of a dispatched process. Re-adoption timing includes any controller wait.
+
+The unchanged memory guard admitted the cohort; last sampled headroom was 54%
+of 24 GiB. Cleanup confirmed all tracked owners exited and all known shell PIDs
+were absent. An independent post-run check again found all 21 sampled PIDs
+absent and the temporary bundle removed. A further run is needed to collect
+fifty-owner native measurements with the corrected controller composition.
 
 ## Remaining resource gates
 
