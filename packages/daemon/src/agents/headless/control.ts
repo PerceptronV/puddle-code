@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import type { AgentControl, LifecycleLaunchResource } from '../adapter.js';
 import { record, type HeadlessContext, type HeadlessDriver, type JsonRecord } from './codec.js';
+import { HeadlessWrites } from './writes.js';
 import { HEADLESS_TERMINAL_SOURCE } from './terminal-source.js';
 
 const LIMIT = 256 * 1024;
@@ -14,6 +15,8 @@ const plain = (text: string) => text.replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, '
 /** One outstanding native command; completion requires both a result and exit 0. */
 export class HeadlessControl implements AgentControl {
   private socket: Socket | null = null;
+  private writes: HeadlessWrites | null = null;
+  private outputGap = false;
   private ref: string | undefined;
   private closed = false;
   private connected = false;
@@ -43,6 +46,7 @@ export class HeadlessControl implements AgentControl {
       return;
     }
     this.socket = socket;
+    this.writes = new HeadlessWrites(socket, this.context.bufferAllowance);
     let buffer = '';
     socket.setEncoding('utf8');
     socket.on('data', (chunk: string) => {
@@ -172,16 +176,17 @@ export class HeadlessControl implements AgentControl {
         },
       };
       signal.addEventListener('abort', abort, { once: true });
-      this.initialPrompt = undefined;
       this.context.reportStatus?.('working');
       this.display(`\n> ${prompt}\n\n`);
-      this.send({
+      const sent = this.send({
         type: 'run',
         id,
         binary: this.driver.binary,
         ...command,
         env: { ...this.driver.env, ...command.env },
       });
+      if (sent) this.initialPrompt = undefined;
+      else finish(new Error('Agent command send capacity exhausted; no turn was dispatched'));
     });
   }
 
@@ -198,10 +203,13 @@ export class HeadlessControl implements AgentControl {
     this.socket = null;
   }
   private display(text: string): void {
-    this.send({ type: 'display', text: plain(text) });
+    if (!this.send({ type: 'display', text: plain(text) }) && !this.outputGap) {
+      this.outputGap = true;
+      this.context.reportLifecycleUnavailable?.();
+    }
   }
-  private send(message: JsonRecord): void {
-    this.socket?.write(`${JSON.stringify(message)}\n`);
+  private send(message: JsonRecord): boolean {
+    return this.writes?.send(message) ?? false;
   }
 }
 

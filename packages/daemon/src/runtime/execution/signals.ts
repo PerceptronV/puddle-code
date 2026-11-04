@@ -2,17 +2,33 @@ import { timingSafeEqual } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import { agentSignalRequestSchema, type AgentSignalRequest } from '@puddle/shared';
 import { isLocalHostHeader } from '../../security/middleware.js';
+import { RuntimeBufferBudget, type RuntimeByteAllowance } from '../resources/budget.js';
+import {
+  RuntimeSignalBodyTooLarge,
+  readSignalBody,
+  RUNTIME_SIGNAL_REQUESTS,
+  RUNTIME_SIGNAL_WORK_BYTES,
+} from './signals/body.js';
 
 /** The existing provider-hook contract, served by its owner rather than puddled. */
 export class RuntimeSignals {
   private server: Server | null = null;
   private active = true;
-  private pending = 0;
+  private readonly requests: RuntimeBufferBudget;
 
   constructor(
     private readonly nonce: string,
     private readonly receive: (signal: AgentSignalRequest) => boolean | Promise<boolean>,
-  ) {}
+    allowance?: RuntimeByteAllowance,
+  ) {
+    this.requests = new RuntimeBufferBudget(
+      {
+        bytes: RUNTIME_SIGNAL_REQUESTS * RUNTIME_SIGNAL_WORK_BYTES,
+        count: RUNTIME_SIGNAL_REQUESTS,
+      },
+      allowance,
+    );
+  }
 
   async listen(): Promise<string> {
     const server = createServer(
@@ -32,26 +48,13 @@ export class RuntimeSignals {
           finish(403);
           return;
         }
-        if (this.pending >= 16) {
+        const release = this.requests.reserve(RUNTIME_SIGNAL_WORK_BYTES);
+        if (!release) {
           finish(503);
           return;
         }
-        this.pending++;
         try {
-          const chunks: Buffer[] = [];
-          let bytes = 0;
-          for await (const chunk of req) {
-            const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string);
-            bytes += data.length;
-            if (bytes > 2 * 1024 * 1024) {
-              finish(413);
-              return;
-            }
-            chunks.push(data);
-          }
-          const signal = agentSignalRequestSchema.safeParse(
-            JSON.parse(Buffer.concat(chunks).toString('utf8')),
-          );
+          const signal = agentSignalRequestSchema.safeParse(await readSignalBody(req));
           if (!signal.success) {
             finish(400);
             return;
@@ -67,10 +70,10 @@ export class RuntimeSignals {
             return;
           }
           finish((await this.receive(signal.data)) ? 204 : 404);
-        } catch {
-          if (!res.headersSent) finish(400);
+        } catch (error) {
+          if (!res.headersSent) finish(error instanceof RuntimeSignalBodyTooLarge ? 413 : 400);
         } finally {
-          this.pending--;
+          release();
         }
       },
     );

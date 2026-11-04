@@ -14,6 +14,7 @@ import { RuntimeConversationClaim } from '../ownership/conversation-claim.js';
 import { RuntimeSignals } from './signals.js';
 import { pinRuntimeAssets } from './assets.js';
 import { runtimeDirectory } from '../ownership/storage.js';
+import type { RuntimeByteAllowance } from '../resources/budget.js';
 
 interface AgentObservers {
   writeInput(data: string): void;
@@ -30,6 +31,7 @@ export class RuntimeAgent {
   private readonly detector: StatusDetector;
   private resource: LifecycleLaunchResource | null = null;
   private signalPort: number | null = null;
+  private lifecycleUnavailable = false;
   private nativeSync: RuntimeAgentState['native_sync'] = 'fallback';
   private status: RuntimeAgentState['status'] = 'starting';
   private ref: string | null = null;
@@ -41,11 +43,16 @@ export class RuntimeAgent {
     private readonly launch: RuntimeLaunch,
     private readonly adapter: AgentAdapter,
     private readonly observers: AgentObservers,
+    private readonly bufferAllowance?: RuntimeByteAllowance,
   ) {
     if (!launch.provider || adapter.id !== launch.provider.id)
       throw new Error('Runtime provider does not match its launch');
     this.claim = new RuntimeConversationClaim(home, launch.identity.profile_id, adapter.id);
-    this.signals = new RuntimeSignals(this.nonce, (signal) => this.receive(signal));
+    this.signals = new RuntimeSignals(
+      this.nonce,
+      (signal) => this.receive(signal),
+      bufferAllowance,
+    );
     this.detector = new StatusDetector(adapter.statusPatterns, {
       onStatus: (status) => {
         if (!this.signalled) this.setStatus(status);
@@ -97,6 +104,13 @@ export class RuntimeAgent {
         this.resource = await prepare({
           account,
           opts,
+          bufferAllowance: this.bufferAllowance,
+          reportLifecycleUnavailable: () => {
+            if (this.lifecycleUnavailable) return;
+            this.lifecycleUnavailable = true;
+            this.nativeSync = 'fallback';
+            this.publish();
+          },
           args,
           signalUrl,
           signalNonce: this.nonce,
@@ -121,12 +135,12 @@ export class RuntimeAgent {
           },
         });
         if (this.ref) this.resource.control?.lifecycle?.(this.ref, false);
-        this.nativeSync = 'full';
+        this.nativeSync = this.lifecycleUnavailable ? 'fallback' : 'full';
       } else if (
         this.adapter.lifecycleSignals &&
         (await this.adapter.checkLifecycleSupport?.(account)) === true
       ) {
-        this.nativeSync = 'full';
+        this.nativeSync = this.lifecycleUnavailable ? 'fallback' : 'full';
       }
     } catch (error) {
       if (headless) throw error;
@@ -149,7 +163,8 @@ export class RuntimeAgent {
       native_sync: this.nativeSync,
       status: this.status,
       agent_session_ref: this.ref,
-      control_ready: !this.closed && (this.resource?.control?.ready ?? false),
+      control_ready:
+        !this.closed && !this.lifecycleUnavailable && (this.resource?.control?.ready ?? false),
       sidecar_pids: this.closed ? [] : (this.resource?.sidecarPids ?? []),
       hidden_ports: this.closed
         ? []
@@ -161,7 +176,7 @@ export class RuntimeAgent {
     if (!this.closed) this.detector.feed(data);
   }
   control(): AgentControl | null {
-    return this.closed ? null : (this.resource?.control ?? null);
+    return this.closed || this.lifecycleUnavailable ? null : (this.resource?.control ?? null);
   }
   humanInput(): void {
     if (!this.closed) this.resource?.control?.input?.();

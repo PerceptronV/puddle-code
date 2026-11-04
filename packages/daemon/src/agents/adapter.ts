@@ -1,4 +1,5 @@
 import type { Account, AgentTurnSignal } from '@puddle/shared';
+import type { RuntimeByteAllowance } from '../runtime/resources/budget.js';
 
 export interface AgentUsage {
   input_tokens: number;
@@ -99,6 +100,10 @@ export interface AgentControl {
 }
 
 export interface LifecycleLaunchContext {
+  /** Puddle-owned bridge buffers share the runtime owner's managed allowance. */
+  bufferAllowance?: RuntimeByteAllowance;
+  /** Exact lifecycle delivery became unavailable; never claim a successful native sync. */
+  reportLifecycleUnavailable?(): void;
   /** Live execution needs isolation configuration, not mutable application account metadata. */
   account: Pick<Account, 'config_dir'>;
   opts: LaunchOpts;
