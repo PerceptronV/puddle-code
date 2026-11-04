@@ -1,3 +1,9 @@
+import type {
+  RuntimeByteAllowance,
+  RuntimeRetainedAllocation,
+  RuntimeRetainedAllowance,
+} from '../../../runtime/resources/budget.js';
+
 /** Charged retained capacity; these allowances are not measurements of JavaScript RSS. */
 export interface ScreenRetainedLimits {
   geometryBytes: number;
@@ -45,6 +51,7 @@ interface Geometry {
 }
 
 const GROWTH_ROWS = 64;
+const HISTORY_RETRY_MS = 1000;
 
 /** One store, including every terminal: no per-terminal copy of the allowance. */
 export class ScreenRetainedBudget {
@@ -52,9 +59,14 @@ export class ScreenRetainedBudget {
   private variables = 0;
   private burst = 0;
   private readonly waiting: Array<() => void> = [];
+  private readonly historyRetryAt = new WeakMap<ScreenRetainedLease, number>();
 
   readonly limits: Readonly<ScreenRetainedLimits>;
-  constructor(limits: Readonly<ScreenRetainedLimits> = SCREEN_RETAINED_LIMITS) {
+  constructor(
+    limits: Readonly<ScreenRetainedLimits> = SCREEN_RETAINED_LIMITS,
+    readonly allowance?: RuntimeByteAllowance & RuntimeRetainedAllowance,
+    private readonly now: () => number = () => performance.now(),
+  ) {
     if (Object.values(limits).some((value) => !Number.isSafeInteger(value) || value < 1))
       throw new Error('Invalid retained terminal capacity');
     if (limits.writeUnits < 2 || limits.writeUnits > 4096)
@@ -78,9 +90,15 @@ export class ScreenRetainedBudget {
     if ((this.screens.size + 1) * this.limits.screenControlBytes > this.limits.controlBytes)
       throw new Error('Canonical terminal control capacity exhausted');
     const lease = new ScreenRetainedLease(this, { cols, rows, scrollback: 0 });
-    this.rebalance(lease, cols, rows);
-    this.screens.add(lease);
-    return lease;
+    try {
+      this.rebalance(lease, cols, rows);
+      this.screens.add(lease);
+      return lease;
+    } catch (error) {
+      // No emulator exists yet. Other leases keep any positively trimmed state.
+      lease.dispose();
+      throw error;
+    }
   }
 
   /** Rebalance only old scrollback; existing viewports and backing widths stay charged. */
@@ -132,12 +150,19 @@ export class ScreenRetainedBudget {
   /** Admit a small block before xterm raises backing capacity or clones a row. */
   grow(lease: ScreenRetainedLease): boolean {
     if (!this.screens.has(lease)) return false;
+    if (this.now() < (this.historyRetryAt.get(lease) ?? 0)) return false;
     const available = Math.floor(
       (this.limits.geometryBytes - this.geometryBytes) / this.line(lease.cols),
     );
     const rows = Math.min(GROWTH_ROWS, this.limits.scrollback - lease.scrollback, available);
     if (rows <= 0) return false;
-    lease.setGeometry(lease.cols, lease.rows, lease.scrollback + rows);
+    if (!lease.trySetGeometry(lease.cols, lease.rows, lease.scrollback + rows)) {
+      // A full shared grant must not turn every subsequent newline into ledger
+      // IO. Output continues with normal history rollover until a later retry.
+      this.historyRetryAt.set(lease, this.now() + HISTORY_RETRY_MS);
+      return false;
+    }
+    this.historyRetryAt.delete(lease);
     return true;
   }
 
@@ -149,13 +174,14 @@ export class ScreenRetainedBudget {
     return cols * this.limits.cellBytes + this.limits.lineBytes;
   }
 
-  changeVariables(previous: number, next: number): boolean {
+  changeVariables(previous: number, next: number, admit: () => boolean): boolean {
     if (
       !Number.isSafeInteger(next) ||
       next < 0 ||
       next - previous > this.limits.variableBytes - this.variables
     )
       return false;
+    if (!admit()) return false;
     this.variables += next - previous;
     return true;
   }
@@ -166,18 +192,25 @@ export class ScreenRetainedBudget {
       throw new Error('Canonical terminal operation exceeds burst capacity');
     while (bytes > this.limits.burstBytes - this.burst)
       await new Promise<void>((resolve) => this.waiting.push(resolve));
+    // Global refusal cannot be woken by an unrelated domain's release. Only
+    // local contention waits; a refused enclosing grant is an explicit failure.
+    const releaseAllowance = this.allowance?.reserve(bytes);
+    if (this.allowance && !releaseAllowance)
+      throw new Error('Canonical terminal host burst capacity exhausted');
     this.burst += bytes;
     let held = true;
     return () => {
       if (!held) return;
       held = false;
       this.burst -= bytes;
+      releaseAllowance?.();
       for (const wake of this.waiting.splice(0)) wake();
     };
   }
 
   remove(lease: ScreenRetainedLease): void {
     this.screens.delete(lease);
+    this.historyRetryAt.delete(lease);
   }
 }
 
@@ -186,6 +219,7 @@ export class ScreenRetainedLease {
   private variables = 0;
   private closed = false;
   private trimScreen: ((scrollback: number) => void) | undefined;
+  private allocation: RuntimeRetainedAllocation | null = null;
   constructor(
     readonly owner: ScreenRetainedBudget,
     private dimensions: Geometry,
@@ -206,24 +240,48 @@ export class ScreenRetainedLease {
     this.trimScreen = trim;
   }
   trim(scrollback: number): void {
+    if (!Number.isSafeInteger(scrollback) || scrollback < 0 || scrollback > this.scrollback)
+      throw new Error('History trimming cannot increase retained capacity');
     this.trimScreen?.(scrollback);
+    if (!this.retain(this.owner.geometry(this.cols, this.rows, scrollback), this.variables))
+      throw new Error('Canonical terminal retained capacity return could not be verified');
     this.dimensions.scrollback = scrollback;
   }
   setGeometry(cols: number, rows: number, scrollback: number): void {
+    if (!this.trySetGeometry(cols, rows, scrollback))
+      throw new Error('Canonical terminal host geometry capacity exhausted');
+  }
+  trySetGeometry(cols: number, rows: number, scrollback: number): boolean {
+    if (cols < this.cols || rows < this.rows || scrollback < this.scrollback)
+      throw new Error('Geometry capacity requires a proven trim before shrinking');
+    if (!this.retain(this.owner.geometry(cols, rows, scrollback), this.variables)) return false;
     // Growth is charged before the callback can allocate backing. An unexpected
     // callback failure keeps that conservative charge until owner disposal.
     this.dimensions = { cols, rows, scrollback };
     this.trimScreen?.(scrollback);
+    return true;
+  }
+  private retain(geometry: number, variables: number): boolean {
+    if (!this.owner.allowance) return true;
+    const bytes = geometry + variables + this.owner.limits.screenControlBytes;
+    if (this.allocation) return this.allocation.resize(bytes);
+    this.allocation = this.owner.allowance.retain(bytes);
+    return this.allocation !== null;
+  }
+  private changeVariables(next: number): boolean {
+    return this.owner.changeVariables(this.variables, next, () =>
+      this.retain(this.geometryBytes, next),
+    );
   }
   charge(bytes: number, inspect: () => number): boolean {
     if (this.closed || !Number.isSafeInteger(bytes) || bytes < 0) return false;
     let next = this.variables + bytes;
-    if (!this.owner.changeVariables(this.variables, next)) {
+    if (!this.changeVariables(next)) {
       const retained = inspect();
-      if (!this.owner.changeVariables(this.variables, retained)) return false;
+      if (!this.changeVariables(retained)) return false;
       this.variables = retained;
       next = retained + bytes;
-      if (!this.owner.changeVariables(this.variables, next)) return false;
+      if (!this.changeVariables(next)) return false;
     }
     this.variables = next;
     return true;
@@ -232,7 +290,9 @@ export class ScreenRetainedLease {
     if (this.closed) return;
     this.closed = true;
     this.trimScreen = undefined;
-    this.owner.changeVariables(this.variables, 0);
+    this.owner.changeVariables(this.variables, 0, () => true);
+    this.allocation?.release();
+    this.allocation = null;
     this.owner.remove(this);
   }
 }

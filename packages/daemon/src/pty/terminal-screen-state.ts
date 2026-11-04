@@ -6,7 +6,11 @@ import headless, {
   type Terminal as HeadlessTerminal,
 } from '@xterm/headless';
 import { SerializeAddon } from '@xterm/addon-serialize';
-import { RuntimeBufferBudget } from '../runtime/resources/budget.js';
+import {
+  RuntimeBufferBudget,
+  type RuntimeByteAllowance,
+  type RuntimeRetainedAllowance,
+} from '../runtime/resources/budget.js';
 import { SCREEN_LIMITS, screenActionBytes } from './screen/limits.js';
 import { ScreenParserQueue } from './screen/queue.js';
 import { ScreenSnapshotWork } from './screen/work.js';
@@ -72,10 +76,7 @@ export class TerminalScreenStateStore {
 
   private readonly parserBudget: RuntimeBufferBudget;
   // Reader traffic cannot use up the input capacity and force a canonical gap.
-  private readonly captureBudget = new RuntimeBufferBudget({
-    bytes: SCREEN_LIMITS.captureBytes,
-    count: SCREEN_LIMITS.captureActions,
-  });
+  private readonly captureBudget: RuntimeBufferBudget;
   private readonly work: ScreenSnapshotWork;
   private readonly retained: ScreenRetainedBudget;
 
@@ -88,16 +89,37 @@ export class TerminalScreenStateStore {
       parserBudget?: RuntimeBufferBudget;
       transientBudget?: RuntimeBufferBudget;
       retainedBudget?: ScreenRetainedBudget;
+      allowance?: RuntimeByteAllowance & RuntimeRetainedAllowance;
     } = {},
   ) {
     this.parserBudget =
       options.parserBudget ??
-      new RuntimeBufferBudget({
-        bytes: SCREEN_LIMITS.parserBytes,
-        count: SCREEN_LIMITS.parserActions,
-      });
-    this.work = new ScreenSnapshotWork(options.transientBudget);
-    this.retained = options.retainedBudget ?? new ScreenRetainedBudget();
+      new RuntimeBufferBudget(
+        {
+          bytes: SCREEN_LIMITS.parserBytes,
+          count: SCREEN_LIMITS.parserActions,
+        },
+        options.allowance,
+      );
+    this.captureBudget = new RuntimeBufferBudget(
+      {
+        bytes: SCREEN_LIMITS.captureBytes,
+        count: SCREEN_LIMITS.captureActions,
+      },
+      options.allowance,
+    );
+    this.work = new ScreenSnapshotWork(
+      options.transientBudget ??
+        new RuntimeBufferBudget(
+          {
+            bytes: SCREEN_LIMITS.transientBytes,
+            count: SCREEN_LIMITS.transientOperations,
+          },
+          options.allowance,
+        ),
+    );
+    this.retained =
+      options.retainedBudget ?? new ScreenRetainedBudget(undefined, options.allowance);
     if (stateDir) this.files = new ScreenSnapshotFiles(stateDir);
   }
 
@@ -247,19 +269,29 @@ export class TerminalScreenStateStore {
     }
 
     const lease = this.retained.admit(DEFAULT_COLS, DEFAULT_ROWS);
-    const terminal = new Terminal({
-      // Narrow opt-in for the official serialiser's buffer access. Puddle does
-      // not expose or consume proposed xterm APIs anywhere else.
-      allowProposedApi: true,
-      cols: DEFAULT_COLS,
-      rows: DEFAULT_ROWS,
-      scrollback: lease.scrollback,
-    });
-    preserveXtermScrollUp(terminal);
-    const serialiser = new SerializeAddon();
-    // The serialiser is runtime-compatible with @xterm/headless, as documented
-    // by xterm, but its published type names the browser Terminal class.
-    terminal.loadAddon(serialiser as unknown as HeadlessTerminalAddon);
+    let terminal: HeadlessTerminal | undefined;
+    let serialiser: SerializeAddon;
+    try {
+      terminal = new Terminal({
+        // Narrow opt-in for the official serialiser's buffer access. Puddle does
+        // not expose or consume proposed xterm APIs anywhere else.
+        allowProposedApi: true,
+        cols: DEFAULT_COLS,
+        rows: DEFAULT_ROWS,
+        scrollback: lease.scrollback,
+      });
+      preserveXtermScrollUp(terminal);
+      serialiser = new SerializeAddon();
+      // The serialiser is runtime-compatible with @xterm/headless, as documented
+      // by xterm, but its published type names the browser Terminal class.
+      terminal.loadAddon(serialiser as unknown as HeadlessTerminalAddon);
+    } catch (error) {
+      // No parsing or persistence has started. Failed initialisation must not
+      // leave a retained host allocation with no state available to dispose it.
+      terminal?.dispose();
+      lease.dispose();
+      throw error;
+    }
     const unavailable = (error: unknown) => {
       if (state.unavailable) return;
       state.unavailable = true;

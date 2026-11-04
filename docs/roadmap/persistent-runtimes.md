@@ -68,6 +68,15 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Screen retained geometry/control/text, parser/capture queues, parse bursts and
+  snapshot work can now spend one enclosing owner allowance. Charges precede
+  allocation; disposal and pending writes retain credit until their closures settle.
+  Optional history refusal uses normal rollover with a one-second monotonic retry
+  backoff. Global refusal cannot strand snapshot waiters. Seventy-three focused
+  screen checks and fifteen actual-owner/segment/theme/gateway/terminal-agent
+  checks passed, with source/test TypeScript and lint. Production RuntimeHost
+  composition remains pending alongside other buffer domains.
+
 - Foreground process inspection now streams ancestry paths under a traversal
   bound and recognises each command once per snapshot. This removes quadratic
   retained paths and repeated parsing of long ancestor commands. Incomplete

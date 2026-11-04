@@ -19,6 +19,7 @@ import {
   SCREEN_RETAINED_LIMITS,
   ScreenRetainedBudget,
 } from '../../../src/pty/screen/retained/budget.js';
+import { ScreenAllowance } from '../../helpers/pty/allowance.js';
 
 vi.mock('node:fs/promises', async (original) => {
   const real = await original<typeof import('node:fs/promises')>();
@@ -44,19 +45,23 @@ function deferred() {
   const promise = new Promise<void>((done) => (resolve = done));
   return { promise, resolve };
 }
-function fixture(parserBytes = SCREEN_LIMITS.parserBytes) {
+function fixture(parserBytes = SCREEN_LIMITS.parserBytes, allowance?: ScreenAllowance) {
   const home = mkdtempSync(join(tmpdir(), 'puddle-screen-budget-'));
   const health = vi.fn();
-  const parser = new RuntimeBufferBudget({ bytes: parserBytes, count: 64 });
-  const transient = new RuntimeBufferBudget({
-    bytes: SCREEN_LIMITS.transientBytes,
-    count: SCREEN_LIMITS.transientOperations,
-  });
-  const retained = new ScreenRetainedBudget();
+  const parser = new RuntimeBufferBudget({ bytes: parserBytes, count: 64 }, allowance);
+  const transient = new RuntimeBufferBudget(
+    {
+      bytes: SCREEN_LIMITS.transientBytes,
+      count: SCREEN_LIMITS.transientOperations,
+    },
+    allowance,
+  );
+  const retained = new ScreenRetainedBudget(undefined, allowance);
   const store = new TerminalScreenStateStore(home, health, {
     parserBudget: parser,
     transientBudget: transient,
     retainedBudget: retained,
+    allowance,
   });
   return {
     home,
@@ -70,7 +75,8 @@ function fixture(parserBytes = SCREEN_LIMITS.parserBytes) {
 }
 
 it('retains emulator credit through slow persistence after a canonical input gap', async () => {
-  const f = fixture(1024);
+  const allowance = new ScreenAllowance(128 * 1024 * 1024);
+  const f = fixture(1024, allowance);
   const gate = deferred();
   const real = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -87,9 +93,13 @@ it('retains emulator credit through slow persistence after a canonical input gap
     await expect(f.store.snapshot('session', 'agent')).rejects.toThrow(/unavailable/);
     await vi.waitFor(() => expect(f.parser.usedCount).toBe(0));
     expect(f.retained.geometryBytes).toBe(retained);
+    expect(allowance.used).toBe(
+      retained + SCREEN_RETAINED_LIMITS.screenControlBytes + SCREEN_LIMITS.operationBytes,
+    );
     gate.resolve();
     await vi.waitFor(() => expect(f.retained.geometryBytes).toBe(0));
     expect(f.transient.usedCount).toBe(0);
+    expect(allowance.used).toBe(0);
   } finally {
     gate.resolve();
     await f.store.closeAll();
