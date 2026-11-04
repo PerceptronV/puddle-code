@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import type { AgentNotification, NotificationContent, RuntimeAttention } from '@puddle/shared';
 import { RUNTIME_PROTOCOL_VERSION } from '@puddle/shared';
 import {
@@ -63,6 +63,41 @@ function fixture() {
     },
   };
 }
+
+it('drains a preview without claiming attention during a maintenance pause', async () => {
+  const f = fixture();
+  let release!: (content: NotificationContent) => void;
+  const preview = new Promise<NotificationContent>((resolve) => {
+    release = resolve;
+  });
+  const read = vi.fn(() => preview);
+  const notifier = f.delivery(read);
+  try {
+    const attention = f.observe();
+    const flush = notifier.flush();
+    expect(read).toHaveBeenCalledOnce();
+    const hold = notifier.pause();
+    const drained = vi.fn();
+    const drain = hold.drain().then(drained);
+    await notifier.flush();
+    expect(drained).not.toHaveBeenCalled();
+    release(f.content);
+    await Promise.all([flush, drain]);
+    expect(f.reconciler.attention.pending()).toHaveLength(1);
+    expect(f.emitted).toEqual([]);
+    hold.release();
+    await notifier.flush();
+    expect(f.emitted).toMatchObject([{ id: attention.id }]);
+    expect(f.reconciler.attention.pending()).toEqual([]);
+    const final = notifier.pause();
+    notifier.close();
+    final.release();
+    expect(() => notifier.pause()).toThrow(/maintenance/);
+  } finally {
+    release(f.content);
+    await f.close();
+  }
+});
 
 it('coalesces offline attention and commits delivery before emitting, including failed writes and replacement', async () => {
   const f = fixture();

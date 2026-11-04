@@ -40,6 +40,13 @@ PID/counter after journal catch-up. A delayed event response cannot commit after
 the pause, and releasing a hold cannot undo closure. This proves the reconciler's
 checkpoint boundary, not the complete host update transaction.
 
+Runtime transport connection tests pause discovery during an admitted attachment,
+verify installation of its output listener, disconnect the viewer while paused,
+then prove owner PID and shell state survive resumed discovery. Notification and
+service-cleanup tests hold a preview or supervisor result across a pause and check
+that the durable record stays pending until release and reinspection. These use
+isolated owners and fake supervisor removals; no installed service is changed.
+
 `packages/daemon/test/sessions/session-refs.test.ts` verifies that preset and minted
 native-ref captures already in progress commit before shutdown finishes, that a
 pending pre-spawn snapshot cannot start a child afterwards, and that coalesced late

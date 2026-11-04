@@ -7,6 +7,51 @@ import { acquireHostClaim } from '../../../src/security/claims.js';
 import { runtimeDatabase } from '../../helpers/runtime-database.js';
 import { openDatabase } from '../../../src/db/db.js';
 
+it('keeps paused cleanup pending until its supervisor result can be reinspected', async () => {
+  const f = runtimeDatabase();
+  f.runtimes.finish(f.binding.runtime_id, 'exited', () => {});
+  const store = new RuntimeServiceCleanupStore(f.db);
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const remove = vi.fn(async () => {
+    await pending;
+    return 'removed' as const;
+  });
+  const cleanup = new RuntimeServiceCleanup({
+    home: f.home,
+    store,
+    reconciler: f.reconciler,
+    remove,
+  });
+  try {
+    const flush = cleanup.flush();
+    const hold = cleanup.pause();
+    const drained = vi.fn();
+    const drain = hold.drain().then(drained);
+    await cleanup.flush();
+    expect(drained).not.toHaveBeenCalled();
+    release();
+    await Promise.all([flush, drain]);
+    expect(remove).toHaveBeenCalledOnce();
+    expect(store.pending()).toHaveLength(1);
+    hold.release();
+    await cleanup.flush();
+    expect(remove).toHaveBeenCalledTimes(2);
+    expect(store.pending()).toEqual([]);
+    const final = cleanup.pause();
+    await cleanup.close();
+    final.release();
+    expect(() => cleanup.pause()).toThrow(/maintenance/);
+  } finally {
+    release();
+    await cleanup.close();
+    await f.reconciler.close();
+    f.db.close();
+  }
+});
+
 it('collects only ended bindings, preserves live claims and retries failed completion commits', async () => {
   const f = runtimeDatabase();
   const store = new RuntimeServiceCleanupStore(f.db);

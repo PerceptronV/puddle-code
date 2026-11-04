@@ -27,6 +27,16 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far:
 
+- Runtime connection discovery, notification claims and service-registration
+  cleanup now have reversible admission pauses using the same bounded drain.
+  Established owners stay connected; admitted attachments finish installing their
+  output listeners. Release rescans all bindings, including owners a paused sweep
+  had not reached. Late previews/removal results leave durable work pending for
+  reinspection, and a failed connection drain retains controller ownership. Tests
+  verify unchanged owner PID/shell state after viewer disconnect/recovery, pending
+  attention/cleanup records, and irreversible closure. Host-wide composition and
+  update-worker activation remain required.
+
 - Runtime reconciliation now supports a reversible pause that freezes committed
   observation cursors while owners keep running and retaining events. It drains
   admitted requests, fences late replies and direct page/retirement writes, and

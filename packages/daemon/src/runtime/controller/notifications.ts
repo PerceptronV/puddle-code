@@ -7,12 +7,15 @@ import type { RuntimeStore } from '../../db/stores/runtimes.js';
 import type { SessionStore } from '../../db/stores/sessions.js';
 import { notificationSnippet } from '../../sessions/notification-content.js';
 import type { RuntimeReconciler } from './reconcile.js';
+import { HostAdmission } from '../../host/lifecycle/admission.js';
 
 /** Older conditions remain inspectable, but never become a backlog of toasts/pushes. */
 export const RUNTIME_ATTENTION_MAX_AGE_MS = 5 * 60_000;
 
 export class RuntimeNotifications {
   private closed = false;
+  private paused = false;
+  private readonly admission = new HostAdmission();
   private timer: NodeJS.Timeout | null = null;
   private active: Promise<void> | null = null;
   private retryMs = 0;
@@ -33,7 +36,7 @@ export class RuntimeNotifications {
   }
 
   private schedule = (): void => {
-    if (this.closed || this.timer || this.active) return;
+    if (this.closed || this.paused || this.timer || this.active) return;
     this.timer = setTimeout(() => {
       this.timer = null;
       void this.flush();
@@ -42,30 +45,32 @@ export class RuntimeNotifications {
   };
 
   flush(): Promise<void> {
-    if (this.closed) return Promise.resolve();
+    if (this.closed || this.paused) return Promise.resolve();
     if (this.active) return this.active;
-    this.active = this.drain()
-      .then(
-        () => {
-          this.retryMs = 0;
-        },
-        () => {
-          this.retryMs = Math.min(this.retryMs ? this.retryMs * 2 : 1000, 30_000);
-        },
-      )
-      .finally(() => {
-        this.active = null;
-        if (this.closed) return;
-        try {
-          if (this.deps.store.pending().length) {
-            this.retryMs ||= 1000;
+    this.active = this.admission.run(() =>
+      this.drain()
+        .then(
+          () => {
+            this.retryMs = 0;
+          },
+          () => {
+            this.retryMs = Math.min(this.retryMs ? this.retryMs * 2 : 1000, 30_000);
+          },
+        )
+        .finally(() => {
+          this.active = null;
+          if (this.closed || this.paused) return;
+          try {
+            if (this.deps.store.pending().length) {
+              this.retryMs ||= 1000;
+              this.schedule();
+            }
+          } catch {
+            this.retryMs = Math.min(this.retryMs ? this.retryMs * 2 : 1000, 30_000);
             this.schedule();
           }
-        } catch {
-          this.retryMs = Math.min(this.retryMs ? this.retryMs * 2 : 1000, 30_000);
-          this.schedule();
-        }
-      });
+        }),
+    );
     return this.active;
   }
 
@@ -102,7 +107,7 @@ export class RuntimeNotifications {
     this.after = pending.at(-1)?.runtimeId ?? '';
     let index = 0;
     const worker = async () => {
-      while (!this.closed && index < pending.length) {
+      while (!this.closed && !this.paused && index < pending.length) {
         const row = pending[index++]!;
         if (!this.deps.ready(row.runtimeId)) continue;
         const session = this.current(row);
@@ -127,7 +132,7 @@ export class RuntimeNotifications {
             session: session.id,
           };
         }
-        if (this.closed) return;
+        if (this.closed || this.paused) return;
         if (!this.deps.ready(row.runtimeId)) continue;
         const current = this.current(row);
         if (!this.deps.store.claim(row) || !current) continue;
@@ -147,8 +152,28 @@ export class RuntimeNotifications {
     if (failed?.status === 'rejected') throw failed.reason;
   }
 
+  /** Do not claim or deliver attention while maintenance checkpoints application state. */
+  pause(): ReturnType<HostAdmission['pause']> {
+    const hold = this.admission.pause();
+    this.paused = true;
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    let released = false;
+    return {
+      drain: (timeoutMs) => hold.drain(timeoutMs),
+      release: () => {
+        if (released) return;
+        released = true;
+        hold.release();
+        this.paused = false;
+        this.schedule();
+      },
+    };
+  }
+
   close(): void {
     this.closed = true;
+    this.admission.close();
     this.deps.reconciler.off('changed', this.schedule);
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
