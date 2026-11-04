@@ -35,7 +35,11 @@ if (action === 'link') {
 } else if (action === 'daemon-reload') {
   // Definitions are read afresh on every observation.
 } else if (action === 'cat') {
-  process.stdout.write(`[Service]\nExecStart=${home}/bin/current/puddled\nRestart=always\n`);
+  process.stdout.write(
+    name === 'puddle-connector.service'
+      ? readFileSync(join(home, '.config/systemd/user/puddle-connector.service'), 'utf8')
+      : `[Service]\nExecStart=${home}/bin/current/puddled\nRestart=always\n`,
+  );
 } else if (action === 'show') {
   if (args.includes('--property=Version')) process.stdout.write('Version=fixture\n');
   else {
@@ -64,9 +68,12 @@ if (action === 'link') {
 } else if (action === 'start') {
   if (pid() && alive(pid())) throw new Error('Duplicate service start');
   let command: string[];
-  if (name === 'puddled.service') {
+  if (name === 'puddled.service' || name === 'puddle-connector.service') {
     const release = realpathSync(join(home, 'bin/current'));
-    command = [join(release, 'bin/node'), join(release, 'daemon/puddled.mjs')];
+    command = [
+      join(release, 'bin/node'),
+      join(release, name === 'puddled.service' ? 'daemon/puddled.mjs' : 'daemon/connector.mjs'),
+    ];
   } else {
     const path = readFileSync(join(directory, `${name}.definition`), 'utf8');
     const line = readFileSync(path, 'utf8')

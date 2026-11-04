@@ -17,6 +17,16 @@ plus unchanged runtime/shell PIDs, shell variables, cwd and a background job.
 New terminals must select the updated runtime build. Both synthetic release labels
 use current source; these tests do not establish historical-release migration.
 
+`remote-update.test.ts` additionally bundles the actual connector and drives
+encrypted preparation, review and application through a local TLS relay and real
+Noise admission. It discards the apply reply, waits for independent completion,
+then reconnects with the retained grant and observes status without another apply.
+Daemon/connector PIDs change while the existing runtime/shell and its state survive;
+a fresh runtime uses the updated default. This passed in 36.35 seconds on macOS
+26.5.2 / Node 22.21.1, using scripted systemd supervision and an exact local
+archive/checksum in place of stage downloading. Native-manager and real-provider
+acceptance remain separate.
+
 `combined-update.test.ts` exercises host-control begin/stage/review/apply with an
 isolated simulated systemd executable. `native-launchd.test.ts` uses genuine,
 uniquely named launchd daemon/runtime/updater jobs; enable it with

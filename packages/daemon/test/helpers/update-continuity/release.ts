@@ -17,9 +17,11 @@ import {
   hostReleaseCapabilities,
   PROTOCOL_VERSION,
   RUNTIME_PROTOCOL_VERSION,
+  REMOTE_PROTOCOL_VERSION,
 } from '@puddle/shared';
 import { DATABASE_SCHEMA_VERSION } from '../../../src/db/migrations/index.js';
 import { bundleDir } from '../runtime-fixture.js';
+import { fixtureStagingInstaller } from './remote/installer.js';
 
 const repo = fileURLToPath(new URL('../../../../../', import.meta.url));
 export const installer = join(repo, 'scripts/install.sh');
@@ -34,6 +36,7 @@ export async function continuityRelease(
   version: string,
   native = false,
   entries?: { puddled: string; puddler: string },
+  options: { connector?: boolean; stagingArchive?: { version: string; path: string } } = {},
 ) {
   const root = join(home, 'test-archives', version);
   const release = join(root, `puddled-v${version}`);
@@ -45,6 +48,7 @@ export async function continuityRelease(
       puddled: entries?.puddled ?? join(repo, 'packages/daemon/src/index.ts'),
       puddler: entries?.puddler ?? join(repo, 'packages/daemon/src/runtime/index.ts'),
       'host-update': join(repo, 'packages/daemon/src/updates/worker/index.ts'),
+      ...(options.connector ? { connector: join(repo, 'packages/connector/src/index.ts') } : {}),
     },
     outdir: join(release, 'daemon'),
     outExtension: { '.js': '.mjs' },
@@ -57,12 +61,14 @@ export async function continuityRelease(
       '@puddle/shared/node/host-control': join(repo, 'packages/shared/src/node/host-control.ts'),
       '@puddle/shared/node': join(repo, 'packages/shared/src/node/security.ts'),
       '@puddle/shared': join(repo, 'packages/shared/src/index.ts'),
+      '@puddle/remote-transport': join(repo, 'packages/remote-transport/src/index.ts'),
     },
     // Exercise systemd command composition through the isolated executable fixture
     // on every test OS. Native modules retain the actual host platform.
     define: {
       __PUDDLED_VERSION__: JSON.stringify(version),
       __PUDDLER_VERSION__: JSON.stringify(version),
+      __CONNECTOR_VERSION__: JSON.stringify(version),
       ...(native ? {} : { 'process.platform': '"linux"' }),
     },
     banner: {
@@ -71,6 +77,7 @@ export async function continuityRelease(
     logLevel: 'warning',
   });
   copyFileSync(installer, join(release, 'daemon/install.sh'));
+  if (options.stagingArchive) fixtureStagingInstaller(release, options.stagingArchive);
   const quote = (value: string) => "'" + value.replace(/'/g, "'\\''") + "'";
   const environment = native
     ? `/usr/bin/env -i ${['HOME=' + home, 'PUDDLE_HOME=' + home, 'PATH=/usr/bin:/bin:/usr/sbin:/sbin', 'LANG=en_US.UTF-8', 'SHELL=/bin/sh'].map(quote).join(' ')} `
@@ -83,6 +90,8 @@ export async function continuityRelease(
     );
   writeFileSync(join(release, 'VERSION'), version + '\n');
   writeFileSync(join(release, 'PROTOCOL'), `${PROTOCOL_VERSION.major}.${PROTOCOL_VERSION.minor}\n`);
+  if (options.connector)
+    writeFileSync(join(release, 'CONNECTOR_PROTOCOL'), `${REMOTE_PROTOCOL_VERSION}\n`);
   writeFileSync(
     join(release, 'RUNTIME_PROTOCOL'),
     `${RUNTIME_PROTOCOL_VERSION.major}.${RUNTIME_PROTOCOL_VERSION.minor}\n`,

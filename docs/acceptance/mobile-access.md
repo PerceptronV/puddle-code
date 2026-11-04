@@ -69,8 +69,15 @@ recovery instructions: [self-hosted mobile access](../mobile-access.md).
   their update executor is a fixture. Profile-access tests keep direct daemon
   `GET/POST /api/host/updates` denied even for the unchanged profile lease issued
   by a maintenance channel. UI tests cover local-only grant controls and shared
-  remote update transport. These checks do not establish an encrypted update
-  through actual daemon/connector replacement or real-provider continuity.
+  remote update transport. These focused checks do not establish actual process
+  replacement; the separate continuity fixture below covers that sequence.
+- `packages/daemon/test/updates/continuity/remote-update.test.ts` passed with
+  actual bundled daemon, connector and worker, a local TLS relay and real Noise.
+  It verifies a lost apply reply, independent completion, retained grant, fresh
+  admission and status-only reconnect after daemon/connector replacement, plus
+  unchanged runtime/shell PIDs and state. Both release labels use current source,
+  supervision is scripted and stage downloading uses an exact local archive/checksum.
+  This is process continuity evidence, not native-manager or real-provider acceptance.
 - `pnpm test:e2e` and `pnpm test:ssh`: preserve local/SSH foundation behaviour,
   cockpit replacement, connection leases and isolated loopback SSH integration.
 - The isolated mobile pairing fixture decodes actual QR frames, checks separate
@@ -137,10 +144,10 @@ review, production OAuth-provider acceptance or physical-phone acceptance.
 
 ## Remote host maintenance
 
-The controls are implemented for the standard 0.4.0 release. Full encrypted
-acceptance through actual connector replacement and real-provider continuity is
-**pending**. Complete and record the following on disposable hosts; unit/bridge
-fixtures and local/SSH packaged-upgrade results do not complete this gate.
+The controls are implemented for the standard 0.4.0 release. The encrypted process
+fixture passes actual connector replacement with scripted supervision. Native
+supervisor and real-provider continuity remain **pending**. Complete and record
+the following on disposable hosts; fixture results do not complete those gates.
 
 1. Deploy application 26.0/remote 5 across the cockpit, daemon/connector, service
    and app. Upgrade an existing per-profile registration from remote 4: its

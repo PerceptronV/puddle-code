@@ -30,7 +30,8 @@ Application 26.0 and remote 5 now add explicitly host-approved browser maintenan
 with independent daemon grant checks and the same host update coordinator. Remote
 windows share preparation, interruption review, application, recovery and release
 offers; ordinary pairing grants no maintenance. Full encrypted daemon/connector
-replacement acceptance remains in progress.
+replacement now passes with actual bundles and scripted supervision; native-manager
+and real-provider acceptance remain outstanding.
 Public local/SSH removal now coordinates remote disablement, service teardown and
 reviewed runtime retention/stops; deliberate install restores retained service definitions.
 Durable reference-aware collection is implemented internally; public scheduling and
@@ -54,6 +55,18 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 [acceptance matrix](#acceptance-matrix) for the release gates.
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
+
+- `updates/continuity/remote-update.test.ts` exercises actual bundled daemon,
+  connector and update worker over a local TLS relay and real Noise, with a
+  persisted host-approved maintenance grant. A discarded apply acknowledgement
+  is followed by independent completion and fresh admission/status observation.
+  Connector/daemon PIDs change while runtime/shell PIDs, environment, cwd and
+  background job survive; new runtimes use the new default. The remote journey
+  passed in 36.35 seconds and the existing local combined-update regression in
+  46.14 seconds. Both release labels contain current source. The fixture substitutes
+  only stage downloading with an exact local archive/checksum and uses scripted
+  systemd supervision; native managers, historical upgrades and real providers
+  remain separate acceptance gates.
 
 - Application 26.0/remote 5 adds exact approved-device maintenance grants, initially
   absent for existing paired browsers. Local/SSH controls manage the grant; the
