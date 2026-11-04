@@ -31,6 +31,7 @@ import { ProfilePanel } from '../profile/ProfilePanel';
 import { useCurrentProfileId } from '../profile/profile-store';
 import { NewSessionProvider, useNewSession } from './new-session-context';
 import { UpdateToast } from './UpdateToast';
+import { HostUpdateToast } from '../host-updates/HostUpdateToast';
 import { useLocalSyncEngine } from './use-local-sync-engine';
 import { useWaitingNotifications } from './use-waiting-notifications';
 import { ScratchpadPopover } from '../scratchpad/ScratchpadPopover';
@@ -331,6 +332,7 @@ function ShellBody() {
       <StorageBanner />
       <ConnectionBanner />
       <UpdateToast />
+      <HostUpdateToast />
       <CommandPalette
         onNewSession={handler ?? undefined}
         onNewProject={() => setCreatingProject(true)}

@@ -10,6 +10,24 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+Cockpit UI checks cover independent component release comparison, window-lifetime
+offer deduplication, exact operation/revision approval, supported interruption consent,
+live recovery controls and exclusion from relay transports. Query tests use the real
+query/mutation cache to prove that an offline/lost apply reply cannot inherit retries
+or queue a later write, while status refresh observes the committed operation.
+
+After building web assets, run `node packages/web/test/host-updates/browser.mjs` with
+Playwright Chromium installed. This temporary loopback fixture mounts the real controls
+and toasts with simulated host replies; it starts no daemon, agent or installed service.
+It verifies dismissal, a fresh window/release, closing Settings during preparation,
+exact interruption approval and lost apply replies without duplicate mutation. Optional
+`PUDDLE_HOST_UPDATE_SCREENSHOT` saves the review for visual inspection. This passed on
+macOS with Node 22.21.1; it proves browser behaviour, not supervisor/provider continuity.
+Individual runtime controls, offline/legacy cockpit recovery and relay maintenance
+still require implementation and their own acceptance.
+The focused UI/WS suites passed 18 tests; source and strict changed-test typechecks,
+lint, formatting and token/contrast checks passed. Web, CLI and desktop builds passed.
+
 Release catalogue fixtures cover one lazy check across concurrent windows, the
 30-minute cadence across daemon replacement, timestamped last-known results after
 network failure, repository changes, unsupported host assets, bounded metadata,

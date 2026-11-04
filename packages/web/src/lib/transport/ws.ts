@@ -92,6 +92,7 @@ export class WsManager {
   private readonly accountListeners = new Set<(e: AccountEvent) => void>();
   private readonly switchListeners = new Set<(e: SessionSwitchEvent) => void>();
   private readonly sessionsChangedListeners = new Set<(e: SessionsChangedEvent) => void>();
+  private readonly hostUpdatesListeners = new Set<() => void>();
   private readonly connectionListeners = new Set<ConnectionListener>();
   private readonly shellWaiters = new Map<
     string,
@@ -190,6 +191,12 @@ export class WsManager {
   onConnectionChange(listener: ConnectionListener): () => void {
     this.connectionListeners.add(listener);
     return () => this.connectionListeners.delete(listener);
+  }
+
+  onHostUpdatesChanged(listener: () => void): () => void {
+    this.hostUpdatesListeners.add(listener);
+    this.ensureConnected();
+    return () => this.hostUpdatesListeners.delete(listener);
   }
 
   isConnected(): boolean {
@@ -351,6 +358,9 @@ export class WsManager {
         break;
       case 'sessions-changed':
         for (const listener of this.sessionsChangedListeners) listener(msg);
+        break;
+      case 'host-updates-changed':
+        for (const listener of this.hostUpdatesListeners) listener();
         break;
       case 'shell-spawned': {
         const waiters = this.shellWaiters.get(msg.session);

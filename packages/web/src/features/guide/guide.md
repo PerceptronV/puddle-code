@@ -106,7 +106,9 @@ For example:
 
   This asks for confirmation and leaves daemons and their data in place.
 
-- In order to update the default runtime software on a connected host, run:
+- In a local or SSH cockpit, open **Settings → Host → Updates** to inspect the daemon and runtime builds. Supporting hosts offer **Prepare daemon**, **Prepare runtime software** and **Prepare both** for a newer release. Preparation downloads and verifies the software; select **Review impact**, then explicitly apply it. If daemon-owned work must stop, the review lists the affected work and requires a separate interruption action. Existing persistent runtimes retain their processes and pinned builds. Each new window offers available updates again; dismissing an offer keeps the actions in Settings. Older hosts still need the CLI upgrade below before these controls are available.
+
+- In order to update the default runtime software on a connected host from the CLI, run:
 
   ```sh
   puddle upgrade runtime user@host

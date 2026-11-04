@@ -70,6 +70,20 @@ async function manager() {
 }
 
 describe('WsManager', () => {
+  it('routes host update invalidations and removes disposed listeners', async () => {
+    const ws = await manager();
+    const changed = vi.fn();
+    const dispose = ws.onHostUpdatesChanged(changed);
+    const socket = FakeWebSocket.instances[0]!;
+    socket.emit('open', {});
+    socket.emit('message', { data: JSON.stringify({ t: 'authenticated' }) });
+    socket.emit('message', { data: JSON.stringify({ t: 'host-updates-changed' }) });
+    expect(changed).toHaveBeenCalledTimes(1);
+    dispose();
+    socket.emit('message', { data: JSON.stringify({ t: 'host-updates-changed' }) });
+    expect(changed).toHaveBeenCalledTimes(1);
+  });
+
   it('authenticates first, then subscribes and attaches', async () => {
     const ws = await manager();
     const data: string[] = [];

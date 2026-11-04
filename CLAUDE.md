@@ -212,8 +212,8 @@ Require exact Origin/browser authority. Give each mutation a cancellable existin
 host-control channel tied to the parent cockpit lease and browser request lifetime,
 so pre-dispatch revocation reaches the coordinator without revoking other windows.
 Do not retry an uncertain mutation or fall back to offline dispatch. Public replies
-omit private stage/worker evidence and blocker paths. Settings UI, release offers
-and offline cockpit recovery remain outstanding; remote maintenance is still excluded.
+omit private stage/worker evidence and blocker paths. Offline cockpit recovery remains
+outstanding; remote maintenance is still excluded.
 Application 25.14 adds optional host-update catalogue reads. `daemon/updates/catalogue/`
 owns bounded runtime-build presentation and one lazy 30-minute release poller, retaining
 timestamped last-known results and cadence across daemon replacements. Share latest-stable
@@ -223,7 +223,13 @@ Cockpit staging takes its source from private host catalogue metadata, never bro
 or an unrelated client override. Availability is not checksum verification or admission;
 discovery must never activate, restart or silently advance a pinned version. Keep
 `host-updates-changed` host-wide and excluded from profile leases, and send catalogue
-fields only to callers requesting them. Browser controls/offers remain in progress.
+fields only to callers requesting them. Browser controls and window offers live together
+in `web/features/host-updates/`. Share one status query between Settings and shell offers;
+refresh on host invalidations/reconnect, never retry or queue a mutation for reconnect.
+Keep preparation, impact review and apply separate; match the current operation revision
+and exact interruption fingerprint before exposing approval. Preserve dismissal across
+React remounts in the same window. Compatible release skew must not become an update
+condition. Per-runtime inspection/restart and offline/legacy cockpit recovery remain open.
 Read-only `puddle updates` falls back to the existing local/SSH bootstrap helper
 when authority cannot connect. Share bounded ledger validation through
 `shared/src/node/installation/updates.ts`; label recorded evidence and never use

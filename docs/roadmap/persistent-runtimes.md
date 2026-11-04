@@ -18,8 +18,10 @@ interruption approval for daemon-owned work. Launchers now start the selected in
 service without reinstalling it; explicit upgrades on stopped hosts restore that
 coordinator first. Local/SSH cockpit routes now share preparation, review and explicit
 activation/recovery through the existing host coordinator. Host version inventory and
-coalesced, cached release discovery now feed that gateway. Cockpit UI/release offers,
-offline cockpit recovery, remaining failure recovery and complete packaged
+coalesced, cached release discovery now feed that gateway. Settings → Host now exposes
+preparation, exact impact approval and live recovery, with per-window release offers.
+Individual runtime inspection/restart, offline/legacy cockpit recovery,
+remaining failure recovery and complete packaged
 upgrade acceptance remain unfinished.
 This document describes the intended refactor; [SPEC.md](../../SPEC.md) continues
 to describe shipped behaviour. Update the specification, protocol documentation,
@@ -38,6 +40,19 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 [acceptance matrix](#acceptance-matrix) for the release gates.
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
+
+- Local/SSH Settings → Host and shell offers now share a status query and host WS
+  invalidations. The borderless controls show current/default builds, grouped existing
+  runtimes, timestamped release checks, separate preparation/review/apply and supported
+  live recovery. Approval matches the displayed operation revision and exact interruption
+  inventory; mutation retries and offline queuing are disabled. Window offers compare
+  each component independently and survive React remounts without resurrecting dismissal.
+  Focused tests cover these boundaries, including remote exclusion. An isolated Chromium
+  fixture exercises the real components against simulated host replies: remount while
+  preparing, explicit interruption approval, lost apply reply without replay, and
+  dismissed/new-release/new-window offers. It does not establish packaged host continuity.
+  Individual runtime controls, offline/legacy cockpit recovery, relay maintenance and
+  the platform/provider release gates remain open. No protocol changes in this increment.
 
 - Application 25.14 adds opt-in catalogue metadata to private status and the cockpit
   gateway: running daemon, selected runtime default, bounded build counts and cached

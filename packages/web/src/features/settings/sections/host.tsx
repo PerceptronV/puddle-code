@@ -9,6 +9,7 @@ import {
   usePatchConfig,
 } from '../../../lib/queries/queries';
 import { SectionTitle, SettingRow } from '../parts';
+import { HostUpdatesSection } from '../../host-updates/HostUpdatesSection';
 
 function NumberSetting({
   label,
@@ -66,10 +67,11 @@ export function HostSection() {
   const protocol = useDaemonVersion().data?.protocol;
   const retentionSupported =
     protocol && (protocol.major > 25 || (protocol.major === 25 && protocol.minor >= 6));
-  if (!config.data) return null;
+  if (!config.data) return <HostUpdatesSection />;
 
   return (
     <div>
+      <HostUpdatesSection />
       {/* The port is deliberately absent: transport is the CLI's business
           (--port / config.json), never the UI's (decision 2026-07-13). */}
       <SectionTitle note="Affects all profiles on this host">Host</SectionTitle>

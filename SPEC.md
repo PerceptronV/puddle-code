@@ -353,8 +353,8 @@ closes the child lease; other windows retain their connection and accepted host
 operations remain durable. Reads remain available during preparation; mutations
 are serialised per cockpit and coalesced by the host coordinator. Lost replies
 never trigger replay or offline fallback. Older compatible hosts advertise only
-their supported actions. The Settings interface, release offers and
-offline cockpit recovery remain unfinished. Remote 4 and runtime 1.0 are unchanged.
+their supported actions. Offline cockpit recovery remains unfinished.
+Remote 4 and runtime 1.0 are unchanged.
 
 Application 25.14 adds optional `include_catalogue` to private update status and
 an optional catalogue in cockpit status. `updates/catalogue/` reads bounded committed
@@ -378,9 +378,21 @@ preparation obtains its repository through private host status and reuses the no
 installer; the browser cannot provide a repository or tarball. Host-wide status
 subscribers receive `host-updates-changed` after discovery changes and update controls;
 profile-scoped viewers receive neither the event nor private catalogue access. CLI,
-desktop and host share latest-release parsing and stable version comparison. Settings
-controls, per-window offers, offline cockpit recovery and full packaged acceptance
-remain unfinished. Remote 4 and runtime 1.0 are unchanged.
+desktop and host share latest-release parsing and stable version comparison. Offline
+cockpit recovery and full packaged acceptance remain unfinished. Remote 4 and runtime
+1.0 are unchanged.
+
+Settings → Host displays this inventory and release history, prepares selected components,
+and separates impact review from explicit apply. Interruption approval names the affected
+daemon-owned work and carries its exact fingerprint; stale operation revisions require
+another review. Accepted operations remain observable after closing Settings, and supported
+live verification/continuation actions are explicit. One shared query serves these controls
+and shell offers. Host invalidations/reconnection refresh reads only; mutations neither
+retry nor wait in an offline queue. Each window offers each host/component/release once,
+retaining dismissal across React remounts and reconnects. Offers open Host settings and
+never activate software. Compatible cockpit/daemon release skew remains supported.
+These controls are local/SSH-only until explicit remote maintenance authority is delivered.
+Individual runtime inspection/restart and offline/legacy cockpit recovery remain unfinished.
 
 Application 25.10 adds exact interruption consent to private local/SSH update
 control. When other checks pass but daemon-owned work would stop, a supporting
