@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import {
-  PROTOCOL_VERSION,
+  supportsApplicationFeature,
   hostPurgeApplySchema,
   hostPurgeReviewSchema,
   type HostPurgeReview,
@@ -19,11 +19,7 @@ function failure() {
 
 export async function requireHostPurgeSupport(transport: Transport): Promise<void> {
   const capabilities = await selectedHostCapabilities(transport);
-  if (
-    !capabilities ||
-    capabilities.application.major !== PROTOCOL_VERSION.major ||
-    capabilities.application.minor < 20
-  )
+  if (!supportsApplicationFeature(capabilities?.application, { major: 25, minor: 20 }))
     throw new CliError(
       'upgrade_failed',
       'This host does not support coordinated data purge',

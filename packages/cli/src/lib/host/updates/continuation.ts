@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { join } from 'node:path';
 import {
-  PROTOCOL_VERSION,
+  supportsApplicationFeature,
   hostUpdateCommandSchema,
   hostUpdateTerminal,
   type HostUpdateOperation,
@@ -17,7 +17,7 @@ import {
 } from '@puddle/shared/node/host-control';
 
 export function supportsParticipatingRecovery(protocol: HostStageReceipt['record']['protocol']) {
-  return protocol.major === PROTOCOL_VERSION.major && (protocol.major > 25 || protocol.minor >= 17);
+  return supportsApplicationFeature(protocol, { major: 25, minor: 17 });
 }
 
 /** An offer only; the helper revalidates passive metadata and the worker checks fresh host state. */
@@ -65,8 +65,7 @@ export async function continueStoredHostUpdate(
     if (!stage) return { ok: false, code: 'unsupported', operation: current.operation };
     const candidate = await readStageCapabilities(home, stage);
     if (
-      candidate.application.major !== PROTOCOL_VERSION.major ||
-      (candidate.application.major === 25 && candidate.application.minor < 12) ||
+      !supportsApplicationFeature(candidate.application, { major: 25, minor: 12 }) ||
       (participation && !supportsParticipatingRecovery(candidate.application))
     )
       return { ok: false, code: 'unsupported', operation: current.operation };

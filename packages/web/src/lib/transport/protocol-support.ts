@@ -1,4 +1,4 @@
-import type { VersionResponse } from '@puddle/shared';
+import { supportsApplicationFeature, type VersionResponse } from '@puddle/shared';
 
 /**
  * Feature gates against the DAEMON's protocol version (PROTOCOL.md rule 3: a
@@ -12,6 +12,10 @@ import type { VersionResponse } from '@puddle/shared';
  * keeps the UI from flickering its fallbacks on every load.
  */
 export type Protocol = VersionResponse['protocol'] | undefined;
+
+/** Placement-scoped runtime inspection/restart requires a compatible, confirmed host (25.15). */
+export const runtimeInspectionSupported = (p: Protocol): boolean =>
+  supportsApplicationFeature(p, { major: 25, minor: 15 });
 
 /** `protocol` is at least `major.minor` (or unknown — see above). */
 export function atLeast(protocol: Protocol, major: number, minor: number): boolean {

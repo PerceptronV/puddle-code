@@ -1,5 +1,5 @@
 import {
-  PROTOCOL_VERSION,
+  supportsApplicationFeature,
   hostRemovalFinishSchema,
   hostRemovalRuntimeReviewSchema,
   type HostRemovalFinish,
@@ -17,11 +17,7 @@ import {
 
 export async function requireHostRemovalSupport(transport: Transport): Promise<void> {
   const capabilities = await selectedHostCapabilities(transport);
-  if (
-    !capabilities ||
-    capabilities.application.major !== PROTOCOL_VERSION.major ||
-    capabilities.application.minor < 19
-  )
+  if (!supportsApplicationFeature(capabilities?.application, { major: 25, minor: 19 }))
     throw new CliError(
       'upgrade_failed',
       'This host does not support coordinated runtime-preserving removal',

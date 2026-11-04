@@ -50,6 +50,13 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Host update, recovery, removal and runtime inspection now share fixed application
+  feature floors with a separate current-major compatibility check. Regression
+  coverage verifies the existing 25.x controls remain supported at a compatible
+  26.0 boundary, while unknown and mismatched majors remain refused. This prepares
+  the required maintenance authority major bump; it does not add relay grants or
+  change any protocol version.
+
 - The opt-in 1/10/50-owner plain-shell resource fixture now measures RSS,
   descriptors and production controller re-adoption with bounded launches and
   verified cleanup. The settled macOS baseline measured 3,355 MiB summed owner

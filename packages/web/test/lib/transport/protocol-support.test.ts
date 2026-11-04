@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { PROTOCOL_VERSION } from '@puddle/shared';
 import {
   compilationSupported,
   compilationDefaultsSupported,
@@ -9,7 +10,22 @@ import {
   dynamicBaseBranchSupported,
   nativeConversationSyncSupported,
   projectColourSupported,
+  runtimeInspectionSupported,
 } from '../../../src/lib/transport/protocol-support';
+
+describe('runtime inspection compatibility gate', () => {
+  it('requires known support without accepting an incompatible daemon major', () => {
+    expect(runtimeInspectionSupported(undefined)).toBe(false);
+    expect(runtimeInspectionSupported({ major: 25, minor: 14 })).toBe(false);
+    expect(runtimeInspectionSupported(PROTOCOL_VERSION)).toBe(true);
+    expect(runtimeInspectionSupported({ major: PROTOCOL_VERSION.major + 1, minor: 99 })).toBe(
+      false,
+    );
+    expect(runtimeInspectionSupported({ major: PROTOCOL_VERSION.major - 1, minor: 99 })).toBe(
+      false,
+    );
+  });
+});
 
 describe('project colour compatibility gate', () => {
   it('requires a host that can save project colours', () => {

@@ -430,6 +430,9 @@ retry nor wait in an offline queue. Each window offers each host/component/relea
 retaining dismissal across React remounts and reconnects. Offers open Host settings and
 never activate software. Compatible cockpit/daemon release skew remains supported.
 These controls are local/SSH-only until explicit remote maintenance authority is delivered.
+Their feature gates compare the fixed introduction version separately from the
+current application major, so resetting the minor in a later compatible major
+does not hide existing controls. Unknown or incompatible hosts remain refused.
 The session menu's Runtime inspector (25.15, local/SSH) shows its current build,
 installed default and live agent/shell tabs. Restart requires explicit acknowledgement
 that shell jobs and process state are lost and extra shells close. An opaque review

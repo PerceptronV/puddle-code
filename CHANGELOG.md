@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Preserve host update, recovery, removal and runtime inspection controls when a compatible application protocol advances to a new major. Keep unknown and incompatible hosts refused independently of feature availability.
+
 - Integrate explicit local/SSH data purge with separate runtime-stop consent, a kernel reboot barrier for unresolved provider descendants, fresh dirty/unpushed worktree review and bounded resumable deletion. Preserve permanent locks, pinned releases and private recovery records; fence installation until purge completion, and stop automatic continuation after uncertain replies.
 
 - Allow independent runtimes on explicitly unsupervised hosts with a visible host-session lifetime. Verify process-group separation and recorded kernel boot identity before launch, preserve shell state across controller replacement, and block daemon updates for limited or unknown lifetimes without interrupting those owners.

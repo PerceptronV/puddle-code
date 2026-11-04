@@ -18,6 +18,7 @@ import {
 import { toast } from 'sonner';
 import { liveConversationTarget, toastError } from '../../../lib/transport/errors';
 import type { Account, Session } from '@puddle/shared';
+import { runtimeInspectionSupported } from '../../../lib/transport/protocol-support';
 import { AgentIcon } from '../../../components/agent-icon';
 import { Button } from '../../../components/ui/button';
 import {
@@ -163,7 +164,7 @@ export function useSessionMenu(
   const [handoffTo, setHandoffTo] = useState<Account | null>(null);
   const [runtimeOpen, setRuntimeOpen] = useState(false);
   const protocol = useDaemonVersion().data?.protocol;
-  const runtimeInspection = !browserTransport() && protocol?.major === 25 && protocol.minor >= 15;
+  const runtimeInspection = !browserTransport() && runtimeInspectionSupported(protocol);
 
   // Migration targets: accounts of the same agent on this profile (SPEC §5).
   // The current account is shown but disabled; a session with no other same-

@@ -341,6 +341,13 @@ current-version assertion in `test/api.test.ts`, and note the bump in
 
 ## Wire rules that keep additive changes safe
 
+Application feature gates use a fixed introduction version, separately from the
+current client/daemon major compatibility check (`supportsApplicationFeature`).
+A later compatible major starts at minor zero and retains previously introduced
+controls; comparing its minor against a previous major's feature floor would hide
+them. This helper grants no authority and never bypasses the application handshake.
+Its introduction changes no wire shape or protocol version.
+
 1. Receivers **ignore unknown WS message types** (an unrecognised `t` is
    dropped, not an error).
 2. Receivers **tolerate unknown JSON fields** — schemas use loose objects

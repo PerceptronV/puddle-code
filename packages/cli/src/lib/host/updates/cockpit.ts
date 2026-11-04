@@ -1,5 +1,6 @@
 import {
   PROTOCOL_VERSION,
+  supportsApplicationFeature,
   cockpitHostUpdateRequestSchema,
   cockpitHostUpdateStatusSchema,
   type CockpitHostUpdateReply,
@@ -29,7 +30,7 @@ export class CockpitHostUpdates {
 
   private supports(minor: number): boolean {
     const protocol = this.authority.version?.protocol;
-    return protocol?.major === PROTOCOL_VERSION.major && protocol.minor >= minor;
+    return supportsApplicationFeature(protocol, { major: 25, minor });
   }
 
   private guarded(authorised: () => boolean, authority = this.authority) {

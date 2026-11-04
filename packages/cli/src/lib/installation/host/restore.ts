@@ -1,4 +1,4 @@
-import { PROTOCOL_VERSION } from '@puddle/shared';
+import { supportsApplicationFeature } from '@puddle/shared';
 import { acquireAuthority } from '../../auth/connection-authority.js';
 import { hostPaths } from '../../paths.js';
 import type { Transport } from '../../transport/transport.js';
@@ -14,11 +14,7 @@ import {
 /** Passive feature detection precedes any invocation of a new host-helper flag. */
 async function supportsRestoration(transport: Transport): Promise<boolean> {
   const capabilities = await selectedHostCapabilities(transport);
-  if (
-    capabilities?.application.major === PROTOCOL_VERSION.major &&
-    capabilities.application.minor >= 18
-  )
-    return true;
+  if (supportsApplicationFeature(capabilities?.application, { major: 25, minor: 18 })) return true;
   // An older/missing helper cannot turn recorded removal into an ordinary installed host.
   const active = `${hostPaths.home}/installation/removal/services.json`;
   const probe = await transport.exec(

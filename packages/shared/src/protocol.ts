@@ -328,3 +328,16 @@
 // 25.19: trusted host removal with exact offline runtime disposition and remote disablement.
 // 25.20: bounded host purge and explicit runtime lifetime presentation/update checks.
 export const PROTOCOL_VERSION = { major: 25, minor: 20 } as const;
+
+/** A feature floor is distinct from compatibility with this client's application major. */
+export function supportsApplicationFeature(
+  peer: { major: number; minor: number } | null | undefined,
+  introduced: { major: number; minor: number },
+  client: { major: number; minor: number } = PROTOCOL_VERSION,
+): boolean {
+  return (
+    peer?.major === client.major &&
+    (peer.major > introduced.major ||
+      (peer.major === introduced.major && peer.minor >= introduced.minor))
+  );
+}
