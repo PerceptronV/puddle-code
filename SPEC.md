@@ -816,8 +816,15 @@ outside bounded operation history, plus retained removal records. Ended bindings
 still pin their build until descendant/asset retirement is proven. Unknown or unsafe
 evidence prevents a review. Verified unreferenced generations become candidates after
 seven days; the fingerprint binds their receipt, inode, reference list and candidate
-set. This review deletes nothing. Durable collection execution, obsolete-reference
-retirement and coordinated purge remain unfinished.
+set. The separate executor accepts at most 32 generations into a private serial
+journal, rechecks references under the same exclusion, atomically quarantines each
+exact inode and deletes at most 512 filesystem objects per invocation without
+following links. Lost intent/rename/completion writes reconcile source/quarantine
+evidence; unknown or replaced trees remain untouched. The collecting helper pins its
+own build. Only the current and previous completed collection journals are retained.
+Tests include killing the helper after quarantine and continuing under fresh process
+claims. Public invocation/scheduling, obsolete-reference retirement and coordinated
+purge remain unfinished; collection never retires runtime/update references itself.
 
 Migration 032 records terminal generations per segment and explicitly selects each
 placement's terminal owner. Runtime launches/switches update that selection in the

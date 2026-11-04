@@ -46,6 +46,16 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Durable release collection now accepts at most 32 reviewed generations into a
+  private serial journal, rechecks references under installer/update/controller
+  exclusion, atomically quarantines exact inodes and resumes bounded deletion
+  without following links (512 filesystem objects per invocation). The helper pins
+  its own build; unknown/replaced trees remain untouched. Current and one completed
+  journal are retained. Tests cover actual SIGKILL after quarantine followed by fresh
+  controller/writer claims and successful continuation. Public invocation/scheduling
+  and obsolete runtime/update reference retirement remain outstanding. This private
+  filesystem journal adds no communication protocol or permission.
+
 - Internal release-collection review now inventories immutable generations under
   installer/update/controller exclusion and the existing update-writer claim.
   It retains both selectors, every retained SQLite runtime binding, pinned helper

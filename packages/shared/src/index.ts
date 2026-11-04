@@ -50,6 +50,7 @@ export * from './api/agents/runtime.js';
 export * from './runtime/protocol.js';
 export * from './runtime/storage.js';
 export * from './installation/stage.js';
+export * from './installation/collection.js';
 export * from './installation/update.js';
 export * from './installation/worker.js';
 export * from './installation/actions.js';

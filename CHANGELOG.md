@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Add bounded, durable release collection with fresh reference checks, exact inode quarantine and continuation after interrupted deletion. Keep the collecting helper and all retained runtime/update references pinned; public scheduling and obsolete-reference retirement remain in progress.
+
 - Add an internal release-collection review that preserves selectors, retained runtime/helper builds, update recovery evidence and removal history. Bound metadata inspection, refuse unknown references and identify verified unreferenced generations older than seven days; deletion and coordinated purge remain in progress.
 
 - Continue partially disabled remote registrations during explicit daemon removal. Reuse profile writer locks and disablement, bind continuation to the exact active removal, and observe already-disabled registrations and lost replies without rewriting their files or repeating requests. Preserve credentials and grants through removal/reinstallation.

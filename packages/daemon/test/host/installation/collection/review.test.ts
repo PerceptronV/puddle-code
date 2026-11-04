@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, renameSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { atomicPrivateJson, digest } from '@puddle/shared/node';
@@ -155,31 +155,39 @@ it('retains update receipts and workers/recovery jobs even after their operation
   }
 });
 
-it('retains the release of a cancelled removal after the selector changes', async () => {
-  const f = fixture();
-  const controller = f.guard.acquireController();
-  try {
-    const original = collectionRelease(f.home, '0.4.0~abc123');
-    const operation = await HostRemovalServiceOperation.prepare(
-      f.guard,
-      [await f.review()],
-      f.options,
-    );
-    const id = operation.read().id;
-    operation.cancel();
-    const next = collectionRelease(f.home, '0.4.1~abc123');
-    unlinkSync(join(f.home, 'bin/current'));
-    symlinkSync(next.path, join(f.home, 'bin/current'));
-    const review = await reviewReleaseCollection(f.guard, empty, () => true);
-    expect(review.candidates).toEqual([]);
-    expect(review.releases.find(({ path }) => path === original.path)!.references).toContain(
-      `removal:${id}`,
-    );
-  } finally {
-    controller.release();
-    f.close();
-  }
-});
+it.each(['cancelled', 'purged'])(
+  'retains the release of a %s removal after the selector changes',
+  async (archive) => {
+    const f = fixture();
+    const controller = f.guard.acquireController();
+    try {
+      const original = collectionRelease(f.home, '0.4.0~abc123');
+      const operation = await HostRemovalServiceOperation.prepare(
+        f.guard,
+        [await f.review()],
+        f.options,
+      );
+      const id = operation.read().id;
+      operation.cancel();
+      if (archive === 'purged')
+        renameSync(
+          join(f.home, 'installation/removal/cancelled-services.json'),
+          join(f.home, 'installation/removal/purged-services.json'),
+        );
+      const next = collectionRelease(f.home, '0.4.1~abc123');
+      unlinkSync(join(f.home, 'bin/current'));
+      symlinkSync(next.path, join(f.home, 'bin/current'));
+      const review = await reviewReleaseCollection(f.guard, empty, () => true);
+      expect(review.candidates).toEqual([]);
+      expect(review.releases.find(({ path }) => path === original.path)!.references).toContain(
+        `removal:${id}`,
+      );
+    } finally {
+      controller.release();
+      f.close();
+    }
+  },
+);
 
 it.each([
   'runtime',
