@@ -19,6 +19,7 @@ import {
   waitForSnapshot,
 } from '../../helpers/runtime-fixture.js';
 import { placement } from '../../helpers/runtime-placement.js';
+import { resolveInstalledRuntimeRelease } from '../../../src/runtime/lifecycle/release.js';
 
 it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
   'runs the packaged owner and pinned native dependencies through controller replacement',
@@ -28,7 +29,7 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
     const env = environment(f.home);
     const version = readFileSync(join(stage, 'VERSION'), 'utf8').trim();
     const archive = process.env.PUDDLE_TEST_RUNTIME_ARCHIVE;
-    const install = async (force = false) => {
+    const install = async (component: 'daemon' | 'runtime' = 'daemon', force = false) => {
       const installer = resolve(
         dirname(fileURLToPath(import.meta.url)),
         '../../../../../scripts/install.sh',
@@ -45,6 +46,8 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
           '--sums',
           `${tarball}.sha256`,
           '--no-supervisor',
+          '--component',
+          component,
           ...(force ? ['--force'] : []),
         ],
         {
@@ -52,9 +55,15 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
           timeout: 30_000,
         },
       );
-      return realpathSync(join(f.home, 'bin', 'current'));
+      return realpathSync(
+        join(f.home, 'bin', component === 'daemon' ? 'current' : 'runtime-current'),
+      );
     };
-    if (archive) stage = await install();
+    if (archive) {
+      stage = await install();
+      expect(await install('runtime')).toBe(stage);
+      expect(resolveInstalledRuntimeRelease(f.home).releasePath).toBe(stage);
+    }
     const before = readdirSync(f.home).sort();
     const protocol = `${RUNTIME_PROTOCOL_VERSION.major}.${RUNTIME_PROTOCOL_VERSION.minor}`;
     expect(readFileSync(join(stage, 'RUNTIME_PROTOCOL'), 'utf8').trim()).toBe(protocol);
@@ -100,8 +109,17 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
 
     if (archive) {
       const originalBundle = readFileSync(join(stage, 'daemon', 'puddler.mjs'));
-      const replacement = await install(true);
+      const replacement = await install('daemon', true);
       expect(replacement).not.toBe(stage);
+      expect(resolveInstalledRuntimeRelease(f.home).releasePath).toBe(stage);
+      const newDefault = await install('runtime', true);
+      expect(newDefault).not.toBe(stage);
+      expect(resolveInstalledRuntimeRelease(f.home)).toMatchObject({
+        releasePath: newDefault,
+        nodePath: join(newDefault, 'bin', 'node'),
+        entryPath: join(newDefault, 'daemon', 'puddler.mjs'),
+      });
+      expect(realpathSync(join(f.home, 'bin', 'current'))).toBe(replacement);
       expect(readFileSync(join(stage, 'daemon', 'puddler.mjs'))).toEqual(originalBundle);
       expect(child.exitCode).toBeNull();
     }

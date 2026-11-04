@@ -20,11 +20,16 @@ SUMS=""
 SUPERVISOR=1
 START=1
 FORCE=0
+COMPONENT=daemon
+SELECTOR=current
+OTHER_SELECTOR=runtime-current
+EXECUTABLE=puddled
 
 usage() {
   cat <<'EOF'
 usage: install.sh [--version X.Y.Z] [--tarball <path>] [--sums <path>]
                   [--repo owner/repo] [--no-supervisor] [--no-start] [--force]
+                  [--component daemon|runtime]
 
   --version       release to install (default: the repo's latest release)
   --tarball       use a pre-delivered tarball instead of fetching (scp
@@ -35,11 +40,13 @@ usage: install.sh [--version X.Y.Z] [--tarball <path>] [--sums <path>]
   --no-supervisor unpack + symlink only
   --no-start      install the supervisor but do not start the daemon
   --force         reinstall even if this version is already present
+  --component     select daemon (default) or the build for new runtimes;
+                  runtime installation does not start or restart any service
 EOF
 }
 
-say() { printf 'puddled install: %s\n' "$1"; }
-die() { printf 'puddled install: error: %s\n' "$1" >&2; exit 1; }
+say() { printf '%s install: %s\n' "$EXECUTABLE" "$1"; }
+die() { printf '%s install: error: %s\n' "$EXECUTABLE" "$1" >&2; exit 1; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -50,10 +57,16 @@ while [ $# -gt 0 ]; do
     --no-supervisor) SUPERVISOR=0; shift ;;
     --no-start) START=0; shift ;;
     --force) FORCE=1; shift ;;
+    --component) COMPONENT="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown flag $1 (see --help)" ;;
   esac
 done
+case "$COMPONENT" in
+  daemon) ;;
+  runtime) SELECTOR=runtime-current; OTHER_SELECTOR=current; EXECUTABLE=puddler ;;
+  *) die "unknown host component: $COMPONENT" ;;
+esac
 
 # --- platform ---------------------------------------------------------------
 OS=$(uname -s)
@@ -101,7 +114,7 @@ mkdir "$BIN_DIR/.install-lock" 2>/dev/null \
   || die "another installer is running (if interrupted, remove $BIN_DIR/.install-lock and retry)"
 STAGE=""
 cleanup() {
-  if [ -n "$STAGE" ] && [ "$(readlink "$BIN_DIR/current" 2>/dev/null || true)" != "versions/$(basename "$STAGE")" ]; then
+  if [ -n "$STAGE" ] && [ "$(readlink "$BIN_DIR/$SELECTOR" 2>/dev/null || true)" != "versions/$(basename "$STAGE")" ]; then
     rm -rf "$STAGE"
   fi
   rmdir "$BIN_DIR/.install-lock"
@@ -164,27 +177,53 @@ fi
 valid_version
 
 # --- unpack + symlink flip ---------------------------------------------------
+smoke() {
+  "$1/bin/node" --input-type=commonjs - "$1" "$EXECUTABLE" "$VERSION" <<'NODE'
+const fs = require('node:fs'), path = require('node:path');
+const { spawnSync } = require('node:child_process');
+const [root, executable, version] = process.argv.slice(2);
+let expected;
+if (executable === 'puddler') {
+  const file = path.join(root, 'RUNTIME_PROTOCOL');
+  const stat = fs.lstatSync(file);
+  if (!stat.isFile() || stat.size > 33) throw Error('Invalid runtime protocol metadata');
+  const protocol = fs.readFileSync(file, 'utf8').trim();
+  if (!/^[0-9]+\.[0-9]+$/.test(protocol) || !protocol.split('.').every((part) => Number.isSafeInteger(Number(part))))
+    throw Error('Invalid runtime protocol metadata');
+  expected = `puddler ${version} (runtime protocol ${protocol})`;
+}
+const result = spawnSync(path.join(root, executable), ['--version'], { encoding: 'utf8', timeout: 5000, maxBuffer: 64 * 1024 });
+if (result.error || result.status !== 0 || (expected !== undefined && result.stdout.trim() !== expected)) {
+  process.stderr.write(String(result.error || result.stderr || 'Version smoke test failed'));
+  process.exit(1);
+}
+NODE
+}
 DEST=""
 SMOKE_LOG="$HOME_DIR/logs/install-smoke.log"
 NEED_INSTALL=1
-# Reuse the selected generation, or a legacy fixed-version tree. Never repair
-# either in place: a runtime, helper, daemon or connector may still pin it.
-CURRENT=$(readlink "$BIN_DIR/current" 2>/dev/null || true)
-case "$CURRENT" in
-  versions/*)
-    NAME=${CURRENT#versions/}
-    case "$NAME" in
-      ''|.|..|*/*) ;;
-      *)
-        if [ -f "$BIN_DIR/$CURRENT/VERSION" ] && [ "$(head -c 130 "$BIN_DIR/$CURRENT/VERSION")" = "$VERSION" ]; then
-          DEST="$BIN_DIR/$CURRENT"
-        fi ;;
-    esac ;;
-esac
+# Reuse a selected generation (both components can share it), or a legacy
+# fixed-version tree. Never repair either in place: a runtime, helper, daemon or
+# connector may still pin it.
+for CANDIDATE in "$SELECTOR" "$OTHER_SELECTOR"; do
+  CURRENT=$(readlink "$BIN_DIR/$CANDIDATE" 2>/dev/null || true)
+  case "$CURRENT" in
+    versions/*)
+      NAME=${CURRENT#versions/}
+      case "$NAME" in
+        ''|.|..|*/*) ;;
+        *)
+          if [ -f "$BIN_DIR/$CURRENT/VERSION" ] && [ "$(head -c 130 "$BIN_DIR/$CURRENT/VERSION")" = "$VERSION" ]; then
+            DEST="$BIN_DIR/$CURRENT"
+          fi ;;
+      esac ;;
+  esac
+  [ -z "$DEST" ] || break
+done
 if [ -z "$DEST" ]; then DEST="$BIN_DIR/versions/$VERSION"; fi
-if [ -d "$DEST" ] && [ ! -L "$DEST" ] && [ "$FORCE" -eq 0 ] && [ -x "$DEST/puddled" ] \
+if [ -d "$DEST" ] && [ ! -L "$DEST" ] && [ "$FORCE" -eq 0 ] && [ -x "$DEST/$EXECUTABLE" ] \
   && { [ ! -e "$DEST/VERSION" ] || [ "$(head -c 130 "$DEST/VERSION")" = "$VERSION" ]; }; then
-  if "$DEST/puddled" --version >/dev/null 2>"$SMOKE_LOG"; then
+  if smoke "$DEST" >/dev/null 2>"$SMOKE_LOG"; then
     NEED_INSTALL=0
     rm -f "$SMOKE_LOG"
     say "version $VERSION already installed"
@@ -199,7 +238,7 @@ if [ "$NEED_INSTALL" -eq 1 ]; then
   tar -xzf "$TARBALL" --strip-components=1 -C "$DEST" || die "extraction failed"
   [ -f "$DEST/VERSION" ] && [ "$(head -c 130 "$DEST/VERSION")" = "$VERSION" ] \
     || die "archive version metadata mismatch"
-  if ! "$DEST/puddled" --version >/dev/null 2>"$SMOKE_LOG"; then
+  if ! smoke "$DEST" >/dev/null 2>"$SMOKE_LOG"; then
     die "installed tree fails its own --version smoke test (details: $SMOKE_LOG)"
   fi
   rm -f "$SMOKE_LOG"
@@ -207,17 +246,17 @@ fi
 # Use the archive's Node as the standalone CLI installer does: rename replaces
 # the symlink itself atomically on both platforms, without following it as mv
 # can. Publish the wrapper first; an unsuccessful activation retains current.
-"$DEST/bin/node" --input-type=commonjs - "$BIN_DIR" "$DEST" <<'NODE'
+"$DEST/bin/node" --input-type=commonjs - "$BIN_DIR" "$DEST" "$SELECTOR" "$EXECUTABLE" <<'NODE'
 const fs = require('node:fs'), path = require('node:path');
-const [root, destination] = process.argv.slice(2);
-const current = path.join(root, 'current');
+const [root, destination, selector, executable] = process.argv.slice(2);
+const current = path.join(root, selector);
 try {
-  if (!fs.lstatSync(current).isSymbolicLink()) throw Error('current must be a symlink');
+  if (!fs.lstatSync(current).isSymbolicLink()) throw Error(selector + ' must be a symlink');
 } catch (error) { if (error.code !== 'ENOENT') throw error; }
-const launcher = path.join(root, 'puddled');
+const launcher = path.join(root, executable);
 const quote = (s) => "'" + s.replaceAll("'", "'\\''") + "'";
 // The archive launcher resolves its own directory; retain an exec wrapper.
-const wrapper = '#!/bin/sh\nexec ' + quote(path.join(current, 'puddled')) + ' "$@"\n';
+const wrapper = '#!/bin/sh\nexec ' + quote(path.join(current, executable)) + ' "$@"\n';
 const suffix = '.new-' + process.pid;
 try {
   fs.writeFileSync(launcher + suffix, wrapper, { flag: 'wx', mode: 0o755 });
@@ -233,6 +272,11 @@ STAGE="" # Published generations are retained until reference-aware collection.
 
 # Keep the cache small: current download + one previous.
 ls -1t "$CACHE_DIR"/puddled-v*.tar.gz 2>/dev/null | tail -n +3 | while read -r old; do rm -f "$old"; done
+
+if [ "$COMPONENT" = runtime ]; then
+  say "selected runtime $VERSION for new launches (existing services unchanged)"
+  exit 0
+fi
 
 if [ "$SUPERVISOR" -eq 0 ]; then
   printf '%s\n' none > "$HOME_DIR/supervisor"

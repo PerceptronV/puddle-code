@@ -266,8 +266,8 @@ Implementation evidence so far:
   the existing release `VERSION`. Version smoke checks run without starting an
   owner. A release test reuses the runtime fixtures to verify the packaged shell's
   PID and variable across controller replacement, and runs in both host release
-  CI jobs. Local verification also exercises an extracted archive. Independent
-  selectors, durable update coordination and reference-aware collection remain pending.
+  CI jobs. Local verification also exercises an extracted archive. Durable update
+  coordination and reference-aware collection remain pending.
 
 - The embedded host installer now follows the standalone CLI installer's lock,
   fresh-generation and atomic activation pattern. Forced repairs and failed
@@ -278,8 +278,21 @@ Implementation evidence so far:
   archive into its temporary home, force a same-version repair while disconnected,
   and verify the original owner, shell PID and variable survive on its pinned tree.
   This bootstrap lock is not yet the durable operation/admission coordinator;
-  independent selectors, bounded reference-aware collection, adoption verification
+  coordinated activation, bounded reference-aware collection, adoption verification
   and migration-aware recovery remain required.
+
+- Daemon and runtime bootstrap now share one explicit component-selection path.
+  `current` and `runtime-current` select independently and can share a verified
+  generation. Runtime-only installation validates the bounded exact version/protocol
+  report, never restarts a service and preserves the daemon supervisor marker.
+  Offline inventory reports the selected runtime separately. Shared release parsers
+  live under `shared/src/installation/`. The opt-in launcher can resolve the installed
+  default on each launch, pinning one complete tree before command construction and
+  committing its actual build/protocol. Missing, external or incompatible selections
+  fail before intent/dispatch. Tests cover selector independence, shared-tree reuse,
+  corruption, exact launch pinning and live packaged-owner continuity while both
+  defaults move. Public CLI runtime management/removal and cockpit actions still
+  require the durable coordinator and ownership/impact preflight.
 
 These are foundations for phases 0–4, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native
@@ -337,7 +350,7 @@ whether this combination is supported; matching release strings do not.
 | [`sessions/service.ts`](../../packages/daemon/src/sessions/service.ts) | Stable runtime identity exists, but its ownership, lifecycle resources and conversation index are in memory. | Persist runtime bindings and reconstruct them from authenticated live owners. |
 | [`sessions/reconcile.ts`](../../packages/daemon/src/sessions/reconcile.ts) | Previously live rows are marked interrupted on every boot. | Discover and adopt runtimes before considering interruption or auto-resume. |
 | [`agents/`](../../packages/daemon/src/agents) | Provider lifecycle resources run inside the daemon; Codex's TUI depends on its proxy and app-server. | Execute the provider's live integration in its runtime host, retaining provider-owned modules. |
-| [`scripts/install.sh`](../../scripts/install.sh) | Stages immutable generations under an installer lock, atomically replaces `current` and restarts the daemon and registered connector. | Add independent component selection and the durable coordinator; collect trees only after all references are released. |
+| [`scripts/install.sh`](../../scripts/install.sh) | Stages immutable generations under an installer lock, atomically replaces `current` and restarts the daemon and registered connector. | Integrate component selection with the durable coordinator; collect trees only after all references are released. |
 | [`handshake.ts`](../../packages/cli/src/lib/connection/handshake.ts) | One local/SSH compatibility and approved-update policy, with interruption wording. | Retain that policy and share its updater with cockpit actions; calculate actual update impact. |
 | [`UpdateToast.tsx`](../../packages/web/src/features/shell/UpdateToast.tsx) | Offers a staged desktop release on mount and when the shell announces one. | Reuse the interaction for host updates while keeping desktop and target-host operations distinct. |
 | [`desktop/main.ts`](../../packages/desktop/src/main.ts) | Checks releases every 30 minutes and stages the newest desktop release. | Keep shell updates here; host checking/staging belongs on the host and shared launcher path. |

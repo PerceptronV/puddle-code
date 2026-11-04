@@ -17,8 +17,11 @@ import { fileURLToPath } from 'node:url';
 import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { installedVersion } from '../../src/lib/installation/bootstrap.js';
-import { installedComponentVersions } from '../../src/lib/installation/component-versions.js';
+import { installedVersion, installHostComponent } from '../../src/lib/installation/bootstrap.js';
+import {
+  installedComponentVersions,
+  formatComponentVersions,
+} from '../../src/lib/installation/component-versions.js';
 import type { Transport } from '../../src/lib/transport/transport.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
@@ -40,6 +43,12 @@ function fixture(homeName = 'home') {
   const stagedBinary = join(staged, 'puddled');
   writeFileSync(stagedBinary, '#!/bin/sh\nprintf "puddled 1.2.3\\n"\n');
   chmodSync(stagedBinary, 0o755);
+  writeFileSync(
+    join(staged, 'puddler'),
+    '#!/bin/sh\nprintf "puddler 1.2.3 (runtime protocol 1.0)\\n"\n',
+    { mode: 0o755 },
+  );
+  writeFileSync(join(staged, 'RUNTIME_PROTOCOL'), '1.0\n');
   symlinkSync(process.execPath, join(staged, 'bin', 'node'));
   writeFileSync(join(staged, 'VERSION'), '1.2.3\n');
   const pack = () =>
@@ -65,14 +74,21 @@ function fixture(homeName = 'home') {
       [...args, ...extra],
       { env, encoding: 'utf8', stdio: 'pipe' },
     );
-  const selected = () => join(puddleHome, 'bin', readlinkSync(join(puddleHome, 'bin', 'current')));
+  const selected = (component: 'daemon' | 'runtime' = 'daemon') =>
+    join(
+      puddleHome,
+      'bin',
+      readlinkSync(join(puddleHome, 'bin', component === 'daemon' ? 'current' : 'runtime-current')),
+    );
   const generations = () => readdirSync(join(puddleHome, 'bin', 'versions'));
   const transport: Transport = {
     kind: 'local',
     label: 'isolated fixture',
-    async exec(command) {
+    async exec(command, options) {
       try {
-        const result = await promisify(execFile)('sh', ['-c', command], { env });
+        const pending = promisify(execFile)('sh', ['-c', command], { env });
+        pending.child.stdin?.end(options?.stdin);
+        const result = await pending;
         return { ...result, code: 0 };
       } catch (error) {
         const result = error as { code: number; stdout: string; stderr: string };
@@ -95,6 +111,7 @@ function fixture(homeName = 'home') {
     args,
     env,
     transport,
+    tarball,
   };
 }
 
@@ -186,6 +203,97 @@ describe('install.sh tree validation', () => {
       }),
     ).toBe('puddled 1.2.3\n');
   });
+
+  it('selects and inventories runtime software independently through the shared bootstrap', async () => {
+    const f = fixture();
+    f.install();
+    const daemon = f.selected();
+    const marker = join(f.puddleHome, 'supervisor');
+    writeFileSync(marker, 'launchd\n');
+    // A runtime update must not execute the daemon, even its version probe.
+    writeFileSync(f.stagedBinary, '#!/bin/sh\nexit 99\n');
+    writeFileSync(join(daemon, 'puddled'), '#!/bin/sh\nexit 99\n');
+    f.pack();
+    await installHostComponent(f.transport, 'runtime', { version: '1.2.3', tarball: f.tarball });
+    const runtime = f.selected('runtime');
+    expect(runtime).toBe(daemon); // Share an already staged build, with independent selectors.
+    expect(f.selected()).toBe(daemon);
+    expect(readFileSync(marker, 'utf8')).toBe('launchd\n');
+    expect(await installedVersion(f.transport, 'runtime')).toBe('1.2.3');
+    const components = await installedComponentVersions({ home: f.puddleHome, platform: 'linux' });
+    expect(components[3]).toEqual({
+      component: 'runtime',
+      installed: true,
+      version: '1.2.3',
+      protocol: { major: 1, minor: 0 },
+    });
+    expect(formatComponentVersions(components)).toContain('runtime 1.2.3 (runtime protocol 1.0)');
+    expect(
+      execFileSync(join(f.puddleHome, 'bin', 'puddler'), ['--version'], {
+        env: f.env,
+        encoding: 'utf8',
+      }),
+    ).toContain('runtime protocol 1.0');
+    f.install('--component', 'runtime', '--force');
+    expect(f.selected('runtime')).not.toBe(runtime);
+    expect(f.selected()).toBe(daemon);
+    expect(existsSync(join(runtime, 'puddler'))).toBe(true);
+    // Restore a valid daemon archive and repair it independently too.
+    writeFileSync(f.stagedBinary, '#!/bin/sh\nexit 0\n');
+    f.pack();
+    const selectedRuntime = f.selected('runtime');
+    f.install('--force');
+    expect(f.selected()).not.toBe(daemon);
+    expect(f.selected('runtime')).toBe(selectedRuntime);
+  });
+
+  it('installs only a runtime selector on a fresh host and starts no service', async () => {
+    const f = fixture();
+    await installHostComponent(f.transport, 'runtime', { version: '1.2.3', tarball: f.tarball });
+    expect(await installedVersion(f.transport)).toBeNull();
+    expect(await installedVersion(f.transport, 'runtime')).toBe('1.2.3');
+    expect(existsSync(join(f.puddleHome, 'supervisor'))).toBe(false);
+    expect(existsSync(join(f.env.HOME, 'Library', 'LaunchAgents'))).toBe(false);
+    expect(existsSync(join(f.puddleHome, 'bin', 'puddled'))).toBe(false);
+  });
+
+  it('keeps an older daemon selected when installing a newer runtime release', async () => {
+    const f = fixture();
+    f.install();
+    const daemon = f.selected();
+    writeFileSync(join(f.staged, 'VERSION'), '4.5.6\n');
+    writeFileSync(
+      join(f.staged, 'puddler'),
+      '#!/bin/sh\nprintf "puddler 4.5.6 (runtime protocol 1.0)\\n"\n',
+    );
+    f.pack();
+    await installHostComponent(f.transport, 'runtime', { version: '4.5.6', tarball: f.tarball });
+    expect(f.selected()).toBe(daemon);
+    expect(await installedVersion(f.transport)).toBe('1.2.3');
+    expect(await installedVersion(f.transport, 'runtime')).toBe('4.5.6');
+    const inventory = await installedComponentVersions({ home: f.puddleHome, platform: 'linux' });
+    expect(inventory[1]?.version).toBe('1.2.3');
+    expect(inventory[3]?.version).toBe('4.5.6');
+  });
+
+  it.each(['missing', 'invalid', 'mismatch'])(
+    'preserves the previous runtime selection with %s runtime metadata',
+    (failure) => {
+      const f = fixture();
+      f.install('--component', 'runtime');
+      const previous = f.selected('runtime');
+      if (failure === 'missing') rmSync(join(f.staged, 'RUNTIME_PROTOCOL'));
+      else
+        writeFileSync(
+          join(f.staged, 'RUNTIME_PROTOCOL'),
+          failure === 'invalid' ? '1.0\ngarbage' : '2.0\n',
+        );
+      f.pack();
+      expect(() => f.install('--component', 'runtime', '--force')).toThrow('smoke test');
+      expect(f.selected('runtime')).toBe(previous);
+      expect(f.generations()).toHaveLength(1);
+    },
+  );
 
   it.each(['metadata', 'smoke', 'node'])(
     'preserves the selected release after a failed %s check',

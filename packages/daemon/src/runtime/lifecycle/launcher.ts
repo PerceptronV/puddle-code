@@ -24,6 +24,7 @@ import type { RuntimeConnections } from '../transport/connections.js';
 import type { RuntimeReconciler } from '../controller/reconcile.js';
 import { runtimeDirectory, readRuntimeJson } from '../ownership/storage.js';
 import { startRuntimeService } from './supervisor.js';
+import { resolveInstalledRuntimeRelease } from './release.js';
 import { pinRuntimeShellHooks } from '../execution/shell-hooks.js';
 import type { ShellHooks } from '../../pty/shell-hooks.js';
 import type { ProgrammeOperation } from '../../puddlang/runtime-turn-store.js';
@@ -34,16 +35,23 @@ interface LaunchOptions {
   programme?: ProgrammeOperation;
 }
 
-/** Explicit composition option until installed release selection and rollout gates exist. */
-export interface RuntimeLaunchConfiguration {
+/** Explicit composition option until production rollout gates are satisfied. */
+export type RuntimeLaunchConfiguration = {
   kind: RuntimeSupervisor['kind'];
-  nodePath: string;
-  entryPath: string;
-  releasePath: string;
-  build: string;
   /** Supervisor command runner; isolated integration tests supply a fake supervisor. */
   run?: CompilationCommandRunner;
-}
+} & (
+  | {
+      /** Read the independent runtime selector for every new launch. */
+      installed: true;
+    }
+  | {
+      nodePath: string;
+      entryPath: string;
+      releasePath: string;
+      build: string;
+    }
+);
 
 interface Dependencies {
   home: string;
@@ -90,12 +98,16 @@ export class RuntimeLauncher {
       throw ApiError.conflict('runtime_owned', 'This placement already has an independent owner');
     const project = this.deps.projects.get(session.project_id);
     // Pin selectors before writing intent. Updating a default cannot change this launch.
-    const config = {
-      ...this.configuration,
-      nodePath: realpathSync(this.configuration.nodePath),
-      entryPath: realpathSync(this.configuration.entryPath),
-      releasePath: realpathSync(this.configuration.releasePath),
-    };
+    const config =
+      'installed' in this.configuration
+        ? { ...this.configuration, ...resolveInstalledRuntimeRelease(this.deps.home) }
+        : {
+            ...this.configuration,
+            nodePath: realpathSync(this.configuration.nodePath),
+            entryPath: realpathSync(this.configuration.entryPath),
+            releasePath: realpathSync(this.configuration.releasePath),
+            protocol: RUNTIME_PROTOCOL_VERSION,
+          };
     const identity = {
       runtime_id: randomUUID(),
       incarnation: randomUUID(),
@@ -130,7 +142,7 @@ export class RuntimeLauncher {
       this.deps.runtimes.prepare({
         identity,
         build: config.build,
-        protocol: RUNTIME_PROTOCOL_VERSION,
+        protocol: config.protocol,
         releasePath: config.releasePath,
         programme,
         ...(codeRunDirectory === undefined

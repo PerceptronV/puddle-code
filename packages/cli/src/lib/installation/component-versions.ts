@@ -2,16 +2,20 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
-  readlinkSync,
+  realpathSync,
   renameSync,
   writeFileSync,
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { PROTOCOL_VERSION } from '@puddle/shared';
+import {
+  PROTOCOL_VERSION,
+  parseHostReleaseVersion,
+  parseLegacyHostVersion,
+  parseReleaseProtocol,
+} from '@puddle/shared';
 import { findInstalledDesktopApp } from './desktop-update.js';
 import { clientHome } from '../paths.js';
 import { cliVersion } from '../version.js';
-import { parseHostReleaseVersion, parseLegacyHostVersion } from './host/version.js';
 
 export interface SpeakingProtocol {
   major: number;
@@ -19,7 +23,7 @@ export interface SpeakingProtocol {
 }
 
 export interface InstalledComponentVersion {
-  component: 'cli' | 'daemon' | 'desktop';
+  component: 'cli' | 'daemon' | 'desktop' | 'runtime';
   installed: boolean;
   /** Display-only remote protocol spoken by the bundled connector. */
   connectorProtocol?: number;
@@ -213,31 +217,39 @@ export function recordDesktopInstallation(
   }
 }
 
-function daemonVersion(home: string): string | undefined {
-  const metadata = join(home, 'bin', 'current', 'VERSION');
+function selectedRelease(home: string, selector: string): string | undefined {
   try {
-    if (existsSync(metadata)) return parseHostReleaseVersion(readFileSync(metadata, 'utf8'));
-    const target = readlinkSync(join(home, 'bin', 'current'));
-    return parseLegacyHostVersion(target);
+    return realpathSync(join(home, 'bin', selector));
   } catch {
     return undefined;
   }
 }
 
-function daemonProtocol(home: string, version: string): SpeakingProtocol | undefined {
+function hostVersion(release: string | undefined, legacy = false): string | undefined {
+  if (release === undefined) return undefined;
+  const metadata = join(release, 'VERSION');
   try {
-    const raw = readFileSync(join(home, 'bin', 'current', 'PROTOCOL'), 'utf8').trim();
-    const match = /^(\d+)\.(\d+)$/.exec(raw);
-    if (match) return { major: Number(match[1]), minor: Number(match[2]) };
+    if (existsSync(metadata)) return parseHostReleaseVersion(readFileSync(metadata, 'utf8'));
+    return legacy ? parseLegacyHostVersion(release) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function daemonProtocol(release: string, version: string): SpeakingProtocol | undefined {
+  try {
+    const raw = readFileSync(join(release, 'PROTOCOL'), 'utf8').trim();
+    const protocol = parseReleaseProtocol(raw);
+    if (protocol) return protocol;
   } catch {
     // Legacy releases predate the exact metadata file; use their ledger.
   }
   return releasedProtocol(version);
 }
 
-function daemonConnectorProtocol(home: string, version: string): number | undefined {
+function daemonConnectorProtocol(release: string, version: string): number | undefined {
   try {
-    const raw = readFileSync(join(home, 'bin', 'current', 'CONNECTOR_PROTOCOL'), 'utf8').trim();
+    const raw = readFileSync(join(release, 'CONNECTOR_PROTOCOL'), 'utf8').trim();
     if (/^[1-9][0-9]*$/.test(raw) && Number.isSafeInteger(Number(raw))) return Number(raw);
     return undefined;
   } catch {
@@ -258,11 +270,15 @@ export async function installedComponentVersions(
     protocol: PROTOCOL_VERSION,
   };
 
-  const installedDaemon = daemonVersion(home);
+  // Resolve each component once so a concurrent selector change cannot mix its metadata.
+  const daemonRelease = selectedRelease(home, 'current');
+  const installedDaemon = hostVersion(daemonRelease, true);
   const installedDaemonProtocol =
-    installedDaemon === undefined ? undefined : daemonProtocol(home, installedDaemon);
+    installedDaemon === undefined ? undefined : daemonProtocol(daemonRelease!, installedDaemon);
   const connectorProtocol =
-    installedDaemon === undefined ? undefined : daemonConnectorProtocol(home, installedDaemon);
+    installedDaemon === undefined
+      ? undefined
+      : daemonConnectorProtocol(daemonRelease!, installedDaemon);
   const daemon: InstalledComponentVersion =
     installedDaemon === undefined
       ? { component: 'daemon', installed: false }
@@ -310,7 +326,27 @@ export async function installedComponentVersions(
         ? { component: 'desktop', installed: true }
         : { component: 'desktop', installed: false };
 
-  return [cli, daemon, desktop];
+  const runtimeRelease = selectedRelease(home, 'runtime-current');
+  const runtimeVersion = hostVersion(runtimeRelease);
+  let runtimeProtocol: SpeakingProtocol | undefined;
+  try {
+    if (runtimeRelease)
+      runtimeProtocol = parseReleaseProtocol(
+        readFileSync(join(runtimeRelease, 'RUNTIME_PROTOCOL'), 'utf8'),
+      );
+  } catch {
+    /* Missing metadata remains unknown; never execute an owner. */
+  }
+  const runtime: InstalledComponentVersion =
+    runtimeVersion === undefined
+      ? { component: 'runtime', installed: false }
+      : {
+          component: 'runtime',
+          installed: true,
+          version: runtimeVersion,
+          ...(runtimeProtocol ? { protocol: runtimeProtocol } : {}),
+        };
+  return [cli, daemon, desktop, runtime];
 }
 
 export function formatComponentVersions(components: InstalledComponentVersion[]): string {
@@ -320,7 +356,7 @@ export function formatComponentVersions(components: InstalledComponentVersion[])
       if (!component.installed) return `${name} not installed`;
       const version = component.version ?? 'unknown version';
       const protocol = component.protocol
-        ? `protocol ${component.protocol.major}.${component.protocol.minor}${component.component === 'daemon' && component.connectorProtocol !== undefined ? `c${component.connectorProtocol}` : ''}`
+        ? `${component.component === 'runtime' ? 'runtime protocol' : 'protocol'} ${component.protocol.major}.${component.protocol.minor}${component.component === 'daemon' && component.connectorProtocol !== undefined ? `c${component.connectorProtocol}` : ''}`
         : 'protocol unknown';
       return `${name} ${version} (${protocol})`;
     })

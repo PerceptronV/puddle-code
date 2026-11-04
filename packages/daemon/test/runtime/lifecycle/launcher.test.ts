@@ -21,8 +21,9 @@ import {
   waitForSnapshot,
 } from '../../helpers/runtime-fixture.js';
 import { placement } from '../../helpers/runtime-placement.js';
+import { runtimeRelease } from '../../helpers/runtime-release.js';
 
-function fixture(run: CompilationCommandRunner) {
+function fixture(run: CompilationCommandRunner, installed = false) {
   const f = runtimeDatabase();
   f.runtimes.finish(f.binding.runtime_id, 'exited', () => {});
   f.controller.release();
@@ -42,14 +43,16 @@ function fixture(run: CompilationCommandRunner) {
         CAPTURED: 'baseline',
       },
     },
-    {
-      kind: 'launchd',
-      nodePath: process.execPath,
-      entryPath: join(bundleDir, 'puddler.mjs'),
-      releasePath: bundleDir,
-      build: 'runtime-test',
-      run,
-    },
+    installed
+      ? { kind: 'launchd', installed: true, run }
+      : {
+          kind: 'launchd',
+          nodePath: process.execPath,
+          entryPath: join(bundleDir, 'puddler.mjs'),
+          releasePath: bundleDir,
+          build: 'runtime-test',
+          run,
+        },
   );
   return {
     ...f,
@@ -63,6 +66,56 @@ function fixture(run: CompilationCommandRunner) {
     },
   };
 }
+
+it('pins the installed build before command construction can change the default', async () => {
+  const run = vi.fn<CompilationCommandRunner>(async (command) => {
+    const directory = dirname(command.args[2]!);
+    const record = readRuntimeJson(join(directory, 'supervisor.json')) as {
+      node_path: string;
+      entry_path: string;
+    };
+    expect(record.node_path).toBe(join(first.release, 'bin', 'node'));
+    expect(record.entry_path).toBe(join(first.release, 'daemon', 'puddler.mjs'));
+    expect(f.runtimes.ownerOf(f.session.id)).toMatchObject({
+      build: '1.2.3',
+      protocol_major: 1,
+      protocol_minor: 9,
+      release_path: first.release,
+    });
+    void f.launcher.close(); // End an intentionally unconfirmed fake dispatch.
+    return { exitCode: 0, stdout: '', stderr: '' };
+  });
+  const f = fixture(run, true);
+  const first = runtimeRelease(f.home, '1.2.3', '1.9');
+  const second = runtimeRelease(f.home, '2.3.4');
+  first.select();
+  try {
+    await expect(
+      f.launcher.launch(f.session.id, () => {
+        second.select();
+        return f.launch.main;
+      }),
+    ).rejects.toMatchObject({ code: 'runtime_launch_unconfirmed' });
+    expect(run).toHaveBeenCalledOnce();
+  } finally {
+    await f.close();
+  }
+});
+
+it('refuses an incompatible installed default before preparing intent or dispatching', async () => {
+  const run = vi.fn<CompilationCommandRunner>();
+  const f = fixture(run, true);
+  runtimeRelease(f.home, '2.3.4', '2.0').select();
+  const command = vi.fn(() => f.launch.main);
+  try {
+    await expect(f.launcher.launch(f.session.id, command)).rejects.toThrow('incompatible');
+    expect(command).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+    expect(f.runtimes.ownerOf(f.session.id)).toBeNull();
+  } finally {
+    await f.close();
+  }
+});
 
 it('persists launch intent before one supervisor dispatch and adopts after a lost dispatch reply', async () => {
   const run = vi.fn<CompilationCommandRunner>(async (command) => {

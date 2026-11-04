@@ -18,7 +18,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { installDaemon, readInstallScript } from '../../src/lib/installation/bootstrap.js';
+import {
+  installDaemon,
+  installHostComponent,
+  readInstallScript,
+} from '../../src/lib/installation/bootstrap.js';
 import type { Transport } from '../../src/lib/transport/transport.js';
 import {
   standaloneInstallation,
@@ -264,21 +268,25 @@ it('publishes only the CLI as install.sh and removes obsolete staged installers'
   expect(readFileSync(join(output, 'index.html'), 'utf8')).toBe('application');
 });
 
-it('pipes the embedded daemon bootstrap over SSH with the GitHub release source', async () => {
-  vi.stubEnv('PUDDLE_REPO', 'example/puddle');
-  const transport: Transport = {
-    kind: 'ssh',
-    label: 'user@host',
-    exec: vi.fn<Transport['exec']>().mockResolvedValue({ code: 0, stdout: '', stderr: '' }),
-    readFile: vi.fn<Transport['readFile']>(),
-    copyTo: vi.fn<Transport['copyTo']>(),
-    dispose: vi.fn(),
-  };
-  await installDaemon(transport, { version: '1.2.3' });
-  expect(transport.exec).toHaveBeenCalledWith(
-    "sh -s -- '--version' '1.2.3' '--repo' 'example/puddle'",
-    expect.objectContaining({ stdin: readInstallScript() }),
-  );
-  expect(readInstallScript()).toContain('https://github.com/$REPO/releases/download/v$VERSION');
-  expect(readInstallScript()).toContain('puddled-v$VERSION-$OS-$ARCH.tar.gz');
-});
+it.each(['daemon', 'runtime'] as const)(
+  'pipes the embedded %s bootstrap over SSH with the GitHub release source',
+  async (component) => {
+    vi.stubEnv('PUDDLE_REPO', 'example/puddle');
+    const transport: Transport = {
+      kind: 'ssh',
+      label: 'user@host',
+      exec: vi.fn<Transport['exec']>().mockResolvedValue({ code: 0, stdout: '', stderr: '' }),
+      readFile: vi.fn<Transport['readFile']>(),
+      copyTo: vi.fn<Transport['copyTo']>(),
+      dispose: vi.fn(),
+    };
+    if (component === 'daemon') await installDaemon(transport, { version: '1.2.3' });
+    else await installHostComponent(transport, component, { version: '1.2.3' });
+    expect(transport.exec).toHaveBeenCalledWith(
+      `sh -s -- '--version' '1.2.3' '--component' '${component}' '--repo' 'example/puddle'`,
+      expect.objectContaining({ stdin: readInstallScript() }),
+    );
+    expect(readInstallScript()).toContain('https://github.com/$REPO/releases/download/v$VERSION');
+    expect(readInstallScript()).toContain('puddled-v$VERSION-$OS-$ARCH.tar.gz');
+  },
+);

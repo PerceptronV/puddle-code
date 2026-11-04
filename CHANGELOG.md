@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Select daemon and runtime builds independently through the shared host bootstrap; runtime installation leaves services running, and opt-in launches pin the selected build while version inventory reports its separate protocol.
+
 - Install host releases into immutable generations, preserving pinned files on same-version repairs and retaining the previous selection when staging fails; read installed versions from release metadata.
 
 - Include the experimental `puddler` executable and runtime protocol metadata in host release archives, sharing the existing bundle configuration, pinned Node and native modules.

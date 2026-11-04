@@ -134,11 +134,17 @@ overrides supported), with a `~/.local/bin/puddle` wrapper. CLI upgrade/removal
 uses the actual installation channel; daemon removal cannot delete the CLI.
 Keep old standalone release trees during upgrades: live cockpits serve their assets.
 Host bootstrap stages immutable `bin/versions/<release>~<generation>` trees and
-atomically selects `bin/current`; never overwrite a published tree, including a
+atomically selects `bin/current` (daemon) or `bin/runtime-current` (runtime); never
+overwrite a published tree, including a
 same-version repair. Keep old trees until reference-aware collection exists.
 Read release identity from `VERSION`, with fixed-version symlink fallback only
 for legacy installations. The bootstrap lock serialises installers; the durable
-runtime-aware update coordinator remains a separate rollout gate.
+runtime-aware update coordinator remains a separate rollout gate. Runtime bootstrap
+uses the same implementation with explicit component selection and never starts or
+restarts a service. The opt-in launcher can use `installed: true` to resolve and pin
+one complete runtime release at each launch; reject unsupported metadata before
+recording intent. Public runtime management/removal commands remain gated on the
+coordinator and reference-aware ownership checks.
 The remote app and new GitHub releases publish only the CLI installer at
 `/install.sh`. Install daemon/desktop components through the CLI; the embedded
 daemon bootstrap still fetches GitHub archives automatically on first local/SSH

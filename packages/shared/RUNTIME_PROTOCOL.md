@@ -33,6 +33,14 @@ its current controller. The controller proves the private runtime secret plus
 its current host-controller id/epoch. Application/browser credentials, remote
 leases and provider hook nonces cannot authenticate this socket.
 
+Installed runtime selection reads bounded `VERSION`/`RUNTIME_PROTOCOL` metadata
+from one resolved immutable release. The launch intent records that build and
+protocol exactly; a later selector change cannot affect its executable paths.
+Unsupported majors fail before launch, while owner adoption still authenticates
+and verifies the actual reported build/protocol. Installer smoke checks do not
+replace adoption or all-owner update preflight. Runtime-only installation changes
+the default for future opt-in launches without restarting existing owners.
+
 ## Framing and bounds
 
 Each frame is a four-byte unsigned big-endian byte length followed by one UTF-8

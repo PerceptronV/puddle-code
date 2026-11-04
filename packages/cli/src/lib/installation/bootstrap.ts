@@ -5,10 +5,12 @@ import { hostPaths } from '../paths.js';
 import type { Transport } from '../transport/transport.js';
 import { CliError, type Logger, silentLogger } from '../types.js';
 import { pinnedDaemonVersion, repoSlug } from '../version.js';
-import { parseHostReleaseVersion, parseLegacyHostVersion } from './host/version.js';
+import { parseHostReleaseVersion, parseLegacyHostVersion } from '@puddle/shared';
+
+export type HostComponent = 'daemon' | 'runtime';
 
 export interface BootstrapOptions {
-  /** Daemon release to install; defaults to the CLI's own version train. */
+  /** Host release to install; defaults to the CLI's own version train. */
   version?: string;
   /** Local tarball path or URL (dev override / air-gapped hosts). */
   tarball?: string;
@@ -16,18 +18,23 @@ export interface BootstrapOptions {
 }
 
 /**
- * The daemon version installed under ~/.puddle/bin, read from release metadata
+ * The selected host component version under ~/.puddle/bin, read from release metadata
  * (or a legacy fixed-version selector) — never by executing an unknown
  * `puddled` (a pre-Phase-6 binary would START a daemon on --version).
  * Null when nothing bootstrap-managed is installed.
  */
-export async function installedVersion(transport: Transport): Promise<string | null> {
+export async function installedVersion(
+  transport: Transport,
+  component: HostComponent = 'daemon',
+): Promise<string | null> {
+  const current =
+    component === 'runtime' ? `${hostPaths.home}/bin/runtime-current` : hostPaths.current;
   const metadata = await transport.exec(
-    `if [ -e ${hostPaths.current}/VERSION ]; then head -c 130 ${hostPaths.current}/VERSION; else exit 3; fi`,
+    `if [ -e ${current}/VERSION ]; then head -c 130 ${current}/VERSION; else exit 3; fi`,
     { timeoutMs: 15_000 },
   );
   if (metadata.code === 0) return parseHostReleaseVersion(metadata.stdout) ?? null;
-  if (metadata.code !== 3) return null;
+  if (metadata.code !== 3 || component === 'runtime') return null;
   const result = await transport.exec(`readlink ${hostPaths.current}`, { timeoutMs: 15_000 });
   if (result.code !== 0) return null;
   return parseLegacyHostVersion(result.stdout) ?? null;
@@ -43,11 +50,20 @@ export async function installDaemon(
   transport: Transport,
   opts: BootstrapOptions = {},
 ): Promise<void> {
+  return installHostComponent(transport, 'daemon', opts);
+}
+
+/** Shared host bootstrap; runtime selection never restarts the daemon or owners. */
+export async function installHostComponent(
+  transport: Transport,
+  component: HostComponent,
+  opts: BootstrapOptions = {},
+): Promise<void> {
   const logger = opts.logger ?? silentLogger;
   const version = opts.version ?? pinnedDaemonVersion();
   const script = readInstallScript();
 
-  const args: string[] = ['--version', version];
+  const args: string[] = ['--version', version, '--component', component];
   if (opts.tarball !== undefined && !/^https?:\/\//.test(opts.tarball)) {
     if (!existsSync(opts.tarball)) {
       throw new CliError('not_installed', `tarball not found: ${opts.tarball}`);
@@ -90,7 +106,9 @@ export async function installDaemon(
     args.push('--repo', slug);
   }
 
-  logger.info(`installing puddled ${version} on ${transport.label}`);
+  logger.info(
+    `installing ${component === 'daemon' ? 'puddled' : 'puddler'} ${version} on ${transport.label}`,
+  );
   const quoted = args.map((a) => `'${a.replaceAll("'", `'\\''`)}'`).join(' ');
   const result = await transport.exec(`sh -s -- ${quoted}`, {
     stdin: script,
