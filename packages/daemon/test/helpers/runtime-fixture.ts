@@ -196,7 +196,10 @@ export async function setup(provider?: 'interactive' | 'headless') {
   clients.push(client);
   return { home, launch, controller, client, directory, owner };
 }
-export async function waitForOwner(owner: ReturnType<typeof launchOwner>, directory: string) {
+export async function waitForOwner(
+  owner: { child: ChildProcess; errors: () => string },
+  directory: string,
+) {
   const deadline = Date.now() + 15_000;
   while (true) {
     try {

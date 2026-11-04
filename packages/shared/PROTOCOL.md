@@ -1,5 +1,24 @@
 # The puddle communication protocol
 
+Application 25.20 adds optional runtime lifetime presentation (`service`,
+`host_session`, `unknown`) to placement-scoped runtime inspection. Authenticated
+runtime lifetime also gates daemon-update preflight; limited or unknown owners
+block replacement without being stopped. Runtime-default selection is independent.
+Local/SSH purge helpers add exact inspection/preparation/application records after
+completed removal and separate runtime stop consent. Approval binds the removal id,
+review fingerprint and fresh attempt id. A kernel boot barrier precedes deletion,
+followed by a fresh dirty/unpushed worktree review and bounded deletion of exact
+quarantined roots. Lost replies permit observation only. Existing host OS/SSH
+authority reaches these helpers; there are no new browser routes or relay grants.
+Permanent control/lock namespaces, pinned releases and recovery evidence remain.
+Active purge records fence startup/installation until the completed hand-off is
+archived. Remote remains 4; runtime remains the initial unshipped 1.0 contract.
+Completed purge is projected through existing removal/restoration status and helper
+flags. A private restoration `purge_digest` binds archived prior-boot proof and an
+additional `restore-supervisor` action. Original service evidence remains unchanged;
+historical ordinary restoration plans remain readable. Read-only inspection never
+republishes configuration. No additional public protocol shape or flag is introduced.
+
 Application 25.19 adds trusted local/SSH prepare/finish removal helpers and a bounded
 runtime interruption review. Prepare requires explicit daemon-removal consent, records
 remote disablement before service stops, then reviews runtimes under the offline

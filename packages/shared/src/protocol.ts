@@ -326,4 +326,5 @@
 // 25.17: explicit cockpit continuation through participating local/SSH recovery helpers.
 // 25.18: trusted local/SSH removal inspection and explicit service restoration.
 // 25.19: trusted host removal with exact offline runtime disposition and remote disablement.
-export const PROTOCOL_VERSION = { major: 25, minor: 19 } as const;
+// 25.20: bounded host purge and explicit runtime lifetime presentation/update checks.
+export const PROTOCOL_VERSION = { major: 25, minor: 20 } as const;

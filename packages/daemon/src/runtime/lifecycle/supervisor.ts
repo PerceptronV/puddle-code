@@ -11,6 +11,7 @@ import { runCompilationCommand, type CompilationCommandRunner } from '../../comp
 import { acquireHostClaim, HostClaimBusy } from '../../security/claims.js';
 import { readRuntimeJson, runtimeDirectory } from '../ownership/storage.js';
 import { serviceIsRemoved } from '../../host/supervision/removed.js';
+import { dispatchDetachedRuntime } from './process.js';
 
 import {
   independentServiceDefinition,
@@ -24,12 +25,14 @@ interface LaunchOptions {
   kind: RuntimeSupervisor['kind'];
   nodePath: string;
   entryPath: string;
+  environment?: NodeJS.ProcessEnv;
   uid?: number;
   run?: CompilationCommandRunner;
 }
 
 /** No restart policy or dependency on puddled: each owner has its own service lifetime. */
 export function runtimeServiceDefinition(home: string, record: RuntimeSupervisor): string {
+  if (record.kind === 'detached') throw new Error('Detached runtime has no service definition');
   validServicePath(record.node_path);
   validServicePath(record.entry_path);
   return independentServiceDefinition({
@@ -48,6 +51,17 @@ export function runtimeServiceDefinition(home: string, record: RuntimeSupervisor
   });
 }
 
+function registrationName(
+  home: string,
+  identity: RuntimeIdentity,
+  kind: RuntimeSupervisor['kind'],
+): string {
+  const hostKey = digest(realpathSync(home)).slice(0, 8);
+  return kind === 'launchd'
+    ? `dev.puddle.runtime.${hostKey}.${identity.runtime_id}`
+    : `puddler-${hostKey}-${identity.runtime_id}.${kind === 'systemd' ? 'service' : 'process'}`;
+}
+
 /**
  * Dispatch once. A repeated call only returns the recorded attempt, including
  * an uncertain one; readiness is established by authenticated runtime adoption.
@@ -64,7 +78,6 @@ export async function startRuntimeService(
   // Resolve symlinks now: updates to current/default must not change this job's code.
   const nodePath = realpathSync(opts.nodePath);
   const entryPath = realpathSync(opts.entryPath);
-  const hostKey = digest(realpathSync(home)).slice(0, 8);
   const uid = opts.uid ?? process.getuid?.();
   if (uid === undefined || !Number.isSafeInteger(uid) || uid < 0)
     throw new Error('Runtime supervision requires a host user');
@@ -72,10 +85,7 @@ export async function startRuntimeService(
     format: 1,
     identity,
     kind: opts.kind,
-    name:
-      opts.kind === 'systemd'
-        ? `puddler-${hostKey}-${identity.runtime_id}.service`
-        : `dev.puddle.runtime.${hostKey}.${identity.runtime_id}`,
+    name: registrationName(home, identity, opts.kind),
     domain: opts.kind === 'launchd' ? `gui/${uid}` : null,
     node_path: nodePath,
     entry_path: entryPath,
@@ -99,10 +109,12 @@ export async function startRuntimeService(
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     }
     const definition = join(directory, record.kind === 'systemd' ? record.name : 'runtime.plist');
-    writeServiceDefinition(definition, runtimeServiceDefinition(home, record));
+    if (record.kind !== 'detached')
+      writeServiceDefinition(definition, runtimeServiceDefinition(home, record));
     // Persist before invoking the supervisor, so a lost reply never retries launch.
     atomicPrivateJson(file, record);
-    await dispatchService(home, record, definition, opts.run);
+    if (record.kind === 'detached') await dispatchDetachedRuntime(home, record, opts.environment);
+    else await dispatchService(home, { ...record, kind: record.kind }, definition, opts.run);
     record.state = 'dispatched';
     atomicPrivateJson(file, record);
     return record;
@@ -154,11 +166,7 @@ export async function removeRuntimeService(
     }
     if (JSON.stringify(record.identity) !== JSON.stringify(identity))
       throw new Error('Runtime supervisor identity mismatch');
-    const hostKey = digest(realpathSync(home)).slice(0, 8);
-    const expectedName =
-      record.kind === 'systemd'
-        ? `puddler-${hostKey}-${identity.runtime_id}.service`
-        : `dev.puddle.runtime.${hostKey}.${identity.runtime_id}`;
+    const expectedName = registrationName(home, identity, record.kind);
     if (
       record.name !== expectedName ||
       record.domain !== (record.kind === 'launchd' ? `gui/${process.getuid?.()}` : null)
@@ -166,8 +174,15 @@ export async function removeRuntimeService(
       throw new Error('Runtime supervisor target mismatch');
     // Fence a queued service start before releasing this lock after unregistering.
     retire();
+    if (record.kind === 'detached') {
+      // Claims exclude a live owner/dispatch and retirement fences a delayed start.
+      // No service registration exists. This does not prove descendant absence.
+      atomicPrivateJson(file, { ...record, state: 'removed' });
+      return 'removed';
+    }
+    const target = { ...record, kind: record.kind };
     const execute = supervisorCommand(home, run);
-    const absent = () => serviceIsRemoved(home, record, run);
+    const absent = () => serviceIsRemoved(home, target, run);
     // A recorded removal is historical evidence, not proof of current manager state.
     if (await absent()) {
       if (record.state !== 'removed') atomicPrivateJson(file, { ...record, state: 'removed' });

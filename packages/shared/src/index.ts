@@ -65,6 +65,7 @@ export * from './installation/removal/services.js';
 export * from './installation/removal/restore.js';
 export * from './installation/removal/status.js';
 export * from './installation/removal/runtime.js';
+export * from './installation/removal/purge.js';
 export {
   parseHostReleaseVersion,
   parseLegacyHostVersion,

@@ -78,7 +78,9 @@ export function OperationReview({
             .filter(({ code }) => code !== 'interruption_approval_required')
             .map(({ code }, index) => (
               <p key={`${code}-${index}`} className="text-xs text-warning">
-                Check failed: {code.replaceAll('_', ' ')}
+                {code === 'runtime_lifetime_unverified'
+                  ? 'A runtime has a limited or unverified host lifetime. Stop it explicitly before updating the daemon, or update only the runtime default.'
+                  : `Check failed: ${code.replaceAll('_', ' ')}`}
               </p>
             ))}
           {review.more_blockers > 0 && (

@@ -23,6 +23,7 @@ type Blocker = {
     | 'runtime_incompatible'
     | 'runtime_unavailable'
     | 'runtime_identity_changed'
+    | 'runtime_lifetime_unverified'
     | 'runtime_inventory_unknown'
     | 'database_schema_unknown'
     | 'candidate_schema_unknown'
@@ -151,6 +152,11 @@ export class HostUpdateCompatibility {
           if (!client) throw new Error('Owner unavailable');
           const response = await client.request({ t: 'inspect' });
           if (response.t !== 'state') throw new Error('Owner did not report state');
+          if (response.state.lifetime !== 'service')
+            result.blockers.push({
+              code: 'runtime_lifetime_unverified',
+              target: binding.runtime_id,
+            });
           const expected = runtimeBindingIdentity(binding);
           if (
             Object.entries(expected).some(

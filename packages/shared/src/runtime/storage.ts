@@ -49,6 +49,9 @@ export const runtimeLaunchSchema = z.object({
   format: z.literal(1),
   identity: runtimeIdentitySchema,
   secret: z.string().regex(/^[a-f0-9]{64}$/),
+  /** A queued launch must never execute on a later host boot. */
+  boot_id: z.uuid().optional(),
+  lifetime: z.enum(['service', 'host_session']).optional(),
   main: runtimeCommandSchema,
   /** Daemon launch environment, below captured values and command-specific overrides. */
   environment: runtimeCommandSchema.shape.env.optional(),
@@ -78,11 +81,11 @@ export type RuntimeControllerRecord = z.infer<typeof runtimeControllerSchema>;
 export const runtimeSupervisorSchema = z.object({
   format: z.literal(1),
   identity: runtimeIdentitySchema,
-  kind: z.enum(['systemd', 'launchd']),
+  kind: z.enum(['systemd', 'launchd', 'detached']),
   name: z
     .string()
     .regex(
-      /^(puddler-[a-f0-9]{8}-[a-f0-9-]{36}\.service|dev\.puddle\.runtime\.[a-f0-9]{8}\.[a-f0-9-]{36})$/,
+      /^(puddler-[a-f0-9]{8}-[a-f0-9-]{36}\.(service|process)|dev\.puddle\.runtime\.[a-f0-9]{8}\.[a-f0-9-]{36})$/,
     ),
   domain: z
     .string()

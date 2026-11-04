@@ -13,6 +13,7 @@ import {
   type RuntimeTheme,
 } from '@puddle/shared';
 import { atomicPrivateJson } from '@puddle/shared/node';
+import { readHostBootIdentity } from '@puddle/shared/node/host-control';
 import type { CompilationCommandRunner } from '../../compilation/process.js';
 import type { RuntimeStore } from '../../db/stores/runtimes.js';
 import type { SessionStore } from '../../db/stores/sessions.js';
@@ -29,7 +30,7 @@ import { resolveInstalledRuntimeRelease } from './release.js';
 import { pinRuntimeShellHooks } from '../execution/shell-hooks.js';
 import type { ShellHooks } from '../../pty/shell-hooks.js';
 import type { ProgrammeOperation } from '../../puddlang/runtime-turn-store.js';
-import { inspectHostServiceManager } from '../../host/supervision/inspection.js';
+import { selectRuntimeSupervisor } from './lifetime.js';
 
 interface LaunchOptions {
   provider?: RuntimeProviderLaunch;
@@ -96,22 +97,33 @@ export class RuntimeLauncher {
   private async supervisor(): Promise<RuntimeSupervisor['kind']> {
     if (this.configuration.kind !== undefined) return this.configuration.kind;
     try {
-      return (await inspectHostServiceManager(this.deps.home, { run: this.configuration.run }))
-        .kind;
+      return await selectRuntimeSupervisor(this.deps.home, this.configuration.run);
     } catch {
       throw new ApiError(
         503,
         'runtime_supervisor_unavailable',
-        'This host has no available independent runtime service manager.',
+        'This host has no available runtime lifetime. Check its service manager or installation.',
       );
     }
   }
 
   async checkAvailable(): Promise<void> {
     this.admission.assertOpen();
-    await this.supervisor();
+    await this.lifetime();
     this.selectedRelease();
     this.admission.assertOpen();
+  }
+
+  private async lifetime() {
+    const kind = await this.supervisor();
+    const bootId = await readHostBootIdentity();
+    if (kind === 'detached' && bootId === null)
+      throw new ApiError(
+        503,
+        'runtime_boot_unknown',
+        'The host boot cannot be verified for a detached runtime.',
+      );
+    return { kind, bootId };
   }
 
   launch(
@@ -142,7 +154,7 @@ export class RuntimeLauncher {
   ): Promise<void> {
     // Establish lifetime support before recording any launch intent. An unavailable
     // manager must not leave a prepared owner or select the old in-process backend.
-    const kind = await this.supervisor();
+    const { kind, bootId } = await this.lifetime();
     if (this.closed) throw new ApiError(503, 'host_maintenance', 'Runtime launcher is closing');
     const session = this.deps.sessions.get(sessionId);
     if (this.deps.runtimes.ownerOf(sessionId))
@@ -150,7 +162,7 @@ export class RuntimeLauncher {
     const project = this.deps.projects.get(session.project_id);
     // Pin selectors before writing intent. Updating a default cannot change this launch.
     const selected = this.selectedRelease();
-    const config = { ...this.configuration, ...selected };
+    const config = { ...this.configuration, ...selected, environment: this.deps.environment };
     beforeLaunch?.(selected);
     const identity = {
       runtime_id: randomUUID(),
@@ -168,6 +180,8 @@ export class RuntimeLauncher {
         format: 1,
         identity,
         secret: randomBytes(32).toString('hex'),
+        boot_id: bootId ?? undefined,
+        lifetime: kind === 'detached' ? 'host_session' : 'service',
         main: command(pinRuntimeShellHooks(directory)),
         environment: this.deps.environment,
         shell_hooks: true,

@@ -317,6 +317,8 @@ export type RuntimeEventPage = z.infer<typeof runtimeEventPageSchema>;
 export const runtimeStateSchema = z.object({
   identity: runtimeIdentitySchema,
   build: z.string().min(1).max(128),
+  /** Process-group separation does not establish survival of host session teardown. */
+  lifetime: z.enum(['service', 'host_session', 'unknown']).optional(),
   protocol,
   state: z.enum(['prepared', 'running', 'exited', 'failed']),
   terminals: z.array(runtimeTerminalSchema).max(RUNTIME_LIMITS.terminals),

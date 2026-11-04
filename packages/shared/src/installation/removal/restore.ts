@@ -7,11 +7,15 @@ export const hostRemovalRestoreActionSchema = z.enum([
   'reload-services',
   'enable-connector',
   'enable-daemon',
+  'restore-supervisor',
 ]);
 export type HostRemovalRestoreAction = z.infer<typeof hostRemovalRestoreActionSchema>;
 
 /** The same exact plan is used by dispatch and passive post-hand-off inspection. */
-export function hostRemovalRestorePlan(removal: HostRemovalServices): HostRemovalRestoreAction[] {
+export function hostRemovalRestorePlan(
+  removal: HostRemovalServices,
+  purged = false,
+): HostRemovalRestoreAction[] {
   const present = (['connector', 'daemon'] as const).filter((component) =>
     removal.services.some(({ review }) => review.component === component),
   );
@@ -24,6 +28,7 @@ export function hostRemovalRestorePlan(removal: HostRemovalServices): HostRemova
     ...present.map((component): HostRemovalRestoreAction => `restore-${component}`),
     ...(systemd.length ? ['reload-services' as const] : []),
     ...systemd.map((component): HostRemovalRestoreAction => `enable-${component}`),
+    ...(purged ? ['restore-supervisor' as const] : []),
   ];
 }
 
@@ -33,6 +38,11 @@ export const hostRemovalRestoreSchema = z
     format: z.literal(1),
     removal_id: z.uuid(),
     removal_digest: z.string().regex(/^[0-9a-f]{64}$/),
+    /** Exact completed purge proof; absent on historical ordinary restoration journals. */
+    purge_digest: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/)
+      .optional(),
     actions: z
       .array(
         z
@@ -43,10 +53,18 @@ export const hostRemovalRestoreSchema = z
           .strict(),
       )
       .min(1)
-      .max(5),
+      .max(6),
   })
   .strict()
   .superRefine((record, context) => {
+    if (
+      Boolean(record.purge_digest) !==
+      record.actions.some(({ action }) => action === 'restore-supervisor')
+    )
+      context.addIssue({
+        code: 'custom',
+        message: 'Supervisor restoration requires completed purge evidence',
+      });
     if (new Set(record.actions.map(({ action }) => action)).size !== record.actions.length)
       context.addIssue({ code: 'custom', message: 'Duplicate restoration action' });
     let unfinished = false;

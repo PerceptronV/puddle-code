@@ -1,4 +1,5 @@
 export { readStageCapabilities, readInstalledCapabilities } from './installation/capabilities.js';
+export { readHostBootIdentity } from './installation/boot.js';
 export {
   latestGitHubRelease,
   releaseRepositorySchema,
@@ -7,7 +8,17 @@ export {
 export { releaseRepository } from './releases/source.js';
 export { updateWorkerExecutables } from './installation/workers.js';
 export { requireNoHostRemoval } from './installation/removal.js';
-export { inspectHostRemoval, validateHostRemovalServices } from './installation/removal-records.js';
+export {
+  inspectHostRemoval,
+  validateHostRemovalServices,
+  readPurgedHostRemoval,
+} from './installation/removal-records.js';
+export {
+  hostPurgeFingerprint,
+  readHostPurgeRecord,
+  validateHostPurgeRecord,
+  requireArchivedHostPurge,
+} from './installation/purge.js';
 export { watchUpdateParticipation } from './installation/participation.js';
 export { HostUpdateRequests } from './host-updates.js';
 import type { Duplex } from 'node:stream';

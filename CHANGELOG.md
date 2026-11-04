@@ -11,6 +11,10 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Integrate explicit local/SSH data purge with separate runtime-stop consent, a kernel reboot barrier for unresolved provider descendants, fresh dirty/unpushed worktree review and bounded resumable deletion. Preserve permanent locks, pinned releases and private recovery records; fence installation until purge completion, and stop automatic continuation after uncertain replies.
+
+- Allow independent runtimes on explicitly unsupervised hosts with a visible host-session lifetime. Verify process-group separation and recorded kernel boot identity before launch, preserve shell state across controller replacement, and block daemon updates for limited or unknown lifetimes without interrupting those owners.
+
 - Add bounded, durable release collection with fresh reference checks, exact inode quarantine and continuation after interrupted deletion. Keep the collecting helper and all retained runtime/update references pinned; public scheduling and obsolete-reference retirement remain in progress.
 
 - Add an internal release-collection review that preserves selectors, retained runtime/helper builds, update recovery evidence and removal history. Bound metadata inspection, refuse unknown references and identify verified unreferenced generations older than seven days; deletion and coordinated purge remain in progress.

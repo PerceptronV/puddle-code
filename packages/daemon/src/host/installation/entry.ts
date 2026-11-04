@@ -9,7 +9,9 @@ import {
   finishHostRemoval,
   inspectHostRemovalResult,
 } from '../removal/coordinator.js';
-import { hostRemovalFinishSchema } from '@puddle/shared';
+import { hostRemovalFinishSchema, hostPurgeApplySchema } from '@puddle/shared';
+import { prepareHostPurge, applyHostPurge } from '../removal/purge/coordinator.js';
+import { inspectHostPurge } from '../removal/purge/records.js';
 
 /** Commands reachable only through trusted host OS/SSH execution of the selected helper. */
 export async function runHostInstallationEntry(args: string[], entry: string): Promise<boolean> {
@@ -17,7 +19,14 @@ export async function runHostInstallationEntry(args: string[], entry: string): P
   const action = args[2];
   if (!(
     (args.length === 3 &&
-      ['--start-daemon', '--inspect-removal', '--inspect-removal-result'].includes(action!)) ||
+      [
+        '--start-daemon',
+        '--inspect-removal',
+        '--inspect-removal-result',
+        '--inspect-purge',
+      ].includes(action!)) ||
+    (action === '--prepare-purge' && args.length === 4) ||
+    (action === '--apply-purge' && args.length === 6) ||
     (action === '--prepare-removal' && (args.length === 3 || args.length === 4)) ||
     (action === '--finish-removal' && args.length === 7) ||
     (action === '--restore-services' &&
@@ -46,6 +55,23 @@ export async function runHostInstallationEntry(args: string[], entry: string): P
       return runCompilationCommand({ ...command, detached: false });
     };
     if (action === '--inspect-removal') console.log(JSON.stringify(inspectHostRemoval(home)));
+    else if (action === '--inspect-purge') console.log(JSON.stringify(inspectHostPurge(home)));
+    else if (action === '--prepare-purge')
+      console.log(
+        JSON.stringify(
+          await prepareHostPurge(home, paths.release_path, args[3]!, {
+            run,
+            authorised: () => !interrupted,
+          }),
+        ),
+      );
+    else if (action === '--apply-purge')
+      await applyHostPurge(
+        home,
+        paths.release_path,
+        hostPurgeApplySchema.parse({ id: args[3], fingerprint: args[4], attempt_id: args[5] }),
+        { run, authorised: () => !interrupted },
+      );
     else if (action === '--inspect-removal-result')
       console.log(JSON.stringify(inspectHostRemovalResult(home)));
     else if (action === '--prepare-removal')

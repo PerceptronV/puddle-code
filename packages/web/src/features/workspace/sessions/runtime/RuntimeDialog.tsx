@@ -80,6 +80,17 @@ export function RuntimeDialog({ session, onClose }: { session: Session; onClose:
               {data.runtime && !data.runtime.connected && ' · disconnected'}
             </p>
             <p>Installed default: {data.installed?.version ?? 'Unavailable'}</p>
+            {data.runtime?.lifetime === 'host_session' && (
+              <p className="text-xs text-warning">
+                Host-session lifetime: this host may stop the runtime when its login or SSH session
+                ends. Daemon updates are blocked while it is running.
+              </p>
+            )}
+            {data.runtime &&
+              data.runtime.lifetime !== 'service' &&
+              data.runtime.lifetime !== 'host_session' && (
+                <p className="text-xs text-fg-muted">Runtime lifetime could not be verified.</p>
+              )}
             {data.runtime?.terminals && (
               <div>
                 <p className="text-fg-secondary">Affected terminals</p>

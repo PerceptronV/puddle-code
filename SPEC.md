@@ -150,10 +150,19 @@ implementation described below is incomplete. Daemon composition now defaults to
 the installed independent runtime for terminals and interactive/headless agents.
 Only internal fixtures can select the legacy in-process backend. Each launch probes
 the host user service manager through the same inspection used by update preflight,
-then pins the runtime selector before recording intent. Missing supervision or an
-invalid installation never falls back to daemon-owned PTYs. Detached/attached host
-lifetimes remain unfinished, so hosts without usable systemd/launchd supervision
-currently refuse new launches; this remains a 0.4.0 release blocker. Runtime protocol compatibility covers both live IPC
+then pins the runtime selector before recording intent. An invalid installation
+never falls back to daemon-owned PTYs. When the manager is unavailable, an owned
+`nohup`/`none` installation marker permits one detached owner with an explicitly
+limited host-session lifetime. Its private intent precedes dispatch, its own process
+group is checked before any provider/PTY starts, and authenticated adoption proves
+readiness. A failed supervised dispatch never tries another lifetime. Runtime
+inspection shows the limitation; daemon-update preflight blocks limited or unknown
+lifetimes while runtime-default updates leave those owners alone. Separation from
+the daemon and ignoring SIGHUP do not prove logout/cgroup survival. Verified
+persistent detached hosts and a separate SSH runtime-holding channel remain release
+gates. New launch records retain the kernel boot UUID when available; detached
+launches require it, and an owner refuses a recorded UUID from another/unverified
+boot before consuming intent. Runtime protocol compatibility covers both live IPC
 and retained state, with supported majors advertised by each candidate daemon.
 Host archives carry `HOST_CAPABILITIES.json`, generated through the built daemon's
 passive `--host-capabilities` command. Update preflight reads bounded metadata from
@@ -804,9 +813,31 @@ disabled state while re-enablement is fenced, not replay of a session command. F
 disable steps remain observation-only; renewed enablement then blocks removal.
 The CLI preserves data and selected/pinned release files and directs users to
 `puddle install daemon` for restoration. Persistent installations cannot reach the
-legacy recursive deletion script. Coordinated purge currently refuses before any
-mutation. Reference-aware file collection, purge and complete platform/provider
-acceptance remain required. Successful runtime disposition or service unregistration
+legacy recursive deletion script. Application 25.20 enables coordinated `--purge`
+with separate runtime stop consent (`--yes` also requires `--stop-runtimes`). It
+retires every retained runtime under its launch/dispatch/owner claims and records
+the kernel boot UUID after verified service removal. Because service absence and
+exited rows do not prove escaped provider descendants ended, data deletion requires
+a different kernel boot and explicit fresh dirty/unpushed worktree review. Exact
+reviewed roots are quarantined and deleted without following links, at most 512
+objects per helper call. The CLI continues only positively acknowledged batches,
+bounded by 64 calls and 60 seconds; unknown/nonzero replies stop continuation.
+The permanent installation/claim namespace, `bin` generations, controller record and
+installation/update recovery records (including saved service definitions) remain.
+Active `purge.json` fences startup,
+installation and restoration after data detachment; final archival as `purged.json`
+permits fresh installation. Unknown ownership, runtime records, Git state or kernel
+boot evidence keep deletion blocked. Ordinary removal and updates need no reboot.
+After completed purge, passive removal inspection identifies the retained service
+installation as removed until explicit restoration. `puddle install daemon` reuses
+the existing restoration journal and startup readiness path: prior-boot purge proof
+permits ignoring obsolete process observations, the original service journal stays
+unchanged, and a durable action recreates the supervisor marker. Configuration
+restoration never restores deleted user data. Repeated install observes an existing
+hand-off/readiness without starting the daemon again; historical purge evidence does
+not override a later removal or completed restoration.
+Public collection scheduling, obsolete-reference retirement and complete platform/
+provider/reboot acceptance remain required. Successful runtime disposition or service unregistration
 alone never authorises deleting a release, runtime record or home.
 The internal collection review under `host/installation/collection/` reads bounded
 release/reference inventories while retaining installer/update/controller exclusion
@@ -823,8 +854,9 @@ following links. Lost intent/rename/completion writes reconcile source/quarantin
 evidence; unknown or replaced trees remain untouched. The collecting helper pins its
 own build. Only the current and previous completed collection journals are retained.
 Tests include killing the helper after quarantine and continuing under fresh process
-claims. Public invocation/scheduling, obsolete-reference retirement and coordinated
-purge remain unfinished; collection never retires runtime/update references itself.
+claims. Public invocation/scheduling and obsolete-reference retirement remain
+unfinished; collection never retires runtime/update references itself. Coordinated
+purge shares its bounded no-follow tree deletion helper.
 
 Migration 032 records terminal generations per segment and explicitly selects each
 placement's terminal owner. Runtime launches/switches update that selection in the

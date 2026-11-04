@@ -6,11 +6,34 @@ import {
   fsyncSync,
   linkSync,
   lstatSync,
+  mkdirSync,
   openSync,
   unlinkSync,
 } from 'node:fs';
+import { dirname, join, relative, sep } from 'node:path';
 import { writeServiceDefinition } from '../../services.js';
 import { openServiceDefinitionDirectory } from '../../supervision/definition-directory.js';
+import { syncOwnedDirectory } from '../../installation/tree.js';
+
+/** Only the already-validated installed user path may be recreated after its empty parents vanish. */
+function ensureRestorationDirectory(file: string, root: string): void {
+  const parts = relative(root, dirname(file)).split(sep).filter(Boolean);
+  if (parts.includes('..')) throw new Error('Restoration directory is outside its user home');
+  let parent = root;
+  for (const part of ['', ...parts]) {
+    const path = part ? join(parent, part) : root;
+    try {
+      const info = lstatSync(path);
+      if (!info.isDirectory() || info.uid !== process.getuid?.() || (info.mode & 0o022) !== 0)
+        throw new Error('Unsafe restoration directory');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT' || !part) throw error;
+      mkdirSync(path, { mode: 0o700 });
+      syncOwnedDirectory(parent);
+    }
+    parent = path;
+  }
+}
 
 /** Observation after a lost publication reply must also establish durable file/entry writes. */
 export function syncRestoredServiceDefinition(file: string): void {
@@ -38,7 +61,8 @@ export function syncRestoredServiceDefinition(file: string): void {
 }
 
 /** Publish complete bytes without overwriting a concurrently created unit/plist. */
-export function restoreServiceDefinition(file: string, source: string): void {
+export function restoreServiceDefinition(file: string, source: string, userHome?: string): void {
+  if (userHome) ensureRestorationDirectory(file, userHome);
   const parent = openServiceDefinitionDirectory(file);
   try {
     const temporary = `${file}.${randomUUID()}.restore`;

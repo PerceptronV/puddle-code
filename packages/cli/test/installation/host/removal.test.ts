@@ -4,16 +4,21 @@ import { expect, it } from 'vitest';
 import { hostInstallationFixture } from '../../helpers/host-installation.js';
 import { hasPersistentHostInstallation } from '../../../src/lib/installation/host/presence.js';
 
-it.each(['daemon', 'runtime'] as const)(
-  'refuses %s installation during removal, preserving the existing selector and release',
-  async (component) => {
+it.each([
+  ['daemon', 'services.json'],
+  ['runtime', 'services.json'],
+  ['daemon', 'purge.json'],
+  ['runtime', 'purge.json'],
+] as const)(
+  'refuses %s installation with active %s, preserving the existing selector and release',
+  async (component, name) => {
     const f = hostInstallationFixture();
     f.install('--component', component);
     const previous = f.selected(component);
     const generations = f.generations();
     const directory = join(f.puddleHome, 'installation/removal');
     mkdirSync(directory, { recursive: true, mode: 0o700 });
-    const record = join(directory, 'services.json');
+    const record = join(directory, name);
     writeFileSync(record, '{', { mode: 0o600 });
     expect(() => f.install('--component', component)).toThrow(/recorded host removal/);
     expect(f.selected(component)).toBe(previous);

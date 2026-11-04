@@ -9,8 +9,9 @@ Implementation status, 2026-11-04:
 Default daemon launches now use independent runtimes, resolving the installed
 runtime selector and checking the host service manager before launch intent. The
 legacy composition is restricted to internal migration fixtures. Hosts without a
-usable systemd/launchd manager currently refuse new launches; detached/attached
-lifetimes remain a release blocker. The daemon coordinator now composes maintenance
+usable systemd/launchd manager can use a labelled host-session owner only when their
+installation explicitly records `nohup`/`none`. Verified detached persistence and
+SSH-held runtime lifetimes remain release blockers. The daemon coordinator now composes maintenance
 for private host-control daemon updates. Explicit CLI recovery continuation now works
 through private authority or the trusted offline local/SSH helper. Ordinary CLI daemon
 upgrades now share runtime updates' staging, review and observation path, with explicit
@@ -27,7 +28,10 @@ recovery dispatcher. Legacy cockpit transition, remaining failure recovery and
 complete packaged upgrade acceptance remain unfinished.
 Public local/SSH removal now coordinates remote disablement, service teardown and
 reviewed runtime retention/stops; deliberate install restores retained service definitions.
-Reference-aware collection and coordinated purge remain unfinished.
+Durable reference-aware collection is implemented internally; public scheduling and
+obsolete-reference retirement remain unfinished. Coordinated purge is integrated
+with a cross-boot descendant barrier and retained control/recovery anchors; actual
+platform reboot acceptance remains outstanding.
 This document describes the intended refactor; [SPEC.md](../../SPEC.md) continues
 to describe shipped behaviour. Update the specification, protocol documentation,
 repository instructions and changelog alongside each implementation phase.
@@ -45,6 +49,46 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 [acceptance matrix](#acceptance-matrix) for the release gates.
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
+
+- Application 25.20 integrates local/SSH purge after separate runtime-stop consent.
+  Every retained runtime is retired under existing launch/dispatch/owner claims
+  before recording a kernel boot barrier. A different boot and fresh dirty/unpushed
+  worktree review precede exact-root quarantine and bounded deletion. One CLI
+  approval continues positively acknowledged batches within a bounded pass/time
+  limit; lost/nonzero replies stop automatic continuation. Active purge records
+  fence startup, installation and restoration even after the database is detached.
+  Completed hand-off permits a fresh install while retaining permanent claim/lock
+  namespaces, binaries and private recovery evidence. This reboot requirement
+  applies to destructive purge, not ordinary removal or updates. Native end-to-end
+  reboot acceptance remains open. The built-CLI regression exposed and fixed the
+  retained-binary reinstall shortcut: completed purge now reuses existing service
+  restoration/startup, with exact prior-boot proof and a durable supervisor-marker
+  action. It tests multiple deletion batches, retained anchors and repeated install
+  without repeated start; actual reboot/database creation remains separate evidence.
+
+- The combined upgrade test now runs actual bundled daemon/runtime/updater code,
+  checked archives, the canonical installer, host-control review/apply and real
+  replacement adoption. The same runtime PID, shell PID/generation, variable,
+  working directory and background job survive; a new terminal selects the new
+  runtime build. Both version labels use current source and the service manager is
+  simulated: historical-release migration, native supervision and real-provider
+  acceptance remain separate gates.
+  A complementary native macOS test now uses actual uniquely named launchd
+  daemon/runtime/updater jobs and confirms the same continuity plus fresh runtime
+  selection. It prepares approval/dispatch records to avoid addressing the installed
+  daemon label; the deterministic sibling covers that coordinator boundary. Both
+  passed together on macOS 26.5.2 / Node 22.21.1 with confirmed fixture cleanup.
+  Installed-label preflight, native Linux and real-provider acceptance remain open.
+
+- Explicit `nohup`/`none` installations can launch independent owners when no user
+  service manager is available. These owners advertise a limited `host_session`
+  lifetime, check their own process group before starting work and retain the same
+  ownership/intent/adoption machinery. Tests preserve a real shell's PID and state
+  across controller replacement and SIGHUP, fence retired dispatches, and reject
+  old-boot launches before consuming commands. Daemon updates block limited or
+  unknown lifetimes; updating the runtime default remains independent. This does
+  not prove SSH/logout/cgroup survival: verified persistent detached ownership and
+  a separate runtime-holding SSH channel are still required platform work.
 
 - Durable release collection now accepts at most 32 reviewed generations into a
   private serial journal, rechecks references under installer/update/controller

@@ -12,12 +12,21 @@ export class GitError extends Error {
 }
 
 /** All puddle git operations go through here: uniform errors, no shell quoting. */
-export function git(args: string[], opts: { cwd?: string } = {}): Promise<string> {
+export function git(
+  args: string[],
+  opts: { cwd?: string; timeoutMs?: number; maxOutputBytes?: number; env?: NodeJS.ProcessEnv } = {},
+): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(
       'git',
       args,
-      { cwd: opts.cwd, maxBuffer: 16 * 1024 * 1024, encoding: 'utf8' },
+      {
+        cwd: opts.cwd,
+        maxBuffer: opts.maxOutputBytes ?? 16 * 1024 * 1024,
+        timeout: opts.timeoutMs,
+        env: opts.env,
+        encoding: 'utf8',
+      },
       (err, stdout, stderr) => {
         if (err) {
           const code = typeof err.code === 'number' ? err.code : null;

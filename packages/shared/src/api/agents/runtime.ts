@@ -16,6 +16,7 @@ export const sessionRuntimeInspectionSchema = z
       .extend({
         id: z.uuid(),
         connected: z.boolean(),
+        lifetime: z.enum(['service', 'host_session', 'unknown']).optional(),
         terminals: z
           .array(z.object({ term: runtimeTerminalSchema.shape.term }).strict())
           .max(RUNTIME_LIMITS.terminals)

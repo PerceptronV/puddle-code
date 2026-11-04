@@ -45,6 +45,7 @@ import { RuntimeAttentionState } from './state/attention.js';
 import { TerminalAgentMonitor } from '../sessions/terminal-agent-monitor.js';
 import { readTerminalProcessSnapshot } from '../pty/foreground-process.js';
 import { RuntimeTitles } from './state/titles.js';
+import { prepareRuntimeLifetime } from './lifecycle/lifetime.js';
 
 /** One process owns one runtime. No application database or public HTTP server. */
 export class RuntimeHost {
@@ -76,6 +77,7 @@ export class RuntimeHost {
   private readonly titles = new RuntimeTitles();
   private binding: RuntimePlacementBinding | null;
   private agent: RuntimeAgent | null = null;
+  private releaseLifetime: (() => void) | null = null;
   private closingAgent: Promise<void> | null = null;
   readonly launch: RuntimeLaunch;
 
@@ -139,6 +141,7 @@ export class RuntimeHost {
   ): Promise<RuntimeHost> {
     const host = new RuntimeHost(home, id, build);
     try {
+      host.releaseLifetime = await prepareRuntimeLifetime(home, host.launch);
       try {
         runtimeRetiredSchema.parse(readRuntimeJson(join(host.directory, 'retired.json')));
         throw new Error('Runtime launch was retired');
@@ -234,6 +237,7 @@ export class RuntimeHost {
       identity: this.launch.identity,
       protocol: RUNTIME_PROTOCOL_VERSION,
       build: this.build,
+      lifetime: this.launch.lifetime ?? 'unknown',
       state: this.status,
       terminals: [...this.terminals.values()].map((term) => ({ ...term })),
       event_cursor: this.eventCursor,
@@ -873,6 +877,7 @@ export class RuntimeHost {
       for (const socket of this.sockets) socket.destroy();
       if (this.server) await new Promise<void>((resolve) => this.server!.close(() => resolve()));
     } finally {
+      this.releaseLifetime?.();
       this.claim.release();
     }
   }

@@ -1,10 +1,20 @@
-import { constants, copyFileSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  constants,
+  copyFileSync,
+  mkdirSync,
+  readFileSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
 /** Pinned helper with real native claims, using fake systemctl commands on every test OS. */
-export async function buildHostUpdateEntry(root: string) {
+export async function buildHostUpdateEntry(
+  root: string,
+  options: { nativeBootIdentity?: boolean } = {},
+) {
   const repo = fileURLToPath(new URL('../../../../', import.meta.url));
   const entry = join(root, 'daemon/host-update.mjs');
   const node = join(root, 'bin/node');
@@ -13,7 +23,7 @@ export async function buildHostUpdateEntry(root: string) {
   copyFileSync(process.execPath, node, constants.COPYFILE_FICLONE);
   writeFileSync(join(root, 'daemon/install.sh'), '');
   symlinkSync(join(repo, 'packages/daemon/node_modules'), join(root, 'daemon/node_modules'));
-  await buildEntry(repo, entry, 'packages/daemon/src/updates/worker/index.ts');
+  await buildEntry(repo, entry, 'packages/daemon/src/updates/worker/index.ts', options);
   return { entry, node };
 }
 
@@ -23,7 +33,12 @@ export async function buildHostConnectorEntry(root: string): Promise<void> {
   await buildEntry(repo, join(root, 'daemon/connector.mjs'), 'packages/connector/src/index.ts');
 }
 
-async function buildEntry(repo: string, entry: string, source: string): Promise<void> {
+async function buildEntry(
+  repo: string,
+  entry: string,
+  source: string,
+  options: { nativeBootIdentity?: boolean } = {},
+): Promise<void> {
   await build({
     entryPoints: [join(repo, source)],
     outfile: entry,
@@ -47,5 +62,29 @@ async function buildEntry(repo: string, entry: string, source: string): Promise<
       js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);",
     },
     logLevel: 'warning',
+    plugins: options.nativeBootIdentity
+      ? [
+          {
+            name: 'fixture-native-boot-identity',
+            setup(builder) {
+              builder.onLoad({ filter: /shared\/src\/node\/installation\/boot\.ts$/ }, (args) => {
+                const source = readFileSync(args.path, 'utf8');
+                const expression = 'options.platform ?? process.platform';
+                if (!source.includes(expression))
+                  throw new Error('Kernel boot fixture no longer matches its reader');
+                // Supervisor execution stays scripted Linux; kernel evidence comes
+                // from the real test OS. No production boot-reading seam is added.
+                return {
+                  contents: source.replace(
+                    expression,
+                    `options.platform ?? ${JSON.stringify(process.platform)}`,
+                  ),
+                  loader: 'ts',
+                };
+              });
+            },
+          },
+        ]
+      : [],
   });
 }

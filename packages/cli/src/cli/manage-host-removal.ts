@@ -9,6 +9,8 @@ import {
 } from '../lib/installation/host/remove.js';
 import { checkCockpit, readCockpitRecord, removeCockpitRecord } from '../lib/registry.js';
 import { terminateCockpit } from './detach.js';
+import { inspectHostPurge, requireHostPurgeSupport } from '../lib/installation/host/purge.js';
+import { purgeRemovedHost } from './manage-host-purge.js';
 
 /** Modern removal keeps the selected helper and every pinned runtime release for recovery. */
 export async function removePersistentDaemonCmd(
@@ -17,12 +19,17 @@ export async function removePersistentDaemonCmd(
   logger: Logger,
 ): Promise<number> {
   await requireHostRemovalSupport(transport);
-  if (cmd.purge)
-    throw new CliError(
-      'bad_arguments',
-      'Coordinated purge of persistent runtime installations is not implemented yet',
-      'Remove without --purge to retain runtime binaries, worktrees and data',
-    );
+  if (cmd.purge) {
+    await requireHostPurgeSupport(transport);
+    if (cmd.yes && !cmd.stopRuntimes)
+      throw new CliError(
+        'bad_arguments',
+        'Purge requires separate runtime stop consent',
+        'Pass --stop-runtimes as well as --purge, or remove without purging to retain the runtimes and data.',
+      );
+    const purge = await inspectHostPurge(transport);
+    if (purge) return purgeRemovedHost(cmd, transport, logger, purge.id);
+  }
   logger.warn(
     'Removing the daemon interrupts its daemon-owned terminals, notebook kernels, compilation tasks and programmes, and disables remote access.',
   );
@@ -44,6 +51,8 @@ export async function removePersistentDaemonCmd(
     stop = await confirm(
       'Also stop these runtimes and their shell jobs? Choosing no retains them for reinstallation.',
     );
+  if (cmd.purge && !stop)
+    stop = await confirm('Stop all runtime work as a separate prerequisite for purging data?');
   if (stop && review.owners.some(({ stop_blocker }) => stop_blocker !== null))
     throw new CliError(
       'upgrade_failed',
@@ -61,8 +70,16 @@ export async function removePersistentDaemonCmd(
     if ((await checkCockpit(cockpit)) === 'dead') removeCockpitRecord(target);
     else await terminateCockpit(cockpit);
   }
+  if (cmd.purge && stop) {
+    logger.info(
+      `puddled removed from ${transport.label}; runtimes stopped. Data purge is pending.`,
+    );
+    return purgeRemovedHost(cmd, transport, logger, review.id);
+  }
   logger.info(
     `puddled removed from ${transport.label}; runtimes ${stop ? 'stopped' : 'retained'}. Data and pinned releases kept — use \`puddle install daemon${cmd.host ? ` ${cmd.host}` : ''}\` to restore the service.`,
   );
+  if (cmd.purge)
+    logger.info('Purge declined because runtime stop consent was not given; data retained.');
   return 0;
 }

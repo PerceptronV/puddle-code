@@ -43,6 +43,7 @@ function fixture(
   // The transport has already validated full responses; this double supplies the
   // identity fields consumed by compatibility inspection without creating a PTY.
   const state = {
+    lifetime: 'service' as 'service' | 'host_session' | 'unknown' | undefined,
     identity: runtimeBindingIdentity(binding),
     build: binding.build,
     protocol: { major: 1, minor: 8 },
@@ -85,6 +86,24 @@ it('accepts different release versions and additive runtime minors, using suppor
   expect(f.request).toHaveBeenCalledExactlyOnceWith({ t: 'inspect' });
   expect(f.store.read()?.phase).toBe('staged'); // Inspection cannot approve or dispatch.
 });
+
+it.each(['host_session', 'unknown', undefined] as const)(
+  'blocks daemon replacement for %s lifetime without stopping the owner',
+  async (lifetime) => {
+    const f = fixture();
+    f.state.lifetime = lifetime;
+    expect((await f.inspect()).blockers).toContainEqual({
+      code: 'runtime_lifetime_unverified',
+      target: f.binding.runtime_id,
+    });
+    expect(f.request).toHaveBeenCalledExactlyOnceWith({ t: 'inspect' });
+    expect(f.binding.state).toBe('running');
+    const runtime = fixture('runtime');
+    runtime.state.lifetime = lifetime;
+    expect((await runtime.inspect()).blockers).toEqual([]);
+    expect(runtime.request).not.toHaveBeenCalled();
+  },
+);
 
 it.each(['missing', 'older'] as const)(
   'blocks %s candidate database support without changing live owners',

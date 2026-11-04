@@ -24,6 +24,8 @@ import { HostRemovalGuard } from '../guard.js';
 import { HostRemovalServiceOperation } from '../operations/services.js';
 import { verifyRemovalServiceStopped, verifyRemovalServiceUnregistered } from '../services.js';
 import { restoreServiceDefinition, syncRestoredServiceDefinition } from './definition.js';
+import type { PurgedRestoration } from './purge.js';
+import { readSupervisorMarker } from '../../supervision/marker.js';
 
 interface Options {
   authorised: () => boolean;
@@ -32,6 +34,7 @@ interface Options {
   write?: typeof atomicPrivateJson;
   /** Continuation must find the existing exact journal; absence is never a fresh attempt. */
   resume?: boolean;
+  purge?: PurgedRestoration;
 }
 
 /** Restore the retained service configuration; ordinary selected startup follows after hand-off. */
@@ -69,7 +72,11 @@ export class HostRemovalServiceRestore {
       format: 1,
       removal_id: this.removal.id,
       removal_digest: this.fingerprint,
-      actions: hostRemovalRestorePlan(this.removal).map((action) => ({ action, state: 'planned' })),
+      ...(options.purge ? { purge_digest: options.purge.digest } : {}),
+      actions: hostRemovalRestorePlan(this.removal, Boolean(options.purge)).map((action) => ({
+        action,
+        state: 'planned',
+      })),
     });
     const path = join(this.directory, 'restore.json');
     let previous: HostRemovalRestore | null = null;
@@ -122,6 +129,7 @@ export class HostRemovalServiceRestore {
   private requireCurrent(): void {
     this.guard.requireController();
     if (!this.options.authorised()) throw new Error('Host restoration authority expired');
+    this.options.purge?.requireCurrent();
     if (digest(JSON.stringify(this.operation.read())) !== this.fingerprint)
       throw new Error('Removal evidence changed before restoration');
   }
@@ -130,6 +138,21 @@ export class HostRemovalServiceRestore {
     const entry = this.removal.services.find(({ review }) => review.component === component);
     if (!entry) throw new Error('Missing reviewed service for restoration');
     return entry;
+  }
+
+  private review(component: 'daemon' | 'connector') {
+    const { review } = this.entry(component);
+    // The unchanged journal/digest remains authoritative; prior-boot PIDs are not live evidence.
+    return this.options.purge ? { ...review, process: null } : review;
+  }
+
+  private supervisor() {
+    if (!this.options.purge)
+      throw new Error('Supervisor restoration requires completed purge proof');
+    const kind = this.entry('daemon').review.target.kind;
+    if (this.removal.services.some(({ review }) => review.target.kind !== kind))
+      throw new Error('Removed service supervision is inconsistent');
+    return { file: join(this.guard.home, 'supervisor'), kind };
   }
 
   private async verifySource(component: 'daemon' | 'connector'): Promise<void> {
@@ -145,11 +168,16 @@ export class HostRemovalServiceRestore {
 
   private async verify(action: HostRemovalRestoreAction): Promise<void> {
     this.requireCurrent();
-    if (action === 'reload-services') {
+    if (action === 'restore-supervisor') {
+      const { file, kind } = this.supervisor();
+      if ((await readSupervisorMarker(this.guard.home, process.getuid!())) !== kind)
+        throw new Error('Restored supervisor marker changed');
+      syncRestoredServiceDefinition(file);
+    } else if (action === 'reload-services') {
       for (const { review } of this.removal.services)
         await verifyRemovalServiceStopped(
           this.guard,
-          review,
+          this.review(review.component),
           this.options.authorised,
           this.options.run,
         );
@@ -185,11 +213,16 @@ export class HostRemovalServiceRestore {
       }
       await this.writer.run(step.action, async () => {
         const execute = supervisorCommand(this.guard.home, this.guard.commands(this.options.run));
-        if (step.action === 'reload-services')
+        if (step.action === 'restore-supervisor') {
+          const { file, kind } = this.supervisor();
+          this.requireCurrent();
+          restoreServiceDefinition(file, Buffer.from(`${kind}\n`).toString('base64'));
+        } else if (step.action === 'reload-services')
           await execute('systemctl', ['--user', 'daemon-reload']);
         else {
           const component = step.action.endsWith('-connector') ? 'connector' : 'daemon';
-          const { review, source } = this.entry(component);
+          const { source } = this.entry(component);
+          const review = this.review(component);
           if (step.action.startsWith('restore-')) {
             await verifyRemovalServiceUnregistered(
               this.guard,
@@ -198,7 +231,7 @@ export class HostRemovalServiceRestore {
               this.options.run,
             );
             this.requireCurrent();
-            restoreServiceDefinition(review.definition, source);
+            restoreServiceDefinition(review.definition, source, this.options.userHome ?? homedir());
           } else {
             await this.verifySource(component);
             this.requireCurrent();
@@ -222,7 +255,7 @@ export class HostRemovalServiceRestore {
     for (const { review } of this.removal.services)
       await verifyRemovalServiceStopped(
         this.guard,
-        review,
+        this.review(review.component),
         this.options.authorised,
         this.options.run,
       );

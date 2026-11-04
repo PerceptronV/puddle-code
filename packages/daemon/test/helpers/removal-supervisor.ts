@@ -2,8 +2,12 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /** Fake systemd only; commands are subprocesses but never contact an installed supervisor. */
-export function scriptedRemovalSupervisor(home: string, node: string, running = false) {
-  const commands = join(home, 'commands');
+export function scriptedRemovalSupervisor(
+  home: string,
+  node: string,
+  running = false,
+  commands = join(home, 'commands'),
+) {
   mkdirSync(commands);
   if (running) writeFileSync(join(home, 'service-running'), 'yes');
   writeFileSync(

@@ -27,6 +27,27 @@ then run normally. Both tests passed together on macOS 26.5.2 / Node 22.21.1 on
 daemon-label preflight, Linux supervision, historical migration and real providers
 remain separate release gates.
 
+Runtime lifetime checks under `test/runtime/lifecycle/lifetime.test.ts` exercise
+explicit unsupervised selection, bounded process-group inspection, refusal before
+command consumption on a different boot, controller replacement with the same live
+shell and SIGHUP handling. Update preflight refuses `host_session`, unknown and
+absent lifetime evidence without stopping owners. These checks do not establish
+survival of SSH/logout/cgroup teardown.
+
+Purge tests under `test/host/removal/purge*.test.ts` use controlled boot observations
+to verify same-boot refusal, retirement claims, fresh Git review, exact quarantine,
+interrupted rename/completion and startup/installer fencing. The CLI stops automatic
+continuation after lost/nonzero replies and continues only acknowledged bounded
+batches. Actual reboot-to-purge on Linux/macOS, including reinstall and independent
+provider descendants, remains manual acceptance; test boot injection is not that
+evidence. Confirm the documented control/recovery anchors remain after completion.
+`purge-cli-process.test.ts` additionally runs the built CLI and pinned host helper,
+with real kernel inspection and an explicitly edited fixture barrier to represent
+a previous boot. It deletes 1,100 fixture files across acknowledged batches, keeps
+the lock/claim/helper anchors, restores the service/marker and verifies authenticated
+fixture readiness plus no duplicate start. Its scripted service manager does not
+prove actual fresh daemon database initialisation or a real reboot.
+
 Coordinated removal tests cover public local/SSH dispatch, default retention, explicit
 runtime stop consent, refusal of stale impact and blocked stops, remote disablement and
 lost disable/unregistration replies. Completion receipts bind a fresh attempt id; an

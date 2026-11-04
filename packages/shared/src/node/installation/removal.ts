@@ -12,13 +12,15 @@ export function requireNoHostRemoval(home: string): void {
       throw error;
     }
   }
-  try {
-    lstatSync(join(home, 'installation/removal/services.json'));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
-    throw error;
+  for (const name of ['services.json', 'purge.json']) {
+    try {
+      lstatSync(join(home, 'installation/removal', name));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      throw error;
+    }
+    throw new Error(
+      'Resolve the recorded host removal before starting or updating this installation',
+    );
   }
-  throw new Error(
-    'Resolve the recorded host removal before starting or updating this installation',
-  );
 }

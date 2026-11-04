@@ -7,6 +7,7 @@ import {
   hostReleaseCapabilities,
   type HostRemovalFinish,
   type HostRemovalRuntimeReview,
+  type HostPurgeReview,
 } from '@puddle/shared';
 import type { Transport } from '../../../src/lib/transport/transport.js';
 import { runRemove } from '../../../src/cli/manage.js';
@@ -48,6 +49,12 @@ function fixture(kind: 'local' | 'ssh' = 'local') {
     failFinish: false,
     resume: false,
     old: false,
+    purge: null as HostPurgeReview | null,
+    rebooted: false,
+    losePurgeReply: false,
+    rejectPurge: false,
+    purgeBatches: 0,
+    nonzeroPurgeReply: false,
   };
   const commands: string[] = [];
   const transport: Transport = {
@@ -60,8 +67,30 @@ function fixture(kind: 'local' | 'ssh' = 'local') {
         return { code: 0, stdout: '', stderr: '' };
       if (command.includes('HOST_CAPABILITIES')) {
         const capabilities = hostReleaseCapabilities('0.4.0');
+        capabilities.application.minor = 20;
         if (state.old) capabilities.application.minor = 18;
         output = capabilities;
+      } else if (command.includes('--inspect-purge')) output = state.purge;
+      else if (command.includes('--prepare-purge')) {
+        state.purge = {
+          id: review.id,
+          phase: state.rebooted ? 'ready' : 'reboot_required',
+          fingerprint: state.rebooted ? 'b'.repeat(64) : null,
+          worktrees: state.rebooted
+            ? [{ path: '/fixture/worktree', dirty: true, local_only: true }]
+            : [],
+          attempt_id: null,
+        };
+        output = state.purge;
+      } else if (command.includes('--apply-purge')) {
+        if (state.rejectPurge) return { code: 1, stdout: '', stderr: 'private detail' };
+        state.purge = {
+          ...state.purge!,
+          phase: state.purgeBatches-- > 0 ? 'deleting' : 'complete',
+          attempt_id: command.split(' ').at(-1)!,
+        };
+        if (state.losePurgeReply) throw new Error('Lost purge reply');
+        if (state.nonzeroPurgeReply) return { code: 1, stdout: '', stderr: 'private detail' };
       } else if (command.includes('--inspect-removal-result')) output = state.receipt;
       else if (command.includes('--inspect-removal'))
         output = state.receipt
@@ -194,7 +223,7 @@ it('does not reuse a previous completion receipt for a newly failed finish attem
 });
 
 it.each(['old', 'purge'] as const)(
-  'refuses unsupported %s removal before mutation',
+  'refuses unsupported removal or missing %s consent before mutation',
   async (kind) => {
     const f = fixture();
     f.state.old = kind === 'old';
@@ -203,5 +232,89 @@ it.each(['old', 'purge'] as const)(
     ).rejects.toThrow();
     expect(f.commands.some((command) => command.includes('host-update.mjs'))).toBe(false);
     await expect(removeDaemon(f.transport)).rejects.toThrow('coordinated removal');
+  },
+);
+
+it.each(['local', 'ssh'] as const)(
+  'separates %s runtime stop consent from purge and retains data until reboot',
+  async (kind) => {
+    const f = fixture(kind);
+    await runRemove(
+      { cmd: 'remove', what: 'daemon', yes: true, purge: true, stopRuntimes: true },
+      f.logger,
+    );
+    expect(f.state.receipt?.disposition).toBe('stop');
+    expect(f.state.purge?.phase).toBe('reboot_required');
+    expect(f.commands.some((command) => command.includes('--apply-purge'))).toBe(false);
+    expect(f.logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('Reboot the target machine'),
+    );
+    f.state.rebooted = true;
+    f.state.losePurgeReply = true;
+    f.commands.length = 0;
+    await runRemove(
+      { cmd: 'remove', what: 'daemon', yes: true, purge: true, stopRuntimes: true },
+      f.logger,
+    );
+    expect(f.state.purge?.phase).toBe('complete');
+    expect(f.commands.filter((command) => command.includes('--apply-purge'))).toHaveLength(1);
+    expect(f.commands.some((command) => command.includes('--finish-removal'))).toBe(false);
+    expect(f.logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('uncommitted work, unpushed commits'),
+    );
+  },
+);
+
+it('does not turn an old purge receipt into success after a rejected new attempt', async () => {
+  const f = fixture();
+  f.state.purge = {
+    id: f.review.id,
+    phase: 'deleting',
+    fingerprint: 'b'.repeat(64),
+    worktrees: [],
+    attempt_id: randomUUID(),
+  };
+  f.state.rebooted = true;
+  f.state.rejectPurge = true;
+  await expect(
+    runRemove(
+      { cmd: 'remove', what: 'daemon', yes: true, purge: true, stopRuntimes: true },
+      f.logger,
+    ),
+  ).rejects.toMatchObject({ code: 'upgrade_failed' });
+  expect(f.commands.filter((command) => command.includes('--apply-purge'))).toHaveLength(1);
+  expect(f.commands.some((command) => /rm -rf|sh -s/.test(command))).toBe(false);
+});
+
+it('continues positively acknowledged bounded batches under the same purge approval', async () => {
+  const f = fixture();
+  f.state.rebooted = true;
+  f.state.purgeBatches = 2;
+  await runRemove(
+    { cmd: 'remove', what: 'daemon', yes: true, purge: true, stopRuntimes: true },
+    f.logger,
+  );
+  expect(f.commands.filter((command) => command.includes('--apply-purge'))).toHaveLength(3);
+  expect(f.state.purge?.phase).toBe('complete');
+  expect(f.logger.info).not.toHaveBeenCalledWith(expect.stringContaining('to restore the service'));
+});
+
+it.each(['lost', 'nonzero'] as const)(
+  'never automatically continues after a %s bounded purge reply',
+  async (kind) => {
+    const f = fixture();
+    f.state.rebooted = true;
+    f.state.purgeBatches = 2;
+    f.state.losePurgeReply = kind === 'lost';
+    f.state.nonzeroPurgeReply = kind === 'nonzero';
+    await runRemove(
+      { cmd: 'remove', what: 'daemon', yes: true, purge: true, stopRuntimes: true },
+      f.logger,
+    );
+    expect(f.commands.filter((command) => command.includes('--apply-purge'))).toHaveLength(1);
+    expect(f.state.purge?.phase).toBe('deleting');
+    expect(f.logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('continue before reinstalling'),
+    );
   },
 );

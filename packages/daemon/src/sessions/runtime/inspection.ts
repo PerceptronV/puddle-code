@@ -45,6 +45,7 @@ export function inspectSessionRuntime(
           version: current.build,
           protocol: { major: current.protocol_major, minor: current.protocol_minor },
           connected: state !== null,
+          lifetime: state?.lifetime ?? 'unknown',
           terminals: terms?.map(({ term }) => ({ term })) ?? null,
         }
       : null,

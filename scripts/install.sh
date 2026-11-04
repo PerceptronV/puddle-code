@@ -185,7 +185,8 @@ for REMOVAL_DIR in "$HOME_DIR/installation" "$HOME_DIR/installation/removal"; do
     [ "$1" = "$(id -u)" ] && [ "$((0$2 & 0077))" -eq 0 ] || die "unsafe host removal directory"
   fi
 done
-if [ -e "$HOME_DIR/installation/removal/services.json" ] || [ -L "$HOME_DIR/installation/removal/services.json" ]; then
+if [ -e "$HOME_DIR/installation/removal/services.json" ] || [ -L "$HOME_DIR/installation/removal/services.json" ] ||
+   [ -e "$HOME_DIR/installation/removal/purge.json" ] || [ -L "$HOME_DIR/installation/removal/purge.json" ]; then
   die "resolve the recorded host removal before installing or updating this host"
 fi
 cleanup() {

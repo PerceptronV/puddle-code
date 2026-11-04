@@ -35,6 +35,18 @@ required fields, removed operations, changed meanings and authentication changes
 require a new major once this contract has shipped. The initial unshipped 1.0
 contract is developed together with its first owner/client implementation.
 
+Launch records optionally retain `boot_id` and `lifetime`; new dispatches declare
+`service` or `host_session`, with kernel boot evidence required for the latter.
+An owner validates a recorded boot before consuming intent or starting a provider.
+Detached owners must prove their own process group and ignore terminal hangup;
+neither establishes survival of host session teardown. Authenticated runtime state
+reports that lifetime, or `unknown` for earlier records. Daemon replacement requires
+`service`; limited/unknown owners remain running and block that update. Changing
+only the installed runtime default remains possible. Detached registration cleanup
+uses existing launch/dispatch/owner claims and retirement fencing; it never signals
+a recorded PID or claims provider descendants have ended. These additions develop
+the initial unshipped 1.0 contract alongside its first implementation.
+
 The host presents runtime id, incarnation, launch id and build independently of
 its current controller. The controller proves the private runtime secret plus
 its current host-controller id/epoch. Application/browser credentials, remote
