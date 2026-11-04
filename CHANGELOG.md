@@ -32,6 +32,7 @@ Persistent runtimes and cockpit-managed host updates are mandatory standard beha
 ### Fixed
 
 - Share managed memory capacity across independent runtimes. Admit new owners before dispatch, bound log/checkpoint/message buffers, return idle spare capacity and reclaim grants only after the owning process exits.
+- Handle concurrently deleted SQLite rollback journals during shared-memory admission, preserving strict ledger ownership, permissions, identity and size checks.
 - Pause unsent Codex bridge traffic under shared memory pressure without terminating the native CLI. Retain fragmented-message and scripted-turn accounting through delivery, bound diagnostics and preserve exact lifecycle observations.
 - Keep terminal screen parsing responsive during slow snapshot writes. Bound queued work and serialised screens, preserve replay ordering and complete visible terminal modes, and report a canonical-screen gap instead of silently presenting dropped input as complete.
 - Preserve canonical terminal screens during brief shared-memory admission contention, and avoid reserving restore work when no saved snapshot exists.

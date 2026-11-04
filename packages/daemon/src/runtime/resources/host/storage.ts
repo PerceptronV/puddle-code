@@ -8,8 +8,9 @@ import {
   readSync,
   realpathSync,
   unlinkSync,
+  type Stats,
 } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { z } from 'zod';
 import {
   initialisePrivateHome,
@@ -83,12 +84,31 @@ export function memoryPaths(home: string, create = true): HostMemoryPaths | null
   };
 }
 
-export function memoryFile(file: string, maxBytes: number) {
-  privatePath(file);
+function memoryStat(file: string, maxBytes: number): Stats {
   const stat = lstatSync(file);
-  if (!stat.isFile() || stat.nlink !== 1 || stat.size > maxBytes)
-    throw new Error('Unsafe or oversized host memory ledger file');
+  const name = basename(file);
+  // Apply privatePath's owner/mode/no-symlink rules to the SAME observation as
+  // the regular-file, size and link checks: sidecars may change between stats.
+  if (!stat.isFile()) throw new Error(`Unsafe host memory ledger file type: ${name}`);
+  if (process.getuid && stat.uid !== process.getuid())
+    throw new Error(`Unsafe host memory ledger file owner: ${name}`);
+  if (process.platform !== 'win32' && (stat.mode & 0o077) !== 0)
+    throw new Error(`Unsafe host memory ledger file permissions: ${name}`);
+  if (stat.size > maxBytes)
+    throw new Error(
+      `Unsafe oversized host memory ledger file: ${name} (${stat.size} > ${maxBytes})`,
+    );
   return stat;
+}
+
+function requireSingleLink(file: string, stat: Stats): Stats {
+  if (stat.nlink !== 1)
+    throw new Error(`Unsafe host memory ledger file link count: ${basename(file)} (${stat.nlink})`);
+  return stat;
+}
+
+export function memoryFile(file: string, maxBytes: number): Stats {
+  return requireSingleLink(file, memoryStat(file, maxBytes));
 }
 
 export function optionalMemoryFile(file: string, maxBytes: number) {
@@ -186,7 +206,18 @@ export function requireNoRuntimeLaunches(home: string): void {
 }
 
 export function requireMemorySidecars(paths: HostMemoryPaths): void {
-  optionalMemoryFile(`${paths.database}-journal`, HOST_MEMORY_LEDGER_BYTES + 1024 * 1024);
+  const journal = `${paths.database}-journal`;
+  const maximum = HOST_MEMORY_LEDGER_BYTES + 1024 * 1024;
+  try {
+    const stat = memoryStat(journal, maximum);
+    // macOS lstat can observe SQLite's DELETE journal after unlink (nlink=0).
+    // Only this transient sidecar may be re-observed, once. Never trust the old
+    // inode or retry an unsafe replacement, database operation or ledger CAS.
+    if (stat.nlink === 0) optionalMemoryFile(journal, maximum);
+    else requireSingleLink(journal, stat);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
   for (const suffix of ['-wal', '-shm'])
     if (optionalMemoryFile(paths.database + suffix, HOST_MEMORY_LEDGER_BYTES))
       throw new Error('Unexpected host memory ledger WAL state');
