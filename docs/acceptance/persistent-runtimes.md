@@ -10,6 +10,23 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+The combined update gates under `daemon/test/updates/continuity/` build actual
+daemon/runtime/updater archives, use the canonical installer and verify adoption
+plus unchanged runtime/shell PIDs, shell variables, cwd and a background job.
+New terminals must select the updated runtime build. Both synthetic release labels
+use current source; these tests do not establish historical-release migration.
+
+`combined-update.test.ts` exercises host-control begin/stage/review/apply with an
+isolated simulated systemd executable. `native-launchd.test.ts` uses genuine,
+uniquely named launchd daemon/runtime/updater jobs; enable it with
+`PUDDLE_TEST_RUNTIME_SUPERVISOR=1`. It prepares approval/dispatch records in the test
+because production preflight targets the installed daemon label, which this fixture
+must never address. The native worker, service replacement, installer and adoption
+then run normally. Both tests passed together on macOS 26.5.2 / Node 22.21.1 on
+2026-11-04. Cleanup confirmed removed jobs and ended fixture processes. Installed
+daemon-label preflight, Linux supervision, historical migration and real providers
+remain separate release gates.
+
 Coordinated removal tests cover public local/SSH dispatch, default retention, explicit
 runtime stop consent, refusal of stale impact and blocked stops, remote disablement and
 lost disable/unregistration replies. Completion receipts bind a fresh attempt id; an

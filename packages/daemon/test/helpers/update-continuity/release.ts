@@ -29,7 +29,7 @@ export const installer = join(repo, 'scripts/install.sh');
  * Both synthetic versions use current source: this proves upgrade composition,
  * not migration from an historical released daemon or native systemd behaviour.
  */
-export async function continuityRelease(home: string, version: string) {
+export async function continuityRelease(home: string, version: string, native = false) {
   const root = join(home, 'test-archives', version);
   const release = join(root, `puddled-v${version}`);
   mkdirSync(join(release, 'bin'), { recursive: true });
@@ -58,7 +58,7 @@ export async function continuityRelease(home: string, version: string) {
     define: {
       __PUDDLED_VERSION__: JSON.stringify(version),
       __PUDDLER_VERSION__: JSON.stringify(version),
-      'process.platform': '"linux"',
+      ...(native ? {} : { 'process.platform': '"linux"' }),
     },
     banner: {
       js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);",
@@ -66,10 +66,14 @@ export async function continuityRelease(home: string, version: string) {
     logLevel: 'warning',
   });
   copyFileSync(installer, join(release, 'daemon/install.sh'));
+  const quote = (value: string) => "'" + value.replace(/'/g, "'\\''") + "'";
+  const environment = native
+    ? `/usr/bin/env -i ${['HOME=' + home, 'PUDDLE_HOME=' + home, 'PATH=/usr/bin:/bin:/usr/sbin:/sbin', 'LANG=en_US.UTF-8', 'SHELL=/bin/sh'].map(quote).join(' ')} `
+    : '';
   for (const component of ['puddled', 'puddler'])
     writeFileSync(
       join(release, component),
-      `#!/bin/sh\nroot=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)\nexec "$root/bin/node" "$root/daemon/${component}.mjs" "$@"\n`,
+      `#!/bin/sh\nroot=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)\nexec ${environment}"$root/bin/node" "$root/daemon/${component}.mjs" "$@"\n`,
       { mode: 0o755 },
     );
   writeFileSync(join(release, 'VERSION'), version + '\n');
