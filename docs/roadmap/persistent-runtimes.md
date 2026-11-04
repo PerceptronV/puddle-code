@@ -31,6 +31,19 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Shutdown observation now shares one hand-off verifier between ordinary updates
+  and internal stopped-daemon recovery. It rechecks the original service definition,
+  exact checkpoint and released controller without minting another epoch or sending
+  another stop. Recovery shares completion recovery's dispatch/execution exclusion,
+  checks ended-worker evidence and attempted-step intent, and retains controller
+  exclusion after checking candidate database/runtime support. An isolated daemon
+  test loses the stop reply, rejects incompatible runtime support and recovers the
+  hand-off while the independent shell retains its PID; failure tests cover missing
+  evidence, changed controllers/configuration and authority/lifetime races. This is
+  the internal recovery hand-off, not yet a public forward-recovery action: separate
+  recovery-worker dispatch, remaining selection/start steps and offline CLI integration
+  remain required. Application 25.11, remote 4 and runtime 1.0 are unchanged.
+
 - The surviving worker now writes a bounded step journal before activation,
   binding its fixed stop/select/start plan to the accepted operation and worker.
   Every step records durable intent before external mutation; lost replies and

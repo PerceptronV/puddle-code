@@ -126,7 +126,7 @@ export async function prepareServiceReplacement(
   });
 }
 
-async function unchangedDefinition(
+export async function requireUnchangedServiceDefinition(
   home: string,
   service: HostServiceReplacement,
   run?: CompilationCommandRunner,
@@ -192,7 +192,7 @@ export async function stopServiceForReplacement(
   run?: CompilationCommandRunner,
 ): Promise<void> {
   const service = hostServiceReplacementSchema.parse(input);
-  await unchangedDefinition(home, service, run);
+  await requireUnchangedServiceDefinition(home, service, run);
   const current = await inspectRunningService(home, service, service.pid, run);
   if (current.invocation !== service.invocation || current.controlGroup !== service.controlGroup)
     throw new Error('Outgoing host service was replaced');
@@ -209,7 +209,7 @@ export async function startReplacementService(
   run?: CompilationCommandRunner,
 ): Promise<void> {
   const service = hostServiceReplacementSchema.parse(input);
-  await unchangedDefinition(home, service, run);
+  await requireUnchangedServiceDefinition(home, service, run);
   if (!(await serviceIsStopped(home, service, run))) throw new Error('Host service is not stopped');
   const execute = supervisorCommand(home, run);
   if (service.kind === 'systemd') await execute('systemctl', ['--user', 'start', service.name]);

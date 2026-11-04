@@ -165,12 +165,14 @@ it('retains recovery for a live or reused process group and never signals it', a
 
 it('holds exclusion across verification and rechecks participating authority before completion', async () => {
   const f = fixture();
-  let checks = 0;
-  const first = recoverCompletedHostUpdate(f.home, f.operation, () => ++checks < 3);
+  let authorised = true;
+  const first = recoverCompletedHostUpdate(f.home, f.operation, () => authorised);
+  authorised = false;
+  const denied = expect(first).rejects.toThrow('authority expired');
   await expect(recoverCompletedHostUpdate(f.home, f.operation, () => true)).rejects.toThrow(
     'owns this host claim',
   );
-  await expect(first).rejects.toThrow('authority expired');
+  await denied;
   expect(f.store.read()?.phase).toBe('recovery_required');
   expect((await recoverCompletedHostUpdate(f.home, f.store.read()!, () => true)).phase).toBe(
     'complete',

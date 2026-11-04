@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Share exact shutdown and checkpoint verification with stopped-daemon recovery, retaining controller exclusion after lost stop replies while independent runtimes continue; reject changed service definitions, stale controllers and incompatible candidates before further activation.
+
 - Record durable host-update step intent before stopping services, selecting releases or starting replacements, retaining attempted versus unstarted work after lost replies and storage failures for explicit recovery.
 
 - Inspect recorded host-update status through local/SSH access when the daemon cannot connect, reusing the existing host-control helper and shared private-ledger validation without starting services or replaying updates.

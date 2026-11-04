@@ -1,0 +1,62 @@
+import type { HostUpdateOperation } from '@puddle/shared';
+import type { CompilationCommandRunner } from '../../compilation/process.js';
+import { readStageCapabilities } from '../preflight/candidate.js';
+import { requireCheckpointCompatibility } from '../checkpoints/compatibility.js';
+import { claimStoppedDaemonUpdate } from '../verification/shutdown.js';
+import { readUpdateActions } from '../worker/actions.js';
+import { claimHostUpdateRecovery } from './claim.js';
+
+/** Recover the original hand-off without stopping a service or opening application storage. */
+export async function claimStoppedHostUpdateRecovery(
+  home: string,
+  reference: Pick<HostUpdateOperation, 'id' | 'revision'>,
+  authorised: () => boolean,
+  run?: CompilationCommandRunner,
+) {
+  const recovery = claimHostUpdateRecovery(home, reference, authorised);
+  let handoff: Awaited<ReturnType<typeof claimStoppedDaemonUpdate>> = null;
+  try {
+    const { operation, job } = recovery;
+    const actions = readUpdateActions(home, job, operation);
+    const stop = actions.actions.find(({ action }) => action === 'stop-daemon');
+    if (!stop || stop.state === 'planned')
+      throw new Error('The original daemon shutdown was never attempted');
+    const stage = operation.stages.find(({ record }) => record.component === 'daemon');
+    if (!stage) throw new Error('Missing daemon recovery stage');
+    const candidate = await readStageCapabilities(home, stage);
+    recovery.check();
+    handoff = await claimStoppedDaemonUpdate(home, job, recovery.check, run);
+    if (!handoff)
+      throw new Error('Daemon shutdown checkpoint or controller release is unconfirmed');
+    requireCheckpointCompatibility(candidate, handoff.checkpoint);
+    recovery.check();
+    let released = false;
+    return {
+      operation,
+      job,
+      actions,
+      checkpoint: handoff.checkpoint,
+      checkpointDigest: handoff.digest,
+      check: () => {
+        if (released) throw new Error('Stopped recovery claim is released');
+        recovery.check();
+      },
+      release: () => {
+        if (released) return;
+        released = true;
+        try {
+          handoff!.release();
+        } finally {
+          recovery.release();
+        }
+      },
+    };
+  } catch (error) {
+    try {
+      handoff?.release();
+    } finally {
+      recovery.release();
+    }
+    throw error;
+  }
+}

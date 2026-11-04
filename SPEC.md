@@ -226,6 +226,15 @@ steps remain distinguishable from attempted work, but a finished entry is not fr
 service health or runtime adoption evidence. Existing journals cannot be restarted
 by ordinary execution, and missing older journals grant no replay permission.
 
+Normal updates and internal stopped-daemon recovery share shutdown observation:
+verify the original service definition, supervisor shutdown, exact drained checkpoint
+and released controller, then retain the controller claim without changing its epoch.
+Recovery also fences dispatch/execution, checks ended-worker evidence and recorded
+shutdown intent, and validates the candidate against checkpointed database/runtime
+support. Authority and lifetime are rechecked after asynchronous probes. This
+hand-off issues no service command and opens no application database. Public forward
+recovery still requires an independently supervised recovery worker and CLI integration.
+
 Before any activation command, the updater confirms its independent service,
 requires that it leads its own process group and durably records that group against
 the operation, dispatch and worker identities. Commands remain in that group.

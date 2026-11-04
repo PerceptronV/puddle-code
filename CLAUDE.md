@@ -198,6 +198,13 @@ never overwrite an existing journal or replay started steps. Finished entries do
 not substitute for fresh service/adoption checks, and missing old journals cannot
 prove a command was never attempted. Use the existing installer and supervisor
 helpers inside these boundaries.
+Shutdown observation is shared through `updates/verification/shutdown.ts`; normal
+updates and internal recovery must verify the exact service definition, checkpoint
+and released original controller before retaining its claim. Recovery's common
+dispatch/execution exclusion lives in `updates/recovery/claim.ts`. Recheck authority
+and ended-worker evidence after asynchronous probes; never mint a new controller
+epoch or issue another stop to recover a lost reply. Candidate compatibility uses
+the same checkpoint gate as ordinary execution. Public forward recovery remains pending.
 Runtime owners and update workers share `host/services.ts`; neither service may
 inherit puddled's restart or termination boundary. The packaged one-shot updater
 composes runtime-default and daemon/combined selection using its pinned copy of the

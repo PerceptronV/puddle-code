@@ -1,12 +1,8 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { hostUpdateWorkerSchema, type HostUpdateWorker } from '@puddle/shared';
 import type { CompilationCommandRunner } from '../../../compilation/process.js';
-import {
-  stopServiceForReplacement,
-  serviceIsStopped,
-} from '../../../host/supervision/replacement.js';
-import { readRuntimeController } from '../../../runtime/ownership/storage.js';
-import { acquireHostClaim, HostClaimBusy } from '../../../security/claims.js';
+import { stopServiceForReplacement } from '../../../host/supervision/replacement.js';
+import { claimStoppedDaemonUpdate } from '../../verification/shutdown.js';
 import { readHostUpdateCheckpointEvidence } from '../../checkpoints/store.js';
 import { requireExecutingUpdate, requireOutgoingController } from '../operation.js';
 
@@ -40,47 +36,8 @@ export async function stopDaemonForUpdate(
   );
   const deadline = Date.now() + 30_000;
   for (;;) {
-    requireExecuting();
-    if (await serviceIsStopped(home, service, run)) {
-      try {
-        const evidence = readHostUpdateCheckpointEvidence(home, job.operation_id);
-        const { checkpoint } = evidence;
-        if (
-          checkpoint.dispatch_id !== job.dispatch_id ||
-          checkpoint.preflight !== job.preflight ||
-          checkpoint.daemon.pid !== outgoing.pid ||
-          checkpoint.daemon.controller.id !== outgoing.controller.id ||
-          checkpoint.daemon.controller.epoch !== outgoing.controller.epoch ||
-          checkpoint.owners.some(
-            (owner) => owner.state === 'prepared' || owner.state === 'interrupted',
-          )
-        )
-          throw new Error('Outgoing daemon did not prove runtime continuity');
-        // Do not mint another controller epoch. Keep new controllers out until selector
-        // verification is complete; the caller releases this claim before service start.
-        const claim = acquireHostClaim(home, 'daemon-controller');
-        let retain = false;
-        try {
-          const controller = readRuntimeController(home);
-          if (
-            controller.id !== outgoing.controller.id ||
-            controller.epoch !== outgoing.controller.epoch
-          )
-            throw new Error('Outgoing daemon controller was replaced');
-          if (!controller.active) {
-            retain = true;
-            return { ...evidence, release: () => claim.release() };
-          }
-        } finally {
-          if (!retain) claim.release();
-        }
-      } catch (error) {
-        // launchd can remove registration before asynchronous signal drainage ends.
-        // Observe that same shutdown, never send another stop or infer a lost owner.
-        if (!(error instanceof HostClaimBusy) && (error as NodeJS.ErrnoException).code !== 'ENOENT')
-          throw error;
-      }
-    }
+    const handoff = await claimStoppedDaemonUpdate(home, job, requireExecuting, run);
+    if (handoff) return handoff;
     if (Date.now() >= deadline)
       throw new Error('Daemon shutdown checkpoint or controller release is unconfirmed');
     await delay(100);

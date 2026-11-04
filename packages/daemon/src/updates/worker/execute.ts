@@ -14,6 +14,7 @@ import { selectUpdateStage, verifyUpdateSelection } from './selection.js';
 import { verifyHostUpdateCompletion } from '../verification/completion.js';
 import { recordUpdateWorkerLifetime } from './lifetime.js';
 import { HostUpdateActions } from './actions.js';
+import { requireCheckpointCompatibility } from '../checkpoints/compatibility.js';
 
 /** One consumed worker transaction; uncertainty always retains its operation for inspection. */
 export async function executeHostUpdate(
@@ -51,17 +52,7 @@ export async function executeHostUpdate(
       await actions.run('stop-daemon', async () => {
         handoff = await stopDaemonForUpdate(home, job, execute);
       });
-      if (
-        candidate!.database_schema_version === undefined ||
-        candidate!.database_schema_version < handoff!.checkpoint.daemon.schema_version
-      )
-        throw new Error('Candidate cannot open the checkpointed application database');
-      if (
-        handoff!.checkpoint.owners.some(
-          (owner) => !candidate!.supported_runtime_majors.includes(owner.protocol.major),
-        )
-      )
-        throw new Error('Candidate cannot adopt a checkpointed runtime');
+      requireCheckpointCompatibility(candidate!, handoff!.checkpoint);
     }
     // Each selector is atomic. A failure between components retains the exact partial
     // result for recovery; never silently undo a selection or replay its installer.
