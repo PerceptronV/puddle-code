@@ -1,12 +1,34 @@
 # Isolated host archive and native upgrade verification
 
-The latest macOS arm64 host archive was built from clean production source
+The final macOS arm64 host archive was built from clean production source
+`85c66bde54e10b7c41c6d4e4706678ad5f6e0747` on 4 November 2026, after canonical
+screen preparation moved before runtime PTY dispatch. Executable/capability,
+native-dependency and puddlang smoke checks passed. The packaged continuity and
+authenticated release-notes test passed in **15.94 seconds** (17.22 seconds total).
+It retains the existing isolated installer, controller-replacement, exact process
+identity and release-note content assertions described below.
+
+| Item | Final archive result |
+| --- | --- |
+| Archive | `puddled-v0.4.0-darwin-arm64.tar.gz` |
+| SHA-256 | `d5fa61aee6b6816dcfe970b2f755299b2dc5cbe2e2ffb67a8f54255a9e1013db` |
+| Platform / packaged Node | macOS 26.5.2, arm64 / Node 22.21.1 |
+| Protocols / schema | Application 26.1; remote 5; runtime 1.0 / schema 41 |
+| Release notes | 10,629 UTF-8 bytes; exact shared build-helper output |
+| Release-notes SHA-256 | `0bfd9dabfbaa5267ccc437e8346cbfb99e5d1655f7ead4922cdc7a04dbb6093a` |
+
+The same source passed the healthy calibrated 1/10/50-owner run and targeted
+screen/startup regressions; see the [resource report](../2026-11-04-persistent-runtime-resources.md).
+No production installation was changed or release published. The user-deferred
+native/manual checks remain unverified.
+
+The preceding macOS arm64 host archive was built from clean production source
 `7d2825dd801596523ae2b0acb3b72f59a7665146` on 4 November 2026, after release-notes
 packaging and the read-only endpoint landed. This records local acceptance evidence;
 it does not certify a published or installed production upgrade. The earlier archive
 and native results below remain separate historical evidence.
 
-| Item                          | Latest archive result                                                             |
+| Item                          | Earlier release-notes archive result                                               |
 | ----------------------------- | --------------------------------------------------------------------------------- |
 | Archive                       | `puddled-v0.4.0-darwin-arm64.tar.gz`                                              |
 | SHA-256                       | `4beaef97998b7b4abb6962eec1a975cd6484c5afbfdb0c224c96a6d256b603e5`                |
@@ -31,7 +53,7 @@ packaging change.
 
 The rebuilt 0.4.0 cockpit then passed the complete process suite: **25 tests in
 eight files, 110.51 seconds**, from source `e6ebdc5`. This run enabled
-`PUDDLE_TEST_RUNTIME_SUPERVISOR=1` and supplied the latest archive above, so the
+`PUDDLE_TEST_RUNTIME_SUPERVISOR=1` and supplied the `7d2825d` archive above, so the
 normally gated built-CLI runtime update also ran. It verified the actual CLI,
 native one-shot launchd updater, selected-runtime change, unchanged daemon PID and
 exact temporary-job cleanup. This selection test has no live agent; owner continuity

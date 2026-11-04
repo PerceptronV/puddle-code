@@ -1365,17 +1365,25 @@ remain in the report. Those runs established process-level idle baselines withou
 explicit canonical-screen health checks. The updated harness seeds one shell
 marker per owner once, verifies canonical marker/persistence/history health
 before warmup and after each adoption outside its timer, and never replays the
-seeded input. The first health-checked run passed its one- and ten-owner samples
+seeded input. The final run from clean `85c66bd` passed all three scales after
+initial screen admission and restoration moved before native PTY creation. At
+fifty, summed owner RSS was 3,607.73 MiB, self CPU 2.8121% of one core,
+reaped-child CPU 5.8599%, interrupt wakeups 103.35/s and median re-adoption
+425.26 ms. All unchanged health assertions and fixture ceilings passed in
+154.77 seconds; all 101 sampled processes were independently confirmed absent.
+
+Earlier failures remain preserved separately. The first health-checked run passed
+its one- and ten-owner samples
 and active CPU/wakeup ceilings, then stopped on a rollback-journal safety refusal
 while scaling towards fifty. A subsequent resample after the journal-race fix
 passed one owner, then failed the initial ten-owner health check: a snapshot
 request returned a generic correlated failure throughout the read-only deadline.
 An explicit ten-owner startup diagnosis reproduced initial host geometry admission
-refusal; distinguishing actual capacity from transient grant contention remains
-under investigation. No ten/fifty-owner resource result is inferred. Both runs
+refusal, which led to the bounded preparation fix above. No ten/fifty-owner
+resource result is inferred from those failed runs. Both runs
 and the diagnostic confirmed tracked process cleanup and preserve their raw
-evidence separately. Full fifty-owner health acceptance remains open; the old
-process-only artifacts are not evidence of healthy canonical screens.
+evidence separately. The final healthy run closes this automated gate; the old
+process-only artifacts alone are not evidence of healthy canonical screens.
 Owner screens/raw history and host-wide
 programme-result charges now have explicit bounds, and verified retired raw logs
 use bounded compaction. Runtime owners now share a sealed host memory ledger,

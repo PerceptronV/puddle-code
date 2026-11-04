@@ -23,6 +23,12 @@ This decision supersedes earlier wording that made those manual checks completio
 gates; it does not enable an experimental mode or weaken production safeguards.
 
 Implementation status, 2026-11-04:
+Implementation and available automated acceptance are complete for the agreed
+0.4.0 scope. The final archive passed packaged continuity and release-note checks;
+healthy calibrated runtime measurements pass at 1, 10 and 50 owners. The manual
+checks deferred above remain release follow-up, not reported passes. No release
+has been published and no production installation has been changed.
+
 Default daemon launches now use independent runtimes, resolving the installed
 runtime selector and checking the host service manager before launch intent. The
 legacy composition is restricted to internal migration fixtures. Hosts without a
@@ -66,9 +72,10 @@ Durable reference-aware collection now runs through mandatory bounded maintenanc
 with separate runtime/update reference retirement and conservative rollback pins.
 Full native service-retirement and reboot acceptance remain deferred. Coordinated purge is integrated
 with a cross-boot descendant barrier and retained control/recovery anchors; actual
-platform reboot acceptance remains deferred. The remaining automated blocker is
-healthy concurrent runtime startup and the final 1/10/50-owner resource check;
-the latest diagnosis and preserved evidence are recorded below.
+platform reboot acceptance remains deferred. Healthy concurrent runtime startup
+and the final 1/10/50-owner resource check now pass after bounded screen preparation
+was moved before native PTY creation. Historical failures and their fixes remain
+recorded below; they do not describe outstanding implementation work.
 This document describes the intended refactor; [SPEC.md](../../SPEC.md) continues
 to describe shipped behaviour. Update the specification, protocol documentation,
 repository instructions and changelog alongside each implementation phase.
@@ -86,6 +93,19 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 [acceptance matrix](#acceptance-matrix) for the release gates.
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
+
+- Clean `85c66bd` passed the targeted ten-owner startup check and the full
+  calibrated, canonical-health-checked 1/10/50-owner run (154.77 seconds).
+  At fifty owners, summed RSS was 3,607.73 MiB, self CPU 2.8121% of one core,
+  reaped-child CPU 5.8599%, interrupt wakeups 103.35/s and median re-adoption
+  425.26 ms. All unchanged health assertions and resource ceilings passed;
+  cleanup was independently confirmed for all 101 sampled processes. The fix
+  admits and restores each screen before PTY creation, with bounded contention
+  waits, exact authority checks and cancellation cleanup. Focused screen/storage
+  and actual-owner suites, strict TypeScript, lint and independent review pass.
+  A fresh archive from the same source passed packaged upgrade continuity and
+  authenticated release-note checks in 15.94 seconds; its exact digest is in the
+  [packaged verification report](../reports/persistent-runtimes/2026-11-04-packaged-verification.md).
 
 - The health-checked resource resample from clean `e6ebdc5` passed one owner and
   all active ceilings, then failed the initial ten-owner canonical-screen check
