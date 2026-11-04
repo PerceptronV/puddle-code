@@ -3,13 +3,31 @@ export interface RuntimeBufferCapacity {
   count: number;
 }
 
+/** An enclosing allowance may be shared by otherwise independent buffer domains. */
+export interface RuntimeByteAllowance {
+  reserve(bytes: number): (() => void) | null;
+}
+
+/** A retained domain can shrink without releasing capacity still backing live state. */
+export interface RuntimeRetainedAllocation {
+  resize(bytes: number): boolean;
+  release(): void;
+}
+
+export interface RuntimeRetainedAllowance {
+  retain(bytes: number): RuntimeRetainedAllocation | null;
+}
+
 /** Charged buffer capacity, not a guarantee about total process memory or GC timing. */
 export class RuntimeBufferBudget {
   private bytes = 0;
   private count = 0;
   private readonly capacity: RuntimeBufferCapacity;
 
-  constructor(capacity: RuntimeBufferCapacity) {
+  constructor(
+    capacity: RuntimeBufferCapacity,
+    private readonly allowance?: RuntimeByteAllowance,
+  ) {
     if (!this.valid(capacity.bytes) || !this.valid(capacity.count))
       throw new Error('Invalid runtime buffer capacity');
     this.capacity = { ...capacity };
@@ -31,6 +49,8 @@ export class RuntimeBufferBudget {
       count > this.capacity.count - this.count
     )
       return null;
+    const releaseAllowance = this.allowance?.reserve(bytes);
+    if (this.allowance && !releaseAllowance) return null;
     this.bytes += bytes;
     this.count += count;
     let held = true;
@@ -39,6 +59,7 @@ export class RuntimeBufferBudget {
       held = false;
       this.bytes -= bytes;
       this.count -= count;
+      releaseAllowance?.();
     };
   }
 

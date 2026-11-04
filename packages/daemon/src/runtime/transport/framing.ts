@@ -1,25 +1,22 @@
 import type { Socket } from 'node:net';
 import { TextDecoder } from 'node:util';
 import { RUNTIME_LIMITS } from '@puddle/shared';
-import { RuntimeBufferBudget } from '../resources/budget.js';
+import type { RuntimeBufferBudget } from '../resources/budget.js';
 import { runtimeJsonBytes } from './encoding.js';
+import { RuntimeTransportBuffers } from './buffers.js';
 
 // Shared by every runtime connection in this process. These bound transport
 // buffers, not decoded state, provider processes or total host memory.
-const incomingFrames = new RuntimeBufferBudget({ bytes: 64 * 1024 * 1024, count: 256 });
-const outgoingFrames = new RuntimeBufferBudget({ bytes: 64 * 1024 * 1024, count: 256 });
+const buffers = new RuntimeTransportBuffers();
 const writes = new WeakMap<Socket, Set<() => void>>();
 
-// Serialisation is synchronous. Charge its bounded string/encoding work only
-// while encoding, independently of exact frame bytes retained by slow sockets.
-const encodingFrames = new RuntimeBufferBudget({
-  bytes: 4 * RUNTIME_LIMITS.frameBytes,
-  count: 1,
-});
-
-function encodeMeasuredFrame(value: unknown, bytes: number): Buffer {
-  const release = encodingFrames.reserve(4 * bytes);
-  if (!release) throw new Error('Runtime encoding buffer capacity exhausted');
+function encodeMeasuredFrame(
+  value: unknown,
+  bytes: number,
+  encoding: RuntimeBufferBudget,
+): Buffer | null {
+  const release = encoding.reserve(4 * bytes);
+  if (!release) return null;
   try {
     const json = JSON.stringify(value);
     if (json === undefined || Buffer.byteLength(json) !== bytes)
@@ -35,7 +32,9 @@ function encodeMeasuredFrame(value: unknown, bytes: number): Buffer {
 
 /** A four-byte big-endian byte length followed by one UTF-8 schema JSON value. */
 export function encodeRuntimeFrame(value: unknown): Buffer {
-  return encodeMeasuredFrame(value, runtimeJsonBytes(value));
+  const frame = encodeMeasuredFrame(value, runtimeJsonBytes(value), buffers.encoding);
+  if (!frame) throw new Error('Runtime encoding buffer capacity exhausted');
+  return frame;
 }
 
 /** Handles arbitrary byte boundaries without quadratic concatenation or UTF-8 loss. */
@@ -43,7 +42,7 @@ export function readRuntimeFrames(
   socket: Socket,
   receive: (value: unknown) => void,
   fail: (error: Error) => void,
-  budget = incomingFrames,
+  budget = buffers.incoming,
 ): () => void {
   const header = Buffer.alloc(4);
   const decoder = new TextDecoder('utf-8', { fatal: true });
@@ -107,7 +106,8 @@ export function readRuntimeFrames(
 export function writeRuntimeFrame(
   socket: Socket,
   value: unknown,
-  budget = outgoingFrames,
+  budget = buffers.outgoing,
+  encoding = buffers.encoding,
 ): boolean {
   if (socket.destroyed || !socket.writable) return false;
   const bytes = runtimeJsonBytes(value) + 4;
@@ -122,7 +122,13 @@ export function writeRuntimeFrame(
   }
   let frame: Buffer;
   try {
-    frame = encodeMeasuredFrame(value, bytes - 4);
+    const encoded = encodeMeasuredFrame(value, bytes - 4, encoding);
+    if (!encoded) {
+      release();
+      socket.destroy();
+      return false;
+    }
+    frame = encoded;
   } catch (error) {
     release();
     throw error;

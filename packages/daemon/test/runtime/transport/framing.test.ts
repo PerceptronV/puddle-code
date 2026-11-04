@@ -7,6 +7,7 @@ import {
   writeRuntimeFrame,
 } from '../../../src/runtime/transport/framing.js';
 import { RuntimeBufferBudget } from '../../../src/runtime/resources/budget.js';
+import { RuntimeTransportBuffers } from '../../../src/runtime/transport/buffers.js';
 
 /** A genuinely backpressured Writable: writes complete only when the test drains them. */
 class SlowSocket extends Socket {
@@ -24,6 +25,51 @@ class SlowSocket extends Socket {
 }
 
 describe('runtime framing', () => {
+  it('shares enclosing receive, queued-write and transient encoding capacity', () => {
+    const allowance = new RuntimeBufferBudget({ bytes: 24, count: 10 });
+    const buffers = new RuntimeTransportBuffers(allowance);
+    const incoming = new Socket();
+    const first = new SlowSocket();
+    const second = new SlowSocket();
+    const errors: Error[] = [];
+    const stop = readRuntimeFrames(
+      incoming,
+      () => {},
+      (error) => errors.push(error),
+      buffers.incoming,
+    );
+    const header = Buffer.alloc(4);
+    header.writeUInt32BE(10);
+    try {
+      incoming.emit('data', header);
+      expect(allowance.usedBytes).toBe(10);
+      // Six retained frame bytes plus eight temporary encoding bytes fit exactly.
+      expect(writeRuntimeFrame(first, {}, buffers.outgoing, buffers.encoding)).toBe(true);
+      expect(allowance.usedBytes).toBe(16);
+      // A further frame fits alone, but its encoding must also be admitted.
+      const stringify = vi.spyOn(JSON, 'stringify');
+      try {
+        expect(writeRuntimeFrame(second, {}, buffers.outgoing, buffers.encoding)).toBe(false);
+        expect(stringify).not.toHaveBeenCalled();
+      } finally {
+        stringify.mockRestore();
+      }
+      expect(second.destroyed).toBe(true);
+      expect(first.destroyed).toBe(false);
+      expect(allowance.usedBytes).toBe(16);
+      stop();
+      first.drainOne();
+      expect(allowance.usedBytes).toBe(0);
+      expect(allowance.usedCount).toBe(0);
+      expect(errors).toEqual([]);
+    } finally {
+      stop();
+      incoming.destroy();
+      first.destroy();
+      second.destroy();
+    }
+  });
+
   it('retains Unicode when every byte arrives separately and handles coalesced frames', () => {
     const socket = new Socket();
     const received: unknown[] = [];

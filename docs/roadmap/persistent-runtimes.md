@@ -68,6 +68,20 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Shared host-memory accounting now has a private SQLite ledger under the retained
+  `runtime-claims/` anchor, exact incarnation/launch grants, a permanent identity
+  seal and non-waiting revisioned transactions. Cached owner allowances spend
+  without filesystem work; uncertain returns are removed locally before another
+  owner can receive them. Child buffer domains and resizable retained allocations
+  share those grants. Transport reception, queued frames and temporary encoding
+  can use one enclosing allowance; encoding refusal disconnects the viewer.
+  Thirty-three ledger/cache/budget checks and 38 transport/actual-owner/turn checks
+  passed, with strict TypeScript, lint and independent review. Tests include eight
+  concurrent child opens, real cross-process grants and interrupted initialisation.
+  Ordinary read errors can recover; an uncertain descriptor close fences further
+  ledger descriptor work in that process. This is the accounting foundation:
+  production policy, startup/retirement wiring and screen integration remain open.
+
 - Terminal geometry now reserves viewports first and grows history in admitted
   64-row blocks. Thirty-two fresh 120-by-32 terminals charge 15.74 MiB of geometry
   instead of reserving nearly the entire 96 MiB allowance. New viewports trim only
