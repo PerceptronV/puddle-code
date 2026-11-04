@@ -7,6 +7,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { expect, it } from 'vitest';
 import { RUNTIME_PROTOCOL_VERSION } from '@puddle/shared';
 import { resourceBaselineLimits, resourceBaselineRegressions } from './limits.js';
+import { nativeDeltas, nativeResourceProbe } from './native/probe.js';
 import { atomicPrivateJson } from '@puddle/shared/node';
 import { RuntimeConnections } from '../../../src/runtime/transport/connections.js';
 import { RuntimeReconciler } from '../../../src/runtime/controller/reconcile.js';
@@ -28,7 +29,7 @@ import {
 } from './metrics.js';
 
 const concurrency = 4;
-const sampleMs = 10_000;
+const sampleMs = 30_000;
 const warmupMs = 15_000;
 
 it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
@@ -43,6 +44,7 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
     }> = [];
     let connections: RuntimeConnections | undefined;
     let reconciler: RuntimeReconciler | undefined;
+    let native: Awaited<ReturnType<typeof nativeResourceProbe>> | undefined;
     const report = {
       observed_at: new Date().toISOString(),
       environment: {
@@ -70,10 +72,19 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
         rss: 'resident size summed across processes; shared pages may be counted repeatedly',
         descriptors:
           'numeric open descriptors; excludes cwd, executable and mapped-library pseudoentries',
-        wakeups: null,
-        wakeups_unavailable:
-          'No unprivileged per-process wakeup counter collected; CPU time is not a wakeup measurement',
+        native:
+          'macOS installed-SDK proc_pid_rusage, calibrated against CPU clock/getrusage; exact PID start identities and per-read elapsed bounds; raw decimal counters retained',
+        native_controller:
+          'test process including Vitest, controller and measurement orchestration; self only, excludes reaped measurement tools; not isolated daemon overhead',
+        native_children:
+          'owner reaped-child counters exclude live children; shell self counters reported separately; these do not establish a complete process-tree total',
+        native_wakeups:
+          'interrupt and package-idle wakeup counters only; not total scheduler wakeups or energy consumption',
       },
+      native_calibration: null as Record<string, unknown> | null,
+      native_unavailable: null as string | null,
+      completed: false,
+      failure: null as string | null,
       results: [] as Array<Record<string, unknown>>,
     };
     const adopt = async () => {
@@ -107,6 +118,9 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
       return memory;
     };
     try {
+      native = await nativeResourceProbe();
+      report.native_unavailable = native.unavailable;
+      if (native.probe) report.native_calibration = await native.probe.calibrate();
       await f.reconciler.close();
       f.controller.release();
       for (const target of [1, 10, 50]) {
@@ -176,11 +190,56 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
         const shellPids = owners.map(({ shell }) => shell);
         const before = await processMeasurements([...ownerPids, ...shellPids]);
         const beforeWithChildren = await measurementsWithExitedChildren(ownerPids);
+        const nativeBefore = await native.probe?.sample([...ownerPids, ...shellPids, process.pid]);
         const sampleStart = performance.now();
         await delay(sampleMs);
+        const nativeAfter = await native.probe?.sample([...ownerPids, ...shellPids, process.pid]);
         const after = await processMeasurements([...ownerPids, ...shellPids]);
         const afterWithChildren = await measurementsWithExitedChildren(ownerPids);
         const elapsed = performance.now() - sampleStart;
+        const nativeRows =
+          nativeBefore && nativeAfter ? nativeDeltas(nativeBefore, nativeAfter) : null;
+        const nativeGroup = (pids: number[], includeChildren: boolean) => {
+          if (!nativeRows) return null;
+          const rows = nativeRows.filter((row) => pids.includes(row.pid));
+          return {
+            self_cpu_ms: sum(rows.map((row) => row.self_cpu_ms)),
+            // Sum each process's rate over its own bracketed interval, rather
+            // than treating sequential libproc reads as simultaneous.
+            self_cpu_one_core_percent_upper: sum(
+              rows.map((row) => (100 * row.self_cpu_ms) / row.elapsed_min_ms),
+            ),
+            self_cpu_one_core_percent_lower: sum(
+              rows.map((row) => (100 * row.self_cpu_ms) / row.elapsed_max_ms),
+            ),
+            self_interrupt_wakeups_per_second_upper: sum(
+              rows.map((row) => (1000 * row.self_interrupt_wakeups) / row.elapsed_min_ms),
+            ),
+            self_package_idle_wakeups_per_second_upper: sum(
+              rows.map((row) => (1000 * row.self_package_idle_wakeups) / row.elapsed_min_ms),
+            ),
+            reaped_children_cpu_ms: includeChildren
+              ? sum(rows.map((row) => row.reaped_children_cpu_ms))
+              : null,
+            reaped_children_cpu_one_core_percent_upper: includeChildren
+              ? sum(rows.map((row) => (100 * row.reaped_children_cpu_ms) / row.elapsed_min_ms))
+              : null,
+            reaped_children_interrupt_wakeups_per_second_upper: includeChildren
+              ? sum(
+                  rows.map(
+                    (row) => (1000 * row.reaped_children_interrupt_wakeups) / row.elapsed_min_ms,
+                  ),
+                )
+              : null,
+            reaped_children_package_idle_wakeups_per_second_upper: includeChildren
+              ? sum(
+                  rows.map(
+                    (row) => (1000 * row.reaped_children_package_idle_wakeups) / row.elapsed_min_ms,
+                  ),
+                )
+              : null,
+          };
+        };
         const selected = (pids: number[]) => after.filter((row) => pids.includes(row.pid));
         const ownerRows = selected(ownerPids);
         const shellRows = selected(shellPids);
@@ -226,6 +285,16 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
           reaped_child_cpu_unavailable:
             beforeWithChildren.unavailable ?? afterWithChildren.unavailable,
           shell_cpu_ms: cpu(shellPids),
+          native: nativeRows
+            ? {
+                owners: nativeGroup(ownerPids, true),
+                shells: nativeGroup(shellPids, false),
+                controller_with_harness: nativeGroup([process.pid], false),
+                deltas: nativeRows,
+                before: nativeBefore,
+                after: nativeAfter,
+              }
+            : null,
           owner_descriptors: ownerDescriptors,
           shell_descriptors: shellDescriptors,
           adoption_ms: { samples: adoption, median: median(adoption), max: Math.max(...adoption) },
@@ -234,6 +303,10 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
         report.results.push({ ...result, regressions });
         expect(regressions).toEqual([]);
       }
+      report.completed = true;
+    } catch (error) {
+      report.failure = error instanceof Error ? error.message : String(error);
+      throw error;
     } finally {
       await reconciler?.close();
       await connections?.close();
@@ -269,6 +342,7 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
         throw new Error(`Resource fixture cleanup failed; retained ${f.home}`, { cause: error });
       } finally {
         f.db.close();
+        await native?.probe?.close();
       }
       // Preserve measured failure evidence after confirmed cleanup, including a
       // partial run stopped before another scale could increase memory pressure.
@@ -278,5 +352,5 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
       else console.info(output);
     }
   },
-  180_000,
+  300_000,
 );

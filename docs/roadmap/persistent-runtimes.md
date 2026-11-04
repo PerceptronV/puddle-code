@@ -60,6 +60,17 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Calibrated macOS native CPU and interrupt/package-idle wakeup counters now
+  supplement the coarse `ps` resource fixture, with exact PID start identities,
+  raw counters and per-read timing brackets. The thirty-second ten-owner sample
+  measured 0.968% of one core in owners and another 1.231% in reaped children,
+  plus 21.73 owner interrupt wakeups/s. The fifty-owner step was refused by the
+  unchanged memory admission guard; all tracked fixtures were cleaned up and the
+  partial report retained. Two helper tests, strict test typechecking and lint
+  passed. This does not close the fifty-runtime, Linux, real-provider, isolated
+  daemon or production CPU/wakeup budget gates; see the
+  [resource report](../reports/2026-11-04-persistent-runtime-resources.md).
+
 - Opt-in native launchd acceptance now covers ordinary completion and a real
   accepted recovery worker after losing a successful runtime-selection reply.
   Production recovery verifies the selection without repeating it and completes

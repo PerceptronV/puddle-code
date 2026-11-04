@@ -1,14 +1,22 @@
 # Persistent runtime resource baseline — 4 November 2026
 
-Fifty isolated idle shell runtimes used **3,355 MiB of summed owner RSS** in the
+The latest calibrated macOS sample completed at **one and ten idle shell
+runtimes**. At ten, owner self CPU was **0.968% of one core**, with another
+**1.231%** recorded for their reaped children. Owners recorded **21.73 interrupt
+wakeups per second** in total. The fifty-runtime step was refused by the existing
+memory admission guard; no fifty-runtime native measurement exists yet. See
+“Calibrated native counters” below for method and limits.
+
+The earlier fifty-runtime observation used **3,355 MiB of summed owner RSS** in the
 settled measurement. Their median controller re-adoption took **402 ms**. The
 estimated owner CPU was **3.1% of one core**, but the process-time display precision
 allows roughly five percentage points of aggregate uncertainty at this count and
 sample length. This establishes a repeatable fixture baseline, not completion of
 the production resource acceptance gates.
 
-All measurements below predate the verified-TTY cache optimisation described
-under “Subsequent scan optimisation”; they remain historical baseline evidence.
+The original measurements through “Opt-in fixture regression ceilings” predate
+the verified-TTY cache optimisation described under “Subsequent scan optimisation”;
+they remain historical baseline evidence.
 
 ## Environment and method
 
@@ -154,8 +162,8 @@ node node_modules/vitest/vitest.mjs run \
 ```
 
 This verifies the reduced steady subprocess count and preserved behaviour. The
-resource benchmark has not been rerun after this change; no CPU, memory or wakeup
-savings are claimed.
+later native-counter sample below includes this change, but its method differs;
+no isolated CPU, memory or wakeup saving is claimed.
 
 ## Subsequent aggregate buffer limits
 
@@ -197,16 +205,72 @@ node node_modules/vitest/vitest.mjs run \
   packages/daemon/test/runtime/daemon-adoption.test.ts
 ```
 
-The scale benchmark above predates these limits. It has not been rerun to measure
-their overhead or behaviour under a sustained many-runtime workload.
+The original scale benchmark predates these limits. The native-counter sample
+below includes them; sustained active-output and slow-consumer measurements remain
+outstanding.
+
+## Calibrated native counters
+
+Observed at 2026-11-04 17:33 UTC on the same workstation. The fixture now settles
+for fifteen seconds and samples for thirty seconds. It compiles a small C probe
+against the installed public macOS SDK and reads `proc_pid_rusage` for the exact
+fixture PIDs. The probe calibrates the machine's Mach-time conversion against
+`CLOCK_PROCESS_CPUTIME_ID` and `getrusage` before accepting any samples. This run's
+timebase was 125/3: self CPU converted to 50.025 ms, versus 50.013 ms and
+50.007 ms from the independent clocks; reaped-child CPU converted to 50.470 ms,
+versus 50.469 ms from `getrusage`. Five controlled sleeps recorded five interrupt
+wakeups and zero package-idle wakeups.
+
+The [raw report](persistent-runtimes/resources/2026-11-04-native.json) retains
+decimal uint64 counters, PID start identities, and before/after timestamps around
+each read. Subtraction and conversion use BigInt before producing millisecond
+deltas. PID reuse, missing processes, decreasing counters and overlapping sample
+intervals fail the measurement. Per-process rates use those timestamp brackets;
+the brackets describe read timing, not a confidence interval or effective CPU
+accounting resolution. Existing coarse `ps` observations remain separate.
+
+| Runtimes | Summed owner RSS, MiB | Owner self CPU, % of one core | Owner reaped-child CPU, % of one core | Owner interrupt wakeups/s | Controller with harness CPU, % of one core | Median re-adoption, ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 67.0 | 0.268 | 0.135 | 2.87 | 0.041 | 28.1 |
+| 10 | 668.2 | 0.968 | 1.231 | 21.73 | 0.036 | 106.7 |
+
+Every owner retained 23 descriptors and every shell four. The shells recorded
+zero self CPU and wakeups over these windows. Controller-plus-harness interrupt
+wakeups were 1.27/s at each scale. All sampled groups recorded zero package-idle
+wakeups; this is a measured zero, not unavailable data. Reaped children exclude
+live children, including the separately sampled shells. These columns do not
+establish complete process-tree totals. Interrupt/package-idle counters are
+specific wakeup categories, not all scheduler wakeups or energy consumption.
+The controller shares the Vitest process and measurement orchestration; its
+reaped compiler/probe children are excluded from the controller summary. It is
+not an isolated daemon measurement.
+
+The complete test **failed after 98.20 seconds** because memory admission refused
+forty additional owners before the fifty-runtime step. Headroom after the ten-owner
+sample was approximately 36% of 24 GiB. The unchanged reserve is the greater of
+4 GiB or 20% of physical memory, plus 100 MiB per additional owner. Both completed
+scales met the existing RSS, descriptor and adoption ceilings, and cleanup
+confirmed every tracked owner and shell had exited before writing the partial
+report. No retry with weaker admission was performed. The subsequent helper
+verification passed two tests, strict test TypeScript, lint and formatting.
+
+The probe lives under `test/runtime/resources/native/`; its calibration gate can
+also be run independently with `PUDDLE_TEST_RUNTIME_NATIVE_METRICS=1` and
+`native-probe.test.ts`. Linux and machines without the SDK compiler explicitly
+report native counters unavailable. The baseline now records completion/failure
+metadata as well; the captured report above predates that reporting-only addition.
+One partial run does not establish variation at fifty runtimes, cross-platform
+behaviour or production budgets. CPU/wakeup ceilings remain unset pending that
+evidence.
 
 ## Remaining resource gates
 
-Wakeups were **not measured**. CPU time and the known polling interval do not
-substitute for wakeup or energy measurements. Provider CLI/sidecar overhead,
-controller/daemon RSS and CPU, service-manager overhead, active output and slow
-consumers, remaining host-wide buffering, native-provider workloads, and equivalent Linux
-measurements remain open. This report supplies a repeatable baseline and proposed
+Native macOS interrupt/package-idle wakeups are now measured at one and ten
+plain-shell runtimes; fifty runtimes and equivalent Linux measurements remain
+open. Provider CLI/sidecar overhead, isolated controller/daemon RSS and CPU,
+service-manager overhead, active output and slow
+consumers, host-wide retained storage and native-provider workloads remain open.
+This report supplies a repeatable baseline and proposed
 monitoring limits; it does not claim all resource acceptance gates are met. Its
 RSS limits are distinct from the implemented transport/viewer buffer capacities.
 Those capacities do not establish a total host memory ceiling or replace workload
