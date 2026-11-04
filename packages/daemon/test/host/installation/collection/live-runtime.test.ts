@@ -8,6 +8,7 @@ import { ReleaseCollectionMaintenance } from '../../../../src/host/installation/
 import { runtimeDatabase } from '../../../helpers/runtime-database.js';
 import {
   bundleDir,
+  admitFixtureOwner,
   children,
   clients,
   environment,
@@ -31,6 +32,7 @@ it('reclaims an unused generation while a real isolated provider runtime retains
   f.db
     .prepare("UPDATE runtime_bindings SET release_path = ?, state = 'running' WHERE runtime_id = ?")
     .run(ownerRelease.path, f.binding.runtime_id);
+  admitFixtureOwner(f.home, f.binding.runtime_id);
   const child = spawn(
     join(ownerRelease.path, 'bin/node'),
     [

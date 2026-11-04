@@ -11,6 +11,7 @@ import { acquireInstallationLock } from '../../../src/host/installation/lock.js'
 import { openDatabase } from '../../../src/db/db.js';
 import { DATABASE_SCHEMA_VERSION } from '../../../src/db/migrations/index.js';
 import { runtimeDirectory } from '../../../src/runtime/ownership/storage.js';
+import { initialiseRuntimeMemory } from '../../../src/runtime/resources/host/bootstrap.js';
 import { HostUpdateOperations } from '../../../src/updates/operations/store.js';
 
 const homes: string[] = [];
@@ -104,6 +105,7 @@ it('keeps an unfinished update intact and requires its existing recovery path', 
 it('refuses an unknown on-disk runtime before offering a complete removal inventory', async () => {
   const f = fixture();
   openDatabase(f.file).close();
+  initialiseRuntimeMemory(f.home);
   const directory = runtimeDirectory(f.home, randomUUID());
   const action = vi.fn();
   await expect(withRemovalRuntimes(f.home, action)).rejects.toThrow(/inventory is unknown/);

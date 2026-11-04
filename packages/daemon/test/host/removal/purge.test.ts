@@ -70,7 +70,7 @@ async function fixture() {
 
 it('retains all purge roots and the permanent memory anchor when an unknown grant remains', async () => {
   const f = await fixture();
-  const ledger = HostMemoryLedger.open(f.home, 100);
+  const ledger = HostMemoryLedger.openExisting(f.home)!;
   try {
     ledger.compareGrant(
       { runtime_id: randomUUID(), incarnation: randomUUID(), launch_id: randomUUID() },
@@ -114,8 +114,9 @@ it('retains readable intent when aggregate purge evidence exceeds its byte limit
 it('requires a changed kernel boot and keeps installer/claim anchors through completed purge', async () => {
   const f = await fixture();
   try {
-    const ledger = HostMemoryLedger.open(f.home, 100);
+    const ledger = HostMemoryLedger.openExisting(f.home)!;
     const instance = ledger.instanceId;
+    const capacity = ledger.capacityBytes;
     ledger.close();
     const memoryInode = lstatSync(join(f.home, 'runtime-claims/managed-memory.sqlite')).ino;
     const inode = lstatSync(join(f.home, 'bin/.install-lock')).ino;
@@ -142,7 +143,7 @@ it('requires a changed kernel boot and keeps installer/claim anchors through com
     const retained = HostMemoryLedger.openExisting(f.home)!;
     try {
       expect(retained.instanceId).toBe(instance);
-      expect(retained.capacityBytes).toBe(100);
+      expect(retained.capacityBytes).toBe(capacity);
       expect(() => retained.requireEmpty()).not.toThrow();
     } finally {
       retained.close();
