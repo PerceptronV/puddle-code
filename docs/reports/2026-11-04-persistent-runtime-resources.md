@@ -1,20 +1,18 @@
 # Persistent runtime resource baseline — 4 November 2026
 
-The latest calibrated macOS sample **passed at one, ten and fifty idle shell
-runtimes**, with the production host memory allowance and controller acquisition.
-At fifty, summed owner RSS was **2,669.14 MiB**, self CPU was **3.700% of one core**,
-and reaped-child CPU was **4.908%**. Owners recorded **109.75 interrupt wakeups per
-second**; median controller re-adoption took **416.26 ms**. All existing fixture
-ceilings passed, and cleanup confirmed every tracked owner and shell had exited.
-See “Completed calibrated run” for the results. Both earlier partial attempts and
-the historical memory-guard refusal remain recorded below.
+The latest calibrated macOS run completed **one and ten health-checked idle shell
+runtimes**. At ten, summed owner RSS was **909.27 MiB**, self CPU was **1.542% of one
+core**, reaped-child CPU was **1.977%**, and owner interrupt wakeups were **23.29/s**.
+Canonical-screen/persistence assertions and all active fixture ceilings passed at
+both scales. Scaling towards fifty stopped on a rollback-journal safety refusal;
+no assertion or guard was weakened. Cleanup completed. See “Health-checked run”.
 
-These recorded runs are **process-level idle baselines**. They checked owner and
-shell identity plus controller reconciliation, but did not seed terminal output
-and require a healthy canonical screen or settled persistence. A subsequently
-identified startup screen-load gap therefore is not excluded by these results.
-The harness now checks canonical continuity explicitly as described below; no
-health-checked resource sample has yet been recorded.
+The earlier complete 1/10/50 run remains a **process-level idle baseline**: at
+fifty, owner RSS was 2,669.14 MiB and median re-adoption 416.26 ms. Runs through
+20:38 UTC checked process identity/reconciliation but did not seed terminal output
+and require canonical-screen health. They therefore do not exclude the later
+identified startup screen-load gap. Their artifacts remain unchanged; a complete
+health-checked fifty-owner measurement is still outstanding.
 
 The earlier fifty-runtime observation used **3,355 MiB of summed owner RSS** in the
 settled measurement. Their median controller re-adoption took **402 ms**. The
@@ -459,8 +457,47 @@ sampling window, so measured adoption and idle CPU do not include their work.
 They do not replace the existing memory guard or alter launch concurrency.
 
 The previously recorded resource artifacts remain unchanged. Their valid process
-measurements must not be cited as proof of canonical-screen health, and the new
-assertions require a fresh run after the startup screen-load correction.
+measurements must not be cited as proof of canonical-screen health. The first run
+with these assertions is recorded below.
+
+### Health-checked run
+
+Observed at **2026-11-04 21:18 UTC** from clean commit `5276fd9`, after the startup
+screen-load correction. The [health-checked raw report](persistent-runtimes/resources/2026-11-04-host-allowance-native-health.json)
+and [source/bundle provenance](persistent-runtimes/resources/2026-11-04-host-allowance-native-health-provenance.json)
+preserve the new method, active CPU/wakeup ceilings and exact source independently
+of all previous process-only artifacts.
+
+| Owners | Summed owner RSS, MiB | Owner RSS median / max, MiB | Owner self CPU, % of one core | Owner reaped-child CPU, % of one core | Owner interrupt wakeups/s | Median / maximum re-adoption, ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 58.16 | 58.16 / 58.16 | 0.425 | 0.216 | 2.63 | 28.25 / 34.99 |
+| 10 | 909.27 | 94.02 / 111.97 | 1.542 | 1.977 | 23.29 | 112.32 / 116.17 |
+
+At both scales the seeded canonical marker, exact shell identity and settled
+persistence/history checks passed before warmup and after all three controller
+re-adoptions. Every existing and new CPU/wakeup ceiling passed. Owners had 26
+numeric descriptors and shells four. Shell RSS totals were 1.25 and 20.64 MiB,
+with zero measured shell CPU/wakeups. Controller-plus-harness self CPU was 0.057%
+and 0.054% of one core, with 1.27 and 1.23 interrupt wakeups/s. All sampled groups
+recorded zero package-idle wakeups. Calibration again passed at timebase 125/3:
+50.028 ms converted self CPU versus 50.024/50.022 ms from independent clocks,
+50.245 ms converted reaped-child CPU versus 50.245 ms, and five controlled
+interrupt wakeups with zero package-idle wakeups.
+
+The test **failed after 108.36 seconds** while admitting additional owners beyond
+ten, before any fifty-owner sample. The rollback-journal check for
+`managed-memory.sqlite-journal` raised `Unsafe or oversized host memory ledger
+file`. This error combines three possible causes: a non-regular file, a link count
+other than one, or size above 17 MiB. The artifact does not identify which branch
+failed, and cleanup removed the fixture; a concurrent journal-unlink race is only
+a hypothesis. The harness correctly refused to retry this safety failure as
+ordinary SQLite contention. Memory admission, health assertions and all resource
+ceilings remained unchanged. Last sampled memory headroom was 52% of 24 GiB.
+
+All tracked owners exited and known shell PIDs were absent before report
+publication. An independent post-run check found all 21 sampled owner/shell/
+controller PIDs absent, and the temporary bundle was removed. No healthy
+fifty-owner result is inferred from this partial run.
 
 ## Enforced calibrated macOS fixture ceilings
 
@@ -477,8 +514,8 @@ guarantees or limits on real provider workloads.
 | 10 | 3% | 3% | 60 |
 | 50 | 15% | 15% | 350 |
 
-All four calibrated reports above contributed to the choice, including completed
-rows from both partial runs. They contain four observations each at one and ten
+The four calibrated reports recorded through 20:38 UTC contributed to the choice,
+including completed rows from both partial runs. They contain four observations each at one and ten
 owners, and one at fifty. Their maxima were:
 
 | Owners | Observed maximum self CPU | Observed maximum reaped-child CPU | Observed maximum owner interrupt wakeups/s |
@@ -505,7 +542,7 @@ reports native measurements unavailable; these macOS CPU/wakeup thresholds are
 not applied to Linux. Package-idle and reaped-child wakeups remain recorded but
 do not receive inferred thresholds from this mostly zero-valued corpus.
 
-The focused **52-test** suite replays all nine recorded calibrated rows, verifies
+The focused **52-test** suite replays all nine calibrated selection-baseline rows, verifies
 equality and just-over-boundary behaviour for every metric/scale, checks independent
 failures, and rejects missing/malformed macOS evidence. Every recorded row passes.
 The raw artifacts retain the limits active when they were measured; this replay
@@ -516,8 +553,8 @@ No additional native measurement was performed to select or test these threshold
 
 Native macOS interrupt/package-idle wakeups are now measured at one, ten and fifty
 plain-shell runtimes, with concrete fixture CPU/wakeup regression checks.
-Repeatability on controlled runners and the new canonical-screen health gate
-remain to be measured. Native Linux measurements are **deferred by user instruction
+Repeatability on controlled runners and the full fifty-owner canonical-screen
+health gate remain to be measured. Native Linux measurements are **deferred by user instruction
 for 0.4.0**, not a release blocker; automated Linux-path coverage remains relevant,
 but no native Linux result is claimed. Provider CLI/sidecar
 overhead, isolated controller/daemon RSS and CPU,

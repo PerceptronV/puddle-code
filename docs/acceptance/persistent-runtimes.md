@@ -1338,8 +1338,11 @@ remain in the report. Those runs established process-level idle baselines withou
 explicit canonical-screen health checks. The updated harness seeds one shell
 marker per owner once, verifies canonical marker/persistence/history health
 before warmup and after each adoption outside its timer, and never replays the
-seeded input. A fresh run is required after the startup screen-load correction;
-the old resource artifacts are not evidence of healthy canonical screens.
+seeded input. The first health-checked run passed its one- and ten-owner samples
+and active CPU/wakeup ceilings, then stopped on a rollback-journal safety refusal
+while scaling towards fifty. All tracked processes were cleaned up. Full
+fifty-owner health acceptance remains open; the old process-only artifacts are
+not evidence of healthy canonical screens.
 Owner screens/raw history and host-wide
 programme-result charges now have explicit bounds, and verified retired raw logs
 use bounded compaction. Runtime owners now share a sealed host memory ledger,

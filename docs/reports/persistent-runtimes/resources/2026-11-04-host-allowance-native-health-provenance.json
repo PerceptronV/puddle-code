@@ -1,0 +1,56 @@
+{
+  "sample_started_at": "2026-11-04T21:18:14.568Z",
+  "head_at_bundle": "5276fd9210b83e04a581e47d7550ecfceba29cdf",
+  "worktree_clean_at_bundle": true,
+  "source_tree_sha256": "a3b20efb7d45585ac70ea4b7b8efd8aacac5cdb7133ac6aac1f850697f8a045b",
+  "source_file_count": 550,
+  "source_roots": [
+    "packages/daemon/src",
+    "packages/shared/src",
+    "packages/daemon/test/helpers",
+    "packages/daemon/test/runtime/resources"
+  ],
+  "source_hash_definition": "SHA-256 over lexicographically sorted relative paths from rg --files across source_roots, each followed by NUL, exact file bytes, NUL",
+  "bundled_files": [
+    {
+      "name": "puddler.mjs",
+      "sha256": "8c4f6acf3814dbfd7d2d2d656ce99f185bc8c310171848100ff8cf2ea54bb110"
+    },
+    {
+      "name": "controller.mjs",
+      "sha256": "7b3afe6f53c85ce4657d65618f78154ca18c1285ad8cd5095346e833e575331e"
+    }
+  ],
+  "cleanup": {
+    "harness_confirmed_all_tracked_owner_exits": true,
+    "harness_confirmed_known_shell_absence": true,
+    "independently_checked_sampled_pids": 21,
+    "independent_pid_check": "All sampled owners, shells and controller returned ESRCH after completion",
+    "temporary_bundle_removed": true
+  },
+  "test": {
+    "duration_ms": 108362,
+    "outcome": "failed",
+    "completed_health_checked_scales": [
+      1,
+      10
+    ],
+    "failure": "Unsafe or oversized host memory ledger file",
+    "stack": [
+      "memoryFile",
+      "optionalMemoryFile",
+      "requireMemorySidecars: managed-memory.sqlite-journal",
+      "HostMemoryLedger.requireCurrent",
+      "HostMemoryLedger.compareGrant",
+      "reserveRuntimeLaunchMemory",
+      "admitFixtureOwner",
+      "launchOwner"
+    ],
+    "stage": "Launching additional owners after the health-checked ten-owner sample, before fifty-owner measurement",
+    "exact_failure_branch": "Not recorded: the error combines non-regular file, link count other than one and size above17MiB; no branch is inferred from this artifact",
+    "memory_guard_changed": false,
+    "cpu_wakeup_ceilings_active": true,
+    "canonical_health_assertions_changed": false,
+    "launch_concurrency": 4
+  }
+}
