@@ -36,9 +36,12 @@ const concurrency = 4;
 const sampleMs = 30_000;
 const warmupMs = 15_000;
 const screenMarker = 'resource-screen-73';
+const healthOnly = process.env.PUDDLE_TEST_RUNTIME_HEALTH_ONLY === '1';
 
-it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
-  'measures isolated idle owners and authenticated controller re-adoption at 1, 10 and 50 runtimes',
+it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1' || healthOnly)(
+  healthOnly
+    ? 'diagnoses canonical screen health during isolated ten-owner startup without resource sampling'
+    : 'measures isolated idle owners and authenticated controller re-adoption at 1, 10 and 50 runtimes',
   async () => {
     const f = runtimeDatabase();
     const owners: Array<{
@@ -62,6 +65,9 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
         cpu_model: cpus()[0]?.model ?? 'unavailable',
       },
       method: {
+        mode: healthOnly
+          ? 'ten-owner startup health diagnosis; no resource measurement'
+          : 'resource baseline',
         fixture_regression_ceilings: resourceBaselineLimits,
         sample_ms: sampleMs,
         warmup_ms: warmupMs,
@@ -95,6 +101,7 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
       native_unavailable: null as string | null,
       completed: false,
       failure: null as string | null,
+      failure_diagnostics: null as Record<string, unknown> | null,
       results: [] as Array<Record<string, unknown>>,
     };
     const verifyScreens = async () => {
@@ -131,6 +138,25 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
             { timeout: 10_000, interval: 25 },
           );
         } catch (cause) {
+          // Retain evidence before cleanup, without another mutation or an
+          // unbounded diagnostic request. The last state is labelled as recorded.
+          report.failure_diagnostics = {
+            runtime_id: owner.id,
+            owner_pid: owner.owner.child.pid,
+            shell_pid: owner.shell,
+            request_error:
+              cause instanceof Error
+                ? {
+                    name: cause.name,
+                    message: cause.message,
+                    code: (cause as { code?: string }).code ?? null,
+                    request: (cause as { request?: string }).request ?? null,
+                    stack: cause.stack?.slice(0, 16 * 1024) ?? null,
+                  }
+                : { message: String(cause) },
+            owner_stderr_tail: owner.owner.errors().slice(-64 * 1024),
+            last_received_state: client.state,
+          };
           throw new Error(`Runtime ${owner.id} did not retain a healthy canonical screen`, {
             cause,
           });
@@ -173,12 +199,14 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
       return memory;
     };
     try {
-      native = await nativeResourceProbe();
-      report.native_unavailable = native.unavailable;
-      if (native.probe) report.native_calibration = await native.probe.calibrate();
+      if (!healthOnly) {
+        native = await nativeResourceProbe();
+        report.native_unavailable = native.unavailable;
+        if (native.probe) report.native_calibration = await native.probe.calibrate();
+      }
       await f.reconciler.close();
       f.controller.release();
-      for (const target of [1, 10, 50]) {
+      for (const target of healthOnly ? [10] : [1, 10, 50]) {
         const memoryBefore = await admit(target - owners.length);
         const launchStart = performance.now();
         while (owners.length < target) {
@@ -286,15 +314,23 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
           });
         }
         await verifyScreens();
+        if (healthOnly) {
+          report.results.push({
+            count: target,
+            startup_health: 'passed',
+            resource_measurement: false,
+          });
+          continue;
+        }
         await delay(warmupMs);
         const ownerPids = owners.map(({ owner }) => owner.child.pid!);
         const shellPids = owners.map(({ shell }) => shell);
         const before = await processMeasurements([...ownerPids, ...shellPids]);
         const beforeWithChildren = await measurementsWithExitedChildren(ownerPids);
-        const nativeBefore = await native.probe?.sample([...ownerPids, ...shellPids, process.pid]);
+        const nativeBefore = await native?.probe?.sample([...ownerPids, ...shellPids, process.pid]);
         const sampleStart = performance.now();
         await delay(sampleMs);
-        const nativeAfter = await native.probe?.sample([...ownerPids, ...shellPids, process.pid]);
+        const nativeAfter = await native?.probe?.sample([...ownerPids, ...shellPids, process.pid]);
         const after = await processMeasurements([...ownerPids, ...shellPids]);
         const afterWithChildren = await measurementsWithExitedChildren(ownerPids);
         const elapsed = performance.now() - sampleStart;

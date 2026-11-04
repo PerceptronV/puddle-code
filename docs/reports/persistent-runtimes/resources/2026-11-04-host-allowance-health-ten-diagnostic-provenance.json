@@ -1,0 +1,17 @@
+{
+  "production_head": "e6ebdc5c413b2ed40d3831e0a3edefffeea951fc",
+  "fixture_file": "packages/daemon/test/runtime/resources/idle-baseline.test.ts",
+  "fixture_sha256": "b9f3cea3fef665332c3c22199f0889092881df37923c5c4c95c598015207c66a",
+  "mode": "explicit ten-owner startup health diagnosis; no resource sampling",
+  "duration_ms": 13064,
+  "production_modified": false,
+  "guards_deadlines_changed": false,
+  "cleanup": {
+    "harness_confirmed_all_tracked_owner_exits": true,
+    "harness_confirmed_known_shell_absence": true,
+    "independently_checked_diagnosed_pids": 2,
+    "independent_pid_check": "Both diagnosed owner/shell PIDs returned ESRCH",
+    "temporary_bundle_removed": true
+  },
+  "limitation": "No bundle fingerprint captured for this short targeted diagnosis; raw stderr preserves the observed path, not a proved distinction between transient grant contention and actual capacity exhaustion"
+}

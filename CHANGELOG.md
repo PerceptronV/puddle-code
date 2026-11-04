@@ -9,7 +9,7 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
-Persistent runtimes and cockpit-managed host updates are mandatory standard behaviour for the planned 0.4.0 release, with no enable/disable setting or selectable legacy backend. Native Linux systemd/SSH and resource measurements are deferred by explicit user instruction and do not block 0.4.0; automated Linux-path coverage remains required, and no native Linux result is claimed. Other native platform, SSH/logout/reaper, provider, reboot, remaining recovery and resource-workload acceptance remain required; this changelog does not certify those release gates.
+Persistent runtimes and cockpit-managed host updates are mandatory standard behaviour for the planned 0.4.0 release, with no enable/disable setting or selectable legacy backend. Native Linux systemd/SSH and resource measurements are deferred by explicit user instruction and do not block 0.4.0; automated Linux-path coverage remains required, and no native Linux result is claimed. Remaining real-provider/CLI-database, interactive desktop/native installed-service, SSH/logout and actual reboot/purge checks are deferred as documented manual release acceptance. Available automated verification remains required; this changelog does not certify unperformed native checks.
 
 ### Cockpit
 

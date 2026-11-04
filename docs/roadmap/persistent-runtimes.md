@@ -12,6 +12,16 @@ of the reused Linux supervisor and transport paths, and do not describe them as
 verified on a real Linux host. This supersedes earlier Linux release-gate wording
 in the milestone evidence below; available local acceptance checks still apply.
 
+Further verification decision, 4 November 2026: the user deferred the remaining
+real-provider/CLI-database, interactive desktop, native installed-service,
+SSH logout/lifetime and actual reboot/purge acceptance as documented manual release
+checks. These checks, including native-provider workload evidence, do not block
+closing this implementation goal. They remain unverified; isolated fake providers,
+temporary launchd jobs and simulated boot changes do not establish them. Available
+automated checks, including healthy 1/10/50-runtime measurement, still apply.
+This decision supersedes earlier wording that made those manual checks completion
+gates; it does not enable an experimental mode or weaken production safeguards.
+
 Implementation status, 2026-11-04:
 Default daemon launches now use independent runtimes, resolving the installed
 runtime selector and checking the host service manager before launch intent. The
@@ -74,6 +84,23 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 [acceptance matrix](#acceptance-matrix) for the release gates.
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
+
+- The health-checked resource resample from clean `e6ebdc5` passed one owner and
+  all active ceilings, then failed the initial ten-owner canonical-screen check
+  before measurement: `snapshot` returned a generic correlated failure through
+  its read-only deadline. A targeted ten-owner diagnosis then captured initial
+  host geometry admission refusal; its underlying grant cause remains under investigation. Guards,
+  ceilings and seeded-input rules were unchanged; all tracked processes were
+  cleaned up. [Raw evidence and provenance](../reports/2026-11-04-persistent-runtime-resources.md#health-checked-resample-after-the-journal-race-fix)
+  are retained separately, without claiming healthy ten/fifty-owner acceptance.
+
+- The rebuilt 0.4.0 cockpit passed all 25 process tests in eight files, including
+  the explicitly enabled native CLI runtime-update gate (110.51 seconds). The
+  broader daemon run passed 2,063 checks with one fixture deadline failure under
+  concurrent archive work; after reducing fixture compression cost, all 12 cases
+  in that transaction suite passed serially (106.48 seconds) without changing
+  assertions or deadlines. The release-notes renderer loads only when needed;
+  browser acceptance verifies delayed loading and read-state persistence.
 
 - Component release notes now ship in the host archive and cockpit build. Installed
   daemon/runtime notes reuse bounded release metadata reads and the existing

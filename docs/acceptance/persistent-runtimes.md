@@ -10,6 +10,13 @@ the limited fallback does not promise permanent detached persistence or managed
 updates without a service manager.
 Passing these foundation checks does not establish seamless production upgrades.
 
+On 4 November 2026 the user deferred the remaining real-provider/CLI-database,
+interactive desktop/native installed-service, SSH logout/lifetime and actual
+reboot/purge checks as manual release acceptance. Native Linux verification was
+already deferred. These manual checks no longer block implementation completion;
+they are not recorded as passed. Native-provider workload evidence remains part
+of that manual follow-up. The available automated checks below still apply.
+
 ## Automated foundation checks
 
 Release notes use the four component sections in `CHANGELOG.md`. After installation,
@@ -1350,7 +1357,7 @@ Native Linux execution is deferred by user instruction for 0.4.0 rather than a
 release blocker; retain automated Linux-path coverage and label native behaviour
 untested. These fixture limits do not close every resource gate below.
 
-The latest calibrated native run completed the 1-, 10- and 50-owner samples with
+The completed process-baseline run measured the 1-, 10- and 50-owner samples with
 the unchanged memory guard. At 50, summed owner RSS was 2,669 MiB and median
 re-adoption was 416 ms; all existing fixture ceilings passed and all sampled
 processes were confirmed absent after cleanup. Earlier guard/contention refusals
@@ -1360,9 +1367,15 @@ marker per owner once, verifies canonical marker/persistence/history health
 before warmup and after each adoption outside its timer, and never replays the
 seeded input. The first health-checked run passed its one- and ten-owner samples
 and active CPU/wakeup ceilings, then stopped on a rollback-journal safety refusal
-while scaling towards fifty. All tracked processes were cleaned up. Full
-fifty-owner health acceptance remains open; the old process-only artifacts are
-not evidence of healthy canonical screens.
+while scaling towards fifty. A subsequent resample after the journal-race fix
+passed one owner, then failed the initial ten-owner health check: a snapshot
+request returned a generic correlated failure throughout the read-only deadline.
+An explicit ten-owner startup diagnosis reproduced initial host geometry admission
+refusal; distinguishing actual capacity from transient grant contention remains
+under investigation. No ten/fifty-owner resource result is inferred. Both runs
+and the diagnostic confirmed tracked process cleanup and preserve their raw
+evidence separately. Full fifty-owner health acceptance remains open; the old
+process-only artifacts are not evidence of healthy canonical screens.
 Owner screens/raw history and host-wide
 programme-result charges now have explicit bounds, and verified retired raw logs
 use bounded compaction. Runtime owners now share a sealed host memory ledger,
@@ -1399,6 +1412,7 @@ agent session. Retain logs and before/after identities for each result.
 - Run real packaging/update failure, cockpit notification, relay authority,
   retention/removal and adjacent-execution cases from the roadmap's full matrix.
 
-These gates remain open until their production paths exist and matching evidence
-has been collected. A skipped native test, fake provider or generated supervisor
-definition cannot satisfy a native/platform gate.
+These deferred manual release checks remain unverified until matching evidence
+has been collected. They no longer block this implementation goal under the
+user's decision above. A skipped native test, fake provider or generated supervisor
+definition cannot be reported as a passed native/platform check.

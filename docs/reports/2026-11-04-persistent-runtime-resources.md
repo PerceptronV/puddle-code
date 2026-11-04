@@ -1,11 +1,13 @@
 # Persistent runtime resource baseline — 4 November 2026
 
-The latest calibrated macOS run completed **one and ten health-checked idle shell
-runtimes**. At ten, summed owner RSS was **909.27 MiB**, self CPU was **1.542% of one
-core**, reaped-child CPU was **1.977%**, and owner interrupt wakeups were **23.29/s**.
-Canonical-screen/persistence assertions and all active fixture ceilings passed at
-both scales. Scaling towards fifty stopped on a rollback-journal safety refusal;
-no assertion or guard was weakened. Cleanup completed. See “Health-checked run”.
+The latest calibrated macOS run completed **one health-checked idle shell runtime**,
+then failed the initial ten-owner canonical-screen check. At one, owner RSS was
+**78.59 MiB**, self CPU **0.04495% of one core**, reaped-child CPU **0.11370%**, and
+interrupt wakeups **2.066/s**; all fixture ceilings passed. A targeted ten-owner
+diagnostic subsequently reproduced an initial host geometry-admission failure.
+No assertion or guard was weakened, all tracked fixture processes were cleaned
+up, and no healthy ten/fifty-owner result is inferred from this run. See
+“Health-checked resample after the journal-race fix” and its diagnostic below.
 
 The earlier complete 1/10/50 run remains a **process-level idle baseline**: at
 fifty, owner RSS was 2,669.14 MiB and median re-adoption 416.26 ms. Runs through
@@ -498,6 +500,61 @@ All tracked owners exited and known shell PIDs were absent before report
 publication. An independent post-run check found all 21 sampled owner/shell/
 controller PIDs absent, and the temporary bundle was removed. No healthy
 fifty-owner result is inferred from this partial run.
+
+### Health-checked resample after the journal-race fix
+
+Observed at **2026-11-04 21:58 UTC** from clean commit `e6ebdc5`, including the
+narrow rollback-journal re-observation fix. The [new raw report](persistent-runtimes/resources/2026-11-04-host-allowance-native-health-resample.json)
+and [source/bundle provenance](persistent-runtimes/resources/2026-11-04-host-allowance-native-health-resample-provenance.json)
+preserve this run separately. Memory admission, CPU/wakeup ceilings, launch
+concurrency and canonical-screen assertions were unchanged; other build/test jobs
+were stopped throughout sampling.
+
+The one-owner sample passed its health checks and all ceilings: owner RSS was
+78.59 MiB, native self CPU 0.04495% of one core, reaped-child CPU 0.11370%, and
+interrupt wakeups 2.066/s. Median/maximum re-adoption was 23.78/27.75 ms. The owner
+had 26 descriptors and its shell four. Calibration passed with timebase 125/3,
+50.020 ms converted self CPU against 50.015/50.012 ms independent clocks,
+50.212 ms converted reaped-child CPU against 50.210 ms, and five controlled
+interrupt wakeups with zero package-idle wakeups. Last sampled headroom was 55%
+of 24 GiB.
+
+The run **failed after 60.32 seconds**, during the initial ten-owner canonical
+health check, before its warmup or measurement. All ten owners had launched,
+attached and received their one-time shell marker command. One owner repeatedly
+returned the correlated `failed` response to `snapshot` through the ten-second
+read-only health deadline. That response says `Runtime operation failed` and does
+not identify the underlying screen/admission cause; no cause is inferred from
+this artifact. There was no recorded ledger safety refusal. No ten- or fifty-owner
+health result is claimed, and no input was replayed.
+
+All tracked owners exited and known shells were absent before report publication.
+The three sampled owner/shell/controller PIDs independently returned `ESRCH`, and
+the temporary executable bundle was removed. This result requires investigation;
+earlier process-only and partial health evidence remains unchanged.
+
+#### Targeted ten-owner diagnosis
+
+The explicit `PUDDLE_TEST_RUNTIME_HEALTH_ONLY=1` mode now reuses the same bounded
+launch, one-time marker, ten-second read-only health deadline and cleanup path
+for ten owners, without calibration, warmup, resource sampling or timed adoption.
+On failure it retains a bounded owner stderr tail, the exact correlated error and
+labelled last received state before cleanup. It does not claim a resource-baseline
+pass or replay input.
+
+One invocation at **22:17 UTC** reproduced the failure in 13.06 seconds. The
+[diagnostic artifact](persistent-runtimes/resources/2026-11-04-host-allowance-health-ten-diagnostic.json)
+and [fixture provenance](persistent-runtimes/resources/2026-11-04-host-allowance-health-ten-diagnostic-provenance.json)
+record `Canonical terminal screen admission failed: Error: Canonical terminal
+host geometry capacity exhausted`, originating in `ScreenRetainedLease.setGeometry`
+through screen creation, PTY resize and `RuntimeHost.spawn`. The last received
+owner state was running with `persistence_pending: true`; the shell still ran.
+This establishes the failing initial-geometry path, but the message alone does
+not distinguish genuine host exhaustion from transient grant contention. The
+diagnostic used production source `e6ebdc5` plus the fixture-only diagnostic changes;
+no production fix is claimed. All tracked owners/shells were cleaned up, the two
+diagnosed process PIDs independently returned `ESRCH`, and the temporary bundle
+was removed.
 
 ## Enforced calibrated macOS fixture ceilings
 

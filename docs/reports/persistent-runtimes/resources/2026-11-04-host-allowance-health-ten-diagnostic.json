@@ -1,0 +1,138 @@
+{
+  "observed_at": "2026-11-04T22:17:05.362Z",
+  "environment": {
+    "platform": "darwin",
+    "release": "25.5.0",
+    "architecture": "arm64",
+    "node": "v22.21.1",
+    "logical_cpus": 10,
+    "cpu_model": "Apple M4"
+  },
+  "method": {
+    "mode": "ten-owner startup health diagnosis; no resource measurement",
+    "fixture_regression_ceilings": {
+      "counts": {
+        "1": {
+          "owner_rss_mib": 192,
+          "adoption_ms": 100,
+          "owner_cpu_one_core_percent": 1,
+          "owner_reaped_children_cpu_one_core_percent": 1,
+          "owner_interrupt_wakeups_per_second": 6
+        },
+        "10": {
+          "owner_rss_mib": 1536,
+          "adoption_ms": 300,
+          "owner_cpu_one_core_percent": 3,
+          "owner_reaped_children_cpu_one_core_percent": 3,
+          "owner_interrupt_wakeups_per_second": 60
+        },
+        "50": {
+          "owner_rss_mib": 6144,
+          "adoption_ms": 2500,
+          "owner_cpu_one_core_percent": 15,
+          "owner_reaped_children_cpu_one_core_percent": 15,
+          "owner_interrupt_wakeups_per_second": 350
+        }
+      },
+      "owner_rss_max_mib": 192,
+      "owner_descriptors": 32,
+      "shell_descriptors": 8,
+      "native_platform": "darwin"
+    },
+    "sample_ms": 30000,
+    "warmup_ms": 15000,
+    "launch_concurrency": 4,
+    "adoption_samples": 3,
+    "provider": "plain isolated /bin/sh; no native provider, sidecar or service manager",
+    "controller": "production RuntimeConnections and RuntimeReconciler in the test process; excludes daemon startup",
+    "screen_health": "one shell variable/marker command per owner before its first warmup; canonical retained marker plus settled persistence/history checked before every warmup and after each timed adoption, outside the adoption timer; read-only health attempts have a ten-second deadline",
+    "cpu": "cumulative ps CPU-time delta; percentage of one CPU core",
+    "cpu_precision": "Reported display-resolution margin allows one displayed CPU-time tick per owner; it is not a confidence interval and excludes asynchronous snapshot skew",
+    "reaped_child_cpu": "ps -S adds exited children, including terminal-monitor ps probes; excludes live children at sample boundaries and all controller/daemon CPU",
+    "rss": "resident size summed across processes; shared pages may be counted repeatedly",
+    "descriptors": "numeric open descriptors; excludes cwd, executable and mapped-library pseudoentries",
+    "native": "macOS installed-SDK proc_pid_rusage, calibrated against CPU clock/getrusage; exact PID start identities and per-read elapsed bounds; raw decimal counters retained",
+    "native_controller": "test process including Vitest, controller and measurement orchestration; self only, excludes reaped measurement tools; not isolated daemon overhead",
+    "native_children": "owner reaped-child counters exclude live children; shell self counters reported separately; these do not establish a complete process-tree total",
+    "native_wakeups": "interrupt and package-idle wakeup counters only; not total scheduler wakeups or energy consumption",
+    "native_regression_scope": "macOS requires calibrated native owner self/reaped-child CPU and owner interrupt-wakeup upper rates; Linux/native-unavailable results do not establish those ceilings"
+  },
+  "native_calibration": null,
+  "native_unavailable": null,
+  "completed": false,
+  "failure": "Runtime 0ebb03c9-c42d-4415-9500-7ebfc619c776 did not retain a healthy canonical screen",
+  "failure_diagnostics": {
+    "runtime_id": "0ebb03c9-c42d-4415-9500-7ebfc619c776",
+    "owner_pid": 67931,
+    "shell_pid": 67988,
+    "request_error": {
+      "name": "Error",
+      "message": "Runtime operation failed",
+      "code": "failed",
+      "request": "snapshot",
+      "stack": "Error: Runtime operation failed\n    at /Users/yiding/Desktop/Me/puddle/packages/daemon/src/runtime/transport/client.ts:74:13\n    at Socket.onData (/Users/yiding/Desktop/Me/puddle/packages/daemon/src/runtime/transport/framing.ts:97:11)\n    at Socket.emit (node:events:519:28)\n    at addChunk (node:internal/streams/readable:561:12)\n    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)\n    at Socket.Readable.push (node:internal/streams/readable:392:5)\n    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)"
+    },
+    "owner_stderr_tail": "Canonical terminal screen admission failed: Error: Canonical terminal host geometry capacity exhausted\n    at ScreenRetainedLease.setGeometry (file:///private/tmp/puddle-runtime-bundle-dtLaVw/puddler.mjs:28483:13)\n    at ScreenRetainedBudget.rebalance (file:///private/tmp/puddle-runtime-bundle-dtLaVw/puddler.mjs:28389:42)\n    at ScreenRetainedBudget.admit (file:///private/tmp/puddle-runtime-bundle-dtLaVw/puddler.mjs:28342:12)\n    at TerminalScreenStateStore.ensure (file:///private/tmp/puddle-runtime-bundle-dtLaVw/puddler.mjs:29061:33)\n    at TerminalScreenStateStore.admit (file:///private/tmp/puddle-runtime-bundle-dtLaVw/puddler.mjs:29235:19)\n    at TerminalScreenStateStore.resize (file:///private/tmp/puddle-runtime-bundle-dtLaVw/puddler.mjs:28938:24)\n    at PtyManager.resize (file:///private/tmp/puddle-runtime-bundle-dtLaVw/puddler.mjs:29466:18)\n    at _RuntimeHost.spawn (file:///private/tmp/puddle-runtime-bundle-dtLaVw/puddler.mjs:36870:15)\n    at _RuntimeHost.start (file:///private/tmp/puddle-runtime-bundle-dtLaVw/puddler.mjs:36811:12)\n    at async file:///private/tmp/puddle-runtime-bundle-dtLaVw/puddler.mjs:37451:16\n",
+    "last_received_state": {
+      "identity": {
+        "runtime_id": "0ebb03c9-c42d-4415-9500-7ebfc619c776",
+        "incarnation": "9a65a9d7-3e77-4df0-9a3d-6dafb73b5e86",
+        "launch_id": "173ff393-a2c4-444b-97c3-4a439721019a",
+        "profile_id": "405fd1c611",
+        "project_id": "b9cb0a7e03",
+        "session_id": "01c5455a-f756-43f3-bf11-6f187f09d717",
+        "canonical_worktree_path": "/private/tmp/puddle-runtime-host-W1ZdIm"
+      },
+      "build": "runtime-test",
+      "lifetime": "unknown",
+      "protocol": {
+        "major": 1,
+        "minor": 0
+      },
+      "state": "running",
+      "terminals": [
+        {
+          "term": "agent",
+          "generation": "8f29c4ba-c200-426f-8540-cfb548c8e158",
+          "pid": 67988,
+          "exit_code": null,
+          "cols": 80,
+          "rows": 24
+        }
+      ],
+      "event_cursor": 2,
+      "command_cursor": 3,
+      "persistence_pending": true,
+      "journal": {
+        "cursor": 1,
+        "acknowledged": 0,
+        "lost_through": 0,
+        "persistence_pending": false
+      },
+      "agent": null,
+      "turn": null,
+      "environment": {
+        "enabled": true,
+        "count": 1
+      },
+      "theme": null,
+      "attention": null,
+      "terminal_agent": null,
+      "binding": {
+        "segment_id": "0ebb03c9-c42d-4415-9500-7ebfc619c776",
+        "session_id": "01c5455a-f756-43f3-bf11-6f187f09d717",
+        "through": 1
+      },
+      "history": {
+        "current": {
+          "id": "0ebb03c9-c42d-4415-9500-7ebfc619c776",
+          "start_cursor": 0,
+          "agent_session_ref": null
+        },
+        "pending_checkpoints": 0,
+        "gap": false
+      }
+    }
+  },
+  "results": []
+}

@@ -29,6 +29,26 @@ providers or addressing installed services. Strict fixture TypeScript, lint and
 formatting passed. The four native gates were not repeated for this notes-only
 packaging change.
 
+The rebuilt 0.4.0 cockpit then passed the complete process suite: **25 tests in
+eight files, 110.51 seconds**, from source `e6ebdc5`. This run enabled
+`PUDDLE_TEST_RUNTIME_SUPERVISOR=1` and supplied the latest archive above, so the
+normally gated built-CLI runtime update also ran. It verified the actual CLI,
+native one-shot launchd updater, selected-runtime change, unchanged daemon PID and
+exact temporary-job cleanup. This selection test has no live agent; owner continuity
+is established separately by the packaged test. The earlier browser-cancellation
+readiness timeout did not recur when the suite ran alone.
+
+The broader daemon run returned **2,063 passing tests and one transaction-fixture
+timeout**. Archive compression dominated that fixture's setup under concurrent
+test load; using fast compression retained real archives, checksums, installer
+execution and unchanged deadlines. All **12 transaction cases** subsequently
+passed serially in **106.48 seconds**. Release-notes/API/access/refresh checks added
+**78 passing focused tests**. Isolated Chromium acceptance covered desktop/mobile
+presentation, delayed same-release merging, persistence across reloads, new releases,
+sanitisation and no embedded-asset requests. A separate delayed-chunk check confirmed
+that notes remain unread until their preview renders and already-read notes do not
+load the renderer. TypeScript, lint, formatting and web/CLI/desktop builds passed.
+
 The preceding macOS arm64 host archive was built from production source
 `159a348af1e24cb20f821d7a33d03cfdb4c165ac` on 4 November 2026. Pending
 working-tree changes affected unrelated test helpers only.

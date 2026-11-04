@@ -189,8 +189,10 @@ from 0.4.0, without an enable/disable setting or selectable legacy backend. The
 production paths described below are implemented; native provider, platform,
 reboot and remaining acceptance evidence is tracked in the
 [persistent-runtime acceptance script](docs/acceptance/persistent-runtimes.md).
-Native Linux execution is deferred for 0.4.0 by the user's explicit verification
-decision; that does not waive the other acceptance gates. Daemon composition uses
+Native Linux execution and the remaining real-provider, interactive desktop,
+native installed-service, SSH/logout and actual reboot/purge checks are deferred
+as manual release acceptance by the user's explicit verification decisions.
+Available automated checks still apply; no native pass is inferred. Daemon composition uses
 the installed independent runtime for terminals and interactive/headless agents.
 Only internal fixtures can select the legacy in-process backend. Each launch probes
 the host user service manager through the same inspection used by update preflight,
