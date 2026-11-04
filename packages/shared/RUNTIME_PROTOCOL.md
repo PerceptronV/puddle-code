@@ -66,7 +66,10 @@ the default for future launches without restarting existing owners.
 Each frame is a four-byte unsigned big-endian byte length followed by one UTF-8
 JSON object. Length and UTF-8 are validated before schema dispatch. Frame and
 queue limits are exported as `RUNTIME_LIMITS`; receivers bound both pending
-request count and encoded bytes. A slow controller is disconnected without
+request count and encoded bytes. An owner shares one 16 MiB/64-request allowance
+across all connections, while each connection retains its own execution order.
+Closed connections retain their charges until queued closures settle; their
+undispatched requests are discarded. A slow controller is disconnected without
 blocking PTY drainage. No unbounded replay queue is maintained for disconnected
 controllers; terminal attachment obtains a new snapshot.
 

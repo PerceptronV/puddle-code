@@ -68,6 +68,16 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Owner request admission now shares one 16 MiB/64-request budget across every
+  connection, closing the previous sixteen-fold multiplication of per-socket
+  queues. Connection ordering remains independent; closed queued work retains
+  its charge until settled and never dispatches again. Thirty-three request,
+  framing, real-owner and programme checks, source TypeScript and lint passed.
+  This bounds one managed memory domain per owner; aggregate host allocation and
+  retained emulator state still need work. The normative resource requirement is
+  a host-wide cap on managed runtime budgets, not a whole-host physical-disk quota;
+  the filesystem inventory/compaction work does not promise the latter.
+
 - Post-storage verification passed 300 shared persistence, storage, security and
   collection checks, all workspace TypeScript builds, refreshed CLI/desktop builds
   and repository formatting. The new darwin-arm64 archive passed bundle/native

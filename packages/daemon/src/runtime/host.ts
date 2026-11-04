@@ -32,6 +32,8 @@ import {
 } from '../pty/pty-manager.js';
 import { acquireHostClaim } from '../security/claims.js';
 import { readRuntimeFrames, writeRuntimeFrame } from './transport/framing.js';
+import { RuntimeRequestQueue } from './transport/requests.js';
+import { RuntimeBufferBudget } from './resources/budget.js';
 import { readRuntimeController, readRuntimeJson, runtimeDirectory } from './ownership/storage.js';
 import { RuntimeJournal, type RuntimeJournalReservation } from './state/journal.js';
 import { RuntimeTurns, RuntimeTurnError } from './execution/turns.js';
@@ -51,6 +53,10 @@ import { prepareRuntimeLifetime } from './lifecycle/lifetime.js';
 export class RuntimeHost {
   private readonly terminals = new Map<string, RuntimeTerminal>();
   private readonly sockets = new Set<Socket>();
+  private readonly requests = new RuntimeBufferBudget({
+    bytes: RUNTIME_LIMITS.queuedBytes,
+    count: RUNTIME_LIMITS.pendingRequests,
+  });
   private owner: { socket: Socket; id: string; epoch: number; offeredThrough: number } | null =
     null;
   private eventCursor = 0;
@@ -494,25 +500,18 @@ export class RuntimeHost {
     }
     this.sockets.add(socket);
     const timer = setTimeout(() => socket.destroy(), RUNTIME_LIMITS.handshakeMs);
-    let pending = 0;
-    let pendingBytes = 0;
-    let chain = Promise.resolve();
+    const requests = new RuntimeRequestQueue(
+      this.requests,
+      () => !socket.destroyed,
+      () => socket.destroy(),
+    );
     const stop = readRuntimeFrames(
       socket,
       (value) => {
         const request = runtimeRequestSchema.parse(value);
         const bytes = Buffer.byteLength(JSON.stringify(request));
-        pendingBytes += bytes;
         if (
-          ++pending > RUNTIME_LIMITS.pendingRequests ||
-          pendingBytes > RUNTIME_LIMITS.queuedBytes
-        ) {
-          socket.destroy();
-          return;
-        }
-        chain = chain
-          .then(async () => {
-            if (socket.destroyed) return;
+          !requests.enqueue(bytes, async () => {
             try {
               await this.handle(socket, request);
             } catch (error) {
@@ -525,10 +524,8 @@ export class RuntimeHost {
               });
             }
           })
-          .finally(() => {
-            pending--;
-            pendingBytes -= bytes;
-          });
+        )
+          socket.destroy();
       },
       () => socket.destroy(),
     );
