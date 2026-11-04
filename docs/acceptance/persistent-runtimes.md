@@ -26,6 +26,12 @@ results cannot create placements or mark conversations missing, and checks that
 disposal waits for in-flight helper reads without reinstalling watchers. Other
 background writers and reversible update checkpoints remain separate gates.
 
+`packages/daemon/test/sessions/session-refs.test.ts` verifies that preset and minted
+native-ref captures already in progress commit before shutdown finishes, that a
+pending pre-spawn snapshot cannot start a child afterwards, and that coalesced late
+recovery drains without admitting another scan. It uses fake adapters and real
+temporary stores; no provider executable is launched or native conversation guessed.
+
 Run from the repository root with dependencies installed:
 
 ```sh

@@ -41,8 +41,17 @@ Implementation evidence so far:
   existing scans before SQLite can close. Disposed catalogues cannot reinstall
   watchers, materialise placements or advance missing-conversation observations.
   Tests hold discovery and Git mapping across disposal to verify those boundaries.
-  This closes one background-writer gap; native-ref capture, other host upkeep and
-  a reversible update checkpoint still need integration.
+  This closes one background-writer gap; other host upkeep and a reversible update
+  checkpoint still need integration.
+
+- Native-ref capture now tracks preset-id and background minted-id observations
+  through shutdown. Already-started captures finish saving their exact refs before
+  SQLite closes; delayed launches still awaiting a native-store snapshot cannot
+  spawn after shutdown begins. Late identity callbacks cannot restart discovery or
+  read closed application storage. Isolated tests cover both kinds of capture,
+  coalesced late recovery and shutdown during the pre-spawn snapshot. This retains
+  the existing adapter-owned discovery rules and does not infer a new conversation
+  from recency. Other background writers and reversible update quiescence remain.
 
 - Runtime install/upgrade commands now drive the private coordinator over local
   or SSH control. They reuse version resolution, transport delivery and the embedded

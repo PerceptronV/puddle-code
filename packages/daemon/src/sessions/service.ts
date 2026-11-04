@@ -346,8 +346,14 @@ export class SessionService extends EventEmitter {
    */
   beginShutdown(): void {
     this.shuttingDown = true;
+    this.sessionRefs.beginShutdown();
     clearInterval(this.titleTimer);
     this.terminalAgents.dispose();
+  }
+
+  /** Await native-ref observations already running when shutdown fenced new work. */
+  async drainNativeRefs(): Promise<void> {
+    await this.sessionRefs.close();
   }
 
   get(id: string): Session {
@@ -400,6 +406,7 @@ export class SessionService extends EventEmitter {
    * title; every placement reads that title through the store join.
    */
   private refreshAgentIdentity(sessionId: string): void {
+    if (this.shuttingDown) return;
     let session: Session;
     let account: Account;
     let adapter: AgentAdapter;
@@ -422,6 +429,7 @@ export class SessionService extends EventEmitter {
       })
       .then(() =>
         this.persistence.observe(() => {
+          if (this.shuttingDown) return;
           this.bindRuntimeConversation(sessionId);
           this.refreshAgentTitle(sessionId);
         }),

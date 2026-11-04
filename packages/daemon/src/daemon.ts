@@ -390,6 +390,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     failedStartup.push(async () => {
       service.beginShutdown();
       await catalogue.dispose();
+      await service.drainNativeRefs();
     });
 
     // Stored logged-in flags can lie (keychain-bound creds die with a path
@@ -614,6 +615,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
           // Finish admitted handlers before closing terminal state or SQLite;
           // closing a socket alone does not cancel its asynchronous handler.
           await admission.drain();
+          await service.drainNativeRefs();
           ptys.killAll();
           const deadline = Date.now() + 3000;
           while (ptys.liveCount() > 0) {

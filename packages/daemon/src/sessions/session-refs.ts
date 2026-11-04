@@ -18,12 +18,38 @@ export interface SessionRefDeps {
  * only coordinates snapshots, serialisation, validation, and durable repair.
  */
 export class SessionRefs {
+  private closing = false;
+  private readonly pending = new Set<Promise<unknown>>();
   /** Minted refs must be captured one launch at a time per account/cwd. */
   private readonly launchMutex = new KeyedMutex();
   /** Status/title ticks may ask for the same unresolved ref concurrently. */
   private readonly refreshes = new Map<string, Promise<boolean>>();
 
   constructor(private readonly deps: SessionRefDeps) {}
+
+  beginShutdown(): void {
+    this.closing = true;
+  }
+
+  /** Preserve refs discovered by admitted work before application storage closes. */
+  async close(): Promise<void> {
+    this.beginShutdown();
+    await Promise.allSettled([...this.pending]);
+  }
+
+  private async track<T>(work: Promise<T>): Promise<T> {
+    this.pending.add(work);
+    try {
+      return await work;
+    } finally {
+      this.pending.delete(work);
+    }
+  }
+
+  private assertOpen(): void {
+    if (this.closing)
+      throw new ApiError(503, 'host_maintenance', 'Native conversation capture is shutting down.');
+  }
 
   /**
    * Starts an agent and captures its native conversation ref without holding
@@ -40,16 +66,23 @@ export class SessionRefs {
     onCaptured: () => void,
     onError: (error: unknown, phase: 'spawn' | 'capture') => void,
   ): Promise<void> {
+    this.assertOpen();
     if (adapter.capabilities.presetSessionId) {
-      await spawn();
-      const ref = await adapter.resolveSessionRef(launchOpts, account);
-      this.deps.sessions.setAgentSessionRef(session.id, ref);
+      await this.track(
+        (async () => {
+          await spawn();
+          const ref = await adapter.resolveSessionRef(launchOpts, account);
+          this.deps.sessions.setAgentSessionRef(session.id, ref);
+        })(),
+      );
       return;
     }
 
     let spawned = false;
     const launch = async () => {
+      this.assertOpen();
       const existing = await adapter.existingSessionRefs?.(session.worktree_path, account);
+      this.assertOpen();
       await spawn();
       spawned = true;
       const ref = await adapter.resolveSessionRef(launchOpts, account, existing);
@@ -66,7 +99,9 @@ export class SessionRefs {
           launch,
         )
       : launch();
-    void pending.catch((error) => onError(error, spawned ? 'capture' : 'spawn'));
+    void this.track(pending.catch((error) => onError(error, spawned ? 'capture' : 'spawn'))).catch(
+      (error: unknown) => console.warn('Native conversation capture callback failed:', error),
+    );
   }
 
   /**
@@ -75,12 +110,16 @@ export class SessionRefs {
    * Codex: an empty composer may not commit its state row until the first turn.
    */
   refreshAvailable(session: Session, account: Account, adapter: AgentAdapter): Promise<boolean> {
-    if (adapter.capabilities.presetSessionId || session.agent_session_ref !== null) {
+    if (
+      this.closing ||
+      adapter.capabilities.presetSessionId ||
+      session.agent_session_ref !== null
+    ) {
       return Promise.resolve(false);
     }
     const active = this.refreshes.get(session.id);
     if (active) return active;
-    const pending = this.refresh(session, account, adapter).finally(() => {
+    const pending = this.track(this.refresh(session, account, adapter)).finally(() => {
       if (this.refreshes.get(session.id) === pending) this.refreshes.delete(session.id);
     });
     this.refreshes.set(session.id, pending);
