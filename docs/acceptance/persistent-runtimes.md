@@ -547,6 +547,16 @@ kernel restart and shutdown. Compilation tests include in-flight builds and fail
 eager watchers; programme shutdown clears its runner inventory without replay.
 These observations do not prove a quiescence barrier or authorise an interruption.
 
+The combined inspection/storage/daemon-ownership regression run passed 53 tests
+across nine files on macOS 26.5.2/Node v22.21.1. Capacity fixtures cover bytes,
+inodes, unavailable/coalesced probes and persistence degradation during inspection.
+Integrated tests bind evidence to exact operations/stages, reject impact changes
+during inspection and exercise the durable store's stale-approval invalidation;
+normal journal progress and changing healthy free space retain stable evidence.
+TypeScript, scoped lint and formatting checks passed. Capacity checks neither
+reserve space nor prove migration size, and these tests do not exercise staging
+admission, host-authority approval or a quiescence barrier.
+
 ## Remaining release gates
 
 

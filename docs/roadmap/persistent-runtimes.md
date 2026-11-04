@@ -51,6 +51,19 @@ Implementation evidence so far:
   This is internal inventory only: authority, approval UI, admission quiescence,
   checkpointing and the final atomic recheck still require coordinator integration.
 
+- Update inspection now composes compatibility, interruption impact and fresh
+  storage checks. It reuses the storage monitor's bounded/coalesced probes for the
+  selector, operation records and actual database destination, rejects critical
+  bytes/inodes or unavailable probes, and preserves unsaved-state warnings. The
+  returned fingerprint binds the operation, exact stages, protocols, owner inventory
+  and controller-scoped impact; failed checks or an impact change during inspection
+  produce no approval fingerprint. Ordinary journal progress and changing healthy
+  free-byte counts do not invalidate approval, while replacement owners and native
+  segments do. The durable operation store already clears approval on changed
+  evidence. This is headroom after staging, not reserved space or proof that a
+  migration will fit; authority, supervisor lifetime, staging admission and final
+  quiescence/dispatch integration remain required.
+
 - Runtime code and tests are grouped by ownership, transport, execution, retained
   state, daemon control and service lifecycle. The `puddler` entry point and owner
   composition stay at the runtime root; implementation imports use their actual

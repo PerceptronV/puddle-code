@@ -84,6 +84,22 @@ it('blocks an incompatible live runtime without contacting or retiring it', asyn
   expect(f.binding.state).toBe('running');
 });
 
+it('fingerprints exact ownership and placement without invalidating on ordinary journal progress', async () => {
+  const f = fixture();
+  const first = await f.inspect();
+  expect(first.inventory).toMatch(/^[a-f0-9]{64}$/);
+  f.binding.event_cursor += 1;
+  expect((await f.inspect()).inventory).toBe(first.inventory);
+  f.binding.active_segment_id = randomUUID();
+  const switched = await f.inspect();
+  expect(switched.inventory).not.toBe(first.inventory);
+  f.binding.incarnation = randomUUID();
+  f.state.identity.incarnation = f.binding.incarnation;
+  const replacement = await f.inspect();
+  expect(replacement.blockers).toEqual([]);
+  expect(replacement.inventory).not.toBe(switched.inventory);
+});
+
 it.each(['missing', 'failure', 'identity', 'placement'])(
   'blocks %s owner evidence without starting recovery',
   async (failure) => {

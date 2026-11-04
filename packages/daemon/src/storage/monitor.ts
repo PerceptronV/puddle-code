@@ -142,12 +142,23 @@ export class StorageMonitor {
     }
   }
 
-  async assertAdmission(paths: string[]): Promise<void> {
-    if (this.status().database_degraded) throw storageUnavailable();
+  /** Fresh bounded probes, sharing in-flight filesystem checks with polling/admission. */
+  async inspectPaths(paths: readonly string[]): Promise<Volume[]> {
+    const volumes: Volume[] = [];
     for (const path of new Set(paths)) {
       const volume = await this.inspect(path);
       this.volumes.set(path, volume);
       this.checkedAt = new Date().toISOString();
+      volumes.push(volume);
+    }
+    return volumes;
+  }
+
+  async assertAdmission(paths: string[]): Promise<void> {
+    if (this.status().database_degraded) throw storageUnavailable();
+    for (const path of new Set(paths)) {
+      const [volume] = await this.inspectPaths([path]);
+      if (!volume) throw storageUnavailable();
       if (volume.level === 'critical') {
         throw new ApiError(
           507,

@@ -54,6 +54,8 @@ import { RuntimeStore } from './db/stores/runtimes.js';
 import { hostReleaseCapabilities } from '@puddle/shared';
 import { HostUpdateCompatibility } from './updates/preflight/compatibility.js';
 import { HostUpdateImpact } from './updates/preflight/impact.js';
+import { HostUpdateCapacity } from './updates/preflight/capacity.js';
+import { HostUpdateInspection } from './updates/preflight/inspection.js';
 import { RuntimeConnections } from './runtime/transport/connections.js';
 import { RuntimeReconciler } from './runtime/controller/reconcile.js';
 import { RuntimeNotifications } from './runtime/controller/notifications.js';
@@ -93,8 +95,7 @@ export interface RunningDaemon {
   authority: LeaseRegistry;
   paths: ReturnType<typeof resolvePaths>;
   service: SessionService;
-  updateCompatibility: HostUpdateCompatibility;
-  updateImpact: HostUpdateImpact;
+  updateInspection: HostUpdateInspection;
   stop(): Promise<void>;
 }
 
@@ -522,18 +523,21 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       authority,
       paths,
       service,
-      updateCompatibility: new HostUpdateCompatibility({
-        home: paths.home,
-        current: hostReleaseCapabilities(opts.version ?? '0.0.0'),
-        runtimes,
-        connections: runtimeConnections,
-      }),
-      updateImpact: new HostUpdateImpact({
-        controller: randomUUID(),
-        ptys,
-        notebooks,
-        compilation,
-        puddlang,
+      updateInspection: new HostUpdateInspection({
+        compatibility: new HostUpdateCompatibility({
+          home: paths.home,
+          current: hostReleaseCapabilities(opts.version ?? '0.0.0'),
+          runtimes,
+          connections: runtimeConnections,
+        }),
+        impact: new HostUpdateImpact({
+          controller: randomUUID(),
+          ptys,
+          notebooks,
+          compilation,
+          puddlang,
+        }),
+        capacity: new HostUpdateCapacity(paths, storage),
       }),
       async stop() {
         runtimeNotifications.close();

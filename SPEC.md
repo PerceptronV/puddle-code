@@ -156,6 +156,10 @@ compilation and puddlang managers, including idle kernels and watchers. Runtime-
 default selection has no interruption impact. Controller-scoped fingerprints and
 execution identities detect replacement work; they do not freeze new admissions
 or authorise interruption. Final quiescence and approval integration remain required.
+The combined inspection uses fresh bounded storage probes and reports unsaved state,
+binding its fingerprint to the exact operation/stages and runtime/impact identities.
+Blocked or changing observations yield no fingerprint. Available-space measurements
+remain advisory headroom, without a reservation or migration-size guarantee.
 
 The [persistent runtimes roadmap](docs/roadmap/persistent-runtimes.md) specifies
 one independent `puddler` process per live runtime and cockpit-managed host

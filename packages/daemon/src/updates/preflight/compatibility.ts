@@ -6,6 +6,7 @@ import {
   type HostReleaseCapabilities,
   type HostUpdateOperation,
 } from '@puddle/shared';
+import { digest } from '@puddle/shared/node';
 import type { RuntimeStore, RuntimeBinding } from '../../db/stores/runtimes.js';
 import type { RuntimeConnections } from '../../runtime/transport/connections.js';
 import { runtimeBindingIdentity } from '../../runtime/transport/connections.js';
@@ -29,6 +30,7 @@ export interface UpdateCompatibility {
   blockers: Blocker[];
   candidates: Array<{ digest: string; capabilities: HostReleaseCapabilities }>;
   owners: Array<{ id: string; session: string; build: string; protocol: Protocol }>;
+  inventory: string | null;
 }
 
 /** Compatibility inspection only; authority, impact, capacity and quiescence remain separate checks. */
@@ -51,7 +53,12 @@ export class HostUpdateCompatibility {
     const operation = hostUpdateOperationSchema.parse(input);
     if (operation.stages.length !== operation.targets.length)
       throw new Error('Host update is not completely staged');
-    const result: UpdateCompatibility = { blockers: [], candidates: [], owners: [] };
+    const result: UpdateCompatibility = {
+      blockers: [],
+      candidates: [],
+      owners: [],
+      inventory: null,
+    };
     let daemon = this.deps.current;
     let runtime = installedRuntime;
     const replacesDaemon = operation.targets.some((target) => target.component === 'daemon');
@@ -90,9 +97,13 @@ export class HostUpdateCompatibility {
             binding.build,
             binding.protocol_major,
             binding.protocol_minor,
+            binding.launch_fingerprint,
+            binding.release_path,
+            binding.state,
           ]),
       );
     const before = inventory(bindings);
+    result.inventory = digest(before);
     if (bindings.length > 4096) {
       result.blockers.push({ code: 'runtime_inventory_unknown', target: 'inventory' });
       return result;
