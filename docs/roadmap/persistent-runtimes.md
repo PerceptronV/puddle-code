@@ -68,6 +68,16 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Canonical terminal emulators now share owner-local retained allowances for
+  geometry, combined characters, hyperlinks and control sequences. REP expansion
+  and resize reflow reserve bounded working capacity before upstream allocation;
+  parser batches retain their reservation through the actual write callbacks.
+  Exhaustion preserves live PTY delivery and the last durable screen, reporting a
+  canonical gap. Fifty-five focused screen checks and fourteen actual-owner,
+  segment, theme and gateway checks passed, alongside TypeScript, lint and an
+  independent review. These are charged capacities, not RSS measurements;
+  aggregate host allocation remains outstanding.
+
 - Claude's pinned status helper now drains input beyond 64 KiB without retaining
   it or replacing the last useful status. It records only finite numeric usage
   and a bounded model label; the adapter reads at most 4 KiB of validated metadata.

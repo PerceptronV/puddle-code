@@ -14,6 +14,8 @@ import { readScreenFile } from './screen/files.js';
 import { ScreenSnapshotFiles } from './screen/persistence.js';
 import { serialiseScreen } from './screen/serialise.js';
 import { preserveXtermScrollUp } from './xterm-scrollback.js';
+import { ScreenRetainedBudget } from './screen/retained/budget.js';
+import { XtermRetainedState } from './screen/retained/xterm.js';
 
 const { Terminal } = headless;
 
@@ -36,6 +38,7 @@ interface PersistedTerminalState {
 
 interface ScreenState {
   terminal: HeadlessTerminal;
+  retained: XtermRetainedState;
   serialiser: SerializeAddon;
   cols: number;
   rows: number;
@@ -74,13 +77,18 @@ export class TerminalScreenStateStore {
     count: SCREEN_LIMITS.captureActions,
   });
   private readonly work: ScreenSnapshotWork;
+  private readonly retained: ScreenRetainedBudget;
 
   private retryAt = 0;
   private retryMs = 1000;
   constructor(
     private readonly stateDir?: string,
     private readonly onHealth?: (degraded: boolean) => void,
-    options: { parserBudget?: RuntimeBufferBudget; transientBudget?: RuntimeBufferBudget } = {},
+    options: {
+      parserBudget?: RuntimeBufferBudget;
+      transientBudget?: RuntimeBufferBudget;
+      retainedBudget?: ScreenRetainedBudget;
+    } = {},
   ) {
     this.parserBudget =
       options.parserBudget ??
@@ -89,14 +97,16 @@ export class TerminalScreenStateStore {
         count: SCREEN_LIMITS.parserActions,
       });
     this.work = new ScreenSnapshotWork(options.transientBudget);
+    this.retained = options.retainedBudget ?? new ScreenRetainedBudget();
     if (stateDir) this.files = new ScreenSnapshotFiles(stateDir);
   }
 
   write(stream: string, term: string, data: string): void {
     if (data === '' || this.closing || this.gaps.has(this.key(stream, term))) return;
-    const state = this.ensure(stream, term);
+    const state = this.admit(stream, term);
+    if (!state) return;
     state.queue.enqueue(screenActionBytes(data), async () => {
-      await this.writeTerminal(state.terminal, data);
+      await state.retained.write(data);
       state.hasContent = true;
       state.revision++;
       state.dirty = true;
@@ -107,10 +117,11 @@ export class TerminalScreenStateStore {
   resize(stream: string, term: string, cols: number, rows: number): void {
     if (this.closing || this.gaps.has(this.key(stream, term)) || !this.validSize(cols, rows))
       return;
-    const state = this.ensure(stream, term);
-    state.queue.enqueue(screenActionBytes(), () => {
+    const state = this.admit(stream, term);
+    if (!state) return;
+    state.queue.enqueue(screenActionBytes(), async () => {
       if (state.cols === cols && state.rows === rows) return Promise.resolve();
-      state.terminal.resize(cols, rows);
+      await state.retained.resize(cols, rows);
       state.cols = cols;
       state.rows = rows;
       state.revision++;
@@ -173,7 +184,7 @@ export class TerminalScreenStateStore {
     if (state.persistTimer) clearTimeout(state.persistTimer);
     state.forgotten = true;
     state.queue.close();
-    state.terminal.dispose();
+    state.retained.dispose();
     this.states.delete(key);
   }
 
@@ -190,7 +201,7 @@ export class TerminalScreenStateStore {
         if (state.persistTimer) clearTimeout(state.persistTimer);
         state.forgotten = true;
         state.queue.close();
-        state.terminal.dispose();
+        state.retained.dispose();
       }
       this.states.clear();
       this.gaps.clear();
@@ -209,7 +220,7 @@ export class TerminalScreenStateStore {
       if (state.persistTimer) clearTimeout(state.persistTimer);
       await state.queue.settled;
       await state.saving;
-      state.terminal.dispose();
+      state.retained.dispose();
       this.states.delete(key);
     }
     if (!this.stateDir) return;
@@ -235,35 +246,52 @@ export class TerminalScreenStateStore {
       return existing;
     }
 
+    const lease = this.retained.admit(DEFAULT_COLS, DEFAULT_ROWS);
     const terminal = new Terminal({
       // Narrow opt-in for the official serialiser's buffer access. Puddle does
       // not expose or consume proposed xterm APIs anywhere else.
       allowProposedApi: true,
       cols: DEFAULT_COLS,
       rows: DEFAULT_ROWS,
-      scrollback: SCREEN_LIMITS.scrollbackLines,
+      scrollback: lease.scrollback,
     });
     preserveXtermScrollUp(terminal);
     const serialiser = new SerializeAddon();
     // The serialiser is runtime-compatible with @xterm/headless, as documented
     // by xterm, but its published type names the browser Terminal class.
     terminal.loadAddon(serialiser as unknown as HeadlessTerminalAddon);
+    const unavailable = (error: unknown) => {
+      if (state.unavailable) return;
+      state.unavailable = true;
+      this.gaps.add(key);
+      state.queue.close();
+      this.onHealth?.(true);
+      console.warn('Canonical terminal screen is unavailable:', error);
+      // Parser callbacks must settle before their emulator/credits are released.
+      void state.queue.settled.then(async () => {
+        await state.saving;
+        if (state.persistTimer) clearTimeout(state.persistTimer);
+        state.retained.dispose();
+        if (this.states.get(key) === state) this.states.delete(key);
+      });
+    };
+    let retained: XtermRetainedState;
+    try {
+      retained = new XtermRetainedState(terminal, lease, unavailable);
+    } catch (error) {
+      terminal.dispose();
+      lease.dispose();
+      throw error;
+    }
     const state: ScreenState = {
       terminal,
+      retained,
       serialiser,
       cols: DEFAULT_COLS,
       rows: DEFAULT_ROWS,
       hasContent: false,
       dirty: false,
-      queue: new ScreenParserQueue(
-        this.parserBudget,
-        (error) => {
-          state.unavailable = true;
-          this.onHealth?.(true);
-          console.warn('Canonical terminal screen is unavailable:', error);
-        },
-        this.captureBudget,
-      ),
+      queue: new ScreenParserQueue(this.parserBudget, unavailable, this.captureBudget),
       revision: 0,
       unavailable: false,
       saving: null,
@@ -283,11 +311,11 @@ export class TerminalScreenStateStore {
     try {
       const parsed: unknown = JSON.parse(await readScreenFile(file));
       if (!this.isPersistedState(parsed)) throw new Error('Invalid saved terminal screen');
-      state.terminal.resize(parsed.cols, parsed.rows);
+      await state.retained.resize(parsed.cols, parsed.rows);
       state.cols = parsed.cols;
       state.rows = parsed.rows;
       if (parsed.data !== '') {
-        await this.writeTerminal(state.terminal, parsed.data);
+        await state.retained.write(parsed.data);
         state.hasContent = true;
       }
     } catch (error) {
@@ -399,8 +427,16 @@ export class TerminalScreenStateStore {
       throw new Error('Canonical terminal screen is unavailable after an input or restore gap');
   }
 
-  private writeTerminal(terminal: HeadlessTerminal, data: string): Promise<void> {
-    return new Promise((resolve) => terminal.write(data, resolve));
+  /** Output pressure never escapes into PTY delivery or prevents the real resize. */
+  private admit(stream: string, term: string): ScreenState | null {
+    try {
+      return this.ensure(stream, term);
+    } catch (error) {
+      this.gaps.add(this.key(stream, term));
+      this.onHealth?.(true);
+      console.warn('Canonical terminal screen admission failed:', error);
+      return null;
+    }
   }
 
   private isPersistedState(value: unknown): value is PersistedTerminalState {

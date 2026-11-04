@@ -1,5 +1,6 @@
 import {
   mkdtempSync,
+  mkdirSync,
   readFileSync,
   readdirSync,
   rmSync,
@@ -14,6 +15,10 @@ import headless, { type Terminal as HeadlessTerminal } from '@xterm/headless';
 import { TerminalScreenStateStore } from '../../../src/pty/terminal-screen-state.js';
 import { RuntimeBufferBudget } from '../../../src/runtime/resources/budget.js';
 import { SCREEN_LIMITS } from '../../../src/pty/screen/limits.js';
+import {
+  SCREEN_RETAINED_LIMITS,
+  ScreenRetainedBudget,
+} from '../../../src/pty/screen/retained/budget.js';
 
 vi.mock('node:fs/promises', async (original) => {
   const real = await original<typeof import('node:fs/promises')>();
@@ -47,19 +52,92 @@ function fixture(parserBytes = SCREEN_LIMITS.parserBytes) {
     bytes: SCREEN_LIMITS.transientBytes,
     count: SCREEN_LIMITS.transientOperations,
   });
+  const retained = new ScreenRetainedBudget();
   const store = new TerminalScreenStateStore(home, health, {
     parserBudget: parser,
     transientBudget: transient,
+    retainedBudget: retained,
   });
   return {
     home,
     health,
     parser,
     transient,
+    retained,
     store,
     file: join(home, 'session', 'agent.terminal.json'),
   };
 }
+
+it('retains emulator credit through slow persistence after a canonical input gap', async () => {
+  const f = fixture(1024);
+  const gate = deferred();
+  const real = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  vi.mocked(writeFile).mockImplementationOnce(async (...args) => {
+    await gate.promise;
+    return real.writeFile(...args);
+  });
+  try {
+    f.store.write('session', 'agent', 'last good screen');
+    await vi.waitFor(() => expect(writeFile).toHaveBeenCalledOnce(), { timeout: 2500 });
+    const retained = f.retained.geometryBytes;
+    expect(retained).toBeGreaterThan(0);
+    f.store.write('session', 'agent', 'x'.repeat(1024));
+    await expect(f.store.snapshot('session', 'agent')).rejects.toThrow(/unavailable/);
+    await vi.waitFor(() => expect(f.parser.usedCount).toBe(0));
+    expect(f.retained.geometryBytes).toBe(retained);
+    gate.resolve();
+    await vi.waitFor(() => expect(f.retained.geometryBytes).toBe(0));
+    expect(f.transient.usedCount).toBe(0);
+  } finally {
+    gate.resolve();
+    await f.store.closeAll();
+    rmSync(f.home, { recursive: true, force: true });
+  }
+});
+
+it('uses retained-state guards when restoring a bounded but unsafe saved screen', async () => {
+  const f = fixture();
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  mkdirSync(join(f.home, 'session'), { mode: 0o700 });
+  const original = JSON.stringify({ version: 1, cols: 20, rows: 3, data: 'a\x1b[100000000b' });
+  writeFileSync(f.file, original, { mode: 0o600 });
+  try {
+    await expect(f.store.snapshot('session', 'agent')).rejects.toThrow(/unavailable/);
+    await vi.waitFor(() => expect(f.retained.geometryBytes).toBe(0));
+    expect(readFileSync(f.file, 'utf8')).toBe(original);
+    f.store.write('other', 'agent', 'healthy');
+    expect(await f.store.snapshot('other', 'agent')).toContain('healthy');
+  } finally {
+    await f.store.closeAll();
+    rmSync(f.home, { recursive: true, force: true });
+  }
+});
+
+it('keeps initial canonical admission refusal inside the store output and resize boundary', async () => {
+  const f = fixture();
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  let refused: TerminalScreenStateStore | undefined;
+  try {
+    f.store.write('session', 'agent', 'known good');
+    await f.store.closeAll();
+    const saved = readFileSync(f.file, 'utf8');
+    const budget = new ScreenRetainedBudget({ ...SCREEN_RETAINED_LIMITS, geometryBytes: 128 });
+    refused = new TerminalScreenStateStore(f.home, f.health, { retainedBudget: budget });
+    expect(() => refused!.resize('session', 'agent', 120, 32)).not.toThrow();
+    expect(() => refused!.write('session', 'agent', 'PTY delivery can continue')).not.toThrow();
+    await expect(refused.snapshot('session', 'agent')).rejects.toThrow(/unavailable/);
+    expect(f.health).toHaveBeenCalledWith(true);
+    expect(warn).toHaveBeenCalledOnce();
+    expect(readFileSync(f.file, 'utf8')).toBe(saved);
+    expect(budget.geometryBytes).toBe(0);
+  } finally {
+    await refused?.closeAll();
+    await f.store.closeAll();
+    rmSync(f.home, { recursive: true, force: true });
+  }
+});
 
 it('keeps parsing during slow disk IO and coalesces newer revisions before shutdown', async () => {
   const f = fixture();

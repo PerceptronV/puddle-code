@@ -22,7 +22,7 @@ export class ScreenSnapshotFiles {
   }
 
   async save(file: string, json: string, current: () => boolean): Promise<boolean> {
-    await mkdir(dirname(file), { recursive: true });
+    await mkdir(dirname(file), { recursive: true, mode: 0o700 });
     return this.slots.write(file, json, current);
   }
 }

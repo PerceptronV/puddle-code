@@ -73,6 +73,16 @@ undispatched requests are discarded. A slow controller is disconnected without
 blocking PTY drainage. No unbounded replay queue is maintained for disconnected
 controllers; terminal attachment obtains a new snapshot.
 
+Canonical emulators share an owner-local 128 MiB retained allowance (96 MiB
+geometry, 24 MiB variable text/link state and 8 MiB control state), plus a 16 MiB
+parse/reflow working allowance. Geometry admission trims old scrollback before
+growth; combined cells, hyperlinks and partial collected control sequences have
+explicit limits. REP expansion is admitted before upstream allocation. Bounded
+write batches retain working capacity until their actual callbacks settle.
+Exhaustion leaves live PTY delivery running and marks the canonical screen
+unavailable, preserving its last durable snapshot. These charged allowances do
+not measure RSS or establish aggregate host admission.
+
 Owner screen persistence keeps parsing separate from disk writes. Its parser
 queue charges 16 MiB/2,048 actions; captures have a separate 16 KiB/64-action
 pool. Capture is enqueued synchronously at the caller's output cursor, before
