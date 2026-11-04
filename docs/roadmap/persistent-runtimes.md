@@ -75,6 +75,16 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- A fresh 0.4.0 macOS arm64 host archive from source `159a348` passed executable,
+  capability, native-dependency and puddlang smoke checks plus the packaged
+  installer/updater/runtime continuity test (23.93 seconds). Four native launchd
+  continuity/recovery checks passed in 187.22 seconds, with exact fixture job and
+  process cleanup. The native run spanned the narrow storage fix and used unique
+  labels with prepared dispatch, so it is distinct from final-archive and installed
+  production acceptance. The [verification report](../reports/persistent-runtimes/2026-11-04-packaged-verification.md)
+  preserves the archive SHA-256, full source identity, commands and limitations;
+  real-provider and remaining manual acceptance are not claimed.
+
 - The full daemon run passed 2,000 tests and exposed six failures. Five were stale
   fixtures: removal/collection now initialise or observe the sealed memory ledger,
   and ENOSPC injection reaches the actual fixed-slot file writer. Their focused

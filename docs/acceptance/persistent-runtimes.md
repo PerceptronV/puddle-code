@@ -12,6 +12,14 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+The [final local archive verification](../reports/persistent-runtimes/2026-11-04-packaged-verification.md)
+records the 0.4.0 macOS arm64 archive from source `159a348`, its SHA-256,
+and the passing packaged updater/runtime check (23.93 seconds). Four separate
+native launchd checks passed in 187.22 seconds with exact fixture job/process
+cleanup. That native run began before the final narrow storage fix landed; its
+source timing and unique-label limitations are recorded separately from the final
+archive. Neither result establishes installed production or real-provider acceptance.
+
 The combined update gates under `daemon/test/updates/continuity/` build actual
 daemon/runtime/updater archives, use the canonical installer and verify adoption
 plus unchanged runtime/shell PIDs, shell variables, cwd and a background job.
