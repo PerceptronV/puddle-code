@@ -1,7 +1,11 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 const run = vi.hoisted(() => vi.fn());
 vi.mock('node:child_process', () => ({ execFile: run }));
-import { TerminalProcessReader } from '../../src/pty/foreground-process.js';
+import {
+  foregroundProcesses,
+  parseProcessSnapshot,
+  TerminalProcessReader,
+} from '../../src/pty/foreground-process.js';
 
 let output: string[];
 let reader: TerminalProcessReader;
@@ -140,4 +144,13 @@ it('discards a scan and its cached identity when disposed during an asynchronous
   expect((await pending).size).toBe(0);
   expect((await reader.read(100, 'first')).size).toBe(0);
   expect(run).toHaveBeenCalledTimes(3);
+});
+
+it('streams one foreground ancestry path at a time and bounds deep-chain traversal', () => {
+  const rows = ['100 1 100 200 pts/12 Ss shell'];
+  for (let index = 0; index < 1000; index++)
+    rows.push(`${1000 + index} ${index ? 999 + index : 100} 200 200 pts/12 S worker`);
+  const paths = foregroundProcesses(100, parseProcessSnapshot(rows.join('\n')));
+  expect(paths.next().value?.map((entry) => entry.pid)).toEqual([100, 1000]);
+  expect(() => [...paths]).toThrow('ancestry inspection exceeded capacity');
 });

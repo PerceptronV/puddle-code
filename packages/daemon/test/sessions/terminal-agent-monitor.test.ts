@@ -82,6 +82,34 @@ describe('adapter process recognition', () => {
 });
 
 describe('terminal foreground agent monitor', () => {
+  it('recognises each process command once across overlapping ancestry paths', async () => {
+    const f = fixture();
+    const recognise = vi.spyOn(codex, 'matchesProcess');
+    try {
+      const chain = Array.from(
+        { length: 10 },
+        (_, index) => `${1000 + index} ${index ? 999 + index : 100} 200 200 ttys000 S worker`,
+      ).join('\n');
+      expect(await f.scan(chain)).toBeNull();
+      expect(recognise).toHaveBeenCalledTimes(11);
+    } finally {
+      recognise.mockRestore();
+    }
+  });
+
+  it('clears partial ancestry hints without treating a refused inspection as child exit', async () => {
+    const f = fixture();
+    expect(await f.scan('200 100 200 200 ttys000 S+ claude')).toBe('claude-code');
+    const deep = Array.from(
+      { length: 1000 },
+      (_, index) => `${1000 + index} ${index ? 999 + index : 100} 200 200 ttys000 S worker`,
+    ).join('\n');
+    expect(await f.scan(deep)).toBeNull();
+    expect(f.notify).not.toHaveBeenCalled();
+    await f.scan('', 100);
+    expect(f.notify).toHaveBeenCalledExactlyOnceWith('terminal', 'exited');
+  });
+
   it('notifies only on changes and returns to the terminal icon at the prompt', async () => {
     const f = fixture();
     expect(await f.scan('200 100 200 200 ttys000 S+ claude')).toBe('claude-code');

@@ -68,6 +68,13 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Foreground process inspection now streams ancestry paths under a traversal
+  bound and recognises each command once per snapshot. This removes quadratic
+  retained paths and repeated parsing of long ancestor commands. Incomplete
+  inspection clears hints without reporting child exit. Forty-six focused process
+  and monitor checks plus the actual-owner terminal-agent check passed, with strict
+  TypeScript and lint; provider recognition remains adapter-owned.
+
 - Shared host-memory accounting now has a private SQLite ledger under the retained
   `runtime-claims/` anchor, exact incarnation/launch grants, a permanent identity
   seal and non-waiting revisioned transactions. Cached owner allowances spend

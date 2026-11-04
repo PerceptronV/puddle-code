@@ -105,28 +105,35 @@ function processSnapshot(args: string[], maxBuffer: number): Promise<Map<number,
  * Keeping ancestors preserves the agent icon while it runs a foreground tool;
  * a background/suspended job or another terminal's agent cannot claim it.
  */
-export function foregroundProcesses(
+export function* foregroundProcesses(
   rootPid: number,
   entries: ReadonlyMap<number, ProcessEntry>,
-): ProcessEntry[][] {
+): Generator<ProcessEntry[], undefined, unknown> {
   const root = entries.get(rootPid);
-  if (!root || /^\?+$/.test(root.tty) || root.foregroundGroup <= 0) return [];
-  const paths: ProcessEntry[][] = [];
+  if (!root || /^\?+$/.test(root.tty) || root.foregroundGroup <= 0) return;
+  // A bounded ps result can still describe a deep chain with quadratically many
+  // ancestor references. Yield one path at a time and bound total traversal too.
+  let visits = 0;
+  const visit = () => {
+    if (++visits > 65_536)
+      throw new Error('Terminal process ancestry inspection exceeded capacity');
+  };
   for (const entry of entries.values()) {
+    visit();
     if (entry.tty !== root.tty || entry.group !== root.foregroundGroup) continue;
     const path: ProcessEntry[] = [];
     const seen = new Set<number>();
     let current: ProcessEntry | undefined = entry;
     while (current && !seen.has(current.pid)) {
+      visit();
       if (current.tty !== root.tty || /[TtZ]/.test(current.state)) break;
       seen.add(current.pid);
       path.push(current);
       if (current.pid === rootPid) {
-        paths.push(path.reverse());
+        yield path.reverse();
         break;
       }
       current = entries.get(current.parent);
     }
   }
-  return paths;
 }

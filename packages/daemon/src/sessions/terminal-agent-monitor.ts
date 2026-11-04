@@ -84,22 +84,38 @@ export class TerminalAgentMonitor {
       });
       if (this.disposed) return;
       const current = new Map(this.options.targets().map((target) => [target.session, target]));
+      // The same ancestor appears in many paths. Provider command parsing must
+      // run once per snapshot entry, not repeatedly over a long command line.
+      const recognition = new Map<number, string[]>();
       for (const target of targets) {
         const now = current.get(target.session);
         if (now?.runtime !== target.runtime || now.pid !== target.pid) continue;
         const matches = new Set<string>();
         const pids = new Set<number>();
-        for (const path of foregroundProcesses(target.pid, entries)) {
-          for (const entry of path) {
-            let recognised = false;
-            for (const adapter of this.options.adapters) {
-              if (!adapter.matchesProcess?.(entry.command)) continue;
-              matches.add(adapter.id);
-              pids.add(entry.pid);
-              recognised = true;
+        let inspected = succeeded;
+        try {
+          for (const path of foregroundProcesses(target.pid, entries)) {
+            for (const entry of path) {
+              let agents = recognition.get(entry.pid);
+              if (!agents) {
+                agents = this.options.adapters
+                  .filter((adapter) => adapter.matchesProcess?.(entry.command))
+                  .map((adapter) => adapter.id);
+                recognition.set(entry.pid, agents);
+              }
+              for (const agent of agents) {
+                matches.add(agent);
+                pids.add(entry.pid);
+              }
+              if (agents.length) break;
             }
-            if (recognised) break;
           }
+        } catch {
+          // A partial ancestry inspection cannot establish an unambiguous hint
+          // or child exit, even when ps itself completed successfully.
+          inspected = false;
+          matches.clear();
+          pids.clear();
         }
         // The outermost recognised agent owns its tools/subagents. Ambiguous
         // pipelines retain the ordinary terminal glyph, even through wrappers.
@@ -116,7 +132,7 @@ export class TerminalAgentMonitor {
         }
         // Only a successful process snapshot with a live shell can establish
         // child exit. Suspension, backgrounding and failed ps are not exits.
-        if (observed && succeeded && entries.has(target.pid) && !entries.has(observed.pid)) {
+        if (observed && inspected && entries.has(target.pid) && !entries.has(observed.pid)) {
           observed.detector?.dispose();
           this.observed.delete(target.session);
           this.options.notify?.(target.session, 'exited');
