@@ -1,0 +1,76 @@
+import { randomUUID } from 'node:crypto';
+import {
+  closeSync,
+  constants,
+  fstatSync,
+  fsyncSync,
+  linkSync,
+  lstatSync,
+  openSync,
+  unlinkSync,
+} from 'node:fs';
+import { dirname } from 'node:path';
+import { writeServiceDefinition } from '../../services.js';
+
+function directory(file: string): number {
+  const parent = openSync(
+    dirname(file),
+    constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+  );
+  const info = fstatSync(parent);
+  if (!info.isDirectory() || info.uid !== process.getuid?.() || (info.mode & 0o022) !== 0) {
+    closeSync(parent);
+    throw new Error('Unsafe service definition directory');
+  }
+  return parent;
+}
+
+/** Observation after a lost publication reply must also establish durable file/entry writes. */
+export function syncRestoredServiceDefinition(file: string): void {
+  const parent = directory(file);
+  try {
+    const fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    try {
+      const info = fstatSync(fd);
+      if (
+        !info.isFile() ||
+        info.uid !== process.getuid?.() ||
+        (info.mode & 0o022) !== 0 ||
+        info.nlink !== 1 ||
+        info.size > 64 * 1024
+      )
+        throw new Error('Unsafe restored service definition');
+      fsyncSync(fd);
+      fsyncSync(parent);
+    } finally {
+      closeSync(fd);
+    }
+  } finally {
+    closeSync(parent);
+  }
+}
+
+/** Publish complete bytes without overwriting a concurrently created unit/plist. */
+export function restoreServiceDefinition(file: string, source: string): void {
+  const parent = directory(file);
+  try {
+    const temporary = `${file}.${randomUUID()}.restore`;
+    // The private temporary file is complete and synced before the destination appears.
+    writeServiceDefinition(temporary, Buffer.from(source, 'base64'));
+    const written = lstatSync(temporary);
+    const clean = () => {
+      const current = lstatSync(temporary);
+      if (current.dev !== written.dev || current.ino !== written.ino)
+        throw new Error('Restoration temporary file changed');
+      unlinkSync(temporary);
+      fsyncSync(parent);
+    };
+    try {
+      linkSync(temporary, file); // Atomic no-replace publication on the same filesystem.
+    } finally {
+      clean();
+    }
+  } finally {
+    closeSync(parent);
+  }
+}

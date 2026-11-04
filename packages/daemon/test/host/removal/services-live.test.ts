@@ -5,6 +5,8 @@ import { dirname, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { expect, it } from 'vitest';
 import { atomicPrivateJson } from '@puddle/shared/node';
+import { requireNoHostRemoval } from '@puddle/shared/node/host-control';
+import { hostServiceReplacementSchema } from '@puddle/shared';
 import {
   runCompilationCommand,
   type CompilationCommandRunner,
@@ -12,11 +14,13 @@ import {
 import { HostRemovalGuard } from '../../../src/host/removal/guard.js';
 import { reviewRemovalService } from '../../../src/host/removal/services.js';
 import { HostRemovalServiceOperation } from '../../../src/host/removal/operations/services.js';
+import { HostRemovalServiceRestore } from '../../../src/host/removal/restoration/services.js';
+import { startReplacementService } from '../../../src/host/supervision/replacement.js';
 import { inspectLaunchdProcess } from '../../../src/host/supervision/launchd.js';
 import { serviceIsRemoved } from '../../../src/host/supervision/removed.js';
 
 it.runIf(process.platform === 'darwin' && process.env.PUDDLE_TEST_RUNTIME_SUPERVISOR === '1')(
-  'recovers recorded native removal after losing both the stop reply and completion write',
+  'recovers native removal and restores its service while the neighbouring job survives',
   async () => {
     const home = mkdtempSync(join(tmpdir(), 'puddle-removal-live-'));
     const domain = `gui/${process.getuid!()}`;
@@ -139,6 +143,39 @@ it.runIf(process.platform === 'darwin' && process.env.PUDDLE_TEST_RUNTIME_SUPERV
       expect(await serviceIsRemoved(home, selected!.target, nativeRun)).toBe(true);
       expect(await inspectLaunchdProcess(home, neighbour!.target, nativeRun)).toBe(neighbour!.pid);
       expect(existsSync(neighbour!.definition)).toBe(true);
+      const restored = new HostRemovalServiceRestore(guard, resumed, {
+        authorised: () => true,
+        run: nativeRun,
+        userHome: home,
+      });
+      await restored.restore();
+      expect(() => requireNoHostRemoval(home)).toThrow();
+      await restored.handoff();
+      requireNoHostRemoval(home);
+      // The ordinary startup primitive uses the unique fixture label, never the installed daemon.
+      await startReplacementService(
+        home,
+        hostServiceReplacementSchema.parse({
+          ...review.process,
+          component: 'daemon',
+          definition_path: review.definition,
+          definition_digest: review.definitionDigest,
+        }),
+        guard.commands(nativeRun),
+        true,
+        () => {
+          controller!.release();
+        },
+      );
+      const deadline = Date.now() + 10_000;
+      selected!.pid = null;
+      while (selected!.pid === null && Date.now() < deadline) {
+        selected!.pid = await inspectLaunchdProcess(home, selected!.target, nativeRun);
+        if (selected!.pid === null) await delay(25);
+      }
+      expect(selected!.pid).toBeGreaterThan(0);
+      expect(selected!.pid).not.toBe(review.process!.pid);
+      expect(await inspectLaunchdProcess(home, neighbour!.target, nativeRun)).toBe(neighbour!.pid);
     } finally {
       controller?.release();
       guard.release();

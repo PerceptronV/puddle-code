@@ -744,8 +744,24 @@ An unattempted service plan can be cancelled under removal exclusion: every acti
 still be planned, then a same-directory rename retains one private cancelled review and
 clears the active fence. Old operation objects cannot cancel a later plan. Once any
 intent has been recorded, explicit recovery is required; complete service unregistration
-also retains the fence until deliberate reinstallation exists. This does not terminate
+also retains the fence until explicit configuration restoration completes. This does not terminate
 the already-running daemon or independently hosted runtimes during review/cancellation.
+The internal restoration phase under `host/removal/restoration/` requires completed
+service removal, the same selected release and retained controller/update/installer
+exclusion. It publishes the original definition bytes into their exact user service
+paths without overwriting an existing file or link. Publication and subsequent recovery
+observation sync both file and directory. Systemd reload and enable steps share the durable
+action writer; consumed commands are observed, never replayed. Explicit continuation
+requires the existing exact restoration journal, never a newly created substitute after
+missing evidence. Enabling omits `--now`; the service stays stopped. Changed definitions,
+unknown shutdown, revoked authority or
+unconfirmed enablement keep the removal fence. After fresh configuration/stopped-service
+checks, a same-directory hand-off retains the completed removal record and clears that
+fence for ordinary selected startup. Restoration history is bounded to the current and
+previous action records plus the latest restored review. This phase never starts a
+runtime, changes a selector, restores application data or re-enables remote registrations.
+CLI dispatch, end-to-end retained-runtime adoption and actual Linux restoration acceptance
+remain required before this is a complete reinstallation flow.
 This is not yet wired to CLI removal: stop-or-retain prompting, connector disable,
 durable removal/reinstallation orchestration, reference-aware file collection and purge
 coordination remain required. Successful runtime disposition or service unregistration

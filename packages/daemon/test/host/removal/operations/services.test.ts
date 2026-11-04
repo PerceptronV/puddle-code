@@ -14,23 +14,7 @@ import { requireNoHostRemoval } from '@puddle/shared/node/host-control';
 import { HostUpdateOperations } from '../../../../src/updates/operations/store.js';
 import { HostRemovalServiceOperation } from '../../../../src/host/removal/operations/services.js';
 import { HostRemovalGuard } from '../../../../src/host/removal/guard.js';
-import { reviewRemovalService } from '../../../../src/host/removal/services.js';
-import { removalServiceFixture } from '../../../helpers/removal-service.js';
-
-function fixture(kind: 'systemd' | 'launchd' = 'launchd') {
-  const f = removalServiceFixture(kind);
-  const release = join(f.home, 'bin/versions/0.4.0~abc123');
-  mkdirSync(release, { recursive: true, mode: 0o700 });
-  symlinkSync(release, join(f.home, 'bin/current'));
-  return {
-    ...f,
-    release,
-    record: join(f.home, 'installation/removal/services.json'),
-    options: { authorised: () => true, run: f.run },
-    review: () =>
-      reviewRemovalService(f.guard, f.target, 'daemon', f.pid, { userHome: f.home, run: f.run }),
-  };
-}
+import { removalInstallationFixture as fixture } from '../../../helpers/removal-service.js';
 
 it('cancels only an unattempted removal and preserves the latest cancelled private review', async () => {
   const f = fixture();

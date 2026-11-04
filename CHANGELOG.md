@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Add internal deliberate restoration of removed host service definitions, preserving saved bytes without overwriting existing files or links. Verify recorded reload/enable attempts without replay, retain the removal fence until configuration and shutdown checks pass, and hand off to ordinary startup without restarting runtimes. Public CLI reinstallation remains in progress.
+
 - Block daemon startup, host update writes and installation while recorded removal remains unresolved. Retain read-only status and allow cancellation only before any service action was attempted, preserving one private cancelled review. Keep removal-only hosts out of legacy bootstrap fallback; CLI removal/reinstallation remains in progress.
 
 - Record internal host-removal service intent and original definitions using the updater's shared durable action writer. Continue only unstarted steps, verify consumed stops and unregistration without replay, and retain private evidence after lost replies or storage failures. CLI removal/reinstallation and purge integration remain in progress.

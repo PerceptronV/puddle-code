@@ -43,6 +43,18 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Internal deliberate service restoration now reuses the recorded removal review and
+  shared durable action writer under retained controller/update/installer exclusion.
+  It publishes and syncs original definition bytes without overwriting an existing
+  file/link, observes consumed publication/reload/enable attempts, and clears the removal
+  fence only after fresh configuration and stopped-service checks. It retains bounded
+  restoration history and leaves runtime files, selectors, application data and remote
+  registrations unchanged. The native launchd case now restores and starts its unique
+  fake job through the existing startup primitive while its neighbouring PID survives.
+  Scripted systemd checks cover lost reload/enable replies and failed enablement.
+  Public CLI removal/reinstallation, retained-runtime adoption through that complete
+  flow, actual Linux restoration, connector disable, collection and purge remain open.
+
 - Active removal evidence now fences direct daemon startup before database/authority
   access, selected-service startup, update ledger mutations and the embedded installer.
   Read-only update status remains available; the CLI recognises removal-only hosts as

@@ -9,6 +9,11 @@ in progress.
 The shared Node helper also supplies passive removal fencing for host startup and
 updates. Active records block mutation regardless of whether their contents parse;
 cancelled reviews are kept separately. This adds no wire shape or permission.
+Private restoration records bind the completed removal review to publication/reload/
+enable intent. They permit no runtime commands, selector changes, database rollback
+or remote registration changes. Explicit verified hand-off clears the removal fence
+for ordinary startup; public CLI reinstallation is still unfinished. The three protocol
+versions remain unchanged.
 
 Protocol 25.17 adds the explicit `continue-offline` cockpit update action and optional
 `offline_continuation` capability. The action carries only an exact operation id/revision;

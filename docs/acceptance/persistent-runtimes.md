@@ -10,6 +10,22 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+Internal service restoration tests cover unchanged definition bytes, binary publication,
+refusal to overwrite existing files/links, exact user paths, authority/source/process
+changes, bounded history and stale objects. Lost completion writes and systemd reload/
+enable replies resume through observation; failed enablement remains unresolved without
+replay. The native launchd case restores its saved plist, clears the removal fence after
+verification and starts the unique fake job through the existing startup primitive. The
+job gets a new PID while the neighbouring job keeps its original PID. This is service
+configuration/startup evidence, not full CLI reinstallation or native-provider adoption.
+Actual systemd restoration remains unverified on Linux.
+The removal, supervision, startup, update worker/recovery and shared installation run
+passed 303 tests in 36 files, with six platform-gated cases skipped. The native case and
+final durability checks passed separately, followed by 13 scripted restoration cases
+including explicit continuation with a missing journal. Source and strict changed-test
+typechecks, lint, formatting and CLI/desktop builds passed on macOS 26.5.2 with Node
+22.21.1.
+
 Removal fencing tests cover absent storage without creating state, malformed records,
 dangling links and shared/linked parent directories. Direct daemon startup refuses before
 authority creation or database access; selected startup refuses before supervisor probes

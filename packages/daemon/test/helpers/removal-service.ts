@@ -1,4 +1,12 @@
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
+import {
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  rmSync,
+  symlinkSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type {
@@ -6,6 +14,7 @@ import type {
   CompilationCommandRunner,
 } from '../../src/compilation/process.js';
 import { HostRemovalGuard } from '../../src/host/removal/guard.js';
+import { reviewRemovalService } from '../../src/host/removal/services.js';
 import type { ServiceTarget } from '../../src/host/supervision/target.js';
 
 export function removalServiceFixture(kind: ServiceTarget['kind'], running = true) {
@@ -29,6 +38,7 @@ export function removalServiceFixture(kind: ServiceTarget['kind'], running = tru
     running,
     registered: true,
     failed: false,
+    enabled: true,
     fragment: file,
     component: 'daemon' as 'daemon' | 'connector',
   };
@@ -48,10 +58,13 @@ export function removalServiceFixture(kind: ServiceTarget['kind'], running = tru
     else if (kind === 'systemd') {
       if (verb === 'cat') stdout = `# ${state.fragment}\n${readFileSync(file, 'utf8')}`;
       if (verb === 'stop') state.running = false;
+      if (verb === 'disable') state.enabled = false;
+      if (verb === 'enable') state.enabled = true;
       if (verb === 'reset-failed') state.failed = false;
       if (verb === 'daemon-reload') state.registered = existsSync(file);
       const property = command.args.find((arg) => arg.startsWith('--property='))?.slice(11);
       if (property === 'FragmentPath') stdout = state.fragment;
+      else if (property === 'UnitFileState') stdout = state.enabled ? 'enabled' : 'disabled';
       else if (property === 'ExecStart')
         stdout = `{ path=${join(home, 'bin/current/puddled')} ; argv[]=${join(home, 'bin/current/puddled')} }`;
       else if (property) {
@@ -97,5 +110,24 @@ export function removalServiceFixture(kind: ServiceTarget['kind'], running = tru
       guard.release();
       rmSync(home, { recursive: true, force: true });
     },
+  };
+}
+
+/** Scripted release identity only; this fixture never runs the selected executable. */
+export function removalInstallationFixture(kind: ServiceTarget['kind'] = 'launchd') {
+  const fixture = removalServiceFixture(kind);
+  const release = join(fixture.home, 'bin/versions/0.4.0~abc123');
+  mkdirSync(release, { recursive: true, mode: 0o700 });
+  symlinkSync(release, join(fixture.home, 'bin/current'));
+  return {
+    ...fixture,
+    release,
+    record: join(fixture.home, 'installation/removal/services.json'),
+    options: { authorised: () => true, run: fixture.run, userHome: fixture.home },
+    review: () =>
+      reviewRemovalService(fixture.guard, fixture.target, 'daemon', fixture.pid, {
+        userHome: fixture.home,
+        run: fixture.run,
+      }),
   };
 }
