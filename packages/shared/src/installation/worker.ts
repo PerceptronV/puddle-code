@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { hostServiceReplacementSchema } from './supervision.js';
+import { hostConnectorReplacementSchema } from './connector.js';
 import { runtimeControllerSchema } from '../runtime/storage.js';
 
 /** Private pinned one-shot job; never accepted from a browser as a command. */
@@ -22,6 +23,7 @@ export const hostUpdateWorkerSchema = z
     installer_path: z.string().min(1).max(4096),
     state: z.enum(['dispatching', 'dispatched']),
     daemon_service: hostServiceReplacementSchema.optional(),
+    connector: hostConnectorReplacementSchema.optional(),
     /** Only this outgoing daemon may publish the worker's shutdown checkpoint. */
     outgoing: z
       .object({
@@ -36,5 +38,5 @@ export type HostUpdateWorker = z.infer<typeof hostUpdateWorkerSchema>;
 
 /** In-process final approval evidence copied into the private pinned job. */
 export type HostUpdateDaemonHandoff = Required<
-  Pick<HostUpdateWorker, 'outgoing' | 'daemon_service'>
+  Pick<HostUpdateWorker, 'outgoing' | 'daemon_service' | 'connector'>
 >;

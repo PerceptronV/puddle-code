@@ -7,6 +7,7 @@ import {
   HostUpdateConnector,
   inspectConnectorManager,
 } from '../../../src/updates/preflight/connector.js';
+import { systemdObservation } from '../../helpers/host-supervision.js';
 import { candidateFixture } from './helpers.js';
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -18,7 +19,17 @@ function fixture(component: 'daemon' | 'runtime' = 'daemon') {
   const f = candidateFixture(component);
   const directory = dirname(ipcPath(f.home, 'remote'));
   cleanups.push(async () => rmSync(directory, { recursive: true, force: true }));
-  const inspector = new HostUpdateConnector(f.home, f.home);
+  const inspector = new HostUpdateConnector(f.home, f.home, {
+    platform: 'linux',
+    run: async (command) => ({
+      exitCode: 0,
+      stderr: '',
+      stdout:
+        command.args[1] === 'cat'
+          ? 'fixture connector unit'
+          : systemdObservation(process.pid, 'puddle-connector.service'),
+    }),
+  });
   return { ...f, inspector };
 }
 
@@ -88,7 +99,12 @@ it('corroborates fresh manager metadata with its exact immutable release and exc
   });
   cleanups.push(() => new Promise<void>((resolve) => server.close(() => resolve())));
   const observed = await f.inspector.inspect(f.operation);
-  expect(observed).toEqual({ state: 'running', identity, blockers: [] });
+  expect(observed).toMatchObject({
+    state: 'running',
+    identity,
+    blockers: [],
+    service: { component: 'connector', pid: process.pid, name: 'puddle-connector.service' },
+  });
   expect(await f.inspector.inspect(f.operation)).toEqual(observed);
   wrongNonce = true;
   expect((await f.inspector.inspect(f.operation)).state).toBe('unknown');

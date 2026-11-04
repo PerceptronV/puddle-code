@@ -197,8 +197,17 @@ the stable manager identity in approval and compares it again after other probes
 It rechecks runtime inventory synchronously after that final asynchronous probe.
 Old managers, unavailable/malformed replies, unpinned paths and offline/ambiguous
 installations cannot establish absence or approval. Runtime-default updates do not
-need connector inspection. Supervisor identity, coordinated connector replacement
-and stopped-installation handling still need integration before daemon activation.
+need connector inspection. Preflight now also corroborates the live PID with the user supervisor and fingerprints
+the existing connector definition through the daemon's shared replacement helpers.
+The private worker job carries explicit absent/running connector evidence. Before
+stopping the daemon, the worker reinspects the approved connector, stops its exact
+service once and waits for service removal/inactivity, process exit and socket
+absence. It starts the same definition after daemon selection/start and requires a
+fresh manager identity in the selected generation before final daemon adoption
+verification. Worker, daemon and connector termination scopes must be separate.
+Uncertain stop/start replies retain recovery state without replay. Stopped or
+unmanaged connector installations, migration-aware recovery and complete production
+admission/approval composition remain required before daemon activation.
 No profile data, remote operation or maintenance permission is added; remote and
 runtime protocols remain unchanged.
 
@@ -215,10 +224,10 @@ evidence into the private worker job. Rejected attempts release the pause; accep
 or uncertain dispatch retains it until shutdown or a terminal/recovery-fenced
 operation with no executing worker. The launcher pause lets admitted launches finish
 before pausing discovery/reconciliation. Production still lacks the complete pause
-composition, connector replacement and explicit adjacent-work interruption approval;
+composition and explicit adjacent-work interruption approval;
 there is no user-selectable switch. Accepted work survives caller loss; reconnect only
-observes it. The coordinator currently refuses daemon activation pending quiescence,
-connector inventory and adoption verification. Runtime install/upgrade commands now
+observes it. The coordinator currently refuses daemon activation pending complete quiescence,
+adjacent-work approval and recovery integration. Runtime install/upgrade commands now
 consume this coordinator, including bounded observation after lost apply responses;
 cockpit routes and approval UI remain to be integrated. `puddle updates` inspects
 durable operation state and supports exact pre-dispatch cancellation. No remote
@@ -315,7 +324,7 @@ crash. Uncertain application/verification keeps the operation nonterminal until
 explicit verified recovery, fencing delayed starts. The record is file-and-directory
 synced through the existing private JSON writer; bounded reads fail closed. Runtime
 and update claims share `security/claims.ts`, preserving the existing `runtime-claims`
-inodes for owners launched by older builds. The experimental runtime-default updater
+inodes for owners launched by older builds. The runtime-default updater
 connects that store to an independent one-shot systemd/launchd job. Its immutable
 release supplies the exact Node binary, worker bundle and canonical `install.sh`;
 the private job record is synced before supervisor dispatch and retained after an
@@ -328,7 +337,7 @@ bounded to three minutes. Runtime owners and workers share `host/services.ts` fo
 literal supervisor definitions and bounded dispatch commands.
 
 The public dispatcher still refuses daemon or combined updates: final quiescence,
-compatibility/impact approval, connector inventory and migration-aware recovery
+compatibility/impact approval, stopped connector handling and migration-aware recovery
 remain required. Runtime CLI updates use the coordinator; daemon CLI/launcher and
 cockpit updates still need integration. Completed job registrations and pinned release trees remain retained
 until verified service cleanup and reference-aware collection are implemented.

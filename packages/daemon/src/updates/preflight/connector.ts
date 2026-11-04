@@ -7,13 +7,21 @@ import {
   connectorInspectionResponseSchema,
   type ConnectorInspectionResponse,
   type HostUpdateOperation,
+  type HostServiceReplacement,
 } from '@puddle/shared';
 import { ipcPath, jsonLines, privatePath } from '@puddle/shared/node';
+import type { CompilationCommandRunner } from '../../compilation/process.js';
+import {
+  inspectHostServiceManager,
+  inspectRunningService,
+} from '../../host/supervision/inspection.js';
+import { prepareServiceReplacement } from '../../host/supervision/replacement.js';
 import { readInstalledCapabilities } from './candidate.js';
 
 type Identity = Omit<ConnectorInspectionResponse, 't' | 'nonce'>;
 export interface UpdateConnector {
   identity: Identity | null;
+  service?: HostServiceReplacement;
   state: 'not-required' | 'absent' | 'running' | 'unknown';
   blockers: Array<{ code: 'connector_inventory_unknown'; target: 'connector' }>;
 }
@@ -68,6 +76,11 @@ export class HostUpdateConnector {
   constructor(
     private readonly home: string,
     private readonly userHome = homedir(),
+    private readonly options: {
+      platform?: NodeJS.Platform;
+      uid?: number;
+      run?: CompilationCommandRunner;
+    } = {},
   ) {}
 
   async inspect(operation: HostUpdateOperation): Promise<UpdateConnector> {
@@ -113,7 +126,20 @@ export class HostUpdateConnector {
       )
         throw new Error('Connector build metadata does not match the running manager');
       const { t: _type, nonce: _nonce, ...identity } = response;
-      return { identity, state: 'running', blockers: [] };
+      const manager = await inspectHostServiceManager(this.home, this.options);
+      const name = manager.kind === 'systemd' ? 'puddle-connector.service' : 'dev.puddle.connector';
+      const observed = await inspectRunningService(
+        this.home,
+        { ...manager, name },
+        identity.pid,
+        this.options.run,
+      );
+      const service = await prepareServiceReplacement(this.home, observed, {
+        component: 'connector',
+        run: this.options.run,
+        definitionPath: join(this.userHome, 'Library/LaunchAgents', `${name}.plist`),
+      });
+      return { identity, service, state: 'running', blockers: [] };
     } catch {
       return {
         identity: null,

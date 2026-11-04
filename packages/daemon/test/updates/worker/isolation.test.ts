@@ -48,4 +48,34 @@ it('requires the executing worker PID in a distinct service outside the daemon c
   await expect(verifyUpdateWorkerIsolation(home, job, nested, 456)).rejects.toThrow(
     'termination scope',
   );
+  job.connector = {
+    state: 'running',
+    identity: {
+      instance: randomUUID(),
+      pid: 789,
+      ready: true,
+      version: '0.4.0',
+      application: { major: 25, minor: 9 },
+      remote: 4,
+      node_path: '/unused/bin/node',
+      entry_path: '/unused/daemon/connector.mjs',
+      release_path: '/unused',
+    },
+    service: {
+      ...job.daemon_service!,
+      component: 'connector',
+      pid: 789,
+      name: 'puddle-connector.service',
+      controlGroup: '/user.slice/puddle-connector.service',
+    },
+  };
+  await expect(verifyUpdateWorkerIsolation(home, job, run, 456)).resolves.toBeUndefined();
+  job.connector.service.controlGroup = `${job.daemon_service.controlGroup}/puddle-connector.service`;
+  await expect(verifyUpdateWorkerIsolation(home, job, run, 456)).rejects.toThrow(
+    'termination scope',
+  );
+  job.connector.service.controlGroup = `/user.slice/user-501.slice/user@501.service/app.slice/${job.name}/puddle-connector.service`;
+  await expect(verifyUpdateWorkerIsolation(home, job, run, 456)).rejects.toThrow(
+    'termination scope',
+  );
 });

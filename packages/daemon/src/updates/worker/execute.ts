@@ -10,6 +10,7 @@ import { runCompilationCommand, type CompilationCommandRunner } from '../../comp
 import { startReplacementService } from '../../host/supervision/replacement.js';
 import { HostUpdateOperations } from '../operations/store.js';
 import { readStageCapabilities } from '../preflight/candidate.js';
+import { stopConnectorForUpdate, startConnectorAfterUpdate } from './connector.js';
 import { stopDaemonForUpdate } from './daemon/stop.js';
 import { selectUpdateStage, verifyUpdateSelection } from './selection.js';
 import { verifyHostUpdateAdoption } from './verify-adoption.js';
@@ -27,8 +28,8 @@ export async function executeHostUpdate(
   if (!pending) throw new Error('Missing accepted update operation');
   const daemon = pending.stages.find((stage) => stage.record.component === 'daemon');
   const runtime = pending.stages.find((stage) => stage.record.component === 'runtime');
-  if (daemon && (!job.daemon_service || !job.outgoing))
-    throw new Error('Daemon updates require approved service and controller evidence');
+  if (daemon && (!job.daemon_service || !job.outgoing || !job.connector))
+    throw new Error('Daemon updates require approved service, connector and controller evidence');
   if (runtime && !compatibleRuntimeProtocol(runtime.record.protocol))
     throw new Error('Unsupported runtime update stage');
   const candidate = daemon ? await readStageCapabilities(home, daemon) : null;
@@ -40,6 +41,7 @@ export async function executeHostUpdate(
   let handoff: Awaited<ReturnType<typeof stopDaemonForUpdate>> | undefined;
   try {
     if (daemon) {
+      await stopConnectorForUpdate(home, job, execute);
       handoff = await stopDaemonForUpdate(home, job, execute);
       if (
         handoff.checkpoint.owners.some(
@@ -58,8 +60,10 @@ export async function executeHostUpdate(
     handoff?.release();
     handoff = undefined;
     let adoption: HostUpdateAdoption | undefined;
+    let connector: Awaited<ReturnType<typeof startConnectorAfterUpdate>> | undefined;
     if (daemon) {
       await startReplacementService(home, job.daemon_service!, execute);
+      connector = await startConnectorAfterUpdate(home, job, daemon, execute);
       const deadline = Date.now() + 30_000;
       for (;;) {
         try {
@@ -73,7 +77,7 @@ export async function executeHostUpdate(
       }
     }
     const selected = pending.stages.map((stage) => verifyUpdateSelection(home, stage));
-    worker.complete(digest(JSON.stringify({ selected, adoption })));
+    worker.complete(digest(JSON.stringify({ selected, adoption, connector })));
   } catch (error) {
     try {
       worker.failed('Host activation or verification requires inspection');

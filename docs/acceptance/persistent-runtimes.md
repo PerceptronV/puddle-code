@@ -10,16 +10,25 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+`updates/worker/connector.test.ts` checks exact approved identity, stale controller
+rejection, confirmed process exit, fresh replacement identity and lost mutation
+replies, with simulated supervisor/inspection boundaries. The daemon worker suite
+composes connector stop/start around the real installer and checkpoint flow using
+mocked connector helpers and adoption verification; a lost connector reply retains
+recovery state and cannot replay the transaction. Worker isolation checks reject
+nested daemon/connector/updater termination scopes. These are composition checks,
+not a packaged native upgrade with real remote registrations.
+
 `updates/preflight/connector.test.ts` covers absent versus offline/ambiguous state,
 old managers, wrong nonces, readiness, pinned paths and metadata mismatch.
 `connector-process.test.ts` builds the actual connector entry point, copies Node
 into an isolated generation and checks its live private replies against public
-release metadata, including the bundle's `--version` smoke path. It runs no user
+release metadata with simulated supervisor command replies, including the bundle's `--version` smoke path. It runs no user
 profiles/providers or installed services, and confirms process exit before removing
 its executable tree. The connector's own inspection suite rejects malformed and
 oversized requests while preserving manager operation. Combined preflight rejects
 changed connector observations and rechecks owner inventory after the final probe.
-These tests prove inspection, not connector supervisor replacement or full upgrades.
+These tests prove inspection, not a complete packaged connector upgrade.
 
 `updates/maintenance/pause.test.ts` checks ordered admission drains, reverse release,
 shared deadlines, failed phases and irreversible shutdown. The launcher suite uses
@@ -31,7 +40,7 @@ lost dispatch replies retain maintenance, and recovery releases admission only a
 the execution claim is free. The worker supervisor suite verifies outgoing evidence
 is durable before dispatch and a stale controller cannot consume approval. These
 use explicit internal composition; production still needs all daemon participants,
-connector replacement and adjacent-work interruption approval before enablement.
+adjacent-work interruption approval and recovery integration before enablement.
 
 `updates/worker/daemon/execute.test.ts` uses the actual installer, SQLite checkpoint
 and controller claims with simulated supervisor commands and a mocked adoption
@@ -46,8 +55,8 @@ same service or nested systemd termination scope.
 `host/supervision/replacement.test.ts` checks both service command families,
 configuration changes, stale invocations and unknown launchd errors. The native
 `replacement-live.test.ts`, gated by `PUDDLE_TEST_RUNTIME_SUPERVISOR=1`, passed on
-macOS 26.5.2: a uniquely named temporary KeepAlive job stops through `bootout`,
-retains its exact plist/custom environment, and starts through `bootstrap`. Its
+macOS 26.5.2: uniquely named temporary daemon and connector KeepAlive jobs stop through
+`bootout`, retain their exact plist/custom environment, and start through `bootstrap`. Its
 registration and process must be gone before fixture files are removed. It runs
 no installed daemon or provider. These checks do not establish native Linux or a
 complete packaged daemon/connector upgrade; public daemon dispatch remains disabled.

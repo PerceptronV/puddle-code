@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -16,9 +16,11 @@ import {
   stopServiceForReplacement,
 } from '../../../src/host/supervision/replacement.js';
 
-it.runIf(process.platform === 'darwin' && process.env.PUDDLE_TEST_RUNTIME_SUPERVISOR === '1')(
-  'stops a KeepAlive launchd fixture and restarts its unchanged custom configuration',
-  async () => {
+it
+  .runIf(process.platform === 'darwin' && process.env.PUDDLE_TEST_RUNTIME_SUPERVISOR === '1')
+  .each(['daemon', 'connector'] as const)(
+  'stops a KeepAlive launchd %s fixture and restarts its unchanged custom configuration',
+  async (component) => {
     const home = mkdtempSync(join(tmpdir(), 'puddle-replacement-live-'));
     const name = `dev.puddle.test.replacement.${randomUUID()}`;
     const domain = `gui/${process.getuid!()}`;
@@ -26,10 +28,17 @@ it.runIf(process.platform === 'darwin' && process.env.PUDDLE_TEST_RUNTIME_SUPERV
     const definitionPath = join(home, 'fixture.plist');
     const status = join(home, 'started.json');
     const wrapper = join(home, 'bin/current/puddled');
-    const entry = join(home, 'fixture.mjs');
+    const entry =
+      component === 'connector'
+        ? join(home, 'bin/current/daemon/connector.mjs')
+        : join(home, 'fixture.mjs');
+    const node = join(home, 'bin/current/bin/node');
+    const args = component === 'connector' ? [node, entry] : [wrapper];
     const xml = (value: string) =>
       value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    mkdirSync(join(home, 'bin/current'), { recursive: true });
+    mkdirSync(join(home, 'bin/current/daemon'), { recursive: true });
+    mkdirSync(join(home, 'bin/current/bin'), { recursive: true });
+    if (component === 'connector') copyFileSync(process.execPath, node);
     writeFileSync(
       entry,
       `import { writeFileSync } from 'node:fs';
@@ -43,7 +52,7 @@ setInterval(() => {}, 1000);
     writeFileSync(wrapper, `#!/bin/sh\nexec ${quote(process.execPath)} ${quote(entry)}\n`, {
       mode: 0o700,
     });
-    const definition = `<?xml version="1.0"?><plist version="1.0"><dict><key>Label</key><string>${name}</string><key>ProgramArguments</key><array><string>${xml(wrapper)}</string></array><key>KeepAlive</key><true/><key>RunAtLoad</key><true/><key>EnvironmentVariables</key><dict><key>PUDDLE_TEST_CUSTOM</key><string>preserved</string></dict></dict></plist>`;
+    const definition = `<?xml version="1.0"?><plist version="1.0"><dict><key>Label</key><string>${name}</string><key>ProgramArguments</key><array>${args.map((arg) => `<string>${xml(arg)}</string>`).join('')}</array><key>KeepAlive</key><true/><key>RunAtLoad</key><true/><key>EnvironmentVariables</key><dict><key>PUDDLE_TEST_CUSTOM</key><string>preserved</string></dict></dict></plist>`;
     writeFileSync(definitionPath, definition, { mode: 0o600 });
     const run: CompilationCommandRunner = (command) =>
       runCompilationCommand({
@@ -115,7 +124,11 @@ setInterval(() => {}, 1000);
       await execute(['bootstrap', domain, definitionPath]);
       const first = await waitStarted();
       const observed = await inspectRunningService(home, target, first.pid, run);
-      const replacement = await prepareServiceReplacement(home, observed, { definitionPath, run });
+      const replacement = await prepareServiceReplacement(home, observed, {
+        definitionPath,
+        component,
+        run,
+      });
       await stopServiceForReplacement(home, replacement, () => {}, run);
       const deadline = Date.now() + 10_000;
       while (!(await serviceIsStopped(home, target, run))) {

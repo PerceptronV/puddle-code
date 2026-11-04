@@ -168,6 +168,7 @@ it('persists the exact outgoing controller and inspected daemon service before i
   const controller = acquireRuntimeController(f.home);
   const { id, epoch } = controller.record;
   const daemon: HostUpdateDaemonHandoff = {
+    connector: { state: 'absent' },
     outgoing: { pid: process.pid, controller: { id, epoch } },
     daemon_service: {
       kind: 'systemd',
@@ -220,6 +221,7 @@ it('does not consume daemon approval when its outgoing controller is stale', asy
         releasePath: f.release,
         run: f.run,
         daemon: {
+          connector: { state: 'absent' },
           outgoing: { pid: process.pid, controller: { id, epoch: epoch + 1 } },
           daemon_service: {
             kind: 'systemd',

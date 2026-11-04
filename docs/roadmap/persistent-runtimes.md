@@ -29,6 +29,21 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far:
 
+- Connector replacement now participates in the one-shot daemon transaction. Fresh
+  inspection corroborates its process with systemd/launchd and fingerprints the
+  existing definition through shared service replacement helpers. Approval/dispatch
+  carries explicit absent/running evidence. Before daemon stop, the worker reinspects
+  that evidence, stops the exact connector service once and confirms service state,
+  process exit and socket absence. After selection and daemon start it restarts the
+  unchanged connector definition, verifies a fresh manager in the selected generation,
+  then verifies daemon adoption. Lost replies and mismatches retain recovery state
+  without retrying mutations; worker, daemon and connector termination scopes must
+  be separate. Tests cover command/IPC boundaries and transaction order, with real
+  temporary launchd daemon/connector jobs preserving custom configuration on
+  macOS 26.5.2. Full packaged connector upgrades, stopped/unmanaged installations,
+  migration-aware recovery and production admission/approval remain release gates.
+  The added evidence is private worker state; all three protocol versions are unchanged.
+
 - Application 25.9 reuses the connector manager's existing exclusive private socket
   for bounded read-only process inspection. Preflight checks a fresh nonce, ready
   manager identity, exact immutable Node/entry paths and public release capabilities,
@@ -38,9 +53,8 @@ Implementation evidence so far:
   block approval; only a host with no connector configuration/service evidence can
   be classified absent. Runtime-default updates need no connector inspection. Tests
   include an actual bundled connector running its pinned Node in an isolated home;
-  no profiles or remote service are involved. Connector supervisor identity,
-  coordinated replacement and stopped-installation handling remain required before
-  public daemon activation. Remote 4 and runtime 1.0 are unchanged.
+  no profiles or remote service are involved. Stopped-installation handling and
+  complete upgrade acceptance remain required before public daemon activation. Remote 4 and runtime 1.0 are unchanged.
 
 - The coordinator now has an ordered final-inspection pause boundary. It drains
   admitted client/launch work before inspecting the exact approved fingerprint,
@@ -52,7 +66,7 @@ Implementation evidence so far:
   queued title/cursor observations catch up on release. The shared phase composer
   unwinds in reverse order with one bounded deadline. Production does not yet
   supply the complete daemon pause composition: remaining background/execution
-  admissions, connector replacement and explicit adjacent-work interruption approval
+  admissions and explicit adjacent-work interruption approval
   must be connected before the public path is enabled. This is an internal
   composition boundary, with no user toggle or experimental backend.
 

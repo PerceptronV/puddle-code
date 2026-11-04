@@ -19,18 +19,28 @@ const homes: string[] = [];
 afterEach(() => {
   for (const home of homes.splice(0)) rmSync(home, { recursive: true, force: true });
 });
-function fixture(kind: 'systemd' | 'launchd') {
+function fixture(kind: 'systemd' | 'launchd', component: 'daemon' | 'connector' = 'daemon') {
   const home = mkdtempSync(join(tmpdir(), 'puddle-service-replacement-'));
   homes.push(home);
   const service = {
     kind,
-    name: kind === 'systemd' ? 'puddled.service' : 'dev.puddle.puddled',
+    name:
+      component === 'connector'
+        ? kind === 'systemd'
+          ? 'puddle-connector.service'
+          : 'dev.puddle.connector'
+        : kind === 'systemd'
+          ? 'puddled.service'
+          : 'dev.puddle.puddled',
     domain: kind === 'launchd' ? `gui/${process.getuid!()}` : null,
   };
   const definitionPath = join(home, 'daemon.plist');
   const plist = {
     Label: service.name,
-    ProgramArguments: [join(home, 'bin/current/puddled')],
+    ProgramArguments:
+      component === 'connector'
+        ? [join(home, 'bin/current/bin/node'), join(home, 'bin/current/daemon/connector.mjs')]
+        : [join(home, 'bin/current/puddled')],
     EnvironmentVariables: { PRESERVE: 'existing custom environment' },
   };
   writeFileSync(definitionPath, JSON.stringify(plist), { mode: 0o600 });
@@ -52,11 +62,11 @@ function fixture(kind: 'systemd' | 'launchd') {
       stdout = state.changed ? 'Changed configuration' : '[Service]\nEnvironment=PRESERVE=existing';
     else if (action === 'managername') stdout = 'Aqua';
     else if (action === 'manageruid') stdout = String(process.getuid!());
-    else if (action === 'list') stdout = launchdObservation(state.pid);
+    else if (action === 'list') stdout = launchdObservation(state.pid, service.name);
     else if (action === 'show')
       stdout = state.stopped
         ? `Id=${service.name}\nLoadState=loaded\nActiveState=inactive\nSubState=dead\nMainPID=0\nNeedDaemonReload=no\n`
-        : systemdObservation(state.pid).replace('a'.repeat(32), state.invocation);
+        : systemdObservation(state.pid, service.name).replace('a'.repeat(32), state.invocation);
     else if (action === 'print' && state.stopped)
       return { exitCode: state.printExit, stdout: '', stderr: '' };
     else if (action === 'stop' || action === 'bootout') {
@@ -68,6 +78,7 @@ function fixture(kind: 'systemd' | 'launchd') {
   const prepare = async () =>
     prepareServiceReplacement(home, await inspectRunningService(home, service, 123, run), {
       definitionPath,
+      component,
       run,
     });
   return { home, service, state, commands, run, prepare, definitionPath, plist };
@@ -174,3 +185,20 @@ it('never retries a lost stop reply or treats arbitrary launchd failures as abse
   f.state.printExit = 5;
   await expect(serviceIsStopped(f.home, evidence, f.run)).rejects.toThrow('command failed');
 });
+
+it.each(['systemd', 'launchd'] as const)(
+  'reuses exact %s replacement for the connector',
+  async (kind) => {
+    const f = fixture(kind, 'connector');
+    const evidence = await f.prepare();
+    expect(evidence.component).toBe('connector');
+    await stopServiceForReplacement(f.home, evidence, () => {}, f.run);
+    expect(await serviceIsStopped(f.home, evidence, f.run)).toBe(true);
+    await startReplacementService(f.home, evidence, f.run);
+    expect(f.state.stopped).toBe(false);
+    if (kind === 'launchd') {
+      f.plist.ProgramArguments[1] = join(f.home, 'wrong-connector.mjs');
+      await expect(f.prepare()).rejects.toThrow('selected component');
+    }
+  },
+);

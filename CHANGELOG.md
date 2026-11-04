@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Carry exact connector process and service evidence into daemon updates, preserve its existing supervisor configuration, and verify replacement before final daemon adoption. Keep uncertain connector changes recoverable without replay; production upgrade integration remains in progress.
+
 - Add application protocol 25.9 private connector process inspection, binding daemon-update preflight to fresh pinned release metadata and refusing unknown or changing connector inventory without exposing profile configuration.
 
 - Add ordered final-update admission drains, retaining maintenance after uncertain dispatch and passing exact outgoing controller/service evidence to the worker. Let admitted runtime launches finish before pausing observation; production daemon-update composition remains in progress.

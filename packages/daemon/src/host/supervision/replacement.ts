@@ -44,6 +44,7 @@ async function definitionDigest(
   service: ServiceTarget,
   path: string | null,
   run?: CompilationCommandRunner,
+  component: 'daemon' | 'connector' = 'daemon',
 ) {
   validServiceTarget(service);
   const execute = supervisorCommand(home, run);
@@ -51,7 +52,7 @@ async function definitionDigest(
     try {
       return (await execute(file, args)).stdout;
     } catch {
-      throw new Error('Daemon service configuration is unavailable');
+      throw new Error('Host service configuration is unavailable');
     }
   };
   if (service.kind === 'systemd') {
@@ -75,14 +76,18 @@ async function definitionDigest(
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
     throw new Error('Invalid launchd definition');
   const plist = parsed as Record<string, unknown>;
-  const wrapper = join(home, 'bin', 'current', 'puddled');
+  const args =
+    component === 'connector'
+      ? [join(home, 'bin/current/bin/node'), join(home, 'bin/current/daemon/connector.mjs')]
+      : [join(home, 'bin/current/puddled')];
+  const argumentsList = plist.ProgramArguments;
   if (
     plist.Label !== service.name ||
-    !Array.isArray(plist.ProgramArguments) ||
-    plist.ProgramArguments[0] !== wrapper ||
-    (plist.Program !== undefined && plist.Program !== wrapper)
+    !Array.isArray(argumentsList) ||
+    args.some((arg, index) => argumentsList[index] !== arg) ||
+    (plist.Program !== undefined && plist.Program !== args[0])
   )
-    throw new Error('Launchd definition does not start the selected daemon');
+    throw new Error('Launchd definition does not start the selected component');
   if ((await plistBytes(path)) !== before)
     throw new Error('Launchd definition changed during inspection');
   return digest(before);
@@ -94,6 +99,7 @@ export async function prepareServiceReplacement(
   observed: ServiceObservation,
   options: {
     definitionPath?: string;
+    component?: 'daemon' | 'connector';
     run?: CompilationCommandRunner;
   } = {},
 ): Promise<HostServiceReplacement> {
@@ -102,11 +108,22 @@ export async function prepareServiceReplacement(
       ? (options.definitionPath ??
         join(homedir(), 'Library', 'LaunchAgents', `${observed.name}.plist`))
       : null;
-  const definition_digest = await definitionDigest(home, observed, definition_path, options.run);
+  const definition_digest = await definitionDigest(
+    home,
+    observed,
+    definition_path,
+    options.run,
+    options.component,
+  );
   const current = await inspectRunningService(home, observed, observed.pid, options.run);
   if (current.invocation !== observed.invocation || current.controlGroup !== observed.controlGroup)
-    throw new Error('Daemon service changed during replacement preparation');
-  return hostServiceReplacementSchema.parse({ ...current, definition_path, definition_digest });
+    throw new Error('Host service changed during replacement preparation');
+  return hostServiceReplacementSchema.parse({
+    ...current,
+    definition_path,
+    definition_digest,
+    ...(options.component ? { component: options.component } : {}),
+  });
 }
 
 async function unchangedDefinition(
@@ -115,10 +132,10 @@ async function unchangedDefinition(
   run?: CompilationCommandRunner,
 ) {
   if (
-    (await definitionDigest(home, service, service.definition_path, run)) !==
+    (await definitionDigest(home, service, service.definition_path, run, service.component)) !==
     service.definition_digest
   )
-    throw new Error('Daemon service configuration changed');
+    throw new Error('Host service configuration changed');
 }
 
 /** A stopped supervisor must not be able to restart the outgoing process automatically. */
@@ -178,7 +195,7 @@ export async function stopServiceForReplacement(
   await unchangedDefinition(home, service, run);
   const current = await inspectRunningService(home, service, service.pid, run);
   if (current.invocation !== service.invocation || current.controlGroup !== service.controlGroup)
-    throw new Error('Outgoing daemon service was replaced');
+    throw new Error('Outgoing host service was replaced');
   beforeStop();
   const execute = supervisorCommand(home, run);
   if (service.kind === 'systemd') await execute('systemctl', ['--user', 'stop', service.name]);
@@ -193,8 +210,7 @@ export async function startReplacementService(
 ): Promise<void> {
   const service = hostServiceReplacementSchema.parse(input);
   await unchangedDefinition(home, service, run);
-  if (!(await serviceIsStopped(home, service, run)))
-    throw new Error('Daemon service is not stopped');
+  if (!(await serviceIsStopped(home, service, run))) throw new Error('Host service is not stopped');
   const execute = supervisorCommand(home, run);
   if (service.kind === 'systemd') await execute('systemctl', ['--user', 'start', service.name]);
   else await execute('/bin/launchctl', ['bootstrap', service.domain!, service.definition_path!]);

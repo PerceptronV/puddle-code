@@ -1,5 +1,6 @@
 import {
   hostUpdateCommandSchema,
+  hostConnectorReplacementSchema,
   hostUpdateReplySchema,
   hostUpdateReviewSchema,
   hostUpdateTerminal,
@@ -122,9 +123,22 @@ export class HostUpdateCoordinator {
       }
       const supervisor = inspection.supervision.worker;
       if (!supervisor || inspection.impact.requiresInterruption) throw new Unsupported();
+      const connector = hostConnectorReplacementSchema.safeParse(
+        inspection.connector.state === 'absent'
+          ? { state: 'absent' }
+          : {
+              state: inspection.connector.state,
+              identity: inspection.connector.identity,
+              service: inspection.connector.service,
+            },
+      );
       const daemon =
-        !runtimeOnly && pause && inspection.supervision.daemon
-          ? { outgoing: pause.outgoing, daemon_service: inspection.supervision.daemon }
+        !runtimeOnly && pause && inspection.supervision.daemon && connector.success
+          ? {
+              outgoing: pause.outgoing,
+              daemon_service: inspection.supervision.daemon,
+              connector: connector.data,
+            }
           : undefined;
       if (!runtimeOnly && (!daemon || daemon.outgoing.pid !== daemon.daemon_service.pid))
         throw new Unsupported();

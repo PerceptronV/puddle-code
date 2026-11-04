@@ -94,6 +94,7 @@ export async function startUpdateWorker(
         'Daemon updates require final quiescence and adoption hand-off before dispatch',
       );
     const daemon = options.daemon && {
+      connector: hostUpdateWorkerSchema.shape.connector.unwrap().parse(options.daemon.connector),
       outgoing: hostUpdateWorkerSchema.shape.outgoing.unwrap().parse(options.daemon.outgoing),
       daemon_service: hostUpdateWorkerSchema.shape.daemon_service
         .unwrap()
@@ -107,7 +108,8 @@ export async function startUpdateWorker(
         controller.epoch !== daemon.outgoing.controller.epoch ||
         daemon.outgoing.pid !== process.pid ||
         daemon.daemon_service.pid !== process.pid ||
-        daemon.daemon_service.kind !== options.kind
+        daemon.daemon_service.kind !== options.kind ||
+        (daemon.daemon_service.component ?? 'daemon') !== 'daemon'
       )
         throw new Error('Outgoing daemon changed before update dispatch');
     }
@@ -120,6 +122,17 @@ export async function startUpdateWorker(
       daemon.daemon_service.domain !== (options.kind === 'launchd' ? `gui/${uid}` : null)
     )
       throw new Error('Outgoing daemon belongs to another supervisor domain');
+    if (daemon?.connector.state === 'running') {
+      const connector = daemon.connector;
+      if (
+        connector.service.pid !== connector.identity.pid ||
+        connector.service.pid === process.pid ||
+        connector.service.name === daemon.daemon_service.name ||
+        connector.service.kind !== options.kind ||
+        connector.service.domain !== daemon.daemon_service.domain
+      )
+        throw new Error('Outgoing connector service does not match its approved process');
+    }
     privateDirectory(join(home, 'updates', 'jobs'));
     privateDirectory(directory);
     syncPrivateDirectory(join(home, 'updates'));

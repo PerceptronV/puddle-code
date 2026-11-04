@@ -17,6 +17,7 @@ import { build } from 'esbuild';
 import { expect, it } from 'vitest';
 import { hostReleaseCapabilities } from '@puddle/shared';
 import { ipcPath } from '@puddle/shared/node';
+import { systemdObservation } from '../../helpers/host-supervision.js';
 import { HostUpdateOperations } from '../../../src/updates/operations/store.js';
 import { HostUpdateConnector } from '../../../src/updates/preflight/connector.js';
 
@@ -69,7 +70,18 @@ it('inspects an actual bundled connector through its pinned Node and release met
     const operation = new HostUpdateOperations(home).begin([
       { component: 'daemon', version: '0.4.0' },
     ]).operation;
-    const inspector = new HostUpdateConnector(home, home);
+    const inspector = new HostUpdateConnector(home, home, {
+      // Process/IPC are real; supervisor command responses are simulated in this fixture.
+      platform: 'linux',
+      run: async (command) => ({
+        exitCode: 0,
+        stderr: '',
+        stdout:
+          command.args[1] === 'cat'
+            ? 'fixture connector unit'
+            : systemdObservation(child?.pid ?? 1, 'puddle-connector.service'),
+      }),
+    });
     child = spawn(node, [entry], { env: environment, stdio: ['ignore', 'ignore', 'pipe'] });
     let errors = '';
     child.stderr?.on('data', (chunk: Buffer) => {

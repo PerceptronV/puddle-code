@@ -15,7 +15,11 @@ function fixture(component: 'runtime' | 'daemon' = 'runtime', daemonAdmission = 
   const observed: UpdateInspection = {
     fingerprint: digest('inspected exact release and ownership'),
     blockers: [],
-    connector: { state: 'not-required', identity: null, blockers: [] },
+    connector: {
+      state: component === 'daemon' ? 'absent' : 'not-required',
+      identity: null,
+      blockers: [],
+    },
     compatibility: { blockers: [], candidates: [], owners: [], inventory: null },
     capacity: { blockers: [], volumes: [] },
     impact: {
@@ -257,6 +261,7 @@ it('drains daemon admissions before final inspection and retains the hold after 
   expect(f.dispatch.mock.calls[0]?.[3]).toEqual({
     outgoing: f.outgoing,
     daemon_service: f.observed.supervision.daemon,
+    connector: { state: 'absent' },
   });
   expect(() => f.admission.enter()).toThrow();
   const accepted = f.store.read()!;

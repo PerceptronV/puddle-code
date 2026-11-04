@@ -11,18 +11,28 @@ export async function verifyUpdateWorkerIsolation(
 ): Promise<void> {
   const daemon = job.daemon_service;
   if (!daemon) return;
-  if (
-    daemon.pid === pid ||
-    daemon.name === job.name ||
-    daemon.kind !== job.kind ||
-    daemon.domain !== job.domain
-  )
-    throw new Error('Update worker is not independent of the outgoing daemon');
+  const replaced = [daemon, ...(job.connector?.state === 'running' ? [job.connector.service] : [])];
+  for (const service of replaced) {
+    if (
+      service.pid === pid ||
+      service.name === job.name ||
+      service.kind !== job.kind ||
+      service.domain !== job.domain
+    )
+      throw new Error('Update worker is not independent of an outgoing host component');
+  }
   const worker = await inspectRunningService(home, job, pid, run);
-  if (daemon.kind === 'systemd') {
-    const parent = daemon.controlGroup!;
-    const child = worker.controlGroup!;
-    if (parent === child || parent.startsWith(`${child}/`) || child.startsWith(`${parent}/`))
-      throw new Error('Update worker shares the daemon termination scope');
+  const scopes = [...replaced, worker];
+  for (let i = 0; i < scopes.length; i++) {
+    for (const other of scopes.slice(i + 1)) {
+      const service = scopes[i]!;
+      if (service.name === other.name || service.pid === other.pid)
+        throw new Error('Host components share a service process');
+      if (service.kind !== 'systemd') continue;
+      const parent = service.controlGroup!;
+      const child = other.controlGroup!;
+      if (parent === child || parent.startsWith(`${child}/`) || child.startsWith(`${parent}/`))
+        throw new Error('Host components share a termination scope');
+    }
   }
 }

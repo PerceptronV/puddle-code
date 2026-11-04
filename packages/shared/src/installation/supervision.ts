@@ -4,6 +4,7 @@ import { z } from 'zod';
 export const hostServiceReplacementSchema = z
   .object({
     kind: z.enum(['systemd', 'launchd']),
+    component: z.enum(['daemon', 'connector']).optional(),
     name: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/),
     domain: z
       .string()

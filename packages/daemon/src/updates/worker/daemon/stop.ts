@@ -8,7 +8,7 @@ import {
 import { readRuntimeController } from '../../../runtime/ownership/storage.js';
 import { acquireHostClaim, HostClaimBusy } from '../../../security/claims.js';
 import { readHostUpdateCheckpointEvidence } from '../../checkpoints/store.js';
-import { HostUpdateOperations } from '../../operations/store.js';
+import { requireExecutingUpdate, requireOutgoingController } from '../operation.js';
 
 /** Stop once, then prove both supervisor shutdown and exact durable ownership hand-off. */
 export async function stopDaemonForUpdate(
@@ -21,31 +21,14 @@ export async function stopDaemonForUpdate(
   const outgoing = job.outgoing;
   if (!service || !outgoing || service.pid !== outgoing.pid)
     throw new Error('Missing outgoing daemon service evidence');
-  const requireExecuting = () => {
-    const operation = new HostUpdateOperations(home).read(job.operation_id);
-    if (
-      operation?.phase !== 'applying' ||
-      !operation.worker_id ||
-      operation.revision !== job.dispatch_revision + 1 ||
-      operation.dispatch_id !== job.dispatch_id ||
-      operation.approved !== job.preflight ||
-      !operation.targets.some((target) => target.component === 'daemon')
-    )
-      throw new Error('Daemon stop does not match an executing update');
-  };
+  const requireExecuting = () => requireExecutingUpdate(home, job, 'applying');
   requireExecuting();
   await stopServiceForReplacement(
     home,
     service,
     () => {
       requireExecuting();
-      const controller = readRuntimeController(home);
-      if (
-        !controller.active ||
-        controller.id !== outgoing.controller.id ||
-        controller.epoch !== outgoing.controller.epoch
-      )
-        throw new Error('Outgoing daemon controller changed before stop');
+      requireOutgoingController(home, job);
       try {
         readHostUpdateCheckpointEvidence(home, job.operation_id);
         throw new Error('Daemon update already has a shutdown checkpoint');

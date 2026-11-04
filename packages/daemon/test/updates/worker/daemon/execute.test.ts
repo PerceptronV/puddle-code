@@ -14,15 +14,23 @@ import { HostClaimBusy } from '../../../../src/security/claims.js';
 import { prepareServiceReplacement } from '../../../../src/host/supervision/replacement.js';
 import { inspectRunningService } from '../../../../src/host/supervision/inspection.js';
 import { HostUpdateCheckpointWriter } from '../../../../src/updates/checkpoints/store.js';
+import { HostUpdateConnector } from '../../../../src/updates/preflight/connector.js';
 import { executeHostUpdate } from '../../../../src/updates/worker/execute.js';
+import * as connectorReplacement from '../../../../src/updates/worker/connector.js';
 import * as adoptionVerification from '../../../../src/updates/worker/verify-adoption.js';
 import { updateInstallation } from '../../../helpers/update-installation.js';
 import { systemdObservation } from '../../../helpers/host-supervision.js';
 
 afterEach(() => vi.restoreAllMocks());
 
-async function fixture(combined = false) {
+async function fixture(combined = false, connector = false) {
   const f = await updateInstallation(combined ? ['daemon', 'runtime'] : ['daemon']);
+  f.job.connector = { state: 'absent' };
+  vi.spyOn(HostUpdateConnector.prototype, 'inspect').mockResolvedValue({
+    state: 'absent',
+    identity: null,
+    blockers: [],
+  });
   const db = openDatabase(join(f.puddleHome, 'puddle.db'));
   let controller = acquireRuntimeController(f.puddleHome);
   const { id, epoch } = controller.record;
@@ -33,6 +41,18 @@ async function fixture(combined = false) {
     changes: [] as string[],
     definition: 'existing custom service configuration',
   };
+  if (connector) {
+    // Service/IPC behaviour has a separate connector suite. Here verify transaction ordering and recovery.
+    vi.spyOn(connectorReplacement, 'stopConnectorForUpdate').mockImplementation(async () => {
+      state.changes.push('stop-connector');
+      if (state.fail === 'stop-connector') throw new Error('Connector stop reply lost');
+    });
+    vi.spyOn(connectorReplacement, 'startConnectorAfterUpdate').mockImplementation(async () => {
+      state.changes.push('start-connector');
+      if (state.fail === 'start-connector') throw new Error('Connector start reply lost');
+      return { state: 'absent' };
+    });
+  }
   const reference = {
     operation_id: f.operation.id,
     dispatch_id: f.job.dispatch_id,
@@ -83,7 +103,7 @@ async function fixture(combined = false) {
     .spyOn(adoptionVerification, 'verifyHostUpdateAdoption')
     .mockImplementation(async (_home, operation) => {
       expect(operation.phase).toBe('verifying');
-      expect(state.changes.at(-1)).toBe('start');
+      expect(state.changes.at(-1)).toBe(connector ? 'start-connector' : 'start');
       state.changes.push('verify');
       const release = f.selected('daemon');
       const result: HostUpdateAdoption = {
@@ -161,6 +181,38 @@ it.each(['stop', 'select', 'start', 'configuration'])(
           ? f.previousDaemon
           : join(f.puddleHome, 'bin/versions', f.receipts[0]!.record.generation),
       );
+    } finally {
+      f.close();
+    }
+  },
+  30_000,
+);
+
+it.each(['', 'stop-connector', 'start-connector'])(
+  'includes connector replacement in the consumed transaction (failure=%s)',
+  async (failure) => {
+    const f = await fixture(false, true);
+    try {
+      f.state.fail = failure;
+      if (!failure) {
+        await executeHostUpdate(f.puddleHome, f.job, f.run);
+        expect(f.state.changes).toEqual([
+          'stop-connector',
+          'stop',
+          'select-daemon',
+          'start',
+          'start-connector',
+          'verify',
+        ]);
+        expect(f.store.read()?.phase).toBe('complete');
+      } else {
+        await expect(executeHostUpdate(f.puddleHome, f.job, f.run)).rejects.toThrow();
+        expect(f.store.read()?.phase).toBe('recovery_required');
+        if (failure === 'stop-connector') expect(f.state.changes).toEqual(['stop-connector']);
+      }
+      const mutations = [...f.state.changes];
+      await expect(executeHostUpdate(f.puddleHome, f.job, f.run)).rejects.toThrow();
+      expect(f.state.changes).toEqual(mutations);
     } finally {
       f.close();
     }

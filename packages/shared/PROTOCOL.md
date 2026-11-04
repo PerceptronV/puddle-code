@@ -19,6 +19,14 @@ identity and definition digest (plus launchd's existing plist path). Configurati
 contents and environment values are not copied into the update record. These fields
 are internal worker state, with no application, remote or runtime wire-shape change.
 
+Private worker records also retain explicit absent/running connector replacement
+evidence: its approved process identity and supervisor definition digest. Service
+records distinguish daemon and connector executable layouts, with omitted component
+retaining the daemon interpretation for existing records. These fields are internal
+transaction evidence, not client commands or new IPC messages; they do not change
+the application, remote or runtime protocol. Daemon transactions without explicit
+connector evidence cannot execute.
+
 Protocol 25.9 adds nonce-correlated, read-only process inspection on the connector
 manager's existing exclusive private host socket. Replies contain bounded process,
 release and protocol metadata only; profile configuration, grants and registration
