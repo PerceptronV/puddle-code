@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { compatibleRuntimeProtocol, runtimeIdentitySchema } from '@puddle/shared';
 import type { RuntimeStore } from '../../db/stores/runtimes.js';
 import { CollectionBudget } from '../../host/installation/collection/budget.js';
-import { acquireRuntimeRetirementClaims } from '../../host/installation/collection/retirement/claims.js';
+import { acquireRuntimeRetirementClaims } from '../../runtime/ownership/retirement-claims.js';
 import { runtimeReleaseRetired } from '../../host/installation/collection/retirement/runtimes.js';
 import { TerminalLogCompactor } from '../../logs/retention/compactor.js';
 import { runtimeStorageCategory } from './paths.js';

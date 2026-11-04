@@ -23,6 +23,7 @@ import { projectHostPurge, writeHostPurge } from './records.js';
 import { reviewPurgeData } from './inventory.js';
 import { reviewPurgeWorktrees } from './worktrees.js';
 import { executePurgeData } from './execute.js';
+import { requireNoRuntimeMemoryGrants } from '../../../runtime/resources/host/retirement.js';
 
 interface Options extends RemovalInventoryOptions {
   authorised: () => boolean;
@@ -157,6 +158,9 @@ export async function prepareHostPurge(
     }
     if (record.boot_id === boot) return projectHostPurge(record);
     if (record.phase === 'waiting') {
+      // Revisit exact ended owners before any supporting evidence can detach,
+      // including a waiting receipt written by an earlier compatible daemon.
+      await retirePurgeRuntimes(guard, current, options.run);
       const review = await reviewPurgeData(home, current);
       record = { ...record, ...review, fingerprint: purgeFingerprint(id, review) };
       current();
@@ -185,6 +189,7 @@ export async function applyHostPurge(
     if (evidence.fingerprint !== record.removal_digest)
       throw new Error('Purge removal evidence changed');
     if (record.phase === 'waiting') {
+      await retirePurgeRuntimes(guard, current, options.run);
       const review = await reviewPurgeData(home, current);
       if (purgeFingerprint(record.id, review) !== record.fingerprint)
         throw new Error('Purge data or worktree review changed');
@@ -206,6 +211,7 @@ export async function applyHostPurge(
       // requires its exact reviewed inode in quarantine before deleting anything.
     }
     current();
+    requireNoRuntimeMemoryGrants(home);
     record.phase = 'deleting';
     record.attempt_id = request.attempt_id;
     writeHostPurge(home, record);

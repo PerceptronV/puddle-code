@@ -5,12 +5,14 @@ import { privateDirectory, syncPrivateDirectory } from '@puddle/shared/node';
 import type { HostRemovalGuard } from '../guard.js';
 import { OWNED_TREE_FILE_BUDGET, pruneOwnedTree } from '../../installation/tree.js';
 import { writeHostPurge } from './records.js';
+import { requireNoRuntimeMemoryGrants } from '../../../runtime/resources/host/retirement.js';
 
 export async function executePurgeData(
   guard: HostRemovalGuard,
   record: HostPurgeRecord,
   current: () => void,
 ) {
+  requireNoRuntimeMemoryGrants(guard.home);
   const directory = join(guard.home, 'installation/removal');
   const quarantine = join(directory, 'purge-data');
   privateDirectory(quarantine);

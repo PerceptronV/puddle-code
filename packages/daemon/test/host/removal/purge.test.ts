@@ -23,10 +23,11 @@ import { prepareHostPurge, applyHostPurge } from '../../../src/host/removal/purg
 import { inspectHostPurge, writeHostPurge } from '../../../src/host/removal/purge/records.js';
 import { restoreRemovedHostServices } from '../../../src/host/removal/restoration/execute.js';
 import { git } from '../../../src/git/exec.js';
+import { HostMemoryLedger } from '../../../src/runtime/resources/host/ledger.js';
 
 async function fixture() {
   const f = removalHostFixture();
-  const state = { boot: randomUUID(), authorised: true };
+  const state: { boot: string; authorised: boolean } = { boot: randomUUID(), authorised: true };
   const options = {
     ...f.options,
     bootIdentity: async () => state.boot,
@@ -67,6 +68,27 @@ async function fixture() {
   };
 }
 
+it('retains all purge roots and the permanent memory anchor when an unknown grant remains', async () => {
+  const f = await fixture();
+  const ledger = HostMemoryLedger.open(f.home, 100);
+  try {
+    ledger.compareGrant(
+      { runtime_id: randomUUID(), incarnation: randomUUID(), launch_id: randomUUID() },
+      0,
+      0,
+    );
+    await f.ready();
+    await expect(f.apply()).rejects.toThrow('must retire');
+    expect(readHostPurge(f.home)?.phase).toBe('waiting');
+    expect(existsSync(join(f.home, 'puddle.db'))).toBe(true);
+    expect(existsSync(join(f.home, 'installation/removal/purge-data'))).toBe(false);
+    expect(existsSync(join(f.home, 'runtime-claims/managed-memory.sqlite'))).toBe(true);
+  } finally {
+    ledger.close();
+    f.close();
+  }
+});
+
 it('retains readable intent when aggregate purge evidence exceeds its byte limit', async () => {
   const f = await fixture();
   try {
@@ -92,6 +114,10 @@ it('retains readable intent when aggregate purge evidence exceeds its byte limit
 it('requires a changed kernel boot and keeps installer/claim anchors through completed purge', async () => {
   const f = await fixture();
   try {
+    const ledger = HostMemoryLedger.open(f.home, 100);
+    const instance = ledger.instanceId;
+    ledger.close();
+    const memoryInode = lstatSync(join(f.home, 'runtime-claims/managed-memory.sqlite')).ino;
     const inode = lstatSync(join(f.home, 'bin/.install-lock')).ino;
     mkdirSync(join(f.home, 'profiles'), { mode: 0o700 });
     writeFileSync(join(f.home, 'profiles/credentials'), 'fixture secret');
@@ -112,6 +138,15 @@ it('requires a changed kernel boot and keeps installer/claim anchors through com
     expect(existsSync(join(f.home, 'profiles'))).toBe(false);
     expect(existsSync(join(f.home, 'puddle.db'))).toBe(false);
     expect(lstatSync(join(f.home, 'bin/.install-lock')).ino).toBe(inode);
+    expect(lstatSync(join(f.home, 'runtime-claims/managed-memory.sqlite')).ino).toBe(memoryInode);
+    const retained = HostMemoryLedger.openExisting(f.home)!;
+    try {
+      expect(retained.instanceId).toBe(instance);
+      expect(retained.capacityBytes).toBe(100);
+      expect(() => retained.requireEmpty()).not.toThrow();
+    } finally {
+      retained.close();
+    }
     expect(existsSync(f.release)).toBe(true);
     expect(inspectHostRemoval(f.home)).toEqual({ state: 'removed', id: f.id });
   } finally {

@@ -12,6 +12,8 @@ import { acquireHostClaim, HostClaimBusy } from '../../security/claims.js';
 import { readRuntimeJson, runtimeDirectory } from '../ownership/storage.js';
 import { serviceIsRemoved } from '../../host/supervision/removed.js';
 import { dispatchDetachedRuntime } from './process.js';
+import { acquireRuntimeRetirementClaims } from '../ownership/retirement-claims.js';
+import { retireRuntimeMemoryGrant } from '../resources/host/retirement.js';
 
 import {
   independentServiceDefinition,
@@ -130,16 +132,10 @@ export async function removeRuntimeService(
   run: CompilationCommandRunner = runCompilationCommand,
 ): Promise<'removed' | 'absent' | 'owned'> {
   const directory = runtimeDirectory(home, identity.runtime_id);
-  let claim: ReturnType<typeof acquireHostClaim>;
-  let launchClaim: ReturnType<typeof acquireHostClaim> | undefined;
-  let dispatchClaim: ReturnType<typeof acquireHostClaim> | undefined;
+  let claims: ReturnType<typeof acquireRuntimeRetirementClaims>;
   try {
-    launchClaim = acquireHostClaim(home, `runtime-launch:${identity.runtime_id}`);
-    dispatchClaim = acquireHostClaim(home, `runtime-dispatch:${identity.runtime_id}`);
-    claim = acquireHostClaim(home, `runtime:${identity.runtime_id}`);
+    claims = acquireRuntimeRetirementClaims(home, identity.runtime_id);
   } catch (error) {
-    dispatchClaim?.release();
-    launchClaim?.release();
     if (error instanceof HostClaimBusy) return 'owned';
     throw error;
   }
@@ -152,8 +148,9 @@ export async function removeRuntimeService(
           throw new Error('Runtime retirement identity mismatch');
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-        atomicPrivateJson(file, { format: 1, identity });
+        atomicPrivateJson(file, { format: 1, identity }, { syncDirectory: true });
       }
+      retireRuntimeMemoryGrant(home, identity, claims);
     };
     const file = join(directory, 'supervisor.json');
     let record: RuntimeSupervisor;
@@ -213,8 +210,6 @@ export async function removeRuntimeService(
     atomicPrivateJson(file, { ...record, state: 'removed' });
     return 'removed';
   } finally {
-    claim.release();
-    dispatchClaim.release();
-    launchClaim.release();
+    claims.release();
   }
 }

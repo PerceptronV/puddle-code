@@ -68,6 +68,16 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Memory-grant reclamation now shares runtime retirement's launch/dispatch/owner
+  claims and adds an exact process-memory claim. It verifies and durably syncs the
+  retired launch fence before deleting a grant, including before service cleanup,
+  release collection and purge remove supporting records. Purge refuses any
+  remaining grant and retains the ledger inode, instance and sealed capacity.
+  Eighty-two ledger/retirement/supervisor/collection/compaction/purge checks passed,
+  including a real child holding memory exclusion after its ordinary owner claim
+  was released. TypeScript and lint passed. Runtime startup must still acquire and
+  retain that process-memory claim and check the fence before using its grant.
+
 - Screen retained geometry/control/text, parser/capture queues, parse bursts and
   snapshot work can now spend one enclosing owner allowance. Charges precede
   allocation; disposal and pending writes retain credit until their closures settle.

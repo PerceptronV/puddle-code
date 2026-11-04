@@ -60,11 +60,21 @@ export interface HostMemoryPaths {
   seal: string;
 }
 
-export function memoryPaths(home: string): HostMemoryPaths {
+export function memoryPaths(home: string, create = true): HostMemoryPaths | null {
   home = homeKey(home);
-  initialisePrivateHome(home);
   const directory = join(home, 'runtime-claims');
-  privateDirectory(directory);
+  if (create) {
+    initialisePrivateHome(home);
+    privateDirectory(directory);
+  } else {
+    try {
+      privatePath(home, true);
+      privatePath(directory, true);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+      throw error;
+    }
+  }
   return {
     home,
     directory,

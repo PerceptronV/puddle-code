@@ -3,6 +3,8 @@ import Database from 'better-sqlite3';
 import { runtimeIdentitySchema, type RuntimeIdentity } from '@puddle/shared';
 import { privatePath, syncPrivateDirectory } from '@puddle/shared/node';
 import { acquireHostClaim } from '../../../security/claims.js';
+import type { RuntimeRetirementClaims } from '../../ownership/retirement-claims.js';
+import { retiredGrantProof } from './retirement-proof.js';
 import {
   HOST_MEMORY_LEDGER_BYTES,
   createMemoryFile,
@@ -73,17 +75,39 @@ export class HostMemoryLedger {
   static open(home: string, capacityBytes: number): HostMemoryLedger {
     if (!validInteger(capacityBytes) || capacityBytes === 0)
       throw new Error('Invalid host memory capacity');
-    const paths = memoryIo(home, () => memoryPaths(home));
+    return this.openKnown(home, capacityBytes, true)!;
+  }
+
+  /** Never creates a directory, database or seal. Established capacity remains authoritative. */
+  static openExisting(home: string): HostMemoryLedger | null {
+    return this.openKnown(home, undefined, false);
+  }
+
+  private static openKnown(
+    home: string,
+    requestedCapacity: number | undefined,
+    create: boolean,
+  ): HostMemoryLedger | null {
+    const paths = memoryIo(home, () => memoryPaths(home, create));
+    if (!paths) return null;
     let claim: ReturnType<typeof acquireHostClaim> | undefined;
     let controller: ReturnType<typeof acquireHostClaim> | undefined;
     let db: Database.Database | undefined;
     try {
       let seal = memoryIo(home, () => readMemorySeal(paths));
       if (!seal) {
+        if (!create) {
+          if (optionalMemoryFile(paths.database, HOST_MEMORY_LEDGER_BYTES))
+            throw new Error('Host memory ledger exists without an initialisation seal');
+          return null;
+        }
         claim = memoryIo(home, () => acquireHostClaim(home, 'host-memory-ledger-initialisation'));
         seal = memoryIo(home, () => readMemorySeal(paths));
       }
       let file = memoryIo(home, () => optionalMemoryFile(paths.database, HOST_MEMORY_LEDGER_BYTES));
+      const capacityBytes = requestedCapacity ?? seal?.capacity;
+      if (capacityBytes === undefined)
+        throw new Error('Host memory ledger capacity is unavailable');
       if (seal && !file) throw new Error('Sealed host memory ledger is missing');
       if (
         seal &&
@@ -250,6 +274,52 @@ export class HostMemoryLedger {
     if (this.closed) return;
     this.closed = true;
     this.db.close();
+  }
+
+  /** Exact process-lifetime exclusion plus a durable launch fence; never age or PID inference. */
+  retireGrant(identity: RuntimeIdentity, claims: RuntimeRetirementClaims): boolean {
+    this.requireCurrent();
+    claims.requireCurrent(this.paths.home, identity.runtime_id);
+    const previous = this.readGrant(identity);
+    if (!previous) return false;
+    const requireRetired = retiredGrantProof(this.paths.home, identity, claims);
+    const removed = this.db
+      .transaction(() => {
+        this.requireCurrent();
+        requireRetired();
+        const current = this.readGrant(identity);
+        if (!current || current.revision !== previous.revision || current.bytes !== previous.bytes)
+          throw new Error('Runtime memory grant changed during retirement');
+        const before = readHeader(this.db, this.capacityBytes);
+        this.db
+          .prepare(
+            'DELETE FROM grants WHERE runtime_id=? AND incarnation=? AND launch_id=? AND revision=?',
+          )
+          .run(identity.runtime_id, identity.incarnation, identity.launch_id, current.revision);
+        const after = readHeader(this.db, this.capacityBytes);
+        if (after.total !== before.total - current.bytes || after.owners !== before.owners - 1)
+          throw new Error('Runtime memory retirement accounting changed');
+        requireRetired();
+        this.requireCurrent();
+        return true;
+      })
+      .immediate();
+    this.requireCurrent();
+    return removed;
+  }
+
+  requireEmpty(): void {
+    this.requireCurrent();
+    const header = readHeader(this.db, this.capacityBytes);
+    if (
+      header.owners !== 0 ||
+      header.total !== 0 ||
+      this.db.prepare('SELECT 1 FROM grants LIMIT 1').get()
+    )
+      throw new Error(
+        'Runtime memory grants must retire before their supporting records are purged',
+      );
+    this.requireCurrent();
   }
 
   private exactGrant(identity: HostMemoryIdentity, row: GrantRow): HostMemoryGrant {

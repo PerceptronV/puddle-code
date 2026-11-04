@@ -16,7 +16,8 @@ import type { CompilationCommandRunner } from '../../../../compilation/process.j
 import { serviceIsRemoved } from '../../../supervision/removed.js';
 import { optionalRecord } from '../inventory.js';
 import type { CollectionBudget } from '../budget.js';
-import { acquireRuntimeRetirementClaims } from './claims.js';
+import { acquireRuntimeRetirementClaims } from '../../../../runtime/ownership/retirement-claims.js';
+import { retireRuntimeMemoryGrant } from '../../../../runtime/resources/host/retirement.js';
 
 const receiptSchema = z
   .object({
@@ -108,6 +109,9 @@ export async function retireRuntimeRelease(
     if (!binding) throw new Error('Runtime binding disappeared');
     const current = evidence(home, binding, budget);
     if (!current) return;
+    // Memory credit needs process exit and a durable launch fence, not the
+    // later-boot descendant proof used for executable/raw-history collection.
+    retireRuntimeMemoryGrant(home, runtimeBindingIdentity(binding), claims);
     const file = receiptFile(home, id);
     const raw = optionalRecord(file, 4096, budget);
     const previous = raw ? receiptSchema.parse(raw) : null;

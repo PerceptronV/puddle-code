@@ -9,7 +9,9 @@ import {
   type RuntimeState,
 } from '@puddle/shared';
 import { atomicPrivateJson } from '@puddle/shared/node';
-import { acquireHostClaim, HostClaimBusy } from '../../security/claims.js';
+import { HostClaimBusy } from '../../security/claims.js';
+import { acquireRuntimeRetirementClaims } from './retirement-claims.js';
+import { retireRuntimeMemoryGrant } from '../resources/host/retirement.js';
 import { RuntimeClient } from '../transport/client.js';
 import { readRuntimeJson, runtimeDirectory } from './storage.js';
 import { readRuntimeJournal } from '../state/journal.js';
@@ -52,13 +54,10 @@ export function retireMissingRuntime(
   apply: (finalState: RuntimeState | null, journal: RuntimeJournalRecord | null) => void,
 ): 'retired' | 'owned' {
   const directory = runtimeDirectory(home, identity.runtime_id);
-  let claim: ReturnType<typeof acquireHostClaim>;
-  let launchClaim: ReturnType<typeof acquireHostClaim> | undefined;
+  let claims: ReturnType<typeof acquireRuntimeRetirementClaims>;
   try {
-    launchClaim = acquireHostClaim(home, `runtime-launch:${identity.runtime_id}`);
-    claim = acquireHostClaim(home, `runtime:${identity.runtime_id}`);
+    claims = acquireRuntimeRetirementClaims(home, identity.runtime_id);
   } catch (error) {
-    launchClaim?.release();
     if (error instanceof HostClaimBusy) return 'owned';
     throw error;
   }
@@ -83,12 +82,12 @@ export function retireMissingRuntime(
       checkIdentity(runtimeRetiredSchema.parse(readRuntimeJson(file)).identity, identity);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-      atomicPrivateJson(file, { format: 1, identity });
+      atomicPrivateJson(file, { format: 1, identity }, { syncDirectory: true });
     }
+    retireRuntimeMemoryGrant(home, identity, claims);
     apply(state, journal);
     return 'retired';
   } finally {
-    claim.release();
-    launchClaim.release();
+    claims.release();
   }
 }
