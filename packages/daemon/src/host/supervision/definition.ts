@@ -30,7 +30,7 @@ export async function requireSelectedDaemonExecutable(
     throw new Error('Systemd definition does not start the selected daemon');
 }
 
-async function plistBytes(path: string): Promise<string> {
+export async function readOwnedServiceDefinition(path: string): Promise<string> {
   validServicePath(path);
   const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
@@ -41,11 +41,11 @@ async function plistBytes(path: string): Promise<string> {
       (stat.mode & 0o022) !== 0 ||
       stat.size > 64 * 1024
     )
-      throw new Error('Unsafe launchd definition');
+      throw new Error('Unsafe host service definition');
     const bytes = Buffer.alloc(64 * 1024 + 1);
     const read = await file.read(bytes, 0, bytes.length, 0);
     if (read.bytesRead !== stat.size || read.bytesRead > 64 * 1024)
-      throw new Error('Launchd definition changed during inspection');
+      throw new Error('Host service definition changed during inspection');
     // Base64 also preserves binary plists exactly for the fingerprint.
     return bytes.subarray(0, read.bytesRead).toString('base64');
   } finally {
@@ -76,7 +76,7 @@ export async function serviceDefinitionDigest(
     return digest(definition);
   }
   if (!path) throw new Error('Missing launchd definition');
-  const before = await plistBytes(path);
+  const before = await readOwnedServiceDefinition(path);
   // plutil's JSON conversion is machine-readable; launchctl print is not.
   let parsed: unknown;
   try {
@@ -102,7 +102,7 @@ export async function serviceDefinitionDigest(
     (plist.Program !== undefined && plist.Program !== args[0])
   )
     throw new Error('Launchd definition does not start the selected component');
-  if ((await plistBytes(path)) !== before)
+  if ((await readOwnedServiceDefinition(path)) !== before)
     throw new Error('Launchd definition changed during inspection');
   return digest(before);
 }

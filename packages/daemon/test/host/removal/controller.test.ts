@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, expect, it, vi } from 'vitest';
 import { withRemovalRuntimes } from '../../../src/host/removal/controller.js';
+import { HostRemovalGuard } from '../../../src/host/removal/guard.js';
 import { acquireHostClaim } from '../../../src/security/claims.js';
 import { acquireInstallationLock } from '../../../src/host/installation/lock.js';
 import { openDatabase } from '../../../src/db/db.js';
@@ -108,4 +109,53 @@ it('refuses an unknown on-disk runtime before offering a complete removal invent
   await expect(withRemovalRuntimes(f.home, action)).rejects.toThrow(/inventory is unknown/);
   expect(action).not.toHaveBeenCalled();
   expect(existsSync(directory)).toBe(true);
+});
+
+it('retains the outer removal guard after offline runtime handling and failed review', async () => {
+  const f = fixture();
+  openDatabase(f.file).close();
+  const guard = HostRemovalGuard.acquire(f.home);
+  try {
+    for (const fail of [false, true]) {
+      const handling = withRemovalRuntimes(
+        f.home,
+        async (removal) => {
+          guard.requireController();
+          expect(() => guard.acquireController()).toThrow(/already owns/);
+          const review = await removal.review(() => true);
+          if (fail) throw new Error('Review cancelled');
+          await removal.apply(review, 'retain', () => true);
+        },
+        guard,
+      );
+      if (fail) await expect(handling).rejects.toThrow('Review cancelled');
+      else await handling;
+      expect(() => guard.requireController()).toThrow(/does not own/);
+      guard.requireHeld();
+      for (const scope of ['host-update-coordinator', 'host-update-execution'])
+        expect(() => acquireHostClaim(f.home, scope)).toThrow(/owns/);
+      expect(() => acquireInstallationLock(f.home)).toThrow(/installer/);
+      // The runtime phase drains and releases only its controller claim.
+      const controller = guard.acquireController();
+      controller.release();
+    }
+  } finally {
+    guard.release();
+  }
+  expect(() => guard.requireHeld()).toThrow(/no longer held/);
+  acquireInstallationLock(f.home).release();
+  acquireHostClaim(f.home, 'host-update-coordinator').release();
+});
+
+it('rejects an outer removal guard for another home without creating a database', async () => {
+  const f = fixture();
+  const other = fixture();
+  const guard = HostRemovalGuard.acquire(f.home);
+  try {
+    await expect(withRemovalRuntimes(other.home, vi.fn(), guard)).rejects.toThrow(/this home/);
+    expect(existsSync(other.file)).toBe(false);
+    guard.requireHeld();
+  } finally {
+    guard.release();
+  }
 });

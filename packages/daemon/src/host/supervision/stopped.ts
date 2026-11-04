@@ -23,6 +23,7 @@ export async function unloadIdleLaunchdService(
   target: ServiceTarget,
   requireCurrent: () => Promise<void>,
   run?: CompilationCommandRunner,
+  beforeUnload?: () => void,
 ): Promise<void> {
   validServiceTarget(target);
   if (target.kind !== 'launchd' || (await serviceIsStopped(home, target, run))) return;
@@ -32,6 +33,7 @@ export async function unloadIdleLaunchdService(
   if ((await inspectLaunchdProcess(home, target, run)) !== null)
     throw new Error('Launchd service started during recovery');
   await requireCurrent();
+  beforeUnload?.();
   await supervisorCommand(home, run)('/bin/launchctl', [
     'bootout',
     `${target.domain}/${target.name}`,

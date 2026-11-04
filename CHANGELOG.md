@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Add checked internal daemon/connector service teardown for host removal, retaining update and installer exclusion across offline runtime handling. Preserve service definitions until shutdown is confirmed, observe lost stop replies without repeating them, and require current controller ownership and supervisor absence before completing unregistration. CLI uninstall and purge integration remain in progress.
+
 - Add the internal runtime retain/stop phase for host removal, sharing existing ownership, reconciliation and serial controls. Refuse stale interruption reviews and pending stop replay; keep CLI uninstall and purge integration as follow-up work. Correct healthy terminal snapshot saves incorrectly marking a runtime as unsaved.
 
 - Verify runtime service removal through a reachable supervisor before completing cleanup. Reinspect historical removal records, retain unresolved cleanup across daemon replacement and keep delayed runtime launches fenced.

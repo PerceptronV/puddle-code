@@ -43,6 +43,17 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Internal host removal now shares an outer update/installation guard across supervisor
+  shutdown and offline runtime handling. Commands inherit installer exclusion, and
+  the controller must drain before the guard can close. Service teardown reuses existing
+  identity, definition, shutdown and absence checks, preserves definitions until confirmed
+  shutdown, and requires controller ownership before unregistration. A native isolated
+  launchd fixture verifies a lost stop reply, ended selected process, definition removal
+  and unchanged neighbouring job. Scripted systemd tests cover disable/reset/reload,
+  changed definitions and lost replies; actual Linux acceptance remains required.
+  CLI orchestration, connector disable, durable removal/reinstallation, reference-aware
+  collection and coordinated purge remain unfinished. No protocol changes are required.
+
 - The internal host removal runtime phase now reuses existing discovery, reconciliation
   and serial controls under update/controller/installation exclusion. It opens only an
   existing current-schema database, with no migration, and refuses unknown runtime

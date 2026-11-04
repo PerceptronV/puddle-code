@@ -10,6 +10,24 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+Internal service removal has scripted systemd/launchd coverage for retained update and
+installation exclusion, required controller ownership, stale definitions, authority loss,
+lost stop/disable replies and unconfirmed manager absence. The outer guard remains held
+after offline runtime handling, including a failed review, and rejects another home.
+The native launchd removal fixture uses unique labels and a sanitised sleep process;
+it verifies ended selected PID after a lost bootout reply, retained definition before
+unregistration, confirmed registration absence afterwards, and the same neighbouring PID.
+Cleanup proves both jobs absent and processes ended before deleting fixture files.
+Run it with `PUDDLE_TEST_RUNTIME_SUPERVISOR=1` and
+`packages/daemon/test/host/removal/services-live.test.ts`. The focused removal/stopped
+suite passed 49 tests on macOS 26.5.2 with Node 22.21.1, including that native case.
+The broader removal, supervision, startup, installation, runtime lifecycle and update
+recovery run passed 268 tests in 34 files, with nine platform-gated cases skipped.
+The final native removal case passed separately. Source and strict changed-test
+typechecks, lint, formatting and CLI/desktop builds also passed.
+These checks do not complete CLI removal, connector disable, durable removal/reinstall,
+orphan proof, release collection or purge; Linux teardown still needs native acceptance.
+
 The internal removal runtime phase has isolated process coverage with two real fake-owner
 processes and an extra shell. Retention preserves PIDs, shell variables and launch files;
 a changed shell inventory refuses stale approval before stop intent. Cancelled offline

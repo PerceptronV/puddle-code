@@ -1,6 +1,4 @@
 import { join } from 'node:path';
-import { hostUpdateTerminal } from '@puddle/shared';
-import { readHostUpdateLedger } from '@puddle/shared/node/host-control';
 import { openDatabase } from '../../db/db.js';
 import { requireOwnedDatabase } from '../../db/paths.js';
 import { RuntimeStore } from '../../db/stores/runtimes.js';
@@ -8,17 +6,12 @@ import { SessionStore } from '../../db/stores/sessions.js';
 import { ConversationStore } from '../../db/stores/conversations.js';
 import { EventStore } from '../../db/stores/events.js';
 import { ProfileStore } from '../../db/stores/profiles.js';
-import { acquireHostClaim } from '../../security/claims.js';
-import { acquireRuntimeController } from '../../runtime/ownership/storage.js';
 import { RuntimeConnections } from '../../runtime/transport/connections.js';
 import { RuntimeReconciler } from '../../runtime/controller/reconcile.js';
 import { RuntimeControls } from '../../runtime/controller/controls.js';
-import { acquireInstallationLock } from '../installation/lock.js';
-import { requireEndedUpdateWorker } from '../../updates/worker/lifetime.js';
-import { readUpdateWorker } from '../../updates/worker/supervisor.js';
-import { requireEndedUpdateRecoveryWorkers } from '../../updates/recovery/worker/records.js';
 import { HOST_REMOVAL_RUNTIME_LIMIT, HostRuntimeRemoval } from './runtimes.js';
 import { inspectRuntimeInventory } from '../../updates/preflight/compatibility.js';
+import { HostRemovalGuard } from './guard.js';
 
 /**
  * Trusted offline runtime phase of removal. The outgoing daemon must already have
@@ -28,29 +21,17 @@ import { inspectRuntimeInventory } from '../../updates/preflight/compatibility.j
 export async function withRemovalRuntimes<T>(
   home: string,
   action: (runtimes: HostRuntimeRemoval) => Promise<T>,
+  held?: HostRemovalGuard,
 ): Promise<T> {
-  const claims: Array<{ release(): void }> = [];
-  let controller: ReturnType<typeof acquireRuntimeController> | undefined;
-  let installation: ReturnType<typeof acquireInstallationLock> | undefined;
+  const guard = held ?? HostRemovalGuard.acquire(home);
+  let controller: ReturnType<HostRemovalGuard['acquireController']> | undefined;
   let db: ReturnType<typeof openDatabase> | undefined;
   let connections: RuntimeConnections | undefined;
   let reconciler: RuntimeReconciler | undefined;
   let controls: RuntimeControls | undefined;
   try {
-    claims.push(acquireHostClaim(home, 'host-update-coordinator'));
-    claims.push(acquireHostClaim(home, 'host-update-execution'));
-    controller = acquireRuntimeController(home);
-    installation = acquireInstallationLock(home);
-    const ledger = readHostUpdateLedger(home);
-    for (const operation of [ledger.current, ...ledger.history]) {
-      if (!operation) continue;
-      if (!hostUpdateTerminal(operation.phase))
-        throw new Error('Resolve the host update before removal');
-      if (operation.worker_id) {
-        requireEndedUpdateWorker(home, readUpdateWorker(home, operation.id), operation);
-        requireEndedUpdateRecoveryWorkers(home, operation);
-      }
-    }
+    guard.requireHeld(home);
+    controller = guard.acquireController();
     const file = join(home, 'puddle.db');
     requireOwnedDatabase(file);
     db = openDatabase(file, { migrate: false });
@@ -92,7 +73,6 @@ export async function withRemovalRuntimes<T>(
     await connections?.close();
     db?.close();
     controller?.release();
-    installation?.release();
-    for (const claim of claims.reverse()) claim.release();
+    if (!held) guard.release();
   }
 }

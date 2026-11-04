@@ -715,10 +715,20 @@ leaves processes and files intact; explicit stop rechecks impact inside each con
 queue and uses durable stop intent. A recorded uncertain stop is never resent by this
 path. Changed native refs, terminal generations, owners or releases require fresh
 review; output acknowledgements and resize do not. All admitted inspection/control
-work drains before releasing ownership. This internal phase is not yet wired to CLI
-removal: supervisor teardown, stop-or-retain prompting, reference-aware file collection
-and purge coordination remain required. Its successful result alone never authorises
-deleting a release, runtime record or home.
+work drains before releasing ownership. An outer removal guard can retain update and
+installation exclusion across service shutdown, the offline runtime phase and final
+file handling. Child commands inherit the installation descriptor; releasing the guard
+while it still owns the controller is refused. The configured home spelling is preserved
+for installed executable arguments, with canonical location checks for guard reuse.
+Internal service teardown reviews owned bounded definitions and exact supervisor/process
+identity, reuses the update shutdown checks, and observes a lost stop reply without
+repeating it. Definitions remain available until shutdown is confirmed. Unregistration
+requires controller ownership, unchanged definitions and stopped-process evidence;
+systemd disable/reset/reload and final manager-backed absence must be confirmed.
+This is not yet wired to CLI removal: stop-or-retain prompting, connector disable,
+durable removal/reinstallation orchestration, reference-aware file collection and purge
+coordination remain required. Successful runtime disposition or service unregistration
+alone never authorises deleting a release, runtime record or home.
 
 Migration 032 records terminal generations per segment and explicitly selects each
 placement's terminal owner. Runtime launches/switches update that selection in the
