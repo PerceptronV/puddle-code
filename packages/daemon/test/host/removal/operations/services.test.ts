@@ -155,7 +155,7 @@ it('observes a lost reload after unlink without repeating unregistration', async
       ['stop', 'disable', 'daemon-reload'].includes(args[1]!),
     ).length;
     await resumed.observe('daemon', 'unregister');
-    expect(resumed.read().actions[1]!.state).toBe('finished');
+    expect(resumed.read().actions.every(({ state }) => state === 'finished')).toBe(true);
     expect(
       f.commands.filter(({ args }) => ['stop', 'disable', 'daemon-reload'].includes(args[1]!)),
     ).toHaveLength(mutations);

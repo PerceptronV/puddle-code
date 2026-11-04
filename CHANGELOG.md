@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Resume interrupted daemon/connector unregistration between disablement, failed-state reset, definition deletion and manager reload. Record each step through the existing removal journal, verify consumed effects without repeating commands, and sync reviewed definition deletion before proceeding. Retain older coarse records without inventing continuation steps.
+
 - Coordinate local/SSH daemon removal with durable remote disablement, verified service teardown and an exact runtime retention/stop review. Retain independent runtimes by default; add `--stop-runtimes` for explicit termination. Preserve pinned releases and data for reinstallation, inspect exact completion attempts after lost replies, and prevent persistent installations from using legacy deletion. Coordinated purge remains unfinished and refuses before mutation.
 
 - Restore recorded, completed daemon service removals through `puddle install daemon` before treating retained release files as an installed service. Capability-detect the trusted local/SSH helper, continue only exact recorded attempts, inspect lost replies and reuse authenticated startup without restarting an already-connected daemon. Public removal orchestration and full retained-runtime acceptance remain in progress.

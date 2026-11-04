@@ -22,8 +22,15 @@ Private removal service records under `installation/removal/` validate retained
 service reviews, original definitions and serial action intent. They are host-only
 storage, with no browser/connector request or new transport. They do not change
 the application, runtime or remote protocols, and are not authority to remove runtime
-files or restart a service. CLI removal and reinstallation orchestration remain
-in progress.
+files or restart a service. New journals separate unregistration into disable/reset/
+delete/reload actions on systemd and deletion on launchd after its recorded stop.
+Exact plans derive from the retained service inventory; mixed, reordered and
+incomplete plans are invalid. Explicit continuation can dispatch planned actions
+but only observe consumed ones. Older coarse unregistration records remain readable
+and cannot be expanded after an attempted action. File deletion and its recovery
+observation sync the owned service directory before completing the step. Public
+removal/reinstallation is integrated; collection/purge and full platform acceptance
+remain in progress.
 The shared Node helper also supplies passive removal fencing for host startup and
 updates. Active records block mutation regardless of whether their contents parse;
 cancelled reviews are kept separately. This adds no wire shape or permission.

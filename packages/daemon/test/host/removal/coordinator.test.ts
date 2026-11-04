@@ -122,3 +122,47 @@ it('recovers a lost final unregistration reply by observation without replay or 
     f.close();
   }
 });
+
+it.each(['disable', 'reset-failed'])(
+  'continues public removal after a lost %s reply without repeating service stops',
+  async (lost) => {
+    const f = removalHostFixture();
+    try {
+      const review = await prepareHostRemoval(f.home, f.release, undefined, f.options);
+      const request = {
+        id: review.id,
+        fingerprint: review.fingerprint,
+        attempt_id: randomUUID(),
+        disposition: 'retain' as const,
+      };
+      f.state.failed = true;
+      await expect(
+        finishHostRemoval(f.home, f.release, request, {
+          ...f.options,
+          run: async (command) => {
+            const result = await f.options.run(command);
+            if (command.args[1] === lost) throw new Error('Lost intermediate reply');
+            return result;
+          },
+        }),
+      ).rejects.toThrow('Lost intermediate reply');
+      expect(inspectHostRemovalResult(f.home)).toBeNull();
+      expect(inspectHostRemoval(f.home)).toEqual({ state: 'removing', id: review.id });
+      expect(existsSync(f.file)).toBe(true);
+      const fresh = await prepareHostRemoval(f.home, f.release, review.id, f.options);
+      expect(fresh).toEqual(review);
+      await finishHostRemoval(
+        f.home,
+        f.release,
+        { ...request, attempt_id: randomUUID() },
+        f.options,
+      );
+      expect(inspectHostRemoval(f.home)).toEqual({ state: 'removed', id: review.id });
+      for (const command of ['stop', 'disable', 'reset-failed', 'daemon-reload'])
+        expect(f.commands.filter(({ args }) => args[1] === command)).toHaveLength(1);
+      expect(f.remoteCalls.filter((call) => call === '--disable-all')).toHaveLength(1);
+    } finally {
+      f.close();
+    }
+  },
+);

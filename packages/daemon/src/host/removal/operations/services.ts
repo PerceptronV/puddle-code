@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
   HOST_REMOVAL_SERVICES_BYTES,
+  hostRemovalUnregisterPlan,
   type HostRemovalServices as ServiceJournal,
   type HostRemovalServiceAction,
   type HostRemovalServiceReview,
@@ -19,6 +20,7 @@ import type { CompilationCommandRunner } from '../../../compilation/process.js';
 import { HostActionWriter } from '../../installation/action-writer.js';
 import { readOwnedServiceDefinition } from '../../supervision/definition.js';
 import { HostRemovalGuard } from '../guard.js';
+import { RemovalUnregistrationSteps, type UnregistrationStep } from '../unregistration/steps.js';
 import {
   stopRemovalService,
   unregisterRemovalService,
@@ -89,7 +91,11 @@ export class HostRemovalServiceOperation {
       actions: [
         ...(options.disableRemote ? [{ action: 'disable-remote', state: 'planned' }] : []),
         ...present.map((component) => ({ action: `stop-${component}`, state: 'planned' })),
-        ...present.map((component) => ({ action: `unregister-${component}`, state: 'planned' })),
+        ...present.flatMap((component) =>
+          hostRemovalUnregisterPlan(
+            services.find(({ review }) => review.component === component)!.review,
+          ).map((action) => ({ action, state: 'planned' })),
+        ),
       ],
     });
     privateDirectory(join(guard.home, 'installation'));
@@ -171,7 +177,24 @@ export class HostRemovalServiceOperation {
     );
   }
 
-  unregister(component: Component): Promise<void> {
+  private unregistrationActions(component: Component): HostRemovalServiceAction[] {
+    return this.journal.actions.some(({ action }) => action === `unregister-${component}`)
+      ? [`unregister-${component}`]
+      : hostRemovalUnregisterPlan(this.review(component));
+  }
+
+  unregistrationState(component: Component): 'planned' | 'started' | 'finished' {
+    const actions = this.unregistrationActions(component);
+    const states = this.read().actions.filter(({ action }) => actions.includes(action));
+    if (states.every(({ state }) => state === 'finished')) return 'finished';
+    return states.every(({ state }) => state === 'planned') ? 'planned' : 'started';
+  }
+
+  async unregister(component: Component): Promise<void> {
+    if (this.unregistrationState(component) !== 'planned')
+      throw new Error('Host action was already attempted');
+    if (!this.journal.actions.some(({ action }) => action === `unregister-${component}`))
+      return this.unregisterSteps(component, true);
     return this.writer.run(`unregister-${component}`, () =>
       unregisterRemovalService(
         this.guard,
@@ -183,7 +206,47 @@ export class HostRemovalServiceOperation {
     );
   }
 
-  observe(component: Component, phase: 'stop' | 'unregister'): Promise<void> {
+  /** Explicit continuation can dispatch only still-planned substeps in the original exact plan. */
+  async continueUnregistration(component: Component): Promise<void> {
+    if (this.unregistrationState(component) === 'planned')
+      throw new Error('No recorded unregistration attempt');
+    if (this.journal.actions.some(({ action }) => action === `unregister-${component}`))
+      return this.observe(component, 'unregister');
+    return this.unregisterSteps(component, true);
+  }
+
+  private async unregisterSteps(component: Component, dispatch: boolean): Promise<void> {
+    this.guard.requireController();
+    const steps = new RemovalUnregistrationSteps(
+      this.guard,
+      this.review(component),
+      this.options.authorised,
+      this.options.run,
+    );
+    for (const action of this.unregistrationActions(component)) {
+      const state = this.read().actions.find((entry) => entry.action === action)!.state;
+      if (state === 'finished') continue;
+      const step = action.split('-')[1] as UnregistrationStep;
+      if (state === 'started') await this.writer.observe(action, () => steps.verify(step));
+      else {
+        if (!dispatch) throw new Error('Host action has no recorded attempt to observe');
+        await this.writer.run(action, () => steps.execute(step));
+      }
+    }
+    await verifyRemovalServiceUnregistered(
+      this.guard,
+      this.review(component),
+      this.options.authorised,
+      this.options.run,
+    );
+  }
+
+  async observe(component: Component, phase: 'stop' | 'unregister'): Promise<void> {
+    if (
+      phase === 'unregister' &&
+      !this.journal.actions.some(({ action }) => action === `unregister-${component}`)
+    )
+      return this.unregisterSteps(component, false);
     const verify =
       phase === 'stop' ? verifyRemovalServiceStopped : verifyRemovalServiceUnregistered;
     return this.writer.observe(`${phase}-${component}`, () =>

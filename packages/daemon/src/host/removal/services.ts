@@ -1,4 +1,4 @@
-import { lstatSync, unlinkSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -21,17 +21,18 @@ import { serviceIsRemoved } from '../supervision/removed.js';
 import { stopServiceForReplacement } from '../supervision/replacement.js';
 import { validServiceTarget, type ServiceTarget } from '../supervision/target.js';
 import { HostRemovalGuard } from './guard.js';
+import { removeReviewedServiceDefinition } from './unregistration/definition.js';
 
 /** Private reviewed evidence; never accept executable paths or definitions from a browser. */
 export type RemovalServiceReview = HostRemovalServiceReview;
 
-function requireTarget(target: ServiceTarget): void {
+export function requireRemovalTarget(target: ServiceTarget): void {
   validServiceTarget(target);
   if (target.kind === 'launchd' && target.domain !== `gui/${process.getuid?.()}`)
     throw new Error('Host removal service belongs to another user');
 }
 
-function requireAuthority(guard: HostRemovalGuard, authorised: () => boolean): void {
+export function requireRemovalAuthority(guard: HostRemovalGuard, authorised: () => boolean): void {
   guard.requireHeld();
   if (!authorised()) throw new Error('Host removal authority expired');
 }
@@ -45,7 +46,7 @@ export async function reviewRemovalService(
   options: { userHome?: string; run?: CompilationCommandRunner } = {},
 ): Promise<RemovalServiceReview> {
   guard.requireHeld();
-  requireTarget(target);
+  requireRemovalTarget(target);
   const run = guard.commands(options.run);
   const definition =
     target.kind === 'systemd'
@@ -95,7 +96,7 @@ async function requireUnchanged(
   run: CompilationCommandRunner,
 ): Promise<void> {
   guard.requireHeld();
-  requireTarget(review.target);
+  requireRemovalTarget(review.target);
   if (
     digest(await readOwnedServiceDefinition(review.definition)) !== review.sourceDigest ||
     lstatSync(review.definition).nlink !== 1
@@ -113,7 +114,7 @@ async function requireUnchanged(
     throw new Error('Host service configuration changed during removal');
 }
 
-function processEnded(review: RemovalServiceReview): boolean {
+export function removalProcessEnded(review: RemovalServiceReview): boolean {
   if (!review.process) return true;
   try {
     process.kill(review.process.pid, 0);
@@ -133,11 +134,14 @@ export async function verifyRemovalServiceStopped(
   runCommand?: CompilationCommandRunner,
 ): Promise<void> {
   const run = guard.commands(runCommand);
-  requireAuthority(guard, authorised);
+  requireRemovalAuthority(guard, authorised);
   await requireUnchanged(guard, review, run);
-  if (!(await serviceIsStopped(guard.home, review.target, run, true)) || !processEnded(review))
+  if (
+    !(await serviceIsStopped(guard.home, review.target, run, true)) ||
+    !removalProcessEnded(review)
+  )
     throw new Error('Host service shutdown is unconfirmed');
-  requireAuthority(guard, authorised);
+  requireRemovalAuthority(guard, authorised);
 }
 
 /** A missing source alone never proves that the service was unregistered. */
@@ -148,8 +152,8 @@ export async function verifyRemovalServiceUnregistered(
   runCommand?: CompilationCommandRunner,
 ): Promise<void> {
   guard.requireController();
-  requireAuthority(guard, authorised);
-  requireTarget(review.target);
+  requireRemovalAuthority(guard, authorised);
+  requireRemovalTarget(review.target);
   const requireAbsent = () => {
     try {
       lstatSync(review.definition);
@@ -161,11 +165,11 @@ export async function verifyRemovalServiceUnregistered(
   requireAbsent();
   if (
     !(await serviceIsRemoved(guard.home, review.target, guard.commands(runCommand))) ||
-    !processEnded(review)
+    !removalProcessEnded(review)
   )
     throw new Error('Host service unregistration is unconfirmed');
   guard.requireController();
-  requireAuthority(guard, authorised);
+  requireRemovalAuthority(guard, authorised);
   requireAbsent();
 }
 
@@ -179,16 +183,16 @@ export async function stopRemovalService(
 ): Promise<void> {
   const run = guard.commands(runCommand);
   const current = async () => {
-    requireAuthority(guard, authorised);
+    requireRemovalAuthority(guard, authorised);
     await requireUnchanged(guard, review, run);
-    requireAuthority(guard, authorised);
+    requireRemovalAuthority(guard, authorised);
   };
   await current();
   if (!review.process) {
     if (!(await serviceHasNoProcess(guard.home, review.target, run)))
       throw new Error('Host service started after removal review');
     await unloadIdleLaunchdService(guard.home, review.target, current, run, () => {
-      requireAuthority(guard, authorised);
+      requireRemovalAuthority(guard, authorised);
       beforeStop();
     });
   } else {
@@ -203,7 +207,7 @@ export async function stopRemovalService(
           component: review.component,
         },
         () => {
-          requireAuthority(guard, authorised);
+          requireRemovalAuthority(guard, authorised);
           beforeStop();
           dispatched = true;
         },
@@ -217,7 +221,10 @@ export async function stopRemovalService(
   const deadline = Date.now() + 15_000;
   for (;;) {
     await current();
-    if ((await serviceIsStopped(guard.home, review.target, run, true)) && processEnded(review))
+    if (
+      (await serviceIsStopped(guard.home, review.target, run, true)) &&
+      removalProcessEnded(review)
+    )
       return;
     if (Date.now() >= deadline) throw new Error('Host service shutdown is unconfirmed');
     await delay(100);
@@ -241,7 +248,7 @@ export async function unregisterRemovalService(
   };
   await current();
   beforeUnregister();
-  requireAuthority(guard, authorised);
+  requireRemovalAuthority(guard, authorised);
   const execute = supervisorCommand(guard.home, run);
   if (review.target.kind === 'systemd') {
     await execute('systemctl', ['--user', 'disable', review.target.name]);
@@ -254,12 +261,7 @@ export async function unregisterRemovalService(
     }
   }
   await current();
-  const source = await readOwnedServiceDefinition(review.definition);
-  if (digest(source) !== review.sourceDigest || lstatSync(review.definition).nlink !== 1)
-    throw new Error('Host service source changed before deletion');
-  // There is no asynchronous boundary between this final check and unlink.
-  requireAuthority(guard, authorised);
-  unlinkSync(review.definition);
+  removeReviewedServiceDefinition(review, () => requireRemovalAuthority(guard, authorised));
   if (review.target.kind === 'systemd') await execute('systemctl', ['--user', 'daemon-reload']);
   await verifyRemovalServiceUnregistered(guard, review, authorised, runCommand);
 }

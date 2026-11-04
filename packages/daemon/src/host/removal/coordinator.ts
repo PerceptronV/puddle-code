@@ -69,10 +69,7 @@ async function stopServices(
     const steps = operation.read().actions;
     // Once unregistration was attempted, definition absence is expected. Its
     // fresh proof happens under the offline controller, not a replayed stop.
-    if (
-      steps.find(({ action }) => action === `unregister-${review.component}`)!.state !== 'planned'
-    )
-      continue;
+    if (operation.unregistrationState(review.component) !== 'planned') continue;
     await remote('verify');
     const stop = steps.find(({ action }) => action === `stop-${review.component}`)!;
     if (stop.state === 'planned') await operation.stop(review.component);
@@ -157,11 +154,9 @@ export async function finishHostRemoval(
         for (const { review: service } of operation.read().services) {
           requireSelected(guard, release, options);
           await removalRemoteAccess(guard, 'verify', options.authorised, options.run);
-          const step = operation
-            .read()
-            .actions.find(({ action }) => action === `unregister-${service.component}`)!;
-          if (step.state === 'planned') await operation.unregister(service.component);
-          else await operation.observe(service.component, 'unregister');
+          if (operation.unregistrationState(service.component) === 'planned')
+            await operation.unregister(service.component);
+          else await operation.continueUnregistration(service.component);
         }
         await removalRemoteAccess(guard, 'verify', options.authorised, options.run);
         requireSelected(guard, release, options);

@@ -46,6 +46,21 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- New removal journals separately record service disablement, failed-state reset,
+  definition deletion and manager reload, reusing the existing durable action writer.
+  Explicit continuation verifies consumed steps and dispatches only the remaining
+  planned steps. Deletion verifies bounded original bytes and inode and syncs the
+  owned service directory; recovery admits systemd's pending reload only after
+  confirmed deletion and still requires fresh manager-backed absence to finish.
+  Public coordinator tests cover lost intermediate replies, and replacement-guard
+  tests cover command/storage failures without repeating completed mutations.
+  The isolated native launchd removal/restoration check passes on macOS 26.5.2,
+  preserving the neighbouring fake job's PID; actual Linux acceptance remains open.
+  Older coarse journals remain readable and observation-only once attempted.
+  Partial remote-disable recovery, collection/purge and native platform/provider
+  acceptance remain open. This private journal refinement changes none of the
+  three protocols.
+
 - Application 25.19 connects public local/SSH daemon removal to existing service and
   runtime machinery. Explicit service-removal consent precedes durable remote disable
   and service stops; offline ownership then supplies an exact public runtime review.

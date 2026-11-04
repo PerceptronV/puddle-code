@@ -731,6 +731,14 @@ and original definition bytes. It shares the updater's durable serial action wri
 intent is persisted before dispatch, completion after observation, and a started action
 cannot be dispatched again by reopening the journal. Explicit observation can complete
 a consumed stop or unregistration only from fresh service/process/definition evidence.
+New plans record systemd disablement, failed-state reset, definition deletion and
+manager reload independently; launchd deletion follows its recorded unload. Explicit
+continuation verifies consumed steps and dispatches only still-planned steps. Deletion
+checks the bounded original bytes, ownership and inode immediately before unlinking
+and syncs the service directory. After deletion, systemd may need a reload while the
+unit is still known but inactive; this is admitted only at that boundary, and final
+completion still requires fresh manager-backed absence. Older coarse plans remain
+readable and observation-only after their unregistration intent has been consumed.
 Missing or malformed journals are never recreated by continuation. Original definitions
 may contain environment values and remain private host data. These records support
 future removal/reinstallation orchestration; they do not themselves disable remote

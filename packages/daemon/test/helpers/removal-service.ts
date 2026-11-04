@@ -78,7 +78,7 @@ export function removalServiceFixture(
           ActiveState: state.running ? 'active' : state.failed ? 'failed' : 'inactive',
           SubState: state.running ? 'running' : state.failed ? 'failed' : 'dead',
           MainPID: state.running ? String(pid) : '0',
-          NeedDaemonReload: 'no',
+          NeedDaemonReload: state.registered && !existsSync(file) ? 'yes' : 'no',
           InvocationID: 'a'.repeat(32),
           ControlGroup: `/${target.name}`,
           CanStart: 'yes',

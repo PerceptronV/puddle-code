@@ -47,8 +47,31 @@ export const hostRemovalServiceActionSchema = z.enum([
   'stop-daemon',
   'unregister-connector',
   'unregister-daemon',
+  'unregister-disable-connector',
+  'unregister-disable-daemon',
+  'unregister-reset-connector',
+  'unregister-reset-daemon',
+  'unregister-delete-connector',
+  'unregister-delete-daemon',
+  'unregister-reload-connector',
+  'unregister-reload-daemon',
 ]);
 export type HostRemovalServiceAction = z.infer<typeof hostRemovalServiceActionSchema>;
+
+/** New journals record each independently observable effect; older coarse plans remain readable. */
+export function hostRemovalUnregisterPlan(
+  review: HostRemovalServiceReview,
+): HostRemovalServiceAction[] {
+  const component = review.component;
+  return review.target.kind === 'systemd'
+    ? [
+        `unregister-disable-${component}`,
+        `unregister-reset-${component}`,
+        `unregister-delete-${component}`,
+        `unregister-reload-${component}`,
+      ]
+    : [`unregister-delete-${component}`];
+}
 
 /** Durable service phase. This is neither runtime disposition nor file collection authority. */
 export const hostRemovalServicesSchema = z
@@ -78,7 +101,7 @@ export const hostRemovalServicesSchema = z
           .strict(),
       )
       .min(2)
-      .max(5),
+      .max(11),
   })
   .strict()
   .superRefine((record, context) => {
@@ -89,7 +112,13 @@ export const hostRemovalServicesSchema = z
     const plan = [
       ...(record.actions[0]?.action === 'disable-remote' ? ['disable-remote'] : []),
       ...ordered.map((component) => `stop-${component}`),
-      ...ordered.map((component) => `unregister-${component}`),
+      ...ordered.flatMap((component) =>
+        record.actions.some(({ action }) => action === 'unregister-daemon')
+          ? [`unregister-${component}`]
+          : hostRemovalUnregisterPlan(
+              record.services.find(({ review }) => review.component === component)!.review,
+            ),
+      ),
     ];
     if (
       new Set(components).size !== components.length ||
