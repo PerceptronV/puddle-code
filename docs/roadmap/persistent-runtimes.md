@@ -28,7 +28,7 @@ runtime selector and checking the host service manager before launch intent. The
 legacy composition is restricted to internal migration fixtures. Hosts without a
 usable systemd/launchd manager can use a labelled host-session owner only when their
 installation explicitly records `nohup`/`none`. Native SSH/logout/reaper acceptance
-remains required; a separate runtime-holding SSH channel remains an investigation,
+is deferred to manual release checks; a separate runtime-holding SSH channel remains an investigation,
 and managerless hosts do not support managed updates. The daemon coordinator now composes maintenance
 for private host-control daemon updates. Explicit CLI recovery continuation now works
 through private authority or the trusted offline local/SSH helper. Ordinary CLI daemon
@@ -43,9 +43,9 @@ Individual runtime inspection/restart is available in local/SSH session menus.
 Cockpit status now reads and labels recorded operations while the daemon is unavailable.
 Explicit offline continuation now uses a participating trusted helper and pinned
 recovery dispatcher. The first launcher upgrade from reconstructed 0.3.14 source
-now passes with declined/approved consent and automatic/manual resume. Native
-desktop-dialog, remaining failure recovery and complete packaged upgrade acceptance
-remain unfinished.
+now passes with declined/approved consent and automatic/manual resume. Packaged
+upgrade continuity, isolated native launchd recovery and the complete cockpit
+process suite pass. Interactive desktop and real-provider checks remain deferred.
 For the released 0.3.14 host (application 25.6), opening a current application-26
 cockpit necessarily runs the existing approved launcher upgrade before admitting
 the UI. Upgrading and reopening the CLI/desktop therefore installs on the target
@@ -53,7 +53,7 @@ through its local/SSH transport without a manual SSH upgrade. An already-open ol
 cockpit remains old software. Earlier entries mentioning a missing same-major
 legacy-cockpit action describe the former 25.x development boundary; no second
 browser upgrader is required. Native desktop-dialog and real-SSH transition
-acceptance remain open.
+acceptance remain unverified manual release checks.
 Application 26.0 and remote 5 now add explicitly host-approved browser maintenance,
 with independent daemon grant checks and the same host update coordinator. Remote
 windows share preparation, interruption review, application, recovery and release
@@ -64,9 +64,11 @@ Public local/SSH removal now coordinates remote disablement, service teardown an
 reviewed runtime retention/stops; deliberate install restores retained service definitions.
 Durable reference-aware collection now runs through mandatory bounded maintenance,
 with separate runtime/update reference retirement and conservative rollback pins.
-Full native service-retirement and reboot acceptance remain outstanding. Coordinated purge is integrated
+Full native service-retirement and reboot acceptance remain deferred. Coordinated purge is integrated
 with a cross-boot descendant barrier and retained control/recovery anchors; actual
-platform reboot acceptance remains outstanding.
+platform reboot acceptance remains deferred. The remaining automated blocker is
+healthy concurrent runtime startup and the final 1/10/50-owner resource check;
+the latest diagnosis and preserved evidence are recorded below.
 This document describes the intended refactor; [SPEC.md](../../SPEC.md) continues
 to describe shipped behaviour. Update the specification, protocol documentation,
 repository instructions and changelog alongside each implementation phase.
