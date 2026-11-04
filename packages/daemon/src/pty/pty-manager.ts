@@ -5,6 +5,10 @@ import type { LogStore } from '../logs/log-store.js';
 import { EnvOscFilter, type EnvDelta } from './env-osc.js';
 import { TerminalScreenStateStore } from './terminal-screen-state.js';
 import { findColourQueries, QUERY_CARRY, type TerminalTheme } from './terminal-theme.js';
+import type {
+  RuntimeByteAllowance,
+  RuntimeRetainedAllowance,
+} from '../runtime/resources/budget.js';
 
 export interface PtyDataEvent {
   stream: string;
@@ -87,9 +91,10 @@ export class PtyManager extends EventEmitter {
     private readonly theme?: TerminalTheme,
     stateDir?: string,
     onScreenHealth?: (degraded: boolean) => void,
+    allowance?: RuntimeByteAllowance & RuntimeRetainedAllowance,
   ) {
     super();
-    this.screens = new TerminalScreenStateStore(stateDir, onScreenHealth);
+    this.screens = new TerminalScreenStateStore(stateDir, onScreenHealth, { allowance });
   }
 
   spawn(
@@ -294,9 +299,10 @@ export class PtyManager extends EventEmitter {
     term: string,
     cols?: number,
     rows?: number,
+    accept?: (data: string) => void,
   ): Promise<string> {
     if (cols !== undefined && rows !== undefined) this.screens.resize(stream, term, cols, rows);
-    return (await this.screens.snapshot(stream, term)) ?? '';
+    return (await this.screens.snapshot(stream, term, accept)) ?? '';
   }
 
   /** Fence delayed launch preparation before shutdown starts stopping children. */

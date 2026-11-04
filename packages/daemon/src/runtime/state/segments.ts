@@ -15,10 +15,17 @@ import {
 } from '@puddle/shared';
 import { privateDirectory, privatePath } from '@puddle/shared/node';
 import type { LogStore } from '../../logs/log-store.js';
+import type { RuntimeRetainedAllowance } from '../resources/budget.js';
+import { runtimeJsonBytes } from '../transport/encoding.js';
+import { CHECKPOINT_METADATA_BYTES, checkpointMemoryBytes } from './checkpoints/capacity.js';
 
 import { RuntimeStateWriter } from './persistence.js';
 
 type CheckpointWriter = (file: string, json: string) => Promise<void>;
+export type RuntimeCheckpointCapture = (
+  term: RuntimeTerminal,
+  accept: (data: string) => void,
+) => Promise<string>;
 
 interface SegmentOptions {
   maxSegments?: number;
@@ -28,6 +35,7 @@ interface SegmentOptions {
   pendingBytes?: number;
   pendingCount?: number;
   write?: CheckpointWriter;
+  allowance?: RuntimeRetainedAllowance;
 }
 
 /** Stable live emulators, immutable historical checkpoints, and separately addressed raw output. */
@@ -49,6 +57,7 @@ export class RuntimeSegments {
     pendingCount: number;
   };
   private readonly write: CheckpointWriter;
+  private readonly allowance?: RuntimeRetainedAllowance;
 
   constructor(
     private readonly directory: string,
@@ -58,6 +67,7 @@ export class RuntimeSegments {
     options: SegmentOptions = {},
   ) {
     this.current = { id: identity.runtime_id, start_cursor: 0, agent_session_ref: initialRef };
+    this.allowance = options.allowance;
     this.limits = {
       segments: Math.min(
         options.maxSegments ?? RUNTIME_LIMITS.historySegments,
@@ -118,7 +128,7 @@ export class RuntimeSegments {
     lifecycle: RuntimeLifecycle,
     cursor: number,
     terminals: RuntimeTerminal[],
-    capture: (term: RuntimeTerminal) => Promise<string>,
+    capture: RuntimeCheckpointCapture,
   ) {
     let previous: string | null = null;
     if (
@@ -145,23 +155,75 @@ export class RuntimeSegments {
   }
 
   /** Capture is invoked synchronously at the boundary; only file IO runs afterwards. */
-  seal(
-    through: number,
-    terminals: RuntimeTerminal[],
-    capture: (term: RuntimeTerminal) => Promise<string>,
-  ): void {
+  seal(through: number, terminals: RuntimeTerminal[], capture: RuntimeCheckpointCapture): void {
     const segment = { ...this.current };
     for (const term of terminals) {
       this.logs.close(segment.id, `${term.term}.${term.generation}`);
-      if (this.count > this.limits.segments || this.pending.size >= this.limits.pendingCount) {
+      if (
+        this.count > this.limits.segments ||
+        this.pending.size >= this.limits.pendingCount ||
+        CHECKPOINT_METADATA_BYTES > this.limits.pendingBytes - this.pendingBytes
+      ) {
+        this.gap = true;
+        continue;
+      }
+      const allocation = this.allowance?.retain(CHECKPOINT_METADATA_BYTES);
+      if (this.allowance && !allocation) {
         this.gap = true;
         continue;
       }
       const terminal = { ...term };
-      const snapshot = capture(terminal);
-      let charged = 0;
+      let charged = CHECKPOINT_METADATA_BYTES;
+      this.pendingBytes += charged;
+      let accepted: string | undefined;
+      let closed = false;
+      let encodedBytes = 0;
+      const accept = (data: string): void => {
+        if (closed || accepted !== undefined || data.length > RUNTIME_LIMITS.frameBytes)
+          throw new Error('Invalid runtime checkpoint capture hand-off');
+        const bytes =
+          runtimeJsonBytes({
+            format: 1,
+            identity: this.identity,
+            segment,
+            through,
+            terminal,
+            data,
+          }) + 1;
+        const next = checkpointMemoryBytes(data, bytes);
+        if (
+          bytes > RUNTIME_LIMITS.frameBytes - 1024 ||
+          this.snapshotBytes + bytes > this.limits.snapshots ||
+          next - charged > this.limits.pendingBytes - this.pendingBytes ||
+          (allocation && !allocation.resize(next))
+        )
+          throw new Error('Runtime checkpoint capacity exhausted');
+        this.pendingBytes += next - charged;
+        charged = next;
+        // Charge every accepted attempt, including failures, against lifetime disk history.
+        this.snapshotBytes += bytes;
+        encodedBytes = bytes;
+        accepted = data;
+      };
+      let snapshot: Promise<string>;
+      try {
+        // Queue capture synchronously at the cursor boundary; disk work never blocks parsing.
+        snapshot = capture(terminal, accept);
+      } catch {
+        this.gap = true;
+        closed = true;
+        this.pendingBytes -= charged;
+        allocation?.release();
+        continue;
+      }
       const task = snapshot
         .then(async (data) => {
+          if (accepted === undefined) {
+            if (this.allowance) throw new Error('Runtime checkpoint capture was not admitted');
+            // Standalone legacy fixtures have no enclosing screen work allowance to transfer.
+            accept(data);
+          }
+          if (accepted !== data) throw new Error('Runtime checkpoint capture changed');
           const record = runtimeCheckpointSchema.parse({
             format: 1,
             identity: this.identity,
@@ -171,26 +233,17 @@ export class RuntimeSegments {
             data,
           });
           const json = JSON.stringify(record) + '\n';
-          const bytes = Buffer.byteLength(json);
-          // Leave room for the response envelope when reading through IPC.
-          if (
-            bytes > RUNTIME_LIMITS.frameBytes - 1024 ||
-            this.snapshotBytes + bytes > this.limits.snapshots ||
-            this.pendingBytes + bytes > this.limits.pendingBytes
-          ) {
-            this.gap = true;
-            return;
-          }
-          charged = bytes;
-          this.pendingBytes += bytes;
-          this.snapshotBytes += bytes;
+          if (Buffer.byteLength(json) !== encodedBytes)
+            throw new Error('Runtime checkpoint encoding changed');
           await this.write(this.file(segment.id, terminal.term, terminal.generation), json);
         })
         .catch(() => {
           this.gap = true;
         })
         .finally(() => {
+          closed = true;
           this.pendingBytes -= charged;
+          allocation?.release();
           this.pending.delete(task);
         });
       this.pending.add(task);
@@ -224,13 +277,23 @@ export async function readRuntimeCheckpoint(
   runtimeTerminalSchema.shape.generation.parse(generation);
   const file = join(directory, 'segments', `${segment}.${term}.${generation}.json`);
   privatePath(file);
-  const handle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+  const handle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   let record: RuntimeCheckpoint;
   try {
     const stat = await handle.stat();
     if (!stat.isFile() || stat.size > RUNTIME_LIMITS.frameBytes - 1024)
       throw new Error('Runtime checkpoint exceeds its byte limit');
-    record = runtimeCheckpointSchema.parse(JSON.parse(await handle.readFile('utf8')));
+    // Caller retains its read/response allowance through encoding. Never permit
+    // growth after fstat to turn this into an unbounded readFile allocation.
+    const buffer = Buffer.alloc(stat.size + 1);
+    let offset = 0;
+    while (offset < buffer.length) {
+      const { bytesRead } = await handle.read(buffer, offset, buffer.length - offset, offset);
+      if (bytesRead === 0) break;
+      offset += bytesRead;
+    }
+    if (offset > stat.size) throw new Error('Runtime checkpoint changed while being read');
+    record = runtimeCheckpointSchema.parse(JSON.parse(buffer.toString('utf8', 0, offset)));
   } finally {
     await handle.close();
   }

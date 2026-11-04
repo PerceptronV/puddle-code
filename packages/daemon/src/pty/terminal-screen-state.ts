@@ -154,15 +154,25 @@ export class TerminalScreenStateStore {
   }
 
   /** Returns null only when this terminal has never produced restorable data. */
-  async snapshot(stream: string, term: string): Promise<string | null> {
+  async snapshot(
+    stream: string,
+    term: string,
+    accept?: (data: string) => void,
+  ): Promise<string | null> {
     const state = this.ensure(stream, term);
     return state.queue.capture(screenActionBytes(), () => {
       this.requireAvailable(state);
-      if (!state.hasContent) return null;
+      if (!state.hasContent) {
+        accept?.('');
+        return null;
+      }
       const release = this.work.tryAcquire();
       if (!release) throw new Error('Terminal snapshot work capacity exceeded');
       try {
-        return this.serialise(state);
+        const data = this.serialise(state);
+        // Transfer retained ownership before releasing serialisation's work allowance.
+        accept?.(data);
+        return data;
       } finally {
         release();
       }
