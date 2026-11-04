@@ -68,6 +68,17 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Post-storage verification passed 300 shared persistence, storage, security and
+  collection checks, all workspace TypeScript builds, refreshed CLI/desktop builds
+  and repository formatting. The new darwin-arm64 archive passed bundle/native
+  module and puddlang smoke checks. Its gated installer/owner/updater test passed
+  in 19.85 seconds after refreshing schema-capability and supervisor fixtures:
+  the actual packaged worker runs through the existing isolated scripted manager,
+  verifies its real process group, and leaves the original packaged owner and shell
+  running through selection changes. Cleanup observes positive exit without an
+  unnecessary stop. This is application 26.1/schema 41 packaging evidence under
+  development version 0.3.14, not a published 0.4.0 release or native supervisor gate.
+
 - Runtime raw-log compaction now runs on the existing host maintenance schedule.
   It requires a supported runtime contract, exact binding and later-boot retirement
   receipt, and holds launch/dispatch/owner claims throughout each copy. Changed

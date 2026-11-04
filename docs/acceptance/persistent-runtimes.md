@@ -1154,6 +1154,15 @@ through controller replacement before explicit stop. It reuses existing isolated
 runtime fixtures and sanitised environments. Both Linux and macOS host release
 jobs run this test after building their archive.
 
+The runtime repair dispatches the unmodified packaged update worker through the
+existing scripted systemd supervisor fixture. It launches the generated command as
+a real detached child and checks the recorded process group against that child's
+PID and positive exit evidence. This verifies packaged composition, not native
+service-manager lifetime. Successful cleanup observes the ended group without
+sending a stop; unconfirmed failure cleanup retains the isolated home. The current
+application 26.1/schema 41 archive passed on macOS/Node 22.21.1 in 19.85 seconds,
+preserving the original owner's PTY/PID and shell variable.
+
 Local verification on macOS 26.5.2/Node v22.21.1 built the complete darwin-arm64
 archive, verified its SHA256 and runtime entries, extracted it, and passed the
 packaged-owner test from that extracted tree. Existing daemon/connector version
@@ -1305,13 +1314,21 @@ ownership rollout. Runtime removal and combined host transactions remain pending
 ## Remaining release gates
 
 The [resource baseline report](../reports/2026-11-04-persistent-runtime-resources.md)
-records the opt-in 1/10/50-owner plain-shell measurements and fixture regression
+records explicitly invoked 1/10/50-owner plain-shell measurements and fixture regression
 ceilings. It covers production controller re-adoption, not complete daemon startup.
 Production limits now cover aggregate runtime IPC frames and daemon terminal-view
 snapshots/output/input; the resource report records their ceilings and failure
 behaviour. Provider overhead, reliable CPU/wakeup budgets, remaining host memory
 and native-platform workload measurements are still required; these limits do not
 close the resource gate below.
+
+The calibrated native run completed the 1- and 10-owner samples; the unchanged
+memory guard refused the 50-owner sample. Owner screens/raw history and host-wide
+programme-result charges now have explicit bounds, and verified retired raw logs
+use bounded compaction. Incremental filesystem inventory is available, but fresh
+host-wide managed-file accounting/admission and fault-tolerant temporary-file
+capacity remain unfinished. None of these limits includes arbitrary native-agent
+stores, SQLite physical pages/WAL or total process RSS.
 
 Record platform, Node, release and provider versions with results. Run native
 provider checks from a plain shell; never launch the production daemon from an
@@ -1330,7 +1347,7 @@ agent session. Retain logs and before/after identities for each result.
 - Verify SSH persistent and attached-lifetime hosts, truthful capability reporting,
   lost replies, incompatible runtime versions and two competing controllers.
 - Measure memory, CPU/wakeups, descriptors and adoption latency at 1, 10 and 50
-  runtimes; set and enforce budgets before default enablement.
+  runtimes; set and enforce budgets before the mandatory 0.4.0 release.
 - Run real packaging/update failure, cockpit notification, relay authority,
   retention/removal and adjacent-execution cases from the roadmap's full matrix.
 
