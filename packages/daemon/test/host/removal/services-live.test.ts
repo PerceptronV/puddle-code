@@ -1,24 +1,22 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { expect, it } from 'vitest';
+import { atomicPrivateJson } from '@puddle/shared/node';
 import {
   runCompilationCommand,
   type CompilationCommandRunner,
 } from '../../../src/compilation/process.js';
 import { HostRemovalGuard } from '../../../src/host/removal/guard.js';
-import {
-  reviewRemovalService,
-  stopRemovalService,
-  unregisterRemovalService,
-} from '../../../src/host/removal/services.js';
+import { reviewRemovalService } from '../../../src/host/removal/services.js';
+import { HostRemovalServiceOperation } from '../../../src/host/removal/operations/services.js';
 import { inspectLaunchdProcess } from '../../../src/host/supervision/launchd.js';
 import { serviceIsRemoved } from '../../../src/host/supervision/removed.js';
 
 it.runIf(process.platform === 'darwin' && process.env.PUDDLE_TEST_RUNTIME_SUPERVISOR === '1')(
-  'removes only the reviewed native job after a lost stop reply',
+  'recovers recorded native removal after losing both the stop reply and completion write',
   async () => {
     const home = mkdtempSync(join(tmpdir(), 'puddle-removal-live-'));
     const domain = `gui/${process.getuid!()}`;
@@ -29,8 +27,10 @@ it.runIf(process.platform === 'darwin' && process.env.PUDDLE_TEST_RUNTIME_SUPERV
       return { target, definition, pid: null as number | null };
     });
     const [selected, neighbour] = jobs;
+    const release = join(home, 'bin/versions/0.4.0~abc123');
+    mkdirSync(release, { recursive: true, mode: 0o700 });
+    symlinkSync(release, join(home, 'bin/current'));
     const wrapper = join(home, 'bin/current/puddled');
-    mkdirSync(dirname(wrapper), { recursive: true, mode: 0o700 });
     // A sanitised fake process, never the installed daemon or a provider CLI.
     writeFileSync(wrapper, '#!/bin/sh\nexec /usr/bin/env -i PATH=/usr/bin:/bin /bin/sleep 120\n', {
       mode: 0o700,
@@ -58,7 +58,7 @@ it.runIf(process.platform === 'darwin' && process.env.PUDDLE_TEST_RUNTIME_SUPERV
         timeoutMs: 15_000,
         maxOutputBytes: 64 * 1024,
       });
-    const guard = HostRemovalGuard.acquire(home);
+    let guard = HostRemovalGuard.acquire(home);
     let controller: ReturnType<typeof guard.acquireController> | undefined;
     const cleanup = async () => {
       for (const job of jobs) {
@@ -95,37 +95,46 @@ it.runIf(process.platform === 'darwin' && process.env.PUDDLE_TEST_RUNTIME_SUPERV
         run: nativeRun,
       });
       let stops = 0;
-      let recorded = false;
-      await stopRemovalService(
+      let writes = 0;
+      const operation: HostRemovalServiceOperation = await HostRemovalServiceOperation.prepare(
         guard,
-        review,
-        () => true,
-        () => {
-          recorded = true;
-        },
-        async (command) => {
-          if (command.args[0] === 'bootout') {
-            expect(recorded).toBe(true);
-            expect(command.args[1]).toBe(`${domain}/${selected!.target.name}`);
-            stops++;
-            const result = await nativeRun(command);
-            expect(result.exitCode).toBe(0);
-            throw new Error('Lost native stop reply');
-          }
-          return nativeRun(command);
+        [review],
+        {
+          authorised: () => true,
+          write: (path, value, options) => {
+            if (++writes === 3) throw new Error('Lost completion write');
+            atomicPrivateJson(path, value, options);
+          },
+          run: async (command) => {
+            if (command.args[0] === 'bootout') {
+              expect(operation.read().actions[0]!.state).toBe('started');
+              expect(command.args[1]).toBe(`${domain}/${selected!.target.name}`);
+              stops++;
+              const result = await nativeRun(command);
+              expect(result.exitCode).toBe(0);
+              throw new Error('Lost native stop reply');
+            }
+            return nativeRun(command);
+          },
         },
       );
+      await expect(operation.stop('daemon')).rejects.toThrow('Lost completion write');
       expect(stops).toBe(1);
       expect(existsSync(selected!.definition)).toBe(true);
       expect(() => process.kill(selected!.pid!, 0)).toThrow();
+      guard.release();
+      guard = HostRemovalGuard.acquire(home);
+      const resumed = HostRemovalServiceOperation.open(guard, {
+        authorised: () => true,
+        run: nativeRun,
+      });
+      await expect(resumed.stop('daemon')).rejects.toThrow('already attempted');
+      await resumed.observe('daemon', 'stop');
       controller = guard.acquireController();
-      await unregisterRemovalService(
-        guard,
-        review,
-        () => true,
-        () => {},
-        nativeRun,
-      );
+      await resumed.unregister('daemon');
+      expect(resumed.read().actions.map(({ state }) => state)).toEqual(['finished', 'finished']);
+      expect(resumed.read().services[0]!.review).toEqual(review);
+      expect(existsSync(release)).toBe(true);
       expect(existsSync(selected!.definition)).toBe(false);
       expect(await serviceIsRemoved(home, selected!.target, nativeRun)).toBe(true);
       expect(await inspectLaunchdProcess(home, neighbour!.target, nativeRun)).toBe(neighbour!.pid);

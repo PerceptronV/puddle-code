@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { digest } from '@puddle/shared/node';
+import type { HostRemovalServiceReview } from '@puddle/shared';
 import type { CompilationCommandRunner } from '../../compilation/process.js';
 import { supervisorCommand } from '../services.js';
 import {
@@ -10,7 +11,7 @@ import {
   serviceDefinitionDigest,
   requireSelectedDaemonExecutable,
 } from '../supervision/definition.js';
-import { inspectRunningService, type ServiceObservation } from '../supervision/inspection.js';
+import { inspectRunningService } from '../supervision/inspection.js';
 import {
   serviceHasNoProcess,
   serviceIsStopped,
@@ -22,14 +23,7 @@ import { validServiceTarget, type ServiceTarget } from '../supervision/target.js
 import { HostRemovalGuard } from './guard.js';
 
 /** Private reviewed evidence; never accept executable paths or definitions from a browser. */
-export interface RemovalServiceReview {
-  target: ServiceTarget;
-  component: 'daemon' | 'connector';
-  definition: string;
-  sourceDigest: string;
-  definitionDigest: string;
-  process: ServiceObservation | null;
-}
+export type RemovalServiceReview = HostRemovalServiceReview;
 
 function requireTarget(target: ServiceTarget): void {
   validServiceTarget(target);
@@ -131,6 +125,50 @@ function processEnded(review: RemovalServiceReview): boolean {
   return false;
 }
 
+/** Observe a consumed stop after interruption; never issue another supervisor command. */
+export async function verifyRemovalServiceStopped(
+  guard: HostRemovalGuard,
+  review: RemovalServiceReview,
+  authorised: () => boolean,
+  runCommand?: CompilationCommandRunner,
+): Promise<void> {
+  const run = guard.commands(runCommand);
+  requireAuthority(guard, authorised);
+  await requireUnchanged(guard, review, run);
+  if (!(await serviceIsStopped(guard.home, review.target, run, true)) || !processEnded(review))
+    throw new Error('Host service shutdown is unconfirmed');
+  requireAuthority(guard, authorised);
+}
+
+/** A missing source alone never proves that the service was unregistered. */
+export async function verifyRemovalServiceUnregistered(
+  guard: HostRemovalGuard,
+  review: RemovalServiceReview,
+  authorised: () => boolean,
+  runCommand?: CompilationCommandRunner,
+): Promise<void> {
+  guard.requireController();
+  requireAuthority(guard, authorised);
+  requireTarget(review.target);
+  const requireAbsent = () => {
+    try {
+      lstatSync(review.definition);
+      throw new Error('Host service definition remains after unregistration');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+  };
+  requireAbsent();
+  if (
+    !(await serviceIsRemoved(guard.home, review.target, guard.commands(runCommand))) ||
+    !processEnded(review)
+  )
+    throw new Error('Host service unregistration is unconfirmed');
+  guard.requireController();
+  requireAuthority(guard, authorised);
+  requireAbsent();
+}
+
 /** One reviewed stop, then observation only; definition files remain available after cancellation. */
 export async function stopRemovalService(
   guard: HostRemovalGuard,
@@ -198,11 +236,8 @@ export async function unregisterRemovalService(
   const run = guard.commands(runCommand);
   const current = async () => {
     guard.requireController();
-    requireAuthority(guard, authorised);
-    await requireUnchanged(guard, review, run);
-    if (!(await serviceIsStopped(guard.home, review.target, run, true)) || !processEnded(review))
-      throw new Error('Host service shutdown is unconfirmed');
-    requireAuthority(guard, authorised);
+    await verifyRemovalServiceStopped(guard, review, authorised, runCommand);
+    guard.requireController();
   };
   await current();
   beforeUnregister();
@@ -226,6 +261,5 @@ export async function unregisterRemovalService(
   requireAuthority(guard, authorised);
   unlinkSync(review.definition);
   if (review.target.kind === 'systemd') await execute('systemctl', ['--user', 'daemon-reload']);
-  if (!(await serviceIsRemoved(guard.home, review.target, run)))
-    throw new Error('Host service unregistration is unconfirmed');
+  await verifyRemovalServiceUnregistered(guard, review, authorised, runCommand);
 }

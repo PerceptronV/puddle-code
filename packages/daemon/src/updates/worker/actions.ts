@@ -9,6 +9,7 @@ import {
 import { atomicPrivateJson, readPrivateJson } from '@puddle/shared/node';
 import { updateWorkerDirectory } from './supervisor.js';
 import { requireExecutingUpdate } from './operation.js';
+import { HostActionWriter } from '../../host/installation/action-writer.js';
 
 const file = (home: string, job: HostUpdateWorker) =>
   join(updateWorkerDirectory(home, job.operation_id), 'actions.json');
@@ -44,53 +45,23 @@ export function readUpdateActions(
 }
 
 /** Used only while holding the worker execution claim; never resumes an existing journal. */
-export class HostUpdateActionWriter {
+export class HostUpdateActionWriter extends HostActionWriter<
+  HostUpdateAction,
+  HostUpdateActionJournal
+> {
   constructor(
-    private readonly path: string,
-    private readonly initial: HostUpdateActionJournal,
-    private readonly requireCurrent: (action: HostUpdateAction) => void,
-    private readonly write: typeof atomicPrivateJson = atomicPrivateJson,
+    path: string,
+    initial: HostUpdateActionJournal,
+    requireCurrent: (action: HostUpdateAction) => void,
+    write: typeof atomicPrivateJson = atomicPrivateJson,
   ) {
-    try {
-      readPrivateJson(path, 4096);
-      throw new Error('Update actions were already recorded');
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    }
-    this.save(initial);
-  }
-
-  private read() {
-    const record = hostUpdateActionsSchema.parse(readPrivateJson(this.path, 4096));
-    const identity = (value: HostUpdateActionJournal) => ({
-      ...value,
-      actions: value.actions.map(({ action }) => action),
-    });
-    if (JSON.stringify(identity(record)) !== JSON.stringify(identity(this.initial)))
-      throw new Error('Update actions do not match the executing worker');
-    return record;
-  }
-
-  async run(action: HostUpdateAction, execute: () => Promise<void>): Promise<void> {
-    this.requireCurrent(action);
-    const journal = this.read();
-    const next = journal.actions.find((item) => item.state !== 'finished');
-    if (next?.action !== action || next.state !== 'planned')
-      throw new Error('Update action was already attempted or is out of order');
-    next.state = 'started';
-    this.save(journal); // Durable intent precedes the first possible external mutation.
-    await execute();
-    this.requireCurrent(action);
-    const current = this.read();
-    if (JSON.stringify(current) !== JSON.stringify(journal))
-      throw new Error('Update actions changed during execution');
-    next.state = 'finished';
-    this.save(journal); // A failed acknowledgement leaves started, never planned.
-  }
-
-  private save(record: HostUpdateActionJournal) {
-    this.write(this.path, hostUpdateActionsSchema.parse(record), {
-      syncDirectory: true,
+    super({
+      path,
+      initial,
+      requireCurrent,
+      write,
+      parse: hostUpdateActionsSchema.parse,
+      maxBytes: 4096,
     });
   }
 }

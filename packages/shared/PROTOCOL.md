@@ -1,5 +1,12 @@
 # The puddle communication protocol
 
+Private removal service records under `installation/removal/` validate retained
+service reviews, original definitions and serial action intent. They are host-only
+storage, with no browser/connector request or new transport. They do not change
+application 25.17, runtime 1.0 or remote 4, and are not authority to remove runtime
+files or restart a service. CLI removal and reinstallation orchestration remain
+in progress.
+
 Protocol 25.17 adds the explicit `continue-offline` cockpit update action and optional
 `offline_continuation` capability. The action carries only an exact operation id/revision;
 it uses the selected local/SSH transport and existing cockpit browser authority/Origin

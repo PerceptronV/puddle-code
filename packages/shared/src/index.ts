@@ -60,6 +60,7 @@ export * from './installation/checkpoint.js';
 export * from './installation/adoption.js';
 export * from './installation/capabilities.js';
 export * from './installation/catalogue.js';
+export * from './installation/removal/services.js';
 export {
   parseHostReleaseVersion,
   parseLegacyHostVersion,

@@ -725,6 +725,16 @@ identity, reuses the update shutdown checks, and observes a lost stop reply with
 repeating it. Definitions remain available until shutdown is confirmed. Unregistration
 requires controller ownership, unchanged definitions and stopped-process evidence;
 systemd disable/reset/reload and final manager-backed absence must be confirmed.
+The internal service phase now records a bounded private journal under
+`installation/removal/services.json`, pinning the selected release, reviewed services
+and original definition bytes. It shares the updater's durable serial action writer:
+intent is persisted before dispatch, completion after observation, and a started action
+cannot be dispatched again by reopening the journal. Explicit observation can complete
+a consumed stop or unregistration only from fresh service/process/definition evidence.
+Missing or malformed journals are never recreated by continuation. Original definitions
+may contain environment values and remain private host data. These records support
+future removal/reinstallation orchestration; they do not themselves disable remote
+registrations, decide runtime disposition, fence later startup or restore an installation.
 This is not yet wired to CLI removal: stop-or-retain prompting, connector disable,
 durable removal/reinstallation orchestration, reference-aware file collection and purge
 coordination remain required. Successful runtime disposition or service unregistration

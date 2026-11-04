@@ -43,6 +43,18 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- The internal removal service phase now records exact service reviews and original
+  definitions in a bounded private journal, pinned to the selected release. It shares
+  the updater's durable serial action writer instead of duplicating step persistence.
+  Reopening can dispatch only unstarted steps; consumed steps require fresh observation
+  and never implicitly repeat a stop or unregister command. A native isolated launchd
+  test loses both the stop reply and completion write, reacquires host exclusion and
+  completes through inspection while preserving a neighbouring job and release files.
+  Storage-failure tests cover both sides of intent/completion writes. This remains an
+  internal service phase: CLI orchestration, cross-operation removal/startup fencing,
+  connector disable, runtime consent, deliberate reinstall, collection and purge are
+  unfinished. The private records introduce no network protocol change.
+
 - Internal host removal now shares an outer update/installation guard across supervisor
   shutdown and offline runtime handling. Commands inherit installer exclusion, and
   the controller must drain before the guard can close. Service teardown reuses existing

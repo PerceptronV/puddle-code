@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Record internal host-removal service intent and original definitions using the updater's shared durable action writer. Continue only unstarted steps, verify consumed stops and unregistration without replay, and retain private evidence after lost replies or storage failures. CLI removal/reinstallation and purge integration remain in progress.
+
 - Add checked internal daemon/connector service teardown for host removal, retaining update and installer exclusion across offline runtime handling. Preserve service definitions until shutdown is confirmed, observe lost stop replies without repeating them, and require current controller ownership and supervisor absence before completing unregistration. CLI uninstall and purge integration remain in progress.
 
 - Add the internal runtime retain/stop phase for host removal, sharing existing ownership, reconciliation and serial controls. Refuse stale interruption reviews and pending stop replay; keep CLI uninstall and purge integration as follow-up work. Correct healthy terminal snapshot saves incorrectly marking a runtime as unsaved.

@@ -10,6 +10,22 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+The recorded removal service phase shares the updater's durable action writer. Tests
+cover storage failure before/after intent and completion, new-guard continuation,
+lost systemd reload after source deletion, changed source/selector/authority, malformed
+records and retained private definition bytes. An unstarted action can continue under
+the same recorded review; a started action is inspection-only. A recreated definition
+prevents historical unregistration from being accepted as current absence.
+The native launchd removal case now also loses the completion write after a lost
+bootout reply, releases/reacquires exclusion, confirms the stop without replay and
+unregisters the selected service. Its neighbouring PID, pinned release and original
+definition record survive. The native and scripted operation tests passed 12 cases on
+macOS 26.5.2 with Node 22.21.1. These are internal service-phase checks; complete CLI
+uninstall/reinstall, later-startup fencing, connector disable and purge remain open.
+The broader removal, supervision, update worker/recovery and shared installation
+regression run passed 257 tests in 31 files, with six platform-gated cases skipped.
+Source and strict changed-test typechecks, lint, formatting and CLI/desktop builds passed.
+
 Internal service removal has scripted systemd/launchd coverage for retained update and
 installation exclusion, required controller ownership, stale definitions, authority loss,
 lost stop/disable replies and unconfirmed manager absence. The outer guard remains held
