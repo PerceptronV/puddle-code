@@ -1325,10 +1325,14 @@ close the resource gate below.
 The calibrated native run completed the 1- and 10-owner samples; the unchanged
 memory guard refused the 50-owner sample. Owner screens/raw history and host-wide
 programme-result charges now have explicit bounds, and verified retired raw logs
-use bounded compaction. Incremental filesystem inventory is available, but fresh
-host-wide managed-file accounting/admission and fault-tolerant temporary-file
-capacity remain unfinished. None of these limits includes arbitrary native-agent
-stores, SQLite physical pages/WAL or total process RSS.
+use bounded compaction. Runtime owners now share a sealed host memory ledger,
+with pre-dispatch admission, process-lifetime claims and bounded idle returns.
+Logs, checkpoints and IPC decoding retain their charges across asynchronous work.
+The updated launchd controller-replacement check passed with this composition;
+provider-pressure and scaled workload verification remain open. Incremental
+filesystem inventory and fixed temporary persistence slots are implemented, but
+a physical host filesystem quota is outside this design. The managed memory
+limits do not include arbitrary native-agent stores or total process RSS.
 
 Record platform, Node, release and provider versions with results. Run native
 provider checks from a plain shell; never launch the production daemon from an

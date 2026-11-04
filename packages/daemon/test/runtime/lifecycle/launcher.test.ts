@@ -1,9 +1,11 @@
 import { dirname, join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { readFileSync, rmSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
 import { runtimeLaunchSchema } from '@puddle/shared';
 import { HostUpdatePause } from '../../../src/updates/maintenance/pause.js';
 import { RuntimeLauncher } from '../../../src/runtime/lifecycle/launcher.js';
+import { HostMemoryLedger } from '../../../src/runtime/resources/host/ledger.js';
 import { ProjectStore } from '../../../src/db/stores/projects.js';
 import { AccountStore } from '../../../src/db/stores/accounts.js';
 import { once } from 'node:events';
@@ -67,6 +69,29 @@ function fixture(run: CompilationCommandRunner, installed = false) {
     },
   };
 }
+
+it('refuses exhausted host memory before dispatch and retires the unlaunched intent', async () => {
+  const run = vi.fn<CompilationCommandRunner>();
+  const f = fixture(run);
+  const ledger = HostMemoryLedger.openExisting(f.home)!;
+  const neighbour = {
+    runtime_id: randomUUID(),
+    incarnation: randomUUID(),
+    launch_id: randomUUID(),
+  };
+  const admitted = ledger.compareGrant(neighbour, 0, ledger.capacityBytes)!;
+  try {
+    await expect(f.launcher.launch(f.session.id, () => f.launch.main)).rejects.toMatchObject({
+      code: 'runtime_memory_unavailable',
+    });
+    expect(run).not.toHaveBeenCalled();
+    expect(f.runtimes.ownerOf(f.session.id)).toBeNull();
+    expect(ledger.readGrant(neighbour)).toEqual(admitted);
+  } finally {
+    ledger.close();
+    await f.close();
+  }
+});
 
 it('checks the reviewed release and authority before writing replacement intent', async () => {
   const run = vi.fn<CompilationCommandRunner>();

@@ -20,6 +20,7 @@ import {
 } from '../../../src/runtime/ownership/storage.js';
 import {
   bundleDir,
+  admitFixtureOwner,
   children,
   clients,
   controllers,
@@ -113,6 +114,7 @@ it('keeps a detached shell and its state through controller replacement, then re
     environment: environment(f.home),
     run,
   };
+  admitFixtureOwner(f.home, launch.identity.runtime_id);
   const record = await startRuntimeService(f.home, launch.identity, options);
   await waitForOwner(owner!, f.directory);
   expect(record.state).toBe('dispatched');

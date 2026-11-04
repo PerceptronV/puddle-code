@@ -7,8 +7,6 @@ import {
   RUNTIME_LIMITS,
   RUNTIME_PROTOCOL_VERSION,
   compatibleRuntimeProtocol,
-  runtimeLaunchSchema,
-  runtimeRetiredSchema,
   runtimeRequestSchema,
   runtimeRetainedEventSchema,
   type RuntimeCommand,
@@ -30,11 +28,13 @@ import {
   type PtyEnvDeltaEvent,
   type PtyCwdEvent,
 } from '../pty/pty-manager.js';
-import { acquireHostClaim } from '../security/claims.js';
 import { readRuntimeFrames, writeRuntimeFrame } from './transport/framing.js';
 import { RuntimeRequestQueue } from './transport/requests.js';
+import { runtimeJsonRetainedBytes } from './transport/encoding.js';
 import { RuntimeBufferBudget } from './resources/budget.js';
-import { readRuntimeController, readRuntimeJson, runtimeDirectory } from './ownership/storage.js';
+import { readRuntimeController } from './ownership/storage.js';
+import { RuntimeOwnerMemory } from './resources/host/owner.js';
+import { RuntimeTransportBuffers } from './transport/buffers.js';
 import { RuntimeJournal, type RuntimeJournalReservation } from './state/journal.js';
 import { RuntimeStateFile } from './state/snapshot.js';
 import { RuntimeTurns, RuntimeTurnError } from './execution/turns.js';
@@ -54,10 +54,9 @@ import { prepareRuntimeLifetime } from './lifecycle/lifetime.js';
 export class RuntimeHost {
   private readonly terminals = new Map<string, RuntimeTerminal>();
   private readonly sockets = new Set<Socket>();
-  private readonly requests = new RuntimeBufferBudget({
-    bytes: RUNTIME_LIMITS.queuedBytes,
-    count: RUNTIME_LIMITS.pendingRequests,
-  });
+  private readonly requests: RuntimeBufferBudget;
+  private readonly transport: RuntimeTransportBuffers;
+  private readonly readWork: RuntimeBufferBudget;
   private owner: { socket: Socket; id: string; epoch: number; offeredThrough: number } | null =
     null;
   private eventCursor = 0;
@@ -92,16 +91,27 @@ export class RuntimeHost {
 
   private constructor(
     private readonly home: string,
-    id: string,
     private readonly build: string,
+    private readonly memory: RuntimeOwnerMemory,
   ) {
-    this.directory = runtimeDirectory(home, id);
-    this.claim = acquireHostClaim(home, `runtime:${id}`);
+    this.directory = memory.directory;
+    this.claim = memory.claim;
+    this.requests = new RuntimeBufferBudget(
+      { bytes: 64 * 1024 * 1024, count: RUNTIME_LIMITS.pendingRequests },
+      memory.allowance,
+    );
+    this.transport = new RuntimeTransportBuffers(memory.allowance);
+    this.readWork = new RuntimeBufferBudget(
+      { bytes: 2 * RUNTIME_READ_WORK_BYTES, count: 2 },
+      memory.allowance,
+    );
     try {
-      this.launch = runtimeLaunchSchema.parse(readRuntimeJson(join(this.directory, 'launch.json')));
-      if (this.launch.identity.runtime_id !== id)
-        throw new Error('Runtime launch identity mismatch');
-      this.binding = { segment_id: id, session_id: this.launch.identity.session_id, through: 0 };
+      this.launch = memory.launch;
+      this.binding = {
+        segment_id: this.launch.identity.runtime_id,
+        session_id: this.launch.identity.session_id,
+        through: 0,
+      };
       this.observations = new RuntimeObservations(this.launch.capture_env);
       if (this.launch.theme) this.theme.set(this.launch.theme.fg, this.launch.theme.bg);
       this.stateFile = new RuntimeStateFile(this.directory);
@@ -120,25 +130,32 @@ export class RuntimeHost {
         256 * 1024,
         10 * 1024 * 1024,
         persistenceHealth,
+        memory.allowance,
       );
       this.segments = new RuntimeSegments(
         this.directory,
         this.launch.identity,
         this.logs,
         this.launch.provider?.resume_ref ?? this.launch.provider?.initial_ref ?? null,
+        { allowance: memory.allowance },
       );
       this.ptys = new PtyManager(
         this.logs,
         this.theme,
         join(this.directory, 'screens'),
         persistenceHealth,
+        memory.allowance,
       );
       this.ptys.on('data', (event: PtyDataEvent) => this.output(event));
       this.ptys.on('exit', (event: PtyExitEvent) => this.exited(event));
       this.ptys.on('env-delta', (event: PtyEnvDeltaEvent) => this.environment(event));
       this.ptys.on('cwd', (event: PtyCwdEvent) => this.cwd(event));
     } catch (error) {
-      this.claim.release();
+      try {
+        this.memory.close();
+      } finally {
+        this.claim.release();
+      }
       throw error;
     }
   }
@@ -149,15 +166,10 @@ export class RuntimeHost {
     build: string,
     adapters = new AdapterRegistry(defaultAdapters),
   ): Promise<RuntimeHost> {
-    const host = new RuntimeHost(home, id, build);
+    const memory = await RuntimeOwnerMemory.open(home, id);
+    const host = new RuntimeHost(home, build, memory);
     try {
       host.releaseLifetime = await prepareRuntimeLifetime(home, host.launch);
-      try {
-        runtimeRetiredSchema.parse(readRuntimeJson(join(host.directory, 'retired.json')));
-        throw new Error('Runtime launch was retired');
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-      }
       host.server = await listenPrivate(ipcPath(home, `runtime:${id}`), (socket) =>
         host.accept(socket),
       );
@@ -187,45 +199,51 @@ export class RuntimeHost {
             },
           },
         };
-        host.agent = new RuntimeAgent(home, providerLaunch, adapters.get(host.launch.provider.id), {
-          writeInput: (data) => host.ptys.write(id, 'agent', data, 'script'),
-          lifecycle: (lifecycle) => {
-            host.turns.lifecycle(lifecycle);
-            const cursor = ++host.eventCursor;
-            const binding = host.segments.lifecycle(
-              lifecycle,
-              cursor,
-              [...host.terminals.values()],
-              (term) => host.capture(term),
-            );
-            if (binding.previous_segment_id !== null) {
-              host.binding = null;
-              host.titles.reset();
-            }
-            host.event({ t: 'native-lifecycle', cursor, lifecycle, ...binding });
-            if (binding.previous_segment_id !== null) host.attention.clear();
-            host.persistState();
+        host.agent = new RuntimeAgent(
+          home,
+          providerLaunch,
+          adapters.get(host.launch.provider.id),
+          {
+            writeInput: (data) => host.ptys.write(id, 'agent', data, 'script'),
+            lifecycle: (lifecycle) => {
+              host.turns.lifecycle(lifecycle);
+              const cursor = ++host.eventCursor;
+              const binding = host.segments.lifecycle(
+                lifecycle,
+                cursor,
+                [...host.terminals.values()],
+                (term, accept) => host.capture(term, accept),
+              );
+              if (binding.previous_segment_id !== null) {
+                host.binding = null;
+                host.titles.reset();
+              }
+              host.event({ t: 'native-lifecycle', cursor, lifecycle, ...binding });
+              if (binding.previous_segment_id !== null) host.attention.clear();
+              host.persistState();
+            },
+            state: (agent) => {
+              host.event({ t: 'agent-state', cursor: ++host.eventCursor, agent });
+              if (agent.status !== lastStatus) {
+                lastStatus = agent.status;
+                if (agent.status === 'waiting_input' && !host.expectedExit)
+                  host.attention.waiting(host.segments.state().current.id);
+                else host.attention.clear();
+              }
+            },
+            collision: (ref) => {
+              host.event({
+                t: 'native-collision',
+                cursor: ++host.eventCursor,
+                agent_session_ref: ref,
+              });
+              queueMicrotask(() => {
+                void host.stop();
+              });
+            },
           },
-          state: (agent) => {
-            host.event({ t: 'agent-state', cursor: ++host.eventCursor, agent });
-            if (agent.status !== lastStatus) {
-              lastStatus = agent.status;
-              if (agent.status === 'waiting_input' && !host.expectedExit)
-                host.attention.waiting(host.segments.state().current.id);
-              else host.attention.clear();
-            }
-          },
-          collision: (ref) => {
-            host.event({
-              t: 'native-collision',
-              cursor: ++host.eventCursor,
-              agent_session_ref: ref,
-            });
-            queueMicrotask(() => {
-              void host.stop();
-            });
-          },
-        });
+          memory.allowance,
+        );
         command = await host.agent.prepare();
         const agent = host.agent.state();
         host.ptys.registerSidecars(id, agent.sidecar_pids, agent.hidden_ports);
@@ -415,7 +433,7 @@ export class RuntimeHost {
       generation: terminal.generation,
       exit_code: event.exitCode,
     });
-    this.segments.seal(this.eventCursor, [terminal], (term) => this.capture(term));
+    this.segments.seal(this.eventCursor, [terminal], (term, accept) => this.capture(term, accept));
     if (this.ptys.liveCount() === 0 && this.status !== 'failed') this.status = 'exited';
     this.persistState();
     if (this.ptys.liveCount() === 0) void this.stop(false);
@@ -431,15 +449,16 @@ export class RuntimeHost {
       if (reservation) reservation.append(event);
       else if (!this.journal.append(event)) return;
     }
-    if (this.owner) writeRuntimeFrame(this.owner.socket, event);
+    if (this.owner) this.reply(this.owner.socket, event);
   }
 
-  private capture(term: RuntimeTerminal): Promise<string> {
+  private capture(term: RuntimeTerminal, accept?: (data: string) => void): Promise<string> {
     return this.ptys.canonicalSnapshot(
       this.launch.identity.runtime_id,
       term.term,
       term.cols,
       term.rows,
+      accept,
     );
   }
 
@@ -512,7 +531,7 @@ export class RuntimeHost {
       socket,
       (value) => {
         const request = runtimeRequestSchema.parse(value);
-        const bytes = Buffer.byteLength(JSON.stringify(request));
+        const bytes = runtimeJsonRetainedBytes(request);
         if (
           !requests.enqueue(bytes, async () => {
             try {
@@ -531,6 +550,8 @@ export class RuntimeHost {
           socket.destroy();
       },
       () => socket.destroy(),
+      this.transport.incoming,
+      this.transport.decoding,
     );
     socket.on('error', () => socket.destroy());
     socket.on('close', () => {
@@ -543,8 +564,8 @@ export class RuntimeHost {
     socket.on('runtime-authenticated', () => clearTimeout(timer));
   }
 
-  private reply(socket: Socket, response: RuntimeResponse): void {
-    writeRuntimeFrame(socket, response);
+  private reply(socket: Socket, response: RuntimeResponse | RuntimeEvent): void {
+    writeRuntimeFrame(socket, response, this.transport.outgoing, this.transport.encoding);
   }
 
   private currentPlacement(placement: RuntimePlacement): boolean {
@@ -775,39 +796,57 @@ export class RuntimeHost {
         this.persistState();
         break;
       case 'snapshot': {
-        // Capture before awaiting the emulator's existing write queue. Later
-        // output is already streamed with a higher cursor and must be buffered
-        // by the attaching reader until this snapshot arrives.
-        const cursor = this.eventCursor;
-        const segment_id = this.segments.state().current.id;
-        const data = await this.ptys.canonicalSnapshot(stream, request.term);
-        this.reply(socket, {
-          t: 'snapshot',
-          id: request.id,
-          term: request.term,
-          generation: request.generation,
-          cursor,
-          segment_id,
-          data,
-        });
-        return;
-      }
-      case 'segment-snapshot': {
-        const checkpoint = await this.segments.read(
-          request.segment_id,
-          request.term,
-          request.generation,
-        );
-        if (this.owner !== owner || !this.authorised(owner.id, owner.epoch)) {
-          fail('fenced', 'Runtime controller is no longer current');
+        const release = this.readWork.reserve(RUNTIME_READ_WORK_BYTES);
+        if (!release) {
+          fail('busy', 'Runtime snapshot memory capacity is exhausted');
           return;
         }
-        this.reply(socket, {
-          t: 'segment-snapshot',
-          id: request.id,
-          checkpoint,
-        });
-        return;
+        try {
+          // Capture before awaiting the emulator's existing write queue. Later
+          // output is already streamed with a higher cursor and must be buffered
+          // by the attaching reader until this snapshot arrives.
+          const cursor = this.eventCursor;
+          const segment_id = this.segments.state().current.id;
+          const data = await this.ptys.canonicalSnapshot(stream, request.term);
+          this.reply(socket, {
+            t: 'snapshot',
+            id: request.id,
+            term: request.term,
+            generation: request.generation,
+            cursor,
+            segment_id,
+            data,
+          });
+          return;
+        } finally {
+          release();
+        }
+      }
+      case 'segment-snapshot': {
+        const release = this.readWork.reserve(RUNTIME_READ_WORK_BYTES);
+        if (!release) {
+          fail('busy', 'Runtime snapshot memory capacity is exhausted');
+          return;
+        }
+        try {
+          const checkpoint = await this.segments.read(
+            request.segment_id,
+            request.term,
+            request.generation,
+          );
+          if (this.owner !== owner || !this.authorised(owner.id, owner.epoch)) {
+            fail('fenced', 'Runtime controller is no longer current');
+            return;
+          }
+          this.reply(socket, {
+            t: 'segment-snapshot',
+            id: request.id,
+            checkpoint,
+          });
+          return;
+        } finally {
+          release();
+        }
       }
       case 'input':
         if (Buffer.byteLength(request.data) > RUNTIME_LIMITS.inputBytes) {
@@ -892,7 +931,15 @@ export class RuntimeHost {
       if (this.server) await new Promise<void>((resolve) => this.server!.close(() => resolve()));
     } finally {
       this.releaseLifetime?.();
-      this.claim.release();
+      try {
+        this.memory.close();
+      } finally {
+        this.claim.release();
+      }
     }
   }
 }
+
+// Includes bounded file/JSON/response work until synchronous response encoding;
+// transport retains its separate frame charge through socket write completion.
+const RUNTIME_READ_WORK_BYTES = 8 * RUNTIME_LIMITS.frameBytes + 128 * 1024;

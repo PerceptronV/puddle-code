@@ -93,7 +93,10 @@ import { RuntimeControls } from './runtime/controller/controls.js';
 import { RuntimeProcesses } from './runtime/controller/processes.js';
 import { RuntimeLauncher, type RuntimeLaunchConfiguration } from './runtime/lifecycle/launcher.js';
 import { readRuntimeShellHooks } from './runtime/execution/shell-hooks.js';
-import { runtimeDirectory } from './runtime/ownership/storage.js';
+import {
+  acquireRuntimeControllerWhenAvailable,
+  runtimeDirectory,
+} from './runtime/ownership/storage.js';
 import { runtimePriorRefs } from './runtime/controller/session-refs.js';
 import { RuntimeProgrammeTurns } from './runtime/controller/programme-turns.js';
 import { ProgrammeTurnStore } from './puddlang/runtime-turn-store.js';
@@ -221,10 +224,15 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       theme: () => terminalTheme.colours(),
     });
     profiles.onCaptureChanged = (id) => runtimeReconciler.refreshProfile(id);
-    const runtimeConnections = new RuntimeConnections(paths.home, runtimes, {
-      connected: (id, client) => runtimeReconciler.attach(id, client),
-      missing: (id) => runtimeReconciler.retire(id),
-    });
+    const runtimeConnections = new RuntimeConnections(
+      paths.home,
+      runtimes,
+      {
+        connected: (id, client) => runtimeReconciler.attach(id, client),
+        missing: (id) => runtimeReconciler.retire(id),
+      },
+      await acquireRuntimeControllerWhenAvailable(paths.home),
+    );
     failedStartup.push(() => runtimeConnections.close());
     failedStartup.push(() => runtimeReconciler.close());
     const runtimeTerminals = new RuntimeTerminals(

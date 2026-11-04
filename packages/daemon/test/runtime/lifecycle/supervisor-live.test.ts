@@ -29,6 +29,7 @@ import {
   environment,
   bundleDir,
   retainRuntimeHome,
+  admitFixtureOwner,
 } from '../../helpers/runtime-fixture.js';
 
 describe('native runtime supervision', () => {
@@ -95,6 +96,7 @@ describe('native runtime supervision', () => {
         }
       };
       try {
+        admitFixtureOwner(home, launch.identity.runtime_id);
         await startRuntimeService(home, launch.identity, {
           kind: 'launchd',
           nodePath: process.execPath,

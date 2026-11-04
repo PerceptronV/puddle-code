@@ -68,6 +68,30 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Production startup now initialises a sealed host memory ceiling once, admits
+  essential runtime state before process dispatch, and retains exact process-memory
+  ownership through OS exit. Owner transport, decoded requests, logs, screens,
+  checkpoints and provider bridges share cached grants. Brief ledger contention
+  during daemon replacement retries asynchronously; failed idle returns reconcile
+  with bounded backoff even after locally spendable credit has been reduced.
+  Nine ownership/policy checks and 23 launch/lifetime/owner checks passed, including
+  refusal before PTY creation, no dispatch when exhausted and actual process-lifetime
+  retirement. The isolated native launchd controller-replacement check also passed.
+  The broader runtime/log/PTY run passed 534 checks, with five gated skips and one
+  then-in-progress Codex pressure regression failure. Ten subsequent actual-owner
+  and receiver checks passed after the pressure fixture observed returned spare
+  capacity and gated its native response. Workspace type checks and web/CLI/desktop
+  builds passed. Full integration and native release gates remain outstanding.
+
+- Logs reserve encoding, retained pending buffers, rotation and replay work before
+  allocation; partial disk writes retain their backing buffer without duplicating
+  saved prefixes. Checkpoints transfer screen work into retained persistence credit
+  before serialisation releases its allowance. Runtime decoding checks structural
+  limits before allocating parsed data and keeps credit through schema validation
+  and queue admission, including synchronous close/error paths. These changes reuse
+  the existing stores, screen queue, JSON sizing and runtime allowance. Focused
+  log, checkpoint and transport suites passed; no protocol change was required.
+
 - Memory-grant reclamation now shares runtime retirement's launch/dispatch/owner
   claims and adds an exact process-memory claim. It verifies and durably syncs the
   retired launch fence before deleting a grant, including before service cleanup,

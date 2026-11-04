@@ -144,6 +144,18 @@ Each live runtime has one independent `puddler` owner for its PTYs, output and p
 
 ### Persistent runtimes (0.4.0 implementation in progress)
 
+Managed runtime memory has one durable host ceiling, initialised to a quarter of
+physical memory (or a lower reported process constraint), capped at 8 GiB. Its
+private sealed ledger survives daemon replacement and retains the original
+capacity. Launch admission reserves essential state before dispatch; each owner
+shares its cached grant across terminal history/screens, checkpoint work, transport
+and provider bridge buffers. Idle spare returns use bounded retries. New launches
+can be refused without stopping existing runtimes. Exact retirement reclaims a
+grant only after its process-memory claim is free and its launch is durably fenced;
+graceful execution shutdown alone cannot release that claim. These limits account
+for Puddle-managed capacity, not native-agent allocations, total process RSS or a
+physical filesystem quota.
+
 Persistent runtimes and cockpit-managed host updates are required standard behaviour
 from 0.4.0, without an enable/disable setting or selectable legacy backend. The
 implementation described below is incomplete. Daemon composition now defaults to

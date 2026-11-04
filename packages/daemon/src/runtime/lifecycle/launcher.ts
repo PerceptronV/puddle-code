@@ -31,6 +31,7 @@ import { pinRuntimeShellHooks } from '../execution/shell-hooks.js';
 import type { ShellHooks } from '../../pty/shell-hooks.js';
 import type { ProgrammeOperation } from '../../puddlang/runtime-turn-store.js';
 import { selectRuntimeSupervisor } from './lifetime.js';
+import { reserveRuntimeLaunchMemory } from '../resources/host/bootstrap.js';
 
 interface LaunchOptions {
   provider?: RuntimeProviderLaunch;
@@ -174,6 +175,8 @@ export class RuntimeLauncher {
       canonical_worktree_path: realpathSync(session.worktree_path),
     };
     const claim = acquireHostClaim(this.deps.home, `runtime-launch:${identity.runtime_id}`);
+    let recorded = false;
+    let dispatched = false;
     try {
       const directory = runtimeDirectory(this.deps.home, identity.runtime_id);
       const launch: RuntimeLaunch = runtimeLaunchSchema.parse({
@@ -194,7 +197,8 @@ export class RuntimeLauncher {
       });
       if ((provider?.resume_ref ?? provider?.initial_ref ?? null) !== session.agent_session_ref)
         throw new Error('Runtime launch conversation does not match its placement');
-      if (Buffer.byteLength(JSON.stringify(launch)) > RUNTIME_LIMITS.frameBytes)
+      const launchBytes = Buffer.byteLength(JSON.stringify(launch));
+      if (launchBytes > RUNTIME_LIMITS.frameBytes)
         throw new Error('Runtime launch context exceeds its private record limit');
       atomicPrivateJson(join(directory, 'launch.json'), launch);
       this.deps.runtimes.prepare({
@@ -207,9 +211,20 @@ export class RuntimeLauncher {
           ? {}
           : { codeRunDirectory: realpathSync(codeRunDirectory) }),
       });
+      recorded = true;
+      try {
+        reserveRuntimeLaunchMemory(this.deps.home, identity, launchBytes);
+      } catch {
+        throw new ApiError(
+          503,
+          'runtime_memory_unavailable',
+          'Host memory admission is unavailable for a new runtime. Existing runtimes continue running.',
+        );
+      }
       // After this point an uncertain response must preserve intent and never try
       // another backend. The same launch claim also prevents premature retirement.
       try {
+        dispatched = true;
         await startRuntimeService(this.deps.home, identity, { ...config, kind });
       } catch {
         // A supervisor may have accepted the job before its reply was lost.
@@ -261,6 +276,14 @@ export class RuntimeLauncher {
       );
     } finally {
       claim.release();
+      if (recorded && !dispatched) {
+        try {
+          await this.deps.reconciler.retire(identity.runtime_id);
+        } catch {
+          // Preserve exact launch evidence if retirement cannot commit. An
+          // uncertain grant is never silently erased or dispatched later.
+        }
+      }
     }
   }
 

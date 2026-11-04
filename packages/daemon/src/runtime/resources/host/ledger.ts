@@ -78,6 +78,13 @@ export class HostMemoryLedger {
     return this.openKnown(home, capacityBytes, true)!;
   }
 
+  /** Bootstrap policy applies only before the permanent host capacity is sealed. */
+  static initialise(home: string, initialCapacity: number): HostMemoryLedger {
+    if (!validInteger(initialCapacity) || initialCapacity === 0)
+      throw new Error('Invalid host memory capacity');
+    return this.openKnown(home, undefined, true, initialCapacity)!;
+  }
+
   /** Never creates a directory, database or seal. Established capacity remains authoritative. */
   static openExisting(home: string): HostMemoryLedger | null {
     return this.openKnown(home, undefined, false);
@@ -87,6 +94,7 @@ export class HostMemoryLedger {
     home: string,
     requestedCapacity: number | undefined,
     create: boolean,
+    initialCapacity?: number,
   ): HostMemoryLedger | null {
     const paths = memoryIo(home, () => memoryPaths(home, create));
     if (!paths) return null;
@@ -105,7 +113,7 @@ export class HostMemoryLedger {
         seal = memoryIo(home, () => readMemorySeal(paths));
       }
       let file = memoryIo(home, () => optionalMemoryFile(paths.database, HOST_MEMORY_LEDGER_BYTES));
-      const capacityBytes = requestedCapacity ?? seal?.capacity;
+      const capacityBytes = requestedCapacity ?? seal?.capacity ?? initialCapacity;
       if (capacityBytes === undefined)
         throw new Error('Host memory ledger capacity is unavailable');
       if (seal && !file) throw new Error('Sealed host memory ledger is missing');

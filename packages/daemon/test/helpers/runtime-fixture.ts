@@ -8,9 +8,16 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { afterAll, afterEach, beforeAll } from 'vitest';
-import { runtimeStateSchema, type RuntimeLaunch, type RuntimeState } from '@puddle/shared';
+import {
+  runtimeLaunchSchema,
+  runtimeStateSchema,
+  type RuntimeLaunch,
+  type RuntimeState,
+} from '@puddle/shared';
 import { atomicPrivateJson, ipcPath } from '@puddle/shared/node';
 import { RuntimeClient } from '../../src/runtime/transport/client.js';
+import { HostMemoryLedger } from '../../src/runtime/resources/host/ledger.js';
+import { reserveRuntimeLaunchMemory } from '../../src/runtime/resources/host/bootstrap.js';
 import {
   acquireRuntimeController,
   readRuntimeJson,
@@ -69,6 +76,7 @@ beforeAll(async () => {
       'provider-owner': join(packageRoot, 'test/helpers/runtime-provider-owner.ts'),
       'fake-codex': join(packageRoot, 'test/helpers/runtime-codex.ts'),
       'daemon-owner': join(packageRoot, 'test/helpers/runtime-daemon.ts'),
+      'memory-owner': join(packageRoot, 'test/helpers/runtime-memory-owner.ts'),
     },
     outdir: bundleDir,
     outExtension: { '.js': '.mjs' },
@@ -130,6 +138,7 @@ export function environment(home: string): NodeJS.ProcessEnv {
   return { HOME: home, PATH: '/usr/bin:/bin:/usr/sbin:/sbin', LANG: 'en_US.UTF-8' };
 }
 export function launchOwner(home: string, id: string, entry = 'puddler.mjs', path?: string) {
+  if (entry !== 'daemon-owner.mjs' && entry !== 'controller.mjs') admitFixtureOwner(home, id);
   socketDirectories.set(dirname(ipcPath(home, `runtime:${id}`)), home);
   const child = spawn(process.execPath, [join(bundleDir, entry), '--home', home, '--runtime', id], {
     env: { ...environment(home), ...(path ? { PATH: path } : {}) },
@@ -142,6 +151,24 @@ export function launchOwner(home: string, id: string, entry = 'puddler.mjs', pat
     errors += chunk.toString();
   });
   return { child, errors: () => errors };
+}
+
+/** Match production admission after each fixture finishes customising its launch intent. */
+export function admitFixtureOwner(home: string, id: string): void {
+  const directory = runtimeDirectory(home, id);
+  if (existsSync(join(directory, 'retired.json')) || existsSync(join(directory, 'consumed.json')))
+    return;
+  const launch = runtimeLaunchSchema.parse(readRuntimeJson(join(directory, 'launch.json')));
+  const ledger = HostMemoryLedger.openExisting(home);
+  if (!ledger) throw new Error('Fixture controller did not initialise runtime memory');
+  let admitted: boolean;
+  try {
+    admitted = ledger.readGrant(launch.identity) !== null;
+  } finally {
+    ledger.close();
+  }
+  if (!admitted)
+    reserveRuntimeLaunchMemory(home, launch.identity, Buffer.byteLength(JSON.stringify(launch)));
 }
 export function prepare(provider?: 'interactive' | 'headless') {
   const home = mkdtempSync(join(tmpdir(), 'puddle-runtime-host-'));

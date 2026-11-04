@@ -23,6 +23,7 @@ export class RuntimeHostAllowance implements RuntimeByteAllowance, RuntimeRetain
     identity: HostMemoryIdentity,
     private readonly chunkBytes: number,
     private readonly spareBytes: number,
+    private readonly onReturn?: () => void,
   ) {
     if (!validBytes(chunkBytes) || chunkBytes === 0 || !validBytes(spareBytes))
       throw new Error('Invalid runtime host allowance policy');
@@ -51,16 +52,25 @@ export class RuntimeHostAllowance implements RuntimeByteAllowance, RuntimeRetain
       resize: (next) => {
         if (held === null || !validBytes(next)) return false;
         if (next > held && !this.admit(next - held)) return false;
-        if (next < held) this.used -= held - next;
+        if (next < held) {
+          this.used -= held - next;
+          this.onReturn?.();
+        }
         held = next;
         return true;
       },
       release: () => {
         if (held === null) return;
         this.used -= held;
+        if (held > 0) this.onReturn?.();
         held = null;
       },
     };
+  }
+
+  /** Existing releases remain valid; no new allocation may use a stopped owner. */
+  close(): void {
+    this.invalid = true;
   }
 
   private admit(bytes: number): boolean {
