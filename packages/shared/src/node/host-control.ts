@@ -7,6 +7,7 @@ export {
 export { releaseRepository } from './releases/source.js';
 export { updateWorkerExecutables } from './installation/workers.js';
 export { requireNoHostRemoval } from './installation/removal.js';
+export { inspectHostRemoval, validateHostRemovalServices } from './installation/removal-records.js';
 export { watchUpdateParticipation } from './installation/participation.js';
 export { HostUpdateRequests } from './host-updates.js';
 import type { Duplex } from 'node:stream';

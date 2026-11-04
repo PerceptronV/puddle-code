@@ -10,6 +10,21 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+Public install tests cover restoration before the already-installed shortcut, local and
+simulated SSH control, passive capability detection, explicit continuation, lost replies,
+changed removal ids, refused restoration and repeated install without restarting a ready
+daemon. A built pinned helper fixture restores saved definitions through fake systemctl,
+then hands off to the existing startup entry. It rejects stale ids and missing continuation
+records. Fresh-guard tests cover revoked authority, changed selected releases and bounded
+inspection without exporting private sources. Missing, malformed and mismatched restoration
+evidence remains blocking. These tests do not establish actual systemd behaviour or retained
+provider adoption through a complete public removal/install journey.
+The removal, startup, update recovery and installation regression run passed 333 tests
+in 41 files, with one platform-gated file skipped. The final focused run passed 32
+tests, including both same-release and different-release public install paths. Source
+and strict changed-test typechecks, lint, and web/CLI/desktop builds passed on macOS
+26.5.2 with Node 22.21.1.
+
 Internal service restoration tests cover unchanged definition bytes, binary publication,
 refusal to overwrite existing files/links, exact user paths, authority/source/process
 changes, bounded history and stale objects. Lost completion writes and systemd reload/

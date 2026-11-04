@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 import { requireNoHostRemoval } from '../../src/node/installation/removal.js';
+import { inspectHostRemoval } from '../../src/node/installation/removal-records.js';
 
 const homes: string[] = [];
 afterEach(() => {
@@ -28,8 +29,10 @@ it('does not create state while inspecting an absent removal', () => {
   const f = fixture();
   const absent = join(f.home, 'absent');
   requireNoHostRemoval(absent);
+  expect(inspectHostRemoval(absent)).toEqual({ state: 'none' });
   expect(existsSync(absent)).toBe(false);
   requireNoHostRemoval(f.home);
+  expect(inspectHostRemoval(f.home)).toEqual({ state: 'none' });
   expect(existsSync(join(f.home, 'installation'))).toBe(false);
 });
 
@@ -42,6 +45,7 @@ it.each(['valid', 'malformed', 'directory', 'dangling-link'] as const)(
     else if (kind === 'dangling-link') symlinkSync(join(f.home, 'missing'), f.file);
     else writeFileSync(f.file, kind === 'valid' ? '{}' : '{', { mode: 0o600 });
     expect(() => requireNoHostRemoval(f.home)).toThrow('Resolve the recorded host removal');
+    expect(() => inspectHostRemoval(f.home)).toThrow();
   },
 );
 
@@ -62,4 +66,5 @@ it.each(['linked', 'shared'] as const)('refuses an unsafe %s removal parent', (k
     chmodSync(f.directory, 0o755);
   }
   expect(() => requireNoHostRemoval(f.home)).toThrow(/private/);
+  expect(() => inspectHostRemoval(f.home)).toThrow(/private/);
 });

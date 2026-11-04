@@ -43,6 +43,16 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Application 25.18 connects recorded service restoration to `puddle install daemon`
+  before its already-installed shortcut. Passive release metadata gates new local/SSH
+  helper flags; bounded inspection omits private service sources and host paths.
+  Restoration pins the exact removal id and selected helper under existing exclusion.
+  Explicit continuation requires its existing journal. Lost replies trigger exact
+  hand-off observation, followed by existing authenticated readiness/startup; an already
+  connected daemon is not restarted. Shared source validation and restoration planning
+  now serve both execution and inspection. Public removal orchestration, connector disable,
+  full retained-runtime adoption, collection/purge and actual Linux acceptance remain open.
+
 - Internal deliberate service restoration now reuses the recorded removal review and
   shared durable action writer under retained controller/update/installer exclusion.
   It publishes and syncs original definition bytes without overwriting an existing

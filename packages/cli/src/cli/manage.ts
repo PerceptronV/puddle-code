@@ -35,6 +35,7 @@ import { openHostTransport } from '../lib/transport/open.js';
 import { CliError, type Logger } from '../lib/types.js';
 import { upgradeDaemon } from '../lib/installation/upgrade.js';
 import { upgradeHostComponent } from '../lib/installation/host/upgrade.js';
+import { restoreInstalledDaemon } from '../lib/installation/host/restore.js';
 import { cliVersion, pinnedDaemonVersion } from '../lib/version.js';
 import type { Command, Component } from './args.js';
 import { terminateCockpit } from './detach.js';
@@ -108,19 +109,20 @@ export async function runInstall(
 
   const transport = await openHostTransport(cmd.host);
   try {
+    const restored = cmd.what === 'daemon' && (await restoreInstalledDaemon(transport));
     const installed = await installedVersion(transport, cmd.what);
     // install = ensure present: an installed daemon with no version named is
     // exactly what was asked for.
     if (installed !== null && cmd.version === undefined) {
       logger.info(
-        `${cmd.what === 'runtime' ? 'puddler' : 'puddled'} v${installed} is already installed on ${transport.label} — ` +
+        `${cmd.what === 'runtime' ? 'puddler' : 'puddled'} v${installed} is ${restored ? 'ready' : 'already installed'} on ${transport.label} — ` +
           `\`puddle upgrade ${cmd.what}\` moves it to the newest release`,
       );
       return 0;
     }
     if (installed !== null && installed === cmd.version) {
       logger.info(
-        `${cmd.what === 'runtime' ? 'puddler' : 'puddled'} v${installed} is already installed on ${transport.label}`,
+        `${cmd.what === 'runtime' ? 'puddler' : 'puddled'} v${installed} is ${restored ? 'ready' : 'already installed'} on ${transport.label}`,
       );
       return 0;
     }

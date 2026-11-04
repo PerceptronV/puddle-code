@@ -760,8 +760,19 @@ checks, a same-directory hand-off retains the completed removal record and clear
 fence for ordinary selected startup. Restoration history is bounded to the current and
 previous action records plus the latest restored review. This phase never starts a
 runtime, changes a selector, restores application data or re-enables remote registrations.
-CLI dispatch, end-to-end retained-runtime adoption and actual Linux restoration acceptance
-remain required before this is a complete reinstallation flow.
+`puddle install daemon` now checks passive selected-release capabilities before its
+already-installed shortcut. Supporting application 25.18 helpers expose only bounded
+recorded state and an exact removal id over trusted OS/SSH execution. An incomplete
+removal refuses installation; completed removal can restore its saved configuration,
+and an existing restoration journal requires explicit continuation. The helper pins its
+own Node/entry/selected release and retains update/controller/installer exclusion.
+After an uncertain reply the CLI observes the exact hand-off without repeating dispatch,
+then reuses authenticated readiness or ordinary selected-service startup. Repeated install
+does not restart an already-connected daemon. A different explicitly requested release
+follows the existing update coordinator after restoration. No private definitions leave
+the host, no remote grants are added and no runtime restart is dispatched by restoration.
+End-to-end retained-runtime adoption and actual Linux restoration acceptance remain
+required before this is a complete reinstallation flow.
 This is not yet wired to CLI removal: stop-or-retain prompting, connector disable,
 durable removal/reinstallation orchestration, reference-aware file collection and purge
 coordination remain required. Successful runtime disposition or service unregistration

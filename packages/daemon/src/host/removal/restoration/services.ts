@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import {
   HOST_REMOVAL_SERVICES_BYTES,
   hostRemovalRestoreSchema,
+  hostRemovalRestorePlan,
   hostRemovalServicesSchema,
   type HostRemovalRestore,
   type HostRemovalRestoreAction,
@@ -64,22 +65,11 @@ export class HostRemovalServiceRestore {
       if (review.definition !== expected)
         throw new Error('Restoration definition is outside its installed user path');
     }
-    const components = ['connector', 'daemon'] as const;
-    const present = components.filter((component) =>
-      this.removal.services.some(({ review }) => review.component === component),
-    );
-    const systemd = present.filter(
-      (component) => this.entry(component).review.target.kind === 'systemd',
-    );
     const initial = hostRemovalRestoreSchema.parse({
       format: 1,
       removal_id: this.removal.id,
       removal_digest: this.fingerprint,
-      actions: [
-        ...present.map((component) => `restore-${component}`),
-        ...(systemd.length ? ['reload-services'] : []),
-        ...systemd.map((component) => `enable-${component}`),
-      ].map((action) => ({ action, state: 'planned' })),
+      actions: hostRemovalRestorePlan(this.removal).map((action) => ({ action, state: 'planned' })),
     });
     const path = join(this.directory, 'restore.json');
     let previous: HostRemovalRestore | null = null;

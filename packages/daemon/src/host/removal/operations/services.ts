@@ -3,19 +3,18 @@ import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
   HOST_REMOVAL_SERVICES_BYTES,
-  hostRemovalServicesSchema,
   type HostRemovalServices as ServiceJournal,
   type HostRemovalServiceAction,
   type HostRemovalServiceReview,
 } from '@puddle/shared';
 import {
   atomicPrivateJson,
-  digest,
   privateDirectory,
   privatePath,
   readPrivateJson,
   syncPrivateDirectory,
 } from '@puddle/shared/node';
+import { validateHostRemovalServices as validate } from '@puddle/shared/node/host-control';
 import type { CompilationCommandRunner } from '../../../compilation/process.js';
 import { HostActionWriter } from '../../installation/action-writer.js';
 import { readOwnedServiceDefinition } from '../../supervision/definition.js';
@@ -35,17 +34,6 @@ interface Options {
 }
 
 const file = (home: string) => join(home, 'installation/removal/services.json');
-
-function validate(value: unknown): ServiceJournal {
-  const journal = hostRemovalServicesSchema.parse(value);
-  for (const { review, source } of journal.services)
-    if (
-      Buffer.from(source, 'base64').toString('base64') !== source ||
-      digest(source) !== review.sourceDigest
-    )
-      throw new Error('Removal service source does not match its review');
-  return journal;
-}
 
 /** Service phase only. Runtime consent, remote disable and release collection belong to the caller. */
 export class HostRemovalServiceOperation {

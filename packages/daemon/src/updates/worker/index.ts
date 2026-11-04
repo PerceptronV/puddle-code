@@ -10,9 +10,8 @@ import { readUpdateWorker } from './supervisor.js';
 
 import { executeUpdateRecovery } from '../recovery/worker/execute.js';
 import { startUpdateRecoveryWorker } from '../recovery/worker/supervisor.js';
-import { startSelectedDaemon } from '../../host/startup/daemon.js';
+import { runHostInstallationEntry } from '../../host/installation/entry.js';
 import { watchUpdateParticipation } from '@puddle/shared/node/host-control';
-import { disposeCompilationCommands, runCompilationCommand } from '../../compilation/process.js';
 
 declare const __PUDDLED_VERSION__: string | undefined;
 const version =
@@ -26,35 +25,7 @@ const version =
 const args = process.argv.slice(2);
 if (args.length === 1 && args[0] === '--version') {
   console.log(`puddle host updater ${version}`);
-} else if (args.length === 3 && args[0] === '--home' && args[2] === '--start-daemon') {
-  let interrupted = false;
-  const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
-  const interrupt = () => {
-    interrupted = true;
-    disposeCompilationCommands();
-  };
-  for (const signal of signals) process.on(signal, interrupt);
-  try {
-    const entry = realpathSync(fileURLToPath(import.meta.url));
-    const paths = updateWorkerExecutables(args[1]!, dirname(dirname(entry)));
-    if (paths.entry_path !== entry || paths.node_path !== realpathSync(process.execPath))
-      throw new Error('Daemon startup must use its own pinned release');
-    await startSelectedDaemon(args[1]!, paths.release_path, {
-      run: (command) => {
-        if (interrupted) throw new Error('Daemon startup was interrupted');
-        return runCompilationCommand({ ...command, detached: false });
-      },
-    });
-    if (interrupted) throw new Error('Daemon startup was interrupted');
-  } catch {
-    // Supervisor diagnostics may contain host configuration. The launcher observes
-    // authenticated readiness after this one request, including after a lost reply.
-    console.error('The selected daemon could not be started');
-    process.exitCode = 1;
-  } finally {
-    for (const signal of signals) process.off(signal, interrupt);
-  }
-} else {
+} else if (!(await runHostInstallationEntry(args, fileURLToPath(import.meta.url)))) {
   if (
     (args.length !== 4 &&
       !(

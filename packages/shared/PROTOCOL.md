@@ -3,7 +3,7 @@
 Private removal service records under `installation/removal/` validate retained
 service reviews, original definitions and serial action intent. They are host-only
 storage, with no browser/connector request or new transport. They do not change
-application 25.17, runtime 1.0 or remote 4, and are not authority to remove runtime
+the application, runtime or remote protocols, and are not authority to remove runtime
 files or restart a service. CLI removal and reinstallation orchestration remain
 in progress.
 The shared Node helper also supplies passive removal fencing for host startup and
@@ -12,8 +12,20 @@ cancelled reviews are kept separately. This adds no wire shape or permission.
 Private restoration records bind the completed removal review to publication/reload/
 enable intent. They permit no runtime commands, selector changes, database rollback
 or remote registration changes. Explicit verified hand-off clears the removal fence
-for ordinary startup; public CLI reinstallation is still unfinished. The three protocol
-versions remain unchanged.
+for ordinary startup. These private records alone do not change the three protocols.
+
+Application 25.18 adds trusted local/SSH helper removal inspection and explicit
+service restoration, used by `puddle install daemon`. Passive selected-release
+metadata must advertise compatible application 25.18 or newer before invoking
+the new flags. The bounded status contains only `state` and an exact removal id
+when present; original service definitions, environment values and host paths stay
+private. Recorded restoration completion is not service health or runtime-adoption
+proof. Restoration requests bind the exact removal id and distinguish a new attempt
+from explicit continuation of an existing journal. After a lost reply, the client
+inspects that exact hand-off before using existing authenticated startup/readiness.
+This adds no browser route, relay permission, runtime command or new transport;
+remote 4 and runtime 1.0 remain unchanged. Public removal orchestration, retained-runtime
+adoption through the complete removal/install journey and platform acceptance remain open.
 
 Protocol 25.17 adds the explicit `continue-offline` cockpit update action and optional
 `offline_continuation` capability. The action carries only an exact operation id/revision;

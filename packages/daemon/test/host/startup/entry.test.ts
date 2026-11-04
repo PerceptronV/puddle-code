@@ -2,8 +2,6 @@ import { acquireInstallationLock } from '../../../src/host/installation/lock.js'
 import { execFile, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import {
-  constants,
-  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -14,10 +12,9 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { build } from 'esbuild';
+import { buildHostUpdateEntry } from '../../helpers/host-update-entry.js';
 import { expect, it } from 'vitest';
 import { acquireHostClaim } from '../../../src/security/claims.js';
 import { HostUpdateOperations } from '../../../src/updates/operations/store.js';
@@ -25,44 +22,14 @@ import { acceptedCheckpointUpdate } from '../../helpers/update-checkpoint.js';
 
 it('runs the pinned startup entry, refuses unsafe starts and cleans up a disconnected startup', async () => {
   const home = realpathSync(mkdtempSync(join(tmpdir(), 'puddle-start-entry-')));
-  const repo = fileURLToPath(new URL('../../../../../', import.meta.url));
   const root = join(home, 'bin/versions/0.4.0~ABC123');
   const entry = join(root, 'daemon/host-update.mjs');
   const node = join(root, 'bin/node');
   let claim: ReturnType<typeof acquireHostClaim> | undefined;
   let child: ReturnType<typeof spawn> | undefined;
   try {
-    mkdirSync(dirname(entry), { recursive: true, mode: 0o700 });
-    mkdirSync(dirname(node), { recursive: true, mode: 0o700 });
-    copyFileSync(process.execPath, node, constants.COPYFILE_FICLONE);
-    writeFileSync(join(root, 'daemon/install.sh'), '');
+    await buildHostUpdateEntry(root);
     symlinkSync(root, join(home, 'bin/current'));
-    symlinkSync(join(repo, 'packages/daemon/node_modules'), join(root, 'daemon/node_modules'));
-    await build({
-      entryPoints: [join(repo, 'packages/daemon/src/updates/worker/index.ts')],
-      outfile: entry,
-      bundle: true,
-      platform: 'node',
-      target: 'node22',
-      format: 'esm',
-      external: ['node-pty', 'better-sqlite3', 'bufferutil', 'utf-8-validate'],
-      alias: {
-        '@puddle/shared/node/host-control': join(repo, 'packages/shared/src/node/host-control.ts'),
-        '@puddle/shared/node': join(repo, 'packages/shared/src/node/security.ts'),
-        '@puddle/shared': join(repo, 'packages/shared/src/index.ts'),
-      },
-      // Run the systemd branch against a deterministic fake command on any test OS.
-      // Native SQLite claims/processes are real; no installed supervisor is contacted.
-      define: {
-        __PUDDLED_VERSION__: '"0.4.0"',
-        __PUDDLER_VERSION__: '"0.4.0"',
-        'process.platform': '"linux"',
-      },
-      banner: {
-        js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);",
-      },
-      logLevel: 'warning',
-    });
     const env = { HOME: home, PUDDLE_HOME: home, PATH: '/usr/bin:/bin', LANG: 'en_US.UTF-8' };
     const invoke = (args: string[]) =>
       promisify(execFile)(node, [entry, ...args], { env, timeout: 10_000 });

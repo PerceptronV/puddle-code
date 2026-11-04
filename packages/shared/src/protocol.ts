@@ -324,4 +324,5 @@
 // 25.15: placement-scoped runtime inspection and exact reviewed restart.
 // 25.16: labelled recorded cockpit update inspection while the daemon is unavailable.
 // 25.17: explicit cockpit continuation through participating local/SSH recovery helpers.
-export const PROTOCOL_VERSION = { major: 25, minor: 17 } as const;
+// 25.18: trusted local/SSH removal inspection and explicit service restoration.
+export const PROTOCOL_VERSION = { major: 25, minor: 18 } as const;

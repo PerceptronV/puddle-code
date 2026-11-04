@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { HostRemovalServices } from './services.js';
 
 export const hostRemovalRestoreActionSchema = z.enum([
   'restore-connector',
@@ -8,6 +9,23 @@ export const hostRemovalRestoreActionSchema = z.enum([
   'enable-daemon',
 ]);
 export type HostRemovalRestoreAction = z.infer<typeof hostRemovalRestoreActionSchema>;
+
+/** The same exact plan is used by dispatch and passive post-hand-off inspection. */
+export function hostRemovalRestorePlan(removal: HostRemovalServices): HostRemovalRestoreAction[] {
+  const present = (['connector', 'daemon'] as const).filter((component) =>
+    removal.services.some(({ review }) => review.component === component),
+  );
+  const systemd = present.filter((component) =>
+    removal.services.some(
+      ({ review }) => review.component === component && review.target.kind === 'systemd',
+    ),
+  );
+  return [
+    ...present.map((component): HostRemovalRestoreAction => `restore-${component}`),
+    ...(systemd.length ? ['reload-services' as const] : []),
+    ...systemd.map((component): HostRemovalRestoreAction => `enable-${component}`),
+  ];
+}
 
 /** Private, explicit configuration restoration; never a runtime restart or database rollback. */
 export const hostRemovalRestoreSchema = z

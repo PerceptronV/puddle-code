@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Restore recorded, completed daemon service removals through `puddle install daemon` before treating retained release files as an installed service. Capability-detect the trusted local/SSH helper, continue only exact recorded attempts, inspect lost replies and reuse authenticated startup without restarting an already-connected daemon. Public removal orchestration and full retained-runtime acceptance remain in progress.
+
 - Add internal deliberate restoration of removed host service definitions, preserving saved bytes without overwriting existing files or links. Verify recorded reload/enable attempts without replay, retain the removal fence until configuration and shutdown checks pass, and hand off to ordinary startup without restarting runtimes. Public CLI reinstallation remains in progress.
 
 - Block daemon startup, host update writes and installation while recorded removal remains unresolved. Retain read-only status and allow cancellation only before any service action was attempted, preserving one private cancelled review. Keep removal-only hosts out of legacy bootstrap fallback; CLI removal/reinstallation remains in progress.
