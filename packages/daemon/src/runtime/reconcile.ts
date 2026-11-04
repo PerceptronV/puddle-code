@@ -629,11 +629,13 @@ export class RuntimeReconciler extends EventEmitter {
       if (state.attention !== undefined) {
         if (
           state.attention &&
-          (!binding.agent_type ||
-            state.attention.segment_id !== binding.active_segment_id ||
+          (state.attention.segment_id !== binding.active_segment_id ||
             (state.attention.reason === 'waiting_input'
-              ? main?.pid == null || state.agent?.status !== 'waiting_input'
-              : main?.pid != null))
+              ? main?.pid == null ||
+                (binding.agent_type
+                  ? state.agent?.status !== 'waiting_input'
+                  : !state.terminal_agent)
+              : binding.agent_type !== null && main?.pid != null))
         )
           throw new Error('Runtime attention does not match its observed placement');
         this.attention.observe(id, state.event_cursor, binding.active_session_id, state.attention);

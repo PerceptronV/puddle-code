@@ -13,6 +13,8 @@ interface Options {
   adapters: Pick<AgentAdapter, 'id' | 'matchesProcess' | 'statusPatterns'>[];
   changed(session: string): void;
   notify?(session: string, reason: 'waiting_input' | 'exited'): void;
+  /** New foreground identity or explicit busy evidence supersedes earlier attention. */
+  activity?(session: string): void;
   quietMs?: number;
   snapshot?: typeof readProcessSnapshot;
   intervalMs?: number;
@@ -133,6 +135,7 @@ export class TerminalAgentMonitor {
           observed?.detector?.dispose();
           observed = { runtime: target.runtime, agent, pid, detector: null, armed: false };
           this.observed.set(target.session, observed);
+          this.options.activity?.(target.session);
         }
         if (!observed.detector) {
           const current = observed;
@@ -142,6 +145,7 @@ export class TerminalAgentMonitor {
             {
               onBusy: () => {
                 current.armed = true;
+                this.options.activity?.(target.session);
               },
               onStatus: (status) => {
                 if (status !== 'waiting_input' || !current.armed || this.disposed) return;

@@ -266,8 +266,15 @@ intent and status after bounded preview work; claims precede emission, so restar
 does not duplicate alerts. A crash after the claim can lose a notification; no
 delivery acknowledgement or automatic resend is implied. Native previews remain
 adapter-owned, with an exact-condition private terminal preview as fallback.
-No preview body enters runtime metadata or public audit events. Terminal-launched
-agent monitoring and abnormal-exit notices still require external-owner parity.
+No preview body enters runtime metadata or public audit events. Terminal owners
+reuse the foreground-agent monitor with process inspection restricted to their
+main PTY. The optional private `terminal_agent` hint is transient; the daemon
+exposes it only from the selected, connected owner. Explicit busy evidence arms
+one idle alert, while a successful process scan can prove child exit even when
+the shell remains running. Suspension, backgrounding and failed inspection clear
+the hint without claiming exit. Extra shells cannot own the hint, and monitoring
+never changes placement kind/status or adopts a native conversation. Abnormal-exit
+notices still require external-owner parity.
 An explicit `DaemonOptions.runtime` composition option now routes terminal
 and interactive/headless agent creation/resume through `RuntimeLauncher`. Default installed
 launches retain the in-process backend. The launcher writes a private validated

@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Preserve foreground-agent hints and completion alerts for opt-in independent terminal runtimes across daemon replacement, without changing terminal placement identity or adopting native conversations.
+
 - Recover current agent attention alerts from opt-in independent runtimes across daemon replacement, retaining exact destinations and suppressing duplicate, stale and deliberately stopped alerts.
 
 - Preserve cockpit terminal colours in opt-in independent owners, answering agent colour queries during daemon outages and synchronising new reports after reconnection.

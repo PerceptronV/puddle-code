@@ -46,6 +46,23 @@ export class RuntimeTerminals {
     return this.runtimes.usesExternalTerminals(sessionId) || !!this.runtimes.ownerOf(sessionId);
   }
 
+  detectedAgent(sessionId: string): string | null {
+    const owner = this.runtimes.selectedOwner(sessionId);
+    if (
+      !owner ||
+      owner.agent_type ||
+      owner.active_session_id !== sessionId ||
+      owner.state !== 'running'
+    )
+      return null;
+    const state = this.connections.get(owner.runtime_id)?.state;
+    return state?.binding?.session_id === sessionId &&
+      state.binding.segment_id === owner.active_segment_id &&
+      state.terminals.some((term) => term.term === 'agent' && term.pid !== null)
+      ? (state.terminal_agent ?? null)
+      : null;
+  }
+
   open(sessionId: string, term: string, viewer: Viewer): RuntimeTerminalView {
     const segment = this.runtimes.terminalForPlacement(sessionId, term);
     if (!segment) throw unavailable();

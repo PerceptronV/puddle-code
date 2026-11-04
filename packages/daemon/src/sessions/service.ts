@@ -73,6 +73,7 @@ export interface SessionServiceDeps {
   runtimeShellHooks?: (runtimeId: string) => ShellHooks | null;
   runtimePriorRefs?: (sessionId: string) => ReadonlySet<string> | undefined;
   runtimeProgrammeTurns?: RuntimeProgrammeTurns;
+  runtimeTerminalAgent?: (sessionId: string) => string | null;
   conversations: ConversationStore;
   events: EventStore;
   worktrees: WorktreeManager;
@@ -2271,7 +2272,9 @@ export class SessionService extends EventEmitter {
       const live = this.liveAgents.get(session.id);
       session = {
         ...session,
-        detected_agent_type: live ? this.terminalAgents.get(session.id, live.runtimeId) : null,
+        detected_agent_type: live
+          ? this.terminalAgents.get(session.id, live.runtimeId)
+          : (this.deps.runtimeTerminalAgent?.(session.id) ?? null),
       };
     }
     if (session.status === 'archived') return session;

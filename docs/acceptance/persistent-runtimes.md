@@ -392,8 +392,22 @@ with one native supervisor test skipped. Eight existing agent-preview/connector
 tests also passed. The final focused run passed 12 tests, including a 35-owner
 case proving an unavailable first page cannot starve ready owners. Typecheck,
 scoped lint and formatting passed.
-These tests do not prove native provider hooks, operating-system notification
-delivery or terminal-launched-agent monitoring; those remain release gates.
+These tests do not prove native provider hooks or operating-system notification
+delivery; those remain release gates.
+
+`runtime/terminal-agent.test.ts` starts a fake recognised agent inside an
+independent shell and another in an extra terminal tab. Real daemon replacement
+retains the main shell/child PIDs, foreground hint and busy evidence; one idle
+condition produced offline is delivered once to a private sink. Confirmed child
+exit produces an alert while the shell remains running, clears the main hint
+despite the extra agent, and creates no native conversation. Deliberate stop stays
+silent. `pty/foreground-process.test.ts` checks bounded per-terminal process
+inspection, invalid terminal names, changed roots and failed scans. The focused
+runtime/process/legacy-monitor run passed 37 tests. The broader runtime/PTY/
+protocol/profile-authority regression run passed 292 tests in 52 files, with
+one native supervisor test skipped; typecheck, scoped lint and formatting passed.
+Native provider process
+recognition and Linux terminal selection still require platform acceptance.
 
 ## Remaining release gates
 

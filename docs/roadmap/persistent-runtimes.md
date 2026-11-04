@@ -164,7 +164,7 @@ Implementation evidence so far:
   never a second dispatch. An isolated real-daemon test creates a fake provider,
   preserves its PTY and sidecar through replacement and an offline conversation
   switch, then explicitly resumes the exact new native ref in a new owner.
-  Full account migration, terminal-agent notification/title parity and native
+  Full account migration, title parity and native
   provider acceptance remain required before default rollout.
 - Code-execution terminals now use the same opt-in owner path. Migration 034
   records their canonical managed run directories atomically with launch intent;
@@ -221,8 +221,18 @@ Implementation evidence so far:
   stay provider-owned. Tests use real daemon replacements and an isolated private
   connector sink to verify offline waiting/exit delivery, duplicate suppression
   and deliberate-stop silence. Storage failures and pending preview races are
-  covered separately. Terminal-launched agent monitoring, abnormal-exit notices
-  and native provider notification acceptance remain open.
+  covered separately. Abnormal-exit notices and native provider notification
+  acceptance remain open.
+- Terminal owners now retain foreground-agent recognition and busy-to-idle
+  evidence across daemon replacement. They reuse adapter-owned process/status
+  rules with bounded inspection of their own main PTY, never extra shells or a
+  host-wide scan per owner. Current hints come only from an authenticated owner;
+  disconnect removes them. Idle and confirmed child-exit alerts use the same
+  current-condition delivery, while the placement remains an ordinary terminal
+  with no native conversation. A real-daemon replacement test verifies original
+  shell/child PIDs, one offline idle alert, child exit while the shell stays live,
+  extra-tab exclusion and deliberate-stop silence. Native provider/process
+  acceptance on both platforms remains required.
 
 These are foundations for phases 0–3, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native

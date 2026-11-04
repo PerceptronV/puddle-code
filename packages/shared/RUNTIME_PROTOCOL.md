@@ -216,6 +216,19 @@ or automatic resend. Existing provider-owned native previews and public
 profile-filtered notification paths remain in use. These initial private 1.0
 fields change neither application nor remote wire shapes.
 
+Terminal owners optionally expose `terminal_agent`, a bounded provider-id hint or
+null. `terminal-agent-state` is a replaceable inspection signal, outside essential
+journal retention. Older owners omit the field. Only the selected, authenticated
+live owner supplies the existing public terminal hint; disconnect removes it.
+The owner restricts process inspection to its main PTY, never extra shells or a
+host-wide scan per owner. Existing adapter patterns and foreground ancestry rules
+apply. Busy evidence arms one idle attention condition; successful inspection can
+prove child exit while the shell remains live. Changed identities, lost hints and
+resumed work clear prior attention. Suspension, backgrounding and failed scans
+cannot establish exit. A terminal stays `running` while its main shell is live,
+including when its child emits attention; no native conversation is adopted.
+These additions remain within the initial unshipped runtime 1.0 contract.
+
 ## Provider execution
 
 The private launch may select a provider, its config directory, execution mode,

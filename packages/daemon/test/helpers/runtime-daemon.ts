@@ -9,7 +9,11 @@ import { atomicPrivateJson } from '@puddle/shared/node';
 import { startDaemon } from '../../src/daemon.js';
 import { readRuntimeJson } from '../../src/runtime/storage.js';
 import type { RuntimeLaunchConfiguration } from '../../src/runtime/launcher.js';
-import { runtimeTestAdapter, runtimePresetTestAdapter } from './runtime-test-adapter.js';
+import {
+  runtimeTestAdapter,
+  runtimePresetTestAdapter,
+  runtimeTerminalTestAdapter,
+} from './runtime-test-adapter.js';
 
 // Only the isolated test home and sanitised fixture environment are used.
 const home = process.argv[3]!;
@@ -56,7 +60,7 @@ const runtime: RuntimeLaunchConfiguration | undefined = existsSync(
 const daemon = await startDaemon({
   home,
   port: 0,
-  adapters: [runtimeTestAdapter, runtimePresetTestAdapter],
+  adapters: [runtimeTestAdapter, runtimePresetTestAdapter, runtimeTerminalTestAdapter],
   runtime,
 });
 const lease = daemon.authority.create();

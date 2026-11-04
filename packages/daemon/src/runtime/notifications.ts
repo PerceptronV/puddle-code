@@ -84,6 +84,11 @@ export class RuntimeNotifications {
     )
       return null;
     const session = this.deps.sessions.get(row.sessionId);
+    if (session.kind === 'terminal')
+      return session.status === 'running' ||
+        (row.attention.reason === 'exited' && session.status === 'exited')
+        ? session
+        : null;
     return session.status === row.attention.reason ? session : null;
   }
 

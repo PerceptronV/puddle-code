@@ -322,6 +322,8 @@ export const runtimeStateSchema = z.object({
   /** Omitted by older experimental owners; null means no cockpit report yet. */
   theme: runtimeThemeSchema.nullable().optional(),
   attention: runtimeAttentionSchema.nullable().optional(),
+  /** Transient foreground hint for a terminal placement; never a native binding. */
+  terminal_agent: z.string().min(1).max(64).nullable().optional(),
   binding: runtimePlacementBindingSchema.nullable(),
   history: z.object({
     current: runtimeSegmentSchema,
@@ -493,6 +495,11 @@ export type RuntimeResponse = z.infer<typeof runtimeResponseSchema>;
 
 export const runtimeEventSchema = z.discriminatedUnion('t', [
   ...runtimeRetainedEventSchema.options,
+  z.object({
+    t: z.literal('terminal-agent-state'),
+    cursor: sequence,
+    agent: z.string().min(1).max(64).nullable(),
+  }),
   z.object({
     t: z.literal('attention-state'),
     cursor: sequence,

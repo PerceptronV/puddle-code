@@ -240,6 +240,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       runtimes,
       runtimeControls,
       runtimeLauncher,
+      runtimeTerminalAgent: (id) => runtimeTerminals.detectedAgent(id),
       runtimeShellHooks: (id) => readRuntimeShellHooks(runtimeDirectory(paths.home, id)),
       runtimePriorRefs: (id) => runtimePriorRefs(paths.home, runtimes, id),
       runtimeProgrammeTurns: new RuntimeProgrammeTurns(
@@ -270,6 +271,10 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       service.emit('sessions-changed', { projectIds: [projectId] }),
     );
     runtimeReconciler.on('session-switched', (event) => service.emit('session-switched', event));
+    runtimeConnections.on('disconnected', (id: string) => {
+      const owner = runtimes.get(id);
+      if (owner) service.emit('sessions-changed', { projectIds: [owner.project_id] });
+    });
     const compilation = new CompilationService(
       [
         latex,

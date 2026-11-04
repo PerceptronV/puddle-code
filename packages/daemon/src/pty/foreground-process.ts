@@ -32,11 +32,31 @@ export function parseProcessSnapshot(stdout: string): Map<number, ProcessEntry> 
 
 /** One bounded asynchronous snapshot for all terminal sessions, never sent to clients. */
 export function readProcessSnapshot(): Promise<Map<number, ProcessEntry>> {
+  return processSnapshot(['-axo', PROCESS_COLUMNS], 16 * 1024 * 1024);
+}
+
+const PROCESS_COLUMNS = 'pid=,ppid=,pgid=,tpgid=,tty=,stat=,args=';
+
+/** An independent owner inspects only its main PTY, never every process on the host. */
+export async function readTerminalProcessSnapshot(
+  rootPid: number,
+): Promise<Map<number, ProcessEntry>> {
+  if (!Number.isSafeInteger(rootPid) || rootPid <= 0) throw new Error('Invalid terminal root PID');
+  const root = (
+    await processSnapshot(['-p', String(rootPid), '-o', PROCESS_COLUMNS], 64 * 1024)
+  ).get(rootPid);
+  if (!root || !/^[a-zA-Z0-9][a-zA-Z0-9/_-]{0,127}$/.test(root.tty)) return new Map();
+  const entries = await processSnapshot(['-t', root.tty, '-o', PROCESS_COLUMNS], 512 * 1024);
+  if (entries.get(rootPid)?.tty !== root.tty) return new Map();
+  return new Map([...entries].filter(([, entry]) => entry.tty === root.tty));
+}
+
+function processSnapshot(args: string[], maxBuffer: number): Promise<Map<number, ProcessEntry>> {
   return new Promise((resolve, reject) => {
     execFile(
       'ps',
-      ['-ww', '-axo', 'pid=,ppid=,pgid=,tpgid=,tty=,stat=,args='],
-      { encoding: 'utf8', timeout: 2000, maxBuffer: 16 * 1024 * 1024 },
+      ['-ww', ...args],
+      { encoding: 'utf8', timeout: 2000, maxBuffer },
       (error, stdout) => {
         if (error) reject(error);
         else resolve(parseProcessSnapshot(stdout));

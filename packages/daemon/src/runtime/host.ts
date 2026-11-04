@@ -42,6 +42,8 @@ import { RuntimeObservations } from './observations.js';
 import { RuntimeSegments } from './segments.js';
 import { TerminalTheme } from '../pty/terminal-theme.js';
 import { RuntimeAttentionState } from './attention.js';
+import { TerminalAgentMonitor } from '../sessions/terminal-agent-monitor.js';
+import { readTerminalProcessSnapshot } from '../pty/foreground-process.js';
 
 /** One process owns one runtime. No application database or public HTTP server. */
 export class RuntimeHost {
@@ -69,6 +71,7 @@ export class RuntimeHost {
     this.event({ t: 'attention-state', cursor: ++this.eventCursor, attention }),
   );
   private expectedExit = false;
+  private terminalAgents: TerminalAgentMonitor | null = null;
   private binding: RuntimePlacementBinding | null;
   private agent: RuntimeAgent | null = null;
   private closingAgent: Promise<void> | null = null;
@@ -199,6 +202,7 @@ export class RuntimeHost {
         host.ptys.registerSidecars(id, agent.sidecar_pids, agent.hidden_ports);
       }
       host.spawn('agent', command);
+      if (!host.launch.provider) host.monitorTerminal(adapters);
       host.status = 'running';
       host.persistState();
       return host;
@@ -225,6 +229,11 @@ export class RuntimeHost {
       environment: this.observations.state(),
       theme: this.theme.colours(),
       attention: this.attention.get(),
+      terminal_agent:
+        this.terminalAgents?.get(
+          this.launch.identity.runtime_id,
+          this.launch.identity.runtime_id,
+        ) ?? null,
       history: this.segments.state(),
       binding: this.binding ? { ...this.binding } : null,
     };
@@ -269,7 +278,10 @@ export class RuntimeHost {
   }
 
   private output(event: PtyDataEvent): void {
-    if (event.term === 'agent') this.agent?.output(event.data);
+    if (event.term === 'agent') {
+      this.agent?.output(event.data);
+      this.terminalAgents?.feed(this.launch.identity.runtime_id, event.data);
+    }
     const terminal = this.terminals.get(event.term);
     if (!terminal) return;
     this.segments.append(terminal, event.data);
@@ -349,6 +361,10 @@ export class RuntimeHost {
     terminal.exit_code = event.exitCode;
     if (event.term === 'agent' && this.agent && !this.expectedExit)
       this.attention.exited(this.segments.state().current.id);
+    if (event.term === 'agent' && this.terminalAgents) {
+      if (!this.expectedExit) this.terminalAgents.exited(this.launch.identity.runtime_id);
+      this.terminalAgents.dispose();
+    }
     if (event.term === 'agent') void this.closeAgent();
     this.event({
       t: 'exit',
@@ -364,7 +380,12 @@ export class RuntimeHost {
   }
 
   private event(event: RuntimeEvent, reservation?: RuntimeJournalReservation): void {
-    if (event.t !== 'output' && event.t !== 'agent-state' && event.t !== 'attention-state') {
+    if (
+      event.t !== 'output' &&
+      event.t !== 'agent-state' &&
+      event.t !== 'attention-state' &&
+      event.t !== 'terminal-agent-state'
+    ) {
       if (reservation) reservation.append(event);
       else if (!this.journal.append(event)) return;
     }
@@ -378,6 +399,37 @@ export class RuntimeHost {
       term.cols,
       term.rows,
     );
+  }
+
+  private monitorTerminal(adapters: AdapterRegistry): void {
+    const id = this.launch.identity.runtime_id;
+    this.terminalAgents = new TerminalAgentMonitor({
+      adapters: adapters.list(),
+      targets: () => {
+        const pid = this.terminals.get('agent')?.pid;
+        return pid == null ? [] : [{ session: id, runtime: id, pid }];
+      },
+      snapshot: async () => {
+        const pid = this.terminals.get('agent')?.pid;
+        return pid == null ? new Map() : readTerminalProcessSnapshot(pid);
+      },
+      changed: () => {
+        if (this.terminals.get('agent')?.pid != null) this.attention.clear();
+        this.event({
+          t: 'terminal-agent-state',
+          cursor: ++this.eventCursor,
+          agent: this.terminalAgents?.get(id, id) ?? null,
+        });
+      },
+      activity: () => this.attention.clear(),
+      notify: (_session, reason) => {
+        if (this.expectedExit) return;
+        const segment = this.segments.state().current.id;
+        if (reason === 'waiting_input') this.attention.waiting(segment);
+        else this.attention.exited(segment);
+      },
+    });
+    void this.terminalAgents.refresh();
   }
 
   private authorised(id: string, epoch: number): boolean {
@@ -773,6 +825,7 @@ export class RuntimeHost {
 
   private async close(): Promise<void> {
     try {
+      this.terminalAgents?.dispose();
       this.ptys.killAll();
       const deadline = Date.now() + 3000;
       while (this.ptys.liveCount() && Date.now() < deadline)

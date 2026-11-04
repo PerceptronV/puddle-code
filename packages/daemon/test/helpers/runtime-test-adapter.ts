@@ -141,3 +141,12 @@ export const runtimePresetTestAdapter: AgentAdapter = {
   prepareHeadlessLaunch: undefined,
   resolveSessionRef: async (opts) => opts.sessionId,
 };
+
+/** Deterministic foreground recognition and busy/idle evidence inside a plain terminal. */
+export const runtimeTerminalTestAdapter: AgentAdapter = {
+  ...runtimeTestAdapter,
+  id: 'runtime-terminal-test',
+  matchesProcess: (command) =>
+    /(?:^|\s)(?:\S*\/)?runtime-terminal-agent\.cjs(?:\s|$)/.test(command),
+  statusPatterns: { busy: [/RUNTIME_BUSY/], waitingInput: [/RUNTIME_IDLE/] },
+};
