@@ -1,20 +1,20 @@
 # Persistent runtime resource baseline — 4 November 2026
 
-The latest calibrated macOS run completed **one health-checked idle shell runtime**,
-then failed the initial ten-owner canonical-screen check. At one, owner RSS was
-**78.59 MiB**, self CPU **0.04495% of one core**, reaped-child CPU **0.11370%**, and
-interrupt wakeups **2.066/s**; all fixture ceilings passed. A targeted ten-owner
-diagnostic subsequently reproduced an initial host geometry-admission failure.
-No assertion or guard was weakened, all tracked fixture processes were cleaned
-up, and no healthy ten/fifty-owner result is inferred from this run. See
-“Health-checked resample after the journal-race fix” and its diagnostic below.
+The latest calibrated macOS run passed **1, 10 and 50 health-checked idle shell
+runtimes** from clean commit `85c66bd`, after the asynchronous initial-screen
+admission fix. At fifty, summed owner RSS was **3,607.73 MiB**, self CPU **2.812% of
+one core**, reaped-child CPU **5.860%**, and interrupt wakeups **103.35/s**. Median
+controller re-adoption took **425.26 ms**. Canonical-screen/persistence checks and
+all unchanged fixture ceilings passed at every scale. All tracked processes were
+cleaned up; 101 sampled PIDs independently returned `ESRCH`. See “Complete
+health-checked run after screen preparation”.
 
 The earlier complete 1/10/50 run remains a **process-level idle baseline**: at
 fifty, owner RSS was 2,669.14 MiB and median re-adoption 416.26 ms. Runs through
 20:38 UTC checked process identity/reconciliation but did not seed terminal output
 and require canonical-screen health. They therefore do not exclude the later
-identified startup screen-load gap. Their artifacts remain unchanged; a complete
-health-checked fifty-owner measurement is still outstanding.
+identified startup screen-load gap. Their artifacts remain unchanged, as do the
+later failed health runs and diagnostic that led to the fix.
 
 The earlier fifty-runtime observation used **3,355 MiB of summed owner RSS** in the
 settled measurement. Their median controller re-adoption took **402 ms**. The
@@ -556,6 +556,48 @@ no production fix is claimed. All tracked owners/shells were cleaned up, the two
 diagnosed process PIDs independently returned `ESRCH`, and the temporary bundle
 was removed.
 
+### Complete health-checked run after screen preparation
+
+The isolated ten-owner startup check first **passed in 2.66 seconds** on clean
+`85c66bd`; its [raw health-only artifact](persistent-runtimes/resources/2026-11-04-host-allowance-health-ten-prepared.json)
+contains no resource measurement. The full calibrated run then began at
+**2026-11-04 22:32 UTC** on the same clean source and **passed in 154.77 seconds**
+(155.59 seconds including runner overhead). The [full raw report](persistent-runtimes/resources/2026-11-04-host-allowance-native-health-prepared.json)
+and [source/bundle provenance](persistent-runtimes/resources/2026-11-04-host-allowance-native-health-prepared-provenance.json)
+record the new evidence independently of every earlier result.
+
+| Owners | Summed owner RSS, MiB | Owner RSS median / max, MiB | Owner self CPU, % of one core | Owner reaped-child CPU, % of one core | Owner interrupt wakeups/s | Median / maximum re-adoption, ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 78.64 | 78.64 / 78.64 | 0.040 | 0.104 | 2.07 | 24.50 / 28.28 |
+| 10 | 786.33 | 78.45 / 80.38 | 1.605 | 1.101 | 24.93 | 102.31 / 102.32 |
+| 50 | 3,607.73 | 72.91 / 75.42 | 2.812 | 5.860 | 103.35 | 425.26 / 442.68 |
+
+At every scale the canonical seeded marker, exact shell identity and settled
+persistence/history checks passed before warmup and after all three controller
+re-adoptions. The fixture sent each owner's marker command exactly once and did
+not replay input. All memory, descriptor, CPU/wakeup and adoption ceilings passed;
+neither capacities, deadlines nor the memory guard changed. Other build/test jobs
+were held throughout the sample.
+
+Every owner had 26 numeric descriptors and every shell four. Shell RSS totals
+were 2.30, 23.03 and 95.91 MiB; measured shell CPU and wakeups were zero.
+Controller-plus-harness self CPU was 0.034%, 0.032% and 0.039% of one core, with
+approximately 1.27 interrupt wakeups/s at each scale. All sampled groups recorded
+zero package-idle wakeups. Calibration passed at timebase 125/3: converted self
+CPU was 50.030 ms against independent clocks of 50.023/50.019 ms, converted
+reaped-child CPU was 50.358 ms against 50.358 ms, and the controlled sleep recorded
+five interrupt wakeups and zero package-idle wakeups. Final sampled memory
+headroom was 50% of 24 GiB.
+
+All tracked owners exited and known shells were absent before publication. The
+101 sampled owner/shell/controller PIDs independently returned `ESRCH`; the
+temporary executable bundle was removed. No installed service, real provider
+home or production daemon was modified. This establishes the complete guarded
+plain-shell health baseline, not full-daemon startup timing, real-provider
+performance or a total-RSS guarantee. Differences from earlier RSS observations
+are not attributed solely to code changes: workstation pressure, compression,
+shared pages and garbage collection remain confounders.
+
 ## Enforced calibrated macOS fixture ceilings
 
 The opt-in harness now enforces the following **plain-shell investigation
@@ -610,13 +652,17 @@ No additional native measurement was performed to select or test these threshold
 
 Native macOS interrupt/package-idle wakeups are now measured at one, ten and fifty
 plain-shell runtimes, with concrete fixture CPU/wakeup regression checks.
-Repeatability on controlled runners and the full fifty-owner canonical-screen
-health gate remain to be measured. Native Linux measurements are **deferred by user instruction
+The full fifty-owner canonical-screen health gate now passes with unchanged
+ceilings. Repeatability on controlled runners remains additional workload evidence.
+Native Linux measurements are **deferred by user instruction
 for 0.4.0**, not a release blocker; automated Linux-path coverage remains relevant,
 but no native Linux result is claimed. Provider CLI/sidecar
 overhead, isolated controller/daemon RSS and CPU,
 service-manager overhead, active output and slow
-consumers, host-wide retained storage and native-provider workloads remain open.
+consumers, retained-storage workload measurements and native-provider workloads
+remain unmeasured. These are disclosed manual/workload limitations rather than
+new blockers for the implementation goal under the user's
+[manual-verification deferral](../acceptance/persistent-runtimes.md#remaining-release-gates).
 This report supplies a repeatable baseline and enforced fixture investigation
 limits; it does not claim all resource acceptance gates are met. Its
 RSS limits are distinct from the implemented transport/viewer buffer capacities.

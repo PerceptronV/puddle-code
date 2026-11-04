@@ -1,0 +1,72 @@
+{
+  "observed_at": "2026-11-04T22:31:27.386Z",
+  "environment": {
+    "platform": "darwin",
+    "release": "25.5.0",
+    "architecture": "arm64",
+    "node": "v22.21.1",
+    "logical_cpus": 10,
+    "cpu_model": "Apple M4"
+  },
+  "method": {
+    "mode": "ten-owner startup health diagnosis; no resource measurement",
+    "fixture_regression_ceilings": {
+      "counts": {
+        "1": {
+          "owner_rss_mib": 192,
+          "adoption_ms": 100,
+          "owner_cpu_one_core_percent": 1,
+          "owner_reaped_children_cpu_one_core_percent": 1,
+          "owner_interrupt_wakeups_per_second": 6
+        },
+        "10": {
+          "owner_rss_mib": 1536,
+          "adoption_ms": 300,
+          "owner_cpu_one_core_percent": 3,
+          "owner_reaped_children_cpu_one_core_percent": 3,
+          "owner_interrupt_wakeups_per_second": 60
+        },
+        "50": {
+          "owner_rss_mib": 6144,
+          "adoption_ms": 2500,
+          "owner_cpu_one_core_percent": 15,
+          "owner_reaped_children_cpu_one_core_percent": 15,
+          "owner_interrupt_wakeups_per_second": 350
+        }
+      },
+      "owner_rss_max_mib": 192,
+      "owner_descriptors": 32,
+      "shell_descriptors": 8,
+      "native_platform": "darwin"
+    },
+    "sample_ms": 30000,
+    "warmup_ms": 15000,
+    "launch_concurrency": 4,
+    "adoption_samples": 3,
+    "provider": "plain isolated /bin/sh; no native provider, sidecar or service manager",
+    "controller": "production RuntimeConnections and RuntimeReconciler in the test process; excludes daemon startup",
+    "screen_health": "one shell variable/marker command per owner before its first warmup; canonical retained marker plus settled persistence/history checked before every warmup and after each timed adoption, outside the adoption timer; read-only health attempts have a ten-second deadline",
+    "cpu": "cumulative ps CPU-time delta; percentage of one CPU core",
+    "cpu_precision": "Reported display-resolution margin allows one displayed CPU-time tick per owner; it is not a confidence interval and excludes asynchronous snapshot skew",
+    "reaped_child_cpu": "ps -S adds exited children, including terminal-monitor ps probes; excludes live children at sample boundaries and all controller/daemon CPU",
+    "rss": "resident size summed across processes; shared pages may be counted repeatedly",
+    "descriptors": "numeric open descriptors; excludes cwd, executable and mapped-library pseudoentries",
+    "native": "macOS installed-SDK proc_pid_rusage, calibrated against CPU clock/getrusage; exact PID start identities and per-read elapsed bounds; raw decimal counters retained",
+    "native_controller": "test process including Vitest, controller and measurement orchestration; self only, excludes reaped measurement tools; not isolated daemon overhead",
+    "native_children": "owner reaped-child counters exclude live children; shell self counters reported separately; these do not establish a complete process-tree total",
+    "native_wakeups": "interrupt and package-idle wakeup counters only; not total scheduler wakeups or energy consumption",
+    "native_regression_scope": "macOS requires calibrated native owner self/reaped-child CPU and owner interrupt-wakeup upper rates; Linux/native-unavailable results do not establish those ceilings"
+  },
+  "native_calibration": null,
+  "native_unavailable": null,
+  "completed": true,
+  "failure": null,
+  "failure_diagnostics": null,
+  "results": [
+    {
+      "count": 10,
+      "startup_health": "passed",
+      "resource_measurement": false
+    }
+  ]
+}
