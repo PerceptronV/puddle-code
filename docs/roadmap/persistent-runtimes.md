@@ -260,6 +260,15 @@ Implementation evidence so far:
   supervisor cleanup, provider-orphan proof and reference-aware asset collection
   remain separate release gates.
 
+- The existing host archive builder now bundles `puddled` and `puddler` through
+  one configuration, sharing pinned Node/native modules and launcher generation.
+  Archives carry `RUNTIME_PROTOCOL` beside application/connector metadata and use
+  the existing release `VERSION`. Version smoke checks run without starting an
+  owner. A release test reuses the runtime fixtures to verify the packaged shell's
+  PID and variable across controller replacement, and runs in both host release
+  CI jobs. Local verification also exercises an extracted archive. Independent
+  selectors, installation coordination and pinned-build retention remain pending.
+
 These are foundations for phases 0–3, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native
 dependency retention, production session/turn adoption and segment routing,

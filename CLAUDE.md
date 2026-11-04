@@ -62,7 +62,7 @@ packages/
                # anything both shells need goes in cli/src/lib, NEVER here. Build mirrors the
                # CLI's (scripts/build.mjs); `pnpm --filter @puddle-code/desktop dist` packages it.
 deploy/remote/       # self-hosted service/static app images, Caddy TLS ingress and private env example
-scripts/build-tarball.mjs   # self-contained puddled release tarball for the CURRENT platform
+scripts/build-tarball.mjs   # self-contained host archive: puddled, puddler and connector, CURRENT platform
 scripts/build-cli-tarball.mjs # self-contained CLI archive; shares scripts/lib/node-runtime.mjs
 scripts/install.sh          # internal daemon bootstrap, embedded in CLI/desktop; never published alone
 scripts/install-cli.sh      # public CLI installer, published as install.sh

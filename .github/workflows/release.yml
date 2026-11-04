@@ -50,6 +50,8 @@ jobs:
           # launch Electron - skip its ~100 MB binary download.
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - run: node scripts/build-tarball.mjs --version "${GITHUB_REF_NAME#v}"
+      - name: verify packaged runtime continuity
+        run: PUDDLE_TEST_RUNTIME_RELEASE="dist-release/stage/puddled-${GITHUB_REF_NAME}" node node_modules/vitest/vitest.mjs run packages/daemon/test/runtime/lifecycle/release.test.ts
       - name: build standalone CLI archive
         env:
           PUDDLE_REPO_SLUG: ${{ github.repository }}
@@ -83,6 +85,8 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - run: node scripts/build-tarball.mjs --version "${GITHUB_REF_NAME#v}"
+      - name: verify packaged runtime continuity
+        run: PUDDLE_TEST_RUNTIME_RELEASE="dist-release/stage/puddled-${GITHUB_REF_NAME}" node node_modules/vitest/vitest.mjs run packages/daemon/test/runtime/lifecycle/release.test.ts
       - name: build standalone CLI archive
         env:
           PUDDLE_REPO_SLUG: ${{ github.repository }}

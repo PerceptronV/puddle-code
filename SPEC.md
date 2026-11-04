@@ -160,6 +160,15 @@ the corresponding groups under `test/runtime/`, with shared fixtures in
 `test/helpers/`. The executable entry point stays stable and consumers import
 implementation modules directly.
 
+Host release archives now also contain `puddler`, `daemon/puddler.mjs` and plain
+`RUNTIME_PROTOCOL` metadata. Both host entry points share the archive's pinned Node
+and native modules, the common release `VERSION`, and one bundle configuration.
+`puddler --version` reports its build and private runtime protocol without starting
+an owner. Release CI verifies the packaged executable with an isolated shell and
+controller replacement. This packages the experimental backend; independent
+installation selectors, reference-aware retention and transactional updates remain
+required before installed/default enablement.
+
 The runtime agent state reports sidecar roots and hidden ports, and retains
 interactive fallback when installed-version checks fail. Codex lifecycle cleanup
 waits for app-server exit and escalates to SIGKILL after 1.5 seconds if needed.

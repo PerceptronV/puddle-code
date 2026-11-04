@@ -449,7 +449,30 @@ test skipped. Typecheck, scoped lint and formatting passed. Fixture imports and
 the acceptance commands above use the new paths; the `puddler` entry point is
 unchanged.
 
+Host release packaging uses the existing builder and native-module staging. Build
+and run the packaged-owner test without launching the installed daemon:
+
+```sh
+node scripts/build-tarball.mjs --out-dir /tmp/puddle-host-release
+PUDDLE_TEST_RUNTIME_RELEASE=/tmp/puddle-host-release/stage/puddled-v0.3.14 node node_modules/vitest/vitest.mjs run packages/daemon/test/runtime/lifecycle/release.test.ts
+```
+
+Adjust the stage version to the release being tested. The test uses the archive's
+`puddler` wrapper, pinned Node and native modules, checks version/protocol metadata
+and a side-effect-free version probe, then preserves the shell PID and variable
+through controller replacement before explicit stop. It reuses existing isolated
+runtime fixtures and sanitised environments. Both Linux and macOS host release
+jobs run this test after building their archive.
+
+Local verification on macOS 26.5.2/Node v22.21.1 built the complete darwin-arm64
+archive, verified its SHA256 and runtime entries, extracted it, and passed the
+packaged-owner test from that extracted tree. Existing daemon/connector version
+and puddlang smoke checks passed too. This verifies packaging and private owner
+continuity; installed upgrade transactions and native provider/platform gates
+remain outstanding.
+
 ## Remaining release gates
+
 
 
 Record platform, Node, release and provider versions with results. Run native

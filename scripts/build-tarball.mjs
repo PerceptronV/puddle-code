@@ -8,16 +8,19 @@
  *
  *   node scripts/build-tarball.mjs [--version X.Y.Z] [--out-dir dist-release] [--stage-only]
  *
- * Tarball tree (~27-34 MB gz; the pinned Node binary is >95% of it):
+ * Tarball tree (size depends on the platform and pinned Node binary):
  *   puddled-v<v>/
  *   ├── puddled            # sh launcher: exec bin/node daemon/puddled.mjs "$@"
+ *   ├── puddler            # same pinned Node/native dependencies, independent owner
  *   ├── VERSION
  *   ├── PROTOCOL           # exact major.minor, readable without executing puddled
  *   ├── CONNECTOR_PROTOCOL # remote protocol, display-only in the component inventory
+ *   ├── RUNTIME_PROTOCOL   # private daemon/runtime major.minor
  *   ├── LICENSE
  *   ├── bin/node           # pinned runtime, nothing else from the Node dist
  *   └── daemon/
  *       ├── puddled.mjs    # esbuild bundle (daemon + shared + hono + ws + zod + yazl)
+ *       ├── puddler.mjs    # independent runtime owner, from the same bundle configuration
  *       ├── host-control.mjs # private control relay and host-only legacy inspection
  *       └── node_modules/  # pruned node-pty, better-sqlite3, bindings, file-uri-to-path
  */
@@ -63,6 +66,11 @@ const connectorMatch = /REMOTE_PROTOCOL_VERSION\s*=\s*(\d+)/.exec(
   readFileSync(join(repoRoot, 'packages/shared/src/remote/protocol.ts'), 'utf8'),
 );
 if (!connectorMatch) fail('cannot read REMOTE_PROTOCOL_VERSION');
+const runtimeMatch = /RUNTIME_PROTOCOL_VERSION\s*=\s*{\s*major:\s*(\d+),\s*minor:\s*(\d+)\s*}/.exec(
+  readFileSync(join(repoRoot, 'packages/shared/src/runtime/protocol.ts'), 'utf8'),
+);
+if (!runtimeMatch) fail('cannot read RUNTIME_PROTOCOL_VERSION');
+const runtimeProtocol = `${runtimeMatch[1]}.${runtimeMatch[2]}`;
 const outDir = resolve(repoRoot, flag('--out-dir') ?? 'dist-release');
 const stageOnly = args.includes('--stage-only');
 
@@ -84,12 +92,16 @@ function log(message) {
   console.log(`build-tarball: ${message}`);
 }
 
-/* 1 — bundle the daemon (+ @puddle/shared from source) into one ESM file. */
-async function bundleDaemon() {
+/* 1 — bundle both host entry points against the same pinned native packages. */
+async function bundleHostProcesses() {
   mkdirSync(join(stage, 'daemon'), { recursive: true });
   await build({
-    entryPoints: [join(repoRoot, 'packages/daemon/src/index.ts')],
-    outfile: join(stage, 'daemon', 'puddled.mjs'),
+    entryPoints: {
+      puddled: join(repoRoot, 'packages/daemon/src/index.ts'),
+      puddler: join(repoRoot, 'packages/daemon/src/runtime/index.ts'),
+    },
+    outdir: join(stage, 'daemon'),
+    outExtension: { '.js': '.mjs' },
     bundle: true,
     platform: 'node',
     target: 'node22',
@@ -105,7 +117,10 @@ async function bundleDaemon() {
       '@puddle/shared/node': join(repoRoot, 'packages/shared/src/node/security.ts'),
       '@puddle/shared': join(repoRoot, 'packages/shared/src/index.ts'),
     },
-    define: { __PUDDLED_VERSION__: JSON.stringify(version) },
+    define: {
+      __PUDDLED_VERSION__: JSON.stringify(version),
+      __PUDDLER_VERSION__: JSON.stringify(version),
+    },
     // Bundled CJS deps keep guarded `require(...)` calls (ws's optional
     // natives); in an ESM bundle `require` must exist for them to fail softly.
     banner: {
@@ -115,9 +130,10 @@ async function bundleDaemon() {
     minify: false,
     logLevel: 'warning',
   });
-  log(
-    `bundled daemon (${(statSync(join(stage, 'daemon', 'puddled.mjs')).size / 1e6).toFixed(1)} MB)`,
-  );
+  for (const name of ['puddled', 'puddler'])
+    log(
+      `bundled ${name} (${(statSync(join(stage, 'daemon', `${name}.mjs`)).size / 1e6).toFixed(1)} MB)`,
+    );
 }
 
 /* 2 — copy the two native packages, pruned to their runtime shape. */
@@ -193,21 +209,23 @@ function writeMetadata() {
   // dirname of ~/.puddle/bin/current/puddled resolves THROUGH the `current`
   // symlink, so bin/node is found without readlink -f. install.sh writes
   // ~/.puddle/bin/puddled as an exec wrapper (never a symlink) for this reason.
-  writeFileSync(
-    join(stage, 'puddled'),
-    '#!/bin/sh\ndir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)\nexec "$dir/bin/node" "$dir/daemon/puddled.mjs" "$@"\n',
-  );
-  chmodSync(join(stage, 'puddled'), 0o755);
-  writeFileSync(
-    join(stage, 'puddle-connector'),
-    '#!/bin/sh\ndir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)\nexec "$dir/bin/node" "$dir/daemon/connector.mjs" "$@"\n',
-  );
-  chmodSync(join(stage, 'puddle-connector'), 0o755);
+  for (const [name, entry] of [
+    ['puddled', 'puddled'],
+    ['puddler', 'puddler'],
+    ['puddle-connector', 'connector'],
+  ]) {
+    writeFileSync(
+      join(stage, name),
+      `#!/bin/sh\ndir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)\nexec "$dir/bin/node" "$dir/daemon/${entry}.mjs" "$@"\n`,
+    );
+    chmodSync(join(stage, name), 0o755);
+  }
   writeFileSync(join(stage, 'VERSION'), `${version}\n`);
   // Read directly by `puddle --version`; an offline inventory must never
   // execute an unknown historical daemon just to discover compatibility.
   writeFileSync(join(stage, 'PROTOCOL'), `${protocolVersion}\n`);
   writeFileSync(join(stage, 'CONNECTOR_PROTOCOL'), `${connectorMatch[1]}\n`);
+  writeFileSync(join(stage, 'RUNTIME_PROTOCOL'), `${runtimeProtocol}\n`);
   cpSync(join(repoRoot, 'LICENSE'), join(stage, 'LICENSE'));
 }
 
@@ -221,7 +239,10 @@ function smokeTest() {
     encoding: 'utf8',
   });
   if (!connector.startsWith('puddle-connector ')) fail('connector smoke test failed');
-  log(`smoke test passed: ${out.trim()}; ${connector.trim()}`);
+  const runtime = execFileSync(join(stage, 'puddler'), ['--version'], { encoding: 'utf8' });
+  if (runtime.trim() !== `puddler ${version} (runtime protocol ${runtimeProtocol})`)
+    fail('runtime smoke test failed');
+  log(`smoke test passed: ${out.trim()}; ${connector.trim()}; ${runtime.trim()}`);
 }
 
 /* 6 — tar + checksum. */
@@ -239,7 +260,7 @@ function pack() {
 
 rmSync(stage, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
-await bundleDaemon();
+await bundleHostProcesses();
 await build({
   entryPoints: ['runner', 'runtime-api', 'zod'].map((name) =>
     join(repoRoot, `packages/daemon/src/puddlang/${name}.ts`),
