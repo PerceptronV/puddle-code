@@ -68,6 +68,16 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- The calibrated macOS plain-shell resource run now passes at 1, 10 and 50
+  independent owners using production memory admission and controller acquisition.
+  At 50, summed owner RSS was 2,669 MiB, self CPU 3.70% of one core, reaped-child
+  CPU 4.91%, interrupt wakeups 109.75/s and median re-adoption 416 ms. Existing
+  RSS/descriptor/adoption ceilings passed. All 101 sampled processes were confirmed
+  absent after cleanup. Raw results, source/bundle fingerprints and both earlier
+  fixture-contention failures are preserved in the
+  [resource report](../reports/2026-11-04-persistent-runtime-resources.md).
+  Linux, real-provider and active-output measurements remain separate gates.
+
 - Codex bridge buffers now share the owner grant. Unsent traffic pauses under
   pressure without closing the native CLI; fragmented receive charges transfer
   through sender callbacks, compact JSON admits node metadata before parsing, and

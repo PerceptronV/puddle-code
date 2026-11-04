@@ -1,14 +1,13 @@
 # Persistent runtime resource baseline — 4 November 2026
 
-The latest calibrated macOS sample completed at **one and ten idle shell
-runtimes** with the production host memory allowance wired in. At ten, summed
-owner RSS was **712.48 MiB**, self CPU was **1.460% of one core**, and reaped-child
-CPU was **0.848%**. Owners recorded **25.40 interrupt wakeups per second** in total.
-Fifty owners passed launch/readiness, but fixture controller acquisition then
-stopped on SQLite contention before the fifty-owner measurement;
-the memory guard did not refuse this run. No fifty-runtime native measurement
-exists yet. See “Current host-allowance composition” for this partial result and
-“Calibrated native counters” for the earlier memory-guard refusal.
+The latest calibrated macOS sample **passed at one, ten and fifty idle shell
+runtimes**, with the production host memory allowance and controller acquisition.
+At fifty, summed owner RSS was **2,669.14 MiB**, self CPU was **3.700% of one core**,
+and reaped-child CPU was **4.908%**. Owners recorded **109.75 interrupt wakeups per
+second**; median controller re-adoption took **416.26 ms**. All existing fixture
+ceilings passed, and cleanup confirmed every tracked owner and shell had exited.
+See “Completed calibrated run” for the results. Both earlier partial attempts and
+the historical memory-guard refusal remain recorded below.
 
 The earlier fifty-runtime observation used **3,355 MiB of summed owner RSS** in the
 settled measurement. Their median controller re-adoption took **402 ms**. The
@@ -389,15 +388,63 @@ were absent. An independent post-run check again found all 21 sampled PIDs
 absent and the temporary bundle removed. A further run is needed to collect
 fifty-owner native measurements with the corrected controller composition.
 
+### Completed calibrated run
+
+The third host-allowance run began at **2026-11-04 20:38 UTC**, from clean commit
+`2eba20b`. It **passed all three scales in 147.33 seconds** using the corrected
+fixture admission and the existing production controller acquisition. No
+product fallback, memory-guard relaxation, concurrency increase or retry of a
+dispatched process was added. The [complete raw report](persistent-runtimes/resources/2026-11-04-host-allowance-native-complete.json)
+and [source/bundle provenance](persistent-runtimes/resources/2026-11-04-host-allowance-native-complete-provenance.json)
+preserve the calibrated counters and exact source snapshot separately from the
+two partial runs.
+
+| Runtimes | Summed owner RSS, MiB | Owner RSS median / max, MiB | Owner self CPU, % of one core | Owner reaped-child CPU, % of one core | Owner interrupt wakeups/s | Median / maximum re-adoption, ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 77.81 | 77.81 / 77.81 | 0.030 | 0.070 | 2.03 | 22.12 / 23.36 |
+| 10 | 779.69 | 77.88 / 79.25 | 0.683 | 0.838 | 22.76 | 90.36 / 103.06 |
+| 50 | 2,669.14 | 49.34 / 68.89 | 3.700 | 4.908 | 109.75 | 416.26 / 438.74 |
+
+Every owner had **26 numeric descriptors** and every shell four: 1,300 owner
+descriptors and 200 shell descriptors at fifty, distributed across independent
+processes. Shell RSS totals were 2.25, 22.50 and 60.16 MiB. Shell self CPU and
+wakeups remained zero during all three windows. Controller-plus-harness self CPU
+was 0.026%, 0.023% and 0.043% of one core, with interrupt wakeups of 1.27/s,
+1.30/s and 1.30/s. At fifty, reaped owner children also recorded 0.83 interrupt
+wakeups/s. All sampled groups recorded zero package-idle wakeups. Reaped-child
+CPU still excludes live children, and the controller measurement still includes
+the test harness; this is not a complete production process-tree or energy budget.
+
+Calibration passed at timebase 125/3: converted self CPU was 50.005 ms versus
+50.003 ms and 50.002 ms from the independent clocks; reaped-child CPU was
+50.199 ms versus 50.198 ms. Five controlled sleeps again recorded five interrupt
+and zero package-idle wakeups. The unchanged admission guard saw 56% headroom
+before each scale, and the last fifty-owner observation recorded 50% of 24 GiB.
+
+All three scales passed the existing RSS, descriptor and adoption ceilings;
+the report records no fixture regressions. The lower median RSS at fifty is not
+a measured saving from the host allowance: shared pages, compression/reclamation,
+garbage collection and workstation activity prevent that attribution. The run
+establishes a complete calibrated macOS plain-shell baseline, not a statistical
+tail bound or an approved CPU/wakeup ceiling.
+
+The harness verified every tracked owner exited and every known shell was absent
+before writing the report. An independent post-run check found **all 101 sampled
+PIDs absent**: fifty owners, fifty shells and the controller/test process. The
+temporary bundle was removed. No installed service, real provider home or
+production daemon was modified.
+
 ## Remaining resource gates
 
-Native macOS interrupt/package-idle wakeups are now measured at one and ten
-plain-shell runtimes; fifty runtimes and equivalent Linux measurements remain
-open. Provider CLI/sidecar overhead, isolated controller/daemon RSS and CPU,
+Native macOS interrupt/package-idle wakeups are now measured at one, ten and fifty
+plain-shell runtimes. Repeatability on controlled runners, equivalent Linux
+measurements and approved CPU/wakeup ceilings remain open. Provider CLI/sidecar
+overhead, isolated controller/daemon RSS and CPU,
 service-manager overhead, active output and slow
 consumers, host-wide retained storage and native-provider workloads remain open.
 This report supplies a repeatable baseline and proposed
 monitoring limits; it does not claim all resource acceptance gates are met. Its
 RSS limits are distinct from the implemented transport/viewer buffer capacities.
-Those capacities do not establish a total host memory ceiling or replace workload
+The shared host allowance bounds charged managed capacity; it does not bound
+total RSS, provider memory or operating-system caches, or replace workload
 measurements.

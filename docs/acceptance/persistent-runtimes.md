@@ -1322,14 +1322,18 @@ behaviour. Provider overhead, reliable CPU/wakeup budgets, remaining host memory
 and native-platform workload measurements are still required; these limits do not
 close the resource gate below.
 
-The calibrated native run completed the 1- and 10-owner samples; the unchanged
-memory guard refused the 50-owner sample. Owner screens/raw history and host-wide
+The latest calibrated native run completed the 1-, 10- and 50-owner samples with
+the unchanged memory guard. At 50, summed owner RSS was 2,669 MiB and median
+re-adoption was 416 ms; all existing fixture ceilings passed and all sampled
+processes were confirmed absent after cleanup. Earlier guard/contention refusals
+remain in the report. Owner screens/raw history and host-wide
 programme-result charges now have explicit bounds, and verified retired raw logs
 use bounded compaction. Runtime owners now share a sealed host memory ledger,
 with pre-dispatch admission, process-lifetime claims and bounded idle returns.
 Logs, checkpoints and IPC decoding retain their charges across asynchronous work.
-The updated launchd controller-replacement check passed with this composition;
-provider-pressure and scaled workload verification remain open. Incremental
+The updated launchd controller-replacement check passed with this composition.
+Fake-Codex pressure/retention checks also passed; native-provider and active-output
+workload verification remain open. Incremental
 filesystem inventory and fixed temporary persistence slots are implemented, but
 a physical host filesystem quota is outside this design. The managed memory
 limits do not include arbitrary native-agent stores or total process RSS.
