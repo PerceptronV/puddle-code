@@ -808,6 +808,16 @@ legacy recursive deletion script. Coordinated purge currently refuses before any
 mutation. Reference-aware file collection, purge and complete platform/provider
 acceptance remain required. Successful runtime disposition or service unregistration
 alone never authorises deleting a release, runtime record or home.
+The internal collection review under `host/installation/collection/` reads bounded
+release/reference inventories while retaining installer/update/controller exclusion
+and the update-writer claim. It pins selectors, retained runtime bindings and helper/
+supervisor executables, update receipts/checkpoints and worker/recovery jobs even
+outside bounded operation history, plus retained removal records. Ended bindings
+still pin their build until descendant/asset retirement is proven. Unknown or unsafe
+evidence prevents a review. Verified unreferenced generations become candidates after
+seven days; the fingerprint binds their receipt, inode, reference list and candidate
+set. This review deletes nothing. Durable collection execution, obsolete-reference
+retirement and coordinated purge remain unfinished.
 
 Migration 032 records terminal generations per segment and explicitly selects each
 placement's terminal owner. Runtime launches/switches update that selection in the

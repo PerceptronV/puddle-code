@@ -46,6 +46,19 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Internal release-collection review now inventories immutable generations under
+  installer/update/controller exclusion and the existing update-writer claim.
+  It retains both selectors, every retained SQLite runtime binding, pinned helper
+  executables, runtime supervisor records, staged update receipts, checkpoints,
+  worker/recovery jobs (including those outside bounded history), and removal records.
+  Reads are bounded and directory/database scans yield; unknown, linked or missing
+  reference evidence blocks the review. Only verified unreferenced generations older
+  than seven days are candidates, bound with their inode/receipt/reference inventory
+  in a fingerprint. Tests use real SQLite bindings, including ended owners: descendant
+  retirement is not yet proven, so their builds remain pinned. This is review only;
+  durable collection execution, retirement of obsolete references, public integration
+  and coordinated purge remain unfinished. No protocol changes are made.
+
 - Explicit removal continuation now finishes partially disabled remote registrations
   through the selected connector helper. It binds the exact active removal id,
   selected release and started disable step, checking again across asynchronous work.
@@ -1490,6 +1503,10 @@ Retain old release trees while referenced by a runtime, update worker, daemon,
 connector, hook or supported rollback target. Collect them only after verified
 release of all references. Bound unreferenced cache and journal retention; report
 space consumed by intentionally pinned old builds rather than deleting them.
+The initial release-tree retention policy keeps verified unreferenced generations
+for seven days. Unverified/legacy trees remain retained until ownership can be
+established. Collection reviews include the candidate set in their fingerprint;
+ageing into eligibility cannot silently enlarge an earlier accepted deletion plan.
 
 ### What each action means
 

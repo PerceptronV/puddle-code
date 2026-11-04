@@ -73,6 +73,21 @@ export class RuntimeStore {
       .all(limit) as RuntimeBinding[];
   }
 
+  /** Retained bindings still pin their build until descendant/asset retirement is proven. */
+  releaseReferences(
+    after = '',
+    limit = 128,
+  ): Array<Pick<RuntimeBinding, 'runtime_id' | 'release_path'>> {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 256)
+      throw new Error('Invalid runtime reference page limit');
+    return this.db
+      .prepare(
+        `SELECT runtime_id, release_path FROM runtime_bindings
+      WHERE runtime_id > ? ORDER BY runtime_id LIMIT ?`,
+      )
+      .all(after, limit) as Array<Pick<RuntimeBinding, 'runtime_id' | 'release_path'>>;
+  }
+
   unstartedProgrammeSessions(): Set<string> {
     return new Set(
       (
