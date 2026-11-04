@@ -43,6 +43,7 @@ import { waitFor } from '../../helpers/daemon-fixtures.js';
 import { placement } from '../../helpers/runtime-placement.js';
 import { resolveInstalledRuntimeRelease } from '../../../src/runtime/lifecycle/release.js';
 import { DATABASE_SCHEMA_VERSION } from '../../../src/db/migrations/index.js';
+import { verifyPackagedNotes } from '../../helpers/runtime/releases/notes.js';
 
 async function cleanupPackagedWorker(
   home: string,
@@ -302,5 +303,10 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
     const exited = once(child, 'exit');
     await next.request({ t: 'stop', placement: placement(next) });
     expect((await exited)[0]).toBe(0);
+    if (archive) {
+      next.close();
+      controller.release();
+      await verifyPackagedNotes(stage, f.home, env, version);
+    }
   },
 );

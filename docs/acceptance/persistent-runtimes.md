@@ -24,8 +24,9 @@ or embedded-asset requests from the preview. Protocol remains 26.1; remote 5 and
 runtime 1.0 are unchanged.
 
 The [final local archive verification](../reports/persistent-runtimes/2026-11-04-packaged-verification.md)
-records the 0.4.0 macOS arm64 archive from source `159a348`, its SHA-256,
-and the passing packaged updater/runtime check (23.93 seconds). Four separate
+records the 0.4.0 macOS arm64 archive from source `7d2825d`, its SHA-256,
+and the passing packaged updater/runtime and authenticated release-notes check
+(19.48 seconds). Four separate
 native launchd checks passed in 187.22 seconds with exact fixture job/process
 cleanup. That native run began before the final narrow storage fix landed; its
 source timing and unique-label limitations are recorded separately from the final

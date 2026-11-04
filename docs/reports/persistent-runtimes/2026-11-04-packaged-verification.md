@@ -1,21 +1,49 @@
 # Isolated host archive and native upgrade verification
 
-The final macOS arm64 host archive was built from production source
-`159a348af1e24cb20f821d7a33d03cfdb4c165ac` on 4 November 2026. Pending
-working-tree changes affected unrelated test helpers only. This records local
-acceptance evidence; it does not certify a published or installed production upgrade.
+The latest macOS arm64 host archive was built from clean production source
+`7d2825dd801596523ae2b0acb3b72f59a7665146` on 4 November 2026, after release-notes
+packaging and the read-only endpoint landed. This records local acceptance evidence;
+it does not certify a published or installed production upgrade. The earlier archive
+and native results below remain separate historical evidence.
 
-| Item                       | Result                                                                            |
-| -------------------------- | --------------------------------------------------------------------------------- |
-| Archive                    | `puddled-v0.4.0-darwin-arm64.tar.gz`                                              |
-| SHA-256                    | `c960b598744dc1ac110b1e2946b30c0dd1c7860313f27ee1ae94bf135555e7e4`                |
-| Platform                   | macOS 26.5.2, arm64                                                               |
-| Packaged Node              | 22.21.1                                                                           |
-| Protocols                  | Application 26.1; remote 5; runtime 1.0                                           |
-| Database schema            | 41                                                                                |
-| Archive smoke              | Executable versions, capabilities, native dependencies and puddlang runner passed |
-| Final packaged continuity  | 1 test passed in 23.93 seconds                                                    |
-| Separate native continuity | 4 tests in 3 files passed in 187.22 seconds                                       |
+| Item                          | Latest archive result                                                             |
+| ----------------------------- | --------------------------------------------------------------------------------- |
+| Archive                       | `puddled-v0.4.0-darwin-arm64.tar.gz`                                              |
+| SHA-256                       | `4beaef97998b7b4abb6962eec1a975cd6484c5afbfdb0c224c96a6d256b603e5`                |
+| Platform / packaged Node      | macOS 26.5.2, arm64 / Node 22.21.1                                                |
+| Protocols / schema            | Application 26.1; remote 5; runtime 1.0 / schema 41                               |
+| Archive smoke                 | Executable versions, capabilities, native dependencies and puddlang runner passed |
+| Packaged continuity and notes | 1 test passed in 19.48 seconds                                                    |
+| Release notes                 | 10,293 UTF-8 bytes; exact shared build-helper output                              |
+| Release-notes SHA-256         | `c618938dbac47829588fbb8a7e4129d33014b659480508a0ec43b5d35bb8f27b`                |
+
+The extended packaged test starts the actual bundled daemon in the existing isolated
+fixture home after the runtime has exited and the controller has released its claim.
+An authenticated `GET /api/release-notes` must return the original bundled daemon
+markdown and the separately selected runtime tree's markdown. Before startup, only
+the copied fixture daemon tree's `RELEASE_NOTES.md` is changed to a sentinel; its
+response must still contain the embedded original. The selected runtime tree is
+distinct and untouched. Cleanup confirms daemon exit zero and restores the fixture
+file. This proves the running-bundle/selected-runtime distinction without starting
+providers or addressing installed services. Strict fixture TypeScript, lint and
+formatting passed. The four native gates were not repeated for this notes-only
+packaging change.
+
+The preceding macOS arm64 host archive was built from production source
+`159a348af1e24cb20f821d7a33d03cfdb4c165ac` on 4 November 2026. Pending
+working-tree changes affected unrelated test helpers only.
+
+| Item                        | Result                                                                            |
+| --------------------------- | --------------------------------------------------------------------------------- |
+| Archive                     | `puddled-v0.4.0-darwin-arm64.tar.gz`                                              |
+| SHA-256                     | `c960b598744dc1ac110b1e2946b30c0dd1c7860313f27ee1ae94bf135555e7e4`                |
+| Platform                    | macOS 26.5.2, arm64                                                               |
+| Packaged Node               | 22.21.1                                                                           |
+| Protocols                   | Application 26.1; remote 5; runtime 1.0                                           |
+| Database schema             | 41                                                                                |
+| Archive smoke               | Executable versions, capabilities, native dependencies and puddlang runner passed |
+| Earlier packaged continuity | 1 test passed in 23.93 seconds                                                    |
+| Separate native continuity  | 4 tests in 3 files passed in 187.22 seconds                                       |
 
 The archive and adjacent checksum were retained as local build artefacts; they are
 not checked into the repository or published. Build and run the packaged check
@@ -57,8 +85,8 @@ they never address installed daemon/connector labels or real provider accounts.
 
 The native run began at `7d94fd538ee0d822d575fa6fb869017b68b55957`; the narrow
 host-memory storage fix was committed while it ran. It is therefore transitional
-source evidence, not proof that every native fixture bundle matches the final
-archive. Both native transition release labels use current source, not historical
+source evidence, not proof that every native fixture bundle matches either
+archive above. Both native transition release labels use current source, not historical
 released binaries. The native worker journey begins at fixture-prepared approval
 and dispatch because installed-label preflight is deliberately excluded. It
 complements the full coordinator gates rather than replacing them.

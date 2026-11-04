@@ -75,6 +75,17 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Component release notes now ship in the host archive and cockpit build. Installed
+  daemon/runtime notes reuse bounded release metadata reads and the existing
+  authenticated read-only API; the cockpit previews only the corresponding
+  component sections, remembers rendered notes and observes runtime-only updates
+  through existing refreshes. Seventy-eight focused checks, isolated desktop/mobile
+  browser acceptance, TypeScript and lint pass. The application protocol remains
+  26.1 as requested; released protocol-25 hosts already require an approved upgrade.
+  The fresh host archive from `7d2825d` passed packaged continuity and authenticated
+  notes verification in 19.48 seconds; see the
+  [packaged verification report](../reports/persistent-runtimes/2026-11-04-packaged-verification.md).
+
 - A fresh 0.4.0 macOS arm64 host archive from source `159a348` passed executable,
   capability, native-dependency and puddlang smoke checks plus the packaged
   installer/updater/runtime continuity test (23.93 seconds). Four native launchd
