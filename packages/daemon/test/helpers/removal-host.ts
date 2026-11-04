@@ -26,6 +26,9 @@ export function removalHostFixture(home?: string) {
       if (command.args[1] === '--disable-all') {
         remote.enabled = false;
         if (remote.loseDisableReply) throw new Error('Lost disable reply');
+      } else if (command.args[1] === '--continue-removal-disable') {
+        if (!command.args[2]) throw new Error('Missing removal id');
+        remote.enabled = false;
       } else if (command.args[1] !== '--verify-disabled' || remote.enabled)
         throw new Error('Remote access remains enabled');
       return { exitCode: 0, stdout: '', stderr: '' };

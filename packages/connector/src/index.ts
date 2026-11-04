@@ -2,6 +2,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { jsonLines } from '@puddle/shared/node';
 import { disableAllProfiles, requireAllProfilesDisabled } from './host/disable.js';
+import { continueRemovalDisable } from './host/removal.js';
 import { administrativeRequest, configureConnector, resetConnectorIdentity } from './admin.js';
 import { inspectConnector } from './inspect.js';
 import { startConnectorManager } from './manager.js';
@@ -22,6 +23,10 @@ if (process.argv.includes('--version')) {
   await disableAllProfiles(home);
 } else if (process.argv.includes('--verify-disabled')) {
   requireAllProfilesDisabled(home);
+} else if (process.argv.includes('--continue-removal-disable')) {
+  if (process.argv[2] !== '--continue-removal-disable' || process.argv.length !== 4)
+    throw new Error('Remote disable continuation requires one removal id');
+  await continueRemovalDisable(home, process.argv[3]!);
 } else if (
   ['--inspect', '--reset', '--admin', '--configure'].some((flag) => process.argv.includes(flag))
 ) {

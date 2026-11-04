@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Continue partially disabled remote registrations during explicit daemon removal. Reuse profile writer locks and disablement, bind continuation to the exact active removal, and observe already-disabled registrations and lost replies without rewriting their files or repeating requests. Preserve credentials and grants through removal/reinstallation.
+
 - Resume interrupted daemon/connector unregistration between disablement, failed-state reset, definition deletion and manager reload. Record each step through the existing removal journal, verify consumed effects without repeating commands, and sync reviewed definition deletion before proceeding. Retain older coarse records without inventing continuation steps.
 
 - Coordinate local/SSH daemon removal with durable remote disablement, verified service teardown and an exact runtime retention/stop review. Retain independent runtimes by default; add `--stop-runtimes` for explicit termination. Preserve pinned releases and data for reinstallation, inspect exact completion attempts after lost replies, and prevent persistent installations from using legacy deletion. Coordinated purge remains unfinished and refuses before mutation.

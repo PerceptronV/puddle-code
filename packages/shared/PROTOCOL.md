@@ -17,6 +17,13 @@ The optional private `disable-remote` service action preserves older internal jo
 public removal requires it. The selected connector's host-only disable/verification
 entries reuse existing profile administration. Configuration enablement and connector
 startup are fenced during removal; disablement remains available for recovery.
+The selected connector also accepts explicit continuation bound to the exact active
+removal id, selected release and started disable action. Under existing profile writer
+locks it observes/syncs disabled registrations and disables those still enabled.
+Lost live replies inspect an already-persisted disabled result without rewriting it.
+This host-only desired-state reconciliation adds no network shape, journal format,
+lease or grant; all three protocol versions remain unchanged. Finished disable steps
+are observation-only and never permit re-enablement to be silently overwritten.
 
 Private removal service records under `installation/removal/` validate retained
 service reviews, original definitions and serial action intent. They are host-only

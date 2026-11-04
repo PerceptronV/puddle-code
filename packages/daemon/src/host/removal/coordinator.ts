@@ -59,11 +59,17 @@ async function stopServices(
   operation: HostRemovalServiceOperation,
   options: Options,
 ) {
-  const remote = (action: 'disable' | 'verify') =>
-    removalRemoteAccess(guard, action, options.authorised, options.run);
+  const remote = (action: 'disable' | 'verify' | 'continue') =>
+    removalRemoteAccess(
+      guard,
+      action === 'continue' ? { removalId: operation.read().id } : action,
+      options.authorised,
+      options.run,
+    );
   await operation.disableRemote(
     () => remote('disable'),
     () => remote('verify'),
+    () => remote('continue'),
   );
   for (const { review } of operation.read().services) {
     const steps = operation.read().actions;

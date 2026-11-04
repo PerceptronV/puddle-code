@@ -13,8 +13,19 @@ export async function buildHostUpdateEntry(root: string) {
   copyFileSync(process.execPath, node, constants.COPYFILE_FICLONE);
   writeFileSync(join(root, 'daemon/install.sh'), '');
   symlinkSync(join(repo, 'packages/daemon/node_modules'), join(root, 'daemon/node_modules'));
+  await buildEntry(repo, entry, 'packages/daemon/src/updates/worker/index.ts');
+  return { entry, node };
+}
+
+/** Real connector management entry alongside an already prepared pinned host helper. */
+export async function buildHostConnectorEntry(root: string): Promise<void> {
+  const repo = fileURLToPath(new URL('../../../../', import.meta.url));
+  await buildEntry(repo, join(root, 'daemon/connector.mjs'), 'packages/connector/src/index.ts');
+}
+
+async function buildEntry(repo: string, entry: string, source: string): Promise<void> {
   await build({
-    entryPoints: [join(repo, 'packages/daemon/src/updates/worker/index.ts')],
+    entryPoints: [join(repo, source)],
     outfile: entry,
     bundle: true,
     platform: 'node',
@@ -29,6 +40,7 @@ export async function buildHostUpdateEntry(root: string) {
     define: {
       __PUDDLED_VERSION__: '"0.4.0"',
       __PUDDLER_VERSION__: '"0.4.0"',
+      __CONNECTOR_VERSION__: '"0.4.0"',
       'process.platform': '"linux"',
     },
     banner: {
@@ -36,5 +48,4 @@ export async function buildHostUpdateEntry(root: string) {
     },
     logLevel: 'warning',
   });
-  return { entry, node };
 }

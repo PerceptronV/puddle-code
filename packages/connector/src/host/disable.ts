@@ -8,7 +8,7 @@ import {
   syncPrivateDirectory,
 } from '@puddle/shared/node';
 import { registeredProfiles, profileDirectory } from '../profile-state.js';
-import { administrativeRequest } from '../admin.js';
+import { disableConnectorIfEnabled } from '../admin.js';
 
 function config(path: string) {
   try {
@@ -36,16 +36,23 @@ function profiles(home: string): string[] {
 }
 
 /** Host removal reuses ordinary per-profile disable; never deletes registrations or grants. */
-export async function disableAllProfiles(home: string): Promise<void> {
+export async function disableAllProfiles(
+  home: string,
+  requireCurrent: () => void = () => {},
+): Promise<void> {
+  requireCurrent();
   const registered = profiles(home);
   const legacy = join(home, 'remote/config.json');
   const previous = config(legacy);
-  if (previous) atomicPrivateJson(legacy, { ...previous, enabled: false }, { syncDirectory: true });
+  if (previous?.enabled) {
+    requireCurrent();
+    atomicPrivateJson(legacy, { ...previous, enabled: false }, { syncDirectory: true });
+  }
   for (const profile of registered) {
     if (!config(join(profileDirectory(home, profile), 'config.json'))) continue;
-    const result = await administrativeRequest(home, { t: 'disable' }, profile);
-    if (result.error) throw new Error('Could not disable remote access');
+    await disableConnectorIfEnabled(home, profile, requireCurrent);
   }
+  requireCurrent();
   requireAllProfilesDisabled(home);
 }
 

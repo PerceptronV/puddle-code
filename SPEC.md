@@ -793,6 +793,15 @@ unavailable evidence remains unresolved. Remote disablement precedes either serv
 stop and is verified again before completion; profile enablement and new connector
 startup are fenced meanwhile. Registration credentials and grants are retained but
 disabled, including after deliberate reinstallation.
+If disablement stops partway through the profiles, a later explicit removal continues
+through the selected connector helper with the exact removal id. It requires the same
+selected release and started disable action, and rechecks that record across async
+boundaries. Existing profile writer locks serialise inspection and disablement. Already
+disabled registrations are observed and synced without rewriting or sending another
+request; still-enabled registrations follow ordinary disablement. A lost live reply
+also observes an already-persisted disabled result. This is reconciliation of a durable
+disabled state while re-enablement is fenced, not replay of a session command. Finished
+disable steps remain observation-only; renewed enablement then blocks removal.
 The CLI preserves data and selected/pinned release files and directs users to
 `puddle install daemon` for restoration. Persistent installations cannot reach the
 legacy recursive deletion script. Coordinated purge currently refuses before any

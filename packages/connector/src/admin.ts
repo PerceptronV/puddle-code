@@ -19,6 +19,7 @@ import {
   jsonLines,
   privatePath,
   readPrivateJson,
+  syncPrivateDirectory,
 } from '@puddle/shared/node';
 import { installConnectorSupervisor, supervisorKind } from './supervisor.js';
 import { createIdentity } from '@puddle/remote-transport';
@@ -68,13 +69,16 @@ async function requestUnlocked(
   home: string,
   value: unknown,
   profile: string,
+  requireCurrent: () => void = () => {},
 ): Promise<RemoteAdminResponse> {
+  requireCurrent();
   profileDirectory(home, profile); // Validate before constructing an IPC name.
   const request = connectorLocalRequestSchema.parse(value);
   let result: RemoteAdminResponse;
   try {
     result = await exchange(home, request, profile);
   } catch (error) {
+    requireCurrent();
     const directory = profileDirectory(home, profile);
     if (request.t === 'delete_registration') {
       // A timeout or lost acknowledgement does not prove the live writer has stopped.
@@ -90,7 +94,9 @@ async function requestUnlocked(
     if (request.t === 'status')
       return { enabled: config.enabled, connected: false, host: config.host };
     if (request.t === 'disable') {
-      atomicPrivateJson(path, { ...config, enabled: false }, { syncDirectory: true });
+      if (config.enabled)
+        atomicPrivateJson(path, { ...config, enabled: false }, { syncDirectory: true });
+      else syncPrivateDirectory(directory);
       return { enabled: false, connected: false };
     }
     // Revocation can be made durable with the connector stopped.
@@ -107,6 +113,7 @@ async function requestUnlocked(
       cause: error,
     });
   }
+  requireCurrent();
   if (request.t === 'delete_registration' && !result.error)
     await flushRegistrationCleanup(profileDirectory(home, profile));
   return result;
@@ -197,6 +204,34 @@ export function administrativeRequest(
   return request.t === 'status' || request.t === 'devices'
     ? requestUnlocked(home, request, profile)
     : profileMutation(home, profile, () => requestUnlocked(home, request, profile));
+}
+
+/** Removal reconciles durable disablement under the same lock as configuration writers. */
+export function disableConnectorIfEnabled(
+  home: string,
+  profile: string,
+  requireCurrent: () => void,
+): Promise<void> {
+  return profileMutation(home, profile, async () => {
+    requireCurrent();
+    const directory = profileDirectory(home, profile);
+    let config;
+    try {
+      config = connectorConfigSchema.parse(
+        readPrivateJson(join(directory, 'config.json'), 64 * 1024),
+      );
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+      throw error;
+    }
+    if (!config.enabled) {
+      syncPrivateDirectory(directory);
+      return;
+    }
+    const result = await requestUnlocked(home, { t: 'disable' }, profile, requireCurrent);
+    requireCurrent();
+    if (result.error) throw new Error('Could not disable remote access');
+  });
 }
 export function configureConnector(
   home: string,

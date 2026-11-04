@@ -119,10 +119,19 @@ export class HostRemovalServiceOperation {
     return this.writer.read();
   }
 
-  async disableRemote(execute: () => Promise<void>, verify: () => Promise<void>): Promise<void> {
+  async disableRemote(
+    execute: () => Promise<void>,
+    verify: () => Promise<void>,
+    continuePending: () => Promise<void>,
+  ): Promise<void> {
     const step = this.read().actions.find(({ action }) => action === 'disable-remote');
     if (!step) throw new Error('Removal has no accepted remote disable step');
-    if (step.state !== 'planned') return this.writer.observe('disable-remote', verify);
+    if (step.state !== 'planned') {
+      // Disablement is a monotonic desired state while this removal fences
+      // configuration. Explicit continuation reconciles only still-enabled profiles.
+      if (step.state === 'started') await continuePending();
+      return this.writer.observe('disable-remote', verify);
+    }
     await this.writer.run('disable-remote', async () => {
       await execute();
       await verify();

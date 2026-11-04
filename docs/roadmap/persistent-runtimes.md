@@ -46,6 +46,19 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Explicit removal continuation now finishes partially disabled remote registrations
+  through the selected connector helper. It binds the exact active removal id,
+  selected release and started disable step, checking again across asynchronous work.
+  Re-enablement remains fenced. Existing per-profile mutation locks and administration
+  reconcile the durable disabled state: completed profiles are observed and synced
+  without rewriting files or sending another request; still-enabled profiles are
+  disabled before either service stops. Lost live replies inspect the persisted result.
+  Isolated tests cover partial failure, writer contention, changed removal evidence
+  and lost acknowledgements; the built CLI journey now uses the real connector helper
+  to continue between two profiles and preserve their disabled registrations through
+  reinstallation. No new journal, network permission or protocol change is introduced.
+  Collection/purge and complete platform/provider acceptance remain open.
+
 - New removal journals separately record service disablement, failed-state reset,
   definition deletion and manager reload, reusing the existing durable action writer.
   Explicit continuation verifies consumed steps and dispatches only the remaining
