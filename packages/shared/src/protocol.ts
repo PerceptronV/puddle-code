@@ -319,4 +319,5 @@
 // 25.10: explicit daemon-owned interruption approval tied to exact update inspection.
 // 25.11: explicit local/SSH recovery verification without replaying component commands.
 // 25.12: explicit host-update continuation and recorded recovery inspection.
-export const PROTOCOL_VERSION = { major: 25, minor: 12 } as const;
+// 25.13: authenticated cockpit-local host-update preparation, review and explicit actions.
+export const PROTOCOL_VERSION = { major: 25, minor: 13 } as const;

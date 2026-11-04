@@ -2,13 +2,15 @@ import { z } from 'zod';
 import { hostUpdateOperationSchema, hostUpdateTargetsSchema } from '../../installation/update.js';
 import { hostStageReceiptSchema, hostStageRecordSchema } from '../../installation/stage.js';
 
-const reference = z
+export const hostUpdateReferenceSchema = z
   .object({
     id: hostUpdateOperationSchema.shape.id,
     revision: hostUpdateOperationSchema.shape.revision,
   })
   .strict();
-const fingerprint = z.string().regex(/^[0-9a-f]{64}$/);
+export const hostUpdateFingerprintSchema = z.string().regex(/^[0-9a-f]{64}$/);
+const reference = hostUpdateReferenceSchema;
+const fingerprint = hostUpdateFingerprintSchema;
 
 /** Private local/SSH control only; never a remote-connector or browser command surface. */
 export const hostUpdateCommandSchema = z.discriminatedUnion('action', [

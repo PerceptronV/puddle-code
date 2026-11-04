@@ -7,6 +7,7 @@ import { waitForHttp } from '../transport/net.js';
 import { clientHome } from '../paths.js';
 import { startUiServer } from '../serve/ui-server.js';
 import { RemoteAccessControl } from '../host/remote-access.js';
+import { CockpitHostUpdates } from '../host/updates/cockpit.js';
 import { openCallbackForward, openTunnel } from '../transport/tunnel.js';
 import { LocalTransport } from '../transport/local.js';
 import { SshTransport } from '../transport/ssh.js';
@@ -185,6 +186,7 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
       // whichever remote daemon each one drives.
       localSync: { file: join(clientHome(), 'local-sync.json') },
       remoteAccess: new RemoteAccessControl(ssh),
+      hostUpdates: new CockpitHostUpdates(ssh, endpoint.authority),
     });
     uiResource = ui;
 

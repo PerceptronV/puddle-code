@@ -9,6 +9,7 @@ import { LocalTransport } from '../../cli/src/lib/transport/local';
 import { startUiServer, type UiServer } from '../../cli/src/lib/serve/ui-server';
 import { RemoteAccessControl } from '../../cli/src/lib/host/remote-access';
 import { localFileManager } from '../../cli/src/lib/host/file-manager';
+import { CockpitHostUpdates } from '../../cli/src/lib/host/updates/cockpit';
 
 /** Development uses the production browser boundary, including the isolated proxy origin. */
 export function cockpitGateway(): Plugin {
@@ -19,7 +20,8 @@ export function cockpitGateway(): Plugin {
       let ready: Promise<void>;
       vite.httpServer!.once('listening', () => {
         ready = (async () => {
-          const authority = new HostConnection(new LocalTransport());
+          const transport = new LocalTransport();
+          const authority = new HostConnection(transport);
           const client = new DaemonClient(0, authority);
           authority.setVerifier(async () => {
             client.setPort(authority.port);
@@ -37,7 +39,8 @@ export function cockpitGateway(): Plugin {
             identity: 'local',
             localSync: { file: join(clientHome(), 'local-sync.json') },
             fileManager: localFileManager(),
-            remoteAccess: new RemoteAccessControl(new LocalTransport()),
+            remoteAccess: new RemoteAccessControl(transport),
+            hostUpdates: new CockpitHostUpdates(transport, authority),
             authority,
             target: { host: '127.0.0.1', port: authority.port },
           });

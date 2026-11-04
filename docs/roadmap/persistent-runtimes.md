@@ -16,7 +16,9 @@ through private authority or the trusted offline local/SSH helper. Ordinary CLI 
 upgrades now share runtime updates' staging, review and observation path, with explicit
 interruption approval for daemon-owned work. Launchers now start the selected installed
 service without reinstalling it; explicit upgrades on stopped hosts restore that
-coordinator first. Cockpit controls, remaining failure recovery and complete packaged
+coordinator first. Local/SSH cockpit routes now share preparation, review and explicit
+activation/recovery through the existing host coordinator. Cockpit UI/release offers,
+offline cockpit recovery, remaining failure recovery and complete packaged
 upgrade acceptance remain unfinished.
 This document describes the intended refactor; [SPEC.md](../../SPEC.md) continues
 to describe shipped behaviour. Update the specification, protocol documentation,
@@ -35,6 +37,20 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 [acceptance matrix](#acceptance-matrix) for the release gates.
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
+
+- Application 25.13 adds the local/SSH cockpit update gateway, wired into CLI,
+  desktop and Vite composition. Preparation reuses the CLI staging helper; review,
+  exact approval, cancellation and live recovery use the existing host coordinator.
+  Strict browser schemas omit private commands, receipts, transport selection and
+  filesystem inputs; replies project bounded state without stage/worker evidence
+  or private blocker paths. Mutations use cancellable existing host-control channels
+  tied to browser and parent cockpit authority. Isolated HTTP/private-control tests
+  cover Origin/authentication, release skew, older capabilities, read access during
+  mutation, staging revocation, exact interruption consent, changed reviews, logout
+  before dispatch and lost apply replies without replay. The coordinator/SQLite and
+  lease boundaries are real; stages and supervisor outcomes are simulated. Settings
+  UI, inventory/release discovery, update offers, offline cockpit recovery and packaged
+  provider/platform acceptance remain required. Remote 4 and runtime 1.0 are unchanged.
 
 - Launcher startup now invokes a fixed trusted `--start-daemon` mode in the selected
   pinned host updater. `host/startup/` shares supervisor inspection/configuration checks

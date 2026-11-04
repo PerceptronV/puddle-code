@@ -29,6 +29,7 @@ export * from './api/worktrees/worktree-git.js';
 export * from './api/worktrees/worktree-search.js';
 export * from './api/ports.js';
 export * from './api/connection/cockpit.js';
+export * from './api/connection/cockpit-updates.js';
 export * from './api/connection/cockpit-remote.js';
 export * from './ws/messages.js';
 export * from './api/connection/connection-auth.js';

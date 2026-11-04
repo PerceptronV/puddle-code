@@ -334,9 +334,27 @@ prevents dispatch. An unavailable modern host or failed inspection cannot fall b
 to the legacy installer. First installs and legacy transitions retain the embedded
 bootstrap. Launchers start the selected installed daemon service before considering
 an update, and approved legacy handshake updates use the shared upgrade entry.
-Cockpit routes and approval UI remain unfinished. `puddle updates` inspects
+Cockpit routes now expose the shared coordinator; approval UI remains unfinished. `puddle updates` inspects
 durable operation state and supports exact pre-dispatch cancellation. No remote
 connector permission is added.
+
+Application 25.13 adds `GET/POST /cockpit/updates` to local, SSH and development
+cockpits, using `cli/src/lib/host/updates/cockpit.ts` and the existing host update
+coordinator. GET reports live availability, daemon version, supported recovery and
+interruption actions and bounded operation state. POST separately prepares exact
+daemon/runtime releases, inspects impact, applies matching approval, cancels or
+requests supported live recovery. It accepts no host selection, paths, tarballs,
+receipts or arbitrary commands; the cockpit supplies its own protocol. Preparation
+uses the existing staging helper without activation. Replies omit stage receipts,
+worker identities and private blocker target paths. Each mutation uses an existing
+host-control client on a separate cancellable channel, tied to the original cockpit
+lease and authenticated browser request. Closing/revoking either before dispatch
+closes the child lease; other windows retain their connection and accepted host
+operations remain durable. Reads remain available during preparation; mutations
+are serialised per cockpit and coalesced by the host coordinator. Lost replies
+never trigger replay or offline fallback. Older compatible hosts advertise only
+their supported actions. The Settings interface, release discovery/offers and
+offline cockpit recovery remain unfinished. Remote 4 and runtime 1.0 are unchanged.
 
 Application 25.10 adds exact interruption consent to private local/SSH update
 control. When other checks pass but daemon-owned work would stop, a supporting

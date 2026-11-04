@@ -1,5 +1,24 @@
 # The puddle communication protocol
 
+Protocol 25.13 adds capability-detected local/SSH `GET/POST /cockpit/updates`.
+GET returns daemon availability/version, supported approval/recovery actions and a
+bounded public operation summary. POST accepts preparation of exact release targets,
+inspection, exact-fingerprint application, cancellation and supported live recovery.
+Preparation reuses the CLI's staging code and does not activate a release. The
+gateway stamps its own protocol and excludes browser-supplied receipts, paths,
+tarballs, commands and host selection. It strips private stage/worker evidence and
+blocker target paths from replies. Browser authority and exact mutation Origin are
+required. Each request opens a cancellable channel through the existing host-control
+client, bounded by the original cockpit connection and browser request lifetime;
+revocation before host dispatch closes that lease without revoking other viewers.
+Accepted host dispatch remains durable. Lost replies are observed, never retried or
+sent through an offline fallback. Older compatible daemons remain usable and expose
+only supported actions; old cockpits return 404. Settings UI, release offers and
+offline cockpit recovery remain unfinished. This is an additive application route,
+not a new maintenance protocol; remote 4 and runtime 1.0 are unchanged.
+Concurrent reads are bounded separately from mutations. Short-lived status channels
+avoid consuming the long-lived viewing connection's bounded request-id history.
+
 The private daemon/runtime contract for the standard 0.4.0 backend is versioned separately in
 [`RUNTIME_PROTOCOL.md`](RUNTIME_PROTOCOL.md). Adding that contract does not change
 this application's protocol or the remote protocol. Default daemon composition uses

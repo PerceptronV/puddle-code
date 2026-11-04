@@ -203,6 +203,17 @@ another start, legacy installation or attached fallback. Share supervisor marker
 definition readers under `host/supervision/`. The helper handles graceful disconnect
 signals; abrupt-kill lock repair and further platform acceptance remain unfinished.
 Cockpit confirmation remains pending.
+Application 25.13 exposes local/SSH `GET/POST /cockpit/updates` through the existing
+gateway, including Vite. Keep browser schemas in `shared/api/connection/cockpit-updates.ts`
+and control/projection beside the existing `cli/lib/host/updates/` helpers. Preparation
+reuses `installation/host/updates.ts`; activation remains a separate exact approved
+request. Never accept browser-selected transports, receipts, paths, tarballs or commands.
+Require exact Origin/browser authority. Give each mutation a cancellable existing
+host-control channel tied to the parent cockpit lease and browser request lifetime,
+so pre-dispatch revocation reaches the coordinator without revoking other windows.
+Do not retry an uncertain mutation or fall back to offline dispatch. Public replies
+omit private stage/worker evidence and blocker paths. Settings UI, release discovery
+and offline cockpit recovery remain outstanding; remote maintenance is still excluded.
 Read-only `puddle updates` falls back to the existing local/SSH bootstrap helper
 when authority cannot connect. Share bounded ledger validation through
 `shared/src/node/installation/updates.ts`; label recorded evidence and never use

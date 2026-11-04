@@ -32,8 +32,8 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 25.12 for explicit host update continuation', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 25, minor: 12 });
+  it('declares protocol 25.13 for cockpit host update controls', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 25, minor: 13 });
   });
 
   it('accepts headless mode and rejects the previous scripted name', () => {

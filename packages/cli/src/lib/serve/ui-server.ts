@@ -27,6 +27,8 @@ import { remoteAccessHandler } from './remote-access.js';
 import { checkRemoteRegistration } from './remote-registration.js';
 import { fileManagerHandler } from './file-manager.js';
 import type { LocalFileManager } from '../host/file-manager.js';
+import type { CockpitHostUpdates } from '../host/updates/cockpit.js';
+import { hostUpdatesHandler } from './host-updates.js';
 
 export interface UiServerOptions {
   assetsDir: string;
@@ -45,6 +47,7 @@ export interface UiServerOptions {
   localSync?: LocalSyncOptions;
   remoteAccess?: RemoteAccessControl;
   fileManager?: LocalFileManager;
+  hostUpdates?: CockpitHostUpdates;
 }
 export interface UiServer {
   port: number;
@@ -64,6 +67,7 @@ export async function startUiServer(opts: UiServerOptions): Promise<UiServer> {
   const tracker = new ProxySocketTracker();
   const serveStatic = createStaticHandler(opts.assetsDir);
   const handleRemoteAccess = remoteAccessHandler(opts.remoteAccess);
+  const handleHostUpdates = hostUpdatesHandler(opts.hostUpdates);
   const handleFileManager = fileManagerHandler(
     opts.identity === 'local' ? opts.fileManager : undefined,
   );
@@ -122,6 +126,23 @@ export async function startUiServer(opts: UiServerOptions): Promise<UiServer> {
         return handleFileManager(req, res, () => browsers.valid(browser));
       if (url.pathname === '/cockpit/remote')
         return handleRemoteAccess(req, res, () => browsers.valid(browser));
+      if (url.pathname === '/cockpit/updates') {
+        const cancellation = new AbortController();
+        const cancel = () => cancellation.abort();
+        const unbindUpdate = browsers.bind(browser, cancel);
+        res.once('close', cancel);
+        try {
+          return await handleHostUpdates(
+            req,
+            res,
+            () => browsers.valid(browser),
+            cancellation.signal,
+          );
+        } finally {
+          unbindUpdate();
+          res.off('close', cancel);
+        }
+      }
       if (url.pathname === '/cockpit/remote/registration') {
         if (!opts.remoteAccess) return fail(res, 404, 'remote_controls_unavailable');
         return checkRemoteRegistration(req, res, () => browsers.valid(browser));

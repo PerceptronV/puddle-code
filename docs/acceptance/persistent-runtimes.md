@@ -10,6 +10,23 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+Cockpit update fixtures use actual isolated HTTP gateways, private host-control
+channels, leases, SQLite coordination and the shared staging orchestration. They
+check local/SSH targets, exact Origin/browser authentication, bounded commands,
+separate preparation and activation, interruption consent, stale reviews, compatible
+release skew and older capability detection. Browser logout or parent connection
+loss during final inspection closes only the pending action's lease and prevents
+dispatch. Status remains available during a mutation; a lost apply response is
+followed by observation without a second dispatch. Stage delivery and supervisor
+activation outcomes are simulated, so these checks do not prove packaged upgrades.
+Status requests use short-lived channels, with a separate concurrency bound, so
+polling cannot exhaust the long-lived cockpit channel's request-id history.
+The Settings UI, release offers and offline cockpit recovery remain unfinished.
+The gateway/update/connection regression run passed 132 tests in 15 files; after
+adding status-channel isolation, concurrency and approval checks, the focused gateway
+run passed 20 tests in two files. Source and strict changed-test typechecks, lint,
+formatting and CLI/desktop builds passed.
+
 Selected-start fixtures cover systemd and unloaded launchd services, unchanged
 configuration/controller records, selected executable validation, controller/update/
 installer exclusion and lost replies. An undispatched preparation survives startup;
