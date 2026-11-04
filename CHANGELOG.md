@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Continue internal host-update recovery across partial attempts without losing earlier step intent. Verify an already-running replacement daemon and finish pending connector startup without repeating successful selections or service starts; public CLI/cockpit continuation remains in progress.
+
 - Add an independently supervised internal recovery worker for updates interrupted after daemon shutdown, preserving one-shot dispatch and step intent, verifying attempted selections without replay and retaining exclusion while recovery-command children remain alive. Public CLI/cockpit continuation remains in progress.
 
 - Share exact shutdown and checkpoint verification with stopped-daemon recovery, retaining controller exclusion after lost stop replies while independent runtimes continue; reject changed service definitions, stale controllers and incompatible candidates before further activation.

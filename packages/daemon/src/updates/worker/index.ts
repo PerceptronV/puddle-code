@@ -6,8 +6,8 @@ import { hostUpdateOperationSchema } from '@puddle/shared';
 import { executeHostUpdate } from './execute.js';
 import { readUpdateWorker, updateWorkerExecutables } from './supervisor.js';
 import { readUpdateRecoveryAttempts } from '../recovery/worker/records.js';
-import { executeStoppedUpdateRecovery } from '../recovery/worker/execute.js';
-import { startStoppedUpdateRecoveryWorker } from '../recovery/worker/supervisor.js';
+import { executeUpdateRecovery } from '../recovery/worker/execute.js';
+import { startUpdateRecoveryWorker } from '../recovery/worker/supervisor.js';
 
 declare const __PUDDLED_VERSION__: string | undefined;
 const version =
@@ -40,7 +40,7 @@ if (args.length === 1 && args[0] === '--version') {
     if (paths.entry_path !== entry || paths.node_path !== realpathSync(process.execPath))
       throw new Error('Recovery dispatcher must use its own pinned release');
     const revision = hostUpdateOperationSchema.shape.revision.parse(Number(args[5]));
-    const job = await startStoppedUpdateRecoveryWorker(
+    const job = await startUpdateRecoveryWorker(
       home,
       { id: args[3]!, revision },
       {
@@ -65,7 +65,7 @@ if (args.length === 1 && args[0] === '--version') {
     // systemd also bounds the service. launchd relies on this worker deadline.
     const deadline = setTimeout(() => process.exit(1), 180_000);
     deadline.unref();
-    if (recovery) await executeStoppedUpdateRecovery(home, recovery);
+    if (recovery) await executeUpdateRecovery(home, recovery);
     else await executeHostUpdate(home, readUpdateWorker(home, args[3]!));
   }
 }

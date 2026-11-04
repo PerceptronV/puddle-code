@@ -1,34 +1,28 @@
 import { join } from 'node:path';
-import { homedir } from 'node:os';
 import {
   hostUpdateActionsSchema,
   hostUpdateRecoveryJobSchema,
   type HostUpdateRecoveryJob,
-  type HostUpdateWorker,
-  type HostUpdateOperation,
 } from '@puddle/shared';
 import { digest } from '@puddle/shared/node';
 import {
   runCompilationCommand,
   type CompilationCommandRunner,
 } from '../../../compilation/process.js';
-import {
-  requireUnchangedServiceDefinition,
-  serviceIsStopped,
-  startReplacementService,
-} from '../../../host/supervision/replacement.js';
+import { startReplacementService } from '../../../host/supervision/replacement.js';
 import { HostUpdateOperations } from '../../operations/store.js';
-import { HostUpdateConnector, inspectConnectorManager } from '../../preflight/connector.js';
 import { requireVerificationOperation } from '../../verification/operation.js';
 import { awaitHostUpdateCompletion } from '../../verification/completion.js';
-import { HostUpdateActionWriter, readUpdateActions } from '../../worker/actions.js';
+import { HostUpdateActionWriter } from '../../worker/actions.js';
+import { readRecoveryActions } from '../actions.js';
+import { inspectRecoveryConnector, requireStoppedRecoveryConnector } from '../connector.js';
 import {
   inspectUpdateWorkerProcessGroup,
   requireEndedUpdateWorker,
 } from '../../worker/lifetime.js';
 import { selectUpdateStage, verifyUpdateSelection } from '../../worker/selection.js';
 import { readUpdateWorker } from '../../worker/supervisor.js';
-import { retainStoppedUpdateRecovery } from '../shutdown.js';
+import { retainUpdateContinuation } from '../continuation.js';
 import {
   HostUpdateRecoveryAttempts,
   readUpdateRecoveryAttempts,
@@ -36,39 +30,8 @@ import {
   updateRecoveryDirectory,
 } from './records.js';
 
-async function requireStoppedConnector(
-  home: string,
-  job: HostUpdateWorker,
-  operation: HostUpdateOperation,
-  run: CompilationCommandRunner,
-) {
-  const approved = job.connector;
-  if (!approved) throw new Error('Missing approved connector inventory');
-  if (approved.state === 'absent') {
-    const observed = await new HostUpdateConnector(home, homedir(), {
-      platform: job.kind === 'systemd' ? 'linux' : 'darwin',
-      run,
-    }).inspect(operation);
-    if (observed.state !== 'absent' || observed.blockers.length)
-      throw new Error('Connector installation changed during recovery');
-    return;
-  }
-  await requireUnchangedServiceDefinition(home, approved.service, run);
-  if (!(await serviceIsStopped(home, approved.service, run)))
-    throw new Error('Outgoing connector is not stopped');
-  let ended = false;
-  try {
-    process.kill(approved.identity.pid, 0);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
-    ended = true;
-  }
-  if (!ended || (await inspectConnectorManager(home)) !== null)
-    throw new Error('Outgoing connector shutdown is unconfirmed');
-}
-
-/** One accepted continuation after shutdown. Never repeat an attempted selection or service start. */
-export async function executeStoppedUpdateRecovery(
+/** One accepted continuation. Never repeat an attempted selection or service start. */
+export async function executeUpdateRecovery(
   home: string,
   input: HostUpdateRecoveryJob,
   run: CompilationCommandRunner = runCompilationCommand,
@@ -83,28 +46,19 @@ export async function executeStoppedUpdateRecovery(
   const store = new HostUpdateOperations(home);
   const worker = store.claimRecovery({ id: job.operation_id, revision: job.revision });
   const operation = worker.operation;
-  let handoff: Awaited<ReturnType<typeof retainStoppedUpdateRecovery>> | undefined;
+  let handoff: Awaited<ReturnType<typeof retainUpdateContinuation>> | undefined;
   let current: { id: string; execution: string; processGroup: number } | undefined;
-  const execute: CompilationCommandRunner = (command) => run({ ...command, detached: false });
   try {
     const original = readUpdateWorker(home, operation.id);
     const history = readUpdateRecoveryAttempts(home, operation.id).attempts;
     const accepted = history.find(({ job: recorded }) => recorded.id === job.id);
-    if (
-      !accepted ||
-      accepted.execution ||
-      JSON.stringify(accepted.job) !== JSON.stringify(job) ||
-      history.some((attempt) => attempt.execution)
-    )
+    if (!accepted || accepted.execution || JSON.stringify(accepted.job) !== JSON.stringify(job))
       throw new Error('Recovery dispatch is missing, changed or already consumed');
     if (job.original_worker_digest !== digest(JSON.stringify(original)))
       throw new Error('Original update worker changed');
-    const originalActions = readUpdateActions(home, original, operation);
-    if (
-      job.actions_digest !== digest(JSON.stringify(originalActions)) ||
-      originalActions.actions.find(({ action }) => action === 'start-daemon')?.state !== 'planned'
-    )
-      throw new Error('Recovery step evidence changed or includes an attempted daemon start');
+    const originalActions = readRecoveryActions(home, original, operation, job.id);
+    if (job.actions_digest !== digest(JSON.stringify(originalActions)))
+      throw new Error('Recovery step evidence changed');
     const check = () => {
       requireVerificationOperation(home, operation, original);
       requireEndedUpdateWorker(home, original, operation);
@@ -118,6 +72,11 @@ export async function executeStoppedUpdateRecovery(
         (current ? attempt.execution?.id !== current.execution : attempt.execution !== null)
       )
         throw new Error('Recovery execution identity changed');
+    };
+    const execute: CompilationCommandRunner = (command) => {
+      check();
+      if (handoff?.mode === 'running') handoff.check();
+      return run({ ...command, detached: false });
     };
     check();
     // Reuse the original component evidence, with this recovery service's own pinned executable.
@@ -139,7 +98,7 @@ export async function executeStoppedUpdateRecovery(
       }),
       check,
     );
-    handoff = await retainStoppedUpdateRecovery(
+    handoff = await retainUpdateContinuation(
       home,
       {
         operation,
@@ -150,9 +109,12 @@ export async function executeStoppedUpdateRecovery(
       },
       execute,
     );
-    await actions.run('stop-connector', () =>
-      requireStoppedConnector(home, original, operation, execute),
-    );
+    await actions.run('stop-connector', async () => {
+      if (handoff!.mode === 'stopped')
+        await requireStoppedRecoveryConnector(home, original, operation, execute);
+      else await inspectRecoveryConnector(home, original, operation, originalActions, execute);
+      handoff!.check();
+    });
     await actions.run('stop-daemon', async () => {
       handoff!.check();
     });
@@ -165,11 +127,17 @@ export async function executeStoppedUpdateRecovery(
       });
     }
     handoff.releaseController();
-    await actions.run('start-daemon', () =>
-      startReplacementService(home, original.daemon_service!, execute),
-    );
+    await actions.run('start-daemon', async () => {
+      if (handoff!.mode === 'stopped')
+        await startReplacementService(home, original.daemon_service!, execute);
+      else handoff!.check();
+    });
     await actions.run('start-connector', async () => {
-      if (original.connector?.state === 'running')
+      if (
+        (await inspectRecoveryConnector(home, original, operation, originalActions, execute)) ===
+          'stopped' &&
+        original.connector?.state === 'running'
+      )
         await startReplacementService(home, original.connector.service, execute);
     });
     const verification = await awaitHostUpdateCompletion(home, original, operation, execute);

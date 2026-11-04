@@ -11,7 +11,7 @@ import {
   requireEndedUpdateRecoveryWorkers,
   updateRecoveryDirectory,
 } from '../../../../src/updates/recovery/worker/records.js';
-import { startStoppedUpdateRecoveryWorker } from '../../../../src/updates/recovery/worker/supervisor.js';
+import { startUpdateRecoveryWorker } from '../../../../src/updates/recovery/worker/supervisor.js';
 import { recoveryWorkerFixture } from '../../../helpers/update-recovery.js';
 
 const children: ChildProcess[] = [];
@@ -28,7 +28,7 @@ afterEach(async () => {
 
 it('consumes a dispatch once and refuses changed job identity or expired authority before writing lifetime', async () => {
   const f = await recoveryWorkerFixture();
-  const job = await startStoppedUpdateRecoveryWorker(f.home, f.store.read()!, f.options);
+  const job = await startUpdateRecoveryWorker(f.home, f.store.read()!, f.options);
   const store = new HostUpdateRecoveryAttempts(f.home, job.operation_id);
   const claim = f.store.claimRecovery(f.store.read()!);
   try {
@@ -56,7 +56,7 @@ it('consumes a dispatch once and refuses changed job identity or expired authori
 
 it('refuses malformed, oversized and mismatched recovery ledgers without treating them as no attempts', async () => {
   const f = await recoveryWorkerFixture();
-  const job = await startStoppedUpdateRecoveryWorker(f.home, f.store.read()!, f.options);
+  const job = await startUpdateRecoveryWorker(f.home, f.store.read()!, f.options);
   const file = join(updateRecoveryDirectory(f.home, job.operation_id), 'attempts.json');
   const original = readFileSync(file);
   for (const value of ['{', ' '.repeat(HOST_UPDATE_RECOVERY_BYTES + 1)]) {
@@ -77,7 +77,7 @@ it('refuses malformed, oversized and mismatched recovery ledgers without treatin
 
 it('retains recovery exclusion while a command child outlives its worker', async () => {
   const f = await recoveryWorkerFixture();
-  const job = await startStoppedUpdateRecoveryWorker(f.home, f.store.read()!, f.options);
+  const job = await startUpdateRecoveryWorker(f.home, f.store.read()!, f.options);
   const child = spawn(
     process.execPath,
     [

@@ -1,4 +1,4 @@
-import { readFileSync, symlinkSync } from 'node:fs';
+import { readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { hostUpdateActionsSchema } from '@puddle/shared';
@@ -9,8 +9,8 @@ import { HostUpdateConnector } from '../../../../src/updates/preflight/connector
 import * as lifetime from '../../../../src/updates/worker/lifetime.js';
 import * as selection from '../../../../src/updates/worker/selection.js';
 import * as verification from '../../../../src/updates/verification/completion.js';
-import { startStoppedUpdateRecoveryWorker } from '../../../../src/updates/recovery/worker/supervisor.js';
-import { executeStoppedUpdateRecovery } from '../../../../src/updates/recovery/worker/execute.js';
+import { startUpdateRecoveryWorker } from '../../../../src/updates/recovery/worker/supervisor.js';
+import { executeUpdateRecovery } from '../../../../src/updates/recovery/worker/execute.js';
 import {
   readUpdateRecoveryAttempts,
   requireEndedUpdateRecoveryWorkers,
@@ -28,7 +28,7 @@ async function fixture(selectionAttempted = false) {
     atomicPrivateJson(file, journal);
     symlinkSync(f.release, join(f.home, 'bin/current'));
   }
-  const job = await startStoppedUpdateRecoveryWorker(f.home, f.store.read()!, f.options);
+  const job = await startUpdateRecoveryWorker(f.home, f.store.read()!, f.options);
   const changes: string[] = [];
   vi.spyOn(lifetime, 'inspectUpdateWorkerProcessGroup').mockResolvedValue(2147483647);
   vi.spyOn(HostUpdateConnector.prototype, 'inspect').mockResolvedValue({
@@ -67,7 +67,7 @@ it.each([false, true])(
   'continues unattempted steps and verifies attempted selections without replay (selected=%s)',
   async (selected) => {
     const f = await fixture(selected);
-    await executeStoppedUpdateRecovery(f.home, f.recovery, f.run);
+    await executeUpdateRecovery(f.home, f.recovery, f.run);
     expect(f.changes).toEqual(selected ? ['start', 'verify'] : ['select', 'start', 'verify']);
     expect(f.select).toHaveBeenCalledTimes(selected ? 0 : 1);
     expect(f.store.read()?.phase).toBe('complete');
@@ -83,39 +83,70 @@ it.each([false, true])(
     );
     expect(journal.worker_id).toBe(attempt.execution!.id);
     expect(journal.actions.every(({ state }) => state === 'finished')).toBe(true);
-    await expect(executeStoppedUpdateRecovery(f.home, f.recovery, f.run)).rejects.toThrow();
+    await expect(executeUpdateRecovery(f.home, f.recovery, f.run)).rejects.toThrow();
   },
 );
 
-it('retains a lost selection reply without starting the daemon or automatically dispatching another attempt', async () => {
+it('retains selection intent across a later early failure and continues only on explicit fresh dispatch', async () => {
   const f = await fixture();
   const select = f.select.getMockImplementation()!;
   f.select.mockImplementation(async (...args) => {
     await select(...args);
     throw new Error('selection reply lost');
   });
-  await expect(executeStoppedUpdateRecovery(f.home, f.recovery, f.run)).rejects.toThrow(
-    'reply lost',
-  );
+  await expect(executeUpdateRecovery(f.home, f.recovery, f.run)).rejects.toThrow('reply lost');
   expect(f.changes).toEqual(['select']);
   expect(f.store.read()?.phase).toBe('recovery_required');
-  await expect(
-    startStoppedUpdateRecoveryWorker(f.home, f.store.read()!, f.options),
-  ).rejects.toThrow('executed recovery attempt');
+  expect(readUpdateRecoveryAttempts(f.home, f.job.operation_id).attempts).toHaveLength(1);
   acquireHostClaim(f.home, 'daemon-controller').release();
   const kill = vi.spyOn(process, 'kill').mockReturnValue(true);
   expect(() => requireEndedUpdateRecoveryWorkers(f.home, f.store.read()!)).toThrow('still running');
   expect(kill).toHaveBeenCalledExactlyOnceWith(-2147483647, 0);
+  kill.mockRestore();
+  const second = await startUpdateRecoveryWorker(f.home, f.store.read()!, f.options);
+  vi.mocked(HostUpdateConnector.prototype.inspect).mockRejectedValueOnce(new Error('probe failed'));
+  await expect(executeUpdateRecovery(f.home, second, f.run)).rejects.toThrow('probe failed');
+  expect(f.changes).toEqual(['select']);
+  const third = await startUpdateRecoveryWorker(f.home, f.store.read()!, f.options);
+  await executeUpdateRecovery(f.home, third, f.run);
+  expect(f.select).toHaveBeenCalledTimes(1);
+  expect(f.changes).toEqual(['select', 'start', 'verify']);
+  expect(f.store.read()?.phase).toBe('complete');
 });
+
+it.each(['missing', 'identity', 'fingerprint'])(
+  'refuses another dispatch with %s retained recovery evidence',
+  async (damage) => {
+    const f = await fixture();
+    f.select.mockRejectedValueOnce(new Error('selection failed'));
+    await expect(executeUpdateRecovery(f.home, f.recovery, f.run)).rejects.toThrow(
+      'selection failed',
+    );
+    const directory = updateRecoveryDirectory(f.home, f.job.operation_id);
+    const journal = join(directory, f.recovery.id, 'actions.json');
+    if (damage === 'missing') rmSync(journal);
+    else if (damage === 'identity') {
+      const value = hostUpdateActionsSchema.parse(JSON.parse(readFileSync(journal, 'utf8')));
+      value.worker_id = f.store.read()!.worker_id!;
+      atomicPrivateJson(journal, value);
+    } else {
+      const ledger = readUpdateRecoveryAttempts(f.home, f.job.operation_id);
+      ledger.attempts[0]!.job.actions_digest = digest('changed evidence');
+      atomicPrivateJson(join(directory, 'attempts.json'), ledger);
+    }
+    const commands = f.commands.length;
+    await expect(startUpdateRecoveryWorker(f.home, f.store.read()!, f.options)).rejects.toThrow();
+    expect(f.commands).toHaveLength(commands);
+    expect(f.store.read()?.phase).toBe('recovery_required');
+  },
+);
 
 it('refuses all mutations when independent recovery worker isolation cannot be established', async () => {
   const f = await fixture();
   vi.mocked(lifetime.inspectUpdateWorkerProcessGroup).mockRejectedValueOnce(
     new Error('not independent'),
   );
-  await expect(executeStoppedUpdateRecovery(f.home, f.recovery, f.run)).rejects.toThrow(
-    'not independent',
-  );
+  await expect(executeUpdateRecovery(f.home, f.recovery, f.run)).rejects.toThrow('not independent');
   expect(f.changes).toEqual([]);
   expect(readUpdateRecoveryAttempts(f.home, f.job.operation_id).attempts[0]!.execution).toBeNull();
 });

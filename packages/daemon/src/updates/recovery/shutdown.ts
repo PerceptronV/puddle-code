@@ -3,7 +3,7 @@ import type { CompilationCommandRunner } from '../../compilation/process.js';
 import { readStageCapabilities } from '../preflight/candidate.js';
 import { requireCheckpointCompatibility } from '../checkpoints/compatibility.js';
 import { claimStoppedDaemonUpdate } from '../verification/shutdown.js';
-import { readUpdateActions } from '../worker/actions.js';
+import { readRecoveryActions } from './actions.js';
 import { claimHostUpdateRecovery } from './claim.js';
 
 /** Recover the original hand-off without stopping a service or opening application storage. */
@@ -32,7 +32,7 @@ export async function retainStoppedUpdateRecovery(
   let handoff: Awaited<ReturnType<typeof claimStoppedDaemonUpdate>> = null;
   try {
     const { operation, job } = recovery;
-    const actions = readUpdateActions(home, job, operation);
+    const actions = readRecoveryActions(home, job, operation);
     const stop = actions.actions.find(({ action }) => action === 'stop-daemon');
     if (!stop || stop.state === 'planned')
       throw new Error('The original daemon shutdown was never attempted');

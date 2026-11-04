@@ -209,10 +209,15 @@ Recovery worker dispatch/execution lives under `updates/recovery/worker/`, shari
 the original updater's pinned executable checks, service definitions, journal writer
 and completion verifier. Persist each accepted attempt before dispatch and its process
 group before component commands. Fence pending attempts and check every consumed
-group before completion recovery or maintenance release. The internal trusted-host
-dispatcher supports the stopped-before-start path; do not expose broader recovery
-or replay an executed attempt through the CLI/cockpit until its continuation checks
-are implemented. These private records add no network protocol.
+group before completion recovery or maintenance release. `recovery/actions.ts`
+merges every consumed journal and validates historical acceptance fingerprints;
+never let a later early failure reset earlier attempted work. `recovery/continuation.ts`
+retains either the original stopped hand-off or fresh replacement adoption, sharing
+`verification/daemon.ts` with completion. Running continuation never stops/restarts
+the replacement or changes its controller. Recheck current adoption before commands;
+only unattempted, positively stopped connector startup may issue a start. Crashed
+replacements, failed attempted starts and public CLI/cockpit continuation remain
+unfinished. These private records add no network protocol.
 Runtime owners and update workers share `host/services.ts`; neither service may
 inherit puddled's restart or termination boundary. The packaged one-shot updater
 composes runtime-default and daemon/combined selection using its pinned copy of the

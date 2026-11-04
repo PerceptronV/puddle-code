@@ -4,19 +4,19 @@ import { expect, it } from 'vitest';
 import { HOST_UPDATE_RECOVERY_ATTEMPTS } from '@puddle/shared';
 import { acquireHostClaim, HostClaimBusy } from '../../../../src/security/claims.js';
 import { readRuntimeController } from '../../../../src/runtime/ownership/storage.js';
-import { startStoppedUpdateRecoveryWorker } from '../../../../src/updates/recovery/worker/supervisor.js';
+import { startUpdateRecoveryWorker } from '../../../../src/updates/recovery/worker/supervisor.js';
 import {
   readUpdateRecoveryAttempts,
   requireEndedUpdateRecoveryWorkers,
 } from '../../../../src/updates/recovery/worker/records.js';
-import { executeStoppedUpdateRecovery } from '../../../../src/updates/recovery/worker/execute.js';
+import { executeUpdateRecovery } from '../../../../src/updates/recovery/worker/execute.js';
 import { recoveryWorkerFixture } from '../../../helpers/update-recovery.js';
 
 it('durably accepts one independent bounded worker before dispatch and releases execution for that worker', async () => {
   const f = await recoveryWorkerFixture();
   const reference = f.store.read()!;
   const controller = readRuntimeController(f.home);
-  const job = await startStoppedUpdateRecoveryWorker(f.home, reference, {
+  const job = await startUpdateRecoveryWorker(f.home, reference, {
     ...f.options,
     run: async (command) => {
       if (!['cat', 'show'].includes(command.args[1]!)) {
@@ -45,7 +45,7 @@ it('durably accepts one independent bounded worker before dispatch and releases 
   expect(definition).not.toMatch(/PartOf=|BindsTo=|WantedBy=|puddled\.service/);
   expect(job.service.entry_path).toBe(realpathSync(join(f.release, 'daemon/host-update.mjs')));
   expect(
-    await startStoppedUpdateRecoveryWorker(f.home, reference, {
+    await startUpdateRecoveryWorker(f.home, reference, {
       ...f.options,
       releasePath: '/missing',
     }),
@@ -58,7 +58,7 @@ it('never repeats a lost dispatch reply and rejects a late worker after a new re
   const reference = f.store.read()!;
   let mutations = 0;
   await expect(
-    startStoppedUpdateRecoveryWorker(f.home, reference, {
+    startUpdateRecoveryWorker(f.home, reference, {
       ...f.options,
       run: async (command) => {
         if (['cat', 'show'].includes(command.args[1]!)) return f.run(command);
@@ -68,12 +68,10 @@ it('never repeats a lost dispatch reply and rejects a late worker after a new re
     }),
   ).rejects.toThrow('reply lost');
   const job = readUpdateRecoveryAttempts(f.home, reference.id).attempts[0]!.job;
-  expect(await startStoppedUpdateRecoveryWorker(f.home, reference, f.options)).toEqual(job);
+  expect(await startUpdateRecoveryWorker(f.home, reference, f.options)).toEqual(job);
   expect(mutations).toBe(1);
   f.store.claimRecovery(f.store.read()!).release();
-  await expect(executeStoppedUpdateRecovery(f.home, job, f.supervisor)).rejects.toThrow(
-    'state changed',
-  );
+  await expect(executeUpdateRecovery(f.home, job, f.supervisor)).rejects.toThrow('state changed');
   expect(f.commands).toHaveLength(0);
 });
 
@@ -81,25 +79,25 @@ it('rejects unpinned executables and authority loss before dispatch', async () =
   const f = await recoveryWorkerFixture();
   rmSync(join(f.release, 'bin/node'));
   symlinkSync(process.execPath, join(f.release, 'bin/node'));
-  await expect(
-    startStoppedUpdateRecoveryWorker(f.home, f.store.read()!, f.options),
-  ).rejects.toThrow('pinned');
+  await expect(startUpdateRecoveryWorker(f.home, f.store.read()!, f.options)).rejects.toThrow(
+    'pinned',
+  );
   expect(readUpdateRecoveryAttempts(f.home, f.job.operation_id).attempts).toHaveLength(0);
   f.state.authorised = false;
-  await expect(
-    startStoppedUpdateRecoveryWorker(f.home, f.store.read()!, f.options),
-  ).rejects.toThrow('authority expired');
+  await expect(startUpdateRecoveryWorker(f.home, f.store.read()!, f.options)).rejects.toThrow(
+    'authority expired',
+  );
   expect(f.commands).toHaveLength(0);
 });
 
 it('bounds fresh explicit attempts while retaining all accepted dispatch evidence', async () => {
   const f = await recoveryWorkerFixture();
   for (let i = 0; i < HOST_UPDATE_RECOVERY_ATTEMPTS; i++)
-    await startStoppedUpdateRecoveryWorker(f.home, f.store.read()!, f.options);
+    await startUpdateRecoveryWorker(f.home, f.store.read()!, f.options);
   const count = f.commands.length;
-  await expect(
-    startStoppedUpdateRecoveryWorker(f.home, f.store.read()!, f.options),
-  ).rejects.toThrow('attempt limit');
+  await expect(startUpdateRecoveryWorker(f.home, f.store.read()!, f.options)).rejects.toThrow(
+    'attempt limit',
+  );
   expect(readUpdateRecoveryAttempts(f.home, f.job.operation_id).attempts).toHaveLength(
     HOST_UPDATE_RECOVERY_ATTEMPTS,
   );

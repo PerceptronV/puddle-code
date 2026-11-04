@@ -7,10 +7,9 @@ import {
 import { setTimeout as delay } from 'node:timers/promises';
 import { digest } from '@puddle/shared/node';
 import type { CompilationCommandRunner } from '../../compilation/process.js';
-import { inspectRunningService } from '../../host/supervision/inspection.js';
-import { prepareServiceReplacement } from '../../host/supervision/replacement.js';
 import { verifyUpdateSelection } from '../worker/selection.js';
-import { requireCurrentAdoption, verifyHostUpdateAdoption } from './adoption.js';
+import { requireCurrentAdoption } from './adoption.js';
+import { verifyReplacementDaemon } from './daemon.js';
 import { inspectReplacementConnector } from './connector.js';
 import { requireVerificationOperation } from './operation.js';
 
@@ -47,18 +46,9 @@ export async function verifyHostUpdateCompletion(
   const daemon = operation.stages.find((stage) => stage.record.component === 'daemon');
   let adoption: HostUpdateAdoption | undefined;
   let connector: NonNullable<Awaited<ReturnType<typeof inspectReplacementConnector>>> | undefined;
-  let service: Awaited<ReturnType<typeof prepareServiceReplacement>> | undefined;
+  let service: Awaited<ReturnType<typeof verifyReplacementDaemon>>['service'] | undefined;
   if (daemon) {
-    if (!job.daemon_service || !job.outgoing || !job.connector)
-      throw new Error('Missing approved daemon replacement evidence');
-    adoption = await verifyHostUpdateAdoption(home, operation);
-    service = await prepareServiceReplacement(
-      home,
-      await inspectRunningService(home, job.daemon_service, adoption.daemon.pid, run),
-      { definitionPath: job.daemon_service.definition_path ?? undefined, run },
-    );
-    if (service.definition_digest !== job.daemon_service.definition_digest)
-      throw new Error('Replacement daemon configuration changed');
+    ({ adoption, service } = await verifyReplacementDaemon(home, job, operation, run));
     const observed = await inspectReplacementConnector(home, job, operation, daemon, run);
     if (!observed) throw new Error('Replacement connector is unconfirmed');
     connector = observed;

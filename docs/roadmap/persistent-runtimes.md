@@ -31,6 +31,21 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Explicit recovery now continues across executed attempts, merging every retained
+  step journal and checking each accepted evidence fingerprint. A later early
+  failure cannot erase an earlier selection or start attempt. Recovery after a
+  daemon start requires fresh adoption and the unchanged service configuration;
+  the replacement keeps its controller and is never stopped or started again.
+  An unattempted connector start requires positively stopped service/process
+  evidence; an attempted start must already verify as a healthy replacement.
+  The command runner rechecks operation and current adoption before each command.
+  Tests cover repeated partial failures, damaged journals, lost connector replies
+  and changing authority. An isolated live owner/private-authority fixture checks
+  running continuation with the same controller and shell PID; supervisor commands
+  and packaged upgrades still require platform acceptance. Crashed replacements,
+  failed attempted starts, stopped/unmanaged installations and public CLI/cockpit
+  continuation remain unfinished. None of the three protocols changes.
+
 - The host updater now has a pinned, independently supervised recovery-worker
   entry for the stopped-daemon path. Trusted host invocation can dispatch an exact
   operation revision once; accepted replies are inspectable after connection loss.

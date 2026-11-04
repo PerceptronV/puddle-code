@@ -10,15 +10,15 @@ import {
   writeServiceDefinition,
 } from '../../../host/services.js';
 import { updateWorkerExecutables } from '../../worker/supervisor.js';
-import { claimStoppedHostUpdateRecovery } from '../shutdown.js';
+import { claimUpdateContinuation } from '../continuation.js';
 import {
   HostUpdateRecoveryAttempts,
   readUpdateRecoveryAttempts,
   updateRecoveryDirectory,
 } from './records.js';
 
-/** Explicit stopped-daemon recovery only. Recorded attempts are observed, never re-dispatched. */
-export async function startStoppedUpdateRecoveryWorker(
+/** Explicit continuation only. Recorded attempts are observed, never re-dispatched. */
+export async function startUpdateRecoveryWorker(
   home: string,
   reference: Pick<HostUpdateOperation, 'id' | 'revision'>,
   options: {
@@ -32,20 +32,9 @@ export async function startStoppedUpdateRecoveryWorker(
   const history = readUpdateRecoveryAttempts(home, reference.id).attempts;
   const previous = history.find(({ job }) => job.requested_revision === reference.revision);
   if (previous) return previous.job;
-  if (history.some(({ execution }) => execution))
-    throw new Error(
-      'An executed recovery attempt requires completion inspection before another dispatch',
-    );
-  const recovery = await claimStoppedHostUpdateRecovery(
-    home,
-    reference,
-    options.authorised,
-    options.run,
-  );
+  const recovery = await claimUpdateContinuation(home, reference, options.authorised, options.run);
   try {
     const { operation, job: original, actions } = recovery;
-    if (actions.actions.find(({ action }) => action === 'start-daemon')?.state !== 'planned')
-      throw new Error('Recovery after an attempted daemon start requires replacement inspection');
     const paths = updateWorkerExecutables(home, options.releasePath);
     const uid = options.uid ?? process.getuid?.();
     if (uid === undefined || !Number.isSafeInteger(uid) || uid < 0)

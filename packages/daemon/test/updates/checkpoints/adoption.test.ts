@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
-import { writeFileSync } from 'node:fs';
+import { symlinkSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { PROTOCOL_VERSION } from '@puddle/shared';
-import { digest } from '@puddle/shared/node';
+import { atomicPrivateJson, digest } from '@puddle/shared/node';
+import { hostUpdateActionsSchema } from '@puddle/shared';
 import { RuntimeConnections } from '../../../src/runtime/transport/connections.js';
 import { RuntimeReconciler } from '../../../src/runtime/controller/reconcile.js';
 import { RuntimeClient, RuntimeConnectionLost } from '../../../src/runtime/transport/client.js';
@@ -19,6 +20,12 @@ import {
   readHostUpdateAdoption,
 } from '../../../src/updates/checkpoints/adoption.js';
 import { verifyHostUpdateAdoption } from '../../../src/updates/verification/adoption.js';
+import { claimUpdateContinuation } from '../../../src/updates/recovery/continuation.js';
+import { updateWorkerDirectory } from '../../../src/updates/worker/supervisor.js';
+import { prepareServiceReplacement } from '../../../src/host/supervision/replacement.js';
+import { inspectRunningService } from '../../../src/host/supervision/inspection.js';
+import { readRuntimeController } from '../../../src/runtime/ownership/storage.js';
+import type { CompilationCommandRunner } from '../../../src/compilation/process.js';
 import { HostUpdateCoordinator } from '../../../src/updates/coordinator.js';
 import { LeaseRegistry } from '../../../src/security/leases.js';
 import { startHostControl } from '../../../src/security/control.js';
@@ -26,8 +33,10 @@ import { writeRuntime } from '../../../src/runtime-file.js';
 import { openDatabase } from '../../../src/db/db.js';
 import { runtimeDatabase } from '../../helpers/runtime-database.js';
 import { runtimeRelease } from '../../helpers/runtime-release.js';
-import { clients, launchOwner, waitForOwner } from '../../helpers/runtime-fixture.js';
+import { clients, launchOwner, terminal, waitForOwner } from '../../helpers/runtime-fixture.js';
 import { placement } from '../../helpers/runtime-placement.js';
+import { checkpointWorker } from '../../helpers/update-checkpoint.js';
+import { systemdObservation } from '../../helpers/host-supervision.js';
 
 async function fixture() {
   const f = runtimeDatabase();
@@ -78,6 +87,7 @@ async function fixture() {
     missing: (id) => reconciler.retire(id),
   });
   await connections.connect();
+  const dispatched = operation;
   const worker = store.claimExecution(operation, operation.dispatch_id!, operation.preflight!);
   operation = worker.verifying();
   const deps = {
@@ -100,6 +110,7 @@ async function fixture() {
     writer,
     worker,
     operation,
+    dispatched,
     connections,
     reconciler,
     async close() {
@@ -207,11 +218,11 @@ it('accepts a confirmed final exit without pretending that it is a running owner
   }
 });
 
-it.each(['verifying', 'recovery_required'] as const)(
+it.each(['verifying', 'recovery_required', 'continuation'] as const)(
   'verifies fresh adoption in %s and refuses stale receipts after a failed observation',
   async (phase) => {
     const f = await fixture();
-    if (phase === 'recovery_required') {
+    if (phase !== 'verifying') {
       f.operation = f.worker.failed('Success acknowledgement was lost');
       f.worker.release();
     }
@@ -264,10 +275,98 @@ it.each(['verifying', 'recovery_required'] as const)(
         join(f.home, 'updates', 'checkpoints', `${f.operation.id}.json`),
         JSON.stringify(stored),
       );
+      if (phase === 'continuation') {
+        const store = new HostUpdateOperations(f.home);
+        const job = checkpointWorker(
+          f.home,
+          {
+            store,
+            operation: f.dispatched,
+            reference: {
+              operation_id: f.operation.id,
+              dispatch_id: f.operation.dispatch_id!,
+              preflight: f.operation.approved!,
+            },
+          },
+          { pid: stored.daemon.pid, controller: stored.daemon.controller },
+        );
+        const run: CompilationCommandRunner = async (command) => {
+          if (!['cat', 'show'].includes(command.args[1]!))
+            throw new Error('Recovery must not mutate a service');
+          return {
+            exitCode: 0,
+            stderr: '',
+            stdout:
+              command.args[1] === 'cat'
+                ? '[Service]\nRestart=always\n'
+                : systemdObservation(process.pid),
+          };
+        };
+        job.daemon_service = await prepareServiceReplacement(
+          f.home,
+          await inspectRunningService(
+            f.home,
+            { kind: 'systemd', name: 'puddled.service', domain: null },
+            process.pid,
+            run,
+          ),
+          { run },
+        );
+        job.connector = { state: 'absent' };
+        const directory = updateWorkerDirectory(f.home, f.operation.id);
+        atomicPrivateJson(join(directory, 'worker.json'), job);
+        atomicPrivateJson(
+          join(directory, 'actions.json'),
+          hostUpdateActionsSchema.parse({
+            format: 1,
+            operation_id: f.operation.id,
+            dispatch_id: f.operation.dispatch_id,
+            worker_id: f.operation.worker_id,
+            preflight: f.operation.approved,
+            actions: [
+              { action: 'stop-connector', state: 'finished' },
+              { action: 'stop-daemon', state: 'finished' },
+              { action: 'select-daemon', state: 'finished' },
+              { action: 'start-daemon', state: 'started' },
+              { action: 'start-connector', state: 'planned' },
+            ],
+          }),
+        );
+        const group = 2147483647;
+        expect(() => process.kill(-group, 0)).toThrowError(
+          expect.objectContaining({ code: 'ESRCH' }),
+        );
+        atomicPrivateJson(join(directory, 'lifetime.json'), {
+          format: 1,
+          operation_id: f.operation.id,
+          dispatch_id: f.operation.dispatch_id,
+          worker_id: f.operation.worker_id,
+          preflight: f.operation.approved,
+          process_group: group,
+        });
+        symlinkSync(
+          join(f.home, 'bin/versions', f.operation.stages[0]!.record.generation),
+          join(f.home, 'bin/current'),
+        );
+        const controller = readRuntimeController(f.home);
+        const shell = terminal(f.connections.get(f.binding.runtime_id)!.state!).pid!;
+        const recovery = await claimUpdateContinuation(f.home, f.operation, () => true, run);
+        try {
+          expect(recovery.mode).toBe('running');
+          recovery.check();
+          f.operation = recovery.operation;
+          expect(readRuntimeController(f.home)).toEqual(controller);
+          process.kill(shell, 0);
+          expect(terminal(f.connections.get(f.binding.runtime_id)!.state!).pid).toBe(shell);
+        } finally {
+          recovery.release();
+        }
+        observe.mockClear();
+      }
       const proof = await verifyHostUpdateAdoption(f.home, f.operation);
       expect(proof.checkpoint).toBe(digest(`${JSON.stringify(stored)}\n`));
       expect(proof.owners[0]?.runtime_id).toBe(f.binding.runtime_id);
-      expect(new HostUpdateOperations(f.home).read()?.phase).toBe(phase);
+      expect(new HostUpdateOperations(f.home).read()?.phase).toBe(f.operation.phase);
       expect(observe).toHaveBeenCalledOnce();
       observe.mockImplementation(() => {});
       await expect(verifyHostUpdateAdoption(f.home, f.operation)).rejects.toThrow(/not proved/);
