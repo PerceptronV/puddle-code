@@ -66,6 +66,12 @@ export class LeaseRegistry {
   valid(token: string): boolean {
     return this.lookup(token) !== null;
   }
+  /** Inspect a private control generation without extending its lease or issuing a token. */
+  controlAuthority(id: string): Pick<AuthorityResource, 'profile' | 'valid'> | null {
+    const lease = this.leases.get(id);
+    if (!lease || !this.live(lease)) return null;
+    return { profile: lease.profile, valid: () => this.live(lease) };
+  }
   attach(token: string, id: string, close: () => void): AuthorityResource | null {
     const lease = this.lookup(token);
     if (

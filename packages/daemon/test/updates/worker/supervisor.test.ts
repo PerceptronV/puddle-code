@@ -144,3 +144,20 @@ it('refuses unpinned executables and unsupported daemon replacement before consu
   expect(daemon.store.read()?.phase).toBe('approved');
   expect(daemon.commands).toHaveLength(0);
 });
+
+it('rechecks authority immediately before durable dispatch and leaves expired approval unconsumed', async () => {
+  const f = fixture();
+  let checks = 0;
+  await expect(
+    startUpdateWorker(f.home, f.operation, {
+      kind: 'launchd',
+      releasePath: f.release,
+      run: f.run,
+      authorised: () => ++checks === 1,
+    }),
+  ).rejects.toThrow('authority expired');
+  expect(checks).toBe(2);
+  expect(f.store.read()).toEqual(f.operation);
+  expect(f.commands).toHaveLength(0);
+  expect(() => readUpdateWorker(f.home, f.operation.id)).toThrow();
+});

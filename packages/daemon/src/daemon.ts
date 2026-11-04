@@ -1,5 +1,7 @@
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { StorageMonitor } from './storage/monitor.js';
 import { createAdaptorServer, upgradeWebSocket, type ServerType } from '@hono/node-server';
 import { WebSocketServer } from 'ws';
@@ -57,6 +59,10 @@ import { HostUpdateImpact } from './updates/preflight/impact.js';
 import { HostUpdateCapacity } from './updates/preflight/capacity.js';
 import { HostUpdateInspection } from './updates/preflight/inspection.js';
 import { HostUpdateSupervision } from './updates/preflight/supervision.js';
+import { HostUpdateCoordinator } from './updates/coordinator.js';
+import { HostUpdateOperations } from './updates/operations/store.js';
+import { startUpdateWorker } from './updates/worker/supervisor.js';
+import { resolveInstalledRuntimeRelease } from './runtime/lifecycle/release.js';
 import { RuntimeConnections } from './runtime/transport/connections.js';
 import { RuntimeReconciler } from './runtime/controller/reconcile.js';
 import { RuntimeNotifications } from './runtime/controller/notifications.js';
@@ -109,13 +115,21 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   ensureHome(paths);
   const config = loadConfig(paths);
   const authority = new LeaseRegistry();
+  let updateCoordinator: HostUpdateCoordinator | null = null;
   let controlInfo: {
     port: number;
     version: { version: string; protocol: typeof PROTOCOL_VERSION };
   } | null = null;
   const failedStartup: Array<() => void | Promise<void>> = [];
   try {
-    const closeControl = await startHostControl(paths.home, authority, () => controlInfo);
+    const closeControl = await startHostControl(
+      paths.home,
+      authority,
+      () => controlInfo,
+      (command, authorised) =>
+        updateCoordinator?.execute(command, authorised) ??
+        Promise.resolve({ ok: false, code: 'unavailable', operation: null }),
+    );
     failedStartup.push(closeControl);
     ensureToken(paths);
     const db = openDatabase(paths.dbFile);
@@ -317,6 +331,43 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       worktrees,
     });
     failedStartup.push(() => puddlang.dispose());
+    const updateInspection = new HostUpdateInspection({
+      compatibility: new HostUpdateCompatibility({
+        home: paths.home,
+        current: hostReleaseCapabilities(opts.version ?? '0.0.0'),
+        runtimes,
+        connections: runtimeConnections,
+      }),
+      impact: new HostUpdateImpact({
+        controller: randomUUID(),
+        ptys,
+        notebooks,
+        compilation,
+        puddlang,
+      }),
+      capacity: new HostUpdateCapacity(paths, storage),
+      supervision: new HostUpdateSupervision({ home: paths.home, pid: process.pid }),
+    });
+    updateCoordinator = new HostUpdateCoordinator({
+      home: paths.home,
+      operations: new HostUpdateOperations(paths.home),
+      inspection: updateInspection,
+      installedRuntime: () => {
+        try {
+          return resolveInstalledRuntimeRelease(paths.home).protocol;
+        } catch {
+          return null;
+        }
+      },
+      dispatch: async (operation, kind, authorised) => {
+        await startUpdateWorker(paths.home, operation, {
+          kind,
+          authorised,
+          releasePath: dirname(dirname(fileURLToPath(import.meta.url))),
+        });
+      },
+    });
+    failedStartup.push(() => updateCoordinator?.close());
     const stopPush = subscribePushNotifications(paths.home, service, {
       profiles,
       projects,
@@ -524,24 +575,9 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       authority,
       paths,
       service,
-      updateInspection: new HostUpdateInspection({
-        compatibility: new HostUpdateCompatibility({
-          home: paths.home,
-          current: hostReleaseCapabilities(opts.version ?? '0.0.0'),
-          runtimes,
-          connections: runtimeConnections,
-        }),
-        impact: new HostUpdateImpact({
-          controller: randomUUID(),
-          ptys,
-          notebooks,
-          compilation,
-          puddlang,
-        }),
-        capacity: new HostUpdateCapacity(paths, storage),
-        supervision: new HostUpdateSupervision({ home: paths.home, pid: process.pid }),
-      }),
+      updateInspection,
       async stop() {
+        updateCoordinator?.close();
         runtimeNotifications.close();
         await runtimeServiceCleanup.close();
         await retention.dispose();

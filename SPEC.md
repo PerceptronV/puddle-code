@@ -166,6 +166,18 @@ the user manager without starting services, rejects stale/unknown supervision an
 leaves manual daemons untouched during runtime-default changes. The worker must
 still establish its own independent service scope before daemon activation.
 
+Application protocol 25.7 adds bounded, correlated maintenance requests to the
+existing private host-control connection. Only a live host-wide local/SSH lease
+can begin, stage, inspect, apply, cancel or observe an update; these requests do not
+renew authority. The daemon coordinator serialises mutations, coalesces competing
+preparations and corroborates stage receipts against host files. The winning CLI
+caller stages through the existing transport and embedded installer. Runtime-default
+apply repeats inspection, matches exact approval evidence and rechecks authority
+before consuming dispatch. Accepted work survives caller loss; reconnect only
+observes it. The coordinator currently refuses daemon activation pending quiescence,
+connector inventory and adoption verification. Public CLI commands, cockpit routes
+and approval UI remain to be integrated; no remote connector permission is added.
+
 The [persistent runtimes roadmap](docs/roadmap/persistent-runtimes.md) specifies
 one independent `puddler` process per live runtime and cockpit-managed host
 updates. The implementation under daemon `runtime/` provides a

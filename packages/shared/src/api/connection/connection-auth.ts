@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { profileId } from '../common.js';
 import { versionResponseSchema } from './version.js';
+import { hostUpdateControlRequestSchema, hostUpdateControlResponseSchema } from './host-updates.js';
 
 export const CONNECTION_POLICY = {
   participationMs: 15_000,
@@ -23,6 +24,7 @@ export const authErrorCodeSchema = z.enum([
 ]);
 export type AuthErrorCode = z.infer<typeof authErrorCodeSchema>;
 export const controlRequestSchema = z.discriminatedUnion('t', [
+  hostUpdateControlRequestSchema,
   z.object({ t: z.literal('open'), profile: profileId.optional() }).strict(),
   z.object({ t: z.literal('renew'), resources: z.array(resourceIdSchema).max(2048) }).strict(),
   z.object({ t: z.literal('close') }).strict(),
@@ -34,6 +36,7 @@ export const hostInspectionSchema = z.object({
   liveSessions: z.number().int().nonnegative(),
 });
 export const controlResponseSchema = z.discriminatedUnion('t', [
+  hostUpdateControlResponseSchema,
   z
     .object({
       t: z.literal('authority'),

@@ -67,8 +67,11 @@ export async function startUpdateWorker(
     releasePath: string;
     uid?: number;
     run?: CompilationCommandRunner;
+    /** Recheck the participating host connection immediately before durable dispatch. */
+    authorised?: () => boolean;
   },
 ): Promise<HostUpdateWorker> {
+  if (options.authorised && !options.authorised()) throw new Error('Host update authority expired');
   const store = new HostUpdateOperations(home);
   validServicePath(home);
   const directory = updateWorkerDirectory(home, reference.id);
@@ -93,6 +96,8 @@ export async function startUpdateWorker(
     privateDirectory(directory);
     syncPrivateDirectory(join(home, 'updates'));
     syncPrivateDirectory(join(home, 'updates', 'jobs'));
+    if (options.authorised && !options.authorised())
+      throw new Error('Host update authority expired');
     const operation = store.dispatch(reference);
     const key = digest(realpathSync(home)).slice(0, 8);
     const record = hostUpdateWorkerSchema.parse({

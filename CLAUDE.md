@@ -16,6 +16,7 @@ packages/
 │   ├── src/updates/operations/ # durable host-update state, exact approval/dispatch and bounded history
 │   ├── src/updates/worker/ # pinned one-shot updater, exact activation and verification
 │   ├── src/updates/preflight/ # compatibility, interruption, capacity and supervision inspection
+│   ├── src/updates/coordinator.ts # private host-authorised preparation, review and dispatch
 │   ├── src/host/         # shared service definitions/commands plus supervision/ identity inspection
 │   ├── src/agents/       # adapters own flags, cached native catalogue discovery, and exact lifecycle integration
 │   ├── src/puddlang/     # trusted TypeScript runner, bounded operations and durable run/event records
@@ -159,6 +160,15 @@ execution nonterminal until positively verified recovery. Claim release after a 
 never resets dispatch consumption. Shared host claims live in `security/claims.ts`;
 retain the historical `runtime-claims` directory and hashed lock filenames so older
 live owners keep excluding newer controllers.
+The coordinator uses the existing private host-control channel (application 25.7),
+with bounded correlated calls and a participating host-wide lease; HTTP tokens and
+profile-scoped connector connections cannot enter it. Maintenance traffic never
+renews a lease. Recheck authority after async work and before durable dispatch;
+after consumption, lost replies are observation-only. CLI preparation reuses the
+existing transport and installer, and only the caller that created the operation
+stages its files. Runtime-default apply reinspects exact approval evidence; daemon
+activation remains refused until quiescence, connector inventory and adoption
+verification are implemented. Public management and cockpit integration are pending.
 Runtime owners and update workers share `host/services.ts`; neither service may
 inherit puddled's restart or termination boundary. The packaged one-shot updater
 currently handles runtime-default selection only, using its pinned copy of the

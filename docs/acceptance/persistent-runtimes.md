@@ -580,6 +580,21 @@ explicit absence check before removing the temporary job's files.
 Native Linux inspection, the dispatched updater's own service isolation, recorded
 restart targets and full daemon-upgrade verification remain unproven.
 
+Private update-control verification on macOS 26.5.2/Node v22.21.1 passed 106 tests
+across 15 files (updates, security, CLI preparation and shared schemas), followed by
+28 checks across six files for authority, worker dispatch, launcher compatibility
+and real isolated daemon/terminal continuity. The latter run includes two new
+transport/dispatch expiry checks. The existing daemon restart fixture now verifies
+that a private update operation retains its identity across controller replacement
+and remains observable/cancellable while its independent shell stays alive.
+Fixtures cover profile denial, independent lease renewal, concurrent callers,
+authority expiry, stale fingerprints, changed connection generations and uncertain
+stage/dispatch replies without replay. TypeScript, scoped lint/formatting and both
+CLI and desktop builds passed. The coordinator's inspection and supervisor dispatch
+are deterministic fixtures; these results do not prove actual runtime activation
+through private control or complete daemon replacement. Public commands and cockpit
+integration remain required for the standard 0.4.0 behaviour.
+
 ## Remaining release gates
 
 

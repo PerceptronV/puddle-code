@@ -8,6 +8,12 @@ agent owners, with durable private programme-turn mappings. Installed/default ro
 remains gated. Existing REST/WS shapes are
 unchanged.
 
+Protocol 25.7 adds bounded local/SSH host-update requests and correlated replies on
+the existing private host-control connection. Existing open/renew/token semantics
+are unchanged. Profile-scoped connections cannot use this host-wide surface; no
+HTTP route or remote connector permission is added. New clients detect 25.7 before
+sending these requests and never replay a request after loss of its control channel.
+
 Protocol 25.6 adds `logRetentionDays` to host configuration and its patch, defaulting
 to three days when omitted (zero disables age-based cleanup). New clients gate the
 setting on 25.6. Retention compacts inactive bulk output while preserving the entire

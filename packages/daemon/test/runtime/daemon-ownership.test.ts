@@ -2,9 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { realpathSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { connect } from 'node:net';
 import { expect, it } from 'vitest';
 import { RUNTIME_PROTOCOL_VERSION } from '@puddle/shared';
-import { atomicPrivateJson } from '@puddle/shared/node';
+import { atomicPrivateJson, ipcPath } from '@puddle/shared/node';
+import { HostControlClient } from '@puddle/shared/node/host-control';
 import { openDatabase } from '../../src/db/db.js';
 import { ProfileStore } from '../../src/db/stores/profiles.js';
 import { ProjectStore } from '../../src/db/stores/projects.js';
@@ -92,6 +94,7 @@ it('protects external ownership across real daemon starts and stops, including a
     controller.release();
 
     let committed = original;
+    let updateId: string | undefined;
     for (const mode of ['authenticated', 'wrong-secret', 'wrong-build']) {
       const expectedBuild = mode === 'wrong-build' ? 'different-build' : original.build;
       db.prepare('UPDATE runtime_bindings SET build = ? WHERE runtime_id = ?').run(
@@ -125,6 +128,37 @@ it('protects external ownership across real daemon starts and stops, including a
           headers: { authorization: `Bearer ${ready!.token}` },
           signal: AbortSignal.timeout(5000),
         });
+      const host = new HostControlClient(async () => connect(ipcPath(home, 'host')), false);
+      try {
+        await host.establish();
+        const update = await host.hostUpdate({
+          action: 'begin',
+          targets: [{ component: 'runtime', version: '0.4.0' }],
+        });
+        expect(update).toMatchObject({
+          ok: true,
+          created: updateId === undefined,
+          operation: { phase: 'downloading' },
+        });
+        if (!update.ok || !update.operation) throw new Error('Missing host update operation');
+        updateId ??= update.operation.id;
+        expect(update.operation.id).toBe(updateId);
+        expect(await host.hostUpdate({ action: 'status', id: updateId })).toMatchObject({
+          ok: true,
+          operation: update.operation,
+        });
+        if (mode === 'wrong-build') {
+          expect(
+            await host.hostUpdate({
+              action: 'cancel',
+              reference: { id: updateId, revision: update.operation.revision },
+              reason: 'cancelled',
+            }),
+          ).toMatchObject({ ok: true, operation: { phase: 'cancelled' } });
+        }
+      } finally {
+        host.close();
+      }
       const status = await request(`/api/sessions/${session.id}`);
       expect(status.status).toBe(200);
       expect(await status.json()).toMatchObject({ status: 'running' });

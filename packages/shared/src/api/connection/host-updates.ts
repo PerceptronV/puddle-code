@@ -1,0 +1,91 @@
+import { z } from 'zod';
+import { hostUpdateOperationSchema, hostUpdateTargetsSchema } from '../../installation/update.js';
+import { hostStageReceiptSchema, hostStageRecordSchema } from '../../installation/stage.js';
+
+const reference = z
+  .object({
+    id: hostUpdateOperationSchema.shape.id,
+    revision: hostUpdateOperationSchema.shape.revision,
+  })
+  .strict();
+const fingerprint = z.string().regex(/^[0-9a-f]{64}$/);
+
+/** Private local/SSH control only; never a remote-connector or browser command surface. */
+export const hostUpdateCommandSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('status'), id: z.uuid().optional() }).strict(),
+  z.object({ action: z.literal('begin'), targets: hostUpdateTargetsSchema }).strict(),
+  z.object({ action: z.literal('stage'), reference, receipt: hostStageReceiptSchema }).strict(),
+  z
+    .object({
+      action: z.literal('inspect'),
+      reference,
+      cockpit: hostStageRecordSchema.shape.protocol,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal('apply'),
+      reference,
+      cockpit: hostStageRecordSchema.shape.protocol,
+      fingerprint,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal('cancel'),
+      reference,
+      reason: z.enum(['cancelled', 'staging_failed']),
+    })
+    .strict(),
+]);
+
+/** Bounded review summary; daemon interruption needs its own detailed approval flow. */
+export const hostUpdateReviewSchema = z
+  .object({
+    fingerprint: fingerprint.nullable(),
+    can_apply: z.boolean(),
+    blockers: z
+      .array(z.object({ code: z.string().min(1).max(64), target: z.string().max(4096) }).strict())
+      .max(32),
+    more_blockers: z.number().int().nonnegative().safe(),
+    affected: z
+      .object({
+        terminals: z.number().int().nonnegative().safe(),
+        notebooks: z.number().int().nonnegative().safe(),
+        compilation: z.number().int().nonnegative().safe(),
+        programmes: z.number().int().nonnegative().safe(),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const hostUpdateReplySchema = z.discriminatedUnion('ok', [
+  z
+    .object({
+      ok: z.literal(true),
+      operation: hostUpdateOperationSchema.nullable(),
+      created: z.boolean().optional(),
+      review: hostUpdateReviewSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      ok: z.literal(false),
+      code: z.enum(['rejected', 'unavailable', 'unsupported', 'conflict', 'failed']),
+      operation: hostUpdateOperationSchema.nullable(),
+    })
+    .strict(),
+]);
+export const hostUpdateControlRequestSchema = z
+  .object({ t: z.literal('host-update'), request_id: z.uuid(), command: hostUpdateCommandSchema })
+  .strict();
+export const hostUpdateControlResponseSchema = z
+  .object({
+    t: z.literal('host-update-result'),
+    request_id: z.uuid(),
+    result: hostUpdateReplySchema,
+  })
+  .strict();
+export type HostUpdateCommand = z.infer<typeof hostUpdateCommandSchema>;
+export type HostUpdateReply = z.infer<typeof hostUpdateReplySchema>;
+export type HostUpdateReview = z.infer<typeof hostUpdateReviewSchema>;

@@ -5,8 +5,11 @@ import {
   controlResponseSchema,
   type ControlRequest,
   type VersionResponse,
+  type HostUpdateCommand,
+  type HostUpdateReply,
 } from '../index.js';
 import { jsonLines, secret } from './security.js';
+import { HostUpdateRequests } from './host-updates.js';
 
 export type AuthorityState =
   'ready' | 'upstream_expired' | 'upstream_unavailable' | 'protocol_mismatch';
@@ -39,6 +42,7 @@ export class HostControlClient implements ConnectionAuthority {
   private readonly listeners = new Set<() => void>();
   private readonly timer: ReturnType<typeof setInterval>;
   private verifier: (() => Promise<void>) | null = null;
+  private updates: HostUpdateRequests | null = null;
 
   private renewControl: ((resources: string[], sentAt: number) => boolean) | null = null;
 
@@ -71,6 +75,20 @@ export class HostControlClient implements ConnectionAuthority {
     if (!this.token || performance.now() >= this.until)
       throw this.error('daemon_unreachable', 'connection authority is unavailable');
     return this.token;
+  }
+  /** Private local/SSH maintenance; renewal remains independently client-participating. */
+  hostUpdate(command: HostUpdateCommand): Promise<HostUpdateReply> {
+    const protocol = this.version?.protocol;
+    if (
+      this.profile ||
+      !protocol ||
+      protocol.major < 25 ||
+      (protocol.major === 25 && protocol.minor < 7)
+    )
+      return Promise.reject(new Error('Host updates are unavailable on this connection'));
+    if (this.state !== 'ready' || !this.updates)
+      return Promise.reject(new Error('Host control is unavailable'));
+    return this.updates.request(command);
   }
   resource(close: () => void) {
     this.credential();
@@ -106,6 +124,8 @@ export class HostControlClient implements ConnectionAuthority {
         return;
       }
       this.channel = channel;
+      const updates = new HostUpdateRequests(channel);
+      this.updates = updates;
       this.until = performance.now() + CONNECTION_POLICY.leaseMs;
       await new Promise<void>((resolve, reject) => {
         let pendingAt: number | null = null;
@@ -128,8 +148,13 @@ export class HostControlClient implements ConnectionAuthority {
         const stop = jsonLines(
           channel,
           (value) => {
-            if (this.channel !== channel || pendingAt === null) return channel.destroy();
+            if (this.channel !== channel) return channel.destroy();
             const message = controlResponseSchema.parse(value);
+            if (message.t === 'host-update-result') {
+              if (!updates.receive(message)) channel.destroy();
+              return;
+            }
+            if (pendingAt === null) return channel.destroy();
             if (message.t !== 'authority') {
               channel.destroy();
               return;
@@ -204,6 +229,8 @@ export class HostControlClient implements ConnectionAuthority {
     if (this.channel !== channel) return;
     this.channel = null;
     this.renewControl = null;
+    this.updates?.close();
+    this.updates = null;
     this.token = null;
     this.generation = null;
     if (this.status !== 'protocol_mismatch') this.status = state;

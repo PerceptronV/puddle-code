@@ -27,6 +27,19 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far:
 
+- Application protocol 25.7 now carries bounded correlated update commands on the
+  existing private local/SSH host-control channel. The daemon coordinator checks
+  live host-wide authority, serialises mutations, coalesces competing preparations,
+  validates receipts against actual host files and reinspects before runtime-default
+  dispatch. A shared CLI helper lets only the winning caller stage through the
+  existing transport/installer. Maintenance calls never renew the lease; expiry
+  before dispatch rejects the write, while lost acknowledgements after acceptance
+  require observation without replay. Profile-scoped connector authority is denied.
+  Daemon activation remains refused until quiescence, connector inventory and
+  adoption verification exist. Public CLI commands, cockpit routes/UI and shared
+  handshake integration still need to consume this coordinator. This is required
+  0.4.0 implementation work, not an optional product backend.
+
 - Compatibility now uses a candidate's supported runtime majors, covering IPC and
   retained state together. There are no per-file compatibility declarations or new
   owner-report fields. Host archives carry bounded `HOST_CAPABILITIES.json` metadata
