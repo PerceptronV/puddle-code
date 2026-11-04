@@ -191,9 +191,19 @@ describe('argument parsing', () => {
       host: 'user@host',
       operation: id,
       cancel: true,
+      recover: false,
     });
     expect(parseArgs(['updates'])).toMatchObject({ cmd: 'updates', cancel: false });
     expect(() => parseArgs(['updates', '--cancel'])).toThrow('exact --operation');
+    expect(() => parseArgs(['updates', '--recover'])).toThrow('exact --operation');
+    expect(() => parseArgs(['updates', '--operation', id, '--recover', '--cancel'])).toThrow(
+      'either',
+    );
+    expect(parseArgs(['updates', '--operation', id, '--recover'])).toMatchObject({
+      operation: id,
+      cancel: false,
+      recover: true,
+    });
     expect(() => parseArgs(['updates', '--operation', id.slice(0, 8)])).toThrow(
       'complete update id',
     );

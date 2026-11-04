@@ -27,6 +27,9 @@ export const hostUpdateCommandSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('begin'), targets: hostUpdateTargetsSchema }).strict(),
   z.object({ action: z.literal('stage'), reference, receipt: hostStageReceiptSchema }).strict(),
   z
+    .object({ action: z.literal('recover'), reference, strategy: z.literal('verify-completion') })
+    .strict(),
+  z
     .object({
       action: z.literal('inspect'),
       reference,

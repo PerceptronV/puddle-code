@@ -234,6 +234,47 @@ export class HostUpdateOperations {
     }
   }
 
+  /** Fence the old dispatch and hold exclusion throughout explicit recovery verification. */
+  claimRecovery(reference: Reference) {
+    const claim = acquireHostClaim(this.home, executionScope);
+    let current: HostUpdateOperation;
+    try {
+      current = this.change(
+        reference,
+        ['dispatching', 'applying', 'verifying', 'recovery_required'],
+        (operation) => ({
+          ...operation,
+          phase: 'recovery_required',
+          message: operation.message ?? 'Completion requires recovery verification',
+        }),
+      );
+    } catch (error) {
+      claim.release();
+      throw error;
+    }
+    let released = false;
+    return {
+      get operation() {
+        return structuredClone(current);
+      },
+      complete: (verification: string) => {
+        if (released) throw new Error('Recovery execution claim is released');
+        current = this.change(current, ['recovery_required'], (operation) => ({
+          ...operation,
+          phase: 'complete',
+          verification,
+          message: null,
+        }));
+        return structuredClone(current);
+      },
+      release() {
+        if (released) return;
+        released = true;
+        claim.release();
+      },
+    };
+  }
+
   /** The coordinator supplies positive adoption or rollback evidence; never a timeout. */
   resolveRecovery(
     reference: Reference,

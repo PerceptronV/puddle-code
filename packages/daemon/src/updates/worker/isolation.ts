@@ -10,8 +10,10 @@ export async function verifyUpdateWorkerIsolation(
   pid = process.pid,
 ): Promise<void> {
   const daemon = job.daemon_service;
-  if (!daemon) return;
-  const replaced = [daemon, ...(job.connector?.state === 'running' ? [job.connector.service] : [])];
+  const replaced = [
+    ...(daemon ? [daemon] : []),
+    ...(job.connector?.state === 'running' ? [job.connector.service] : []),
+  ];
   for (const service of replaced) {
     if (
       service.pid === pid ||

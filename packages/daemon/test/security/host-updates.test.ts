@@ -4,7 +4,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { connect, type Socket } from 'node:net';
 import { afterEach, expect, it, vi } from 'vitest';
-import { PROTOCOL_VERSION, controlResponseSchema, type HostUpdateReply } from '@puddle/shared';
+import {
+  PROTOCOL_VERSION,
+  controlResponseSchema,
+  type HostUpdateReply,
+  type HostUpdateCommand,
+} from '@puddle/shared';
 import { HostControlClient } from '@puddle/shared/node/host-control';
 import { ipcPath, jsonLines } from '@puddle/shared/node';
 import { LeaseRegistry } from '../../src/security/leases.js';
@@ -16,7 +21,7 @@ afterEach(async () => {
 });
 async function fixture(
   handler?: Parameters<typeof startHostControl>[3],
-  minor = PROTOCOL_VERSION.minor,
+  minor: number = PROTOCOL_VERSION.minor,
 ) {
   const home = mkdtempSync(join(tmpdir(), 'puddle-control-updates-'));
   cleanups.push(() => rmSync(home, { recursive: true, force: true }));
@@ -131,23 +136,31 @@ async function exchange(socket: Socket, message: unknown) {
   return reply;
 }
 
-it('denies profile-scoped control even if a connector sends a well-formed maintenance request', async () => {
-  const f = await fixture();
-  const socket = connect(ipcPath(f.home, 'host'));
-  cleanups.push(() => {
-    socket.destroy();
-  });
-  expect((await exchange(socket, { t: 'open', profile: '0123456789' })).t).toBe('authority');
-  const request_id = randomUUID();
-  expect(
-    await exchange(socket, { t: 'host-update', request_id, command: { action: 'status' } }),
-  ).toEqual({
-    t: 'host-update-result',
-    request_id,
-    result: { ok: false, code: 'rejected', operation: null },
-  });
-  expect(f.handle).not.toHaveBeenCalled();
-});
+it.each([
+  { action: 'status' },
+  {
+    action: 'recover',
+    reference: { id: randomUUID(), revision: 1 },
+    strategy: 'verify-completion',
+  },
+] satisfies HostUpdateCommand[])(
+  'denies profile-scoped $action even if a connector sends a well-formed maintenance request',
+  async (command) => {
+    const f = await fixture();
+    const socket = connect(ipcPath(f.home, 'host'));
+    cleanups.push(() => {
+      socket.destroy();
+    });
+    expect((await exchange(socket, { t: 'open', profile: '0123456789' })).t).toBe('authority');
+    const request_id = randomUUID();
+    expect(await exchange(socket, { t: 'host-update', request_id, command })).toEqual({
+      t: 'host-update-result',
+      request_id,
+      result: { ok: false, code: 'rejected', operation: null },
+    });
+    expect(f.handle).not.toHaveBeenCalled();
+  },
+);
 
 it('bounds concurrent calls and detects older hosts before sending new commands', async () => {
   const gate = deferred();

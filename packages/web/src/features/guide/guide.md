@@ -117,6 +117,8 @@ For example:
 
   If a connection is lost, inspect the printed operation id with `puddle updates user@host --operation <id>`. To abandon a preparation before dispatch, add `--cancel` with that complete id. An accepted update cannot be cancelled or replayed. A `recovery_required` result remains visible for inspection; it is not reported as a successful installation.
 
+  With a running daemon supporting application protocol 25.11+, use `puddle updates user@host --operation <id> --recover` to verify an installation which completed but lost its success reply. This checks that the updater and its commands have ended and verifies the selected software and runtime adoption. It never repeats installation or service commands. An incomplete installation, unavailable daemon or unconfirmed updater lifetime stays pending; this command does not restart a stopped daemon or roll back data.
+
 > [!NOTE]
 > On Linux, `puddle install desktop` asks where to put `Puddle.AppImage`, defaulting to `~/puddle`. Update from inside the app and remove it by quitting and deleting the AppImage file. CLI desktop upgrade/removal is available only on macOS. Desktop releases cover macOS on Apple silicon and Linux x64.
 

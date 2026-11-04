@@ -1,10 +1,16 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { runCompilationCommand } from '../../../src/compilation/process.js';
 import { executeHostUpdate } from '../../../src/updates/worker/execute.js';
+import { recordUpdateWorkerLifetime } from '../../../src/updates/worker/lifetime.js';
 import { verifyHostUpdateCompletion } from '../../../src/updates/verification/completion.js';
 import { updateInstallation as fixture } from '../../helpers/update-installation.js';
+
+// Installer composition uses simulated supervision; lifetime has separate process tests.
+vi.mock('../../../src/updates/worker/lifetime.js', () => ({
+  recordUpdateWorkerLifetime: vi.fn(async () => {}),
+}));
 
 it('uses the canonical installer, verifies exact selection and consumes the operation once', async () => {
   const f = await fixture();
@@ -38,6 +44,18 @@ it('refuses a changed candidate without selecting it, retaining a recoverable op
     'changed',
   );
   await expect(executeHostUpdate(f.puddleHome, f.job)).rejects.toThrow();
+  expect(f.selected('runtime')).toBe(f.previous);
+  expect(f.store.read()?.phase).toBe('recovery_required');
+}, 30_000);
+
+it('refuses all activation commands when the worker lifetime cannot be recorded', async () => {
+  const f = await fixture();
+  vi.mocked(recordUpdateWorkerLifetime).mockRejectedValueOnce(new Error('lifetime unavailable'));
+  const run = vi.fn(async () => {
+    throw new Error('No activation permitted');
+  });
+  await expect(executeHostUpdate(f.puddleHome, f.job, run)).rejects.toThrow('lifetime unavailable');
+  expect(run).not.toHaveBeenCalled();
   expect(f.selected('runtime')).toBe(f.previous);
   expect(f.store.read()?.phase).toBe('recovery_required');
 }, 30_000);

@@ -198,7 +198,28 @@ adoption proof. Daemon and combined transactions share runtime-default selection
 canonical installer. Partial changes or lost replies remain recoverable without
 automatic rollback or replay. Production composition now supplies final maintenance
 to private host-control daemon dispatch; complete installed upgrade acceptance and
-supported recovery remain outstanding.
+recovery of incomplete installations remain outstanding.
+
+Application 25.11 adds explicit local/SSH completion recovery through
+`puddle updates [user@host] --operation <id> --recover`. It holds the dispatch and
+execution claims, fences the original worker, requires ended-worker evidence,
+and uses the shared completion verifier before marking an update complete. It
+rechecks the participating authority before committing. An already-complete
+operation returns its recorded result. The action does not repeat installation,
+stop or start commands and does not restore old application data; incomplete
+selection, unavailable adoption and unknown worker lifetime leave recovery pending.
+The command currently requires a running daemon with protocol 25.11 or newer;
+forward recovery and recovery with the daemon stopped remain unfinished.
+
+Before any activation command, the updater confirms its independent service,
+requires that it leads its own process group and durably records that group against
+the operation, dispatch and worker identities. Commands remain in that group.
+Recovery probes the group with signal zero and accepts only confirmed absence;
+permission errors and reused groups cannot prove exit. Maintenance release after
+worker execution requires that evidence too, in addition to the free execution
+claim. A fenced job which never claimed execution cannot run component commands.
+The private lifetime record is retained with the worker, without changing any
+runtime contract or adding a daemon service.
 
 Application protocol 25.9 adds bounded read-only inspection on the connector
 manager's existing exclusive private socket. Fresh nonce-correlated replies expose
@@ -320,9 +341,10 @@ unchanged configuration, freshly inspects the approved absent/running connector,
 and rechecks selected generations, operation revision and controller after asynchronous
 probes. The worker uses this same verifier after activation. Recovery-phase inspection
 can produce fresh evidence without repeating installation or service mutations, but
-does not itself resolve the operation or authorise another dispatch. User-facing
-recovery, worker-lifetime fencing and recovery with the daemon stopped still require
-integration. No remote authority or new protocol shape is added.
+does not itself resolve the operation or authorise another dispatch. The explicit
+25.11 recovery action adds worker-lifetime exclusion and the final authorised
+transition. Recovery of incomplete installations and recovery with the daemon
+stopped still require integration. No remote authority is added.
 
 The [persistent runtimes roadmap](docs/roadmap/persistent-runtimes.md) specifies
 one independent `puddler` process per live runtime and cockpit-managed host

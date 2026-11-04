@@ -47,6 +47,18 @@ hosts. Existing host-wide lease authority is unchanged, and no remote permission
 added. Remote 4 and runtime 1.0 remain unchanged. The private pinned worker records
 the exact interruption approval alongside its preflight evidence.
 
+Protocol 25.11 adds private local/SSH `recover` with an exact operation revision
+and the sole strategy `verify-completion`. The coordinator fences the old dispatch,
+holds execution exclusion, confirms the recorded worker process group has ended,
+then uses fresh completion evidence before marking the operation complete. Authority
+is checked again before that transition. Unknown lifetime evidence, live/reused groups,
+partial selection and failed adoption leave recovery pending. Already-complete
+operations return their recorded result; no component command is replayed. Clients
+refuse the request on older hosts. This adds no remote maintenance permission;
+remote 4 and runtime 1.0 are unchanged. `installation/worker.ts` also defines the
+private pre-activation lifetime record, bound to operation, dispatch and worker
+identities. It is not a new wire or runtime-state version.
+
 Protocol 25.9 adds nonce-correlated, read-only process inspection on the connector
 manager's existing exclusive private host socket. Replies contain bounded process,
 release and protocol metadata only; profile configuration, grants and registration
@@ -71,7 +83,7 @@ The same nonce request may observe an exact `recovery_required` operation with a
 recorded worker identity. It refreshes private adoption evidence only; it neither resolves
 recovery nor authorises execution. Older daemons which cannot make this observation
 produce no matching fresh receipt and cannot establish recovery completion. There
-is no new wire shape or authority; application 25.10, remote 4 and runtime 1.0 are unchanged.
+is no new wire shape or authority for observation; remote 4 and runtime 1.0 are unchanged.
 
 Protocol 25.7 adds bounded local/SSH host-update requests and correlated replies on
 the existing private host-control connection. Existing open/renew/token semantics

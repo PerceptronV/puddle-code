@@ -26,6 +26,11 @@ import { systemdObservation } from '../../../helpers/host-supervision.js';
 
 afterEach(() => vi.restoreAllMocks());
 
+// Installer composition uses simulated supervision; lifetime has separate process tests.
+vi.mock('../../../../src/updates/worker/lifetime.js', () => ({
+  recordUpdateWorkerLifetime: vi.fn(async () => {}),
+}));
+
 async function fixture(combined = false, connector = false) {
   const f = await updateInstallation(combined ? ['daemon', 'runtime'] : ['daemon']);
   f.job.connector = { state: 'absent' };

@@ -12,6 +12,7 @@ import { stopConnectorForUpdate, startConnectorAfterUpdate } from './connector.j
 import { stopDaemonForUpdate } from './daemon/stop.js';
 import { selectUpdateStage, verifyUpdateSelection } from './selection.js';
 import { verifyHostUpdateCompletion } from '../verification/completion.js';
+import { recordUpdateWorkerLifetime } from './lifetime.js';
 
 /** One consumed worker transaction; uncertainty always retains its operation for inspection. */
 export async function executeHostUpdate(
@@ -38,6 +39,7 @@ export async function executeHostUpdate(
   );
   let handoff: Awaited<ReturnType<typeof stopDaemonForUpdate>> | undefined;
   try {
+    await recordUpdateWorkerLifetime(home, job, worker.operation, execute);
     if (daemon) {
       if (candidate!.database_schema_version === undefined)
         throw new Error('Candidate database support is unknown');

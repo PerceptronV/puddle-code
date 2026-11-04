@@ -1,8 +1,11 @@
 import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 import { HostAdmission } from '../../src/host/lifecycle/admission.js';
 import { HostUpdatePause } from '../../src/updates/maintenance/pause.js';
 import { expect, it, vi } from 'vitest';
-import { digest } from '@puddle/shared/node';
+import { atomicPrivateJson, digest } from '@puddle/shared/node';
+import { checkpointWorker } from '../helpers/update-checkpoint.js';
+import { updateWorkerDirectory } from '../../src/updates/worker/supervisor.js';
 import type { HostUpdateCommand, HostUpdateReply, HostUpdateOperation } from '@puddle/shared';
 import { HostUpdateCoordinator } from '../../src/updates/coordinator.js';
 import type { UpdateInspection } from '../../src/updates/preflight/inspection.js';
@@ -276,6 +279,42 @@ it('drains daemon admissions before final inspection and retains the hold after 
   } finally {
     worker.release();
   }
+  await f.execute({ action: 'status' });
+  expect(() => f.admission.enter()).toThrow(); // Missing lifetime evidence is not proof of completed cleanup.
+  checkpointWorker(
+    f.home,
+    {
+      store: f.store,
+      operation: accepted,
+      reference: {
+        operation_id: accepted.id,
+        dispatch_id: accepted.dispatch_id!,
+        preflight: accepted.approved!,
+      },
+    },
+    f.outgoing,
+  );
+  const operation = f.store.read()!;
+  const file = join(updateWorkerDirectory(f.home, operation.id), 'lifetime.json');
+  const lifetime = {
+    format: 1,
+    operation_id: operation.id,
+    dispatch_id: operation.dispatch_id,
+    worker_id: operation.worker_id,
+    preflight: operation.approved,
+    process_group: 2147483647,
+  };
+  atomicPrivateJson(file, lifetime);
+  const kill = vi.spyOn(process, 'kill').mockReturnValue(true);
+  try {
+    await f.execute({ action: 'status' });
+    expect(() => f.admission.enter()).toThrow();
+  } finally {
+    kill.mockRestore();
+  }
+  expect(() => process.kill(-lifetime.process_group, 0)).toThrowError(
+    expect.objectContaining({ code: 'ESRCH' }),
+  );
   await f.execute({ action: 'status' });
   f.admission.assertOpen();
 });

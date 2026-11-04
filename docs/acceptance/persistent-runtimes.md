@@ -10,6 +10,17 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+`updates/worker/lifetime.test.ts` records an actual isolated process group, then
+exits its leader while a child remains alive: recovery refuses until that child
+exits too. Tests also reject missing/mismatched lifetime records, non-leading workers,
+permission errors and reused groups. Worker composition refuses activation after
+lifetime-record failure. Recovery tests retain dispatch/execution exclusion and
+recheck authority before completion; coordinator maintenance stays held without
+ended-group evidence. CLI tests send explicit recovery through local/SSH private
+control fixtures, prove no second dispatch, and refuse older hosts. They use
+metadata-only releases and simulated supervisor evidence; actual packaged upgrades,
+forward recovery and daemon-offline recovery still need acceptance.
+
 Completion verification is shared between normal execution and recovery inspection.
 Installer tests retain recovery after a lost runtime-selection or daemon-start reply,
 then verify selected generations without replaying mutations. Changed daemon service

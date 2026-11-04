@@ -16,6 +16,7 @@ packages/
 │   ├── src/updates/operations/ # durable host-update state, exact approval/dispatch and bounded history
 │   ├── src/updates/worker/ # pinned one-shot updater and exact component activation
 │   ├── src/updates/verification/ # shared execution/recovery adoption, service and selection evidence
+│   ├── src/updates/recovery/ # explicit completion recovery under dispatch/execution claims
 │   ├── src/updates/preflight/ # compatibility, interruption, capacity and supervision inspection
 │   ├── src/updates/coordinator.ts # private host-authorised preparation, review and dispatch
 │   ├── src/host/         # shared service definitions/commands plus supervision/ identity inspection
@@ -178,7 +179,14 @@ the blocked review shape. Production daemon activation uses
 `updates/maintenance/daemon.ts` to drain writers before pausing discovery/reconciliation.
 Retain the hold after accepted or uncertain
 dispatch; release only after an unaccepted attempt or positively fenced recovery.
-Cockpit confirmation, CLI/launcher daemon upgrades and recovery integration are pending.
+Application 25.11 adds explicit completion recovery through `puddle updates --operation <id> --recover`.
+Hold dispatch/execution claims, fence the old worker and verify its recorded process
+group has ended before completing from fresh adoption/selection evidence. Record the
+worker's own group durably before any activation; its commands must not detach.
+Maintenance release after worker execution requires ended-group evidence too. Missing
+records, permission errors or reused groups retain the hold; never signal a stored
+group to recover it. Incomplete installations and daemon-offline recovery remain
+pending, alongside cockpit confirmation and CLI/launcher daemon upgrades.
 Runtime owners and update workers share `host/services.ts`; neither service may
 inherit puddled's restart or termination boundary. The packaged one-shot updater
 composes runtime-default and daemon/combined selection using its pinned copy of the

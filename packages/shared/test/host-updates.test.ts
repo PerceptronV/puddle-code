@@ -7,6 +7,32 @@ import { HostControlClient } from '../src/node/host-control.js';
 
 afterEach(() => vi.useRealTimers());
 
+it('gates exact recovery verification on 25.11 and rejects arbitrary recovery commands', async () => {
+  const command = {
+    action: 'recover' as const,
+    reference: { id: randomUUID(), revision: 1 },
+    strategy: 'verify-completion' as const,
+  };
+  expect(hostUpdateCommandSchema.parse(command)).toEqual(command);
+  expect(hostUpdateCommandSchema.safeParse({ ...command, strategy: 'restart' }).success).toBe(
+    false,
+  );
+  expect(hostUpdateCommandSchema.safeParse({ ...command, command: 'anything' }).success).toBe(
+    false,
+  );
+  const client = new HostControlClient(async () => {
+    throw new Error('No connection expected');
+  }, false);
+  client.version = { version: '0.4.0', protocol: { major: 25, minor: 10 } };
+  try {
+    await expect(client.hostUpdate(command)).rejects.toThrow(
+      'recovery verification is unavailable',
+    );
+  } finally {
+    client.close();
+  }
+});
+
 it('does not send interruption approval to an older host', async () => {
   const client = new HostControlClient(async () => {
     throw new Error('No connection expected');

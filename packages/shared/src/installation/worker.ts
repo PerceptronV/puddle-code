@@ -49,6 +49,24 @@ export const hostUpdateWorkerSchema = z
   );
 export type HostUpdateWorker = z.infer<typeof hostUpdateWorkerSchema>;
 
+/** Private evidence written before activation, while the worker owns its execution claim. */
+export const hostUpdateWorkerLifetimeSchema = z
+  .object({
+    format: z.literal(1),
+    operation_id: z.uuid(),
+    dispatch_id: z.uuid(),
+    worker_id: z.uuid(),
+    preflight: z.string().regex(/^[0-9a-f]{64}$/),
+    /** The worker must lead this group; its commands are never detached from it. */
+    process_group: z
+      .number()
+      .int()
+      .positive()
+      .max(2 ** 31 - 1),
+  })
+  .strict();
+export type HostUpdateWorkerLifetime = z.infer<typeof hostUpdateWorkerLifetimeSchema>;
+
 /** In-process final approval evidence copied into the private pinned job. */
 export type HostUpdateDaemonHandoff = Required<
   Pick<HostUpdateWorker, 'outgoing' | 'daemon_service' | 'connector'>

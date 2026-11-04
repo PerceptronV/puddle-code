@@ -1,7 +1,12 @@
 import { connect } from 'node:net';
+import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { afterEach, expect, it, vi } from 'vitest';
 import { PROTOCOL_VERSION, type HostUpdateCommand, type HostUpdateOperation } from '@puddle/shared';
-import { digest, ipcPath } from '@puddle/shared/node';
+import { atomicPrivateJson, digest, ipcPath } from '@puddle/shared/node';
+import { checkpointWorker } from '../../../../daemon/test/helpers/update-checkpoint.js';
+import { updateWorkerDirectory } from '../../../../daemon/src/updates/worker/supervisor.js';
 import { HostConnection } from '../../../src/lib/auth/connection-authority.js';
 import { upgradeRuntime } from '../../../src/lib/installation/host/runtime.js';
 import type { Transport } from '../../../src/lib/transport/transport.js';
@@ -35,12 +40,13 @@ afterEach(async () => {
   vi.clearAllMocks();
 });
 
-async function fixture(kind: 'local' | 'ssh' = 'local', minor = PROTOCOL_VERSION.minor) {
+async function fixture(kind: 'local' | 'ssh' = 'local', minor: number = PROTOCOL_VERSION.minor) {
   const f = candidateFixture('runtime');
   f.store.stopBeforeDispatch(f.operation, 'cancelled', 'fixture preparation');
   vi.stubEnv('PUDDLE_HOME', f.home);
   const inspection: UpdateInspection = {
     fingerprint: digest('exact fixture inspection'),
+    connector: { state: 'not-required', identity: null, blockers: [] },
     blockers: [],
     compatibility: { blockers: [], candidates: [], owners: [], inventory: null },
     capacity: { blockers: [], volumes: [] },
@@ -101,7 +107,7 @@ async function fixture(kind: 'local' | 'ssh' = 'local', minor = PROTOCOL_VERSION
         ? { code: installed ? 0 : 3, stdout: installed ?? '', stderr: '' }
         : { code: 0, stdout: '', stderr: '' };
     },
-    async openChannel() {
+    openChannel() {
       return connect(ipcPath(f.home, 'host'));
     },
     async readFile() {
@@ -254,10 +260,13 @@ it('reports recoverable worker failure and refuses cancellation after dispatch',
   );
   const operation = f.store.read()!;
   expect(operation.phase).toBe('recovery_required');
-  await runUpdates({ cmd: 'updates', operation: operation.id, cancel: false }, f.logger);
+  await runUpdates(
+    { cmd: 'updates', recover: false, operation: operation.id, cancel: false },
+    f.logger,
+  );
   expect(f.logger.info).toHaveBeenCalledWith(expect.stringContaining('recovery_required'));
   await expect(
-    runUpdates({ cmd: 'updates', operation: operation.id, cancel: true }, f.logger),
+    runUpdates({ cmd: 'updates', recover: false, operation: operation.id, cancel: true }, f.logger),
   ).rejects.toThrow('not cancelled');
   expect(f.store.read()).toEqual(operation);
   expect(f.dispatch).toHaveBeenCalledOnce();
@@ -267,14 +276,93 @@ it('lets the user cancel an exact preparation and leaves another id untouched', 
   const f = await fixture();
   const operation = f.store.downloading(f.store.begin(f.operation.targets).operation);
   await expect(
-    runUpdates({ cmd: 'updates', operation: f.operation.id, cancel: true }, f.logger),
+    runUpdates(
+      { cmd: 'updates', recover: false, operation: f.operation.id, cancel: true },
+      f.logger,
+    ),
   ).rejects.toThrow('not cancelled');
   expect(f.store.read()).toEqual(operation);
   expect(
-    await runUpdates({ cmd: 'updates', operation: operation.id, cancel: true }, f.logger),
+    await runUpdates(
+      { cmd: 'updates', recover: false, operation: operation.id, cancel: true },
+      f.logger,
+    ),
   ).toBe(0);
   expect(f.store.read()?.phase).toBe('cancelled');
   expect(f.dispatch).not.toHaveBeenCalled();
+});
+
+it.each(['local', 'ssh'] as const)(
+  'verifies recovery through %s private authority without another dispatch',
+  async (kind) => {
+    const f = await fixture(kind);
+    f.requireRecovery();
+    await expect(upgradeRuntime(f.transport, { version: '0.4.0' })).rejects.toThrow(
+      'requires inspection',
+    );
+    const operation = f.store.read()!;
+    // Selected-release and ended-worker metadata only; this suite never starts a supervisor.
+    mkdirSync(join(f.root, 'bin'));
+    mkdirSync(join(f.root, 'daemon'));
+    writeFileSync(join(f.root, 'VERSION'), '0.4.0\n');
+    writeFileSync(join(f.root, 'RUNTIME_PROTOCOL'), '1.0\n');
+    writeFileSync(join(f.root, 'bin/node'), '#!/bin/sh\nexit 99\n', { mode: 0o755 });
+    writeFileSync(join(f.root, 'daemon/puddler.mjs'), '// fixture\n');
+    symlinkSync(f.root, join(f.home, 'bin/runtime-current'));
+    checkpointWorker(
+      f.home,
+      {
+        store: f.store,
+        operation: { ...operation, revision: operation.revision - 2 },
+        reference: {
+          operation_id: operation.id,
+          dispatch_id: operation.dispatch_id!,
+          preflight: operation.approved!,
+        },
+      },
+      { pid: 123, controller: { id: randomUUID(), epoch: 1 } },
+    );
+    expect(() => process.kill(-2147483647, 0)).toThrowError(
+      expect.objectContaining({ code: 'ESRCH' }),
+    );
+    atomicPrivateJson(join(updateWorkerDirectory(f.home, operation.id), 'lifetime.json'), {
+      format: 1,
+      operation_id: operation.id,
+      dispatch_id: operation.dispatch_id,
+      worker_id: operation.worker_id,
+      preflight: operation.approved,
+      process_group: 2147483647,
+    });
+    const offset = f.commands.length;
+    const command = {
+      cmd: 'updates' as const,
+      operation: operation.id,
+      cancel: false,
+      recover: true,
+      ...(kind === 'ssh' ? { host: 'user@host' } : {}),
+    };
+    expect(await runUpdates(command, f.logger)).toBe(0);
+    expect(f.store.read()?.phase).toBe('complete');
+    expect(f.commands.slice(offset).map((item) => item.action)).toEqual(['status', 'recover']);
+    expect(f.dispatch).toHaveBeenCalledOnce();
+    expect(await runUpdates(command, f.logger)).toBe(0);
+    expect(f.dispatch).toHaveBeenCalledOnce();
+  },
+);
+
+it('does not send recovery to an older host or repeat an incomplete installation', async () => {
+  const f = await fixture('local', 10);
+  f.requireRecovery();
+  await expect(upgradeRuntime(f.transport, { version: '0.4.0' })).rejects.toThrow(
+    'requires inspection',
+  );
+  const operation = f.store.read()!;
+  await expect(
+    runUpdates({ cmd: 'updates', operation: operation.id, cancel: false, recover: true }, f.logger),
+  ).rejects.toThrow('recovery verification is unavailable');
+  expect(f.commands.some((command) => command.action === 'recover')).toBe(false);
+  expect(f.store.read()).toEqual(operation);
+  expect(f.dispatch).toHaveBeenCalledOnce();
 });
 
 it('rejects older hosts before staging and never falls back to immediate installation', async () => {

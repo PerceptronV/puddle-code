@@ -31,6 +31,19 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Application 25.11 exposes explicit completion recovery through local/SSH private
+  control and `puddle updates --operation <id> --recover`. It fences the original
+  dispatch under dispatch/execution claims, verifies the recorded worker group has
+  ended, reuses fresh completion evidence and rechecks authority before committing.
+  Workers record their own process group before activation; maintenance release now
+  checks that group as well as execution ownership. A real process test leaves an
+  installer child alive after its worker exits and confirms recovery stays blocked.
+  Private control fixtures cover local/SSH CLI completion without another dispatch,
+  older-host refusal, lost replies, incomplete selection and authority loss. These
+  tests use metadata/supervisor fixtures, not full packaged service upgrades.
+  Forward recovery, offline host integration and stopped/unmanaged connector handling
+  remain required. Remote 4 and runtime 1.0 are unchanged.
+
 - Completion verification now lives under `updates/verification/` and is shared by
   ordinary worker execution and recovery-phase inspection. It reuses exact selector,
   host-authority/adoption and connector checks, adds replacement daemon service/configuration

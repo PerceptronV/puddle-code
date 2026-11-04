@@ -3,7 +3,7 @@ import { acquireAuthority } from '../../lib/auth/connection-authority.js';
 import { openHostTransport } from '../../lib/transport/open.js';
 import { CliError, type Logger } from '../../lib/types.js';
 
-/** Observe exact durable state; cancellation is limited to unconsumed dispatch. */
+/** Observe durable state, cancel before dispatch, or explicitly verify completed recovery. */
 export async function runUpdates(
   command: Extract<Command, { cmd: 'updates' }>,
   logger: Logger,
@@ -25,20 +25,34 @@ export async function runUpdates(
         logger.info(`no host update recorded on ${transport.label}`);
         return 0;
       }
-      if (command.cancel) {
+      if (command.cancel || command.recover) {
         if (!command.operation || command.operation !== result.operation.id)
-          throw new CliError('bad_arguments', 'Cancellation requires the exact update id');
+          throw new CliError('bad_arguments', 'Update actions require the exact update id');
         if (authority.generation !== generation || authority.state !== 'ready')
-          throw new CliError('daemon_unreachable', 'Host connection changed before cancellation');
-        result = await authority.hostUpdate({
-          action: 'cancel',
-          reference: { id: result.operation.id, revision: result.operation.revision },
-          reason: 'cancelled',
-        });
+          throw new CliError(
+            'daemon_unreachable',
+            'Host connection changed before the update action',
+          );
+        const reference = { id: result.operation.id, revision: result.operation.revision };
+        result = await authority.hostUpdate(
+          command.recover
+            ? {
+                action: 'recover',
+                reference,
+                strategy: 'verify-completion',
+              }
+            : {
+                action: 'cancel',
+                reference,
+                reason: 'cancelled',
+              },
+        );
         if (!result.ok || !result.operation)
           throw new CliError(
             'upgrade_failed',
-            'Update was not cancelled; inspect its current state before another action',
+            command.recover
+              ? 'Update completion was not verified; inspect its current state before another recovery action'
+              : 'Update was not cancelled; inspect its current state before another action',
           );
       }
       const operation = result.operation;

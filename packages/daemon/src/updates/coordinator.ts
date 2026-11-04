@@ -14,6 +14,9 @@ import { acquireHostClaim, HostClaimBusy } from '../security/claims.js';
 import { HostUpdateConflict, HostUpdateOperations } from './operations/store.js';
 import type { HostUpdateInspection, UpdateInspection } from './preflight/inspection.js';
 import { readStageCapabilities } from './preflight/candidate.js';
+import { recoverCompletedHostUpdate } from './recovery/completion.js';
+import { requireEndedUpdateWorker } from './worker/lifetime.js';
+import { readUpdateWorker } from './worker/supervisor.js';
 
 class Rejected extends Error {}
 class Unsupported extends Error {}
@@ -73,6 +76,15 @@ export class HostUpdateCoordinator {
       let operation = store.read(command.reference.id);
       if (!operation || operation.revision !== command.reference.revision)
         throw new HostUpdateConflict('Host update changed', operation);
+      if (command.action === 'recover') {
+        if (operation.phase === 'complete') return { ok: true, operation };
+        operation = await recoverCompletedHostUpdate(
+          this.deps.home,
+          operation,
+          () => !this.closed && authorised(),
+        );
+        return { ok: true, operation };
+      }
       if (command.action === 'cancel') {
         operation = store.stopBeforeDispatch(
           operation,
@@ -207,7 +219,7 @@ export class HostUpdateCoordinator {
     }
   }
 
-  /** An ended/fenced worker cannot resume its operation after releasing its execution claim. */
+  /** Release only after dispatch is fenced and any executed worker commands have ended. */
   private releaseFinishedMaintenance(): void {
     const held = this.maintenance;
     if (!held || this.closed) return;
@@ -225,6 +237,19 @@ export class HostUpdateCoordinator {
       throw error;
     }
     try {
+      if (operation.worker_id) {
+        try {
+          requireEndedUpdateWorker(
+            this.deps.home,
+            readUpdateWorker(this.deps.home, operation.id),
+            operation,
+          );
+        } catch {
+          // A released lock can leave installer children alive. Unknown evidence
+          // retains maintenance while status remains available for recovery.
+          return;
+        }
+      }
       held.release();
       this.maintenance = undefined;
     } finally {
