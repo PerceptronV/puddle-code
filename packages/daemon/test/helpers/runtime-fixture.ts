@@ -21,14 +21,19 @@ const packageRoot = fileURLToPath(new URL('../../', import.meta.url));
 export let bundleDir: string;
 export const children: ChildProcess[] = [];
 const homes: string[] = [];
+let retainBundle = false;
 /** Native job cleanup must establish absence before removing its executable tree. */
 export function retainRuntimeHome(home: string): void {
+  retainBundle = true;
   const index = homes.indexOf(home);
   if (index !== -1) homes.splice(index, 1);
+  for (const [directory, ownerHome] of socketDirectories) {
+    if (ownerHome === home) socketDirectories.delete(directory);
+  }
 }
 export const clients: RuntimeClient[] = [];
 export const controllers: ReturnType<typeof acquireRuntimeController>[] = [];
-const socketDirectories = new Set<string>();
+const socketDirectories = new Map<string, string>();
 
 beforeAll(async () => {
   // Stage like a host release outside privacy-sensitive checkout directories.
@@ -101,7 +106,9 @@ beforeAll(async () => {
     },
   });
 });
-afterAll(() => rmSync(bundleDir, { recursive: true, force: true }));
+afterAll(() => {
+  if (!retainBundle) rmSync(bundleDir, { recursive: true, force: true });
+});
 afterEach(async () => {
   for (const client of clients.splice(0)) client.close();
   for (const child of children.splice(0)) {
@@ -113,7 +120,8 @@ afterEach(async () => {
   }
   for (const controller of controllers.splice(0)) controller.release();
   for (const home of homes.splice(0)) rmSync(home, { recursive: true, force: true });
-  for (const directory of socketDirectories) rmSync(directory, { recursive: true, force: true });
+  for (const directory of socketDirectories.keys())
+    rmSync(directory, { recursive: true, force: true });
   socketDirectories.clear();
 });
 
@@ -122,7 +130,7 @@ export function environment(home: string): NodeJS.ProcessEnv {
   return { HOME: home, PATH: '/usr/bin:/bin:/usr/sbin:/sbin', LANG: 'en_US.UTF-8' };
 }
 export function launchOwner(home: string, id: string, entry = 'puddler.mjs', path?: string) {
-  socketDirectories.add(dirname(ipcPath(home, `runtime:${id}`)));
+  socketDirectories.set(dirname(ipcPath(home, `runtime:${id}`)), home);
   const child = spawn(process.execPath, [join(bundleDir, entry), '--home', home, '--runtime', id], {
     env: { ...environment(home), ...(path ? { PATH: path } : {}) },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -173,7 +181,7 @@ export function prepare(provider?: 'interactive' | 'headless') {
   };
   const directory = runtimeDirectory(home, launch.identity.runtime_id);
   atomicPrivateJson(join(directory, 'launch.json'), launch);
-  socketDirectories.add(dirname(ipcPath(home, `runtime:${launch.identity.runtime_id}`)));
+  socketDirectories.set(dirname(ipcPath(home, `runtime:${launch.identity.runtime_id}`)), home);
   return { home, launch, controller, directory };
 }
 export async function setup(provider?: 'interactive' | 'headless') {

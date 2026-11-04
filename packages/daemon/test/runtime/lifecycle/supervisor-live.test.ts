@@ -15,6 +15,7 @@ import {
   removeRuntimeService,
 } from '../../../src/runtime/lifecycle/supervisor.js';
 import { runCompilationCommand } from '../../../src/compilation/process.js';
+import { serviceIsRemoved } from '../../../src/host/supervision/removed.js';
 import {
   acquireRuntimeController,
   readRuntimeJson,
@@ -27,6 +28,7 @@ import {
   waitForSnapshot,
   environment,
   bundleDir,
+  retainRuntimeHome,
 } from '../../helpers/runtime-fixture.js';
 
 describe('native runtime supervision', () => {
@@ -46,11 +48,11 @@ describe('native runtime supervision', () => {
           timeoutMs: 15_000,
           maxOutputBytes: 64 * 1024,
         });
-      const waitFor = async <T>(read: () => T | null): Promise<T> => {
+      const waitFor = async <T>(read: () => T | null | Promise<T | null>): Promise<T> => {
         const deadline = Date.now() + 15_000;
         while (Date.now() < deadline) {
           try {
-            const value = read();
+            const value = await read();
             if (value !== null) return value;
           } catch {
             /* Await isolated job startup. */
@@ -58,6 +60,39 @@ describe('native runtime supervision', () => {
           await new Promise((resolve) => setTimeout(resolve, 20));
         }
         throw new Error('Supervised fixture did not become ready');
+      };
+      const cleanupNative = async () => {
+        try {
+          await execute(['bootout', target]).catch(() => {});
+          const inspect = (job: { name: string; domain: string }) =>
+            serviceIsRemoved(home, { kind: 'launchd', ...job }, (command) =>
+              runCompilationCommand({ ...command, env: environment(home) }),
+            );
+          await waitFor(async () => ((await inspect({ name: label, domain })) ? true : null));
+          let record;
+          try {
+            record = runtimeSupervisorSchema.parse(
+              readRuntimeJson(join(directory, 'supervisor.json')),
+            );
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+          }
+          if (record) {
+            await execute(['bootout', `${record.domain}/${record.name}`]).catch(() => {});
+            const job = { name: record.name, domain: record.domain! };
+            await waitFor(async () => ((await inspect(job)) ? true : null));
+          }
+          await waitFor(() => {
+            const claim = acquireHostClaim(home, `runtime:${launch.identity.runtime_id}`);
+            claim.release();
+            return true;
+          });
+        } catch (error) {
+          retainRuntimeHome(home);
+          throw new Error(`Native cleanup is unconfirmed; retained ${home} and ${bundleDir}`, {
+            cause: error,
+          });
+        }
       };
       try {
         await startRuntimeService(home, launch.identity, {
@@ -169,19 +204,7 @@ describe('native runtime supervision', () => {
         expect(bootedOut).toBe(true);
         expect(await removeRuntimeService(home, launch.identity)).toBe('removed');
       } finally {
-        await execute(['bootout', target]).catch(() => {});
-        try {
-          const record = runtimeSupervisorSchema.parse(
-            readRuntimeJson(join(directory, 'supervisor.json')),
-          );
-          await execute(['bootout', `${record.domain}/${record.name}`]).catch(() => {});
-        } finally {
-          await waitFor(() => {
-            const claim = acquireHostClaim(home, `runtime:${launch.identity.runtime_id}`);
-            claim.release();
-            return true;
-          });
-        }
+        await cleanupNative();
       }
     },
   );

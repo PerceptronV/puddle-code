@@ -692,9 +692,14 @@ binding state and seeds previously ended owners. An indexed pending queue suppli
 at most 32 owners per pass, with four removals in flight; unavailable owners cannot
 starve later pages. Cleanup acquires launch, dispatch and owner claims, verifies
 the exact host/runtime service target and fences delayed starts before removal.
-Already-absent launchd/systemd registrations are accepted only after bounded,
-positive absence inspection; other failures remain pending. A completed receipt
-prevents repeated collection after daemon replacement. Shutdown drains pending
+Both already-absent registrations and successful unregister commands require bounded,
+positive absence inspection through a reachable manager. Systemd must report the exact
+unit missing, inactive and dead with no main PID or pending reload; launchd must report
+the exact job absent in an available domain. Historical `removed` records are reinspected
+when cleanup is invoked again, and a reappeared registration is removed under the same
+claims. Other failures remain pending. A completed database receipt prevents repeated
+background collection after daemon replacement; it is not current service or release
+collection evidence. Shutdown drains pending
 commands before closing the database and releasing controller authority.
 Registration cleanup preserves journals, checkpoints, results and pinned assets;
 it is not proof that unmanaged provider descendants have ended. Orphan-sidecar

@@ -10,6 +10,23 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+Runtime registration cleanup now uses fresh supervisor absence evidence after successful
+unregister commands and when a historical removed record is encountered. Tests reject
+loaded/active units, missing or duplicate properties, live PIDs, pending reloads,
+unavailable managers and another user's launchd target. The real database queue remains
+pending after an unconfirmed unload and a replacement cleanup instance completes it only
+after observing absence, without repeating the completed unload. The isolated native
+launchd runtime/controller fixture passed, including live shell continuity, explicit
+runtime stop, a lost bootout reply and repeated removal inspection. These checks do not
+establish orphan-descendant termination, Linux service removal, complete uninstall/purge
+or reference-aware release collection.
+The affected host supervision/startup, runtime lifecycle and update/recovery regressions
+passed 258 tests in 37 files, with eight native cases skipped in that run. The native
+launchd runtime/controller case passed separately with its explicit fixture flag enabled;
+final fixture cleanup verifies both job registrations are absent and retains its home,
+IPC directory and executable bundle if cleanup cannot be established. Source and strict
+changed-test typechecks, lint, formatting and CLI/desktop builds passed.
+
 Installation exclusion now has real process tests for the shell installer and Node
 startup helper sharing the same permanent regular lock file. The installer SIGKILL
 test leaves its smoke child running, rejects a competing install and admits a fresh

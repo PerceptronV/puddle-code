@@ -43,6 +43,17 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Runtime registration cleanup now requires fresh manager-backed absence after every
+  unregister attempt, including successful commands and historical removed records.
+  Shared host supervision helpers validate complete systemd properties and launchd
+  domain availability; runtime cleanup validates the exact host/user target while
+  retaining launch, dispatch and owner claims. Unconfirmed results leave the existing
+  database queue pending across controller replacement. A native isolated launchd
+  runtime test passed, including a lost unload reply and repeated absence inspection.
+  This is registration proof only: removal/purge coordination, orphan-descendant
+  proof, reference-aware release collection and actual Linux acceptance remain open.
+  No protocol changes are required.
+
 - Modern host installation/startup now share a permanent private regular lock file
   and non-blocking flock, reusing the bounded command runner to inherit its descriptor.
   Surviving children keep exclusion after parent SIGKILL, and fresh attempts acquire

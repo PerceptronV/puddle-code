@@ -6,6 +6,13 @@ import { RuntimeServiceCleanup } from '../../../src/runtime/lifecycle/service-cl
 import { acquireHostClaim } from '../../../src/security/claims.js';
 import { runtimeDatabase } from '../../helpers/runtime-database.js';
 import { openDatabase } from '../../../src/db/db.js';
+import {
+  startRuntimeService,
+  removeRuntimeService,
+} from '../../../src/runtime/lifecycle/supervisor.js';
+import type { CompilationCommandRunner } from '../../../src/compilation/process.js';
+import { readRuntimeJson } from '../../../src/runtime/ownership/storage.js';
+import { join } from 'node:path';
 
 it('keeps paused cleanup pending until its supervisor result can be reinspected', async () => {
   const f = runtimeDatabase();
@@ -86,6 +93,57 @@ it('collects only ended bindings, preserves live claims and retries failed compl
     expect(store.pending()).toEqual([]);
     expect(f.runtimes.get(f.binding.runtime_id)?.state).toBe('exited');
     expect(f.sessions.get(f.session.id).id).toBe(f.session.id);
+  } finally {
+    await cleanup.close();
+    await f.reconciler.close();
+    f.db.close();
+  }
+});
+
+it('keeps unconfirmed supervisor removal pending across controller replacement', async () => {
+  const f = runtimeDatabase();
+  f.runtimes.finish(f.binding.runtime_id, 'exited', () => {});
+  const store = new RuntimeServiceCleanupStore(f.db);
+  let absent = false;
+  let bootouts = 0;
+  const run: CompilationCommandRunner = async (command) => {
+    if (command.args[0] === 'bootout') bootouts++;
+    return { exitCode: command.args[0] === 'print' && absent ? 113 : 0, stdout: '', stderr: '' };
+  };
+  const record = await startRuntimeService(f.home, f.launch.identity, {
+    kind: 'launchd',
+    nodePath: process.execPath,
+    entryPath: process.execPath,
+    run,
+  });
+  const createCleanup = () =>
+    new RuntimeServiceCleanup({
+      home: f.home,
+      store,
+      reconciler: f.reconciler,
+      remove: (home, identity) => removeRuntimeService(home, identity, run),
+    });
+  const cleanup = createCleanup();
+  try {
+    await cleanup.flush();
+    expect(bootouts).toBe(1);
+    expect(store.pending()).toHaveLength(1);
+    expect(readRuntimeJson(join(f.directory, 'supervisor.json'))).toEqual(record);
+    await cleanup.close();
+    const replacement = createCleanup();
+    try {
+      // The already accepted unload finishes later. A new controller observes it.
+      absent = true;
+      await replacement.flush();
+      expect(store.pending()).toEqual([]);
+      expect(bootouts).toBe(1);
+      expect(readRuntimeJson(join(f.directory, 'supervisor.json'))).toEqual({
+        ...record,
+        state: 'removed',
+      });
+    } finally {
+      await replacement.close();
+    }
   } finally {
     await cleanup.close();
     await f.reconciler.close();

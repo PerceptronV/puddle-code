@@ -7,13 +7,10 @@ import {
   type RuntimeSupervisor,
 } from '@puddle/shared';
 import { atomicPrivateJson, digest } from '@puddle/shared/node';
-import {
-  CompilationCommandError,
-  runCompilationCommand,
-  type CompilationCommandRunner,
-} from '../../compilation/process.js';
+import { runCompilationCommand, type CompilationCommandRunner } from '../../compilation/process.js';
 import { acquireHostClaim, HostClaimBusy } from '../../security/claims.js';
 import { readRuntimeJson, runtimeDirectory } from '../ownership/storage.js';
+import { serviceIsRemoved } from '../../host/supervision/removed.js';
 
 import {
   independentServiceDefinition,
@@ -162,44 +159,21 @@ export async function removeRuntimeService(
       record.kind === 'systemd'
         ? `puddler-${hostKey}-${identity.runtime_id}.service`
         : `dev.puddle.runtime.${hostKey}.${identity.runtime_id}`;
-    if (record.name !== expectedName || (record.kind === 'launchd' && record.domain === null))
+    if (
+      record.name !== expectedName ||
+      record.domain !== (record.kind === 'launchd' ? `gui/${process.getuid?.()}` : null)
+    )
       throw new Error('Runtime supervisor target mismatch');
-    if (record.state === 'removed') return 'removed';
     // Fence a queued service start before releasing this lock after unregistering.
     retire();
     const execute = supervisorCommand(home, run);
-    const result = async (command: string, args: string[]) => {
-      try {
-        return await execute(command, args);
-      } catch (error) {
-        if (error instanceof CompilationCommandError && error.result) return error.result;
-        throw error;
-      }
-    };
+    const absent = () => serviceIsRemoved(home, record, run);
+    // A recorded removal is historical evidence, not proof of current manager state.
+    if (await absent()) {
+      if (record.state !== 'removed') atomicPrivateJson(file, { ...record, state: 'removed' });
+      return 'removed';
+    }
     if (record.kind === 'systemd') {
-      const absent = async () => {
-        const observed = await result('systemctl', [
-          '--user',
-          'show',
-          '--property=LoadState,ActiveState,SubState',
-          record.name,
-        ]);
-        const values = new Map(
-          observed.stdout
-            .trim()
-            .split('\n')
-            .map((line) => {
-              const [key, value] = line.split('=');
-              return [key, value] as const;
-            }),
-        );
-        return (
-          [0, 4].includes(observed.exitCode) &&
-          values.get('LoadState') === 'not-found' &&
-          values.get('ActiveState') === 'inactive' &&
-          values.get('SubState') === 'dead'
-        );
-      };
       try {
         await execute('systemctl', ['--user', 'stop', record.name]);
       } catch (error) {
@@ -214,21 +188,13 @@ export async function removeRuntimeService(
       await execute('systemctl', ['--user', 'daemon-reload']);
     } else {
       const target = `${record.domain!}/${record.name}`;
-      const absent = async () => {
-        const observed = await result('/bin/launchctl', ['print', target]);
-        // launchctl error 113: service not found. Other errors never establish absence.
-        if (observed.exitCode !== 0 && observed.exitCode !== 113)
-          throw new Error('Could not inspect runtime service registration');
-        return observed.exitCode === 113;
-      };
-      if (!(await absent())) {
-        try {
-          await execute('/bin/launchctl', ['bootout', target]);
-        } catch (error) {
-          if (!(await absent())) throw error;
-        }
+      try {
+        await execute('/bin/launchctl', ['bootout', target]);
+      } catch (error) {
+        if (!(await absent())) throw error;
       }
     }
+    if (!(await absent())) throw new Error('Runtime service removal is unconfirmed');
     atomicPrivateJson(file, { ...record, state: 'removed' });
     return 'removed';
   } finally {

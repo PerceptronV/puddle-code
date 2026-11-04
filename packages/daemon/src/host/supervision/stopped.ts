@@ -5,6 +5,7 @@ import {
 import { supervisorCommand } from '../services.js';
 import { validServiceTarget, type ServiceTarget } from './target.js';
 import { inspectLaunchdProcess } from './launchd.js';
+import { inspectSystemdProperties, systemdServiceProperties } from './systemd.js';
 
 /** Explicit startup/recovery only: an idle launchd registration still needs unloading. */
 export async function serviceHasNoProcess(
@@ -104,21 +105,9 @@ async function inspectSystemdStopped(
   run?: CompilationCommandRunner,
   includeResult = false,
 ) {
-  const properties =
-    'Id,LoadState,ActiveState,SubState,MainPID,NeedDaemonReload' + (includeResult ? ',Result' : '');
-  const response = await supervisorCommand(home, run)('systemctl', [
-    '--user',
-    'show',
-    `--property=${properties}`,
-    target.name,
-  ]);
-  const values = new Map<string, string>();
-  for (const line of response.stdout.trim().split('\n')) {
-    const equal = line.indexOf('=');
-    const key = line.slice(0, equal);
-    if (equal < 1 || values.has(key)) return null;
-    values.set(key, line.slice(equal + 1));
-  }
+  const properties = systemdServiceProperties + (includeResult ? ',Result' : '');
+  const values = await inspectSystemdProperties(home, target, properties, run);
+  if (!values) return null;
   const failed = values.get('ActiveState') === 'failed';
   const expected = new Map([
     ['Id', target.name],

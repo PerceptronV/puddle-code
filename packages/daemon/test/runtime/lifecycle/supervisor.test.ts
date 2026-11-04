@@ -36,8 +36,13 @@ function fixture() {
     canonical_worktree_path: home,
   };
   const commands: CompilationCommand[] = [];
+  let registered = false;
   const run: CompilationCommandRunner = async (command) => {
     commands.push(command);
+    if (command.args[0] === 'bootstrap' || command.args[1] === 'start') registered = true;
+    if (command.args[0] === 'bootout' || command.args[1] === 'disable') registered = false;
+    if (command.args[0] === 'print')
+      return { exitCode: registered ? 0 : 113, stdout: '', stderr: '' };
     return { exitCode: 0, stdout: '', stderr: '' };
   };
   return { home, entryPath, identity, commands, run };
@@ -111,14 +116,16 @@ describe('independent runtime supervision', () => {
     }
     expect(commands).toHaveLength(1);
     expect(await removeRuntimeService(home, identity, run)).toBe('removed');
-    expect(commands[1]!.args).toEqual(['print', `${record.domain}/${record.name}`]);
-    expect(commands[2]!.args).toEqual(['bootout', `${record.domain}/${record.name}`]);
+    expect(commands[1]!.args).toEqual(['print-disabled', record.domain]);
+    expect(commands[2]!.args).toEqual(['print', `${record.domain}/${record.name}`]);
+    expect(commands[3]!.args).toEqual(['bootout', `${record.domain}/${record.name}`]);
     expect(
       JSON.parse(readFileSync(join(home, 'runtimes', identity.runtime_id, 'retired.json'), 'utf8'))
         .identity,
     ).toEqual(identity);
     expect(await removeRuntimeService(home, identity, run)).toBe('removed');
-    expect(commands).toHaveLength(3);
+    expect(commands).toHaveLength(8);
+    expect(commands.filter((command) => command.args[0] === 'bootout')).toHaveLength(1);
   });
 
   it.each(['runtime-launch', 'runtime-dispatch'])(
@@ -159,7 +166,7 @@ describe('independent runtime supervision', () => {
         absent = true;
         throw new Error('Lost reply');
       }
-      return { exitCode: absent ? 113 : 0, stdout: '', stderr: '' };
+      return { exitCode: absent && command.args[0] === 'print' ? 113 : 0, stdout: '', stderr: '' };
     };
     expect(await removeRuntimeService(f.home, f.identity, run)).toBe('removed');
     expect(
@@ -186,7 +193,7 @@ describe('independent runtime supervision', () => {
         stdout: '',
         stderr: 'unavailable',
       });
-      await expect(removeRuntimeService(f.home, f.identity, run)).rejects.toThrow(/inspect/);
+      await expect(removeRuntimeService(f.home, f.identity, run)).rejects.toThrow(/failed/);
       expect(
         (
           readRuntimeJson(
@@ -200,7 +207,7 @@ describe('independent runtime supervision', () => {
 
   it('recovers already-removed systemd registration without accepting incomplete or active observations', async () => {
     const f = fixture();
-    await startRuntimeService(f.home, f.identity, {
+    const record = await startRuntimeService(f.home, f.identity, {
       kind: 'systemd',
       nodePath: process.execPath,
       entryPath: f.entryPath,
@@ -208,15 +215,110 @@ describe('independent runtime supervision', () => {
     });
     let stdout = 'LoadState=not-found\nActiveState=active\nSubState=running\n';
     const run: CompilationCommandRunner = async (command) => ({
-      exitCode: command.args[1] === 'daemon-reload' ? 0 : 4,
+      exitCode: ['daemon-reload', 'show-environment'].includes(command.args[1]!) ? 0 : 4,
       stdout: command.args[1] === 'show' ? stdout : '',
       stderr: '',
     });
     await expect(removeRuntimeService(f.home, f.identity, run)).rejects.toThrow(/failed/);
     stdout = 'LoadState=not-found\n';
     await expect(removeRuntimeService(f.home, f.identity, run)).rejects.toThrow(/failed/);
-    stdout = 'LoadState=not-found\nActiveState=inactive\nSubState=dead\n';
+    stdout = `Id=${record.name}\nLoadState=not-found\nActiveState=inactive\nSubState=dead\nMainPID=0\nNeedDaemonReload=no\n`;
     expect(await removeRuntimeService(f.home, f.identity, run)).toBe('removed');
+  });
+
+  it.each(['systemd', 'launchd'] as const)(
+    'retains %s cleanup after successful commands without observed removal',
+    async (kind) => {
+      const f = fixture();
+      const record = await startRuntimeService(f.home, f.identity, {
+        kind,
+        nodePath: process.execPath,
+        entryPath: f.entryPath,
+        run: f.run,
+      });
+      const run: CompilationCommandRunner = async (command) => ({
+        exitCode: 0,
+        stdout:
+          command.args[1] === 'show'
+            ? `Id=${record.name}\nLoadState=loaded\nActiveState=inactive\nSubState=dead\nMainPID=0\nNeedDaemonReload=no\n`
+            : '',
+        stderr: '',
+      });
+      await expect(removeRuntimeService(f.home, f.identity, run)).rejects.toThrow(/unconfirmed/);
+      const directory = runtimeDirectory(f.home, f.identity.runtime_id);
+      expect(readRuntimeJson(join(directory, 'supervisor.json'))).toEqual(record);
+      expect(readRuntimeJson(join(directory, 'retired.json'))).toEqual({
+        format: 1,
+        identity: f.identity,
+      });
+      await expect(
+        startRuntimeService(f.home, f.identity, {
+          kind,
+          nodePath: process.execPath,
+          entryPath: f.entryPath,
+          run: f.run,
+        }),
+      ).rejects.toThrow(/retired/);
+    },
+  );
+
+  it('reinspects historical removal and unregisters a reappeared job under the ownership claims', async () => {
+    const f = fixture();
+    const record = await startRuntimeService(f.home, f.identity, {
+      kind: 'launchd',
+      nodePath: process.execPath,
+      entryPath: f.entryPath,
+      run: f.run,
+    });
+    await removeRuntimeService(f.home, f.identity, f.run);
+    // A loaded registration can outlive or contradict the historical record.
+    await f.run({
+      file: '/bin/launchctl',
+      args: ['bootstrap', record.domain!, 'fixture.plist'],
+      cwd: f.home,
+    });
+    const run: CompilationCommandRunner = async (command) => {
+      expect(() => acquireHostClaim(f.home, `runtime:${f.identity.runtime_id}`)).toThrow();
+      expect(() => acquireHostClaim(f.home, `runtime-launch:${f.identity.runtime_id}`)).toThrow();
+      expect(() => acquireHostClaim(f.home, `runtime-dispatch:${f.identity.runtime_id}`)).toThrow();
+      return f.run(command);
+    };
+    expect(await removeRuntimeService(f.home, f.identity, run)).toBe('removed');
+    expect(f.commands.filter((command) => command.args[0] === 'bootout')).toHaveLength(2);
+  });
+
+  it('does not accept a historical removal when the manager becomes unavailable', async () => {
+    const f = fixture();
+    await startRuntimeService(f.home, f.identity, {
+      kind: 'launchd',
+      nodePath: process.execPath,
+      entryPath: f.entryPath,
+      run: f.run,
+    });
+    await removeRuntimeService(f.home, f.identity, f.run);
+    await expect(
+      removeRuntimeService(f.home, f.identity, async () => ({
+        exitCode: 113,
+        stdout: '',
+        stderr: 'No GUI manager',
+      })),
+    ).rejects.toThrow(/failed/);
+  });
+
+  it('rejects a recorded launchd domain belonging to another user before dispatch', async () => {
+    const f = fixture();
+    const record = await startRuntimeService(f.home, f.identity, {
+      kind: 'launchd',
+      nodePath: process.execPath,
+      entryPath: f.entryPath,
+      run: f.run,
+    });
+    atomicPrivateJson(join(runtimeDirectory(f.home, f.identity.runtime_id), 'supervisor.json'), {
+      ...record,
+      domain: `gui/${process.getuid!() + 1}`,
+    });
+    await expect(removeRuntimeService(f.home, f.identity, f.run)).rejects.toThrow(/target/);
+    expect(f.commands).toHaveLength(1);
   });
 
   it('rejects a registration targeting another runtime even with matching launch metadata', async () => {
