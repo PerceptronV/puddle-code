@@ -1,6 +1,6 @@
 # The puddle communication protocol
 
-The experimental private daemon/runtime contract is versioned separately in
+The private daemon/runtime contract for the standard 0.4.0 backend is versioned separately in
 [`RUNTIME_PROTOCOL.md`](RUNTIME_PROTOCOL.md). Adding that contract does not change
 this application's protocol or the remote protocol. Default session creation still uses daemon-owned runtimes. An explicit daemon
 composition option can launch terminal (including code execution) and interactive/headless

@@ -1,7 +1,9 @@
 # Private runtime protocol
 
-Status: runtime foundation under development; production sessions still use the
-in-process daemon backend. The full delivery scope is tracked in
+Status: implementation for the standard runtime backend in **0.4.0**; the current
+development build still uses the in-process backend by default. Release requires
+switching to persistent ownership without a user-facing enable/disable option.
+The full delivery scope is tracked in
 [the persistent runtimes roadmap](../../docs/roadmap/persistent-runtimes.md).
 
 `RUNTIME_PROTOCOL_VERSION` starts at **1.0**, independently of application
@@ -23,7 +25,11 @@ before enablement.
 ## Compatibility
 
 The same major is compatible; additive minor capabilities must be detected before
-use. A different major is an adoption error, never proof of runtime death. New
+use. This guarantee covers IPC and the retained state needed for adoption. Local
+format markers remain validation details, not independent compatibility contracts.
+The candidate daemon declares its supported runtime majors; preflight compares
+them with every live runtime without requiring matching release versions.
+A different unsupported major is an adoption error, never proof of runtime death. New
 required fields, removed operations, changed meanings and authentication changes
 require a new major once this contract has shipped. The initial unshipped 1.0
 contract is developed together with its first owner/client implementation.

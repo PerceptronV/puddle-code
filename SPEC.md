@@ -135,11 +135,26 @@ Service login uses Google and/or GitHub OAuth only; at least one complete provid
 
 The daemon is the persistence layer. It is the parent of every PTY, runs under a persistent supervisor or a cockpit-owned SSH channel, and tees all output to disk. tmux would duplicate that role with a second session registry that can drift. The "attach from a raw terminal" escape hatch tmux provided is replaced by `puddle attach <session>` (CLI → daemon WebSocket).
 
-### Persistent-runtime foundation (not yet enabled)
+### Persistent runtimes (0.4.0 implementation in progress)
+
+Persistent runtimes and cockpit-managed host updates are required standard behaviour
+from 0.4.0, without an enable/disable setting or selectable legacy backend. The
+implementation described below is incomplete; existing development switches do not
+define the release behaviour. Runtime protocol compatibility covers both live IPC
+and retained state, with supported majors advertised by each candidate daemon.
+Host archives carry `HOST_CAPABILITIES.json`, generated through the built daemon's
+passive `--host-capabilities` command. Update preflight reads bounded metadata from
+the exact staged generation rather than invoking unknown candidate executables.
+The compatibility inspector reuses the daemon's runtime bindings and authenticated
+connections, checks supported majors and exact owner identity, and refuses unknown
+records or an inventory changed during inspection. Runtime-only default selection
+checks the current daemon's support without requiring adoption of existing owners.
+This inspection does not authorise dispatch or replace impact, capacity and
+quiescence checks; those coordinator integrations are still in progress.
 
 The [persistent runtimes roadmap](docs/roadmap/persistent-runtimes.md) specifies
 one independent `puddler` process per live runtime and cockpit-managed host
-updates. The experimental implementation under daemon `runtime/` provides a
+updates. The implementation under daemon `runtime/` provides a
 separate development entry point, private bounded IPC, process-lifetime ownership
 claims, controller fencing, single-use launches, terminal ownership and retained
 exit records. A bounded private event journal retains terminal creation/exits

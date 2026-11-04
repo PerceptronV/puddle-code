@@ -5,7 +5,11 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { expect, it } from 'vitest';
-import { RUNTIME_PROTOCOL_VERSION, hostStageReceiptSchema } from '@puddle/shared';
+import {
+  RUNTIME_PROTOCOL_VERSION,
+  hostStageReceiptSchema,
+  hostReleaseCapabilities,
+} from '@puddle/shared';
 import { digest } from '@puddle/shared/node';
 import { HostUpdateOperations } from '../../../src/updates/operations/store.js';
 import { startUpdateWorker } from '../../../src/updates/worker/supervisor.js';
@@ -125,6 +129,18 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
     }
     const before = readdirSync(f.home).sort();
     const protocol = `${RUNTIME_PROTOCOL_VERSION.major}.${RUNTIME_PROTOCOL_VERSION.minor}`;
+    expect(JSON.parse(readFileSync(join(stage, 'HOST_CAPABILITIES.json'), 'utf8'))).toEqual(
+      hostReleaseCapabilities(version),
+    );
+    expect(
+      JSON.parse(
+        execFileSync(join(stage, 'puddled'), ['--host-capabilities'], {
+          env,
+          encoding: 'utf8',
+          timeout: 5000,
+        }),
+      ),
+    ).toEqual(hostReleaseCapabilities(version));
     expect(readFileSync(join(stage, 'RUNTIME_PROTOCOL'), 'utf8').trim()).toBe(protocol);
     expect(
       execFileSync(join(stage, 'puddler'), ['--version'], {

@@ -11,7 +11,9 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
-- Package an experimental one-shot runtime updater that shares runtime supervision and the canonical installer, preserves service configuration during exact activation and verifies the selected generation before reporting completion.
+- Declare supported runtime majors in passive host-release metadata and inspect staged update compatibility against existing owners; runtime compatibility covers both IPC and retained state without requiring matching release versions.
+
+- Package an one-shot runtime updater that shares runtime supervision and the canonical installer, preserves service configuration during exact activation and verifies the selected generation before reporting completion.
 
 - Add durable host-update operation bookkeeping with exact approval/dispatch identities, bounded history and worker fencing that preserves uncertain outcomes after crashes; reuse shared host claims and private record storage.
 
@@ -21,7 +23,7 @@ Past releases: see docs/changelogs/.
 
 - Install host releases into immutable generations, preserving pinned files on same-version repairs and retaining the previous selection when staging fails; read installed versions from release metadata.
 
-- Include the experimental `puddler` executable and runtime protocol metadata in host release archives, sharing the existing bundle configuration, pinned Node and native modules.
+- Include the `puddler` executable and runtime protocol metadata in host release archives, sharing the existing bundle configuration, pinned Node and native modules.
 
 - Organise persistent runtime code and tests by ownership, transport, execution, state, daemon control and lifecycle, retaining stable executable entry points.
 

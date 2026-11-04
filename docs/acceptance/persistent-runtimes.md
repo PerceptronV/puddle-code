@@ -527,6 +527,17 @@ passed 148 tests across 18 files on macOS 26.5.2/Node v22.21.1. The host archive
 CLI and desktop bundles built successfully; archive smoke checks include the passive
 updater version command. Loopback upgrade fixtures require socket permissions.
 
+The compatibility suite under `test/updates/preflight/` verifies passive candidate
+metadata, release-version skew, supported runtime majors, independent application
+and remote checks, unknown owners, unavailable owners and inventory changes during
+inspection. All 20 tests passed on macOS 26.5.2/Node v22.21.1, alongside the real
+daemon ownership, terminal gateway and missing-agent regressions. A freshly built
+0.4.0 test archive passed the packaged-owner test, including its passive capability
+metadata and runtime-default update with the original shell PID and variable
+intact. CLI and desktop builds passed. This establishes compatibility inspection
+and runtime-default continuity; it does not establish full update preflight,
+installed daemon replacement or the required standard backend rollout for 0.4.0.
+
 ## Remaining release gates
 
 

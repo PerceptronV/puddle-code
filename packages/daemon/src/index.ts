@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PROTOCOL_VERSION } from '@puddle/shared';
+import { PROTOCOL_VERSION, hostReleaseCapabilities } from '@puddle/shared';
 import { startDaemon } from './daemon.js';
 
 // Inlined by esbuild in release tarballs (scripts/build-tarball.mjs); dev tsc
@@ -19,6 +19,13 @@ function appVersion(): string {
 }
 
 const version = appVersion();
+
+// Passive candidate inspection must precede all daemon setup.
+if (process.argv.includes('--host-capabilities')) {
+  if (process.argv.length !== 3) throw new Error('--host-capabilities takes no other arguments');
+  console.log(JSON.stringify(hostReleaseCapabilities(version)));
+  process.exit(0);
+}
 
 // Must exit before any daemon setup: the CLI probes installs over SSH with
 // `puddled --version`, and a probe must never start a daemon as a side effect.

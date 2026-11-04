@@ -50,6 +50,8 @@ import { reconcilePass } from './sessions/reconcile.js';
 import { subscribePushNotifications } from './sessions/push-notifications.js';
 import { SessionService } from './sessions/service.js';
 import { RuntimeStore } from './db/stores/runtimes.js';
+import { hostReleaseCapabilities } from '@puddle/shared';
+import { HostUpdateCompatibility } from './updates/preflight/compatibility.js';
 import { RuntimeConnections } from './runtime/transport/connections.js';
 import { RuntimeReconciler } from './runtime/controller/reconcile.js';
 import { RuntimeNotifications } from './runtime/controller/notifications.js';
@@ -80,7 +82,7 @@ export interface DaemonOptions {
   version?: string;
   /** Quiet window for waiting_input detection (tests shrink it). */
   statusQuietMs?: number;
-  /** Experimental terminal launch configuration; installed default rollout remains gated. */
+  /** Temporary development composition seam; 0.4.0 requires the installed backend by default. */
   runtime?: RuntimeLaunchConfiguration;
 }
 
@@ -89,6 +91,7 @@ export interface RunningDaemon {
   authority: LeaseRegistry;
   paths: ReturnType<typeof resolvePaths>;
   service: SessionService;
+  updateCompatibility: HostUpdateCompatibility;
   stop(): Promise<void>;
 }
 
@@ -516,6 +519,12 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       authority,
       paths,
       service,
+      updateCompatibility: new HostUpdateCompatibility({
+        home: paths.home,
+        current: hostReleaseCapabilities(opts.version ?? '0.0.0'),
+        runtimes,
+        connections: runtimeConnections,
+      }),
       async stop() {
         runtimeNotifications.close();
         await runtimeServiceCleanup.close();
