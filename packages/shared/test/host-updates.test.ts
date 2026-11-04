@@ -1,9 +1,41 @@
 import { PassThrough } from 'node:stream';
+import { randomUUID } from 'node:crypto';
 import { afterEach, expect, it, vi } from 'vitest';
 import { HostUpdateRequests } from '../src/node/host-updates.js';
 import { hostUpdateCommandSchema } from '../src/api/connection/host-updates.js';
+import { HostControlClient } from '../src/node/host-control.js';
 
 afterEach(() => vi.useRealTimers());
+
+it('does not send adoption nonces to an older host', async () => {
+  const client = new HostControlClient(async () => {
+    throw new Error('No connection expected');
+  }, false);
+  client.version = { version: '0.3.14', protocol: { major: 25, minor: 7 } };
+  try {
+    await expect(
+      client.hostUpdate({ action: 'status', id: randomUUID(), adoption_nonce: randomUUID() }),
+    ).rejects.toThrow(/adoption inspection is unavailable/);
+  } finally {
+    client.close();
+  }
+});
+
+it('binds fresh adoption observations to an exact operation and bounded nonce', () => {
+  expect(
+    hostUpdateCommandSchema.safeParse({ action: 'status', adoption_nonce: randomUUID() }).success,
+  ).toBe(false);
+  expect(
+    hostUpdateCommandSchema.safeParse({
+      action: 'status',
+      id: randomUUID(),
+      adoption_nonce: 'anything',
+    }).success,
+  ).toBe(false);
+  const command = { action: 'status', id: randomUUID(), adoption_nonce: randomUUID() };
+  expect(hostUpdateCommandSchema.parse(command)).toEqual(command);
+  expect(hostUpdateCommandSchema.parse({ action: 'status' })).toEqual({ action: 'status' });
+});
 
 it('abandons a generation after a synchronous transport failure without retaining pending calls', async () => {
   vi.useFakeTimers();

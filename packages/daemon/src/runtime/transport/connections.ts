@@ -55,6 +55,12 @@ export class RuntimeConnections extends EventEmitter {
     return [...this.unavailable];
   }
 
+  /** Public controller identity only, while this daemon still holds admission and ownership. */
+  controllerIdentity(): Pick<RuntimeControllerRecord, 'id' | 'epoch'> | null {
+    if (this.closed || this.released) return null;
+    return { id: this.controller.record.id, epoch: this.controller.record.epoch };
+  }
+
   connect(): Promise<void> {
     if (this.closed) return Promise.reject(new Error('Runtime connections are closed'));
     if (this.paused) return Promise.reject(new Error('Runtime connection discovery is paused'));

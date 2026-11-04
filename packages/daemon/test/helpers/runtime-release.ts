@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 /** Metadata-only release for resolution/dispatch tests; never starts a process. */
 export function runtimeRelease(home: string, build = '1.2.3', protocol = '1.0') {
-  const name = `${build}~${randomUUID()}`;
+  const name = `${build}~${randomUUID().slice(0, 6)}`;
   const release = join(home, 'bin', 'versions', name);
   mkdirSync(join(release, 'bin'), { recursive: true });
   mkdirSync(join(release, 'daemon'));

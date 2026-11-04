@@ -10,6 +10,17 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+`packages/daemon/test/updates/checkpoints/adoption.test.ts` combines an isolated
+shell owner with staged metadata and private control/HTTP fixtures. It checks
+new controller epochs, exact generation paths, launch identities, committed cursors,
+settled placement bindings and confirmed final exits. A worker observation must
+carry a new nonce and pass both live control authority and authenticated HTTP checks;
+stale receipts and changed PID records fail. A blocked SQLite flush cannot refresh
+a receipt, and additive metadata remains included in its checkpoint digest without
+breaking compatible readers. These fixtures inject executable paths
+and do not prove packaged daemon activation. Shared tests gate nonce requests on
+application 25.8 and require an exact operation id.
+
 `packages/daemon/test/updates/checkpoints/store.test.ts` covers accepted dispatch
 identity, bounded inventories, immutable private checkpoint files, cursor/schema
 evidence and final exits during drainage. A real SQLite reader blocks the WAL

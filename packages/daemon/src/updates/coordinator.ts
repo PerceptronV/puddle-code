@@ -24,6 +24,7 @@ export class HostUpdateCoordinator {
       operations: HostUpdateOperations;
       inspection: Pick<HostUpdateInspection, 'inspect'>;
       installedRuntime(): HostReleaseCapabilities['runtime'] | null;
+      observeAdoption?(operation: HostUpdateOperation, nonce: string): void;
       dispatch(
         operation: HostUpdateOperation,
         kind: 'systemd' | 'launchd',
@@ -45,7 +46,13 @@ export class HostUpdateCoordinator {
     let claim: ReturnType<typeof acquireHostClaim> | undefined;
     try {
       requireAuthority();
-      if (command.action === 'status') return { ok: true, operation: store.read(command.id) };
+      if (command.action === 'status') {
+        const operation = store.read(command.id);
+        if (operation && command.adoption_nonce)
+          this.deps.observeAdoption?.(operation, command.adoption_nonce);
+        requireAuthority();
+        return { ok: true, operation };
+      }
       claim = acquireHostClaim(this.deps.home, 'host-update-coordinator');
       requireAuthority();
       if (command.action === 'begin') {

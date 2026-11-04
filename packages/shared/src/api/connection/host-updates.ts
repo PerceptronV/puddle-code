@@ -12,7 +12,18 @@ const fingerprint = z.string().regex(/^[0-9a-f]{64}$/);
 
 /** Private local/SSH control only; never a remote-connector or browser command surface. */
 export const hostUpdateCommandSchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('status'), id: z.uuid().optional() }).strict(),
+  z
+    .object({
+      action: z.literal('status'),
+      id: z.uuid().optional(),
+      /** Fresh private worker observation; never authorises activation. */
+      adoption_nonce: z.uuid().optional(),
+    })
+    .strict()
+    .refine(
+      (command) => !command.adoption_nonce || command.id !== undefined,
+      'Adoption inspection requires an exact operation',
+    ),
   z.object({ action: z.literal('begin'), targets: hostUpdateTargetsSchema }).strict(),
   z.object({ action: z.literal('stage'), reference, receipt: hostStageReceiptSchema }).strict(),
   z

@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Add application protocol 25.8 fresh private adoption observations for daemon updates, verifying exact staged executables, controller replacement and checkpointed runtime continuity through host control and authenticated HTTP authority.
+
 - Persist bounded runtime ownership checkpoints for accepted daemon updates after shutdown drains and SQLite flush, retaining controller ownership on publication failure and preserving exact runtime builds and committed cursors.
 
 - Make independent runtimes the daemon launch default, sharing service-manager discovery with update preflight and refusing unavailable supervision without falling back to daemon-owned sessions. Keep the legacy backend only as an internal test override.

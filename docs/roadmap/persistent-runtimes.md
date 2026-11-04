@@ -5,7 +5,7 @@ and cockpit-managed host updates are required release functionality. There is no
 enable/disable setting or user-selectable legacy backend. Host lifetime limitations
 must be reported honestly; internal fixture configuration is not a product toggle.
 
-Implementation status, 2026-11-03:
+Implementation status, 2026-11-04:
 Default daemon launches now use independent runtimes, resolving the installed
 runtime selector and checking the host service manager before launch intent. The
 legacy composition is restricted to internal migration fixtures. Hosts without a
@@ -28,6 +28,19 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 [acceptance matrix](#acceptance-matrix) for the release gates.
 
 Implementation evidence so far:
+
+- Replacement adoption observation is now wired into authorised exact-operation
+  status requests. Application 25.8 adds an optional fresh nonce; the coordinator
+  writes private evidence only for the staged generation, a newer controller and
+  all checkpointed owners with settled identities/cursors/placement bindings or
+  confirmed final exits. Interrupted or unknown owners never count as continuity.
+  A worker helper corroborates the nonce, checkpoint and stage with current host
+  records, a fresh private lease and bounded authenticated HTTP version inspection.
+  Tests use a real isolated owner and private control/HTTP fixtures; they reject
+  stale receipts, identity changes, unsettled observation, wrong executable paths
+  and unavailable HTTP authority. This does not enable activation: surviving-worker
+  shutdown/restart orchestration, final impact/authority approval, connector inventory
+  and migration-aware recovery remain outstanding.
 
 - Accepted daemon operations can now request a durable checkpoint through the
   internal shutdown path. Existing shutdown drains stop application writers and

@@ -211,7 +211,19 @@ owners which ended during drainage. The record is bounded to 4,096 owners and 8 
 contains no provider environment or credentials, and cannot overwrite an existing
 checkpoint. Invalidated dispatch or failed persistence leaves shutdown incomplete
 and retains the controller and database. This supplies shutdown evidence only;
-worker activation and replacement adoption verification remain unimplemented.
+worker activation remains unimplemented. Application protocol 25.8 adds an optional
+fresh nonce to exact-operation private status requests. The replacement coordinator
+can publish a private adoption receipt only for the executing operation, its exact
+staged generation/Node/entry point and a newer controller epoch. Every checkpointed
+owner must retain its launch identity/build and committed cursor, with settled
+authenticated placement binding or a confirmed final exit; interrupted or unknown
+ownership cannot prove success. Failed observations do not refresh old receipts.
+Publication flushes SQLite first; compatible readers ignore additive metadata
+while the checkpoint digest still covers all stored fields.
+The worker verification helper checks the exact nonce/checkpoint/stage, live controller
+and daemon port/PID records, a new private host lease and a bounded authenticated
+HTTP version response. This is verification plumbing; activation, final impact
+approval and recovery still require integration. No remote authority is added.
 
 The [persistent runtimes roadmap](docs/roadmap/persistent-runtimes.md) specifies
 one independent `puddler` process per live runtime and cockpit-managed host

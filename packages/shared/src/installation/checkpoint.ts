@@ -23,15 +23,15 @@ export const hostUpdateCheckpointSchema = hostUpdateCheckpointReferenceSchema
       .object({
         pid: z.number().int().positive().safe(),
         version: z.string().min(1).max(128),
-        controller: runtimeControllerSchema.pick({ id: true, epoch: true }).strict(),
+        controller: runtimeControllerSchema.pick({ id: true, epoch: true }).strip(),
         schema_version: z.number().int().nonnegative().safe(),
       })
-      .strict(),
+      .strip(),
     owners: z
       .array(
         z
           .object({
-            identity: runtimeIdentitySchema.strict(),
+            identity: runtimeIdentitySchema.strip(),
             build: runtimeStateSchema.shape.build,
             protocol: runtimeStateSchema.shape.protocol,
             release_path: runtimeIdentitySchema.shape.canonical_worktree_path,
@@ -39,11 +39,11 @@ export const hostUpdateCheckpointSchema = hostUpdateCheckpointReferenceSchema
             event_cursor: z.number().int().min(-1).safe(),
             state: z.enum(['prepared', 'running', 'exited', 'failed', 'interrupted']),
           })
-          .strict(),
+          .strip(),
       )
       .max(HOST_UPDATE_CHECKPOINT_OWNERS),
   })
-  .strict()
+  .strip()
   .refine(
     (record) =>
       new Set(record.owners.map((owner) => owner.identity.runtime_id)).size ===

@@ -86,6 +86,15 @@ export class HostControlClient implements ConnectionAuthority {
       (protocol.major === 25 && protocol.minor < 7)
     )
       return Promise.reject(new Error('Host updates are unavailable on this connection'));
+    if (
+      command.action === 'status' &&
+      command.adoption_nonce &&
+      protocol.major === 25 &&
+      protocol.minor < 8
+    )
+      return Promise.reject(
+        new Error('Host adoption inspection is unavailable on this connection'),
+      );
     if (this.state !== 'ready' || !this.updates)
       return Promise.reject(new Error('Host control is unavailable'));
     return this.updates.request(command);

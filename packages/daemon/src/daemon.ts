@@ -86,6 +86,7 @@ import { PuddlangService } from './puddlang/service.js';
 import { PuddlangStore } from './puddlang/store.js';
 import type { HostUpdateCheckpointReference } from '@puddle/shared';
 import { HostUpdateCheckpointWriter } from './updates/checkpoints/store.js';
+import { HostUpdateAdoptionWriter } from './updates/checkpoints/adoption.js';
 
 export interface DaemonOptions {
   /** Overrides PUDDLE_HOME / ~/.puddle (tests). */
@@ -368,10 +369,24 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       capacity: new HostUpdateCapacity(paths, storage),
       supervision: new HostUpdateSupervision({ home: paths.home, pid: process.pid }),
     });
+    const updateAdoption = new HostUpdateAdoptionWriter({
+      home: paths.home,
+      db,
+      runtimes,
+      connections: runtimeConnections,
+      reconciler: runtimeReconciler,
+      version: opts.version ?? '0.0.0',
+      nodePath: process.execPath,
+      entryPath: fileURLToPath(import.meta.url),
+      port: () => controlInfo?.port ?? null,
+    });
     updateCoordinator = new HostUpdateCoordinator({
       home: paths.home,
       operations: new HostUpdateOperations(paths.home),
       inspection: updateInspection,
+      observeAdoption: (operation, nonce) => {
+        updateAdoption.observe(operation, nonce);
+      },
       installedRuntime: () => {
         try {
           return resolveInstalledRuntimeRelease(paths.home).protocol;

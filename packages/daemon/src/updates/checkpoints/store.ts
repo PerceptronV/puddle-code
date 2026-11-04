@@ -10,6 +10,7 @@ import {
 } from '@puddle/shared';
 import {
   atomicPrivateJson,
+  digest,
   privateDirectory,
   readPrivateJson,
   syncPrivateDirectory,
@@ -19,17 +20,32 @@ import type { RuntimeBinding, RuntimeStore } from '../../db/stores/runtimes.js';
 import { runtimeBindingIdentity } from '../../runtime/transport/connections.js';
 import { HostUpdateOperations } from '../operations/store.js';
 
+/** A durable update receipt must never get ahead of the SQLite cursors it promises. */
+export function flushUpdateDatabase(db: Db): void {
+  const [flushed] = db.pragma('wal_checkpoint(FULL)') as Array<{
+    busy: number;
+    log: number;
+    checkpointed: number;
+  }>;
+  if (!flushed || flushed.busy !== 0 || flushed.log !== flushed.checkpointed)
+    throw new Error('Application storage did not checkpoint completely');
+}
+
 export function readHostUpdateCheckpoint(home: string, operationId: string): HostUpdateCheckpoint {
+  return readHostUpdateCheckpointEvidence(home, operationId).checkpoint;
+}
+
+/** Hash all stored metadata, including additive fields an older compatible reader ignores. */
+export function readHostUpdateCheckpointEvidence(home: string, operationId: string) {
   hostUpdateCheckpointReferenceSchema.shape.operation_id.parse(operationId);
-  const record = hostUpdateCheckpointSchema.parse(
-    readPrivateJson(
-      join(home, 'updates', 'checkpoints', `${operationId}.json`),
-      HOST_UPDATE_CHECKPOINT_BYTES,
-    ),
+  const value = readPrivateJson(
+    join(home, 'updates', 'checkpoints', `${operationId}.json`),
+    HOST_UPDATE_CHECKPOINT_BYTES,
   );
+  const record = hostUpdateCheckpointSchema.parse(value);
   if (record.operation_id !== operationId)
     throw new Error('Host update checkpoint identity mismatch');
-  return record;
+  return { checkpoint: record, digest: digest(`${JSON.stringify(value)}\n`) };
 }
 
 /** Capture only after all application writers drain, while the controller claim is still held. */
@@ -90,13 +106,7 @@ export class HostUpdateCheckpointWriter {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     }
     // The receipt must not promise cursors whose SQLite WAL has not reached disk.
-    const [flushed] = this.deps.db.pragma('wal_checkpoint(FULL)') as Array<{
-      busy: number;
-      log: number;
-      checkpointed: number;
-    }>;
-    if (!flushed || flushed.busy !== 0 || flushed.log !== flushed.checkpointed)
-      throw new Error('Application storage did not checkpoint completely');
+    flushUpdateDatabase(this.deps.db);
     const directory = join(this.deps.home, 'updates', 'checkpoints');
     privateDirectory(directory);
     syncPrivateDirectory(join(this.deps.home, 'updates'));

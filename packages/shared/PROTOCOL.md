@@ -12,6 +12,17 @@ record accepted dispatch identity, the outgoing controller and database schema, 
 bounded runtime identities/builds/committed cursors. They are internal update evidence,
 not a new network protocol, client approval or a replacement-adoption receipt.
 
+Protocol 25.8 adds an optional `adoption_nonce` to exact-operation host-update
+status requests. It requests a fresh private replacement observation, without
+authorising activation or returning runtime details to the caller. Older status
+requests are unchanged; clients check 25.8 before sending the nonce. The worker
+checks the matching private receipt, current controller identity, approved generation
+and both private control and authenticated HTTP authority. Evidence readers ignore
+additive metadata from compatible candidates; the checkpoint digest includes all
+stored fields, including those the reader does not interpret. Receipt publication
+flushes SQLite before promising committed cursors. Remote and runtime
+protocols are unchanged.
+
 Protocol 25.7 adds bounded local/SSH host-update requests and correlated replies on
 the existing private host-control connection. Existing open/renew/token semantics
 are unchanged. Profile-scoped connections cannot use this host-wide surface; no

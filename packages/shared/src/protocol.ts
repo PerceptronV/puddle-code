@@ -314,4 +314,5 @@
 // 25.5: local/SSH storage diagnostics and explicit unsaved runtime metadata.
 // 25.6: configurable bulk terminal-log retention, preserving restoration tails.
 // 25.7: bounded local/SSH host-update requests on the existing private control channel.
-export const PROTOCOL_VERSION = { major: 25, minor: 7 } as const;
+// 25.8: optional fresh adoption observation on exact private host-update status requests.
+export const PROTOCOL_VERSION = { major: 25, minor: 8 } as const;
