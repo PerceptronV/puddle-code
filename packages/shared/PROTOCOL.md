@@ -168,6 +168,10 @@ atomically replaced with a unique execution id and process group before componen
 commands. A later recovery must fence pending jobs and establish that every consumed
 group has ended; ordinary maintenance release uses the same check. These records
 are host-only worker evidence, not new application, remote or runtime messages.
+An optional `connector_restart` fingerprint records separate permission within a
+fresh explicit recovery attempt after confirmed connector loss. It binds the approved
+service and selected generation; existing records without it cannot restart an attempted
+connector. This private ledger extension changes none of the three network protocols.
 
 Protocol 25.9 adds nonce-correlated, read-only process inspection on the connector
 manager's existing exclusive private host socket. Replies contain bounded process,

@@ -17,6 +17,7 @@ import {
 
 import { claimUpdateContinuation } from '../continuation.js';
 import { HostUpdateRecoveryAttempts } from './records.js';
+import { inspectConnectorRecoveryRestart } from '../connector.js';
 
 /** Explicit continuation only. Recorded attempts are observed, never re-dispatched. */
 export async function startUpdateRecoveryWorker(
@@ -36,6 +37,14 @@ export async function startUpdateRecoveryWorker(
   const recovery = await claimUpdateContinuation(home, reference, options.authorised, options.run);
   try {
     const { operation, job: original, actions } = recovery;
+    const connectorRestart = await inspectConnectorRecoveryRestart(
+      home,
+      original,
+      operation,
+      actions,
+      options.run,
+    );
+    recovery.check();
     const paths = updateWorkerExecutables(home, options.releasePath);
     const uid = options.uid ?? process.getuid?.();
     if (uid === undefined || !Number.isSafeInteger(uid) || uid < 0)
@@ -56,6 +65,7 @@ export async function startUpdateRecoveryWorker(
       preflight: operation.approved,
       original_worker_digest: digest(JSON.stringify(original)),
       actions_digest: digest(JSON.stringify(actions)),
+      ...(connectorRestart ? { connector_restart: connectorRestart } : {}),
       ...(recovery.mode === 'restart' ? { daemon_restart: recovery.restart } : {}),
       service: {
         ...paths,

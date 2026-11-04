@@ -10,6 +10,20 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+Connector recovery fixtures use real operation/attempt journals and controller claims,
+with simulated supervisor and daemon/connector inspection results. They cover inactive,
+failed and rate-limited connector starts, exact request deduplication, consumed attempts,
+healthy replacements before dispatch/execution and unchanged daemon controller identity.
+Live services/outgoing PIDs, present or unavailable managers, changed definitions and
+changed authority/selection block mutation. A manager appearing during rate-limit reset
+prevents start; a lost start reply leaves recovery required until observation or another
+explicit accepted attempt. An observation-only job cannot restart a connector that dies
+after acceptance. Actual connector supervision and packaged upgrade acceptance remain
+separate release gates.
+The host supervision/update/recovery and shared installation regression run passed
+220 tests in 29 files, with three native supervisor tests skipped. Source and strict
+changed-test typechecks, lint, formatting and CLI/desktop builds passed.
+
 Disconnected cockpit continuation (25.17) uses the existing helper/dispatcher rather
 than retrying live recovery. Built local and simulated-SSH helper fixtures use private
 temporary homes, sanitised subprocess environments and a deterministic dispatcher

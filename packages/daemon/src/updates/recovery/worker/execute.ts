@@ -72,9 +72,12 @@ export async function executeUpdateRecovery(
       )
         throw new Error('Recovery execution identity changed');
     };
-    const execute: CompilationCommandRunner = (command) => {
+    const checkCurrent = () => {
       check();
       if (handoff?.mode === 'running') handoff.check();
+    };
+    const execute: CompilationCommandRunner = (command) => {
+      checkCurrent();
       return run({ ...command, detached: false });
     };
     check();
@@ -116,7 +119,15 @@ export async function executeUpdateRecovery(
     await actions.run('stop-connector', async () => {
       if (handoff!.mode === 'stopped')
         await requireStoppedRecoveryConnector(home, original, operation, execute);
-      else await inspectRecoveryConnector(home, original, operation, originalActions, execute);
+      else
+        await inspectRecoveryConnector(
+          home,
+          original,
+          operation,
+          originalActions,
+          execute,
+          job.connector_restart,
+        );
       handoff!.check();
     });
     await actions.run('stop-daemon', async () => {
@@ -148,12 +159,29 @@ export async function executeUpdateRecovery(
       else handoff!.check();
     });
     await actions.run('start-connector', async () => {
-      if (
-        (await inspectRecoveryConnector(home, original, operation, originalActions, execute)) ===
-          'stopped' &&
-        original.connector?.state === 'running'
-      )
-        await startReplacementService(home, original.connector.service, execute);
+      const inspect = () =>
+        inspectRecoveryConnector(
+          home,
+          original,
+          operation,
+          originalActions,
+          execute,
+          job.connector_restart,
+        );
+      const connector = await inspect();
+      if (connector !== 'ready' && original.connector?.state === 'running')
+        await startReplacementService(
+          home,
+          original.connector.service,
+          execute,
+          connector === 'restart',
+          async () => {
+            checkCurrent();
+            if ((await inspect()) !== connector)
+              throw new Error('Connector recovery evidence changed before startup');
+            checkCurrent();
+          },
+        );
     });
     const verification = await awaitHostUpdateCompletion(home, original, operation, execute);
     check();

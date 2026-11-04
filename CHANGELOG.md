@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Allow explicit update recovery after a confirmed connector-start failure, reusing the existing service checks and durable attempt journal. Recheck the selected build and stopped service before startup, observe healthy replacements without restarting them and require fresh acceptance after uncertain starts.
+
 - Recover a stopped daemon's systemd start limit during explicit startup or accepted update recovery. Reset only the exact unit, retain controller exclusion and repeat current service/database/runtime checks before starting; leave lost reset replies inspectable without retrying or starting.
 
 - Add explicit recovery continuation from a disconnected local/SSH cockpit (application 25.17), reusing the trusted helper and pinned recovery worker. Cancel uncommitted dispatch when browser participation ends, preserve accepted independent work, reject older staged dispatchers and inspect lost replies without repeating an update.

@@ -297,8 +297,13 @@ the accepted attempt. Reinspect before releasing the controller for startup; nev
 infer absence from an active flag, failed HTTP probe or stale PID. Share bounded
 inventory inspection with preflight. `checkpoints/requirements.ts` retains original
 and restart-observed owners for fresh adoption, including later launches. Packaged
-crash/start-limit acceptance, failed connector starts and cockpit
-continuation remain unfinished. These private records add no network protocol.
+crash/start-limit acceptance remains unfinished. A fresh explicit recovery can accept
+`connector_restart` evidence for an attempted connector start only after unchanged
+service, ended outgoing PID and absent manager checks. Bind the approved service and
+selected generation, recheck before startup/after any rate-limit reset, and never turn
+an observation-only attempt into permission to start. Healthy replacements need no
+restart. Native connector recovery acceptance remains open. These private records add
+no network protocol.
 Runtime owners and update workers share `host/services.ts`; neither service may
 inherit puddled's restart or termination boundary. The packaged one-shot updater
 composes runtime-default and daemon/combined selection using its pinned copy of the

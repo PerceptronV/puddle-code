@@ -260,8 +260,15 @@ shutdown checkpoint/controller claim. Unattempted selections use the canonical
 installer; attempted selections must already verify. After an attempted daemon
 start, recovery requires fresh adoption and unchanged service configuration, keeping
 the replacement's controller without another stop/start. Connector startup may run
-only when unattempted and positively stopped; an attempted start must already verify
-as a healthy replacement. The worker rechecks operation/current adoption before
+when unattempted and positively stopped. After an attempted start, a fresh explicit
+recovery may accept separate restart evidence only when the unchanged service is
+positively stopped, the outgoing PID has ended and private manager inspection confirms
+absence. The accepted evidence binds its approved service and selected daemon generation;
+execution checks it again before mutations and immediately before startup, including
+after a systemd start-limit reset. An observation-only attempt cannot gain restart
+permission after dispatch. Healthy replacements are observed without another start;
+lost start replies require observation or a new explicit accepted attempt. The worker
+rechecks operation/current adoption before
 commands and requires fresh completion verification. Maintenance and later recovery
 retain exclusion while any recorded worker group may still have descendants.
 After confirmed daemon loss, a fresh explicit attempt may authorise another start.
@@ -274,8 +281,8 @@ evidence binds those observations and is checked again by execution and immediat
 before startup. Stale controller flags alone never prove absence. Owners observed
 during recovery are retained in the adoption requirements alongside the original
 checkpoint; completion must prove all of them through fresh authority. No database
-is restored and no selection is repeated. Cockpit wiring, packaged
-crash/start-limit acceptance, failed connector starts and stopped/unmanaged
+is restored and no selection is repeated. Packaged
+crash/start-limit/connector acceptance and stopped/unmanaged
 installations remain incomplete; the existing public `--recover` still verifies
 completion only.
 

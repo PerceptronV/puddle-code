@@ -18,6 +18,8 @@ export const hostUpdateRecoveryJobSchema = z
     preflight: fingerprint,
     original_worker_digest: fingerprint,
     actions_digest: fingerprint,
+    /** New explicit connector start after confirmed loss, bound to its selected service/build. */
+    connector_restart: fingerprint.optional(),
     /** Explicit fresh attempt after confirmed daemon loss, bound to current storage and ownership. */
     daemon_restart: z
       .object({

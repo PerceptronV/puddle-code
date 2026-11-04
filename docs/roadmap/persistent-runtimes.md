@@ -43,6 +43,17 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Explicit continuation now supports confirmed connector-start loss through the
+  existing recovery worker and service helpers. A private accepted fingerprint binds
+  the approved connector service and selected daemon generation after positively stopped
+  service, ended outgoing PID and absent manager checks. Execution repeats this evidence
+  before startup, including after a rate-limit reset. An observation-only job cannot
+  acquire restart permission later; healthy replacements are observed without another
+  start, and consumed jobs never repeat. Deterministic tests cover changed authority,
+  configuration and selection, live/unavailable managers, start limits and lost replies.
+  No network protocol changes are required. Real connector/supervisor upgrade acceptance
+  and loaded-idle launchd recovery remain open.
+
 - Explicit selected-service startup and accepted replacement recovery now handle
   systemd start limits through the shared stopped-service inspector. Only a confirmed
   stopped exact unit with `Result=start-limit-hit` is reset; changed definitions,
