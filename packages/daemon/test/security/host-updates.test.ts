@@ -22,6 +22,7 @@ afterEach(async () => {
 async function fixture(
   handler?: Parameters<typeof startHostControl>[3],
   minor: number = PROTOCOL_VERSION.minor,
+  major: number = PROTOCOL_VERSION.major,
 ) {
   const home = mkdtempSync(join(tmpdir(), 'puddle-control-updates-'));
   cleanups.push(() => rmSync(home, { recursive: true, force: true }));
@@ -35,7 +36,7 @@ async function fixture(
       registry,
       () => ({
         port: 7434,
-        version: { version: 'fixture', protocol: { ...PROTOCOL_VERSION, minor } },
+        version: { version: 'fixture', protocol: { major, minor } },
       }),
       handle,
     ),
@@ -162,7 +163,7 @@ it.each([
   },
 );
 
-it('bounds concurrent calls and detects older hosts before sending new commands', async () => {
+it('bounds concurrent update calls', async () => {
   const gate = deferred();
   const f = await fixture(async () => {
     await gate.promise;
@@ -173,7 +174,17 @@ it('bounds concurrent calls and detects older hosts before sending new commands'
   gate.release();
   await Promise.all(pending);
   expect(f.handle).toHaveBeenCalledTimes(4);
-  const old = await fixture(undefined, 6);
-  await expect(old.client.hostUpdate({ action: 'status' })).rejects.toThrow('unavailable');
-  expect(old.handle).not.toHaveBeenCalled();
+});
+
+it('retains update controls on the compatible application 26.0 boundary', async () => {
+  const compatible = await fixture(undefined, 0, 26);
+  await expect(compatible.client.hostUpdate({ action: 'status' })).resolves.toEqual({
+    ok: true,
+    operation: null,
+  });
+  expect(compatible.handle).toHaveBeenCalledOnce();
+});
+
+it('rejects a legacy application major before ordinary control authority', async () => {
+  await expect(fixture(undefined, 6, 25)).rejects.toThrow('does not match');
 });
