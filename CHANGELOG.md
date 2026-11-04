@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Coordinate local/SSH daemon removal with durable remote disablement, verified service teardown and an exact runtime retention/stop review. Retain independent runtimes by default; add `--stop-runtimes` for explicit termination. Preserve pinned releases and data for reinstallation, inspect exact completion attempts after lost replies, and prevent persistent installations from using legacy deletion. Coordinated purge remains unfinished and refuses before mutation.
+
 - Restore recorded, completed daemon service removals through `puddle install daemon` before treating retained release files as an installed service. Capability-detect the trusted local/SSH helper, continue only exact recorded attempts, inspect lost replies and reuse authenticated startup without restarting an already-connected daemon. Public removal orchestration and full retained-runtime acceptance remain in progress.
 
 - Add internal deliberate restoration of removed host service definitions, preserving saved bytes without overwriting existing files or links. Verify recorded reload/enable attempts without replay, retain the removal fence until configuration and shutdown checks pass, and hand off to ordinary startup without restarting runtimes. Public CLI reinstallation remains in progress.

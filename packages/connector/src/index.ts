@@ -1,15 +1,13 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { existsSync } from 'node:fs';
-import { registeredProfiles, profileDirectory } from './profile-state.js';
-import { jsonLines, atomicPrivateJson, readPrivateJson } from '@puddle/shared/node';
+import { jsonLines } from '@puddle/shared/node';
+import { disableAllProfiles, requireAllProfilesDisabled } from './host/disable.js';
 import { administrativeRequest, configureConnector, resetConnectorIdentity } from './admin.js';
 import { inspectConnector } from './inspect.js';
 import { startConnectorManager } from './manager.js';
 import {
   PROTOCOL_VERSION,
   REMOTE_PROTOCOL_VERSION,
-  connectorConfigSchema,
   connectorProfileSchema,
   connectorAdminSchema,
   connectorConfigureSchema,
@@ -21,18 +19,9 @@ if (process.argv.includes('--version')) {
     `puddle-connector remote protocol ${REMOTE_PROTOCOL_VERSION}; daemon protocol ${PROTOCOL_VERSION.major}.${PROTOCOL_VERSION.minor}; cockpit controls 2; delete registration 1\n`,
   );
 } else if (process.argv.includes('--disable-all')) {
-  const legacy = join(home, 'remote', 'config.json');
-  if (existsSync(legacy))
-    atomicPrivateJson(legacy, {
-      ...connectorConfigSchema.parse(readPrivateJson(legacy)),
-      enabled: false,
-    });
-  for (const profile of registeredProfiles(home)) {
-    if (existsSync(join(profileDirectory(home, profile), 'config.json'))) {
-      const result = await administrativeRequest(home, { t: 'disable' }, profile);
-      if (result.error) throw new Error('Could not disable remote access');
-    }
-  }
+  await disableAllProfiles(home);
+} else if (process.argv.includes('--verify-disabled')) {
+  requireAllProfilesDisabled(home);
 } else if (
   ['--inspect', '--reset', '--admin', '--configure'].some((flag) => process.argv.includes(flag))
 ) {

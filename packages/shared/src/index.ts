@@ -63,6 +63,7 @@ export * from './installation/catalogue.js';
 export * from './installation/removal/services.js';
 export * from './installation/removal/restore.js';
 export * from './installation/removal/status.js';
+export * from './installation/removal/runtime.js';
 export {
   parseHostReleaseVersion,
   parseLegacyHostVersion,

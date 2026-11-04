@@ -25,6 +25,9 @@ Cockpit status now reads and labels recorded operations while the daemon is unav
 Explicit offline continuation now uses a participating trusted helper and pinned
 recovery dispatcher. Legacy cockpit transition, remaining failure recovery and
 complete packaged upgrade acceptance remain unfinished.
+Public local/SSH removal now coordinates remote disablement, service teardown and
+reviewed runtime retention/stops; deliberate install restores retained service definitions.
+Reference-aware collection and coordinated purge remain unfinished.
 This document describes the intended refactor; [SPEC.md](../../SPEC.md) continues
 to describe shipped behaviour. Update the specification, protocol documentation,
 repository instructions and changelog alongside each implementation phase.
@@ -42,6 +45,20 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 [acceptance matrix](#acceptance-matrix) for the release gates.
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
+
+- Application 25.19 connects public local/SSH daemon removal to existing service and
+  runtime machinery. Explicit service-removal consent precedes durable remote disable
+  and service stops; offline ownership then supplies an exact public runtime review.
+  Retention is the default, with interactive stop approval or `--stop-runtimes` for
+  reviewed owners. Completion records the exact attempt after controller drainage;
+  lost replies inspect that receipt without replay. Connector startup/re-enablement
+  is fenced during removal, while disablement reuses profile administration.
+  Persistent installations cannot fall back to legacy recursive deletion. The built
+  CLI/helper fixture exercises removal and reinstallation through fake systemd and real
+  private readiness. A real isolated runtime retains its shell PID and variable through
+  coordinator removal/restoration, then stops through a fresh review. Native supervisor/
+  provider acceptance, partial remote-disable/unregistration recovery, reference-aware collection and
+  coordinated purge remain open; `--purge` currently refuses before mutation.
 
 - Application 25.18 connects recorded service restoration to `puddle install daemon`
   before its already-installed shortcut. Passive release metadata gates new local/SSH

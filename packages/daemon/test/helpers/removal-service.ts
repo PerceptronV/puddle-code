@@ -17,8 +17,12 @@ import { HostRemovalGuard } from '../../src/host/removal/guard.js';
 import { reviewRemovalService } from '../../src/host/removal/services.js';
 import type { ServiceTarget } from '../../src/host/supervision/target.js';
 
-export function removalServiceFixture(kind: ServiceTarget['kind'], running = true) {
-  const home = mkdtempSync(join(tmpdir(), 'puddle-remove-service-'));
+export function removalServiceFixture(
+  kind: ServiceTarget['kind'],
+  running = true,
+  existingHome?: string,
+) {
+  const home = existingHome ?? mkdtempSync(join(tmpdir(), 'puddle-remove-service-'));
   const target: ServiceTarget = {
     kind,
     name: kind === 'systemd' ? 'puddled.service' : 'dev.puddle.puddled',
@@ -108,14 +112,14 @@ export function removalServiceFixture(kind: ServiceTarget['kind'], running = tru
     run,
     close() {
       guard.release();
-      rmSync(home, { recursive: true, force: true });
+      if (!existingHome) rmSync(home, { recursive: true, force: true });
     },
   };
 }
 
 /** Scripted release identity only; this fixture never runs the selected executable. */
-export function removalInstallationFixture(kind: ServiceTarget['kind'] = 'launchd') {
-  const fixture = removalServiceFixture(kind);
+export function removalInstallationFixture(kind: ServiceTarget['kind'] = 'launchd', home?: string) {
+  const fixture = removalServiceFixture(kind, true, home);
   const release = join(fixture.home, 'bin/versions/0.4.0~abc123');
   mkdirSync(release, { recursive: true, mode: 0o700 });
   symlinkSync(release, join(fixture.home, 'bin/current'));

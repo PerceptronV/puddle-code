@@ -89,7 +89,7 @@ export async function startConnector(home: string, profile: string) {
         return { devices: devices.list() };
       case 'disable': {
         config.enabled = false;
-        atomicPrivateJson(configPath, config);
+        atomicPrivateJson(configPath, config, { syncDirectory: true });
         // Persist first. Allow the administrative acknowledgement to leave before closing viewers.
         setTimeout(() => {
           control?.terminate();

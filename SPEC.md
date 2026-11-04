@@ -773,9 +773,23 @@ follows the existing update coordinator after restoration. No private definition
 the host, no remote grants are added and no runtime restart is dispatched by restoration.
 End-to-end retained-runtime adoption and actual Linux restoration acceptance remain
 required before this is a complete reinstallation flow.
-This is not yet wired to CLI removal: stop-or-retain prompting, connector disable,
-durable removal/reinstallation orchestration, reference-aware file collection and purge
-coordination remain required. Successful runtime disposition or service unregistration
+Application 25.19 wires `puddle remove daemon` to this coordinator for local and SSH
+targets. It asks before disabling remote access and stopping daemon-owned work, then
+reviews independent runtimes under exclusive offline ownership. The default retains
+runtimes; an interactive choice or `--stop-runtimes` explicitly stops the exact reviewed
+owners and shell generations. `--yes` alone retains them. Finish rechecks the review,
+uses existing durable runtime stop intent, verifies unregistration and drains the
+controller before recording an exact attempt receipt. A lost reply is inspected,
+never resent; a later explicit removal continues the recorded service id. Changed or
+unavailable evidence remains unresolved. Remote disablement precedes either service
+stop and is verified again before completion; profile enablement and new connector
+startup are fenced meanwhile. Registration credentials and grants are retained but
+disabled, including after deliberate reinstallation.
+The CLI preserves data and selected/pinned release files and directs users to
+`puddle install daemon` for restoration. Persistent installations cannot reach the
+legacy recursive deletion script. Coordinated purge currently refuses before any
+mutation. Reference-aware file collection, purge and complete platform/provider
+acceptance remain required. Successful runtime disposition or service unregistration
 alone never authorises deleting a release, runtime record or home.
 
 Migration 032 records terminal generations per segment and explicitly selects each

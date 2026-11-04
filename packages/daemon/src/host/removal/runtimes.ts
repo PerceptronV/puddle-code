@@ -1,10 +1,9 @@
-import type { RuntimeState } from '@puddle/shared';
+import { HOST_REMOVAL_RUNTIME_LIMIT, type RuntimeState } from '@puddle/shared';
 import { digest } from '@puddle/shared/node';
 import type { RuntimeBinding, RuntimeStore } from '../../db/stores/runtimes.js';
 import type { RuntimeControls } from '../../runtime/controller/controls.js';
 import { runtimeBindingIdentity } from '../../runtime/transport/connections.js';
 
-export const HOST_REMOVAL_RUNTIME_LIMIT = 1024;
 type Authority = () => boolean;
 
 export interface RuntimeRemovalOwner {

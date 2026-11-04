@@ -31,6 +31,8 @@ interface Options {
   authorised: () => boolean;
   run?: CompilationCommandRunner;
   write?: typeof atomicPrivateJson;
+  /** Public removal disables remote registrations before either service stops. */
+  disableRemote?: boolean;
 }
 
 const file = (home: string) => join(home, 'installation/removal/services.json');
@@ -85,6 +87,7 @@ export class HostRemovalServiceOperation {
       release_path: release,
       services,
       actions: [
+        ...(options.disableRemote ? [{ action: 'disable-remote', state: 'planned' }] : []),
         ...present.map((component) => ({ action: `stop-${component}`, state: 'planned' })),
         ...present.map((component) => ({ action: `unregister-${component}`, state: 'planned' })),
       ],
@@ -108,6 +111,16 @@ export class HostRemovalServiceOperation {
   read(): ServiceJournal {
     this.requireCurrent();
     return this.writer.read();
+  }
+
+  async disableRemote(execute: () => Promise<void>, verify: () => Promise<void>): Promise<void> {
+    const step = this.read().actions.find(({ action }) => action === 'disable-remote');
+    if (!step) throw new Error('Removal has no accepted remote disable step');
+    if (step.state !== 'planned') return this.writer.observe('disable-remote', verify);
+    await this.writer.run('disable-remote', async () => {
+      await execute();
+      await verify();
+    });
   }
 
   /** Before any intent only. Keep one private cancelled review without weakening active evidence. */

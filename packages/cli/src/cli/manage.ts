@@ -40,6 +40,8 @@ import { cliVersion, pinnedDaemonVersion } from '../lib/version.js';
 import type { Command, Component } from './args.js';
 import { terminateCockpit } from './detach.js';
 import { ask, confirm } from './prompt.js';
+import { hasPersistentHostInstallation } from '../lib/installation/host/presence.js';
+import { removePersistentDaemonCmd } from './manage-host-removal.js';
 
 /**
  * `puddle install / upgrade / remove` — component management (SPEC §10).
@@ -465,6 +467,13 @@ async function removeDaemonCmd(
   const transport = await openHostTransport(cmd.host);
   let tunnel: Awaited<ReturnType<typeof openTunnel>> | null = null;
   try {
+    if (await hasPersistentHostInstallation(transport))
+      return await removePersistentDaemonCmd(cmd, transport, logger);
+    if (cmd.stopRuntimes)
+      throw new CliError(
+        'bad_arguments',
+        '--stop-runtimes requires a persistent runtime installation',
+      );
     const installed = await installedVersion(transport);
     if (installed === null) {
       logger.info(

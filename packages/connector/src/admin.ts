@@ -1,4 +1,5 @@
 import { profileMutation } from './mutation.js';
+import { requireNoHostRemoval } from '@puddle/shared/node/host-control';
 import { profileDirectory } from './profile-state.js';
 import { connect } from 'node:net';
 import { existsSync } from 'node:fs';
@@ -89,7 +90,7 @@ async function requestUnlocked(
     if (request.t === 'status')
       return { enabled: config.enabled, connected: false, host: config.host };
     if (request.t === 'disable') {
-      atomicPrivateJson(path, { ...config, enabled: false });
+      atomicPrivateJson(path, { ...config, enabled: false }, { syncDirectory: true });
       return { enabled: false, connected: false };
     }
     // Revocation can be made durable with the connector stopped.
@@ -115,6 +116,7 @@ async function configureUnlocked(
   value: unknown,
   profile: string,
 ): Promise<RemoteAdminResponse> {
+  requireNoHostRemoval(home);
   const setup = connectorSetupSchema.parse(value);
   if (setup.managed) supervisorKind(home); // Refuse cockpit-bound lifetimes before consuming the code.
   const path = join(profileDirectory(home, profile), 'config.json');
@@ -150,6 +152,7 @@ async function configureUnlocked(
     throw new Error(
       'First registration requires the service origin, application origin and registration code',
     );
+  requireNoHostRemoval(home);
   // A new registration has a new service/account/host context. Never carry old
   // approvals or unused invitations across that administrative trust change.
   if (setup.code && existsSync(join(profileDirectory(home, profile), 'devices.db'))) {

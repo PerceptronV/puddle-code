@@ -10,6 +10,23 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+Coordinated removal tests cover public local/SSH dispatch, default retention, explicit
+runtime stop consent, refusal of stale impact and blocked stops, remote disablement and
+lost disable/unregistration replies. Completion receipts bind a fresh attempt id; an
+older receipt cannot complete a newly failed action. Connector tests preserve registration
+credentials while disabling all profiles, reject linked/malformed inventory, and fence
+startup/re-enablement, including a registration response arriving during removal.
+The built CLI/helper fixture removes and reinstalls through fake systemd commands and a
+real isolated authenticated readiness endpoint. A separate real runtime/PTY fixture
+preserves its PID and shell variable through coordinator removal/restoration, then stops
+through fresh explicit review. These establish the integrated paths with deterministic
+supervision, not actual Linux/macOS service or native-provider acceptance. Purge still
+refuses before mutation; partial remote disable/unregistration and reference-aware collection remain open.
+The integrated removal/startup/update/installation/connector regression run passed
+387 tests in 50 files, with one platform-gated file skipped, on macOS 26.5.2 and
+Node 22.21.1. Source and strict changed-test typechecks, lint and web/CLI/desktop
+builds passed.
+
 Public install tests cover restoration before the already-installed shortcut, local and
 simulated SSH control, passive capability detection, explicit continuation, lost replies,
 changed removal ids, refused restoration and repeated install without restarting a ready

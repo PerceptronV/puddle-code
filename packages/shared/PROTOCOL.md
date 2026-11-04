@@ -1,5 +1,23 @@
 # The puddle communication protocol
 
+Application 25.19 adds trusted local/SSH prepare/finish removal helpers and a bounded
+runtime interruption review. Prepare requires explicit daemon-removal consent, records
+remote disablement before service stops, then reviews runtimes under the offline
+controller. The public review contains placement/runtime ids, build, terminal count,
+stop blockers and an exact fingerprint; native references and pinned paths remain private.
+Finish binds the removal id, fingerprint, retain/stop choice and a fresh attempt id.
+Its durable receipt is written only after disposition, verified service unregistration
+and controller drainage. A lost reply is inspected against that exact attempt plus the
+completed removal record; a previous successful receipt cannot complete a later attempt.
+No failed mutation is automatically repeated. Existing runtime stop intent prevents
+replay across explicit continuation. Passive metadata gates these new helper commands;
+older persistent installations cannot use legacy recursive deletion. There are no new
+browser routes or relay grants. Remote 4 and runtime 1.0 remain unchanged.
+The optional private `disable-remote` service action preserves older internal journals;
+public removal requires it. The selected connector's host-only disable/verification
+entries reuse existing profile administration. Configuration enablement and connector
+startup are fenced during removal; disablement remains available for recovery.
+
 Private removal service records under `installation/removal/` validate retained
 service reviews, original definitions and serial action intent. They are host-only
 storage, with no browser/connector request or new transport. They do not change
@@ -24,8 +42,9 @@ proof. Restoration requests bind the exact removal id and distinguish a new atte
 from explicit continuation of an existing journal. After a lost reply, the client
 inspects that exact hand-off before using existing authenticated startup/readiness.
 This adds no browser route, relay permission, runtime command or new transport;
-remote 4 and runtime 1.0 remain unchanged. Public removal orchestration, retained-runtime
-adoption through the complete removal/install journey and platform acceptance remain open.
+remote 4 and runtime 1.0 remain unchanged. Application 25.19 adds public removal
+orchestration; full platform/provider acceptance, reference-aware collection and purge
+remain open.
 
 Protocol 25.17 adds the explicit `continue-offline` cockpit update action and optional
 `offline_continuation` capability. The action carries only an exact operation id/revision;

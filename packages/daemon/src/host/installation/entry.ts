@@ -4,13 +4,22 @@ import { inspectHostRemoval, updateWorkerExecutables } from '@puddle/shared/node
 import { disposeCompilationCommands, runCompilationCommand } from '../../compilation/process.js';
 import { startSelectedDaemon } from '../startup/daemon.js';
 import { restoreRemovedHostServices } from '../removal/restoration/execute.js';
+import {
+  prepareHostRemoval,
+  finishHostRemoval,
+  inspectHostRemovalResult,
+} from '../removal/coordinator.js';
+import { hostRemovalFinishSchema } from '@puddle/shared';
 
 /** Commands reachable only through trusted host OS/SSH execution of the selected helper. */
 export async function runHostInstallationEntry(args: string[], entry: string): Promise<boolean> {
   if (args[0] !== '--home') return false;
   const action = args[2];
   if (!(
-    (args.length === 3 && ['--start-daemon', '--inspect-removal'].includes(action!)) ||
+    (args.length === 3 &&
+      ['--start-daemon', '--inspect-removal', '--inspect-removal-result'].includes(action!)) ||
+    (action === '--prepare-removal' && (args.length === 3 || args.length === 4)) ||
+    (action === '--finish-removal' && args.length === 7) ||
     (action === '--restore-services' &&
       (args.length === 4 || (args.length === 5 && args[4] === '--resume')))
   ))
@@ -37,6 +46,29 @@ export async function runHostInstallationEntry(args: string[], entry: string): P
       return runCompilationCommand({ ...command, detached: false });
     };
     if (action === '--inspect-removal') console.log(JSON.stringify(inspectHostRemoval(home)));
+    else if (action === '--inspect-removal-result')
+      console.log(JSON.stringify(inspectHostRemovalResult(home)));
+    else if (action === '--prepare-removal')
+      console.log(
+        JSON.stringify(
+          await prepareHostRemoval(home, paths.release_path, args[3], {
+            run,
+            authorised: () => !interrupted,
+          }),
+        ),
+      );
+    else if (action === '--finish-removal')
+      await finishHostRemoval(
+        home,
+        paths.release_path,
+        hostRemovalFinishSchema.parse({
+          id: args[3],
+          fingerprint: args[4],
+          attempt_id: args[5],
+          disposition: args[6],
+        }),
+        { run, authorised: () => !interrupted },
+      );
     else if (action === '--restore-services')
       await restoreRemovedHostServices(home, paths.release_path, args[3]!, {
         run,

@@ -125,6 +125,8 @@ For example:
 
   On supporting hosts, `puddle install daemon user@host` also restores a recorded, completed service removal using its retained release and configuration. An unfinished removal must be resolved first. Repeating install observes a completed restoration and reconnects without restarting an already-running daemon.
 
+  On persistent-runtime hosts, `puddle remove daemon user@host` disables remote access and stops daemon-owned work, then offers a choice to retain or stop independent runtimes. `--yes` retains them by default; add `--stop-runtimes` to explicitly stop the reviewed runtimes and their shell jobs. Data and pinned releases remain for reinstallation. Coordinated `--purge` is still being implemented and currently refuses before making changes.
+
   If a connection is lost, inspect the printed operation id with `puddle updates user@host --operation <id>`. To abandon a preparation before dispatch, add `--cancel` with that complete id. An accepted update cannot be cancelled or replayed. A `recovery_required` result remains visible for inspection; it is not reported as a successful installation.
 
   Status inspection also works when the daemon cannot connect: the CLI labels the result as recorded update state and reads it directly through your local or SSH access. This does not start the daemon or change the update. Cancellation and completion verification still require a live daemon connection; explicit continuation is described below. Launching a stopped modern host starts its selected service without reinstalling it. An explicit upgrade restores that coordinator before staging the requested release. Interrupted activation stays on the recovery path; it cannot be bypassed by launching or reinstalling.

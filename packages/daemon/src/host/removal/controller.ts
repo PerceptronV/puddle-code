@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { HOST_REMOVAL_RUNTIME_LIMIT } from '@puddle/shared';
 import { openDatabase } from '../../db/db.js';
 import { requireOwnedDatabase } from '../../db/paths.js';
 import { RuntimeStore } from '../../db/stores/runtimes.js';
@@ -9,7 +10,7 @@ import { ProfileStore } from '../../db/stores/profiles.js';
 import { RuntimeConnections } from '../../runtime/transport/connections.js';
 import { RuntimeReconciler } from '../../runtime/controller/reconcile.js';
 import { RuntimeControls } from '../../runtime/controller/controls.js';
-import { HOST_REMOVAL_RUNTIME_LIMIT, HostRuntimeRemoval } from './runtimes.js';
+import { HostRuntimeRemoval } from './runtimes.js';
 import { inspectRuntimeInventory } from '../../updates/preflight/compatibility.js';
 import { HostRemovalGuard } from './guard.js';
 

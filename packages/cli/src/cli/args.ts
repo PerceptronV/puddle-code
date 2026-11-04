@@ -68,6 +68,7 @@ export type Command =
       host?: string;
       yes: boolean;
       purge: boolean;
+      stopRuntimes?: boolean;
     }
   | { cmd: 'help' }
   | { cmd: 'version' };
@@ -119,7 +120,7 @@ usage:
   puddle logs    [user@host] [session] [--term <id>] [-f|--follow]
   puddle install <daemon|runtime|desktop>[@version] [user@host] [--tarball <path>]
   puddle upgrade [cli|daemon|runtime|desktop][@version] [user@host] [--tarball <path>]
-  puddle remove  <cli|daemon|desktop> [user@host] [--yes] [--purge]
+  puddle remove  <cli|daemon|desktop> [user@host] [--yes] [--purge] [--stop-runtimes]
   puddle remote enable --profile <profile-id> [user@host] --service <https-origin> --app-origin <https-origin>
                        [--foreground]
   puddle remote status|pair|devices|disable|reset --profile <profile-id> [user@host]
@@ -167,9 +168,12 @@ runtimes and asking before interrupting daemon-owned work. Legacy transitions
 report their session interruptions. An unavailable modern coordinator is not bypassed.
 cli and desktop are
 client-machine artefacts: user@host targets daemon and runtime components. remove
-uninstalls a component after confirmation; 'daemon' stops it (interrupting
-its sessions), unregisters the supervisor, and keeps ~/.puddle's data —
-profiles, session history, worktrees — unless you also confirm --purge.`;
+uninstalls a component after confirmation. On persistent hosts, daemon removal
+disables remote access and stops daemon-owned work, then retains independent
+runtimes by default. --stop-runtimes explicitly stops the reviewed runtimes and
+their shell jobs. Data and pinned releases remain for 'puddle install daemon'.
+Coordinated --purge on persistent hosts is not implemented yet; it refuses before
+mutation. Legacy removal keeps data unless you separately confirm --purge.`;
 
 /** Hand-rolled argv parser — the surface is small enough to own outright. */
 export function parseArgs(argv: string[]): Command {
@@ -442,7 +446,7 @@ export function parseArgs(argv: string[]): Command {
       const [what, host, extra] = positionals;
       if (extra !== undefined)
         throw new CliError('bad_arguments', 'remove takes at most a component + host');
-      expect('--yes', '--purge');
+      expect('--yes', '--purge', '--stop-runtimes');
       if (what === undefined || !['cli', 'daemon', 'desktop'].includes(what)) {
         throw new CliError(
           'bad_arguments',
@@ -453,6 +457,8 @@ export function parseArgs(argv: string[]): Command {
         );
       }
       const purge = flags.has('--purge');
+      if (flags.has('--stop-runtimes') && what !== 'daemon')
+        throw new CliError('bad_arguments', '--stop-runtimes only applies to daemon removal');
       if (purge && what !== 'daemon') {
         throw new CliError(
           'bad_arguments',
@@ -465,6 +471,7 @@ export function parseArgs(argv: string[]): Command {
         ...(host !== undefined ? { host } : {}),
         yes: flags.has('--yes'),
         purge,
+        ...(flags.has('--stop-runtimes') ? { stopRuntimes: true } : {}),
       };
     }
     default:

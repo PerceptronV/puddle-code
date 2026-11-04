@@ -1,8 +1,10 @@
 import type { Transport } from '../transport/transport.js';
 import { CliError, type Logger, silentLogger } from '../types.js';
+import { hasPersistentHostInstallation } from './host/presence.js';
 
 /**
- * `puddle remove daemon` (SPEC §10): stop and unregister the supervisor,
+ * Legacy `puddle remove daemon` (SPEC §10): stop and unregister the supervisor,
+ * Persistent installations must use host/remove.ts instead. For legacy hosts,
  * delete the bootstrap-managed pieces of ~/.puddle, and — only when the user
  * separately confirms — the whole ~/.puddle. Everything runs as one POSIX
  * script piped over the transport, exactly like install.sh, so local and SSH
@@ -48,6 +50,11 @@ export async function removeDaemon(
   transport: Transport,
   opts: { purge: boolean; logger?: Logger } = { purge: false },
 ): Promise<void> {
+  if (await hasPersistentHostInstallation(transport))
+    throw new CliError(
+      'upgrade_failed',
+      'Persistent runtime installations require coordinated removal',
+    );
   const logger = opts.logger ?? silentLogger;
   const script = `
 set -u

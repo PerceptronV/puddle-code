@@ -42,6 +42,7 @@ export const hostRemovalServiceReviewSchema = z
 export type HostRemovalServiceReview = z.infer<typeof hostRemovalServiceReviewSchema>;
 
 export const hostRemovalServiceActionSchema = z.enum([
+  'disable-remote',
   'stop-connector',
   'stop-daemon',
   'unregister-connector',
@@ -77,7 +78,7 @@ export const hostRemovalServicesSchema = z
           .strict(),
       )
       .min(2)
-      .max(4),
+      .max(5),
   })
   .strict()
   .superRefine((record, context) => {
@@ -86,6 +87,7 @@ export const hostRemovalServicesSchema = z
       components.includes(component as 'daemon' | 'connector'),
     );
     const plan = [
+      ...(record.actions[0]?.action === 'disable-remote' ? ['disable-remote'] : []),
       ...ordered.map((component) => `stop-${component}`),
       ...ordered.map((component) => `unregister-${component}`),
     ];

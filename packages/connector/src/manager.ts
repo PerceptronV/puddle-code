@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { connectorConfigSchema } from '@puddle/shared';
 import { readPrivateJson } from '@puddle/shared/node';
+import { requireNoHostRemoval } from '@puddle/shared/node/host-control';
 import { startConnectorInspection } from './host/inspection.js';
 import { startConnector } from './runtime.js';
 import { profileDirectory, registeredProfiles } from './profile-state.js';
@@ -21,6 +22,7 @@ const version =
 
 /** One supervised process, independent runtimes and private stores for each profile. */
 export async function startConnectorManager(home: string) {
+  requireNoHostRemoval(home);
   // Also excludes the old single-registration process before migration touches its files.
   let ready = false;
   const lock = await startConnectorInspection(
@@ -28,6 +30,12 @@ export async function startConnectorManager(home: string) {
     { version, entryPath: fileURLToPath(import.meta.url) },
     () => ready,
   );
+  try {
+    requireNoHostRemoval(home);
+  } catch (error) {
+    await lock.close();
+    throw error;
+  }
   const live = new Map<
     string,
     { fingerprint: string; runtime: Awaited<ReturnType<typeof startConnector>> }
