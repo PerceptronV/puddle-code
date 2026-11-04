@@ -477,6 +477,17 @@ connection; lifecycle/process changes invalidate both pending and cached results
 Unbound, historical and disconnected owners expose no ports. Existing application
 port discovery and proxy routes consume these results without a wire-shape change.
 
+Migration 039 atomically queues ended registrations for bounded daemon cleanup.
+An indexed pending queue advances through 32-row pages with four concurrent
+removals. Launch, dispatch and owner claims exclude pending launches and live
+owners; the exact host/runtime service label is validated before any command.
+Retirement markers fence delayed starts. Positive absence inspection handles
+already-removed registrations after lost replies, while other errors retain the
+pending row. Completion receipts survive daemon replacement. Shutdown drains
+commands before database closure. Registration cleanup never collects private
+records or pinned builds and does not prove unmanaged descendant cleanup.
+No wire or private record schema changes are needed for this application-side queue.
+
 Confirmed loss is recorded under the runtime's own exclusive claim. A durable
 retirement marker fences any delayed launcher before releasing that lock. A
 failed socket connection, permission error, malformed record or protocol mismatch

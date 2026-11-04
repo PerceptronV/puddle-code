@@ -181,7 +181,7 @@ it('upgrades existing private results conservatively and restores their monotoni
   const f = fixture();
   f.save(41);
   f.db.exec(
-    'DROP TABLE runtime_attention; ALTER TABLE runtime_turns DROP COLUMN consumed; DROP TABLE runtime_turn_watermarks; PRAGMA user_version = 36',
+    'DROP TRIGGER runtime_service_cleanup_insert; DROP TRIGGER runtime_service_cleanup_end; DROP TABLE runtime_service_cleanup; DROP TABLE runtime_attention; ALTER TABLE runtime_turns DROP COLUMN consumed; DROP TABLE runtime_turn_watermarks; PRAGMA user_version = 36',
   );
   await f.close();
   const db = openDatabase(f.paths.dbFile);

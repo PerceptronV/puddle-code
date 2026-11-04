@@ -420,7 +420,31 @@ and native names. The focused run passed 19 tests in four files.
 The broader runtime/PTY/session/protocol run passed 299 tests in 52 files, with
 one native supervisor test skipped. Typecheck, scoped lint and formatting passed.
 
+`runtime/service-cleanup.test.ts` covers atomic queue admission/rollback,
+migration from schema 38, failed receipt writes, protected owner claims, four
+concurrent removals, a 32-owner unavailable page and shutdown during removal.
+The real-daemon terminal test waits for automatic cleanup after explicit stop.
+Supervisor tests cover launch/dispatch locks, foreign service targets, absent
+registrations, lost replies and refusing ambiguous/failed inspection.
+
+On macOS 26.5.2 with Node v22.21.1, the opt-in native supervisor test passed after
+adding real owner stop/removal. It explicitly verifies that launchd `bootout`
+succeeded before discarding its response; cleanup then inspects absence and
+records completion without repeating the removal. The test retains the original
+shell PID/state through controller replacement before that stop. All jobs and
+homes are temporary; this is not installed-upgrade or native-provider evidence.
+The local `launchctl` manual defines non-zero exit codes via `launchctl error`;
+code 113 was checked with `launchctl error 113` and a unique nonexistent test
+target. No parsing of launchctl's unstable diagnostic text is used. Systemd
+absence checks require `LoadState=not-found`, `ActiveState=inactive` and
+`SubState=dead`; see the [systemctl manual](https://www.freedesktop.org/software/systemd/man/latest/systemctl).
+Linux supervisor execution remains a platform acceptance gate.
+The final runtime/database regression run passed 197 tests in 46 files, with
+the native supervisor test skipped there and passed separately. Typecheck,
+scoped lint and formatting passed.
+
 ## Remaining release gates
+
 
 Record platform, Node, release and provider versions with results. Run native
 provider checks from a plain shell; never launch the production daemon from an

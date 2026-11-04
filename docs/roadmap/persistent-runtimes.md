@@ -93,8 +93,9 @@ Implementation evidence so far:
   owner and acknowledging history. Tests cover database rollback, idempotent
   replay, bounded result retention and a real isolated daemon recovering offline
   native switches and a completed fake-provider turn without recreating processes.
-  Private replies remain outside public audit events. Programme bindings, supervisor-registration cleanup and retention reclamation
-  remain to be integrated.
+  Private replies remain outside public audit events. Subsequent programme-binding
+  and registration-cleanup integration is described below; full retention
+  reclamation remains outstanding.
 
 - Control connections now retry with bounded concurrency/backoff and reconcile
   before further use, without replaying commands. An unavailable owner is retired
@@ -105,7 +106,7 @@ Implementation evidence so far:
   launches, incomplete history and multi-page rollback. Real-daemon tests verify
   that natural exits remain stopped and confirmed terminal boot losses honour auto-resume. Agent losses remain explicitly
   resumable until provider descendant cleanup is proven.
-  Supervisor-registration collection, orphan-sidecar recovery and production
+  Orphan-sidecar recovery and production
   persistent launch and provider-command routing remain separate integration work.
 
 - Migration 032 records exact terminal generations per segment and explicit
@@ -241,6 +242,18 @@ Implementation evidence so far:
   split sequences, repeated titles, rollback, exact historical placement names,
   and preservation of user/native names. Native provider title acceptance remains
   part of the platform/provider gate.
+- Migration 039 queues ended registrations atomically with final reconciliation,
+  including owners that ended before upgrading. Four workers consume indexed
+  32-row pages without letting an unavailable first page starve later owners.
+  Cleanup holds launch/dispatch/owner claims, validates exact service targets and
+  fences delayed starts. Lost removal replies require positive absence inspection;
+  failures remain pending and shutdown drains commands. Runtime records, results,
+  checkpoints and pinned builds remain intact. Deterministic tests cover locks,
+  stale targets, storage failures, rollback, migration and bounded scheduling; an
+  isolated real-daemon test verifies automatic collection after exit. The native
+  launchd test verifies real removal after an intentionally lost response. Linux
+  supervisor cleanup, provider-orphan proof and reference-aware asset collection
+  remain separate release gates.
 
 These are foundations for phases 0–3, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native

@@ -53,6 +53,8 @@ import { RuntimeStore } from './db/stores/runtimes.js';
 import { RuntimeConnections } from './runtime/connections.js';
 import { RuntimeReconciler } from './runtime/reconcile.js';
 import { RuntimeNotifications } from './runtime/notifications.js';
+import { RuntimeServiceCleanup } from './runtime/service-cleanup.js';
+import { RuntimeServiceCleanupStore } from './db/stores/runtime-service-cleanup.js';
 import { notificationContent } from './sessions/notification-content.js';
 import { RuntimeTerminals } from './runtime/terminals.js';
 import { RuntimeControls } from './runtime/controls.js';
@@ -467,6 +469,12 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       emit: (event) => service.emit('agent-notification', event),
     });
     failedStartup.push(() => runtimeNotifications.close());
+    const runtimeServiceCleanup = new RuntimeServiceCleanup({
+      home: paths.home,
+      store: new RuntimeServiceCleanupStore(db),
+      reconciler: runtimeReconciler,
+    });
+    failedStartup.push(() => runtimeServiceCleanup.close());
 
     // Auto-resume is ON by default (SPEC §4; flipped 2026-08-09) — a daemon
     // restart brings interrupted sessions straight back; any that fail surface
@@ -510,6 +518,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       service,
       async stop() {
         runtimeNotifications.close();
+        await runtimeServiceCleanup.close();
         await retention.dispose();
         storage.dispose();
         await puddlang.dispose();

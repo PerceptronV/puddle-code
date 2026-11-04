@@ -1,12 +1,17 @@
 import { closeSync, fsyncSync, openSync, realpathSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import {
+  runtimeRetiredSchema,
   runtimeSupervisorSchema,
   type RuntimeIdentity,
   type RuntimeSupervisor,
 } from '@puddle/shared';
 import { atomicPrivateJson, digest } from '@puddle/shared/node';
-import { runCompilationCommand, type CompilationCommandRunner } from '../compilation/process.js';
+import {
+  CompilationCommandError,
+  runCompilationCommand,
+  type CompilationCommandRunner,
+} from '../compilation/process.js';
 import { acquireRuntimeClaim, RuntimeClaimBusy } from './claims.js';
 import { readRuntimeJson, runtimeDirectory } from './storage.js';
 
@@ -65,6 +70,16 @@ function writeDefinition(file: string, content: string): void {
   }
 }
 
+function supervisorCommand(home: string, run: CompilationCommandRunner) {
+  return async (file: string, args: string[]) => {
+    const command = { file, args, cwd: home, timeoutMs: 15_000, maxOutputBytes: 64 * 1024 };
+    const result = await run(command);
+    if (result.exitCode !== 0)
+      throw new CompilationCommandError('Runtime supervisor command failed', command, result);
+    return result;
+  };
+}
+
 /**
  * Dispatch once. A repeated call only returns the recorded attempt, including
  * an uncertain one; readiness is established by authenticated runtime adoption.
@@ -100,6 +115,12 @@ export async function startRuntimeService(
   });
   const claim = acquireRuntimeClaim(home, `runtime-dispatch:${identity.runtime_id}`);
   try {
+    try {
+      readRuntimeJson(join(directory, 'retired.json'));
+      throw new Error('Runtime launch has been retired');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
     const file = join(directory, 'supervisor.json');
     try {
       const previous = runtimeSupervisorSchema.parse(readRuntimeJson(file));
@@ -114,8 +135,7 @@ export async function startRuntimeService(
     // Persist before invoking the supervisor, so a lost reply never retries launch.
     atomicPrivateJson(file, record);
     const run = opts.run ?? runCompilationCommand;
-    const execute = (command: string, args: string[]) =>
-      run({ file: command, args, cwd: home, timeoutMs: 15_000, maxOutputBytes: 64 * 1024 });
+    const execute = supervisorCommand(home, run);
     if (record.kind === 'systemd') {
       await execute('systemctl', ['--user', 'link', definition]);
       await execute('systemctl', ['--user', 'daemon-reload']);
@@ -136,39 +156,121 @@ export async function removeRuntimeService(
   home: string,
   identity: RuntimeIdentity,
   run: CompilationCommandRunner = runCompilationCommand,
-): Promise<'removed' | 'owned'> {
+): Promise<'removed' | 'absent' | 'owned'> {
   const directory = runtimeDirectory(home, identity.runtime_id);
   let claim: ReturnType<typeof acquireRuntimeClaim>;
   let launchClaim: ReturnType<typeof acquireRuntimeClaim> | undefined;
+  let dispatchClaim: ReturnType<typeof acquireRuntimeClaim> | undefined;
   try {
     launchClaim = acquireRuntimeClaim(home, `runtime-launch:${identity.runtime_id}`);
+    dispatchClaim = acquireRuntimeClaim(home, `runtime-dispatch:${identity.runtime_id}`);
     claim = acquireRuntimeClaim(home, `runtime:${identity.runtime_id}`);
   } catch (error) {
+    dispatchClaim?.release();
     launchClaim?.release();
     if (error instanceof RuntimeClaimBusy) return 'owned';
     throw error;
   }
   try {
+    const retire = () => {
+      const file = join(directory, 'retired.json');
+      try {
+        const previous = runtimeRetiredSchema.parse(readRuntimeJson(file));
+        if (JSON.stringify(previous.identity) !== JSON.stringify(identity))
+          throw new Error('Runtime retirement identity mismatch');
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        atomicPrivateJson(file, { format: 1, identity });
+      }
+    };
     const file = join(directory, 'supervisor.json');
-    const record = runtimeSupervisorSchema.parse(readRuntimeJson(file));
+    let record: RuntimeSupervisor;
+    try {
+      record = runtimeSupervisorSchema.parse(readRuntimeJson(file));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      retire();
+      return 'absent';
+    }
     if (JSON.stringify(record.identity) !== JSON.stringify(identity))
       throw new Error('Runtime supervisor identity mismatch');
+    const hostKey = digest(realpathSync(home)).slice(0, 8);
+    const expectedName =
+      record.kind === 'systemd'
+        ? `puddler-${hostKey}-${identity.runtime_id}.service`
+        : `dev.puddle.runtime.${hostKey}.${identity.runtime_id}`;
+    if (record.name !== expectedName || (record.kind === 'launchd' && record.domain === null))
+      throw new Error('Runtime supervisor target mismatch');
     if (record.state === 'removed') return 'removed';
     // Fence a queued service start before releasing this lock after unregistering.
-    atomicPrivateJson(join(directory, 'retired.json'), { format: 1, identity });
-    const execute = (command: string, args: string[]) =>
-      run({ file: command, args, cwd: home, timeoutMs: 15_000, maxOutputBytes: 64 * 1024 });
+    retire();
+    const execute = supervisorCommand(home, run);
+    const result = async (command: string, args: string[]) => {
+      try {
+        return await execute(command, args);
+      } catch (error) {
+        if (error instanceof CompilationCommandError && error.result) return error.result;
+        throw error;
+      }
+    };
     if (record.kind === 'systemd') {
-      await execute('systemctl', ['--user', 'stop', record.name]);
-      await execute('systemctl', ['--user', 'disable', record.name]);
+      const absent = async () => {
+        const observed = await result('systemctl', [
+          '--user',
+          'show',
+          '--property=LoadState,ActiveState,SubState',
+          record.name,
+        ]);
+        const values = new Map(
+          observed.stdout
+            .trim()
+            .split('\n')
+            .map((line) => {
+              const [key, value] = line.split('=');
+              return [key, value] as const;
+            }),
+        );
+        return (
+          [0, 4].includes(observed.exitCode) &&
+          values.get('LoadState') === 'not-found' &&
+          values.get('ActiveState') === 'inactive' &&
+          values.get('SubState') === 'dead'
+        );
+      };
+      try {
+        await execute('systemctl', ['--user', 'stop', record.name]);
+      } catch (error) {
+        if (!(await absent())) throw error;
+      }
+      try {
+        await execute('systemctl', ['--user', 'disable', record.name]);
+      } catch (error) {
+        await execute('systemctl', ['--user', 'daemon-reload']);
+        if (!(await absent())) throw error;
+      }
       await execute('systemctl', ['--user', 'daemon-reload']);
     } else {
-      await execute('/bin/launchctl', ['bootout', `${record.domain!}/${record.name}`]);
+      const target = `${record.domain!}/${record.name}`;
+      const absent = async () => {
+        const observed = await result('/bin/launchctl', ['print', target]);
+        // launchctl error 113: service not found. Other errors never establish absence.
+        if (observed.exitCode !== 0 && observed.exitCode !== 113)
+          throw new Error('Could not inspect runtime service registration');
+        return observed.exitCode === 113;
+      };
+      if (!(await absent())) {
+        try {
+          await execute('/bin/launchctl', ['bootout', target]);
+        } catch (error) {
+          if (!(await absent())) throw error;
+        }
+      }
     }
     atomicPrivateJson(file, { ...record, state: 'removed' });
     return 'removed';
   } finally {
     claim.release();
+    dispatchClaim.release();
     launchClaim.release();
   }
 }

@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Collect ended independent runtime service registrations through a bounded durable queue, preserving live owners and pinned data and recovering safely from lost removal responses.
+
 - Retain main-terminal titles in opt-in independent owners across daemon replacement, keeping offline native-switch titles on their exact placements and preserving user overrides.
 
 - Preserve foreground-agent hints and completion alerts for opt-in independent terminal runtimes across daemon replacement, without changing terminal placement identity or adopting native conversations.

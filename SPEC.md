@@ -213,7 +213,18 @@ A journal gap or failed database commit preserves unresolved ownership. Confirme
 configured auto-resume policy; natural
 exits do not resume. Agent owner loss remains explicitly resumable until supervisor
 cleanup can prove provider sidecars and descendants have ended.
-Supervisor-registration collection and orphan-sidecar recovery remain outstanding.
+Migration 039 queues ended runtime registrations atomically with their final
+binding state and seeds previously ended owners. An indexed pending queue supplies
+at most 32 owners per pass, with four removals in flight; unavailable owners cannot
+starve later pages. Cleanup acquires launch, dispatch and owner claims, verifies
+the exact host/runtime service target and fences delayed starts before removal.
+Already-absent launchd/systemd registrations are accepted only after bounded,
+positive absence inspection; other failures remain pending. A completed receipt
+prevents repeated collection after daemon replacement. Shutdown drains pending
+commands before closing the database and releasing controller authority.
+Registration cleanup preserves journals, checkpoints, results and pinned assets;
+it is not proof that unmanaged provider descendants have ended. Orphan-sidecar
+recovery and reference-aware asset collection remain rollout gates.
 Migration 032 records terminal generations per segment and explicitly selects each
 placement's terminal owner. Runtime launches/switches update that selection in the
 same transaction; a later legacy spawn records its own ownership instead of

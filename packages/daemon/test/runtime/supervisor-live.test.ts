@@ -10,7 +10,7 @@ import {
 } from '@puddle/shared';
 import { RuntimeClient } from '../../src/runtime/client.js';
 import { acquireRuntimeClaim } from '../../src/runtime/claims.js';
-import { startRuntimeService } from '../../src/runtime/supervisor.js';
+import { startRuntimeService, removeRuntimeService } from '../../src/runtime/supervisor.js';
 import { runCompilationCommand } from '../../src/compilation/process.js';
 import { acquireRuntimeController, readRuntimeJson } from '../../src/runtime/storage.js';
 import {
@@ -143,6 +143,25 @@ describe('native runtime supervision', () => {
           data: 'printf \'restart-%s\\n\' "$state"\n',
         });
         await waitForSnapshot(next, original.generation, 'restart-launchd');
+        await next.request({ t: 'stop', placement: placement(next) });
+        await waitFor(() => {
+          const claim = acquireRuntimeClaim(home, `runtime:${launch.identity.runtime_id}`);
+          claim.release();
+          return true;
+        });
+        let bootedOut = false;
+        expect(
+          await removeRuntimeService(home, launch.identity, async (command) => {
+            const result = await runCompilationCommand({ ...command, env: environment(home) });
+            if (command.args[0] === 'bootout') {
+              bootedOut = true;
+              throw new Error('Lost bootout acknowledgement');
+            }
+            return result;
+          }),
+        ).toBe('removed');
+        expect(bootedOut).toBe(true);
+        expect(await removeRuntimeService(home, launch.identity)).toBe('removed');
       } finally {
         await execute(['bootout', target]).catch(() => {});
         try {

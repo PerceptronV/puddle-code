@@ -172,6 +172,14 @@ setInterval(() => {
     );
     expect(killed.status).toBe(200);
     await killed.arrayBuffer();
+    await waitFor(
+      () =>
+        !!f.db
+          .prepare(
+            'SELECT 1 FROM runtime_service_cleanup WHERE runtime_id = ? AND completed_at IS NOT NULL',
+          )
+          .get(f.binding.runtime_id),
+    );
     await stop();
     expect(deliveries).toHaveLength(3);
   } finally {
