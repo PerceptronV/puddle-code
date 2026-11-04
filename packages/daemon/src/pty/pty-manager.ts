@@ -70,6 +70,7 @@ export class PtyManager extends EventEmitter {
   private readonly live = new Map<string, Live>();
   private readonly sidecars = new Map<string, { pids: Set<number>; hiddenPorts: Set<number> }>();
   private readonly screens: TerminalScreenStateStore;
+  private readonly preparing = new Set<string>();
   /**
    * The last size a viewer asked for, per (stream, term) — kept whether or not a
    * PTY is live so the NEXT one starts at it. A resume or an account migration
@@ -105,11 +106,62 @@ export class PtyManager extends EventEmitter {
     opts: { cwd: string; env?: Record<string, string>; record?: boolean },
   ): void {
     if (this.closing) throw new Error('Terminal manager is shutting down');
+    if (this.preparing.has(this.key(stream, term))) throw new Error('Terminal launch is pending');
+    if (this.live.has(this.key(stream, term))) throw new Error('Terminal already live');
+    const size = this.sizes.get(this.key(stream, term)) ?? DEFAULT_SIZE;
+    this.screens.resize(stream, term, size.cols, size.rows);
+    this.spawnNative(stream, term, file, args, opts);
+  }
+
+  /** Runtime owners admit their canonical screen before creating a native PTY. */
+  async spawnPrepared(
+    stream: string,
+    term: string,
+    file: string,
+    args: string[],
+    opts: { cwd: string; env?: Record<string, string>; record?: boolean },
+    size: { cols: number; rows: number },
+    current: () => boolean,
+  ): Promise<void> {
+    if (this.closing) throw new Error('Terminal manager is shutting down');
+    const key = this.key(stream, term);
+    if (this.preparing.has(key)) throw new Error('Terminal launch is pending');
+    if (this.live.has(key)) throw new Error('Terminal already live');
+    const previousSize = this.sizes.get(key);
+    let preparedSize: { cols: number; rows: number } | undefined;
+    this.preparing.add(key);
+    try {
+      await this.screens.prepare(stream, term, size.cols, size.rows);
+      if (this.closing || !current()) throw new Error('Terminal launch was cancelled');
+      preparedSize = { ...size };
+      this.sizes.set(key, preparedSize);
+      this.spawnNative(stream, term, file, args, opts);
+    } catch (error) {
+      // No live child can own this prepared state. Preserve its disk snapshot
+      // while releasing retained memory after all parser/persistence work ends.
+      if (!this.live.has(key)) await this.screens.release(stream, term).catch(() => undefined);
+      if (!this.live.has(key) && preparedSize && this.sizes.get(key) === preparedSize) {
+        if (previousSize) this.sizes.set(key, previousSize);
+        else this.sizes.delete(key);
+      }
+      throw error;
+    } finally {
+      this.preparing.delete(key);
+    }
+  }
+
+  private spawnNative(
+    stream: string,
+    term: string,
+    file: string,
+    args: string[],
+    opts: { cwd: string; env?: Record<string, string>; record?: boolean },
+  ): void {
+    if (this.closing) throw new Error('Terminal manager is shutting down');
     const key = this.key(stream, term);
     if (this.live.has(key)) throw new Error(`pty ${key} already live`);
     const record = opts.record ?? true;
     const size = this.sizes.get(key) ?? DEFAULT_SIZE;
-    this.screens.resize(stream, term, size.cols, size.rows);
     const proc = pty.spawn(file, args, {
       name: 'xterm-256color',
       cols: size.cols,

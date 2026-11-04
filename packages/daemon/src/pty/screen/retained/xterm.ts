@@ -2,6 +2,7 @@ import type { Terminal } from '@xterm/headless';
 import type { ScreenRetainedLease } from './budget.js';
 import { coreOf, type Core, type BufferState, type SequenceParser } from './internals.js';
 import { guardGeometryGrowth, setHistoryCapacity } from './geometry.js';
+import { admitScreen } from '../admission.js';
 
 /**
  * Instance-only guards for the exact-pinned headless emulator. Ordinary runs stay
@@ -306,7 +307,10 @@ export class XtermRetainedState {
       throw this.failure ?? new Error('Canonical terminal disposed');
     const release = await this.lease.owner.acquireBurst(this.lease.owner.limits.burstBytes);
     try {
-      this.lease.owner.rebalance(this.lease, cols, rows);
+      await admitScreen(
+        () => this.lease.owner.rebalance(this.lease, cols, rows),
+        () => !this.disposed && !this.failure,
+      );
       const oldCols = this.terminal.cols;
       const normal = this.core._bufferService.buffers.normal;
       const estimate = () => {

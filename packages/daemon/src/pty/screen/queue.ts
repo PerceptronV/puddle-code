@@ -28,6 +28,20 @@ export class ScreenParserQueue {
       }
       return false;
     }
+    return this.enqueueAdmitted(release, operation, options);
+  }
+
+  /** Transfer an initial action's reservation obtained before constructing its screen. */
+  enqueueAdmitted(
+    release: () => void,
+    operation: () => Promise<void>,
+    options: { cancelled?: () => void } = {},
+  ): boolean {
+    if (this.closed) {
+      release();
+      options.cancelled?.();
+      return false;
+    }
     this.tail = this.tail
       .then(async () => {
         if (!this.closed) await operation();

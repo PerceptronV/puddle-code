@@ -175,6 +175,16 @@ grant change remains unresolved, rechecking local capacity and the same durable
 grant before spending. Definitive exhaustion still refuses admission. This neither
 replays terminal input nor expands the existing work queues or memory limits.
 
+Runtime owners admit canonical viewport and initial parser-action capacity before
+creating a native PTY, then await restore and requested geometry. A refusal prevents
+the new terminal from starting with a canonical-screen gap. Preparations coalesce
+per terminal, are bounded to 32 metadata entries and are cancelled by release,
+forgetting or shutdown. Owners fence competing launches of the same terminal and
+recheck the exact controller, socket and placement after preparation, immediately
+before native dispatch. Failed dispatch releases the unused prepared screen after
+queued work settles. Legacy synchronous PTY interfaces remain for their existing
+callers; they are not the independent runtime launch path.
+
 The Codex native bridge pauses unsent traffic when its shared allowance is
 unavailable, preserving the native CLI and sidecar. Raw fragments, parsed metadata
 and deferred forwards retain their charges through delivery; control-frame replies

@@ -53,6 +53,7 @@ import { prepareRuntimeLifetime } from './lifecycle/lifetime.js';
 /** One process owns one runtime. No application database or public HTTP server. */
 export class RuntimeHost {
   private readonly terminals = new Map<string, RuntimeTerminal>();
+  private readonly pendingSpawns = new Set<string>();
   private readonly sockets = new Set<Socket>();
   private readonly requests: RuntimeBufferBudget;
   private readonly transport: RuntimeTransportBuffers;
@@ -248,7 +249,7 @@ export class RuntimeHost {
         const agent = host.agent.state();
         host.ptys.registerSidecars(id, agent.sidecar_pids, agent.hidden_ports);
       }
-      host.spawn('agent', command);
+      await host.spawn('agent', command);
       if (!host.launch.provider) host.monitorTerminal(adapters);
       host.status = 'running';
       host.persistState();
@@ -297,7 +298,12 @@ export class RuntimeHost {
     }
   }
 
-  private spawn(term: string, command: RuntimeCommand): void {
+  private async spawn(
+    term: string,
+    command: RuntimeCommand,
+    authorised = () => true,
+  ): Promise<void> {
+    if (this.pendingSpawns.has(term)) throw new Error('Terminal launch is already pending');
     const current = this.terminals.get(term);
     if (current?.pid !== null && current !== undefined) throw new Error('Terminal already running');
     if (!current && this.terminals.size >= RUNTIME_LIMITS.terminals)
@@ -310,17 +316,35 @@ export class RuntimeHost {
       cols: command.cols,
       rows: command.rows,
     };
+    this.pendingSpawns.add(term);
     this.terminals.set(term, terminal);
     const stream = this.launch.identity.runtime_id;
-    this.ptys.resize(stream, term, command.cols, command.rows);
-    this.ptys.spawn(stream, term, command.file, command.args, {
-      cwd: command.cwd,
-      // Command env contains adapter/hook overrides, not a stale captured map.
-      // Captured values override the recorded daemon baseline; PtyManager adds
-      // the owner's process environment underneath these explicit layers.
-      env: { ...this.launch.environment, ...this.observations.environment(), ...command.env },
-      record: false,
-    });
+    try {
+      await this.ptys.spawnPrepared(
+        stream,
+        term,
+        command.file,
+        command.args,
+        {
+          cwd: command.cwd,
+          // Command env contains adapter/hook overrides, not a stale captured map.
+          // Captured values override the recorded daemon baseline; PtyManager adds
+          // the owner's process environment underneath these explicit layers.
+          env: { ...this.launch.environment, ...this.observations.environment(), ...command.env },
+          record: false,
+        },
+        { cols: command.cols, rows: command.rows },
+        () => !this.stopPromise && this.terminals.get(term) === terminal && authorised(),
+      );
+    } catch (error) {
+      if (this.terminals.get(term) === terminal) {
+        if (current) this.terminals.set(term, current);
+        else this.terminals.delete(term);
+      }
+      throw error;
+    } finally {
+      this.pendingSpawns.delete(term);
+    }
     terminal.pid = this.ptys.pidFor(stream, term);
     this.event({ t: 'terminal-created', cursor: ++this.eventCursor, terminal: { ...terminal } });
   }
@@ -868,7 +892,15 @@ export class RuntimeHost {
         break;
       }
       case 'spawn-shell':
-        this.spawn(request.term, request.command);
+        await this.spawn(
+          request.term,
+          request.command,
+          () =>
+            this.owner === owner &&
+            !owner.socket.destroyed &&
+            this.authorised(owner.id, owner.epoch) &&
+            this.currentPlacement(request.placement),
+        );
         this.persistState();
         break;
       case 'kill-terminal':
@@ -888,6 +920,7 @@ export class RuntimeHost {
 
   stop(expected = true): Promise<void> {
     if (this.stopPromise) return this.stopPromise;
+    this.ptys.beginShutdown();
     if (expected) {
       this.expectedExit = true;
       this.attention.clear();

@@ -20,6 +20,7 @@ import { serialiseScreen } from './screen/serialise.js';
 import { preserveXtermScrollUp } from './xterm-scrollback.js';
 import { ScreenRetainedBudget } from './screen/retained/budget.js';
 import { XtermRetainedState } from './screen/retained/xterm.js';
+import { admitScreen, ScreenAdmissionError } from './screen/admission.js';
 
 const { Terminal } = headless;
 
@@ -70,6 +71,10 @@ interface ScreenState {
 export class TerminalScreenStateStore {
   private readonly states = new Map<string, ScreenState>();
   private readonly gaps = new Set<string>();
+  private readonly preparing = new Map<
+    string,
+    { cols: number; rows: number; cancelled: boolean; promise: Promise<void> }
+  >();
   private readonly files?: ScreenSnapshotFiles;
   private closing = false;
   private closePromise: Promise<void> | null = null;
@@ -153,6 +158,77 @@ export class TerminalScreenStateStore {
     });
   }
 
+  /** No native PTY exists yet: resolve admission and restore before output can arrive. */
+  prepare(stream: string, term: string, cols: number, rows: number): Promise<void> {
+    if (this.closing || !this.validSize(cols, rows))
+      return Promise.reject(new Error('Invalid or cancelled terminal screen preparation'));
+    const key = this.key(stream, term);
+    const existing = this.preparing.get(key);
+    if (existing)
+      return existing.cols === cols && existing.rows === rows
+        ? existing.promise
+        : Promise.reject(new Error('Terminal screen preparation already pending'));
+    if (this.preparing.size >= SCREEN_LIMITS.waitingOperations)
+      return Promise.reject(new Error('Terminal screen preparation capacity exceeded'));
+    // At most 32 metadata-only preparations; runtime commands retain their own
+    // admission while waiting. No PTY input or uncharged parser closure is held.
+    const preparation = { cols, rows, cancelled: false, promise: Promise.resolve() };
+    this.preparing.set(key, preparation);
+    preparation.promise = Promise.resolve()
+      .then(() =>
+        this.prepareState(
+          stream,
+          term,
+          cols,
+          rows,
+          () => !preparation.cancelled && this.preparing.get(key) === preparation,
+        ),
+      )
+      .finally(() => {
+        if (this.preparing.get(key) === preparation) this.preparing.delete(key);
+      });
+    return preparation.promise;
+  }
+
+  private async prepareState(
+    stream: string,
+    term: string,
+    cols: number,
+    rows: number,
+    current: () => boolean,
+  ): Promise<void> {
+    const deadline = performance.now() + 5000;
+    const active = () => !this.closing && current();
+    const state = await admitScreen(() => this.ensure(stream, term, cols, rows), active, deadline);
+    await state.queue.settled;
+    if (!active()) throw new Error('Terminal screen preparation was cancelled');
+    if (this.states.get(this.key(stream, term)) !== state)
+      throw new Error('Terminal screen preparation was replaced');
+    this.requireAvailable(state);
+    if (state.cols !== cols || state.rows !== rows) {
+      const release = await admitScreen(() => this.reserveInitialAction(), active, deadline);
+      if (!active()) {
+        release();
+        throw new Error('Terminal screen preparation was cancelled');
+      }
+      if (
+        !state.queue.enqueueAdmitted(release, async () => {
+          await state.retained.resize(cols, rows);
+          state.cols = cols;
+          state.rows = rows;
+          state.revision++;
+          state.dirty = true;
+        })
+      )
+        throw new Error('Terminal screen preparation was cancelled');
+      await state.queue.settled;
+      this.requireAvailable(state);
+      if (this.states.get(this.key(stream, term)) !== state)
+        throw new Error('Terminal screen preparation was replaced');
+    }
+    if (!active()) throw new Error('Terminal screen preparation was cancelled');
+  }
+
   /** Returns null only when this terminal has never produced restorable data. */
   async snapshot(
     stream: string,
@@ -204,8 +280,13 @@ export class TerminalScreenStateStore {
   async release(stream: string, term: string): Promise<void> {
     const key = this.key(stream, term);
     const state = this.states.get(key);
-    if (!state) return;
-    const generation = state.generation;
+    const generation = state?.generation;
+    const preparation = this.preparing.get(key);
+    if (preparation) {
+      preparation.cancelled = true;
+      await preparation.promise.catch(() => undefined);
+    }
+    if (!state || this.states.get(key) !== state || state.generation !== generation) return;
     await this.flush(stream, term, state);
     if (this.closing || this.states.get(key) !== state) return;
     if (state.unavailable) {
@@ -224,8 +305,10 @@ export class TerminalScreenStateStore {
   closeAll(): Promise<void> {
     if (this.closePromise) return this.closePromise;
     this.closing = true;
-    const entries = [...this.states.entries()];
     this.closePromise = (async () => {
+      // Preparation must observe cancellation before retained allocations close.
+      await Promise.allSettled([...this.preparing.values()].map((entry) => entry.promise));
+      const entries = [...this.states.entries()];
       // Do not manufacture one serialisation waiter per state during shutdown.
       for (const [key, state] of entries) {
         const [stream, term] = this.split(key);
@@ -244,6 +327,9 @@ export class TerminalScreenStateStore {
   /** Delete buffers for a stream that has been permanently removed. */
   async forget(stream: string): Promise<void> {
     const prefix = `${stream} `;
+    const preparations = [...this.preparing].filter(([key]) => key.startsWith(prefix));
+    for (const [, preparation] of preparations) preparation.cancelled = true;
+    await Promise.allSettled(preparations.map(([, preparation]) => preparation.promise));
     for (const key of this.gaps) if (key.startsWith(prefix)) this.gaps.delete(key);
     for (const [key, state] of [...this.states]) {
       if (!key.startsWith(prefix)) continue;
@@ -267,7 +353,22 @@ export class TerminalScreenStateStore {
     }
   }
 
-  private ensure(stream: string, term: string): ScreenState {
+  private reserveInitialAction(): () => void {
+    const bytes = screenActionBytes();
+    const release = this.parserBudget.reserve(bytes);
+    if (!release)
+      throw new ScreenAdmissionError('Canonical terminal initial action capacity exhausted', () =>
+        this.parserBudget.waitForAdmission(bytes),
+      );
+    return release;
+  }
+
+  private ensure(
+    stream: string,
+    term: string,
+    cols = DEFAULT_COLS,
+    rows = DEFAULT_ROWS,
+  ): ScreenState {
     if (this.closing) throw new Error('Terminal screen store is shutting down');
     const key = this.key(stream, term);
     if (this.gaps.has(key))
@@ -278,7 +379,15 @@ export class TerminalScreenStateStore {
       return existing;
     }
 
-    const lease = this.retained.admit(DEFAULT_COLS, DEFAULT_ROWS);
+    // Charge the restore action before any emulator or parser closure exists.
+    const initialRelease = this.reserveInitialAction();
+    let lease;
+    try {
+      lease = this.retained.admit(cols, rows);
+    } catch (error) {
+      initialRelease();
+      throw error;
+    }
     let terminal: HeadlessTerminal | undefined;
     let serialiser: SerializeAddon;
     try {
@@ -286,8 +395,8 @@ export class TerminalScreenStateStore {
         // Narrow opt-in for the official serialiser's buffer access. Puddle does
         // not expose or consume proposed xterm APIs anywhere else.
         allowProposedApi: true,
-        cols: DEFAULT_COLS,
-        rows: DEFAULT_ROWS,
+        cols,
+        rows,
         scrollback: lease.scrollback,
       });
       preserveXtermScrollUp(terminal);
@@ -300,6 +409,7 @@ export class TerminalScreenStateStore {
       // leave a retained host allocation with no state available to dispose it.
       terminal?.dispose();
       lease.dispose();
+      initialRelease();
       throw error;
     }
     const unavailable = (error: unknown) => {
@@ -323,14 +433,15 @@ export class TerminalScreenStateStore {
     } catch (error) {
       terminal.dispose();
       lease.dispose();
+      initialRelease();
       throw error;
     }
     const state: ScreenState = {
       terminal,
       retained,
       serialiser,
-      cols: DEFAULT_COLS,
-      rows: DEFAULT_ROWS,
+      cols,
+      rows,
       hasContent: false,
       dirty: false,
       queue: new ScreenParserQueue(this.parserBudget, unavailable, this.captureBudget),
@@ -341,7 +452,7 @@ export class TerminalScreenStateStore {
       persistTimer: null,
       generation: 0,
     };
-    state.queue.enqueue(screenActionBytes(), () => this.load(stream, term, state));
+    state.queue.enqueueAdmitted(initialRelease, () => this.load(stream, term, state));
     this.states.set(key, state);
     return state;
   }

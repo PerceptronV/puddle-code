@@ -365,6 +365,15 @@ supervised one.
   covers both IPC and retained state; use supported runtime majors, not per-file
   compatibility declarations or matching release versions.
 
+- Independent runtime PTYs use `PtyManager.spawnPrepared`: admit the canonical
+  viewport and initial parser action, then await restore/geometry before native
+  dispatch. Only unresolved durable admission may retry, under existing bounded
+  waits and queues; definitive exhaustion refuses the new PTY. Fence pending
+  launches per terminal, recheck controller/socket/placement after awaits, cancel
+  preparations on release/forget/shutdown, and release unused screen allocations
+  after failed dispatch. Never turn admission contention into an apparently
+  healthy launch with a permanently missing canonical screen.
+
 - The `pudl` command ships with the CLI and executes puddlang programmes as trusted single-file TypeScript on an existing local/SSH daemon (protocol 24.0, host Node 22.21.1+). Agent control belongs in provider folders under `agents/`: all four supported agents offer persisted interactive/headless modes. Codex interactive control uses its existing proxy; other interactive controls correlate prompt hashes through native hooks/plugins. Headless control resumes exact native refs and requires a successful structured result plus exit zero. Keep flags and parsers provider-owned; never infer replies from terminal quietness or catalogue discovery. Human input takes over hook-driven asks; custom stop hooks may continue past interactive completion (see the usage guide). Keep runs distinct from placement/conversation/runtime identities, recheck profile ownership per operation, retain account selection without fallback and never replay interrupted runs. Remote leases and the connector allowlist exclude puddlang. Automatic agent MCP binding, delegated credentials and descendant budgets remain deferred; see `docs/puddlang.md`.
 
 - **British English everywhere**: comments, documentation, commit messages, UI copy, and identifiers you choose (`colour`, `initialise`, `behaviour`, `licence` as the noun). Exception: never rename third-party API surface — CSS `color`, `Array.prototype.normalize`-style library methods, and external config keys keep their canonical spelling.

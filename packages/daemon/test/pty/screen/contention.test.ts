@@ -1,10 +1,8 @@
-import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RuntimeBufferBudget } from '../../../src/runtime/resources/budget.js';
-import { RuntimeHostAllowance } from '../../../src/runtime/resources/host/allowance.js';
 import {
   ScreenRetainedBudget,
   SCREEN_RETAINED_LIMITS,
@@ -12,35 +10,109 @@ import {
 import { ScreenSnapshotWork } from '../../../src/pty/screen/work.js';
 import { SCREEN_LIMITS } from '../../../src/pty/screen/limits.js';
 import { TerminalScreenStateStore } from '../../../src/pty/terminal-screen-state.js';
-
-function fixture(capacity = 128 * 1024 * 1024) {
-  let grant: { revision: number; bytes: number } | null = null;
-  const ledger = {
-    busy: 0,
-    readGrant: () => grant,
-    compareGrant: (_identity: unknown, revision: number, bytes: number) => {
-      if (ledger.busy > 0) {
-        ledger.busy--;
-        throw Object.assign(new Error('busy'), { code: 'SQLITE_BUSY' });
-      }
-      if ((grant?.revision ?? 0) !== revision || bytes > capacity) return null;
-      return (grant = { revision: revision + 1, bytes });
-    },
-  };
-  const allowance = new RuntimeHostAllowance(
-    ledger,
-    { runtime_id: randomUUID(), incarnation: randomUUID(), launch_id: randomUUID() },
-    4 * 1024 * 1024,
-    0,
-  );
-  return { ledger, allowance };
-}
+import { screenContention as fixture } from '../../helpers/pty/contention.js';
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
 describe('screen admission under ledger contention', () => {
+  it.each(['forget', 'release'] as const)(
+    'does not resurrect a stream after %s cancels pre-geometry admission',
+    async (method) => {
+      const { ledger, allowance } = fixture();
+      ledger.busy = 1;
+      const store = new TerminalScreenStateStore(undefined, undefined, { allowance });
+      const prepared = store.prepare('removed', 'agent', 80, 24).catch((error) => error as Error);
+      await Promise.resolve();
+      expect(ledger.busy).toBe(0);
+      if (method === 'forget') await store.forget('removed');
+      else await store.release('removed', 'agent');
+      expect(await prepared).toMatchObject({ message: expect.stringContaining('cancelled') });
+      expect(allowance.usedBytes).toBe(0);
+      await store.prepare('removed', 'agent', 80, 24);
+      expect(await store.snapshot('removed', 'agent')).toBeNull();
+      await store.closeAll();
+      expect(allowance.usedBytes).toBe(0);
+    },
+  );
+  it.each(['geometry', 'initial queue'])(
+    'prepares the first screen through %s CAS contention without a canonical gap',
+    async (phase) => {
+      const { ledger, allowance } = fixture();
+      const baseline = allowance.reserve(4 * 1024 * 1024 - (phase === 'geometry' ? 128 : 0))!;
+      const health = vi.fn();
+      const store = new TerminalScreenStateStore(undefined, health, { allowance });
+      ledger.busy = 2;
+      try {
+        const prepared = store.prepare('first', 'agent', 80, 24);
+        expect(store.prepare('first', 'agent', 80, 24)).toBe(prepared);
+        await prepared;
+        expect(ledger.busy).toBe(0);
+        store.write('first', 'agent', 'canonical after busy');
+        expect(await store.snapshot('first', 'agent')).toContain('canonical after busy');
+        expect(health).not.toHaveBeenCalledWith(true);
+      } finally {
+        await store.closeAll();
+        baseline();
+      }
+      expect(allowance.usedBytes).toBe(0);
+    },
+  );
+
+  it('refuses definitive initial exhaustion without poisoning a later admitted screen', async () => {
+    const { allowance } = fixture(4 * 1024 * 1024);
+    const baseline = allowance.reserve(4 * 1024 * 1024)!;
+    const health = vi.fn();
+    const store = new TerminalScreenStateStore(undefined, health, { allowance });
+    try {
+      await expect(store.prepare('first', 'agent', 80, 24)).rejects.toThrow('capacity exhausted');
+      expect(health).not.toHaveBeenCalled();
+      baseline();
+      await store.prepare('first', 'agent', 80, 24);
+      expect(await store.snapshot('first', 'agent')).toBeNull();
+    } finally {
+      await store.closeAll();
+      baseline();
+    }
+    expect(allowance.usedBytes).toBe(0);
+  });
+
+  it('bounds metadata-only preparations and cancels them before shutdown refunds allocations', async () => {
+    vi.useFakeTimers();
+    const { ledger, allowance } = fixture();
+    ledger.busy = Infinity;
+    const health = vi.fn();
+    const store = new TerminalScreenStateStore(undefined, health, { allowance });
+    const pending = Array.from({ length: SCREEN_LIMITS.waitingOperations }, (_, index) =>
+      store.prepare(`pending-${index}`, 'agent', 80, 24).catch((error) => error as Error),
+    );
+    await expect(store.prepare('overflow', 'agent', 80, 24)).rejects.toThrow('capacity');
+    const closing = store.closeAll();
+    await vi.advanceTimersByTimeAsync(50);
+    await closing;
+    expect(
+      (await Promise.all(pending)).every(
+        (error) => error instanceof Error && /cancelled/.test(error.message),
+      ),
+    ).toBe(true);
+    expect(allowance.usedBytes).toBe(0);
+    expect(health).not.toHaveBeenCalled();
+  });
+
+  it('ends an unresolved initial admission attempt at the bounded deadline', async () => {
+    vi.useFakeTimers();
+    const { ledger, allowance } = fixture();
+    ledger.busy = Infinity;
+    const store = new TerminalScreenStateStore(undefined, undefined, { allowance });
+    const prepared = store.prepare('pending', 'agent', 80, 24).catch((error) => error as Error);
+    await vi.advanceTimersByTimeAsync(5100);
+    expect(await prepared).toMatchObject({
+      message: expect.stringContaining('capacity exhausted'),
+    });
+    await store.closeAll();
+    expect(allowance.usedBytes).toBe(0);
+  });
   it('rechecks local burst ownership after yielding without overcommitting or gapping', async () => {
     const { ledger, allowance } = fixture();
     const retained = new ScreenRetainedBudget(undefined, allowance);

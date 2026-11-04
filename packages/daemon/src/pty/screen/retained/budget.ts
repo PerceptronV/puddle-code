@@ -3,6 +3,7 @@ import type {
   RuntimeRetainedAllocation,
   RuntimeRetainedAllowance,
 } from '../../../runtime/resources/budget.js';
+import { ScreenAdmissionError } from '../admission.js';
 
 /** Charged retained capacity; these allowances are not measurements of JavaScript RSS. */
 export interface ScreenRetainedLimits {
@@ -254,7 +255,10 @@ export class ScreenRetainedLease {
   }
   setGeometry(cols: number, rows: number, scrollback: number): void {
     if (!this.trySetGeometry(cols, rows, scrollback))
-      throw new Error('Canonical terminal host geometry capacity exhausted');
+      throw new ScreenAdmissionError(
+        'Canonical terminal host geometry capacity exhausted',
+        () => this.owner.allowance?.waitForAdmission?.() ?? Promise.resolve(false),
+      );
   }
   trySetGeometry(cols: number, rows: number, scrollback: number): boolean {
     if (cols < this.cols || rows < this.rows || scrollback < this.scrollback)
