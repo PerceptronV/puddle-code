@@ -29,6 +29,21 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far:
 
+- The one-shot worker now composes daemon-only and combined transactions: verify
+  its independent supervisor scope, stop the exact daemon service, await the
+  accepted shutdown checkpoint and released controller, hold that claim across
+  exact selector activation, start the unchanged service configuration, and require
+  fresh adoption verification before completion. It uses the same installer path
+  as runtime-default updates; partial selection or lost mutation replies remain
+  `recovery_required`, with no rollback/replay. Preflight fingerprints systemd unit
+  plus drop-in contents, or the bounded launchd plist, without storing environment
+  contents. Tests cover real installer selection with simulated supervisor/adoption
+  boundaries, an isolated daemon/runtime hand-off, and a real temporary macOS 26.5.2
+  KeepAlive job whose custom configuration survives stop/start. Linux service commands
+  remain fixture-tested. Production daemon dispatch is still refused: final admission/
+  impact/authority integration, connector inventory, migration-aware recovery and
+  packaged full-transaction acceptance remain required.
+
 - Signal-driven daemon shutdown can select its checkpoint reference from an
   accepted private worker record, bound to the outgoing PID and exact controller
   id/epoch. Replacement controllers cannot inherit it, even with a reused PID;
@@ -36,8 +51,8 @@ Implementation evidence so far:
   checkpoint and leaves ordinary shutdown available. An isolated daemon test now
   exercises this implicit hand-off, holds admitted work through drainage and proves
   the same owner survives replacement. Worker dispatch still refuses daemon targets:
-  writing this evidence in production, supervisor stop/start, final preflight and
-  recovery must be connected before enabling daemon activation.
+  writing this evidence in production, final preflight and recovery must be connected
+  before enabling daemon activation.
 
 - Replacement adoption observation is now wired into authorised exact-operation
   status requests. Application 25.8 adds an optional fresh nonce; the coordinator
@@ -48,9 +63,9 @@ Implementation evidence so far:
   records, a fresh private lease and bounded authenticated HTTP version inspection.
   Tests use a real isolated owner and private control/HTTP fixtures; they reject
   stale receipts, identity changes, unsettled observation, wrong executable paths
-  and unavailable HTTP authority. This does not enable activation: surviving-worker
-  shutdown/restart orchestration, final impact/authority approval, connector inventory
-  and migration-aware recovery remain outstanding.
+  and unavailable HTTP authority. Production activation remains disabled pending final
+  impact/authority approval,
+  connector inventory, dispatch integration and migration-aware recovery.
 
 - Accepted daemon operations can now request a durable checkpoint through the
   internal shutdown path. Existing shutdown drains stop application writers and

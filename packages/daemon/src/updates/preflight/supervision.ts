@@ -1,18 +1,22 @@
 import { constants } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { join } from 'node:path';
-import { hostUpdateOperationSchema, type HostUpdateOperation } from '@puddle/shared';
+import {
+  hostUpdateOperationSchema,
+  type HostUpdateOperation,
+  type HostServiceReplacement,
+} from '@puddle/shared';
 import type { CompilationCommandRunner } from '../../compilation/process.js';
 import {
   inspectRunningService,
   inspectHostServiceManager,
-  type ServiceObservation,
   type ServiceTarget,
 } from '../../host/supervision/inspection.js';
+import { prepareServiceReplacement } from '../../host/supervision/replacement.js';
 
 export interface UpdateSupervision {
   worker: Pick<ServiceTarget, 'kind' | 'domain'> | null;
-  daemon: ServiceObservation | null;
+  daemon: HostServiceReplacement | null;
   blockers: Array<{
     code: 'supervisor_unavailable' | 'daemon_supervision_unknown';
     target: string;
@@ -46,6 +50,7 @@ export class HostUpdateSupervision {
       platform?: NodeJS.Platform;
       uid?: number;
       run?: CompilationCommandRunner;
+      definitionPath?: string;
     },
   ) {}
 
@@ -66,7 +71,7 @@ export class HostUpdateSupervision {
     try {
       if ((await readMarker(this.deps.home, uid!)) !== kind)
         throw new Error('Unknown daemon supervision');
-      result.daemon = await inspectRunningService(
+      const observed = await inspectRunningService(
         this.deps.home,
         {
           ...result.worker,
@@ -75,6 +80,7 @@ export class HostUpdateSupervision {
         this.deps.pid,
         this.deps.run,
       );
+      result.daemon = await prepareServiceReplacement(this.deps.home, observed, this.deps);
     } catch {
       result.blockers.push({ code: 'daemon_supervision_unknown', target: 'daemon' });
     }

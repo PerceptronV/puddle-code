@@ -3,6 +3,7 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { executeHostUpdate } from './execute.js';
 import { readUpdateWorker } from './supervisor.js';
+import { verifyUpdateWorkerIsolation } from './isolation.js';
 
 declare const __PUDDLED_VERSION__: string | undefined;
 const version =
@@ -29,5 +30,6 @@ if (args.length === 1 && args[0] === '--version') {
   // systemd also bounds the service. launchd relies on this worker deadline.
   const deadline = setTimeout(() => process.exit(1), 180_000);
   deadline.unref();
+  await verifyUpdateWorkerIsolation(home, job);
   await executeHostUpdate(home, job);
 }

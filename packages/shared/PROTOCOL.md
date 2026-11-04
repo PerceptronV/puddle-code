@@ -14,6 +14,10 @@ not a new network protocol, client approval or a replacement-adoption receipt.
 The private pinned worker record may carry an outgoing PID/controller identity for
 signal-driven checkpoint selection. It never crosses a client request/response or
 runtime IPC boundary and adds no authority; the accepted operation remains required.
+Private service replacement evidence records the exact supervisor target, process
+identity and definition digest (plus launchd's existing plist path). Configuration
+contents and environment values are not copied into the update record. These fields
+are internal worker state, with no application, remote or runtime wire-shape change.
 
 Protocol 25.8 adds an optional `adoption_nonce` to exact-operation host-update
 status requests. It requests a fresh private replacement observation, without

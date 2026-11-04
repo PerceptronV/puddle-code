@@ -29,7 +29,7 @@ export async function inspectHostServiceManager(
   return inspectServiceManager(home, kind, uid, options.run);
 }
 
-function validTarget(target: ServiceTarget): void {
+export function validServiceTarget(target: ServiceTarget): void {
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(target.name))
     throw new Error('Invalid host service name');
   if (target.kind === 'launchd') {
@@ -66,7 +66,7 @@ export async function inspectRunningService(
   expectedPid: number,
   run?: CompilationCommandRunner,
 ): Promise<ServiceObservation> {
-  validTarget(target);
+  validServiceTarget(target);
   if (!Number.isSafeInteger(expectedPid) || expectedPid < 1)
     throw new Error('Invalid host service process');
   const execute = supervisorCommand(home, run);

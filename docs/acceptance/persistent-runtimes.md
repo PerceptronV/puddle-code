@@ -10,6 +10,25 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+`updates/worker/daemon/execute.test.ts` uses the actual installer, SQLite checkpoint
+and controller claims with simulated supervisor commands and a mocked adoption
+verifier. Daemon-only and combined selection follow stop/select/start/verify; lost
+stop, selection or startup replies and changed configuration retain recovery state
+without replay. The separate adoption tests below exercise the real verifier.
+`updates/worker/daemon/stop.test.ts` drains an actual isolated daemon with a live
+shell owner, proves the worker holds the released controller claim during selection,
+and adopts the same runtime afterwards. Worker isolation tests reject a wrong PID,
+same service or nested systemd termination scope.
+
+`host/supervision/replacement.test.ts` checks both service command families,
+configuration changes, stale invocations and unknown launchd errors. The native
+`replacement-live.test.ts`, gated by `PUDDLE_TEST_RUNTIME_SUPERVISOR=1`, passed on
+macOS 26.5.2: a uniquely named temporary KeepAlive job stops through `bootout`,
+retains its exact plist/custom environment, and starts through `bootstrap`. Its
+registration and process must be gone before fixture files are removed. It runs
+no installed daemon or provider. These checks do not establish native Linux or a
+complete packaged daemon/connector upgrade; public daemon dispatch remains disabled.
+
 `packages/daemon/test/updates/checkpoints/adoption.test.ts` combines an isolated
 shell owner with staged metadata and private control/HTTP fixtures. It checks
 new controller epochs, exact generation paths, launch identities, committed cursors,

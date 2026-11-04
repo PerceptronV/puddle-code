@@ -1,59 +1,9 @@
-import { createHash } from 'node:crypto';
-import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
-import { hostUpdateWorkerSchema } from '@puddle/shared';
-import { digest } from '@puddle/shared/node';
-import { hostInstallationFixture } from '../../../../cli/test/helpers/host-installation.js';
-import { stageHostComponent } from '../../../../cli/src/lib/installation/host/staging.js';
 import { runCompilationCommand } from '../../../src/compilation/process.js';
-import { HostUpdateOperations } from '../../../src/updates/operations/store.js';
 import { executeHostUpdate } from '../../../src/updates/worker/execute.js';
-
-async function fixture() {
-  const f = hostInstallationFixture();
-  // Exact release resolution requires its own Node file, not a link outside the tree.
-  rmSync(join(f.staged, 'bin/node'));
-  copyFileSync(process.execPath, join(f.staged, 'bin/node'));
-  mkdirSync(join(f.staged, 'daemon'));
-  writeFileSync(join(f.staged, 'daemon/puddler.mjs'), '// fake provider-free runtime entry\n');
-  f.pack();
-  writeFileSync(
-    `${f.tarball}.sha256`,
-    `${createHash('sha256').update(readFileSync(f.tarball)).digest('hex')}  ${f.tarball.split('/').pop()}\n`,
-  );
-  f.install('--component', 'runtime');
-  const previous = f.selected('runtime');
-  const marker = join(f.puddleHome, 'supervisor');
-  writeFileSync(marker, 'launchd\n');
-  const receipt = await stageHostComponent(f.transport, 'runtime', {
-    version: '1.2.3',
-    tarball: f.tarball,
-  });
-  const store = new HostUpdateOperations(f.puddleHome);
-  let operation = store.begin([{ component: 'runtime', version: '1.2.3' }]).operation;
-  operation = store.staged(operation, receipt);
-  operation = store.preflight(operation, digest('exact preflight'));
-  operation = store.approve(operation, operation.preflight!);
-  operation = store.dispatch(operation);
-  const job = hostUpdateWorkerSchema.parse({
-    format: 1,
-    operation_id: operation.id,
-    dispatch_id: operation.dispatch_id,
-    dispatch_revision: operation.revision,
-    preflight: operation.preflight,
-    kind: 'launchd',
-    name: `dev.puddle.update.${operation.id}`,
-    domain: 'gui/501',
-    release_path: f.staged,
-    node_path: process.execPath,
-    entry_path: join(f.staged, 'worker.mjs'),
-    installer_path: fileURLToPath(new URL('../../../../../scripts/install.sh', import.meta.url)),
-    state: 'dispatched',
-  });
-  return { ...f, receipt, store, operation, job, previous, marker };
-}
+import { updateInstallation as fixture } from '../../helpers/update-installation.js';
 
 it('uses the canonical installer, verifies exact selection and consumes the operation once', async () => {
   const f = await fixture();

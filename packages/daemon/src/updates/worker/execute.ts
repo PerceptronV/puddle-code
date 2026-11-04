@@ -1,85 +1,88 @@
-import { realpathSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import {
   compatibleRuntimeProtocol,
-  hostStageRecordSchema,
+  hostUpdateWorkerSchema,
   type HostUpdateWorker,
+  type HostUpdateAdoption,
 } from '@puddle/shared';
-import { digest, readPrivateJson } from '@puddle/shared/node';
+import { digest } from '@puddle/shared/node';
 import { runCompilationCommand, type CompilationCommandRunner } from '../../compilation/process.js';
-import { resolveInstalledRuntimeRelease } from '../../runtime/lifecycle/release.js';
+import { startReplacementService } from '../../host/supervision/replacement.js';
 import { HostUpdateOperations } from '../operations/store.js';
+import { readStageCapabilities } from '../preflight/candidate.js';
+import { stopDaemonForUpdate } from './daemon/stop.js';
+import { selectUpdateStage, verifyUpdateSelection } from './selection.js';
+import { verifyHostUpdateAdoption } from './verify-adoption.js';
 
-/** Runtime-default installation only. Daemon replacement requires its own adoption proof. */
+/** One consumed worker transaction; uncertainty always retains its operation for inspection. */
 export async function executeHostUpdate(
   home: string,
-  job: HostUpdateWorker,
+  input: HostUpdateWorker,
   run: CompilationCommandRunner = runCompilationCommand,
 ): Promise<void> {
+  const job = hostUpdateWorkerSchema.parse(input);
+  const execute: CompilationCommandRunner = (command) => run({ ...command, detached: false });
   const store = new HostUpdateOperations(home);
   const pending = store.read(job.operation_id);
-  if (!pending || pending.targets.length !== 1 || pending.targets[0]?.component !== 'runtime')
-    throw new Error('Daemon updates require quiescence and adoption verification');
-  const stage = pending.stages[0];
-  if (!stage || !compatibleRuntimeProtocol(stage.record.protocol))
+  if (!pending) throw new Error('Missing accepted update operation');
+  const daemon = pending.stages.find((stage) => stage.record.component === 'daemon');
+  const runtime = pending.stages.find((stage) => stage.record.component === 'runtime');
+  if (daemon && (!job.daemon_service || !job.outgoing))
+    throw new Error('Daemon updates require approved service and controller evidence');
+  if (runtime && !compatibleRuntimeProtocol(runtime.record.protocol))
     throw new Error('Unsupported runtime update stage');
+  const candidate = daemon ? await readStageCapabilities(home, daemon) : null;
   const worker = store.claimExecution(
     { id: job.operation_id, revision: job.dispatch_revision },
     job.dispatch_id,
     job.preflight,
   );
+  let handoff: Awaited<ReturnType<typeof stopDaemonForUpdate>> | undefined;
   try {
-    const result = await run({
-      file: '/bin/sh',
-      args: [
-        job.installer_path,
-        '--version',
-        stage.record.version,
-        '--component',
-        'runtime',
-        '--activate-generation',
-        stage.record.generation,
-        '--stage-digest',
-        stage.digest,
-        '--select-only',
-      ],
-      cwd: home,
-      env: {
-        HOME: dirname(home),
-        PUDDLE_HOME: home,
-        PATH: '/usr/bin:/bin:/usr/sbin:/sbin',
-        LANG: 'en_US.UTF-8',
-      },
-      detached: false,
-      timeoutMs: 120_000,
-      maxOutputBytes: 64 * 1024,
-    });
-    if (result.exitCode !== 0) throw new Error('Exact runtime activation failed');
-    worker.verifying();
-    // Verify the actual selected generation and pinned executable metadata, not stdout.
-    const selected = resolveInstalledRuntimeRelease(home);
-    const expected = realpathSync(join(home, 'bin', 'versions', stage.record.generation));
-    const receipt = hostStageRecordSchema.parse(
-      readPrivateJson(join(expected, '.puddle-stage.json'), 4096),
-    );
-    if (
-      selected.releasePath !== expected ||
-      selected.build !== stage.record.version ||
-      selected.protocol.major !== stage.record.protocol.major ||
-      selected.protocol.minor !== stage.record.protocol.minor ||
-      digest(`${JSON.stringify(receipt)}\n`) !== stage.digest
-    )
-      throw new Error('Selected runtime does not match the approved stage');
-    worker.complete(digest(JSON.stringify({ stage: stage.digest, selected })));
+    if (daemon) {
+      handoff = await stopDaemonForUpdate(home, job, execute);
+      if (
+        handoff.checkpoint.owners.some(
+          (owner) => !candidate!.supported_runtime_majors.includes(owner.protocol.major),
+        )
+      )
+        throw new Error('Candidate cannot adopt a checkpointed runtime');
+    }
+    // Each selector is atomic. A failure between components retains the exact partial
+    // result for recovery; never silently undo a selection or replay its installer.
+    for (const stage of pending.stages) {
+      await selectUpdateStage(home, job, stage, execute);
+      verifyUpdateSelection(home, stage);
+    }
+    const verifying = worker.verifying();
+    handoff?.release();
+    handoff = undefined;
+    let adoption: HostUpdateAdoption | undefined;
+    if (daemon) {
+      await startReplacementService(home, job.daemon_service!, execute);
+      const deadline = Date.now() + 30_000;
+      for (;;) {
+        try {
+          adoption = await verifyHostUpdateAdoption(home, verifying);
+          break;
+        } catch (error) {
+          if (Date.now() >= deadline) throw error;
+          // Retry observation only; never repeat stop, activation, startup or input.
+          await delay(100);
+        }
+      }
+    }
+    const selected = pending.stages.map((stage) => verifyUpdateSelection(home, stage));
+    worker.complete(digest(JSON.stringify({ selected, adoption })));
   } catch (error) {
-    // Even a timeout can follow a successful selector rename. Never undo or repeat it.
     try {
-      worker.failed('Runtime activation or verification requires inspection');
+      worker.failed('Host activation or verification requires inspection');
     } catch {
       /* Keep the earlier durable phase if storage is unavailable. */
     }
     throw error;
   } finally {
+    handoff?.release();
     worker.release();
   }
 }

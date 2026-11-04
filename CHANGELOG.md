@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Compose daemon and combined update-worker transactions around exact supervisor shutdown, drained runtime checkpoints, shared installer selection and fresh adoption verification. Preserve existing service configuration and retain uncertain partial updates without replay; public daemon dispatch remains gated on final approval and recovery integration.
+
 - Bind signal-driven update checkpoints to the outgoing daemon PID and controller, rejecting stale worker instructions while keeping ordinary shutdown available when update metadata is missing or damaged.
 
 - Add application protocol 25.8 fresh private adoption observations for daemon updates, verifying exact staged executables, controller replacement and checkpointed runtime continuity through host control and authenticated HTTP authority.

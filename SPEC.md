@@ -176,8 +176,18 @@ remain advisory headroom, without a reservation or migration-size guarantee.
 Supervision inspection corroborates the installer marker with the current daemon
 PID and service identity, and includes that evidence in the fingerprint. It probes
 the user manager without starting services, rejects stale/unknown supervision and
-leaves manual daemons untouched during runtime-default changes. The worker must
-still establish its own independent service scope before daemon activation.
+leaves manual daemons untouched during runtime-default changes. The worker
+executable verifies its own PID under the recorded independent service;
+systemd scopes must not contain one another. Before daemon activation, preflight
+also fingerprints the existing unit and drop-ins or bounded launchd plist. The
+worker rechecks configuration and outgoing service identity, issues one supervisor
+stop (not a signal subject to automatic restart), then awaits its exact shutdown
+checkpoint and released controller. It holds the controller claim across selector
+changes, releases it before starting the unchanged service, and requires fresh
+adoption proof. Daemon and combined transactions share runtime-default selection's
+canonical installer. Partial changes or lost replies remain recoverable without
+automatic rollback or replay. Production daemon dispatch and complete installed
+upgrade acceptance remain outstanding.
 
 Application protocol 25.7 adds bounded, correlated maintenance requests to the
 existing private host-control connection. Only a live host-wide local/SSH lease
@@ -216,7 +226,7 @@ owners which ended during drainage. The record is bounded to 4,096 owners and 8 
 contains no provider environment or credentials, and cannot overwrite an existing
 checkpoint. Invalidated dispatch or failed persistence leaves shutdown incomplete
 and retains the controller and database. This supplies shutdown evidence only;
-worker activation remains unimplemented. Application protocol 25.8 adds an optional
+public daemon dispatch remains disabled. Application protocol 25.8 adds an optional
 fresh nonce to exact-operation private status requests. The replacement coordinator
 can publish a private adoption receipt only for the executing operation, its exact
 staged generation/Node/entry point and a newer controller epoch. Every checkpointed
@@ -297,10 +307,10 @@ synced. Worker children remain in the service process group, and worker lifetime
 bounded to three minutes. Runtime owners and workers share `host/services.ts` for
 literal supervisor definitions and bounded dispatch commands.
 
-This worker currently refuses daemon or combined updates: quiescence, all-owner
-compatibility/impact preflight, host-authority integration and post-restart adoption
-verification remain required. The existing CLI/launcher/cockpit update paths do not
-yet use it. Completed job registrations and pinned release trees remain retained
+The public dispatcher still refuses daemon or combined updates: final quiescence,
+compatibility/impact approval, connector inventory and migration-aware recovery
+remain required. Runtime CLI updates use the coordinator; daemon CLI/launcher and
+cockpit updates still need integration. Completed job registrations and pinned release trees remain retained
 until verified service cleanup and reference-aware collection are implemented.
 
 The runtime agent state reports sidecar roots and hidden ports, and retains

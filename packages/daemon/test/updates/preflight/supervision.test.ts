@@ -8,21 +8,35 @@ import { candidateFixture } from './helpers.js';
 
 function setup(platform: 'linux' | 'darwin' = 'linux', component: 'daemon' | 'runtime' = 'daemon') {
   const f = candidateFixture(component);
+  const definitionPath = join(f.home, 'daemon.plist');
+  const plist = {
+    Label: 'dev.puddle.puddled',
+    ProgramArguments: [join(f.home, 'bin/current/puddled')],
+  };
+  writeFileSync(definitionPath, JSON.stringify(plist), { mode: 0o600 });
   const run = vi.fn(async (command: CompilationCommand) => ({
     exitCode: 0,
     stderr: '',
     stdout:
       platform === 'linux'
         ? systemdObservation(123)
-        : command.args[0] === 'managername'
-          ? 'Aqua'
-          : command.args[0] === 'manageruid'
-            ? String(process.getuid!())
-            : command.args[0] === 'list'
-              ? launchdObservation(123)
-              : '',
+        : command.file === '/usr/bin/plutil'
+          ? JSON.stringify(plist)
+          : command.args[0] === 'managername'
+            ? 'Aqua'
+            : command.args[0] === 'manageruid'
+              ? String(process.getuid!())
+              : command.args[0] === 'list'
+                ? launchdObservation(123)
+                : '',
   }));
-  const inspector = new HostUpdateSupervision({ home: f.home, pid: 123, platform, run });
+  const inspector = new HostUpdateSupervision({
+    home: f.home,
+    pid: 123,
+    platform,
+    run,
+    definitionPath,
+  });
   return { ...f, run, inspector };
 }
 
