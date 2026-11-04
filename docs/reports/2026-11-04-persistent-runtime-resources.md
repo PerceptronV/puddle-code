@@ -1,11 +1,13 @@
 # Persistent runtime resource baseline — 4 November 2026
 
 The latest calibrated macOS sample completed at **one and ten idle shell
-runtimes**. At ten, owner self CPU was **0.968% of one core**, with another
-**1.231%** recorded for their reaped children. Owners recorded **21.73 interrupt
-wakeups per second** in total. The fifty-runtime step was refused by the existing
-memory admission guard; no fifty-runtime native measurement exists yet. See
-“Calibrated native counters” below for method and limits.
+runtimes** with the production host memory allowance wired in. At ten, summed
+owner RSS was **778.25 MiB**, self CPU was **0.815% of one core**, and reaped-child
+CPU was **0.649%**. Owners recorded **23.70 interrupt wakeups per second** in total.
+Scaling towards fifty stopped on SQLite contention in fixture launch admission;
+the memory guard did not refuse this run. No fifty-runtime native measurement
+exists yet. See “Current host-allowance composition” for this partial result and
+“Calibrated native counters” for the earlier memory-guard refusal.
 
 The earlier fifty-runtime observation used **3,355 MiB of summed owner RSS** in the
 settled measurement. Their median controller re-adoption took **402 ms**. The
@@ -286,6 +288,67 @@ These are owner-local charged allowances, not preallocated RAM or a whole-host
 envelope. Historical orphaned temporary files still need bounded inventory.
 The native measurements above predate this change; no measured savings or
 throughput claim follows from these bounds.
+
+## Current host-allowance composition
+
+Observed at **2026-11-04 20:23 UTC**, using the same calibrated native probe,
+15-second settling interval, 30-second sample, four concurrent launches and
+unchanged experiment memory guard. The current production owner composition
+included the durable host allowance, lazy screen geometry, shared screen work,
+checkpoint ownership transfer, raw-log buffers, and transport decoding/retained
+request accounting. Plain shells exercised this composition without running a
+real provider, provider sidecar, installed service or production daemon.
+
+The [new raw report](persistent-runtimes/resources/2026-11-04-host-allowance-native.json)
+preserves both completed samples and the failure. Its
+[provenance record](persistent-runtimes/resources/2026-11-04-host-allowance-native-provenance.json)
+records source and executable fingerprints: the bundle was created at HEAD
+`15decde` with then-uncommitted production wiring. Subsequent source edits did
+not alter that frozen bundle. In particular, later provider bridge accounting
+fixes are outside this measurement; no provider was exercised. The earlier
+native artifact remains unchanged.
+
+| Runtimes | Summed owner RSS, MiB | Owner RSS median / max, MiB | Owner self CPU, % of one core | Owner reaped-child CPU, % of one core | Owner interrupt wakeups/s | Median / maximum re-adoption, ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 77.72 | 77.72 / 77.72 | 0.166 | 0.071 | 2.83 | 23.92 / 24.36 |
+| 10 | 778.25 | 77.70 / 79.33 | 0.815 | 0.649 | 23.70 | 95.55 / 99.19 |
+
+Every owner had **26 numeric descriptors**, compared with 23 in the earlier
+sample, and every shell retained four. Both completed scales passed the unchanged
+RSS, descriptor and adoption ceilings. Shell RSS totals were 2.25 and 22.50 MiB;
+the shells recorded zero self CPU and wakeups. Controller-plus-harness self CPU
+was 0.025% and 0.018% of one core, with 1.27 interrupt wakeups/s at each scale.
+All sampled groups recorded zero package-idle wakeups. These categories retain
+the earlier method's process-tree and controller-isolation limitations.
+
+Calibration again used Mach timebase 125/3. Converted self CPU was 50.053 ms,
+versus 50.049 ms from the process clock and 50.047 ms from `getrusage`; converted
+reaped-child CPU was 50.262 ms versus 50.261 ms. Five controlled sleeps produced
+five interrupt wakeups and zero package-idle wakeups.
+
+The test **failed after 95.30 seconds** while launching additional owners after
+the ten-owner sample. `HostMemoryLedger.readGrant` raised `SQLITE_BUSY` through
+`reserveRuntimeLaunchMemory` and the fixture's synchronous `admitFixtureOwner`.
+This is a fixture admission failure before process dispatch, not evidence of
+an interrupted existing owner or an exceeded memory ceiling. Production launch
+orchestration catches unavailable admission and returns a retryable 503 before
+dispatch; the harness currently propagates that contention. No fifty-owner
+cohort was sampled. The last recorded headroom was **57% of 24 GiB**, and the
+memory guard was neither weakened nor bypassed.
+
+Cleanup confirmed every tracked owner had exited and every known shell was
+absent before writing the report. A separate post-run check found all 21 sampled
+owner, shell and controller PIDs absent, and the temporary executable bundle had
+been removed. The preliminary sandbox attempt had failed on private Unix-socket
+`EPERM` before any sample; it also cleaned up before the identical authorised run.
+
+A bounded fixture-only retry now handles synchronous `SQLITE_BUSY` before
+`launchOwner` returns, for at most five seconds with 25 ms waits. This preserves
+exact grant observation, the existing four-owner concurrency and memory guard;
+returned processes and readiness checks are never retried. A resample is still
+required. This single
+partial observation does not establish a memory, CPU or wakeup improvement over
+the historical samples. CPU/wakeup ceilings remain unset.
 
 ## Remaining resource gates
 

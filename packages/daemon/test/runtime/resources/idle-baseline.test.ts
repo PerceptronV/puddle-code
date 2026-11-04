@@ -154,13 +154,32 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
             });
             return { launch, directory };
           });
-          const started = prepared.map(({ launch, directory }) => {
-            const owner = launchOwner(f.home, launch.identity.runtime_id);
+          const started: Array<{ item: (typeof owners)[number]; directory: string }> = [];
+          for (const { launch, directory } of prepared) {
+            let owner: ReturnType<typeof launchOwner>;
+            const admissionDeadline = performance.now() + 5000;
+            for (;;) {
+              try {
+                // launchOwner performs synchronous exact-grant admission BEFORE
+                // spawn. SQLITE_BUSY here therefore cannot mean a dispatched
+                // process; its next admission first observes any committed grant.
+                owner = launchOwner(f.home, launch.identity.runtime_id);
+                break;
+              } catch (error) {
+                if (
+                  (error as { code?: string }).code !== 'SQLITE_BUSY' ||
+                  performance.now() >= admissionDeadline
+                )
+                  throw error;
+                await delay(25);
+              }
+            }
             // Track immediately, including a process whose readiness later fails.
             const item = { id: launch.identity.runtime_id, owner, shell: 0, generation: '' };
             owners.push(item);
-            return { item, directory };
-          });
+            started.push({ item, directory });
+          }
+          // Readiness is observation-only: never retry a returned process.
           await Promise.all(
             started.map(async ({ item, directory }) => {
               await waitForOwner(item.owner, directory);
