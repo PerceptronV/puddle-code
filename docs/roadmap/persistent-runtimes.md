@@ -31,6 +31,23 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Internal recovery can now authorise a fresh daemon start after confirmed service
+  loss, including inactive or failed systemd services with no main process. It holds
+  the existing controller claim without changing its epoch, reads committed SQLite
+  WAL state through a read-only connection, and checks the candidate against current
+  schema/runtime records as well as the original shutdown checkpoint. The accepted
+  attempt binds controller, selected builds, installed runtime default, schema and
+  owner inventory; execution and the final pre-start check repeat that inspection.
+  Recovery never migrates or restores application data. Retained restart owners
+  extend fresh adoption requirements, so runtimes created after the original
+  checkpoint cannot disappear from completion proof. Isolated live-owner tests cover
+  unchanged shell/controller identities, WAL-only migrations, later runtime launches
+  and fresh private-authority adoption of additional owners; service supervision is
+  simulated. Still required: packaged crash/start-limit recovery, failed connector
+  starts, stopped/unmanaged installations, any explicitly permitted rollback, and
+  public CLI/cockpit continuation. The restart evidence is private worker state;
+  application 25.11, remote 4 and runtime 1.0 remain unchanged.
+
 - Explicit recovery now continues across executed attempts, merging every retained
   step journal and checking each accepted evidence fingerprint. A later early
   failure cannot erase an earlier selection or start attempt. Recovery after a

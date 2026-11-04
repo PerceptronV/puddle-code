@@ -21,7 +21,8 @@ import {
   runtimeBindingIdentity,
   type RuntimeConnections,
 } from '../../runtime/transport/connections.js';
-import { flushUpdateDatabase, readHostUpdateCheckpointEvidence } from './store.js';
+import { flushUpdateDatabase } from './store.js';
+import { readUpdateAdoptionRequirements } from './requirements.js';
 
 export function readHostUpdateAdoption(home: string, operationId: string): HostUpdateAdoption {
   hostUpdateAdoptionSchema.shape.operation_id.parse(operationId);
@@ -63,10 +64,8 @@ export class HostUpdateAdoptionWriter {
     const controller = this.deps.connections.controllerIdentity();
     const port = this.deps.port();
     if (!stage || !controller || !port || stage.record.version !== this.deps.version) return false;
-    const { checkpoint, digest: checkpointDigest } = readHostUpdateCheckpointEvidence(
-      this.deps.home,
-      operation.id,
-    );
+    const requirements = readUpdateAdoptionRequirements(this.deps.home, operation);
+    const { checkpoint, digest: checkpointDigest } = requirements;
     if (
       checkpoint.dispatch_id !== operation.dispatch_id ||
       checkpoint.preflight !== operation.approved ||
@@ -91,9 +90,9 @@ export class HostUpdateAdoptionWriter {
     )
       return false;
     const schemaVersion = this.deps.db.pragma('user_version', { simple: true }) as number;
-    if (schemaVersion < checkpoint.daemon.schema_version) return false;
+    if (schemaVersion < requirements.schema) return false;
     const owners: HostUpdateAdoption['owners'] = [];
-    for (const expected of checkpoint.owners) {
+    for (const expected of requirements.owners) {
       const id = expected.identity.runtime_id;
       const row = this.deps.runtimes.get(id);
       if (!row || !this.deps.reconciler.settled(id)) return false;

@@ -30,7 +30,7 @@ import {
   updateRecoveryDirectory,
 } from './records.js';
 
-/** One accepted continuation. Never repeat an attempted selection or service start. */
+/** One accepted continuation; a replacement start after confirmed loss needs its own evidence. */
 export async function executeUpdateRecovery(
   home: string,
   input: HostUpdateRecoveryJob,
@@ -109,6 +109,11 @@ export async function executeUpdateRecovery(
       },
       execute,
     );
+    if (
+      JSON.stringify(handoff.mode === 'restart' ? handoff.restart : undefined) !==
+      JSON.stringify(job.daemon_restart)
+    )
+      throw new Error('Accepted daemon restart evidence changed');
     await actions.run('stop-connector', async () => {
       if (handoff!.mode === 'stopped')
         await requireStoppedRecoveryConnector(home, original, operation, execute);
@@ -126,10 +131,16 @@ export async function executeUpdateRecovery(
         verifyUpdateSelection(home, stage);
       });
     }
+    if (handoff.mode === 'restart') await handoff.beforeStart();
     handoff.releaseController();
     await actions.run('start-daemon', async () => {
-      if (handoff!.mode === 'stopped')
-        await startReplacementService(home, original.daemon_service!, execute);
+      if (handoff!.mode === 'stopped' || handoff!.mode === 'restart')
+        await startReplacementService(
+          home,
+          original.daemon_service!,
+          execute,
+          handoff!.mode === 'restart',
+        );
       else handoff!.check();
     });
     await actions.run('start-connector', async () => {

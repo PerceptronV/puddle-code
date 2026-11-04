@@ -253,9 +253,20 @@ only when unattempted and positively stopped; an attempted start must already ve
 as a healthy replacement. The worker rechecks operation/current adoption before
 commands and requires fresh completion verification. Maintenance and later recovery
 retain exclusion while any recorded worker group may still have descendants.
-Public CLI/cockpit wiring, crashed replacements, failed attempted starts and
-stopped/unmanaged installations remain incomplete; the existing public `--recover`
-still verifies completion only.
+After confirmed daemon loss, a fresh explicit attempt may authorise another start.
+Recovery requires the service to be absent/inactive, or systemd failed with no main
+process, and acquires the existing controller claim without minting an epoch. It
+reads the current committed SQLite WAL state without migrations, checking the
+worker/candidate schema ceilings, checkpointed cursors, current runtime identities
+and protocols, and the installed runtime default. Its private accepted restart
+evidence binds those observations and is checked again by execution and immediately
+before startup. Stale controller flags alone never prove absence. Owners observed
+during recovery are retained in the adoption requirements alongside the original
+checkpoint; completion must prove all of them through fresh authority. No database
+is restored and no selection is repeated. Public CLI/cockpit wiring, packaged
+crash/start-limit acceptance, failed connector starts and stopped/unmanaged
+installations remain incomplete; the existing public `--recover` still verifies
+completion only.
 
 Before any activation command, the updater confirms its independent service,
 requires that it leads its own process group and durably records that group against

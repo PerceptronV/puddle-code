@@ -143,6 +143,7 @@ export async function serviceIsStopped(
   home: string,
   target: ServiceTarget,
   run?: CompilationCommandRunner,
+  allowFailed = false,
 ): Promise<boolean> {
   validServiceTarget(target);
   const execute = supervisorCommand(home, run);
@@ -153,11 +154,12 @@ export async function serviceIsStopped(
       '--property=Id,LoadState,ActiveState,SubState,MainPID,NeedDaemonReload',
       target.name,
     ]);
+    const failed = allowFailed && response.stdout.split('\n').includes('ActiveState=failed');
     const expected = new Map([
       ['Id', target.name],
       ['LoadState', 'loaded'],
-      ['ActiveState', 'inactive'],
-      ['SubState', 'dead'],
+      ['ActiveState', failed ? 'failed' : 'inactive'],
+      ['SubState', failed ? 'failed' : 'dead'],
       ['MainPID', '0'],
       ['NeedDaemonReload', 'no'],
     ]);
@@ -207,10 +209,12 @@ export async function startReplacementService(
   home: string,
   input: HostServiceReplacement,
   run?: CompilationCommandRunner,
+  allowFailed = false,
 ): Promise<void> {
   const service = hostServiceReplacementSchema.parse(input);
   await requireUnchangedServiceDefinition(home, service, run);
-  if (!(await serviceIsStopped(home, service, run))) throw new Error('Host service is not stopped');
+  if (!(await serviceIsStopped(home, service, run, allowFailed)))
+    throw new Error('Host service is not stopped');
   const execute = supervisorCommand(home, run);
   if (service.kind === 'systemd') await execute('systemctl', ['--user', 'start', service.name]);
   else await execute('/bin/launchctl', ['bootstrap', service.domain!, service.definition_path!]);

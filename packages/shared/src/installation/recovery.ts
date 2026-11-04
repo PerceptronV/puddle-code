@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { hostUpdateWorkerSchema, hostUpdateWorkerLifetimeSchema } from './worker.js';
+import { hostUpdateCheckpointSchema } from './checkpoint.js';
 
 const fingerprint = z.string().regex(/^[0-9a-f]{64}$/);
 const revision = z.number().int().positive().safe();
@@ -17,6 +18,21 @@ export const hostUpdateRecoveryJobSchema = z
     preflight: fingerprint,
     original_worker_digest: fingerprint,
     actions_digest: fingerprint,
+    /** Explicit fresh attempt after confirmed daemon loss, bound to current storage and ownership. */
+    daemon_restart: z
+      .object({
+        fingerprint,
+        database_schema_version: hostUpdateCheckpointSchema.shape.daemon.shape.schema_version,
+        owners: hostUpdateCheckpointSchema.shape.owners,
+      })
+      .strict()
+      .refine(
+        (record) =>
+          new Set(record.owners.map(({ identity }) => identity.runtime_id)).size ===
+          record.owners.length,
+        'Duplicate restart runtime',
+      )
+      .optional(),
     service: z
       .object(hostUpdateWorkerSchema.shape)
       .pick({

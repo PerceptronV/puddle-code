@@ -8,6 +8,23 @@ import { readRuntimeController } from '../../runtime/ownership/storage.js';
 import { acquireHostClaim, HostClaimBusy } from '../../security/claims.js';
 import { readHostUpdateCheckpointEvidence } from '../checkpoints/store.js';
 
+export function readDaemonUpdateCheckpoint(home: string, job: HostUpdateWorker) {
+  const outgoing = job.outgoing;
+  const evidence = readHostUpdateCheckpointEvidence(home, job.operation_id);
+  const { checkpoint } = evidence;
+  if (
+    !outgoing ||
+    checkpoint.dispatch_id !== job.dispatch_id ||
+    checkpoint.preflight !== job.preflight ||
+    checkpoint.daemon.pid !== outgoing.pid ||
+    checkpoint.daemon.controller.id !== outgoing.controller.id ||
+    checkpoint.daemon.controller.epoch !== outgoing.controller.epoch ||
+    checkpoint.owners.some((owner) => owner.state === 'prepared' || owner.state === 'interrupted')
+  )
+    throw new Error('Outgoing daemon did not prove runtime continuity');
+  return evidence;
+}
+
 /** Observe an existing shutdown, holding off new controllers without minting another epoch. */
 export async function claimStoppedDaemonUpdate(
   home: string,
@@ -27,17 +44,7 @@ export async function claimStoppedDaemonUpdate(
   requireCurrent();
   if (!stopped) return null;
   try {
-    const evidence = readHostUpdateCheckpointEvidence(home, job.operation_id);
-    const { checkpoint } = evidence;
-    if (
-      checkpoint.dispatch_id !== job.dispatch_id ||
-      checkpoint.preflight !== job.preflight ||
-      checkpoint.daemon.pid !== outgoing.pid ||
-      checkpoint.daemon.controller.id !== outgoing.controller.id ||
-      checkpoint.daemon.controller.epoch !== outgoing.controller.epoch ||
-      checkpoint.owners.some((owner) => owner.state === 'prepared' || owner.state === 'interrupted')
-    )
-      throw new Error('Outgoing daemon did not prove runtime continuity');
+    const evidence = readDaemonUpdateCheckpoint(home, job);
     const claim = acquireHostClaim(home, 'daemon-controller');
     let retain = false;
     try {

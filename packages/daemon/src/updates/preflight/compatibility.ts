@@ -127,7 +127,9 @@ export class HostUpdateCompatibility {
     const before = inventory(bindings);
     result.inventory = digest(before);
     const known = new Set(bindings.map((binding) => binding.runtime_id));
-    await this.inspectInventory(known, result.blockers);
+    result.blockers.push(
+      ...(await inspectRuntimeInventory(this.deps.home, this.deps.runtimes, known)),
+    );
     let index = 0;
     const deadline = performance.now() + 30_000;
     const inspect = async () => {
@@ -193,41 +195,48 @@ export class HostUpdateCompatibility {
     const current = this.deps.runtimes.live(4097);
     return current.length <= 4096 && digest(inventory(current)) === observed.inventory;
   }
+}
 
-  private async inspectInventory(known: Set<string>, blockers: Blocker[]): Promise<void> {
-    try {
-      const directory = await opendir(join(this.deps.home, 'runtimes'));
-      let count = 0;
-      for await (const entry of directory) {
-        if (++count > 4096) throw new Error('Runtime inventory exceeds inspection limit');
-        if (
-          !entry.isDirectory() ||
-          !runtimeIdentitySchema.shape.runtime_id.safeParse(entry.name).success
-        ) {
-          blockers.push({ code: 'runtime_inventory_unknown', target: 'inventory' });
-          continue;
-        }
-        if (known.has(entry.name)) continue;
-        const binding = this.deps.runtimes.get(entry.name);
-        // Unknown records never become proof of absence. A supposedly ended binding
-        // with a live owner/launcher is also unresolved; never retire anything here.
-        if (!binding) {
+/** Shared bounded inventory check; unknown records never establish absence. */
+export async function inspectRuntimeInventory(
+  home: string,
+  runtimes: Pick<RuntimeStore, 'get'>,
+  known: Set<string>,
+): Promise<Blocker[]> {
+  const blockers: Blocker[] = [];
+  try {
+    const directory = await opendir(join(home, 'runtimes'));
+    let count = 0;
+    for await (const entry of directory) {
+      if (++count > 4096) throw new Error('Runtime inventory exceeds inspection limit');
+      if (
+        !entry.isDirectory() ||
+        !runtimeIdentitySchema.shape.runtime_id.safeParse(entry.name).success
+      ) {
+        blockers.push({ code: 'runtime_inventory_unknown', target: 'inventory' });
+        continue;
+      }
+      if (known.has(entry.name)) continue;
+      const binding = runtimes.get(entry.name);
+      // Unknown records never become proof of absence. A supposedly ended binding
+      // with a live owner/launcher is also unresolved; never retire anything here.
+      if (!binding) {
+        blockers.push({ code: 'runtime_inventory_unknown', target: entry.name });
+        continue;
+      }
+      for (const scope of ['runtime', 'runtime-launch', 'runtime-dispatch']) {
+        try {
+          acquireHostClaim(home, `${scope}:${entry.name}`).release();
+        } catch (error) {
+          if (!(error instanceof HostClaimBusy)) throw error;
           blockers.push({ code: 'runtime_inventory_unknown', target: entry.name });
-          continue;
-        }
-        for (const scope of ['runtime', 'runtime-launch', 'runtime-dispatch']) {
-          try {
-            acquireHostClaim(this.deps.home, `${scope}:${entry.name}`).release();
-          } catch (error) {
-            if (!(error instanceof HostClaimBusy)) throw error;
-            blockers.push({ code: 'runtime_inventory_unknown', target: entry.name });
-            break;
-          }
+          break;
         }
       }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
-        blockers.push({ code: 'runtime_inventory_unknown', target: 'inventory' });
     }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
+      blockers.push({ code: 'runtime_inventory_unknown', target: 'inventory' });
   }
+  return blockers;
 }

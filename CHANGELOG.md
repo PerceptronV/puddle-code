@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Add internal recovery after confirmed replacement-daemon loss, checking current SQLite/WAL schema and runtime ownership before a separately recorded start. Preserve later runtime launches in fresh adoption proof; never restore old application data or repeat a start from a failed connection alone. Public CLI/cockpit continuation remains in progress.
+
 - Continue internal host-update recovery across partial attempts without losing earlier step intent. Verify an already-running replacement daemon and finish pending connector startup without repeating successful selections or service starts; public CLI/cockpit continuation remains in progress.
 
 - Add an independently supervised internal recovery worker for updates interrupted after daemon shutdown, preserving one-shot dispatch and step intent, verifying attempted selections without replay and retaining exclusion while recovery-command children remain alive. Public CLI/cockpit continuation remains in progress.

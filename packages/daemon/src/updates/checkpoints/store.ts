@@ -20,6 +20,21 @@ import type { RuntimeBinding, RuntimeStore } from '../../db/stores/runtimes.js';
 import { runtimeBindingIdentity } from '../../runtime/transport/connections.js';
 import { HostUpdateOperations } from '../operations/store.js';
 
+/** Immutable ownership plus committed progress, shared by shutdown and read-only recovery. */
+export function runtimeCheckpointOwner(
+  owner: RuntimeBinding,
+): HostUpdateCheckpoint['owners'][number] {
+  return {
+    identity: runtimeBindingIdentity(owner),
+    build: owner.build,
+    protocol: { major: owner.protocol_major, minor: owner.protocol_minor },
+    release_path: owner.release_path,
+    launch_fingerprint: owner.launch_fingerprint,
+    event_cursor: owner.event_cursor,
+    state: owner.state,
+  };
+}
+
 /** A durable update receipt must never get ahead of the SQLite cursors it promises. */
 export function flushUpdateDatabase(db: Db): void {
   const [flushed] = db.pragma('wal_checkpoint(FULL)') as Array<{
@@ -87,15 +102,7 @@ export class HostUpdateCheckpointWriter {
       },
       owners: [...owners.values()]
         .sort((a, b) => a.runtime_id.localeCompare(b.runtime_id))
-        .map((owner) => ({
-          identity: runtimeBindingIdentity(owner),
-          build: owner.build,
-          protocol: { major: owner.protocol_major, minor: owner.protocol_minor },
-          release_path: owner.release_path,
-          launch_fingerprint: owner.launch_fingerprint,
-          event_cursor: owner.event_cursor,
-          state: owner.state,
-        })),
+        .map(runtimeCheckpointOwner),
     });
     if (Buffer.byteLength(`${JSON.stringify(record)}\n`) > HOST_UPDATE_CHECKPOINT_BYTES)
       throw new Error('Runtime checkpoint exceeds its byte limit');

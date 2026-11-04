@@ -13,7 +13,7 @@ import { ipcPath, privatePath } from '@puddle/shared/node';
 import { readRuntimeController } from '../../runtime/ownership/storage.js';
 import { readRuntime } from '../../runtime-file.js';
 import { resolvePaths } from '../../paths.js';
-import { readHostUpdateCheckpointEvidence } from '../checkpoints/store.js';
+import { readUpdateAdoptionRequirements } from '../checkpoints/requirements.js';
 import { readHostUpdateAdoption } from '../checkpoints/adoption.js';
 import { requireVerificationOperation } from './operation.js';
 
@@ -97,10 +97,8 @@ export async function verifyHostUpdateAdoption(
     const httpVersion = versionResponseSchema.parse(
       JSON.parse(Buffer.concat(chunks).toString('utf8')),
     );
-    const { checkpoint, digest: checkpointDigest } = readHostUpdateCheckpointEvidence(
-      home,
-      operation.id,
-    );
+    const requirements = readUpdateAdoptionRequirements(home, operation);
+    const { checkpoint, digest: checkpointDigest } = requirements;
     const observed = readHostUpdateAdoption(home, operation.id);
     const versions = realpathSync(join(home, 'bin', 'versions'));
     const release = realpathSync(join(versions, stage.record.generation));
@@ -118,7 +116,7 @@ export async function verifyHostUpdateAdoption(
       observed.daemon.release_path !== release ||
       observed.daemon.node_path !== join(release, 'bin', 'node') ||
       observed.daemon.entry_path !== join(release, 'daemon', 'puddled.mjs') ||
-      observed.daemon.schema_version < checkpoint.daemon.schema_version ||
+      observed.daemon.schema_version < requirements.schema ||
       observed.daemon.controller.id === checkpoint.daemon.controller.id ||
       observed.daemon.controller.epoch <= checkpoint.daemon.controller.epoch ||
       authority.state !== 'ready' ||
@@ -131,11 +129,11 @@ export async function verifyHostUpdateAdoption(
       httpVersion.protocol.minor !== observed.daemon.protocol.minor ||
       observed.daemon.protocol.major !== stage.record.protocol.major ||
       observed.daemon.protocol.minor !== stage.record.protocol.minor ||
-      observed.owners.length !== checkpoint.owners.length
+      observed.owners.length !== requirements.owners.length
     )
       throw new Error('Replacement daemon has not proved the approved adoption');
     const owners = new Map(observed.owners.map((owner) => [owner.runtime_id, owner]));
-    for (const previous of checkpoint.owners) {
+    for (const previous of requirements.owners) {
       const owner = owners.get(previous.identity.runtime_id);
       if (
         !owner ||

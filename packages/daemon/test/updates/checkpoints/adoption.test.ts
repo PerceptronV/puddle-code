@@ -4,7 +4,11 @@ import { createServer } from 'node:http';
 import { symlinkSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { expect, it, vi } from 'vitest';
-import { PROTOCOL_VERSION } from '@puddle/shared';
+import {
+  PROTOCOL_VERSION,
+  RUNTIME_PROTOCOL_VERSION,
+  hostUpdateRecoveryJobSchema,
+} from '@puddle/shared';
 import { atomicPrivateJson, digest } from '@puddle/shared/node';
 import { hostUpdateActionsSchema } from '@puddle/shared';
 import { RuntimeConnections } from '../../../src/runtime/transport/connections.js';
@@ -14,6 +18,7 @@ import { HostUpdateOperations } from '../../../src/updates/operations/store.js';
 import {
   HostUpdateCheckpointWriter,
   readHostUpdateCheckpoint,
+  runtimeCheckpointOwner,
 } from '../../../src/updates/checkpoints/store.js';
 import {
   HostUpdateAdoptionWriter,
@@ -37,6 +42,8 @@ import { clients, launchOwner, terminal, waitForOwner } from '../../helpers/runt
 import { placement } from '../../helpers/runtime-placement.js';
 import { checkpointWorker } from '../../helpers/update-checkpoint.js';
 import { systemdObservation } from '../../helpers/host-supervision.js';
+import { runtimeDirectory } from '../../../src/runtime/ownership/storage.js';
+import { HostUpdateRecoveryAttempts } from '../../../src/updates/recovery/worker/records.js';
 
 async function fixture() {
   const f = runtimeDatabase();
@@ -218,13 +225,75 @@ it('accepts a confirmed final exit without pretending that it is a running owner
   }
 });
 
-it.each(['verifying', 'recovery_required', 'continuation'] as const)(
+it.each(['verifying', 'recovery_required', 'continuation', 'restart-owners'] as const)(
   'verifies fresh adoption in %s and refuses stale receipts after a failed observation',
   async (phase) => {
     const f = await fixture();
     if (phase !== 'verifying') {
       f.operation = f.worker.failed('Success acknowledgement was lost');
       f.worker.release();
+    }
+    let additionalOwner: string | undefined;
+    if (phase === 'restart-owners') {
+      const session = f.sessions.create({ ...f.session, id: randomUUID() });
+      const launch = {
+        ...f.launch,
+        identity: {
+          ...f.launch.identity,
+          runtime_id: randomUUID(),
+          incarnation: randomUUID(),
+          launch_id: randomUUID(),
+          session_id: session.id,
+        },
+      };
+      additionalOwner = launch.identity.runtime_id;
+      const directory = runtimeDirectory(f.home, additionalOwner);
+      atomicPrivateJson(join(directory, 'launch.json'), launch);
+      const binding = f.runtimes.prepare({
+        identity: launch.identity,
+        build: 'runtime-test',
+        protocol: RUNTIME_PROTOCOL_VERSION,
+        releasePath: directory,
+      });
+      const reference = f.operation;
+      const recovery = new HostUpdateOperations(f.home).claimRecovery(reference);
+      f.operation = recovery.operation;
+      recovery.release();
+      new HostUpdateRecoveryAttempts(f.home, f.operation.id).append(
+        hostUpdateRecoveryJobSchema.parse({
+          format: 1,
+          id: randomUUID(),
+          operation_id: f.operation.id,
+          requested_revision: reference.revision,
+          revision: f.operation.revision,
+          original_dispatch_id: f.operation.dispatch_id,
+          original_worker_id: f.operation.worker_id,
+          preflight: f.operation.approved,
+          original_worker_digest: digest('metadata fixture'),
+          actions_digest: digest('step fixture'),
+          daemon_restart: {
+            fingerprint: digest('current recovery inspection'),
+            database_schema_version: f.db.pragma('user_version', { simple: true }),
+            owners: [runtimeCheckpointOwner(binding)],
+          },
+          service: {
+            kind: 'systemd',
+            name: 'puddle-recovery-fixture.service',
+            domain: null,
+            release_path: '/fixture',
+            node_path: '/fixture/bin/node',
+            entry_path: '/fixture/worker.mjs',
+            installer_path: '/fixture/install.sh',
+          },
+        }),
+        () => {},
+      );
+      // A newly recorded launch cannot be silently omitted from recovery adoption.
+      expect(f.writer.observe(f.operation, randomUUID())).toBe(false);
+      const owner = launchOwner(f.home, additionalOwner);
+      await waitForOwner(owner, directory);
+      await f.connections.connect();
+      await vi.waitFor(() => expect(f.writer.observe(f.operation, randomUUID())).toBe(true));
     }
     const authority = new LeaseRegistry();
     let healthy = true;
@@ -364,7 +433,13 @@ it.each(['verifying', 'recovery_required', 'continuation'] as const)(
         observe.mockClear();
       }
       const proof = await verifyHostUpdateAdoption(f.home, f.operation);
-      expect(proof.checkpoint).toBe(digest(`${JSON.stringify(stored)}\n`));
+      if (additionalOwner) {
+        expect(proof.checkpoint).not.toBe(digest(`${JSON.stringify(stored)}\n`));
+        expect(proof.owners.map(({ runtime_id }) => runtime_id)).toEqual([
+          f.binding.runtime_id,
+          additionalOwner,
+        ]);
+      } else expect(proof.checkpoint).toBe(digest(`${JSON.stringify(stored)}\n`));
       expect(proof.owners[0]?.runtime_id).toBe(f.binding.runtime_id);
       expect(new HostUpdateOperations(f.home).read()?.phase).toBe(f.operation.phase);
       expect(observe).toHaveBeenCalledOnce();

@@ -194,7 +194,7 @@ it for fresh adoption, cancellation or recovery. Inspection must not open SQLite
 or start a service.
 Worker step intent lives in `updates/worker/actions.ts` with private shared schemas
 under `installation/actions.ts`. Persist intent before any stop/select/start step;
-never overwrite an existing journal or replay started steps. Finished entries do
+never overwrite an existing journal or infer replay permission from started steps. Finished entries do
 not substitute for fresh service/adoption checks, and missing old journals cannot
 prove a command was never attempted. Use the existing installer and supervisor
 helpers inside these boundaries.
@@ -215,9 +215,16 @@ never let a later early failure reset earlier attempted work. `recovery/continua
 retains either the original stopped hand-off or fresh replacement adoption, sharing
 `verification/daemon.ts` with completion. Running continuation never stops/restarts
 the replacement or changes its controller. Recheck current adoption before commands;
-only unattempted, positively stopped connector startup may issue a start. Crashed
-replacements, failed attempted starts and public CLI/cockpit continuation remain
-unfinished. These private records add no network protocol.
+only unattempted, positively stopped connector startup may issue a start.
+`recovery/restart/` handles a fresh explicit daemon start after confirmed service
+loss. Hold the existing controller claim, read current SQLite/WAL data without
+migrations, and bind current schema, runtime inventory/default and selectors into
+the accepted attempt. Reinspect before releasing the controller for startup; never
+infer absence from an active flag, failed HTTP probe or stale PID. Share bounded
+inventory inspection with preflight. `checkpoints/requirements.ts` retains original
+and restart-observed owners for fresh adoption, including later launches. Packaged
+crash/start-limit acceptance, failed connector starts and public CLI/cockpit
+continuation remain unfinished. These private records add no network protocol.
 Runtime owners and update workers share `host/services.ts`; neither service may
 inherit puddled's restart or termination boundary. The packaged one-shot updater
 composes runtime-default and daemon/combined selection using its pinned copy of the

@@ -55,6 +55,7 @@ export async function startUpdateRecoveryWorker(
       preflight: operation.approved,
       original_worker_digest: digest(JSON.stringify(original)),
       actions_digest: digest(JSON.stringify(actions)),
+      ...(recovery.mode === 'restart' ? { daemon_restart: recovery.restart } : {}),
       service: {
         ...paths,
         kind: original.kind,

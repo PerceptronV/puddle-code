@@ -6,6 +6,8 @@ import { verifyUpdateSelection } from '../worker/selection.js';
 import { readRecoveryActions } from './actions.js';
 import { claimHostUpdateRecovery } from './claim.js';
 import { retainStoppedUpdateRecovery } from './shutdown.js';
+import { retainEndedUpdateRecovery } from './restart/claim.js';
+import { serviceIsStopped } from '../../host/supervision/replacement.js';
 
 export async function claimUpdateContinuation(
   home: string,
@@ -16,7 +18,7 @@ export async function claimUpdateContinuation(
   return retainUpdateContinuation(home, claimHostUpdateRecovery(home, reference, authorised), run);
 }
 
-/** A started replacement must prove adoption; never stop it to recreate the old hand-off. */
+/** Running replacements prove adoption; confirmed loss requires fresh storage/ownership evidence. */
 export async function retainUpdateContinuation(
   home: string,
   recovery: Pick<
@@ -35,6 +37,10 @@ export async function retainUpdateContinuation(
         ...(await retainStoppedUpdateRecovery(home, recovery, run)),
         mode: 'stopped' as const,
       };
+    if (job.daemon_service && (await serviceIsStopped(home, job.daemon_service, run, true))) {
+      recovery.check();
+      return await retainEndedUpdateRecovery(home, recovery, run);
+    }
     const { adoption } = await verifyReplacementDaemon(home, job, operation, run);
     recovery.check();
     let released = false;
