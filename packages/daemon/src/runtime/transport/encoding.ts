@@ -10,6 +10,16 @@ export const RUNTIME_JSON_LIMITS = Object.freeze({ depth: 128, values: 65_536 })
  * serialisation. Shared children are valid; only ancestors constitute a cycle.
  */
 export function runtimeJsonBytes(value: unknown): number {
+  return runtimeJsonSize(value).bytes;
+}
+
+/** Strings and bounded schema-object metadata retained by an admitted request closure. */
+export function runtimeJsonRetainedBytes(value: unknown): number {
+  const size = runtimeJsonSize(value);
+  return 2 * size.bytes + 128 * size.values + 1024;
+}
+
+function runtimeJsonSize(value: unknown): { bytes: number; values: number } {
   let bytes = 0;
   let values = 0;
   const ancestors = new Set<object>();
@@ -116,5 +126,5 @@ export function runtimeJsonBytes(value: unknown): number {
     ancestors.delete(item);
   };
   walk(value, 0);
-  return bytes;
+  return { bytes, values };
 }

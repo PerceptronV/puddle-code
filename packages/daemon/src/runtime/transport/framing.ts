@@ -4,6 +4,7 @@ import { RUNTIME_LIMITS } from '@puddle/shared';
 import type { RuntimeBufferBudget } from '../resources/budget.js';
 import { runtimeJsonBytes } from './encoding.js';
 import { RuntimeTransportBuffers } from './buffers.js';
+import { runtimeJsonDecodeBytes } from './decoding.js';
 
 // Shared by every runtime connection in this process. These bound transport
 // buffers, not decoded state, provider processes or total host memory.
@@ -43,6 +44,7 @@ export function readRuntimeFrames(
   receive: (value: unknown) => void,
   fail: (error: Error) => void,
   budget = buffers.incoming,
+  decoding = buffers.decoding,
 ): () => void {
   const header = Buffer.alloc(4);
   const decoder = new TextDecoder('utf-8', { fatal: true });
@@ -72,7 +74,7 @@ export function readRuntimeFrames(
             throw new Error('Invalid runtime frame length');
           releaseBody = budget.reserve(length);
           if (!releaseBody) throw new Error('Runtime receive buffer capacity exhausted');
-          body = Buffer.allocUnsafe(length);
+          body = Buffer.allocUnsafeSlow(length);
           bodyUsed = 0;
         }
         const count = Math.min(body.length - bodyUsed, chunk.length - offset);
@@ -80,10 +82,23 @@ export function readRuntimeFrames(
         offset += count;
         bodyUsed += count;
         if (bodyUsed !== body.length) continue;
-        const value: unknown = JSON.parse(decoder.decode(body));
-        clearBody();
+        // Detach the completed frame's ownership: stop/close during receive
+        // cannot refund it before synchronous schema/queue admission finishes.
+        const complete = body;
+        const releaseComplete = releaseBody!;
+        body = null;
+        releaseBody = null;
         headerUsed = 0;
-        receive(value);
+        let releaseDecode: (() => void) | null = null;
+        try {
+          releaseDecode = decoding.reserve(runtimeJsonDecodeBytes(complete));
+          if (!releaseDecode) throw new Error('Runtime decode buffer capacity exhausted');
+          const value: unknown = JSON.parse(decoder.decode(complete));
+          receive(value);
+        } finally {
+          releaseDecode?.();
+          releaseComplete();
+        }
       }
     } catch (error) {
       failed = true;
