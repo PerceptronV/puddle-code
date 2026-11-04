@@ -16,10 +16,13 @@ export async function prepareHostUpdate(
   transport: Transport,
   authority: Authority,
   input: HostUpdateTargets,
-  options: Omit<BootstrapOptions, 'version'> = {},
+  options: Omit<BootstrapOptions, 'version'> & {
+    onProgress?: (operation: HostUpdateOperation) => void;
+  } = {},
   stage = stageHostComponent,
 ): Promise<HostUpdateOperation> {
   const targets = hostUpdateTargetsSchema.parse(input);
+  const { onProgress, ...bootstrap } = options;
   const generation = authority.generation;
   const current = () =>
     generation !== null && authority.generation === generation && authority.state === 'ready';
@@ -31,6 +34,7 @@ export async function prepareHostUpdate(
       'Could not begin the host update; inspect its current status',
     );
   let operation = begun.operation;
+  onProgress?.(operation);
   if (!begun.created) return operation;
   for (const target of operation.targets) {
     if (!current())
@@ -40,7 +44,7 @@ export async function prepareHostUpdate(
       );
     let receipt;
     try {
-      receipt = await stage(transport, target.component, { ...options, version: target.version });
+      receipt = await stage(transport, target.component, { ...bootstrap, version: target.version });
     } catch (error) {
       if (current()) {
         // A failed preparation can leave an unselected stage, never a live activation.
@@ -70,6 +74,7 @@ export async function prepareHostUpdate(
         'The host did not accept the exact stage; inspect the operation before continuing',
       );
     operation = recorded.operation;
+    onProgress?.(operation);
   }
   return operation;
 }

@@ -595,9 +595,33 @@ are deterministic fixtures; these results do not prove actual runtime activation
 through private control or complete daemon replacement. Public commands and cockpit
 integration remain required for the standard 0.4.0 behaviour.
 
+Runtime CLI integration passed 80 checks across seven files, covering local/SSH
+private control, stage coalescing, changed leases/inspection, lost apply replies,
+recoverable worker failures, exact cancellation and existing launcher handshakes.
+The install command keeps its transport open until asynchronous installation ends.
+The built CLI connection-lifecycle suite passed all five checks.
+
+Native runtime-update verification passed on macOS 26.5.2/Node v22.21.1 with a
+fresh local 0.4.0 archive (application 25.7, remote 4, runtime 1.0). This runs the
+built CLI against a sanitised temporary installation and actual packaged daemon,
+uses actual preflight and the pinned launchd one-shot worker, and checks the exact
+verified runtime selection. Daemon PID, selected daemon generation and supervisor
+metadata remain unchanged. The test explicitly removes its unique worker job and
+proves registration absence before deleting the temporary home:
+
+```sh
+PUDDLE_TEST_RUNTIME_SUPERVISOR=1 PUDDLE_TEST_RUNTIME_ARCHIVE=/absolute/path/puddled-v0.4.0-darwin-arm64.tar.gz node node_modules/vitest/vitest.mjs run --root packages/cli --config vitest.e2e.config.ts e2e/runtime-update.test.ts
+```
+
+The archive needs its adjacent `.sha256` file. The packaged-owner continuity test
+also passed with this new archive, preserving its PID and in-memory shell variable
+through runtime-default replacement. These are separate checks: the native updater
+test proves runtime selection through the public command, while the owner test
+proves continued execution across selection/controller changes. Neither proves a
+native daemon-update transaction, Linux supervision, provider acceptance or default
+ownership rollout. Runtime removal and combined host transactions remain pending.
+
 ## Remaining release gates
-
-
 
 Record platform, Node, release and provider versions with results. Run native
 provider checks from a plain shell; never launch the production daemon from an

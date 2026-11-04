@@ -88,13 +88,17 @@ GitHub Releases.
 
 **Managing components:**
 
-The CLI installs, upgrades, and removes all three components — daemon, desktop app, and itself — with optional versions and SSH targets:
+The CLI manages the daemon, runtime software, desktop app and itself, with optional versions and SSH targets:
 
 ```sh
 puddle upgrade                            # everything installed → the newest release
 puddle install daemon@v0.0.32 user@host   # pin a host's daemon to a version
+puddle upgrade runtime user@host          # select the default build for future runtimes
+puddle updates user@host                  # inspect the host's current update operation
 puddle remove daemon                      # uninstall; your data stays unless you --purge
 ```
+
+Runtime install/upgrade requires a running daemon with host-update support (application protocol 25.7+) and an available user service manager. Existing runtimes retain their pinned build. `puddle updates --operation <id> --cancel` abandons an exact preparation before dispatch; accepted work is observed without replay.
 
 **Desktop app (optional):**
 

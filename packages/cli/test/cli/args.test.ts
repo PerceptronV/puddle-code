@@ -173,6 +173,34 @@ describe('argument parsing', () => {
     expect(() => parseArgs(['upgrade', 'nonsense', 'user@host'])).toThrow(CliError);
   });
 
+  it('parses runtime components and requires an exact operation for update cancellation', () => {
+    expect(parseArgs(['upgrade', 'runtime@v0.4.0', 'user@host'])).toEqual({
+      cmd: 'upgrade',
+      what: 'runtime',
+      version: '0.4.0',
+      host: 'user@host',
+    });
+    expect(parseArgs(['install', 'runtime', '--tarball', 'archive.tar.gz'])).toEqual({
+      cmd: 'install',
+      what: 'runtime',
+      tarball: 'archive.tar.gz',
+    });
+    const id = 'c71cdb80-5b42-4c80-a258-11af4301ba21';
+    expect(parseArgs(['updates', 'user@host', '--operation', id, '--cancel'])).toEqual({
+      cmd: 'updates',
+      host: 'user@host',
+      operation: id,
+      cancel: true,
+    });
+    expect(parseArgs(['updates'])).toMatchObject({ cmd: 'updates', cancel: false });
+    expect(() => parseArgs(['updates', '--cancel'])).toThrow('exact --operation');
+    expect(() => parseArgs(['updates', '--operation', id.slice(0, 8)])).toThrow(
+      'complete update id',
+    );
+    expect(() => parseArgs(['updates', 'one', 'two'])).toThrow('at most a host');
+    expect(() => parseArgs(['updates', '--tarball', 'archive'])).toThrow('unknown flag');
+  });
+
   it('install: needs daemon or desktop, takes @version, host, --tarball', () => {
     expect(parseArgs(['install', 'daemon'])).toEqual({ cmd: 'install', what: 'daemon' });
     expect(parseArgs(['install', 'daemon@v0.0.32', 'user@host'])).toEqual({

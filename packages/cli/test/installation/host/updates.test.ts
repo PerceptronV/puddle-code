@@ -7,8 +7,8 @@ import {
   type HostStageReceipt,
 } from '@puddle/shared';
 import type { HostControlClient } from '@puddle/shared/node/host-control';
-import { prepareHostUpdate } from '../../src/lib/installation/host/updates.js';
-import type { Transport } from '../../src/lib/transport/transport.js';
+import { prepareHostUpdate } from '../../../src/lib/installation/host/updates.js';
+import type { Transport } from '../../../src/lib/transport/transport.js';
 
 function fixture() {
   let operation = hostUpdateOperationSchema.parse({

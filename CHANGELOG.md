@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Add local/SSH `install runtime` and `upgrade runtime` through the shared host-update coordinator, plus `updates` inspection and exact pre-dispatch cancellation. Runtime software changes preserve running builds; bare upgrades include an installed runtime default. Keep component transports open until installation finishes.
+
 - Add application protocol 25.7 private host-update control with bounded correlated requests, host-wide lease checks, durable operation coalescing and freshly inspected runtime-default dispatch. Reuse the existing local/SSH installer for preparation; lost replies never replay updates.
 
 - Verify host-update supervision against the actual daemon PID and user service manager, binding service identity to inspection evidence and refusing stale or unknown supervisor markers.

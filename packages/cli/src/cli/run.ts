@@ -34,6 +34,7 @@ import { CliError, type Logger } from '../lib/types.js';
 import { cliVersion } from '../lib/version.js';
 import { argvFor, USAGE, type Command } from './args.js';
 import { runInstall, runRemove, runUpgrade } from './manage.js';
+import { runUpdates } from './management/updates.js';
 import {
   isCockpitChild,
   killHint,
@@ -359,6 +360,8 @@ export async function run(command: Command): Promise<number> {
 
     case 'install':
       return runInstall(command, logger);
+    case 'updates':
+      return runUpdates(command, logger);
     case 'upgrade':
       return runUpgrade(command, logger);
     case 'remove':

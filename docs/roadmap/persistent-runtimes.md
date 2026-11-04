@@ -27,6 +27,19 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far:
 
+- Runtime install/upgrade commands now drive the private coordinator over local
+  or SSH control. They reuse version resolution, transport delivery and the embedded
+  installer, inspect before one apply, and observe accepted work after a lost reply
+  without replay. `puddle updates` exposes exact durable operation state and
+  pre-dispatch cancellation; bare upgrades include an installed runtime default.
+  A native macOS test exercised the built CLI, a fresh 0.4.0 archive, actual private
+  control/preflight and the pinned one-shot launchd worker through verified selection.
+  It confirmed unchanged daemon PID/default/supervisor metadata and verified removal
+  of its temporary worker registration. This proves runtime-only activation, not
+  daemon replacement, owner adoption or native Linux supervision. Runtime removal,
+  combined host transactions, cockpit/handshake integration and default ownership
+  remain required before the 0.4.0 release.
+
 - Application protocol 25.7 now carries bounded correlated update commands on the
   existing private local/SSH host-control channel. The daemon coordinator checks
   live host-wide authority, serialises mutations, coalesces competing preparations,
@@ -36,7 +49,7 @@ Implementation evidence so far:
   before dispatch rejects the write, while lost acknowledgements after acceptance
   require observation without replay. Profile-scoped connector authority is denied.
   Daemon activation remains refused until quiescence, connector inventory and
-  adoption verification exist. Public CLI commands, cockpit routes/UI and shared
+  adoption verification exist. Cockpit routes/UI and shared
   handshake integration still need to consume this coordinator. This is required
   0.4.0 implementation work, not an optional product backend.
 

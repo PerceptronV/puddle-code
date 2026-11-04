@@ -1,4 +1,5 @@
 import { CliError } from '../lib/types.js';
+import { hostUpdateOperationSchema } from '@puddle/shared';
 import { parseRemoteArgs, type RemoteCommand } from './remote.js';
 
 export type Command =
@@ -35,11 +36,12 @@ export type Command =
   | { cmd: 'list' }
   | { cmd: 'kill'; target?: string; all: boolean }
   | { cmd: 'status'; host?: string }
+  | { cmd: 'updates'; host?: string; operation?: string; cancel: boolean }
   | { cmd: 'attach'; host?: string; session: string; term?: string }
   | { cmd: 'logs'; host?: string; session?: string; term?: string; follow: boolean }
   | {
       cmd: 'install';
-      what: 'daemon' | 'desktop';
+      what: 'daemon' | 'runtime' | 'desktop';
       /** Release to install (bare X.Y.Z); absent = newest. */
       version?: string;
       host?: string;
@@ -48,7 +50,7 @@ export type Command =
   | {
       cmd: 'upgrade';
       /** Absent = every component installed on the target (cli upgraded last). */
-      what?: 'cli' | 'daemon' | 'desktop';
+      what?: 'cli' | 'daemon' | 'runtime' | 'desktop';
       version?: string;
       host?: string;
       tarball?: string;
@@ -63,7 +65,7 @@ export type Command =
   | { cmd: 'help' }
   | { cmd: 'version' };
 
-const COMPONENTS = ['cli', 'daemon', 'desktop'] as const;
+const COMPONENTS = ['cli', 'daemon', 'runtime', 'desktop'] as const;
 export type Component = (typeof COMPONENTS)[number];
 
 /**
@@ -105,10 +107,11 @@ usage:
   puddle list
   puddle kill    [local | user@host | --all]
   puddle status  [user@host]
+  puddle updates [user@host] [--operation <id>] [--cancel]
   puddle attach  [user@host] <session> [--term <id>]
   puddle logs    [user@host] [session] [--term <id>] [-f|--follow]
-  puddle install <daemon|desktop>[@version] [user@host] [--tarball <path>]
-  puddle upgrade [cli|daemon|desktop][@version] [user@host] [--tarball <path>]
+  puddle install <daemon|runtime|desktop>[@version] [user@host] [--tarball <path>]
+  puddle upgrade [cli|daemon|runtime|desktop][@version] [user@host] [--tarball <path>]
   puddle remove  <cli|daemon|desktop> [user@host] [--yes] [--purge]
   puddle remote enable --profile <profile-id> [user@host] --service <https-origin> --app-origin <https-origin>
                        [--foreground]
@@ -117,7 +120,7 @@ usage:
   puddle remote approve|revoke <device-id> --profile <profile-id> [user@host]
   puddle --version | --help
 
---version lists the installed CLI, daemon, and desktop app with the protocol
+--version lists the installed CLI, daemon, runtime default and desktop app with the protocol
 each speaks (daemon cN reports the connector’s remote protocol); absent local components are reported as not installed.
 
 launch serves the cockpit at http://localhost:7433 against the daemon on this
@@ -136,10 +139,15 @@ install puts a component in place: 'daemon' under ~/.puddle on this machine
 or a user@host, 'desktop' as the macOS app bundle — or, on Linux, an
 AppImage placed where you say (default ~/puddle), then opened in the file
 manager. Already installed and no @version → nothing changes.
+runtime changes the default puddler build for future launches; running runtimes
+keep their pinned build. It requires a running host at application protocol 25.7+
+and an available user service manager. A local runtime --tarball needs @version.
+updates observes the current host update, or the exact --operation id; --cancel
+requires that id and only cancels an operation before dispatch.
 upgrade moves components to the newest release (or the named @version),
 installing any that are missing; with no component it covers everything
 installed on the target — the CLI last, using its installation channel. cli and desktop are
-client-machine artefacts: user@host targets the daemon only. remove
+client-machine artefacts: user@host targets daemon and runtime components. remove
 uninstalls a component after confirmation; 'daemon' stops it (interrupting
 its sessions), unregisters the supervisor, and keeps ~/.puddle's data —
 profiles, session history, worktrees — unless you also confirm --purge.`;
@@ -158,7 +166,14 @@ export function parseArgs(argv: string[]): Command {
     const arg = rest[i];
     if (arg === undefined) continue;
     if (arg.startsWith('-')) {
-      const valued = new Set(['--port', '--prefer-port', '--remote-port', '--tarball', '--term']);
+      const valued = new Set([
+        '--port',
+        '--prefer-port',
+        '--remote-port',
+        '--tarball',
+        '--term',
+        '--operation',
+      ]);
       if (valued.has(arg)) {
         const value = rest[i + 1];
         if (value === undefined || value.startsWith('-')) {
@@ -285,6 +300,21 @@ export function parseArgs(argv: string[]): Command {
       const host = positionals[0];
       return { cmd: 'status', ...(host !== undefined ? { host } : {}) };
     }
+    case 'updates': {
+      if (positionals.length > 1)
+        throw new CliError('bad_arguments', 'updates takes at most a host');
+      expect('--operation', '--cancel');
+      const operation = strFlag('--operation');
+      const cancel = flags.has('--cancel');
+      if (
+        operation !== undefined &&
+        !hostUpdateOperationSchema.shape.id.safeParse(operation).success
+      )
+        throw new CliError('bad_arguments', '--operation requires the complete update id');
+      if (cancel && operation === undefined)
+        throw new CliError('bad_arguments', '--cancel requires an exact --operation id');
+      return { cmd, host: positionals[0], operation, cancel };
+    }
     case 'attach': {
       // Two positionals → host + session; one → session on the local daemon.
       const [first, second, extra] = positionals;
@@ -335,7 +365,7 @@ export function parseArgs(argv: string[]): Command {
       if (spec?.what === undefined || spec.what === 'cli') {
         throw new CliError(
           'bad_arguments',
-          'install takes one of: daemon | desktop (with an optional @version)',
+          'install takes one of: daemon | runtime | desktop (with an optional @version)',
           spec?.what === 'cli'
             ? 'install the CLI with the public install.sh or npm; update it with puddle upgrade cli'
             : 'e.g. puddle install daemon@v0.0.32 user@host',
@@ -364,7 +394,7 @@ export function parseArgs(argv: string[]): Command {
         throw new CliError(
           'bad_arguments',
           `'${first}' is not a component`,
-          'upgrade takes [cli|daemon|desktop][@version], then an optional user@host',
+          'upgrade takes [cli|daemon|runtime|desktop][@version], then an optional user@host',
         );
       return {
         cmd: 'upgrade',
@@ -397,7 +427,7 @@ export function parseArgs(argv: string[]): Command {
       }
       return {
         cmd: 'remove',
-        what: what as Component,
+        what: what as Extract<Command, { cmd: 'remove' }>['what'],
         ...(host !== undefined ? { host } : {}),
         yes: flags.has('--yes'),
         purge,

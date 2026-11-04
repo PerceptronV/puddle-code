@@ -31,8 +31,10 @@ import { openTunnel } from '../lib/transport/tunnel.js';
 import { LocalTransport } from '../lib/transport/local.js';
 import { SshTransport } from '../lib/transport/ssh.js';
 import type { Transport } from '../lib/transport/transport.js';
+import { openHostTransport } from '../lib/transport/open.js';
 import { CliError, type Logger } from '../lib/types.js';
 import { upgradeDaemon } from '../lib/installation/upgrade.js';
+import { upgradeRuntime } from '../lib/installation/host/runtime.js';
 import { cliVersion, pinnedDaemonVersion } from '../lib/version.js';
 import type { Command, Component } from './args.js';
 import { terminateCockpit } from './detach.js';
@@ -42,8 +44,8 @@ import { ask, confirm } from './prompt.js';
  * `puddle install / upgrade / remove` — component management (SPEC §10).
  * install ensures a component is present (at a version); upgrade moves it to
  * the newest release (or the named one), installing it when absent; remove
- * uninstalls after confirmation. The daemon is the only component that lives
- * on remote hosts; cli and desktop are client-machine artefacts.
+ * uninstalls after confirmation. Daemon and runtime components live on the
+ * target host; cli and desktop are client-machine artefacts.
  */
 
 /** cli/desktop refuse a user@host target rather than half-support remote surgery. */
@@ -52,24 +54,17 @@ function assertLocal(what: Component, host: string | undefined, verb: string): v
   throw new CliError(
     'bad_arguments',
     `puddle ${verb} ${what} runs on the machine it ${verb}s`,
-    `ssh into ${host} and run it there — user@host targets the daemon only`,
+    `ssh into ${host} and run it there — user@host targets daemon and runtime components`,
   );
 }
 
-async function openTransport(host: string | undefined): Promise<Transport> {
-  const transport: Transport =
-    host === undefined || host === 'local' ? new LocalTransport() : new SshTransport(host);
-  if (transport instanceof SshTransport) await transport.open();
-  return transport;
-}
-
 /**
- * The daemon release a versionless install/upgrade lands on: the newest
+ * The host release a versionless install/upgrade lands on: the newest
  * published release, resolved client-side so messages can name it up front —
  * falling back to the CLI's own version train when the release API is
  * unreachable (still a correct daemon; the note says which train it came from).
  */
-async function resolveDaemonVersion(logger: Logger): Promise<string> {
+async function resolveHostVersion(logger: Logger): Promise<string> {
   try {
     return await latestReleaseVersion();
   } catch (e) {
@@ -111,23 +106,27 @@ export async function runInstall(
     return setDesktop({ version: cmd.version, verb: 'install' }, logger);
   }
 
-  const transport = await openTransport(cmd.host);
+  const transport = await openHostTransport(cmd.host);
   try {
-    const installed = await installedVersion(transport);
+    const installed = await installedVersion(transport, cmd.what);
     // install = ensure present: an installed daemon with no version named is
     // exactly what was asked for.
     if (installed !== null && cmd.version === undefined) {
       logger.info(
-        `puddled v${installed} is already installed on ${transport.label} — ` +
-          `\`puddle upgrade daemon\` moves it to the newest release`,
+        `${cmd.what === 'runtime' ? 'puddler' : 'puddled'} v${installed} is already installed on ${transport.label} — ` +
+          `\`puddle upgrade ${cmd.what}\` moves it to the newest release`,
       );
       return 0;
     }
     if (installed !== null && installed === cmd.version) {
-      logger.info(`puddled v${installed} is already installed on ${transport.label}`);
+      logger.info(
+        `${cmd.what === 'runtime' ? 'puddler' : 'puddled'} v${installed} is already installed on ${transport.label}`,
+      );
       return 0;
     }
-    return installDaemonAt(transport, cmd.version, cmd.tarball, logger);
+    if (cmd.what === 'runtime')
+      return await installRuntimeAt(transport, cmd.version, cmd.tarball, logger);
+    return await installDaemonAt(transport, cmd.version, cmd.tarball, logger);
   } finally {
     transport.dispose();
   }
@@ -139,17 +138,34 @@ async function installDaemonAt(
   explicit: string | undefined,
   tarball: string | undefined,
   logger: Logger,
+  explicitPin = true,
 ): Promise<number> {
   // A tarball names its own version (install.sh derives it from the file name).
   const version =
-    explicit ?? (tarball !== undefined ? undefined : await resolveDaemonVersion(logger));
-  if (explicit !== undefined) pinWarning(logger, explicit);
+    explicit ?? (tarball !== undefined ? undefined : await resolveHostVersion(logger));
+  if (explicit !== undefined && explicitPin) pinWarning(logger, explicit);
   const result = await upgradeDaemon(transport, {
     ...(version !== undefined ? { version } : {}),
     ...(tarball !== undefined ? { tarball } : {}),
     logger,
   });
   logger.info(`puddled ${result.from ?? '(fresh install)'} → ${result.to} on ${transport.label}`);
+  return 0;
+}
+
+async function installRuntimeAt(
+  transport: Transport,
+  explicit: string | undefined,
+  tarball: string | undefined,
+  logger: Logger,
+): Promise<number> {
+  if (tarball !== undefined && explicit === undefined)
+    throw new CliError('bad_arguments', 'A runtime --tarball requires an explicit @version');
+  const version = explicit ?? (await resolveHostVersion(logger));
+  const result = await upgradeRuntime(transport, { version, tarball, logger });
+  logger.info(
+    `puddler default ${result.from ?? '(not installed)'} → ${result.to} on ${transport.label}; running runtimes keep their pinned build`,
+  );
   return 0;
 }
 
@@ -161,8 +177,11 @@ export async function runUpgrade(
   logger: Logger,
 ): Promise<number> {
   if (cmd.what !== undefined) {
-    if (cmd.what !== 'daemon' && cmd.tarball !== undefined) {
-      throw new CliError('bad_arguments', '--tarball applies to the daemon only');
+    if (!['daemon', 'runtime'].includes(cmd.what) && cmd.tarball !== undefined) {
+      throw new CliError(
+        'bad_arguments',
+        '--tarball applies to daemon and runtime installations only',
+      );
     }
     switch (cmd.what) {
       case 'cli':
@@ -171,9 +190,12 @@ export async function runUpgrade(
       case 'desktop':
         assertLocal('desktop', cmd.host, 'upgrade');
         return setDesktop({ version: cmd.version, verb: 'upgrade' }, logger);
+      case 'runtime':
       case 'daemon': {
-        const transport = await openTransport(cmd.host);
+        const transport = await openHostTransport(cmd.host);
         try {
+          if (cmd.what === 'runtime')
+            return await installRuntimeAt(transport, cmd.version, cmd.tarball, logger);
           return await installDaemonAt(transport, cmd.version, cmd.tarball, logger);
         } finally {
           transport.dispose();
@@ -182,13 +204,18 @@ export async function runUpgrade(
     }
   }
 
-  // Bare upgrade: every component installed on the target. A remote target
-  // hosts only a daemon (cli and desktop are client-machine artefacts).
+  // Bare upgrade retains the existing component order; the combined host
+  // transaction will replace these individual daemon/runtime operations.
   if (cmd.host !== undefined && cmd.host !== 'local') {
-    logger.info(`${cmd.host} hosts the daemon only — upgrading it`);
-    const transport = await openTransport(cmd.host);
+    const transport = await openHostTransport(cmd.host);
     try {
-      return await installDaemonAt(transport, cmd.version, cmd.tarball, logger);
+      const runtimeInstalled = (await installedVersion(transport, 'runtime')) !== null;
+      if (runtimeInstalled && cmd.tarball !== undefined && cmd.version === undefined)
+        throw new CliError('bad_arguments', 'A runtime --tarball requires an explicit @version');
+      const version = cmd.version ?? (cmd.tarball ? undefined : await resolveHostVersion(logger));
+      await installDaemonAt(transport, version, cmd.tarball, logger, cmd.version !== undefined);
+      if (runtimeInstalled) await installRuntimeAt(transport, version, cmd.tarball, logger);
+      return 0;
     } finally {
       transport.dispose();
     }
@@ -196,14 +223,23 @@ export async function runUpgrade(
 
   const transport = new LocalTransport();
   const daemonInstalled = (await installedVersion(transport)) !== null;
+  const runtimeInstalled = (await installedVersion(transport, 'runtime')) !== null;
+  if (runtimeInstalled && cmd.tarball !== undefined && cmd.version === undefined)
+    throw new CliError('bad_arguments', 'A runtime --tarball requires an explicit @version');
   const desktopInstalled =
     process.platform === 'darwin' && (await findInstalledDesktopApp()) !== null;
 
   // Daemon and desktop first; the CLI LAST — its upgrade replaces the code
   // that is running this very command, so nothing may run after it but us
   // exiting. The already-loaded process finishes fine; a re-entry would not.
-  if (daemonInstalled) await installDaemonAt(transport, cmd.version, cmd.tarball, logger);
+  const hostVersion =
+    daemonInstalled || runtimeInstalled
+      ? (cmd.version ?? (cmd.tarball ? undefined : await resolveHostVersion(logger)))
+      : cmd.version;
+  if (daemonInstalled)
+    await installDaemonAt(transport, hostVersion, cmd.tarball, logger, cmd.version !== undefined);
   else logger.info('no daemon installed on this machine — skipping (puddle install daemon)');
+  if (runtimeInstalled) await installRuntimeAt(transport, hostVersion, cmd.tarball, logger);
   if (desktopInstalled) await setDesktop({ version: cmd.version, verb: 'upgrade' }, logger);
   else if (process.platform === 'darwin') logger.info('no desktop app installed — skipping');
   return upgradeCli(cmd.version, logger);
@@ -410,7 +446,7 @@ async function removeDaemonCmd(
   logger: Logger,
 ): Promise<number> {
   const target = cmd.host ?? 'local';
-  const transport = await openTransport(cmd.host);
+  const transport = await openHostTransport(cmd.host);
   let tunnel: Awaited<ReturnType<typeof openTunnel>> | null = null;
   try {
     const installed = await installedVersion(transport);

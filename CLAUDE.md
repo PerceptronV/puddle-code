@@ -122,12 +122,12 @@ developing so the cockpit stays attached to your terminal (`puddle list` / `pudd
 kill` manage backgrounded ones; `puddle refresh` is kill-then-launch in one step, also
 reachable from the UI's connection banner).
 
-`puddle install <daemon|desktop>[@version] [user@host]`,
-`puddle upgrade [cli|daemon|desktop][@version] [user@host]`, and
+`puddle install <daemon|runtime|desktop>[@version] [user@host]`,
+`puddle upgrade [cli|daemon|runtime|desktop][@version] [user@host]`, and
 `puddle remove <cli|daemon|desktop> [user@host]`
-manage the three components (SPEC §10): install ensures presence, upgrade
+manage installed components (SPEC §10): install ensures presence, upgrade
 moves to newest (or the named version; bare `upgrade` covers the installed local
-daemon and macOS desktop, then the CLI), remove uninstalls behind y/N confirmations — daemon
+daemon, runtime default and macOS desktop, then the CLI), remove uninstalls behind y/N confirmations — daemon
 removal keeps ~/.puddle's data unless purged, and sweeps worktrees for
 uncommitted/unpushed work first. cli/desktop are client-machine only;
 `upgrade desktop` still installs the macOS app when none exists (writable
@@ -148,8 +148,12 @@ runtime-aware update coordinator remains a separate rollout gate. Runtime bootst
 uses the same implementation with explicit component selection and never starts or
 restarts a service. The opt-in launcher can use `installed: true` to resolve and pin
 one complete runtime release at each launch; reject unsupported metadata before
-recording intent. Public runtime management/removal commands remain gated on the
-coordinator and reference-aware ownership checks. Host staging and exact activation
+recording intent. Runtime install/upgrade uses the coordinator through a running
+25.7+ host and an available user service manager; it never restarts existing owners.
+Local runtime archives require an explicit `@version` and verified checksums.
+`puddle updates [user@host] [--operation <id>]` observes durable state;
+`--cancel` requires the exact id and only cancels before dispatch. Runtime removal
+still requires reference-aware ownership checks. Host staging and exact activation
 reuse the embedded installer: a private receipt fingerprints the complete candidate;
 activation rechecks it and never re-downloads a substitute. Keep stage receipts
 separate from update approval and single-use operation state. Retain failed/unselected
@@ -168,7 +172,7 @@ after consumption, lost replies are observation-only. CLI preparation reuses the
 existing transport and installer, and only the caller that created the operation
 stages its files. Runtime-default apply reinspects exact approval evidence; daemon
 activation remains refused until quiescence, connector inventory and adoption
-verification are implemented. Public management and cockpit integration are pending.
+verification are implemented. Cockpit and launcher-handshake integration are pending.
 Runtime owners and update workers share `host/services.ts`; neither service may
 inherit puddled's restart or termination boundary. The packaged one-shot updater
 currently handles runtime-default selection only, using its pinned copy of the

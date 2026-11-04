@@ -41,19 +41,19 @@ After either installation, check it with:
 puddle --version
 ```
 
-This lists the installed CLI, daemon and desktop versions and their protocol versions. Missing components are reported as not installed.
+This lists the installed CLI, daemon, default runtime and desktop versions and their protocol versions. Missing components are reported as not installed.
 
 ## Installing and managing Puddle components
 
 The master commands are:
 
 ```sh
-puddle install <daemon|desktop>[@version] [user@host]
-puddle upgrade [cli|daemon|desktop][@version] [user@host]
+puddle install <daemon|runtime|desktop>[@version] [user@host]
+puddle upgrade [cli|daemon|runtime|desktop][@version] [user@host]
 puddle remove  <cli|daemon|desktop> [user@host]
 ```
 
-Square brackets describe optional arguments, angle brackets mark a required choice, and `|` means “choose one”; do not type them literally. An SSH destination applies only to the daemon. The CLI and desktop are managed on your current machine. `puddle install cli` is not a command: use npm or `install.sh` for the initial CLI installation.
+Square brackets describe optional arguments, angle brackets mark a required choice, and `|` means “choose one”; do not type them literally. An SSH destination applies to daemon and runtime components. The CLI and desktop are managed on your current machine. `puddle install cli` is not a command: use npm or `install.sh` for the initial CLI installation.
 
 For example:
 
@@ -75,7 +75,7 @@ For example:
   puddle upgrade
   ```
 
-  This upgrades the installed local daemon, then the installed macOS desktop app, then the CLI. Quit the desktop app first. Missing daemon/desktop installations are skipped, and remote hosts are not updated by this command.
+  This upgrades the installed local daemon and runtime default, then the installed macOS desktop app, then the CLI. Quit the desktop app first. Missing host/desktop installations are skipped, and remote hosts are not updated by this command.
 
 - In order to upgrade only the CLI, run:
 
@@ -105,6 +105,17 @@ For example:
   ```
 
   This asks for confirmation and leaves daemons and their data in place.
+
+- In order to update the default runtime software on a connected host, run:
+
+  ```sh
+  puddle upgrade runtime user@host
+  puddle updates user@host
+  ```
+
+  Omit `user@host` for this machine. This changes the `puddler` build used by future launches; existing runtimes keep their pinned build and running processes. It requires a running daemon with host-update support (application protocol 25.7+) and an available user service manager. `install runtime` keeps an existing default unless you name a version. Local archive installation requires an explicit `runtime@X.Y.Z` and a verified checksum file beside the archive.
+
+  If a connection is lost, inspect the printed operation id with `puddle updates user@host --operation <id>`. To abandon a preparation before dispatch, add `--cancel` with that complete id. An accepted update cannot be cancelled or replayed. A `recovery_required` result remains visible for inspection; it is not reported as a successful installation.
 
 > [!NOTE]
 > On Linux, `puddle install desktop` asks where to put `Puddle.AppImage`, defaulting to `~/puddle`. Update from inside the app and remove it by quitting and deleting the AppImage file. CLI desktop upgrade/removal is available only on macOS. Desktop releases cover macOS on Apple silicon and Linux x64.
