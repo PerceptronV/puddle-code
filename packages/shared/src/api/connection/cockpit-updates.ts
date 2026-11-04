@@ -73,6 +73,8 @@ export const cockpitHostUpdateReplySchema = z.discriminatedUnion('ok', [
 export const cockpitHostUpdateStatusSchema = z
   .object({
     availability: z.enum(['ready', 'unavailable', 'upgrade_required']),
+    /** Recorded operations do not establish current service health or adoption. */
+    observation: z.enum(['live', 'recorded']).optional(),
     daemon_version: z.string().max(128).nullable(),
     capabilities: z
       .object({

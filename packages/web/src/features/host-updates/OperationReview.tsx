@@ -32,8 +32,15 @@ export function OperationReview({
   return (
     <div className="mt-5 space-y-3 text-sm">
       <p role="status" className="font-medium">
+        {status.observation === 'recorded' && 'Recorded status: '}
         {phaseLabel[operation.phase]}
       </p>
+      {status.observation === 'recorded' && (
+        <p className="text-xs text-fg-muted">
+          Last recorded change: {new Date(operation.updated_at).toLocaleString()}. This record does
+          not confirm current service health or runtime adoption.
+        </p>
+      )}
       <p className="text-xs text-fg-secondary">
         {operation.targets
           .map(

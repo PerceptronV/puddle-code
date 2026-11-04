@@ -29,7 +29,13 @@ export function HostUpdatesSection() {
       <SectionTitle note={`Updates run on ${name}`}>Updates</SectionTitle>
       <SettingRow
         label="Daemon"
-        description={catalogue?.daemon_version ?? data?.daemon_version ?? 'Version unavailable'}
+        description={
+          data?.observation === 'recorded'
+            ? data.daemon_version
+              ? `Last connected version: ${data.daemon_version}`
+              : 'Version unavailable'
+            : (catalogue?.daemon_version ?? data?.daemon_version ?? 'Version unavailable')
+        }
       >
         <Button
           variant="ghost"
@@ -87,7 +93,10 @@ export function HostUpdatesSection() {
       )}
       {data?.availability === 'unavailable' && (
         <p role="status" className="text-sm text-fg-secondary">
-          Waiting for the daemon to reconnect. No update action will be repeated.
+          {data.observation === 'recorded'
+            ? 'The daemon is unavailable. Showing the update record from this host.'
+            : 'Waiting for the daemon to reconnect.'}{' '}
+          No update action will be repeated.
         </p>
       )}
       {releases && (

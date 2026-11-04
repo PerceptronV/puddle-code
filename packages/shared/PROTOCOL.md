@@ -1,5 +1,16 @@
 # The puddle communication protocol
 
+Protocol 25.16 adds optional `observation: live | recorded` to local/SSH cockpit
+host-update status. When the daemon connection is unavailable, the selected
+transport's existing OS/SSH helper reads the bounded operation ledger, including
+the requested historical operation. Public projection still excludes private
+stage/worker evidence. Browser authority is required before and after the read;
+cancelled requests and connection changes discard the response. Recorded state
+does not prove service health, adoption or current completion. Mutation capabilities
+are false while disconnected. No mutation falls back to this reader, and no new
+permission is granted. Explicit offline cockpit continuation remains unfinished.
+This additive application change leaves remote 4 and runtime 1.0 unchanged.
+
 Protocol 25.15 adds local/SSH `GET /api/sessions/:id/runtime` and
 `POST /api/sessions/:id/runtime/restart`. Inspection reports the placement's current
 runtime build/protocol, connected live terminal ids, installed default and either a

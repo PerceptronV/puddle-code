@@ -257,7 +257,7 @@ it.each([6, 7, 10, 11, 12, 13])(
 );
 
 it('does not open a replacement mutation authority when the cockpit is disconnected', async () => {
-  const f = await cockpitUpdatesFixture('ssh');
+  const f = await cockpitUpdatesFixture('local');
   f.authority.close();
   const open = vi.spyOn(f.transport, 'openChannel');
   expect((await f.control.status(undefined, () => true, f.signal.signal)).availability).toBe(

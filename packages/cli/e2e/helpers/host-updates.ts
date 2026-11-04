@@ -65,5 +65,13 @@ export function offlineUpdateFixture(protocol?: { major: number; minor: number }
       child.stdin.end(input);
     });
   cleanups.push(() => rmSync(dirname(ipcPath(home, 'host')), { recursive: true, force: true }));
-  return { home, operation, store, run, ledger: join(home, 'updates/operations.json') };
+  return {
+    home,
+    operation,
+    store,
+    run,
+    env,
+    sshBinary: join(bin, 'ssh'),
+    ledger: join(home, 'updates/operations.json'),
+  };
 }

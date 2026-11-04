@@ -21,9 +21,9 @@ activation/recovery through the existing host coordinator. Host version inventor
 coalesced, cached release discovery now feed that gateway. Settings → Host now exposes
 preparation, exact impact approval and live recovery, with per-window release offers.
 Individual runtime inspection/restart is available in local/SSH session menus.
-Offline/legacy cockpit recovery,
-remaining failure recovery and complete packaged
-upgrade acceptance remain unfinished.
+Cockpit status now reads and labels recorded operations while the daemon is unavailable.
+Explicit offline continuation, legacy cockpit recovery, remaining failure recovery
+and complete packaged upgrade acceptance remain unfinished.
 This document describes the intended refactor; [SPEC.md](../../SPEC.md) continues
 to describe shipped behaviour. Update the specification, protocol documentation,
 repository instructions and changelog alongside each implementation phase.
@@ -41,6 +41,22 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 [acceptance matrix](#acceptance-matrix) for the release gates.
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
+
+- Application 25.16 adds recorded operation inspection to disconnected local/SSH
+  cockpits through the existing trusted helper. Browser authority is checked before
+  and after inspection; aborted requests and connection changes discard the reply.
+  Public projection omits private stage/worker evidence, while Settings labels the
+  last connected daemon version and recorded status/time without claiming current
+  service health or adoption. Offline mutation capabilities stay disabled, and no
+  failed live mutation falls back to the helper. Focused tests cover no-daemon reads,
+  corruption, historical selection, browser revocation and connection races. Built
+  helper tests exercise isolated local/simulated-SSH inspection without SQLite or
+  service startup. Chromium verifies recorded progress/completion labels, disabled
+  mutations and a return to live status through the authenticated status socket.
+  Source/changed-test typechecks, lint and web/CLI/desktop builds passed. These are
+  inspection and UI checks, not actual supervisor/provider upgrade acceptance.
+  Explicit offline continuation,
+  legacy transition and packaged platform acceptance remain required.
 
 - Application 25.15 adds placement-scoped inspection and explicit selected-runtime
   restart, with controls beside session actions. `sessions/runtime/` composes existing

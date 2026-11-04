@@ -10,6 +10,14 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+Recorded cockpit inspection (25.16) now has isolated tests for reads without a daemon
+or SQLite database, exact historical operation selection, corrupt ledgers, cancellation,
+browser revocation and reconnection races. The HTTP fixture preserves browser access
+checks while disconnected and refuses offline mutations. A built helper test uses the
+existing fake SSH executable with sanitised client/target homes, reads the actual ledger
+and verifies that no daemon connection or service start is attempted. These checks do
+not establish offline continuation or real SSH/service upgrade acceptance.
+
 Selected-runtime restart (25.15) reuses the existing lifecycle fixtures. The real
 isolated daemon/owners reject a stale review after another shell appears, require
 explicit fresh approval, close the old runtime, and launch only the selected
@@ -41,11 +49,13 @@ After building web assets, run `node packages/web/test/host-updates/browser.mjs`
 Playwright Chromium installed. This temporary loopback fixture mounts the real controls
 and toasts with simulated host replies; it starts no daemon, agent or installed service.
 It verifies dismissal, a fresh window/release, closing Settings during preparation,
-exact interruption approval and lost apply replies without duplicate mutation. Optional
-`PUDDLE_HOST_UPDATE_SCREENSHOT` saves the review for visual inspection. This passed on
+exact interruption approval and lost apply replies without duplicate mutation. It also
+checks recorded offline progress/completion and returns to live status through the
+authenticated fixture WebSocket. Optional `PUDDLE_HOST_UPDATE_SCREENSHOT` saves the
+review and `PUDDLE_HOST_UPDATE_OFFLINE_SCREENSHOT` saves recorded status. This passed on
 macOS with Node 22.21.1; it proves browser behaviour, not supervisor/provider continuity.
-Individual runtime controls, offline/legacy cockpit recovery and relay maintenance
-still require implementation and their own acceptance.
+Explicit offline continuation, legacy cockpit transition and relay maintenance still
+require implementation and their own acceptance.
 The focused UI/WS suites passed 18 tests; source and strict changed-test typechecks,
 lint, formatting and token/contrast checks passed. Web, CLI and desktop builds passed.
 

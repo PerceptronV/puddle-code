@@ -43,6 +43,30 @@ async function gateway(kind: 'local' | 'ssh' = 'local') {
   return { ...f, ui, credential, http: request };
 }
 
+it('retains browser protection while showing recorded status through a disconnected cockpit', async () => {
+  const f = await gateway();
+  f.authority.close();
+  const response = await f.http('GET');
+  expect(response.status).toBe(200);
+  expect(cockpitHostUpdateStatusSchema.parse(await response.json())).toMatchObject({
+    availability: 'unavailable',
+    observation: 'recorded',
+    result: { ok: true, operation: { id: f.operation.id } },
+  });
+  expect((await f.http('GET', undefined, { authorization: '' })).status).toBe(401);
+  expect(
+    (
+      await f.http('POST', {
+        action: 'recover',
+        reference: { id: f.operation.id, revision: f.operation.revision },
+        strategy: 'continue',
+      })
+    ).status,
+  ).toBe(503);
+  expect(f.commands).toEqual([]);
+  expect(f.dispatch).not.toHaveBeenCalled();
+});
+
 it.each(['local', 'ssh'] as const)(
   'requires exact browser authority and bounded commands on the %s cockpit',
   async (kind) => {

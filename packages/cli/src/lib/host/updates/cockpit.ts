@@ -11,6 +11,7 @@ import type { HostControlClient } from '@puddle/shared/node/host-control';
 import type { Transport } from '../../transport/transport.js';
 import { prepareHostUpdate } from '../../installation/host/updates.js';
 import { HostConnection } from '../../auth/connection-authority.js';
+import { inspectHostUpdate } from '../../auth/control-channel.js';
 import { presentHostUpdate } from './presentation.js';
 
 type Authority = Pick<
@@ -57,7 +58,8 @@ export class CockpitHostUpdates {
     authorised: () => boolean,
     signal: AbortSignal,
   ): Promise<CockpitHostUpdateStatus> {
-    if (!authorised()) throw new Error('Browser authorisation expired');
+    if (!authorised() || signal.aborted) throw new Error('Browser authorisation expired');
+    const generation = this.authority.generation;
     const availability =
       this.authority.state !== 'ready'
         ? 'unavailable'
@@ -65,9 +67,9 @@ export class CockpitHostUpdates {
           ? 'ready'
           : 'upgrade_required';
     const capabilities = {
-      interruption_approval: this.supports(10),
-      verify_completion: this.supports(11),
-      continue_recovery: this.supports(12),
+      interruption_approval: availability === 'ready' && this.supports(10),
+      verify_completion: availability === 'ready' && this.supports(11),
+      continue_recovery: availability === 'ready' && this.supports(12),
     };
     const reply =
       availability === 'ready'
@@ -79,10 +81,22 @@ export class CockpitHostUpdates {
               ...(this.supports(14) ? { include_catalogue: true } : {}),
             }),
           )
-        : null;
-    if (!authorised()) throw new Error('Browser authorisation expired');
+        : availability === 'unavailable'
+          ? await inspectHostUpdate(this.transport, id, true)
+          : null;
+    if (!authorised() || signal.aborted) throw new Error('Browser authorisation expired');
+    if (
+      this.authority.generation !== generation ||
+      (availability === 'unavailable' && this.authority.state === 'ready')
+    )
+      throw new Error('Host connection changed during status inspection');
     return cockpitHostUpdateStatusSchema.parse({
       availability,
+      ...(availability === 'ready'
+        ? { observation: 'live' }
+        : availability === 'unavailable'
+          ? { observation: 'recorded' }
+          : {}),
       daemon_version: this.authority.version?.version ?? null,
       capabilities,
       result: reply ? presentHostUpdate(reply) : null,

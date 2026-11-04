@@ -23,6 +23,8 @@ await build({
     import { Toaster } from 'sonner';
     import { HostUpdatesSection } from './src/features/host-updates/HostUpdatesSection';
     import { HostUpdateToast } from './src/features/host-updates/HostUpdateToast';
+    import { tokenStore } from './src/lib/transport/auth';
+    tokenStore.set('fixture-browser-authority');
     const client = new QueryClient();
     function App() {
       const [open, setOpen] = useState(true);
@@ -206,11 +208,45 @@ try {
   ).toHaveCount(0);
   assert.equal(writes.filter((input) => input.action === 'apply').length, 1);
   assert.equal(writes.at(-1).interruption_approval, 'b'.repeat(64));
+  status.availability = 'unavailable';
+  status.observation = 'recorded';
+  status.capabilities = {
+    interruption_approval: false,
+    verify_completion: false,
+    continue_recovery: false,
+  };
+  const catalogue = status.catalogue;
+  delete status.catalogue;
+  await page.getByRole('button', { name: 'Refresh status', exact: true }).click();
+  await expect(page.getByText('Recorded status: Applying update', { exact: true })).toBeVisible();
+  await expect(page.getByText('Last connected version: 0.4.0', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Verify completion', exact: true })).toHaveCount(0);
   status.result.operation.phase = 'complete';
   status.result.operation.revision++;
+  await page.getByRole('button', { name: 'Refresh status', exact: true }).click();
+  await expect(page.getByText('Recorded status: Update complete', { exact: true })).toBeVisible();
+  await expect(page.getByText('Update complete', { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByText(/does not confirm current service health or runtime adoption/),
+  ).toBeVisible();
+  if (process.env.PUDDLE_HOST_UPDATE_OFFLINE_SCREENSHOT)
+    await page.screenshot({
+      path: process.env.PUDDLE_HOST_UPDATE_OFFLINE_SCREENSHOT,
+      fullPage: true,
+    });
+  assert.equal(writes.length, 3);
+  status.availability = 'ready';
+  status.observation = 'live';
+  status.capabilities = {
+    interruption_approval: true,
+    verify_completion: true,
+    continue_recovery: true,
+  };
+  status.catalogue = catalogue;
   status.catalogue.daemon_version = '0.4.1';
   status.catalogue.runtime_default.version = '0.4.1';
   status.catalogue.releases.latest.version = '0.4.2';
+  assert.ok(sockets.length > 0, 'the fixture must have an authenticated status socket');
   for (const socket of sockets) socket.send(JSON.stringify({ t: 'host-updates-changed' }));
   await expect(
     page.getByText('fixture-host: Daemon 0.4.2 is available.', { exact: true }),
@@ -223,7 +259,7 @@ try {
   ).toBeVisible();
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: explicit prepare/review/interruption approval, remount during preparation, lost apply reply without replay, dismissed/repeated/new-release/new-window offers',
+    'PASS: explicit prepare/review/interruption approval, remount during preparation, lost apply reply and recorded offline status without replay, dismissed/repeated/new-release/new-window offers',
   );
 } finally {
   await browser?.close();

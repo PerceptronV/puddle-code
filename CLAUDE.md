@@ -238,6 +238,11 @@ intent; stale/lost replies never authorise another restart. The inspector lives 
 workspace session actions under `sessions/runtime/`; it lists affected terminals and
 lost process state. Remote profile leases/connector operations remain excluded pending
 their explicit integration. Never restart existing runtimes as part of installation.
+Application 25.16 adds optional live/recorded observation provenance to cockpit update
+status. Disconnected reads reuse the trusted local/SSH helper, retain browser authority
+checks and discard replies after cancellation or connection changes. Never present a
+recorded operation as fresh service/adoption proof or enable offline mutation from its
+capabilities. Explicit offline cockpit continuation remains unfinished.
 Read-only `puddle updates` falls back to the existing local/SSH bootstrap helper
 when authority cannot connect. Share bounded ledger validation through
 `shared/src/node/installation/updates.ts`; label recorded evidence and never use

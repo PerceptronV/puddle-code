@@ -352,8 +352,14 @@ lease and authenticated browser request. Closing/revoking either before dispatch
 closes the child lease; other windows retain their connection and accepted host
 operations remain durable. Reads remain available during preparation; mutations
 are serialised per cockpit and coalesced by the host coordinator. Lost replies
-never trigger replay or offline fallback. Older compatible hosts advertise only
-their supported actions. Offline cockpit recovery remains unfinished.
+never trigger mutation replay or offline fallback. Older compatible hosts advertise only
+their supported actions. Application 25.16 adds labelled recorded status when the
+daemon connection is unavailable, reusing the trusted local/SSH helper's bounded
+ledger reader. The cockpit retains exact browser authority checks and discards
+responses after cancellation or a connection change. Settings distinguishes the
+last connected daemon version and timestamped recorded operation from current
+service health or adoption proof. Offline mutation capabilities remain disabled;
+explicit offline cockpit continuation and legacy transition remain unfinished.
 Remote 4 and runtime 1.0 are unchanged.
 
 Application 25.14 adds optional `include_catalogue` to private update status and
