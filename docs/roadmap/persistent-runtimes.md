@@ -43,6 +43,19 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- The internal host removal runtime phase now reuses existing discovery, reconciliation
+  and serial controls under update/controller/installation exclusion. It opens only an
+  existing current-schema database, with no migration, and refuses unknown runtime
+  records or unfinished updates. A bounded review binds owners, placements, native
+  refs, terminal generations and pinned releases; retention leaves them intact, while
+  explicit stop records intent and requires clean reconciled exit. Pending uncertain
+  stops are not resent. Two isolated owners and an extra shell exercise retained PIDs
+  and shell state, stale reviews, cancelled maintenance and explicit offline stop.
+  These tests exposed and fixed healthy snapshot callbacks latching an unsaved flag.
+  CLI decision/dispatch integration, daemon/connector supervisor teardown, orphan
+  proof, reference-aware collection and coordinated purge are still required. No
+  application, runtime or remote wire changes are made by this internal phase.
+
 - Runtime registration cleanup now requires fresh manager-backed absence after every
   unregister attempt, including successful commands and historical removed records.
   Shared host supervision helpers validate complete systemd properties and launchd

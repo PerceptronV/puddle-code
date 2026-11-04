@@ -5,9 +5,9 @@ import { DATABASE_SCHEMA_VERSION, MIGRATIONS } from './migrations/index.js';
 
 export type Db = Database.Database;
 
-export function openDatabase(file: string): Db {
-  mkdirSync(dirname(file), { recursive: true });
-  const db = new Database(file);
+export function openDatabase(file: string, options: { migrate?: boolean } = {}): Db {
+  if (options.migrate !== false) mkdirSync(dirname(file), { recursive: true });
+  const db = new Database(file, { fileMustExist: options.migrate === false });
   try {
     const current = db.pragma('user_version', { simple: true }) as number;
     // Check before changing journal mode or running any application/migration write.
@@ -16,10 +16,14 @@ export function openDatabase(file: string): Db {
       throw new Error(
         `Database schema ${current} is not supported by this daemon (maximum ${DATABASE_SCHEMA_VERSION}); use a compatible daemon without restoring older application data.`,
       );
+    if (options.migrate === false && current !== DATABASE_SCHEMA_VERSION)
+      throw new Error(
+        'Host maintenance requires the current database schema; no migration was applied',
+      );
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
     db.pragma('busy_timeout = 5000');
-    migrate(db);
+    if (options.migrate !== false) migrate(db);
     return db;
   } catch (error) {
     db.close();

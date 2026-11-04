@@ -1,4 +1,3 @@
-import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import {
@@ -10,6 +9,7 @@ import {
 } from '@puddle/shared';
 import { digest, privatePath } from '@puddle/shared/node';
 import { DATABASE_SCHEMA_VERSION } from '../../../db/migrations/index.js';
+import { requireOwnedDatabase } from '../../../db/paths.js';
 import { RuntimeStore } from '../../../db/stores/runtimes.js';
 import { readRuntimeJson } from '../../../runtime/ownership/storage.js';
 import { runtimeBindingIdentity } from '../../../runtime/transport/connections.js';
@@ -25,10 +25,7 @@ export async function inspectRecoveryDatabase(
 ) {
   requireCheckpointCompatibility(candidate, checkpoint);
   const path = join(home, 'puddle.db');
-  const stat = lstatSync(path);
-  // Legacy application databases may be readable; the containing home is private.
-  if (!stat.isFile() || stat.uid !== process.getuid?.() || (stat.mode & 0o022) !== 0)
-    throw new Error('Unsafe application database during recovery');
+  requireOwnedDatabase(path);
   const db = new Database(path, { readonly: true, fileMustExist: true, timeout: 0 });
   try {
     db.exec('BEGIN');

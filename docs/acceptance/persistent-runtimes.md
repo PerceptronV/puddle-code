@@ -10,6 +10,23 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+The internal removal runtime phase has isolated process coverage with two real fake-owner
+processes and an extra shell. Retention preserves PIDs, shell variables and launch files;
+a changed shell inventory refuses stale approval before stop intent. Cancelled offline
+maintenance detaches without stopping owners. The offline controller holds existing
+update/controller/installer claims, adopts the same owners, explicitly stops the reviewed
+inventory through normal controls/reconciliation and preserves its records. Repeated
+reviews never replay a recorded uncertain stop. Unit coverage includes changed native
+refs/generations/releases, unresolved persistence, authority loss, bounded concurrency,
+drainage and unknown runtime records. Database fixtures reject missing, linked, older
+and newer storage without applying migrations; owned legacy-readable files remain valid
+under the private home. Healthy snapshot saves no longer falsely latch an unsaved flag.
+These are internal runtime-disposition checks, not complete CLI uninstall, supervisor
+teardown, orphan recovery, reference-aware release collection or purge acceptance.
+The removal, runtime controller/state, database and restart-recovery regression run
+passed 182 tests in 34 files. Source and strict changed-test typechecks, lint,
+formatting and CLI/desktop builds passed on macOS with Node 22.21.1.
+
 Runtime registration cleanup now uses fresh supervisor absence evidence after successful
 unregister commands and when a historical removed record is encountered. Tests reject
 loaded/active units, missing or duplicate properties, live PIDs, pending reloads,

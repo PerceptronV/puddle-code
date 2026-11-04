@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Add the internal runtime retain/stop phase for host removal, sharing existing ownership, reconciliation and serial controls. Refuse stale interruption reviews and pending stop replay; keep CLI uninstall and purge integration as follow-up work. Correct healthy terminal snapshot saves incorrectly marking a runtime as unsaved.
+
 - Verify runtime service removal through a reachable supervisor before completing cleanup. Reinspect historical removal records, retain unresolved cleanup across daemon replacement and keep delayed runtime launches fenced.
 
 - Share an installation file lock between host installers and daemon startup that releases when all process references close. Retain exclusion while child commands survive parent termination, preserve the lock inode and refuse ambiguous legacy directory locks instead of advising blind deletion.

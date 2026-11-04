@@ -704,6 +704,22 @@ commands before closing the database and releasing controller authority.
 Registration cleanup preserves journals, checkpoints, results and pinned assets;
 it is not proof that unmanaged provider descendants have ended. Orphan-sidecar
 recovery and reference-aware asset collection remain rollout gates.
+
+The internal host removal runtime phase now lives in `host/removal/`. Its offline
+controller acquires update, controller and installation exclusion before opening the
+existing application database, requires the current schema without migration, and
+reuses runtime discovery, reconciliation and serial controls. Unknown on-disk owners
+and unfinished updates prevent a complete review. The bounded review lists exact
+runtime/placement identities, live terminals and pinned releases. Explicit retention
+leaves processes and files intact; explicit stop rechecks impact inside each control
+queue and uses durable stop intent. A recorded uncertain stop is never resent by this
+path. Changed native refs, terminal generations, owners or releases require fresh
+review; output acknowledgements and resize do not. All admitted inspection/control
+work drains before releasing ownership. This internal phase is not yet wired to CLI
+removal: supervisor teardown, stop-or-retain prompting, reference-aware file collection
+and purge coordination remain required. Its successful result alone never authorises
+deleting a release, runtime record or home.
+
 Migration 032 records terminal generations per segment and explicitly selects each
 placement's terminal owner. Runtime launches/switches update that selection in the
 same transaction; a later legacy spawn records its own ownership instead of

@@ -98,18 +98,29 @@ export class RuntimeHost {
         this.event({ ...event, cursor: ++this.eventCursor }, reservation);
         if (event.t === 'turn-finished') this.persistState();
       });
-      this.logs = new LogStore(join(this.directory, 'logs'), 256 * 1024, 10 * 1024 * 1024, () => {
-        this.persistencePending = true;
-      });
+      // Health callbacks also report successful saves. Only latch failures; one
+      // writer's success must not clear another writer's unresolved failure.
+      const persistenceHealth = (degraded: boolean) => {
+        if (degraded) this.persistencePending = true;
+      };
+      this.logs = new LogStore(
+        join(this.directory, 'logs'),
+        256 * 1024,
+        10 * 1024 * 1024,
+        persistenceHealth,
+      );
       this.segments = new RuntimeSegments(
         this.directory,
         this.launch.identity,
         this.logs,
         this.launch.provider?.resume_ref ?? this.launch.provider?.initial_ref ?? null,
       );
-      this.ptys = new PtyManager(this.logs, this.theme, join(this.directory, 'screens'), () => {
-        this.persistencePending = true;
-      });
+      this.ptys = new PtyManager(
+        this.logs,
+        this.theme,
+        join(this.directory, 'screens'),
+        persistenceHealth,
+      );
       this.ptys.on('data', (event: PtyDataEvent) => this.output(event));
       this.ptys.on('exit', (event: PtyExitEvent) => this.exited(event));
       this.ptys.on('env-delta', (event: PtyEnvDeltaEvent) => this.environment(event));

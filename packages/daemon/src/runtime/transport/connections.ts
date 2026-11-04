@@ -24,7 +24,6 @@ export function runtimeBindingIdentity(binding: RuntimeBinding): RuntimeIdentity
  * remain authoritative until the event reconciler commits their outcomes.
  */
 export class RuntimeConnections extends EventEmitter {
-  private readonly controller: ReturnType<typeof acquireRuntimeController>;
   private readonly clients = new Map<string, RuntimeClient>();
   private readonly unavailable = new Set<string>();
   private connecting: Promise<void> | null = null;
@@ -42,9 +41,10 @@ export class RuntimeConnections extends EventEmitter {
       connected?: (id: string, client: RuntimeClient) => Promise<void>;
       missing?: (id: string) => Promise<boolean>;
     } = {},
+    // Offline maintenance acquires ownership before opening the application database.
+    private readonly controller = acquireRuntimeController(home),
   ) {
     super();
-    this.controller = acquireRuntimeController(home);
   }
 
   get(id: string): RuntimeClient | null {
