@@ -1295,12 +1295,14 @@ Implementation evidence so far (newest first; earlier entries record their miles
   lifetime acceptance and completed-job cleanup remain outstanding; this path is
   still internal and opt-in.
 
-These are foundations for phases 0–4, not completion of those phases. Full native
-supervisor acceptance on both platforms, platform measurements, executable/native
-dependency retention, production session/turn adoption and segment routing,
-packaging and the update surfaces below remain required. Independent ownership is
-now the production default; unsupported-host lifetimes and seamless daemon upgrades
-remain incomplete and block the 0.4.0 release.
+The entries above retain their milestone-specific limitations; the latest status
+and evidence at the top describe the current implementation. Independent ownership,
+production adoption/segment routing, immutable packaging, cockpit/remote update
+controls and bounded reference-aware maintenance are now implemented. Remaining
+release gates include native platform/logout/reaper and reboot acceptance, real
+providers, outstanding recovery boundaries and resource budgets. Host-session
+fallback remains explicitly limited and does not support managerless updates;
+a separate SSH runtime-holding channel remains an investigation.
 
 ## Outcome and decisions
 
@@ -1905,8 +1907,9 @@ requested it is gone; retain its bounded result without restarting the programme
 
 Each phase must leave the current product usable during implementation. Release
 0.4.0 requires persistent ownership to pass the adoption and failure gates and to
-become the standard backend without an enable/disable option. Shipping the current
-internal opt-in path does not satisfy this plan.
+remain the standard backend without an enable/disable option. Independent ownership
+is already the production default; internal legacy fixtures and opt-in acceptance
+runners do not constitute a selectable product backend.
 
 Deliver this in three reviewable milestones:
 

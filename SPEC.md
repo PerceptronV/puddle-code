@@ -1,6 +1,6 @@
 # Puddle — Specification
 
-Puddle is a self-hosted **orchestrator for CLI coding agents** (Claude Code, Codex, OpenCode, and others) — run many agents in parallel, each isolated in its own git worktree, managed from one workspace UI. A daemon owns agent processes, worktrees, and session history; it runs on whatever machine hosts the work. On your own machine, `puddle launch` gives you the cockpit at `localhost`. On a remote box, **first-class SSH support** (`puddle launch user@host`) bootstraps the daemon and reaches the same cockpit over a single tunnel, in the spirit of VS Code Remote-SSH: live agent terminals, file editing, diff review, git history, and port forwarding. Under systemd/launchd (or a nohup-capable host) sessions keep running when the laptop sleeps or the window closes, and survive machine reboots by resuming from each agent's on-disk conversation state. An SSH host that reaps detached processes gets a cockpit-lifetime daemon instead: closing the cockpit interrupts processes, while the same durable state resumes them on the next launch (§10).
+Puddle is a self-hosted **orchestrator for CLI coding agents** (Claude Code, Codex, OpenCode, and others) — run many agents in parallel, each isolated in its own git worktree, managed from one workspace UI. On the machine hosting the work, the daemon owns worktrees and application state, while one independent `puddler` per runtime owns agent and shell processes. On your own machine, `puddle launch` gives you the cockpit at `localhost`. On a remote box, **first-class SSH support** (`puddle launch user@host`) bootstraps the daemon and reaches the same cockpit over a single tunnel, in the spirit of VS Code Remote-SSH: live agent terminals, file editing, diff review, git history, and port forwarding. Under systemd/launchd, independent runtimes keep running across cockpit disconnects and daemon replacement. Machine reboot loses live process state; saved native conversations can resume according to host settings. An SSH host that reaps detached daemons gets a cockpit-held daemon instead: closing it detaches independent host-session owners, which may survive or be reaped by host policy. Reconnection adopts survivors and reconciles ended owners (§10).
 
 Puddle is a public, general-purpose tool. Nothing in the codebase, docs, examples, or default configuration may reference any specific company, team, or person. Use generic placeholders (`alice`, `user@devbox`, `my-repo`).
 
@@ -134,7 +134,7 @@ Binding to `127.0.0.1` is **not** protection from the web: any website open in t
 4. **Browser gateway**: the cockpit requires its exact `localhost:<port>` Host and browser Origin on authentication/control boundaries, rejecting foreign and null origins. It authenticates browser requests, strips supplied upstream credentials and adds its current connection authority. The main WebSocket is an authenticated bridge and reports connected only after the daemon acknowledges authentication. Browser rejection is distinct from upstream expiry, unavailability and protocol mismatch; an upstream failure never clears browser login. Vite uses the same gateway. Static cockpit assets are public.
 5. **Forwarded applications**: cockpit content is served only on `localhost`, applications only on `127.0.0.1` at the same port. Reusable `/forward/:sid/:port` links open a trusted cockpit landing page, obtain a target-scoped invitation, and exchange it on the application origin for a host-only, HttpOnly, SameSite=Strict, path-scoped cookie. Desktop terminal links and port chips obtain this application-scoped invitation in the authorised cockpit before handing it to the system browser, whose storage is separate from Electron; browser cockpits continue to open the reusable landing page synchronously. Only its verifier is persisted, bound to browser authorisation; every request also requires current upstream authority. Detected-port restrictions remain mandatory. Puddle credentials are stripped before forwarding; application headers, cookies, HTTP and WebSockets are preserved. Application content never executes at the cockpit origin; HTML previews retain their existing sandbox.
 
-Self-hosted mobile access uses an outbound connector and a separately served trusted browser application, with Better Auth service login and independently approved host device identities. Noise XX carries application messages through an opaque relay; host authority continues to use protocol 18.0 leases. Remote protocol 4 is independent. There is no default hosted service or provider tunnel. See [mobile design](docs/roadmap/mobile-access.md), [deployment](docs/mobile-access.md) and [acceptance](docs/acceptance/mobile-access.md).
+Self-hosted mobile access uses an outbound connector and a separately served trusted browser application, with Better Auth service login and independently approved host device identities. Noise XX carries application messages through an opaque relay; host authority continues to use protocol 18.0 leases. Remote protocol 5 is independent. There is no default hosted service or provider tunnel. See [mobile design](docs/roadmap/mobile-access.md), [deployment](docs/mobile-access.md) and [acceptance](docs/acceptance/mobile-access.md).
 
 Service login uses Google and/or GitHub OAuth only; at least one complete provider configuration is required. Better Auth owns the OAuth state, callback and cookie flows. A current provider-verified email is required at every sign-in; account registration is open to everyone through the configured providers, with no signup allowlist or registration switch. New accounts have no access to another account's hosts, and host access still requires exact browser approval. The example Caddy deployment manages HTTPS without an email contact setting. Puddle has no email/password login, email delivery or password recovery. The public authentication surface allowlists social sign-in, provider callbacks, session inspection/sign-out and optional authenticator MFA enrolment/verification/recovery codes. Passwordless MFA still gates host registration and relay admission. Different provider identities are never linked implicitly by matching email; account recovery belongs to the original provider. Startup retires legacy password credentials and all existing service sessions/challenges when such credentials are present, preserving provider bindings and host ownership. Email-only accounts require fresh service registration through local/SSH host control. Removing email login and changing the cockpit pairing invitation contract bumps remote protocol to 2 and daemon/cockpit protocol to 19.0; the host lease semantics are unchanged.
 
@@ -231,7 +231,8 @@ neither client path automatically resubmits an uncertain mutation. Repeating an
 identical accepted helper request observes its recorded attempt. Acceptance and
 worker consumption do not prove liveness or completion: inspect the operation again
 to observe its verified result. Status includes bounded recovery metadata only when
-requested, preserving older clients. Cockpit integration remains unfinished.
+requested, preserving older clients. Supporting cockpits now expose live recovery
+and separate local/SSH offline continuation through the same helpers.
 
 Read-only `puddle updates [user@host] [--operation <id>]` can inspect recorded
 status when daemon authority cannot connect. The existing local/SSH bootstrap
@@ -333,9 +334,10 @@ No profile data, remote operation or maintenance permission is added; remote and
 runtime protocols remain unchanged.
 
 Application protocol 25.7 adds bounded, correlated maintenance requests to the
-existing private host-control connection. Only a live host-wide local/SSH lease
-can begin, stage, inspect, apply, cancel or observe an update; these requests do not
-renew authority. The daemon coordinator serialises mutations, coalesces competing
+existing private host-control connection. The original begin/stage/inspect/apply/
+cancel/status requests require a live host-wide local/SSH lease and never renew
+authority. Separately granted remote maintenance uses the bounded application 26.0
+bridge described below. The daemon coordinator serialises mutations, coalesces competing
 preparations and corroborates stage receipts against host files. The winning CLI
 caller stages through the existing transport and embedded installer. Runtime-default
 apply repeats inspection, matches exact approval evidence and rechecks authority
@@ -355,9 +357,10 @@ prevents dispatch. An unavailable modern host or failed inspection cannot fall b
 to the legacy installer. First installs and legacy transitions retain the embedded
 bootstrap. Launchers start the selected installed daemon service before considering
 an update, and approved legacy handshake updates use the shared upgrade entry.
-Cockpit routes now expose the shared coordinator; approval UI remains unfinished. `puddle updates` inspects
-durable operation state and supports exact pre-dispatch cancellation. No remote
-connector permission is added.
+Cockpit routes and impact approval UI share the coordinator. `puddle updates`
+inspects durable operation state and supports exact pre-dispatch cancellation.
+Ordinary connector permission remains unchanged; the separately granted remote
+maintenance bridge is described below.
 
 Application 25.13 adds `GET/POST /cockpit/updates` to local, SSH and development
 cockpits, using `cli/src/lib/host/updates/cockpit.ts` and the existing host update
@@ -393,9 +396,10 @@ Accepted recovery retains its independent worker and never creates or renews a b
 lease. Lost replies cause inspection only; identical accepted requests return recorded
 acceptance without another dispatch. A staged build before 25.17 cannot use this mode
 and still requires explicit CLI recovery. Recorded state remains distinct from live
-service health/adoption. Packaged platform acceptance and legacy transition are still
-required; no remote maintenance scope is added.
-Remote 4 and runtime 1.0 are unchanged.
+service health/adoption. The reconstructed v0.3.14 first-upgrade fixture now covers
+declined/approved launcher consent and automatic/manual resume. Native desktop
+approval and remaining packaged platform recovery acceptance are still required.
+This offline path adds no remote maintenance scope; runtime protocol remains 1.0.
 
 Application 25.14 adds optional `include_catalogue` to private update status and
 an optional catalogue in cockpit status. `updates/catalogue/` reads bounded committed
@@ -419,9 +423,10 @@ preparation obtains its repository through private host status and reuses the no
 installer; the browser cannot provide a repository or tarball. Host-wide status
 subscribers receive `host-updates-changed` after discovery changes and update controls;
 ordinary profile-scoped viewers receive neither the event nor private catalogue access. CLI,
-desktop and host share latest-release parsing and stable version comparison. Offline
-cockpit recovery and full packaged acceptance remain unfinished. Remote 4 and runtime
-1.0 are unchanged.
+desktop and host share latest-release parsing and stable version comparison.
+Recorded status and explicit offline continuation are available to supporting
+local/SSH cockpits; native platform and real-provider acceptance remain unfinished.
+The catalogue addition did not change the remote or runtime protocols.
 
 Settings → Host displays this inventory and release history, prepares selected components,
 and separates impact review from explicit apply. Interruption approval names the affected
@@ -464,7 +469,8 @@ and selected immutable release. The existing control queue re-inspects before st
 normal resume follows only confirmed clean exit, with authority and selection checked
 again before launch intent. Unknown conversations, unavailable owners, unsaved history
 or changed reviews refuse restart. Software installation never invokes this action.
-Offline/legacy cockpit recovery and remote integration remain unfinished.
+Runtime inspection/restart remains local/SSH-only. Granted remote host-software
+updates do not confer permission to restart an existing runtime.
 
 Application 25.10 adds exact interruption consent to private local/SSH update
 control. When other checks pass but daemon-owned work would stop, a supporting
@@ -475,7 +481,8 @@ maintenance hold. Missing consent retains the stage for confirmation, changed
 evidence invalidates approval, and the worker persists matching consent before
 dispatch. Clients below 25.10 retain the blocked response without extra fields;
 new clients never send interruption approval to an older host. This adds no lease
-authority or remote permission. The cockpit confirmation UI remains unfinished.
+authority or remote permission. Cockpit impact review now repeats this exact
+fingerprint only after explicit interruption approval.
 
 Local/SSH startup of an installed independent-runtime host uses the selected pinned
 host updater's trusted `--start-daemon` entry, not the installer. It holds update
@@ -668,13 +675,14 @@ synced. Worker children remain in the service process group, and worker lifetime
 bounded to three minutes. Runtime owners and workers share `host/services.ts` for
 literal supervisor definitions and bounded dispatch commands.
 
-The private host-control dispatcher now composes daemon and combined updates with
-final quiescence and exact compatibility/impact approval. Stopped or unmanaged
-connector installations remain blocked, and migration-aware recovery remains
-unfinished. Runtime and ordinary daemon CLI updates use the coordinator; launcher
-handshake updates share the same upgrade entry, while cockpit updates still need
-integration. Completed job registrations and pinned release trees remain retained
-until verified service cleanup and reference-aware collection are implemented.
+The private host-control dispatcher composes daemon and combined updates with
+final quiescence and exact compatibility/impact approval. Unverified supervision or
+compatibility remains blocked. Runtime and ordinary daemon CLI updates, launcher
+handshake upgrades and cockpit controls share the coordinator. Explicit recovery
+uses retained execution evidence without replaying uncertain actions. Mandatory
+bounded maintenance retires eligible completed jobs and collects only generations
+proved unused; ambiguous references and rollback pins remain retained. Native
+service-retirement, reboot and remaining recovery acceptance are still required.
 
 The runtime agent state reports sidecar roots and hidden ports, and retains
 interactive fallback when installed-version checks fail. Codex lifecycle cleanup
@@ -1228,9 +1236,9 @@ operations. Programmes have host OS authority, not a sandbox. See
 - `starting` covers worktree creation: the daemon fetches per the fetch policy below and creates the worktree (base resolves to `origin/<base>` when it exists, so sessions never branch off a stale local base). Environment setup then happens **inside the agent session** via onboarding (below), guided by the repo's `onboarding_notes`.
 - `starting → running` when the agent's PTY produces first output.
 - `running ⇄ waiting_input` has two drivers, hook signals first, regexes as the fallback:
-  - **Hook signals (authoritative).** At every agent spawn the daemon injects `PUDDLE_AGENT_SIGNAL_URL` + `PUDDLE_AGENT_SIGNAL_NONCE` (a per-runtime secret) into the PTY env; agent hook processes inherit that env and report `POST /agent-signal {nonce, state}` — a nonce-gated endpoint deliberately outside `/api` (the hook has no bearer token; the nonce dies with the runtime). The adapter installs the hooks: for claude-code, `Stop` / `Notification(permission_prompt)` / `Notification(idle_prompt`) → `waiting_input`, and `UserPromptSubmit` / `PreToolUse` → `working` (PreToolUse covers resume-after-approval, which fires no UserPromptSubmit) — written additively into the account config dir's `settings.json` beside a tiny helper, inert outside puddle (status behaviour verified against Claude Code 2.1.219; lifecycle payloads against 2.1.238). A hook signal is accepted even while the row is still `starting`: the first `Stop` can beat Claude's first visible TUI draw. After a session's FIRST status signal, hooks own its status and the regex detector is muted — idle TUI redraws (e.g. a resize on tab open) would otherwise misread as activity with no hook event to restore `waiting_input`.
+  - **Hook signals (authoritative).** At every agent spawn the runtime owner injects `PUDDLE_AGENT_SIGNAL_URL` + `PUDDLE_AGENT_SIGNAL_NONCE` (a per-runtime secret) into the PTY env; agent hook processes inherit that env and report `POST /agent-signal {nonce, state}` — a nonce-gated endpoint deliberately outside `/api` (the hook has no bearer token; the nonce dies with the runtime). The adapter installs the hooks: for claude-code, `Stop` / `Notification(permission_prompt)` / `Notification(idle_prompt`) → `waiting_input`, and `UserPromptSubmit` / `PreToolUse` → `working` (PreToolUse covers resume-after-approval, which fires no UserPromptSubmit) — written additively into the account config dir's `settings.json` beside a tiny helper, inert outside puddle (status behaviour verified against Claude Code 2.1.219; lifecycle payloads against 2.1.238). A hook signal is accepted even while the row is still `starting`: the first `Stop` can beat Claude's first visible TUI draw. After a session's FIRST status signal, hooks own its status and the regex detector is muted — idle TUI redraws (e.g. a resize on tab open) would otherwise misread as activity with no hook event to restore `waiting_input`.
   - **Regex fallback.** Until a signal arrives (agents without hooks, older CLIs), the adapter's `statusPatterns` are matched against the output stream as before (debounced; `waiting_input` only after ~2 s of quiet following a match).
-- Any of `{starting, running, waiting_input}` found without a live PTY during the daemon's boot **reconcile pass** → `interrupted`. Reconcile also sweeps the filesystem: a worktree directory with no session row is flagged in the UI (never auto-deleted); a session whose worktree is missing is badged "worktree missing" and can only be archived.
+- Daemon boot first discovers and authenticates independent owners, adopts their retained state and protects unresolved ownership from duplicate launches. Confirmed ended owners and legacy daemon-owned `{starting, running, waiting_input}` rows without a live PTY reconcile to `interrupted`; configured auto-resume governs replacement launches. Reconcile also sweeps the filesystem: a worktree directory with no session row is flagged in the UI (never auto-deleted); a session whose worktree is missing is badged "worktree missing" and can only be archived.
 - **Stale-running (advisory, computed on read like `worktree_missing`).** A `running` agent session whose adapter-reported activity (`adapter.sessionActivityAt` — for claude-code, the transcript's mtime via a cached stat) is over an hour old is flagged `stale_running` on the session shape: the TUI may be redrawing, but the agent has recorded no work — probably a wedged process. The UI fades the session's status indicator (dot or glyph) with a "possibly stalled" hint. Advisory only: a very long tool call looks identical, so the daemon **never** kills, downgrades, or otherwise interrupts a session because of it (decision 2026-07-28).
 - `exited` / `interrupted` → `running` via resume (adapter `resumeArgs`, same worktree, same config dir). On resume after `interrupted`, the daemon injects a first message — the profile's **restart launch text** (`profileSettings.restartTemplate`; absent → the built-in default _"This session was interrupted (daemon or machine restart). Processes you started are gone; re-verify your environment before continuing."_, empty string → no note), editable in Settings → Sessions (§4 Launch text).
 - `archived` ⇄ `exited`: any non-archived session can be archived in one gesture — a live one (`starting`/`running`/`waiting_input`) is killed by the daemon as part of it — and **archiving is a reversible placement hide, not a teardown**. It changes nothing on disk and archives only that placement; duplicate placements of the native conversation remain exited. Catalogue polling never unarchives it. An exact native `/resume` into that placement does: native intent clears `archived`, adopts the live runtime state, and focuses it. **Unarchive** (`POST /api/sessions/:id/unarchive`, → `exited`) brings it back manually: if the worktree is still on disk the session resumes with its history intact; if it was pruned, or its branch was moved or deleted, the session returns visible for its terminal/conversation history only, with resume disabled through the read-time `worktree_missing` flag. Because nothing is destroyed there is no confirmation and no `force`/`delete_branch`; disk and branch cleanup remain explicit Worktrees actions. Archiving a **project** archives all its sessions and refuses while any is `running`/`waiting_input` unless forced.
@@ -1244,7 +1252,7 @@ Adapters report exact top-level `SessionStart`/`SessionEnd` transitions through 
 
 If runtime A switches to conversation B while B already has a live runtime, A is stopped as an expected exit and B is focused instead. A remains visible and exited. When B's placement is in another project, the focused viewer navigates there and uses that project's layout, opening B as a preview only if absent. A REST resume of an already-live conversation returns `409 conversation_live` with structured `existing_session_id` and `existing_project_id`, allowing the same focus behaviour.
 
-Launch is capability-checked. Claude Code and Gemini use additive native hooks; OpenCode installs a Puddle-managed top-level lifecycle plugin; Codex uses a daemon-owned loopback WebSocket proxy between `codex --remote` and `codex app-server`, with the app-server process tree included in port ownership and its bridge ports hidden. Both the remote TUI (`-C`) and app-server process are rooted in the placement's worktree — remote mode delegates workspace creation to the sidecar, so letting that process inherit the daemon's home directory silently turns Codex's workspace/footer into `~` and removes its Git branch context even though the PTY itself was spawned correctly. If an adapter's exact channel cannot start, the daemon uses its normal direct launch, records `native_sync: 'fallback'`, and adds one restrained terminal warning that in-agent switches will not synchronise. Catalogue discovery continues but never guesses that a runtime changed identity.
+Launch is capability-checked. Claude Code and Gemini use additive native hooks; OpenCode installs a Puddle-managed top-level lifecycle plugin; Codex uses a runtime-owned loopback WebSocket proxy between `codex --remote` and `codex app-server`, with the app-server process tree included in port ownership and its bridge ports hidden. Both the remote TUI (`-C`) and app-server process are rooted in the placement's worktree — remote mode delegates workspace creation to the sidecar, so letting that process inherit the owner's home directory silently turns Codex's workspace/footer into `~` and removes its Git branch context even though the PTY itself was spawned correctly. If an adapter's exact channel cannot start, the runtime owner uses its normal direct launch, records `native_sync: 'fallback'`, and adds one restrained terminal warning that in-agent switches will not synchronise. Catalogue discovery continues but never guesses that a runtime changed identity.
 
 ### Relaxed isolation: shared branches and directories
 
@@ -1282,12 +1290,12 @@ The prescriptiveness of the notes is the automation dial: exhaustive notes make 
 
 `export FOO=bar` typed in a session terminal — or exported by a `source`d script, `nvm use`, `.venv/bin/activate` — persists for the session: it is re-injected into every future PTY spawn on that session (new shell tabs, agent restarts and resumes, respawns after a daemon restart). Scope is strictly per-session; the `home` stream and `login-*` PTYs have no session row and are excluded.
 
-- **Capture** is part of the injected session-shell prompt hook, since a parent process cannot read a child shell's exports. Session shells spawn with a shim — zsh via a `ZDOTDIR` shim directory whose zdot files chain to the user's real ones then register a `precmd` hook (the user's ZDOTDIR view is restored after rc, so `exec zsh`, nested shells, and children never see the shim); bash via `--rcfile` (sources `~/.bashrc`, then prepends to `PROMPT_COMMAND`). At each prompt, when capture is enabled, the hook diffs the shell's exported env against an in-memory baseline seeded **after** the user's rc ran — so rc-set exports and re-injected captured vars are baseline, not deltas (no feedback loop) — and reports changes. Because it diffs the _result_, `source`, `eval`, and tool shims are all captured. Unsupported shells (fish, …) and bash < 4 (macOS `/bin/bash` 3.2 lacks associative arrays) have no env capture; injection still applies, while bash retains the hook's cwd/history duties. Hook scripts are regenerated under `~/.puddle/shell-hooks/` at every daemon boot (0600 files, 0700 dirs). Capture is best-effort: an export with no subsequent prompt (`export X=1 && exit`) is missed, and a plugin that wholesale-resets the prompt hook arrays disables it silently.
-- **Transport** is OSC 7733, a puddle-internal terminal side-channel: one `ESC ] 7733 ; set ; b64(name) ; b64(value) BEL|ST` (or `unset ; b64(name)`) sequence per changed var, plus `cwd ; b64(absolute-path)` when `PWD` changes — base64 so newlines and quoting survive byte-exact. The daemon parses and **strips** these at the single PTY-output choke point, before the log append and any broadcast, so private payloads never reach terminal recordings, replay, or viewers.
-- **Persistence and merge**: `sessions.session_env` (SQLite is the source of truth). Merge is per-variable in arrival order — last write wins across a session's terminals (two shells in different dirs under direnv will ping-pong; accepted). `unset` removes a captured name only; there are no tombstones over daemon-baseline env, so a var the daemon itself provides cannot be persistently unset. Caps: 32 KiB per value, 128 vars per session — overflow is dropped with a one-time `[puddle]` note in the reporting terminal. A denylist (`PWD`, `HISTFILE`, `SHLVL`, prompt machinery, identity vars, `ZDOTDIR`, the `PUDDLE_*` prefix, …) is filtered in the hook and re-checked daemon-side; `PATH` is deliberately capturable (venv/nvm is the headline use case). Archive does **not** clear the map (unarchive + resume restores the working environment); `DELETE /api/sessions/:id/env` is the manual purge.
+- **Capture** is part of the injected session-shell prompt hook, since a parent process cannot read a child shell's exports. Session shells spawn with a shim — zsh via a `ZDOTDIR` shim directory whose zdot files chain to the user's real ones then register a `precmd` hook (the user's ZDOTDIR view is restored after rc, so `exec zsh`, nested shells, and children never see the shim); bash via `--rcfile` (sources `~/.bashrc`, then prepends to `PROMPT_COMMAND`). At each prompt, when capture is enabled, the hook diffs the shell's exported env against an in-memory baseline seeded **after** the user's rc ran — so rc-set exports and re-injected captured vars are baseline, not deltas (no feedback loop) — and reports changes. Because it diffs the _result_, `source`, `eval`, and tool shims are all captured. Unsupported shells (fish, …) and bash < 4 (macOS `/bin/bash` 3.2 lacks associative arrays) have no env capture; injection still applies, while bash retains the hook's cwd/history duties. Independent runtimes pin their hook scripts under `~/.puddle/runtimes/<runtime-id>/shell-hooks/` before dispatch; later daemon builds never regenerate that tree (0600 files, 0700 dirs). Daemon-owned terminals retain the shared `~/.puddle/shell-hooks/` directory. Capture is best-effort: an export with no subsequent prompt (`export X=1 && exit`) is missed, and a plugin that wholesale-resets the prompt hook arrays disables it silently.
+- **Transport** is OSC 7733, a puddle-internal terminal side-channel: one `ESC ] 7733 ; set ; b64(name) ; b64(value) BEL|ST` (or `unset ; b64(name)`) sequence per changed var, plus `cwd ; b64(absolute-path)` when `PWD` changes — base64 so newlines and quoting survive byte-exact. The runtime owner parses and **strips** these at its PTY-output choke point, before the log append and any broadcast, so private payloads never reach terminal recordings, replay, or viewers.
+- **Persistence and merge**: owners retain private observations and send ordered journal events to the daemon, which commits `sessions.session_env` before acknowledgement (SQLite is the application source of truth). Merge is per-variable in arrival order — last write wins across a session's terminals (two shells in different dirs under direnv will ping-pong; accepted). `unset` removes a captured name only; there are no tombstones over daemon-baseline env, so a var the daemon itself provides cannot be persistently unset. Caps: 32 KiB per value, 128 vars per session — overflow is dropped with a one-time `[puddle]` note in the reporting terminal. A denylist (`PWD`, `HISTFILE`, `SHLVL`, prompt machinery, identity vars, `ZDOTDIR`, the `PUDDLE_*` prefix, …) is filtered in the hook and re-checked by the runtime owner; `PATH` is deliberately capturable (venv/nvm is the headline use case). Archive does **not** clear the map (unarchive + resume restores the working environment); `DELETE /api/sessions/:id/env` is the manual purge.
 - **Injection order** at spawn is `process.env` → captured vars → adapter/hook-control env, so adapter env (e.g. `CLAUDE_CONFIG_DIR`) always wins. Captured env reaches agent PTYs as well as shells.
 - **Gate**: the per-profile `captureSessionEnv` setting (default **on**, Settings → Sessions). Off makes env capture dormant — no env reports, deltas ignored, no re-injection — with the stored map kept for re-enabling. The session-shell shim remains for cwd tracking and isolated history.
-- **Secrets posture**: values live in `~/.puddle/puddle.db`, inside the 0700 puddle home — the same trust domain as the daemon token. There is no at-rest encryption by design: a co-located key adds nothing, and headless daemons have no keychain. Typing `export FOO=secret` lands in the session's private shell-history file in plaintext; the OSC strip keeps values out of terminal logs. The authenticated API returns each captured value to the cockpit (optional `value` since protocol 16.2); clicking a name copies its value without displaying it. This adds no privilege to a cockpit that can already send `echo "$NAME"` to the session PTY and read the result, while keeping passive display and logs value-free. A worktree process can forge OSC 7733 and poison a future spawn's env — but it already runs arbitrary code as the user, so no privilege boundary is crossed.
+- **Secrets posture**: values live in private runtime launch/journal records and `~/.puddle/puddle.db`, inside the 0700 puddle home — the same trust domain as the daemon token. There is no at-rest encryption by design: a co-located key adds nothing, and headless daemons have no keychain. Typing `export FOO=secret` lands in the session's private shell-history file in plaintext; the OSC strip keeps values out of terminal logs. The authenticated API returns each captured value to the cockpit (optional `value` since protocol 16.2); clicking a name copies its value without displaying it. This adds no privilege to a cockpit that can already send `echo "$NAME"` to the session PTY and read the result, while keeping passive display and logs value-free. A worktree process can forge OSC 7733 and poison a future spawn's env — but it already runs arbitrary code as the user, so no privilege boundary is crossed.
 
 ### Fetch policy
 
@@ -1671,11 +1679,13 @@ Shared schemas in `api/connection-auth.ts` define host control (`open`, explicit
 
 The daemon WebSocket first receives `{t:'auth', token, resource}` and acknowledges `{t:'authenticated'}`. Browser WebSockets send their cockpit credential without a resource id; the bridge supplies a fresh resource and current connection token upstream. HTTP uses the connection bearer and `X-Puddle-Resource` for renewable streams. Neither browser credentials nor data tokens admit host-control requests.
 
-### Self-hosted remote surface (remote protocol 4)
+### Self-hosted remote surface (remote protocol 5)
 
-Daemon protocol 24.0 renames `Session.agent_mode` from `scripted` to `headless`.
-Remote protocol 4 accompanies that response change; update the service,
-application and host connector together. Existing registrations and grants remain.
+Application protocol 26.0 and remote protocol 5 add separately host-approved device
+maintenance. Update the service, application and host connector together. Existing
+registrations and pairing approvals remain; none gains maintenance automatically.
+Historically, application 24.0 renamed `Session.agent_mode` from `scripted` to
+`headless`, accompanied by remote protocol 4.
 
 The remote dashboard and Settings expose **Pair this device**. Its camera scanner
 decodes QR frames locally with the bundled JavaScript decoder (including browsers
@@ -2090,7 +2100,7 @@ Puddle's UI must read as a polished, intentional developer cockpit — dense, ca
 
 - **Cursor packages**: Appearance offers `System` (the default browser/OS pointer, interactive hand, and text caret), `Rangefinder` (a 27 px tessellated microprism spot, shrinking to 11.7 px over interactive targets), `Drafting` (a four-tick 24 px precision crosshair, contracting to an accent-coloured 14 px crosshair over interactive targets), and `Invert` (a 14 px contrast-inverting ring, becoming an 8 px dot over interactive targets). Every custom package collapses into a type-sized caret over selectable text, and the whole Monaco surface — lines, gutters and blank trailing space — is always a caret for every package. The choice is a per-browser client setting and travels with the Appearance sync group. Custom renderers replace cursors only for fine pointers; touch and embedded documents keep their native behaviour. Their renderer is portalled at document level so full-screen dialog overlays, including the command palette's side gutters, retain the selected package rather than exposing a native pointer.
 
-- **Terminal colour queries**: the DAEMON answers the OSC 10 (foreground) and OSC 11 (background) dynamic-colour queries (14.0 answered them in the web terminal — but an auto-theming agent samples the background AT SPAWN, usually before any viewer has attached, so the viewer-side answer arrived for nobody and e.g. Claude Code's `theme: auto` fell back to dark whatever the app theme; fixed 2026-08-06). Clients report their resolved `--text-primary` / `--bg-base` over the WS (`theme`, protocol 14.1 — after auth on every connect and again on theme switches; last report wins, matching the stdin rule), and the PTY layer scans output for the query sequences (chunk-boundary-safe, `pty/terminal-theme.ts`) and replies `rgb:RRRR/GGGG/BBBB`. Against a ≥14.1 daemon the web terminal consumes OSC 10/11 queries without replying, suppressing xterm 6’s built-in responder so the agent receives exactly one answer even with multiple viewers; against an older daemon it keeps viewer-side answering. Both paths suppress historical queries during replay and leave colour-setting sequences to xterm. A theme switch still takes effect on the next agent start/resume — a running agent that already sampled the background does not re-query.
+- **Terminal colour queries**: the PTY owner (`puddler` for independent runtimes, the daemon for its remaining terminals) answers the OSC 10 (foreground) and OSC 11 (background) dynamic-colour queries (14.0 answered them in the web terminal — but an auto-theming agent samples the background AT SPAWN, usually before any viewer has attached, so the viewer-side answer arrived for nobody and e.g. Claude Code's `theme: auto` fell back to dark whatever the app theme; fixed 2026-08-06). Clients report their resolved `--text-primary` / `--bg-base` over the WS (`theme`, protocol 14.1 — after auth on every connect and again on theme switches; last report wins, matching the stdin rule), and the PTY layer scans output for the query sequences (chunk-boundary-safe, `pty/terminal-theme.ts`) and replies `rgb:RRRR/GGGG/BBBB`. Against a ≥14.1 daemon the web terminal consumes OSC 10/11 queries without replying, suppressing xterm 6’s built-in responder so the agent receives exactly one answer even with multiple viewers; against an older daemon it keeps viewer-side answering. Both paths suppress historical queries during replay and leave colour-setting sequences to xterm. A theme switch still takes effect on the next agent start/resume — a running agent that already sampled the background does not re-query.
 
 - **ANSI mapping rule**: dark theme maps the pastel depth of each hue (red→`#F2957C`, green→`#8BE8B3`, yellow→`#F0B36E`, blue→`#7DADFF`, magenta→`#B9A3F2`, cyan→`#7FD6DC`, fg→`#EAF1FB`) over `--bg-base`; the light theme maps each hue's deep step (`#C2472E`, `#1FA26B`, `#A9743D`, `#2E6BD6`, …) so agent output stays legible on the white ground. Brights are one lightness step up. UI accents and terminal output are thereby the same family by construction. Every xterm viewer also sets `minimumContrastRatio: 4.5`, letting xterm correct a foreground that an agent places over an incompatible background while retaining deliberate dim text. This covers TUIs that cache their startup OSC 10/11 result and keep a dark input background after Puddle switches to light (or the reverse) without rewriting their terminal stream.
 

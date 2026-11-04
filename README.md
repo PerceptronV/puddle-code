@@ -9,7 +9,7 @@ Puddle is an open-source, multi-account coding agent orchestrator with first-cla
 puddle launch <user>@<host>
 ```
 
-Puddle manages parallel agents anywhere you SSH into, insulates agents in dedicated worktrees, and keeps your agents alive across disconnects and restarts.
+Puddle manages parallel agents on local and SSH hosts, isolates work in dedicated worktrees, and retains conversations and workspace state across reconnects. Independently supervised runtimes in the 0.4.0 architecture preserve live processes across daemon replacement; hosts with limited session lifetimes have narrower guarantees below.
 
 <p align="center">
   <picture>
@@ -75,10 +75,12 @@ puddle launch
 
 This installs the Puddle daemon under `~/.puddle` and serves the GUI at `http://localhost:7433`.
 
-Ctrl-C normally closes only the GUI while agent sessions keep running. On an SSH host that reaps
-detached processes, Puddle instead keeps the daemon attached to the cockpit; closing it interrupts
-live processes. The next `puddle launch` restarts the daemon from the host's persistent state and,
-when auto-resume is enabled (the default), restores the interrupted sessions.
+Ctrl-C normally closes only the GUI while independently supervised runtimes keep running.
+Some SSH hosts require a cockpit-held daemon. Closing that cockpit stops the daemon and
+detaches its independent owners; host policy may retain or reap those host-session runtimes.
+Reconnection adopts survivors and restores interrupted sessions according to the host's
+auto-resume setting. These limited hosts do not support managed updates without a usable
+service manager.
 
 The [deployed app](docs/mobile-access.md#host-the-installer) serves `/install.sh`
 as the single public installer. Install daemon and desktop components through
@@ -113,7 +115,7 @@ auth prompts unless you use a key).
 
 ## How it works
 
-- **The Puddle daemon works anywhere you can SSH into.** It is installed on your host during every fresh connect, relaying information across SSH to your local GUI. The daemon is the parent of every agent process, keeping sessions running when your laptop sleeps, the window closes, or the SSH connection drops. Puddle also maintains a stateful memory of your conversations to survive machine reboots.
+- **Puddle separates host management from live execution.** First connection installs a missing daemon on a supported local or SSH host. In the 0.4.0 architecture, `puddled` manages worktrees and application state, while one independent `puddler` per runtime owns agent and shell PTYs and provider sidecars. Supervised owners survive daemon replacement and cockpit disconnects. After machine reboot, saved conversations can resume according to host settings; live process state does not survive reboot. Hosts without a usable service manager retain the limited host-session fallback described above.
 - **Puddle orchestrates parallel isolated agents** each working in a unique git worktree and branch. You can choose the branch and worktree during session creation.
 - **Puddle's lightweight GUI** allows you to track agent progress, session usage, and active worktrees.
 - **Puddle's philosophy is that any good developer must stay grounded in their code.** Puddle natively integrates live terminals, file editing in Monaco, git commit grahps, diff views, and opens worktrees in your favourite IDE.
@@ -122,36 +124,42 @@ auth prompts unless you use a key).
 ```
  client machine                          host machine (local or remote)
 ┌──────────────────────────────┐        ┌───────────────────────────────────┐
-│ browser ── localhost:7433    │        │  puddled  (systemd user service)  │
+│ browser ── localhost:7433     │        │ puddled                           │
 │               │              │ local: │   ├─ REST + WS API                │
-│  puddle CLI ◄─┘              │ direct │   ├─ PTY manager                  │
-│   ├─ static web UI assets    │───────►│   ├─ git worktree manager         │
-│   └─ /api + /ws proxy        │ remote:│   ├─ per-agent adapters           │
-└──────────────────────────────┘ ssh -L │   └─ SQLite + append-only logs    │
+│ puddle CLI ◄───┘              │ direct │   ├─ runtime controller           │
+│   ├─ static web UI assets     │───────►│   ├─ worktrees + SQLite           │
+│   └─ /api + /ws proxy         │ remote:│   └─ daemon-owned execution       │
+└──────────────────────────────┘ ssh -L └───────────────────────────────────┘
+                                                        │ private IPC
+                                        ┌───────────────────────────────────┐
+                                        │ puddler (one owner per runtime)   │
+                                        │   PTYs, sidecars, output, journal │
                                         └───────────────────────────────────┘
 ```
 
-The CLI serves the UI at a stable local origin and reverse-proxies the API to the daemon, directly in local mode, through the tunnel in SSH mode. The daemon is headless and host-agnostic on `127.0.0.1:7434`. UI updates ship with the CLI (`puddle upgrade cli` refreshes the cockpit for every host); the daemon only has to update when the versioned protocol breaks, and the launcher asks for approval before updating it. The prompt shows the host, both protocols and how many live sessions the restart interrupts; declining leaves the daemon running. `--no-upgrade` refuses before prompting, and non-interactive launches require an explicit `puddle upgrade daemon [user@host]` first. Short-lived host connection leases, separate browser authorisation and exact cockpit Host/Origin checks guard local access. Launch invitations are single-use; browser login survives cockpit restarts, while forwarded applications use a separate loopback origin. After upgrading from the old token flow, run `puddle launch` once to authorise existing tabs.
+The CLI serves the UI at a stable local origin and reverse-proxies the API to the daemon, directly in local mode, through the tunnel in SSH mode. The daemon is headless and host-agnostic on `127.0.0.1:7434`. UI updates ship with the CLI. Compatible cockpit and daemon releases may differ; the launcher requires approval when an older application protocol is incompatible. Explicit daemon/runtime updates also use the CLI or supporting cockpit Host settings. Review distinguishes unaffected independent runtimes from work requiring interruption; first upgrades from daemon-owned sessions report their interruption count. Declining leaves the daemon running. `--no-upgrade` refuses before prompting, and non-interactive launches require an explicit `puddle upgrade daemon [user@host]` first. Short-lived host connection leases, separate browser authorisation and exact cockpit Host/Origin checks guard local access. Launch invitations are single-use; browser login survives cockpit restarts, while forwarded applications use a separate loopback origin. After upgrading from the old token flow, run `puddle launch` once to authorise existing tabs.
 
 Everything lives under `~/.puddle` on the host, installed without sudo — and `puddle remove daemon` takes it apart again.
 
 ## Development & teardown
 
-**One daemon, many clients.** There is a single local daemon per machine, living under `~/.puddle` and run by one supervised service (launchd's `dev.puddle.puddled` on macOS, systemd's `puddled` on Linux). The global `puddle` and a repo-run `node packages/cli/dist/index.js` are **both just clients** that talk to — and, when needed, install — that same daemon. They never run side by side, and there is no separate "dev daemon" alongside a "production daemon".
+**One daemon, many clients.** There is a single local daemon per machine, living under `~/.puddle` and run by one supervised service (launchd's `dev.puddle.puddled` on macOS, systemd's `puddled` on Linux). The global `puddle` and a repo-run `node packages/cli/dist/index.js` are **both just clients** that talk to — and, when needed, install — that same daemon. Multiple clients can share that daemon; there is no automatically separate "dev daemon" alongside a "production daemon".
 
 **Dev build vs. production.** The standalone installer or `npm i -g @puddle-code/cli` is the production path — its `puddle` fetches and upgrades the daemon from this repo's GitHub Releases. To exercise uncommitted changes, build and run from the repo:
 
 ```sh
 pnpm build && pnpm build:tarball
-node packages/cli/dist/index.js launch --tarball dist-release/puddled-v*.tar.gz --foreground
+node packages/cli/dist/index.js upgrade daemon@X.Y.Z --tarball dist-release/puddled-vX.Y.Z-PLATFORM-ARCH.tar.gz
+node packages/cli/dist/index.js launch --foreground
 ```
 
-`--tarball` sets the install _source_ only, and is consulted **only when the CLI actually installs the daemon** — when none is running, the daemon is stopped, or a protocol-major upgrade fires. If a compatible daemon (same protocol major) is already up, `launch` just serves the cockpit against it and **the tarball is ignored** (even a newer app version — nothing compares app versions). So to load a fresh dev build over a running daemon you must **stop it first** (see _Kill_ below), then re-run `launch --tarball …`. `--foreground` keeps the cockpit attached (`launch <user>@<host> --tarball …` is the remote form). Both clients share one `~/.puddle` daemon and cockpit registry, so `puddle list` / `puddle kill` see either — don't point both at the same host at once. (Never launch the daemon from inside a coding-agent shell: it inherits the agent's env and breaks conversation resume — use a plain terminal.)
+Replace `X.Y.Z`, `PLATFORM` and `ARCH` with the version and target printed by `build:tarball`; keep the generated `.sha256` file beside the archive. Add `user@host` after the component for an SSH target. A modern stopped installation starts its selected service before an explicit upgrade; `launch --tarball` alone does not replace that selected build. A compatible running daemon also ignores the launch tarball. To select the same archive for future runtime launches, use `upgrade runtime@X.Y.Z --tarball …`; existing owners remain pinned until explicitly restarted. First installation and approved legacy transitions still use the embedded bootstrap. Both clients share the host's daemon and cockpit registry. Never launch the daemon from inside a coding-agent shell: it inherits the agent's environment and can break conversation resume; use a plain terminal.
 
 **Kill.** `puddle kill --all` (or Ctrl-C in a `--foreground` run) normally stops the local cockpit
 UI only; a supervised daemon and its sessions keep running. When launch reported that it is keeping
-the daemon attached over SSH, killing that cockpit cleanly interrupts its processes instead; the
-next launch reconciles them from `~/.puddle` and auto-resumes them when that host setting is enabled.
+the daemon attached over SSH, killing that cockpit stops the daemon. Host-session owners may
+survive or be reaped by host policy; the next launch adopts survivors and reconciles ended
+owners according to the host auto-resume setting.
 A supervised daemon is auto-restarting
 (launchd `KeepAlive`, systemd `Restart=always`), so a plain `kill <pid>` bounces straight back — stop
 it through its supervisor:
@@ -162,7 +170,7 @@ systemctl --user disable --now puddled              # Linux (systemd user unit)
 kill "$(cat ~/.puddle/puddled.pid)"                 # nohup fallback (no supervisor)
 ```
 
-**Restore the production daemon.** When you're done testing, `puddle remove daemon` (answer no to the purge question — your profiles, sessions, and worktrees stay), then run the production `puddle launch`, which refetches the daemon from GitHub Releases. (Removal is what forces the refetch: the installer skips a version whose files are already present, so a dev build sharing the release's version number would otherwise stay put.)
+**Restore published software.** Use a compatible CLI to explicitly upgrade to a chosen compatible published version: `puddle upgrade daemon@X.Y.Z` (and `puddle upgrade runtime@X.Y.Z` for future runtimes). Replace `X.Y.Z` with that release; compatibility and recovery checks still apply. Removing and reinstalling a modern daemon can restore its retained service and selected generation, so it is not a way to force a download. Existing runtime processes keep their pinned build until explicitly restarted.
 
 **Uninstall.** Removing the CLI alone leaves the daemon installed and running — a full teardown is:
 

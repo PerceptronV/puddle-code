@@ -50,7 +50,7 @@ packages/
 │   ├── src/features/guide/ # public deployed-app /guide; edit guide.md for setup/upgrade instructions
 │   └── src/features/remote/ + mobile/ # remote account/pairing/settings + host-grouped project cards,
 │                                     # Files/Terminals workspace, session rail and touch terminal keys
-├── remote-transport/ # standalone Noise XX + bounded encrypted framing (remote protocol 4)
+├── remote-transport/ # standalone Noise XX + bounded encrypted framing (remote protocol 5)
 ├── connector/ # outbound host connector: exact device approval, route allowlist, manual host leases
 ├── remote/    # self-hosted Better Auth service + opaque bounded WSS relay; no host content storage
 ├── cli/       # @puddle-code/cli (the command is `puddle`): serves the UI at localhost:7433 and
@@ -168,9 +168,11 @@ never resets dispatch consumption. Shared host claims live in `security/claims.t
 retain the historical `runtime-claims` directory and hashed lock filenames so older
 live owners keep excluding newer controllers.
 The coordinator uses the existing private host-control channel (application 25.7),
-with bounded correlated calls and a participating host-wide lease; HTTP tokens and
-profile-scoped connector connections cannot enter it. Maintenance traffic never
-renews a lease. Recheck authority after async work and before durable dispatch;
+with bounded correlated calls and participating authority. Local/SSH leases are
+host-wide; ordinary profile-scoped connector leases and HTTP tokens cannot enter
+maintenance. Application 26.0 adds the separately granted exact-device private
+maintenance bridge described below, without widening ordinary profile access.
+Maintenance traffic never renews a lease. Recheck authority after async work and before durable dispatch;
 after consumption, lost replies are observation-only. CLI preparation reuses the
 existing transport and installer, and only the caller that created the operation
 stages its files. Runtime-default apply reinspects exact approval evidence. Application
@@ -216,8 +218,8 @@ regular `bin/.install-lock` inode and non-blocking flock (Linux's flock command/
 system Perl). Never unlink it during operation. Pass its descriptor to bounded commands
 so surviving children retain exclusion after parent SIGKILL; close it for long-lived
 nohup daemon launches. Stage scratch files under `cache/install/`. Legacy directory
-locks have no owner proof and must not be automatically removed. Removal/purge and
-further platform acceptance remain unfinished.
+locks have no owner proof and must not be automatically removed. Coordinated
+removal/purge is implemented; native removal and reboot acceptance remain required.
 Application 25.13 exposes local/SSH `GET/POST /cockpit/updates` through the existing
 gateway, including Vite. Keep browser schemas in `shared/api/connection/cockpit-updates.ts`
 and control/projection beside the existing `cli/lib/host/updates/` helpers. Preparation
@@ -227,8 +229,9 @@ Require exact Origin/browser authority. Give each mutation a cancellable existin
 host-control channel tied to the parent cockpit lease and browser request lifetime,
 so pre-dispatch revocation reaches the coordinator without revoking other windows.
 Do not retry an uncertain mutation or fall back to offline dispatch. Public replies
-omit private stage/worker evidence and blocker paths. Offline cockpit recovery remains
-outstanding; remote maintenance is still excluded.
+omit private stage/worker evidence and blocker paths. Supporting local/SSH cockpits
+now expose recorded status and explicit offline continuation. Remote maintenance
+uses the separate application 26.0 grant; offline continuation stays local/SSH.
 Application 25.14 adds optional host-update catalogue reads. `daemon/updates/catalogue/`
 owns bounded runtime-build presentation and one lazy 30-minute release poller, retaining
 timestamped last-known results and cadence across daemon replacements. Share latest-stable
@@ -244,7 +247,8 @@ refresh on host invalidations/reconnect, never retry or queue a mutation for rec
 Keep preparation, impact review and apply separate; match the current operation revision
 and exact interruption fingerprint before exposing approval. Preserve dismissal across
 React remounts in the same window. Compatible release skew must not become an update
-condition. Offline/legacy cockpit recovery remains open.
+condition. Keep recorded/offline recovery distinct from fresh service proof;
+native desktop-dialog and remaining platform recovery acceptance remain open.
 Application 25.15 adds local/SSH session runtime inspection/restart. Keep orchestration
 in `sessions/runtime/`, reusing RuntimeControls' queue/clean-exit observation and normal
 SessionService resume. Fingerprints bind the exact owner, placement, native ref, shell
@@ -276,7 +280,8 @@ exact revision once. Share passive metadata, executable and attempt readers unde
 Inspect recorded acceptance after a lost reply without redispatch. Status includes
 public recovery ids/revisions/consumption only when `include_recovery` is requested;
 consumption is not proof of liveness or completion. Never fall back to offline
-dispatch after an uncertain live mutation. Remote maintenance is still excluded.
+dispatch after an uncertain live mutation. This offline helper remains local/SSH;
+granted remote maintenance uses online private control only.
 Worker step intent lives in `updates/worker/actions.ts` with private shared schemas
 under `installation/actions.ts`. Persist intent before any stop/select/start step;
 never overwrite an existing journal or infer replay permission from started steps. Finished entries do
