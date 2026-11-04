@@ -29,6 +29,14 @@ recovery dispatcher. The first launcher upgrade from reconstructed 0.3.14 source
 now passes with declined/approved consent and automatic/manual resume. Native
 desktop-dialog, remaining failure recovery and complete packaged upgrade acceptance
 remain unfinished.
+For the released 0.3.14 host (application 25.6), opening a current application-26
+cockpit necessarily runs the existing approved launcher upgrade before admitting
+the UI. Upgrading and reopening the CLI/desktop therefore installs on the target
+through its local/SSH transport without a manual SSH upgrade. An already-open old
+cockpit remains old software. Earlier entries mentioning a missing same-major
+legacy-cockpit action describe the former 25.x development boundary; no second
+browser upgrader is required. Native desktop-dialog and real-SSH transition
+acceptance remain open.
 Application 26.0 and remote 5 now add explicitly host-approved browser maintenance,
 with independent daemon grant checks and the same host update coordinator. Remote
 windows share preparation, interruption review, application, recovery and release
@@ -59,6 +67,16 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 [acceptance matrix](#acceptance-matrix) for the release gates.
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
+
+- Live account migration now uses the existing provider-owned shared-store/copy
+  flow with independent runtime controls. It validates the target before stopping
+  the exact owner, requires committed clean exit, and rechecks account, placement,
+  native identity, authority and permissions before replacement admission. Copy
+  rollback cannot undo an admitted replacement. Twenty focused checks include a
+  real isolated owner, shell and sidecar with a preserved fake-provider transcript;
+  eight tier-1 HTTP integration cases also pass, including live legacy migration.
+  Strict test typechecking and lint passed. Actual provider databases and credentials
+  remain a separate native acceptance gate.
 
 - Calibrated macOS native CPU and interrupt/package-idle wakeup counters now
   supplement the coarse `ps` resource fixture, with exact PID start identities,

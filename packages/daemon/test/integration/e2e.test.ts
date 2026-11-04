@@ -974,6 +974,36 @@ describe('tier-1 migration end-to-end (Workstream S / SPEC §5)', () => {
     });
   });
 
+  it('migrates a live legacy session while lifecycle exclusion is held, without waiting on its own exit handler', async () => {
+    const c = client(daemon);
+    const session = await c.json<Session>('POST', '/api/sessions', {
+      project_id: project.id,
+      account_id: accA.id,
+    });
+    const viewer = wsClient(daemon);
+    try {
+      await viewer.open;
+      viewer.send({ t: 'attach', session: session.id, term: 'agent', cols: 100, rows: 30 });
+      await waitFor(() => viewer.outputFor(session.id).includes('READY'));
+      expect((await c.json<Session>('GET', `/api/sessions/${session.id}`)).status).toMatch(
+        /running|waiting_input/,
+      );
+      const migrated = await c.json<Session>('POST', `/api/sessions/${session.id}/migrate`, {
+        account_id: accB.id,
+      });
+      expect(migrated).toMatchObject({
+        account_id: accB.id,
+        agent_session_ref: `fake-ref-${session.id}`,
+      });
+      await waitFor(() =>
+        viewer.outputFor(session.id).includes(`RESUME ref=fake-ref-${session.id}`),
+      );
+    } finally {
+      viewer.close();
+      await c.json<Session>('POST', `/api/sessions/${session.id}/kill`);
+    }
+  });
+
   it('migrates a killed session to another account and resumes the SAME conversation', async () => {
     const c = client(daemon);
     const s = await killedSessionOn(c, accA.id);

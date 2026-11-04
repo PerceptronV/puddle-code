@@ -14,6 +14,7 @@ import {
   runtimePresetTestAdapter,
   runtimeTerminalTestAdapter,
 } from './runtime-test-adapter.js';
+import { runtimeMigrationTestAdapter } from './runtime-migration-adapter.js';
 
 // Only the isolated test home and sanitised fixture environment are used.
 const home = process.argv[3]!;
@@ -66,7 +67,12 @@ const runtime: RuntimeLaunchConfiguration | false | undefined = existsSync(
 const daemon = await startDaemon({
   home,
   port: 0,
-  adapters: [runtimeTestAdapter, runtimePresetTestAdapter, runtimeTerminalTestAdapter],
+  adapters: [
+    runtimeTestAdapter,
+    runtimePresetTestAdapter,
+    runtimeTerminalTestAdapter,
+    runtimeMigrationTestAdapter,
+  ],
   runtime,
 });
 const lease = daemon.authority.create();

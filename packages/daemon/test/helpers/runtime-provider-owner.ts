@@ -10,6 +10,7 @@ import {
   runtimePresetTestAdapter,
   runtimeTerminalTestAdapter,
 } from './runtime-test-adapter.js';
+import { runtimeMigrationTestAdapter } from './runtime-migration-adapter.js';
 
 const args = process.argv.slice(2);
 // Installed-default tests stage this fixture inside an immutable release tree.
@@ -18,7 +19,12 @@ const host = await RuntimeHost.start(
   args[1]!,
   args[3]!,
   existsSync(versionFile) ? readFileSync(versionFile, 'utf8').trim() : 'runtime-test',
-  new AdapterRegistry([runtimeTestAdapter, runtimePresetTestAdapter, runtimeTerminalTestAdapter]),
+  new AdapterRegistry([
+    runtimeTestAdapter,
+    runtimePresetTestAdapter,
+    runtimeTerminalTestAdapter,
+    runtimeMigrationTestAdapter,
+  ]),
 );
 // Deterministically yield journal admission after the fixture controller's
 // command has entered the host. No gate exists in ordinary fixture runs.

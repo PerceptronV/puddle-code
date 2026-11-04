@@ -68,7 +68,9 @@ export function sessionRoutes(deps: { service: SessionService; scanner: PortScan
       })
       .post('/:id/migrate', async (c) => {
         const body = await parseBody(c, migrateSessionRequestSchema);
-        return c.json(await deps.service.migrate(c.req.param('id'), body.account_id));
+        return c.json(
+          await deps.service.migrate(c.req.param('id'), body.account_id, requestAuthority(c)),
+        );
       })
       // Tier 2: returns the NEW session, not the one in the path (SPEC §5).
       .post('/:id/handoff', async (c) => {

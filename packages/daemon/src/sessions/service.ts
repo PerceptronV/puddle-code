@@ -1,6 +1,7 @@
 import type { RuntimeControls } from '../runtime/controller/controls.js';
 import type { RuntimeLauncher, RuntimeLaunchGuard } from '../runtime/lifecycle/launcher.js';
 import { SessionRuntimeService } from './runtime/service.js';
+import { migrateSessionAccount } from './migration/service.js';
 import { RuntimePersistence } from '../storage/runtime-persistence.js';
 import { HostBackgroundTasks } from '../host/lifecycle/background.js';
 import { HostAdmission } from '../host/lifecycle/admission.js';
@@ -1101,121 +1102,25 @@ export class SessionService extends EventEmitter {
     return { skip, downgraded };
   }
 
-  /**
-   * Tier-1 migration (SPEC §5): move a session to another account of the same
-   * (profile, agent) and resume it under that account's credentials. The
-   * conversation does NOT move — it lives in the profile's shared store,
-   * reachable from every account through its symlinks — so migration is
-   * "stop the process, repoint `account_id`, resume under B's env".
-   */
-  async migrate(id: string, targetAccountId: number): Promise<Session> {
-    this.assertLegacyRuntime(id);
-    const session = this.deps.sessions.get(id);
-    if (session.kind === 'terminal' || session.account_id === null || session.agent_type === null) {
-      throw ApiError.badRequest('not_migratable', 'a terminal session has no account to migrate');
-    }
-    const project = this.deps.projects.get(session.project_id);
-    const target = this.deps.accounts.get(targetAccountId); // 404 if unknown
-    // Validations, in order (SPEC §5).
-    if (target.profile_id !== project.profile_id) {
-      throw ApiError.badRequest(
-        'cross_profile_account',
-        'the target account belongs to a different profile',
-      );
-    }
-    if (target.agent_type !== session.agent_type) {
-      throw ApiError.badRequest(
-        'agent_mismatch',
-        `the target account runs ${target.agent_type}, not ${session.agent_type}`,
-      );
-    }
-    if (target.id === session.account_id) {
-      throw ApiError.badRequest('same_account', 'the session already runs on this account');
-    }
-    // An archived session has no live worktree/process to carry over.
-    if (session.status === 'archived') {
-      throw ApiError.conflict('session_archived', 'an archived session cannot migrate');
-    }
-    // Same guard resume has: a vanished worktree is a 409, not a spawn 500.
-    if (!existsSync(session.worktree_path)) {
-      throw ApiError.conflict(
-        'worktree_missing',
-        'worktree is gone; the session can only be archived',
-      );
-    }
-    const adapter = this.deps.adapters.get(session.agent_type);
-    // A live session is stopped first — usually it has already exited (credit
-    // exhaustion). kill() waits for the PTY to die before returning.
-    if (LIVE_STATUSES.includes(session.status)) await this.kill(id);
-    // The target must be logged in — the same probe create/resume use.
-    assertBinaryAvailable(adapter); // before assertLoggedIn — see its doc comment
-    await this.assertLoggedIn(target, adapter);
-
-    const ref = session.agent_session_ref;
-    if (!ref) throw ApiError.conflict('no_session_ref', 'no agent session ref recorded');
-
-    // A session that exhausted credit on its very FIRST turn may never have hit
-    // waiting_input, so its conversation was never adopted into the shared store
-    // — `hasConversation(target)` below would then be false and migration would
-    // wrongly 409, defeating the primary use case. Force a best-effort adopt now
-    // (the source account is still `account_id`, so it owns the files); an
-    // adoption failure simply falls through to the availability paths below.
-    if (this.deps.share) {
-      try {
-        await this.deps.share.adoptIfNeeded(session);
-      } catch {
-        /* best-effort — falls through to the (a)/(b)/(c) availability paths */
-      }
-    }
-
-    // Conversation availability on the target, in fall-through order (SPEC §5):
-    // (a) readable through the shared store's symlink — no files move;
-    // (b) an agent without a shareable store copies its state across (rolled
-    //     back on a later failure per the adapter contract);
-    // (c) neither — the conversation cannot follow the account.
-    let rollback: (() => Promise<void>) | null = null;
-    if (adapter.conversationShare && (await adapter.hasConversation?.(ref, target))) {
-      // (a) — nothing to do; the target already reads the conversation.
-    } else if (adapter.migrateSession) {
-      const from = this.deps.accounts.get(session.account_id);
-      await adapter.migrateSession(ref, from, target, session.worktree_path);
-      rollback = async () => {
-        try {
-          await adapter.migrateSession!(ref, target, from, session.worktree_path);
-        } catch {
-          /* best-effort — the copied files are the caller's to reconcile */
-        }
-      };
-    } else {
-      throw ApiError.conflict(
-        'migration_unsupported',
-        `${adapter.displayName} cannot migrate this conversation to another account`,
-      );
-    }
-
-    const fromAccountId = session.account_id;
-    this.deps.sessions.setAccountId(id, target.id);
-    try {
-      await this.resumeSpawn(session, target, adapter, project.profile_id, ref, {
-        interruptedNote: false,
-      });
-    } catch (e) {
-      // Path (b) rolls the copied files back and reverts the account (409).
-      // Path (a) leaves `account_id` on the target — the conversation is
-      // shared, so a plain retry resume recovers — and surfaces the error.
-      if (rollback && !this.deps.runtimes?.ownerOf(id)) {
-        await rollback();
-        this.deps.sessions.setAccountId(id, fromAccountId);
-      }
-      throw e;
-    }
-    this.deps.events.record(id, 'migrated', {
-      from_account: fromAccountId,
-      to_account: target.id,
-    });
-    // Resume the marker-file sync the way resume() does, so a shared-worktree
-    // session keeps title/onboarding markers flowing after migration.
-    this.deps.onboarding.watch(id, project.repo_id, session.worktree_path);
+  /** Tier-1 migration shares the same native-conversation exclusion as resume. */
+  async migrate(
+    id: string,
+    targetAccountId: number,
+    authorised: () => boolean = () => true,
+  ): Promise<Session> {
+    await this.lifecycleAdmission.run(() =>
+      this.lifecycleMutex.run('native-conversation-switch', () =>
+        migrateSessionAccount(this.deps, id, targetAccountId, authorised, {
+          checkLoggedIn: (account, adapter) => this.assertLoggedIn(account, adapter),
+          kill: (sessionId, check) => this.kill(sessionId, check),
+          resume: (session, account, adapter, profile, ref, beforeLaunch) =>
+            this.resumeSpawn(session, account, adapter, profile, ref, {
+              interruptedNote: false,
+              beforeLaunch,
+            }),
+        }),
+      ),
+    );
     return this.get(id);
   }
 

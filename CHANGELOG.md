@@ -30,6 +30,7 @@ Persistent runtimes and cockpit-managed host updates are mandatory standard beha
 
 ### Fixed
 
+- Move live independent agent runtimes between accounts through the existing native-conversation migration flow. Require confirmed owner/sidecar exit, recheck authority before replacement and preserve copied state after an uncertain admitted launch.
 - Retain application storage when runtime connection drainage fails during daemon shutdown, preventing outstanding callbacks from accessing a closed database.
 - Resolve SSH-delivered checksum paths before changing the installer's working directory.
 - Stop healthy terminal snapshot saves from incorrectly marking a runtime's state as unsaved.
