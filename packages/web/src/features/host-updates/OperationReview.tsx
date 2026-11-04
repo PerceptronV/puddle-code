@@ -5,23 +5,26 @@ import {
   type CockpitHostUpdateStatus,
 } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
-import { canReview, phaseLabel, reviewedApply } from './model';
+import { canReview, phaseLabel, reviewedApply, offlineRecoveryRequest } from './model';
 
 export function OperationReview({
   status,
   reply,
   disabled,
+  offlineDisabled,
   act,
 }: {
   status: CockpitHostUpdateStatus;
   reply: CockpitHostUpdateReply | undefined;
   disabled: boolean;
+  offlineDisabled: boolean;
   act: (request: CockpitHostUpdateRequest) => void;
 }) {
   const operation = status.result?.operation;
   if (!operation) return null;
   const reference = { id: operation.id, revision: operation.revision };
   const apply = reviewedApply(status, reply);
+  const offline = offlineRecoveryRequest(status);
   const review =
     reply?.ok &&
     reply.operation?.id === operation.id &&
@@ -84,6 +87,11 @@ export function OperationReview({
         </>
       )}
       <div className="flex flex-wrap gap-2">
+        {offline && (
+          <Button size="sm" disabled={offlineDisabled} onClick={() => act(offline)}>
+            Continue recovery on host
+          </Button>
+        )}
         {canReview(operation) && (
           <Button
             variant="ghost"
@@ -134,6 +142,12 @@ export function OperationReview({
           </Button>
         )}
       </div>
+      {offline && (
+        <p className="text-xs text-fg-secondary">
+          Recovery checks this update on the host before continuing unfinished steps. Keep this
+          window open until the host accepts the request; accepted recovery runs independently.
+        </p>
+      )}
       {operation.dispatched && !terminal && (
         <p className="text-xs text-fg-muted">
           The host accepted this operation. Status will refresh as it reconnects. Recovery actions

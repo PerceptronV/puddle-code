@@ -25,6 +25,7 @@ function fixture() {
   const operation = store.begin([{ component: 'daemon', version: '0.4.0' }]).operation;
   const transport = new LocalTransport();
   const authority = new HostConnection(transport);
+  authority.close(); // No automatic reconnection outside this isolated fixture.
   const live = vi.spyOn(authority, 'hostUpdate');
   const exec = vi.spyOn(transport, 'exec');
   const control = new CockpitHostUpdates(transport, authority);
@@ -60,6 +61,57 @@ it('reads exact current and historical records without a daemon, database or lea
   for (const name of ['puddle.db', 'runtime.json', 'token', 'supervisor'])
     expect(existsSync(join(f.home, name))).toBe(false);
 });
+
+it('revokes offline continuation if the parent reconnects during helper work', async () => {
+  const f = fixture();
+  let changed = () => {};
+  vi.spyOn(f.authority, 'onChange').mockImplementation((listener) => {
+    changed = listener;
+    return () => {};
+  });
+  const continueUpdate = vi
+    .spyOn(controlChannel, 'continueHostUpdate')
+    .mockImplementationOnce(async (_transport, _reference, participation) => {
+      expect(participation!.signal.aborted).toBe(false);
+      vi.spyOn(f.authority, 'state', 'get').mockReturnValue('ready');
+      changed();
+      expect(participation!.signal.aborted).toBe(true);
+      expect(participation!.authorised()).toBe(false);
+      return { ok: true, operation: f.operation };
+    });
+  await expect(
+    f.control.request(
+      {
+        action: 'continue-offline',
+        reference: { id: f.operation.id, revision: f.operation.revision },
+      },
+      () => true,
+      f.signal.signal,
+    ),
+  ).rejects.toThrow('authority changed');
+  expect(continueUpdate).toHaveBeenCalledOnce();
+  expect(f.exec).not.toHaveBeenCalled();
+});
+
+it.each(['ready', 'protocol_mismatch'] as const)(
+  'refuses offline dispatch on a %s connection',
+  async (state) => {
+    const f = fixture();
+    vi.spyOn(f.authority, 'state', 'get').mockReturnValue(state);
+    const continueUpdate = vi.spyOn(controlChannel, 'continueHostUpdate');
+    await expect(
+      f.control.request(
+        {
+          action: 'continue-offline',
+          reference: { id: f.operation.id, revision: f.operation.revision },
+        },
+        () => true,
+        f.signal.signal,
+      ),
+    ).rejects.toThrow('unavailable daemon');
+    expect(continueUpdate).not.toHaveBeenCalled();
+  },
+);
 
 it('keeps corrupt recorded state distinct from an empty update history', async () => {
   const f = fixture();

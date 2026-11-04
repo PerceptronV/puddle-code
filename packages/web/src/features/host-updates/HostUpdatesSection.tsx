@@ -170,7 +170,13 @@ export function HostUpdatesSection() {
         </p>
       )}
       {data && (
-        <OperationReview status={data} reply={action.data} disabled={disabled} act={action.act} />
+        <OperationReview
+          status={data}
+          reply={action.data}
+          disabled={disabled}
+          offlineDisabled={action.busy || status.isError}
+          act={action.act}
+        />
       )}
     </section>
   );

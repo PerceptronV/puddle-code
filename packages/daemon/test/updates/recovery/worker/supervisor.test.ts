@@ -9,6 +9,48 @@ import { startUpdateRecoveryWorker } from '../../../../src/updates/recovery/work
 import { requireEndedUpdateRecoveryWorkers } from '../../../../src/updates/recovery/worker/records.js';
 import { executeUpdateRecovery } from '../../../../src/updates/recovery/worker/execute.js';
 import { recoveryWorkerFixture } from '../../../helpers/update-recovery.js';
+import { PassThrough } from 'node:stream';
+import { setImmediate } from 'node:timers/promises';
+import { watchUpdateParticipation } from '@puddle/shared/node/host-control';
+
+it.each(['before', 'after'] as const)(
+  'honours input closure %s durable recovery acceptance',
+  async (when) => {
+    const f = await recoveryWorkerFixture();
+    const input = new PassThrough();
+    const participation = watchUpdateParticipation(input);
+    input.resume();
+    let closed = false;
+    try {
+      const pending = startUpdateRecoveryWorker(f.home, f.store.read()!, {
+        ...f.options,
+        authorised: () => !participation.signal.aborted,
+        run: async (command) => {
+          const reading = ['cat', 'show'].includes(command.args[1]!);
+          if (!closed && (when === 'before' ? reading : !reading)) {
+            closed = true;
+            input.end();
+            await setImmediate();
+            expect(participation.signal.aborted).toBe(true);
+          }
+          return f.supervisor(command);
+        },
+      });
+      if (when === 'before') {
+        await expect(pending).rejects.toThrow('authority expired');
+        expect(readUpdateRecoveryAttempts(f.home, f.job.operation_id).attempts).toHaveLength(0);
+        expect(f.commands).toHaveLength(0);
+      } else {
+        await pending;
+        expect(readUpdateRecoveryAttempts(f.home, f.job.operation_id).attempts).toHaveLength(1);
+        expect(f.commands.map(({ args }) => args[1])).toEqual(['link', 'daemon-reload', 'start']);
+      }
+    } finally {
+      participation.dispose();
+      input.destroy();
+    }
+  },
+);
 
 it('durably accepts one independent bounded worker before dispatch and releases execution for that worker', async () => {
   const f = await recoveryWorkerFixture();

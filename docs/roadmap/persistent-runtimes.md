@@ -22,8 +22,9 @@ coalesced, cached release discovery now feed that gateway. Settings → Host now
 preparation, exact impact approval and live recovery, with per-window release offers.
 Individual runtime inspection/restart is available in local/SSH session menus.
 Cockpit status now reads and labels recorded operations while the daemon is unavailable.
-Explicit offline continuation, legacy cockpit recovery, remaining failure recovery
-and complete packaged upgrade acceptance remain unfinished.
+Explicit offline continuation now uses a participating trusted helper and pinned
+recovery dispatcher. Legacy cockpit transition, remaining failure recovery and
+complete packaged upgrade acceptance remain unfinished.
 This document describes the intended refactor; [SPEC.md](../../SPEC.md) continues
 to describe shipped behaviour. Update the specification, protocol documentation,
 repository instructions and changelog alongside each implementation phase.
@@ -41,6 +42,23 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 [acceptance matrix](#acceptance-matrix) for the release gates.
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
+
+- Application 25.17 adds explicit disconnected-cockpit continuation through the
+  selected local/SSH helper, reusing the existing private envelope, correlated
+  requests and pinned recovery worker. Supporting staged metadata is required;
+  older candidates cannot fall back to uncontrolled dispatch. Browser cancellation,
+  connection changes and helper input/signals revoke pending participation, which
+  the existing dispatcher rechecks before durable acceptance. Accepted jobs retain
+  independent execution; repeated exact requests only observe recorded acceptance.
+  No daemon lease or relay grant is issued. UI recovery is a separate explicit action,
+  with mutation retries/queuing still disabled. Built local/simulated-SSH helper tests
+  exercise cancellation before dispatch and after recorded acceptance, lost replies,
+  exact-request deduplication and older staged metadata. Real coordinator tests use
+  fake supervisor outcomes to check both sides of acceptance; HTTP tests cover logout,
+  Origin and reconnection, and channel tests reject malformed/duplicate input. Chromium
+  exercises explicit offline recovery and lost-reply observation without repeating its
+  POST. Platform/provider upgrade acceptance,
+  legacy transition and the remaining recovery/lifetime/removal gates remain open.
 
 - Application 25.16 adds recorded operation inspection to disconnected local/SSH
   cockpits through the existing trusted helper. Browser authority is checked before

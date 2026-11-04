@@ -11,6 +11,7 @@ import { readUpdateWorker } from './supervisor.js';
 import { executeUpdateRecovery } from '../recovery/worker/execute.js';
 import { startUpdateRecoveryWorker } from '../recovery/worker/supervisor.js';
 import { startSelectedDaemon } from '../../host/startup/daemon.js';
+import { watchUpdateParticipation } from '@puddle/shared/node/host-control';
 import { disposeCompilationCommands, runCompilationCommand } from '../../compilation/process.js';
 
 declare const __PUDDLED_VERSION__: string | undefined;
@@ -56,31 +57,42 @@ if (args.length === 1 && args[0] === '--version') {
 } else {
   if (
     (args.length !== 4 &&
-      !(args.length === 6 && ['--recovery', '--dispatch-recovery'].includes(args[4]!))) ||
+      !(
+        args.length === 6 &&
+        ['--recovery', '--dispatch-recovery', '--participating-recovery'].includes(args[4]!)
+      )) ||
     args[0] !== '--home' ||
     args[2] !== '--operation'
   )
     throw new Error(
-      'Usage: host-update --home <private-home> --operation <accepted-operation-id> [--recovery <attempt-id> | --dispatch-recovery <revision>]',
+      'Usage: host-update --home <private-home> --operation <accepted-operation-id> [--recovery <attempt-id> | --dispatch-recovery <revision> | --participating-recovery <revision>]',
     );
   const home = args[1]!;
-  // This entry is invoked through trusted host OS/SSH access. Browser/connector
-  // commands cannot invoke it or supply executable paths.
-  if (args[4] === '--dispatch-recovery') {
-    const entry = realpathSync(fileURLToPath(import.meta.url));
-    const paths = updateWorkerExecutables(home, dirname(dirname(entry)));
-    if (paths.entry_path !== entry || paths.node_path !== realpathSync(process.execPath))
-      throw new Error('Recovery dispatcher must use its own pinned release');
-    const revision = hostUpdateOperationSchema.shape.revision.parse(Number(args[5]));
-    const job = await startUpdateRecoveryWorker(
-      home,
-      { id: args[3]!, revision },
-      {
-        releasePath: paths.release_path,
-        authorised: () => true,
-      },
-    );
-    console.log(JSON.stringify(job));
+  // Only trusted host OS/SSH access selects executable paths. Cockpit continuation
+  // uses a participating helper; ordinary relay leases cannot reach this entry.
+  if (args[4] === '--dispatch-recovery' || args[4] === '--participating-recovery') {
+    const participation =
+      args[4] === '--participating-recovery' ? watchUpdateParticipation(process.stdin) : null;
+    if (participation) process.stdin.resume();
+    try {
+      const entry = realpathSync(fileURLToPath(import.meta.url));
+      const paths = updateWorkerExecutables(home, dirname(dirname(entry)));
+      if (paths.entry_path !== entry || paths.node_path !== realpathSync(process.execPath))
+        throw new Error('Recovery dispatcher must use its own pinned release');
+      const revision = hostUpdateOperationSchema.shape.revision.parse(Number(args[5]));
+      const job = await startUpdateRecoveryWorker(
+        home,
+        { id: args[3]!, revision },
+        {
+          releasePath: paths.release_path,
+          authorised: () => !participation?.signal.aborted,
+        },
+      );
+      console.log(JSON.stringify(job));
+    } finally {
+      participation?.dispose();
+      if (participation) process.stdin.destroy();
+    }
   } else {
     const recovery =
       args.length === 6

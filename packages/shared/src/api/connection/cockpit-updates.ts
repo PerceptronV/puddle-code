@@ -22,6 +22,9 @@ export const cockpitHostUpdateRequestSchema = z.discriminatedUnion('action', [
     .strict(),
   z.object({ action: z.literal('cancel'), reference: hostUpdateReferenceSchema }).strict(),
   z
+    .object({ action: z.literal('continue-offline'), reference: hostUpdateReferenceSchema })
+    .strict(),
+  z
     .object({
       action: z.literal('recover'),
       reference: hostUpdateReferenceSchema,
@@ -81,6 +84,7 @@ export const cockpitHostUpdateStatusSchema = z
         interruption_approval: z.boolean(),
         verify_completion: z.boolean(),
         continue_recovery: z.boolean(),
+        offline_continuation: z.boolean().optional(),
       })
       .strict(),
     result: cockpitHostUpdateReplySchema.nullable(),

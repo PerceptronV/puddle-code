@@ -12,6 +12,7 @@ import {
   controlResponseSchema,
   hostUpdateControlRequestSchema,
   hostUpdateControlResponseSchema,
+  hostUpdateCommandSchema,
   type HostInspection,
   type HostUpdateReply,
   type HostUpdateCommand,
@@ -23,6 +24,7 @@ import type { Transport } from '../transport/transport.js';
 import { inspectHostLocally } from './host-inspection.js';
 import { inspectStoredHostUpdate } from '../host/updates/inspection.js';
 import { continueStoredHostUpdate } from '../host/updates/continuation.js';
+import { requestParticipatingUpdate } from '../host/updates/channel.js';
 
 const staged = new WeakMap<Transport, Promise<string>>();
 async function helper(transport: Transport): Promise<string> {
@@ -103,7 +105,28 @@ export async function inspectHostUpdate(
 export async function continueHostUpdate(
   transport: Transport,
   reference: Pick<HostUpdateOperation, 'id' | 'revision'>,
+  participation?: { signal: AbortSignal; authorised: () => boolean },
 ): Promise<HostUpdateReply> {
+  if (participation) {
+    const valid = () => !participation.signal.aborted && participation.authorised();
+    if (!valid()) throw new Error('Host recovery authority expired');
+    const command = hostUpdateCommandSchema.parse({
+      action: 'recover',
+      strategy: 'continue',
+      reference,
+    });
+    if (transport.kind === 'local')
+      return continueStoredHostUpdate(clientHome(), command, participation);
+    if (!transport.openChannel) throw new Error('Transport has no bidirectional control channel');
+    const executable = await helper(transport);
+    if (!valid()) throw new Error('Host recovery authority expired');
+    return requestParticipatingUpdate(
+      transport.openChannel(`${executable} --participating-update`),
+      command,
+      participation.signal,
+      valid,
+    );
+  }
   return requestHostUpdate(transport, { action: 'recover', strategy: 'continue', reference });
 }
 

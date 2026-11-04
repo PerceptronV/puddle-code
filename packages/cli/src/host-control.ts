@@ -9,9 +9,15 @@ import { clientHome } from './lib/paths.js';
 import { inspectHostLocally } from './lib/auth/host-inspection.js';
 import { inspectStoredHostUpdate } from './lib/host/updates/inspection.js';
 import { continueStoredHostUpdate } from './lib/host/updates/continuation.js';
+import { serveParticipatingUpdate } from './lib/host/updates/channel.js';
 
 // stdout is exclusively the bounded control protocol; diagnostics never contain credentials.
-if (process.argv.length === 3 && ['--updates', '--continue-update'].includes(process.argv[2]!)) {
+if (process.argv.length === 3 && process.argv[2] === '--participating-update') {
+  await serveParticipatingUpdate(clientHome(), process.stdin, process.stdout);
+} else if (
+  process.argv.length === 3 &&
+  ['--updates', '--continue-update'].includes(process.argv[2]!)
+) {
   try {
     let input = '';
     for await (const chunk of process.stdin) {

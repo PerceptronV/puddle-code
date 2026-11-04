@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Add explicit recovery continuation from a disconnected local/SSH cockpit (application 25.17), reusing the trusted helper and pinned recovery worker. Cancel uncommitted dispatch when browser participation ends, preserve accepted independent work, reject older staged dispatchers and inspect lost replies without repeating an update.
+
 - Show recorded host-update status in local/SSH cockpits while the daemon is unavailable (application 25.16), reusing the trusted helper and preserving browser authority checks. Label recorded completion and the last connected version explicitly, disable offline mutations, and discard replies after cancellation or reconnection. Explicit offline cockpit continuation remains in progress.
 
 - Add a session Runtime inspector and explicit restart on the installed build (application 25.15, local/SSH). Show affected agent/shell tabs and warn about lost shell jobs. Bind approval to the exact runtime, conversation and installed release, require clean exit before normal resume, and reject stale approvals or changed authority without replaying uncertain work. Installing runtime software continues to leave existing processes running.

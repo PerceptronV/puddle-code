@@ -1,14 +1,31 @@
 # The puddle communication protocol
 
+Protocol 25.17 adds the explicit `continue-offline` cockpit update action and optional
+`offline_continuation` capability. The action carries only an exact operation id/revision;
+it uses the selected local/SSH transport and existing cockpit browser authority/Origin
+checks. It never follows automatically from a failed live request. Compatible staged
+daemon metadata must advertise 25.17 or newer before invoking the pinned participating
+recovery entry. Earlier staged builds retain CLI recovery but are not offered this action.
+
+The existing private host-update request/reply envelope travels over a dedicated helper
+channel whose input stays open through validation. EOF, browser/request cancellation,
+helper interruption or cockpit reconnection revokes uncommitted dispatch. The worker
+checks participation immediately before durable acceptance; accepted independent work
+continues even when the viewing request ends. Exact repeated accepted requests observe
+their recorded result. No daemon lease is minted or renewed, no browser/host credential
+flow changes, and no relay grant or operation is added. The capability is an offer,
+not fresh admission or service-health proof. Application 25.17 is additive; remote 4
+and runtime 1.0 remain unchanged.
+
 Protocol 25.16 adds optional `observation: live | recorded` to local/SSH cockpit
 host-update status. When the daemon connection is unavailable, the selected
 transport's existing OS/SSH helper reads the bounded operation ledger, including
 the requested historical operation. Public projection still excludes private
 stage/worker evidence. Browser authority is required before and after the read;
 cancelled requests and connection changes discard the response. Recorded state
-does not prove service health, adoption or current completion. Mutation capabilities
+does not prove service health, adoption or current completion. Live mutation capabilities
 are false while disconnected. No mutation falls back to this reader, and no new
-permission is granted. Explicit offline cockpit continuation remains unfinished.
+permission is granted. Explicit offline continuation is added separately in 25.17.
 This additive application change leaves remote 4 and runtime 1.0 unchanged.
 
 Protocol 25.15 adds local/SSH `GET /api/sessions/:id/runtime` and

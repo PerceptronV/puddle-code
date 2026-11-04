@@ -10,7 +10,13 @@ it('shows exact interruption impact before the explicit destructive action', () 
   status.result = reply;
   const render = () =>
     renderToStaticMarkup(
-      createElement(OperationReview, { status, reply, disabled: false, act: () => {} }),
+      createElement(OperationReview, {
+        status,
+        reply,
+        disabled: false,
+        offlineDisabled: false,
+        act: () => {},
+      }),
     );
   let html = render();
   expect(html).toContain('2 terminals, 1 notebook kernels');
@@ -31,7 +37,13 @@ it('offers explicit supported recovery without offering apply again', () => {
   status.result = reply;
   const render = () =>
     renderToStaticMarkup(
-      createElement(OperationReview, { status, reply, disabled: false, act: () => {} }),
+      createElement(OperationReview, {
+        status,
+        reply,
+        disabled: false,
+        offlineDisabled: false,
+        act: () => {},
+      }),
     );
   expect(render()).toContain('Continue recovery');
   expect(render()).toContain('Verify completion');
@@ -40,4 +52,34 @@ it('offers explicit supported recovery without offering apply again', () => {
   status.capabilities.verify_completion = false;
   expect(render()).not.toContain('Continue recovery');
   expect(render()).not.toContain('Verify completion');
+});
+
+it('keeps offline recovery separate from disabled live controls', () => {
+  const status = statusFixture();
+  const reply = reviewFixture();
+  reply.operation!.phase = 'recovery_required';
+  reply.operation!.dispatched = true;
+  status.result = reply;
+  status.availability = 'unavailable';
+  status.observation = 'recorded';
+  status.capabilities = {
+    interruption_approval: false,
+    verify_completion: false,
+    continue_recovery: false,
+    offline_continuation: true,
+  };
+  const render = (offlineDisabled: boolean) =>
+    renderToStaticMarkup(
+      createElement(OperationReview, {
+        status,
+        reply,
+        disabled: true,
+        offlineDisabled,
+        act: () => {},
+      }),
+    );
+  expect(render(false)).toContain('Continue recovery on host');
+  expect(render(false)).not.toContain('disabled=');
+  expect(render(false)).not.toContain('Verify completion');
+  expect(render(true)).toContain('disabled=');
 });

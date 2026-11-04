@@ -69,6 +69,20 @@ export function updateInProgress(status: CockpitHostUpdateStatus | undefined): b
   return !!operation && !hostUpdateTerminal(operation.phase);
 }
 
+export function offlineRecoveryRequest(
+  status: CockpitHostUpdateStatus,
+): Extract<CockpitHostUpdateRequest, { action: 'continue-offline' }> | null {
+  const operation = status.result?.operation;
+  return status.availability === 'unavailable' &&
+    status.observation === 'recorded' &&
+    status.capabilities.offline_continuation &&
+    status.result?.ok &&
+    operation?.dispatched &&
+    !hostUpdateTerminal(operation.phase)
+    ? { action: 'continue-offline', reference: { id: operation.id, revision: operation.revision } }
+    : null;
+}
+
 export const phaseLabel: Record<UpdateOperation['phase'], string> = {
   checking: 'Checking update',
   downloading: 'Downloading',

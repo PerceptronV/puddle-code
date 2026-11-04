@@ -10,10 +10,25 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+Disconnected cockpit continuation (25.17) uses the existing helper/dispatcher rather
+than retrying live recovery. Built local and simulated-SSH helper fixtures use private
+temporary homes, sanitised subprocess environments and a deterministic dispatcher
+that shares production input-lifetime handling. They cover cancellation during helper
+staging and pending dispatch, lost replies after acceptance, exact-request deduplication
+and rejection of older staged metadata. The real recovery coordinator separately
+verifies that input closure before acceptance records no job or supervisor mutation,
+while closure after acceptance finishes its fixed independent-service dispatch.
+The HTTP logout fixture revokes pending offline participation; protocol tests reject
+duplicate, malformed and oversized helper input. Reconnection and incompatible live
+authority cannot enter the offline path. These are composition tests with fake service
+outcomes, not packaged systemd/launchd or real-provider upgrade acceptance.
+The focused suites, Chromium flow, source/changed-test typechecks, lint/formatting
+and web/CLI/desktop builds passed on macOS with Node 22.21.1.
+
 Recorded cockpit inspection (25.16) now has isolated tests for reads without a daemon
 or SQLite database, exact historical operation selection, corrupt ledgers, cancellation,
 browser revocation and reconnection races. The HTTP fixture preserves browser access
-checks while disconnected and refuses offline mutations. A built helper test uses the
+checks while disconnected and refuses implicit live recovery. A built helper test uses the
 existing fake SSH executable with sanitised client/target homes, reads the actual ledger
 and verifies that no daemon connection or service start is attempted. These checks do
 not establish offline continuation or real SSH/service upgrade acceptance.
@@ -50,12 +65,13 @@ Playwright Chromium installed. This temporary loopback fixture mounts the real c
 and toasts with simulated host replies; it starts no daemon, agent or installed service.
 It verifies dismissal, a fresh window/release, closing Settings during preparation,
 exact interruption approval and lost apply replies without duplicate mutation. It also
-checks recorded offline progress/completion and returns to live status through the
+checks recorded offline progress/completion, explicit continuation with a lost reply,
+and returns to live status through the
 authenticated fixture WebSocket. Optional `PUDDLE_HOST_UPDATE_SCREENSHOT` saves the
 review and `PUDDLE_HOST_UPDATE_OFFLINE_SCREENSHOT` saves recorded status. This passed on
 macOS with Node 22.21.1; it proves browser behaviour, not supervisor/provider continuity.
-Explicit offline continuation, legacy cockpit transition and relay maintenance still
-require implementation and their own acceptance.
+Legacy cockpit transition and relay maintenance still require implementation and their
+own acceptance. Offline continuation still needs packaged platform acceptance.
 The focused UI/WS suites passed 18 tests; source and strict changed-test typechecks,
 lint, formatting and token/contrast checks passed. Web, CLI and desktop builds passed.
 

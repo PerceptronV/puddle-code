@@ -21,6 +21,7 @@ it('reads recorded cockpit status through the built SSH helper without connectin
   const channel = vi.spyOn(transport, 'openChannel');
   const exec = vi.spyOn(transport, 'exec');
   const authority = new HostConnection(transport);
+  authority.close();
   const control = new CockpitHostUpdates(transport, authority);
   const signal = new AbortController().signal;
   const status = await control.status(f.operation.id, () => true, signal);

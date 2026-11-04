@@ -11,15 +11,16 @@ import type { HostControlClient } from '@puddle/shared/node/host-control';
 import type { Transport } from '../../transport/transport.js';
 import { prepareHostUpdate } from '../../installation/host/updates.js';
 import { HostConnection } from '../../auth/connection-authority.js';
-import { inspectHostUpdate } from '../../auth/control-channel.js';
+import { inspectHostUpdate, continueHostUpdate } from '../../auth/control-channel.js';
 import { presentHostUpdate } from './presentation.js';
+import { offersOfflineContinuation } from './continuation.js';
 
 type Authority = Pick<
   HostControlClient,
   'state' | 'generation' | 'version' | 'hostUpdate' | 'onChange'
 >;
 
-/** Selected cockpit transport only; mutations use a cancellable participating child lease. */
+/** Selected transport and browser authority; live mutations also retain a child daemon lease. */
 export class CockpitHostUpdates {
   constructor(
     private readonly transport: Transport,
@@ -98,7 +99,15 @@ export class CockpitHostUpdates {
           ? { observation: 'recorded' }
           : {}),
       daemon_version: this.authority.version?.version ?? null,
-      capabilities,
+      capabilities: {
+        ...capabilities,
+        ...(availability === 'unavailable' &&
+        this.authority.state !== 'protocol_mismatch' &&
+        reply?.ok &&
+        offersOfflineContinuation(reply.operation)
+          ? { offline_continuation: true }
+          : {}),
+      },
       result: reply ? presentHostUpdate(reply) : null,
       ...(reply?.ok && reply.catalogue ? { catalogue: reply.catalogue } : {}),
     });
@@ -110,6 +119,8 @@ export class CockpitHostUpdates {
     signal: AbortSignal,
   ): Promise<CockpitHostUpdateReply> {
     const request = cockpitHostUpdateRequestSchema.parse(input);
+    if (request.action === 'continue-offline')
+      return this.continueOffline(request.reference, authorised, signal);
     if (!this.supports(7)) throw new Error('Host update controls require a newer daemon');
     if (request.action === 'apply' && request.interruption_approval && !this.supports(10))
       throw new Error('This host cannot approve daemon-owned interruption');
@@ -144,6 +155,36 @@ export class CockpitHostUpdates {
       if (!authorised()) throw new Error('Browser authorisation expired');
       return presentHostUpdate(reply);
     });
+  }
+
+  private async continueOffline(
+    reference: Extract<CockpitHostUpdateRequest, { action: 'continue-offline' }>['reference'],
+    authorised: () => boolean,
+    signal: AbortSignal,
+  ) {
+    const generation = this.authority.generation;
+    const lifetime = new AbortController();
+    const combined = AbortSignal.any([signal, lifetime.signal]);
+    const valid = () =>
+      !combined.aborted &&
+      authorised() &&
+      this.authority.generation === generation &&
+      ['upstream_unavailable', 'upstream_expired'].includes(this.authority.state);
+    if (!valid()) throw new Error('Offline recovery requires an unavailable daemon connection');
+    const unwatch = this.authority.onChange(() => {
+      if (!valid()) lifetime.abort();
+    });
+    try {
+      const reply = await continueHostUpdate(this.transport, reference, {
+        signal: combined,
+        authorised: valid,
+      });
+      if (!valid()) throw new Error('Host recovery authority changed');
+      return presentHostUpdate(reply);
+    } finally {
+      unwatch();
+      lifetime.abort();
+    }
   }
 
   private async withAuthority<T>(

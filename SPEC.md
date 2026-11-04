@@ -358,8 +358,22 @@ daemon connection is unavailable, reusing the trusted local/SSH helper's bounded
 ledger reader. The cockpit retains exact browser authority checks and discards
 responses after cancellation or a connection change. Settings distinguishes the
 last connected daemon version and timestamped recorded operation from current
-service health or adoption proof. Offline mutation capabilities remain disabled;
-explicit offline cockpit continuation and legacy transition remain unfinished.
+service health or adoption proof. Live mutation capabilities remain disabled while
+disconnected; explicit offline continuation is described below.
+
+Application 25.17 adds explicit **Continue recovery on host** for a recorded,
+dispatched unfinished operation with a supporting staged daemon. The cockpit sends
+only its exact id/revision through the selected trusted local/SSH helper; the existing
+browser authority and Origin boundary remains required. The helper uses the existing
+private request/reply envelope over an open input channel, and the pinned dispatcher
+checks that participation before recording recovery acceptance. Browser cancellation,
+helper interruption, channel closure or cockpit reconnection revokes pending dispatch.
+Accepted recovery retains its independent worker and never creates or renews a browser
+lease. Lost replies cause inspection only; identical accepted requests return recorded
+acceptance without another dispatch. A staged build before 25.17 cannot use this mode
+and still requires explicit CLI recovery. Recorded state remains distinct from live
+service health/adoption. Packaged platform acceptance and legacy transition are still
+required; no remote maintenance scope is added.
 Remote 4 and runtime 1.0 are unchanged.
 
 Application 25.14 adds optional `include_catalogue` to private update status and

@@ -3,8 +3,30 @@ import {
   availableHostUpdates,
   HostUpdateOffers,
   reviewedApply,
+  offlineRecoveryRequest,
 } from '../../src/features/host-updates/model';
 import { reviewFixture, statusFixture } from './fixtures';
+
+it('offers offline continuation only for an explicitly supported recorded unfinished operation', () => {
+  const status = statusFixture();
+  status.result = reviewFixture();
+  status.result.operation!.dispatched = true;
+  status.result.operation!.phase = 'recovery_required';
+  status.capabilities.offline_continuation = true;
+  expect(offlineRecoveryRequest(status)).toBeNull();
+  status.availability = 'unavailable';
+  expect(offlineRecoveryRequest(status)).toBeNull();
+  status.observation = 'recorded';
+  expect(offlineRecoveryRequest(status)).toEqual({
+    action: 'continue-offline',
+    reference: { id: status.result.operation!.id, revision: status.result.operation!.revision },
+  });
+  status.result.operation!.phase = 'complete';
+  expect(offlineRecoveryRequest(status)).toBeNull();
+  status.result.operation!.phase = 'applying';
+  status.capabilities.offline_continuation = false;
+  expect(offlineRecoveryRequest(status)).toBeNull();
+});
 
 describe('host update offers', () => {
   it('compares components independently without imposing cockpit release equality', () => {

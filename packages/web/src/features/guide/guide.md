@@ -108,7 +108,7 @@ For example:
 
 - In a local or SSH cockpit, open **Settings → Host → Updates** to inspect the daemon and runtime builds. Supporting hosts offer **Prepare daemon**, **Prepare runtime software** and **Prepare both** for a newer release. Preparation downloads and verifies the software; select **Review impact**, then explicitly apply it. If daemon-owned work must stop, the review lists the affected work and requires a separate interruption action. Existing persistent runtimes retain their processes and pinned builds. Each new window offers available updates again; dismissing an offer keeps the actions in Settings. Older hosts still need the CLI upgrade below before these controls are available.
 
-  If the daemon disconnects, the cockpit can show the host's recorded update status and its last change time. Recorded completion does not confirm current service health or runtime adoption. Refresh status to observe reconnection; the cockpit does not repeat an update after losing its response. Offline recovery actions currently use the CLI commands below.
+  If the daemon disconnects, the cockpit can show the host's recorded update status and its last change time. Recorded completion does not confirm current service health or runtime adoption. For an unfinished update with supporting staged software, **Continue recovery on host** checks the host and continues pending steps. Keep the window open until the host accepts the request; accepted recovery runs independently. Refresh status after a lost response—the cockpit never repeats the action automatically. Older staged software still needs the CLI recovery commands below.
 
 - In order to update the default runtime software on a connected host from the CLI, run:
 

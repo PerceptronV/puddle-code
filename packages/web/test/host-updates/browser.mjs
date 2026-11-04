@@ -168,6 +168,13 @@ try {
       status.result.operation.revision++;
       status.result.operation.dispatched = true;
       return route.abort('connectionreset');
+    } else if (input.action === 'continue-offline') {
+      assert.equal(status.availability, 'unavailable');
+      assert.equal(input.reference.revision, status.result.operation.revision);
+      status.result.operation.phase = 'verifying';
+      status.result.operation.revision++;
+      status.capabilities.offline_continuation = false;
+      return route.abort('connectionreset');
     } else throw new Error(`unexpected action ${input.action}`);
     return route.fulfill({ json: status.result });
   });
@@ -221,6 +228,23 @@ try {
   await expect(page.getByText('Recorded status: Applying update', { exact: true })).toBeVisible();
   await expect(page.getByText('Last connected version: 0.4.0', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Verify completion', exact: true })).toHaveCount(0);
+  status.result.operation.phase = 'recovery_required';
+  status.capabilities.offline_continuation = true;
+  await page.getByRole('button', { name: 'Refresh status', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Continue recovery on host', exact: true }),
+  ).toBeEnabled();
+  if (process.env.PUDDLE_HOST_UPDATE_OFFLINE_SCREENSHOT)
+    await page.screenshot({
+      path: process.env.PUDDLE_HOST_UPDATE_OFFLINE_SCREENSHOT,
+      fullPage: true,
+    });
+  await page.getByRole('button', { name: 'Continue recovery on host', exact: true }).click();
+  await expect(page.getByText('Recorded status: Verifying update', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Continue recovery on host', exact: true }),
+  ).toHaveCount(0);
+  assert.equal(writes.filter((input) => input.action === 'continue-offline').length, 1);
   status.result.operation.phase = 'complete';
   status.result.operation.revision++;
   await page.getByRole('button', { name: 'Refresh status', exact: true }).click();
@@ -229,12 +253,7 @@ try {
   await expect(
     page.getByText(/does not confirm current service health or runtime adoption/),
   ).toBeVisible();
-  if (process.env.PUDDLE_HOST_UPDATE_OFFLINE_SCREENSHOT)
-    await page.screenshot({
-      path: process.env.PUDDLE_HOST_UPDATE_OFFLINE_SCREENSHOT,
-      fullPage: true,
-    });
-  assert.equal(writes.length, 3);
+  assert.equal(writes.length, 4);
   status.availability = 'ready';
   status.observation = 'live';
   status.capabilities = {
@@ -259,7 +278,7 @@ try {
   ).toBeVisible();
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: explicit prepare/review/interruption approval, remount during preparation, lost apply reply and recorded offline status without replay, dismissed/repeated/new-release/new-window offers',
+    'PASS: explicit prepare/review/interruption approval, remount during preparation, recorded offline status and explicit continuation, lost apply/recovery replies without replay, dismissed/repeated/new-release/new-window offers',
   );
 } finally {
   await browser?.close();

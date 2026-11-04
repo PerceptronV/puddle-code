@@ -2,6 +2,7 @@ import { expect, it, vi } from 'vitest';
 import { cockpitHostUpdateStatusSchema } from '@puddle/shared';
 import { startUiServer } from '../../src/lib/serve/ui-server.js';
 import { cockpitUpdatesFixture } from '../helpers/cockpit-updates.js';
+import * as controlChannel from '../../src/lib/auth/control-channel.js';
 
 async function gateway(kind: 'local' | 'ssh' = 'local') {
   const f = await cockpitUpdatesFixture(kind);
@@ -65,6 +66,45 @@ it('retains browser protection while showing recorded status through a disconnec
   ).toBe(503);
   expect(f.commands).toEqual([]);
   expect(f.dispatch).not.toHaveBeenCalled();
+});
+
+it('cancels offline helper participation when the browser logs out', async () => {
+  const f = await gateway();
+  f.authority.close();
+  let entered!: () => void;
+  const started = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const helper = vi
+    .spyOn(controlChannel, 'continueHostUpdate')
+    .mockImplementationOnce(async (_transport, _reference, participation) => {
+      expect(participation!.authorised()).toBe(true);
+      entered();
+      await new Promise<void>((resolve) =>
+        participation!.signal.addEventListener('abort', () => resolve(), { once: true }),
+      );
+      expect(participation!.authorised()).toBe(false);
+      return { ok: false, code: 'rejected', operation: null };
+    });
+  const request = {
+    action: 'continue-offline',
+    reference: { id: f.operation.id, revision: f.operation.revision },
+  };
+  expect((await f.http('POST', request, { origin: 'https://foreign.example.test' })).status).toBe(
+    403,
+  );
+  expect(helper).not.toHaveBeenCalled();
+  const pending = f.http('POST', request).catch(() => null);
+  await started;
+  const logout = await fetch(f.ui.origin + '/cockpit/logout', {
+    method: 'POST',
+    headers: { origin: f.ui.origin, authorization: `Bearer ${f.credential}` },
+  });
+  expect(logout.status).toBe(200);
+  await pending;
+  expect(helper).toHaveBeenCalledOnce();
+  expect(f.dispatch).not.toHaveBeenCalled();
+  expect((await f.http('GET')).status).toBe(401);
 });
 
 it.each(['local', 'ssh'] as const)(

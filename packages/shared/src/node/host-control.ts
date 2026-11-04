@@ -6,6 +6,8 @@ export {
 } from './releases/github.js';
 export { releaseRepository } from './releases/source.js';
 export { updateWorkerExecutables } from './installation/workers.js';
+export { watchUpdateParticipation } from './installation/participation.js';
+export { HostUpdateRequests } from './host-updates.js';
 import type { Duplex } from 'node:stream';
 import {
   CONNECTION_POLICY,

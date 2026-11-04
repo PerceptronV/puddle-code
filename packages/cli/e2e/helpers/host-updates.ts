@@ -37,7 +37,7 @@ export function offlineUpdateFixture(protocol?: { major: number; minor: number }
     SHELL: '/bin/sh',
     LANG: 'en_US.UTF-8',
   };
-  const run = (entry: string, args: string[], input = '', local = false) =>
+  const run = (entry: string, args: string[], input = '', local = false, participating = false) =>
     new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve, reject) => {
       const child = spawn(process.execPath, [join(root, 'packages/cli/dist', entry), ...args], {
         cwd: temporary,
@@ -49,6 +49,7 @@ export function offlineUpdateFixture(protocol?: { major: number; minor: number }
       const timer = setTimeout(() => child.kill('SIGKILL'), 15_000);
       child.stdout.on('data', (data) => {
         stdout += String(data);
+        if (participating) child.stdin.end();
       });
       child.stderr.on('data', (data) => {
         stderr += String(data);
@@ -62,7 +63,8 @@ export function offlineUpdateFixture(protocol?: { major: number; minor: number }
         resolve({ code, stdout, stderr });
       });
       child.stdin.on('error', () => {});
-      child.stdin.end(input);
+      if (participating) child.stdin.write(input);
+      else child.stdin.end(input);
     });
   cleanups.push(() => rmSync(dirname(ipcPath(home, 'host')), { recursive: true, force: true }));
   return {

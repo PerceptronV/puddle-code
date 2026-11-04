@@ -241,8 +241,13 @@ their explicit integration. Never restart existing runtimes as part of installat
 Application 25.16 adds optional live/recorded observation provenance to cockpit update
 status. Disconnected reads reuse the trusted local/SSH helper, retain browser authority
 checks and discard replies after cancellation or connection changes. Never present a
-recorded operation as fresh service/adoption proof or enable offline mutation from its
-capabilities. Explicit offline cockpit continuation remains unfinished.
+recorded operation as fresh service/adoption proof.
+Application 25.17 adds explicit `continue-offline` through the selected OS/SSH helper
+under the existing cockpit browser authority/Origin boundary. Keep it separate from
+live recovery; never fall back after a lost mutation. Require supporting staged metadata
+and the pinned participating dispatcher. Input/channel closure and signals revoke pending
+acceptance, while accepted independent jobs continue. Reuse the existing private envelope
+and correlated requests; do not issue or renew a daemon lease or expose this to the relay.
 Read-only `puddle updates` falls back to the existing local/SSH bootstrap helper
 when authority cannot connect. Share bounded ledger validation through
 `shared/src/node/installation/updates.ts`; label recorded evidence and never use
