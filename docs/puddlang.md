@@ -207,6 +207,13 @@ while the requesting programme remains interrupted. Explicit cancellation still
 targets its exact pending turn. This backend is opt-in; installed defaults and
 the upgrade experience retain their existing behaviour.
 
+Private turn retention is bounded per runtime. Recent outcomes already read by
+their authorised programme caller yield space to newer turns. Unread outcomes,
+including turns completed after daemon replacement, remain protected. If unread
+results fill the store, new asks fail before sending a prompt. Reading an outcome
+does not guarantee delivery to the programme runner, and neither a lost response
+nor result reclamation restarts the programme.
+
 Programme-created independent runtimes have durable ownership records before
 dispatch. Cancellation fences pending spawns and stops those exact owners; it
 cannot stop a replacement that you later resume in the same placement. Programme

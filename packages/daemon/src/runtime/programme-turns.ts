@@ -123,7 +123,7 @@ export class RuntimeProgrammeTurns {
       for (;;) {
         signal.throwIfAborted();
         this.operations.check(scope, target.id);
-        const result = this.reconciler.observations.turn(target.id, turn);
+        const result = this.operations.consume(scope, target.id, turn);
         if (result && result.status !== 'running') {
           if (result.status === 'completed') return result.reply!;
           throw new Error(result.error ?? `Agent turn ${result.status}`);

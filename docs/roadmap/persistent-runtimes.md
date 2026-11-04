@@ -181,8 +181,8 @@ Implementation evidence so far:
   both modes preserve accepted turns through replacement, recover their results
   while leaving programmes interrupted, and verify exact explicit cancellation.
   Tests also discard an accepted response and prove one provider invocation.
-  Private result reclamation remains a programme failure-handling gate before
-  default rollout.
+  Consumed-result reclamation is described below; unread-result disposition
+  remains a programme failure-handling gate before default rollout.
 - Migration 036 records programme spawn ownership atomically with placement
   creation, then binds its exact runtime with launch intent. Durable cancellation
   fences future dispatch, including cancellation before the placement exists.
@@ -192,6 +192,16 @@ Implementation evidence so far:
   programme events, and boot never replays them. An isolated daemon test holds a
   supervisor dispatch, cancels the programme, verifies clean owner exit without
   an ask, then proves an old cancellation cannot stop a resumed replacement.
+- Migration 037 retains up to 128 private results/16 MiB per owner, reclaiming
+  oldest consumed outcomes only when capacity is needed. Exact authorised
+  programme reads mark outcomes consumed; this does not claim runner delivery.
+  Running and unread outcomes stay protected, including when their programme is
+  interrupted. Admission reserves worst-case encoded reply space before dispatch;
+  failed intent/observation writes roll back reclamation. A durable turn watermark
+  prevents identity reuse after pruning. Tests cover 300 sequential turns,
+  unread-result protection, byte pressure, storage failures and migration.
+  Explicit unread-result disposition and host-wide storage accounting remain
+  rollout gates; no automatic expiry or programme replay has been introduced.
 
 These are foundations for phases 0–3, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native

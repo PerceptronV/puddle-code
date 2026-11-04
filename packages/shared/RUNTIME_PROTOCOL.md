@@ -312,8 +312,19 @@ the exact owner with launch intent. Durable cancellation fences undispatched
 spawns; boot never auto-resumes an unstarted programme spawn. Cleanup targets the
 recorded runtime even if its former placement has a replacement, and programme
 events report unconfirmed stops. Explicit cancellation can retry those stops after
-runner loss; daemon boot does not replay them. Private result reclamation remains
-a rollout gate. These application-side mappings change neither public wire contract.
+runner loss; daemon boot does not replay them. These application-side mappings
+change neither public wire contract.
+
+Migration 037 bounds application-side results to 128 records/16 MiB per owner.
+Exact authorised programme reads mark terminal outcomes consumed; this is not a
+runner-delivery acknowledgement. Capacity pressure reclaims the oldest consumed
+outcomes, retaining unread and running results. Admission reserves worst-case JSON
+reply bytes before sending a prompt; a full unread store refuses dispatch.
+Reclamation shares the intent/observation transaction, so failed commits retain
+old results. A separate monotonic watermark prevents identity reuse after pruning;
+existing results migrate as unread. There is no expiry or automatic disposal of
+unread outcomes, even after their programme ends. Their explicit disposition and
+host-wide accounting remain rollout gates. No runtime wire fields change.
 
 ## Private records and ownership
 

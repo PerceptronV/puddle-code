@@ -1,6 +1,7 @@
 import type { RuntimePlacement } from '@puddle/shared';
 import type { Db } from '../db/db.js';
 import { ApiError } from '../http/errors.js';
+import { RuntimeObservationStore } from '../db/stores/runtime-observations.js';
 
 export interface ProgrammeOperation {
   runId: string;
@@ -22,6 +23,26 @@ export class ProgrammeTurnStore {
       )
       .get(runtimeId, scope.runId, scope.profileId);
     if (!row) throw new ApiError(403, 'profile_scope', 'This programme cannot control the runtime');
+  }
+
+  /** Marks a committed outcome read by this caller, not delivered to its runner. */
+  consume(scope: ProgrammeOperation, runtimeId: string, turn: number) {
+    return this.db.transaction(() => {
+      this.check(scope, runtimeId);
+      const mapping = this.db
+        .prepare(
+          `SELECT 1 FROM puddlang_runtime_turns
+        WHERE run_id = ? AND operation_id = ? AND runtime_id = ? AND turn = ?`,
+        )
+        .get(scope.runId, scope.operationId, runtimeId, turn);
+      if (!mapping) throw new Error('Programme turn binding does not match');
+      const result = new RuntimeObservationStore(this.db).turn(runtimeId, turn);
+      if (!result || result.status === 'running') return result;
+      this.db
+        .prepare('UPDATE runtime_turns SET consumed = 1 WHERE runtime_id = ? AND turn = ?')
+        .run(runtimeId, turn);
+      return result;
+    })();
   }
 
   reserve(
@@ -59,10 +80,11 @@ export class ProgrammeTurnStore {
         )
         .get(runtimeId, placement.session_id, placement.segment_id);
       if (!owner) throw new Error('Runtime placement changed before turn admission');
+      new RuntimeObservationStore(this.db).reserveTurnCapacity(runtimeId);
       const latest = this.db
         .prepare(
           `SELECT MAX(turn) AS turn FROM (
-        SELECT turn FROM runtime_turns WHERE runtime_id = ? UNION ALL
+        SELECT turn FROM runtime_turn_watermarks WHERE runtime_id = ? UNION ALL
         SELECT turn FROM puddlang_runtime_turns WHERE runtime_id = ?)`,
         )
         .get(runtimeId, runtimeId) as { turn: number | null };

@@ -344,6 +344,20 @@ passed 343 tests in 55 files, with one native supervisor test skipped. Typecheck
 scoped lint and formatting passed. Native platform/provider verification and
 installed/default rollout remain outstanding.
 
+`runtime/turn-retention.test.ts` exercises 300 sequential turns through durable
+programme admission and consumption. It verifies unread/running protection,
+worst-case escaped reply bytes, rollback after failed intent/observation writes,
+conservative migration and monotonic identities even when the newest consumed
+outcome is reclaimed. All six store tests pass. The actual-owner programme tests
+verify that a recovered lost acknowledgement marks only its exact outcome
+consumed, and that full unread retention refuses a new prompt before dispatch.
+Consumption records an authorised daemon caller's read, not runner delivery.
+Unread-result disposition, host-wide storage accounting and native acceptance
+remain open; recent consumed-result reclamation alone does not close those gates.
+The runtime/programme/database/session regression run passed 318 tests in 54 files,
+with one native supervisor test skipped. The final six-test retention run,
+typecheck, scoped lint and formatting passed.
+
 ## Remaining release gates
 
 Record platform, Node, release and provider versions with results. Run native

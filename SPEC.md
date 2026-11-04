@@ -213,8 +213,7 @@ A journal gap or failed database commit preserves unresolved ownership. Confirme
 configured auto-resume policy; natural
 exits do not resume. Agent owner loss remains explicitly resumable until supervisor
 cleanup can prove provider sidecars and descendants have ended.
-Supervisor-registration collection, orphan-sidecar recovery and programme result
-consumption remain outstanding.
+Supervisor-registration collection and orphan-sidecar recovery remain outstanding.
 Migration 032 records terminal generations per segment and explicitly selects each
 placement's terminal owner. Runtime launches/switches update that selection in the
 same transaction; a later legacy spawn records its own ownership instead of
@@ -282,7 +281,16 @@ transfer programme ownership to the replacement. Cancellation and failed-spawn
 cleanup target the recorded owner, including after a lost launch response;
 `runtime_cleanup` programme events list unconfirmed runtime ids. Explicit repeated
 cancellation retries those recorded stops; boot never replays uncertain stops.
-Result retention reclamation remains required before default rollout.
+Migration 037 marks private outcomes consumed only when their exact authorised
+programme caller reads them, retaining recent results until capacity is needed.
+Admission and reconciliation reclaim the oldest consumed terminal outcomes within
+128 records/16 MiB per owner; running and unread outcomes remain protected.
+Admission reserves worst-case encoded reply space before provider dispatch. Failed
+intent or observation commits roll back reclamation. A separate durable turn
+watermark prevents reuse after result or programme-history removal. Consumption
+does not assert delivery to the runner, resume a programme or expose its reply in
+public events. Full unread retention refuses new asks before dispatch; an explicit
+unread-result disposition policy and host-wide accounting remain rollout gates.
 Code-execution terminals use that same opt-in owner path, including their one-shot
 command followed by an interactive shell. Migration 034 stores each canonical
 managed run directory in `runtime_code_runs`, keyed by runtime id, atomically with

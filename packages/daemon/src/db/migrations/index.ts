@@ -34,6 +34,7 @@ import { migration033 } from './033-runtime-stop-requests.js';
 import { migration034 } from './034-runtime-code-runs.js';
 import { migration035 } from './035-puddlang-runtime-turns.js';
 import { migration036 } from './036-puddlang-runtime-spawns.js';
+import { migration037 } from './037-runtime-turn-retention.js';
 
 export interface Migration {
   version: number;
@@ -79,4 +80,5 @@ export const MIGRATIONS: Migration[] = [
   migration034,
   migration035,
   migration036,
+  migration037,
 ];

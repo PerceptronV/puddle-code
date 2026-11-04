@@ -69,10 +69,34 @@ it('records turn identity before dispatch, recovers a lost acknowledgement and r
       f.turns.ask(f.binding.runtime_id, f.scope, 'once only', new AbortController().signal),
     ).resolves.toBe('reply:1:once only');
     expect(dispatched).toBe(1);
+    expect(f.db.prepare('SELECT consumed FROM runtime_turns').get()).toEqual({ consumed: 1 });
     await expect(
       f.turns.ask(f.binding.runtime_id, f.scope, 'once only', new AbortController().signal),
     ).rejects.toMatchObject({ code: 'operation_already_dispatched' });
     expect(readRuntimeJson(join(f.home, `${f.session.id}.turns.json`))).toMatchObject({ count: 1 });
+  } finally {
+    await f.close();
+  }
+});
+
+it('rejects a full unread result store before dispatching another provider prompt', async () => {
+  const f = await fixture();
+  try {
+    const binding = f.runtimes.get(f.binding.runtime_id)!;
+    for (let turn = 1; turn <= 128; turn++) {
+      f.reconciler.observations.saveTurn(binding, { turn, expected_ref: null, status: 'running' });
+      f.reconciler.observations.saveTurn(binding, {
+        turn,
+        expected_ref: null,
+        status: 'completed',
+        reply: `unread-${turn}`,
+      });
+    }
+    await expect(
+      f.turns.ask(f.binding.runtime_id, f.scope, 'no capacity', new AbortController().signal),
+    ).rejects.toThrow('retention is full');
+    expect(f.db.prepare('SELECT * FROM puddlang_runtime_turns').all()).toEqual([]);
+    expect(existsSync(join(f.home, `${f.session.id}.turns.json`))).toBe(false);
   } finally {
     await f.close();
   }

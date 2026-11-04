@@ -13,8 +13,11 @@ export interface RuntimeObservationState {
   terminals: RuntimeTerminal[];
 }
 
-/** Reconciliation pauses at these limits; acknowledged results are never silently evicted. */
+/** Only outcomes explicitly consumed by a programme may yield space to newer turns. */
 export const RUNTIME_RESULT_LIMITS = { turns: 128, bytes: 16 * 1024 * 1024 } as const;
+// Worst-case JSON escaping, matching the owner's journal reservation. Keep room
+// for the final outcome before admitting its much smaller running observation.
+const RESULT_RESERVATION_BYTES = 6 * RUNTIME_LIMITS.turnReplyBytes + 32 * 1024;
 
 export class RuntimeObservationStore {
   constructor(private readonly db: Db) {}
@@ -81,6 +84,15 @@ export class RuntimeObservationStore {
   }
 
   saveTurn(binding: RuntimeBinding, value: RuntimeTurnResult): void {
+    this.db.transaction(() => this.writeTurn(binding, value))();
+  }
+
+  /** Called inside programme admission's transaction, before provider dispatch. */
+  reserveTurnCapacity(id: string): void {
+    this.db.transaction(() => this.makeRoom(id, -1, RESULT_RESERVATION_BYTES))();
+  }
+
+  private writeTurn(binding: RuntimeBinding, value: RuntimeTurnResult): void {
     const result = runtimeTurnResultSchema.parse(value);
     const previous = this.turn(binding.runtime_id, result.turn);
     if (previous) {
@@ -92,9 +104,9 @@ export class RuntimeObservationStore {
         throw new Error('Runtime turn outcome is immutable');
     } else {
       const latest = this.db
-        .prepare('SELECT MAX(turn) AS turn FROM runtime_turns WHERE runtime_id = ?')
-        .get(binding.runtime_id) as { turn: number | null };
-      if (result.status !== 'running' || result.turn <= (latest.turn ?? 0))
+        .prepare('SELECT turn FROM runtime_turn_watermarks WHERE runtime_id = ?')
+        .get(binding.runtime_id) as { turn: number } | undefined;
+      if (result.status !== 'running' || result.turn <= (latest?.turn ?? 0))
         throw new Error('Runtime turn has no ordered admission');
       const running = this.db
         .prepare(
@@ -105,16 +117,11 @@ export class RuntimeObservationStore {
     }
     const json = JSON.stringify(result);
     const bytes = Buffer.byteLength(json);
-    const usage = this.db
-      .prepare(
-        'SELECT COUNT(*) AS count, COALESCE(SUM(bytes), 0) AS bytes FROM runtime_turns WHERE runtime_id = ? AND turn != ?',
-      )
-      .get(binding.runtime_id, result.turn) as { count: number; bytes: number };
-    if (
-      usage.count >= RUNTIME_RESULT_LIMITS.turns ||
-      usage.bytes + bytes > RUNTIME_RESULT_LIMITS.bytes
-    )
-      throw new Error('Private runtime result retention is full');
+    this.makeRoom(
+      binding.runtime_id,
+      result.turn,
+      result.status === 'running' ? RESULT_RESERVATION_BYTES : bytes,
+    );
     this.db
       .prepare(
         `INSERT INTO runtime_turns (runtime_id, turn, session_id, segment_id, result, bytes) VALUES (?, ?, ?, ?, ?, ?)
@@ -128,5 +135,33 @@ export class RuntimeObservationStore {
         json,
         bytes,
       );
+    this.db
+      .prepare(
+        `INSERT INTO runtime_turn_watermarks (runtime_id, turn) VALUES (?, ?)
+      ON CONFLICT(runtime_id) DO UPDATE SET turn = MAX(turn, excluded.turn)`,
+      )
+      .run(binding.runtime_id, result.turn);
+  }
+
+  private makeRoom(id: string, turn: number, bytes: number): void {
+    const rows = this.db
+      .prepare(
+        `SELECT turn, bytes, consumed, json_extract(result, '$.status') AS status
+      FROM runtime_turns WHERE runtime_id = ? AND turn != ? ORDER BY turn`,
+      )
+      .all(id, turn) as Array<{ turn: number; bytes: number; consumed: number; status: string }>;
+    let count = rows.length;
+    let retainedBytes = rows.reduce((total, row) => total + row.bytes, 0);
+    const fits = () =>
+      count < RUNTIME_RESULT_LIMITS.turns && retainedBytes + bytes <= RUNTIME_RESULT_LIMITS.bytes;
+    const remove = this.db.prepare('DELETE FROM runtime_turns WHERE runtime_id = ? AND turn = ?');
+    for (const row of rows) {
+      if (fits()) return;
+      if (!row.consumed || row.status === 'running') continue;
+      remove.run(id, row.turn);
+      count--;
+      retainedBytes -= row.bytes;
+    }
+    if (!fits()) throw new Error('Private runtime result retention is full');
   }
 }
