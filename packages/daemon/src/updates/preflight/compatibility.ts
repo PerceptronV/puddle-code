@@ -23,7 +23,10 @@ type Blocker = {
     | 'runtime_incompatible'
     | 'runtime_unavailable'
     | 'runtime_identity_changed'
-    | 'runtime_inventory_unknown';
+    | 'runtime_inventory_unknown'
+    | 'database_schema_unknown'
+    | 'candidate_schema_unknown'
+    | 'database_schema_incompatible';
   target: string;
 };
 export interface UpdateCompatibility {
@@ -31,6 +34,7 @@ export interface UpdateCompatibility {
   candidates: Array<{ digest: string; capabilities: HostReleaseCapabilities }>;
   owners: Array<{ id: string; session: string; build: string; protocol: Protocol }>;
   inventory: string | null;
+  database_schema_version?: number;
 }
 
 const inventory = (rows: RuntimeBinding[]) =>
@@ -59,6 +63,7 @@ export class HostUpdateCompatibility {
     private readonly deps: {
       home: string;
       current: HostReleaseCapabilities;
+      databaseSchemaVersion(): number;
       runtimes: Pick<RuntimeStore, 'live' | 'get'>;
       connections: Pick<RuntimeConnections, 'get'>;
     },
@@ -102,6 +107,18 @@ export class HostUpdateCompatibility {
       result.blockers.push({ code: 'runtime_default_incompatible', target: 'runtime' });
     // Changing the default runtime does not adopt or interrupt existing owners.
     if (!replacesDaemon) return result;
+    try {
+      const schema = this.deps.databaseSchemaVersion();
+      if (!Number.isInteger(schema) || schema < 0 || schema > 2 ** 31 - 1)
+        throw new Error('Unknown database schema');
+      result.database_schema_version = schema;
+      if (daemon.database_schema_version === undefined)
+        result.blockers.push({ code: 'candidate_schema_unknown', target: 'daemon' });
+      else if (daemon.database_schema_version < schema)
+        result.blockers.push({ code: 'database_schema_incompatible', target: 'daemon' });
+    } catch {
+      result.blockers.push({ code: 'database_schema_unknown', target: 'daemon' });
+    }
     const bindings = this.deps.runtimes.live(4097);
     if (bindings.length > 4096) {
       result.blockers.push({ code: 'runtime_inventory_unknown', target: 'inventory' });
@@ -158,6 +175,16 @@ export class HostUpdateCompatibility {
     result.owners.sort((a, b) => a.id.localeCompare(b.id));
     result.blockers.sort((a, b) => `${a.code}:${a.target}`.localeCompare(`${b.code}:${b.target}`));
     return result;
+  }
+
+  /** Recheck without yielding after other asynchronous preflight probes have finished. */
+  databaseMatches(observed: UpdateCompatibility): boolean {
+    if (observed.database_schema_version === undefined) return true;
+    try {
+      return this.deps.databaseSchemaVersion() === observed.database_schema_version;
+    } catch {
+      return false;
+    }
   }
 
   /** Recheck without yielding after other asynchronous preflight probes have finished. */

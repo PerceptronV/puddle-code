@@ -41,8 +41,15 @@ export async function executeHostUpdate(
   let handoff: Awaited<ReturnType<typeof stopDaemonForUpdate>> | undefined;
   try {
     if (daemon) {
+      if (candidate!.database_schema_version === undefined)
+        throw new Error('Candidate database support is unknown');
       await stopConnectorForUpdate(home, job, execute);
       handoff = await stopDaemonForUpdate(home, job, execute);
+      if (
+        candidate!.database_schema_version === undefined ||
+        candidate!.database_schema_version < handoff.checkpoint.daemon.schema_version
+      )
+        throw new Error('Candidate cannot open the checkpointed application database');
       if (
         handoff.checkpoint.owners.some(
           (owner) => !candidate!.supported_runtime_majors.includes(owner.protocol.major),

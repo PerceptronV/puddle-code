@@ -86,3 +86,6 @@ export const MIGRATIONS: Migration[] = [
   migration038,
   migration039,
 ];
+
+/** Highest application database migration understood by this daemon build. */
+export const DATABASE_SCHEMA_VERSION = MIGRATIONS.at(-1)!.version;

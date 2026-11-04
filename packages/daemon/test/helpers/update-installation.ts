@@ -7,6 +7,7 @@ import { digest } from '@puddle/shared/node';
 import { hostInstallationFixture } from '../../../cli/test/helpers/host-installation.js';
 import { stageHostComponent } from '../../../cli/src/lib/installation/host/staging.js';
 import { HostUpdateOperations } from '../../src/updates/operations/store.js';
+import { DATABASE_SCHEMA_VERSION } from '../../src/db/migrations/index.js';
 
 export async function updateInstallation(components: Array<'daemon' | 'runtime'> = ['runtime']) {
   const f = hostInstallationFixture();
@@ -15,7 +16,7 @@ export async function updateInstallation(components: Array<'daemon' | 'runtime'>
   copyFileSync(process.execPath, join(f.staged, 'bin/node'));
   mkdirSync(join(f.staged, 'daemon'));
   writeFileSync(join(f.staged, 'daemon/puddler.mjs'), '// fake provider-free runtime entry\n');
-  const capabilities = hostReleaseCapabilities('1.2.3');
+  const capabilities = hostReleaseCapabilities('1.2.3', DATABASE_SCHEMA_VERSION);
   writeFileSync(join(f.staged, 'HOST_CAPABILITIES.json'), JSON.stringify(capabilities));
   writeFileSync(
     join(f.staged, 'PROTOCOL'),

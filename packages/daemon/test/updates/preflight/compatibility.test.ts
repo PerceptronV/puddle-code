@@ -9,10 +9,11 @@ import type { RuntimeClient } from '../../../src/runtime/transport/client.js';
 import { acquireHostClaim } from '../../../src/security/claims.js';
 import { HostUpdateCompatibility } from '../../../src/updates/preflight/compatibility.js';
 import { candidateFixture } from './helpers.js';
+import { DATABASE_SCHEMA_VERSION } from '../../../src/db/migrations/index.js';
 
 function fixture(
   component: 'daemon' | 'runtime' = 'daemon',
-  candidate = hostReleaseCapabilities('0.4.0'),
+  candidate = hostReleaseCapabilities('0.4.0', DATABASE_SCHEMA_VERSION),
 ) {
   const f = candidateFixture(component, candidate);
   const binding: RuntimeBinding = {
@@ -51,9 +52,11 @@ function fixture(
   const bindings = new Map([[binding.runtime_id, binding]]);
   const clients = new Map([[binding.runtime_id, client]]);
   const current = hostReleaseCapabilities('0.3.14');
+  const databaseSchemaVersion = vi.fn(() => DATABASE_SCHEMA_VERSION);
   const inspector = new HostUpdateCompatibility({
     home: f.home,
     current,
+    databaseSchemaVersion,
     runtimes: {
       live: () => [...bindings.values()].filter((b) => b.state === 'running'),
       get: (id) => bindings.get(id) ?? null,
@@ -62,7 +65,18 @@ function fixture(
   });
   const inspect = (connector: number | null = null) =>
     inspector.inspect(f.operation, current.application, current.runtime, connector);
-  return { ...f, binding, bindings, clients, request, state, inspect, current, inspector };
+  return {
+    ...f,
+    binding,
+    bindings,
+    clients,
+    request,
+    state,
+    inspect,
+    current,
+    inspector,
+    databaseSchemaVersion,
+  };
 }
 
 it('accepts different release versions and additive runtime minors, using supported majors alone', async () => {
@@ -70,6 +84,44 @@ it('accepts different release versions and additive runtime minors, using suppor
   expect((await f.inspect()).blockers).toEqual([]);
   expect(f.request).toHaveBeenCalledExactlyOnceWith({ t: 'inspect' });
   expect(f.store.read()?.phase).toBe('staged'); // Inspection cannot approve or dispatch.
+});
+
+it.each(['missing', 'older'] as const)(
+  'blocks %s candidate database support without changing live owners',
+  async (support) => {
+    const candidate = hostReleaseCapabilities(
+      '0.4.0',
+      support === 'older' ? DATABASE_SCHEMA_VERSION - 1 : undefined,
+    );
+    const f = fixture('daemon', candidate);
+    const result = await f.inspect();
+    expect(result.blockers).toContainEqual({
+      code: support === 'missing' ? 'candidate_schema_unknown' : 'database_schema_incompatible',
+      target: 'daemon',
+    });
+    expect(result.database_schema_version).toBe(DATABASE_SCHEMA_VERSION);
+    expect(f.binding.state).toBe('running');
+    expect(f.store.read()?.phase).toBe('staged');
+  },
+);
+
+it('permits forward migrations but never infers database support from a newer release label', async () => {
+  const forward = fixture('daemon', hostReleaseCapabilities('0.4.0', DATABASE_SCHEMA_VERSION + 1));
+  expect((await forward.inspect()).blockers).toEqual([]);
+  const unknown = fixture();
+  unknown.databaseSchemaVersion.mockImplementation(() => {
+    throw new Error('Storage unreadable');
+  });
+  expect((await unknown.inspect()).blockers).toContainEqual({
+    code: 'database_schema_unknown',
+    target: 'daemon',
+  });
+  const runtime = fixture('runtime', hostReleaseCapabilities('0.4.0'));
+  runtime.databaseSchemaVersion.mockImplementation(() => {
+    throw new Error('Must not inspect database for runtime selection');
+  });
+  expect((await runtime.inspect()).blockers).toEqual([]);
+  expect(runtime.databaseSchemaVersion).not.toHaveBeenCalled();
 });
 
 it('blocks an incompatible live runtime without contacting or retiring it', async () => {

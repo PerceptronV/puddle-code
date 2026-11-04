@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PROTOCOL_VERSION, hostReleaseCapabilities } from '@puddle/shared';
 import { startDaemon } from './daemon.js';
+import { DATABASE_SCHEMA_VERSION } from './db/migrations/index.js';
 
 // Inlined by esbuild in release tarballs (scripts/build-tarball.mjs); dev tsc
 // builds fall back to reading the adjacent package.json.
@@ -23,7 +24,7 @@ const version = appVersion();
 // Passive candidate inspection must precede all daemon setup.
 if (process.argv.includes('--host-capabilities')) {
   if (process.argv.length !== 3) throw new Error('--host-capabilities takes no other arguments');
-  console.log(JSON.stringify(hostReleaseCapabilities(version)));
+  console.log(JSON.stringify(hostReleaseCapabilities(version, DATABASE_SCHEMA_VERSION)));
   process.exit(0);
 }
 

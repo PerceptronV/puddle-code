@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -57,6 +57,7 @@ function seedSession(s: ReturnType<typeof stores>) {
     worktree_path: '/tmp/wt',
     base_branch: 'main',
     branch: 'alice/demo',
+    separate_branch: true,
     kind: 'agent',
     agent_type: 'claude-code',
     title: 'demo',
@@ -66,6 +67,28 @@ function seedSession(s: ReturnType<typeof stores>) {
 }
 
 describe('openDatabase', () => {
+  it('refuses a newer database before changing its journal mode or application data', () => {
+    const file = freshDbFile();
+    const future = new Database(file);
+    future.exec(
+      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('preserve');",
+    );
+    const version = MIGRATIONS.at(-1)!.version + 1;
+    future.pragma(`user_version = ${version}`);
+    future.close();
+    const before = readFileSync(file);
+    expect(() => openDatabase(file)).toThrow(`Database schema ${version} is not supported`);
+    expect(readFileSync(file)).toEqual(before);
+    const inspected = new Database(file, { readonly: true, fileMustExist: true });
+    try {
+      expect(inspected.pragma('journal_mode', { simple: true })).toBe('delete');
+      expect(inspected.pragma('user_version', { simple: true })).toBe(version);
+      expect(inspected.prepare('SELECT * FROM future_data').all()).toEqual([{ value: 'preserve' }]);
+    } finally {
+      inspected.close();
+    }
+  });
+
   it('migrates existing projects without choosing a colour and persists later choices', () => {
     const file = freshDbFile();
     const legacy = new Database(file);
@@ -291,7 +314,7 @@ describe('stores', () => {
   it('throws 404 for a missing row', () => {
     const s = stores();
     try {
-      s.profiles.get(42);
+      s.profiles.get('0000000042');
       expect.unreachable();
     } catch (e) {
       expect((e as ApiError).status).toBe(404);

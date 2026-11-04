@@ -20,11 +20,21 @@ export const hostReleaseCapabilitiesSchema = z
       .min(1)
       .max(16)
       .refine((values) => new Set(values).size === values.length),
+    /** Existing SQLite migration ceiling, not another protocol or rollback permission. */
+    database_schema_version: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(2 ** 31 - 1)
+      .optional(),
   })
   .strict();
 export type HostReleaseCapabilities = z.infer<typeof hostReleaseCapabilitiesSchema>;
 
-export function hostReleaseCapabilities(version: string): HostReleaseCapabilities {
+export function hostReleaseCapabilities(
+  version: string,
+  databaseSchemaVersion?: number,
+): HostReleaseCapabilities {
   return hostReleaseCapabilitiesSchema.parse({
     format: 1,
     version,
@@ -32,5 +42,8 @@ export function hostReleaseCapabilities(version: string): HostReleaseCapabilitie
     remote: REMOTE_PROTOCOL_VERSION,
     runtime: RUNTIME_PROTOCOL_VERSION,
     supported_runtime_majors: SUPPORTED_RUNTIME_MAJORS,
+    ...(databaseSchemaVersion !== undefined
+      ? { database_schema_version: databaseSchemaVersion }
+      : {}),
   });
 }

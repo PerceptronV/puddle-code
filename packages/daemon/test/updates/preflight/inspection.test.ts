@@ -12,6 +12,7 @@ import { HostUpdateSupervision } from '../../../src/updates/preflight/supervisio
 import { systemdObservation } from '../../helpers/host-supervision.js';
 import { StorageMonitor } from '../../../src/storage/monitor.js';
 import { candidateFixture } from './helpers.js';
+import { DATABASE_SCHEMA_VERSION } from '../../../src/db/migrations/index.js';
 
 function setup() {
   const f = candidateFixture();
@@ -31,11 +32,13 @@ function setup() {
     stderr: '',
   }));
   const connector = new HostUpdateConnector(f.home, f.home);
+  const databaseSchemaVersion = vi.fn(() => DATABASE_SCHEMA_VERSION);
   const inspection = new HostUpdateInspection({
     connector,
     compatibility: new HostUpdateCompatibility({
       home: f.home,
       current,
+      databaseSchemaVersion,
       runtimes: { live: () => [], get: () => null },
       connections: { get: () => null },
     }),
@@ -56,8 +59,33 @@ function setup() {
   });
   const inspect = (operation = f.operation) =>
     inspection.inspect(operation, current.application, current.runtime);
-  return { ...f, current, programmes, probe, storage, inspection, inspect, supervisor, connector };
+  return {
+    ...f,
+    current,
+    programmes,
+    probe,
+    storage,
+    inspection,
+    inspect,
+    supervisor,
+    connector,
+    databaseSchemaVersion,
+  };
 }
+
+it('rechecks database migration evidence after the final asynchronous connector probe', async () => {
+  const f = setup();
+  const inspect = f.connector.inspect.bind(f.connector);
+  let probes = 0;
+  vi.spyOn(f.connector, 'inspect').mockImplementation(async (operation) => {
+    const result = await inspect(operation);
+    if (++probes === 2) f.databaseSchemaVersion.mockReturnValue(DATABASE_SCHEMA_VERSION + 1);
+    return result;
+  });
+  const result = await f.inspect();
+  expect(result.fingerprint).toBeNull();
+  expect(result.blockers).toContainEqual({ code: 'database_schema_changed', target: 'daemon' });
+});
 
 it('binds stable inspection to its operation and stages without treating changing free bytes as new impact', async () => {
   const f = setup();

@@ -158,6 +158,16 @@ and retained state, with supported majors advertised by each candidate daemon.
 Host archives carry `HOST_CAPABILITIES.json`, generated through the built daemon's
 passive `--host-capabilities` command. Update preflight reads bounded metadata from
 the exact staged generation rather than invoking unknown candidate executables.
+That metadata also records `database_schema_version`, the build's highest existing
+SQLite migration number. It is application storage evidence, not another protocol
+or permission to roll back. Daemon update preflight rejects missing or insufficient
+candidate support, binds the observed host schema into approval, and rechecks it
+after asynchronous probes. The worker checks the shutdown checkpoint's schema
+again before selector changes. Runtime-default updates do not inspect daemon
+storage. On startup, the daemon refuses a newer/invalid SQLite `user_version`
+before changing journal mode or running application/migration writes, closing the
+handle on failure. Compatible older databases still migrate forwards normally;
+restoring old application data over continued runtime events is never a recovery step.
 The compatibility inspector reuses the daemon's runtime bindings and authenticated
 connections, checks supported majors and exact owner identity, and refuses unknown
 records or an inventory changed during inspection. Runtime-only default selection

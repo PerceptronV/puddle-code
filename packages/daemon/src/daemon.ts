@@ -62,6 +62,7 @@ import { HostUpdateInspection } from './updates/preflight/inspection.js';
 import { HostUpdateSupervision } from './updates/preflight/supervision.js';
 import { HostUpdateCoordinator } from './updates/coordinator.js';
 import { daemonUpdatePause } from './updates/maintenance/daemon.js';
+import { DATABASE_SCHEMA_VERSION } from './db/migrations/index.js';
 import { HostUpdateOperations } from './updates/operations/store.js';
 import { HostAdmission } from './host/lifecycle/admission.js';
 import { HostBackgroundTasks } from './host/lifecycle/background.js';
@@ -359,7 +360,8 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       connector: new HostUpdateConnector(paths.home),
       compatibility: new HostUpdateCompatibility({
         home: paths.home,
-        current: hostReleaseCapabilities(opts.version ?? '0.0.0'),
+        current: hostReleaseCapabilities(opts.version ?? '0.0.0', DATABASE_SCHEMA_VERSION),
+        databaseSchemaVersion: () => db.pragma('user_version', { simple: true }) as number,
         runtimes,
         connections: runtimeConnections,
       }),

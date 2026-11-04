@@ -9,6 +9,7 @@ import {
 } from '@puddle/shared';
 import { atomicPrivateJson, digest } from '@puddle/shared/node';
 import { HostUpdateOperations } from '../../../src/updates/operations/store.js';
+import { DATABASE_SCHEMA_VERSION } from '../../../src/db/migrations/index.js';
 
 const homes: string[] = [];
 afterEach(() => {
@@ -16,7 +17,7 @@ afterEach(() => {
 });
 export function candidateFixture(
   component: 'daemon' | 'runtime' = 'daemon',
-  capabilities: HostReleaseCapabilities = hostReleaseCapabilities('0.4.0'),
+  capabilities: HostReleaseCapabilities = hostReleaseCapabilities('0.4.0', DATABASE_SCHEMA_VERSION),
 ) {
   const home = mkdtempSync(join(tmpdir(), 'puddle-preflight-'));
   homes.push(home);

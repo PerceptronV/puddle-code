@@ -10,6 +10,16 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+Database tests reject a newer `user_version` while preserving bytes, journal mode
+and application rows. Compatibility tests reject absent/older candidate migration
+ceilings, admit forward migrations, preserve runtime-only independence and reject
+unreadable host schema. Combined inspection rechecks schema after the final
+asynchronous connector probe. The worker fixture raises the shutdown checkpoint's
+schema and verifies no selector/start mutation occurs, retaining recovery state.
+The built daemon's passive `--host-capabilities` command reported schema 39 in an
+isolated sanitised home without creating daemon state. This proves migration
+guards, not a complete recovery action or permission to roll back application data.
+
 `updates/maintenance/daemon.test.ts` uses a real isolated daemon, private host-control
 client, SQLite and independent shell. An admitted request holds final inspection;
 ordinary HTTP is refused while version inspection remains available. The shell's

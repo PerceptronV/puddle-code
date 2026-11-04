@@ -75,6 +75,7 @@ async function fixture(combined = false, connector = false) {
         : systemdObservation(process.pid);
     else if (command.args[1] === 'stop') {
       state.changes.push('stop');
+      if (state.fail === 'future-schema') db.pragma('user_version = 2147483647');
       new HostUpdateCheckpointWriter(
         { home: f.puddleHome, db, runtimes: new RuntimeStore(db), version: 'old' },
         reference,
@@ -163,6 +164,22 @@ it.each([false, true])(
   },
   30_000,
 );
+
+it('refuses selection when the shutdown checkpoint exceeds the candidate database ceiling', async () => {
+  const f = await fixture();
+  try {
+    f.state.fail = 'future-schema';
+    await expect(executeHostUpdate(f.puddleHome, f.job, f.run)).rejects.toThrow(
+      'checkpointed application database',
+    );
+    expect(f.state.changes).toEqual(['stop']);
+    expect(f.selected('daemon')).toBe(f.previousDaemon);
+    expect(f.store.read()?.phase).toBe('recovery_required');
+    expect(f.verify).not.toHaveBeenCalled();
+  } finally {
+    f.close();
+  }
+}, 30_000);
 
 it.each(['stop', 'select', 'start', 'configuration'])(
   'retains uncertainty after %s failure without rollback or replay',

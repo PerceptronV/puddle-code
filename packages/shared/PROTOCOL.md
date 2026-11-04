@@ -27,6 +27,14 @@ transaction evidence, not client commands or new IPC messages; they do not chang
 the application, remote or runtime protocol. Daemon transactions without explicit
 connector evidence cannot execute.
 
+Passive `HOST_CAPABILITIES.json` metadata optionally records
+`database_schema_version`, the highest existing SQLite migration in the daemon
+build. Older files remain readable but cannot establish safe daemon activation.
+Preflight binds the observed host schema into approval and the worker rechecks its
+shutdown checkpoint before selection. This field is private release evidence, not
+a new network shape, storage protocol or permission to restore old data. All three
+protocol versions are unchanged.
+
 Protocol 25.10 adds optional exact `interruption_approval` to host-update apply
 requests and `interruption_fingerprint` to reviews. Reviews still report
 `can_apply: false` and a null ordinary fingerprint when daemon-owned work needs

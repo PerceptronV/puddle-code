@@ -26,29 +26,36 @@ it('rejects a generation redirected to another installation tree', async () => {
   );
 });
 
-it.each(['missing', 'oversized', 'symlink', 'directory', 'version', 'protocol', 'receipt'])(
-  'refuses %s candidate metadata without probing an executable',
-  async (failure) => {
-    const f = candidateFixture();
-    const path = join(f.root, 'HOST_CAPABILITIES.json');
-    if (failure === 'missing') rmSync(path);
-    if (failure === 'oversized') writeFileSync(path, ' '.repeat(32769));
-    if (failure === 'symlink') {
-      rmSync(path);
-      symlinkSync('/missing/capabilities', path);
-    }
-    if (failure === 'directory') {
-      rmSync(path);
-      mkdirSync(path);
-    }
-    if (failure === 'version')
-      writeFileSync(path, JSON.stringify(hostReleaseCapabilities('0.4.1')));
-    if (failure === 'protocol')
-      writeFileSync(
-        path,
-        JSON.stringify({ ...f.capabilities, application: { major: 999, minor: 0 } }),
-      );
-    if (failure === 'receipt') writeFileSync(join(f.root, '.puddle-stage.json'), '{}');
-    await expect(readStageCapabilities(f.home, f.stage)).rejects.toThrow();
-  },
-);
+it.each([
+  'missing',
+  'oversized',
+  'symlink',
+  'directory',
+  'version',
+  'protocol',
+  'database',
+  'receipt',
+])('refuses %s candidate metadata without probing an executable', async (failure) => {
+  const f = candidateFixture();
+  const path = join(f.root, 'HOST_CAPABILITIES.json');
+  if (failure === 'missing') rmSync(path);
+  if (failure === 'oversized') writeFileSync(path, ' '.repeat(32769));
+  if (failure === 'symlink') {
+    rmSync(path);
+    symlinkSync('/missing/capabilities', path);
+  }
+  if (failure === 'directory') {
+    rmSync(path);
+    mkdirSync(path);
+  }
+  if (failure === 'version') writeFileSync(path, JSON.stringify(hostReleaseCapabilities('0.4.1')));
+  if (failure === 'protocol')
+    writeFileSync(
+      path,
+      JSON.stringify({ ...f.capabilities, application: { major: 999, minor: 0 } }),
+    );
+  if (failure === 'database')
+    writeFileSync(path, JSON.stringify({ ...f.capabilities, database_schema_version: -1 }));
+  if (failure === 'receipt') writeFileSync(join(f.root, '.puddle-stage.json'), '{}');
+  await expect(readStageCapabilities(f.home, f.stage)).rejects.toThrow();
+});

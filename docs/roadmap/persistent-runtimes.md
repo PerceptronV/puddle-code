@@ -31,6 +31,16 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Daemon builds now declare their existing SQLite migration ceiling in passive
+  release metadata. Preflight rejects unknown/older schema support, includes the
+  actual database version in approval and rechecks it after asynchronous probes.
+  The worker compares its shutdown checkpoint before selecting a candidate.
+  Startup refuses databases newer than this build before changing journal mode
+  or writing application data, and closes failed handles. Runtime-default changes
+  remain independent of daemon storage. This is existing migration evidence, not
+  another protocol or rollback permission. Recovery inspection/actions and offline
+  host-control integration still need implementation; no old data is restored.
+
 - Production host control now supplies the full ordered maintenance composition,
   after boot reconciliation and auto-resume. Clients/upkeep/log retention drain
   before programme/compilation/catalogue/marker work, then launches, native

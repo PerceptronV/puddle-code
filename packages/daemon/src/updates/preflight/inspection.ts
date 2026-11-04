@@ -22,6 +22,7 @@ export interface UpdateInspection {
     | UpdateSupervision['blockers'][number]
     | UpdateConnector['blockers'][number]
     | { code: 'connector_inventory_changed'; target: 'connector' }
+    | { code: 'database_schema_changed'; target: 'daemon' }
     | { code: 'interruption_inventory_changed'; target: 'daemon' }
   >;
   fingerprint: string | null;
@@ -31,7 +32,10 @@ export interface UpdateInspection {
 export class HostUpdateInspection {
   constructor(
     private readonly deps: {
-      compatibility: Pick<HostUpdateCompatibility, 'inspect' | 'inventoryMatches'>;
+      compatibility: Pick<
+        HostUpdateCompatibility,
+        'inspect' | 'inventoryMatches' | 'databaseMatches'
+      >;
       connector: Pick<HostUpdateConnector, 'inspect'>;
       capacity: Pick<HostUpdateCapacity, 'inspect'>;
       impact: Pick<HostUpdateImpact, 'inspect'>;
@@ -67,6 +71,8 @@ export class HostUpdateInspection {
     ];
     if (!this.deps.compatibility.inventoryMatches(compatibility))
       blockers.push({ code: 'runtime_inventory_unknown', target: 'inventory' });
+    if (!this.deps.compatibility.databaseMatches(compatibility))
+      blockers.push({ code: 'database_schema_changed', target: 'daemon' });
     if (JSON.stringify(connector) !== JSON.stringify(connectorAfter)) {
       blockers.push(...connectorAfter.blockers);
       blockers.push({ code: 'connector_inventory_changed', target: 'connector' });
@@ -85,6 +91,7 @@ export class HostUpdateInspection {
             protocols: { cockpit, installedRuntime },
             connector,
             candidates: compatibility.candidates,
+            database_schema_version: compatibility.database_schema_version,
             owners: compatibility.owners,
             inventory: compatibility.inventory,
             impact: impact.fingerprint,
