@@ -43,8 +43,9 @@ The orphan-reaping preflight passed locally on macOS, and the packaged continuit
 test passed in 20.84 seconds against the retained 0.4.0 macOS archive. All five
 focused notebook checks passed, including real kernel execution and a source-venv
 package regression. The two failing runtime suites and exclusive-lock controller
-tests passed all 21 checks. TypeScript, lint and formatting passed for the fixes.
-Native Linux
-verification requires a new CI run: local Docker is not running. These changes
+tests passed all 21 checks. Another 58 checks across the remaining 17 changed
+runtime fixture suites passed, for 79 runtime checks across 20 files. TypeScript,
+lint and formatting passed for the fixes. Native Linux verification requires a
+new CI run: local Docker is not running. These changes
 do not turn the failed tagged jobs into passing jobs, move the tag, or publish
 the release. Their Linux result must be recorded from the subsequent run.
