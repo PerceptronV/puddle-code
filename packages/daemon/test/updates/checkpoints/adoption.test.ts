@@ -29,7 +29,10 @@ import { claimUpdateContinuation } from '../../../src/updates/recovery/continuat
 import { updateWorkerDirectory } from '../../../src/updates/worker/supervisor.js';
 import { prepareServiceReplacement } from '../../../src/host/supervision/replacement.js';
 import { inspectRunningService } from '../../../src/host/supervision/inspection.js';
-import { readRuntimeController } from '../../../src/runtime/ownership/storage.js';
+import {
+  acquireRuntimeControllerWhenAvailable,
+  readRuntimeController,
+} from '../../../src/runtime/ownership/storage.js';
 import type { CompilationCommandRunner } from '../../../src/compilation/process.js';
 import { HostUpdateCoordinator } from '../../../src/updates/coordinator.js';
 import { LeaseRegistry } from '../../../src/security/leases.js';
@@ -89,10 +92,15 @@ async function fixture() {
   checkpoint.commit(f.controller.record);
   f.controller.release();
   const reconciler = new RuntimeReconciler(f);
-  const connections = new RuntimeConnections(f.home, f.runtimes, {
-    connected: (id, client) => reconciler.attach(id, client),
-    missing: (id) => reconciler.retire(id),
-  });
+  const connections = new RuntimeConnections(
+    f.home,
+    f.runtimes,
+    {
+      connected: (id, client) => reconciler.attach(id, client),
+      missing: (id) => reconciler.retire(id),
+    },
+    await acquireRuntimeControllerWhenAvailable(f.home),
+  );
   await connections.connect();
   const dispatched = operation;
   const worker = store.claimExecution(operation, operation.dispatch_id!, operation.preflight!);

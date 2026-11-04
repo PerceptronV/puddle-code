@@ -11,7 +11,10 @@ import {
   RuntimeConnectionLost,
   RuntimeRequestRejected,
 } from '../../../../src/runtime/transport/client.js';
-import { readRuntimeJson } from '../../../../src/runtime/ownership/storage.js';
+import {
+  acquireRuntimeControllerWhenAvailable,
+  readRuntimeJson,
+} from '../../../../src/runtime/ownership/storage.js';
 import { runtimeDatabase } from '../../../helpers/runtime-database.js';
 import { launchOwner, waitForOwner } from '../../../helpers/runtime-fixture.js';
 
@@ -20,10 +23,15 @@ async function fixture() {
   const owner = launchOwner(f.home, f.binding.runtime_id, 'provider-owner.mjs');
   await waitForOwner(owner, f.directory);
   f.controller.release();
-  const connections = new RuntimeConnections(f.home, f.runtimes, {
-    connected: (id, client) => f.reconciler.attach(id, client),
-    missing: (id) => f.reconciler.retire(id),
-  });
+  const connections = new RuntimeConnections(
+    f.home,
+    f.runtimes,
+    {
+      connected: (id, client) => f.reconciler.attach(id, client),
+      missing: (id) => f.reconciler.retire(id),
+    },
+    await acquireRuntimeControllerWhenAvailable(f.home),
+  );
   await connections.connect();
   const runs = new PuddlangStore(f.db);
   const input = puddlangStartSchema.parse({ id: randomUUID(), source: 'export default null;' });

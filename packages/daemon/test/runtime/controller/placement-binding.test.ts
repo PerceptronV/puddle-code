@@ -17,7 +17,7 @@ import { RuntimeStore } from '../../../src/db/stores/runtimes.js';
 import { RuntimeClient } from '../../../src/runtime/transport/client.js';
 import { readRuntimeFrames, writeRuntimeFrame } from '../../../src/runtime/transport/framing.js';
 import {
-  acquireRuntimeController,
+  acquireRuntimeControllerWhenAvailable,
   readRuntimeJson,
 } from '../../../src/runtime/ownership/storage.js';
 import {
@@ -280,7 +280,7 @@ it('commits native switches before binding, fences stale mutations and recovers 
       socket.destroy();
     }
     controller.release();
-    const replacement = acquireRuntimeController(home);
+    const replacement = await acquireRuntimeControllerWhenAvailable(home);
     controllers.push(replacement);
     db = openDatabase(database);
     store = new RuntimeStore(db);

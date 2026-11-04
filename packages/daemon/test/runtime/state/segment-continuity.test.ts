@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { runtimeCheckpointSchema, runtimeStateSchema } from '@puddle/shared';
 import { RuntimeClient } from '../../../src/runtime/transport/client.js';
 import {
-  acquireRuntimeController,
+  acquireRuntimeControllerWhenAvailable,
   readRuntimeJson,
 } from '../../../src/runtime/ownership/storage.js';
 import {
@@ -128,7 +128,7 @@ describe('native lifecycle history continuity', () => {
     });
     const third = await lifecycle('native-third', 'fork');
     writeFileSync(gateTwo, 'go');
-    const replacement = acquireRuntimeController(home);
+    const replacement = await acquireRuntimeControllerWhenAvailable(home);
     controllers.push(replacement);
     const next = await RuntimeClient.open(home, launch, replacement.record);
     clients.push(next);

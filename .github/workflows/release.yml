@@ -20,13 +20,17 @@ jobs:
     # node-pty is node-gyp-built, so the build container fixes the native ABI
     # floor at glibc 2.28 (RHEL/Rocky 8) instead of inheriting the hosted
     # runner's glibc 2.35. Node 22's official binary has the same floor.
-    container: rockylinux:8
+    container:
+      image: rockylinux:8
+      # The continuity fixture launches independent service processes. Reap
+      # exited orphans so zombie groups cannot masquerade as live updaters.
+      options: --init
     steps:
       - name: install native build toolchain
         # Rocky 8's system GCC 8 rejects better-sqlite3's -std=c++20 and its
         # unversioned Python 3.6 cannot parse node-gyp 12. Use supported modern
         # toolsets without raising the container's glibc 2.28 floor.
-        run: dnf install -y binutils git gcc-toolset-14-gcc-c++ make python3.11 tar gzip xz
+        run: dnf install -y binutils git gcc-toolset-14-gcc-c++ make procps-ng python3.11 tar gzip xz
       - name: verify native ABI floor
         run: |
           test "$(getconf GNU_LIBC_VERSION)" = 'glibc 2.28'
@@ -49,6 +53,8 @@ jobs:
           # Workflows build the desktop shell with esbuild only and never
           # launch Electron - skip its ~100 MB binary download.
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - name: verify runtime test host process inspection and orphan reaping
+        run: node scripts/check-runtime-test-host.mjs
       - run: node scripts/build-tarball.mjs --version "${GITHUB_REF_NAME#v}"
         env:
           PUDDLE_REPO_SLUG: ${{ github.repository }}

@@ -1,6 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import { RuntimeConnections } from '../../../src/runtime/transport/connections.js';
 import type { RuntimeClient } from '../../../src/runtime/transport/client.js';
+import { acquireRuntimeControllerWhenAvailable } from '../../../src/runtime/ownership/storage.js';
 import { runtimeDatabase } from '../../helpers/runtime-database.js';
 import {
   launchOwner,
@@ -26,10 +27,15 @@ it('drains an admitted attachment, retains its live owner and resumes discovery 
       await admitted;
       await f.reconciler.attach(id, client);
     });
-    connections = new RuntimeConnections(f.home, f.runtimes, {
-      connected,
-      missing: (id) => f.reconciler.retire(id),
-    });
+    connections = new RuntimeConnections(
+      f.home,
+      f.runtimes,
+      {
+        connected,
+        missing: (id) => f.reconciler.retire(id),
+      },
+      await acquireRuntimeControllerWhenAvailable(f.home),
+    );
     const installed = vi.fn();
     connections.on('connected', installed);
     const connecting = connections.connect();

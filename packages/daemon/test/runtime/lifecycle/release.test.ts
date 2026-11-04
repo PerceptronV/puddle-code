@@ -25,7 +25,7 @@ import {
 } from '../../../src/updates/worker/lifetime.js';
 import { runCompilationCommand } from '../../../src/compilation/process.js';
 import { RuntimeClient } from '../../../src/runtime/transport/client.js';
-import { acquireRuntimeController } from '../../../src/runtime/ownership/storage.js';
+import { acquireRuntimeControllerWhenAvailable } from '../../../src/runtime/ownership/storage.js';
 import {
   children,
   clients,
@@ -139,6 +139,7 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
           let worker: HostUpdateWorker | undefined;
           let startAttempted = false;
           let ended = false;
+          let failure: unknown;
           try {
             worker = await startUpdateWorker(f.home, operation, {
               kind: 'systemd',
@@ -181,9 +182,23 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
               }
             });
             ended = true;
-          } finally {
-            if (worker && startAttempted) await cleanupPackagedWorker(f.home, env, worker, ended);
+          } catch (error) {
+            failure = error;
           }
+          if (worker && startAttempted) {
+            try {
+              await cleanupPackagedWorker(f.home, env, worker, ended);
+            } catch (cleanupError) {
+              if (failure)
+                throw new AggregateError(
+                  [failure, cleanupError],
+                  `Packaged update failed: ${String(failure)}; cleanup also failed`,
+                  { cause: cleanupError },
+                );
+              throw cleanupError;
+            }
+          }
+          if (failure) throw failure;
           expect(readFileSync(join(f.home, 'test-services/mutations'), 'utf8')).not.toContain(
             `stop ${worker!.name}`,
           );
@@ -286,7 +301,7 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
       expect(child.exitCode).toBeNull();
     }
 
-    const controller = acquireRuntimeController(f.home);
+    const controller = await acquireRuntimeControllerWhenAvailable(f.home);
     controllers.push(controller);
     const next = await RuntimeClient.open(f.home, f.launch, controller.record);
     clients.push(next);

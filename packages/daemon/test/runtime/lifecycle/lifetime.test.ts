@@ -15,7 +15,7 @@ import {
 } from '../../../src/runtime/lifecycle/supervisor.js';
 import { RuntimeClient } from '../../../src/runtime/transport/client.js';
 import {
-  acquireRuntimeController,
+  acquireRuntimeControllerWhenAvailable,
   readRuntimeJson,
 } from '../../../src/runtime/ownership/storage.js';
 import {
@@ -135,7 +135,7 @@ it('keeps a detached shell and its state through controller replacement, then re
   expect(await removeRuntimeService(f.home, launch.identity, run)).toBe('owned');
   first.close();
   f.controller.release();
-  const replacement = acquireRuntimeController(f.home);
+  const replacement = await acquireRuntimeControllerWhenAvailable(f.home);
   controllers.push(replacement);
   const next = await RuntimeClient.open(f.home, launch, replacement.record);
   clients.push(next);

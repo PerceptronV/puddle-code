@@ -480,6 +480,11 @@ CI and release jobs install dependencies through `scripts/install-ci.mjs`, which
 uses the running Node installation's bundled headers for native source builds.
 Keep that header override scoped to installation so Electron packaging can use
 its own headers; preserve the Linux release compiler and ABI settings.
+Linux archive CI and release jobs use the same Rocky container with `--init` and
+`procps-ng`. Run `scripts/check-runtime-test-host.mjs` before packaging and the
+packaged runtime continuity test afterwards in both workflows. Detached fixture
+services need actual orphan reaping; never accept a zombie PID/group as absent
+or relax production lifetime checks to accommodate a container without an init.
 
 The npm release job uses GitHub OIDC trusted publishing, with npm 11.21.0 and
 job-scoped `id-token: write`; it never reads `NPM_TOKEN`. Configure the package's

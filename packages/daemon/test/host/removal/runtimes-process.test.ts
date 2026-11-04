@@ -11,7 +11,10 @@ import { acquireInstallationLock } from '../../../src/host/installation/lock.js'
 import { RuntimeControls } from '../../../src/runtime/controller/controls.js';
 import { RuntimeConnections } from '../../../src/runtime/transport/connections.js';
 import { RuntimeRequestRejected } from '../../../src/runtime/transport/client.js';
-import { runtimeDirectory } from '../../../src/runtime/ownership/storage.js';
+import {
+  acquireRuntimeControllerWhenAvailable,
+  runtimeDirectory,
+} from '../../../src/runtime/ownership/storage.js';
 import { runtimeDatabase } from '../../helpers/runtime-database.js';
 import {
   launchOwner,
@@ -48,10 +51,15 @@ it('retains the same shell processes or explicitly stops the reviewed owners thr
   ].map((entry) => ({ ...entry, owner: launchOwner(f.home, entry.launch.identity.runtime_id) }));
   for (const entry of owners) await waitForOwner(entry.owner, entry.directory);
   f.controller.release();
-  const connections = new RuntimeConnections(f.home, f.runtimes, {
-    connected: (id, client) => f.reconciler.attach(id, client),
-    missing: (id) => f.reconciler.retire(id),
-  });
+  const connections = new RuntimeConnections(
+    f.home,
+    f.runtimes,
+    {
+      connected: (id, client) => f.reconciler.attach(id, client),
+      missing: (id) => f.reconciler.retire(id),
+    },
+    await acquireRuntimeControllerWhenAvailable(f.home),
+  );
   const controls = new RuntimeControls(f.runtimes, connections, f.reconciler);
   const removal = new HostRuntimeRemoval({ runtimes: f.runtimes, controls });
   try {

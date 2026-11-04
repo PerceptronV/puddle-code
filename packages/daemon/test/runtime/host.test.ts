@@ -15,6 +15,7 @@ import { acquireHostClaim, HostClaimBusy } from '../../src/security/claims.js';
 import { readRuntimeJournal } from '../../src/runtime/state/journal.js';
 import {
   acquireRuntimeController,
+  acquireRuntimeControllerWhenAvailable,
   readRuntimeJson,
   runtimeDirectory,
 } from '../../src/runtime/ownership/storage.js';
@@ -44,7 +45,7 @@ describe('isolated runtime host', () => {
     });
     await waitForSnapshot(client, original.generation, 'before-survived');
     controller.release();
-    const replacement = acquireRuntimeController(home);
+    const replacement = await acquireRuntimeControllerWhenAvailable(home);
     controllers.push(replacement);
     // The previous TCP/Unix stream is still connected but its epoch is fenced.
     await expect(
@@ -279,7 +280,7 @@ describe('isolated runtime host', () => {
     const exited = once(peer, 'exit');
     peer.kill('SIGKILL');
     await exited;
-    const replacement = acquireRuntimeController(home);
+    const replacement = await acquireRuntimeControllerWhenAvailable(home);
     controllers.push(replacement);
     const next = await RuntimeClient.open(home, launch, replacement.record);
     clients.push(next);

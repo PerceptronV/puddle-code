@@ -74,10 +74,12 @@ jobs:
           - { runner: ubuntu-22.04, target: linux-x64 }
           - { runner: ubuntu-22.04-arm, target: linux-arm64 }
     runs-on: ${{ matrix.runner }}
-    container: rockylinux:8
+    container:
+      image: rockylinux:8
+      options: --init
     steps:
       - name: install native build toolchain
-        run: dnf install -y binutils git gcc-toolset-14-gcc-c++ make python3.11 tar gzip xz
+        run: dnf install -y binutils git gcc-toolset-14-gcc-c++ make procps-ng python3.11 tar gzip xz
       - name: verify native ABI floor
         run: |
           test "$(getconf GNU_LIBC_VERSION)" = 'glibc 2.28'
@@ -96,6 +98,14 @@ jobs:
           npm_config_build_from_source: 'true'
           npm_config_python: /usr/bin/python3.11
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - name: verify runtime test host process inspection and orphan reaping
+        run: node scripts/check-runtime-test-host.mjs
       - run: pnpm build:tarball
+      - name: verify packaged runtime continuity
+        run: |
+          version=$(node -p 'require("./packages/daemon/package.json").version')
+          PUDDLE_TEST_RUNTIME_RELEASE="dist-release/stage/puddled-v${version}" \
+            PUDDLE_TEST_RUNTIME_ARCHIVE="dist-release/puddled-v${version}-${{ matrix.target }}.tar.gz" \
+            node node_modules/vitest/vitest.mjs run packages/daemon/test/runtime/lifecycle/release.test.ts
       - name: verify packaged native ABI
         run: node scripts/check-linux-native-abi.mjs dist-release/stage

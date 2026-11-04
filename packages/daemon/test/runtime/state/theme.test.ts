@@ -6,7 +6,7 @@ import { RuntimeClient, RuntimeConnectionLost } from '../../../src/runtime/trans
 import { RuntimeConnections } from '../../../src/runtime/transport/connections.js';
 import { RuntimeReconciler } from '../../../src/runtime/controller/reconcile.js';
 import {
-  acquireRuntimeController,
+  acquireRuntimeControllerWhenAvailable,
   readRuntimeJson,
 } from '../../../src/runtime/ownership/storage.js';
 import { waitFor } from '../../helpers/daemon-fixtures.js';
@@ -71,7 +71,7 @@ it('answers colour queries from launch through controller loss, theme switches a
   client.close();
   f.controller.release();
   await waitFor(() => (read()?.count ?? 0) >= count + 4);
-  const controller = acquireRuntimeController(f.home);
+  const controller = await acquireRuntimeControllerWhenAvailable(f.home);
   controllers.push(controller);
   const next = await RuntimeClient.open(f.home, f.launch, controller.record);
   clients.push(next);
@@ -112,21 +112,27 @@ it.each([false, true])(
     let colours = { fg: '#123456', bg: '#abcdef' };
     const reconciler = new RuntimeReconciler({ ...f, theme: () => colours });
     let changes = 0;
-    const connections = new RuntimeConnections(f.home, f.runtimes, {
-      connected: async (id, client) => {
-        const request = client.request.bind(client);
-        vi.spyOn(client, 'request').mockImplementation(async (value) => {
-          const response = await request(value);
-          if (older && value.t === 'inspect' && response.t === 'state') delete response.state.theme;
-          if (value.t === 'theme') {
-            changes++;
-            if (changes === 1) throw new RuntimeConnectionLost(); // Applied; discard only its reply.
-          }
-          return response;
-        });
-        await reconciler.attach(id, client);
+    const connections = new RuntimeConnections(
+      f.home,
+      f.runtimes,
+      {
+        connected: async (id, client) => {
+          const request = client.request.bind(client);
+          vi.spyOn(client, 'request').mockImplementation(async (value) => {
+            const response = await request(value);
+            if (older && value.t === 'inspect' && response.t === 'state')
+              delete response.state.theme;
+            if (value.t === 'theme') {
+              changes++;
+              if (changes === 1) throw new RuntimeConnectionLost(); // Applied; discard only its reply.
+            }
+            return response;
+          });
+          await reconciler.attach(id, client);
+        },
       },
-    });
+      await acquireRuntimeControllerWhenAvailable(f.home),
+    );
     try {
       await connections.connect();
       await reconciler.refresh(f.binding.runtime_id);

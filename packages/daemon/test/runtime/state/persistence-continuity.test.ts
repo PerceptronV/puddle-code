@@ -2,7 +2,7 @@ import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { RuntimeClient } from '../../../src/runtime/transport/client.js';
-import { acquireRuntimeController } from '../../../src/runtime/ownership/storage.js';
+import { acquireRuntimeControllerWhenAvailable } from '../../../src/runtime/ownership/storage.js';
 import { placement } from '../../helpers/runtime-placement.js';
 import {
   clients,
@@ -57,7 +57,7 @@ it.each(['journal', 'state'] as const)(
       });
     client.close();
     controller.release();
-    const replacement = acquireRuntimeController(home);
+    const replacement = await acquireRuntimeControllerWhenAvailable(home);
     controllers.push(replacement);
     const next = await RuntimeClient.open(home, launch, replacement.record);
     clients.push(next);

@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { atomicPrivateJson } from '@puddle/shared/node';
 import { HostMemoryLedger } from '../../../src/runtime/resources/host/ledger.js';
 import { RuntimeClient } from '../../../src/runtime/transport/client.js';
-import { acquireRuntimeController } from '../../../src/runtime/ownership/storage.js';
+import { acquireRuntimeControllerWhenAvailable } from '../../../src/runtime/ownership/storage.js';
 import {
   bundleDir,
   clients,
@@ -99,7 +99,7 @@ describe('runtime-owned Codex adapter', () => {
     await waitForSnapshot(client, term.generation, 'count:1101');
     client.close();
     controller.release();
-    const replacement = acquireRuntimeController(home);
+    const replacement = await acquireRuntimeControllerWhenAvailable(home);
     controllers.push(replacement);
     const next = await RuntimeClient.open(home, launch, replacement.record);
     clients.push(next);

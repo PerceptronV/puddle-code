@@ -4,7 +4,10 @@ import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { RuntimeClient } from '../../src/runtime/transport/client.js';
 import { RuntimeObservationStore } from '../../src/db/stores/runtime-observations.js';
-import { acquireRuntimeController, readRuntimeJson } from '../../src/runtime/ownership/storage.js';
+import {
+  acquireRuntimeControllerWhenAvailable,
+  readRuntimeJson,
+} from '../../src/runtime/ownership/storage.js';
 import { readRuntimeJournal } from '../../src/runtime/state/journal.js';
 import { runtimeDatabase } from '../helpers/runtime-database.js';
 import {
@@ -147,7 +150,7 @@ it('reconciles offline native switches and a completed turn through real daemon 
       expect((await stopped)[0]).toBe(0);
       expect(runtime.child.exitCode).toBeNull();
     }
-    const replacement = acquireRuntimeController(home);
+    const replacement = await acquireRuntimeControllerWhenAvailable(home);
     controllers.push(replacement);
     const next = await RuntimeClient.open(home, launch, replacement.record);
     clients.push(next);

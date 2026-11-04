@@ -7,7 +7,7 @@ import { sessionPortsResponseSchema, type WsServerMessage } from '@puddle/shared
 import { secret } from '@puddle/shared/node';
 import { RuntimeClient } from '../../../src/runtime/transport/client.js';
 import {
-  acquireRuntimeController,
+  acquireRuntimeControllerWhenAvailable,
   readRuntimeJson,
 } from '../../../src/runtime/ownership/storage.js';
 import { runtimeDatabase } from '../../helpers/runtime-database.js';
@@ -122,7 +122,7 @@ it('routes the real daemon WebSocket to surviving PTYs and immutable native hist
     f.controller.release();
     for (let pass = 0; pass < 3; pass++) {
       if (pass === 2) {
-        const controller = acquireRuntimeController(f.home);
+        const controller = await acquireRuntimeControllerWhenAvailable(f.home);
         controllers.push(controller);
         const client = await RuntimeClient.open(f.home, f.launch, controller.record);
         clients.push(client);

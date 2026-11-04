@@ -6,7 +6,7 @@ import { prepareHostRemoval, finishHostRemoval } from '../../../src/host/removal
 import { restoreRemovedHostServices } from '../../../src/host/removal/restoration/execute.js';
 import { RuntimeConnections } from '../../../src/runtime/transport/connections.js';
 import { RuntimeClient } from '../../../src/runtime/transport/client.js';
-import { acquireRuntimeController } from '../../../src/runtime/ownership/storage.js';
+import { acquireRuntimeControllerWhenAvailable } from '../../../src/runtime/ownership/storage.js';
 import { runtimeDatabase } from '../../helpers/runtime-database.js';
 import { removalHostFixture } from '../../helpers/removal-host.js';
 import {
@@ -70,7 +70,7 @@ it('retains a real runtime and shell variable through removal/restoration, then 
       ...host.options,
       resume: false,
     });
-    const controller = acquireRuntimeController(f.home);
+    const controller = await acquireRuntimeControllerWhenAvailable(f.home);
     controllers.push(controller);
     const after = await RuntimeClient.open(f.home, f.launch, controller.record);
     clients.push(after);

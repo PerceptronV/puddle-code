@@ -15,7 +15,10 @@ import { SessionStore } from '../../src/db/stores/sessions.js';
 import { RuntimeStore } from '../../src/db/stores/runtimes.js';
 import { EventStore } from '../../src/db/stores/events.js';
 import { RuntimeClient } from '../../src/runtime/transport/client.js';
-import { acquireRuntimeController, readRuntimeJson } from '../../src/runtime/ownership/storage.js';
+import {
+  acquireRuntimeControllerWhenAvailable,
+  readRuntimeJson,
+} from '../../src/runtime/ownership/storage.js';
 import { readRuntimeJournal } from '../../src/runtime/state/journal.js';
 import { ensureHome, resolvePaths } from '../../src/paths.js';
 import {
@@ -192,7 +195,7 @@ it('protects external ownership across real daemon starts and stops, including a
       original.runtime_id,
     );
     atomicPrivateJson(join(directory, 'launch.json'), launch);
-    const replacement = acquireRuntimeController(home);
+    const replacement = await acquireRuntimeControllerWhenAvailable(home);
     controllers.push(replacement);
     const next = await RuntimeClient.open(home, launch, replacement.record);
     clients.push(next);

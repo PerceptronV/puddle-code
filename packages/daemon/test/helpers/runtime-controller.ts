@@ -3,7 +3,7 @@ import { runtimeLaunchSchema } from '@puddle/shared';
 import { atomicPrivateJson } from '@puddle/shared/node';
 import { RuntimeClient } from '../../src/runtime/transport/client.js';
 import {
-  acquireRuntimeController,
+  acquireRuntimeControllerWhenAvailable,
   readRuntimeJson,
   runtimeDirectory,
 } from '../../src/runtime/ownership/storage.js';
@@ -11,7 +11,7 @@ import {
 // Isolated process fixture: never starts puddled or loads provider accounts.
 const home = process.argv[2]!;
 const id = process.argv[3]!;
-const controller = acquireRuntimeController(home);
+const controller = await acquireRuntimeControllerWhenAvailable(home);
 const launch = runtimeLaunchSchema.parse(
   readRuntimeJson(join(runtimeDirectory(home, id), 'launch.json')),
 );

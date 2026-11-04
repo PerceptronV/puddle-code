@@ -23,6 +23,12 @@ This decision supersedes earlier wording that made those manual checks completio
 gates; it does not enable an experimental mode or weaken production safeguards.
 
 Implementation status, 2026-11-04:
+Post-tag correction: the first 0.4.0 Linux release and CI runs failed despite the
+local acceptance below. Container reaping and fixture handoff/environment fixes
+are tracked in the [CI failure report](../reports/2026-11-04-release-ci-failures.md).
+Local verification does not certify the release pipeline; a subsequent Linux CI
+run is required to confirm those fixes.
+
 Implementation and available automated acceptance are complete for the agreed
 0.4.0 scope. The final archive passed packaged continuity and release-note checks;
 healthy calibrated runtime measurements pass at 1, 10 and 50 owners. The manual

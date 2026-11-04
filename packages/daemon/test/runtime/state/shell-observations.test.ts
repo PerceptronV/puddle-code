@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { atomicPrivateJson } from '@puddle/shared/node';
 import { RuntimeClient } from '../../../src/runtime/transport/client.js';
 import {
-  acquireRuntimeController,
+  acquireRuntimeControllerWhenAvailable,
   readRuntimeJson,
 } from '../../../src/runtime/ownership/storage.js';
 import { readRuntimeJournal } from '../../../src/runtime/state/journal.js';
@@ -73,7 +73,7 @@ describe('shell observation continuity', () => {
     });
     client.close();
     controller.release();
-    const replacement = acquireRuntimeController(home);
+    const replacement = await acquireRuntimeControllerWhenAvailable(home);
     controllers.push(replacement);
     const next = await RuntimeClient.open(home, launch, replacement.record);
     clients.push(next);

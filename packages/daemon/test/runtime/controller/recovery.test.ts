@@ -7,7 +7,10 @@ import { atomicPrivateJson } from '@puddle/shared/node';
 import { RuntimeClient } from '../../../src/runtime/transport/client.js';
 import { RuntimeConnections } from '../../../src/runtime/transport/connections.js';
 import { readRuntimeJournal } from '../../../src/runtime/state/journal.js';
-import { readRuntimeJson } from '../../../src/runtime/ownership/storage.js';
+import {
+  acquireRuntimeControllerWhenAvailable,
+  readRuntimeJson,
+} from '../../../src/runtime/ownership/storage.js';
 import { runtimeDatabase } from '../../helpers/runtime-database.js';
 import {
   clients,
@@ -33,10 +36,15 @@ it('reconnects a lost control stream without replaying work, then retires the ow
     const owner = launchOwner(f.home, f.binding.runtime_id);
     await waitForOwner(owner, f.directory);
     f.controller.release();
-    connections = new RuntimeConnections(f.home, f.runtimes, {
-      connected: (id, client) => f.reconciler.attach(id, client),
-      missing: (id) => f.reconciler.retire(id),
-    });
+    connections = new RuntimeConnections(
+      f.home,
+      f.runtimes,
+      {
+        connected: (id, client) => f.reconciler.attach(id, client),
+        missing: (id) => f.reconciler.retire(id),
+      },
+      await acquireRuntimeControllerWhenAvailable(f.home),
+    );
     await connections.connect();
     const first = connections.get(f.binding.runtime_id)!;
     const main = terminal(first.state);
