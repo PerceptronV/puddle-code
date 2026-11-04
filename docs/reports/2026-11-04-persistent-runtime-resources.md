@@ -9,6 +9,13 @@ ceilings passed, and cleanup confirmed every tracked owner and shell had exited.
 See “Completed calibrated run” for the results. Both earlier partial attempts and
 the historical memory-guard refusal remain recorded below.
 
+These recorded runs are **process-level idle baselines**. They checked owner and
+shell identity plus controller reconciliation, but did not seed terminal output
+and require a healthy canonical screen or settled persistence. A subsequently
+identified startup screen-load gap therefore is not excluded by these results.
+The harness now checks canonical continuity explicitly as described below; no
+health-checked resource sample has yet been recorded.
+
 The earlier fifty-runtime observation used **3,355 MiB of summed owner RSS** in the
 settled measurement. Their median controller re-adoption took **402 ms**. The
 estimated owner CPU was **3.1% of one core**, but the process-time display precision
@@ -435,6 +442,26 @@ PIDs absent**: fifty owners, fifty shells and the controller/test process. The
 temporary bundle was removed. No installed service, real provider home or
 production daemon was modified.
 
+### Canonical-screen acceptance added after measurement
+
+The harness now sends one fixed shell-variable/marker command per owner before
+its first warmup. The expected printed marker is absent from the command's echoed
+text. Input is marked sent before awaiting its response and is never replayed
+after an admission failure, lost reply or controller replacement.
+
+Before every warmup and after every timed re-adoption, bounded read-only checks
+require the retained canonical marker, unchanged shell PID/generation, a running
+owner, settled owner/journal persistence, no lost journal history, and no history
+gap or pending checkpoints. Snapshot/inspection admission failures can be retried
+for at most ten seconds; persistent gaps fail with the runtime identity and last
+failure cause. These checks run outside the adoption timer and before the idle
+sampling window, so measured adoption and idle CPU do not include their work.
+They do not replace the existing memory guard or alter launch concurrency.
+
+The previously recorded resource artifacts remain unchanged. Their valid process
+measurements must not be cited as proof of canonical-screen health, and the new
+assertions require a fresh run after the startup screen-load correction.
+
 ## Enforced calibrated macOS fixture ceilings
 
 The opt-in harness now enforces the following **plain-shell investigation
@@ -489,8 +516,10 @@ No additional native measurement was performed to select or test these threshold
 
 Native macOS interrupt/package-idle wakeups are now measured at one, ten and fifty
 plain-shell runtimes, with concrete fixture CPU/wakeup regression checks.
-Repeatability on controlled runners and equivalent Linux measurements remain
-open. Provider CLI/sidecar
+Repeatability on controlled runners and the new canonical-screen health gate
+remain to be measured. Native Linux measurements are **deferred by user instruction
+for 0.4.0**, not a release blocker; automated Linux-path coverage remains relevant,
+but no native Linux result is claimed. Provider CLI/sidecar
 overhead, isolated controller/daemon RSS and CPU,
 service-manager overhead, active output and slow
 consumers, host-wide retained storage and native-provider workloads remain open.

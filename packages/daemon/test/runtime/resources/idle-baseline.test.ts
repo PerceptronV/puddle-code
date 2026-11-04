@@ -4,7 +4,7 @@ import { writeFileSync } from 'node:fs';
 import { cpus, release } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { RUNTIME_PROTOCOL_VERSION } from '@puddle/shared';
 import { resourceBaselineLimits, resourceBaselineRegressions } from './limits.js';
 import { nativeDeltas, nativeResourceProbe } from './native/probe.js';
@@ -16,6 +16,7 @@ import {
   runtimeDirectory,
 } from '../../../src/runtime/ownership/storage.js';
 import { runtimeDatabase } from '../../helpers/runtime-database.js';
+import { placement } from '../../helpers/runtime-placement.js';
 import {
   launchOwner,
   retainRuntimeHome,
@@ -34,6 +35,7 @@ import {
 const concurrency = 4;
 const sampleMs = 30_000;
 const warmupMs = 15_000;
+const screenMarker = 'resource-screen-73';
 
 it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
   'measures isolated idle owners and authenticated controller re-adoption at 1, 10 and 50 runtimes',
@@ -44,6 +46,7 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
       owner: ReturnType<typeof launchOwner>;
       shell: number;
       generation: string;
+      screenSeeded: boolean;
     }> = [];
     let connections: RuntimeConnections | undefined;
     let reconciler: RuntimeReconciler | undefined;
@@ -67,6 +70,8 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
         provider: 'plain isolated /bin/sh; no native provider, sidecar or service manager',
         controller:
           'production RuntimeConnections and RuntimeReconciler in the test process; excludes daemon startup',
+        screen_health:
+          'one shell variable/marker command per owner before its first warmup; canonical retained marker plus settled persistence/history checked before every warmup and after each timed adoption, outside the adoption timer; read-only health attempts have a ten-second deadline',
         cpu: 'cumulative ps CPU-time delta; percentage of one CPU core',
         cpu_precision:
           'Reported display-resolution margin allows one displayed CPU-time tick per owner; it is not a confidence interval and excludes asynchronous snapshot skew',
@@ -91,6 +96,46 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
       completed: false,
       failure: null as string | null,
       results: [] as Array<Record<string, unknown>>,
+    };
+    const verifyScreens = async () => {
+      for (const owner of owners) {
+        const client = connections?.get(owner.id);
+        if (!client) throw new Error(`Runtime ${owner.id} omitted its screen-health connection`);
+        try {
+          // Read-only admission can be transiently unavailable. Never repeat
+          // seeded input, reconnect or replay a mutation while observing health.
+          await vi.waitFor(
+            async () => {
+              const snapshot = await client.request({
+                t: 'snapshot',
+                term: 'agent',
+                generation: owner.generation,
+              });
+              expect(snapshot.t).toBe('snapshot');
+              if (snapshot.t !== 'snapshot') throw new Error('Runtime omitted canonical snapshot');
+              expect(snapshot.data).toContain(screenMarker);
+              const observed = await client.request({ t: 'inspect' });
+              expect(observed.t).toBe('state');
+              if (observed.t !== 'state') throw new Error('Runtime omitted persistence state');
+              expect(terminal(observed.state)).toMatchObject({
+                pid: owner.shell,
+                generation: owner.generation,
+              });
+              expect(observed.state).toMatchObject({
+                state: 'running',
+                persistence_pending: false,
+                journal: { persistence_pending: false, lost_through: 0 },
+                history: { gap: false, pending_checkpoints: 0 },
+              });
+            },
+            { timeout: 10_000, interval: 25 },
+          );
+        } catch (cause) {
+          throw new Error(`Runtime ${owner.id} did not retain a healthy canonical screen`, {
+            cause,
+          });
+        }
+      }
     };
     const adopt = async () => {
       await reconciler?.close();
@@ -185,7 +230,13 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
               }
             }
             // Track immediately, including a process whose readiness later fails.
-            const item = { id: launch.identity.runtime_id, owner, shell: 0, generation: '' };
+            const item = {
+              id: launch.identity.runtime_id,
+              owner,
+              shell: 0,
+              generation: '',
+              screenSeeded: false,
+            };
             owners.push(item);
             started.push({ item, directory });
           }
@@ -219,6 +270,22 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
           owner.generation = main.generation;
         }
         const launchMs = performance.now() - launchStart;
+        for (const owner of owners) {
+          if (owner.screenSeeded) continue;
+          const client = connections.get(owner.id)!;
+          // Mark before awaiting: a lost reply must fail this run, never resend.
+          owner.screenSeeded = true;
+          await client.request({
+            t: 'input',
+            placement: placement(client),
+            term: 'agent',
+            generation: owner.generation,
+            source: 'human',
+            // The expected marker is absent from this command's echoed text.
+            data: 'stty -echo; puddle_resource_counter=73; printf \'resource-screen-%s\\n\' "$puddle_resource_counter"\n',
+          });
+        }
+        await verifyScreens();
         await delay(warmupMs);
         const ownerPids = owners.map(({ owner }) => owner.child.pid!);
         const shellPids = owners.map(({ shell }) => shell);
@@ -296,7 +363,10 @@ it.runIf(process.env.PUDDLE_TEST_RUNTIME_RESOURCES === '1')(
         const ownerDescriptors = await descriptorCounts(ownerPids);
         const shellDescriptors = await descriptorCounts(shellPids);
         const adoption: number[] = [];
-        for (let pass = 0; pass < 3; pass++) adoption.push(await adopt());
+        for (let pass = 0; pass < 3; pass++) {
+          adoption.push(await adopt());
+          await verifyScreens();
+        }
         const result = {
           count: target,
           memory_before: memoryBefore,

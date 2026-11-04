@@ -1325,14 +1325,22 @@ percentage of one core. Independent upper-bracket comparisons require valid
 calibrated native data; missing macOS evidence fails rather than falling back to
 coarse `ps` CPU or zero. These are fixture investigation thresholds, with explicit
 twofold/threefold margins in the report, not provider performance guarantees.
-Linux, provider, active-output and slow-consumer workload measurements remain
-required; these limits do not close every resource gate below.
+Provider, active-output and slow-consumer workload measurements remain open.
+Native Linux execution is deferred by user instruction for 0.4.0 rather than a
+release blocker; retain automated Linux-path coverage and label native behaviour
+untested. These fixture limits do not close every resource gate below.
 
 The latest calibrated native run completed the 1-, 10- and 50-owner samples with
 the unchanged memory guard. At 50, summed owner RSS was 2,669 MiB and median
 re-adoption was 416 ms; all existing fixture ceilings passed and all sampled
 processes were confirmed absent after cleanup. Earlier guard/contention refusals
-remain in the report. Owner screens/raw history and host-wide
+remain in the report. Those runs established process-level idle baselines without
+explicit canonical-screen health checks. The updated harness seeds one shell
+marker per owner once, verifies canonical marker/persistence/history health
+before warmup and after each adoption outside its timer, and never replays the
+seeded input. A fresh run is required after the startup screen-load correction;
+the old resource artifacts are not evidence of healthy canonical screens.
+Owner screens/raw history and host-wide
 programme-result charges now have explicit bounds, and verified retired raw logs
 use bounded compaction. Runtime owners now share a sealed host memory ledger,
 with pre-dispatch admission, process-lifetime claims and bounded idle returns.
@@ -1348,7 +1356,8 @@ Record platform, Node, release and provider versions with results. Run native
 provider checks from a plain shell; never launch the production daemon from an
 agent session. Retain logs and before/after identities for each result.
 
-- Exercise actual systemd user services and an installed daemon upgrade on Linux;
+- Deferred, non-blocking native Linux acceptance: exercise actual systemd user
+  services and an installed daemon upgrade on Linux;
   generated-unit tests alone are insufficient. Verify process/cgroup separation
   and clean removal of completed owner registrations.
 - Exercise the real daemon's launchd restart and installed upgrade on macOS.
@@ -1362,8 +1371,8 @@ agent session. Retain logs and before/after identities for each result.
   lost replies, incompatible runtime versions and two competing controllers.
 - Repeat the calibrated 1/10/50-owner fixture on controlled runners, retaining
   its enforced memory/CPU/wakeup/descriptor/adoption ceilings. Establish matching
-  Linux and native-provider workload evidence; macOS plain-shell ceilings do not
-  substitute for those mandatory 0.4.0 release checks.
+  native-provider workload evidence. Linux native runs remain deferred;
+  macOS plain-shell ceilings do not establish their behaviour.
 - Run real packaging/update failure, cockpit notification, relay authority,
   retention/removal and adjacent-execution cases from the roadmap's full matrix.
 
