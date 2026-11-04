@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-/* global window, innerWidth -- evaluated by Playwright inside the isolated browser */
+/* global window, innerWidth, localStorage -- evaluated by Playwright inside the isolated browser */
 
 // Isolated rendered acceptance; no daemon, provider, worktree or installed service.
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -62,7 +62,10 @@ try {
     },
     bundle: true,
     format: 'esm',
-    outfile: join(scratch, 'app.js'),
+    splitting: true,
+    outdir: scratch,
+    entryNames: 'app',
+    chunkNames: 'chunks/[name]-[hash]',
     jsx: 'automatic',
     alias: { '@puddle/shared': join(root, 'packages/shared/src/index.ts') },
     define: {
@@ -71,7 +74,15 @@ try {
       __PUDDLE_RELEASE_NOTES__: JSON.stringify(markdown),
     },
   });
-  const app = await readFile(join(scratch, 'app.js'));
+  const javascript = new Map([
+    ['/app.js', await readFile(join(scratch, 'app.js'))],
+    ...(await Promise.all(
+      (await readdir(join(scratch, 'chunks'))).map(async (name) => [
+        `/chunks/${name}`,
+        await readFile(join(scratch, 'chunks', name)),
+      ]),
+    )),
+  ]);
   const assets = join(root, 'packages/web/dist/assets');
   const cssName = (await readdir(assets)).find((name) => /^index-.*\.css$/.test(name));
   assert.ok(cssName, 'Build web assets before running browser acceptance');
@@ -79,9 +90,9 @@ try {
   const requests = [];
   server = createServer((req, res) => {
     requests.push({ method: req.method, path: req.url });
-    if (req.url === '/app.js') {
+    if (javascript.has(req.url)) {
       res.setHeader('content-type', 'text/javascript');
-      return res.end(app);
+      return res.end(javascript.get(req.url));
     }
     if (req.url === '/app.css') {
       res.setHeader('content-type', 'text/css');
@@ -99,6 +110,21 @@ try {
   const origin = `http://127.0.0.1:${server.address().port}`;
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1024, height: 820 } });
+  let releasePreview;
+  let previewRequested;
+  let previewRequests = 0;
+  const previewPending = new Promise((resolve) => {
+    previewRequested = resolve;
+  });
+  const previewReady = new Promise((resolve) => {
+    releasePreview = resolve;
+  });
+  await context.route('**/chunks/ReleaseNotesDialog-*.js', async (route) => {
+    previewRequests++;
+    previewRequested();
+    await previewReady;
+    await route.continue();
+  });
   const releases = ['daemon', 'runtime'].map((component) => ({
     component,
     version: '0.4.0',
@@ -117,6 +143,16 @@ try {
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(origin);
   const dialog = page.getByRole('dialog');
+  await previewPending;
+  await expect(dialog).toHaveCount(0);
+  assert.equal(
+    await page.evaluate(
+      () =>
+        Object.keys(localStorage).filter((key) => key.startsWith('puddle.release-notes.')).length,
+    ),
+    0,
+  );
+  releasePreview();
   await expect(dialog).toHaveCount(1);
   await expect(dialog.getByRole('heading', { name: 'Cockpit', exact: true })).toBeVisible();
   await expect(dialog.getByRole('heading', { name: 'Daemon', exact: true })).toHaveCount(0);
@@ -134,9 +170,11 @@ try {
   assert.equal(await page.evaluate(() => window.notesUnsafe), undefined);
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(dialog).toHaveCount(0);
+  const loadedPreviews = previewRequests;
   await page.reload();
   await page.evaluate(() => window.releaseFixture.refresh());
   await expect(dialog).toHaveCount(0);
+  assert.equal(previewRequests, loadedPreviews, 'Seen notes must not load the preview chunk');
 
   await page.evaluate(
     ({ markdown }) => {
