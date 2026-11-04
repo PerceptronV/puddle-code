@@ -1,4 +1,9 @@
-import { serviceIsStopped, resetServiceStartLimit } from './stopped.js';
+import {
+  serviceIsStopped,
+  serviceHasNoProcess,
+  resetServiceStartLimit,
+  unloadIdleLaunchdService,
+} from './stopped.js';
 import { serviceDefinitionDigest } from './definition.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -80,14 +85,24 @@ export async function startReplacementService(
   home: string,
   input: HostServiceReplacement,
   run?: CompilationCommandRunner,
-  allowFailed = false,
+  allowRecovery = false,
   beforeStart?: () => void | Promise<void>,
 ): Promise<void> {
   const service = hostServiceReplacementSchema.parse(input);
   await requireUnchangedServiceDefinition(home, service, run);
-  if (!(await serviceIsStopped(home, service, run, allowFailed)))
+  if (
+    !(allowRecovery
+      ? await serviceHasNoProcess(home, service, run)
+      : await serviceIsStopped(home, service, run))
+  )
     throw new Error('Host service is not stopped');
-  if (allowFailed) {
+  if (allowRecovery) {
+    await unloadIdleLaunchdService(
+      home,
+      service,
+      () => requireUnchangedServiceDefinition(home, service, run),
+      run,
+    );
     await resetServiceStartLimit(
       home,
       service,

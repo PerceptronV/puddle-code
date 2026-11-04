@@ -261,8 +261,8 @@ installer; attempted selections must already verify. After an attempted daemon
 start, recovery requires fresh adoption and unchanged service configuration, keeping
 the replacement's controller without another stop/start. Connector startup may run
 when unattempted and positively stopped. After an attempted start, a fresh explicit
-recovery may accept separate restart evidence only when the unchanged service is
-positively stopped, the outgoing PID has ended and private manager inspection confirms
+recovery may accept separate restart evidence only when the unchanged service has no
+process, the outgoing PID has ended and private manager inspection confirms
 absence. The accepted evidence binds its approved service and selected daemon generation;
 execution checks it again before mutations and immediately before startup, including
 after a systemd start-limit reset. An observation-only attempt cannot gain restart
@@ -272,8 +272,10 @@ rechecks operation/current adoption before
 commands and requires fresh completion verification. Maintenance and later recovery
 retain exclusion while any recorded worker group may still have descendants.
 After confirmed daemon loss, a fresh explicit attempt may authorise another start.
-Recovery requires the service to be absent/inactive, or systemd failed with no main
-process, and acquires the existing controller claim without minting an epoch. It
+Recovery requires the service to be absent/inactive, systemd failed with no main
+process, or an observed idle launchd registration, and acquires the existing controller
+claim without minting an epoch. An idle registration is not shutdown proof: explicit
+recovery unloads it under that claim and verifies removal before bootstrap. It
 reads the current committed SQLite WAL state without migrations, checking the
 worker/candidate schema ceilings, checkpointed cursors, current runtime identities
 and protocols, and the installed runtime default. Its private accepted restart
@@ -445,9 +447,15 @@ host updater's trusted `--start-daemon` entry, not the installer. It holds updat
 coordination/execution and controller claims plus the existing installer lock while
 checking selected executables, the supervisor marker and unchanged service definition.
 The loaded systemd command must point to the selected daemon wrapper; launchd's plist
-must match its exact label and arguments. Only positively stopped services can start
-(including systemd failed with no main process). The helper releases the controller
-claim immediately before one start/bootstrap, retaining update/installer exclusion;
+must match its exact label and arguments. A loaded launchd job with no PID is observed
+through the existing GUI-context and documented list-column checks. Explicit startup
+rechecks it and the validated plist under controller/update/installer exclusion, unloads
+the exact registration once and verifies its absence. It then bootstraps the validated
+plist without trusting or kickstarting the previously loaded definition. A lost unload
+reply or changed evidence stops the attempt; a later explicit request can inspect the
+unloaded job. Shutdown verification still requires registration removal, since an idle
+job can start itself. Systemd failed services require no main process. The helper releases
+the controller claim immediately before one start/bootstrap, retaining update/installer exclusion;
 normal daemon startup creates the new controller and adopts surviving runtimes.
 The helper changes no selector, definition or controller record. Dispatched incomplete
 updates require explicit recovery; undispatched preparations do not prevent startup.
@@ -461,9 +469,8 @@ stopped unit once, retaining controller exclusion through the reset. They rechec
 unchanged service definition and confirm an inactive successful result before starting;
 recovery also revalidates current database/runtime evidence immediately before releasing
 the controller. Lost reset replies stop the attempt without starting or retrying. Other
-failed results do not trigger a reset. Loaded-idle launchd jobs and packaged platform
-acceptance remain unfinished. This
-host-only executable mode adds no REST/WS, remote or runtime protocol change.
+failed results do not trigger a reset. Packaged platform acceptance remains unfinished.
+This host-only executable mode adds no REST/WS, remote or runtime protocol change.
 
 Maintenance participants also cover queued runtime controls, asynchronous native-ref
 capture/resume repair, marker-file synchronisation and compilation providers. They

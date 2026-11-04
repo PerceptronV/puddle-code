@@ -43,6 +43,18 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Explicit selected startup and accepted daemon/connector restart recovery now admit
+  an idle launchd registration through shared GUI-context/list-column inspection.
+  Idle remains distinct from stopped: while retaining controller/update exclusion,
+  recovery rechecks the job, unloads the exact registration once, proves removal and
+  bootstraps the validated plist. Lost unload replies stop the attempt; the loaded
+  definition is never kickstarted. Transaction fixtures cover durable start intent,
+  controller exclusion and changed database/configuration evidence after unload.
+  Two native provider-free launchd tests passed on macOS 26.5.2, including a loaded
+  definition different from the validated file and an intentionally lost unload reply.
+  These establish the service primitive, not complete packaged/provider continuity.
+  Abrupt-kill installer-lock repair and the wider lifetime/platform gates remain open.
+
 - Explicit continuation now supports confirmed connector-start loss through the
   existing recovery worker and service helpers. A private accepted fingerprint binds
   the approved connector service and selected daemon generation after positively stopped

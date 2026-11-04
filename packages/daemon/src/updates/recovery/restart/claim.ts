@@ -1,7 +1,7 @@
 import { digest } from '@puddle/shared/node';
 import type { CompilationCommandRunner } from '../../../compilation/process.js';
 import { requireUnchangedServiceDefinition } from '../../../host/supervision/replacement.js';
-import { serviceIsStopped } from '../../../host/supervision/stopped.js';
+import { serviceHasNoProcess } from '../../../host/supervision/stopped.js';
 import { readRuntimeController } from '../../../runtime/ownership/storage.js';
 import { resolveInstalledRuntimeRelease } from '../../../runtime/lifecycle/release.js';
 import { acquireHostClaim } from '../../../security/claims.js';
@@ -52,7 +52,7 @@ export async function retainEndedUpdateRecovery(
       check();
       if (!job.daemon_service) throw new Error('Missing daemon service');
       await requireUnchangedServiceDefinition(home, job.daemon_service, run);
-      if (!(await serviceIsStopped(home, job.daemon_service, run, true)))
+      if (!(await serviceHasNoProcess(home, job.daemon_service, run)))
         throw new Error('Replacement daemon has not ended');
       check();
       const evidence = readDaemonUpdateCheckpoint(home, job);
@@ -70,7 +70,7 @@ export async function retainEndedUpdateRecovery(
         throw new Error('Candidate cannot launch the installed runtime');
       const database = await inspectRecoveryDatabase(home, candidate, evidence.checkpoint);
       check();
-      if (!(await serviceIsStopped(home, job.daemon_service, run, true)))
+      if (!(await serviceHasNoProcess(home, job.daemon_service, run)))
         throw new Error('Replacement daemon changed during recovery');
       check();
       const fingerprint = digest(

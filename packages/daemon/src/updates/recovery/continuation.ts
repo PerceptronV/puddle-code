@@ -7,7 +7,7 @@ import { readRecoveryActions } from './actions.js';
 import { claimHostUpdateRecovery } from './claim.js';
 import { retainStoppedUpdateRecovery } from './shutdown.js';
 import { retainEndedUpdateRecovery } from './restart/claim.js';
-import { serviceIsStopped } from '../../host/supervision/stopped.js';
+import { serviceHasNoProcess } from '../../host/supervision/stopped.js';
 
 export async function claimUpdateContinuation(
   home: string,
@@ -37,7 +37,7 @@ export async function retainUpdateContinuation(
         ...(await retainStoppedUpdateRecovery(home, recovery, run)),
         mode: 'stopped' as const,
       };
-    if (job.daemon_service && (await serviceIsStopped(home, job.daemon_service, run, true))) {
+    if (job.daemon_service && (await serviceHasNoProcess(home, job.daemon_service, run))) {
       recovery.check();
       return await retainEndedUpdateRecovery(home, recovery, run);
     }

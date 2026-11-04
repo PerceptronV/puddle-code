@@ -3,7 +3,43 @@ import {
   type CompilationCommandRunner,
 } from '../../compilation/process.js';
 import { supervisorCommand } from '../services.js';
-import { validServiceTarget, type ServiceTarget } from './inspection.js';
+import { validServiceTarget, type ServiceTarget } from './target.js';
+import { inspectLaunchdProcess } from './launchd.js';
+
+/** Explicit startup/recovery only: an idle launchd registration still needs unloading. */
+export async function serviceHasNoProcess(
+  home: string,
+  target: ServiceTarget,
+  run?: CompilationCommandRunner,
+): Promise<boolean> {
+  if (await serviceIsStopped(home, target, run, true)) return true;
+  return target.kind === 'launchd' && (await inspectLaunchdProcess(home, target, run)) === null;
+}
+
+/** Retain controller/update exclusion: never kickstart an unverified loaded definition. */
+export async function unloadIdleLaunchdService(
+  home: string,
+  target: ServiceTarget,
+  requireCurrent: () => Promise<void>,
+  run?: CompilationCommandRunner,
+): Promise<void> {
+  validServiceTarget(target);
+  if (target.kind !== 'launchd' || (await serviceIsStopped(home, target, run))) return;
+  if ((await inspectLaunchdProcess(home, target, run)) !== null)
+    throw new Error('Launchd service has a live process');
+  await requireCurrent();
+  if ((await inspectLaunchdProcess(home, target, run)) !== null)
+    throw new Error('Launchd service started during recovery');
+  await requireCurrent();
+  await supervisorCommand(home, run)('/bin/launchctl', [
+    'bootout',
+    `${target.domain}/${target.name}`,
+  ]);
+  // A lost reply exits above. A later explicit attempt can inspect the unloaded job.
+  if (!(await serviceIsStopped(home, target, run)))
+    throw new Error('Idle launchd service removal is unconfirmed');
+  await requireCurrent();
+}
 
 /** Explicit startup only. Reset this unit's rate limit, never all failed services. */
 export async function resetServiceStartLimit(

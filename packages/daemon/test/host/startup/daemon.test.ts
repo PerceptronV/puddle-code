@@ -46,6 +46,11 @@ function fixture(kind: 'systemd' | 'launchd' = 'systemd') {
   };
   writeFileSync(definitionPath, JSON.stringify(plist), { mode: 0o600 });
   const state = {
+    loaded: false,
+    pid: null as number | null,
+    bootoutLost: false,
+    afterBootout: () => {},
+    onList: () => {},
     failed: false,
     rateLimited: false,
     resetLost: false,
@@ -62,7 +67,12 @@ function fixture(kind: 'systemd' | 'launchd' = 'systemd') {
     const action = command.args[kind === 'systemd' ? 1 : 0];
     let stdout = '';
     if (command.file === '/usr/bin/plutil') stdout = JSON.stringify(plist);
-    else if (action === 'cat') stdout = state.changed ? 'changed' : '[Service]\nExisting=yes';
+    else if (action === 'managername') stdout = 'Aqua\n';
+    else if (action === 'manageruid') stdout = `${process.getuid!()}\n`;
+    else if (action === 'list') {
+      state.onList();
+      stdout = `${state.stopped ? (state.pid ?? '-') : process.pid}\t0\tdev.puddle.puddled\n`;
+    } else if (action === 'cat') stdout = state.changed ? 'changed' : '[Service]\nExisting=yes';
     else if (command.args.includes('--property=ExecStart')) {
       const wrapper = state.wrongExecutable ? '/other/puddled' : join(home, 'bin/current/puddled');
       stdout = `{ path=${wrapper} ; argv[]=${wrapper} ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }\n`;
@@ -71,8 +81,14 @@ function fixture(kind: 'systemd' | 'launchd' = 'systemd') {
       stdout = `Id=puddled.service\nLoadState=loaded\nActiveState=${state.stopped ? (state.failed ? 'failed' : 'inactive') : 'active'}\nSubState=${state.failed ? 'failed' : 'dead'}\nMainPID=${state.stopped ? 0 : process.pid}\nNeedDaemonReload=no\n`;
       if (command.args.some((arg) => arg.includes(',Result')))
         stdout += `Result=${state.rateLimited ? 'start-limit-hit' : state.failed ? 'exit-code' : 'success'}\n`;
-    } else if (action === 'print' && state.stopped) return { exitCode: 113, stdout, stderr: '' };
-    else if (action === 'reset-failed') {
+    } else if (action === 'print' && state.stopped && !state.loaded)
+      return { exitCode: 113, stdout, stderr: '' };
+    else if (action === 'bootout') {
+      expect(() => acquireHostClaim(home, 'daemon-controller')).toThrow('owns this host claim');
+      state.loaded = false;
+      state.afterBootout();
+      if (state.bootoutLost) throw new Error('Bootout reply lost');
+    } else if (action === 'reset-failed') {
       state.failed = false;
       state.rateLimited = false;
       state.afterReset();
@@ -156,6 +172,56 @@ it.each([
   expect(f.mutations()).toHaveLength(failure === 'lost-reply' ? 1 : 0);
   expect(existsSync(join(f.home, 'bin/.install-lock'))).toBe(failure === 'installer');
 });
+
+it('unloads an idle launchd registration before bootstrapping its validated plist', async () => {
+  const f = fixture('launchd');
+  f.state.loaded = true;
+  await f.start();
+  expect(
+    f.commands
+      .filter(({ args }) => ['bootout', 'bootstrap'].includes(args[0]!))
+      .map(({ args }) => args),
+  ).toEqual([
+    ['bootout', `gui/${process.getuid!()}/dev.puddle.puddled`],
+    ['bootstrap', `gui/${process.getuid!()}`, f.definitionPath],
+  ]);
+  expect(f.commands.some(({ args }) => args.includes('kickstart'))).toBe(false);
+  expect(JSON.parse(readFileSync(join(f.home, 'runtime-controller.json'), 'utf8'))).toEqual(
+    f.controller,
+  );
+});
+
+it.each(['lost-reply', 'configuration', 'live-process'] as const)(
+  'does not bootstrap an idle launchd job after %s uncertainty',
+  async (failure) => {
+    const f = fixture('launchd');
+    f.state.loaded = true;
+    f.state.bootoutLost = failure === 'lost-reply';
+    if (failure === 'configuration')
+      f.state.afterBootout = () => {
+        writeFileSync(f.definitionPath, 'changed definition');
+      };
+    if (failure === 'live-process') {
+      let lists = 0;
+      f.state.onList = () => {
+        if (++lists === 3) f.state.pid = process.pid;
+      };
+    }
+    await expect(f.start()).rejects.toThrow();
+    expect(f.mutations()).toEqual([]);
+    expect(existsSync(join(f.home, 'bin/.install-lock'))).toBe(false);
+    expect(f.commands.filter(({ args }) => args[0] === 'bootout')).toHaveLength(
+      failure === 'live-process' ? 0 : 1,
+    );
+    if (failure === 'lost-reply') {
+      // A new explicit request observes the unloaded registration, without another bootout.
+      f.state.bootoutLost = false;
+      await f.start();
+      expect(f.mutations()).toHaveLength(1);
+      expect(f.commands.filter(({ args }) => args[0] === 'bootout')).toHaveLength(1);
+    }
+  },
+);
 
 it('starts a non-rate-limited failed service without resetting its failure evidence', async () => {
   const f = fixture();

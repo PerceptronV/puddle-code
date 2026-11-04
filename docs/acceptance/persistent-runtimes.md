@@ -10,6 +10,21 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+Loaded-idle launchd startup/recovery shares documented GUI-context/list-column inspection
+with running-service checks. Idle is not shutdown proof; tests verify that controller
+exclusion and durable recovery start intent remain held through exact registration unload.
+Lost replies, a process appearing before unload, changed plist bytes and a newer database
+schema prevent bootstrap. Two real, uniquely named provider-free launchd jobs passed on
+macOS 26.5.2: the loaded command intentionally differs from the subsequently validated
+plist, and a lost unload reply is followed by a new explicit inspection/start. Both prove
+that only the validated replacement runs, custom environment survives and the plist is
+unchanged; each confirms registration/process exit before fixture removal. These checks
+do not establish packaged daemon upgrades or native-provider continuity.
+The affected supervision/preflight/update/recovery regression run passed 222 tests in
+29 files, skipping five native supervisor cases. The two new native cases and four
+transactional launchd cases also passed in a separate enabled run. Source and strict
+changed-test typechecks, lint, formatting and CLI/desktop builds passed.
+
 Connector recovery fixtures use real operation/attempt journals and controller claims,
 with simulated supervisor and daemon/connector inspection results. They cover inactive,
 failed and rate-limited connector starts, exact request deduplication, consumed attempts,
@@ -136,7 +151,7 @@ refusals and SIGHUP cleanup; the scripted command starts no daemon or service.
 The ExecStart property shape was checked against
 [systemd v254's property printer](https://github.com/systemd/systemd/blob/v254/src/systemctl/systemctl-show.c),
 but actual Linux service parsing/startup still needs platform acceptance. Also verify
-loaded-idle launchd jobs, actual systemd start limits and SIGKILL/stale installer-lock repair
+packaged loaded-idle launchd recovery, actual systemd start limits and SIGKILL/stale installer-lock repair
 before release. None of these fixtures proves real-provider continuity through startup.
 The final startup, shared supervision and CLI upgrade regression run passed 67 tests
 in nine files. Source and strict changed-test typechecks, lint, formatting and both

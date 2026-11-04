@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { digest } from '@puddle/shared/node';
 import type { CompilationCommandRunner } from '../../compilation/process.js';
 import { supervisorCommand, validServicePath } from '../services.js';
-import { validServiceTarget, type ServiceTarget } from './inspection.js';
+import { validServiceTarget, type ServiceTarget } from './target.js';
 
 /** Corroborate the loaded systemd command before starting a service without a live PID. */
 export async function requireSelectedDaemonExecutable(

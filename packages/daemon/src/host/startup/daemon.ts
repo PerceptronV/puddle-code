@@ -16,7 +16,11 @@ import {
 } from '../supervision/definition.js';
 import { inspectHostServiceManager } from '../supervision/inspection.js';
 import { readSupervisorMarker } from '../supervision/marker.js';
-import { serviceIsStopped, resetServiceStartLimit } from '../supervision/stopped.js';
+import {
+  serviceHasNoProcess,
+  resetServiceStartLimit,
+  unloadIdleLaunchdService,
+} from '../supervision/stopped.js';
 
 /** Start the selected service once. Installation, update recovery and owner restart are separate. */
 export async function startSelectedDaemon(
@@ -67,7 +71,7 @@ export async function startSelectedDaemon(
           join(homedir(), 'Library/LaunchAgents/dev.puddle.puddled.plist'))
         : null;
     const definition = await serviceDefinitionDigest(home, target, definitionPath, options.run);
-    if (!(await serviceIsStopped(home, target, options.run, true)))
+    if (!(await serviceHasNoProcess(home, target, options.run)))
       throw new Error('Installed daemon service is not positively stopped');
     const requireCurrent = async () => {
       if ((await serviceDefinitionDigest(home, target, definitionPath, options.run)) !== definition)
@@ -76,6 +80,7 @@ export async function startSelectedDaemon(
       check();
     };
     await requireCurrent();
+    await unloadIdleLaunchdService(home, target, requireCurrent, options.run);
     await resetServiceStartLimit(home, target, requireCurrent, options.run);
     await requireCurrent();
     // Startup will acquire the same controller claim. Keep update/installer exclusion

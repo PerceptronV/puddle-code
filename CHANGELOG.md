@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Recover loaded but idle launchd services during explicit startup or accepted update recovery. Retain controller exclusion, unload only the observed idle registration and bootstrap the validated plist; stop on lost unload replies or changed evidence without repeating the command.
+
 - Allow explicit update recovery after a confirmed connector-start failure, reusing the existing service checks and durable attempt journal. Recheck the selected build and stopped service before startup, observe healthy replacements without restarting them and require fresh acceptance after uncertain starts.
 
 - Recover a stopped daemon's systemd start limit during explicit startup or accepted update recovery. Reset only the exact unit, retain controller exclusion and repeat current service/database/runtime checks before starting; leave lost reset replies inspectable without retrying or starting.

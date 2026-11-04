@@ -204,9 +204,14 @@ definition readers under `host/supervision/`. Explicit startup/recovery may rese
 the exact positively stopped systemd unit's `start-limit-hit` result. Keep controller
 exclusion through reset and repeat current configuration/database/runtime checks before
 start; lost reset replies must not dispatch a start. Share stopped-service parsing in
-`host/supervision/stopped.ts`. The helper handles graceful disconnect
-signals; abrupt-kill lock repair and further platform acceptance remain unfinished.
-Cockpit confirmation remains pending.
+`host/supervision/stopped.ts`. Loaded-idle launchd recovery shares
+`host/supervision/launchd.ts` with running inspection: verify GUI context and exact list
+columns, retain controller/update exclusion,
+recheck the idle job, unload it once and prove removal before bootstrapping the validated
+plist. Never trust the previously loaded definition or treat idle as shutdown proof;
+lost unload replies stop the attempt. Database/runtime checks still precede controller
+release. The helper handles graceful disconnect signals; abrupt-kill lock repair and
+further platform acceptance remain unfinished.
 Application 25.13 exposes local/SSH `GET/POST /cockpit/updates` through the existing
 gateway, including Vite. Keep browser schemas in `shared/api/connection/cockpit-updates.ts`
 and control/projection beside the existing `cli/lib/host/updates/` helpers. Preparation
@@ -289,7 +294,7 @@ never let a later early failure reset earlier attempted work. `recovery/continua
 retains either the original stopped hand-off or fresh replacement adoption, sharing
 `verification/daemon.ts` with completion. Running continuation never stops/restarts
 the replacement or changes its controller. Recheck current adoption before commands;
-only unattempted, positively stopped connector startup may issue a start.
+connector startup needs an unattempted stopped service or separately accepted restart evidence.
 `recovery/restart/` handles a fresh explicit daemon start after confirmed service
 loss. Hold the existing controller claim, read current SQLite/WAL data without
 migrations, and bind current schema, runtime inventory/default and selectors into

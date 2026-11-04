@@ -87,7 +87,7 @@ it('checks exact launchd registration by exit status and matches documented list
   listing = launchdObservation(456);
   await expect(inspectRunningService('/home', service, 123, run)).rejects.toThrow('does not match');
   listing = `${launchdObservation(123)}123\t0\tdev.puddle.puddled\n`;
-  await expect(inspectRunningService('/home', service, 123, run)).rejects.toThrow('does not match');
+  await expect(inspectRunningService('/home', service, 123, run)).rejects.toThrow('Ambiguous');
 });
 
 it('probes manager availability without reading environment values or starting services', async () => {

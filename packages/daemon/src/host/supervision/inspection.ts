@@ -1,11 +1,7 @@
+import { validServiceTarget, type ServiceTarget } from './target.js';
+import { inspectLaunchdProcess } from './launchd.js';
 import type { CompilationCommandRunner } from '../../compilation/process.js';
 import { supervisorCommand } from '../services.js';
-
-export interface ServiceTarget {
-  kind: 'systemd' | 'launchd';
-  name: string;
-  domain: string | null;
-}
 
 export interface ServiceObservation extends ServiceTarget {
   pid: number;
@@ -27,16 +23,6 @@ export async function inspectHostServiceManager(
   const uid = options.uid ?? process.getuid?.();
   if (!kind || uid === undefined) throw new Error('No supported independent supervisor');
   return inspectServiceManager(home, kind, uid, options.run);
-}
-
-export function validServiceTarget(target: ServiceTarget): void {
-  if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(target.name))
-    throw new Error('Invalid host service name');
-  if (target.kind === 'launchd') {
-    if (!/^gui\/[0-9]+$/.test(target.domain ?? '')) throw new Error('Invalid host service domain');
-  } else if (target.domain !== null || !target.name.endsWith('.service')) {
-    throw new Error('Invalid host service target');
-  }
 }
 
 /** Probe only; never start a manager or register a service during inspection. */
@@ -118,27 +104,7 @@ export async function inspectRunningService(
       throw new Error('Systemd service does not match the running daemon');
     return { ...target, pid: expectedPid, invocation, controlGroup: group };
   }
-  // print's format is explicitly not an API. Its exit status verifies the exact
-  // GUI registration; the documented legacy list columns identify the live PID.
-  // Verified against the macOS 26.5.2 launchctl(1) manual.
-  // list uses the caller's context. Establish that it is the same GUI manager,
-  // rather than accepting a same-labelled job in a separate user domain.
-  const context = await execute('/bin/launchctl', ['managername']);
-  const user = await execute('/bin/launchctl', ['manageruid']);
-  if (context.stdout.trim() !== 'Aqua' || `gui/${user.stdout.trim()}` !== target.domain)
-    throw new Error('Launchd inspection is outside the expected GUI context');
-  await execute('/bin/launchctl', ['print', `${target.domain}/${target.name}`]);
-  const listed = await execute('/bin/launchctl', ['list']);
-  const matches = listed.stdout
-    .split('\n')
-    .map((line) => line.trim().split(/\s+/))
-    .filter((columns) => columns[2] === target.name);
-  if (
-    matches.length !== 1 ||
-    matches[0]!.length !== 3 ||
-    matches[0]![0] !== String(expectedPid) ||
-    !/^-?\d+$/.test(matches[0]![1]!)
-  )
+  if ((await inspectLaunchdProcess(home, target, run)) !== expectedPid)
     throw new Error('Launchd service does not match the running daemon');
   return { ...target, pid: expectedPid, invocation: null, controlGroup: null };
 }

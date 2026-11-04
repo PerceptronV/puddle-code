@@ -7,7 +7,7 @@ import type {
 } from '@puddle/shared';
 import type { CompilationCommandRunner } from '../../compilation/process.js';
 import { requireUnchangedServiceDefinition } from '../../host/supervision/replacement.js';
-import { serviceIsStopped } from '../../host/supervision/stopped.js';
+import { serviceIsStopped, serviceHasNoProcess } from '../../host/supervision/stopped.js';
 import { HostUpdateConnector, inspectConnectorManager } from '../preflight/connector.js';
 import { inspectReplacementConnector } from '../verification/connector.js';
 import { verifyUpdateSelection } from '../worker/selection.js';
@@ -70,7 +70,7 @@ export async function requireStoppedRecoveryConnector(
   job: HostUpdateWorker,
   operation: HostUpdateOperation,
   run?: CompilationCommandRunner,
-  allowFailed = false,
+  allowRecovery = false,
 ) {
   const approved = job.connector;
   if (!approved) throw new Error('Missing approved connector inventory');
@@ -84,7 +84,11 @@ export async function requireStoppedRecoveryConnector(
     return;
   }
   await requireUnchangedServiceDefinition(home, approved.service, run);
-  if (!(await serviceIsStopped(home, approved.service, run, allowFailed)))
+  if (
+    !(allowRecovery
+      ? await serviceHasNoProcess(home, approved.service, run)
+      : await serviceIsStopped(home, approved.service, run))
+  )
     throw new Error('Outgoing connector is not stopped');
   let ended = false;
   try {
@@ -95,6 +99,6 @@ export async function requireStoppedRecoveryConnector(
   }
   if (!ended || (await inspectConnectorManager(home)) !== null)
     throw new Error('Outgoing connector shutdown is unconfirmed');
-  if (allowFailed && !(await serviceIsStopped(home, approved.service, run, true)))
+  if (allowRecovery && !(await serviceHasNoProcess(home, approved.service, run)))
     throw new Error('Connector service changed during recovery');
 }

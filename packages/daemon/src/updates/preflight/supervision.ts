@@ -1,3 +1,4 @@
+import type { ServiceTarget } from '../../host/supervision/target.js';
 import { readSupervisorMarker } from '../../host/supervision/marker.js';
 import {
   hostUpdateOperationSchema,
@@ -8,7 +9,6 @@ import type { CompilationCommandRunner } from '../../compilation/process.js';
 import {
   inspectRunningService,
   inspectHostServiceManager,
-  type ServiceTarget,
 } from '../../host/supervision/inspection.js';
 import { prepareServiceReplacement } from '../../host/supervision/replacement.js';
 
