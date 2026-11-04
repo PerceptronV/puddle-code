@@ -39,6 +39,8 @@ Past releases: see docs/changelogs/.
 
 ### Fixed
 
+- Retain application storage when runtime connection drainage fails during daemon shutdown, so outstanding callbacks cannot access a closed database.
+
 - Resolve SSH-delivered checksum paths before changing the installer working directory.
 
 - Collect ended independent runtime service registrations through a bounded durable queue, preserving live owners and pinned data and recovering safely from lost removal responses.

@@ -187,6 +187,8 @@ version inspection. Shutdown closes admission irreversibly, fences delayed local
 PTY launches and waits for admitted handlers before closing terminal state and
 SQLite. This does not yet checkpoint background writers or enable daemon-update
 activation; the coordinator continues to refuse that operation.
+If runtime connection drainage fails, shutdown retains SQLite and controller
+ownership until process exit; a deadline does not establish that callbacks stopped.
 
 The [persistent runtimes roadmap](docs/roadmap/persistent-runtimes.md) specifies
 one independent `puddler` process per live runtime and cockpit-managed host

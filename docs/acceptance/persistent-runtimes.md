@@ -19,6 +19,8 @@ authenticated version inspection, bounded drains, stale pause releases and an
 isolated temporary daemon retaining SQLite until admitted work settles. The PTY
 spawn test uses a fake child; the daemon shutdown test starts no agents. They
 establish client admission, not background-writer quiescence or upgrade adoption.
+An injected runtime connection drain failure also verifies that shutdown remains
+closed to requests while retaining SQLite for outstanding callbacks.
 
 The lifecycle suite also checks coalesced upkeep, a four-worker sweep of 100 items,
 bounded job counts and drain deadlines. Its temporary daemon holds a fake account

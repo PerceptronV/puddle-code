@@ -5,10 +5,40 @@ import { expect, it, vi } from 'vitest';
 import { startDaemon } from '../../../src/daemon.js';
 import { readRuntime } from '../../../src/runtime-file.js';
 import { openDatabase } from '../../../src/db/db.js';
+import * as database from '../../../src/db/db.js';
+import { RuntimeConnections } from '../../../src/runtime/transport/connections.js';
 import { AccountStore } from '../../../src/db/stores/accounts.js';
 import { ProfileStore } from '../../../src/db/stores/profiles.js';
 import { ensureHome, resolvePaths } from '../../../src/paths.js';
 import { fakeAdapter } from '../../helpers/daemon-fixtures.js';
+
+it('retains SQLite when runtime connection drainage fails', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'puddle-shutdown-drain-failure-'));
+  const opened = vi.spyOn(database, 'openDatabase');
+  const close = RuntimeConnections.prototype.close;
+  const daemon = await startDaemon({ home, adapters: [], port: 0 });
+  const db = opened.mock.results[0]!.value as ReturnType<typeof openDatabase>;
+  opened.mockRestore();
+  const failure = new Error('Runtime connection drain timed out');
+  const failedClose = vi
+    .spyOn(RuntimeConnections.prototype, 'close')
+    .mockRejectedValueOnce(failure);
+  try {
+    const stopping = daemon.stop();
+    await expect(stopping).rejects.toBe(failure);
+    expect(daemon.stop()).toBe(stopping);
+    expect(readRuntime(daemon.paths)).toBeNull();
+    expect(() => daemon.admission.enter()).toThrow(/maintenance/);
+    // The domain error proves callbacks still have a live application store.
+    expect(() => daemon.service.get('absent')).toThrow(/does not exist/);
+  } finally {
+    const connections = failedClose.mock.contexts[0];
+    failedClose.mockRestore();
+    if (connections) await close.call(connections);
+    db.close();
+    await rm(home, { recursive: true, force: true });
+  }
+});
 
 it('closes client admission immediately and retains SQLite until admitted work finishes', async () => {
   // No accounts, providers or terminals: only this temporary daemon owns a socket.

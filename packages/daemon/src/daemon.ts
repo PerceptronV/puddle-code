@@ -642,11 +642,11 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
           clearRuntime(paths);
           // Release control only after application writers and servers have
           // stopped. External owners, PTYs and journals survive this detach.
-          try {
-            await runtimeConnections.close();
-          } finally {
-            db.close();
-          }
+          // A failed discovery drain can still have callbacks using SQLite.
+          // Retain both the controller claim and database until process exit;
+          // a timeout is not proof that those callbacks have stopped.
+          await runtimeConnections.close();
+          db.close();
         })();
         return stopping;
       },
