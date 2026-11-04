@@ -17,6 +17,7 @@ export class RuntimeHostAllowance implements RuntimeByteAllowance, RuntimeRetain
   private used = 0;
   private pending: HostMemoryGrant | null = null;
   private invalid = false;
+  private admissionWait: Promise<boolean> | null = null;
 
   constructor(
     private readonly ledger: Pick<HostMemoryLedger, 'readGrant' | 'compareGrant'>,
@@ -43,6 +44,18 @@ export class RuntimeHostAllowance implements RuntimeByteAllowance, RuntimeRetain
 
   reserve(bytes: number): (() => void) | null {
     return this.retain(bytes)?.release ?? null;
+  }
+
+  /** Coalesced yielding only for an unresolved CAS, never a second grant path. */
+  waitForAdmission(): Promise<boolean> {
+    if (this.invalid || !this.pending) return Promise.resolve(false);
+    this.admissionWait ??= new Promise<boolean>((resolve) => {
+      setTimeout(() => {
+        this.admissionWait = null;
+        resolve(!this.invalid);
+      }, 25);
+    });
+    return this.admissionWait;
   }
 
   retain(bytes: number): RuntimeRetainedAllocation | null {

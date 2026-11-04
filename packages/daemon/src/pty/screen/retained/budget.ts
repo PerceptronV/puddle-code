@@ -190,13 +190,18 @@ export class ScreenRetainedBudget {
   async acquireBurst(bytes: number): Promise<() => void> {
     if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes > this.limits.burstBytes)
       throw new Error('Canonical terminal operation exceeds burst capacity');
-    while (bytes > this.limits.burstBytes - this.burst)
-      await new Promise<void>((resolve) => this.waiting.push(resolve));
-    // Global refusal cannot be woken by an unrelated domain's release. Only
-    // local contention waits; a refused enclosing grant is an explicit failure.
-    const releaseAllowance = this.allowance?.reserve(bytes);
-    if (this.allowance && !releaseAllowance)
-      throw new Error('Canonical terminal host burst capacity exhausted');
+    const deadline = performance.now() + 5000;
+    let releaseAllowance: (() => void) | null | undefined;
+    for (;;) {
+      while (bytes > this.limits.burstBytes - this.burst)
+        await new Promise<void>((resolve) => this.waiting.push(resolve));
+      releaseAllowance = this.allowance?.reserve(bytes);
+      if (!this.allowance || releaseAllowance) break;
+      // Input/actions are already charged. Yield only while durable admission is
+      // unresolved, then recheck local capacity before another reservation.
+      if (performance.now() >= deadline || !(await this.allowance.waitForAdmission?.()))
+        throw new Error('Canonical terminal host burst capacity exhausted');
+    }
     this.burst += bytes;
     let held = true;
     return () => {

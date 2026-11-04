@@ -156,6 +156,13 @@ graceful execution shutdown alone cannot release that claim. These limits accoun
 for Puddle-managed capacity, not native-agent allocations, total process RSS or a
 physical filesystem quota.
 
+Snapshot restoration opens and validates a saved file before reserving its read
+workspace; a new terminal with no saved file needs no restore reservation. Already
+charged parser work and snapshot waiters can yield for up to five seconds while a
+grant change remains unresolved, rechecking local capacity and the same durable
+grant before spending. Definitive exhaustion still refuses admission. This neither
+replays terminal input nor expands the existing work queues or memory limits.
+
 The Codex native bridge pauses unsent traffic when its shared allowance is
 unavailable, preserving the native CLI and sidecar. Raw fragments, parsed metadata
 and deferred forwards retain their charges through delivery; control-frame replies

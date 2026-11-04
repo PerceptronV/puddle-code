@@ -10,6 +10,7 @@ import { acquireHostClaim } from '../../../src/security/claims.js';
 import { acquireInstallationLock } from '../../../src/host/installation/lock.js';
 import { RuntimeControls } from '../../../src/runtime/controller/controls.js';
 import { RuntimeConnections } from '../../../src/runtime/transport/connections.js';
+import { RuntimeRequestRejected } from '../../../src/runtime/transport/client.js';
 import { runtimeDirectory } from '../../../src/runtime/ownership/storage.js';
 import { runtimeDatabase } from '../../helpers/runtime-database.js';
 import {
@@ -68,7 +69,10 @@ it('retains the same shell processes or explicitly stops the reviewed owners thr
     await waitForSnapshot(client, original.generation, 'removal-ready');
     const first = await removal.review(() => true);
     expect(first.owners).toHaveLength(2);
-    expect(first.owners.every((owner) => 'fingerprint' in owner.stop)).toBe(true);
+    expect(
+      first.owners.map((owner) => owner.stop),
+      owners.map((entry) => entry.owner.errors()).join('\n') || undefined,
+    ).toEqual(first.owners.map(() => expect.objectContaining({ fingerprint: expect.any(String) })));
     await removal.apply(first, 'retain', () => true);
     expect(terminal(client.state).pid).toBe(original.pid);
     await client.request({
@@ -129,6 +133,11 @@ it('retains the same shell processes or explicitly stops the reviewed owners thr
     await withRemovalRuntimes(f.home, async (offline) => {
       expect((await offline.review(() => true)).owners).toEqual([]);
     });
+  } catch (error) {
+    throw new Error(
+      `Runtime removal continuity failed${error instanceof RuntimeRequestRejected ? ' during ' + error.request : ''}\n${owners.map((entry) => entry.owner.errors()).join('\n')}`,
+      { cause: error },
+    );
   } finally {
     await controls.close();
     await f.reconciler.close();

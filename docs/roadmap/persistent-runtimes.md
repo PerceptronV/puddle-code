@@ -75,6 +75,18 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- The full daemon run passed 2,000 tests and exposed six failures. Five were stale
+  fixtures: removal/collection now initialise or observe the sealed memory ledger,
+  and ENOSPC injection reaches the actual fixed-slot file writer. Their focused
+  suites passed. The remaining failure exposed a production startup gap: loading
+  an absent screen reserved 48 MiB before checking for the file, and transient
+  admission contention could mark it unavailable. Restore admission now follows
+  successful open/fstat; already charged asynchronous screen work retries only
+  unresolved grant changes under existing caps and bounded waits. Eighty-one
+  focused checks and the reproduced two-owner removal case pass, with independent
+  review. The resource harness now requires canonical output and settled health;
+  earlier resource samples prove process baselines, not canonical-screen health.
+
 - The calibrated macOS plain-shell resource run now passes at 1, 10 and 50
   independent owners using production memory admission and controller acquisition.
   At 50, summed owner RSS was 2,669 MiB, self CPU 3.70% of one core, reaped-child

@@ -349,9 +349,13 @@ export class TerminalScreenStateStore {
   private async load(stream: string, term: string, state: ScreenState): Promise<void> {
     const file = this.file(stream, term);
     if (!file) return;
-    const release = await this.work.acquire();
+    let release: (() => void) | undefined;
     try {
-      const parsed: unknown = JSON.parse(await readScreenFile(file));
+      const parsed: unknown = JSON.parse(
+        await readScreenFile(file, async () => {
+          release = await this.work.acquire();
+        }),
+      );
       if (!this.isPersistedState(parsed)) throw new Error('Invalid saved terminal screen');
       await state.retained.resize(parsed.cols, parsed.rows);
       state.cols = parsed.cols;
@@ -363,7 +367,7 @@ export class TerminalScreenStateStore {
     } catch (error) {
       if (!this.isMissing(error)) throw error;
     } finally {
-      release();
+      release?.();
     }
   }
 

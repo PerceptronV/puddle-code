@@ -194,3 +194,34 @@ it('resizes retained domains without freeing backing still held or overcharging 
   expect(allowance.usedBytes).toBe(0);
   text.release();
 });
+
+it('coalesces yielding for unresolved admission and reconciles a lost commit without replay', async () => {
+  const ledger = new Ledger(100);
+  const allowance = new RuntimeHostAllowance(ledger, identity(), 20, 0);
+  ledger.fault = 'after';
+  expect(allowance.reserve(20)).toBeNull();
+  expect(ledger.writes).toBe(1);
+  const first = allowance.waitForAdmission();
+  const second = allowance.waitForAdmission();
+  expect(second).toBe(first);
+  ledger.fault = null;
+  expect(await first).toBe(true);
+  const release = allowance.reserve(20)!;
+  expect(release).not.toBeNull();
+  expect(ledger.writes).toBe(1);
+  release();
+  expect(await allowance.waitForAdmission()).toBe(false);
+});
+
+it('never waits for definitive exhaustion or an invalidated allowance', async () => {
+  const ledger = new Ledger(10);
+  const allowance = new RuntimeHostAllowance(ledger, identity(), 20, 0);
+  expect(allowance.reserve(11)).toBeNull();
+  expect(await allowance.waitForAdmission()).toBe(false);
+  ledger.fault = 'before';
+  expect(allowance.reserve(1)).toBeNull();
+  const waiting = allowance.waitForAdmission();
+  allowance.close();
+  expect(await waiting).toBe(false);
+  expect(await allowance.waitForAdmission()).toBe(false);
+});
