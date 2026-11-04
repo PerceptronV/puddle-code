@@ -5,8 +5,9 @@ matrix. Persistent ownership is required standard behaviour for every user in
 0.4.0, without an enable/disable option. Implementation remains in progress:
 daemon composition now defaults to installed independent runtimes. Explicitly
 unsupervised hosts can use a labelled host-session owner; daemon updates refuse
-limited or unknown lifetimes. Proven detached/attached persistence remains a
-release blocker.
+limited or unknown lifetimes. Native SSH/logout/reaper acceptance remains required;
+the limited fallback does not promise permanent detached persistence or managed
+updates without a service manager.
 Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
@@ -77,6 +78,17 @@ command consumption on a different boot, controller replacement with the same li
 shell and SIGHUP handling. Update preflight refuses `host_session`, unknown and
 absent lifetime evidence without stopping owners. These checks do not establish
 survival of SSH/logout/cgroup teardown.
+
+`test/runtime/attached/lifetime.test.ts` composes the real attached-daemon lease,
+SSH transport command handling, installed runtime owner and reconciliation with
+sanitised fake SSH and an unavailable-manager seam. It covers a surviving shell
+adopted with unchanged PID/generation/state, plus a deterministically reaped owner
+resumed exactly once with either auto-resume setting. Interrupted input is never
+replayed, and another connection creates no competing owner. Together with the
+lifetime checks, all 12 tests passed in 21.86 seconds. The
+[fixture notes](../../packages/daemon/test/helpers/runtime/attached/README.md)
+distinguish this from native OpenSSH/PAM/cgroup acceptance; no separate runtime
+holding channel or new production termination behaviour is introduced.
 
 Purge tests under `test/host/removal/purge*.test.ts` use controlled boot observations
 to verify same-boot refusal, retirement claims, fresh Git review, exact quarantine,

@@ -10,8 +10,9 @@ Default daemon launches now use independent runtimes, resolving the installed
 runtime selector and checking the host service manager before launch intent. The
 legacy composition is restricted to internal migration fixtures. Hosts without a
 usable systemd/launchd manager can use a labelled host-session owner only when their
-installation explicitly records `nohup`/`none`. Verified detached persistence and
-SSH-held runtime lifetimes remain release blockers. The daemon coordinator now composes maintenance
+installation explicitly records `nohup`/`none`. Native SSH/logout/reaper acceptance
+remains required; a separate runtime-holding SSH channel remains an investigation,
+and managerless hosts do not support managed updates. The daemon coordinator now composes maintenance
 for private host-control daemon updates. Explicit CLI recovery continuation now works
 through private authority or the trusted offline local/SSH helper. Ordinary CLI daemon
 upgrades now share runtime updates' staging, review and observation path, with explicit
@@ -57,6 +58,17 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 [acceptance matrix](#acceptance-matrix) for the release gates.
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
+
+- Labelled host-session fallback now has isolated actual-owner/shell close and
+  reconnect coverage: surviving owners retain their identity and in-memory state;
+  deterministic fixture reaping leads to one automatic or explicitly resumed
+  replacement. An interrupted shell side effect is never replayed, and another
+  connection creates no competing owner. All 12 attached/lifetime checks passed
+  in 21.86 seconds. The gate uses normal installed-runtime composition with fake
+  SSH command execution and an unavailable-manager seam. It does not establish
+  native SSH/logout/cgroup persistence. Documentation now describes both outcomes,
+  and update guidance acknowledges the required service manager. Separate runtime
+  holding remains an investigation under the limited fallback design below.
 
 - The opt-in `historical-first-upgrade.test.ts` reconstructs exact v0.3.14 commit
   `c33cdeef3a5df58badf73c3dd74cee8dca23bdbe`, protocol 25.6/schema 28, with pinned

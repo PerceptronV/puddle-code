@@ -11,7 +11,8 @@ import { CliError, type Logger, silentLogger } from '../types.js';
  * A daemon held open by an SSH exec channel. This is the last-resort lifetime
  * for hosts that explicitly selected nohup but reap the child as soon as its
  * launching SSH channel closes. Durable state remains in ~/.puddle exactly as
- * it does under systemd/launchd; only the live processes follow the cockpit.
+ * it does under systemd/launchd. Independent host-session runtimes may survive
+ * daemon closure; their survival after SSH/login teardown depends on host policy.
  */
 export class AttachedDaemon implements DaemonLease {
   private command: RunningSshCommand | null = null;
@@ -54,8 +55,9 @@ export class AttachedDaemon implements DaemonLease {
     const leasePidPath = this.leasePidPath;
 
     // Ask the exact daemon pid captured after this lease started to shut down
-    // cleanly. That freezes live rows for boot reconciliation, drains PTYs and
-    // removes runtime.json before the SSH channel is closed.
+    // cleanly and remove runtime.json before closing the SSH channel. Independent
+    // owners are detached, not stopped; host session policy may subsequently reap
+    // them. Reconnection adopts survivors or reconciles interrupted placements.
     if (pid !== null) {
       await this.ssh.exec(`kill ${pid}`, { timeoutMs: 5000 });
     }

@@ -334,11 +334,13 @@ connection. Rebuild the app when installer logic changes. See SPEC §10 and
 
 On an SSH host where the installer selected `nohup` but the host reaps that
 child as soon as its exec channel closes, `puddle launch` falls back to an
-SSH-attached daemon for the cockpit's lifetime. Closing that cockpit cleanly
-interrupts live PTYs; SQLite state, worktrees, logs, agent configuration and
-agent session refs stay under `~/.puddle`, and boot reconciliation/auto-resume
-restores them on the next launch by default (or leaves them resumable when
-host auto-resume is disabled). The fallback is allowed only after the
+SSH-attached daemon for the cockpit's lifetime. Closing that cockpit stops the
+daemon and detaches independent owners. Host-session runtimes may survive, or the
+host's SSH/login teardown policy may stop them; do not promise either outcome.
+SQLite state, worktrees, logs, agent configuration and native session refs remain
+under `~/.puddle`. Reconnection adopts surviving owners; ended owners reconcile
+to interrupted placements and auto-resume by default, or remain resumable when
+host auto-resume is disabled. The fallback is allowed only after the
 recorded nohup PID is dead — never start a competing daemon beside a live or
 supervised one.
 
@@ -350,8 +352,9 @@ supervised one.
   updates are standard functionality for all users, with no enable/disable setting
   or user-selectable legacy backend. Production composition defaults to independent
   ownership; `DaemonOptions.runtime: false` is an internal legacy fixture override.
-  Hosts without a usable service manager currently refuse new launches pending
-  detached/attached lifetime implementation. Legacy ownership remains for migration/recovery. Runtime-protocol compatibility
+  Hosts without a usable service manager permit limited `host_session` owners only
+  for explicit `nohup`/`none` installations; other unavailable lifetimes refuse launches.
+  Legacy ownership remains for migration/recovery. Runtime-protocol compatibility
   covers both IPC and retained state; use supported runtime majors, not per-file
   compatibility declarations or matching release versions.
 

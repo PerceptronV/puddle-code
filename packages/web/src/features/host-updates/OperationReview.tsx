@@ -79,7 +79,7 @@ export function OperationReview({
             .map(({ code }, index) => (
               <p key={`${code}-${index}`} className="text-xs text-warning">
                 {code === 'runtime_lifetime_unverified'
-                  ? 'A runtime has a limited or unverified host lifetime. Stop it explicitly before updating the daemon, or update only the runtime default.'
+                  ? 'A runtime has a limited or unverified host lifetime. Daemon replacement is blocked while it runs. Updating also requires a supported host service manager.'
                   : `Check failed: ${code.replaceAll('_', ' ')}`}
               </p>
             ))}
