@@ -78,6 +78,7 @@ import { HostUpdateOperations } from './updates/operations/store.js';
 import { HostAdmission } from './host/lifecycle/admission.js';
 import { HostBackgroundTasks } from './host/lifecycle/background.js';
 import { ReleaseCollectionMaintenance } from './host/installation/collection/maintenance.js';
+import { RuntimeLogRetention } from './storage/runtime-retention/compaction.js';
 import { startUpdateWorker } from './updates/worker/supervisor.js';
 import { startUpdateRecoveryWorker } from './updates/recovery/worker/supervisor.js';
 import { resolveInstalledRuntimeRelease } from './runtime/lifecycle/release.js';
@@ -691,6 +692,11 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       controller: () => runtimeConnections.controllerIdentity(),
       reclaimResults: () => runtimeReconciler.observations.reclaimResults(),
       retireRuntimeResults: (id) => runtimeReconciler.retireResultReservations(id),
+      runtimeLogs: new RuntimeLogRetention({
+        home: paths.home,
+        runtimes,
+        retentionDays: () => readConfig(paths).logRetentionDays,
+      }),
     });
     failedStartup.push(() => releaseCollection!.close());
 

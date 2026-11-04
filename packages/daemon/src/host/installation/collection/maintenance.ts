@@ -6,6 +6,7 @@ import {
   type CompilationCommandRunner,
 } from '../../../compilation/process.js';
 import type { RuntimeStore } from '../../../db/stores/runtimes.js';
+import type { RuntimeLogRetention } from '../../../storage/runtime-retention/compaction.js';
 import { CollectionBudget } from './budget.js';
 import { OnlineCollectionGuard } from './guard.js';
 import { withReleaseCollectionExclusion } from './exclusion.js';
@@ -34,6 +35,7 @@ interface Dependencies {
   controller(): Pick<RuntimeControllerRecord, 'id' | 'epoch'> | null;
   /** One bounded committed result-reclamation batch; true requests another slow pass. */
   reclaimResults?(): boolean;
+  runtimeLogs?: Pick<RuntimeLogRetention, 'sweep' | 'close'>;
   /** Reinspect already-ended owners using their original final journal and retirement claims. */
   retireRuntimeResults?(id: string): boolean;
   run?: CompilationCommandRunner;
@@ -104,6 +106,7 @@ export class ReleaseCollectionMaintenance {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     await this.active;
+    await this.deps.runtimeLogs?.close();
   }
   private async pass(): Promise<void> {
     const deadline = performance.now() + RELEASE_COLLECTION_MAINTENANCE.deadlineMs;
@@ -176,6 +179,15 @@ export class ReleaseCollectionMaintenance {
               this.deps.onError?.(error);
             }
           }
+          requireCurrent();
+          if (
+            await this.deps.runtimeLogs?.sweep(
+              requireCurrent,
+              Math.min(deadline, performance.now() + 1000),
+              budget,
+            )
+          )
+            this.requested = true;
           const { operations, protectedIds } = await collectionOperations(
             this.deps.home,
             requireCurrent,

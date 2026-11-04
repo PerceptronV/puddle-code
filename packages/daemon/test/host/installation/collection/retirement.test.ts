@@ -159,6 +159,22 @@ it('keeps a running or unfenced binding pinned regardless of a later boot', asyn
   }
 });
 
+it('retires a valid launch larger than the small control-record allowance', async () => {
+  const f = fixture();
+  try {
+    f.launch.capture_env = {
+      enabled: true,
+      values: { FIRST: 'x'.repeat(32 * 1024), SECOND: 'y'.repeat(32 * 1024) },
+    };
+    atomicPrivateJson(join(f.directory, 'launch.json'), f.launch);
+    await f.retire(randomUUID());
+    await f.retire(randomUUID());
+    expect(runtimeReleaseRetired(f.home, f.binding)).toBe(true);
+  } finally {
+    await f.close();
+  }
+});
+
 it.each([1, 10, 50])(
   'bounds reference inspection for %i retained runtimes without dropping live pins',
   async (count) => {

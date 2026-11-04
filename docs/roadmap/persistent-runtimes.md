@@ -68,6 +68,20 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Runtime raw-log compaction now runs on the existing host maintenance schedule.
+  It requires a supported runtime contract, exact binding and later-boot retirement
+  receipt, and holds launch/dispatch/owner claims throughout each copy. Changed
+  proof or file identities prevent replacement. The shared legacy/runtime compactor
+  resumes bounded directory traversal, preserves the full replay tail, and skips
+  repeatedly timed-out copies intact so later files can progress. Runtime history
+  receives at most one second of cooperative maintenance time; active kernel I/O
+  cannot be cancelled by that deadline. Forty-eight distinct focused compactor,
+  maintenance and retirement checks, workspace TypeScript and scoped lint passed.
+  Review's unsupported-protocol and inventory-identifier guards are covered.
+  Compaction never deletes native stores, snapshots, metadata or live-owner data.
+  Fresh filesystem accounting, fault-tolerant temporary-file bounds and aggregate
+  managed-file admission remain outstanding.
+
 - The shared atomic private-JSON writer now attempts temporary-file cleanup for
   serialisation, partial-write, fsync, close and rename failures. It preserves the
   first storage error and never deletes a file it failed to create or a successfully

@@ -25,6 +25,7 @@ afterEach(async () => {
 function fixture(
   pauseOverride?: () => Promise<{ release(): void }>,
   reclaimResults?: () => boolean,
+  runtimeLogs?: ConstructorParameters<typeof ReleaseCollectionMaintenance>[0]['runtimeLogs'],
 ) {
   const f = removalInstallationFixture();
   f.guard.release();
@@ -43,6 +44,7 @@ function fixture(
     runtimes: { releaseReferences: () => [], get: () => null },
     pause,
     reclaimResults,
+    runtimeLogs,
     controller: () => ({ id: controller.record.id, epoch: controller.record.epoch }),
     boot: async () => randomUUID(),
     run: async () => {
@@ -88,6 +90,31 @@ it('commits result upkeep only under the existing pause/exclusion and coalesces 
   expect(flush).not.toHaveBeenCalled();
   await vi.advanceTimersByTimeAsync(1);
   expect(flush).toHaveBeenCalledOnce();
+});
+
+it('holds maintenance exclusion for bounded runtime history and closes its cursor after draining', async () => {
+  let finish!: (value: boolean) => void;
+  const runtimeLogs = {
+    sweep: vi.fn(async (requireCurrent: () => void, deadline: number) => {
+      requireCurrent();
+      expect(f.pause).toHaveBeenCalled();
+      expect(() => acquireHostClaim(f.home, 'host-update-execution')).toThrow();
+      expect(deadline - performance.now()).toBeLessThanOrEqual(1000);
+      return new Promise<boolean>((resolve) => {
+        finish = resolve;
+      });
+    }),
+    close: vi.fn(async () => {}),
+  };
+  const f = fixture(undefined, undefined, runtimeLogs);
+  const flushing = f.collector.flush();
+  await vi.waitFor(() => expect(runtimeLogs.sweep).toHaveBeenCalledOnce());
+  const closing = f.collector.close();
+  expect(runtimeLogs.close).not.toHaveBeenCalled();
+  finish(true);
+  await Promise.all([flushing, closing]);
+  expect(runtimeLogs.close).toHaveBeenCalledOnce();
+  acquireHostClaim(f.home, 'host-update-execution').release();
 });
 
 it.each(['host-update-coordinator', 'host-update-execution'])(

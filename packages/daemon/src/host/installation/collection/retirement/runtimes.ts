@@ -2,6 +2,7 @@ import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
 import {
+  RUNTIME_LIMITS,
   runtimeAssetsSchema,
   runtimeLaunchSchema,
   runtimeRetiredSchema,
@@ -11,11 +12,11 @@ import { atomicPrivateJson, digest, privatePath, syncPrivateDirectory } from '@p
 import type { RuntimeBinding, RuntimeStore } from '../../../../db/stores/runtimes.js';
 import { runtimeBindingIdentity } from '../../../../runtime/transport/connections.js';
 import { runtimeServiceName } from '../../../../runtime/lifecycle/supervisor.js';
-import { acquireHostClaim } from '../../../../security/claims.js';
 import type { CompilationCommandRunner } from '../../../../compilation/process.js';
 import { serviceIsRemoved } from '../../../supervision/removed.js';
 import { optionalRecord } from '../inventory.js';
 import type { CollectionBudget } from '../budget.js';
+import { acquireRuntimeRetirementClaims } from './claims.js';
 
 const receiptSchema = z
   .object({
@@ -35,8 +36,9 @@ function evidence(home: string, binding: RuntimeBinding, budget?: CollectionBudg
   if (binding.state === 'prepared' || binding.state === 'running') return null;
   const directory = join(home, 'runtimes', binding.runtime_id);
   privatePath(directory, true);
-  const read = (name: string) => optionalRecord(join(directory, name), 64 * 1024, budget);
-  const launch = read('launch.json');
+  const read = (name: string, bytes = 64 * 1024) =>
+    optionalRecord(join(directory, name), bytes, budget);
+  const launch = read('launch.json', RUNTIME_LIMITS.frameBytes);
   const retired = read('retired.json');
   if (!launch || !retired) return null;
   const identity = runtimeBindingIdentity(binding);
@@ -99,10 +101,8 @@ export async function retireRuntimeRelease(
   budget: CollectionBudget,
   write: typeof atomicPrivateJson = atomicPrivateJson,
 ): Promise<void> {
-  const claims: Array<{ release(): void }> = [];
+  const claims = acquireRuntimeRetirementClaims(home, id);
   try {
-    for (const scope of [`runtime-launch:${id}`, `runtime-dispatch:${id}`, `runtime:${id}`])
-      claims.push(acquireHostClaim(home, scope));
     requireCurrent();
     const binding = runtimes.get(id);
     if (!binding) throw new Error('Runtime binding disappeared');
@@ -148,6 +148,6 @@ export async function retireRuntimeRelease(
     if (JSON.stringify(next) !== JSON.stringify(previous))
       write(file, next, { syncDirectory: true });
   } finally {
-    for (const claim of claims.reverse()) claim.release();
+    claims.release();
   }
 }
