@@ -242,8 +242,17 @@ by the capture callback. A daemon-owned legacy agent cannot use this observation
 pause because it lacks a retained independent identity journal. Marker watchers close
 and rescan current file contents on release. Compilation retains admitted builds and
 coalesces observed eager changes until release; rejected manual runs are never
-replayed. These are participants in final update quiescence; complete production
-composition, programme/kernel handling and adjacent-work approval remain unfinished.
+replayed. Programme admission drains prompt dispatch separately from its result:
+accepted independent turns continue, while later runner requests await bounded,
+cancellable admission. Releasing the hold sends each waiting request once; shutdown
+discards unsent requests, interrupts all runners and preserves accepted independent
+turns. Programme cancellation waits for admission too. Notebook admission drains
+startup through request dispatch, retaining submitted cells and idle kernel state
+in the interruption inventory; new execution and kernel controls fail during the
+hold. These are participants in final update quiescence; complete production
+composition and adjacent-work interruption approval remain unfinished. Long admitted
+compilation or programme startup can still exceed the bounded pause deadline,
+causing pre-dispatch rejection and release without cancelling that work.
 
 Client admission is shared by HTTP and WebSocket handlers. A maintenance pause
 refuses new commands while allowing existing terminal output/status delivery and

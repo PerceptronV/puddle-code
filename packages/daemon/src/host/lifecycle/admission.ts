@@ -13,6 +13,7 @@ export class HostAdmission {
   private closed = false;
   private active = 0;
   private readonly changed = new Set<() => void>();
+  private readonly awaiting = new Set<() => void>();
 
   assertOpen(): void {
     if (this.held || this.closed) throw unavailable();
@@ -37,6 +38,36 @@ export class HostAdmission {
     } finally {
       release();
     }
+  }
+
+  /** Existing programme RPCs may await admission once; HTTP/user commands still use enter(). */
+  async waitForOpen(signal: AbortSignal): Promise<() => void> {
+    signal.throwIfAborted();
+    if (!this.held || this.closed) return this.enter();
+    // At most 16 programmes with 64 pending operations each. No work is dispatched here.
+    if (this.awaiting.size >= 1024) throw unavailable();
+    return new Promise((resolve, reject) => {
+      const finish = (error?: unknown) => {
+        this.awaiting.delete(check);
+        signal.removeEventListener('abort', check);
+        if (error !== undefined) reject(error);
+        else {
+          try {
+            resolve(this.enter());
+          } catch (failure) {
+            reject(failure);
+          }
+        }
+      };
+      const check = () => {
+        if (signal.aborted) finish(signal.reason);
+        else if (this.closed) finish(unavailable());
+        else if (!this.held) finish();
+      };
+      this.awaiting.add(check);
+      signal.addEventListener('abort', check, { once: true });
+      check();
+    });
   }
 
   /** A single coordinator holds the pause; a stale release cannot reopen a later hold. */
@@ -92,6 +123,7 @@ export class HostAdmission {
   }
 
   private notify(): void {
+    for (const check of [...this.awaiting]) check();
     for (const check of [...this.changed]) check();
   }
 }

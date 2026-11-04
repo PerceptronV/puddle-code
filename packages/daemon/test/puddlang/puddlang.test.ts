@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { Hono } from 'hono';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { puddlangStartSchema, puddlangHandleSchema } from '@puddle/shared';
 import { fakeAdapter, fixture, waitFor } from '../helpers/daemon-fixtures.js';
 import { openDatabase } from '../../src/db/db.js';
@@ -331,3 +331,52 @@ describe('puddlang host execution', () => {
     expect((await s.done(run.id)).error).toContain('turn limit');
   });
 });
+
+it.each([false, true])(
+  'holds later programme operations after prompt dispatch (shutdown=%s)',
+  async (shutdown) => {
+    const s = setup();
+    const sent: string[] = [];
+    let answer!: () => void;
+    const ask = vi
+      .spyOn(s.f.service, 'scriptAsk')
+      .mockImplementation(
+        async (_reference, prompt, signal, _schema, _scope, _preserve, dispatched) => {
+          sent.push(prompt);
+          dispatched?.(); // The real owner dispatch boundary has separate runtime coverage.
+          if (prompt === 'first')
+            await new Promise<void>((resolve, reject) => {
+              answer = resolve;
+              signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+            });
+          return 'done';
+        },
+      );
+    try {
+      const run =
+        s.start(`import {spawn} from 'puddlang'; const agent=await spawn({agent:'fake',project:'demo'});
+      await agent.ask('first'); console.log('between turns'); export default await agent.ask('second');`);
+      await waitFor(() => sent.length === 1);
+      const hold = s.service.pause();
+      await hold.drain();
+      expect(() => s.start('export default 1')).toThrow(/maintenance/);
+      answer();
+      await waitFor(() =>
+        JSON.stringify(s.store.events(s.f.ids.profile, run.id, 0)).includes('between turns'),
+      );
+      expect(sent).toEqual(['first']);
+      if (shutdown) {
+        await s.service.dispose();
+        hold.release();
+        expect(s.store.get(s.f.ids.profile, run.id).status).toBe('interrupted');
+        expect(sent).toEqual(['first']);
+      } else {
+        hold.release();
+        expect((await s.done(run.id)).status).toBe('completed');
+        expect(sent).toEqual(['first', 'second']);
+      }
+    } finally {
+      ask.mockRestore();
+    }
+  },
+);

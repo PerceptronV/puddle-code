@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Hold later programme requests during maintenance while accepted independent agent turns continue. Drain notebook startup through cell dispatch, preserve submitted execution until an update is accepted, and discard unsent programme requests on shutdown without replay.
+
 - Extend reversible maintenance drains to runtime controls, native conversation capture, marker synchronisation and compilation. Finish admitted work without cancellation, reject new commands without replay, and recover current watched state when a pause is released.
 
 - Carry exact connector process and service evidence into daemon updates, preserve its existing supervisor configuration, and verify replacement before final daemon adoption. Keep uncertain connector changes recoverable without replay; production upgrade integration remains in progress.

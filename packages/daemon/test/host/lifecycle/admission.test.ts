@@ -96,3 +96,48 @@ describe('host request admission', () => {
     hold.release();
   });
 });
+
+it('holds bounded programme admissions, drains dispatched work and drops aborted or closed waiters', async () => {
+  const admission = new HostAdmission();
+  const accepted = admission.enter();
+  const hold = admission.pause();
+  const abort = new AbortController();
+  const aborted = expect(admission.waitForOpen(abort.signal)).rejects.toThrow('cancelled');
+  abort.abort(new Error('cancelled'));
+  await aborted;
+  let entered = false;
+  const waiting = admission.waitForOpen(new AbortController().signal).then((release) => {
+    entered = true;
+    return release;
+  });
+  accepted();
+  await hold.drain();
+  expect(entered).toBe(false);
+  hold.release();
+  const release = await waiting;
+  expect(entered).toBe(true);
+  release();
+  const final = admission.pause();
+  const cancelled = expect(
+    admission.waitForOpen(new AbortController().signal),
+  ).rejects.toMatchObject({ code: 'host_maintenance' });
+  admission.close();
+  final.release();
+  await cancelled;
+  await admission.drain();
+});
+
+it('bounds undispatched programme waiters separately from active work', async () => {
+  const admission = new HostAdmission();
+  const hold = admission.pause();
+  const aborts = Array.from({ length: 1024 }, () => new AbortController());
+  const waiters = aborts.map((abort) => admission.waitForOpen(abort.signal));
+  const finished = Promise.allSettled(waiters);
+  await expect(admission.waitForOpen(new AbortController().signal)).rejects.toMatchObject({
+    code: 'host_maintenance',
+  });
+  await hold.drain();
+  for (const abort of aborts) abort.abort(new Error('cancelled'));
+  expect((await finished).every((result) => result.status === 'rejected')).toBe(true);
+  hold.release();
+});

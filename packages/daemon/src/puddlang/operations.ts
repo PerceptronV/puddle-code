@@ -34,7 +34,11 @@ export class PuddlangOperations {
     private readonly spawnStore?: ProgrammeSpawnStore,
   ) {}
 
-  async execute(operation: PuddlangOperation, operationId?: number): Promise<unknown> {
+  async execute(
+    operation: PuddlangOperation,
+    operationId?: number,
+    dispatched?: () => void,
+  ): Promise<unknown> {
     this.signal.throwIfAborted();
     if (operation.op === 'spawn') return this.spawn(operation.options, operationId);
     if (operation.op === 'attach') {
@@ -60,6 +64,7 @@ export class PuddlangOperations {
         ? undefined
         : { runId: this.input.id, operationId, profileId: this.profile },
       () => this.signal.reason instanceof PuddlangDaemonStopped,
+      dispatched,
     );
   }
 

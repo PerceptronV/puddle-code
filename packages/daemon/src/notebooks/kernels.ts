@@ -10,6 +10,7 @@ import {
   type NotebookEnvironmentsResponse,
 } from '@puddle/shared';
 import { KeyedMutex } from '../git/mutex.js';
+import { HostAdmission } from '../host/lifecycle/admission.js';
 import { ApiError } from '../http/errors.js';
 import {
   containedPath,
@@ -59,6 +60,7 @@ export class NotebookKernels {
   private catalogueBridge: KernelBridge | null = null;
   private cataloguePending: Promise<NotebookKernelsResponse> | null = null;
   private disposed = false;
+  private readonly admission = new HostAdmission();
 
   constructor(
     private readonly deps: WorktreeDeps,
@@ -76,6 +78,12 @@ export class NotebookKernels {
   }
 
   async catalogue(): Promise<NotebookKernelsResponse> {
+    if (this.disposed)
+      return { available: false, kernels: [], error: 'Notebook kernels are closed' };
+    return this.admission.run(() => this.discoverKernels());
+  }
+
+  private async discoverKernels(): Promise<NotebookKernelsResponse> {
     if (this.disposed)
       return { available: false, kernels: [], error: 'Notebook kernels are closed' };
     if (this.catalogueCache && Date.now() - this.catalogueCache.at < 30_000)
@@ -132,6 +140,10 @@ export class NotebookKernels {
   }
 
   async action(request: NotebookKernelAction): Promise<NotebookKernelStatus> {
+    return this.admission.run(() => this.applyAction(request));
+  }
+
+  private async applyAction(request: NotebookKernelAction): Promise<NotebookKernelStatus> {
     const path = await this.path(request.source);
     return this.lifecycle.run(path, async () => {
       try {
@@ -263,6 +275,10 @@ export class NotebookKernels {
   }
 
   async intelligence(request: NotebookIntelligenceRequest): Promise<NotebookIntelligenceResponse> {
+    return this.admission.run(() => this.query(request));
+  }
+
+  private async query(request: NotebookIntelligenceRequest): Promise<NotebookIntelligenceResponse> {
     const path = await this.path(request.source);
     const entry = this.entries.get(path);
     const empty = { matches: [], start: request.cursor, end: request.cursor, documentation: '' };
@@ -301,6 +317,10 @@ export class NotebookKernels {
   }
 
   async widgetComm(request: NotebookWidgetComm): Promise<void> {
+    return this.admission.run(() => this.sendWidget(request));
+  }
+
+  private async sendWidget(request: NotebookWidgetComm): Promise<void> {
     const entry = this.entries.get(await this.path(request.source));
     if (
       !entry?.bridge ||
@@ -328,6 +348,16 @@ export class NotebookKernels {
   }
 
   async executeCells(request: NotebookExecute) {
+    const release = this.admission.enter();
+    try {
+      return await this.beginCells(request, release);
+    } catch (error) {
+      release();
+      throw error;
+    }
+  }
+
+  private async beginCells(request: NotebookExecute, release: () => void) {
     const path = await this.path(request.source);
     const entry = this.entry(
       path,
@@ -354,17 +384,21 @@ export class NotebookKernels {
       try {
         const bridge = await this.connect(entry);
         if (entry.cancelled || this.disposed) throw new Error('Notebook execution interrupted');
-        await bridge.request({
+        const pending = bridge.request({
           op: 'cells',
           run_id: execution.id,
           cells: request.cells,
           cwd: dirname(path),
           kernel: entry.selected ?? request.kernel ?? 'python3',
         });
+        // The selected cells have been sent once; their execution remains in the impact inventory.
+        release();
+        await pending;
         entry.execution.finish(entry.cancelled ? 'cancelled' : 'succeeded');
       } catch (error) {
         entry.execution.finish(entry.cancelled ? 'cancelled' : 'failed', errorMessage(error));
       } finally {
+        release();
         entry.busy = false;
         if (entry.status.state !== 'dead')
           entry.status = { ...entry.status, state: entry.bridge ? 'idle' : 'stopped' };
@@ -375,6 +409,10 @@ export class NotebookKernels {
   }
 
   async replyToInput(request: NotebookInputReply) {
+    return this.admission.run(() => this.sendInput(request));
+  }
+
+  private async sendInput(request: NotebookInputReply) {
     const path = await this.path(request.source);
     const entry = this.entries.get(path);
     if (!entry?.bridge || !entry.execution.acceptsInput(request))
@@ -389,6 +427,20 @@ export class NotebookKernels {
     source: string,
     output: string,
     command: { file: string; args: string[] },
+  ): Promise<void> {
+    const release = this.admission.enter();
+    try {
+      await this.executeAdmitted(source, output, command, release);
+    } finally {
+      release();
+    }
+  }
+
+  private async executeAdmitted(
+    source: string,
+    output: string,
+    command: { file: string; args: string[] },
+    release: () => void,
   ): Promise<void> {
     if (this.disposed) throw new Error('Notebook kernels are closed');
     // Notebook commands configure nbconvert's execution options. Arbitrary
@@ -447,7 +499,7 @@ export class NotebookKernels {
       bridge = await this.connect(entry);
       if (entry.cancelled || this.disposed) throw new Error('Notebook execution interrupted');
       entry.status = { ...entry.status, state: 'busy' };
-      await bridge.request({
+      const pending = bridge.request({
         op: 'run',
         source,
         cwd: dirname(canonical),
@@ -455,6 +507,8 @@ export class NotebookKernels {
         args,
         kernel: entry.selected,
       });
+      release();
+      await pending;
     } catch (error) {
       entry.status = { ...entry.status, error: errorMessage(error) };
       throw error;
@@ -467,11 +521,18 @@ export class NotebookKernels {
     }
   }
 
+  /** Pause new kernel dispatch, retaining variables and already submitted execution. */
+  pause(): ReturnType<HostAdmission['pause']> {
+    return this.admission.pause();
+  }
+
   async dispose(): Promise<void> {
     this.disposed = true;
+    this.admission.close();
     await this.catalogueBridge?.close();
     await this.cataloguePending;
     await Promise.all([...this.entries.values()].map((entry) => this.stop(entry)));
+    await this.admission.drain();
     this.entries.clear();
   }
 

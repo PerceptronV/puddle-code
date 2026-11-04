@@ -71,6 +71,7 @@ export class RuntimeProgrammeTurns {
     signal: AbortSignal,
     schema?: Record<string, unknown>,
     preserveOnAbort: () => boolean = () => false,
+    dispatched: () => void = () => {},
   ): Promise<string> {
     signal.throwIfAborted();
     const target = this.target(reference);
@@ -119,6 +120,8 @@ export class RuntimeProgrammeTurns {
         if (!(error instanceof RuntimeConnectionLost)) throw error;
         uncertain = true; // Observe this identity; never resend its prompt.
       }
+      // The prompt has been sent once. Its result can outlive daemon admission.
+      dispatched();
       const discoveryDeadline = Date.now() + 15_000;
       for (;;) {
         signal.throwIfAborted();

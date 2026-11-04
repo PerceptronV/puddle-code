@@ -69,13 +69,19 @@ it.skipIf(!findCodeExecutable(['jupyter-nbconvert']))(
     await expect
       .poll(async () => JSON.stringify((await status()).cells[0]?.outputs), {
         timeout: 30000,
-        intervals: [100],
+        interval: 100,
       })
       .toContain('early ✓');
+    const hold = kernels.pause();
+    await hold.drain();
+    await expect(kernels.action({ source, action: 'interrupt' })).rejects.toMatchObject({
+      code: 'host_maintenance',
+    });
     const first = await finished();
     expect(first.state).toBe('succeeded');
     expect(first.cells.map((cell) => cell.execution_count)).toEqual([1, 2]);
     expect(JSON.stringify(first.cells[1]!.outputs)).toContain('42');
+    hold.release();
     const code = '# 🙂\nval';
     const completion = await kernels.intelligence({
       source,

@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { puddlangRunnerMessageSchema, type PuddlangStart } from '@puddle/shared';
 import { PuddlangStore } from './store.js';
 import { PuddlangOperations, PuddlangDaemonStopped, type PuddlangDeps } from './operations.js';
+import { HostAdmission } from '../host/lifecycle/admission.js';
 import { ApiError } from '../http/errors.js';
 
 interface ActiveRun {
@@ -21,6 +22,8 @@ interface ActiveRun {
 export class PuddlangService {
   private readonly active = new Map<string, ActiveRun>();
   private closing = false;
+  private readonly admission = new HostAdmission();
+  private readonly shutdown = new AbortController();
   constructor(
     readonly store: PuddlangStore,
     private readonly deps: PuddlangDeps,
@@ -57,6 +60,7 @@ export class PuddlangService {
   }
 
   start(profile: string, input: PuddlangStart) {
+    this.admission.assertOpen();
     if (this.closing) throw new Error('Daemon is shutting down');
     const [major, minor, patch] = process.versions.node.split('.').map(Number);
     if (major! < 22 || (major === 22 && (minor! < 21 || (minor === 21 && patch! < 1))))
@@ -97,7 +101,7 @@ export class PuddlangService {
       operationCount: 0,
       operationIds: new Set(),
       timer: setTimeout(() => {
-        void this.cancel(profile, run.id, 'Run deadline exceeded');
+        this.scheduleCancel(profile, run.id, 'Run deadline exceeded');
       }, input.timeout_ms),
     };
     this.active.set(run.id, active);
@@ -114,17 +118,17 @@ export class PuddlangService {
       if (!this.active.has(run.id) || abort.signal.aborted) return;
       const parsed = puddlangRunnerMessageSchema.safeParse(raw);
       if (!parsed.success) {
-        void this.cancel(profile, run.id, 'Invalid runner message');
+        this.scheduleCancel(profile, run.id, 'Invalid runner message');
         return;
       }
       const message = parsed.data;
       if (message.type === 'finished') {
         if (active.pending.size) {
-          void this.cancel(profile, run.id, 'Program ended with unawaited operations');
+          this.scheduleCancel(profile, run.id, 'Program ended with unawaited operations');
           return;
         }
         if (Buffer.byteLength(JSON.stringify(message)) > 256 * 1024) {
-          void this.cancel(profile, run.id, 'Program result exceeds 256 KiB');
+          this.scheduleCancel(profile, run.id, 'Program result exceeds 256 KiB');
           return;
         }
         this.store.finish(
@@ -142,12 +146,19 @@ export class PuddlangService {
         ++active.operationCount > 4096 ||
         active.operationIds.has(message.id)
       ) {
-        void this.cancel(profile, run.id, 'Run operation limit exceeded');
+        this.scheduleCancel(profile, run.id, 'Run operation limit exceeded');
         return;
       }
       active.operationIds.add(message.id);
-      const task = operations
-        .execute(message.operation, message.id)
+      const task = (async () => {
+        const release = await this.admission.waitForOpen(abort.signal);
+        try {
+          abort.signal.throwIfAborted();
+          return await operations.execute(message.operation, message.id, release);
+        } finally {
+          release();
+        }
+      })()
         .then(
           (value) => {
             if (!abort.signal.aborted && child.connected)
@@ -177,50 +188,79 @@ export class PuddlangService {
       active.pending.add(task);
     });
     child.once('error', (error) => {
-      void this.cancel(profile, run.id, error.message);
+      this.scheduleCancel(profile, run.id, error.message);
     });
     child.once('exit', () => {
       if (this.active.has(run.id))
-        void this.cancel(profile, run.id, 'Runner exited without a result');
+        this.scheduleCancel(profile, run.id, 'Runner exited without a result');
     });
     child.send({ type: 'start', source: input.source, input: input.input }, (error) => {
-      if (error) void this.cancel(profile, run.id, error.message);
+      if (error) this.scheduleCancel(profile, run.id, error.message);
     });
     return run;
   }
 
+  private scheduleCancel(profile: string, id: string, error: string): void {
+    if (this.closing) return;
+    void this.cancel(profile, id, error).catch(() => {
+      if (!this.closing) console.warn('Programme cancellation requires inspection');
+    });
+  }
+
   async cancel(profile: string, id: string, error?: string) {
     const run = this.store.get(profile, id);
-    const active = this.active.get(id);
-    if (active) await this.stop(id, active, error ? 'failed' : 'cancelled', error ?? 'Cancelled');
-    else if (!error) {
-      // An explicit retry can inspect/stop recorded owners after the runner is gone.
-      // Ordinary daemon boot never repeats an uncertain termination request.
-      const owned = this.store.spawns
-        .list(profile, id)
-        .filter((row) => row.stop_requested && row.runtime_id);
-      if (owned.length) {
-        const unconfirmed: string[] = [];
-        await Promise.all(
-          owned.map(async (row) => {
-            try {
-              await this.deps.service.stopScriptRuntime(row.runtime_id!, profile);
-            } catch {
-              unconfirmed.push(row.runtime_id!);
-            }
-          }),
-        );
-        this.store.event(id, 'runtime_cleanup', { unconfirmed });
-      }
+    let release: () => void;
+    try {
+      release = await this.admission.waitForOpen(this.shutdown.signal);
+    } catch (failure) {
+      if (this.closing) return run;
+      throw failure;
     }
-    return active ? this.store.get(profile, id) : run;
+    try {
+      const active = this.active.get(id);
+      if (active) await this.stop(id, active, error ? 'failed' : 'cancelled', error ?? 'Cancelled');
+      else if (!error) {
+        // An explicit retry can inspect/stop recorded owners after the runner is gone.
+        // Ordinary daemon boot never repeats an uncertain termination request.
+        const owned = this.store.spawns
+          .list(profile, id)
+          .filter((row) => row.stop_requested && row.runtime_id);
+        if (owned.length) {
+          const unconfirmed: string[] = [];
+          await Promise.all(
+            owned.map(async (row) => {
+              try {
+                await this.deps.service.stopScriptRuntime(row.runtime_id!, profile);
+              } catch {
+                unconfirmed.push(row.runtime_id!);
+              }
+            }),
+          );
+          this.store.event(id, 'runtime_cleanup', { unconfirmed });
+        }
+      }
+      return this.store.get(profile, id);
+    } finally {
+      release();
+    }
+  }
+
+  pause(): ReturnType<HostAdmission['pause']> {
+    return this.admission.pause();
   }
 
   async dispose(): Promise<void> {
     this.closing = true;
-    for (const [id, active] of this.active) {
-      await this.stop(id, active, 'interrupted', 'Daemon stopped; instructions were not replayed');
-    }
+    this.admission.close();
+    this.shutdown.abort(new PuddlangDaemonStopped('Daemon stopped'));
+    // Abort every run before yielding, so queued RPC rejection cannot turn a
+    // later run into a failed programme during this shutdown.
+    await Promise.all(
+      [...this.active].map(([id, active]) =>
+        this.stop(id, active, 'interrupted', 'Daemon stopped; instructions were not replayed'),
+      ),
+    );
+    await this.admission.drain();
   }
 
   private stop(

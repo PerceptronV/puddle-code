@@ -219,6 +219,7 @@ export class SessionService extends EventEmitter {
     schema?: Record<string, unknown>,
     scope?: ProgrammeOperation,
     preserveOnAbort?: () => boolean,
+    dispatched?: () => void,
   ): Promise<string> {
     const runtime = this.scriptRuntime(reference);
     const live = this.runtimes.get(runtime.handle.runtime_id);
@@ -233,6 +234,7 @@ export class SessionService extends EventEmitter {
       signal,
       schema,
       preserveOnAbort,
+      dispatched,
     );
   }
 

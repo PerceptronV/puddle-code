@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { puddlangStartSchema } from '@puddle/shared';
@@ -97,6 +97,38 @@ it('rejects a full unread result store before dispatching another provider promp
     ).rejects.toThrow('retention is full');
     expect(f.db.prepare('SELECT * FROM puddlang_runtime_turns').all()).toEqual([]);
     expect(existsSync(join(f.home, `${f.session.id}.turns.json`))).toBe(false);
+  } finally {
+    await f.close();
+  }
+});
+
+it('releases dispatch admission while the independent owner is still answering', async () => {
+  const f = await fixture();
+  try {
+    writeFileSync(join(f.home, 'test-slow-turn'), '');
+    const dispatched = vi.fn();
+    let settled = false;
+    const answer = f.turns
+      .ask(
+        f.binding.runtime_id,
+        f.scope,
+        'keep working',
+        new AbortController().signal,
+        undefined,
+        undefined,
+        dispatched,
+      )
+      .finally(() => {
+        settled = true;
+      });
+    await expect.poll(() => dispatched.mock.calls.length).toBe(1);
+    expect(settled).toBe(false);
+    expect(readRuntimeJson(join(f.home, `${f.session.id}.turns.json`))).toMatchObject({
+      count: 1,
+      prompt: 'keep working',
+    });
+    await expect(answer).resolves.toBe('reply:1:keep working');
+    expect(dispatched).toHaveBeenCalledTimes(1);
   } finally {
     await f.close();
   }

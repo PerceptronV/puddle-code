@@ -29,6 +29,18 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far:
 
+- Programme and notebook maintenance reuse host admission. Independent programme
+  prompts release admission after their single dispatch, while result observation
+  continues; later runner RPCs wait within the existing operation bounds and are
+  discarded on shutdown. All runners are aborted before shutdown yields, preserving
+  accepted independent turns. Cancellation also waits for admission. Notebook
+  startup drains through cell/request dispatch while submitted cells continue and
+  kernels remain in interruption inventory. Tests separate startup, dispatch and
+  completion, including an actual delayed fake-provider owner and a real Jupyter
+  kernel retaining state. Long programme startup and compilation still retain their
+  enclosing admission and may exceed the pause deadline. Complete production
+  composition and explicit interruption approval remain required.
+
 - Reversible maintenance now covers runtime-control queues, native-ref capture and
   resume repair, native/shared-store observations, marker watchers and compilation.
   These reuse `HostAdmission` rather than independent pending-work mechanisms.

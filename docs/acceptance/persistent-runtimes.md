@@ -10,6 +10,20 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+`notebooks/notebook-maintenance.test.ts` delays bridge discovery and execution
+independently: startup must drain, submitted cells may continue, new controls fail,
+and shutdown discards unsent work without reopening admission. The live Jupyter
+execution suite pauses during a submitted batch, verifies completion and retains
+variables after release. Programme tests use actual runners to hold a later ask,
+then release it once or discard it on shutdown. The runtime programme-turn suite
+uses a delayed fake provider in an independent owner to verify dispatch admission
+ends before its result arrives. Host admission tests bound waiting runner requests
+and reject aborted/closed waits. The focused run passed 30 tests in five files,
+including the live Jupyter tests. Another ten programme lifecycle and kernel/widget
+regression tests passed, along with source and strict test typechecks, lint and
+formatting. Production composition and interruption approval remain separate
+release gates.
+
 The runtime controller `controls.test.ts` holds an admitted environment control,
 rejects later controls, drains its committed result and verifies release does not
 replay the rejection. `sessions/session-refs.test.ts` holds native discovery through
@@ -19,8 +33,8 @@ refuses pausing a live legacy fake agent without interrupting it.
 resynchronisation and no watcher revival after disposal. The compilation service
 suite keeps an admitted provider alive during maintenance and coalesces watched file
 changes after release, while rejecting manual runs. These tests cover individual
-pause participants; production composition and active programme/kernel handling remain
-separate release gates.
+pause participants; production composition and adjacent-work interruption approval
+remain separate release gates.
 
 `updates/worker/connector.test.ts` checks exact approved identity, stale controller
 rejection, confirmed process exit, fresh replacement identity and lost mutation
