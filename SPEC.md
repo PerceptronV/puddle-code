@@ -171,8 +171,17 @@ the same immutable staging path. Both selectors can share a verified tree. Runti
 installation validates its exact version/protocol report with bounded smoke output
 and time, changes no supervisor registration and starts/restarts no service.
 `puddle --version` includes the selected runtime build and its private protocol.
-Public runtime management commands, reference-aware collection and transactional
-updates remain required before installed/default enablement.
+The same bootstrap supports `--stage-only` and exact `--activate-generation` with
+an expected receipt digest. Staging copies its input before checksum verification,
+checks exact version/protocol output, fingerprints the tree under fixed time/byte/file
+limits and fsyncs a private receipt. It changes no selectors, wrappers or services.
+Activation rechecks receipt identity, tree contents and smoke output, then selects
+that generation without another release lookup or download. Failed activation keeps
+the diagnostic stage and previous selection. This private local record is neither
+an update approval nor another connection protocol. Public runtime management
+commands, durable operations/preflight, the surviving updater, reference-aware
+collection and transactional recovery remain required before installed/default
+enablement.
 
 The runtime agent state reports sidecar roots and hidden ports, and retains
 interactive fallback when installed-version checks fail. Codex lifecycle cleanup

@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Separate host-release staging from activation in the shared installer, binding exact generations to verified tree receipts while keeping running services untouched during staging.
+
 - Select daemon and runtime builds independently through the shared host bootstrap; runtime installation leaves services running, and opt-in launches pin the selected build while version inventory reports its separate protocol.
 
 - Install host releases into immutable generations, preserving pinned files on same-version repairs and retaining the previous selection when staging fails; read installed versions from release metadata.
@@ -20,6 +22,8 @@ Past releases: see docs/changelogs/.
 - Organise persistent runtime code and tests by ownership, transport, execution, state, daemon control and lifecycle, retaining stable executable entry points.
 
 ### Fixed
+
+- Resolve SSH-delivered checksum paths before changing the installer working directory.
 
 - Collect ended independent runtime service registrations through a bounded durable queue, preserving live owners and pinned data and recovering safely from lost removal responses.
 

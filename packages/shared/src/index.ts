@@ -45,6 +45,7 @@ export * from './notebook-widget-state.js';
 export * from './api/storage.js';
 export * from './runtime/protocol.js';
 export * from './runtime/storage.js';
+export * from './installation/stage.js';
 export {
   parseHostReleaseVersion,
   parseLegacyHostVersion,

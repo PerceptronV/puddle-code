@@ -59,11 +59,21 @@ export async function installHostComponent(
   component: HostComponent,
   opts: BootstrapOptions = {},
 ): Promise<void> {
+  await bootstrapHostComponent(transport, component, opts);
+}
+
+/** Shared delivery and release resolution for immediate installs and staged updates. */
+export async function bootstrapHostComponent(
+  transport: Transport,
+  component: HostComponent,
+  opts: BootstrapOptions = {},
+  action: 'install' | 'stage' = 'install',
+): Promise<string> {
   const logger = opts.logger ?? silentLogger;
   const version = opts.version ?? pinnedDaemonVersion();
-  const script = readInstallScript();
 
   const args: string[] = ['--version', version, '--component', component];
+  if (action === 'stage') args.push('--stage-only');
   if (opts.tarball !== undefined && !/^https?:\/\//.test(opts.tarball)) {
     if (!existsSync(opts.tarball)) {
       throw new CliError('not_installed', `tarball not found: ${opts.tarball}`);
@@ -107,11 +117,20 @@ export async function installHostComponent(
   }
 
   logger.info(
-    `installing ${component === 'daemon' ? 'puddled' : 'puddler'} ${version} on ${transport.label}`,
+    `${action === 'stage' ? 'staging' : 'installing'} ${component === 'daemon' ? 'puddled' : 'puddler'} ${version} on ${transport.label}`,
   );
+  return runHostInstaller(transport, args, logger);
+}
+
+/** Execute the canonical embedded installer over the existing host transport. */
+export async function runHostInstaller(
+  transport: Transport,
+  args: string[],
+  logger: Logger = silentLogger,
+): Promise<string> {
   const quoted = args.map((a) => `'${a.replaceAll("'", `'\\''`)}'`).join(' ');
   const result = await transport.exec(`sh -s -- ${quoted}`, {
-    stdin: script,
+    stdin: readInstallScript(),
     timeoutMs: 10 * 60_000,
     onStdout: (chunk) => {
       for (const line of chunk.split('\n')) if (line.trim() !== '') logger.info(line.trimEnd());
@@ -124,6 +143,7 @@ export async function installHostComponent(
       lastLines(result.stderr || result.stdout),
     );
   }
+  return result.stdout;
 }
 
 function lastLines(text: string, count = 3): string {

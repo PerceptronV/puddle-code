@@ -460,8 +460,10 @@ PUDDLE_TEST_RUNTIME_RELEASE=/tmp/puddle-host-release/stage/puddled-v0.3.14 PUDDL
 Adjust the version and archive platform to the release being tested. Supplying
 `PUDDLE_TEST_RUNTIME_ARCHIVE` exercises the real embedded installer with checksum
 verification and `--no-supervisor` inside the isolated home. It forces a same-version
-repair of each component separately while the owner has no controller, checks the
-unselected default and old bundle are intact, resolves the new runtime default and
+repair of each component separately while the owner has no controller. Each repair
+first stages a verified generation and asserts that the selector is unchanged, then
+activates the exact receipt without passing an archive or release source again. It
+checks the unselected default and old bundle are intact, resolves the new runtime default and
 verifies shell continuity after adopting again. Omitting that variable tests the
 staged/extracted tree directly. The test uses the archive's
 `puddler` wrapper, pinned Node and native modules, checks version/protocol metadata
@@ -483,7 +485,12 @@ reuse, independent selection, exact metadata/report agreement, no daemon probe o
 supervisor mutation, and the shared bootstrap/inventory path. Launcher tests reject
 missing, external and incompatible selections and verify that changing the default
 during command construction cannot change the already pinned launch build or its
-recorded protocol. Full supervised upgrade transactions,
+recorded protocol. Staging tests share the installation fixture and verify complete
+tree fingerprints, permission/symlink/dependency changes, receipt/component mismatch,
+checksum failure, explicitly unverified local inputs and activation after the source
+archive is removed. SSH delivery tests use real shell execution in a temporary home
+with relative copied archive/checksum paths. The staged packaged-owner variant passed
+on macOS 26.5.2/Node v22.21.1. Full supervised upgrade transactions,
 reference-aware collection and native provider/platform gates remain outstanding.
 
 ## Remaining release gates

@@ -294,6 +294,23 @@ Implementation evidence so far:
   defaults move. Public CLI runtime management/removal and cockpit actions still
   require the durable coordinator and ownership/impact preflight.
 
+- Host bootstrap now separates staging from exact-generation activation. The shared
+  local/SSH delivery path can copy and checksum a stable input, validate bounded
+  version/protocol reporting, fingerprint the complete tree (files, modes and
+  symlink targets), and persist a private receipt without changing selectors,
+  wrappers or services. Activation requires the receipt digest, rechecks the tree
+  and smoke report, and uses that exact generation without downloading again.
+  Verification is bounded by time, bytes and file count. Failed activation retains
+  the previous selection and the diagnostic stage; an unselected successful stage
+  remains available after a lost reply. Relative SSH checksum paths are resolved
+  before changing directory. Shared fixture coverage includes dependency/metadata
+  changes, component/digest mismatch, missing source archives and checksum failures;
+  the packaged-owner test uses staged activation for both components while retaining
+  its original shell. These are installer primitives, not operation authorisation
+  or a complete update transaction: durable operation records, all-owner preflight,
+  the independently supervised worker, adoption verification, migration-aware
+  recovery and reference-aware stage collection still remain.
+
 These are foundations for phases 0–4, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native
 dependency retention, production session/turn adoption and segment routing,

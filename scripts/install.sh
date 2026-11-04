@@ -24,12 +24,17 @@ COMPONENT=daemon
 SELECTOR=current
 OTHER_SELECTOR=runtime-current
 EXECUTABLE=puddled
+STAGE_ONLY=0
+ACTIVATE=""
+STAGE_DIGEST=""
+CHECKSUM_VERIFIED=0
 
 usage() {
   cat <<'EOF'
 usage: install.sh [--version X.Y.Z] [--tarball <path>] [--sums <path>]
                   [--repo owner/repo] [--no-supervisor] [--no-start] [--force]
                   [--component daemon|runtime]
+                  [--stage-only | --activate-generation <name> --stage-digest <sha256>]
 
   --version       release to install (default: the repo's latest release)
   --tarball       use a pre-delivered tarball instead of fetching (scp
@@ -42,6 +47,10 @@ usage: install.sh [--version X.Y.Z] [--tarball <path>] [--sums <path>]
   --force         reinstall even if this version is already present
   --component     select daemon (default) or the build for new runtimes;
                   runtime installation does not start or restart any service
+  --stage-only    verify a fresh generation and emit its receipt without activation
+  --activate-generation
+                  activate an exact previously staged generation, without fetching
+  --stage-digest  expected staged receipt digest (requires --version and --component)
 EOF
 }
 
@@ -58,6 +67,9 @@ while [ $# -gt 0 ]; do
     --no-start) START=0; shift ;;
     --force) FORCE=1; shift ;;
     --component) COMPONENT="$2"; shift 2 ;;
+    --stage-only) STAGE_ONLY=1; shift ;;
+    --activate-generation) ACTIVATE="$2"; shift 2 ;;
+    --stage-digest) STAGE_DIGEST="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown flag $1 (see --help)" ;;
   esac
@@ -67,6 +79,20 @@ case "$COMPONENT" in
   runtime) SELECTOR=runtime-current; OTHER_SELECTOR=current; EXECUTABLE=puddler ;;
   *) die "unknown host component: $COMPONENT" ;;
 esac
+if [ -n "$ACTIVATE" ]; then
+  [ "$STAGE_ONLY" -eq 0 ] && [ "$FORCE" -eq 0 ] && [ -z "$TARBALL" ] && [ -z "$SUMS" ] \
+    || die "activation cannot fetch, stage or force a repair"
+  [ -n "$VERSION" ] || die "activation requires an exact version"
+  case "$ACTIVATE" in ''|*[!0-9A-Za-z.+~_-]*) die "invalid staged generation" ;; esac
+  printf '%s\n' "$ACTIVATE" | LC_ALL=C grep -Eq '^.+~[A-Za-z0-9]{6}$' \
+    || die "invalid staged generation"
+  [ "${#ACTIVATE}" -le 135 ] || die "staged generation is too long"
+  [ "${#STAGE_DIGEST}" -eq 64 ] || die "activation requires a stage digest"
+  case "$STAGE_DIGEST" in *[!0-9a-f]*) die "invalid stage digest" ;; esac
+elif [ -n "$STAGE_DIGEST" ]; then
+  die "a stage digest requires activation"
+fi
+if [ "$STAGE_ONLY" -eq 1 ]; then FORCE=1; fi
 
 # --- platform ---------------------------------------------------------------
 OS=$(uname -s)
@@ -113,10 +139,12 @@ mkdir -p "$BIN_DIR/versions" "$CACHE_DIR" "$HOME_DIR/logs"
 mkdir "$BIN_DIR/.install-lock" 2>/dev/null \
   || die "another installer is running (if interrupted, remove $BIN_DIR/.install-lock and retry)"
 STAGE=""
+WORK=""
 cleanup() {
   if [ -n "$STAGE" ] && [ "$(readlink "$BIN_DIR/$SELECTOR" 2>/dev/null || true)" != "versions/$(basename "$STAGE")" ]; then
     rm -rf "$STAGE"
   fi
+  if [ -n "$WORK" ]; then rm -rf "$WORK"; fi
   rmdir "$BIN_DIR/.install-lock"
 }
 trap cleanup 0
@@ -134,22 +162,21 @@ sha_tool() {
   else echo ""
   fi
 }
+prune_cache() {
+  # Keep the current download and one previous archive; published trees stay intact.
+  ls -1t "$CACHE_DIR"/puddled-v*.tar.gz 2>/dev/null | tail -n +3 | while read -r old; do rm -f "$old"; done
+}
 
-if [ -n "$TARBALL" ]; then
+if [ -n "$ACTIVATE" ]; then
+  : # The verified generation is already on this host; never fetch a replacement.
+elif [ -n "$TARBALL" ]; then
   [ -f "$TARBALL" ] || die "tarball not found: $TARBALL"
   # Derive the version from the file name when not given explicitly.
   if [ -z "$VERSION" ]; then
     VERSION=$(basename "$TARBALL" | sed -n 's/^puddled-v\([0-9][^-]*\)-.*$/\1/p')
     [ -n "$VERSION" ] || die "cannot derive a version from $(basename "$TARBALL"); pass --version"
   fi
-  if [ -n "$SUMS" ]; then
-    TOOL=$(sha_tool)
-    [ -n "$TOOL" ] || die "no sha256sum or shasum on this host to verify --sums"
-    ( cd "$(dirname "$TARBALL")" && grep " $(basename "$TARBALL")\$" "$SUMS" | $TOOL ) \
-      || die "checksum mismatch for $TARBALL"
-  else
-    say "warning: --tarball without --sums — checksum verification skipped"
-  fi
+
 else
   case "$REPO" in *@@*) die "no repository baked in; pass --repo owner/repo or set PUDDLE_REPO" ;; esac
   command -v curl >/dev/null 2>&1 || die "curl is required to fetch releases (or pre-deliver with --tarball)"
@@ -167,30 +194,47 @@ else
   say "fetching $BASE/$FILE"
   curl -fSL --progress-bar -o "$TARBALL" "$BASE/$FILE" || die "download failed"
   curl -fsSL -o "$CACHE_DIR/SHA256SUMS" "$BASE/SHA256SUMS" || die "checksums download failed"
-  TOOL=$(sha_tool)
-  [ -n "$TOOL" ] || die "no sha256sum or shasum on this host"
-  ( cd "$CACHE_DIR" && grep " $FILE\$" SHA256SUMS | $TOOL ) || {
-    rm -f "$TARBALL"
-    die "checksum mismatch — deleted the download"
-  }
+  SUMS="$CACHE_DIR/SHA256SUMS"
 fi
 valid_version
+if [ -z "$ACTIVATE" ]; then
+  # Resolve before changing directory, including SSH-delivered relative sums.
+  TARBALL="$(CDPATH= cd -- "$(dirname "$TARBALL")" && pwd -P)/$(basename "$TARBALL")"
+  if [ -n "$SUMS" ]; then
+    SUMS="$(CDPATH= cd -- "$(dirname "$SUMS")" && pwd -P)/$(basename "$SUMS")"
+  fi
+  if [ "$STAGE_ONLY" -eq 1 ]; then
+    WORK=$(mktemp -d "$BIN_DIR/.install-lock/stage.XXXXXX")
+    cp "$TARBALL" "$WORK/$(basename "$TARBALL")"
+    TARBALL="$WORK/$(basename "$TARBALL")"
+    if [ -n "$SUMS" ]; then cp "$SUMS" "$WORK/SHA256SUMS"; SUMS="$WORK/SHA256SUMS"; fi
+  fi
+  if [ -n "$SUMS" ]; then
+    TOOL=$(sha_tool)
+    [ -n "$TOOL" ] || die "no sha256sum or shasum on this host to verify --sums"
+    ( cd "$(dirname "$TARBALL")" && grep " $(basename "$TARBALL")\$" "$SUMS" | $TOOL ) \
+      || die "checksum mismatch for $TARBALL"
+    CHECKSUM_VERIFIED=1
+  else
+    say "warning: --tarball without --sums — checksum verification skipped"
+  fi
+fi
 
 # --- unpack + symlink flip ---------------------------------------------------
 smoke() {
-  "$1/bin/node" --input-type=commonjs - "$1" "$EXECUTABLE" "$VERSION" <<'NODE'
+  "$1/bin/node" --input-type=commonjs - "$1" "$EXECUTABLE" "$VERSION" "$STAGE_ONLY" "$ACTIVATE" <<'NODE'
 const fs = require('node:fs'), path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const [root, executable, version] = process.argv.slice(2);
+const [root, executable, version, stageOnly, activate] = process.argv.slice(2);
 let expected;
-if (executable === 'puddler') {
-  const file = path.join(root, 'RUNTIME_PROTOCOL');
+if (executable === 'puddler' || stageOnly === '1' || activate) {
+  const file = path.join(root, executable === 'puddler' ? 'RUNTIME_PROTOCOL' : 'PROTOCOL');
   const stat = fs.lstatSync(file);
   if (!stat.isFile() || stat.size > 33) throw Error('Invalid runtime protocol metadata');
   const protocol = fs.readFileSync(file, 'utf8').trim();
   if (!/^[0-9]+\.[0-9]+$/.test(protocol) || !protocol.split('.').every((part) => Number.isSafeInteger(Number(part))))
     throw Error('Invalid runtime protocol metadata');
-  expected = `puddler ${version} (runtime protocol ${protocol})`;
+  expected = `${executable} ${version} (${executable === 'puddler' ? 'runtime protocol' : 'protocol'} ${protocol})`;
 }
 const result = spawnSync(path.join(root, executable), ['--version'], { encoding: 'utf8', timeout: 5000, maxBuffer: 64 * 1024 });
 if (result.error || result.status !== 0 || (expected !== undefined && result.stdout.trim() !== expected)) {
@@ -205,41 +249,154 @@ NEED_INSTALL=1
 # Reuse a selected generation (both components can share it), or a legacy
 # fixed-version tree. Never repair either in place: a runtime, helper, daemon or
 # connector may still pin it.
-for CANDIDATE in "$SELECTOR" "$OTHER_SELECTOR"; do
-  CURRENT=$(readlink "$BIN_DIR/$CANDIDATE" 2>/dev/null || true)
-  case "$CURRENT" in
-    versions/*)
-      NAME=${CURRENT#versions/}
-      case "$NAME" in
-        ''|.|..|*/*) ;;
-        *)
-          if [ -f "$BIN_DIR/$CURRENT/VERSION" ] && [ "$(head -c 130 "$BIN_DIR/$CURRENT/VERSION")" = "$VERSION" ]; then
-            DEST="$BIN_DIR/$CURRENT"
-          fi ;;
-      esac ;;
-  esac
-  [ -z "$DEST" ] || break
-done
-if [ -z "$DEST" ]; then DEST="$BIN_DIR/versions/$VERSION"; fi
-if [ -d "$DEST" ] && [ ! -L "$DEST" ] && [ "$FORCE" -eq 0 ] && [ -x "$DEST/$EXECUTABLE" ] \
-  && { [ ! -e "$DEST/VERSION" ] || [ "$(head -c 130 "$DEST/VERSION")" = "$VERSION" ]; }; then
-  if smoke "$DEST" >/dev/null 2>"$SMOKE_LOG"; then
-    NEED_INSTALL=0
+if [ -n "$ACTIVATE" ]; then
+  DEST="$BIN_DIR/versions/$ACTIVATE"
+  [ -d "$DEST" ] && [ ! -L "$DEST" ] || die "staged generation is missing"
+  [ "$(head -c 130 "$DEST/VERSION")" = "$VERSION" ] || die "staged version mismatch"
+  NEED_INSTALL=0
+else
+  for CANDIDATE in "$SELECTOR" "$OTHER_SELECTOR"; do
+    CURRENT=$(readlink "$BIN_DIR/$CANDIDATE" 2>/dev/null || true)
+    case "$CURRENT" in
+      versions/*)
+        NAME=${CURRENT#versions/}
+        case "$NAME" in
+          ''|.|..|*/*) ;;
+          *)
+            if [ -f "$BIN_DIR/$CURRENT/VERSION" ] && [ "$(head -c 130 "$BIN_DIR/$CURRENT/VERSION")" = "$VERSION" ]; then
+              DEST="$BIN_DIR/$CURRENT"
+            fi ;;
+        esac ;;
+    esac
+    [ -z "$DEST" ] || break
+  done
+  if [ -z "$DEST" ]; then DEST="$BIN_DIR/versions/$VERSION"; fi
+  if [ -d "$DEST" ] && [ ! -L "$DEST" ] && [ "$FORCE" -eq 0 ] && [ -x "$DEST/$EXECUTABLE" ] \
+    && { [ ! -e "$DEST/VERSION" ] || [ "$(head -c 130 "$DEST/VERSION")" = "$VERSION" ]; }; then
+    if smoke "$DEST" >/dev/null 2>"$SMOKE_LOG"; then
+      NEED_INSTALL=0
+      rm -f "$SMOKE_LOG"
+      say "version $VERSION already installed"
+    else
+      say "existing version $VERSION failed validation — staging a new generation"
+    fi
+  fi
+  if [ "$NEED_INSTALL" -eq 1 ]; then
+    # '~' cannot be mistaken for part of a legacy release/prerelease version.
+    STAGE=$(mktemp -d "$BIN_DIR/versions/$VERSION~XXXXXX")
+    DEST="$STAGE"
+    tar -xzf "$TARBALL" --strip-components=1 -C "$DEST" || die "extraction failed"
+    [ -f "$DEST/VERSION" ] && [ "$(head -c 130 "$DEST/VERSION")" = "$VERSION" ] \
+      || die "archive version metadata mismatch"
+    if ! smoke "$DEST" >/dev/null 2>"$SMOKE_LOG"; then
+      die "installed tree fails its own --version smoke test (details: $SMOKE_LOG)"
+    fi
     rm -f "$SMOKE_LOG"
-    say "version $VERSION already installed"
-  else
-    say "existing version $VERSION failed validation — staging a new generation"
   fi
 fi
-if [ "$NEED_INSTALL" -eq 1 ]; then
-  # '~' cannot be mistaken for part of a legacy release/prerelease version.
-  STAGE=$(mktemp -d "$BIN_DIR/versions/$VERSION~XXXXXX")
-  DEST="$STAGE"
-  tar -xzf "$TARBALL" --strip-components=1 -C "$DEST" || die "extraction failed"
-  [ -f "$DEST/VERSION" ] && [ "$(head -c 130 "$DEST/VERSION")" = "$VERSION" ] \
-    || die "archive version metadata mismatch"
+if [ "$STAGE_ONLY" -eq 1 ] || [ -n "$ACTIVATE" ]; then
+  # The immutable receipt binds the complete tree, including native dependencies
+  # and symlink targets. Activation verifies it without resolving another release.
+  RECEIPT=$("$DEST/bin/node" --input-type=commonjs - "$DEST" "$COMPONENT" "$VERSION" "$TARBALL" "$CHECKSUM_VERIFIED" "$STAGE_ONLY" "$STAGE_DIGEST" <<'NODE'
+const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto');
+const [root, component, version, archive, verified, stageOnly, expectedDigest] = process.argv.slice(2);
+const marker = '.puddle-stage.json';
+const digest = (value) => crypto.createHash('sha256').update(value).digest('hex');
+const deadline = Date.now() + 30_000;
+let files = 0, bytes = 0;
+const check = () => {
+  if (files > 100_000 || bytes > 2 * 1024 ** 3 || Date.now() > deadline) throw Error('Stage verification limit exceeded');
+};
+async function contents(file, hash) {
+  const stat = await fs.promises.stat(file);
+  if (!stat.isFile() || bytes + stat.size > 2 * 1024 ** 3) throw Error('Stage verification limit exceeded');
+  for await (const chunk of fs.createReadStream(file)) {
+    bytes += chunk.length;
+    check();
+    hash.update(chunk);
+  }
+}
+async function tree(directory, relative, hash) {
+  const entries = (await fs.promises.readdir(directory)).sort();
+  for (const entry of entries) {
+    if (!relative && entry === marker) continue;
+    files++;
+    check();
+    const name = relative ? relative + '/' + entry : entry;
+    const file = path.join(directory, entry);
+    const stat = await fs.promises.lstat(file);
+    const type = stat.isDirectory() ? 'directory' : stat.isFile() ? 'file' : stat.isSymbolicLink() ? 'symlink' : null;
+    if (!type) throw Error('Unsupported staged file type');
+    hash.update(JSON.stringify([name, type, stat.mode & 0o777, stat.isFile() ? stat.size : null]));
+    if (stat.isDirectory()) await tree(file, name, hash);
+    else if (stat.isFile()) await contents(file, hash);
+    else hash.update(await fs.promises.readlink(file));
+    hash.update('\0');
+    const after = await fs.promises.lstat(file);
+    if (stat.ino !== after.ino || stat.size !== after.size || stat.mtimeMs !== after.mtimeMs || stat.ctimeMs !== after.ctimeMs)
+      throw Error('Staged tree changed during verification');
+  }
+}
+async function main() {
+  const before = fs.lstatSync(root);
+  const hash = crypto.createHash('sha256');
+  hash.update(JSON.stringify(['', 'directory', before.mode & 0o777, null]));
+  await tree(root, '', hash);
+  const after = fs.lstatSync(root);
+  if (before.ino !== after.ino || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs)
+    throw Error('Staged tree changed during verification');
+  const treeDigest = hash.digest('hex');
+  const file = path.join(root, marker);
+  if (stageOnly !== '1') {
+    const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+    let body;
+    try {
+      const stat = fs.fstatSync(fd);
+      if (!stat.isFile() || stat.size > 4096 || (stat.mode & 0o077) !== 0 || stat.uid !== process.getuid()) throw Error('Invalid stage receipt');
+      const buffer = Buffer.alloc(4097);
+      const size = fs.readSync(fd, buffer, 0, buffer.length, 0);
+      if (size > 4096) throw Error('Stage receipt exceeds its limit');
+      body = buffer.subarray(0, size);
+    } finally { fs.closeSync(fd); }
+    if (digest(body) !== expectedDigest) throw Error('Stage receipt digest mismatch');
+    const record = JSON.parse(body.toString('utf8'));
+    if (record.format !== 1 || record.generation !== path.basename(root) || record.component !== component || record.version !== version || record.tree_sha256 !== treeDigest)
+      throw Error('Staged release no longer matches its receipt');
+    return;
+  }
+  const protocolFile = path.join(root, component === 'runtime' ? 'RUNTIME_PROTOCOL' : 'PROTOCOL');
+  const stat = fs.lstatSync(protocolFile);
+  if (!stat.isFile() || stat.size > 33) throw Error('Invalid stage protocol metadata');
+  const match = /^(\d+)\.(\d+)$/.exec(fs.readFileSync(protocolFile, 'utf8').trim());
+  if (!match || !match.slice(1).every((part) => Number.isSafeInteger(Number(part)))) throw Error('Invalid stage protocol metadata');
+  const archiveHash = crypto.createHash('sha256');
+  await contents(archive, archiveHash);
+  const record = {
+    format: 1, component, generation: path.basename(root), version,
+    protocol: { major: Number(match[1]), minor: Number(match[2]) },
+    archive_sha256: archiveHash.digest('hex'), tree_sha256: treeDigest,
+    checksum_verified: verified === '1',
+  };
+  const body = JSON.stringify(record) + '\n';
+  const fd = fs.openSync(file, 'wx', 0o600);
+  try { fs.writeFileSync(fd, body); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+  for (const directory of [root, path.dirname(root)]) {
+    const fd = fs.openSync(directory, 'r');
+    try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+  }
+  process.stdout.write(JSON.stringify({ record, digest: digest(body) }));
+}
+main().catch((error) => { console.error(error.message); process.exitCode = 1; });
+NODE
+  ) || die "staged release verification failed"
+  if [ "$STAGE_ONLY" -eq 1 ]; then
+    STAGE="" # Durable stage survives a lost reply; it is never selected implicitly.
+    prune_cache
+    printf 'PUDDLE_HOST_STAGE %s\n' "$RECEIPT"
+    exit 0
+  fi
   if ! smoke "$DEST" >/dev/null 2>"$SMOKE_LOG"; then
-    die "installed tree fails its own --version smoke test (details: $SMOKE_LOG)"
+    die "staged tree fails its own --version smoke test (details: $SMOKE_LOG)"
   fi
   rm -f "$SMOKE_LOG"
 fi
@@ -270,8 +427,7 @@ try {
 NODE
 STAGE="" # Published generations are retained until reference-aware collection.
 
-# Keep the cache small: current download + one previous.
-ls -1t "$CACHE_DIR"/puddled-v*.tar.gz 2>/dev/null | tail -n +3 | while read -r old; do rm -f "$old"; done
+prune_cache
 
 if [ "$COMPONENT" = runtime ]; then
   say "selected runtime $VERSION for new launches (existing services unchanged)"

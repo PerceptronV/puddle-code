@@ -144,7 +144,11 @@ uses the same implementation with explicit component selection and never starts 
 restarts a service. The opt-in launcher can use `installed: true` to resolve and pin
 one complete runtime release at each launch; reject unsupported metadata before
 recording intent. Public runtime management/removal commands remain gated on the
-coordinator and reference-aware ownership checks.
+coordinator and reference-aware ownership checks. Host staging and exact activation
+reuse the embedded installer: a private receipt fingerprints the complete candidate;
+activation rechecks it and never re-downloads a substitute. Keep stage receipts
+separate from update approval and single-use operation state. Retain failed/unselected
+stages until reference-aware collection can prove they are unused.
 The remote app and new GitHub releases publish only the CLI installer at
 `/install.sh`. Install daemon/desktop components through the CLI; the embedded
 daemon bootstrap still fetches GitHub archives automatically on first local/SSH

@@ -5,7 +5,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { expect, it } from 'vitest';
-import { RUNTIME_PROTOCOL_VERSION } from '@puddle/shared';
+import { RUNTIME_PROTOCOL_VERSION, hostStageReceiptSchema } from '@puddle/shared';
 import { RuntimeClient } from '../../../src/runtime/transport/client.js';
 import { acquireRuntimeController } from '../../../src/runtime/ownership/storage.js';
 import {
@@ -35,7 +35,9 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
         '../../../../../scripts/install.sh',
       );
       const tarball = resolve(archive!);
-      await promisify(execFile)(
+      const selected = join(f.home, 'bin', component === 'daemon' ? 'current' : 'runtime-current');
+      const previous = force ? realpathSync(selected) : undefined;
+      const result = await promisify(execFile)(
         'sh',
         [
           installer,
@@ -48,16 +50,40 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
           '--no-supervisor',
           '--component',
           component,
-          ...(force ? ['--force'] : []),
+          ...(force ? ['--stage-only'] : []),
         ],
         {
           env: { ...env, PUDDLE_HOME: f.home },
           timeout: 30_000,
         },
       );
-      return realpathSync(
-        join(f.home, 'bin', component === 'daemon' ? 'current' : 'runtime-current'),
-      );
+      if (force) {
+        expect(realpathSync(selected)).toBe(previous);
+        const line = result.stdout
+          .split('\n')
+          .find((line) => line.startsWith('PUDDLE_HOST_STAGE '));
+        const receipt = hostStageReceiptSchema.parse(
+          JSON.parse(line!.slice('PUDDLE_HOST_STAGE '.length)),
+        );
+        expect(receipt.record.checksum_verified).toBe(true);
+        await promisify(execFile)(
+          'sh',
+          [
+            installer,
+            '--component',
+            component,
+            '--version',
+            version,
+            '--activate-generation',
+            receipt.record.generation,
+            '--stage-digest',
+            receipt.digest,
+            '--no-supervisor',
+          ],
+          { env: { ...env, PUDDLE_HOME: f.home }, timeout: 30_000 },
+        );
+      }
+      return realpathSync(selected);
     };
     if (archive) {
       stage = await install();
