@@ -1,4 +1,5 @@
 import { CliError } from '../types.js';
+import { randomUUID } from 'node:crypto';
 import { shellQuote } from '../transport/ssh.js';
 import { digest } from '@puddle/shared/node';
 import { connect } from 'node:net';
@@ -6,11 +7,19 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ipcPath, privatePath } from '@puddle/shared/node';
-import { controlResponseSchema, type HostInspection } from '@puddle/shared';
+import {
+  CONTROL_MAX_BYTES,
+  controlResponseSchema,
+  hostUpdateControlRequestSchema,
+  hostUpdateControlResponseSchema,
+  type HostInspection,
+  type HostUpdateReply,
+} from '@puddle/shared';
 import type { Duplex } from 'node:stream';
 import { clientHome, hostPaths } from '../paths.js';
 import type { Transport } from '../transport/transport.js';
 import { inspectHostLocally } from './host-inspection.js';
+import { inspectStoredHostUpdate } from '../host/updates/inspection.js';
 
 const staged = new WeakMap<Transport, Promise<string>>();
 async function helper(transport: Transport): Promise<string> {
@@ -71,5 +80,31 @@ export async function inspectHost(transport: Transport): Promise<HostInspection 
   } catch (err) {
     if (err instanceof CliError) throw err;
     return null;
+  }
+}
+
+/** The existing bootstrap helper can inspect durable state even when the daemon cannot answer. */
+export async function inspectHostUpdate(
+  transport: Transport,
+  id?: string,
+): Promise<HostUpdateReply> {
+  const request = hostUpdateControlRequestSchema.parse({
+    t: 'host-update',
+    request_id: randomUUID(),
+    command: { action: 'status', id },
+  });
+  if (transport.kind === 'local') return inspectStoredHostUpdate(clientHome(), request.command);
+  const result = await transport.exec(`${await helper(transport)} --updates`, {
+    stdin: JSON.stringify(request) + '\n',
+    timeoutMs: 10_000,
+  });
+  if (result.code !== 0 || Buffer.byteLength(result.stdout) > CONTROL_MAX_BYTES)
+    throw new CliError('upgrade_failed', 'Could not inspect recorded host updates');
+  try {
+    const reply = hostUpdateControlResponseSchema.parse(JSON.parse(result.stdout));
+    if (reply.request_id !== request.request_id) throw new Error('Mismatched inspection reply');
+    return reply.result;
+  } catch {
+    throw new CliError('upgrade_failed', 'Invalid recorded host update inspection');
   }
 }

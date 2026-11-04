@@ -211,6 +211,13 @@ selection, unavailable adoption and unknown worker lifetime leave recovery pendi
 The command currently requires a running daemon with protocol 25.11 or newer;
 forward recovery and recovery with the daemon stopped remain unfinished.
 
+Read-only `puddle updates [user@host] [--operation <id>]` can inspect recorded
+status when daemon authority cannot connect. The existing local/SSH bootstrap
+helper reads the private bounded operation ledger with shared schema and stage
+receipt validation. The CLI labels this as recorded state, without opening SQLite,
+starting services, issuing a lease or repeating installation. Cancellation,
+recovery and fresh adoption verification still require the live control channel.
+
 Before any activation command, the updater confirms its independent service,
 requires that it leads its own process group and durably records that group against
 the operation, dispatch and worker identities. Commands remain in that group.

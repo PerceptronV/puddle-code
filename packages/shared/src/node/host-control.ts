@@ -10,6 +10,7 @@ import {
 } from '../index.js';
 import { jsonLines, secret } from './security.js';
 import { HostUpdateRequests } from './host-updates.js';
+export { readHostUpdateLedger, validateHostUpdateLedger } from './installation/updates.js';
 
 export type AuthorityState =
   'ready' | 'upstream_expired' | 'upstream_unavailable' | 'protocol_mismatch';

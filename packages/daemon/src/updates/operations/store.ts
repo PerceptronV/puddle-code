@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import {
   HOST_UPDATE_HISTORY_LIMIT,
   HOST_UPDATE_RECORD_BYTES,
-  hostUpdateLedgerSchema,
   hostUpdateOperationSchema,
   hostUpdateTargetsSchema,
   hostUpdateTerminal,
@@ -15,12 +14,11 @@ import {
 } from '@puddle/shared';
 import {
   atomicPrivateJson,
-  digest,
   initialisePrivateHome,
   privateDirectory,
-  readPrivateJson,
   syncPrivateDirectory,
 } from '@puddle/shared/node';
+import { readHostUpdateLedger, validateHostUpdateLedger } from '@puddle/shared/node/host-control';
 import { acquireHostClaim } from '../../security/claims.js';
 
 type Reference = Pick<HostUpdateOperation, 'id' | 'revision'>;
@@ -331,28 +329,11 @@ export class HostUpdateOperations {
   }
 
   private load(): HostUpdateLedger {
-    try {
-      return this.validate(readPrivateJson(this.file, HOST_UPDATE_RECORD_BYTES));
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT')
-        return { format: 1, current: null, history: [] };
-      throw error;
-    }
-  }
-
-  private validate(value: unknown): HostUpdateLedger {
-    const ledger = hostUpdateLedgerSchema.parse(value);
-    for (const operation of [ledger.current, ...ledger.history]) {
-      for (const stage of operation?.stages ?? []) {
-        if (digest(`${JSON.stringify(stage.record)}\n`) !== stage.digest)
-          throw new Error('Host update stage receipt digest mismatch');
-      }
-    }
-    return ledger;
+    return readHostUpdateLedger(this.home);
   }
 
   private save(ledger: HostUpdateLedger): void {
-    const valid = this.validate(ledger);
+    const valid = validateHostUpdateLedger(ledger);
     if (Buffer.byteLength(JSON.stringify(valid)) > HOST_UPDATE_RECORD_BYTES)
       throw new Error('Host update ledger exceeds its limit');
     this.write(this.file, valid, { syncDirectory: true });

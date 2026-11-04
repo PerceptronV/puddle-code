@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Inspect recorded host-update status through local/SSH access when the daemon cannot connect, reusing the existing host-control helper and shared private-ledger validation without starting services or replaying updates.
+
 - Add `puddle updates --operation <id> --recover` (application 25.11) to verify completed host updates after lost replies without repeating installation or service commands. Record the updater's process group before activation; retain maintenance and recovery while its commands may still be running. Incomplete installations and recovery with the daemon stopped remain pending.
 
 - Share host-update completion checks with recovery inspection, verifying exact selected releases, fresh runtime adoption and replacement service configuration without replaying installation or service commands. Keep recovery unresolved until an explicit supported recovery action supplies the remaining worker-lifetime checks.

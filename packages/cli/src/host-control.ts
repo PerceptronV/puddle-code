@@ -1,11 +1,32 @@
 import { connect } from 'node:net';
-import { controlRequestSchema, controlResponseSchema } from '@puddle/shared';
+import {
+  controlRequestSchema,
+  controlResponseSchema,
+  hostUpdateControlRequestSchema,
+} from '@puddle/shared';
 import { ipcPath, jsonLines, privatePath } from '@puddle/shared/node';
 import { clientHome } from './lib/paths.js';
 import { inspectHostLocally } from './lib/auth/host-inspection.js';
+import { inspectStoredHostUpdate } from './lib/host/updates/inspection.js';
 
 // stdout is exclusively the bounded control protocol; diagnostics never contain credentials.
-if (process.argv.includes('--inspect')) {
+if (process.argv.length === 3 && process.argv[2] === '--updates') {
+  try {
+    let input = '';
+    for await (const chunk of process.stdin) {
+      input += String(chunk);
+      if (Buffer.byteLength(input) > 16 * 1024)
+        throw new Error('Inspection input exceeds its limit');
+    }
+    const request = hostUpdateControlRequestSchema.parse(JSON.parse(input));
+    const result = inspectStoredHostUpdate(clientHome(), request.command);
+    process.stdout.write(
+      JSON.stringify({ t: 'host-update-result', request_id: request.request_id, result }) + '\n',
+    );
+  } catch {
+    process.stdout.write(JSON.stringify({ t: 'error', code: 'rejected' }) + '\n');
+  }
+} else if (process.argv.includes('--inspect')) {
   const inspection = await inspectHostLocally(clientHome()).catch(() => ({
     t: 'error',
     code: 'rejected',

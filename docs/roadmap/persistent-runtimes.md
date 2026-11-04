@@ -31,6 +31,16 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Local/SSH `puddle updates` now falls back to the existing bootstrap helper when
+  daemon authority cannot connect. It reads the bounded private operation ledger
+  using the same schema and stage-digest validation as the daemon, without opening
+  SQLite, starting services or replaying updates. Recorded status is labelled;
+  cancellation, recovery and fresh adoption requests cannot use this fallback.
+  Built CLI fixtures cover local and simulated SSH inspection with no daemon or
+  database, and shared tests cover legacy permissions, unsafe paths and corrupt
+  evidence. Application 25.11, remote 4 and runtime 1.0 remain unchanged.
+  Offline recovery mutations and forward recovery remain required.
+
 - Application 25.11 exposes explicit completion recovery through local/SSH private
   control and `puddle updates --operation <id> --recover`. It fences the original
   dispatch under dispatch/execution claims, verifies the recorded worker group has

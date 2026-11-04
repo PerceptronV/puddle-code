@@ -187,6 +187,11 @@ Maintenance release after worker execution requires ended-group evidence too. Mi
 records, permission errors or reused groups retain the hold; never signal a stored
 group to recover it. Incomplete installations and daemon-offline recovery remain
 pending, alongside cockpit confirmation and CLI/launcher daemon upgrades.
+Read-only `puddle updates` falls back to the existing local/SSH bootstrap helper
+when authority cannot connect. Share bounded ledger validation through
+`shared/src/node/installation/updates.ts`; label recorded evidence and never use
+it for fresh adoption, cancellation or recovery. Inspection must not open SQLite
+or start a service.
 Runtime owners and update workers share `host/services.ts`; neither service may
 inherit puddled's restart or termination boundary. The packaged one-shot updater
 composes runtime-default and daemon/combined selection using its pinned copy of the

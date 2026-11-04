@@ -1,5 +1,7 @@
 import type { Command } from '../args.js';
 import { acquireAuthority } from '../../lib/auth/connection-authority.js';
+import { inspectHostUpdate } from '../../lib/auth/control-channel.js';
+import type { HostUpdateReply } from '@puddle/shared';
 import { openHostTransport } from '../../lib/transport/open.js';
 import { CliError, type Logger } from '../../lib/types.js';
 
@@ -10,10 +12,21 @@ export async function runUpdates(
 ): Promise<number> {
   const transport = await openHostTransport(command.host);
   try {
-    const authority = await acquireAuthority(transport);
+    let authority: Awaited<ReturnType<typeof acquireAuthority>> | undefined;
+    let recorded: HostUpdateReply | undefined;
     try {
-      const generation = authority.generation;
-      let result = await authority.hostUpdate({ action: 'status', id: command.operation });
+      authority = await acquireAuthority(transport);
+    } catch (error) {
+      // Shell-backed inspection can read the ledger, but cannot bypass authority
+      // for cancellation, activation or fresh adoption verification.
+      if (command.cancel || command.recover) throw error;
+      recorded = await inspectHostUpdate(transport, command.operation);
+      logger.info('Daemon connection unavailable; showing recorded update state');
+    }
+    try {
+      const generation = authority?.generation;
+      let result =
+        recorded ?? (await authority!.hostUpdate({ action: 'status', id: command.operation }));
       if (!result.ok)
         throw new CliError('upgrade_failed', `Could not inspect host updates (${result.code})`);
       if (!result.operation) {
@@ -26,6 +39,8 @@ export async function runUpdates(
         return 0;
       }
       if (command.cancel || command.recover) {
+        if (!authority)
+          throw new CliError('daemon_unreachable', 'Update actions require live host authority');
         if (!command.operation || command.operation !== result.operation.id)
           throw new CliError('bad_arguments', 'Update actions require the exact update id');
         if (authority.generation !== generation || authority.state !== 'ready')
@@ -62,7 +77,7 @@ export async function runUpdates(
       if (operation.message) logger.info(operation.message);
       return 0;
     } finally {
-      authority.close();
+      authority?.close();
     }
   } finally {
     transport.dispose();
