@@ -15,6 +15,7 @@ import type { SessionStore } from '../db/stores/sessions.js';
 import { git } from '../git/exec.js';
 import { gitMutexKey } from '../git/mutex.js';
 import type { WorktreeManager } from '../worktrees/manager.js';
+import { HostAdmission } from '../host/lifecycle/admission.js';
 
 const WATCH_DEBOUNCE_MS = 250;
 const HEALTHY_SWEEP_MS = 5 * 60_000;
@@ -43,8 +44,11 @@ export interface SessionsChangedEvent {
  */
 export class ConversationCatalogue extends EventEmitter {
   private disposed = false;
+  private paused = false;
+  private readonly admission = new HostAdmission();
   private readonly states = new Map<number, WatchState>();
   private readonly scans = new Map<number, Promise<void>>();
+  private readonly resumedScans = new Set<number>();
   private readonly repoKeys = new Map<number, Promise<string>>();
   private readonly safetyTimer: ReturnType<typeof setInterval>;
 
@@ -81,7 +85,7 @@ export class ConversationCatalogue extends EventEmitter {
 
   /** Project transition/unarchive trigger. Calls coalesce per account. */
   refreshProject(projectId: string): void {
-    if (this.disposed) return;
+    if (this.inactive) return;
     const project = this.deps.projects.get(projectId);
     if (project.archived) return;
     this.reconcileWatchers();
@@ -93,17 +97,56 @@ export class ConversationCatalogue extends EventEmitter {
 
   async dispose(): Promise<void> {
     this.disposed = true;
+    this.admission.close();
     clearInterval(this.safetyTimer);
-    for (const state of this.states.values()) this.disposeState(state);
-    this.states.clear();
+    this.stopWatchers();
     // Worktree helpers may still read SQLite after awaiting Git. Keep their
     // callers alive until those reads settle, even though late writes are fenced.
-    await Promise.all([...this.scans.values()]);
+    await this.admission.drain();
+  }
+
+  /** Watch events during a pause are recovered by a fresh scan after release. */
+  pause(): ReturnType<HostAdmission['pause']> {
+    const hold = this.admission.pause();
+    this.paused = true;
+    this.stopWatchers();
+    let released = false;
+    return {
+      drain: (timeoutMs) => hold.drain(timeoutMs),
+      release: () => {
+        if (released) return;
+        released = true;
+        hold.release();
+        this.paused = false;
+        if (this.disposed) return;
+        this.reconcileWatchers();
+        for (const accountId of this.states.keys()) {
+          if (this.resumedScans.has(accountId)) continue;
+          this.resumedScans.add(accountId);
+          // A cancelled/timed-out drain may still have an older scan running.
+          // Follow it with fresh discovery rather than coalescing away recovery.
+          void (this.scans.get(accountId) ?? Promise.resolve()).then(() => {
+            this.resumedScans.delete(accountId);
+            return this.scan(accountId, false);
+          });
+        }
+      },
+    };
+  }
+
+  private get inactive(): boolean {
+    return this.disposed || this.paused;
+  }
+
+  private stopWatchers(): void {
+    const states = [...this.states.values()];
+    this.states.clear();
+    for (const state of states) this.disposeState(state);
   }
 
   /** Accounts with no non-archived project install no watchers. */
   reconcileWatchers(): void {
-    if (this.disposed) return;
+    if (this.inactive) return;
     const eligibleProfiles = new Set(
       this.deps.projects
         .list()
@@ -139,11 +182,15 @@ export class ConversationCatalogue extends EventEmitter {
     this.states.set(account.id, state);
     for (const root of discovery.watchRoots(account)) {
       try {
-        const listener = () => this.onWatchEvent(account.id);
+        const listener = () => {
+          if (this.states.get(account.id) === state) this.onWatchEvent(account.id);
+        };
         const watcher = this.timings.watchFactory
           ? this.timings.watchFactory(root, listener)
           : watch(root, { persistent: false }, listener);
-        watcher.on('error', () => this.markWatchFailed(account.id));
+        watcher.on('error', () => {
+          if (this.states.get(account.id) === state) this.markWatchFailed(account.id);
+        });
         state.watchers.push(watcher);
       } catch {
         state.healthy = false;
@@ -184,24 +231,26 @@ export class ConversationCatalogue extends EventEmitter {
   }
 
   private scan(accountId: number, eventTriggered: boolean): Promise<void> {
-    if (this.disposed) return Promise.resolve();
+    if (this.inactive) return Promise.resolve();
     const active = this.scans.get(accountId);
     if (active) {
       if (eventTriggered) void active.finally(() => this.scheduleDeletionVerification(accountId));
       return active;
     }
-    const pending = this.scanCore(accountId, eventTriggered)
-      .catch((error) => {
-        // Catalogue upkeep is background work. A failed pass may have refreshed
-        // rows it did read, but it must never advance deletion state or become
-        // an unhandled rejection that destabilises the daemon.
-        console.warn(
-          `conversation scan failed for account ${accountId}: ${(error as Error).message}`,
-        );
-      })
-      .finally(() => {
-        if (this.scans.get(accountId) === pending) this.scans.delete(accountId);
-      });
+    const pending = this.admission.run(() =>
+      this.scanCore(accountId, eventTriggered)
+        .catch((error) => {
+          // Catalogue upkeep is background work. A failed pass may have refreshed
+          // rows it did read, but it must never advance deletion state or become
+          // an unhandled rejection that destabilises the daemon.
+          console.warn(
+            `conversation scan failed for account ${accountId}: ${(error as Error).message}`,
+          );
+        })
+        .finally(() => {
+          if (this.scans.get(accountId) === pending) this.scans.delete(accountId);
+        }),
+    );
     this.scans.set(accountId, pending);
     return pending;
   }
@@ -228,7 +277,7 @@ export class ConversationCatalogue extends EventEmitter {
 
     // Adapter discovery and Git mapping yield independently of the watcher.
     // Disposal must fence their continuations before any application-store access.
-    if (this.disposed) return;
+    if (this.inactive) return;
     const changedProjects = new Set<string>();
     const seenRefs = new Set<string>();
     for (const metadata of native) {
@@ -257,7 +306,7 @@ export class ConversationCatalogue extends EventEmitter {
       for (const projectId of await this.materialisePlacements(account, conversation, metadata)) {
         changedProjects.add(projectId);
       }
-      if (this.disposed) return;
+      if (this.inactive) return;
     }
     for (const conversationId of this.deps.conversations.completeSuccessfulScan(
       account.id,
@@ -308,7 +357,7 @@ export class ConversationCatalogue extends EventEmitter {
     metadata: NativeConversationMetadata,
   ): Promise<string[]> {
     const mapped = await this.mapCwd(metadata.cwd);
-    if (this.disposed || !mapped) return [];
+    if (this.inactive || !mapped) return [];
     const projects = this.deps.projects
       .list(account.profile_id)
       .filter((project) => !project.archived && project.repo_id === mapped.repo.id);
@@ -347,12 +396,12 @@ export class ConversationCatalogue extends EventEmitter {
     let commonKey: string;
     try {
       worktreePath = await git(['rev-parse', '--show-toplevel'], { cwd });
-      if (this.disposed) return null;
+      if (this.inactive) return null;
       commonKey = await gitMutexKey(worktreePath);
     } catch {
       return null;
     }
-    if (this.disposed) return null;
+    if (this.inactive) return null;
     for (const repo of this.deps.repos.list()) {
       const key = this.repoKeys.get(repo.id) ?? gitMutexKey(repo.path);
       this.repoKeys.set(repo.id, Promise.resolve(key));
@@ -362,13 +411,13 @@ export class ConversationCatalogue extends EventEmitter {
       } catch {
         continue;
       }
-      if (this.disposed) return null;
+      if (this.inactive) return null;
       if (repoKey !== commonKey) continue;
       const canonicalPath = this.realOf(worktreePath);
       const exposed = (await this.deps.worktrees.listWorktrees(repo)).find(
         (worktree) => this.realOf(worktree.path) === canonicalPath,
       );
-      if (this.disposed || !exposed?.branch) return null;
+      if (this.inactive || !exposed?.branch) return null;
       return {
         repo,
         worktreePath: exposed.path,

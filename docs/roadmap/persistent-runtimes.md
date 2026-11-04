@@ -27,6 +27,14 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far:
 
+- Native catalogue scans and watchers now pause reversibly. A bounded drain
+  fences late discovery/Git results; release reinstalls eligible watchers and
+  schedules one fresh scan per account, including when an earlier scan is still
+  finishing after a cancelled drain. Stale watcher callbacks cannot affect their
+  replacements. Tests verify no writes during the pause, recovery of conversations
+  changed while paused, coalesced cancellation recovery and irreversible disposal.
+  The complete host checkpoint still needs the other session/execution producers.
+
 - Runtime connection discovery, notification claims and service-registration
   cleanup now have reversible admission pauses using the same bounded drain.
   Established owners stay connected; admitted attachments finish installing their

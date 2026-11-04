@@ -33,6 +33,11 @@ results cannot create placements or mark conversations missing, and checks that
 disposal waits for in-flight helper reads without reinstalling watchers. Other
 background writers and reversible update checkpoints remain separate gates.
 
+Catalogue pause checks additionally verify a fresh post-release scan, replacement
+watcher identity, and coalesced recovery when repeated cancellations occur before
+the old discovery call settles. Paused scans do not advance missing observations;
+disposing the catalogue remains irreversible even if an old hold is released.
+
 `packages/daemon/test/runtime/controller/checkpoint.test.ts` exercises reversible
 reconciliation pauses against an isolated owner. A shell increments its in-memory
 counter while the daemon's committed cursor remains fixed, then retains the same

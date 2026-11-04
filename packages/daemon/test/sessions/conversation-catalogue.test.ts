@@ -91,10 +91,89 @@ function setup(
       };
     },
     triggerWatch: () => watchListener?.(),
+    currentWatch: () => watchListener,
   };
 }
 
 describe('ConversationCatalogue', () => {
+  it('pauses scans and restores watchers with fresh discovery after release', async () => {
+    const { f, catalogue, discover, setNative, blockNext, watchRoots, currentWatch } = setup({
+      fakeWatch: 'healthy',
+    });
+    const oldWatch = currentWatch();
+    const release = blockNext();
+    catalogue.refreshProject(f.ids.project);
+    const upsert = vi.spyOn(f.stores.conversations, 'upsert');
+    const complete = vi.spyOn(f.stores.conversations, 'completeSuccessfulScan');
+    const hold = catalogue.pause();
+    const drained = vi.fn();
+    const drain = hold.drain().then(drained);
+    try {
+      catalogue.refreshProject('absent');
+      await Promise.resolve();
+      expect(drained).not.toHaveBeenCalled();
+      release();
+      await drain;
+      expect(upsert).not.toHaveBeenCalled();
+      expect(complete).not.toHaveBeenCalled();
+      setNative([
+        {
+          ref: 'changed-during-pause',
+          cwd: f.repoPath,
+          title: 'Fresh',
+          parentRef: null,
+          createdAt: null,
+          updatedAt: null,
+        },
+      ]);
+      hold.release();
+      await waitFor(() => complete.mock.calls.length > 0);
+      expect(discover).toHaveBeenCalledTimes(2);
+      expect(f.service.list().map((session) => session.agent_session_ref)).toContain(
+        'changed-during-pause',
+      );
+      expect(currentWatch()).not.toBe(oldWatch);
+      // An old watcher callback must not schedule work on its replacement.
+      vi.useFakeTimers();
+      oldWatch?.();
+      expect(vi.getTimerCount()).toBe(0);
+      vi.useRealTimers();
+      const final = catalogue.pause();
+      await final.drain();
+      await catalogue.dispose();
+      watchRoots.mockClear();
+      final.release();
+      expect(watchRoots).not.toHaveBeenCalled();
+      expect(() => catalogue.pause()).toThrow(/maintenance/);
+    } finally {
+      vi.useRealTimers();
+      release();
+      await catalogue.dispose();
+      hold.release();
+    }
+  });
+
+  it('does not coalesce away recovery when a pause is cancelled before discovery settles', async () => {
+    const { f, catalogue, discover, blockNext } = setup({ fakeWatch: 'healthy' });
+    const release = blockNext();
+    catalogue.refreshProject(f.ids.project);
+    const hold = catalogue.pause();
+    try {
+      hold.release();
+      // Repeated cancelled pauses still need only one follow-up scan.
+      for (let attempt = 0; attempt < 5; attempt++) catalogue.pause().release();
+      await Promise.resolve();
+      expect(discover).toHaveBeenCalledOnce();
+      release();
+      await waitFor(() => discover.mock.calls.length === 2);
+      await catalogue.dispose();
+    } finally {
+      release();
+      await catalogue.dispose();
+      hold.release();
+    }
+  });
+
   it('drains discovery on disposal without writing late results or reinstalling watchers', async () => {
     const { f, catalogue, discover, setNative, blockNext, triggerWatch, watchRoots } = setup({
       fakeWatch: 'healthy',
