@@ -14,6 +14,8 @@ packages/
 │   ├── src/storage/      # capacity monitoring, admission checks and bounded runtime persistence recovery
 │   ├── src/security/     # private host control, process claims, connection leases and resource revocation
 │   ├── src/updates/operations/ # durable host-update state, exact approval/dispatch and bounded history
+│   ├── src/updates/worker/ # pinned one-shot updater, exact activation and verification
+│   ├── src/host/         # shared independent service definitions and bounded supervisor commands
 │   ├── src/agents/       # adapters own flags, cached native catalogue discovery, and exact lifecycle integration
 │   ├── src/puddlang/     # trusted TypeScript runner, bounded operations and durable run/event records
 │   ├── src/compilation/  # provider-neutral compile modes, scheduling, dependency observation, and artefacts
@@ -156,6 +158,12 @@ execution nonterminal until positively verified recovery. Claim release after a 
 never resets dispatch consumption. Shared host claims live in `security/claims.ts`;
 retain the historical `runtime-claims` directory and hashed lock filenames so older
 live owners keep excluding newer controllers.
+Runtime owners and update workers share `host/services.ts`; neither service may
+inherit puddled's restart or termination boundary. The packaged one-shot updater
+currently handles runtime-default selection only, using its pinned copy of the
+canonical installer. Exact `--select-only` activation preserves supervisor metadata;
+`--no-supervisor` remains the bootstrap choice that records `none`. Do not enable
+daemon/combined updates until quiescence, preflight and adoption verification exist.
 The remote app and new GitHub releases publish only the CLI installer at
 `/install.sh`. Install daemon/desktop components through the CLI; the embedded
 daemon bootstrap still fetches GitHub archives automatically on first local/SSH

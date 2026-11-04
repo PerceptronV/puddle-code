@@ -10,6 +10,8 @@ export interface CompilationCommand {
   env?: NodeJS.ProcessEnv;
   timeoutMs?: number;
   maxOutputBytes?: number;
+  /** Supervised one-shot workers keep children inside their service process group. */
+  detached?: boolean;
 }
 
 export interface CompilationCommandResult {
@@ -33,11 +35,11 @@ export class CompilationCommandError extends Error {
   }
 }
 
-const liveCommands = new Set<ReturnType<typeof spawn>>();
+const liveCommands = new Map<ReturnType<typeof spawn>, boolean>();
 
 /** Terminate compiler process groups when their owning daemon shuts down. */
 export function disposeCompilationCommands(): void {
-  const commands = [...liveCommands];
+  const commands = [...liveCommands.keys()];
   for (const child of commands) terminateGroup(child, 'SIGTERM');
   setTimeout(() => {
     for (const child of commands) {
@@ -57,10 +59,10 @@ export const runCompilationCommand: CompilationCommandRunner = (command) =>
     const child = spawn(command.file, command.args, {
       cwd: command.cwd,
       env: command.env,
-      detached: true,
+      detached: command.detached ?? true,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
-    liveCommands.add(child);
+    liveCommands.set(child, command.detached ?? true);
     let stdout = Buffer.alloc(0);
     let stderr = Buffer.alloc(0);
     let settled = false;
@@ -142,6 +144,10 @@ export const runCompilationCommand: CompilationCommandRunner = (command) =>
 
 function terminateGroup(child: ReturnType<typeof spawn>, signal: NodeJS.Signals): void {
   if (child.pid === undefined) return;
+  if (liveCommands.get(child) === false) {
+    child.kill(signal);
+    return;
+  }
   try {
     process.kill(-child.pid, signal);
   } catch {

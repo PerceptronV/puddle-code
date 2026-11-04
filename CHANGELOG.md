@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Package an experimental one-shot runtime updater that shares runtime supervision and the canonical installer, preserves service configuration during exact activation and verifies the selected generation before reporting completion.
+
 - Add durable host-update operation bookkeeping with exact approval/dispatch identities, bounded history and worker fencing that preserves uncertain outcomes after crashes; reuse shared host claims and private record storage.
 
 - Separate host-release staging from activation in the shared installer, binding exact generations to verified tree receipts while keeping running services untouched during staging.

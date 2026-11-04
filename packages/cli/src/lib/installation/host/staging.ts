@@ -47,7 +47,7 @@ export async function stageHostComponent(
 export async function activateHostStage(
   transport: Transport,
   receipt: HostStageReceipt,
-  options: { logger?: Logger; noSupervisor?: boolean } = {},
+  options: { logger?: Logger; noSupervisor?: boolean; selectOnly?: boolean } = {},
 ): Promise<void> {
   const { record, digest } = validatedReceipt(receipt);
   await runHostInstaller(
@@ -62,6 +62,7 @@ export async function activateHostStage(
       '--stage-digest',
       digest,
       ...(options.noSupervisor ? ['--no-supervisor'] : []),
+      ...(options.selectOnly ? ['--select-only'] : []),
     ],
     options.logger,
   );

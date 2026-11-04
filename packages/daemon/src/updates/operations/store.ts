@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { closeSync, constants, fsyncSync, openSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   HOST_UPDATE_HISTORY_LIMIT,
@@ -20,6 +19,7 @@ import {
   initialisePrivateHome,
   privateDirectory,
   readPrivateJson,
+  syncPrivateDirectory,
 } from '@puddle/shared/node';
 import { acquireHostClaim } from '../../security/claims.js';
 
@@ -56,12 +56,7 @@ export class HostUpdateOperations {
     initialisePrivateHome(home);
     privateDirectory(join(home, 'updates'));
     // Persist the new directory entry as well as each later ledger replacement.
-    const fd = openSync(home, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
-    try {
-      fsyncSync(fd);
-    } finally {
-      closeSync(fd);
-    }
+    syncPrivateDirectory(home);
     this.file = join(home, 'updates', 'operations.json');
     this.now = options.now ?? Date.now;
     this.write = options.write ?? atomicPrivateJson;

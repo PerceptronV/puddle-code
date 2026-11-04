@@ -29,6 +29,36 @@ function fixture() {
   return { ...f, hash, options: { version: '1.2.3', tarball: f.tarball } };
 }
 
+it.each(['systemd', 'launchd', 'nohup'])(
+  'selects an exact daemon stage without changing %s supervision',
+  async (kind) => {
+    const f = fixture();
+    f.install();
+    const marker = join(f.puddleHome, 'supervisor');
+    writeFileSync(marker, `${kind}\n`);
+    const receipt = await stageHostComponent(f.transport, 'daemon', f.options);
+    await activateHostStage(f.transport, receipt, { selectOnly: true });
+    expect(f.selected()).toBe(join(f.puddleHome, 'bin', 'versions', receipt.record.generation));
+    expect(readFileSync(marker, 'utf8')).toBe(`${kind}\n`);
+    expect(existsSync(join(f.env.HOME, '.config/systemd/user/puddled.service'))).toBe(false);
+    expect(existsSync(join(f.env.HOME, 'Library/LaunchAgents/dev.puddle.puddled.plist'))).toBe(
+      false,
+    );
+    expect(existsSync(join(f.puddleHome, 'puddled.pid'))).toBe(false);
+  },
+);
+
+it('refuses selection-only without exact activation or alongside supervisor flags', async () => {
+  const f = fixture();
+  expect(() => f.install('--select-only')).toThrow();
+  expect(existsSync(join(f.puddleHome, 'bin/current'))).toBe(false);
+  const receipt = await stageHostComponent(f.transport, 'daemon', f.options);
+  await expect(
+    activateHostStage(f.transport, receipt, { selectOnly: true, noSupervisor: true }),
+  ).rejects.toThrow();
+  expect(existsSync(join(f.puddleHome, 'bin/current'))).toBe(false);
+});
+
 it.each(['daemon', 'runtime'] as const)(
   'stages %s without activation and applies the exact receipt after its archive disappears',
   async (component) => {

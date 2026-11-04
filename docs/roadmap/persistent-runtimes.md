@@ -329,6 +329,26 @@ Implementation evidence so far:
   a supervisor, run the installer or verify adoption; those coordinator/worker
   integrations remain required before any production update path uses it.
 
+- The first surviving worker path now performs runtime-default installation. Host
+  archives bundle `daemon/host-update.mjs` and the same canonical installer embedded
+  in CLI/desktop. `updates/worker/` pins the job's Node, bundle and installer to one
+  immutable generation, consumes the operation before systemd/launchd dispatch and
+  retains a private job record. Lost supervisor replies never cause another start.
+  `host/services.ts` now supplies the shared literal service definitions and bounded
+  supervisor commands for both runtime owners and update workers. Neither service
+  depends on puddled's lifetime. The worker enforces a three-minute deadline and keeps
+  installer children in its service process group. It activates only the accepted
+  exact stage and verifies the selected generation, build, protocol and receipt;
+  failure or a lost activation reply retains `recovery_required` without replay or
+  speculative rollback. Exact installer `--select-only` activation preserves the
+  supervisor marker and definitions, unlike bootstrap's `--no-supervisor` option.
+  The packaged-owner test now runs the actual updater bundle for runtime repairs
+  while the original shell remains alive across controller replacement. Daemon and
+  combined updates are explicitly refused until quiescence and adoption verification
+  exist. Production coordinator/authority/preflight integration, native updater
+  lifetime acceptance and completed-job cleanup remain outstanding; this path is
+  still internal and opt-in.
+
 These are foundations for phases 0–4, not completion of those phases. Full native
 supervisor acceptance on both platforms, platform measurements, executable/native
 dependency retention, production session/turn adoption and segment routing,

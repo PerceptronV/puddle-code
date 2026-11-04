@@ -25,6 +25,7 @@ SELECTOR=current
 OTHER_SELECTOR=runtime-current
 EXECUTABLE=puddled
 STAGE_ONLY=0
+SELECT_ONLY=0
 ACTIVATE=""
 STAGE_DIGEST=""
 CHECKSUM_VERIFIED=0
@@ -48,6 +49,8 @@ usage: install.sh [--version X.Y.Z] [--tarball <path>] [--sums <path>]
   --component     select daemon (default) or the build for new runtimes;
                   runtime installation does not start or restart any service
   --stage-only    verify a fresh generation and emit its receipt without activation
+  --select-only   activate an exact stage without changing supervisor configuration
+                  or starting/restarting services (requires --activate-generation)
   --activate-generation
                   activate an exact previously staged generation, without fetching
   --stage-digest  expected staged receipt digest (requires --version and --component)
@@ -68,6 +71,7 @@ while [ $# -gt 0 ]; do
     --force) FORCE=1; shift ;;
     --component) COMPONENT="$2"; shift 2 ;;
     --stage-only) STAGE_ONLY=1; shift ;;
+    --select-only) SELECT_ONLY=1; shift ;;
     --activate-generation) ACTIVATE="$2"; shift 2 ;;
     --stage-digest) STAGE_DIGEST="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -91,6 +95,10 @@ if [ -n "$ACTIVATE" ]; then
   case "$STAGE_DIGEST" in *[!0-9a-f]*) die "invalid stage digest" ;; esac
 elif [ -n "$STAGE_DIGEST" ]; then
   die "a stage digest requires activation"
+fi
+if [ "$SELECT_ONLY" -eq 1 ]; then
+  [ -n "$ACTIVATE" ] && [ "$SUPERVISOR" -eq 1 ] && [ "$START" -eq 1 ] \
+    || die "selection-only requires exact activation without supervisor flags"
 fi
 if [ "$STAGE_ONLY" -eq 1 ]; then FORCE=1; fi
 
@@ -416,10 +424,13 @@ const quote = (s) => "'" + s.replaceAll("'", "'\\''") + "'";
 const wrapper = '#!/bin/sh\nexec ' + quote(path.join(current, executable)) + ' "$@"\n';
 const suffix = '.new-' + process.pid;
 try {
-  fs.writeFileSync(launcher + suffix, wrapper, { flag: 'wx', mode: 0o755 });
+  const fd = fs.openSync(launcher + suffix, 'wx', 0o755);
+  try { fs.writeFileSync(fd, wrapper); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
   fs.symlinkSync(path.relative(root, destination), current + suffix);
   fs.renameSync(launcher + suffix, launcher);
   fs.renameSync(current + suffix, current);
+  const directory = fs.openSync(root, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW);
+  try { fs.fsyncSync(directory); } finally { fs.closeSync(directory); }
 } finally {
   fs.rmSync(launcher + suffix, { force: true });
   fs.rmSync(current + suffix, { force: true });
@@ -428,6 +439,11 @@ NODE
 STAGE="" # Published generations are retained until reference-aware collection.
 
 prune_cache
+
+if [ "$SELECT_ONLY" -eq 1 ]; then
+  say "selected $COMPONENT $VERSION (supervisor configuration and services unchanged)"
+  exit 0
+fi
 
 if [ "$COMPONENT" = runtime ]; then
   say "selected runtime $VERSION for new launches (existing services unchanged)"

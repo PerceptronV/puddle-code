@@ -6,6 +6,9 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { expect, it } from 'vitest';
 import { RUNTIME_PROTOCOL_VERSION, hostStageReceiptSchema } from '@puddle/shared';
+import { digest } from '@puddle/shared/node';
+import { HostUpdateOperations } from '../../../src/updates/operations/store.js';
+import { startUpdateWorker } from '../../../src/updates/worker/supervisor.js';
 import { RuntimeClient } from '../../../src/runtime/transport/client.js';
 import { acquireRuntimeController } from '../../../src/runtime/ownership/storage.js';
 import {
@@ -66,6 +69,36 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
           JSON.parse(line!.slice('PUDDLE_HOST_STAGE '.length)),
         );
         expect(receipt.record.checksum_verified).toBe(true);
+        if (component === 'runtime') {
+          const store = new HostUpdateOperations(f.home);
+          let operation = store.begin([{ component, version }]).operation;
+          operation = store.staged(operation, receipt);
+          operation = store.preflight(operation, digest('isolated packaged-owner update fixture'));
+          operation = store.approve(operation, operation.preflight!);
+          const release = realpathSync(join(f.home, 'bin', 'versions', receipt.record.generation));
+          await startUpdateWorker(f.home, operation, {
+            kind: 'launchd',
+            releasePath: release,
+            // Exercise the actual packaged worker; native supervisor lifetime has a separate gate.
+            run: async () => {
+              const output = await promisify(execFile)(
+                join(release, 'bin/node'),
+                [
+                  join(release, 'daemon/host-update.mjs'),
+                  '--home',
+                  f.home,
+                  '--operation',
+                  operation.id,
+                ],
+                { env, timeout: 30_000 },
+              );
+              return { exitCode: 0, ...output };
+            },
+          });
+          expect(store.read(operation.id)?.phase).toBe('complete');
+          expect(store.read(operation.id)?.verification).toMatch(/^[a-f0-9]{64}$/);
+          return realpathSync(selected);
+        }
         await promisify(execFile)(
           'sh',
           [

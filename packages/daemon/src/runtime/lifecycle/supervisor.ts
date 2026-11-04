@@ -1,5 +1,5 @@
-import { closeSync, fsyncSync, openSync, realpathSync, writeFileSync } from 'node:fs';
-import { isAbsolute, join } from 'node:path';
+import { realpathSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   runtimeRetiredSchema,
   runtimeSupervisorSchema,
@@ -15,23 +15,13 @@ import {
 import { acquireHostClaim, HostClaimBusy } from '../../security/claims.js';
 import { readRuntimeJson, runtimeDirectory } from '../ownership/storage.js';
 
-const xml = (value: string) =>
-  value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const unit = (value: string, expandEnvironment = false) =>
-  '"' +
-  value
-    .replace(/\\/g, '\\\\')
-    .replace(/"/g, '\\"')
-    .replace(/%/g, '%%')
-    .replace(/\$/g, () => (expandEnvironment ? '$$' : '$')) +
-  '"';
-
-function validPath(value: string): void {
-  // Unit/plist commands receive literal paths, never shell fragments or line breaks.
-  // eslint-disable-next-line no-control-regex -- Host command boundary.
-  if (!isAbsolute(value) || /[\u0000-\u001f\u007f]/.test(value))
-    throw new Error('Invalid runtime executable path');
-}
+import {
+  independentServiceDefinition,
+  validServicePath,
+  writeServiceDefinition,
+  supervisorCommand,
+  dispatchService,
+} from '../../host/services.js';
 
 interface LaunchOptions {
   kind: RuntimeSupervisor['kind'];
@@ -43,41 +33,22 @@ interface LaunchOptions {
 
 /** No restart policy or dependency on puddled: each owner has its own service lifetime. */
 export function runtimeServiceDefinition(home: string, record: RuntimeSupervisor): string {
-  validPath(home);
-  validPath(record.node_path);
-  validPath(record.entry_path);
-  const args = [
-    record.node_path,
-    record.entry_path,
-    '--home',
+  validServicePath(record.node_path);
+  validServicePath(record.entry_path);
+  return independentServiceDefinition({
     home,
-    '--runtime',
-    record.identity.runtime_id,
-  ];
-  if (record.kind === 'systemd') {
-    return `[Unit]\nDescription=Puddle runtime ${record.identity.runtime_id}\n[Service]\nType=simple\nExecStart=${args.map((arg) => unit(arg, true)).join(' ')}\nWorkingDirectory=${unit(home)}\nRestart=no\nKillMode=control-group\nTimeoutStopSec=10\nUMask=0077\nStandardOutput=null\nStandardError=journal\n`;
-  }
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>Label</key><string>${xml(record.name)}</string><key>ProgramArguments</key><array>${args.map((arg) => `<string>${xml(arg)}</string>`).join('')}</array><key>WorkingDirectory</key><string>${xml(home)}</string><key>RunAtLoad</key><true/><key>KeepAlive</key><false/><key>AbandonProcessGroup</key><false/><key>Umask</key><integer>63</integer></dict></plist>\n`;
-}
-
-function writeDefinition(file: string, content: string): void {
-  const fd = openSync(file, 'wx', 0o600);
-  try {
-    writeFileSync(fd, content);
-    fsyncSync(fd);
-  } finally {
-    closeSync(fd);
-  }
-}
-
-function supervisorCommand(home: string, run: CompilationCommandRunner) {
-  return async (file: string, args: string[]) => {
-    const command = { file, args, cwd: home, timeoutMs: 15_000, maxOutputBytes: 64 * 1024 };
-    const result = await run(command);
-    if (result.exitCode !== 0)
-      throw new CompilationCommandError('Runtime supervisor command failed', command, result);
-    return result;
-  };
+    kind: record.kind,
+    name: record.name,
+    description: `Puddle runtime ${record.identity.runtime_id}`,
+    args: [
+      record.node_path,
+      record.entry_path,
+      '--home',
+      home,
+      '--runtime',
+      record.identity.runtime_id,
+    ],
+  });
 }
 
 /**
@@ -90,9 +61,9 @@ export async function startRuntimeService(
   opts: LaunchOptions,
 ): Promise<RuntimeSupervisor> {
   const directory = runtimeDirectory(home, identity.runtime_id);
-  validPath(home);
-  validPath(opts.nodePath);
-  validPath(opts.entryPath);
+  validServicePath(home);
+  validServicePath(opts.nodePath);
+  validServicePath(opts.entryPath);
   // Resolve symlinks now: updates to current/default must not change this job's code.
   const nodePath = realpathSync(opts.nodePath);
   const entryPath = realpathSync(opts.entryPath);
@@ -131,18 +102,10 @@ export async function startRuntimeService(
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     }
     const definition = join(directory, record.kind === 'systemd' ? record.name : 'runtime.plist');
-    writeDefinition(definition, runtimeServiceDefinition(home, record));
+    writeServiceDefinition(definition, runtimeServiceDefinition(home, record));
     // Persist before invoking the supervisor, so a lost reply never retries launch.
     atomicPrivateJson(file, record);
-    const run = opts.run ?? runCompilationCommand;
-    const execute = supervisorCommand(home, run);
-    if (record.kind === 'systemd') {
-      await execute('systemctl', ['--user', 'link', definition]);
-      await execute('systemctl', ['--user', 'daemon-reload']);
-      await execute('systemctl', ['--user', 'start', record.name]);
-    } else {
-      await execute('/bin/launchctl', ['bootstrap', record.domain!, definition]);
-    }
+    await dispatchService(home, record, definition, opts.run);
     record.state = 'dispatched';
     atomicPrivateJson(file, record);
     return record;

@@ -47,6 +47,7 @@ export * from './runtime/protocol.js';
 export * from './runtime/storage.js';
 export * from './installation/stage.js';
 export * from './installation/update.js';
+export * from './installation/worker.js';
 export {
   parseHostReleaseVersion,
   parseLegacyHostVersion,

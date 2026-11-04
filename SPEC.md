@@ -193,8 +193,23 @@ crash. Uncertain application/verification keeps the operation nonterminal until
 explicit verified recovery, fencing delayed starts. The record is file-and-directory
 synced through the existing private JSON writer; bounded reads fail closed. Runtime
 and update claims share `security/claims.ts`, preserving the existing `runtime-claims`
-inodes for owners launched by older builds. This store is not yet connected to host
-preflight, authority checks, supervisor dispatch, installation or adoption verification.
+inodes for owners launched by older builds. The experimental runtime-default updater
+connects that store to an independent one-shot systemd/launchd job. Its immutable
+release supplies the exact Node binary, worker bundle and canonical `install.sh`;
+the private job record is synced before supervisor dispatch and retained after an
+uncertain reply. Workers claim the accepted dispatch once, activate its exact stage,
+and verify the actual selected generation and executable metadata before completion.
+Installer `--select-only` requires exact activation and preserves the recorded
+supervisor, unit/plist files and running services. Selector publication is directory
+synced. Worker children remain in the service process group, and worker lifetime is
+bounded to three minutes. Runtime owners and workers share `host/services.ts` for
+literal supervisor definitions and bounded dispatch commands.
+
+This worker currently refuses daemon or combined updates: quiescence, all-owner
+compatibility/impact preflight, host-authority integration and post-restart adoption
+verification remain required. The existing CLI/launcher/cockpit update paths do not
+yet use it. Completed job registrations and pinned release trees remain retained
+until verified service cleanup and reference-aware collection are implemented.
 
 The runtime agent state reports sidecar roots and hidden ports, and retains
 interactive fallback when installed-version checks fail. Codex lifecycle cleanup

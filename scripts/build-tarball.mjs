@@ -21,6 +21,8 @@
  *   └── daemon/
  *       ├── puddled.mjs    # esbuild bundle (daemon + shared + hono + ws + zod + yazl)
  *       ├── puddler.mjs    # independent runtime owner, from the same bundle configuration
+ *       ├── host-update.mjs # bounded one-shot updater, using the canonical installer
+ *       ├── install.sh     # the same embedded host installer used by CLI/desktop
  *       ├── host-control.mjs # private control relay and host-only legacy inspection
  *       └── node_modules/  # pruned node-pty, better-sqlite3, bindings, file-uri-to-path
  */
@@ -92,13 +94,14 @@ function log(message) {
   console.log(`build-tarball: ${message}`);
 }
 
-/* 1 — bundle both host entry points against the same pinned native packages. */
+/* 1 — bundle host processes against the same pinned native packages. */
 async function bundleHostProcesses() {
   mkdirSync(join(stage, 'daemon'), { recursive: true });
   await build({
     entryPoints: {
       puddled: join(repoRoot, 'packages/daemon/src/index.ts'),
       puddler: join(repoRoot, 'packages/daemon/src/runtime/index.ts'),
+      'host-update': join(repoRoot, 'packages/daemon/src/updates/worker/index.ts'),
     },
     outdir: join(stage, 'daemon'),
     outExtension: { '.js': '.mjs' },
@@ -130,7 +133,7 @@ async function bundleHostProcesses() {
     minify: false,
     logLevel: 'warning',
   });
-  for (const name of ['puddled', 'puddler'])
+  for (const name of ['puddled', 'puddler', 'host-update'])
     log(
       `bundled ${name} (${(statSync(join(stage, 'daemon', `${name}.mjs`)).size / 1e6).toFixed(1)} MB)`,
     );
@@ -227,6 +230,7 @@ function writeMetadata() {
   writeFileSync(join(stage, 'CONNECTOR_PROTOCOL'), `${connectorMatch[1]}\n`);
   writeFileSync(join(stage, 'RUNTIME_PROTOCOL'), `${runtimeProtocol}\n`);
   cpSync(join(repoRoot, 'LICENSE'), join(stage, 'LICENSE'));
+  cpSync(join(repoRoot, 'scripts/install.sh'), join(stage, 'daemon/install.sh'));
 }
 
 /* 5 — smoke test: a broken bundle, missing banner, or wrong-ABI native dies here. */
@@ -242,6 +246,12 @@ function smokeTest() {
   const runtime = execFileSync(join(stage, 'puddler'), ['--version'], { encoding: 'utf8' });
   if (runtime.trim() !== `puddler ${version} (runtime protocol ${runtimeProtocol})`)
     fail('runtime smoke test failed');
+  const updater = execFileSync(
+    join(stage, 'bin/node'),
+    [join(stage, 'daemon/host-update.mjs'), '--version'],
+    { encoding: 'utf8', timeout: 5000, maxBuffer: 64 * 1024 },
+  );
+  if (updater.trim() !== `puddle host updater ${version}`) fail('updater smoke test failed');
   log(`smoke test passed: ${out.trim()}; ${connector.trim()}; ${runtime.trim()}`);
 }
 

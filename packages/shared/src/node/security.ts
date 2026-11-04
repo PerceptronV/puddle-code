@@ -86,19 +86,20 @@ export function atomicPrivateJson(
   }
   try {
     renameSync(tmp, path);
-    if (options.syncDirectory) {
-      const directory = openSync(
-        dirname(path),
-        constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
-      );
-      try {
-        fsyncSync(directory);
-      } finally {
-        closeSync(directory);
-      }
-    }
+    if (options.syncDirectory) syncPrivateDirectory(dirname(path));
   } finally {
     rmSync(tmp, { force: true });
+  }
+}
+
+/** Persist newly created child entries before dispatching an independent process. */
+export function syncPrivateDirectory(path: string): void {
+  privatePath(path, true);
+  const fd = openSync(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+  try {
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
   }
 }
 

@@ -511,6 +511,22 @@ child executes no installer or daemon. The runtime/operation regression run pass
 opt-in tests skipped in that run. These tests establish bookkeeping and fencing,
 not supervisor lifetime, host-impact authorisation or successful installed updates.
 
+The worker suite under `test/updates/worker/` exercises exact activation through the
+canonical installer, real generation selection and receipt verification, changed
+candidates, false success output, lost activation replies and consumed dispatches.
+Supervisor tests verify independent systemd/launchd definitions, pinned executables,
+bounded lifetime, single dispatch and recovery fencing. These command-runner fixtures
+do not prove native supervisor lifetime. The packaged-owner test above additionally
+executes the actual archive's `host-update.mjs` for runtime-default repairs while the
+original shell keeps its PID and variable; its supervisor dispatch remains a fixture.
+Use a freshly built archive containing the updater and embedded installer for that
+test. Daemon replacement, actual updater survival across native daemon/connector
+restarts, host-impact approval and completed-job cleanup remain release gates.
+The installation/updater and targeted runtime/storage/compilation regression runs
+passed 148 tests across 18 files on macOS 26.5.2/Node v22.21.1. The host archive,
+CLI and desktop bundles built successfully; archive smoke checks include the passive
+updater version command. Loopback upgrade fixtures require socket permissions.
+
 ## Remaining release gates
 
 
