@@ -2,11 +2,15 @@
 
 The private daemon/runtime contract for the standard 0.4.0 backend is versioned separately in
 [`RUNTIME_PROTOCOL.md`](RUNTIME_PROTOCOL.md). Adding that contract does not change
-this application's protocol or the remote protocol. Default session creation still uses daemon-owned runtimes. An explicit daemon
-composition option can launch terminal (including code execution) and interactive/headless
-agent owners, with durable private programme-turn mappings. Installed/default rollout
-remains gated. Existing REST/WS shapes are
-unchanged.
+this application's protocol or the remote protocol. Default daemon composition uses
+independent terminal (including code execution) and interactive/headless agent owners,
+with durable private programme-turn mappings. Detached/attached host lifetimes and
+transactional daemon upgrades remain release gates. Existing REST/WS shapes are unchanged.
+
+Private host-update shutdown checkpoints live in `installation/checkpoint.ts`. They
+record accepted dispatch identity, the outgoing controller and database schema, and
+bounded runtime identities/builds/committed cursors. They are internal update evidence,
+not a new network protocol, client approval or a replacement-adoption receipt.
 
 Protocol 25.7 adds bounded local/SSH host-update requests and correlated replies on
 the existing private host-control connection. Existing open/renew/token semantics

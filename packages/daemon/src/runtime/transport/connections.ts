@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import type { RuntimeBinding, RuntimeStore } from '../../db/stores/runtimes.js';
-import type { RuntimeIdentity } from '@puddle/shared';
+import type { RuntimeIdentity, RuntimeControllerRecord } from '@puddle/shared';
 import { connectRuntimeOwner } from '../ownership/discovery.js';
 import type { RuntimeClient } from './client.js';
 import { acquireRuntimeController } from '../ownership/storage.js';
@@ -29,6 +29,7 @@ export class RuntimeConnections extends EventEmitter {
   private readonly unavailable = new Set<string>();
   private connecting: Promise<void> | null = null;
   private closed = false;
+  private released = false;
   private paused = false;
   private readonly admission = new HostAdmission();
   private retryTimer: NodeJS.Timeout | null = null;
@@ -168,7 +169,7 @@ export class RuntimeConnections extends EventEmitter {
     };
   }
 
-  async close(): Promise<void> {
+  async close(beforeRelease?: (controller: RuntimeControllerRecord) => void): Promise<void> {
     this.closed = true;
     this.admission.close();
     if (this.retryTimer) clearTimeout(this.retryTimer);
@@ -176,6 +177,12 @@ export class RuntimeConnections extends EventEmitter {
     this.clients.clear();
     // A timeout does not establish that admitted callbacks stopped using SQLite.
     await this.admission.drain();
+    if (this.released) {
+      if (beforeRelease) throw new Error('Runtime controller ownership was already released');
+      return;
+    }
+    beforeRelease?.({ ...this.controller.record });
     this.controller.release();
+    this.released = true;
   }
 }

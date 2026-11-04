@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Persist bounded runtime ownership checkpoints for accepted daemon updates after shutdown drains and SQLite flush, retaining controller ownership on publication failure and preserving exact runtime builds and committed cursors.
+
 - Make independent runtimes the daemon launch default, sharing service-manager discovery with update preflight and refusing unavailable supervision without falling back to daemon-owned sessions. Keep the legacy backend only as an internal test override.
 
 - Add local/SSH `install runtime` and `upgrade runtime` through the shared host-update coordinator, plus `updates` inspection and exact pre-dispatch cancellation. Runtime software changes preserve running builds; bare upgrades include an installed runtime default. Keep component transports open until installation finishes.

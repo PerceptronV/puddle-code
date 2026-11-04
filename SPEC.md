@@ -202,6 +202,16 @@ SQLite. This does not yet checkpoint background writers or enable daemon-update
 activation; the coordinator continues to refuse that operation.
 If runtime connection drainage fails, shutdown retains SQLite and controller
 ownership until process exit; a deadline does not establish that callbacks stopped.
+The internal shutdown path can now accept an exact already-dispatched daemon update
+reference. After all writers and runtime discovery drain, it flushes the SQLite WAL
+and writes a private checkpoint under `updates/checkpoints/<operation>.json` before
+releasing controller ownership. It records the outgoing controller, schema version,
+exact runtime launch identities, pinned builds and committed event cursors, including
+owners which ended during drainage. The record is bounded to 4,096 owners and 8 MiB,
+contains no provider environment or credentials, and cannot overwrite an existing
+checkpoint. Invalidated dispatch or failed persistence leaves shutdown incomplete
+and retains the controller and database. This supplies shutdown evidence only;
+worker activation and replacement adoption verification remain unimplemented.
 
 The [persistent runtimes roadmap](docs/roadmap/persistent-runtimes.md) specifies
 one independent `puddler` process per live runtime and cockpit-managed host

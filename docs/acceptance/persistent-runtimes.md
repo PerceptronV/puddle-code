@@ -10,6 +10,15 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+`packages/daemon/test/updates/checkpoints/store.test.ts` covers accepted dispatch
+identity, bounded inventories, immutable private checkpoint files, cursor/schema
+evidence and final exits during drainage. A real SQLite reader blocks the WAL
+flush and must prevent checkpoint publication until released. A failed checkpoint callback retains
+the controller claim. An isolated daemon holds client work across shutdown,
+publishes only after drainage and preserves a shell owner for replacement adoption.
+This is shutdown evidence; it does not establish update activation or verified
+replacement receipt handling.
+
 `packages/daemon/test/runtime/lifecycle/default-launch.test.ts` starts isolated
 daemons without a runtime override. Missing supervision and missing installation
 must refuse launch without a daemon PTY or prepared owner. A held service-manager

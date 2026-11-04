@@ -63,12 +63,14 @@ export class RuntimeStore {
     );
   }
 
-  live(): RuntimeBinding[] {
+  live(limit = Number.MAX_SAFE_INTEGER): RuntimeBinding[] {
+    if (!Number.isSafeInteger(limit) || limit < 1)
+      throw new Error('Invalid runtime inventory limit');
     return this.db
       .prepare(
-        "SELECT * FROM runtime_bindings WHERE state IN ('prepared', 'running') ORDER BY created_at, runtime_id",
+        "SELECT * FROM runtime_bindings WHERE state IN ('prepared', 'running') ORDER BY created_at, runtime_id LIMIT ?",
       )
-      .all() as RuntimeBinding[];
+      .all(limit) as RuntimeBinding[];
   }
 
   unstartedProgrammeSessions(): Set<string> {

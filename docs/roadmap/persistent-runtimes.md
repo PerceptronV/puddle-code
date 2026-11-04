@@ -29,6 +29,19 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far:
 
+- Accepted daemon operations can now request a durable checkpoint through the
+  internal shutdown path. Existing shutdown drains stop application writers and
+  discovery; the final callback flushes SQLite and records exact launch identities,
+  pinned builds and committed cursors before controller release. Owners which exit
+  during drainage remain in the checkpoint. Dispatch is rechecked at publication;
+  failed publication retains controller ownership and SQLite. The record is bounded
+  to 4,096 owners/8 MiB and never includes launch secrets or environment. An isolated
+  daemon test holds admitted work across shutdown, then publishes the checkpoint
+  and adopts the same surviving owner. The public coordinator still refuses daemon
+  activation: worker dispatch, final authority/impact checks, replacement verification
+  and recovery remain required. Existing preflight also bounds SQL inventory reads
+  before sorting or hashing.
+
 - Production daemon composition now selects the installed independent runtime by
   default, without an environment flag or browser setting. Launches and update
   preflight reuse the same host service-manager inspection. A missing manager or

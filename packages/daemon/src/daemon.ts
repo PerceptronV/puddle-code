@@ -84,6 +84,8 @@ import { WorktreeManager } from './worktrees/manager.js';
 import { WsGateway } from './ws/gateway.js';
 import { PuddlangService } from './puddlang/service.js';
 import { PuddlangStore } from './puddlang/store.js';
+import type { HostUpdateCheckpointReference } from '@puddle/shared';
+import { HostUpdateCheckpointWriter } from './updates/checkpoints/store.js';
 
 export interface DaemonOptions {
   /** Overrides PUDDLE_HOME / ~/.puddle (tests). */
@@ -106,7 +108,8 @@ export interface RunningDaemon {
   service: SessionService;
   updateInspection: HostUpdateInspection;
   admission: HostAdmission;
-  stop(): Promise<void>;
+  /** Update evidence is accepted only for an already-dispatched daemon operation. */
+  stop(update?: HostUpdateCheckpointReference): Promise<void>;
 }
 
 /**
@@ -570,6 +573,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     failedStartup.push(() => retention.dispose());
 
     let stopping: Promise<void> | null = null;
+    let shutdownUpdate: string | undefined;
     return {
       port,
       authority,
@@ -577,8 +581,25 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       service,
       updateInspection,
       admission,
-      stop() {
-        if (stopping) return stopping;
+      stop(update) {
+        const updateKey =
+          update && `${update.operation_id}:${update.dispatch_id}:${update.preflight}`;
+        if (stopping) {
+          if (update && updateKey !== shutdownUpdate)
+            return Promise.reject(new Error('Daemon is already stopping for another reason'));
+          return stopping;
+        }
+        let checkpoint: HostUpdateCheckpointWriter | undefined;
+        try {
+          if (update)
+            checkpoint = new HostUpdateCheckpointWriter(
+              { home: paths.home, db, runtimes, version: opts.version ?? '0.0.0' },
+              update,
+            );
+        } catch (error) {
+          return Promise.reject(error);
+        }
+        shutdownUpdate = updateKey;
         // Close admission synchronously, before any asynchronous cleanup yields.
         admission.close();
         upkeep.beginShutdown();
@@ -646,7 +667,9 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
           // A failed discovery drain can still have callbacks using SQLite.
           // Retain both the controller claim and database until process exit;
           // a timeout is not proof that those callbacks have stopped.
-          await runtimeConnections.close();
+          await runtimeConnections.close(
+            checkpoint && ((controller) => checkpoint.commit(controller)),
+          );
           db.close();
         })();
         return stopping;

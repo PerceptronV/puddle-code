@@ -82,7 +82,11 @@ export class HostUpdateCompatibility {
       result.blockers.push({ code: 'runtime_default_incompatible', target: 'runtime' });
     // Changing the default runtime does not adopt or interrupt existing owners.
     if (!replacesDaemon) return result;
-    const bindings = this.deps.runtimes.live();
+    const bindings = this.deps.runtimes.live(4097);
+    if (bindings.length > 4096) {
+      result.blockers.push({ code: 'runtime_inventory_unknown', target: 'inventory' });
+      return result;
+    }
     const inventory = (rows: RuntimeBinding[]) =>
       JSON.stringify(
         [...rows]
@@ -104,10 +108,6 @@ export class HostUpdateCompatibility {
       );
     const before = inventory(bindings);
     result.inventory = digest(before);
-    if (bindings.length > 4096) {
-      result.blockers.push({ code: 'runtime_inventory_unknown', target: 'inventory' });
-      return result;
-    }
     const known = new Set(bindings.map((binding) => binding.runtime_id));
     await this.inspectInventory(known, result.blockers);
     let index = 0;
@@ -151,7 +151,8 @@ export class HostUpdateCompatibility {
       }
     };
     await Promise.all(Array.from({ length: Math.min(4, bindings.length) }, inspect));
-    if (inventory(this.deps.runtimes.live()) !== before)
+    const after = this.deps.runtimes.live(4097);
+    if (after.length > 4096 || inventory(after) !== before)
       result.blockers.push({ code: 'runtime_inventory_unknown', target: 'inventory' });
     result.owners.sort((a, b) => a.id.localeCompare(b.id));
     result.blockers.sort((a, b) => `${a.code}:${a.target}`.localeCompare(`${b.code}:${b.target}`));
